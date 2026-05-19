@@ -81,13 +81,15 @@ RUN_ID=$("$HELPER" begin-run <entry_point> [--issue-num N])
 echo "[<entry>] run started: $RUN_ID"
 ```
 
-`<entry_point>` = §7 매트릭스 행의 `entry_point` 컬럼 (예: `impl`, `impl-loop`, `issue-report`, `product-plan`). begin-run 동작: sid auto-detect + run_id 발급 + `live.json.active_runs` 슬롯 + `.by-pid-current-run/{cc_pid}` 박음.
+`<entry_point>` = §7 매트릭스 행의 `entry_point` 컬럼 (예: `impl`, `issue-report`, `architect-loop`, `ux`). begin-run 동작: sid auto-detect + run_id 발급 + `live.json.active_runs` 슬롯 + `.by-pid-current-run/{cc_pid}` 박음.
+
+> `/impl-loop` 은 자기 entry_point 가 없다 — `impl-task-loop × N` driver 이므로 각 task 가 독립 `begin-run impl` … `end-run` run 1개씩 (N task = N run = N review.md). 자세히 = [`orchestration.md`](orchestration.md) §4.8 + [`commands/impl-loop.md`](../../commands/impl-loop.md).
 
 ---
 
 ## 2. Step 1 — TaskCreate
 
-[`orchestration.md`](orchestration.md) §4 행의 `task_list` 컬럼대로 일괄 등록. `/impl-loop` inner 의 경우 prefix `b<i>.` 의무 (DCN-CHG-30-12).
+[`orchestration.md`](orchestration.md) §4 행의 `task_list` 컬럼대로 일괄 등록. **단 `/impl-loop` 아래의 `impl` run 은 TaskCreate skip** — task 리스트는 impl-loop skill 이 진행 뷰로 일괄 관리한다 ([`commands/impl-loop.md`](../../commands/impl-loop.md) §진행 뷰). impl run 은 이미 생성된 sub-step task 를 TaskUpdate 만 한다.
 
 ```
 TaskCreate("<agent>: <mode 또는 짧은 설명>")
@@ -133,7 +135,7 @@ begin-step stdout 에 `[INSIGHTS: <agent>/<mode>]` 섹션이 있으면 Agent pro
 평가: PASS / REDO_SAME / REDO_BACK / REDO_DIFF — <사유>
 ```
 
-- `<task-id>` = standalone 시 step 이름, `/impl-loop` 안 시 `b<i>.<agent>`
+- `<task-id>` = step 이름 (`/impl-loop` 아래선 진행 뷰 sub-step task — [`commands/impl-loop.md`](../../commands/impl-loop.md) §진행 뷰)
 - `▎` 글자 (U+258E) 그대로 — 사용자 인식 패턴
 - 5줄 미만 / 12줄 초과 = 룰 위반
 

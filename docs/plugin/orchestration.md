@@ -314,7 +314,7 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 
 ### 4.8 다중 task chain (`impl-loop`)
 
-`/impl-loop` = `impl-task-loop` × N. outer task `impl-<i>: <task>` + inner sub-task `b<i>.<agent>` (DCN-CHG-30-12). default = 4 sub-task (test-engineer / engineer / code-validator / pr-reviewer), fallback = 5 (module-architect 선두 추가). 각 task clean → 자동 7a + 다음 task. caveat → 멈춤 + 사용자 위임 (Step 2.5 — `commands/impl-loop.md` 참조).
+`/impl-loop` = `impl-task-loop` × N. **각 task = 독립 `impl` run** (`begin-run impl` … `end-run`) — N task = N run = N run dir = N review.md (task별 `/run-review` 격리). `/impl-loop` 자체는 run 을 갖지 않는 driver. default = 4 step (test-engineer / engineer / code-validator / pr-reviewer), fallback = 5 (module-architect 선두 추가). 각 task clean → 다음 task. caveat → 멈춤 + 사용자 위임. task 리스트 진행 뷰 = `commands/impl-loop.md` §진행 뷰.
 
 ---
 
