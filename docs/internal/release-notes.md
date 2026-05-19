@@ -4,6 +4,32 @@
 
 ---
 
+## v0.2.26 (2026-05-19)
+
+**커밋 범위**: `v0.2.25..v0.2.26`
+**핵심 변경**: `/impl-loop` run 격리 복원 + 사람 친화 진행 뷰 (#443)
+
+### 1. run 격리 복원 (#443 작업 1)
+
+v0.2.25 의 in-session `/impl-loop` 이 모든 task 를 한 run 에 묶어 `run_review` 가 거대 review.md 1개를 내던 결함 수정. (`run_review` 는 run 단위 `--run-id` 동작 — 헤드리스 시절엔 task=자식세션=run 이라 자연 격리됐던 것이 in-session 복귀 시 옛 `b<i>.` 한-run 모델 잔재를 베껴 깨졌음.)
+
+- `commands/impl-loop.md` — 각 task = 독립 `begin-run impl` … `end-run` run. **N task = N run = N run dir = N review.md** (task별 로그·`/run-review` 격리)
+- `loop-procedure.md` §1.2 / §2 / §3.1 + `orchestration.md §4.8` — 옛 `b<i>.` 한-run 모델 잔재 정리
+- `/impl-loop` 은 자기 run 이 없는 `impl-task-loop × N` driver — `orchestration.md §4.1` 카탈로그 정설 정합
+
+### 2. 사람 친화 진행 뷰 (#443 작업 2)
+
+`commands/impl-loop.md` `## 진행 뷰` 섹션 신규 — task 리스트가 주욱 펼쳐져 현재 페이즈 식별이 어렵던 문제 해소:
+
+- 완료 task 는 한 줄 / 현재 task 만 sub-step 을 `ㄴ` 들여쓰기로 펼침 / 예정 task 는 대기 줄
+- Task 시스템 = 평탄 리스트 (부모/자식 필드 X) + 생성순 표시 (샘플 task 렌더 실측 검증) → 중간삽입 불가 우회로 task 전환마다 [현재 헤더 + sub-step + 남은 헤더] rebuild
+
+### 업데이트
+
+- `claude plugin update dcness@dcness` 한 번 → v0.2.26 적용
+
+---
+
 ## v0.2.25 (2026-05-19)
 
 **커밋 범위**: `v0.2.24..v0.2.25`
