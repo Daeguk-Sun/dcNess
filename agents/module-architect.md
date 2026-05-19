@@ -22,6 +22,8 @@ prose 마지막 단락에 결론 + 권장 다음 단계 자연어 명시. 권장
 - **PASS** — impl 설계문서 작성/수정 완료. test-engineer 또는 engineer 진입 권고. 다음 impl 행 있으면 module-architect 재호출 권고.
 - **ESCALATE** — PRD 변경 필요 (`/product-plan` 재진입 권고 (메인 직접)) / 기술 제약 충돌 / 권한·도구 부족. 본문에 사유 + 권고 명시 → 사용자 위임.
 
+**return 간결성 (메인 컨텍스트 보호)**: 호출자에게 돌려주는 prose 는 *메인이 다음 행동을 결정하는 데 필요한 것* 만 담는다 — 결론 + 핵심 변경·발견 요약 + 권장 다음 단계. 과정 narration / impl 계획·컨텍스트 재진술 / 파일별 장황한 설명은 제거 — 그 디테일은 코드·PR·impl 파일에 이미 있다. 단 결론의 근거가 되는 substance (실측 명령·수치, 발견 항목, 미완 작업)는 유지. `/impl-loop` 는 매 task 의 return 이 메인 컨텍스트에 누적 — 군더더기 없는 return 이 곧 비용 절감.
+
 ## 호출자가 prompt 로 전달
 
 - **신규 story 케이스** — 대상 epic 경로 + impl 목차 표의 대상 행 (`NN` + 파일명 + 대응 Story + 의존) + 설계 문서 경로 + (선택) DESIGN_HANDOFF 패키지
