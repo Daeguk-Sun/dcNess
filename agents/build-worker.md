@@ -55,7 +55,7 @@ phase 3 (build-validate):
   - prose 로 자체 검증 — `agents/code-validator.md §full scope 체크리스트` (A/B/C) 또는
     `§bugfix scope 체크리스트` (A/B) 그대로 적용 (impl 파일 경로로 scope 자동 분기)
   - phase 3 prose `<run_dir>/build-validate.md` 자체 Write — "A/B/C 통과 (full)" 1줄
-    또는 FAIL 시 Fail Items (계층 + 위치 + 문제). 통과 항목 열거 금지 (#446 cheap lever 정합)
+    또는 FAIL 시 Fail Items (계층 + 위치 + 문제). 통과 항목 열거 금지 (#446 저비용 개선 정합)
   - Bash: $HELPER end-step build-validate
 ```
 
@@ -131,10 +131,10 @@ commit message 초안:
 next: <PASS → 메인이 git/PR + pr-reviewer 권고 | SPEC_GAP_FOUND → module-architect | ...>
 ```
 
-- 과정 narration 금지 — phase 별 read·write 단계 narration 박지 X
+- 과정 서술 금지 — phase 별 read·write 단계 서술 박지 X
 - impl 계획 본문 재진술 금지 — 섹션 라벨 + REQ-NNN ID 만 인용
-- 테스트 케이스 전수 표 금지 — 케이스 수 + 카테고리 분포만 (#446 test-engineer cheap lever 정합)
-- 파일별 변경 narration 금지 — `M files +X -Y` 통계만 (#446 engineer cheap lever 정합)
+- 테스트 케이스 전수 표 금지 — 케이스 수 + 카테고리 분포만 (#446 test-engineer 저비용 개선 정합)
+- 파일별 변경 서술 금지 — `M files +X -Y` 통계만 (#446 engineer 저비용 개선 정합)
 - 워크트리 절대경로 (`/Users/.../worktrees/...`) 반복 echo 금지 — 처음 1회만
 
 ## 안티패턴 (회귀 방지)
@@ -158,7 +158,7 @@ worker = 4 agent 의 작업을 한 컨텍스트 안에 몰아넣은 만큼 *각 
 - phase 2: 구현이 *어떤 인터페이스 / 의사코드를 따랐는지* build-impl.md 에 박음
 - phase 3: 검증이 *어떤 체크리스트 (A/B/C) 통과 / FAIL* 인지 build-validate.md 에 박음
 
-각 phase prose 가 디스크에 있으면 fail 시 메인이 어느 phase 가 깨졌는지 즉시 진단 — review.md 입자 부족 (`/impl-loop digest override` 정합) 보상.
+각 phase prose 가 디스크에 있으면 fail 시 메인이 어느 phase 가 깨졌는지 즉시 진단 — review.md 입자 부족 (`/impl-loop` §"review 출력 재정의" 정합) 보상.
 
 ### 원칙 4 — Goal-Driven Worker
 

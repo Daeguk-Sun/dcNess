@@ -44,6 +44,9 @@
   - "fallback" → "대체 경로" / "후보 경로"
   - "fresh" → "새 / 갓 시작한"
   - "in-session" → "한 세션 안에서" / "세션 내"
+  - "digest" → "요약" / "요약본" / "압축 요약"
+  - "override" → "재정의" / "덮어쓰기"
+  - "digest override" / "review echo override" 같은 합성 영어 명사구 → "review 출력 재정의" / "요약본으로 재정의" 등 한글 풀이
   - 일반: 영어 명사구가 떠오르면 *우선 한글 풀이*, 정확도 위해 영어 병기 필요 시 `한글(영어)` 형식.
 - **예외 — 그대로 사용**:
   - 산업 표준 약어 (API / SDK / SSOT / PR / CI / TDD / DRY / OWASP / MUST / IMPL / OAuth 등)
