@@ -134,7 +134,7 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 | loop | entry_point | task_list (Step 1) | advance | clean_enum | expected_steps |
 |------|-------------|--------------------|---------|------------|----------------|
 | `architect-loop` (§4.2) | `architect-loop` (사용자 명시) | ux-architect:UX_FLOW (self-check) / system-architect (self-check) / architecture-validator / module-architect × K | `UX_FLOW_READY` → `PASS` → `PASS` → `PASS × K` | advance 동일 | 3 + K (K = system-architect impl 목차 행 수) |
-| `impl-task-loop` (§4.3) | `impl` | (default) test-engineer / engineer:IMPL / code-validator / pr-reviewer · (fallback: impl 부재 시 module-architect 선두 추가) | `PASS` → `IMPL_DONE` → `PASS` → `PASS` | advance 동일 | 4 (default) / 5 (fallback) |
+| `impl-task-loop` (§4.3) | `impl` | (default, /impl 단발) test-engineer / engineer:IMPL / code-validator / pr-reviewer · (fallback: impl 부재 시 module-architect 선두 추가) · (Hybrid A, /impl-loop 한정) build-worker / pr-reviewer | `PASS` → `IMPL_DONE` → `PASS` → `PASS` (default) · `PASS` → `PASS` (Hybrid A) | advance 동일 | 4 (default) / 5 (fallback) / 2 (Hybrid A) |
 | `impl-ui-design-loop` (§4.4) | `impl` (UI 감지) | (default) designer / 사용자 PICK / test-engineer / engineer:IMPL / code-validator / pr-reviewer · (fallback: impl 부재 시 module-architect 선두 추가) | `PASS` → 사용자 PICK → `PASS` → `IMPL_DONE` → `PASS` → `PASS` | advance 동일 | 6 (default) / 7 (fallback) |
 | `qa-triage` (§4.5) | `issue-report` | qa | (5 enum 모두 — 라우팅 추천) | advance 개념 X | 1 |
 | `ux-design-stage` (§4.6) | `ux` | ux-architect:UX_FLOW / designer / 사용자 PICK | `UX_FLOW_READY` → `PASS` → 사용자 PICK | advance 동일 | 3 |
@@ -187,14 +187,17 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 - 버그픽스 (의도 vs 실제 격차 수정) → `fix/<task-slug>`
 - 메인 Claude 가 task 의 ## 변경 요약 / engineer prose 보고 결정.
 
-**진입 모드 — default vs fallback**:
+**진입 모드 — default vs fallback vs Hybrid A**:
 
 | 모드 | 조건 | 시작 step | 합계 step |
 |---|---|---|---|
-| default | task 경로 매치 + 정식 위치 (`docs/milestones/v\d+/epics/epic-\d+-*/impl/\d+-*.md`) 파일 존재 | test-engineer | 4 |
-| fallback | 위 매치 실패 (즉석 task / direct-impl-loop / impl 부재) | module-architect | 5 |
+| default (`/impl` 단발) | task 경로 매치 + 정식 위치 (`docs/milestones/v\d+/epics/epic-\d+-*/impl/\d+-*.md`) 파일 존재 | test-engineer | 4 |
+| fallback (`/impl` 단발) | 위 매치 실패 (즉석 task / direct-impl-loop / impl 부재) | module-architect | 5 |
+| Hybrid A (`/impl-loop` 한정) | `/impl-loop` driver 진입 + 정식 위치 파일 존재 | build-worker | 2 |
 
 **근거**: architect-loop §4.2 의 Step 4 (module-architect × K) 가 정식 위치 impl 파일 본문 detail 까지 채움. 즉 정식 경로 + 파일 존재 = 본문 detail 보장 + architecture-validator PASS 통과물. module-architect 재호출 redundant. 위치 자체가 도장.
+
+**Hybrid A 분기 근거 (#446)**: `/impl-loop` 의 N task 누적 메인 컨텍스트가 cost storm (jajang 실측 ~280 turn/task) → build-worker 1 호출 안에 test+impl+self-validate 3 phase 통합 + pr-reviewer 만 메인 별도 turn. 결과 메인 turn/task ~5-8 (목표 ~85% 감소). `/impl` 단발 호출에는 적용 X — rigor 우선, 4-agent 모델 유지. 진입점 차이 = 의도된 티어링. 자세히 = §4.8 + [`commands/impl-loop.md`](../../commands/impl-loop.md) + [`agents/build-worker.md`](../../agents/build-worker.md).
 
 **commit 구조** ([`loop-procedure.md`](loop-procedure.md) §3.4):
 | stage | 시점 | 내용 |
@@ -213,6 +216,14 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 | 5 | pr-reviewer | `PASS,FAIL` |
 
 **fallback 모드**: 위 step 앞에 `module-architect` (allowed_enums = `PASS,SPEC_GAP_FOUND,ESCALATE`) 1 step 추가.
+
+**Hybrid A 모드 (`/impl-loop` 한정) Step 별 allowed_enums**:
+| step | agent[:mode] | allowed_enums |
+|---|---|---|
+| 2 | build-worker | `PASS,SPEC_GAP_FOUND,TESTS_FAIL,IMPLEMENTATION_ESCALATE` |
+| 3 | pr-reviewer | `PASS,FAIL` |
+
+> build-worker 의 phase 1-3 (build-test / build-impl / build-validate) 는 worker 1 호출 안에서 helper Bash 의 begin-step / end-step 으로 자체 staging. 메인 step 카운트는 build-worker = 1 step, pr-reviewer = 1 step 으로 2 step. git/PR 생성·머지는 메인이 별도 turn 으로 wrap.
 
 **분기**:
 - `IMPL_PARTIAL` → engineer IMPL 재호출 (split < 3, 새 context window — DCN-30-34). 초과 시 `IMPLEMENTATION_ESCALATE` (작업 분해 부족 — system-architect 재진입 권고 / impl 목차 분할 재검토).
@@ -314,7 +325,17 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 
 ### 4.8 다중 task chain (`impl-loop`)
 
-`/impl-loop` = `impl-task-loop` × N. **각 task = 독립 `impl` run** (`begin-run impl` … `end-run`) — N task = N run = N run dir = N review.md (task별 `/run-review` 격리). `/impl-loop` 자체는 run 을 갖지 않는 driver. default = 4 step (test-engineer / engineer / code-validator / pr-reviewer), fallback = 5 (module-architect 선두 추가). 각 task clean → 다음 task. caveat → 멈춤 + 사용자 위임. task 리스트 진행 뷰 = `commands/impl-loop.md` §진행 뷰.
+`/impl-loop` = `impl-task-loop` × N. **각 task = 독립 `impl` run** (`begin-run impl` … `end-run`) — N task = N run = N run dir = N review.md (task별 `/run-review` 격리). `/impl-loop` 자체는 run 을 갖지 않는 driver.
+
+**모드 분기 (#446 Hybrid A)**:
+- **Hybrid A (default for `/impl-loop`)** — 2 step (build-worker / pr-reviewer). build-worker 1 호출 안에 test + impl + self-validate 3 phase 통합 → 메인 turn 수 흡수. 정식 위치 impl 파일 존재 시 채택.
+- **fallback (impl 부재)** — 4-agent 그대로 (test-engineer / engineer / code-validator / pr-reviewer) + module-architect 선두 추가 (총 5 step). build-worker 는 정식 impl plan 의무 — 부재 시 사용 X.
+
+각 task clean → 다음 task. caveat → 멈춤 + 사용자 위임. task 리스트 진행 뷰 = `commands/impl-loop.md` §진행 뷰.
+
+**세션 청킹 권장 (`/impl-loop` 한정, #446)**: 15-20 task/세션 권장. 그 이상이면 사용자가 명시적으로 `/compact` 또는 새 세션 진입 — 메인 컨텍스트 cache_read 비용 곡선 (~5-min TTL 후 절벽) 회피. resume = `live.json` + `current_step` 자동 (compaction 안전망, [`commands/impl-loop.md §compaction 중 진행`](../../commands/impl-loop.md)). 세션 청킹은 의도된 멈춤 — 진행 뷰 의 `✓` 헤더 보고 사용자가 자연 멈춤 결정.
+
+> `/impl` 단발 호출은 default 4-agent 또는 fallback 5-agent — Hybrid A 미적용. rigor 우선 티어링 (§4.3 참조).
 
 ---
 

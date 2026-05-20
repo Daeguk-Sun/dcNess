@@ -111,6 +111,17 @@ merge 직전 코드 품질 + 보안 코드 패턴 심사:
 - **알려진 이슈** → 후속 없음.
 - **분류 불가 (escalate)** → 사용자 위임.
 
+### 1.12 build-worker (`/impl-loop` 한정)
+
+`/impl-loop` driver 의 task 1개의 build 단계 (test + impl + self-validate) 통합 worker. `/impl` 단발 호출에서는 미사용 (4-agent 모델 유지). 4 결과:
+
+- **PASS** → 메인이 git/PR 생성 → pr-reviewer Agent 호출.
+- **SPEC_GAP_FOUND** → module-architect (보강 케이스, cycle ≤ 2).
+- **TESTS_FAIL** → engineer 재시도 또는 사용자 위임 (worker 내부 attempt 한도 3 이미 소진).
+- **IMPLEMENTATION_ESCALATE** → 사용자 위임.
+
+권한 경계 = engineer + test-engineer 합집합. git/PR/pr-reviewer 호출 금지 (메인 위임). 자세히 = [`agents/build-worker.md`](../../agents/build-worker.md).
+
 ---
 
 ## 2. Retry 한도
@@ -125,6 +136,7 @@ merge 직전 코드 품질 + 보안 코드 패턴 심사:
 | code-validator FAIL → engineer 재진입 | engineer attempt 흡수 | engineer attempt 한도 (3) 도달 시 escalate |
 | architecture-validator FAIL → system-architect 재진입 | 2 cycle | 사용자 위임 |
 | pr-reviewer FAIL → POLISH 라운드 | 2 | 사용자 escalate |
+| build-worker phase 2 (TESTS_FAIL → src retry, `/impl-loop` 한정) | 3 (worker 내부) | `TESTS_FAIL` emit → 메인이 engineer 재호출 또는 사용자 위임 |
 | ESCALATE 누적 (동일 fail_type) | 2 | module-architect (보강 케이스) 자동 호출 |
 
 `.attempts.json` = fail_type → 카운터 매핑 (예: `{"code_validation": 2, "spec_gap": 1}`). force-retry 시 리셋.
@@ -161,6 +173,7 @@ merge 직전 코드 품질 + 보안 코드 패턴 심사:
 | test-engineer | `src/__tests__/**`, `*.test.*`, `*.spec.*` |
 | ux-architect | `docs/ux-flow.md` |
 | qa | (Issue tracker mutation 만, 파일 X) |
+| build-worker (`/impl-loop` 한정) | engineer + test-engineer 합집합 (`src/**`, `src/__tests__/**`, `*.test.*`, `*.spec.*`) + phase prose `<run_dir>/build-{test,impl,validate}.md` |
 | code-validator / architecture-validator / pr-reviewer / plan-reviewer | (없음 — 판정 전용) |
 
 ### 4.2 Read 금지 경로 (READ_DENY_MATRIX)
