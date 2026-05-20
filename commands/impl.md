@@ -41,11 +41,11 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
 
 ## 후속 라우팅
 - 본 loop clean → 자동 commit/PR (branch prefix = orchestration §4.3 decision rule: feat/chore/fix)
-- caveat → 사용자 결정 (수동 7b)
+- 주의사항 → 사용자 결정 (수동 7b)
 - multi-task chain 필요 → `/impl-loop`
 
 ## 사전 read (lazy — 필요시만, #400)
-정상 흐름은 본 skill 본문 + 인용된 docs §번호 만으로 진행. 본문에 박힌 catastrophic / Pre-flight gate / agent boundary 룰이 1차. *룰 모호 / 분기 발생* 시에만 `docs/plugin/loop-procedure.md` / `orchestration.md` §4.3 / `handoff-matrix.md` / `issue-lifecycle.md` 부분 read (grep + offset/limit). 통째 read 폐기 — 메인 cache_read baseline 감축.
+정상 흐름은 본 skill 본문 + 인용된 docs §번호 만으로 진행. 본문에 박힌 catastrophic / Pre-flight gate / agent boundary 룰이 1차. *룰 모호 / 분기 발생* 시에만 `docs/plugin/loop-procedure.md` / `orchestration.md` §4.3 / `handoff-matrix.md` / `issue-lifecycle.md` 부분 read (grep + offset/limit). 통째 read 폐기 — 메인 cache_read 기준치 감축.
 
 ## 워크트리 (기본 켜짐)
 Step 0 진입 시 자동 `EnterWorktree(name="impl-{ts_short}")`. 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시에만 건너뜀. 자세히 = [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1.1.
@@ -143,7 +143,7 @@ PR merge 직후 *반드시* 다음 1개 명령 실행 (issue #396 — 단일화)
 # 예: "$HELPER" insight engineer-IMPL "🚨 stub 파일로 TDD guard 우회 — 절대 반복 X"
 ```
 
-- agent+mode 별 FIFO 10 cap. 다음 run begin-step 자동 inject.
+- agent+mode 별 FIFO 10 한도. 다음 run begin-step 자동 inject.
 - 미박음 = noop (자율, 강제 X). 박으면 다음 run 학습 환류.
 
 근거: §3.4 PR merge 자동 완료 후 메인이 review echo 를 skip 하는 회귀가 반복 발생. hook 미진입 영역이므로 본문 강제로 보완 + 자율 인사이트 매커니즘 안내.

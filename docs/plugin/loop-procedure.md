@@ -129,7 +129,7 @@ begin-step stdout 에 `[INSIGHTS: <agent>/<mode>]` 섹션이 있으면 Agent pro
 
 ▎ <prose 의 ## 결론 / ## Summary / ## 변경 요약 섹션 본문 5~12줄>
 ▎ <섹션 부재 시 prose 첫 5~10줄 fallback>
-▎ <필요 시 추가 본문 인용 — 12줄 cap>
+▎ <필요 시 추가 본문 인용 — 12줄 상한>
 
 결론: <ENUM>
 평가: PASS / REDO_SAME / REDO_BACK / REDO_DIFF — <사유>
@@ -284,7 +284,7 @@ TaskUpdate(<기존 task>, completed)
 | `TESTS_FAIL` / code-validator FAIL | 재시도 (≤3) | 동일 |
 | `IMPL_PARTIAL` | engineer 재호출 (split ≤ 3) | 동일 — 새 context window |
 | `FAIL` | 사용자 위임 | engineer POLISH (cycle ≤2) |
-| Step 7 caveat (NICE TO HAVE only, MUST FIX 0) | 사용자 위임 | 7a 자동 |
+| Step 7 주의사항 (NICE TO HAVE only, MUST FIX 0) | 사용자 위임 | 7a 자동 |
 | catastrophic 룰 | hard safety | hard safety (yolo 우회 X) |
 
 ```bash
@@ -400,7 +400,7 @@ end-run 안전망 (`session_state.py:1001`) 이 자동으로 `finalize-run --aut
    - unstaged + untracked ≤ 10
    - submodule 변경 없음
 
-clean 아니면 **7b (caveat)**.
+clean 아니면 **7b (주의사항)**.
 
 ### 5.4 7a — Clean 자동 commit/PR
 
@@ -435,17 +435,17 @@ fi
 
 worktree 진입 시 squash 흡수 검사 후 `ExitWorktree(action="<keep|remove>")` (guidelines §7).
 
-### 5.5 7b — Caveat 확인
+### 5.5 7b — 주의사항 확인
 
 ```
-[<entry>] 완료 (caveat)
+[<entry>] 완료 (주의사항)
 - run_id: $RUN_ID · 변경: <src/ 변경 파일>
 - prose 종이: .claude/harness-state/.sessions/{sid}/runs/$RUN_ID/
 
-⚠️ Caveat: <has_ambiguous / has_must_fix / unexpected enum / sensitive untracked>
+⚠️ 주의사항: <has_ambiguous / has_must_fix / unexpected enum / sensitive untracked>
 
-📝 메모리 candidate (#149):
-- <caveat 발생 사유의 회고 — feedback / project type 후보. 다음 세션 회귀 방지용>
+📝 메모리 후보 (#149):
+- <주의사항 발생 사유의 회고 — feedback / project type 후보. 다음 세션 회귀 방지용>
 - <waste finding 의 반복 패턴 (예: ECHO_VIOLATION 2회+, MISSING_SELF_VERIFY 등)>
 - <pr-reviewer NICE TO HAVE 중 자주 등장하는 항목>
 - 후보 없음 시 "없음" 1줄
@@ -455,9 +455,9 @@ worktree 진입 시 squash 흡수 검사 후 `ExitWorktree(action="<keep|remove>
 
 worktree 처리도 사용자 결정.
 
-**메모리 candidate 의무 (#149)**: caveat 발생 = 회귀 방지 신호. prose 본문에만 적고 끝내면 다음 세션에서 동일 caveat 재발. 메인은 위 양식의 *📝 메모리 candidate* 섹션을 *반드시* emit (없으면 "없음" 명시) — 사용자가 저장 여부 결정. 양식 없이 7b 보고 종료 = 룰 위반. 7a (clean) 도 review report 의 waste finding 이 있으면 같은 양식 적용.
+**메모리 후보 의무 (#149)**: 주의사항 발생 = 회귀 방지 신호. prose 본문에만 적고 끝내면 다음 세션에서 동일 주의사항 재발. 메인은 위 양식의 *📝 메모리 후보* 섹션을 *반드시* emit (없으면 "없음" 명시) — 사용자가 저장 여부 결정. 양식 없이 7b 보고 종료 = 룰 위반. 7a (clean) 도 review report 의 waste finding 이 있으면 같은 양식 적용.
 
-**yolo 시**: `has_must_fix == false` + enum unexpected 만 (FAIL 1건 등) → 자동 7a 시도. `has_must_fix` 또는 `has_ambiguous` true → yolo 도 7b. yolo 라도 메모리 candidate 양식은 emit (사용자 위임 X — 본인이 저장 후 진행).
+**yolo 시**: `has_must_fix == false` + enum unexpected 만 (FAIL 1건 등) → 자동 7a 시도. `has_must_fix` 또는 `has_ambiguous` true → yolo 도 7b. yolo 라도 메모리 후보 양식은 emit (사용자 위임 X — 본인이 저장 후 진행).
 
 ---
 
@@ -472,7 +472,7 @@ worktree 처리도 사용자 결정.
 
 skip 금지 — 사용자 보고 전 1회 의무.
 
-**세션에 직접 출력 — MUST**: Bash stdout 은 CC UI 에서 collapsed (펼쳐야 보임). 리뷰 결과를 **텍스트 응답으로 그대로 복사**해서 출력한다.
+**세션에 직접 출력 — MUST**: Bash stdout 은 CC UI 에서 접힌 상태로 표시 (펼쳐야 보임). 리뷰 결과를 **텍스트 응답으로 그대로 복사**해서 출력한다.
 - 섹션 생략 / 축약 / 재배치 금지
 - 자체 해석 ("핵심은~", "정리하면~") 본문 사이 삽입 금지
 

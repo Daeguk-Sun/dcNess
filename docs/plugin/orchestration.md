@@ -331,7 +331,7 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 - **Hybrid A (default for `/impl-loop`)** — 2 step (build-worker / pr-reviewer). build-worker 1 호출 안에 test + impl + self-validate 3 phase 통합 → 메인 turn 수 흡수. 정식 위치 impl 파일 존재 시 채택.
 - **fallback (impl 부재)** — 4-agent 그대로 (test-engineer / engineer / code-validator / pr-reviewer) + module-architect 선두 추가 (총 5 step). build-worker 는 정식 impl plan 의무 — 부재 시 사용 X.
 
-각 task clean → 다음 task. caveat → 멈춤 + 사용자 위임. task 리스트 진행 뷰 = `commands/impl-loop.md` §진행 뷰.
+각 task clean → 다음 task. 주의사항 → 멈춤 + 사용자 위임. task 리스트 진행 뷰 = `commands/impl-loop.md` §진행 뷰.
 
 **세션 청킹 권장 (`/impl-loop` 한정, #446)**: 15-20 task/세션 권장. 그 이상이면 사용자가 명시적으로 `/compact` 또는 새 세션 진입 — 메인 컨텍스트 cache_read 비용 곡선 (~5-min TTL 후 절벽) 회피. resume = `live.json` + `current_step` 자동 (compaction 안전망, [`commands/impl-loop.md §compaction 중 진행`](../../commands/impl-loop.md)). 세션 청킹은 의도된 멈춤 — 진행 뷰 의 `✓` 헤더 보고 사용자가 자연 멈춤 결정.
 
