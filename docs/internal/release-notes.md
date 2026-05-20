@@ -4,6 +4,52 @@
 
 ---
 
+## v0.2.27 (2026-05-20)
+
+**커밋 범위**: `v0.2.26..v0.2.27`
+**핵심 변경**: `/impl-loop` 메인 컨텍스트 누적 감축 — cheap levers (#446 Step 1) + 측정 자동화 도구. Hybrid A 설계 (#446 Step 2) 머지되었으나 본 릴리즈 한정 *활성화 보류* (실측 미완).
+
+### 1. cheap levers — agent 5종 return 가이드 구체화 + impl-loop digest override (#446 Step 1, PR #447)
+
+jajang 실측 baseline ~280 turn/task 의 post-Agent 누적 주범 = review.md verbatim echo + agent 본문 narration. 두 갈래로 즉시 절감:
+
+- **agent 5종 return 가이드 구체화** — `agents/{test-engineer,engineer,code-validator,pr-reviewer,module-architect}.md` 의 기존 generic return-terseness (#440) 옆에 산출물 구조별 *구체화* 단락 추가
+  - test-engineer: 테스트 케이스 표 전수 입력 금지 (케이스 수 + 카테고리 + RED/GREEN + SPEC_GAP 만)
+  - engineer: 파일별 narration → `M files +X -Y` 통계 + 의도 1-2 문장
+  - code-validator: A/B/C 통과 항목 열거 금지 ("A/B/C 통과" 1줄)
+  - pr-reviewer: A~F 체크리스트 본문 재진술 금지 (카테고리 라벨 + (파일:라인) + 1-2 문장)
+  - module-architect: impl 본문 재진술 금지 (섹션 라벨 + 의도)
+  - 공통: 워크트리 절대경로 반복 echo 금지
+- **`commands/impl-loop.md` driver-scope review echo override** — verbatim review.md 는 디스크 (`<run_dir>/review.md`) 그대로, 메인 컨텍스트는 5줄 digest (task 결론 / agent 결과 / finding / PR·이슈 / next)
+- `/impl` 단발 호출은 verbatim MUST 그대로 — rigor 우선 (`commands/impl.md` 무변경)
+
+### 2. 측정 스크립트 — scripts/measure_main_turns.py (PR #449)
+
+Claude Code 세션 JSONL 파싱 → 메인 assistant turn 분포 (tool / text-only / thinking-only) + tool histogram + Agent 호출 분포 출력. stdlib only, text/JSON 출력 + 디렉토리 일괄. #446 본문 baseline (8af5fb4d=203 / 1518caa0=349) 정확 재현 검증. Step 3 프로토타입 gate + Step 6 사후 검증에 재사용.
+
+### 3. Hybrid A 설계 — build-worker + 2-step (#446 Step 2, PR #448) — *본 릴리즈 한정 활성화 보류*
+
+`/impl-loop` 메인 turn ~85-90% 감축 목적의 Hybrid A 모드 설계 완료:
+- `agents/build-worker.md` 신규 — `/impl-loop` 한정 통합 worker (test + impl + self-validate 3 phase, helper Bash self-call, TDD GUARD 정합, git/PR/pr-reviewer 호출 메인 위임)
+- `docs/plugin/{handoff-matrix,orchestration,loop-procedure}.md` 동기 (§4.3 진입 모드 3분기 / §4.8 Hybrid A 모드 / §3.2.1 worker phase prose 자체 Write)
+
+**본 릴리즈 한정 활성화 보류 — `commands/impl-loop.md` 의 `/impl-loop` 진입점은 4-agent 시퀀스 유지**. 이유 = #446 Step 3 프로토타입 (jajang 1-task 실측 gate) 미완. 실측 검증 후 별 PR 로 활성화. spec 은 머지된 채 (활성화 대기). 자세히 = [`commands/impl-loop.md`](../../commands/impl-loop.md) §"Hybrid A 모드 (활성화 대기, #446)".
+
+### 4. #345 흡수 권고
+
+[#345](https://github.com/alruminum/dcNess/issues/345) (`/impl-loop` 메인 컨텍스트 누적 — fresh-process-per-task driver 필요) 코멘트 박음 — fresh-process 제안은 6/15 Agent SDK 과금 분리로 폐기 (#438 정합), 본질 문제는 #446 트랙이 in-session Hybrid A 로 흡수. close 권고.
+
+### 5. /impl 무변경 보장
+
+전 릴리즈에서 `commands/impl.md` 손 안 댐 (#446 hard constraint). `/impl` 단발 호출 = 4-agent 모델 그대로 (rigor 우선 의도된 티어링).
+
+### 업데이트
+
+- `claude plugin update dcness@dcness` 한 번 → v0.2.27 적용
+- cheap lever + measure script 즉시 효과. Hybrid A 활성화 = Step 3 gate 통과 후 별 PR (예상 v0.2.28+)
+
+---
+
 ## v0.2.26 (2026-05-19)
 
 **커밋 범위**: `v0.2.25..v0.2.26`
