@@ -199,6 +199,34 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 
 **안티패턴** (begin/end-step 쌍 누락): ❌ engineer commit/PR 후 git status 확인 → end-step skip / ❌ FAIL 후 POLISH Agent 호출 시 begin/end-step 미포함 / ❌ end-step 보류 중 다음 step 진입으로 망각 / ❌ task 간 보고 작성 후 begin-step 재호출 누락.
 
+### 3.2.1 build-worker phase prose (`/impl-loop` Hybrid A 한정)
+
+build-worker 는 한 sub-agent 호출 안에서 3 phase 를 직렬 진행한다 — phase 별 begin-step / end-step 을 worker 가 helper Bash 로 직접 호출 (sub-agent nesting 아님 — Python script 실행). 메인 step 카운트 (orchestration §4.3 Hybrid A 표) 는 build-worker = 1 step / pr-reviewer = 1 step, **phase 는 그 안의 sub-step** 이다.
+
+```bash
+# build-worker sub-agent 안에서 (메인이 호출한 1 step 안)
+"$HELPER" begin-step build-test
+# ... 테스트 작성 + RED 확인
+"$HELPER" end-step   build-test
+"$HELPER" begin-step build-impl
+# ... src 작성 + GREEN 확인
+"$HELPER" end-step   build-impl
+"$HELPER" begin-step build-validate
+# ... self-validate prose
+"$HELPER" end-step   build-validate
+```
+
+prose 파일 자동 명명 (§3.2 규약 그대로):
+- `<run_dir>/build-test.md` — phase 1 산출물 (테스트 케이스 표 + RED 확인)
+- `<run_dir>/build-impl.md` — phase 2 산출물 (변경 통계 + GREEN 확인)
+- `<run_dir>/build-validate.md` — phase 3 산출물 (A/B/C 통과 또는 Fail Items)
+
+worker 가 phase 별 prose 를 *자체 Write* 한다 — PostToolUse hook 의 자동 staging 은 sub-agent 내부 Bash 출력엔 도달 X (메인 turn 의 PostToolUse 만 발화). worker 가 명시적으로 `<run_dir>/build-{test,impl,validate}.md` 에 Write 의무.
+
+> `<run_dir>` 경로는 helper begin-run impl 가 emit 한 RUN_ID 로 계산. worker 가 호출자 prompt 로 RUN_ID 또는 run_dir 절대경로를 전달받음 (메인 책임).
+
+phase prose 입자는 review.md digest override (`commands/impl-loop.md §review echo override`) 의 보상 메커니즘 — Hybrid A 에서 메인 컨텍스트 echo 는 5줄 digest 지만 phase 별 prose 가 디스크에 남으면 `/run-review` 진단 시 phase 별 입자로 분석 가능.
+
 ### 3.3 ENUM 분기
 
 | ENUM | 처리 |
