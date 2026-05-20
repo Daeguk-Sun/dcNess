@@ -33,38 +33,9 @@
 
 ### 0.4 작성 스타일 — 쉬운 한글 + § 표시 명확히
 
-- 외래어 (Caveats / Disclaimer / Note / TBD 등) 보다는 **명확한 한글** 사용. (예: "Caveats" → "주의사항" / "TBD" → "추후 결정")
-- 영어 약어가 더 정확한 곳(API / SDK / SSOT / PR / CI 등 산업 표준어)은 그대로 사용.
-- **영어 명사구·줄임말 함부로 사용 금지** — 사용자 응답 / PR 본문 / 커밋 메시지 / 문서 본문 모두 적용. 예시 대체:
-  - "cheap lever" → "저비용 절감 수단" / "가벼운 개선책"
-  - "knob" → "조작 지점" / "조정값"
-  - "follow-up" → "후속" / "후속 작업"
-  - "wrap-up" → "마무리"
-  - "polish" → "다듬기" (일반 문맥)
-  - "fallback" → "대체 경로" / "후보 경로"
-  - "fresh" → "새 / 갓 시작한"
-  - "in-session" → "한 세션 안에서" / "세션 내"
-  - "digest" → "요약" / "요약본" / "압축 요약"
-  - "override" → "재정의" / "덮어쓰기"
-  - "digest override" / "review echo override" 같은 합성 영어 명사구 → "review 출력 재정의" / "요약본으로 재정의" 등 한글 풀이
-  - "caveat" / "Caveat" → "주의사항" / "주의 신호"
-  - "baseline" → "기준선" / "기준치" / "측정 기준"
-  - "substance" → "실증 근거" / "근거 내용"
-  - "cap" (한도 의미) → "상한" / "한도" (`<머리>cap` 모자류 / `cap_*` 코드 식별자는 그대로)
-  - "rebuild" → "다시 그리기" / "재생성"
-  - "collapse" → "접기" / "한 줄로 모음"
-  - "narration" → "서술"
-  - "per-task" → "task별"
-  - "spawn" (자식 프로세스 생성 의미) → "생성" / "자식 프로세스 띄움"
-  - "verbatim" → "원본 그대로"
-  - "rigor" → "엄정성" / "엄격성"
-  - "hard constraint" → "엄격 제약"
-  - 일반: 영어 명사구가 떠오르면 *우선 한글 풀이*, 정확도 위해 영어 병기 필요 시 `한글(영어)` 형식.
-- **예외 — 그대로 사용**:
-  - 산업 표준 약어 (API / SDK / SSOT / PR / CI / TDD / DRY / OWASP / MUST / IMPL / OAuth 등)
-  - dcness 코드 식별자·spec 키워드 (`POLISH` / `IMPL` / `SPEC_GAP_FOUND` / `PASS` / `FAIL` / `ESCALATE` / `Hybrid A` 등 agent·orchestration 에 박힌 정형 이름)
-  - 도구·라이브러리·인물 이름 (Claude / Anthropic / GitHub / vitest 등)
-  - 이슈·PR 본문 직접 인용
+- **외래어·영어 명사구·줄임말 사용 금지** — 사용자 응답 / PR 본문 / 커밋 메시지 / 문서 본문 모두 적용. 한글로 표현 가능하면 한글 우선. 정확도 위해 영어 병기 필요 시 `한글(영어)` 형식.
+- **예외 — 그대로 사용**: 산업 표준 약어 (API / SDK / SSOT / PR / CI 등), dcness 코드 식별자·spec 키워드 (`POLISH` / `IMPL` / `PASS` / `FAIL` / `ESCALATE` 등 agent·orchestration 정형 이름), 도구·라이브러리·인물 이름 (Claude / Anthropic / GitHub 등), 이슈·PR 본문 직접 인용.
+- **행동 의무 — 매 turn 자가 검열**: 영어 단어가 떠오를 때마다 박기 *전* 한글 풀이 시도. 사용자 지적 받기 전 *스스로* 검열. 룰 위반 시 본 §0.4 에 어휘 카탈로그 / 예시 추가 X — 행동 시정으로 대응. 본 §0.4 는 룰이지 어휘 목록이 아니다.
 - **`§` 기호는 명확하게 사용** — `§N`, `§N.M` 형식. 어디서 인용했는지 **반드시 명시** (예: `CLAUDE.md §2` / `orchestration.md §2.1`).
 - 단순히 "위 섹션" / "아래 참조" 같은 모호한 표현 X — 항상 `파일명 §번호` 박을 것.
 
