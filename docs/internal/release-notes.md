@@ -4,6 +4,50 @@
 
 ---
 
+## v0.2.30 (2026-05-22)
+
+**커밋 범위**: `v0.2.29..v0.2.30`
+**핵심 변경**: #457 산출물 양식 단순화 + CLAUDE.md 자기 검열 룰 제거. 메인 Claude 응답 속도 / 자연스러운 대화 톤 회복 + impl.md 에 사용자 review 영역 (What/Why/ADR) 분리 + sub-agent return 산출물 경로 백틱 의무.
+
+### 무엇이 바뀌나
+
+1. **impl.md 양식에 What/Why/ADR 3 섹션 추가** (PR #464) — 사용자가 module-architect 산출물을 보고 *뭘 만들지 / 왜 / 결정 근거* 한눈에 잡을 수 있게 평이한 한국어 서사로 분리. engineer 가 보는 영역 (`Scope` / `인터페이스` / `수용 기준`) 은 효율 양식 그대로. 경량 케이스 (버그픽스 등) 는 What/Why 1~2 줄 압축 + ADR 생략 가능.
+2. **4 agent return prose 에 산출물 경로 백틱 의무** (PR #465) — `engineer` / `pr-reviewer` / `code-validator` / `test-engineer` 가 자기 산출물 (impl.md / 코드 / PR / 이슈 / review.md) 경로를 백틱으로 감싼 형태로 박는다. 메인 Claude 가 그대로 사용자 응답에 echo 하므로 사용자가 한 번 클릭으로 도달.
+3. **CLAUDE.md §0.4 자기 검열 룰 제거** (PR #462, dcness self) — 외래어 / 영어 명사구 / 줄임말 금지 + 매 turn 자가 검열 + § 표시 강제 룰이 메인 응답 속도 ↓ + 톤 부자연 + *룰 만족 자체에 인지 자원 소모* 의 직접 원인. 사용자 프로필 각인 한 줄로 단순화 (`사용자는 한국어가 가장 익숙한 시니어 엔지니어`).
+
+### 왜 바뀌나
+
+jajang 2026-05-21 product-plan 세션에서 사용자가 며칠 헛수고한 사단이 있었다 — "허밍한 사람 목소리와 음악 합성이 가능한가" 라는 *가능성 확인* 질문을 했는데, 며칠간 Claude 가 한 작업은 "허밍 보컬 어떻게 튜닝할까" 였다. 가능성을 묻는 질문이 어떻게 좁은 디테일 작업으로 바뀌었는지 추적해보니, 사용자가 산출물 본문 (PRD / stories.md / impl/*.md) 을 *읽지 않고 넘긴* 게 핵심 원인.
+
+안 읽은 이유 둘:
+- 양식이 어려워 부담 (서사 부재, 데이터 / 약어 폭격)
+- 산출물 경로가 클릭 가능 형태로 안 박혀 Finder 로 직접 찾아가야 했음
+
+본 릴리즈는 이 두 마찰을 동시에 줄인다.
+
+### 외부 활성 프로젝트 영향
+
+- **agents/ 변경** (PR #464 / #465) 은 plug-in 본체 → `claude plugin update dcness@dcness` 시 자동 적용
+- **CLAUDE.md §0.4 변경** (PR #462) 은 dcness self 작업 지침. 외부 활성 프로젝트의 CLAUDE.md 는 `/init-dcness` 가 만드는 별도 파일이라 자동 변경 X. 외부 프로젝트에서도 같은 결로 정리 원하면 사용자가 자기 CLAUDE.md 의 자기 검열 섹션 직접 갱신 (각인 한 줄로 단순화 권장)
+
+### 보류 항목
+
+- **처방 2-(2) 메인 출력 훅 강제** — sub-agent 거치지 않고 메인이 직접 가공한 정보 (이슈 # / PR # / 파일 경로) 의 백틱 강제. 위험도 / 오탐 평가 더 필요. PR #465 (처방 2-(1)) 만으로 실효 부족 시 별 이슈로 재진입.
+- **메인 대화 톤 감사** (별 트랙) — 메인 응답 *대화 톤 자체* 도 정보 나열 방향으로 기울어진 부작용. 룰 시스템 누적 추정. 룰 추가 자체가 코끼리 함정일 수 있어 신중. 본 릴리즈 PR #462 가 부분 처방.
+
+### #446 Hybrid A 트랙
+
+v0.2.29 (build-worker 가드 + git 통합 스크립트) 적용 후 외부 활성 프로젝트 재측정 미완. 본 릴리즈는 build-worker 본문 직접 변경 없음. 단 return 경로 백틱 의무는 build-worker 도 같은 결 (engineer + pr-reviewer 흡수) 이라 *간접* 적용됨.
+
+### 머지된 PR
+
+- [PR #462](https://github.com/alruminum/dcNess/pull/462) — CLAUDE.md §0.4 자기 검열 룰 제거 (메타 처방)
+- [PR #464](https://github.com/alruminum/dcNess/pull/464) — module-architect impl.md What/Why/ADR 3 섹션
+- [PR #465](https://github.com/alruminum/dcNess/pull/465) — 4 agent return prose 경로 백틱 의무
+- [#457 close + 요약 코멘트](https://github.com/alruminum/dcNess/issues/457)
+
+---
+
 ## v0.2.29 (2026-05-21)
 
 **커밋 범위**: `v0.2.28..v0.2.29`

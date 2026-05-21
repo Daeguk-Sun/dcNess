@@ -1,6 +1,6 @@
 {
   "name": "dcness",
-  "version": "0.2.29",
+  "version": "0.2.30",
   "description": "Lightweight harness — status-JSON-mutate determinism + 4-pillar fitness (CLAUDE.md / CI gates / tool boundaries / feedback loops). parse_marker ladder eliminated.",
   "author": {
     "name": "alruminum",
