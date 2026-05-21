@@ -4,6 +4,59 @@
 
 ---
 
+## v0.2.29 (2026-05-21)
+
+**커밋 범위**: `v0.2.28..v0.2.29`
+**핵심 변경**: #446 Step 3 1-task 측정 결과 반영 — build-worker prompt 가드 3건 + 메인 git 통합 스크립트. 재측정 진입용.
+
+### 1. 1-task 측정 결과 (#446 Step 3, 외부 활성 프로젝트)
+
+v0.2.28 발행 후 외부 활성 프로젝트에서 1-task 측정 진입. 결과:
+
+- 메인 turn = 121 (기준 ≤ 100 +21 미달)
+- 기준선 ~280 turn/task 대비 ~57% 감소 (큰 절감 자체는 인정)
+- 사후 보정 ~10 turn 중 ~8 turn = build-worker 의 3 결함 회수 가능
+- 권장 보강 적용 시 ~110 turn 예상 (여전히 ≤ 100 미달 가능성)
+
+분석: thinking-only + text-only = 50.7% / Agent 호출 = 3.1% / git+gh 분리 호출 = 13.8%. Hybrid A 가 sub-agent 안 작업 흡수해도 메인 *대화 + 관리* 자체 base load 는 ~80-100 turn.
+
+### 2. build-worker prompt 가드 3건 (PR #458)
+
+`agents/build-worker.md` 에 3 가드 절 신규:
+
+- **§Scope 가드 (MUST)** — impl `## Scope` 의미적 경계 강조. ALLOW_MATRIX 형식적 경계 통과해도 의미 위반은 catastrophic. viability mock / `__DEV__` 분기 / 다른 화면 mock / 종단간 bridge 코드 본 task PR 안 박지 말 것. 필요 시 `IMPLEMENTATION_ESCALATE`
+- **§stub / 회피 코드 금지 (MUST)** — TDD GUARD 회피 stub 안티패턴 차단. phase 2 build-impl 의 GREEN 의무 = 진짜 GREEN. 필요해 보이면 `SPEC_GAP_FOUND`
+- **§PR body 초안 close-keyword 정확성 (MUST)** — impl frontmatter task_index + 부모 이슈 본문 + invocation prompt 만 source. task_index 매핑 (M/M = Closes / N<M = Part of / epic 마지막 둘 다)
+
+### 3. 메인 git 통합 스크립트 (PR #460)
+
+`scripts/pr-create.sh` 신규 — branch + add + commit + push + gh pr create 통합. 인자: `--branch / --base / --title / --body-file / --commit-msg-file`. 분리 5 호출 → 통합 3 turn (Write × 2 + Bash 1) = ~2 turn 회수.
+
+`commands/impl-loop.md` 절차 §2.iii — 분리 명령 → `scripts/pr-create.sh` 통합 호출 예시. 분리 호출 비권장 명시.
+
+### 4. 재측정 진입
+
+본 릴리즈 적용 후 외부 활성 프로젝트에서 2번째 task 측정:
+
+1. `claude plugin update dcness@dcness` → v0.2.29 적용
+2. `/impl-loop <task>` 호출
+3. 측정: `python3 scripts/measure_main_turns.py <new-sid>.jsonl`
+4. 결과 비교:
+   - ≤ 100 turn → 통과 → #446 Step 6 사후 검증
+   - 100-150 turn → 본문 기준 재조정 (~150 현실적) + Hybrid A 유지
+   - > 150 turn → 후보 경로 (4-agent) 복귀 PR + 단념
+
+### 5. /impl 무변경
+
+`commands/impl.md` 손 안 댐 (#446 엄격 제약). `/impl` 단발 호출 = 4-agent 모델 그대로.
+
+### 업데이트
+
+- `claude plugin update dcness@dcness` 한 번 → v0.2.29 적용
+- 외부 활성 프로젝트에서 2번째 task 측정 진입
+
+---
+
 ## v0.2.28 (2026-05-21)
 
 **커밋 범위**: `v0.2.27..v0.2.28`
