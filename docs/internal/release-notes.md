@@ -4,6 +4,45 @@
 
 ---
 
+## v0.2.28 (2026-05-21)
+
+**커밋 범위**: `v0.2.27..v0.2.28`
+**핵심 변경**: `/impl-loop` Hybrid A 모드 활성화 — build-worker 2-step 진입점 전환 (#446 Step 4, 측정 진입용).
+
+### 1. Hybrid A 활성화 (#446 Step 4, PR #455)
+
+v0.2.27 까지 spec docs (agents/build-worker.md + docs/plugin/{handoff-matrix,orchestration,loop-procedure}.md) 머지된 채 진입점 보류 상태였던 Hybrid A 를 `commands/impl-loop.md` 진입점 활성화로 실측 진입:
+
+- **§절차** — 4-agent 시퀀스 → Hybrid A 5 단계 재작성: ① 진입 직전 1회 확인 → ② begin-run + build-worker step (Agent 호출) → ③ git/PR 생성 (메인) → ④ pr-reviewer step + 머지 (`scripts/pr-finalize.sh` 호출) → ⑤ end-run + 5줄 요약 출력
+- **§진행 뷰** — sub-step 4건 → 2건 (build-worker / pr-reviewer). 후보 경로 (정식 위치 impl 부재 시) sub-step 5건 (module-architect + 4-agent)
+- **§review 출력 재정의 5줄 요약** — Hybrid A 기본 형식 (build-worker · pr-reviewer). 후보 경로 4-agent 형식 별도 1줄
+- **§git 권한** — engineer / build-worker / test-engineer 등 sub-agent git/PR 호출 금지 명시. worker 는 PR 본문 + commit message 초안만 prose return
+- **§안티패턴** — build-worker 항목 3건 추가 (phase prose 자체 Write 확인 / sub-sub 호출 금지)
+
+### 2. 실측 진입 — 사용자 협력 측정
+
+본 릴리즈가 #446 Step 3 통과 기준 (메인 turn ≤ 100, 엄정성 유지) 의 실측 진입용. 사용자가 자기 활성 프로젝트에서:
+
+1. `/impl-loop <task-path>` 1회 호출 → build-worker 자동 진입 → 새 세션 JSONL 생성
+2. `python3 scripts/measure_main_turns.py ~/.claude/projects/<encoded>/<sid>.jsonl` 측정
+3. 결과 비교:
+   - 기준선 ~280 turn/task (jajang 옛 세션, scripts/measure_main_turns.py 정확 재현 검증)
+   - 통과 기준 ≤ 100 turn (목표 ~30)
+4. 결과에 따라:
+   - 통과 → 그대로 유지 → #446 Step 6 사후 검증 (2-3 task 추가 측정)
+   - 미달 → 후보 경로 (4-agent) 로 복귀 PR + 0.2.29 hotfix + #446 Step 4-5 단념
+
+### 3. /impl 무변경
+
+`commands/impl.md` 손 안 댐 (#446 엄격 제약). `/impl` 단발 호출 = 4-agent 모델 그대로 (엄정성 우선 의도된 티어링).
+
+### 업데이트
+
+- `claude plugin update dcness@dcness` 한 번 → v0.2.28 적용
+- 사용자 활성 프로젝트에서 `/impl-loop` 호출 시 build-worker 자동 진입. 측정 후 결과 보고
+
+---
+
 ## v0.2.27 (2026-05-20)
 
 **커밋 범위**: `v0.2.26..v0.2.27`
