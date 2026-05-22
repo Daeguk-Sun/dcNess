@@ -1131,6 +1131,83 @@ def _cli_end_run(args: Any) -> int:
     return 0
 
 
+def _cli_next_task(args: Any) -> int:
+    """issue #471 — multi-task 사이 영역 (review echo + 다음 task 진입) 자동화.
+
+    이전 run end-run + 새 run begin-run + previous review.md 본문 stdout 통합 →
+    /impl-loop driver 의 task 경계 ~27 turn 영역을 1 helper 호출로 압축.
+
+    동작:
+    1. 현재 sid 해결 (없으면 exit 1)
+    2. 이전 run (있으면) end-run 자동 호출 (finalize-run guard + complete_run + clear)
+    3. 이전 run 의 review.md 본문 stdout (메인이 echo 만, 본문은 디스크 보존)
+    4. 새 run begin-run + by-pid-current-run 갱신
+    5. stdout = previous review + 새 run_id + 새 run_dir
+
+    Usage:
+        dcness-helper next-task [--entry-point impl]
+
+    Exit codes:
+        0 — 정상 (이전 run finalize + 새 run 발급)
+        1 — sid 미해결
+    """
+    sid = auto_detect_session_id()
+    if not sid:
+        print("[session_state] sid 미해결 — SessionStart 훅 미실행?", file=sys.stderr)
+        return 1
+
+    prev_rid = auto_detect_run_id()
+    prev_review_path: Optional[Path] = None
+    if prev_rid:
+        try:
+            prev_run_dir = run_dir(sid, prev_rid)
+            prev_review_path = prev_run_dir / "review.md"
+        except (ValueError, OSError):
+            prev_review_path = None
+        # end-run 자동 호출 (in-process, _cli_end_run 의 finalize guard 가 알아서 처리)
+        try:
+            import argparse as _ap
+            _cli_end_run(_ap.Namespace())
+        except Exception as exc:
+            print(f"[next-task] end-run FAIL — {exc}", file=sys.stderr)
+
+    entry_point = getattr(args, "entry_point", "impl") or "impl"
+    new_rid = generate_run_id()
+    try:
+        start_run(sid, new_rid, entry_point, issue_num=None)
+    except Exception as exc:
+        print(f"[next-task] begin-run FAIL — {exc}", file=sys.stderr)
+        return 1
+    cc_pid = get_cc_pid_via_ppid_chain()
+    if cc_pid is not None:
+        write_pid_current_run(cc_pid, new_rid)
+    try:
+        new_run_dir_path = run_dir(sid, new_rid, create=True)
+    except (ValueError, OSError):
+        new_run_dir_path = Path("(unknown)")
+
+    print("=== next-task transition ===")
+    print(f"[previous] run_id: {prev_rid or '(없음)'}")
+    if prev_review_path and prev_review_path.is_file():
+        try:
+            content = prev_review_path.read_text(encoding="utf-8", errors="ignore")
+            print(f"\n[previous review.md ({prev_review_path.name})]")
+            print(content)
+        except OSError as exc:
+            print(f"[next-task] previous review.md read FAIL — {exc}", file=sys.stderr)
+    elif prev_rid:
+        print(
+            "[previous review.md 부재 — finalize-run --auto-review 가 review 생성 "
+            "안 했거나 run-dir 누락]"
+        )
+
+    print(f"\n[new] run_id: {new_rid}")
+    print(f"[new] run_dir: {new_run_dir_path}")
+    print(f"[new] entry_point: {entry_point}")
+    print("=== /next-task transition ===")
+    return 0
+
+
 def _cli_insight(args: Any) -> int:
     """issue #396 — 메인 자율 인사이트 1줄 append.
 
@@ -1876,6 +1953,16 @@ def _build_arg_parser() -> Any:
 
     p_er = sub.add_parser("end-run", help="complete_run + clear by-pid-current-run")
     p_er.set_defaults(func=_cli_end_run)
+
+    p_nt = sub.add_parser(
+        "next-task",
+        help="이전 run end-run + 새 run begin-run + previous review.md stdout (issue #471)",
+    )
+    p_nt.add_argument(
+        "--entry-point", default="impl",
+        help="새 run 의 entry_point (default: impl)",
+    )
+    p_nt.set_defaults(func=_cli_next_task)
 
     # issue #396 — insight CLI (메인 자율 평가 매커니즘)
     p_in = sub.add_parser(

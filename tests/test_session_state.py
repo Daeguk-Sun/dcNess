@@ -2096,5 +2096,74 @@ class AutoDetectFallbackTests(unittest.TestCase):
         self.assertEqual(rid, self.RID_A)
 
 
+# ---------------------------------------------------------------------------
+# _cli_next_task subcommand — issue #471
+# ---------------------------------------------------------------------------
+
+
+class NextTaskTransitionTests(unittest.TestCase):
+    """issue #471 — `next-task` subcommand 단위 검증.
+
+    `_cli_next_task` 의 분기 검증만 — review.md 본문 / end-run finalize 통합 흐름은
+    jajang round-trip 측정 영역.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self._old_cwd = os.getcwd()
+        os.chdir(self.base)
+        from harness.session_state import _clear_default_base_cache
+        _clear_default_base_cache()
+        os.environ.pop("DCNESS_SESSION_ID", None)
+        os.environ.pop("DCNESS_RUN_ID", None)
+
+    def tearDown(self) -> None:
+        os.chdir(self._old_cwd)
+        from harness.session_state import _clear_default_base_cache
+        _clear_default_base_cache()
+        os.environ.pop("DCNESS_SESSION_ID", None)
+        os.environ.pop("DCNESS_RUN_ID", None)
+        self._tmp.cleanup()
+
+    def test_sid_unresolved_returns_exit_1(self) -> None:
+        from harness.session_state import _cli_next_task
+        from types import SimpleNamespace
+        rc = _cli_next_task(SimpleNamespace(entry_point="impl"))
+        self.assertEqual(rc, 1)
+
+    def test_transition_prints_previous_and_new(self) -> None:
+        from harness.session_state import _cli_next_task, start_run
+        from io import StringIO
+        from contextlib import redirect_stdout
+        from types import SimpleNamespace
+        sid = "11111111-2222-4333-8444-555555555555"
+        prev_rid = "run-prev1234"
+        os.environ["DCNESS_SESSION_ID"] = sid
+        os.environ["DCNESS_RUN_ID"] = prev_rid
+
+        # 이전 run 사전 등록 — end-run 의 finalize-run --auto-review 가 review.md
+        # 자동 생성 (사전 박은 본문은 덮어써짐. 정상 동작 — run_review 가 ground truth).
+        start_run(sid, prev_rid, "impl", issue_num=None)
+
+        buf = StringIO()
+        with redirect_stdout(buf):
+            rc = _cli_next_task(SimpleNamespace(entry_point="impl"))
+
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        # transition header + previous run_id stdout
+        self.assertIn("next-task transition", out)
+        self.assertIn(prev_rid, out)
+        # previous review.md 본문 stdout 노출 (run_review 자동 생성 본문)
+        self.assertIn("[previous review.md (review.md)]", out)
+        self.assertIn("Run Review", out)  # auto-review header
+        # 새 rid 발급 + run_dir stdout
+        self.assertIn("[new] run_id: run-", out)
+        self.assertIn("[new] run_dir:", out)
+        # 새 rid != 이전 rid (begin-run 정상 동작)
+        self.assertNotIn(f"[new] run_id: {prev_rid}", out)
+
+
 if __name__ == "__main__":
     unittest.main()
