@@ -79,10 +79,9 @@ def _make_cases() -> list[EnumCase]:
         ("engineer",      "IMPL",             ["IMPL_DONE", "SPEC_GAP_FOUND", "TESTS_FAIL"], "IMPL_DONE"),
         ("engineer",      "POLISH",           ["POLISH_DONE"],                        "POLISH_DONE"),
         ("test-engineer", None,               ["PASS", "SPEC_GAP_FOUND"],    "PASS"),
-        ("validator",     "CODE_VALIDATION",  ["PASS", "FAIL", "SPEC_MISSING"],       "PASS"),
-        ("validator",     "BUGFIX_VALIDATION",["BUGFIX_PASS", "BUGFIX_FAIL"],         "BUGFIX_PASS"),
-        ("validator",     "PLAN_VALIDATION",  ["PLAN_VALIDATION_PASS", "PLAN_VALIDATION_FAIL"], "PLAN_VALIDATION_PASS"),
-        ("validator",     "UX_VALIDATION",    ["UX_REVIEW_PASS", "UX_REVIEW_FAIL"],   "UX_REVIEW_PASS"),
+        ("code-validator",         None,         ["PASS", "FAIL", "ESCALATE"],          "PASS"),
+        ("architecture-validator", None,         ["PASS", "FAIL", "ESCALATE"],          "PASS"),
+        ("ux-architect",           None,         ["UX_FLOW_DONE", "UX_FLOW_ESCALATE"],  "UX_FLOW_DONE"),
         ("pr-reviewer",   None,               ["PASS", "FAIL"],          "PASS"),
         ("plan-reviewer", None,               ["PASS", "FAIL", "ESCALATE"], "PASS"),
     ]
@@ -336,11 +335,11 @@ def _make_trajectory(steps: list[tuple[str, Optional[str], str]]) -> list[ChatCo
 # 레퍼런스 시퀀스 정의 (루프별 happy-path)
 _REFERENCE_TRAJECTORIES: dict[str, list[tuple[str, Optional[str], str]]] = {
     "impl_task_loop": [
-        ("module-architect",    None         ,      "PASS"),
-        ("test-engineer", None,               "PASS"),
-        ("engineer",      "IMPL",             "IMPL_DONE"),
-        ("validator",     "CODE_VALIDATION",  "PASS"),
-        ("pr-reviewer",   None,               "PASS"),
+        ("module-architect", None,    "PASS"),
+        ("test-engineer",    None,    "PASS"),
+        ("engineer",         "IMPL",  "IMPL_DONE"),
+        ("code-validator",   None,    "PASS"),
+        ("pr-reviewer",      None,    "PASS"),
     ],
     "feature_build_fragment": [
         ("system-architect",    None         ,   "PASS"),
@@ -361,11 +360,11 @@ _ACTUAL_SCENARIOS: list[dict] = [
         "name": "impl_happy_path",
         "reference": "impl_task_loop",
         "actual": [
-            ("module-architect",    None         ,      "PASS"),
-            ("test-engineer", None,               "PASS"),
-            ("engineer",      "IMPL",             "IMPL_DONE"),
-            ("validator",     "CODE_VALIDATION",  "PASS"),
-            ("pr-reviewer",   None,               "PASS"),
+            ("module-architect", None,    "PASS"),
+            ("test-engineer",    None,    "PASS"),
+            ("engineer",         "IMPL",  "IMPL_DONE"),
+            ("code-validator",   None,    "PASS"),
+            ("pr-reviewer",      None,    "PASS"),
         ],
         "expect_strict":    True,   # 순서/내용 완전 일치
         "expect_superset":  True,   # 필수 단계 모두 있음
@@ -375,11 +374,11 @@ _ACTUAL_SCENARIOS: list[dict] = [
         "name": "impl_missing_test_engineer",
         "reference": "impl_task_loop",
         "actual": [
-            ("module-architect",    None         ,      "PASS"),
+            ("module-architect", None,    "PASS"),
             # test-engineer 누락
-            ("engineer",      "IMPL",             "IMPL_DONE"),
-            ("validator",     "CODE_VALIDATION",  "PASS"),
-            ("pr-reviewer",   None,               "PASS"),
+            ("engineer",         "IMPL",  "IMPL_DONE"),
+            ("code-validator",   None,    "PASS"),
+            ("pr-reviewer",      None,    "PASS"),
         ],
         "expect_strict":    False,  # 단계 누락
         "expect_superset":  False,  # test-engineer 없어서 필수 단계 미충족
@@ -389,13 +388,13 @@ _ACTUAL_SCENARIOS: list[dict] = [
         "name": "impl_with_spec_gap_retry",
         "reference": "impl_task_loop",
         "actual": [
-            ("module-architect",    None         ,      "PASS"),
-            ("test-engineer", None,               "PASS"),
-            ("engineer",      "IMPL",             "SPEC_GAP_FOUND"),  # spec gap 발생
-            ("module-architect",    None         ,         "PASS"),  # reference 외 단계
-            ("engineer",      "IMPL",             "IMPL_DONE"),
-            ("validator",     "CODE_VALIDATION",  "PASS"),
-            ("pr-reviewer",   None,               "PASS"),
+            ("module-architect", None,    "PASS"),
+            ("test-engineer",    None,    "PASS"),
+            ("engineer",         "IMPL",  "SPEC_GAP_FOUND"),  # spec gap 발생
+            ("module-architect", None,    "PASS"),  # reference 외 단계
+            ("engineer",         "IMPL",  "IMPL_DONE"),
+            ("code-validator",   None,    "PASS"),
+            ("pr-reviewer",      None,    "PASS"),
         ],
         "expect_strict":    False,  # 추가 step 있어서 순서 불일치
         "expect_superset":  True,   # reference 필수 단계 모두 포함
