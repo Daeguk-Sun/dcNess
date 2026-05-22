@@ -28,7 +28,7 @@ UI 디자인 mid-loop 필요 시 → `impl-ui-design-loop` (orchestration §4.4)
 
 default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → pr-reviewer**. 4 단계 *모두 호출* 의무.
 
-❌ 안티패턴 (jajang epic 19 task 06 사단, #431 결함 3): test-engineer + engineer 만 호출하고 commit/push/PR 안 만들고 prose "PASS" 박고 종료. 자식 spawn 의 핵심 보장 (1 자식 = 1 PR + 1 이슈 close) 깨짐 + 메인이 수동 commit/push/PR 강요됨.
+❌ 안티패턴 (#431 결함 3 실측 회귀): test-engineer + engineer 만 호출하고 commit/push/PR 안 만들고 prose "PASS" 박고 종료. 자식 spawn 의 핵심 보장 (1 자식 = 1 PR + 1 이슈 close) 깨짐 + 메인이 수동 commit/push/PR 강요됨.
 
 ✅ 정상 흐름:
 1. test-engineer (TESTS_WRITTEN) → 테스트 선작성
@@ -108,7 +108,7 @@ tail -50 "<task-path>"
 - 이미 머지됨 → 사용자 보고 + skill 종료 (재진입 X)
 - 부분 진행 + 후속 결정 → tail section 내용을 진행 컨텍스트에 inject + 정상 진입
 
-근거: jajang Epic 12 task 02 사례 (2026-05-09) — 이미 머지된 task 를 재진입 시도 → 3 분 + 컨텍스트 5% wasted. 진입 *전* 30 초 확인이 사후 회복보다 압도적 저비용.
+근거: 실측 사례 — 이미 머지된 task 재진입 시 ~3 분 + 컨텍스트 ~5% wasted. 진입 *전* 30 초 확인이 사후 회복보다 압도적 저비용.
 
 ## 절차
 [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1~§6 + [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §4.3 (`impl-task-loop` 풀스펙) 따름. UI 감지 시 §4.4 (`impl-ui-design-loop`).

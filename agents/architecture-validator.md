@@ -82,7 +82,7 @@ prose 마지막 단락에 자기 언어로 명시. 권장 표현:
 
 - `docs/sdk.md` / `docs/reference.md` 에 검증된 API call signature / 응답 형식이 기록되어 있는지 (없으면 FAIL)
 - concrete 구현 클래스 (Mock 이 아닌) 가 1개 이상 작성되었는지 (없으면 FAIL)
-- spike 결과로 PRD 시나리오 (예: "30초 허밍 → 음색 보존 자장가") 통과 여부가 명시되어 있는지
+- spike 결과로 PRD 시나리오 (도메인 특수 input → 출력 품질 기준) 통과 여부가 명시되어 있는지
 
 → 이 조건 못 만족 → **FAIL** + 본문에 (spike 실행 후 재진입 권고 / 어떤 API 가 검증 누락인지)
 
