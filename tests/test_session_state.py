@@ -2165,5 +2165,102 @@ class NextTaskTransitionTests(unittest.TestCase):
         self.assertNotIn(f"[new] run_id: {prev_rid}", out)
 
 
+# ---------------------------------------------------------------------------
+# _cli_post_task_begin — issue #472
+# ---------------------------------------------------------------------------
+
+
+class PostTaskBeginMarkerTests(unittest.TestCase):
+    """issue #472 — `post-task-begin` subcommand 단위 검증.
+
+    /impl-loop 종료 후 메인 자율 작업 영역 진입 marker. live.json 의
+    `post_task_markers` list 에 timestamp + reason 박힘. FIFO cap 20.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = TemporaryDirectory()
+        self.base = Path(self._tmp.name)
+        self._old_cwd = os.getcwd()
+        os.chdir(self.base)
+        from harness.session_state import _clear_default_base_cache
+        _clear_default_base_cache()
+        os.environ.pop("DCNESS_SESSION_ID", None)
+
+    def tearDown(self) -> None:
+        os.chdir(self._old_cwd)
+        from harness.session_state import _clear_default_base_cache
+        _clear_default_base_cache()
+        os.environ.pop("DCNESS_SESSION_ID", None)
+        self._tmp.cleanup()
+
+    def test_sid_unresolved_silent_skip(self) -> None:
+        from harness.session_state import _cli_post_task_begin
+        from types import SimpleNamespace
+        rc = _cli_post_task_begin(SimpleNamespace(reason=""))
+        self.assertEqual(rc, 0)
+
+    def test_marker_appended_to_live(self) -> None:
+        from harness.session_state import _cli_post_task_begin, read_live
+        from io import StringIO
+        from contextlib import redirect_stdout
+        from types import SimpleNamespace
+        sid = "11111111-2222-4333-8444-555555555555"
+        os.environ["DCNESS_SESSION_ID"] = sid
+
+        buf = StringIO()
+        with redirect_stdout(buf):
+            rc = _cli_post_task_begin(SimpleNamespace(reason="이슈 등록"))
+
+        self.assertEqual(rc, 0)
+        out = buf.getvalue()
+        self.assertIn("post-task area begin", out)
+        self.assertIn("이슈 등록", out)
+        self.assertIn("marker count: 1", out)
+
+        live = read_live(sid)
+        self.assertIsNotNone(live)
+        markers = live.get("post_task_markers")
+        self.assertIsInstance(markers, list)
+        self.assertEqual(len(markers), 1)
+        self.assertEqual(markers[0]["reason"], "이슈 등록")
+        self.assertIn("at", markers[0])
+
+    def test_multiple_markers_appended(self) -> None:
+        from harness.session_state import _cli_post_task_begin, read_live
+        from io import StringIO
+        from contextlib import redirect_stdout
+        from types import SimpleNamespace
+        sid = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+        os.environ["DCNESS_SESSION_ID"] = sid
+
+        for reason in ("이슈 등록", "cleanup", "분석"):
+            with redirect_stdout(StringIO()):
+                _cli_post_task_begin(SimpleNamespace(reason=reason))
+
+        live = read_live(sid)
+        markers = live.get("post_task_markers")
+        self.assertEqual(len(markers), 3)
+        self.assertEqual([m["reason"] for m in markers], ["이슈 등록", "cleanup", "분석"])
+
+    def test_marker_fifo_cap_20(self) -> None:
+        from harness.session_state import _cli_post_task_begin, read_live
+        from io import StringIO
+        from contextlib import redirect_stdout
+        from types import SimpleNamespace
+        sid = "cccccccc-dddd-4eee-8fff-aaaaaaaaaaaa"
+        os.environ["DCNESS_SESSION_ID"] = sid
+
+        for i in range(25):
+            with redirect_stdout(StringIO()):
+                _cli_post_task_begin(SimpleNamespace(reason=f"reason-{i}"))
+
+        live = read_live(sid)
+        markers = live.get("post_task_markers")
+        self.assertEqual(len(markers), 20)
+        # 오래된 5개 (reason-0 ~ reason-4) trim, reason-5 ~ reason-24 남음
+        self.assertEqual(markers[0]["reason"], "reason-5")
+        self.assertEqual(markers[-1]["reason"], "reason-24")
+
+
 if __name__ == "__main__":
     unittest.main()

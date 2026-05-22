@@ -1131,6 +1131,70 @@ def _cli_end_run(args: Any) -> int:
     return 0
 
 
+def _cli_post_task_begin(args: Any) -> int:
+    """issue #472 — `/impl-loop` 종료 후 메인 자율 작업 영역 진입 marker.
+
+    /impl-loop task 영역 (begin-run → build-worker → pr-reviewer → end-run) *외*
+    자율 작업 (이슈 등록 / cleanup / 분석) 의 turn 을 task ROI 측정과 분리하기
+    위한 marker. 본 호출 후 JSONL parser / run_review 가 marker timestamp 이후
+    turn 을 *post-task 영역* 으로 분리 측정 → task당 평균 turn 왜곡 (jajang #446
+    2차 측정 task3 사례 99 vs 81 = 18 turn 차이) 해소.
+
+    동작:
+    1. sid auto-detect (없으면 silent 0 — /impl-loop 외 호출 가능)
+    2. live.json 에 `post_task_markers` list append (timestamp + reason)
+    3. stdout = 메인이 자율 진입 self-aware 메시지
+
+    Usage:
+        dcness-helper post-task-begin [--reason "이슈 등록 / cleanup / 분석"]
+
+    Exit codes:
+        0 — 정상 (marker 박힘) 또는 sid 미해결 (silent skip)
+    """
+    sid = auto_detect_session_id()
+    if not sid:
+        print(
+            "[post-task-begin] sid 미해결 — marker skip "
+            "(SessionStart 훅 미실행 또는 비활성 프로젝트)",
+            file=sys.stderr,
+        )
+        return 0
+
+    reason = (getattr(args, "reason", "") or "").strip()
+    now = _now_iso()
+
+    try:
+        live = read_live(sid) or {}
+    except Exception:
+        live = {}
+    markers = live.get("post_task_markers") if isinstance(live, dict) else None
+    if not isinstance(markers, list):
+        markers = []
+    markers.append({"at": now, "reason": reason})
+    # FIFO cap 20 (오래된 marker 자동 trim)
+    if len(markers) > 20:
+        markers = markers[-20:]
+
+    try:
+        update_live(sid, post_task_markers=markers)
+    except Exception as exc:
+        print(f"[post-task-begin] live.json update FAIL — {exc}", file=sys.stderr)
+        return 0
+
+    print("=== post-task area begin (issue #472) ===")
+    print(f"timestamp: {now}")
+    print(f"session_id: {sid}")
+    print(f"marker count: {len(markers)}")
+    if reason:
+        print(f"reason: {reason}")
+    print(
+        "본 marker 후 turn 영역 = /impl-loop task 영역 외 (자율 이슈 등록 / "
+        "cleanup / 분석 등). 측정 도구가 marker timestamp 이후 turn 분리."
+    )
+    print("=== /post-task area begin ===")
+    return 0
+
+
 def _cli_next_task(args: Any) -> int:
     """issue #471 — multi-task 사이 영역 (review echo + 다음 task 진입) 자동화.
 
@@ -1963,6 +2027,16 @@ def _build_arg_parser() -> Any:
         help="새 run 의 entry_point (default: impl)",
     )
     p_nt.set_defaults(func=_cli_next_task)
+
+    p_ptb = sub.add_parser(
+        "post-task-begin",
+        help="/impl-loop 종료 후 메인 자율 작업 영역 진입 marker (issue #472)",
+    )
+    p_ptb.add_argument(
+        "--reason", default="",
+        help='자율 진입 사유 ("이슈 등록 / cleanup / 분석" 등)',
+    )
+    p_ptb.set_defaults(func=_cli_post_task_begin)
 
     # issue #396 — insight CLI (메인 자율 평가 매커니즘)
     p_in = sub.add_parser(
