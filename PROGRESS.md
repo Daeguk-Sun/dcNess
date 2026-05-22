@@ -2,6 +2,32 @@
 
 ## 현재 상태
 
+- **🎯 /impl-loop 종료 후 자율 작업 측정 격리 (#472)**: post-task-begin marker helper subcommand 신규. 각 task 의 `end-run` 직후 메인 turn 흐름에 marker 박음 → 다음 task 진입 전 "자율 영역" 측정 시 marker 기준 분리 가능. `scripts/measure_main_turns.py` 가 marker 인식. PR #478.
+
+- **🔁 /impl-loop task 사이 영역 통합 — next-task subcommand (#471)**: review echo + 다음 task pre-flight + begin-run 을 1 helper 호출로 통합. 메인이 task 사이 mechanical 3~5 turn 소모하던 부분을 helper 1번으로 흡수. PR #477.
+
+- **🐛 /impl-loop 결함 A/B/C 3 단독 fix (#469)**:
+  - **결함 A — Stop hook continuation signal** (PR #473): 중간 step PASS 후 메인 turn 자동 발화 안 되던 회귀 → continuation 신호 강제 emit.
+  - **결함 B — helper sid/rid 폴백** (PR #475): env var 부재 시 `active_runs` scan 으로 폴백 → 컴팩션 후 helper 재발화 회복.
+  - **결함 C — tdd-guard path matcher 6-tier 확장** (PR #476): grandparent + src_root monorepo 케이스 cover. `src/components/Foo.tsx` ↔ `__tests__/components/Foo.test.tsx` 매칭 회복.
+
+- **🪶 메인 자율 insight CLI 호출 가이드 슬림화 (#391)**: 이전엔 "잘 됐다 누적" 까지 권유 → 메인 self-report 메시지 부풀림 + 누적 noise. 가이드를 "실수 / 회귀 / waste 관찰 시에만 1줄 환기" 로 한정. `/run-review` 시그널 명확. PR #470.
+
+- **📂 외부 배포 파일 안 jajang 인용 15건 정리 (#459)**: [`CLAUDE.md §0.3`](CLAUDE.md) "내부 ID 외부 배포물에 박지 마라" 정합. `agents/` + `commands/` + `docs/plugin/` 내 직접 `jajang` 인용 15건 일반화 ("외부 활성화 프로젝트"). plug-in 사용자에겐 jajang 이 잡음. PR #468.
+
+- **🛡️ sub-agent CLAUDE.md 직접 수정 차단 + architect ALLOW_MATRIX 키 명시 (#463)**: `harness/agent_boundary.py:DCNESS_INFRA_PATTERNS` 에 `CLAUDE\.md$` 추가 → sub-agent (engineer / module-architect / ...) 의 CLAUDE.md Edit/Write 차단. 사용자 룰 인지 채널을 메인 only 로 격리. 동시 `module-architect` + `system-architect` 의 `ALLOW_MATRIX` 키 명시화 (fallback → 명시). PR #467.
+
+- **📦 릴리즈 0.2.30 — #457 산출물 양식 단순화 + CLAUDE.md 자기 검열 룰 제거**:
+  - 4 agent (test-engineer / engineer / code-validator / pr-reviewer) return prose 에 산출물 경로 백틱 의무 — 메인 보고 시 클릭 가능 링크.
+  - `module-architect` impl.md 양식에 `## What` / `## Why` / `## ADR` 3 섹션.
+  - `CLAUDE.md §0.4` "자기 검열" 룰 폐기 → "사용자 프로필 각인" 대체 — 룰 추가할수록 본질 멀어지는 코끼리 함정 회피.
+
+- **📦 릴리즈 0.2.29 — prompt 가드 3건 + git 통합 스크립트 (#446)**:
+  - build-worker prompt 가드 3건 보강 — Scope (워크트리 / 단일 task 범위) + stub (구현 미완 위장 차단) + close-keyword (PR body 의무).
+  - `scripts/pr-create.sh` 신규 — branch / commit / PR body / pr-finalize chain 을 1 호출로 통합. Step 4 (메인 git 영역) Hybrid A 회수 작업.
+
+- **📦 릴리즈 0.2.28 — Hybrid A 활성화 (#446)**: `/impl-loop` 진입점 default 를 4-step → 2-step (build-worker + pr-reviewer) 전환. `/impl` 단발은 4-step rigor 유지 — 의도적 티어링. jajang 실측 진입용 릴리즈.
+
 - **📐 측정 스크립트 + #345 흡수 권고 (#446 트랙 보조)**: `scripts/measure_main_turns.py` 신규 — Claude Code 세션 JSONL (`~/.claude/projects/<project-id>/<sid>.jsonl`) 파싱 → 메인 assistant turn 분포 (tool / text-only / thinking-only) + tool histogram + Agent (sub-agent) 호출 분포 출력. text/JSON 출력 + 디렉토리 일괄 처리. #446 본문 기준선 (8af5fb4d=203 / 1518caa0=349) 정확 재현 검증. Step 3 프로토타입 통과 기준 측정 + Step 6 사후 검증에 재사용. 동시에 #345 (`/impl-loop` 메인 컨텍스트 누적 — task별 새 프로세스 driver 필요) 코멘트로 #446 트랙 흡수 권고 — 새 프로세스 제안은 6/15 Agent SDK 과금 분리로 폐기 (#438), 본질 문제는 #446 Hybrid A 가 한 세션 안에서 흡수.
 
 - **🏗️ /impl-loop Hybrid A 설계 — build-worker agent + 2-step (#446 Step 2)**: `/impl-loop` 한정 신규 agent `build-worker` (test+impl+self-validate 3 phase 통합, helper Bash self-call, TDD GUARD 정합, git/PR 메인 위임). impl-task-loop 진입 모드에 Hybrid A (2-step) 추가 — default (4-step, `/impl` 단발) / fallback (5-step, impl 부재) 옆. `commands/impl-loop.md` 절차 5 단계 재작성 + 진행 뷰 sub-step 4→2 + 5줄 요약 형식 worker 어휘 + 세션 청킹 권장 (15-20 task/세션). `docs/plugin/{handoff-matrix,orchestration,loop-procedure}.md` 동기 — §1.12 build-worker 결론, §4.3 진입 모드 3분기, §4.8 모드 분기, §3.2.1 worker phase prose 자체 Write 규약 (`build-{test,impl,validate}.md`). `/impl` 단발은 4-agent 그대로 (엄정성 우선 의도된 티어링). 코드 미동작 (설계만) — Step 3 jajang 1-task 프로토타입 실측 (통과 기준 ≤ 50 turn) 충족 후 Step 4 multi-PR + Step 5 릴리즈 0.2.27 진행. PR #448.
