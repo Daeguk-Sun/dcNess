@@ -110,6 +110,23 @@ tail -50 "<task-path>"
 
 근거: 실측 사례 — 이미 머지된 task 재진입 시 ~3 분 + 컨텍스트 ~5% wasted. 진입 *전* 30 초 확인이 사후 회복보다 압도적 저비용.
 
+## 강제 사전 — TaskCreate / TaskUpdate (사용자 가시성, MUST)
+
+본 skill 의 모든 step (inner loop 4-step) 은 Claude Code 의 **TaskCreate / TaskUpdate 호출과 한 묶음**. 자율 skip 금지.
+
+**WHY**: dcness helper `begin-step` / `end-step` 은 **dcness 내부 트래킹** (메인 컨텍스트 외, conveyor state 파일만 갱신, 사용자 UI 불가시). TaskCreate / TaskUpdate 는 **Claude Code UI 에 사용자가 직접 보는 진행 표시** — 별 역할, 중복 X, 보완 관계. 둘 다 호출 의무.
+
+**catastrophic 안티패턴**: "begin-step 으로 트래킹 충분하다 자율 판단해서 TaskCreate skip" — 사용자가 진행 상태 불가시 → "왜 task 안 만들고 셀프로 돌려?" 지적 회귀. 본 룰 추가 사유.
+
+**호출 시점** (skip 불가):
+- skill 진입 직후 (`Pre-flight gate` 통과 후, 절차 진입 *전*) — task list 생성:
+  - task 헤더 1개 (in_progress) — subject 예: `task · <slug>`
+  - sub-step 4개 (pending) — `   ㄴ test-engineer` / `   ㄴ engineer:IMPL` / `   ㄴ code-validator` / `   ㄴ pr-reviewer`. fallback 경로 (module-architect 선두) 시 5개.
+- 각 inner step 전환 — sub-step `TaskUpdate(status=in_progress | completed)`
+- 종료 직전 — task 헤더 + 모든 sub-step `TaskUpdate(status=completed)`
+
+retry / POLISH 시 기존 sub-step 재활용 — 신규 TaskCreate X.
+
 ## 절차
 [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1~§6 + [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §4.3 (`impl-task-loop` 풀스펙) 따름. UI 감지 시 §4.4 (`impl-ui-design-loop`).
 

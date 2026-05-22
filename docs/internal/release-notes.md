@@ -4,6 +4,34 @@
 
 ---
 
+## v0.2.31 (2026-05-22)
+
+**커밋 범위**: `v0.2.30..v0.2.31`
+**핵심 변경**: `/impl` + `/impl-loop` skill prose 에 TaskCreate / TaskUpdate 호출 강제 룰 (`## 강제 사전` 섹션) 박음. 메인 Claude 가 dcness helper `begin-step` 트래킹으로 충분하다 자율 판단해서 TaskCreate skip 하는 회귀 차단.
+
+### 무엇이 바뀌나
+
+1. **`commands/impl-loop.md`** — `## 절차` 직전에 `## 강제 사전 — TaskCreate / TaskUpdate (사용자 가시성, MUST)` 섹션 신설. WHY 명시 (`begin-step` = 내부 트래킹 / TaskCreate = 사용자 UI 가시) + catastrophic 안티패턴 명시 + 호출 시점 4개 (진입 / task 전환 / sub-step 전환 / 완료) 명시.
+2. **`commands/impl-loop.md` `## 진행 뷰`** — "진입 시 / task i 진행 중" 두 줄에 **(MUST — §강제 사전 정합)** 라벨 추가 — 자율 영역 인식 차단.
+3. **`commands/impl-loop.md` `## 안티패턴`** — "TaskCreate / TaskUpdate skip — begin-step 트래킹으로 충분 자율 판단" catastrophic 1줄 추가.
+4. **`commands/impl.md`** — `## 절차` 직전에 동일 `## 강제 사전` 섹션 신설. inner loop 4-step (`test-engineer` / `engineer:IMPL` / `code-validator` / `pr-reviewer`) 에 task list 1개 + sub-step 4개 (fallback 시 5개) 생성 의무 명시.
+
+### 왜 바뀌나
+
+jajang 외부 작업 세션 중 메인 Claude 가 dcness helper `begin-step` / `end-step` 으로 트래킹된다는 이유로 Claude Code 의 TaskCreate 를 자율 skip 하는 회귀 발생. 사용자가 *Claude Code UI* 를 보는데 진행 상태 표시가 없어 "왜 task 안 만들고 셀프로 돌려?" 지적. 두 트래킹은 **다른 layer** — helper = 내부 state 파일 (사용자 UI 불가시), TaskCreate = 사용자 가시. 둘 다 호출 의무. skill prose 가 자연어 룰 중 가장 강한 위치 (메인이 skill 진입 시 반드시 inject) 라 거기 명시적으로 박음.
+
+### 사용자 행동
+
+`/impl` / `/impl-loop` 진입 시 자동 적용 — 메인 Claude 가 진입 직후 TaskCreate 호출 의무. 사용자는 Claude Code UI 에서 task 진행 상태 직접 확인 가능.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
+
+---
+
 ## v0.2.30 (2026-05-22)
 
 **커밋 범위**: `v0.2.29..v0.2.30`
