@@ -18,18 +18,20 @@ dcness 가 강제하는 영역은 단 2가지 ([`orchestration.md`](orchestratio
 
 ## 1. CC hook event 모델
 
-dcness 가 사용하는 CC hook event 3종:
+dcness 가 사용하는 CC hook event 4종:
 
 | Event | 시점 | 차단 권한 | dcness 사용 hook |
 |---|---|---|---|
 | `SessionStart` | CC 새 conversation 시작 시 (resume / `/clear` 포함). user 첫 prompt 처리 *전*. | X (inject 만) | session-start.sh |
 | `PreToolUse` | tool 호출 *직전*. matcher 매치 시 fire. | ✓ (`exit 1` 또는 `permissionDecision: deny` 로 차단) | catastrophic-gate / file-guard / tdd-guard |
 | `PostToolUse` | tool 호출 *직후* (결과 반환 후, 메인 다음 turn 시작 전). | X (inject 만) | post-agent-clear / post-file-op-trace |
+| `Stop` | 메인 응답 종료 시점. 무한 루프 방지 `stop_hook_active=true` 플래그 동반. | ✓ (`decision: "block"` JSON stdout 으로 메인 turn 재 발화 강제) | stop-end-run.sh |
 
-**미사용 event**: `UserPromptSubmit` / `PreCompact` / `Stop` / `SubagentStop` / `Notification` / `SessionEnd` — dcness 강제 백본은 PreToolUse + SessionStart + PostToolUse 3종으로 충족.
+**미사용 event**: `UserPromptSubmit` / `PreCompact` / `SubagentStop` / `Notification` / `SessionEnd` — dcness 강제 백본은 SessionStart + PreToolUse + PostToolUse + Stop 4종으로 충족.
 
 **차단 권한 비대칭**:
-- PreToolUse 만 *차단* 가능 → catastrophic-gate / file-guard / tdd-guard 가 실제 강제 백본.
+- PreToolUse 만 tool 호출 *차단* 가능 → catastrophic-gate / file-guard / tdd-guard 가 실제 강제 백본.
+- Stop 은 메인 종료 *차단* 가능 (`decision: "block"`) → stop-end-run.sh 가 중간 step PASS 후 메인 침묵 회귀 차단 (issue #469 결함 A).
 - SessionStart + PostToolUse 는 `hookSpecificOutput.additionalContext` 로 *컨텍스트 inject* — 메인 Claude 의 다음 turn 에 system reminder 로 보임.
 
 ---
@@ -62,7 +64,7 @@ python3 -m harness.hooks <handler> --cc-pid "$CC_PID"
 
 ---
 
-## 3. 6 hook 상세
+## 3. 7 hook 상세
 
 ### 3.1 session-start.sh
 
@@ -178,6 +180,33 @@ python3 -m harness.hooks <handler> --cc-pid "$CC_PID"
 
 ---
 
+### 3.7 stop-end-run.sh
+
+**Event**: `Stop`
+**시점**: 메인 Claude 응답 종료 시. `stop_hook_active=true` 동반 시 즉시 skip (무한 루프 가드).
+**도입**: issue #382 (자동 end-run) + issue #469 결함 A fix (continuation signal)
+
+**역할 1 — 자동 end-run (issue #382)**:
+- `active_runs[rid]` 슬롯 미finalized + 마지막 step end-step 호출 완료 매칭 시 in-process `_cli_end_run` 호출.
+- 부산물: `<run_dir>/review.md` 생성 + loop-insights 누적 + active_runs slot finalize.
+- 배경: `/impl` / `/impl-loop` / `/architect-loop` 종료 후 메인이 end-run 까먹는 회귀 차단.
+
+**역할 2 — continuation signal (issue #469 결함 A)**:
+- end-run 호출 *전* 마지막 step prose (`<run_dir>/<agent>[-<MODE>].md`) 결론 enum 추출.
+- 다음 step 진입 가능 enum (`PASS` / `IMPL_DONE` / `POLISH_DONE` / `TESTS_WRITTEN` / `UX_FLOW_DONE`) **AND** 마지막 step agent 가 종료 agent (`pr-reviewer`) 아닌 경우 → `{"decision": "block", "reason": "..."}` JSON stdout 박음.
+- CC 가 본 신호 인식 → 메인 turn 재 발화 강제. 메인이 reason 읽고 다음 sub-step 진입 (예: build-worker PASS → pr-reviewer 호출).
+- 무한 루프 가드: 같은 step 에서 block 박은 횟수 (`slot.stop_block_count[<agent>:<mode>]`) 가 `_STOP_BLOCK_COUNT_MAX = 2` 초과 시 skip — 메인이 reason 받고도 발화 안 하는 진짜 종료 의도 인정.
+- 배경: jajang Epic 20 multi-task `/impl-loop` 실측에서 build-worker tool_result 후 메인 turn 자동 발화 부재 = 9시간 16분 침묵 사례 ([issue #469](../../) 본문 참조).
+
+**차단 동작**:
+- 역할 1 분기 → `exit 0` + `_cli_end_run` 호출 (block 안 함, 정상 종료 허용).
+- 역할 2 분기 → `exit 0` + `decision:"block"` JSON stdout (메인 재 발화 강제).
+- 본 hook 의 차단 메커니즘 = stdout JSON 으로 CC 에 신호. stderr 는 `/tmp/dcness-hook-stderr.log` 보존 (디버그용).
+
+**코드 SSOT**: [`harness/hooks.py`](../../harness/hooks.py) `handle_stop` + `_maybe_emit_continuation_signal`.
+
+---
+
 ## 4. 등록 메커니즘
 
 **[`hooks/hooks.json`](../../hooks/hooks.json)**: CC plug-in 의 hook 등록 표준 형식. event 별 matcher + 실행 스크립트 정의.
@@ -194,7 +223,8 @@ python3 -m harness.hooks <handler> --cc-pid "$CC_PID"
     "PostToolUse": [
       { "matcher": "Agent", "hooks": [...] },
       { "matcher": "Edit|Write|NotebookEdit|Read|Bash|mcp__.*", "hooks": [...] }
-    ]
+    ],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/stop-end-run.sh\"" }] }]
   }
 }
 ```

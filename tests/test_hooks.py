@@ -27,11 +27,12 @@ Coverage matrix:
 """
 from __future__ import annotations
 
+import json
 import os
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from harness.hooks import (
     handle_posttooluse_agent,
@@ -1328,6 +1329,154 @@ class StopHookGuardTests(unittest.TestCase):
         # sid/rid auto-detect 실패 → skip
         rc = handle_stop(stdin_data={})
         self.assertEqual(rc, 0)
+
+
+# ---------------------------------------------------------------------------
+# _maybe_emit_continuation_signal — issue #469 결함 A
+# ---------------------------------------------------------------------------
+
+
+class StopHookContinuationSignalTests(unittest.TestCase):
+    """issue #469 결함 A — 중간 step PASS 후 메인 turn 자동 발화 신호.
+
+    `_maybe_emit_continuation_signal` 단위 검증. handle_stop 의 신규 분기는
+    본 helper 가 True 반환 시 즉시 return 0 + JSON 출력만 박음 — helper
+    단위로 충분.
+    """
+
+    SID = "12345678-1234-4321-abcd-1234567890ab"
+    RID = "run-deadbeef"
+
+    def setUp(self):
+        import tempfile
+        self._tmp = tempfile.TemporaryDirectory()
+        self.base_dir = Path(self._tmp.name)
+        self.run_dir_path = (
+            self.base_dir / "sessions" / self.SID / "runs" / self.RID
+        )
+        self.run_dir_path.mkdir(parents=True, exist_ok=True)
+
+    def tearDown(self):
+        self._tmp.cleanup()
+
+    def _write_prose(self, agent: str, conclusion_line: str, mode: str = "") -> None:
+        suffix = f"-{mode}" if mode else ""
+        path = self.run_dir_path / f"{agent}{suffix}.md"
+        # 끝 15줄 안 결론 enum 매칭 위해 마지막 줄에 박음
+        path.write_text(
+            "## Prose\n\n작업 요약 prose.\n\n" + conclusion_line + "\n",
+            encoding="utf-8",
+        )
+
+    def _slot(self, *, run_dir: str = None, stop_block_count=None) -> Dict[str, Any]:
+        slot: Dict[str, Any] = {
+            "run_id": self.RID,
+            "started_at": "2026-05-22T00:00:00+00:00",
+            "run_dir": run_dir if run_dir is not None else str(self.run_dir_path),
+        }
+        if stop_block_count is not None:
+            slot["stop_block_count"] = stop_block_count
+        return slot
+
+    def _invoke(self, *, slot, last_agent, last_mode=None):
+        from harness.hooks import _maybe_emit_continuation_signal
+        active = {self.RID: slot}
+        # stdout capture
+        import io
+        from contextlib import redirect_stdout
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            result = _maybe_emit_continuation_signal(
+                sid=self.SID, rid=self.RID, slot=slot, active=active,
+                last_agent=last_agent, last_mode=last_mode,
+                base_dir=self.base_dir,
+            )
+        return result, buf.getvalue()
+
+    def test_build_worker_pass_emits_block(self):
+        # PASS + 중간 agent → block decision JSON 박음
+        self._write_prose("build-worker", "[task1 · 01] PASS")
+        slot = self._slot()
+        result, stdout = self._invoke(slot=slot, last_agent="build-worker")
+        self.assertTrue(result)
+        payload = json.loads(stdout)
+        self.assertEqual(payload["decision"], "block")
+        self.assertIn("build-worker", payload["reason"])
+        self.assertIn("PASS", payload["reason"])
+
+    def test_pr_reviewer_terminal_skips(self):
+        # pr-reviewer 는 종료 agent — PASS/LGTM 박혀있어도 block 안 박음
+        self._write_prose("pr-reviewer", "LGTM — merge 권고")
+        slot = self._slot()
+        result, stdout = self._invoke(slot=slot, last_agent="pr-reviewer")
+        self.assertFalse(result)
+        self.assertEqual(stdout, "")
+
+    def test_fail_enum_skips(self):
+        # FAIL → 메인 사용자 위임 영역 — block 안 박음
+        self._write_prose("code-validator", "전반적 FAIL — 4 항목 위반")
+        slot = self._slot()
+        result, stdout = self._invoke(slot=slot, last_agent="code-validator")
+        self.assertFalse(result)
+        self.assertEqual(stdout, "")
+
+    def test_no_conclusion_enum_skips(self):
+        # 결론 enum 부재 → block 안 박음
+        self._write_prose("build-worker", "작업 요약만 박음 — 결론 표기 없음")
+        slot = self._slot()
+        result, stdout = self._invoke(slot=slot, last_agent="build-worker")
+        self.assertFalse(result)
+        self.assertEqual(stdout, "")
+
+    def test_prose_file_missing_skips(self):
+        # prose file 자체 없음 → block 안 박음 (run_dir 만 박힘)
+        slot = self._slot()
+        result, stdout = self._invoke(slot=slot, last_agent="build-worker")
+        self.assertFalse(result)
+        self.assertEqual(stdout, "")
+
+    def test_block_count_max_skips(self):
+        # block count ≥ _STOP_BLOCK_COUNT_MAX (2) → 진짜 종료 의도 인정, skip
+        from harness.hooks import _STOP_BLOCK_COUNT_MAX
+        self._write_prose("build-worker", "[task1] PASS")
+        slot = self._slot(stop_block_count={"build-worker:": _STOP_BLOCK_COUNT_MAX})
+        result, stdout = self._invoke(slot=slot, last_agent="build-worker")
+        self.assertFalse(result)
+        self.assertEqual(stdout, "")
+
+    def test_block_count_increments_and_persists(self):
+        # 1차 호출 후 stop_block_count 가 live.json 에 +1 박힘
+        self._write_prose("engineer", "IMPL_DONE — 변경 완료", mode="IMPL")
+        slot = self._slot()
+        result, _ = self._invoke(slot=slot, last_agent="engineer", last_mode="IMPL")
+        self.assertTrue(result)
+
+        # live.json 에 persist 됐는지 확인
+        from harness.session_state import read_live
+        live = read_live(self.SID, base_dir=self.base_dir)
+        self.assertIsNotNone(live)
+        persisted_slot = live["active_runs"][self.RID]
+        self.assertEqual(
+            persisted_slot["stop_block_count"]["engineer:IMPL"], 1,
+        )
+
+    def test_engineer_impl_done_block(self):
+        # engineer mode 박힘 케이스 — prose path = engineer-IMPL.md
+        self._write_prose("engineer", "IMPL_DONE — 6 파일 변경", mode="IMPL")
+        slot = self._slot()
+        result, stdout = self._invoke(slot=slot, last_agent="engineer", last_mode="IMPL")
+        self.assertTrue(result)
+        payload = json.loads(stdout)
+        self.assertEqual(payload["decision"], "block")
+        self.assertIn("engineer-IMPL", payload["reason"])
+        self.assertIn("IMPL_DONE", payload["reason"])
+
+    def test_missing_run_dir_skips(self):
+        # slot.run_dir 부재 → block 안 박음
+        slot = self._slot(run_dir="")  # 빈 문자열
+        result, stdout = self._invoke(slot=slot, last_agent="build-worker")
+        self.assertFalse(result)
+        self.assertEqual(stdout, "")
 
 
 # ---------------------------------------------------------------------------

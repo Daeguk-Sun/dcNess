@@ -777,11 +777,16 @@ def handle_stop(
        session_state.py:1001 안전망 → finalize-run --auto-review 자동 →
        `<run_dir>/review.md` 생성 + stderr `[REVIEW_READY]` 신호
 
-    Stop hook 자체는 메인 시야에 inject 안 함 (additionalContext 미지원).
+    issue #469 결함 A fix (DCN-CHG-20260522): 중간 step PASS 후 다음 step 미진입
+    상태로 Stop 받으면 `decision:"block"` JSON stdout 으로 메인 turn 자동 발화
+    강제 (build-worker PASS → 9시간 침묵 회귀 차단). `_maybe_emit_continuation_signal`
+    helper 가 `_CONTINUE_ENUMS` + `_TERMINAL_AGENTS` + `stop_block_count` 가드로
+    분기.
+
     review.md 본문 echo 는 *기존 prose 의무* (loop-procedure.md §6 +
     run-review.md §51 + commands/impl.md §종료 조건) 에 의존.
 
-    return: 항상 0 (block 안 함, 정상 종료 허용).
+    return: 항상 0 (block 박은 경우에도 0 — CC 가 stdout JSON 으로 block 분기 인식).
     """
     if stdin_data is None:
         try:
@@ -844,15 +849,27 @@ def handle_stop(
         return 0  # step 0개 — begin-step 안 부른 상태
 
     last = steps[-1]
+    last_agent = last.get("agent")
+    last_mode = last.get("mode")
     cur_step = slot.get("current_step") if isinstance(slot, dict) else None
     if isinstance(cur_step, dict):
         cur_agent = cur_step.get("agent")
         cur_mode = cur_step.get("mode")
-        last_agent = last.get("agent")
-        last_mode = last.get("mode")
         # 정확 일치 검사 (mode None 도 비교)
         if cur_agent != last_agent or cur_mode != last_mode:
             return 0  # begin-step 후 end-step 미호출 — 진행 중
+
+    # === issue #469 결함 A — 중간 step PASS 후 메인 turn 자동 발화 부재 fix ===
+    # build-worker / engineer / code-validator 같은 중간 step 종료 후 메인이
+    # 다음 step 진입 안 한 상태로 Stop 받으면 decision:block 으로 메인 turn
+    # 재 발화 강제. pr-reviewer 는 종료 agent (run 끝 = 정상 침묵).
+    if _maybe_emit_continuation_signal(
+        sid=sid, rid=rid, slot=slot, active=active,
+        last_agent=last_agent, last_mode=last_mode,
+        base_dir=base_dir,
+    ):
+        return 0
+    # === /issue #469 결함 A ============================================
 
     # 모든 조건 충족 — end-run in-process 호출
     try:
@@ -864,6 +881,97 @@ def handle_stop(
         print(f"[stop-hook] end-run FAIL — {exc}", file=sys.stderr)
 
     return 0
+
+
+# issue #469 결함 A — Stop hook continuation signal helper
+# 다음 step 진입 가능 결론 enum (단독 결론 + 일반 PASS).
+_CONTINUE_ENUMS: frozenset[str] = frozenset({
+    "PASS", "IMPL_DONE", "POLISH_DONE",
+    "TESTS_WRITTEN", "UX_FLOW_DONE",
+})
+# 종료 agent — 본 agent 의 PASS/LGTM 은 run 끝 = block 안 함.
+_TERMINAL_AGENTS: frozenset[str] = frozenset({"pr-reviewer"})
+# 무한 루프 가드 — 같은 step 에서 block 박은 횟수 상한.
+_STOP_BLOCK_COUNT_MAX = 2
+
+
+def _maybe_emit_continuation_signal(
+    *,
+    sid: str,
+    rid: str,
+    slot: Dict[str, Any],
+    active: Dict[str, Any],
+    last_agent: Optional[str],
+    last_mode: Optional[str],
+    base_dir: Optional[Path],
+) -> bool:
+    """issue #469 결함 A — 중간 step PASS 후 메인 turn 발화 강제 신호 박기.
+
+    조건:
+    1. 마지막 step agent 가 종료 agent (pr-reviewer) 아님
+    2. 마지막 step prose 파일 존재 + 결론 enum 이 다음 step 진입 가능 enum
+    3. stop_block_count[step_key] < _STOP_BLOCK_COUNT_MAX (무한 루프 가드)
+
+    반환:
+        True  — decision:block JSON stdout 박음 + 호출자는 return 0 해야 함
+        False — 조건 미충족, 호출자는 기존 분기 (end-run 자동 호출) 진행
+    """
+    if not last_agent or last_agent in _TERMINAL_AGENTS:
+        return False
+    rdir = slot.get("run_dir")
+    if not isinstance(rdir, str) or not rdir:
+        return False
+
+    mode_suffix = f"-{last_mode}" if last_mode else ""
+    prose_path = Path(rdir) / f"{last_agent}{mode_suffix}.md"
+    if not prose_path.is_file():
+        return False
+
+    # 결론 enum 추출 (run_review 의 패턴 재사용 — handle_stop 안 lazy import).
+    try:
+        from harness.run_review import _extract_conclusion_enum
+    except Exception:
+        return False
+    try:
+        prose = prose_path.read_text(encoding="utf-8", errors="ignore")
+    except OSError:
+        return False
+    enum = _extract_conclusion_enum(prose)
+    if enum not in _CONTINUE_ENUMS:
+        return False
+
+    # 무한 루프 가드 — 같은 step 에서 block 박은 횟수 상한 검사.
+    step_key = f"{last_agent}:{last_mode or ''}"
+    block_counts = slot.get("stop_block_count")
+    if not isinstance(block_counts, dict):
+        block_counts = {}
+    try:
+        cur_count = int(block_counts.get(step_key, 0) or 0)
+    except (TypeError, ValueError):
+        cur_count = 0
+    if cur_count >= _STOP_BLOCK_COUNT_MAX:
+        return False  # 메인이 reason 받고도 발화 안 함 = 진짜 종료 — 기존 분기로
+
+    # count +1 persist
+    block_counts[step_key] = cur_count + 1
+    slot["stop_block_count"] = block_counts
+    active[rid] = slot
+    try:
+        update_live(sid, base_dir=base_dir, active_runs=active)
+    except Exception:
+        pass  # persist 실패해도 block 자체는 박음 (다음 호출 시 cur_count 만 미증가)
+
+    reason = (
+        f"[dcness Stop hook · issue #469 결함 A] sub-step "
+        f"'{last_agent}{mode_suffix}' 결론 '{enum}' — 다음 sub-step 진입 turn "
+        "필요. /impl-loop Hybrid A = build-worker PASS → pr-reviewer 영역 "
+        "(begin-step pr-reviewer + Agent pr-reviewer + end-step + PR 머지). "
+        "4-agent /impl 이면 정의된 다음 agent 호출. 사용자 의도로 정말 종료 "
+        f"하려면 메인 발화 → 다시 Stop trigger 시 본 가드가 {_STOP_BLOCK_COUNT_MAX}회 후 "
+        "skip 처리됨."
+    )
+    print(json.dumps({"decision": "block", "reason": reason}))
+    return True
 
 
 # ── CLI 진입점 (bash 훅 → python -m harness.hooks <subcommand>) ─────
