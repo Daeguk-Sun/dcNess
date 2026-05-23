@@ -4,6 +4,52 @@
 
 ---
 
+## v0.2.33 (2026-05-23)
+
+**커밋 범위**: `v0.2.32..v0.2.33`
+**핵심 변경**: `docs/plugin/git-spec.md` 단일 SSOT 신설 (PR + commit + 이슈 등록 룰 통합) + PR body 게이트 over-firing 해소 + review heuristic 강화 (TOOL_REPEAT_HIGH 신규 / must_fix 부정 한국어 라벨 흡수) + helper 진단성 + pr-reviewer 권한 경계 명확화 + 한국어 톤 표준화.
+
+### 무엇이 바뀌나
+
+1. **`docs/plugin/git-spec.md` 신설 + `git-naming-spec.md` 폐기 + `issue-lifecycle.md` 축소** ([#491](https://github.com/alruminum/dcNess/pull/491)) — 브랜치·커밋·PR 네이밍 (§1~§6) + 이슈 등록 양식 (§7) + PR 트레일러 룰 (§8) + 이슈 완료 룰 (§9) 단일 SSOT. `issue-lifecycle.md` 는 흐름·메커니즘 (sub-issue API / 멱등성 / 마일스톤 조회 / pre-flight gate) 만 남김 (202 → 78줄). `.github/PULL_REQUEST_TEMPLATE.md` 신 양식 (관련 이슈 번호 / 배경 및 문제 / 원인 / 작업내용 / 결정 근거 / Test Plan / 참고). dcness self 전용 `## 배포 경로 검증` 섹션 = self 만 (외부 SSOT 누출 X — CLAUDE.md §0.3 정합).
+
+2. **PR body 게이트 over-firing 해소** ([#492](https://github.com/alruminum/dcNess/pull/492)) — `scripts/check_pr_body.mjs` 의 정규식 확장 (`CLOSE_RE` → `TRAILER_RE`). `Part of #N` 트레일러도 valid 로 인정 (close 키워드 단독 강제 폐기). 중간 task PR 마다 fail 발화하던 룰 모순 해소. 외부 활성 프로젝트의 다음 PR 부터 즉시 적용 (composite action 상대경로 호출 — 재배포 불필요).
+
+3. **pr-reviewer 권한 경계 명확화** ([#485](https://github.com/alruminum/dcNess/pull/485)) — `commands/impl.md` + `commands/impl-loop.md` 정상 흐름 표현 정정. pr-reviewer 의 `tools: Read, Glob, Grep` 명시 + commit/push/PR 생성·머지는 *메인 Claude 전담* 분리. 외부 활성 프로젝트 CC 가 "pr-reviewer 가 PR 만들어야 하는데 권한이 없다" 호소하던 회귀 차단.
+
+4. **review heuristic — TOOL_REPEAT_HIGH 신규** ([#487](https://github.com/alruminum/dcNess/pull/487)) — `harness/run_review.py` 의 `_detect_tool_repeat_findings`. agent-trace.jsonl 의 (tool, input) 카운트 임계 (Bash 5+ / Read 4+ / 기타 5+) 초과 시 `TOOL_REPEAT_HIGH` MEDIUM finding emit. build-worker 가 같은 명령 반복 호출하는 안티패턴 catch.
+
+5. **review heuristic — must_fix 부정 한국어 라벨 흡수** ([#486](https://github.com/alruminum/dcNess/pull/486)) — `_MUST_FIX_NEGATION_RE` 의 between 영역 일반화 (`[\s:=]*` → `[^\n]{0,30}?`). pr-reviewer prose 의 `**MUST FIX 항목**: 없음` 같은 한국어 라벨 형태 흡수. `MUST_FIX_LEAK` HIGH false positive 차단.
+
+6. **helper sid/rid 진단성 강화** ([#488](https://github.com/alruminum/dcNess/pull/488)) — `harness/session_state.py` 의 `diagnose_sid_rid_resolution`. 3 layer (env / PPID / active_runs scan) 상태 + escape hatch (`DCNESS_SESSION_ID/RUN_ID` export 명령) stderr 출력. 사용자 자가 해결 영역 확보.
+
+7. **한국어 톤 표준화 — '박-' 동사 회귀 전수 보정** ([#490](https://github.com/alruminum/dcNess/pull/490)) — `agents/` + `commands/` + `hooks/` + `harness/` + `scripts/` + `docs/plugin/` 영역의 비표준 동사 변형 약 137건 (37 파일) 을 자연스러운 한국어 표준 동사로 통일.
+
+### 왜 바뀌나
+
+본 release 의 두 핵심 변경 (#491 SSOT 통합 / #492 게이트 해소) 은 같은 뿌리:
+
+- **#491 SSOT 통합**: 직전 release (v0.2.32) 까지 PR / commit / 이슈 등록 룰이 5곳 (PR template / git-naming-spec / issue-lifecycle / build-worker inline / create_epic_story_issues inline) 에 분산. PR #485 작성 시 commit message 와 PR body 가 같은 정보를 다른 양식으로 *중복 작성* 하는 패턴 노출. 외부 활성 프로젝트 CC 의 *어디 룰 따를지* 추적 비용 제거 목적.
+
+- **#492 게이트 해소**: SSOT 통합 작업 중 사용자가 반복 발생하는 fail 메일 보고 → 게이트 룰 (`close 키워드 1+ 강제`) 와 dcness 룰 (`중간 task PR = Part of #N`) 정면 모순 발견. 정규식 의미 진화 (\"close 키워드\" → \"트레일러\") 로 해소.
+
+나머지 #485 / #486 / #487 / #488 / #490 은 외부 활성 프로젝트 (jajang) 의 실측 회귀 사례 받아 부수 보강.
+
+### 사용자 행동
+
+- **외부 활성 프로젝트는 plug-in 업데이트만 받으면 즉시 적용** (CLAUDE.md §0.5 경로 1·3):
+  - `pr-body-validation` 게이트가 `Part of #N` 도 통과 → 우회 마커 (`Document-Exception-PR-Close:`) 빈도 급감
+  - 새 SSOT `docs/plugin/git-spec.md` 가 plug-in 본체 경로로 자동 read
+- **외부용 PR template 자동 배포는 본 release 에 포함 X** — 외부 사용자가 자기 `.github/PULL_REQUEST_TEMPLATE.md` 작성 또는 메인 CC 가 spec §5 본문 직접 read 후 PR body 작성
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
+
+---
+
 ## v0.2.32 (2026-05-23)
 
 **커밋 범위**: `v0.2.31..v0.2.32`
