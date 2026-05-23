@@ -173,7 +173,7 @@ impl 파일 부재로 module-architect 선두 진입한 경우 2번째 줄은 `m
 > `/impl` 단발 호출 (driver 부재) 은 review.md 원본 그대로 출력 MUST 유지 — rigor 우선. 본 재정의는 `/impl-loop` 한정.
 
 ## false-clean 차단 (MUST, #431)
-task 를 clean 으로 표기하기 *전*, code-validator 가 PASS 를 냈고 pr-reviewer 가 실행돼 PR 이 생성·머지됐는지 메인이 직접 확인한다. 둘 중 하나라도 흔적이 없으면 clean 아님 → `blocked` 강등 + 사용자 보고. (test-engineer + engineer 만 호출하고 commit/push/PR 없이 prose "PASS" 박고 종료하는 안티패턴 — 실측 회귀 사례.)
+task 를 clean 으로 표기하기 *전*, code-validator 가 PASS 를 냈고 pr-reviewer 가 실행된 뒤 *메인 Claude 가* PR 생성·머지까지 마쳤는지 메인이 직접 확인한다. 셋 중 하나라도 흔적이 없으면 clean 아님 → `blocked` 강등 + 사용자 보고. (pr-reviewer 자체는 `tools: Read, Glob, Grep` 만 — commit/push/PR 권한 없음. test-engineer + engineer 만 호출하고 commit/push/PR 없이 prose "PASS" 박고 종료하는 안티패턴 — 실측 회귀 사례.)
 
 ## compaction 중 진행 (안전망)
 긴 epic 진행 중 메인 컨텍스트가 auto-compaction 될 수 있다. 루프 진행 상태는 메인 컨텍스트가 아니라 conveyor state 파일 (`live.json` / `.by-pid-current-run/` / `run-NN` / `current_step`) 이 SSOT — compaction 돼도 진행 손실은 0. compaction 직후 자신이 impl-loop 도중이라고 판단되면 run state 를 재read 해서 현재 task index + step 을 식별하고 그 지점부터 재개한다.
