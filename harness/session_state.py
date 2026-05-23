@@ -873,6 +873,75 @@ def auto_detect_run_id(*, base_dir: Optional[Path] = None) -> str:
     return ""
 
 
+def diagnose_sid_rid_resolution(
+    *, base_dir: Optional[Path] = None, mode: str = "both"
+) -> str:
+    """sid/rid 미해결 시 각 해상도 layer 어디서 fail 했나 진단 + escape hatch 안내.
+
+    issue #483 (DCN-CHG-20260523): 기존 `[session_state] sid/rid 미해결` 한 줄
+    stderr 만으로는 (env / PPID / scan) 어느 영역에서 fail 했는지 추적 불가.
+    helper 호출 시점 진단을 즉시 사용자에게 노출 + 우회 escape hatch 안내.
+
+    Args:
+        mode: "sid" / "rid" / "both" — 진단 출력 범위. CLI 호출 영역에 따라 분기.
+
+    Returns:
+        multi-line string (stderr 직접 출력 형태). 각 layer 의 상태 + 우회 명령 1줄씩.
+    """
+    env_sid = os.environ.get("DCNESS_SESSION_ID", "")
+    env_rid = os.environ.get("DCNESS_RUN_ID", "")
+    cc_pid = get_cc_pid_via_ppid_chain()
+
+    lines: list[str] = []
+    header = "sid/rid" if mode == "both" else mode
+    lines.append(f"[session_state] {header} 미해결 — 진단:")
+
+    # (a) env var layer
+    if mode in ("sid", "both"):
+        sid_status = "있음" if valid_session_id(env_sid) else "미설정"
+        lines.append(f"  (a) env DCNESS_SESSION_ID: {sid_status}")
+    if mode in ("rid", "both"):
+        rid_status = "있음" if env_rid else "미설정"
+        lines.append(f"  (a) env DCNESS_RUN_ID: {rid_status}")
+
+    # (b) PPID chain layer
+    if cc_pid is None:
+        lines.append(
+            "  (b) PPID chain: 미해결 — helper 가 메인 CC PID 추적 실패 "
+            "(bash subprocess 재시작 / fork / EnterWorktree 후 PID context 변경 의심)"
+        )
+    else:
+        lines.append(f"  (b) PPID chain cc_pid: {cc_pid}")
+        if mode in ("sid", "both"):
+            sid_from_pid = read_pid_session(cc_pid, base_dir=base_dir)
+            lines.append(
+                f"  (b) by-pid/{cc_pid}: "
+                f"{'sid 있음' if sid_from_pid else 'sid 없음 (SessionStart 훅 미실행 또는 stale by-pid 파일)'}"
+            )
+        if mode in ("rid", "both"):
+            rid_from_pid = read_pid_current_run(cc_pid, base_dir=base_dir)
+            lines.append(
+                f"  (b) by-pid-current-run/{cc_pid}: "
+                f"{'rid 있음' if rid_from_pid else 'rid 없음 (begin-run 호출 안 됨 또는 stale)'}"
+            )
+
+    # (c) active_runs scan layer (rid 영역만 의미 — sid 도 같이 매칭)
+    slot = _scan_recent_active_run_slot(base_dir=base_dir)
+    if slot is None:
+        lines.append("  (c) active_runs scan: 매치 없음 (모든 run finalized 또는 sessions dir 비어있음)")
+    else:
+        lines.append(f"  (c) active_runs scan best-guess: sid={slot[0]} rid={slot[1]}")
+
+    lines.append("")
+    lines.append("우회 (escape hatch):")
+    if mode in ("sid", "both"):
+        lines.append("  export DCNESS_SESSION_ID=<sid>  # JSONL 디렉토리명 또는 begin-run stdout 참조")
+    if mode in ("rid", "both"):
+        lines.append("  export DCNESS_RUN_ID=<rid>      # begin-run stdout 의 run_id 값")
+    lines.append("관련: dcness#483 / dcness#469 결함 B (helper sid/rid 회귀)")
+    return "\n".join(lines)
+
+
 def _scan_recent_active_run_slot(
     *,
     base_dir: Optional[Path] = None,
@@ -1085,7 +1154,7 @@ def _cli_begin_run(args: Any) -> int:
     """sid auto-detect → rid 생성 → start_run + by-pid-current-run."""
     sid = auto_detect_session_id()
     if not sid:
-        print("[session_state] sid 미해결 — SessionStart 훅 미실행?", file=sys.stderr)
+        print(diagnose_sid_rid_resolution(mode="sid"), file=sys.stderr)
         return 1
     rid = generate_run_id()
     issue_num = args.issue_num if args.issue_num is not None else None
@@ -1102,7 +1171,7 @@ def _cli_end_run(args: Any) -> int:
     sid = auto_detect_session_id()
     rid = auto_detect_run_id()
     if not sid or not rid:
-        print("[session_state] sid/rid 미해결", file=sys.stderr)
+        print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
         return 1
 
     # finalize-run 미호출 시 자동 실행 — 모델이 Step 7 건너뛴 경우 안전망.
@@ -1217,7 +1286,7 @@ def _cli_next_task(args: Any) -> int:
     """
     sid = auto_detect_session_id()
     if not sid:
-        print("[session_state] sid 미해결 — SessionStart 훅 미실행?", file=sys.stderr)
+        print(diagnose_sid_rid_resolution(mode="sid"), file=sys.stderr)
         return 1
 
     prev_rid = auto_detect_run_id()
@@ -1364,7 +1433,7 @@ def _cli_begin_step(args: Any) -> int:
     sid = auto_detect_session_id()
     rid = auto_detect_run_id()
     if not sid or not rid:
-        print("[session_state] sid/rid 미해결", file=sys.stderr)
+        print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
         return 1
     mode = args.mode if args.mode else None
     update_current_step(sid, rid, args.agent, mode)
@@ -1407,7 +1476,7 @@ def _cli_run_dir(args: Any) -> int:
     sid = auto_detect_session_id()
     rid = auto_detect_run_id()
     if not sid or not rid:
-        print("[session_state] sid/rid 미해결", file=sys.stderr)
+        print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
         return 1
     rd = run_dir(sid, rid)
     print(str(rd))
@@ -1526,7 +1595,7 @@ def _cli_end_step(args: Any) -> int:
     sid = auto_detect_session_id()
     rid = auto_detect_run_id()
     if not sid or not rid:
-        print("[session_state] sid/rid 미해결", file=sys.stderr)
+        print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
         return 1
 
     mode = args.mode if args.mode else None

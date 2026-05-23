@@ -2142,6 +2142,51 @@ class AutoDetectFallbackTests(unittest.TestCase):
         rid = auto_detect_run_id(base_dir=self.base)
         self.assertEqual(rid, self.RID_A)
 
+    # ── issue #483 — diagnose_sid_rid_resolution 진단성 강화 ────────────
+
+    def test_diagnose_all_layers_unresolved(self) -> None:
+        """env / PPID / scan 전 layer 미해결 → 모든 layer 상태 + escape hatch 출력."""
+        from harness.session_state import diagnose_sid_rid_resolution
+        msg = diagnose_sid_rid_resolution(base_dir=self.base, mode="both")
+        self.assertIn("env DCNESS_SESSION_ID: 미설정", msg)
+        self.assertIn("env DCNESS_RUN_ID: 미설정", msg)
+        self.assertIn("PPID chain", msg)
+        self.assertIn("active_runs scan: 매치 없음", msg)
+        # escape hatch 안내 의무
+        self.assertIn("export DCNESS_SESSION_ID=", msg)
+        self.assertIn("export DCNESS_RUN_ID=", msg)
+        self.assertIn("dcness#483", msg)
+
+    def test_diagnose_env_var_present(self) -> None:
+        """env var 설정 시 진단 메시지에 '있음' 표시."""
+        from harness.session_state import diagnose_sid_rid_resolution
+        os.environ["DCNESS_SESSION_ID"] = self.SID_A
+        os.environ["DCNESS_RUN_ID"] = self.RID_A
+        msg = diagnose_sid_rid_resolution(base_dir=self.base, mode="both")
+        self.assertIn("env DCNESS_SESSION_ID: 있음", msg)
+        self.assertIn("env DCNESS_RUN_ID: 있음", msg)
+
+    def test_diagnose_active_runs_scan_best_guess(self) -> None:
+        """active_runs scan 매치 시 best-guess sid/rid 노출 — 사용자 우회 hint."""
+        from harness.session_state import diagnose_sid_rid_resolution
+        self._write_live(
+            self.SID_A,
+            runs={self.RID_A: {"run_id": self.RID_A, "started_at": "2026-05-22T01:00:00+00:00"}},
+        )
+        msg = diagnose_sid_rid_resolution(base_dir=self.base, mode="both")
+        self.assertIn("active_runs scan best-guess", msg)
+        self.assertIn(self.SID_A, msg)
+        self.assertIn(self.RID_A, msg)
+
+    def test_diagnose_mode_sid_only(self) -> None:
+        """mode='sid' → sid 영역만 진단 (rid 영역 미출력)."""
+        from harness.session_state import diagnose_sid_rid_resolution
+        msg = diagnose_sid_rid_resolution(base_dir=self.base, mode="sid")
+        self.assertIn("env DCNESS_SESSION_ID", msg)
+        self.assertNotIn("env DCNESS_RUN_ID", msg)
+        self.assertIn("export DCNESS_SESSION_ID=", msg)
+        self.assertNotIn("export DCNESS_RUN_ID=", msg)
+
 
 # ---------------------------------------------------------------------------
 # _cli_next_task subcommand — issue #471
