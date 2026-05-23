@@ -23,3 +23,6 @@ node_modules/
 # heuristic enum 추출 telemetry (DCN-CHG-20260430-04 정착 — heuristic-only)
 .metrics/
 eval_report.html
+
+# 임시 분석 보고서 (SSOT audit 등)
+tmp/

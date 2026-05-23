@@ -302,7 +302,7 @@
   - 4 PR migration (skill 슬림화 + procedure SSOT) 의 PR3.
   - `harness/session_state.py:_cli_finalize_run` 에 `--auto-review` flag 추가. STATUS JSON 출력 직후 in-process 로 `harness.run_review.main(["--run-id", rid, "--repo", cwd])` 호출. 메인 Claude 가 finalize-run 부르면 review 자동 piggy-back — 의도적 skip 불가.
   - 실패 케이스 (review_main 예외) 안전망 — `AUTO_REVIEW_FAIL` stderr WARN + STATUS JSON 자체는 정상 출력 + exit 0.
-  - `commands/qa.md` slim pilot — 127줄 → 28줄 (78% 절감). `qa-triage` loop / Inputs / 후속 라우팅 추천만. 절차는 [`docs/loop-procedure.md`](docs/loop-procedure.md) §1~§6 + §7.5 cross-ref.
+  - `commands/qa.md` slim pilot — 127줄 → 28줄 (78% 절감). `qa-triage` loop / Inputs / 후속 라우팅 추천만. 절차는 [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) §1~§6 + §7.5 cross-ref (작성 시점엔 `docs/loop-procedure.md` 였으나 Story 2.3 로 `docs/plugin/` 이동).
   - `tests/test_session_state.py` 3 신규 (`auto_review_chains_report` / `skip_on_failure` / `off_no_chain`) PASS. 219 ran / 217 PASS / 2 pre-existing flaky 무관.
   - PR4 후속 — 4 skill (quick / impl / impl-loop / product-plan) bulk slim.
 - **📐 loop-procedure.md §7 매트릭스 행별 풀스펙 보강** (`DCN-CHG-20260430-28`):
@@ -497,8 +497,8 @@
 
 **다음 iteration 시작점**: `git log --oneline` + 본 PROGRESS 의 진행도 확인 후 다음 묶음 picker.
 
-- [ ] Anthropic SDK 통합 — `interpret_signal` 의 메타 LLM interpreter 구현 (haiku, cycle 당 비용 측정 — proposal R8)
-- [ ] ambiguous prose 카탈로그 — `MissingSignal(ambiguous)` raise 시 `.metrics/ambiguous-prose.jsonl` 누적 (proposal R1 acceptance)
+- [x] **Anthropic SDK 통합** — Phase 3 iter 3 (`DCN-CHG-20260429-22`) 에서 `harness/llm_interpreter.py` 통합 완료 (haiku, telemetry, mock DI). 본 항목은 사실상 그 작업에 흡수.
+- [x] **ambiguous prose 카탈로그** — Phase 3 iter 4 (`DCN-CHG-20260429-23`) 에서 `harness/interpret_strategy.py` outcome 5종 telemetry + `scripts/analyze_metrics.mjs` 의 ambiguous 샘플 5개 누적으로 흡수.
 - [ ] 다른 agent docs 를 prose writing guide 로 변환:
   - [x] **iter 1 완료** (DCN-CHG-20260429-15): `agents/pr-reviewer.md`, `agents/plan-reviewer.md`, `agents/qa.md`, `agents/security-reviewer.md`
   - [x] **iter 2 완료** (DCN-CHG-20260429-16): `agents/architect.md` + 7 mode sub-doc

@@ -31,7 +31,7 @@ cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
 
 ## Prose-Only 패턴 (검증 에이전트)
 
-본 저장소는 [`docs/plugin/prose-only-principle.md`](docs/plugin/prose-only-principle.md) (Prose-Only 원칙) 에 따라 검증 결과를 **자유 prose** 로 emit 한다. 검증 에이전트(code-validator, architecture-validator, plan-reviewer, pr-reviewer 등) 호출 시:
+본 저장소는 [`docs/plugin/orchestration.md`](docs/plugin/orchestration.md) §0 (Prose-Only 원칙 — 형식 강제 X) 에 따라 검증 결과를 **자유 prose** 로 emit 한다. 검증 에이전트(code-validator, architecture-validator, plan-reviewer, pr-reviewer 등) 호출 시:
 
 1. **stdout 으로 prose**: 형식 자유 (markdown / 평문 / 표). harness 가 prose 파일로 저장(`.claude/harness-state/<run_id>/<agent>[-<MODE>].md`).
 2. **결론 enum**: prose 의 *마지막 단락* 에 enum 단어 1개 명시 (검증 에이전트 통일 — `PASS` / `FAIL` / `ESCALATE`). 모호한 표현 금지.
@@ -42,13 +42,13 @@ cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
    - `preamble.md` 자동 주입 / agent-config 별 layer (자기완결 docs)
    - 모두 사용 금지.
 
-자세한 형식: [`agents/code-validator.md`](agents/code-validator.md), [`agents/architecture-validator.md`](agents/architecture-validator.md), [`docs/plugin/prose-only-principle.md`](docs/plugin/prose-only-principle.md) §1.
+자세한 형식: [`agents/code-validator.md`](agents/code-validator.md), [`agents/architecture-validator.md`](agents/architecture-validator.md), [`docs/plugin/orchestration.md`](docs/plugin/orchestration.md) §0.
 
 orchestrator 측 해석은 [`harness/signal_io.py`](harness/signal_io.py) 의 `interpret_signal(prose, allowed)` 사용 — `MissingSignal` 단일 normalize (not_found / empty / ambiguous). 메타 LLM 통합은 `interpreter=` 인자로 swap.
 
 ## 참조
 
 - [`CLAUDE.md`](CLAUDE.md) — 작업 규칙 SSOT
-- [`docs/plugin/prose-only-principle.md`](docs/plugin/prose-only-principle.md) — Prose-Only 원칙 현행 SSOT
+- [`docs/plugin/orchestration.md`](docs/plugin/orchestration.md) §0 — Prose-Only 원칙 현행 SSOT (강제 영역 2 + 안티패턴 4)
 - [`PROGRESS.md`](PROGRESS.md) — 현재 상태 / TODO / Blockers
 - [`README.md`](README.md) — 프로젝트 개요 + Quick Start
