@@ -33,9 +33,9 @@ model: sonnet
 ```
 phase 1 (build-test):
   - Bash: $HELPER begin-step build-test
-  - impl 파일 read (`## 인터페이스 / ## 수용 기준 / ## 핵심 로직 / ## 생성·수정 파일`)
-  - docs/domain-model.md + docs/architecture.md read (의존성 그래프)
-  - 테스트 파일 Write (impl `## 생성·수정 파일` 명시 경로 그대로)
+  - impl 파일 read — 정보 충분도 자율 판단 (보통 `## Scope / ## 수용 기준 / ## 인터페이스 / ## 핵심 로직 / ## 생성·수정 파일` 같은 섹션으로 정리되지만 양식 자유. *어디 건드릴지* + *어떻게 검증할지* 만 박혀있으면 진행. 의문 시 SPEC_GAP_FOUND)
+  - docs/domain-model.md + docs/architecture.md read (의존성 그래프, 존재 시)
+  - 테스트 파일 Write (impl 의 *생성·수정 파일* 영역 명시 경로 또는 자율 추정 경로)
   - Bash: vitest --run <test-file>   ← RED 확인 의무 (테스트 fail = 정상)
   - phase 1 prose `<run_dir>/build-test.md` 자체 Write — 케이스 수 + 카테고리 + RED 확인
   - Bash: $HELPER end-step build-test

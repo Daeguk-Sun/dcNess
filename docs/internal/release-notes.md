@@ -4,6 +4,39 @@
 
 ---
 
+## v0.2.32 (2026-05-23)
+
+**커밋 범위**: `v0.2.31..v0.2.32`
+**핵심 변경**: `/impl-loop` 분기 룰을 "양식별 분기" → "impl 파일 존재 여부" 1차원으로 단순화. build-worker 가 모든 input (정식 양식 / bugfix / 자유 형식) 받음. impl 파일 부재 시 module-architect 자동 선두 진입.
+
+### 무엇이 바뀌나
+
+1. **`commands/impl-loop.md` 분기 룰** — 정규식 양식 매치 (`docs/milestones/.../impl/NN-*.md`) 폐기. **impl 파일 존재 여부 1차원**만 본다:
+   - 있음 → build-worker 직진 (2-step: build-worker + pr-reviewer)
+   - 없음 → module-architect 가 먼저 impl 파일 생성 → build-worker 진입 (3-step)
+2. **`commands/impl-loop.md` 후보 경로 (4-agent + module-architect 선두 5-step) 섹션 폐기** — build-worker capability 활용 100%. code-validator 독립 호출 X (build-worker 안 self-validate 로 흡수 — #446 정합).
+3. **`commands/impl-loop.md` 자동 폴백 룰 명시** — build-worker 가 진행 중 `SPEC_GAP_FOUND` 던지면 메인이 module-architect 호출 → impl 파일 보강 → build-worker 재시도 (cycle ≤ 2). attempt 한도 초과 시 사용자 위임.
+4. **`commands/impl-loop.md` 진행 뷰 단계 수 표기 정정** — sub-step 수 = 2 (impl 있음) / 3 (impl 없음). 옛 후보 경로 5-step 표기 폐기.
+5. **`agents/build-worker.md` phase 1 read 의무 톤 다운** — `## 인터페이스 / ## 수용 기준 / ## 핵심 로직 / ## 생성·수정 파일` 4 섹션 강제 → "양식 자유. 어디 건드릴지 + 어떻게 검증할지 박혀있으면 진행, 의문 시 `SPEC_GAP_FOUND`" 자율 판단. 1줄 fix 같은 가벼운 task 에 4 섹션 다 강제하는 빡빡함 제거.
+
+### 왜 바뀌나
+
+본 세션 외부 사용자 케이스 — bugfix 3건 (`docs/bugfix/#N-*.md`) 을 `/impl-loop` 으로 진행했는데 build-worker 가 *능력은 있지만* skill 분기 룰이 정식 양식만 허용해서 4-agent 후보 경로로 강제 분기. build-worker 본인 명세서 (`agents/build-worker.md:25`) 에는 "정식 양식 또는 bugfix 양식 둘 다 받음" 박혀있는데 매니저 (skill) 가 그 능력을 활용 안 함 = 모순.
+
+근본 단순화로 양식별 분기 자체 폐기. 분기 기준 = "impl 파일 있나 없나" 단 하나. build-worker 가 내용 보고 자율 판단하는 구조 (정보 부족 시 `SPEC_GAP_FOUND` → 자동 폴백). `/impl` 단발 호출은 4-agent 모델 유지 (단발은 누적 위기 없음, 엄정성 우선 의도된 티어링).
+
+### 사용자 행동
+
+`/impl-loop` 진입 시 자동 적용. 다음부터 모든 양식 (정식 / bugfix / 자유 형식) 이 build-worker 한 번에 처리 → 메인 토큰 절약 + 사용자 입장 단계 안 쪼개짐.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
+
+---
+
 ## v0.2.31 (2026-05-22)
 
 **커밋 범위**: `v0.2.30..v0.2.31`
