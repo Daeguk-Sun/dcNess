@@ -71,7 +71,7 @@ else
 fi
 ```
 
-자세히 = [`../archive/conveyor-design.md`](../archive/conveyor-design.md) §13.
+위 squash 흡수 검사 + ExitWorktree 자동 분기 패턴은 본 SSOT 본문이 자족. (역사 설계 컨텍스트는 [`../../README.md`](../../README.md) "참조 문서" 표 참고.)
 
 ### 1.2 begin-run
 
@@ -507,7 +507,6 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 - [`orchestration.md`](orchestration.md) §2~§4 — 시퀀스 mini-graph / 8 loop 행별 풀스펙 / handoff cross-ref
 - [`hooks.md`](hooks.md) — 6 hook (catastrophic-gate / file-guard / tdd-guard / stop-end-run / session-start / post-*) 시점·차단·우회 SSOT
 - 본 문서 §3.1 + §6 — echo / 자가점검 / REDO 분류 / 개선점 코멘트 (옛 dcness-rules §3/§4 흡수)
-- [`../archive/conveyor-design.md`](../archive/conveyor-design.md) §2 / §3 / §7 — 컨베이어 디자인 + catastrophic gate (역사 자료)
 - `harness/session_state.py` — helper CLI (`begin-run` / `end-run` / `begin-step` / `end-step` / `finalize-run` / `run-dir` / `auto-resolve`)
 - `harness/run_review.py` — review 엔진 (`--auto-review` 호출 대상)
 - `commands/<skill>.md` — skill 진입점 (input 정형화 + Loop 추천)

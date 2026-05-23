@@ -351,7 +351,7 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 
 ## 6. 코드 Driver
 
-§2.1 catastrophic = `hooks/catastrophic-gate.sh` (PreToolUse Agent) 강제. 메인 Claude = 시퀀스 결정자. **6 hook 전체 시점·차단·우회 메커니즘 SSOT** = [`hooks.md`](hooks.md). 상세 설계 history = [`../archive/conveyor-design.md`](../archive/conveyor-design.md).
+§2.1 catastrophic = `hooks/catastrophic-gate.sh` (PreToolUse Agent) 강제. 메인 Claude = 시퀀스 결정자. **6 hook 전체 시점·차단·우회 메커니즘 SSOT** = [`hooks.md`](hooks.md).
 
 ---
 
@@ -361,12 +361,10 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 - [`loop-procedure.md`](loop-procedure.md) — 루프 실행 Step 0~8 mechanics
 - [`hooks.md`](hooks.md) — 6 hook (catastrophic-gate / file-guard / tdd-guard / stop-end-run / session-start / post-*) 시점·차단·우회 SSOT (코드 강제 백본)
 - 본 문서 §0 — 강제 영역 2가지 + 안티패턴 4건 (옛 dcness-rules.md §1 흡수)
-- [`../archive/status-json-mutate-pattern.md`](../archive/status-json-mutate-pattern.md) — Prose-Only 원전 proposal (Phase 분할 / §11.4 도입 기준 / Risks) (역사 자료)
-- [`../archive/conveyor-design.md`](../archive/conveyor-design.md) — 코드 driver 디자인 + 폐기된 옵션 카탈로그 (역사 자료)
 - [`loop-procedure.md`](loop-procedure.md) §3 — cross-cutting 룰 (echo / 자가점검 / REDO 분류 / yolo)
 - [`../../CLAUDE.md`](../../CLAUDE.md) — 작업 절차 + 게이트 SSOT
-- [`../archive/plugin-dryrun-guide.md`](../archive/plugin-dryrun-guide.md) — plugin 배포 dry-run (역사 자료)
-- [`../archive/migration-decisions.md`](../archive/migration-decisions.md) §2.1 — RWHarness 모듈 분류 (impl_loop.py DISCARD) (역사 자료)
+
+> 역사 자료 (Prose-Only 원전 proposal / 코드 driver 디자인 / plugin 배포 dry-run / RWHarness 모듈 분류 등) 는 [`../../README.md`](../../README.md) 의 "참조 문서" 표 (`docs/archive/` 영역) 참조.
 - `agents/*.md` — 각 agent prose writing guide + 결론 enum 출처 (system-architect / module-architect / engineer / test-engineer / code-validator / architecture-validator / designer / ux-architect / plan-reviewer / pr-reviewer / qa)
 - `harness/signal_io.py` / `harness/interpret_strategy.py` — interpret_signal + heuristic
 - `scripts/analyze_metrics.mjs` — fitness 측정

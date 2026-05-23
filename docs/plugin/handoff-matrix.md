@@ -210,7 +210,6 @@ RWHarness 4 신호 OR 정합:
 - [`orchestration.md`](orchestration.md) — 시퀀스 catalog (§2 게이트 + §3 진입 경로 + §4 8 loop 행별 풀스펙)
 - [`loop-procedure.md`](loop-procedure.md) — Step 0~8 mechanics
 - [`orchestration.md`](orchestration.md) §0 — 강제 영역 2가지 (대 원칙)
-- [`../archive/status-json-mutate-pattern.md`](../archive/status-json-mutate-pattern.md) — Prose-Only 원전 proposal (역사 자료)
 - `agents/*.md` — 각 agent 의 결론 prose 표현 가이드
 - `harness/signal_io.py` / `harness/interpret_strategy.py` — 옛 enum 추출 인프라 (이슈 #284 폐기 진행 중)
 - (issue #392 — `harness/routing_telemetry.py` 폐기. baseline 비교 끝남 + cascade marker 실측 0건)
