@@ -34,10 +34,11 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
 1. test-engineer (TESTS_WRITTEN) → 테스트 선작성
 2. engineer:IMPL (IMPL_DONE) → 구현 + 테스트 PASS
 3. **code-validator (PASS)** — impl 계획 ↔ 구현 정합 검증
-4. **pr-reviewer (LGTM)** — 코드 품질·보안 + commit/push/PR 생성·머지
+4. **pr-reviewer (LGTM, read-only)** — 코드 품질·보안 검토만. pr-reviewer 의 `tools: Read, Glob, Grep` — *commit/push/PR 생성·머지 권한 없음*
+5. **메인 Claude (git/PR 작업)** — pr-reviewer PASS 후 worker prose 의 commit message + PR 본문 *초안*을 받아 `scripts/pr-create.sh` 호출 → 후속으로 `scripts/pr-finalize.sh` 머지
 
-후반 2 단계 (3+4) skip 차단:
-- task 를 clean 으로 표기하기 *전*, code-validator 가 PASS 를 냈고 pr-reviewer 가 실행돼 PR 이 생성·머지됐는지 메인이 직접 확인. 흔적 부재 시 → false-clean 의심 → `blocked` 강등 + 사용자 개입 (#431)
+후반 3 단계 (3+4+5) skip 차단:
+- task 를 clean 으로 표기하기 *전*, code-validator 가 PASS 를 냈고 pr-reviewer 가 실행된 뒤 *메인 Claude 가* PR 생성·머지까지 마쳤는지 메인이 직접 확인. 흔적 부재 시 → false-clean 의심 → `blocked` 강등 + 사용자 개입 (#431)
 
 ## 후속 라우팅
 - 본 loop clean → 자동 commit/PR (branch prefix = orchestration §4.3 decision rule: feat/chore/fix)
