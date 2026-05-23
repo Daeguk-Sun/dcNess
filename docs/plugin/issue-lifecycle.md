@@ -72,7 +72,7 @@ story 이슈 부재 시 동일 패턴 (Story N 헤더 직하 `**GitHub Issue:** 
 
 - 등록·트레일러·완료 *룰* SSOT: [`git-spec.md`](git-spec.md) §7~§9
 - 시퀀스 / 핸드오프: [`orchestration.md`](orchestration.md)
-- loop spec (8 loop 행별 풀스펙): [`orchestration.md`](orchestration.md) §4
+- loop spec (7 loop 행별 풀스펙): [`orchestration.md`](orchestration.md) §4
 - product-plan skill (메인 직접): [`../../commands/product-plan.md`](../../commands/product-plan.md)
 - system-architect (impl 목차 표 SSOT): [`../../agents/system-architect.md`](../../agents/system-architect.md)
 - module-architect (impl 본문 detail per task): [`../../agents/module-architect.md`](../../agents/module-architect.md)

@@ -2,20 +2,20 @@
 
 > **Status**: ACTIVE
 > **Scope**: dcness 컨베이어의 *agent 측 강제 영역* SSOT — agent 결론 prose 를 보고 메인 Claude 가 다음 단계 결정할 때 참조하는 자연어 routing 가이드 / retry 한도 / escalate 카탈로그 / 접근 권한.
-> **Cross-ref**: 시퀀스 spec + 8 loop 행별 풀스펙 = [`orchestration.md`](orchestration.md) §2~§4. 절차 mechanics = [`loop-procedure.md`](loop-procedure.md).
+> **Cross-ref**: 시퀀스 spec + 7 loop 행별 풀스펙 = [`orchestration.md`](orchestration.md) §2~§4. 절차 mechanics = [`loop-procedure.md`](loop-procedure.md).
 
 ---
 
 ## 1. Agent 결론 → 다음 agent 결정 가이드 (자연어)
 
-> agent 10 종 (architect 는 system-architect + module-architect 두 에이전트로 평탄화, validator 는 code-validator + architecture-validator 두 에이전트로 평탄화, security-reviewer 는 pr-reviewer §F-Security + architect 의 위협 모델 가정·invariant 로 흡수, design-critic 은 사용자 직접 PICK 으로 대체 + 클리셰 회피는 design.md §8 + code-validator grep 으로 흡수, product-planner 는 메인 Claude 가 사용자와 직접 그릴미 대화로 PRD/stories.md 작성 — 컨텍스트 손실 회피, plan-reviewer 가 외부 검증 담당). agent 가 자기 prose 에 결론 + 권장 다음 단계를 자유롭게 쓴다. 메인 Claude 는 그 prose 와 본 가이드를 비교해 다음 호출을 결정한다. 본 가이드는 형식 강제가 아니라 *판단 보조*. 가능한 결론 표현은 agent 별로 다양 — 의미만 맞으면 OK ([`orchestration.md`](orchestration.md) §0 정체성 정합).
+> agent 12 종 — §1.1 ~ §1.12 sub-section. 평탄화·흡수 이력: architect 는 system-architect + module-architect 두 에이전트로 평탄화, validator 는 code-validator + architecture-validator 두 에이전트로 평탄화, security-reviewer 는 pr-reviewer §F-Security + architect 의 위협 모델 가정·invariant 로 흡수, design-critic 은 사용자 직접 PICK 으로 대체 + 클리셰 회피는 design.md §8 + code-validator grep 으로 흡수, product-planner 는 메인 Claude 가 사용자와 직접 그릴미 대화로 PRD/stories.md 작성 — 컨텍스트 손실 회피, plan-reviewer 가 외부 검증 담당. build-worker 는 `/impl-loop` Hybrid A (#446) 도입과 함께 신규. agent 가 자기 prose 에 결론 + 권장 다음 단계를 자유롭게 쓴다. 메인 Claude 는 그 prose 와 본 가이드를 비교해 다음 호출을 결정한다. 본 가이드는 형식 강제가 아니라 *판단 보조*. 가능한 결론 표현은 agent 별로 다양 — 의미만 맞으면 OK ([`orchestration.md`](orchestration.md) §0 정체성 정합).
 
 > **이슈 #280 정착 후 작동 모델**:
 > - agent 는 prose 마지막 단락에 *어떤 결과로 끝났는지 + 메인이 누구를 부르는 게 적절한지* 자기 언어로 명시.
 > - 메인은 prose + 본 §1 가이드만으로 routing 결정. enum 형식 검증 없음.
 > - prose 가 모호하거나 결론을 추출 못 하면 메인이 사용자에게 위임 (prose 본문 "결정 불가" 명시, issue #392 — routing_telemetry cascade marker 폐기).
 
-> 🔴 **Drift 룰 (양방향 cross-ref 강제)** — 본 §1 의 agent 결론 → 다음 호출 매핑 갱신 시 [`orchestration.md`](orchestration.md) §4 의 해당 loop 시퀀스도 동시 갱신 의무. 같은 enum→destination 매핑이 두 시각 (agent 단위 vs loop 단위) 에 분리 박혀 있어 한쪽만 갱신하면 drift 위험. 신 agent 추가 / 기존 enum 추가 / cycle 한도 변경 3 케이스 적용.
+> 🔴 **Drift 룰 (3-way cross-ref 강제)** — 본 §1 의 agent 결론 → 다음 호출 매핑 갱신 시 (1) [`orchestration.md`](orchestration.md) §4 의 해당 loop 시퀀스 (2) [`../../agents/<agent>.md`](../../agents/) 본문 `## 결론 + 권장 다음 단계` 섹션 — **3 위치 모두 동시 갱신 의무**. 같은 enum→destination 매핑이 세 시각 (agent 단위 vs loop 단위 vs agent 본문 SSOT) 에 분리 박혀 있어 한쪽만 갱신하면 drift 위험. 신 agent 추가 / 기존 enum 추가 / cycle 한도 변경 3 케이스 적용. agent 본문이 enum 의 진본 — handoff-matrix §1 은 routing 가이드, orchestration §4 는 loop sequence view.
 
 ### 1.1 plan-reviewer
 
@@ -165,15 +165,17 @@ merge 직전 코드 품질 + 보안 코드 패턴 심사:
 
 > dcness 의 두 번째 강제 영역 = "접근 영역" ([`orchestration.md`](orchestration.md) §0 정합).
 
+> 🔴 **Drift 룰 (양방향 cross-ref 강제)** — 본 §4.1 ALLOW_MATRIX 또는 §4.2 READ_DENY_MATRIX 갱신 시 [`../../agents/<agent>.md`](../../agents/) 본문 `## 권한 경계` 섹션도 동시 갱신 의무. agent 본문이 자기 권한 경계의 자세한 (catastrophic) 명세 + 본 §4 는 매트릭스 view. 신 agent 추가 / 권한 path 추가·변경 시 양쪽 갱신. agent 본문이 진본, §4 는 일람표.
+
 ### 4.1 Write/Edit 허용 경로 (ALLOW_MATRIX)
 
 | 에이전트 | 허용 경로 |
 |---|---|
 | engineer | `src/**` |
 | system-architect / module-architect | `docs/**` |
-| designer | `design-variants/**`, `docs/ui-spec*` |
+| designer | `design-variants/<screen-id>-v<N>.html` + `docs/design.md` (Components 섹션 + frontmatter `components` 토큰 한정 — 시스템 레벨 토큰은 ux-architect 영역) |
 | test-engineer | `src/__tests__/**`, `*.test.*`, `*.spec.*` |
-| ux-architect | `docs/ux-flow.md` |
+| ux-architect | `docs/ux-flow.md` + `docs/design.md` 시스템 레벨 (Colors / Typography / Layout / Shapes / Elevation 섹션 + frontmatter `colors` / `typography` / `rounded` / `spacing` 토큰 — components 영역은 designer 전용) |
 | qa | (Issue tracker mutation 만, 파일 X) |
 | build-worker (`/impl-loop` 한정) | engineer + test-engineer 합집합 (`src/**`, `src/__tests__/**`, `*.test.*`, `*.spec.*`) + phase prose `<run_dir>/build-{test,impl,validate}.md` |
 | code-validator / architecture-validator / pr-reviewer / plan-reviewer | (없음 — 판정 전용) |
@@ -209,7 +211,7 @@ RWHarness 4 신호 OR 정합:
 
 ## 5. 참조
 
-- [`orchestration.md`](orchestration.md) — 시퀀스 catalog (§2 게이트 + §3 진입 경로 + §4 8 loop 행별 풀스펙)
+- [`orchestration.md`](orchestration.md) — 시퀀스 catalog (§2 게이트 + §3 진입 경로 + §4 7 loop 행별 풀스펙)
 - [`loop-procedure.md`](loop-procedure.md) — Step 0~8 mechanics
 - [`orchestration.md`](orchestration.md) §0 — 강제 영역 2가지 (대 원칙)
 - `agents/*.md` — 각 agent 의 결론 prose 표현 가이드

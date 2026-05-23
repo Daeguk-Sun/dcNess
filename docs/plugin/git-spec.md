@@ -274,7 +274,7 @@ $cur"
 
 - lifecycle 흐름·메커니즘 (sub-issue API / 멱등성 / 마일스톤 조회 / pre-flight gate): [`issue-lifecycle.md`](issue-lifecycle.md)
 - 시퀀스 / 핸드오프: [`orchestration.md`](orchestration.md)
-- loop spec (8 loop 행별 풀스펙): [`orchestration.md`](orchestration.md) §4
+- loop spec (7 loop 행별 풀스펙): [`orchestration.md`](orchestration.md) §4
 - product-plan skill (메인 직접): [`../../commands/product-plan.md`](../../commands/product-plan.md)
 - system-architect (impl 목차 표 SSOT): [`../../agents/system-architect.md`](../../agents/system-architect.md)
 - module-architect (impl 본문 detail per task): [`../../agents/module-architect.md`](../../agents/module-architect.md)

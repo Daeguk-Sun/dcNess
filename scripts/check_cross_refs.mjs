@@ -54,6 +54,22 @@ const DENY_LIST = [
     pattern: /dcness-rules\.md/,
     label: '폐기 SSOT `dcness-rules.md` — `orchestration.md §0` 안티패턴 1+3 로 흡수',
   },
+  {
+    pattern: /docs\/ui-spec\b/,
+    label: '옛 디자인 SSOT `docs/ui-spec*` — 현재 `docs/design.md` SSOT',
+  },
+  {
+    pattern: /agent\s+1[01]\s*종/,
+    label: '옛 agent 카운트 (10 또는 11 종) — 현재 12 종 (designer / build-worker 포함)',
+  },
+  {
+    pattern: /\b[68]\s*hook\s+(상세|전체|공유|충족|시점)/,
+    label: '옛 hook 카운트 (6 또는 8) — 현재 7 hook (hooks.md §3 sub-section 정합)',
+  },
+  {
+    pattern: /\b8\s+loop\s+(행별|풀스펙)/,
+    label: '옛 loop 카운트 — 현재 7 loop (orchestration.md §4 sub-section 정합)',
+  },
 ];
 
 const EXTERNAL_DIRS = ['docs/plugin', 'commands', 'agents', 'hooks', '.claude-plugin'];
