@@ -249,6 +249,122 @@ class WasteDetectionTests(unittest.TestCase):
 
     # issue #392 — test_external_verified_missing 폐기 (EXTERNAL_VERIFIED_MISSING 패턴 폐기 정합).
 
+    def test_tool_repeat_high_bash(self):
+        """issue #484 Case 1 — Bash 동일 input ≥ 5회 반복 = TOOL_REPEAT_HIGH MEDIUM.
+
+        jajang run-545513a1 build-worker 가 같은 `cd ... npm test ...` 6회 호출했는데
+        review heuristic 이 못 잡은 회귀 직접 재현 테스트.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            rd = tmp / "runs" / "rid1"
+            rd.mkdir(parents=True)
+            # agent-trace.jsonl 박기
+            trace = rd / "agent-trace.jsonl"
+            cmd = "cd apps/mobile && npm test -- --testPathPattern S11"
+            entries = []
+            for i in range(6):
+                entries.append({
+                    "ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
+                    "agent": "build-worker", "tool": "Bash", "input": cmd,
+                })
+            trace.write_text("\n".join(json.dumps(e) for e in entries))
+            steps = [
+                StepRecord(idx=0, ts="2026-05-23T02:20:00Z", agent="build-worker",
+                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
+            ]
+            wastes = detect_wastes(steps, run_dir=rd)
+            repeats = [w for w in wastes if w.pattern == "TOOL_REPEAT_HIGH"]
+            self.assertEqual(len(repeats), 1)
+            self.assertEqual(repeats[0].severity, "MEDIUM")
+            self.assertIn("6회 반복", repeats[0].detail)
+            self.assertIn("Bash", repeats[0].detail)
+
+    def test_tool_repeat_below_threshold_skip(self):
+        """Bash 동일 input ≤ 4회 = 임계 미만 → skip (정상 단순 재시도)."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            rd = tmp / "runs" / "rid2"
+            rd.mkdir(parents=True)
+            trace = rd / "agent-trace.jsonl"
+            cmd = "npm test"
+            entries = [
+                {"ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
+                 "agent": "build-worker", "tool": "Bash", "input": cmd}
+                for i in range(4)
+            ]
+            trace.write_text("\n".join(json.dumps(e) for e in entries))
+            steps = [
+                StepRecord(idx=0, ts="2026-05-23T02:20:00Z", agent="build-worker",
+                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
+            ]
+            wastes = detect_wastes(steps, run_dir=rd)
+            self.assertFalse(any(w.pattern == "TOOL_REPEAT_HIGH" for w in wastes))
+
+    def test_tool_repeat_read_lower_threshold(self):
+        """Read 는 임계 4회 — 동일 파일 4회 read = finding."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            rd = tmp / "runs" / "rid3"
+            rd.mkdir(parents=True)
+            trace = rd / "agent-trace.jsonl"
+            entries = [
+                {"ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
+                 "agent": "pr-reviewer", "tool": "Read",
+                 "input": "apps/mobile/src/screens/S11PreviewScreen.tsx"}
+                for i in range(4)
+            ]
+            trace.write_text("\n".join(json.dumps(e) for e in entries))
+            steps = [
+                StepRecord(idx=0, ts="2026-05-23T02:20:00Z", agent="pr-reviewer",
+                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
+            ]
+            wastes = detect_wastes(steps, run_dir=rd)
+            repeats = [w for w in wastes if w.pattern == "TOOL_REPEAT_HIGH"]
+            self.assertEqual(len(repeats), 1)
+            self.assertIn("4회 반복", repeats[0].detail)
+
+    def test_tool_repeat_no_trace_skip(self):
+        """agent-trace.jsonl 부재 / run_dir=None 시 silent skip — 기존 동작 영향 X."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="engineer", mode="IMPL",
+                       enum="IMPL_DONE", must_fix=False, prose_excerpt="x"),
+        ]
+        wastes = detect_wastes(steps)  # run_dir 미전달
+        self.assertFalse(any(w.pattern == "TOOL_REPEAT_HIGH" for w in wastes))
+
+    def test_tool_repeat_window_split_by_step(self):
+        """step 별 윈도우 분리 — task1 와 task2 의 같은 input 은 별개 카운트."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            rd = tmp / "runs" / "rid4"
+            rd.mkdir(parents=True)
+            trace = rd / "agent-trace.jsonl"
+            cmd = "npm test"
+            entries = []
+            # step 0 윈도우 안 3회
+            for i in range(3):
+                entries.append({
+                    "ts": f"2026-05-23T02:0{i}:00Z", "phase": "pre",
+                    "agent": "build-worker", "tool": "Bash", "input": cmd,
+                })
+            # step 1 윈도우 안 3회
+            for i in range(3):
+                entries.append({
+                    "ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
+                    "agent": "build-worker", "tool": "Bash", "input": cmd,
+                })
+            trace.write_text("\n".join(json.dumps(e) for e in entries))
+            steps = [
+                StepRecord(idx=0, ts="2026-05-23T02:05:00Z", agent="build-worker",
+                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
+                StepRecord(idx=1, ts="2026-05-23T02:20:00Z", agent="build-worker",
+                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
+            ]
+            wastes = detect_wastes(steps, run_dir=rd)
+            # 각 step 3회씩 — 임계 5회 미달 → 둘 다 skip
+            self.assertFalse(any(w.pattern == "TOOL_REPEAT_HIGH" for w in wastes))
+
 
 # issue #392 — GoodDetectionTests 전체 폐기. detect_goods 함수 폐기와 정합.
 

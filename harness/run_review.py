@@ -499,7 +499,10 @@ def detect_wastes(
     invocations: Optional[list[dict]] = None,
     repo_path: Optional[Path] = None,
     window: Optional[tuple] = None,
+    run_dir: Optional[Path] = None,
 ) -> list[WasteFinding]:
+    # run_dir 신규 (DCN-CHG-20260523, #484 Case 1) — agent-trace.jsonl 기반
+    # TOOL_REPEAT_HIGH 검출용. None 이면 trace 검사 skip.
     findings: list[WasteFinding] = []
 
     # RETRY_SAME_FAIL — 연속 동일 FAIL enum
@@ -678,6 +681,95 @@ def detect_wastes(
     # issue #392 — MISSING_SELF_VERIFY 폐기 (agent 자율 영역 침해).
     # issue #392 — MAIN_SED_MISDIAGNOSIS 폐기 (메인 자율 영역 + 검출 모호함).
 
+    # issue #484 Case 1 — agent-trace 기반 TOOL_REPEAT_HIGH (동일 input 반복).
+    if run_dir is not None:
+        findings.extend(_detect_tool_repeat_findings(steps, run_dir))
+
+    return findings
+
+
+def _detect_tool_repeat_findings(
+    steps: list[StepRecord], run_dir: Path
+) -> list[WasteFinding]:
+    """agent-trace.jsonl 기반 동일 (tool, input) ≥ N 회 반복 finding.
+
+    issue #484 Case 1 (DCN-CHG-20260523): jajang run-545513a1 build-worker 가
+    같은 Bash command 6회 반복 호출 + Bash 40회 폭증한 안티패턴을 review heuristic
+    이 못 잡아 "잘못한 점 — 없음 ✅" 통과시킨 회귀 차단. PostToolUse hook 의
+    감시자 신호와 동일 영역 — review 와 hook 의 단일 SSOT 통합.
+
+    임계:
+    - Bash: 같은 input ≥ 5 회
+    - Read: 같은 input ≥ 4 회 (정상 단순 재read 2~3 회 면제)
+    - 기타 도구: ≥ 5 회
+
+    step 별 윈도우 (전 step end ~ 현 step end) 적용. input 200자 초과 truncate.
+    """
+    from collections import Counter
+
+    findings: list[WasteFinding] = []
+    trace_path = run_dir / "agent-trace.jsonl"
+    if not trace_path.exists():
+        return findings
+
+    entries: list[dict] = []
+    try:
+        for line in trace_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                entries.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+    except OSError:
+        return findings
+
+    pre_entries = [e for e in entries if e.get("phase") == "pre"]
+    if not pre_entries:
+        return findings
+
+    thresholds = {"Bash": 5, "Read": 4}
+    default_threshold = 5
+
+    for i, s in enumerate(steps):
+        start_ts = steps[i - 1].ts if i > 0 else ""
+        end_ts = s.ts
+        window_entries = [
+            e for e in pre_entries
+            if (not start_ts or e.get("ts", "") > start_ts)
+            and (not end_ts or e.get("ts", "") <= end_ts)
+        ]
+        if not window_entries:
+            continue
+        key_count: Counter = Counter()
+        for e in window_entries:
+            tool = e.get("tool", "?")
+            inp = e.get("input", "")
+            if not isinstance(inp, str) or not inp:
+                continue
+            key_count[(tool, inp[:200])] += 1
+        for (tool, inp), cnt in sorted(
+            key_count.items(), key=lambda kv: (-kv[1], kv[0][0])
+        ):
+            threshold = thresholds.get(tool, default_threshold)
+            if cnt < threshold:
+                continue
+            inp_disp = inp[:80].replace("\n", " ") + ("…" if len(inp) > 80 else "")
+            findings.append(WasteFinding(
+                pattern="TOOL_REPEAT_HIGH",
+                severity="MEDIUM",
+                step_idx=i,
+                agent=s.agent,
+                detail=(
+                    f"step {i} ({s.agent}) {tool} 동일 input {cnt}회 반복 "
+                    f"(임계 {threshold}회): `{inp_disp}`"
+                ),
+                fix=(
+                    f"sub-agent prompt 에 동일 {tool} 호출 반복 금지 가드 추가 "
+                    f"또는 작업 분해 ({tool} 결과 활용 권장)"
+                ),
+            ))
     return findings
 
 
@@ -1176,7 +1268,11 @@ def build_report(run_dir: Path, repo_path: Path) -> RunReport:
 
     # DCN-CHG-20260430-37: detect_wastes 에 invocations + repo_path + window 전달
     # (END_STEP_SKIP / MAIN_SED_MISDIAGNOSIS run-level 패턴 검출 위해).
-    wastes = detect_wastes(steps, invocations=invocations, repo_path=repo_path, window=window)
+    # DCN-CHG-20260523 (#484 Case 1): run_dir 추가 — agent-trace 기반 TOOL_REPEAT_HIGH.
+    wastes = detect_wastes(
+        steps, invocations=invocations, repo_path=repo_path,
+        window=window, run_dir=run_dir,
+    )
     notes = detect_notes(steps)  # issue #394 — TOOL_USE_OVERFLOW / THINKING_LOOP raw 알림
     # issue #392 — detect_goods 호출 폐기.
     cost, in_tok, out_tok = compute_run_cost(run_dir, repo_path)
