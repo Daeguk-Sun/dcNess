@@ -1,5 +1,5 @@
-name: 'dcness pr-body close-keyword validation'
-description: 'Validate PR body contains issue auto-close keyword (Closes/Fixes/Resolves #N) or explicit Document-Exception-PR-Close marker.'
+name: 'dcness pr-body trailer validation'
+description: 'Validate PR body contains issue trailer (Closes/Fixes/Resolves/Part of #N) or explicit Document-Exception-PR-Close marker.'
 inputs:
   body:
     description: 'PR body text to validate'
@@ -12,7 +12,7 @@ runs:
       with:
         node-version: '20'
 
-    - name: Validate PR body close keyword
+    - name: Validate PR body trailer
       shell: bash
       env:
         PR_BODY: ${{ inputs.body }}
