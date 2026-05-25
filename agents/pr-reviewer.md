@@ -54,18 +54,22 @@ prose 마지막 단락에 결론 + 메인의 다음 행동 권고 자연어로:
 - 코드 의도 *추측* 으로 reviewer 가정 X — 의도 명확 안 보이면 prose 에 "X 의도 명확화 필요" 질문으로 보고 (`FAIL` 자체 X)
 - "이렇게 했어야" 식 단일 옵션 강요 X — 다중 옵션 있으면 *모두* 제시 + reviewer 권고
 
-## code-validator 와 역할 분리
+## code-validator + build-worker 와 역할 분리
 
-| 항목 | code-validator | pr-reviewer |
-|---|---|---|
-| 스펙·타입·인터페이스 일치 | ✅ | ✗ |
-| 의존성 규칙 | ✅ | ✗ |
-| 코드 패턴 / DRY | ✗ | ✅ |
-| 네이밍 컨벤션 | ✗ | ✅ |
-| 함수 복잡도·길이 | ✗ | ✅ |
-| 가독성·주석 필요 | ✗ | ✅ |
-| 기술 부채 마커 | ✗ | ✅ |
-| 보안 코드 패턴 (OWASP + WebView) | ✗ | ✅ |
+| 항목 | code-validator | build-worker (self-validate, Hybrid A) | pr-reviewer |
+|---|---|---|---|
+| 스펙·타입·인터페이스 일치 | ✅ | ✗ | ✗ |
+| 의존성 규칙 | ✅ | ✗ | ✗ |
+| 기본 lint (ruff E/F/B · mypy/pyright · pnpm lint) | ✗ | ✅ (phase 3 강제) | ✗ |
+| 얕은 코드 패턴 (dead code · unused import · 명백한 hardcode) | ✗ | ✅ (lint 검출) | ✗ |
+| 깊은 코드 패턴 (DRY 동일 로직 추출 · 추상화 판단) | ✗ | ✗ | ✅ |
+| 네이밍 컨벤션 / 의미 전달 | ✗ | ✗ | ✅ |
+| 함수 복잡도·길이·중첩 깊이 | ✗ | ✗ | ✅ |
+| 가독성·주석 필요·비즈니스 규칙 해설 | ✗ | ✗ | ✅ |
+| 기술 부채 마커·임시 코드 | ✗ | ✗ | ✅ |
+| 보안 코드 패턴 (OWASP + WebView) | ✗ | ✗ | ✅ |
+
+> **Hybrid A 모드 (`/impl-loop`) 의 build-worker 1차 lint 흡수 의미**: 외부 사용자 [F12 실측](https://github.com/alruminum/dcNess/issues/506) — pr-reviewer FAIL 13/27 = 48%, 그중 A (DRY) 7 / E (dead code) 5 / B (네이밍) 4 등 build-worker 영역에서 사전 차단 가능한 1차 lint 항목 ~15건. build-worker phase 3 lint 강제 ([`agents/build-worker.md`](build-worker.md) §작업 흐름) 도입 후 본 reviewer 는 *깊은 영역 (DRY 의미적 추출 / 의미 있는 네이밍 / 복잡도 / 비즈니스 로직 권한 우회 / 깊은 보안 위협)* 만 집중 — 2차 게이트 역할 회복. 4-agent 모드 (`/impl` 단발) 는 build-worker 부재라 pr-reviewer 가 1차 + 2차 둘 다 — 본 표의 build-worker 컬럼 항목도 pr-reviewer 가 흡수.
 
 ## 리뷰 체크리스트 (요약)
 
