@@ -55,6 +55,7 @@ Step 0 진입 시 자동 `EnterWorktree(name="architect-{ts_short}")`. 사용자
 5. **Step 3.5 — architecture-validator** (Placeholder Leak + Spike Gate) → `PASS` → **commit 2** (`docs/architecture.md` + `docs/adr.md`)
 6. **Step 4.1 ~ 4.K — module-architect × K** (system-architect impl 목차 행마다 1번 호출, prompt 에 `task_index: i/total` 씀)
    - 각 호출 `READY` 직후 → **commit 3..K+2** (`docs/milestones/.../impl/NN-<slug>.md` 1 파일씩)
+   - **batch 모드 (선택)**: K 가 크면 (≥ 8 권장 기준) Story 단위 묶음으로 1 호출 = N task (N ≤ 5 권장) 허용. 호출 prompt 에 강제 문구 — `본 호출에서 N 개 impl 파일을 분리 작성. 1 파일에 multiple task 통합 금지` + 각 task 의 `task_index: i/total` 박는다. 산출은 그대로 N 개 impl 파일 (1 파일 1 task 책임 분리 유지). 본질 해결 (system-architect = 모듈 contract / module-architect = 모듈 내부 위임) 은 [issue #511](https://github.com/alruminum/dcNess/issues/511) 영역 — 본 batch 는 단기 회피.
 7. **Step 5 — PR + 머지** — `git push -u origin docs/<epic-slug>` + `gh pr create --base <BASE>` (body = 설계 산출물 요약 + `Part of #<epic-issue>`) + `bash scripts/pr-finalize.sh`
    - **base 분기 (MUST)**: `gh pr create` 직전 `docs/stories.md` 상단 `**Base Branch:**` 줄 매치 → `--base <매치 값>` (통합 브랜치 케이스, base = `feature/<slug>`). 매치 없음 → `--base main` (default). Step 0 의 `EnterWorktree` branch (`docs/<epic-slug>`) 도 동일 base 기반 — 절차 [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1.1.1.
 8. **Step 6 — ExitWorktree** + `end-run`
