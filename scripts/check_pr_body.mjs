@@ -10,21 +10,29 @@
  * 트레일러 종류:
  *   - Closes #N / Fixes #N / Resolves #N — auto-close 발동 (story / epic 마지막 task PR)
  *   - Part of #N                          — 단순 언급, auto-close 발동 X (중간 task PR default)
- * 게이트 의미 = "이슈 트레일러 1+ 강제" (이슈 추적 누락 차단). close-keyword 단독 강제는 over-firing.
+ *   - task-index: i/total                  — impl 파일 frontmatter task_index 미러 (build-worker 가 박음)
+ *
+ * 게이트 동작:
+ *   1. Document-Exception-PR-Close 마커 매치 → PASS (검사 우회)
+ *   2. task-index: i/total 매치 + i == total (Story 마지막 task) → Closes/Fixes/Resolves 1+ 강제 (Part of 단독 FAIL)
+ *   3. task-index: i/total 매치 + i < total (중간 task) → 트레일러 1+ 강제 (기존 동작)
+ *   4. task-index 부재 (dcness self / non-impl PR) → 트레일러 1+ 강제 (fallback, 기존 동작)
  *
  * 사용:
  *   node scripts/check_pr_body.mjs --body "<PR body 전체>"
  *   echo "<PR body>" | node scripts/check_pr_body.mjs --stdin
  *
- * exit 0: 통과 (트레일러 1+ 매치 OR 명시적 예외 마커 1+ 매치)
- * exit 1: 위반 (둘 다 0 매치)
+ * exit 0: 통과
+ * exit 1: 위반
  *
  * 예외 우회 — body 안에 다음 line 쓰면 통과:
  *   Document-Exception-PR-Close: <사유>
- *   사유 예) "infra-only — issue 없음", "follow-up split — close 별도 PR"
+ *   사유 예) "infra-only — issue 없음", "follow-up split — close 별도 PR", "통합 브랜치 sub-PR — main 머지 시 일괄 close"
  */
 
 const TRAILER_RE = /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?|part\s+of)\s*#\d+/i;
+const CLOSE_TRAILER_RE = /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?)\s*#\d+/i;
+const TASK_INDEX_RE = /^\s*task-index:\s*(\d+)\/(\d+)\s*$/im;
 const EXCEPTION_RE = /^\s*Document-Exception-PR-Close:\s*\S+/im;
 
 function readStdin() {
@@ -59,6 +67,36 @@ async function main() {
   if (EXCEPTION_RE.test(body)) {
     console.log('[pr-body] PASS — Document-Exception-PR-Close 마커 매치 (트레일러 검사 우회).');
     process.exit(0);
+  }
+
+  const taskIndexMatch = body.match(TASK_INDEX_RE);
+  if (taskIndexMatch) {
+    const i = parseInt(taskIndexMatch[1], 10);
+    const total = parseInt(taskIndexMatch[2], 10);
+    if (i === total) {
+      if (CLOSE_TRAILER_RE.test(body)) {
+        const match = body.match(CLOSE_TRAILER_RE)[0];
+        console.log(`[pr-body] PASS — Story 마지막 task (task-index: ${i}/${total}) + close-keyword 트레일러 매치: "${match}"`);
+        process.exit(0);
+      }
+      console.error(`[pr-body] FAIL — Story 마지막 task (task-index: ${i}/${total}) 인데 close-keyword 트레일러 부재.`);
+      console.error('  필수 (하나 이상, auto-close 발동):');
+      console.error('    Closes #N   |  Close #N   |  Closed #N');
+      console.error('    Fixes #N    |  Fix #N     |  Fixed #N');
+      console.error('    Resolves #N |  Resolve #N |  Resolved #N');
+      console.error('');
+      console.error('  현재 `Part of #N` 만 박혀있다면: 머지 시 issue 자동 close 안 됨 → silent open 잔존 사고 차단.');
+      console.error('  SSOT: docs/plugin/git-spec.md §8.1 (Story 마지막 task = Closes 강제)');
+      console.error('');
+      console.error('  예외 우회 (통합 브랜치 sub-PR 등 main 외 base 머지):');
+      console.error('    Document-Exception-PR-Close: <사유>');
+      process.exit(1);
+    }
+    if (TRAILER_RE.test(body)) {
+      const match = body.match(TRAILER_RE)[0];
+      console.log(`[pr-body] PASS — 중간 task (task-index: ${i}/${total}) + 트레일러 매치: "${match}"`);
+      process.exit(0);
+    }
   }
 
   if (TRAILER_RE.test(body)) {
