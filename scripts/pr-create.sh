@@ -78,29 +78,35 @@ fi
 
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-# Step 1: branch 처리
+# Step 1: branch 처리 — origin/$BASE 기반으로 만들어 worktree 환경에서도 stale base 회피
 if [ "$CURRENT_BRANCH" = "$BRANCH" ]; then
-  echo "[pr-create] 이미 '$BRANCH' 위에 있음 — checkout skip"
+  echo "[pr-create] 이미 '$BRANCH' 위에 있음 — checkout skip" >&2
 elif git rev-parse --verify --quiet "$BRANCH" >/dev/null; then
   echo "[pr-create] ERROR: '$BRANCH' branch 가 이미 존재 (다른 위치). 다른 이름 사용 또는 기존 branch 정리" >&2
   exit 1
 else
-  echo "[pr-create] git checkout -b $BRANCH $BASE"
-  git checkout -b "$BRANCH" "$BASE"
+  echo "[pr-create] git fetch origin $BASE + git checkout -b $BRANCH --no-track origin/$BASE" >&2
+  if ! git fetch origin "$BASE" --quiet; then
+    echo "[pr-create] WARN: git fetch origin $BASE 실패 — 로컬 origin/$BASE ref 사용 (stale 가능)" >&2
+  fi
+  # --no-track: 새 branch 가 origin/$BASE 를 upstream 으로 잡지 않도록 명시 차단
+  #             (사용자가 우연히 git push 만 호출했을 때 base branch 로 push 시도 방지).
+  #             이후 Step 4 의 `git push -u origin $BRANCH` 가 upstream 을 origin/$BRANCH 로 설정.
+  git checkout -b "$BRANCH" --no-track "origin/$BASE"
 fi
 
 # Step 2~3: add + commit
-echo "[pr-create] git add -A + commit"
+echo "[pr-create] git add -A + commit" >&2
 git add -A
-git commit -F "$COMMIT_MSG_FILE"
+git commit -F "$COMMIT_MSG_FILE" >&2
 
 # Step 4: push
-echo "[pr-create] git push -u origin $BRANCH"
-git push -u origin "$BRANCH"
+echo "[pr-create] git push -u origin $BRANCH" >&2
+git push -u origin "$BRANCH" >&2
 
 # Step 5: PR 생성
-echo "[pr-create] gh pr create --base $BASE"
+echo "[pr-create] gh pr create --base $BASE" >&2
 PR_URL=$(gh pr create --base "$BASE" --title "$TITLE" --body-file "$BODY_FILE")
 
-echo "[pr-create] 완료 — PR 생성: $PR_URL"
+echo "[pr-create] 완료 — PR 생성: $PR_URL" >&2
 echo "$PR_URL"
