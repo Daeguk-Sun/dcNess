@@ -26,3 +26,7 @@ eval_report.html
 
 # 임시 분석 보고서 (SSOT audit 등)
 tmp/
+
+# /tech-review 산출물 — 증거 파일 + 통합 HTML 리포트 (로컬 보존, repo 부풀음 차단, 이슈 #515)
+docs/tech-review/evidence/
+docs/tech-review/report.html
