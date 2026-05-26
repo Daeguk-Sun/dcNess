@@ -43,7 +43,7 @@ prose 마지막 단락에 결론 + 메인의 다음 행동 권고 자연어로:
 
 ## 작업 흐름 (자율 조정 가능)
 
-impl 계획 파일 읽기 → **`docs/domain-model.md` 의무 read** → **`docs/architecture.md` 의존성 그래프 read** → `## 인터페이스 정의` (함수 시그니처·타입·Props) → `## 수용 기준` ((TEST) 태그 항목) → `## 핵심 로직` (의사코드에서 엣지 케이스 추출) → `## 생성/수정 파일` (**테스트 파일 경로 + import 경로 모두 이 목록에서 추출**) → 테스트 작성. **5분 이내 Write 시작** — 분석에 과도한 시간 X.
+impl 계획 파일 읽기 → **epic 단위 `domain-model.md` 의무 read** → **root `docs/architecture.md` + epic 단위 architecture.md 의존성 그래프 read** → **공통 SSOT [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md) 의무 read** (§2 Interface Design for Testability 룰 — DI 패턴 / 부작용 없는 반환 / 작은 표면 검증 영역) → `## 인터페이스 정의` (함수 시그니처·타입·Props) → `## 수용 기준` ((TEST) 태그 항목) → `## 핵심 로직` (의사코드에서 엣지 케이스 추출) → `## 생성/수정 파일` (**테스트 파일 경로 + import 경로 모두 이 목록에서 추출**) → 테스트 작성. **5분 이내 Write 시작** — 분석에 과도한 시간 X.
 
 vite.config.ts / vitest 설정 파일은 기존 테스트 패턴 필요 시 참조 가능.
 
