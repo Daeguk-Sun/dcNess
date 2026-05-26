@@ -241,8 +241,8 @@ phase prose 입자는 review.md 출력 재정의 (`commands/impl-loop.md §revie
 | `FAIL` | engineer POLISH cycle (≤2) |
 | `AMBIGUOUS` | 재호출 1회 (결론 enum 명시 요청) → 재호출도 AMBIGUOUS 시 사용자 위임 (enum 후보 + prose 발췌) |
 | architecture-validator `FAIL` | system-architect 재진입 (cycle ≤2) |
-| `FAIL` | 메인이 findings 항목별 사용자 confirm + `docs/prd.md` / `docs/stories.md` Edit patch → plan-reviewer 재진입 (cycle ≤2) |
-| `ESCALATE` | 사용자 위임 (외부 검증 불가 / 권한 경계 밖 / 동일 finding 반복 / URL 부재 PASS 시도) |
+| tech-reviewer `FAIL` | 메인이 사용자와 분기 토론 → (a) PRD patch + `/tech-review` 재호출 / (b) 격리 후보 격상 + 재호출 / (c) 항목 polish + 재호출. cycle 한도 X (단방향, 사용자 OK 까지) |
+| tech-reviewer `ESCALATE` | 사용자 위임 (WebFetch 차단 / 외부 API 인증 부재 / 권한 부족 / 사용자 환경 의존 도구 부재) |
 
 cycle 한도 = orchestration.md §5.
 
@@ -496,7 +496,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 
 ### 7.1 catastrophic 룰 정합
 
-[`orchestration.md`](orchestration.md) §2.1 catastrophic 시퀀스 = `hooks/catastrophic-gate.sh` 강제. orchestration §4 의 각 loop sequence 가 이 룰 자연 충족 (code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / architect-loop §4.2 Step 4 (module-architect × K) 진입 직전 architecture-validator PASS / PRD 변경 후 plan-reviewer PASS). 7 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+[`orchestration.md`](orchestration.md) §2.1 catastrophic 시퀀스 = `hooks/catastrophic-gate.sh` 강제. orchestration §4 의 각 loop sequence 가 이 룰 자연 충족 (code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / architect-loop §4.2 Step 4 (module-architect × K) 진입 직전 architecture-validator PASS / PRD 변경 후 사용자 2 차 OK + `/architect-loop` 진입 후 tech-reviewer 재호출 금지 단방향). 7 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 > Note: 이전 §7.0 인덱스 + §7.2~§7.10 행별 풀스펙은 [`orchestration.md`](orchestration.md) §4 로 흡수 (loop-catalog.md 폐기, 8 → 7 SSOT).
 

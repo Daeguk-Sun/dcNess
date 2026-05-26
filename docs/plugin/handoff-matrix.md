@@ -8,7 +8,7 @@
 
 ## 1. Agent 결론 → 다음 agent 결정 가이드 (자연어)
 
-> agent 12 종 — §1.1 ~ §1.12 sub-section. 평탄화·흡수 이력: architect 는 system-architect + module-architect 두 에이전트로 평탄화, validator 는 code-validator + architecture-validator 두 에이전트로 평탄화, security-reviewer 는 pr-reviewer §F-Security + architect 의 위협 모델 가정·invariant 로 흡수, design-critic 은 사용자 직접 PICK 으로 대체 + 클리셰 회피는 design.md §8 + code-validator grep 으로 흡수, product-planner 는 메인 Claude 가 사용자와 직접 그릴미 대화로 PRD/stories.md 작성 — 컨텍스트 손실 회피, plan-reviewer 가 외부 검증 담당. build-worker 는 `/impl-loop` Hybrid A (#446) 도입과 함께 신규. agent 가 자기 prose 에 결론 + 권장 다음 단계를 자유롭게 쓴다. 메인 Claude 는 그 prose 와 본 가이드를 비교해 다음 호출을 결정한다. 본 가이드는 형식 강제가 아니라 *판단 보조*. 가능한 결론 표현은 agent 별로 다양 — 의미만 맞으면 OK ([`orchestration.md`](orchestration.md) §0 정체성 정합).
+> agent 12 종 — §1.1 ~ §1.12 sub-section. 평탄화·흡수 이력: architect 는 system-architect + module-architect 두 에이전트로 평탄화, validator 는 code-validator + architecture-validator 두 에이전트로 평탄화, security-reviewer 는 pr-reviewer §F-Security + architect 의 위협 모델 가정·invariant 로 흡수, design-critic 은 사용자 직접 PICK 으로 대체 + 클리셰 회피는 design.md §8 + code-validator grep 으로 흡수, product-planner 는 메인 Claude 가 사용자와 직접 그릴미 대화로 PRD/stories.md 작성 — 컨텍스트 손실 회피, plan-reviewer 폐기 (이슈 #515) — tech-reviewer 가 선행 기술 검증 담당 (작업 명세 형식 / 책임 2축 / Bash·Write 권한 / 증거물 + HTML 리포트). build-worker 는 `/impl-loop` Hybrid A (#446) 도입과 함께 신규. agent 가 자기 prose 에 결론 + 권장 다음 단계를 자유롭게 쓴다. 메인 Claude 는 그 prose 와 본 가이드를 비교해 다음 호출을 결정한다. 본 가이드는 형식 강제가 아니라 *판단 보조*. 가능한 결론 표현은 agent 별로 다양 — 의미만 맞으면 OK ([`orchestration.md`](orchestration.md) §0 정체성 정합).
 
 > **이슈 #280 정착 후 작동 모델**:
 > - agent 는 prose 마지막 단락에 *어떤 결과로 끝났는지 + 메인이 누구를 부르는 게 적절한지* 자기 언어로 명시.
@@ -17,15 +17,15 @@
 
 > 🔴 **Drift 룰 (3-way cross-ref 강제)** — 본 §1 의 agent 결론 → 다음 호출 매핑 갱신 시 (1) [`orchestration.md`](orchestration.md) §4 의 해당 loop 시퀀스 (2) [`../../agents/<agent>.md`](../../agents/) 본문 `## 결론 + 권장 다음 단계` 섹션 — **3 위치 모두 동시 갱신 의무**. 같은 enum→destination 매핑이 세 시각 (agent 단위 vs loop 단위 vs agent 본문 SSOT) 에 분리 박혀 있어 한쪽만 갱신하면 drift 위험. 신 agent 추가 / 기존 enum 추가 / cycle 한도 변경 3 케이스 적용. agent 본문이 enum 의 진본 — handoff-matrix §1 은 routing 가이드, orchestration §4 는 loop sequence view.
 
-### 1.1 plan-reviewer
+### 1.1 tech-reviewer
 
-PRD 외부 검증 (`FULL` 모드 default / `PRE_CHECK` 모드 — `/product-plan` 스킬의 Spike Pre-Check 단계). 세 가지 결과:
+PRD 선행 기술 검증 (`/tech-review` 스킬 안). 책임 2 축 — (1) 기술 제약 검토 (사용 가능 / 비용 / 라이선스 / 불가 시 대안 2개) (2) 용도별 스펙 깎기 (MVP 강등 / 고도화 제안). 산출 3 종 (`docs/tech-review.md` 본문 + `docs/tech-review/evidence/**` + `docs/tech-review/report.html`). 세 가지 결과:
 
-- **PRD 승인** (`PASS`) → 메인이 사용자에게 confirm 받고 다음 단계 진입 (system-architect 또는 이슈 등록). `PRE_CHECK` 모드면 PRD 작성 진입.
-- **PRD 변경 요청** (`FAIL`) → 메인이 findings 항목별 *수용/거절 권장* + 사용자 confirm → 수용 항목만 메인이 `docs/prd.md` / `docs/stories.md` Edit patch. 재 review 필요 시 plan-reviewer 재호출 (cycle ≤ 2). `PRE_CHECK` 모드면 사용자 입력 재정리.
-- **판정 불가** (`ESCALATE`) → 사용자 위임. 4 트리거: 외부 검증 실행 불가 / 권한 경계 밖 정보 의존 / cycle 한도 직전 동일 finding 반복 / `EXTERNAL_VERIFIED` URL 부재 PASS 시도.
+- **검토 완료** (`PASS`) → 메인이 사용자에게 산출물 (HTML 리포트) 확인 요청 → 사용자 2 차 OK 후 `/architect-loop` 권고 echo.
+- **검토 일부 불가** (`FAIL`) → 정식 항목 충족 X (4 항목 누락 / 대안 2 개 미발견 등). 메인이 사용자와 분기 토론: (a) PRD patch + `/tech-review` 재호출 / (b) 격리 후보 격상 + 재호출 / (c) 항목 polish 후 재호출.
+- **검토 실행 불가** (`ESCALATE`) → 사용자 위임. 사유: WebFetch 차단 / 외부 API 인증 부재 / 권한 부족 / 사용자 환경 의존 도구 부재.
 
-> Note: 옛 product-planner sub-agent 폐기. PRD/stories.md 작성은 메인 Claude 가 사용자와 직접 그릴미 대화로 진행 (`commands/product-plan.md`). 컨텍스트 손실 회피 + 인터랙션 풀 보존. plan-reviewer 만 외부 검증으로 sub-agent 유지.
+> Note: 옛 product-planner sub-agent 폐기 (메인 Claude 가 사용자와 직접 그릴미). 옛 plan-reviewer 폐기 (이슈 #515 — 8 차원 + 모드 + 사후 self-check 룰 누적 복잡도). tech-reviewer 는 stateless — 한 호출 = 한 본문 작성. 재호출 cycle 종료 신호 = 사용자 OK 만 (자가 ESCALATE 탐지 / cycle 카운터 룰 폐기). 단방향 catastrophic — `/architect-loop` 진입 후 본 agent 재호출 금지 ([`orchestration.md`](orchestration.md) §2.1.4).
 
 ### 1.2 ux-architect
 
@@ -182,7 +182,8 @@ merge 직전 코드 품질 + 보안 코드 패턴 심사:
 | ux-architect | `docs/ux-flow.md` + `docs/design.md` 시스템 레벨 (Colors / Typography / Layout / Shapes / Elevation 섹션 + frontmatter `colors` / `typography` / `rounded` / `spacing` 토큰 — components 영역은 designer 전용) |
 | qa | (Issue tracker mutation 만, 파일 X) |
 | build-worker (`/impl-loop` 한정) | engineer + test-engineer 합집합 (`src/**`, `src/__tests__/**`, `*.test.*`, `*.spec.*`) + phase prose `<run_dir>/build-{test,impl,validate}.md` |
-| code-validator / architecture-validator / pr-reviewer / plan-reviewer | (없음 — 판정 전용) |
+| code-validator / architecture-validator / pr-reviewer | (없음 — 판정 전용) |
+| tech-reviewer | `docs/tech-review.md` + `docs/tech-review/**` (evidence 파일 + report.html). 그 외 모든 경로 Write 금지. |
 
 ### 4.2 Read 금지 경로 (READ_DENY_MATRIX)
 
@@ -190,7 +191,7 @@ merge 직전 코드 품질 + 보안 코드 패턴 심사:
 |---|---|
 | designer | `src/` |
 | test-engineer | `src/` (impl 외), 도메인 문서 |
-| plan-reviewer | `src/`, `docs/impl/`, `docs/architecture.md` |
+| tech-reviewer | `src/`, `docs/impl/`, `docs/architecture.md`, `docs/adr.md` |
 
 ### 4.3 인프라 패턴 (전 에이전트 공통 차단)
 
