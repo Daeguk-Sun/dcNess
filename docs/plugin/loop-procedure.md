@@ -243,7 +243,7 @@ phase prose 입자는 review.md 출력 재정의 (`commands/impl-loop.md §revie
 | `FAIL` | engineer POLISH cycle (≤2) |
 | `AMBIGUOUS` | 재호출 1회 (결론 enum 명시 요청) → 재호출도 AMBIGUOUS 시 사용자 위임 (enum 후보 + prose 발췌) |
 | architecture-validator 1차 `FAIL` (Step 3.5) | system-architect 재진입 (cycle ≤2). Placeholder Leak / 공통 SSOT 룰 위반 영역 |
-| architecture-validator 2차 `FAIL` (Step 5) | 해당 module-architect 재진입 (Cross-Story Interface 영역) 또는 system-architect 재진입 (모듈 의존 그래프). cycle ≤2 |
+| architecture-validator 2차 `FAIL` (Step 5) | 해당 module-architect 재진입 (Cross-Story Interface 영역 또는 Implementation Simulation gap 보강) 또는 system-architect 재진입 (모듈 의존 그래프). cycle ≤2 |
 | tech-reviewer `FAIL` | 메인이 사용자와 분기 토론 → (a) PRD patch + `/tech-review` 재호출 / (b) 격리 후보 격상 + 재호출 / (c) 항목 polish + 재호출. cycle 한도 X (단방향, 사용자 OK 까지) |
 | tech-reviewer `ESCALATE` | 사용자 위임 (WebFetch 차단 / 외부 API 인증 부재 / 권한 부족 / 사용자 환경 의존 도구 부재) |
 

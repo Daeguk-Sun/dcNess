@@ -94,19 +94,19 @@ impl 계획 ↔ 구현 코드 일치 검증. impl 파일 경로 (`docs/impl/NN-*
 
 ### 1.9 architecture-validator
 
-system-architect / module-architect 산출물의 자가검증 사각지대 외부 reviewer. 3 영역 — **Placeholder Leak + Cross-Story Interface 정합성 + 공통 SSOT 룰 위반**. Spike Gate 폐기 (이슈 [#511](https://github.com/alruminum/dcNess/issues/511)) — tech-reviewer 가 PRD 단계에서 외부 의존 검증 cover.
+system-architect / module-architect 산출물의 자가검증 사각지대 외부 reviewer. 4 영역 — **Placeholder Leak + Cross-Story Interface 정합성 + 공통 SSOT 룰 위반 + Implementation Simulation (사전부검)**. Spike Gate 폐기 (이슈 [#511](https://github.com/alruminum/dcNess/issues/511)) — tech-reviewer 가 PRD 단계에서 외부 의존 검증 cover.
 
 `/architect-loop` 안에서 두 시점에 호출:
 
-- **Step 3.5 (1차)** — system-architect PASS 직후. Placeholder Leak + 공통 SSOT 룰 자동 영역 검증. Cross-Story Interface 는 N/A (impl 파일 미작성).
-- **Step 5 (2차)** — module-architect × K 다 끝난 후. Cross-Story Interface 정합성 + Placeholder Leak 재검증.
+- **Step 3.5 (1차)** — system-architect PASS 직후. Placeholder Leak + 공통 SSOT 룰 자동 영역 검증. Cross-Story Interface / Implementation Simulation 은 N/A (impl 파일 미작성).
+- **Step 5 (2차)** — module-architect × K 다 끝난 후. Cross-Story Interface 정합성 + Implementation Simulation (대표 impl task 2~3 개 cold-seat 시뮬레이션 — 표시 없는 암묵 gap) + Placeholder Leak 재검증.
 
 결론 3종:
 
 - **PASS** (Step 3.5) → module-architect × K (공통 task 있으면 공통부터, 이후 Story 순차).
 - **PASS** (Step 5) → architect-loop Step 6 (PR + 머지).
 - **FAIL** (Step 3.5) → system-architect 재진입 (cycle 한도 2). 본문에 placeholder 위치 / Must 기능 직결 / 공통 SSOT 룰 위반 위치 명시.
-- **FAIL** (Step 5) → 해당 module-architect 재진입 (Cross-Story Interface 영역) 또는 system-architect 재진입 (모듈 의존 그래프 영역). cycle ≤ 2
+- **FAIL** (Step 5) → 해당 module-architect 재진입 (Cross-Story Interface 영역 또는 Implementation Simulation gap 보강) 또는 system-architect 재진입 (모듈 의존 그래프 영역). cycle ≤ 2
 - **ESCALATE** → 재설계 1 cycle 후에도 동일 FAIL → 사용자 위임.
 
 ### 1.10 pr-reviewer

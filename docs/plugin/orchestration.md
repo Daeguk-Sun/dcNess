@@ -84,7 +84,7 @@ flowchart LR
     dv1 -->|FAIL| sd
     dv1 -->|ESCALATE| esc
     c2 --> mp[module-architect × K<br/>K = Story 수 + 공통 호출]
-    mp -->|PASS × K, 각 호출 후 commit| dv2[validator 2차<br/>Cross-Story Interface + Placeholder 재검증]
+    mp -->|PASS × K, 각 호출 후 commit| dv2[validator 2차<br/>Cross-Story Interface + Impl Simulation + Placeholder 재검증]
     mp -->|SPEC_GAP_FOUND / ESCALATE| esc
     dv2 -->|PASS| done[PR 생성/머지]
     dv2 -->|FAIL| mp
@@ -165,7 +165,7 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 | 3.5 | architecture-validator 1차 (Placeholder Leak + 공통 SSOT 룰 자동) | `PASS,FAIL,ESCALATE` | commit 2 (`[docs] architecture + adr + domain <epic-slug>`) — PASS 직후 |
 | 4.0 (공통 task 있을 시) | module-architect (mode=common) | `PASS,SPEC_GAP_FOUND,ESCALATE` | commit 3 (`[docs] impl 공통 task <epic-slug>`) — PASS 직후 |
 | 4.1 ~ 4.N | module-architect (Story 순차, occurrence 1..N) | `PASS,SPEC_GAP_FOUND,ESCALATE` | commit 4..N+3 (`[docs] impl <Story-slug>`) — 각 PASS 직후 |
-| 5 | architecture-validator 2차 (Cross-Story Interface + Placeholder 재검증) | `PASS,FAIL,ESCALATE` | commit N+4 (`[docs] validator 2차 결과`) — PASS 직후 |
+| 5 | architecture-validator 2차 (Cross-Story Interface + Implementation Simulation + Placeholder 재검증) | `PASS,FAIL,ESCALATE` | commit N+4 (`[docs] validator 2차 결과`) — PASS 직후 |
 
 **module-architect × K 단계 (Step 4)**:
 - K = Story 수 + 공통 호출 1 회 (공통 task 있으면) 또는 0 회 (없으면)
@@ -185,7 +185,7 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 - `UX_REFINE_READY` → designer 분기 (ux-design-stage / ux-refine-stage 권장)
 - `UX_FLOW_ESCALATE` → 사용자 위임
 - architecture-validator 1차 `FAIL` → system-architect 재진입 (cycle ≤ 2). Placeholder Leak 또는 공통 SSOT 룰 위반 영역.
-- architecture-validator 2차 `FAIL` → 해당 module-architect 재진입 (Cross-Story Interface 영역) 또는 system-architect 재진입 (모듈 의존 그래프 영역). cycle ≤ 2
+- architecture-validator 2차 `FAIL` → 해당 module-architect 재진입 (Cross-Story Interface 영역 또는 Implementation Simulation gap 보강) 또는 system-architect 재진입 (모듈 의존 그래프 영역). cycle ≤ 2
 - architecture-validator `ESCALATE` → 사용자 위임
 - module-architect `SPEC_GAP_FOUND` → module-architect (보강 케이스) cycle (≤ 2) → 신규 케이스 재진입
 - module-architect `ESCALATE` → 사용자 위임
