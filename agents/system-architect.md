@@ -48,7 +48,7 @@ model: opus
 
 ## 호출자가 prompt 로 전달
 
-PRD 경로, 선택된 옵션, (있으면) UX Flow Doc 경로, (기술 에픽 케이스) 개선 목표 + 영향 범위.
+PRD 경로, (있으면) `docs/tech-review.md` 경로, 선택된 옵션, (있으면) UX Flow Doc 경로, (기술 에픽 케이스) 개선 목표 + 영향 범위.
 
 ## 권한 경계
 
@@ -64,6 +64,20 @@ PRD 경로, 선택된 옵션, (있으면) UX Flow Doc 경로, (기술 에픽 케
 특히:
 - **§3.1 의존성 강제 도구 선정** — architecture.md 의 *기술 스택* 영역에 *어떤 도구로 의존 차단할지* 명시 의무 (TypeScript paths / Python import-linter / Go internal package 등)
 - **§3.3 DI 패턴 선정** — architecture.md 의 *기술 스택* 영역에 DI 컨테이너 또는 패턴 명시 (Spring / NestJS / 생성자 주입 등)
+
+## tech-review 권고 반영 (tech-review.md 있으면)
+
+> §자기 규율의 "받아 쓰는 입장" 을 구체화 — 반영 흔적을 남겨 tech-reviewer 권고 사장을 차단.
+
+호출자가 `docs/tech-review.md` 경로를 전달하면 (외부 의존 ≥ 1 케이스), 본문의 **축 2 권고** (용도별 스펙 깎기) 를 설계 결정에 반영한다:
+
+- **스펙 강등 권고** (예: GPT-4o 과스펙 → Haiku) → architecture.md 기술 스택에 반영
+- **업그레이드 권고** (예: ffmpeg → mlx-audio) → 채택 시 architecture.md 기술 스택 + adr.md 결정 기록
+- **대안 기술 권고** (정식 항목 불가 시 대안 2개) → 채택한 대안을 기술 스택에 반영
+
+**반영 흔적 의무 (사장 차단)**: 축 2 권고 1 건당 adr.md 에 *채택 / 미채택 + 이유* 1 줄 명시. 미채택도 "권고 X — 이유 Y 로 기각" 명시 (침묵 금지). *권고를 안 본 것* 과 *보고 기각한 것* 을 구분.
+
+**tech-review.md 미전달 케이스** (외부 의존 0 개 → `/tech-review` skip): 본 룰 N/A. 자체 판단으로 기술 스택 결정.
 
 ## 자기 규율 — 한 줄 룰
 
