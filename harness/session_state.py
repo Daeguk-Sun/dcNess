@@ -1384,6 +1384,33 @@ def _cli_insight(args: Any) -> int:
     return 0
 
 
+def _cli_prev_tasks_append(args: Any) -> int:
+    """#525 — build-worker 가 phase 3 종료 시 자기 task 산출 요약 한 줄 append.
+
+    Usage: dcness-helper prev-tasks-append <slug> "<산출 요약 한 줄>"
+
+    다음 task 진입 시 메인의 `begin-step build-worker` 가 [PREVIOUS_TASKS] 로
+    emit → 메인이 build-worker prompt 에 포함. task 간 인터페이스 misalign 완화.
+    """
+    from harness.prev_tasks import append
+
+    path = append(args.slug, args.summary, cwd=Path.cwd())
+    print(f"[prev-tasks] appended → {path}", file=sys.stderr)
+    return 0
+
+
+def _cli_prev_tasks_reset(args: Any) -> int:
+    """#525 — impl-loop chain 시작 시 누적 초기화 (skill 진입 1회 권장).
+
+    Usage: dcness-helper prev-tasks-reset
+    """
+    from harness.prev_tasks import reset
+
+    reset(cwd=Path.cwd())
+    print("[prev-tasks] reset", file=sys.stderr)
+    return 0
+
+
 def _prior_engineer_tool_use_count(sid: str) -> Optional[int]:
     """현재 sid 의 CC session JSONL 에서 직전 engineer sub-agent invocation 의
     `totalToolUseCount` 추출 (DCN-CHG-20260430-36).
@@ -1463,6 +1490,18 @@ def _cli_begin_step(args: Any) -> int:
             print(f"\n[INSIGHTS: {label}]\n{_insights}")
     except Exception:
         pass  # insights 주입 실패는 silent — 본 step 차단 X
+
+    # #525: build-worker 진입 시 직전 task 산출 요약 stdout 주입. 메인 Claude 가
+    # Bash 결과로 읽고 build-worker prompt 에 포함시킨다 (loop_insights 와 동일
+    # 경로). 자기 task 는 phase 3 종료 시 append 되므로 여기선 직전까지만 보인다.
+    if args.agent == "build-worker":
+        try:
+            from harness.prev_tasks import read as _pt_read
+            _prev = _pt_read()
+            if _prev:
+                print(f"\n[PREVIOUS_TASKS]\n{_prev}")
+        except Exception:
+            pass  # 주입 실패 silent — 본 step 차단 X
 
     return 0
 
@@ -2118,6 +2157,21 @@ def _build_arg_parser() -> Any:
     p_in.add_argument("agent_mode", help='agent 또는 "agent-mode" (예: engineer, engineer-IMPL)')
     p_in.add_argument("text", help="자연어 한 줄 (예: \"🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X\")")
     p_in.set_defaults(func=_cli_insight)
+
+    # #525 — /impl-loop 직전 task 산출 요약 누적 (build-worker append → 다음 진입 emit)
+    p_pta = sub.add_parser(
+        "prev-tasks-append",
+        help="#525 — build-worker task 산출 요약 append (다음 task [PREVIOUS_TASKS] emit)",
+    )
+    p_pta.add_argument("slug", help="task slug (예: 05-revival-button)")
+    p_pta.add_argument("summary", help="산출 요약 한 줄")
+    p_pta.set_defaults(func=_cli_prev_tasks_append)
+
+    p_ptr = sub.add_parser(
+        "prev-tasks-reset",
+        help="#525 — impl-loop chain 시작 시 누적 초기화 (skill 진입 1회)",
+    )
+    p_ptr.set_defaults(func=_cli_prev_tasks_reset)
 
     p_bs = sub.add_parser("begin-step", help="current_step + heartbeat 갱신")
     p_bs.add_argument("agent")

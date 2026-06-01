@@ -112,7 +112,9 @@ Agent(subagent_type="<agent>", mode="<MODE>", description="...")
 TaskUpdate("<task>", completed)
 ```
 
-begin-step stdout 에 `[INSIGHTS: <agent>/<mode>]` 섹션이 있으면 Agent prompt 끝에 그대로 포함시킨다. 해당 agent 의 과거 루프 학습 — "하지 말 것" / "잘 됐던 것" — 이 프로젝트 레벨로 누적된 것.
+begin-step stdout 에 `[INSIGHTS: <agent>/<mode>]` 또는 `[PREVIOUS_TASKS]` 섹션이 있으면 Agent prompt 끝에 그대로 포함시킨다.
+- `[INSIGHTS]` — 해당 agent 의 과거 루프 학습 ("하지 말 것" / "잘 됐던 것"), 프로젝트 레벨 누적.
+- `[PREVIOUS_TASKS]` — `/impl-loop` chain 의 직전 task 산출 요약 list (build-worker 진입 시만, #525). 인접 task 인터페이스 정합 참고용 — build-worker 가 phase 3 통과 시 `prev-tasks-append` 로 자기 산출을 누적한 것.
 
 메인이 prose를 직접 Write 할 필요 없음 — PostToolUse Agent hook 이 sub 종료 시 `tool_response.text` 에서 prose 를 자동으로 `<run_dir>/<agent>[-<MODE>].md` 에 저장하고 `live.json.current_step.prose_file` 에 경로 기록. `end-step` 이 이 경로를 자동 읽는다.
 

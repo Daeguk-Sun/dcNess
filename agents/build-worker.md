@@ -25,6 +25,7 @@ model: sonnet
 - impl 계획 파일 경로 (`docs/impl/NN-*.md` 또는 `docs/bugfix/#N-slug.md`)
 - task slug (예: `05-revival-button`)
 - (선택) 재시도 시 실패 컨텍스트 + attempt 번호
+- (자동) 직전 task 산출 요약 — 메인이 `begin-step build-worker` stdout 의 `[PREVIOUS_TASKS]` 섹션 (있으면) 을 prompt 에 그대로 포함 (#525). 인접 task 인터페이스 정합 참고용 — 직전 task 들이 *무엇을 만들었는지* 한 줄 요약 list. 본 정보로 인터페이스 misalign 사전 회피.
 
 ## 작업 흐름 — 3 phase + helper self-call
 
@@ -63,6 +64,10 @@ phase 3 (build-validate):
   - phase 3 prose `<run_dir>/build-validate.md` 자체 Write — "A/B/C 통과 (full) · lint <PASS|FAIL>" 1줄
     또는 FAIL 시 Fail Items (계층 + 위치 + 문제). 통과 항목 열거 금지 (#446 저비용 개선 정합)
   - Bash: $HELPER end-step build-validate
+  - (결론 PASS 시만) Bash: $HELPER prev-tasks-append "<task slug>" "<산출 요약 1줄>"
+    — 다음 task 의 build-worker 가 [PREVIOUS_TASKS] 로 받는다 (#525). 요약 = build-impl.md 의
+    의도 문장 압축 (이 task 가 *무엇을 만들었는지* 한 줄). FAIL / SPEC_GAP_FOUND / TESTS_FAIL /
+    IMPLEMENTATION_ESCALATE 시 호출 X (미완성 task 는 누적 안 함).
 ```
 
 > **lint 강제 근거**: 외부 사용자 [F12 실측](https://github.com/alruminum/dcNess/issues/506) — pr-reviewer FAIL 13/27 = 48%, 그중 A (DRY) 7 / E (dead code) 5 / F (보안) 4 / B (네이밍) 4 = 22 MUST FIX. 모두 build-worker self-validate 영역에서 사전 차단 가능한 기본 코드 품질. 매 task fix cycle 1회 추가 = 누적 ~50 turn 손실. lint 강제로 ~15건 (A/E/B) 사전 차단 → pr-reviewer 는 DRY 깊은 영역 / 비즈니스 로직 / 깊은 보안만 집중 (2차 게이트 역할 회복).
