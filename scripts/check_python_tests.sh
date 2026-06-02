@@ -34,7 +34,16 @@ fi
 echo "[pytest-gate] harness/tests/agents 변경 감지 — 단위 테스트 실행"
 # DCN-CHG-20260501-09: pre-commit 안에서 git env vars (GIT_INDEX_FILE / GIT_DIR /
 # GIT_WORK_TREE) 가 inherited 되어 자식 git worktree add 호출이 fail. unset 후 실행.
-if ! env -u GIT_INDEX_FILE -u GIT_DIR -u GIT_WORK_TREE -u GIT_PREFIX -u GIT_EXEC_PATH python3 -m unittest discover -s tests >&2; then
+PYTHON_BIN="${PYTHON_BIN:-}"
+if [ -z "$PYTHON_BIN" ]; then
+  if command -v python3.11 >/dev/null 2>&1; then
+    PYTHON_BIN="python3.11"
+  else
+    PYTHON_BIN="python3"
+  fi
+fi
+
+if ! env -u GIT_INDEX_FILE -u GIT_DIR -u GIT_WORK_TREE -u GIT_PREFIX -u GIT_EXEC_PATH "$PYTHON_BIN" -m unittest discover -s tests >&2; then
   echo "[pytest-gate] FAIL — 단위 테스트 회귀. fix 후 재커밋. (우회: --no-verify, 룰 위반)" >&2
   exit 1
 fi

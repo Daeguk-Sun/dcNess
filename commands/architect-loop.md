@@ -101,6 +101,22 @@ K 의 의미: **Story 수 + 공통 호출 1 회 (공통 task 있으면) 또는 0
 - `*_ESCALATE` → 사용자 위임
 - cycle 발생 시 working tree only — commit X. PASS 후만 commit.
 
+## validation provider resolve (Codex opt-in)
+
+architecture-validator 1차와 2차 모두 호출 직전 provider 를 resolve 한다.
+
+```bash
+PROVIDER=$("$HELPER" routing resolve architecture-validator)
+if [ "$PROVIDER" = "codex" ]; then
+  # begin-step architecture-validator 는 기존 절차대로 먼저 호출.
+  "$PLUGIN_ROOT/scripts/dcness-codex-validator" architecture-validator --prompt-file "$PROMPT_FILE"
+else
+  # 기존 Claude Agent(subagent_type="architecture-validator") 경로.
+fi
+```
+
+Codex route 는 read-only validation 전용이다. wrapper 가 Codex 마지막 응답을 저장하고 `end-step architecture-validator --prose-file ...` 까지 수행하므로 별도 end-step 중복 호출 금지.
+
 ## 후속 라우팅
 
 - 본 loop clean → 자동 commit/PR + 머지 → 사용자에게 "`/impl-loop <epic-path>` 로 구현 진입할까요?" 안내

@@ -40,6 +40,23 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
 후반 3 단계 (3+4+5) skip 차단:
 - task 를 clean 으로 표기하기 *전*, code-validator 가 PASS 를 냈고 pr-reviewer 가 실행된 뒤 *메인 Claude 가* PR 생성·머지까지 마쳤는지 메인이 직접 확인. 흔적 부재 시 → false-clean 의심 → `blocked` 강등 + 사용자 개입 (#431)
 
+## validation provider resolve (Codex opt-in)
+
+`code-validator` 와 `pr-reviewer` 호출 직전 provider 를 local routing config 로 resolve 한다. config 는 사용자 repo 에 두지 않고 `~/.claude/plugins/data/dcness-dcness/routing.json` 만 사용한다.
+
+```bash
+PROVIDER=$("$HELPER" routing resolve code-validator)
+if [ "$PROVIDER" = "codex" ]; then
+  # begin-step 은 기존 절차대로 먼저 호출.
+  # prompt 는 메인이 Agent 호출에 넣을 내용을 파일로 쓴다.
+  "$PLUGIN_ROOT/scripts/dcness-codex-validator" code-validator --prompt-file "$PROMPT_FILE"
+else
+  # 기존 Claude Agent(subagent_type="code-validator") 경로.
+fi
+```
+
+`pr-reviewer` 도 동일하게 `routing resolve pr-reviewer` 후 Codex route 면 `scripts/dcness-codex-validator pr-reviewer --prompt-file "$PROMPT_FILE"` 를 호출한다. wrapper 가 Codex 마지막 응답을 `/tmp` 에 받고 `dcness-helper end-step <agent> --prose-file ...` 까지 수행하므로 Codex route 에서는 별도 `end-step` 중복 호출 금지.
+
 ## 후속 라우팅
 - 본 loop clean → 자동 commit/PR (branch prefix = orchestration §4.3 decision rule: feat/chore/fix)
 - 주의사항 → 사용자 결정 (수동 7b)

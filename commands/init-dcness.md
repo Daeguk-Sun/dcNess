@@ -456,6 +456,71 @@ agent (메인 Claude / engineer / 등) 가 `Edit` / `Write` 시도 시 **PreTool
 - *test 실행 X* — 존재만 확인. 실행은 사용자 개별 (vitest watch / CI 등)
 - agent 가 hook 우회 (예: `Bash` 으로 직접 파일 작성) 시 차단 X — 단 catastrophic-gate 등 다른 hook 이 잡음
 
+### Step 2.10 — Codex validator skills + local routing opt-in
+
+`code-validator` / `architecture-validator` / `pr-reviewer` 만 Codex read-only 실행으로 보낼 수 있다. 이 설정은 **사용자 repo 에 파일을 만들지 않는다**. 전부 local plugin data 와 `$CODEX_HOME/skills/` 안에만 저장된다.
+
+#### 1. Codex skill 설치/갱신
+
+```bash
+PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
+CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
+
+mkdir -p "$CODEX_HOME/skills"
+for DIR in dcness-code-validator dcness-architecture-validator dcness-pr-reviewer; do
+  mkdir -p "$CODEX_HOME/skills/$DIR"
+  cp "$PLUGIN_ROOT/codex/skills/$DIR/SKILL.md" "$CODEX_HOME/skills/$DIR/SKILL.md"
+  echo "[dcness] Codex skill 갱신: $CODEX_HOME/skills/$DIR/SKILL.md"
+done
+```
+
+#### 2. Codex validation routing opt-in
+
+사용자에게 1회 묻는다.
+
+```
+[dcness] read-only validation 3종(code-validator / architecture-validator / pr-reviewer)을 Codex 로 route 할까요? (Y/n)
+```
+
+- **Y**: local routing config 생성/갱신.
+
+  ```bash
+  "$PLUGIN_ROOT/scripts/dcness-helper" routing enable-codex-validation
+  "$PLUGIN_ROOT/scripts/dcness-helper" routing status
+  ```
+
+- **n**: skill 설치만 유지하고 route 는 Claude default.
+
+  ```bash
+  "$PLUGIN_ROOT/scripts/dcness-helper" routing disable-codex-validation
+  "$PLUGIN_ROOT/scripts/dcness-helper" routing status
+  ```
+
+#### 3. 설정 위치 + 끄기
+
+- routing config: `~/.claude/plugins/data/dcness-dcness/routing.json`
+- repo 안 provider routing config 없음.
+- 끄기:
+
+  ```bash
+  "$PLUGIN_ROOT/scripts/dcness-helper" routing disable-codex-validation
+  ```
+
+#### 4. 기존 활성화 프로젝트
+
+이미 dcNess 를 쓰는 프로젝트는 plugin 업데이트 후 각 프로젝트 root 의 새 Claude Code 세션에서 `/init-dcness` 를 다시 실행한다.
+
+```bash
+claude plugin update dcness@dcness
+```
+
+문제 시:
+
+```bash
+claude plugin uninstall dcness@dcness
+claude plugin install dcness@dcness
+```
+
 ### Step 2.11 — 자동 commit + PR (인프라 머지 자동화)
 
 Step 2.6 ~ 2.9 까지 *깔린 파일들* (workflow yml 등) 은 working tree 변경 상태로 머무름 — 사용자가 git add / commit / push / PR 까지 직접 진행하지 않으면 main 머지 안 됨. 본 Step 이 그 부담을 자동화.
@@ -615,6 +680,13 @@ TDD Guard (Step 2.9 — PreToolUse hook):
 - TS/JS 한정. 다른 언어 / 비-코드 파일 / Next.js 특수 / 테스트 자체 = silent skip
 - 사용자 설정 0 — plug-in 활성화만으로 발화
 - 진짜 TDD 강제 — 코드 작성 *전* 테스트 먼저
+
+Codex validator routing (Step 2.10 — local opt-in):
+- `$CODEX_HOME/skills/dcness-{code-validator,architecture-validator,pr-reviewer}` 설치/갱신
+- `~/.claude/plugins/data/dcness-dcness/routing.json` 에 provider route 저장
+- route 대상은 read-only validation 3종만. build/engineer 계열은 Claude 유지
+- 상태 확인: `dcness-helper routing status`
+- 끄기: `dcness-helper routing disable-codex-validation`
 
 자동 commit + PR (Step 2.11 완료 시):
 - Step 2.6 ~ 2.9 깔린 인프라 파일들 자동 stage + commit + push + PR

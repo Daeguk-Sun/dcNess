@@ -1,0 +1,164 @@
+#!/usr/bin/env bash
+# Run a dcNess read-only validation agent through Codex and store prose via
+# dcness-helper end-step. The current begin-step remains the caller's duty.
+
+set -uo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  dcness-codex-validator <agent> [MODE] --prompt-file <file> [--project-root <dir>]
+
+Agents:
+  code-validator
+  architecture-validator
+  pr-reviewer
+
+Options:
+  --prompt-file, -p   File containing the Codex prompt.
+  --project-root, -C  Repository root. Default: git rev-parse --show-toplevel.
+  --helper            dcness-helper path. Default: sibling script.
+  --help, -h          Show this help.
+
+The wrapper runs Codex in read-only mode. On Codex CLI versions that expose
+approval flags, it also passes -a never:
+  codex exec -C "$PROJECT_ROOT" -s read-only [-a never] --output-last-message "$TMP_PROSE"
+
+Then it stores the final prose with:
+  dcness-helper end-step <agent> [MODE] --prose-file "$TMP_PROSE"
+USAGE
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  usage
+  exit 0
+fi
+
+if [ $# -lt 1 ]; then
+  usage >&2
+  exit 2
+fi
+
+AGENT="$1"
+shift
+
+case "$AGENT" in
+  code-validator|architecture-validator|pr-reviewer) ;;
+  *)
+    echo "[dcness-codex-validator] unsupported agent: $AGENT" >&2
+    exit 2
+    ;;
+esac
+
+MODE=""
+if [ $# -gt 0 ] && [[ "${1:-}" != -* ]]; then
+  MODE="$1"
+  shift
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT=""
+PROMPT_FILE=""
+HELPER="$SCRIPT_DIR/dcness-helper"
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --prompt-file|-p)
+      PROMPT_FILE="${2:-}"
+      shift 2
+      ;;
+    --project-root|-C)
+      PROJECT_ROOT="${2:-}"
+      shift 2
+      ;;
+    --helper)
+      HELPER="${2:-}"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "[dcness-codex-validator] unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ -z "$PROMPT_FILE" ] || [ ! -f "$PROMPT_FILE" ]; then
+  echo "[dcness-codex-validator] --prompt-file is required and must exist" >&2
+  exit 2
+fi
+
+if [ -z "$PROJECT_ROOT" ]; then
+  PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
+
+if [ ! -x "$HELPER" ]; then
+  echo "[dcness-codex-validator] helper not executable: $HELPER" >&2
+  exit 2
+fi
+
+if ! command -v codex >/dev/null 2>&1; then
+  echo "[dcness-codex-validator] codex CLI not found" >&2
+  exit 127
+fi
+
+BEFORE_STATUS="$(git -C "$PROJECT_ROOT" status --porcelain=v1 2>/dev/null || true)"
+BASELINE_CLEAN=0
+if git -C "$PROJECT_ROOT" diff --quiet --no-ext-diff 2>/dev/null \
+  && git -C "$PROJECT_ROOT" diff --cached --quiet --no-ext-diff 2>/dev/null; then
+  BASELINE_CLEAN=1
+fi
+
+TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-${AGENT}.XXXXXX.md")"
+TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-prompt-${AGENT}.XXXXXX.md")"
+trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
+
+{
+  echo "Use the dcness-${AGENT} Codex skill if it is installed."
+  echo "You are running as a read-only dcNess validation agent."
+  echo "Do not edit files, create files inside the repo, commit, push, or open PRs."
+  echo "Return prose only. The final paragraph must contain exactly one conclusion word: PASS, FAIL, or ESCALATE."
+  echo
+  cat "$PROMPT_FILE"
+} > "$TMP_PROMPT"
+
+CODEX_ARGS=(exec -C "$PROJECT_ROOT" -s read-only --output-last-message "$TMP_PROSE")
+if codex exec --help 2>/dev/null | grep -Eq -- '(^|[[:space:]])-a,|--ask-for-approval|--approval-policy'; then
+  CODEX_ARGS+=( -a never )
+fi
+CODEX_ARGS+=( - )
+
+if ! codex "${CODEX_ARGS[@]}" < "$TMP_PROMPT"; then
+  echo "[dcness-codex-validator] codex exec failed" >&2
+  exit 1
+fi
+
+if [ ! -s "$TMP_PROSE" ]; then
+  echo "[dcness-codex-validator] Codex produced empty prose" >&2
+  exit 1
+fi
+
+AFTER_STATUS="$(git -C "$PROJECT_ROOT" status --porcelain=v1 2>/dev/null || true)"
+if [ "$BEFORE_STATUS" != "$AFTER_STATUS" ]; then
+  echo "[dcness-codex-validator] BLOCKED: Codex run changed git status. Automatic revert is forbidden." >&2
+  git -C "$PROJECT_ROOT" status --short >&2 || true
+  exit 1
+fi
+
+if [ "$BASELINE_CLEAN" = "1" ]; then
+  if ! git -C "$PROJECT_ROOT" diff --quiet --no-ext-diff \
+    || ! git -C "$PROJECT_ROOT" diff --cached --quiet --no-ext-diff; then
+    echo "[dcness-codex-validator] BLOCKED: git diff appeared after Codex run. Automatic revert is forbidden." >&2
+    exit 1
+  fi
+fi
+
+if [ -n "$MODE" ]; then
+  "$HELPER" end-step "$AGENT" "$MODE" --prose-file "$TMP_PROSE"
+else
+  "$HELPER" end-step "$AGENT" --prose-file "$TMP_PROSE"
+fi

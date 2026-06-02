@@ -22,8 +22,9 @@
 **맞다** — Claude Code 로 실제 제품을 만들면서 PR/이슈/구현 루프에 **거버넌스**(검증
 순서 보존, 파일 경계, 재현 가능한 run-review)가 필요한 사람.
 
-**안 맞다** — model/provider 라우팅이나 MCP 런타임 확장이 목적인 경우(그건 dcNess 의
-scope 가 아니다). 가벼운 단발 스크립팅만 원하는 경우엔 과할 수 있다.
+**안 맞다** — 범용 model/provider 라우팅이나 MCP 런타임 확장이 목적인 경우(그건 dcNess 의
+scope 가 아니다). Codex route 는 read-only validator 3종 opt-in 에만 한정된다. 가벼운
+단발 스크립팅만 원하는 경우엔 과할 수 있다.
 
 ## 설치 & 활성화
 
@@ -48,6 +49,12 @@ claude plugin install dcness@dcness
 
 > plugin 갱신: `claude plugin update dcness@dcness`
 > (문제 시 `claude plugin uninstall dcness@dcness && claude plugin install dcness@dcness`)
+
+`/init-dcness` 재실행 시 기존 프로젝트도 Codex read-only validator route 를 opt-in 할 수 있다. 설치/갱신되는 Codex skills 는 `$CODEX_HOME/skills/dcness-*` 3개이며, route config 는 `~/.claude/plugins/data/dcness-dcness/routing.json` 에만 저장된다. 끄기:
+
+```sh
+dcness-helper routing disable-codex-validation
+```
 
 ## 작업 흐름
 
@@ -82,6 +89,7 @@ dcNess 는 단계별 skill 로 작업을 끌고 간다. `/impl` 은 **설계 산
 | 형식 강제 | **0** — 형식/flag/schema 모두 agent 자율. harness 강제 = 작업 순서 + 접근 영역만 |
 | 컨텍스트 layer | 2 layer (CLAUDE.md + agents) |
 | 게이트 | 거버넌스 + 6 CI workflow (cross-ref / git-naming / plugin-manifest / pr-body / python-tests / release-sync) |
+| Codex route | opt-in local routing — `code-validator` / `architecture-validator` / `pr-reviewer` 만 Codex read-only wrapper 로 실행 가능 |
 
 ## Skill (`commands/`, 10개)
 
@@ -119,6 +127,7 @@ cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
 python3 -m unittest discover -s tests -v   # 단위 테스트
 node scripts/check_plugin_manifest.mjs     # manifest 검증
 node scripts/check_cross_refs.mjs          # link/anchor + 옛 명칭 게이트
+bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 ```
 
 - 의존성: Python 3.11+, Node.js 20+, **외부 패키지 0** (표준 라이브러리만)

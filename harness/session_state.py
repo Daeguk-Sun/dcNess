@@ -2074,6 +2074,55 @@ def _cli_status(args: Any) -> int:
     return 0
 
 
+def _cli_routing(args: Any) -> int:
+    """Local provider routing CLI.
+
+    Routing state is plugin-scoped local config. The repository intentionally
+    carries no provider routing config.
+    """
+    from harness import agent_routing
+
+    action = args.routing_cmd
+    if action == "status":
+        print(agent_routing.format_status())
+        return 0
+    if action == "doctor":
+        print(agent_routing.format_status())
+        problems = agent_routing.doctor()
+        if problems:
+            return 1
+        print("[dcness routing] doctor: PASS")
+        return 0
+    if action == "enable-codex-validation":
+        path = agent_routing.enable_codex_validation()
+        print(f"[dcness routing] enabled Codex validation: {path}")
+        print(agent_routing.format_status())
+        return 0
+    if action == "disable-codex-validation":
+        path = agent_routing.disable_codex_validation()
+        print(f"[dcness routing] disabled Codex validation: {path}")
+        print(agent_routing.format_status())
+        return 0
+    if action == "set":
+        try:
+            path = agent_routing.set_provider(args.agent, args.provider)
+        except ValueError as exc:
+            print(f"[dcness routing] {exc}", file=sys.stderr)
+            return 1
+        print(f"[dcness routing] set {args.agent}={args.provider}: {path}")
+        return 0
+    if action == "resolve":
+        try:
+            provider = agent_routing.resolve_provider(args.agent)
+        except ValueError as exc:
+            print(f"[dcness routing] {exc}", file=sys.stderr)
+            return 1
+        print(provider)
+        return 0
+    print(f"[dcness routing] unknown command: {action}", file=sys.stderr)
+    return 1
+
+
 def _build_arg_parser() -> Any:
     import argparse
 
@@ -2171,6 +2220,39 @@ def _build_arg_parser() -> Any:
 
     p_st = sub.add_parser("status", help="whitelist + 현재 cwd 상태")
     p_st.set_defaults(func=_cli_status)
+
+    p_rt = sub.add_parser(
+        "routing",
+        help="provider routing 상태/설정 (local plugin data only)",
+    )
+    rt_sub = p_rt.add_subparsers(dest="routing_cmd", required=True)
+
+    rt_status = rt_sub.add_parser("status", help="routing config 출력")
+    rt_status.set_defaults(func=_cli_routing)
+
+    rt_doctor = rt_sub.add_parser("doctor", help="routing config 검증")
+    rt_doctor.set_defaults(func=_cli_routing)
+
+    rt_enable = rt_sub.add_parser(
+        "enable-codex-validation",
+        help="code-validator / architecture-validator / pr-reviewer 를 Codex 로 route",
+    )
+    rt_enable.set_defaults(func=_cli_routing)
+
+    rt_disable = rt_sub.add_parser(
+        "disable-codex-validation",
+        help="validation agent route 를 Claude 로 되돌림",
+    )
+    rt_disable.set_defaults(func=_cli_routing)
+
+    rt_set = rt_sub.add_parser("set", help="특정 validation agent provider 설정")
+    rt_set.add_argument("agent")
+    rt_set.add_argument("provider", choices=("claude", "codex"))
+    rt_set.set_defaults(func=_cli_routing)
+
+    rt_resolve = rt_sub.add_parser("resolve", help="agent provider resolve")
+    rt_resolve.add_argument("agent")
+    rt_resolve.set_defaults(func=_cli_routing)
 
     p_fr = sub.add_parser(
         "finalize-run",

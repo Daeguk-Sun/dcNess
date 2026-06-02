@@ -62,6 +62,17 @@ python3 -m harness.hooks <handler> --cc-pid "$CC_PID"
 
 **Python handler dispatch**: 모든 차단 / inject 로직은 [`harness/hooks.py`](../../harness/hooks.py) 안. bash wrapper 는 thin shim.
 
+### 2.1 local provider routing 은 hook 이 아니다
+
+`code-validator` / `architecture-validator` / `pr-reviewer` 만 Codex read-only 실행으로 opt-in route 할 수 있다. 이는 hook 강제 백본이 아니라 메인 Claude 의 agent 호출 선택지다.
+
+- config: `~/.claude/plugins/data/dcness-dcness/routing.json`
+- CLI: `dcness-helper routing status|doctor|enable-codex-validation|disable-codex-validation|set|resolve`
+- wrapper: `scripts/dcness-codex-validator`
+- 대상: read-only validation 3종만. engineer / build-worker / module-architect 등 mutation agent 는 Claude route 고정.
+
+Codex wrapper 는 repo mutation 을 금지한다. 실행 전후 git status snapshot 이 달라지면 block 하고 자동 revert 하지 않는다.
+
 ---
 
 ## 3. 7 hook 상세

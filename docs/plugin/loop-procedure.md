@@ -105,8 +105,8 @@ TaskCreate("<agent>: <mode 또는 짧은 설명>")
 ```
 TaskUpdate("<task>", in_progress)
 "$HELPER" begin-step <agent> [<MODE>]
-Agent(subagent_type="<agent>", mode="<MODE>", description="...")
-"$HELPER" end-step <agent> [<MODE>]   # prose-only (stdout=PROSE_LOGGED)
+Agent(subagent_type="<agent>", mode="<MODE>", description="...")  # 또는 validation provider route
+"$HELPER" end-step <agent> [<MODE>]   # prose-only (stdout=PROSE_LOGGED). Codex wrapper route 는 wrapper 가 호출
 # 의무 echo (5~12 줄) — 아래 "결과 echo + 평가" 섹션
 TaskUpdate("<task>", completed)
 ```
@@ -116,6 +116,20 @@ begin-step stdout 에 `[INSIGHTS: <agent>/<mode>]` 또는 `[PREVIOUS_TASKS]` 섹
 - `[PREVIOUS_TASKS]` — `/impl-loop` chain 의 직전 task 산출 요약 list (build-worker 진입 시만, #525). 인접 task 인터페이스 정합 참고용 — build-worker 가 phase 3 통과 시 `prev-tasks-append` 로 자기 산출을 누적한 것.
 
 메인이 prose를 직접 Write 할 필요 없음 — PostToolUse Agent hook 이 sub 종료 시 `tool_response.text` 에서 prose 를 자동으로 `<run_dir>/<agent>[-<MODE>].md` 에 저장하고 `live.json.current_step.prose_file` 에 경로 기록. `end-step` 이 이 경로를 자동 읽는다.
+
+**validation provider route (local opt-in)**: `code-validator` / `architecture-validator` / `pr-reviewer` 는 호출 직전 provider 를 resolve 한다.
+
+```bash
+PROVIDER=$("$HELPER" routing resolve <agent>)
+if [ "$PROVIDER" = "codex" ]; then
+  "$PLUGIN_ROOT/scripts/dcness-codex-validator" <agent> [MODE] --prompt-file "$PROMPT_FILE"
+else
+  Agent(subagent_type="<agent>", ...)
+  "$HELPER" end-step <agent> [MODE]
+fi
+```
+
+Codex wrapper 는 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행하고 마지막 응답을 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --prose-file ...` 를 호출한다. 따라서 Codex route 에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. 라우팅 config 는 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 이며, 비활성/미설정 기본값은 Claude 다.
 
 **호출 prompt 작성 — MUST**: 호출 직전 해당 `agent.md` §"호출자가 prompt 로 전달하는 정보" 항목 read 후 prompt 작성 (형식 자유, 정보 명시 의무).
 
