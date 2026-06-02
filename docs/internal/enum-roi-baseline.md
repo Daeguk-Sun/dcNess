@@ -130,11 +130,11 @@
 
 ### 6.1 권장안 후보 (별도 이슈로 결정)
 
-**옵션 A — 전면 폐기 (prose-only routing)**
-- agent prompt: "마지막 단락에 결론 + 권장 다음 단계 자유롭게 명시"
-- 메인 CC: prose 읽고 routing
-- handoff-matrix.md `§1` 폐기, "권장 routing 가이드" 로 재포맷
-- `interpret_strategy.py` / `signal_io.interpret_signal` 폐기
+**옵션 A — 전면 폐기 (prose-only routing)** ✅ **채택·완결** (이슈 #280/#284)
+- agent prompt: "마지막 단락에 결론 + 권장 다음 단계 자유롭게 명시" — 완료 (이슈 #283, enum 단어는 *권장 표현* 으로 보존)
+- 메인 CC: prose 읽고 routing — 완료
+- handoff-matrix.md `§1` 을 자연어 routing 가이드로 재포맷 — 완료 (PR #544)
+- `interpret_strategy.py` / `signal_io.interpret_signal` (기계 enum 추출) 폐기 — 완료. enum *어휘* 는 권장 표현으로 보존 (어휘 ≠ 기계추출)
 - 비용: 메인 분류 부담 ↑, ambiguous 명시적 검출 상실
 - 가치: drift 비용 0, 자율 ↑, 코드 -200 LOC
 
@@ -160,8 +160,7 @@
 ## 8. 참조
 
 - 이슈 #277 (본 측정의 트리거)
-- [`harness/interpret_strategy.py`](../../harness/interpret_strategy.py) — telemetry 기록
-- [`harness/signal_io.py`](../../harness/signal_io.py) `_heuristic_interpret` (line 232-264) — 추출 휴리스틱
+- [`harness/signal_io.py`](../../harness/signal_io.py) — prose 파일 I/O (옛 `interpret_signal` / `_heuristic_interpret` 휴리스틱은 폐기, 이슈 #284)
 - [`docs/plugin/handoff-matrix.md`](../plugin/handoff-matrix.md) `§1` — drift 발견된 매트릭스
 - [`docs/plugin/orchestration.md`](../plugin/orchestration.md) `§0` — LLM 자율 + 최소 가이드레일 (강제 영역 2 + 안티패턴 4, dcness-rules.md 폐기 후 흡수처)
 - 분석 방식: manual — 본 보고서는 telemetry 샘플 + heuristic 룰 매핑을 수동으로 정리. 재현용 스크립트는 미작성 (필요 시 별 PR).

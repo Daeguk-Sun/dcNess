@@ -10,7 +10,7 @@ Lightweight harness — **prose-only + heuristic enum 추출** 결정론 + **함
 
 | 항목 | 선행 하네스 | dcNess |
 |---|---|---|
-| 결정론 메커니즘 | `parse_marker` regex + `MARKER_ALIASES` 사다리 (~180 LOC) | `signal_io.interpret_signal` — agent prose 자유 emit, **heuristic-only** 단어경계 매칭으로 결론 enum 추출. ambiguous 시 메인 Claude cascade |
+| 결정론 메커니즘 | `parse_marker` regex + `MARKER_ALIASES` 사다리 (~180 LOC) | **prose-only** — agent prose 자유 emit, 메인 Claude 가 prose 자체를 직접 읽고 routing 결정 (기계 enum 추출 없음, 이슈 #280/#284) |
 | 형식 강제 | `---MARKER:X---` + alias 변형 12개 | **0** — 형식 / flag / schema 모두 agent 자율. harness 강제 = 작업 순서 + 접근 영역만 |
 | 컨텍스트 layer | 5 layer (CLAUDE.md + agents + agent-config + preamble + sub-doc) | 2 layer (CLAUDE.md + agents) — preamble / agent-config 자동 주입 폐기 |
 | 게이트 | hook 7+ (agent-boundary / commit-gate / etc.) | 거버넌스 + 3 CI workflow (Document Sync + Python tests + Plugin manifest) |
@@ -73,7 +73,6 @@ node scripts/check_plugin_manifest.mjs
 ```python
 from harness.signal_io import (
     MissingSignal,
-    interpret_signal,
     read_prose,
     write_prose,
 )
@@ -91,22 +90,14 @@ PASS
 """,
 )
 
-# Orchestrator 측 — prose 읽고 결론 enum 1개 추출
+# Orchestrator 측 — prose 읽기. 결론 routing 은 메인 Claude 가 prose
+# 자체를 직접 읽고 판단 (prose-only, 이슈 #280/#284). 기계 enum 추출 없음.
 try:
     prose = read_prose("code-validator", "run_001")
-    conclusion = interpret_signal(prose, ["PASS", "FAIL", "ESCALATE"])
-    if conclusion == "PASS":
-        ...  # 다음 단계 진입
+    # 메인 Claude 가 prose 의 결론 단락을 읽고 다음 단계 결정
 except MissingSignal as e:
-    # 3 reasons (not_found / empty / ambiguous) 단일 catch
-    if e.reason == "ambiguous":
-        ...  # writing guide 정정 input — .metrics/ambiguous-prose.jsonl 누적
-    else:
-        ...  # 즉시 fail (not_found / empty)
-
-# 프로덕션 dcness — heuristic-only (메타 LLM 호출 X)
-# 휴리스틱 ambiguous → MissingSignal propagate → 메인 Claude 가 cascade
-# `interpreter=` 인자는 테스트용 DI swap 만 보존
+    # 2 reasons (not_found / empty) 단일 catch — 즉시 fail
+    ...
 ```
 
 ## 거버넌스 (필수)

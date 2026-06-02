@@ -375,6 +375,6 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 
 > 역사 자료 (Prose-Only 원전 proposal / 코드 driver 디자인 / plugin 배포 dry-run / RWHarness 모듈 분류 등) 는 [`../../README.md`](../../README.md) 의 "참조 문서" 표 (`docs/archive/` 영역) 참조.
 - `agents/*.md` — 각 agent prose writing guide + 결론 enum 출처 (system-architect / module-architect / engineer / test-engineer / code-validator / architecture-validator / designer / ux-architect / tech-reviewer / pr-reviewer / qa)
-- `harness/signal_io.py` / `harness/interpret_strategy.py` — interpret_signal + heuristic
+- `harness/signal_io.py` — prose 파일 I/O (write_prose / read_prose). 옛 enum 추출 (interpret_signal) 폐기 (prose-only)
 - `scripts/analyze_metrics.mjs` — fitness 측정
 - RWHarness `docs/harness-spec.md` §4.2/§4.3 + `harness-architecture.md` §3 — 시퀀스 / 핸드오프 매트릭스 출처

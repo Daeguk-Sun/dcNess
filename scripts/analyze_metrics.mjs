@@ -7,7 +7,7 @@
  * (`harness/routing_telemetry.py` — 이슈 #281).
  *
  * 입력 파일 (기본 `.metrics/`):
- *   - heuristic-calls.jsonl   : interpret_with_fallback 의 매 호출 outcome (deprecated)
+ *   - heuristic-calls.jsonl   : 옛 enum 추출 (interpret_signal) outcome (폐기 — 과거 누적 only, 신규 기록 소스 없음)
  *   - meta-llm-calls.jsonl    : haiku interpreter 가 실 호출한 케이스 (input/output_tokens, cost_usd)
  *
  * 출력: 콘솔 표 + (옵션) JSON 요약.
@@ -59,7 +59,7 @@ const llmEvents = readJsonl(resolve(metricsDir, 'meta-llm-calls.jsonl'));
 
 if (heuristicEvents.length === 0 && llmEvents.length === 0) {
   console.log(`[analyze] ${metricsDir}/ 안에 telemetry 파일 없음 — 누적 데이터 부재.`);
-  console.log('         interpret_with_fallback() 또는 make_haiku_interpreter() 호출 후 재실행.');
+  console.log('         (옛 enum 추출 telemetry 는 폐기됨 — 과거 누적 데이터만 분석 가능.)');
   process.exit(0);
 }
 
@@ -159,7 +159,7 @@ console.log('==========================================');
 console.log('  dcNess interpret 메트릭 리포트');
 console.log('==========================================');
 console.log(`  데이터 디렉토리: ${resolve(metricsDir)}`);
-console.log(`  interpret_with_fallback 호출: ${total}`);
+console.log(`  옛 enum 추출 호출 (과거 누적): ${total}`);
 console.log(`  haiku 실 호출:                  ${llmEvents.length}`);
 console.log('');
 console.log('  Outcome 분포:');

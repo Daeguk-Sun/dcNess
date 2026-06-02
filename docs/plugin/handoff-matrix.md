@@ -131,5 +131,5 @@ RWHarness 4 신호 OR 정합:
 - [`loop-procedure.md`](loop-procedure.md) — Step 0~8 mechanics
 - [`orchestration.md`](orchestration.md) §0 — 강제 영역 2가지 (대 원칙)
 - `agents/*.md` — 각 agent 결론 enum 진본 (`## 결론 + 권장 다음 단계` 섹션) + prose 표현 가이드
-- `harness/signal_io.py` / `harness/interpret_strategy.py` — 옛 enum 추출 인프라 (이슈 #284 폐기 진행 중)
+- `harness/signal_io.py` — prose 파일 I/O (`write_prose` / `read_prose`). 옛 enum 추출 (`interpret_signal` / `interpret_strategy.py`) 은 폐기됨 (prose-only, 이슈 #280/#284)
 - (issue #392 — `harness/routing_telemetry.py` 폐기. baseline 비교 끝남 + cascade marker 실측 0건)

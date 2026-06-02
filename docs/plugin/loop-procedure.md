@@ -106,8 +106,7 @@ TaskCreate("<agent>: <mode 또는 짧은 설명>")
 TaskUpdate("<task>", in_progress)
 "$HELPER" begin-step <agent> [<MODE>]
 Agent(subagent_type="<agent>", mode="<MODE>", description="...")
-"$HELPER" end-step <agent> [<MODE>]   # prose-only mode (stdout=PROSE_LOGGED)
-# (legacy: 외부 skill 이 --allowed-enums 전달 시에만 enum 반환. dcness 자신은 prose-only 만 사용)
+"$HELPER" end-step <agent> [<MODE>]   # prose-only (stdout=PROSE_LOGGED)
 # 의무 echo (5~12 줄) — 아래 "결과 echo + 평가" 섹션
 TaskUpdate("<task>", completed)
 ```
@@ -122,7 +121,7 @@ begin-step stdout 에 `[INSIGHTS: <agent>/<mode>]` 또는 `[PREVIOUS_TASKS]` 섹
 
 **worktree 활성 시 worktree 절대 경로 prompt 에 추가 명시 — MUST**: cwd 가 `.claude/worktrees/<name>/` 안이면 sub-agent prompt 에 worktree 절대 경로 명시. main repo abs path 사용 금지 — 머지 전 옛 코드 read 로 false positive (CC #31546 / #48096). 근거: CC Task tool 에 cwd parameter 부재 (#12748), subagent frontmatter cwd field 부재 (#31940) — 메인이 명시 책임.
 
-**prose-only mode** (이슈 #284): `--allowed-enums` 미지정 시 stdout = `PROSE_LOGGED`. 메인 Claude 가 prose 자체 (`<run_dir>/<agent>[-<MODE>].md`) 를 직접 읽고 routing 결정 — [`handoff-matrix.md`](handoff-matrix.md) §1 자연어 가이드 참조. 결정 못 하면 사용자에게 위임 (prose 본문에 "결정 불가" 명시 — issue #392: routing_telemetry cascade marker 폐기, 자연어 위임만).
+**prose-only** (이슈 #280/#284): end-step stdout = `PROSE_LOGGED`. 메인 Claude 가 prose 자체 (`<run_dir>/<agent>[-<MODE>].md`) 를 직접 읽고 routing 결정 — [`handoff-matrix.md`](handoff-matrix.md) §1 자연어 가이드 참조. 결정 못 하면 사용자에게 위임 (prose 본문에 "결정 불가" 명시 — issue #392: routing_telemetry cascade marker 폐기, 자연어 위임만).
 
 #### 결과 echo + 평가 — MUST (5~12줄)
 
@@ -163,10 +162,6 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 □ 결론 enum + 평가 포함됐는가?
 ```
 
-#### AMBIGUOUS 처리 (legacy enum mode 한정)
-
-`AMBIGUOUS` 는 외부 skill 이 `--allowed-enums` 를 쓴 legacy 호출에서만 발생 (dcness 는 prose-only 라 미발생). 발생 시 재호출 1회 후에도 AMBIGUOUS 면 사용자 위임. prose-only mode 는 결정 못 하면 prose 본문에 "결정 불가" 명시 후 사용자 위임 (issue #392).
-
 #### helper 안전망 (자동 검출)
 
 - **drift WARN**: live.json `current_step` 과 `args.agent` 불일치 → stderr WARN
@@ -179,7 +174,7 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 
 ```bash
 "$HELPER" begin-step <agent> [<MODE>]
-"$HELPER" end-step   <agent> [<MODE>] [--allowed-enums "..."]
+"$HELPER" end-step   <agent> [<MODE>]
 ```
 
 - `agent` — 소문자·하이픈만 (`^[a-z][a-z0-9-]{0,63}$`)
@@ -241,7 +236,6 @@ phase prose 입자는 review.md 출력 재정의 (`commands/impl-loop.md §revie
 | `*_ESCALATE` (hard) | 사용자 위임 (escalate) |
 | `*_ESCALATE` (soft) | 비-yolo: 사용자 위임 / yolo: `auto-resolve` |
 | `FAIL` | engineer POLISH cycle (≤2) |
-| `AMBIGUOUS` (legacy enum 한정) | 재호출 1회 → 또 AMBIGUOUS 면 사용자 위임 |
 | architecture-validator 1차 `FAIL` (Step 3.5) | system-architect 재진입 (cycle ≤2). Placeholder Leak / 공통 SSOT 룰 위반 영역 |
 | architecture-validator 2차 `FAIL` (Step 5) | 해당 module-architect 재진입 (Cross-Story Interface 영역 또는 Implementation Simulation gap 보강) 또는 system-architect 재진입 (모듈 의존 그래프). cycle ≤2 |
 | tech-reviewer `FAIL` | 메인이 사용자와 분기 토론 → (a) PRD patch + `/tech-review` 재호출 / (b) 격리 후보 격상 + 재호출 / (c) 항목 polish + 재호출. cycle 한도 X (단방향, 사용자 OK 까지) |

@@ -44,7 +44,7 @@ cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
 
 자세한 형식: [`agents/code-validator.md`](agents/code-validator.md), [`agents/architecture-validator.md`](agents/architecture-validator.md), [`docs/plugin/orchestration.md`](docs/plugin/orchestration.md) §0.
 
-orchestrator 측 해석은 [`harness/signal_io.py`](harness/signal_io.py) 의 `interpret_signal(prose, allowed)` 사용 — `MissingSignal` 단일 normalize (not_found / empty / ambiguous). 메타 LLM 통합은 `interpreter=` 인자로 swap.
+orchestrator 측 결론 routing 은 메인 Claude 가 prose 자체를 직접 읽고 판단 (prose-only, 이슈 #280/#284). [`harness/signal_io.py`](harness/signal_io.py) 는 prose 파일 I/O (`write_prose` / `read_prose`) 만 담당 — `MissingSignal` 은 not_found / empty 단일 normalize.
 
 ## 참조
 
