@@ -5,7 +5,7 @@
 # 동작:
 #   1. staged 파일 목록 추출 (git diff --cached --name-only)
 #   2. harness/ | tests/ | agents/ | .github/workflows/python-tests.yml 매칭 시만 실행
-#   3. python3 -m unittest discover -s tests
+#   3. python3.11/python3 -m unittest discover -s tests
 #
 # 종료 코드:
 #   0 — 통과 (or 매칭 0)
@@ -36,6 +36,8 @@ echo "[pytest-gate] harness/tests/agents 변경 감지 — 단위 테스트 실�
 # GIT_WORK_TREE) 가 inherited 되어 자식 git worktree add 호출이 fail. unset 후 실행.
 PYTHON_BIN="${PYTHON_BIN:-}"
 if [ -z "$PYTHON_BIN" ]; then
+  # Tests use Python 3.10+ syntax (for example PEP 604 unions). Prefer 3.11
+  # when present so the local hook matches CI instead of macOS system python3.
   if command -v python3.11 >/dev/null 2>&1; then
     PYTHON_BIN="python3.11"
   else

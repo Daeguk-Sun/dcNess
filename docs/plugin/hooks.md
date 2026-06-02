@@ -71,7 +71,7 @@ python3 -m harness.hooks <handler> --cc-pid "$CC_PID"
 - wrapper: `scripts/dcness-codex-validator`
 - 대상: read-only validation 3종만. engineer / build-worker / module-architect 등 mutation agent 는 Claude route 고정.
 
-Codex wrapper 는 repo mutation 을 금지한다. 실행 전후 git status snapshot 이 달라지면 block 하고 자동 revert 하지 않는다.
+Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직접 포함하며 repo mutation 을 금지한다. 실행 전후 git status snapshot 이 달라지면 block 하고 자동 revert 하지 않는다.
 
 ---
 

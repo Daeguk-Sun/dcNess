@@ -24,6 +24,9 @@ The wrapper runs Codex in read-only mode. On Codex CLI versions that expose
 approval flags, it also passes -a never:
   codex exec -C "$PROJECT_ROOT" -s read-only [-a never] --output-last-message "$TMP_PROSE"
 
+Before running Codex, it embeds the installed dcness Codex skill from
+$CODEX_HOME/skills or the plugin bundle when available.
+
 Then it stores the final prose with:
   dcness-helper end-step <agent> [MODE] --prose-file "$TMP_PROSE"
 USAGE
@@ -117,8 +120,37 @@ TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-${AGENT}.XXXXXX.md")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-prompt-${AGENT}.XXXXXX.md")"
 trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
 
+SKILL_NAME="dcness-${AGENT}"
+CODEX_HOME_DIR="${CODEX_HOME:-${HOME:-}/.codex}"
+SKILL_FILE=""
+SKILL_CANDIDATES=(
+  "$CODEX_HOME_DIR/skills/$SKILL_NAME/SKILL.md"
+  "$SCRIPT_DIR/../codex/skills/$SKILL_NAME/SKILL.md"
+)
+for CANDIDATE in "${SKILL_CANDIDATES[@]}"; do
+  if [ -f "$CANDIDATE" ]; then
+    SKILL_FILE="$CANDIDATE"
+    break
+  fi
+done
+
 {
-  echo "Use the dcness-${AGENT} Codex skill if it is installed."
+  echo "dcNess validation agent: $AGENT"
+  if [ -n "$MODE" ]; then
+    echo "dcNess validation mode: $MODE"
+  else
+    echo "dcNess validation mode: default"
+  fi
+  echo
+  if [ -n "$SKILL_FILE" ]; then
+    echo "Use these $SKILL_NAME Codex skill instructions:"
+    echo "----- BEGIN $SKILL_NAME SKILL.md -----"
+    cat "$SKILL_FILE"
+    echo "----- END $SKILL_NAME SKILL.md -----"
+  else
+    echo "Use the $SKILL_NAME Codex skill if it is installed."
+  fi
+  echo
   echo "You are running as a read-only dcNess validation agent."
   echo "Do not edit files, create files inside the repo, commit, push, or open PRs."
   echo "Return prose only. The final paragraph must contain exactly one conclusion word: PASS, FAIL, or ESCALATE."

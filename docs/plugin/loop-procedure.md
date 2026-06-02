@@ -129,7 +129,7 @@ else
 fi
 ```
 
-Codex wrapper 는 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행하고 마지막 응답을 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --prose-file ...` 를 호출한다. 따라서 Codex route 에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. 라우팅 config 는 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 이며, 비활성/미설정 기본값은 Claude 다.
+Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직접 포함한 뒤 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행한다. 마지막 응답은 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --prose-file ...` 로 저장한다. 따라서 Codex route 에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. 라우팅 config 는 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 이며, 비활성/미설정 기본값은 Claude 다.
 
 **호출 prompt 작성 — MUST**: 호출 직전 해당 `agent.md` §"호출자가 prompt 로 전달하는 정보" 항목 read 후 prompt 작성 (형식 자유, 정보 명시 의무).
 

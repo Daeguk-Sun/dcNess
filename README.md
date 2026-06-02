@@ -50,7 +50,7 @@ claude plugin install dcness@dcness
 > plugin 갱신: `claude plugin update dcness@dcness`
 > (문제 시 `claude plugin uninstall dcness@dcness && claude plugin install dcness@dcness`)
 
-`/init-dcness` 재실행 시 기존 프로젝트도 Codex read-only validator route 를 opt-in 할 수 있다. 설치/갱신되는 Codex skills 는 `$CODEX_HOME/skills/dcness-*` 3개이며, route config 는 `~/.claude/plugins/data/dcness-dcness/routing.json` 에만 저장된다. 끄기:
+`/init-dcness` 재실행 시 기존 프로젝트도 Codex read-only validator route 를 opt-in 할 수 있다. 설치/갱신되는 Codex skills 는 `$CODEX_HOME/skills/dcness-*` 3개이며, wrapper 가 해당 `SKILL.md` 를 prompt 에 직접 포함한다. route config 는 `~/.claude/plugins/data/dcness-dcness/routing.json` 에만 저장된다. 끄기:
 
 ```sh
 dcness-helper routing disable-codex-validation
