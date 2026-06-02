@@ -253,7 +253,7 @@ worktree branch 안 commit / push / PR 생성·머지 = **메인 Claude 전담**
 - worker 시스템 프롬프트: [`agents/build-worker.md`](../agents/build-worker.md)
 - 진입 모드 분기: [`docs/plugin/orchestration.md §4.3·§4.8`](../docs/plugin/orchestration.md)
 - phase prose 자체 Write 규약: [`docs/plugin/loop-procedure.md §3.2.1`](../docs/plugin/loop-procedure.md)
-- ALLOW_MATRIX + 결론 가이드: [`docs/plugin/handoff-matrix.md §1.12·§4.1`](../docs/plugin/handoff-matrix.md)
+- ALLOW_MATRIX + 결론 가이드: [`docs/plugin/handoff-matrix.md §1.0·§4.1`](../docs/plugin/handoff-matrix.md)
 
 **실측 미완 — 사용자 협력 측정 진입**: #446 Step 3 통과 기준 (메인 turn ≤ 100, 엄정성 유지) 의 실측 검증 미완. 본 릴리즈 (0.2.28) 가 *측정 진입* 용도. 사용자가 `/impl-loop <task>` 1회 호출 → 새 세션 JSONL → `python3 scripts/measure_main_turns.py <sid>.jsonl` 로 측정 → 결과에 따라:
 - ≤ 100 turn (엄정성 유지) → 그대로 유지 → Step 6 사후 검증

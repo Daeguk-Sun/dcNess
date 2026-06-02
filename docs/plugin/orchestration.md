@@ -136,7 +136,7 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 > *행별 풀스펙* SSOT (entry_point / task_list / advance / clean_enum / branch_prefix / Step 별 allowed_enums / 분기 / sub_cycles).
 > 시퀀스 = §2. 실행 절차 = [`loop-procedure.md`](loop-procedure.md).
 
-> 🔴 **Drift 룰 (3-way cross-ref 강제)** — 본 §4 의 loop 시퀀스 안 agent 결론 → 다음 호출 매핑 갱신 시 (1) [`handoff-matrix.md`](handoff-matrix.md) §1 의 해당 agent sub-section (2) [`../../agents/<agent>.md`](../../agents/) 본문 `## 결론 + 권장 다음 단계` 섹션 — **3 위치 모두 동시 갱신 의무**. 같은 enum→destination 매핑이 세 시각 (loop 단위 vs agent 단위 vs agent 본문 SSOT) 에 분리 박혀 있어 한쪽만 갱신하면 drift 위험. 신 agent 추가 / 기존 enum 추가 / cycle 한도 변경 3 케이스 적용. agent 본문이 enum 의 진본 — orchestration §4 는 loop sequence view, handoff-matrix §1 은 agent 단위 view.
+> 🔴 **Drift 룰 (2-way)** — agent 결론 → 다음 호출 매핑은 **`agents/<agent>.md` 본문이 진본**. 본 §4 loop 시퀀스 + [`handoff-matrix.md`](handoff-matrix.md) §1 한눈표는 그 view. 매핑 갱신 시 agent 본문을 먼저 고치고 view 를 동기. 신 agent 추가 / enum 추가 / cycle 한도 변경 시 적용.
 
 ### 4.1 한눈 인덱스
 
