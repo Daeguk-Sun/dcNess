@@ -626,9 +626,19 @@ def detect_wastes(
         ))
 
     # INFRA_READ — prose 안 인프라 경로 흔적
+    # issue #543: build-worker 등 driver 는 계약상 prose 끝에 자기 run_dir 의
+    # phase prose 경로 (runs/<run_id>/build-*.md) 를 메인 ls 검증용으로 나열한다.
+    # 그 경로는 리뷰 중인 run 자기 자신의 run_dir 아래라 인프라 *탐색* 이 아닌
+    # 자기-bookkeeping → 오탐. 매칭된 인프라 경로가 등장하는 line 단위로 보고,
+    # 자기 run_dir (`runs/<run_id>/`) 자기-참조 line 은 제외한다. 다른 세션/run
+    # 경로·harness-memory.md 등 진짜 leak 은 self marker 미포함 → 검출 유지.
+    self_run_marker = f"runs/{run_dir.name}/" if run_dir is not None else None
     for s in steps:
         for path in INFRA_PATH_PATTERNS:
-            if path in s.prose_full:
+            hit_lines = [ln for ln in s.prose_full.splitlines() if path in ln]
+            if self_run_marker is not None:
+                hit_lines = [ln for ln in hit_lines if self_run_marker not in ln]
+            if hit_lines:
                 findings.append(WasteFinding(
                     pattern="INFRA_READ",
                     severity="HIGH",

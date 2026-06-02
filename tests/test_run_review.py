@@ -228,6 +228,66 @@ class WasteDetectionTests(unittest.TestCase):
 
     # issue #392 — test_placeholder_leak 폐기 (PLACEHOLDER_LEAK 패턴 폐기 정합).
 
+    def test_infra_read_self_rundir_bookkeeping_skipped(self):
+        """issue #543 — build-worker 가 자기 run_dir 의 phase prose 경로를
+        메인 ls 검증용으로 나열한 것은 인프라 탐색이 아니라 자기-bookkeeping →
+        INFRA_READ 오탐 X."""
+        rid = "run-abc123"
+        run_dir = Path(f"/repo/.claude/harness-state/.sessions/sid1/runs/{rid}")
+        prose = (
+            "phase 1/2/3 GREEN 확인 완료.\n"
+            "phase prose 파일 (메인 ls 검증용):\n"
+            f"- /repo/.claude/harness-state/.sessions/sid1/runs/{rid}/build-test.md\n"
+            f"- /repo/.claude/harness-state/.sessions/sid1/runs/{rid}/build-impl.md\n"
+            f"- /repo/.claude/harness-state/.sessions/sid1/runs/{rid}/build-validate.md\n"
+            "LGTM"
+        )
+        steps = [
+            StepRecord(idx=0, ts="t", agent="build-worker", mode="",
+                       enum="PASS", must_fix=False, prose_excerpt="x",
+                       prose_full=prose),
+        ]
+        wastes = detect_wastes(steps, run_dir=run_dir)
+        self.assertNotIn("INFRA_READ", {w.pattern for w in wastes})
+
+    def test_infra_read_other_run_path_detected(self):
+        """다른 run 의 harness-state 경로 참조는 자기-bookkeeping 아님 →
+        INFRA_READ 검출 유지."""
+        run_dir = Path("/repo/.claude/harness-state/.sessions/sid1/runs/run-abc123")
+        prose = (
+            "타 세션 산출물 확인:\n"
+            "/repo/.claude/harness-state/.sessions/sid1/runs/run-OTHER999/build-test.md\n"
+        )
+        steps = [
+            StepRecord(idx=0, ts="t", agent="engineer", mode="IMPL",
+                       enum="IMPL_DONE", must_fix=False, prose_excerpt="x",
+                       prose_full=prose),
+        ]
+        wastes = detect_wastes(steps, run_dir=run_dir)
+        infra = [w for w in wastes if w.pattern == "INFRA_READ"]
+        self.assertEqual(len(infra), 1)
+
+    def test_infra_read_harness_memory_detected_with_rundir(self):
+        """run_dir 가 있어도 harness-memory.md 등 self marker 무관 leak 은 검출 유지."""
+        run_dir = Path("/repo/.claude/harness-state/.sessions/sid1/runs/run-abc123")
+        steps = [
+            StepRecord(idx=0, ts="t", agent="engineer", mode="IMPL",
+                       enum="IMPL_DONE", must_fix=False, prose_excerpt="x",
+                       prose_full="설정 갱신 harness-memory.md 읽음"),
+        ]
+        wastes = detect_wastes(steps, run_dir=run_dir)
+        self.assertIn("INFRA_READ", {w.pattern for w in wastes})
+
+    def test_infra_read_no_rundir_falls_back_to_substring(self):
+        """run_dir 미전달 시 (None) self marker 필터 없이 기존 substring 검출 유지."""
+        steps = [
+            StepRecord(idx=0, ts="t", agent="engineer", mode="IMPL",
+                       enum="IMPL_DONE", must_fix=False, prose_excerpt="x",
+                       prose_full="경로 /repo/.claude/harness-state/.sessions/x/runs/y/z.md"),
+        ]
+        wastes = detect_wastes(steps)  # run_dir 미전달
+        self.assertIn("INFRA_READ", {w.pattern for w in wastes})
+
     def test_must_fix_ghost(self):
         steps = [
             StepRecord(idx=0, ts="t1", agent="validator", mode="CODE_VALIDATION",
