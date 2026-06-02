@@ -76,7 +76,7 @@ phase 3 (build-validate):
 
 ## TDD GUARD 정합
 
-- **phase 1 안에서 src/ Read 금지** — TDD 의 "스펙 기반 테스트" 보장. 기존 test-engineer 권한 경계 (handoff-matrix §4.2) 정합. impl 파일 + docs 만 read.
+- **phase 1 안에서 src/ Read 금지** — TDD 의 "스펙 기반 테스트" 보장. 기존 test-engineer 권한 경계 (`harness/agent_boundary.py` READ_DENY_MATRIX) 정합. impl 파일 + docs 만 read.
 - **phase 1 종료 전 RED 확인 의무** — `vitest --run` 실행해 fail 확인. fail 안 나면 (테스트 자체 결함 또는 src 가 이미 존재) `SPEC_GAP_FOUND` emit.
 - **phase 2 진입 후 src/ Read 허용** — 구현 단계. impl plan + 테스트 파일 + 기존 src read 가능.
 - **phase 2 종료 전 GREEN 확인 의무** — `vitest --run` 으로 모든 새 케이스 통과. 통과 안 나면 src retry (≤ 3) → 한도 초과 `TESTS_FAIL` emit.
@@ -93,7 +93,7 @@ phase 3 (build-validate):
 
 ### Write/Edit 절대 금지
 - `docs/**` (impl 계획·domain·architecture 등 — read 전용)
-- 인프라 (`.claude/`, `hooks/`, `harness/`, `scripts/`, `docs/plugin/`) — `handoff-matrix.md §4.3` 정합
+- 인프라 (`.claude/`, `hooks/`, `harness/`, `scripts/`, `docs/plugin/`) — `harness/agent_boundary.py` DCNESS_INFRA_PATTERNS 정합
 
 ### git/PR/pr-reviewer 호출 금지 — 메인 위임
 - `git checkout -b` / `git add` / `git commit` / `git push` 금지
@@ -134,7 +134,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어:
 - **TESTS_FAIL** — phase 2 attempt 한도 (3) 초과. 본문에 실패 케이스 + 시도 내역 명시.
 - **IMPLEMENTATION_ESCALATE** — 기술 제약 충돌 / 권한 부족 / 진행 불가. 본문에 사유 명시.
 
-> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표. small/medium/large 분량 메타별 SPEC_GAP_FOUND 분기 = [`commands/impl-loop.md`](../commands/impl-loop.md) §절차. git/PR/pr-reviewer 는 메인 위임 (위 §"git/PR/pr-reviewer 호출 금지").
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 routing 한눈표. small/medium/large 분량 메타별 SPEC_GAP_FOUND 분기 = [`commands/impl-loop.md`](../commands/impl-loop.md) §절차. git/PR/pr-reviewer 는 메인 위임 (위 §"git/PR/pr-reviewer 호출 금지").
 
 ## return 형식 (메인 컨텍스트 보호, #446)
 
@@ -253,6 +253,6 @@ worker = 1 task 의 *완결성* 책임. PR 본문·commit message 초안까지 p
 - 시퀀스 / 핸드오프 / 권한 매트릭스: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §4.8
 - impl-task-loop default 4-agent (= `/impl` 단발) 풀스펙: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §4.3
 - conveyor helper: [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1.2 + §3.1
-- ALLOW_MATRIX / 인프라 차단: [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §4
+- ALLOW_MATRIX / 인프라 차단: [`harness/agent_boundary.py`](../harness/agent_boundary.py) (권한 경계 코드 SSOT)
 - code-validator A/B/C 체크리스트 (phase 3 self-validate 원본): [`agents/code-validator.md`](code-validator.md) §full / §bugfix
 - pr-reviewer 호출은 메인 위임: [`agents/pr-reviewer.md`](pr-reviewer.md)

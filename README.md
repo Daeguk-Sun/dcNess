@@ -128,7 +128,6 @@ node scripts/check_cross_refs.mjs          # link/anchor + 옛 명칭 게이트
 | 문서 | 역할 |
 |---|---|
 | [`docs/plugin/orchestration.md`](docs/plugin/orchestration.md) §0 | 정체성 SSOT (강제 영역 2 + 안티패턴 4) |
-| [`docs/plugin/handoff-matrix.md`](docs/plugin/handoff-matrix.md) | agent 호출 분기 / 권한 매트릭스 |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |
 | [`CLAUDE.md`](CLAUDE.md) | 메인 Claude 작업 지침 |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 |

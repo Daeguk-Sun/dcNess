@@ -21,7 +21,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 - **MUST FIX 없음** → "PASS".
 - **MUST FIX 1+** → "FAIL" + MUST FIX 목록.
 
-> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표.
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 routing 한눈표.
 
 **return 간결성 (메인 컨텍스트 보호)**: 호출자에게 돌려주는 prose 는 *메인이 다음 행동을 결정하는 데 필요한 것* 만 담는다 — 결론 + 핵심 변경·발견 요약 + 권장 다음 단계. 과정 서술 / impl 계획·컨텍스트 재진술 / 파일별 장황한 설명은 제거 — 그 세부사항은 코드·PR·impl 파일에 이미 있다. 단 결론의 근거가 되는 실증 근거 (실측 명령·수치, 발견 항목, 미완 작업)는 유지. `/impl-loop` 는 매 task 의 return 이 메인 컨텍스트에 누적 — 군더더기 없는 return 이 곧 비용 절감.
 
@@ -113,7 +113,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 - 이번 PR 이 수정한 파일 내 레거시 → 통상 기준 적용
 - PR 범위 밖 레거시 발견 → NICE TO HAVE 만 (MUST 금지) + 총평에 "별도 tech-debt 에픽 권고"
 
-## 에이전트 스코프 매트릭스 (handoff-matrix.md §4 정합)
+## 에이전트 스코프 매트릭스 (`harness/agent_boundary.py` 권한 경계 정합)
 
 스코프 밖 파일에 MUST FIX 발행 → engineer 가 boundary 차단 → no_changes 반복 → MAX 소진 위험. 스코프 분리:
 

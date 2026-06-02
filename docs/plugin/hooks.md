@@ -2,7 +2,7 @@
 
 > **Status**: ACTIVE
 > **Scope**: dcness plug-in 이 활성 프로젝트에 적용하는 7 hook 의 시점 / 역할 / 차단 동작 / 우회 메커니즘 SSOT.
-> **Cross-ref**: [`orchestration.md`](orchestration.md) §0 (대원칙) + §2.1 (catastrophic 시퀀스), [`handoff-matrix.md`](handoff-matrix.md) §4 (권한 매트릭스).
+> **Cross-ref**: [`orchestration.md`](orchestration.md) §0 (대원칙) + §2.1 (catastrophic 시퀀스), [`harness/agent_boundary.py`](../../harness/agent_boundary.py) (권한 매트릭스).
 
 ---
 
@@ -12,7 +12,7 @@ dcness 가 강제하는 영역은 단 2가지 ([`orchestration.md`](orchestratio
 1. **작업 순서** — agent 시퀀스 + retry 정책
 2. **접근 영역** — 파일 경계 (ALLOW/READ_DENY) + 외부 시스템 mutation 차단
 
-그 *외* 모든 영역 = agent 자율 / 권고 / 측정. hook 은 위 2 영역의 *유일한 코드 구현*. 다른 모든 SSOT (orchestration / handoff-matrix / loop-procedure) 는 hook 동작을 *문서화* 한 자연어 spec 이며, 위반 시 실제로 *차단* 하는 주체는 본 문서가 다루는 7 hook.
+그 *외* 모든 영역 = agent 자율 / 권고 / 측정. hook 은 위 2 영역의 *유일한 코드 구현*. 다른 모든 SSOT (orchestration / loop-procedure) 는 hook 동작을 *문서화* 한 자연어 spec 이며, 위반 시 실제로 *차단* 하는 주체는 본 문서가 다루는 7 hook.
 
 ---
 
@@ -104,7 +104,7 @@ python3 -m harness.hooks <handler> --cc-pid "$CC_PID"
 **Matcher**: `Edit|Write|NotebookEdit|Read|Bash|mcp__.*`
 **시점**: 모든 file / bash / mcp tool 호출 *직전* (sub-agent 활성 시 + 메인 직접 모두).
 
-**역할**: [`handoff-matrix.md`](handoff-matrix.md) §4 권한 매트릭스 강제
+**역할**: [`harness/agent_boundary.py`](../../harness/agent_boundary.py) 권한 매트릭스 강제
 
 | § | 룰 | 영향 |
 |---|---|---|
@@ -116,7 +116,7 @@ python3 -m harness.hooks <handler> --cc-pid "$CC_PID"
 **메인 Claude turn** (sub-agent 비활성): pass-through. `mcp__.*` tool: `file_path` 부재 시 boundary skip, trace 만.
 **차단 동작**: `exit 1` → tool 호출 거부. custom agent 추가 시 §4.1 행 등록 의무 (미정의 시 차단).
 
-**코드 SSOT**: [`harness/agent_boundary.py`](../../harness/agent_boundary.py) — handoff-matrix §4.3 와 동기 의무.
+**코드 SSOT**: [`harness/agent_boundary.py`](../../harness/agent_boundary.py) — ALLOW / READ_DENY / DCNESS_INFRA_PATTERNS 권한 경계 (권한 진본).
 
 ---
 
@@ -260,7 +260,7 @@ Tier 6: <PROJECT_ROOT>/src/__tests__/<name>.{test,spec}.{ts,tsx,js,jsx}
 **자연어 SSOT (본 hook 들이 강제하는 룰의 spec)**:
 - [`orchestration.md`](orchestration.md) §0 — 대원칙 (강제 영역 2가지)
 - [`orchestration.md`](orchestration.md) §2.1 — catastrophic 시퀀스 (catastrophic-gate 강제 대상)
-- [`handoff-matrix.md`](handoff-matrix.md) §4 — 권한 매트릭스 (file-guard 강제 대상)
+- [`harness/agent_boundary.py`](../../harness/agent_boundary.py) — 권한 매트릭스 (file-guard 강제 대상)
 - [`loop-procedure.md`](loop-procedure.md) — Step 0~8 mechanics (hook 시점이 절차 어디에 끼는지)
 
 **코드 SSOT**:

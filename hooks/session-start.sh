@@ -74,7 +74,7 @@ msg = header + '''## [dcness 활성 환경]
 
 ### 강제 (코드 hook 차단)
 - **시퀀스**: catastrophic 3 룰 = \`docs/plugin/orchestration.md\` §2.1
-- **접근 영역**: file 경계 + 인프라 차단 = \`docs/plugin/handoff-matrix.md\` §4
+- **접근 영역**: file 경계 + 인프라 차단 = \`harness/agent_boundary.py\` (권한 경계 코드 SSOT)
 - 그 외 = agent 자율 (형식 / handoff / marker 강제 X)
 
 ### 메인 Claude 필수
@@ -93,7 +93,7 @@ msg = header + '''## [dcness 활성 환경]
 |---|---|
 | 시퀀스 / catastrophic | \`orchestration.md\` §2 + §4 |
 | Step 0~8 / echo / REDO | \`loop-procedure.md\` |
-| agent 결론 → 다음 | \`handoff-matrix.md\` |
+| agent 결론 → 다음 | \`orchestration.md\` §3.1 |
 | hook 시점 / 차단 | \`hooks.md\` |
 | 이슈 lifecycle / PR | \`issue-lifecycle.md\` |
 | 브랜치/커밋 네이밍 | \`git-spec.md\` |

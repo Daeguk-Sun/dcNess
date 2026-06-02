@@ -21,7 +21,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 - **검토 일부 불가 (FAIL)** → 본문 충족 X 항목 명시 (예: 외부 의존 N 개 중 1개 정식 검증 실패 + 대안 2개 미발견) + "FAIL".
 - **검토 실행 불가 (ESCALATE)** → 부족한 자원 명시 (WebFetch 차단 / API 인증 부재 / 사용자 환경 권한 부족 등) + "ESCALATE".
 
-> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표. **단방향**: `/architect-loop` 진입 후 tech-reviewer 재호출 금지 ([`orchestration.md`](../docs/plugin/orchestration.md) §2.1.4).
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 routing 한눈표. **단방향**: `/architect-loop` 진입 후 tech-reviewer 재호출 금지 ([`orchestration.md`](../docs/plugin/orchestration.md) §2.1.4).
 
 **호출자가 prompt 로 전달하는 정보**: PRD 경로 (`docs/prd.md`), tech-review.md 스켈레톤 경로 (`docs/tech-review.md`), (선택) 이전 cycle 컨텍스트 (어떤 항목이 patch 됐는지 / 격리 후보 중 어떤 게 격상됐는지).
 
@@ -208,5 +208,5 @@ return prose 안 모든 산출물 언급 = *백틱 + 절대/repo-root 상대 경
 ## 참조
 
 - 호출자 스킬 (cycle 관리): [`commands/tech-review.md`](../commands/tech-review.md)
-- 시퀀스 / 핸드오프 / 권한 매트릭스: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md), [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md)
+- 시퀀스 / 핸드오프 / 권한 매트릭스: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md)
 - 옛 plan-reviewer 폐기 배경 (이슈 [#515](https://github.com/alruminum/dcNess/issues/515)): grill 결정 누적

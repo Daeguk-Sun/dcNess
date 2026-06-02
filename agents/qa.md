@@ -24,7 +24,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 - **이미 알려진 이슈** → "KNOWN_ISSUE".
 - **분류 불가 / 범위 초과** → "SCOPE_ESCALATE".
 
-> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표 (qa 행).
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 routing 한눈표 (qa 행).
 
 **호출자가 prompt 로 전달하는 정보**: GitHub 이슈 번호 또는 버그 설명, (선택) 재현 단계, (선택) 기존 이슈 번호.
 
@@ -66,7 +66,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 
 ## 라우팅 가이드
 
-> 분류별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 (qa 행). loop 시퀀스 = [`orchestration.md`](../docs/plugin/orchestration.md) §4.5 (qa-triage) / §4.3 (impl-task-loop fallback — module-architect 선두 추가).
+> 분류별 다음 호출(라우팅) 진본 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 (qa 행). loop 시퀀스 = [`orchestration.md`](../docs/plugin/orchestration.md) §4.5 (qa-triage) / §4.3 (impl-task-loop fallback — module-architect 선두 추가).
 
 **판정 기준**:
 - **CLEANUP**: PRD/스펙에 없는 기능 코드 / 사용 안 하는 코드 / behavior 변경 없이 삭제·정리만.

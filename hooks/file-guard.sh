@@ -10,7 +10,7 @@
 #   exit 0: allow (CC 가 tool 호출 진행)
 #   exit 1: block (stderr 메시지 + CC 가 호출 거부)
 #
-# 강제 룰 (handoff-matrix.md §4):
+# 강제 룰 (harness/agent_boundary.py — 권한 경계 코드 SSOT):
 #   §4.4 DCNESS_INFRA_PATTERNS — 인프라 path (모든 sub-agent 차단)
 #   §4.2 ALLOW_MATRIX — agent 별 Write 허용 path
 #   §4.3 READ_DENY_MATRIX — agent 별 Read 금지 path

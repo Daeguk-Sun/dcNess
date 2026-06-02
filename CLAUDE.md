@@ -82,8 +82,7 @@
 | 파일 | 언제 읽나 |
 |---|---|
 | [`docs/plugin/git-spec.md`](docs/plugin/git-spec.md) | 브랜치·커밋·PR 네이밍 규칙 SSOT — 모든 커밋 작업에 적용 |
-| [`docs/plugin/orchestration.md`](docs/plugin/orchestration.md) | 시퀀스 mini-graph + 7 loop 풀스펙 — 루프 진입 경로·분기 수정 시. **§4 갱신 시 `handoff-matrix.md` §1 동시 갱신 의무** (drift 룰, 본문 callout 정합) |
-| [`docs/plugin/handoff-matrix.md`](docs/plugin/handoff-matrix.md) | agent 호출 분기 / retry / escalate 한도 / 접근 권한 경계 수정 시. **§1 갱신 시 `orchestration.md` §4 동시 갱신 의무** (drift 룰, 본문 callout 정합) |
+| [`docs/plugin/orchestration.md`](docs/plugin/orchestration.md) | 시퀀스 mini-graph + 7 loop 풀스펙 + 라우팅 한눈표·retry·escalate (§3) — 루프 진입 경로·분기·라우팅 수정 시 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / Stop = 7 hook) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
 | [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — §0.2 참조) |

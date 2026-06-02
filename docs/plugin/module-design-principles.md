@@ -177,7 +177,7 @@ validator prose 결론에 *자동 검증 통과 영역* + *수동 review 권고 
 ## 참조
 
 - [`docs/plugin/orchestration.md`](orchestration.md) — agent 호출 시퀀스
-- [`docs/plugin/handoff-matrix.md`](handoff-matrix.md) — agent 권한 영역
+- [`harness/agent_boundary.py`](../../harness/agent_boundary.py) — agent 권한 영역 (코드 SSOT)
 - John Ousterhout, "A Philosophy of Software Design"
 - [mattpocock skills — Deep Modules](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/deep-modules.md)
 - [mattpocock skills — Interface Design](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/interface-design.md)

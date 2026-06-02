@@ -56,7 +56,7 @@ model: sonnet
 - **ESCALATE** — 해당 architect 재진입 후에도 동일 FAIL, 또는 본 에이전트 정보 부족
 - **PARTIAL 판정 금지**
 
-> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표 (1차 / 2차 시점별 분기 포함).
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 routing 한눈표 (1차 / 2차 시점별 분기 포함).
 
 ## 호출자가 prompt 로 전달
 
@@ -245,6 +245,6 @@ validator prose 결론에 *자동 검증 통과 영역* + *수동 review 권고 
 ## 참조
 
 - 시퀀스 / 핸드오프: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md)
-- 권한: [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md)
+- 권한: [`harness/agent_boundary.py`](../harness/agent_boundary.py) (코드 SSOT) + 본문 `## 권한 경계`
 - 모듈 설계 원칙 SSOT: [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md)
 - prose-only 발상: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §0 (강제 영역 2가지)

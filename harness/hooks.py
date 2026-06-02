@@ -340,7 +340,7 @@ def handle_pretooluse_agent(
     return 0
 
 
-# ── DCN-CHG-20260501-01 — sub-agent path 강제 (handoff-matrix.md §4) ─
+# ── DCN-CHG-20260501-01 — sub-agent path 강제 (agent_boundary.py 권한 경계) ─
 
 
 def handle_pretooluse_file_op(

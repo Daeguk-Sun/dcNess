@@ -161,6 +161,6 @@
 
 - 이슈 #277 (본 측정의 트리거)
 - [`harness/signal_io.py`](../../harness/signal_io.py) — prose 파일 I/O (옛 `interpret_signal` / `_heuristic_interpret` 휴리스틱은 폐기, 이슈 #284)
-- [`docs/plugin/handoff-matrix.md`](../plugin/handoff-matrix.md) `§1` — drift 발견된 매트릭스
+- [`docs/plugin/orchestration.md`](../plugin/orchestration.md) `§3.1` (구 handoff-matrix §1) — drift 발견된 매트릭스
 - [`docs/plugin/orchestration.md`](../plugin/orchestration.md) `§0` — LLM 자율 + 최소 가이드레일 (강제 영역 2 + 안티패턴 4, dcness-rules.md 폐기 후 흡수처)
 - 분석 방식: manual — 본 보고서는 telemetry 샘플 + heuristic 룰 매핑을 수동으로 정리. 재현용 스크립트는 미작성 (필요 시 별 PR).

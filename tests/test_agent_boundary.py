@@ -1,6 +1,6 @@
 """tests/test_agent_boundary.py — DCN-CHG-20260501-01 path 보호 단위 테스트.
 
-handoff-matrix.md §4 (4.2 ALLOW_MATRIX / 4.3 READ_DENY / 4.4 INFRA / 4.5 infra-project)
+agent_boundary.py 권한 경계 (ALLOW_MATRIX / READ_DENY / INFRA / infra-project)
 spec 의 코드 강제 검증.
 """
 from __future__ import annotations
