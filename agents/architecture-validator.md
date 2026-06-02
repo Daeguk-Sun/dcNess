@@ -53,8 +53,10 @@ model: sonnet
 
 - **PASS** — 해당 시점에 검증할 영역 통과
 - **FAIL** — 영역 중 하나라도 위반. 본문에 (위치 / 어느 PRD Must 직결 / 권고) 명시
-- **ESCALATE** — system-architect / module-architect 재진입 후에도 동일 FAIL, 또는 본 에이전트 정보 부족
+- **ESCALATE** — 해당 architect 재진입 후에도 동일 FAIL, 또는 본 에이전트 정보 부족
 - **PARTIAL 판정 금지**
+
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표 (1차 / 2차 시점별 분기 포함).
 
 ## 호출자가 prompt 로 전달
 

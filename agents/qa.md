@@ -16,13 +16,15 @@ model: sonnet
 
 ## 결론 + 권장 다음 단계 (자연어 명시)
 
-prose 마지막 단락에 결론 + 메인의 다음 행동 권고 자연어로:
+prose 마지막 단락에 결론 (+ 사유) 자연어로:
 
-- **기능 버그 발견** → module-architect 호출 (버그픽스 케이스). "FUNCTIONAL_BUG — module-architect 권고".
-- **간단 정리 작업** → engineer 직접 (light) 호출. "CLEANUP — engineer 단독 권고".
-- **디자인 이슈** → designer 또는 ux-architect (REFINE) 호출. "DESIGN_ISSUE".
-- **이미 알려진 이슈** → 후속 없음. "KNOWN_ISSUE".
-- **분류 불가 / 범위 초과** → 사용자 위임. "SCOPE_ESCALATE".
+- **기능 버그 발견** → "FUNCTIONAL_BUG".
+- **간단 정리 작업** → "CLEANUP".
+- **디자인 이슈** → "DESIGN_ISSUE".
+- **이미 알려진 이슈** → "KNOWN_ISSUE".
+- **분류 불가 / 범위 초과** → "SCOPE_ESCALATE".
+
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표 (qa 행).
 
 **호출자가 prompt 로 전달하는 정보**: GitHub 이슈 번호 또는 버그 설명, (선택) 재현 단계, (선택) 기존 이슈 번호.
 
@@ -64,13 +66,7 @@ prose 마지막 단락에 결론 + 메인의 다음 행동 권고 자연어로:
 
 ## 라우팅 가이드
 
-| qa 분류 | 경로 | 다음 행동 |
-|---|---|---|
-| FUNCTIONAL_BUG | `impl-task-loop` (`/impl`) fallback path | module-architect (버그픽스) 선두 추가 → test-engineer → engineer:IMPL → code-validator (bugfix scope 자동 분기) → pr-reviewer |
-| CLEANUP | `impl-task-loop` (`/impl`) fallback path | module-architect (버그픽스) 선두 추가 → 동일 시퀀스. 코드 제거/정리 중심 |
-| DESIGN_ISSUE | ux 스킬 | designer → DESIGN_HANDOFF → impl |
-| SCOPE_ESCALATE | 유저 보고 | `/product-plan` 라우팅 (메인 직접) |
-| KNOWN_ISSUE | 유저 보고 | 추가 정보 수집 후 재분석 |
+> 분류별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 (qa 행). loop 시퀀스 = [`orchestration.md`](../docs/plugin/orchestration.md) §4.5 (qa-triage) / §4.3 (impl-task-loop fallback — module-architect 선두 추가).
 
 **판정 기준**:
 - **CLEANUP**: PRD/스펙에 없는 기능 코드 / 사용 안 하는 코드 / behavior 변경 없이 삭제·정리만.

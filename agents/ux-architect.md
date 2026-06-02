@@ -19,12 +19,14 @@ model: sonnet
 
 ## 모드별 결론 + 권장 다음 단계 (자연어 명시)
 
-prose 마지막 단락에 *어떤 결과로 끝났는지 + 메인이 누구를 부르는 게 적절한지* 자기 언어로 명시. **결론 emit *전* §UX_FLOW self-check 5 카테고리 의무 — FAIL 시 결론 emit X, 재작업 후 재시도.** 모드별 권장 표현 (형식 강제 X — 의미만 맞으면 OK):
+prose 마지막 단락에 *어떤 결과로 끝났는지 (+ 사유)* 자기 언어로 명시. **결론 emit *전* §UX_FLOW self-check 5 카테고리 의무 — FAIL 시 결론 emit X, 재작업 후 재시도.** 모드별 결론 vocabulary (형식 강제 X — 의미만 맞으면 OK):
 
-- **UX_FLOW (PRD → Doc 정방향)** — UX Flow Doc 신규 완성 + self-check 통과 → system-architect 권고. 권장: "UX_FLOW_READY". 정의 불가 (PRD 모순 등) → 사용자 위임. "UX_FLOW_ESCALATE".
-- **UX_SYNC (src/ → Doc 역생성)** — Doc 전체 동기화 + self-check 통과. 권장: "UX_FLOW_READY".
-- **UX_SYNC_INCREMENTAL (변경 화면만 부분 패치)** — 변경분 patch + 변경 화면 self-check 통과. 권장: "UX_FLOW_PATCHED".
-- **UX_REFINE (레이아웃 개선 / 리디자인)** — refine 완료 → 사용자 승인 후 designer SCREEN. 권장: "UX_REFINE_READY".
+- **UX_FLOW (PRD → Doc 정방향)** — UX Flow Doc 신규 완성 + self-check 통과 → "UX_FLOW_READY". 정의 불가 (PRD 모순 등) → "UX_FLOW_ESCALATE".
+- **UX_SYNC (src/ → Doc 역생성)** — Doc 전체 동기화 + self-check 통과 → "UX_FLOW_READY".
+- **UX_SYNC_INCREMENTAL (변경 화면만 부분 패치)** — 변경분 patch + 변경 화면 self-check 통과 → "UX_FLOW_PATCHED".
+- **UX_REFINE (레이아웃 개선 / 리디자인)** — refine 완료 → "UX_REFINE_READY".
+
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표.
 
 **호출자가 prompt 로 전달하는 정보** (모드별):
 - UX_FLOW: PRD 경로, (선택) design.md 경로

@@ -121,7 +121,7 @@ begin-step stdout 에 `[INSIGHTS: <agent>/<mode>]` 또는 `[PREVIOUS_TASKS]` 섹
 
 **worktree 활성 시 worktree 절대 경로 prompt 에 추가 명시 — MUST**: cwd 가 `.claude/worktrees/<name>/` 안이면 sub-agent prompt 에 worktree 절대 경로 명시. main repo abs path 사용 금지 — 머지 전 옛 코드 read 로 false positive (CC #31546 / #48096). 근거: CC Task tool 에 cwd parameter 부재 (#12748), subagent frontmatter cwd field 부재 (#31940) — 메인이 명시 책임.
 
-**prose-only** (이슈 #280/#284): end-step stdout = `PROSE_LOGGED`. 메인 Claude 가 prose 자체 (`<run_dir>/<agent>[-<MODE>].md`) 를 직접 읽고 routing 결정 — [`handoff-matrix.md`](handoff-matrix.md) §1 자연어 가이드 참조. 결정 못 하면 사용자에게 위임 (prose 본문에 "결정 불가" 명시 — issue #392: routing_telemetry cascade marker 폐기, 자연어 위임만).
+**prose-only** (이슈 #280/#284): end-step stdout = `PROSE_LOGGED`. 메인 Claude 가 prose 자체 (`<run_dir>/<agent>[-<MODE>].md`) 를 직접 읽고 routing 결정 — [`handoff-matrix.md`](handoff-matrix.md) §1.0 routing 한눈표 (라우팅 진본) 참조. 결정 못 하면 사용자에게 위임 (prose 본문에 "결정 불가" 명시 — issue #392: routing_telemetry cascade marker 폐기, 자연어 위임만).
 
 #### 결과 echo + 평가 — MUST (5~12줄)
 

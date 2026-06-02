@@ -15,11 +15,13 @@ model: opus
 
 ## 결론 + 권장 다음 단계 (자연어 명시)
 
-prose 마지막 단락에 결론 + 메인의 다음 행동 권고 자연어로:
+prose 마지막 단락에 결론 (+ 사유) 자연어로:
 
-- **검토 완료 (PASS)** → 메인이 사용자에게 `docs/tech-review.md` + `docs/tech-review/report.html` 확인 요청. 권장: "PASS — 사용자 2차 OK 후 `/architect-loop` 권고".
-- **검토 일부 불가 (FAIL)** → 본문 충족 X 항목 명시 (예: 외부 의존 N 개 중 1개 정식 검증 실패 + 대안 2개 미발견). 권장: "FAIL — PRD patch 또는 격리 후보 격상 후 `/tech-review` 재호출".
-- **검토 실행 불가 (ESCALATE)** → 외부 의존 검증 도구 차단 (WebFetch 차단 / API 인증 부재 / 사용자 환경 권한 부족 등). 권장: "ESCALATE — 사용자 위임" + 부족한 자원 명시.
+- **검토 완료 (PASS)** → "PASS". 산출물: `docs/tech-review.md` + `docs/tech-review/report.html`.
+- **검토 일부 불가 (FAIL)** → 본문 충족 X 항목 명시 (예: 외부 의존 N 개 중 1개 정식 검증 실패 + 대안 2개 미발견) + "FAIL".
+- **검토 실행 불가 (ESCALATE)** → 부족한 자원 명시 (WebFetch 차단 / API 인증 부재 / 사용자 환경 권한 부족 등) + "ESCALATE".
+
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표. **단방향**: `/architect-loop` 진입 후 tech-reviewer 재호출 금지 ([`orchestration.md`](../docs/plugin/orchestration.md) §2.1.4).
 
 **호출자가 prompt 로 전달하는 정보**: PRD 경로 (`docs/prd.md`), tech-review.md 스켈레톤 경로 (`docs/tech-review.md`), (선택) 이전 cycle 컨텍스트 (어떤 항목이 patch 됐는지 / 격리 후보 중 어떤 게 격상됐는지).
 

@@ -8,13 +8,13 @@
 
 ## 1. Agent 결론 → 다음 agent 결정 가이드 (자연어)
 
-> agent 12 종. agent 가 prose 마지막 단락에 *어떤 결과로 끝났는지 + 메인이 누구를 부르는 게 적절한지* 자기 언어로 명시 → 메인이 prose + 아래 한눈표로 routing 결정 (enum 형식 검증 없음 — 이슈 #280). prose 가 모호하거나 결론을 추출 못 하면 사용자 위임 (prose 본문 "결정 불가" 명시 — issue #392). 본 가이드는 형식 강제가 아니라 *판단 보조* — 의미만 맞으면 OK ([`orchestration.md`](orchestration.md) §0 정체성 정합).
+> agent 12 종. agent 가 prose 마지막 단락에 *어떤 결과로 끝났는지 (+ 사유)* 자기 언어로 명시 → 메인이 prose + 아래 한눈표로 routing 결정 (enum 형식 검증 없음 — 이슈 #280). prose 가 모호하거나 결론을 추출 못 하면 사용자 위임 (prose 본문 "결정 불가" 명시 — issue #392). 본 가이드는 형식 강제가 아니라 *판단 보조* — 의미만 맞으면 OK ([`orchestration.md`](orchestration.md) §0 정체성 정합).
 >
-> **enum 진본 = `agents/<agent>.md` 본문 `## 결론 + 권장 다음 단계` 섹션.** 본 §1 한눈표는 그 요약 view — 분기 상세·진입 입력·self-check 의무는 각 agent 본문 참조.
+> **결론 enum vocabulary(이름 + 판단 기준) 진본 = `agents/<agent>.md` 본문.** **라우팅(결론 → 다음 호출) 진본 = 본 §1.0 한눈표.** agent 본문은 자기 결론만 명시하고 다음 호출은 미주장 — 분기 상세·진입 입력·self-check 의무는 각 agent 본문 참조.
 >
 > 평탄화·흡수 이력: architect → system-architect + module-architect 2분할, validator → code-validator + architecture-validator 2분할, security-reviewer → pr-reviewer §F-Security 흡수, design-critic → 사용자 PICK + design.md §8/code-validator grep, product-planner → 메인 직접 그릴미, plan-reviewer 폐기(이슈 #515) → tech-reviewer 가 선행 기술 검증, build-worker 신규(#446).
 
-> 🔴 **Drift 룰 (2-way)** — agent 결론 → 다음 호출 매핑은 **`agents/<agent>.md` 본문이 진본**. 본 §1 한눈표 + [`orchestration.md`](orchestration.md) §4 loop 시퀀스는 그 view. 매핑 갱신 시 agent 본문을 먼저 고치고 view 를 동기. 신 agent 추가 / enum 추가 / cycle 한도 변경 시 적용.
+> 🔴 **라우팅 진본 (1-way)** — `agent 결론 → 다음 호출` 매핑은 **본 §1.0 한눈표가 단일 진본**. `agents/<agent>.md` 본문은 자기 결론 vocabulary(enum + 판단 기준 + 사유)만 명시하고 다음 호출은 미주장. [`orchestration.md`](orchestration.md) §4 는 loop 조립(시퀀스) view — 라우팅 매핑 미중복(step 순서 / allowed_enums / commit 지점 등 loop 고유 정보만). 라우팅 갱신(신 agent / enum / cycle 한도)은 본 §1.0 한 곳만 고치면 된다.
 
 ### 1.0 routing 한눈표
 

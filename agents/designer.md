@@ -17,11 +17,13 @@ model: sonnet
 
 ## 결론 + 권장 다음 단계 (자연어 명시)
 
-prose 마지막 단락에 *어떤 결과로 끝났는지 + 메인이 누구를 부르는 게 적절한지* 자기 언어로 명시. 형식 강제 X — 의미만 맞으면 OK.
+prose 마지막 단락에 *어떤 결과로 끝났는지 (+ 사유)* 자기 언어로 명시. 형식 강제 X — 의미만 맞으면 OK.
 
 권장 결론 표현:
-- 시안 준비 완료 → 사용자 직접 확인 (Pencil 캔버스 또는 `design-variants/<screen>-v<N>.html`). 권장: "PASS".
-- 시안 생성 불가 (외부 의존 부재 / 컨텍스트 모호 / 권한 부족) → 사용자 위임. "ESCALATE".
+- 시안 준비 완료 (Pencil 캔버스 또는 `design-variants/<screen>-v<N>.html` 산출) → "PASS".
+- 시안 생성 불가 (외부 의존 부재 / 컨텍스트 모호 / 권한 부족) → "ESCALATE".
+
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표.
 
 **호출자가 prompt 로 전달하는 정보** (자율 컨텍스트):
 - 대상 (전체 화면 / 컴포넌트 단독 / 색·폰트만 다듬기) — 자연어 prompt 로 designer 가 자율 분기

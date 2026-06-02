@@ -16,10 +16,12 @@ model: sonnet
 
 ## 결론 + 권장 다음 단계 (자연어 명시)
 
-prose 마지막 단락에 결론 + 메인의 다음 행동 권고 자연어로:
+prose 마지막 단락에 결론 (+ 사유) 자연어로:
 
-- **MUST FIX 없음** → CI PASS 후 메인이 즉시 regular merge. 권장 문구: "PASS — merge 권고".
-- **MUST FIX 1+** → engineer POLISH 호출. "FAIL — engineer POLISH 권고" + MUST FIX 목록.
+- **MUST FIX 없음** → "PASS".
+- **MUST FIX 1+** → "FAIL" + MUST FIX 목록.
+
+> 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/handoff-matrix.md`](../docs/plugin/handoff-matrix.md) §1.0 routing 한눈표.
 
 **return 간결성 (메인 컨텍스트 보호)**: 호출자에게 돌려주는 prose 는 *메인이 다음 행동을 결정하는 데 필요한 것* 만 담는다 — 결론 + 핵심 변경·발견 요약 + 권장 다음 단계. 과정 서술 / impl 계획·컨텍스트 재진술 / 파일별 장황한 설명은 제거 — 그 세부사항은 코드·PR·impl 파일에 이미 있다. 단 결론의 근거가 되는 실증 근거 (실측 명령·수치, 발견 항목, 미완 작업)는 유지. `/impl-loop` 는 매 task 의 return 이 메인 컨텍스트에 누적 — 군더더기 없는 return 이 곧 비용 절감.
 

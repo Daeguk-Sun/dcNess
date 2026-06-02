@@ -136,7 +136,7 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 > *행별 풀스펙* SSOT (entry_point / task_list / advance / clean_enum / branch_prefix / Step 별 allowed_enums / 분기 / sub_cycles).
 > 시퀀스 = §2. 실행 절차 = [`loop-procedure.md`](loop-procedure.md).
 
-> 🔴 **Drift 룰 (2-way)** — agent 결론 → 다음 호출 매핑은 **`agents/<agent>.md` 본문이 진본**. 본 §4 loop 시퀀스 + [`handoff-matrix.md`](handoff-matrix.md) §1 한눈표는 그 view. 매핑 갱신 시 agent 본문을 먼저 고치고 view 를 동기. 신 agent 추가 / enum 추가 / cycle 한도 변경 시 적용.
+> 🔴 **라우팅 진본 (1-way)** — `agent 결론 → 다음 호출` 매핑 진본 = [`handoff-matrix.md`](handoff-matrix.md) §1.0 routing 한눈표. 본 §4 는 loop 조립(시퀀스) view — 라우팅 매핑 미중복 (step 순서 / allowed_enums / commit 지점 등 loop 고유 정보만 보유). `agents/<agent>.md` 본문은 자기 결론 vocabulary만 명시. 라우팅 갱신은 §1.0 한 곳만.
 
 ### 4.1 한눈 인덱스
 
