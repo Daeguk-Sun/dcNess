@@ -29,7 +29,7 @@ import { dirname, resolve, join, relative } from 'node:path';
 const REPO_ROOT = process.cwd();
 
 // ─── 검사 대상 ─────────────────────────────────────────────────
-const SCAN_DIRS = ['docs/plugin', 'docs/internal', 'commands', 'agents'];
+const SCAN_DIRS = ['docs/plugin', 'docs/internal', 'commands', 'skills', 'agents'];
 const SCAN_ROOTS = ['README.md', 'AGENTS.md', 'PROGRESS.md', 'CLAUDE.md'];
 
 // ─── 옛 명칭 deny-list ────────────────────────────────────────
@@ -72,7 +72,7 @@ const DENY_LIST = [
   },
 ];
 
-const EXTERNAL_DIRS = ['docs/plugin', 'commands', 'agents', 'hooks', '.claude-plugin'];
+const EXTERNAL_DIRS = ['docs/plugin', 'commands', 'skills', 'agents', 'hooks', '.claude-plugin'];
 
 const DENY_EXCLUDE = new Set([
   'commands/smart-compact.md',

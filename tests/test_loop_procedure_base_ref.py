@@ -104,7 +104,7 @@ class TestSSOTReferencePresent(unittest.TestCase):
         self.assertIn("Base ref 분기", body)
 
     def test_architect_loop_references_section(self):
-        body = self._read("commands/architect-loop.md")
+        body = self._read("skills/architect-loop/SKILL.md")
         self.assertIn("§1.1.1", body)
         self.assertIn("Base ref 분기", body)
 

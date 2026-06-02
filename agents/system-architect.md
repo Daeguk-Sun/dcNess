@@ -33,7 +33,7 @@ model: opus
 
 ## When — 언제 호출되는가
 
-[`/architect-loop`](../commands/architect-loop.md) Step 2 에서 한 번 호출된다.
+[`/architect-loop`](../skills/architect-loop/SKILL.md) Step 2 에서 한 번 호출된다.
 
 - 입력: epic 경로 (예: `docs/milestones/v01/epics/epic-NN-<slug>/`) + `docs/prd.md` + `docs/tech-review.md` + epic 단위 `stories.md`
 - 출력: 위 다섯 파일
@@ -227,5 +227,5 @@ task 단위 detail = **module-architect 영역** (impl 파일 안에서). archit
 
 ## 참조
 
-- 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1. 설계 loop 풀스펙 = [`commands/architect-loop.md`](../commands/architect-loop.md) / catastrophic = [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2. (위 §분기 판정 ESCALATE 케이스는 *언제 escalate 하는가* + catastrophic 제약 영역)
+- 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1. 설계 loop 풀스펙 = [`skills/architect-loop/SKILL.md`](../skills/architect-loop/SKILL.md) (라우팅 = [`architect-loop-routing.md`](../skills/architect-loop/architect-loop-routing.md)) / catastrophic = [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2. (위 §분기 판정 ESCALATE 케이스는 *언제 escalate 하는가* + catastrophic 제약 영역)
 - 모듈 설계 원칙 SSOT: [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md)

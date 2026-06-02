@@ -68,7 +68,7 @@ flowchart TB
 | agent | 주요 결론 → 다음 호출 |
 |---|---|
 | tech-reviewer | PASS → (사용자 2차 OK) → `/architect-loop` 권고 / FAIL → PRD patch·항목 polish 후 재호출 / ESCALATE → 사용자. **단방향**: `/architect-loop` 진입 후 재호출 금지 ([`hooks.md`](hooks.md) §3.2 §2.1.4) |
-| ux-architect | UX_FLOW_READY → system-architect / UX_REFINE_READY → designer / UX_FLOW_ESCALATE → 사용자. **UI-less epic 이면 메인이 호출 안 함** ([`commands/architect-loop.md`](../../commands/architect-loop.md) UI-less 분기) |
+| ux-architect | UX_FLOW_READY → system-architect / UX_REFINE_READY → designer / UX_FLOW_ESCALATE → 사용자. **UI-less epic 이면 메인이 호출 안 함** ([`skills/architect-loop/SKILL.md`](../../skills/architect-loop/SKILL.md) UI-less 분기) |
 | system-architect | PASS → architecture-validator 1차 / ESCALATE → 사용자(`/product-plan`) / NEW_DEP_ESCALATE → 3안 (§3) |
 | module-architect | PASS → (컨텍스트별: 다음 단위 module-architect / test-engineer / engineer / 후속 없음) / ESCALATE → 사용자 / NEW_DEP_ESCALATE → 3안 (§3). 호출 단위 = 1 Story 또는 공통 task 묶음, K = Story 수 + 공통 호출. self-check cross-task interface = PASS 게이트 |
 | engineer | IMPL_DONE → code-validator / IMPL_PARTIAL → engineer(분할 — retry 아님, 상한 없음 §2) / SPEC_GAP_FOUND → module-architect(보강, ≤ 2) / TESTS_FAIL → engineer 재시도(≤ 3) / POLISH_DONE → pr-reviewer / IMPLEMENTATION_ESCALATE → 사용자 |
@@ -108,6 +108,6 @@ flowchart TB
 
 ## 3. Escalate 처리
 
-escalate 결론 enum (`IMPLEMENTATION_ESCALATE` / `UX_FLOW_ESCALATE` / `ESCALATE` / `SCOPE_ESCALATE` / `NEW_DEP_ESCALATE`) 수신 시 **메인 / driver 가 즉시 사용자 보고 후 대기** (자동 복구 / 우회 / 재시도 금지 — [`../../CLAUDE.md`](../../CLAUDE.md) 강제 영역). 각 enum 의 출처 agent·의미 = §1 표 + 해당 agent 본문. escalate 분기 풀스펙(architect-loop) = [`commands/architect-loop.md`](../../commands/architect-loop.md) `## 분기 / cycle (요약)`.
+escalate 결론 enum (`IMPLEMENTATION_ESCALATE` / `UX_FLOW_ESCALATE` / `ESCALATE` / `SCOPE_ESCALATE` / `NEW_DEP_ESCALATE`) 수신 시 **메인 / driver 가 즉시 사용자 보고 후 대기** (자동 복구 / 우회 / 재시도 금지 — [`../../CLAUDE.md`](../../CLAUDE.md) 강제 영역). 각 enum 의 출처 agent·의미 = §1 표 + 해당 agent 본문. escalate 분기 풀스펙(architect-loop) = [`architect-loop-routing.md`](../../skills/architect-loop/architect-loop-routing.md) §4.
 
-`NEW_DEP_ESCALATE` (system-architect / module-architect — architect-loop 도중 tech-review 미검증 새 외부 의존 발견) 만 예외적으로 "단순 대기"가 아니라 메인이 사용자에게 **3안 메뉴** 제시 — (1) 채택+수동검증 → architect 재진입 / (2) 대안 기술 우회 → architect 재진입 / (3) 전체 원점 회귀 (`/architect-loop` 중단 + `/product-plan` 재진입 + 새 tech-review). (1)/(2) cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 없음 ([`hooks.md`](hooks.md) §3.2 §2.1.4 단방향 catastrophic 보존)**. 흐름 = [`commands/architect-loop.md`](../../commands/architect-loop.md) `## 분기 / cycle (요약)`.
+`NEW_DEP_ESCALATE` (system-architect / module-architect — architect-loop 도중 tech-review 미검증 새 외부 의존 발견) 만 예외적으로 "단순 대기"가 아니라 메인이 사용자에게 **3안 메뉴** 제시 — (1) 채택+수동검증 → architect 재진입 / (2) 대안 기술 우회 → architect 재진입 / (3) 전체 원점 회귀 (`/architect-loop` 중단 + `/product-plan` 재진입 + 새 tech-review). (1)/(2) cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 없음 ([`hooks.md`](hooks.md) §3.2 §2.1.4 단방향 catastrophic 보존)**. 흐름 = [`architect-loop-routing.md`](../../skills/architect-loop/architect-loop-routing.md) §4.

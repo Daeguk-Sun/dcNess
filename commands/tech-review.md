@@ -139,7 +139,7 @@ tech-review 통과 완료. 다음 단계 — 설계 루프:
 **왜 단방향?**:
 - tech-reviewer 단계 = *마지막 기술 검증 기회*. 검증 충실 의무 가중 (= 증거물 / HTML 리포트 룰의 가치).
 - architect-loop 진입 후 *역방향 회귀* = ping-pong 사고 패턴 (옛 plan-reviewer 의 cycle 한도 룰이 누적된 원인).
-- architect-loop 도중 tech-review 미검증 새 외부 의존 발견 시 → tech-reviewer 재호출 *없이* `NEW_DEP_ESCALATE` 3안 (채택+수동검증 / 대안 기술 우회 / 전체 원점 회귀 = `/product-plan` 재진입). architect-loop 안엔 tech-reviewer 가 없어 NO_GO 판정 자체 불가 — 그래서 "전체 회귀 only" 가 아니라 사용자 선택 3안. 단, *되돌아가는(tech-reviewer 재호출) 경로는 어느 옵션에도 없다*. 흐름 = [`commands/architect-loop.md`](architect-loop.md) `## 분기 / cycle (요약)` + [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2 (§2.1.4).
+- architect-loop 도중 tech-review 미검증 새 외부 의존 발견 시 → tech-reviewer 재호출 *없이* `NEW_DEP_ESCALATE` 3안 (채택+수동검증 / 대안 기술 우회 / 전체 원점 회귀 = `/product-plan` 재진입). architect-loop 안엔 tech-reviewer 가 없어 NO_GO 판정 자체 불가 — 그래서 "전체 회귀 only" 가 아니라 사용자 선택 3안. 단, *되돌아가는(tech-reviewer 재호출) 경로는 어느 옵션에도 없다*. 흐름 = [`architect-loop-routing.md`](../skills/architect-loop/architect-loop-routing.md) §4 + [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2 (§2.1.4).
 
 ## 비대상 (다른 skill 추천)
 
@@ -163,5 +163,5 @@ tech-review 통과 완료. 다음 단계 — 설계 루프:
 - tech-reviewer agent SSOT: [`agents/tech-reviewer.md`](../agents/tech-reviewer.md)
 - 기획 시퀀스 풀스펙: [`commands/product-plan.md`](product-plan.md) / 라우팅: [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1 (routing 한눈표 — tech-reviewer 행)
 - PRD 작성 (선행 스킬): [`commands/product-plan.md`](product-plan.md)
-- 설계 단계 (후속 스킬): [`commands/architect-loop.md`](architect-loop.md)
+- 설계 단계 (후속 스킬): [`skills/architect-loop/SKILL.md`](../skills/architect-loop/SKILL.md)
 - 옛 plan-reviewer 폐기 배경 (이슈 [#515](https://github.com/alruminum/dcNess/issues/515))

@@ -795,7 +795,7 @@ agent 13 → 9.
 - 옛 `feature-build-loop` (Step 2~6.N 통째 commit X 후 첫 task PR commit3 에 누적) → `/product-plan` (Step 2~3, PRD+stories PR1) + `/architect-loop` (Step 4~6.N, 설계 PR2) 분리
 - `/architect-loop` 진입 = 사용자 명시 호출 (자동 X). 워크트리 ON 자동
 - commit 단위: ux-flow → commit1 / architecture.md+adr.md → commit2 / impl/NN-*.md K 개 → commit 3..K+2 / PR 1개 + 머지
-- 본 변경 SSOT = [`commands/architect-loop.md`](../../commands/architect-loop.md), `orchestration.md §3.1.5 / §4.2` (당시 기준 — 현 routing.md / loop-procedure §7.0 으로 해체)
+- 본 변경 SSOT = `commands/architect-loop.md`, `orchestration.md §3.1.5 / §4.2` (당시 기준 — 현 `skills/architect-loop/` + loop-procedure §7.0 으로 해체)
 
 ### `Step 4.5 sync` + `backlog.md` 폐기 (본 PR)
 

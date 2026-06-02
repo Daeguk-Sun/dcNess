@@ -38,7 +38,7 @@ model: sonnet
 
 ## When — 언제 호출되는가
 
-[`/architect-loop`](../commands/architect-loop.md) 의 두 시점에 호출된다.
+[`/architect-loop`](../skills/architect-loop/SKILL.md) 의 두 시점에 호출된다.
 
 | 시점 | 영역 |
 |---|---|

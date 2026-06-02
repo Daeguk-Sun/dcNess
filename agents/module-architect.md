@@ -30,7 +30,7 @@ model: sonnet
 
 ## When — 언제 호출되는가
 
-[`/architect-loop`](../commands/architect-loop.md) Step 4 에서 K 번 호출된다.
+[`/architect-loop`](../skills/architect-loop/SKILL.md) Step 4 에서 K 번 호출된다.
 
 - K = Story 수 + 공통 호출 1 회 (공통 task 있으면) 또는 0 회 (없으면)
 - 각 호출 = 한 단위 (Story 1 개 또는 공통 task 묶음)
