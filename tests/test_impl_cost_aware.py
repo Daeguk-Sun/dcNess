@@ -1,6 +1,6 @@
-"""commands/impl.md §사전 read 의무가 cost-aware 룰 (#436) 박혀있는지 검증.
+"""skills/impl-loop/SKILL.md §사전 read 의무가 cost-aware 룰 (#436) 박혀있는지 검증.
 
-이슈 #436 — `/impl` skill 의 통째 read 강제가 CLAUDE.md (글로벌) cost-aware 행동
+이슈 #436 — `/impl-loop` skill 의 통째 read 강제가 CLAUDE.md (글로벌) cost-aware 행동
 (#402) 과 충돌. 본 fix 가 다음 룰 박음:
 - 200 line 초과 doc → 부분 read (grep + offset/limit)
 - 수정 X 모듈 → grep + 시그니처만
@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 
 
 def read_impl_skill() -> str:
-    return (ROOT / "commands" / "impl.md").read_text(encoding="utf-8")
+    return (ROOT / "skills" / "impl-loop" / "SKILL.md").read_text(encoding="utf-8")
 
 
 class TestPreReadCostAware(unittest.TestCase):

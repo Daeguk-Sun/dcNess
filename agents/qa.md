@@ -66,7 +66,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 
 ## 라우팅 가이드
 
-> 분류별 다음 호출(라우팅) 진본 = [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1 (qa 행). loop 시퀀스 = [`commands/issue-report.md`](../commands/issue-report.md) (qa-triage) / [`commands/impl.md`](../commands/impl.md) (impl-task-loop fallback — module-architect 선두 추가).
+> 분류별 다음 호출(라우팅) 진본 = [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1 (qa 행). loop 시퀀스 = [`commands/issue-report.md`](../commands/issue-report.md) (qa-triage) / [`/impl-loop`](../skills/impl-loop/SKILL.md) (impl-task-loop fallback — module-architect 선두 추가).
 
 **판정 기준**:
 - **CLEANUP**: PRD/스펙에 없는 기능 코드 / 사용 안 하는 코드 / behavior 변경 없이 삭제·정리만.

@@ -94,12 +94,8 @@ class TestSSOTReferencePresent(unittest.TestCase):
         self.assertIn("EnterWorktree(path=", body)
 
     def test_impl_loop_references_section(self):
-        body = self._read("commands/impl-loop.md")
-        self.assertIn("§1.1.1", body)
-        self.assertIn("Base ref 분기", body)
-
-    def test_impl_references_section(self):
-        body = self._read("commands/impl.md")
+        # impl + impl-loop 통합 — skills/impl-loop/SKILL.md 단일 진본
+        body = self._read("skills/impl-loop/SKILL.md")
         self.assertIn("§1.1.1", body)
         self.assertIn("Base ref 분기", body)
 

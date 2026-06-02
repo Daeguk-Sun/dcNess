@@ -144,7 +144,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 
 ### Hybrid A 모드 (`/impl-loop`) 한정 — last block 에 5줄 echo template 의무
 
-prose 마지막 영역에 메인이 chat 에 *그대로 echo 할 5줄 요약 template* 박는다 ([`commands/impl-loop.md`](../commands/impl-loop.md) §review 출력 재정의 정합). 메인이 자유 형식 단축 회귀 차단 목적 — 외부 사용자 [F8 실측](https://github.com/alruminum/dcNess/issues/507).
+prose 마지막 영역에 메인이 chat 에 *그대로 echo 할 5줄 요약 template* 박는다 ([`/impl-loop`](../skills/impl-loop/SKILL.md) §review 출력 재정의 정합). 메인이 자유 형식 단축 회귀 차단 목적 — 외부 사용자 [F8 실측](https://github.com/alruminum/dcNess/issues/507).
 
 ```
 [task<i> · <slug>] <clean|error|blocked>

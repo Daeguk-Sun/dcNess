@@ -357,7 +357,7 @@ Claude Code 세션 JSONL 파싱 → 메인 assistant turn 분포 (tool / text-on
 - `agents/build-worker.md` 신규 — `/impl-loop` 한정 통합 worker (test + impl + self-validate 3 phase, helper Bash self-call, TDD GUARD 정합, git/PR/pr-reviewer 호출 메인 위임)
 - `docs/plugin/{handoff-matrix,orchestration,loop-procedure}.md` 동기 (§4.3 진입 모드 3분기 / §4.8 Hybrid A 모드 / §3.2.1 worker phase prose 자체 Write)
 
-**본 릴리즈 한정 활성화 보류 — `commands/impl-loop.md` 의 `/impl-loop` 진입점은 4-agent 시퀀스 유지**. 이유 = #446 Step 3 프로토타입 (jajang 1-task 실측 통과 기준) 미완. 실측 검증 후 별 PR 로 활성화. spec 은 머지된 채 (활성화 대기). 자세히 = [`commands/impl-loop.md`](../../commands/impl-loop.md) §"Hybrid A 모드 (활성화 대기, #446)".
+**본 릴리즈 한정 활성화 보류 — `commands/impl-loop.md` 의 `/impl-loop` 진입점은 4-agent 시퀀스 유지**. 이유 = #446 Step 3 프로토타입 (jajang 1-task 실측 통과 기준) 미완. 실측 검증 후 별 PR 로 활성화. spec 은 머지된 채 (활성화 대기). 자세히 = `commands/impl-loop.md` §"Hybrid A 모드 (활성화 대기, #446)" (당시 기준 — 현 `skills/impl-loop/SKILL.md` 로 통합).
 
 ### 4. #345 흡수 권고
 
