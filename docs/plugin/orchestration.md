@@ -261,29 +261,19 @@ default 진입 = test-engineer (architect-loop 통과물). fallback (즉석 task
 
 ### 4.4 `impl-ui-design-loop` 풀스펙
 
-**branch_prefix**: §4.3 와 동일 (`feat` / `chore` / `fix`).
+§4.3 `impl-task-loop` 과 동일 + **선두에 designer + 사용자 PICK 2 step 추가** (UI 작업 감지 시). branch_prefix / 진입 모드(default vs fallback) / 분기 / sub_cycles 모두 §4.3 동일.
 
-**진입 모드 — default vs fallback**: §4.3 룰 그대로 (정식 경로 + 파일 존재 시 default = module-architect skip).
-
-**Step 별 allowed_enums (default 모드)**:
+**추가 step (default 모드)**:
 | step | agent[:mode] | allowed_enums |
 |---|---|---|
 | 2 | designer | `PASS,ESCALATE` |
-| 2.5 | (사용자 PICK) | — (메인이 시안 경로 안내 + 사용자 OK/NG. NG 시 designer 재호출 자유) |
-| 3 | test-engineer | §4.3 동일 |
-| 4 | engineer:IMPL | §4.3 동일 |
-| 5 | code-validator | §4.3 동일 |
-| 6 | pr-reviewer | §4.3 동일 |
+| 2.5 | (사용자 PICK) | — (메인이 시안 경로 안내 + OK/NG. NG 시 designer 재호출 자유) |
 
-**fallback 모드**: 위 step 앞에 `module-architect` (allowed_enums = `PASS,SPEC_GAP_FOUND,ESCALATE,NEW_DEP_ESCALATE`) 1 step 추가.
+이후 step 3(test-engineer) → 4(engineer:IMPL) → 5(code-validator) → 6(pr-reviewer) = §4.3 동일. fallback 모드면 designer 앞에 `module-architect` 1 step 추가 (§4.3 fallback 동일).
 
-**Step 2.5 — 사용자 PICK**: designer PASS 후 test-engineer 진입 *전* 메인이 사용자에게 시안 경로 (Pencil 캔버스 또는 `design-variants/<screen>-v<N>.html`) + node-id 안내 + OK/NG 받음. NG 시 designer 재호출 — round 한도 명시 X (사용자 자유 결정). step 컨벤션 = `user-pick-2.5` (helper begin/end-step 비대상).
+**Step 2.5 — 사용자 PICK**: designer PASS 후 test-engineer 진입 *전* 메인이 사용자에게 시안 경로 (Pencil 캔버스 또는 `design-variants/<screen>-v<N>.html`) + node-id 안내 + OK/NG 받음. NG 시 designer 재호출 — round 한도 명시 X. step 컨벤션 = `user-pick-2.5` (helper begin/end-step 비대상).
 
-**분기**:
-- `ESCALATE` → 사용자 위임
-- 나머지 = §4.3 분기 동일
-
-**sub_cycles**: §4.3 동일 + `designer-ROUND-<n>` (사용자 NG 시 재생성, 사용자 자유 결정).
+**분기 추가**: `ESCALATE`(designer) → 사용자 위임. **sub_cycles 추가**: `designer-ROUND-<n>` (사용자 NG 시 재생성).
 
 ### 4.5 `qa-triage` 풀스펙
 
