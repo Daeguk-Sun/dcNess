@@ -48,7 +48,7 @@ __all__ = [
 DCNESS_INFRA_PATTERNS: tuple[str, ...] = (
     r'(^|/)\.claude/',
     r'(^|/)hooks/',
-    r'(^|/)harness/(signal_io|interpret_strategy|hooks|session_state|agent_boundary)\.py$',
+    r'(^|/)harness/(signal_io|hooks|session_state|agent_boundary)\.py$',
     r'(^|/)docs/plugin/orchestration\.md$',
     r'(^|/)docs/plugin/handoff-matrix\.md$',
     r'(^|/)docs/plugin/loop-procedure\.md$',

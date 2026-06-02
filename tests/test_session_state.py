@@ -878,12 +878,11 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         with redirect_stderr(err), redirect_stdout(out):
             rc = _cli_end_step(SimpleNamespace(
                 agent="engineer", mode="IMPL",
-                allowed_enums="IMPL_DONE,SPEC_GAP_FOUND",
                 prose_file=str(prose_path),
             ))
         self.assertEqual(rc, 0)
-        # stdout = enum (정상 동작)
-        self.assertEqual(out.getvalue().strip(), "IMPL_DONE")
+        # stdout = PROSE_LOGGED (prose-only, 정상 동작)
+        self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
         # stderr 에 DRIFT WARN
         self.assertIn("DRIFT WARN", err.getvalue())
         self.assertIn("validator", err.getvalue())
@@ -904,7 +903,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         with redirect_stderr(err), redirect_stdout(out):
             rc = _cli_end_step(SimpleNamespace(
                 agent="engineer", mode="IMPL",
-                allowed_enums="IMPL_DONE",
                 prose_file=str(prose_path),
             ))
         self.assertEqual(rc, 0)
@@ -1095,7 +1093,8 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         finally:
             jsonl.unlink(missing_ok=True)
 
-    def test_end_step_writes_prose_and_extracts_enum(self) -> None:
+    def test_end_step_prose_only_writes_prose(self) -> None:
+        """prose-only: --allowed-enums 없이 PROSE_LOGGED + prose 파일 저장."""
         from harness.session_state import _cli_end_step, session_dir
         from types import SimpleNamespace
         prose_path = self.base / "tmp_prose.md"
@@ -1109,42 +1108,23 @@ class CliBeginStepEndStepTests(unittest.TestCase):
             rc = _cli_end_step(SimpleNamespace(
                 agent="validator",
                 mode="PLAN_VALIDATION",
-                allowed_enums="PASS,FAIL,SPEC_MISSING",
                 prose_file=str(prose_path),
             ))
         self.assertEqual(rc, 0)
-        self.assertEqual(out.getvalue().strip(), "PASS")
+        self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
 
-        # prose 종이 저장 확인
+        # prose 저장 확인 (메인이 직접 읽고 routing)
         prose_md = (
             session_dir(self.sid) / "runs" / self.rid /
             "validator-PLAN_VALIDATION.md"
         )
         self.assertTrue(prose_md.exists())
 
-    def test_end_step_ambiguous_returns_AMBIGUOUS(self) -> None:
-        from harness.session_state import _cli_end_step
-        from types import SimpleNamespace
-        prose_path = self.base / "tmp_prose.md"
-        prose_path.write_text("no enum here at all", encoding="utf-8")
-
-        from io import StringIO
-        from contextlib import redirect_stdout, redirect_stderr
-        out = StringIO()
-        err = StringIO()
-        with redirect_stdout(out), redirect_stderr(err):
-            rc = _cli_end_step(SimpleNamespace(
-                agent="validator",
-                mode="PLAN_VALIDATION",
-                allowed_enums="PASS,FAIL",
-                prose_file=str(prose_path),
-            ))
-        self.assertEqual(rc, 0)
-        self.assertEqual(out.getvalue().strip(), "AMBIGUOUS")
-
     def test_end_step_prose_only_mode_no_allowed_enums(self) -> None:
-        """이슈 #284 — `--allowed-enums` 미지정 시 prose-only mode (PROSE_LOGGED)."""
-        from harness.session_state import _cli_end_step, session_dir
+        """prose-only (이슈 #280/#284) — PROSE_LOGGED + prose 저장 + .steps.jsonl + stderr 요약."""
+        from harness.session_state import (
+            _cli_end_step, session_dir, _read_steps_jsonl,
+        )
         from types import SimpleNamespace
         prose_path = self.base / "tmp_prose.md"
         prose_path.write_text(
@@ -1160,7 +1140,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
             rc = _cli_end_step(SimpleNamespace(
                 agent="qa",
                 mode="",
-                allowed_enums="",  # prose-only mode
                 prose_file=str(prose_path),
             ))
         self.assertEqual(rc, 0)
@@ -1169,9 +1148,36 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         prose_md = session_dir(self.sid) / "runs" / self.rid / "qa.md"
         self.assertTrue(prose_md.exists())
         self.assertIn("자연어", prose_md.read_text(encoding="utf-8"))
+        # stderr 에 [qa = PROSE_LOGGED] 헤더 (모든 skill 자동 요약 수혜)
+        self.assertIn("[qa = PROSE_LOGGED]", err.getvalue())
+        # .steps.jsonl 에 PROSE_LOGGED row append (finalize-run / run-review 입력)
+        steps = _read_steps_jsonl(self.sid, self.rid)
+        self.assertTrue(steps)
+        self.assertEqual(steps[-1]["agent"], "qa")
+        self.assertEqual(steps[-1]["enum"], "PROSE_LOGGED")
+
+    def test_end_step_prose_only_does_not_extract_enum_word(self) -> None:
+        """어휘 보존 ≠ 기계추출: prose 에 PASS 단어가 있어도 추출 안 하고 PROSE_LOGGED."""
+        from harness.session_state import _cli_end_step
+        from types import SimpleNamespace
+        prose_path = self.base / "enum_word_prose.md"
+        prose_path.write_text("## 결론\n\nPASS — pr-reviewer 권고\n", encoding="utf-8")
+
+        from io import StringIO
+        from contextlib import redirect_stdout
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_end_step(SimpleNamespace(
+                agent="code-validator",
+                mode="",
+                prose_file=str(prose_path),
+            ))
+        self.assertEqual(rc, 0)
+        # PASS 단어가 prose 에 있어도 기계 추출 안 함 — 항상 PROSE_LOGGED
+        self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
 
     def test_end_step_prose_only_mode_attribute_missing(self) -> None:
-        """`--allowed-enums` 자체 미정의 SimpleNamespace 도 prose-only mode."""
+        """`--allowed-enums` attribute 자체 부재 SimpleNamespace 도 정상 (코드 미참조)."""
         from harness.session_state import _cli_end_step
         from types import SimpleNamespace
         prose_path = self.base / "tmp_prose.md"
@@ -1185,8 +1191,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
                 agent="engineer",
                 mode="IMPL",
                 prose_file=str(prose_path),
-                allowed_enums=None,  # argparse default 시 빈 string, 명시 None 도 cover
-            )
+            )  # allowed_enums attribute 부재 — 코드가 더 이상 참조 안 함
             rc = _cli_end_step(ns)
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
@@ -1224,11 +1229,10 @@ class CliBeginStepEndStepTests(unittest.TestCase):
             rc = _cli_end_step(SimpleNamespace(
                 agent="qa",
                 mode="",
-                allowed_enums="FUNCTIONAL_BUG,CONFIG_BUG,CANNOT_REPRODUCE",
                 prose_file=None,
             ))
         self.assertEqual(rc, 0)
-        self.assertEqual(out.getvalue().strip(), "FUNCTIONAL_BUG")
+        self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
 
     def test_end_step_no_prose_file_no_staging_returns_1(self) -> None:
         # DCN-CHG-20260501-15: --prose-file 없고 hook staging 도 없으면 rc=1
@@ -1244,11 +1248,34 @@ class CliBeginStepEndStepTests(unittest.TestCase):
             rc = _cli_end_step(SimpleNamespace(
                 agent="qa",
                 mode="",
-                allowed_enums="FUNCTIONAL_BUG,CONFIG_BUG",
                 prose_file=None,
             ))
         self.assertEqual(rc, 1)
         self.assertIn("hook staging 없음", err.getvalue())
+
+    def test_end_step_argparse_accepts_prose_file_only(self) -> None:
+        """argparse 회귀: end-step 은 --prose-file 만 받고 정상 파싱 (--allowed-enums 폐기)."""
+        from harness.session_state import _build_arg_parser
+        parser = _build_arg_parser()
+        ns = parser.parse_args(
+            ["end-step", "qa", "--prose-file", "/tmp/x.md"]
+        )
+        self.assertEqual(ns.cmd, "end-step")
+        self.assertEqual(ns.agent, "qa")
+        self.assertEqual(ns.prose_file, "/tmp/x.md")
+        self.assertFalse(hasattr(ns, "allowed_enums"))
+
+    def test_end_step_argparse_rejects_removed_allowed_enums_flag(self) -> None:
+        """argparse 회귀: 폐기된 --allowed-enums 플래그는 거부 (SystemExit)."""
+        from harness.session_state import _build_arg_parser
+        from io import StringIO
+        from contextlib import redirect_stderr
+        parser = _build_arg_parser()
+        err = StringIO()
+        with redirect_stderr(err), self.assertRaises(SystemExit):
+            parser.parse_args(
+                ["end-step", "qa", "--allowed-enums", "PASS,FAIL"]
+            )
 
 
 class DefaultBaseWorktreeTests(unittest.TestCase):

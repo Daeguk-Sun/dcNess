@@ -1621,15 +1621,12 @@ def _find_prose_fallback(sid: str, rid: str, agent: str, mode: Optional[str]) ->
 
 
 def _cli_end_step(args: Any) -> int:
-    """sid+rid auto-detect → write_prose + interpret_with_fallback.
+    """sid+rid auto-detect → write_prose → prose-only (PROSE_LOGGED).
 
-    부수 출력: stderr 로 `[agent:mode = ENUM]` 헤더 + prose 요약 ~5줄. 모든 skill 자동
-    수혜 — skill prompt 안에 별도 요약 instruction 쓸 필요 0.
+    부수 출력: stderr 로 `[agent:mode = PROSE_LOGGED]` 헤더 + prose 요약 ~5줄. 모든
+    skill 자동 수혜 — skill prompt 안에 별도 요약 instruction 쓸 필요 0.
     """
-    # 지연 import — interpret_strategy 는 telemetry 등 무거움
     from harness.signal_io import write_prose
-    from harness.interpret_strategy import interpret_with_fallback
-    from harness.signal_io import MissingSignal
 
     sid = auto_detect_session_id()
     rid = auto_detect_run_id()
@@ -1711,49 +1708,19 @@ def _cli_end_step(args: Any) -> int:
             print("[session_state] empty prose (hook staged)", file=sys.stderr)
             return 1
 
-    # 이슈 #284 — `--allowed-enums` optional. 미지정 / 빈 값 = prose-only mode
-    # (휴리스틱 추출 호출 zero, telemetry 기록 zero — issue #284 acceptance).
-    allowed_raw = (args.allowed_enums or "").strip()
-    allowed = [s.strip() for s in allowed_raw.split(",") if s.strip()] if allowed_raw else []
-
+    # prose-only (이슈 #280/#284) — 메인 Claude 가 prose 자체를 직접 읽고 routing 결정.
+    # stdout 은 sentinel "PROSE_LOGGED" 로 통일. 옛 enum 기계 추출은 폐기.
     agent_label = args.agent if not mode else f"{args.agent}:{mode}"
 
-    if not allowed:
-        # Prose-only mode — 메인 Claude 가 prose 직접 읽고 routing 결정.
-        # stdout 은 sentinel "PROSE_LOGGED" 로 통일 — 외부 skill 이 enum 기대 없는
-        # 경우용. 메인은 이 출력 무시하고 prose 자체를 routing 입력으로.
-        print("PROSE_LOGGED")
-        print(f"[{agent_label} = PROSE_LOGGED]", file=sys.stderr)
-        summary = _extract_prose_summary(prose)
-        if summary:
-            print(summary, file=sys.stderr)
-        _append_step_status(
-            sid, rid, args.agent, mode, "PROSE_LOGGED", prose, prose_path,
-        )
-        return 0
-
-    # legacy compat — 외부 skill 이 `--allowed-enums` 쓴 경우 휴리스틱 호출 보존.
-    # interpret_strategy 의 신규 telemetry 기록은 이미 중단됨 (issue #284).
-    try:
-        enum = interpret_with_fallback(prose, allowed)
-    except MissingSignal as e:
-        # AMBIGUOUS — stdout 으로 enum, stderr 로 detail + 요약 (사용자 가시)
-        print("AMBIGUOUS", file=sys.stdout)
-        print(f"[{agent_label} = AMBIGUOUS]", file=sys.stderr)
-        print(f"  interpret fail: {e.detail[:200]}", file=sys.stderr)
-        summary = _extract_prose_summary(prose)
-        if summary:
-            print(summary, file=sys.stderr)
-        return 0  # ambiguous 자체는 정상 결과 — 메인이 이 신호 보고 pause 결정
-
-    # 정상 enum — stdout (skill 이 캡처) + stderr 요약 (사용자 가시)
-    print(enum)
-    print(f"[{agent_label} = {enum}]", file=sys.stderr)
+    print("PROSE_LOGGED")
+    print(f"[{agent_label} = PROSE_LOGGED]", file=sys.stderr)
     summary = _extract_prose_summary(prose)
     if summary:
         print(summary, file=sys.stderr)
     # step status append — finalize-run / 회고용
-    _append_step_status(sid, rid, args.agent, mode, enum, prose, prose_path)
+    _append_step_status(
+        sid, rid, args.agent, mode, "PROSE_LOGGED", prose, prose_path,
+    )
     return 0
 
 
@@ -2180,17 +2147,10 @@ def _build_arg_parser() -> Any:
 
     p_es = sub.add_parser(
         "end-step",
-        help="prose 저장 (issue #284 — `--allowed-enums` 미지정 시 prose-only mode)",
+        help="prose 저장 (prose-only — stdout=PROSE_LOGGED, 이슈 #280/#284)",
     )
     p_es.add_argument("agent")
     p_es.add_argument("mode", nargs="?", default="")
-    p_es.add_argument(
-        "--allowed-enums", required=False, default="",
-        help=(
-            "comma-separated. legacy compat — 미지정 시 prose-only mode "
-            "(stdout=PROSE_LOGGED). 이슈 #284."
-        ),
-    )
     p_es.add_argument(
         "--prose-file", required=False, default=None,
         help="prose 본문 파일 경로 (미제공 시 hook auto-stage 경로 사용)",

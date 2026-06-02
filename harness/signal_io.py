@@ -1,8 +1,11 @@
-"""signal_io.py — agent prose 저장 + 결론 해석 단일 책임 모듈.
+"""signal_io.py — agent prose 저장 단일 책임 모듈.
 
 발상 (status-json-mutate-pattern.md §2):
-    "agent 는 prose 자유롭게 emit. harness 는 prose 의 *의미* 를
-     메타 LLM 으로 해석. 형식 강제 0, flag 0, schema 0."
+    "agent 는 prose 자유롭게 emit. 형식 강제 0, flag 0, schema 0."
+
+prose-only routing (이슈 #280/#284) 정착 후: agent 결론은 메인 Claude 가 prose
+자체를 직접 읽고 판단한다. 따라서 본 모듈은 prose 파일 I/O 만 담당하며, 옛
+enum 기계 추출 (`interpret_signal` 휴리스틱) 은 폐기됐다.
 
 본 모듈은 RWHarness 의 `parse_marker` (regex + alias 사다리) + dcNess 의
 이전 `state_io.py` (status JSON schema 강제) 를 모두 대체한다.
@@ -11,34 +14,24 @@
     signal_path(agent, run_id, mode=None, base_dir=None) -> Path
     write_prose(agent, run_id, prose, mode=None, base_dir=None) -> Path
     read_prose(agent, run_id, mode=None, base_dir=None) -> str
-    interpret_signal(prose, allowed, *, interpreter=None) -> str
     clear_run_state(run_id, base_dir=None) -> int
 
 §4.2 폐기 항목 정합:
-    - status JSON schema 강제 → prose .md 파일 + LLM 해석
-    - allowed_status set 강제 → interpret_signal 의 allowed enum 인자
-    - MissingStatus 5 reasons → MissingSignal 3 reasons (not_found/empty/ambiguous)
-
-interpret_signal 의 swap point:
-    기본 휴리스틱은 prose 의 마지막 500 토큰 영역에서 allowed enum 을
-    case-insensitive 하게 scan. exact 1개 hit = 결론. 0개/2개+ = ambiguous.
-
-    `interpreter=` 인자는 DI swap option 으로 보존 (테스트용). 프로덕션 dcness 는
-    heuristic-only — `interpret_with_fallback` 가 ambiguous propagate (DCN-CHG-20260430-04).
+    - status JSON schema 강제 → prose .md 파일 (메인 Claude 직접 해석)
+    - MissingStatus 5 reasons → MissingSignal 2 reasons (not_found/empty)
 """
 from __future__ import annotations
 
 import os
 import re
 from pathlib import Path
-from typing import Callable, Iterable, Optional
+from typing import Optional
 
 __all__ = [
     "MissingSignal",
     "signal_path",
     "write_prose",
     "read_prose",
-    "interpret_signal",
     "clear_run_state",
     "DEFAULT_BASE",
 ]
@@ -46,8 +39,6 @@ __all__ = [
 _AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
 _MODE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
-
-_TAIL_SCAN_CHARS = 2000
 
 
 def _default_base() -> Path:
@@ -72,7 +63,7 @@ DEFAULT_BASE = _DefaultBaseProxy()
 
 
 class MissingSignal(Exception):
-    """prose 또는 결론 해석 실패의 단일 normalize 예외.
+    """prose 읽기 실패의 단일 normalize 예외.
 
     Attributes:
         reason: REASONS 중 하나.
@@ -82,7 +73,6 @@ class MissingSignal(Exception):
     REASONS = (
         "not_found",
         "empty",
-        "ambiguous",
     )
 
     def __init__(self, reason: str, detail: str = "") -> None:
@@ -227,77 +217,6 @@ def read_prose(
         raise MissingSignal("empty", str(target))
 
     return raw
-
-
-def _heuristic_interpret(prose: str, allowed: list[str]) -> str:
-    """Default interpreter — prose 마지막 영역에서 allowed enum 1개 매칭.
-
-    프로덕션 dcness 는 본 휴리스틱만 사용 (heuristic-only, DCN-CHG-20260430-04).
-    `interpreter=` 인자는 테스트용 DI swap.
-    """
-    tail = prose[-_TAIL_SCAN_CHARS:]
-    hits: list[tuple[int, str]] = []
-    for value in allowed:
-        # 단어 경계 매칭 (case-insensitive). enum 은 보통 ALL_CAPS 또는 단어.
-        pattern = re.compile(rf"\b{re.escape(value)}\b", re.IGNORECASE)
-        last = None
-        for m in pattern.finditer(tail):
-            last = m
-        if last is not None:
-            hits.append((last.start(), value))
-
-    if not hits:
-        raise MissingSignal(
-            "ambiguous",
-            f"no allowed enum found in tail (allowed={allowed})",
-        )
-
-    # 가장 마지막 등장한 enum 채택. tie 시 ambiguous.
-    hits.sort(key=lambda x: x[0])
-    last_pos, last_value = hits[-1]
-    same_pos = [v for pos, v in hits if pos == last_pos]
-    if len(same_pos) > 1:
-        raise MissingSignal(
-            "ambiguous",
-            f"multiple enums at same position: {same_pos}",
-        )
-    return last_value
-
-
-def interpret_signal(
-    prose: str,
-    allowed: Iterable[str],
-    *,
-    interpreter: Optional[Callable[[str, list[str]], str]] = None,
-) -> str:
-    """prose 의 결론을 allowed enum 1개로 해석.
-
-    Args:
-        prose: agent 가 emit 한 자유 텍스트.
-        allowed: 허용 enum 리스트 (예: ["PASS", "FAIL", "SPEC_MISSING"]).
-        interpreter: (prose, allowed_list) -> str. None 이면 휴리스틱.
-                     프로덕션은 None 사용 (heuristic-only). 테스트용 DI swap.
-
-    Returns:
-        allowed 안의 단일 enum.
-
-    Raises:
-        MissingSignal(ambiguous): 결론 모호 (0개/복수 매칭).
-        ValueError: allowed 비어있음 / interpreter 가 allowed 외 값 반환.
-    """
-    if not isinstance(prose, str):
-        raise TypeError(f"prose must be str, got {type(prose).__name__}")
-    allowed_list = [str(a) for a in allowed]
-    if not allowed_list:
-        raise ValueError("allowed must be non-empty")
-
-    fn = interpreter or _heuristic_interpret
-    result = fn(prose, allowed_list)
-    if result not in allowed_list:
-        raise ValueError(
-            f"interpreter returned {result!r} not in allowed {allowed_list}"
-        )
-    return result
 
 
 def clear_run_state(

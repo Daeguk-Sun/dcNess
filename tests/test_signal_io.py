@@ -4,8 +4,6 @@ Coverage matrix:
     write_prose       : happy / atomic / unicode / mode 분기 / type error
     read_prose        : happy / not_found / empty
     signal_path       : path traversal / agent/mode 화이트리스트
-    interpret_signal  : 휴리스틱 (1 hit / 0 hit / 다중 hit / tie ambiguous)
-                        + interpreter 주입 (DI 검증, allowed 외 값 거부)
     clear_run_state   : 다중 파일 제거 / run_id 화이트리스트 / 미존재 디렉토리
     MissingSignal     : reason enum 강제
 
@@ -22,7 +20,6 @@ from tempfile import TemporaryDirectory
 from harness.signal_io import (
     MissingSignal,
     clear_run_state,
-    interpret_signal,
     read_prose,
     signal_path,
     write_prose,
@@ -133,82 +130,6 @@ class SignalPathValidationTests(unittest.TestCase):
         self.assertEqual(path.name, "architect.md")
 
 
-class InterpretSignalTests(unittest.TestCase):
-    def test_single_enum_in_tail_returns_it(self) -> None:
-        prose = "여러 항목 검토 완료.\n\n## 결론\n\nPASS\n"
-        self.assertEqual(
-            interpret_signal(prose, ["PASS", "FAIL", "SPEC_MISSING"]), "PASS"
-        )
-
-    def test_last_enum_wins_when_multiple(self) -> None:
-        # 본문에 PASS 언급이 있어도 마지막 단락의 FAIL 채택
-        prose = (
-            "초기 분석에서는 PASS 가능해 보였으나 추가 검증 후…\n"
-            "최종적으로 회귀 발견.\n\n## 결론\n\nFAIL\n"
-        )
-        self.assertEqual(
-            interpret_signal(prose, ["PASS", "FAIL"]), "FAIL"
-        )
-
-    def test_no_enum_raises_ambiguous(self) -> None:
-        prose = "결론 모호한 prose 입니다.\n"
-        with self.assertRaises(MissingSignal) as cm:
-            interpret_signal(prose, ["PASS", "FAIL"])
-        self.assertEqual(cm.exception.reason, "ambiguous")
-
-    def test_tie_at_same_position_raises_ambiguous(self) -> None:
-        # 동일 위치에서 매칭되는 enum 이 2개일 수 있는 인공 케이스
-        # — 휴리스틱은 단어 경계 기반이므로 정상적으로는 occur 거의 없음.
-        # 테스트는 interpreter DI 로 강제 시뮬레이션.
-        def fake(prose: str, allowed: list[str]) -> str:
-            raise MissingSignal("ambiguous", "tie")
-
-        with self.assertRaises(MissingSignal):
-            interpret_signal("...", ["PASS", "FAIL"], interpreter=fake)
-
-    def test_interpreter_di_used(self) -> None:
-        called = {}
-
-        def custom(prose: str, allowed: list[str]) -> str:
-            called["prose"] = prose
-            called["allowed"] = list(allowed)
-            return "FAIL"
-
-        result = interpret_signal(
-            "anything", ["PASS", "FAIL"], interpreter=custom
-        )
-        self.assertEqual(result, "FAIL")
-        self.assertEqual(called["allowed"], ["PASS", "FAIL"])
-
-    def test_interpreter_returning_invalid_value_raises(self) -> None:
-        def bad(prose: str, allowed: list[str]) -> str:
-            return "MAYBE"
-
-        with self.assertRaises(ValueError):
-            interpret_signal("x", ["PASS", "FAIL"], interpreter=bad)
-
-    def test_empty_allowed_raises(self) -> None:
-        with self.assertRaises(ValueError):
-            interpret_signal("PASS", [])
-
-    def test_case_insensitive_match(self) -> None:
-        prose = "최종: pass\n"
-        self.assertEqual(interpret_signal(prose, ["PASS", "FAIL"]), "PASS")
-
-    def test_word_boundary_no_substring_match(self) -> None:
-        # "BUGFIX_PASS" 안에 "PASS" 가 substring 으로 들어있어도
-        # 단어경계 기준으로 BUGFIX_PASS 가 매칭되어야 한다 (BUGFIX_PASS 가 우선).
-        prose = "결론: BUGFIX_PASS\n"
-        self.assertEqual(
-            interpret_signal(prose, ["BUGFIX_PASS", "BUGFIX_FAIL"]),
-            "BUGFIX_PASS",
-        )
-
-    def test_non_str_prose_rejected(self) -> None:
-        with self.assertRaises(TypeError):
-            interpret_signal(123, ["PASS"])  # type: ignore[arg-type]
-
-
 class ClearRunStateTests(unittest.TestCase):
     def setUp(self) -> None:
         self._td = TemporaryDirectory()
@@ -233,13 +154,15 @@ class ClearRunStateTests(unittest.TestCase):
 
 class MissingSignalEnumTests(unittest.TestCase):
     def test_known_reasons_accepted(self) -> None:
-        for reason in ("not_found", "empty", "ambiguous"):
+        for reason in ("not_found", "empty"):
             err = MissingSignal(reason, "x")
             self.assertEqual(err.reason, reason)
 
     def test_unknown_reason_rejected(self) -> None:
-        with self.assertRaises(ValueError):
-            MissingSignal("schema_violation", "x")  # 폐기된 reason
+        # "ambiguous" 는 옛 interpret_signal 전용 reason — enum 추출 폐기와 함께 제거.
+        for reason in ("schema_violation", "ambiguous"):
+            with self.assertRaises(ValueError):
+                MissingSignal(reason, "x")
 
 
 if __name__ == "__main__":
