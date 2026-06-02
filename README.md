@@ -85,7 +85,7 @@ agent 의 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등) → 다음 호출 
 [`docs/plugin/routing.md`](docs/plugin/routing.md) 의 **mermaid 라우팅 그래프**(설계 /
 구현 / triage 3 영역) 로 한눈에 볼 수 있다. loop 별 진입·step 인덱스는
 [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) §7.0, 각 loop 의 절차
-풀스펙은 해당 `commands/*.md` 본문이 진본이다.
+풀스펙은 해당 skill 본문(`skills/<n>/SKILL.md` 또는 `commands/<n>.md`)이 진본이다.
 
 ## 핵심 특징
 
