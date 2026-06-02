@@ -155,6 +155,7 @@ PR 절차: [`CLAUDE.md`](CLAUDE.md) §5.
 | [`docs/archive/migration-decisions.md`](docs/archive/migration-decisions.md) | 모듈 PRESERVE / DISCARD / REFACTOR 분류 (역사 자료) |
 | [`docs/archive/document_update_record.md`](docs/archive/document_update_record.md) | (frozen) 옛 WHAT 로그 — 현재는 GitHub PR/issue/git log 가 SSOT |
 | [`docs/archive/change_rationale_history.md`](docs/archive/change_rationale_history.md) | (frozen) 옛 WHY 로그 — 현재는 PR description/이슈 thread/commit body 가 SSOT |
+| [`docs/archive/conveyor-design.md`](docs/archive/conveyor-design.md) | (frozen) Python 컨베이어 v1 폐기 설계 — Task tool 패턴 채택 사유 (역사 자료) |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 |
 | [`CLAUDE.md`](CLAUDE.md) | 메인 Claude 작업 지침 |

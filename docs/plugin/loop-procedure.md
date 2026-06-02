@@ -360,11 +360,7 @@ git checkout main && git pull --ff-only 2>/dev/null || true
 
 ## 4. Step 4.5 — 폐기 (2026-05-12)
 
-> **이전 정의**: `stories.md` task `[x]` 체크 + `backlog.md` epic `[x]` 체크 (engineer `IMPL_DONE` 직후, 메인 mechanical edit).
->
-> **폐기 사유**: stories.md 양식 단순화 (user story 만, task `[ ]` 쓰지 않음 — PR3-A) + `backlog.md` 자체 폐기. 진행 추적 SSOT = GitHub issue close 시스템 (PR body `Closes #N` / `Part of #N` 트레일러) 단일화. impl task PR diff 에는 stories.md / backlog.md 변경 0 (commit3 = src/** only).
->
-> **마이그레이션**: 기존 활성 프로젝트의 옛 stories.md (task `[ ]` 있는) 는 *그대로 잔재 허용* — backfill 강제 X. 새 작성만 새 양식 ([`commands/product-plan.md`](../../commands/product-plan.md) §stories.md 산출물). 자동 마이그레이션 원하는 사용자용 = `scripts/migrate_stories_to_new_format.sh`.
+> 옛 `stories.md` / `backlog.md` task 체크 동기화 step 폐기. 진행 추적 SSOT = GitHub issue close (PR body `Closes #N` / `Part of #N` 트레일러) 단일화 — impl task PR diff 는 `src/**` only. 새 stories.md 양식 = [`commands/product-plan.md`](../../commands/product-plan.md) §stories.md 산출물 (옛 양식 잔재 허용, backfill 강제 X). 폐기 상세는 git history.
 
 ---
 
