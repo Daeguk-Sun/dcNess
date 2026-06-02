@@ -81,6 +81,12 @@ dcNess 는 단계별 skill 로 작업을 끌고 간다. `/impl` 은 **설계 산
 검증(code-validator)·리뷰(pr-reviewer) 를 건너뛴 채 다음 단계로 못 가는 것이 dcNess 의
 핵심이다.
 
+agent 의 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등) → 다음 호출 매핑은
+[`docs/plugin/routing.md`](docs/plugin/routing.md) 의 **mermaid 라우팅 그래프**(설계 /
+구현 / triage 3 영역) 로 한눈에 볼 수 있다. loop 별 진입·step 인덱스는
+[`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) §7.0, 각 loop 의 절차
+풀스펙은 해당 `commands/*.md` 본문이 진본이다.
+
 ## 핵심 특징
 
 | 항목 | 내용 |
@@ -91,7 +97,7 @@ dcNess 는 단계별 skill 로 작업을 끌고 간다. `/impl` 은 **설계 산
 | 게이트 | 거버넌스 + 6 CI workflow (cross-ref / git-naming / plugin-manifest / pr-body / python-tests / release-sync) |
 | Codex route | opt-in local routing — `code-validator` / `architecture-validator` / `pr-reviewer` 만 Codex read-only wrapper 로 실행 가능 |
 
-## Skill (`commands/`, 10개)
+## Skill (`commands/`, 11개)
 
 | 발화 | 역할 |
 |---|---|
@@ -100,6 +106,7 @@ dcNess 는 단계별 skill 로 작업을 끌고 간다. `/impl` 은 **설계 산
 | `/product-plan` | 새 기능 spec/design — 그릴미 대화로 PRD + stories + tech-review 스켈레톤 작성 |
 | `/tech-review` | 선행 기술 검증 (tech-reviewer 가 의존성·실현성 검토, `/architect-loop` 진입 전 단방향) |
 | `/architect-loop` | 1 epic 설계 루프 — ux-architect → system-architect → validator → module-architect × K → validator |
+| `/ux` | 화면 UX 플로우 + 디자인 시안 핸드오프 (ux-architect → designer → 사용자 PICK, UX_FLOW / UX_REFINE 2 모드) |
 | `/impl` | 단발 task 정식 impl 루프 (test-engineer → engineer → code-validator → pr-reviewer) |
 | `/impl-loop` | 여러 task 순차 자동 체인 (task 마다 /impl + clean 자동 진행) |
 | `/run-review` | run 사후 분석 — step별 비용·차단 검출 |
@@ -137,6 +144,9 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 | 문서 | 역할 |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md) §0.7 | 정체성 SSOT (강제 영역 2 + 안티패턴 4) |
+| [`docs/plugin/routing.md`](docs/plugin/routing.md) | 라우팅 진본 (mermaid + enum 표 + retry + escalate) |
+| [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) §7.0 | loop 한눈 인덱스 + Step 0~8 mechanics |
+| [`docs/plugin/hooks.md`](docs/plugin/hooks.md) §3.2 | catastrophic 시퀀스 + 7 hook SSOT |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |
 | [`CLAUDE.md`](CLAUDE.md) | 메인 Claude 작업 지침 |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 |
