@@ -119,7 +119,7 @@ RWHarness 4 신호 OR 정합:
 1. `DCNESS_INFRA=1` 환경변수
 2. 마커 파일 `~/.claude/.dcness-infra` 존재
 3. `CLAUDE_PLUGIN_ROOT` 환경변수 non-empty
-4. `cwd.resolve() == Path("/Users/<user>/project/dcness")` (또는 화이트리스트 매칭)
+4. cwd 또는 그 상위에 dcness self repo 마커 `.claude-plugin/plugin.json` (`name == "dcness"`) 실재 (배포된 plugin 의 plugin.json 은 plugin cache 에만 있고 사용자 repo 엔 없으므로, 이 마커가 cwd 조상에 있으면 dcness self 저장소에서 작업 중이라는 뜻)
 
 > **코드 강제**: `harness/agent_boundary.py` 가 본 spec 의 SSOT 구현. `hooks/file-guard.sh` (PreToolUse Edit/Write/Read/Bash) + `hooks/post-agent-clear.sh` (PostToolUse Agent) 가 활성화. opt-out 마커 = `.no-dcness-guard` (cwd) — 사용자 임시 우회.
 

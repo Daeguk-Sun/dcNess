@@ -24,6 +24,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import re
 from pathlib import Path
@@ -34,7 +35,6 @@ __all__ = [
     "DCNESS_INFRA_PATTERNS",
     "ALLOW_MATRIX",
     "READ_DENY_MATRIX",
-    "INFRA_PROJECT_CWD_WHITELIST",
     "is_infra_project",
     "is_opt_out",
     "check_write_allowed",
@@ -130,9 +130,27 @@ READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
 
 
 # ── §4.4 — is_infra_project() 4 OR 신호 ──────────────────────────────
-INFRA_PROJECT_CWD_WHITELIST: tuple[str, ...] = (
-    "/Users/dc.kim/project/dcNess",
-)
+def _is_dcness_self_repo(cwd: Path) -> bool:
+    """cwd 또는 그 상위에 dcness self repo 마커가 실재하나.
+
+    마커 = `.claude-plugin/plugin.json` 의 `name == "dcness"`.
+    배포된 plugin 의 plugin.json 은 plugin cache 에만 있고 *사용자 repo 에는 없으므로*,
+    이 마커가 cwd 조상에 실재한다는 것은 dcness self 저장소에서 작업 중이라는 뜻이다.
+    (옛 개인 절대경로 하드코딩 whitelist 대체 — 이슈 #523)
+    """
+    try:
+        cur = cwd.resolve()
+    except (OSError, RuntimeError):
+        return False
+    for d in (cur, *cur.parents):
+        manifest = d / ".claude-plugin" / "plugin.json"
+        if manifest.is_file():
+            try:
+                data = json.loads(manifest.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                return False
+            return data.get("name") == "dcness"
+    return False
 
 
 def is_infra_project(
@@ -146,7 +164,7 @@ def is_infra_project(
     1. DCNESS_INFRA=1 환경변수
     2. 마커 파일 ~/.claude/.dcness-infra 존재
     3. CLAUDE_PLUGIN_ROOT 환경변수 non-empty (dcness 개발 모드)
-    4. cwd.resolve() in INFRA_PROJECT_CWD_WHITELIST
+    4. cwd 조상에 dcness self repo 마커 (.claude-plugin/plugin.json name=dcness) 실재
     """
     e = env if env is not None else os.environ
     if e.get("DCNESS_INFRA") == "1":
@@ -158,11 +176,7 @@ def is_infra_project(
         return True
     if cwd is None:
         cwd = Path.cwd()
-    try:
-        resolved = str(cwd.resolve())
-    except (OSError, RuntimeError):
-        return False
-    return resolved in INFRA_PROJECT_CWD_WHITELIST
+    return _is_dcness_self_repo(cwd)
 
 
 def is_opt_out(cwd: Optional[Path] = None) -> bool:

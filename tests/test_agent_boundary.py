@@ -48,17 +48,39 @@ class IsInfraProjectTests(unittest.TestCase):
             (home / ".claude" / ".dcness-infra").write_text("")
             self.assertTrue(is_infra_project(home, env={}, home=home))
 
-    def test_cwd_whitelist(self):
-        # 현 저장소 path = whitelist 멤버.
-        cwd = Path("/Users/dc.kim/project/dcNess")
-        if not cwd.exists():
-            self.skipTest("환경 외 — whitelist cwd 부재")
-        self.assertTrue(is_infra_project(cwd, env={}, home=Path("/tmp")))
+    def test_self_repo_marker(self):
+        # cwd 조상에 .claude-plugin/plugin.json (name=dcness) 실재 → infra.
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".claude-plugin").mkdir()
+            (root / ".claude-plugin" / "plugin.json").write_text(
+                json.dumps({"name": "dcness", "version": "0.3.0"})
+            )
+            self.assertTrue(is_infra_project(root, env={}, home=Path("/tmp")))
+            # 중첩 하위 디렉토리에서도 walk-up 으로 마커 발견.
+            nested = root / "harness" / "deep"
+            nested.mkdir(parents=True)
+            self.assertTrue(is_infra_project(nested, env={}, home=Path("/tmp")))
+
+    def test_self_repo_marker_wrong_name(self):
+        # name != dcness 매니페스트 → 오탐 방지 (외부 plugin 저장소).
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".claude-plugin").mkdir()
+            (root / ".claude-plugin" / "plugin.json").write_text(
+                json.dumps({"name": "some-other-plugin"})
+            )
+            self.assertFalse(is_infra_project(root, env={}, home=Path("/tmp")))
 
     def test_user_project_not_infra(self):
         with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)  # /tmp/... — whitelist 외
+            cwd = Path(td)  # 마커 없음 — 외부 사용자 프로젝트
             self.assertFalse(is_infra_project(cwd, env={}, home=Path(td)))
+
+    def test_no_personal_path_hardcoded(self):
+        # 회귀 가드 (#523): 배포되는 agent_boundary.py 소스에 개인 절대경로 0건.
+        src = (REPO_ROOT / "harness" / "agent_boundary.py").read_text(encoding="utf-8")
+        self.assertNotIn("/Users/", src)
 
 
 class WriteAllowedMainBypassTests(unittest.TestCase):
