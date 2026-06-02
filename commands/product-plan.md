@@ -112,7 +112,7 @@ task-level 세부 진행 추적 X (PR + GitHub Issue close 시스템 SSOT — [`
 
 ### Step 0 — 사전 read (lazy — 필요시만, #400)
 
-정상 흐름은 본 skill 본문 + 인용된 docs §번호 만으로 진행. *룰 모호 / 분기 발생* 시에만 `docs/plugin/loop-procedure.md` / `orchestration.md` §2~§3 + §4.2 / `issue-lifecycle.md` 부분 read (grep + offset/limit). 통째 read 폐기 — 메인 cache_read 기준치 감축.
+정상 흐름은 본 skill 본문 + 인용된 docs §번호 만으로 진행. *룰 모호 / 분기 발생* 시에만 `docs/plugin/loop-procedure.md` / `orchestration.md` §3 (라우팅) / `commands/architect-loop.md` / `issue-lifecycle.md` 부분 read (grep + offset/limit). 통째 read 폐기 — 메인 cache_read 기준치 감축.
 
 ### Step 1 — 사용자와 그릴 대화
 
@@ -298,7 +298,7 @@ PRD + stories.md + tech-review.md 스켈레톤 + 이슈 등록 완료.
 
 ## 참조
 
-- 시퀀스 / 핸드오프 / 권한: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §2~§3
+- 라우팅 / 핸드오프: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3 / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2
 - 그릴미 원형: `~/.claude/skills/grill-me/SKILL.md` (사용자 user skill)
 - 이슈 등록 SSOT: [`docs/plugin/issue-lifecycle.md`](../docs/plugin/issue-lifecycle.md) §1
 - 브랜치·커밋·PR 네이밍: [`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md)

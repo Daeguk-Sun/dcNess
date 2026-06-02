@@ -227,6 +227,6 @@ task 단위 detail = **module-architect 영역** (impl 파일 안에서). archit
 
 ## 참조
 
-- 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 routing 한눈표. 시퀀스 / 핸드오프 / 권한 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §2~§4. (위 §분기 판정 ESCALATE 케이스는 *언제 escalate 하는가* + catastrophic 제약 영역)
+- 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 routing 한눈표. 설계 loop 풀스펙 = [`commands/architect-loop.md`](../commands/architect-loop.md) / catastrophic = [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2. (위 §분기 판정 ESCALATE 케이스는 *언제 escalate 하는가* + catastrophic 제약 영역)
 - 모듈 설계 원칙 SSOT: [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md)
 - prose-only 발상: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §0 (강제 영역 2가지)

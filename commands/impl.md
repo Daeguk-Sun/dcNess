@@ -1,13 +1,13 @@
 ---
 name: impl
-description: impl task (architect-loop §4.2 Step 4 module-architect × K 산출물) 1개를 받아 정식 impl 루프 (default = test-engineer → engineer → code-validator → pr-reviewer · fallback = module-architect 선두 추가) 자동 진행하는 스킬. 사용자가 "구현해줘", "/impl <task>", "이 task 구현", "impl 루프", "버그픽스", "한 줄 수정" 등을 말할 때 반드시 이 스킬을 사용한다. /architect-loop 의 후속 — architect-loop 가 `impl/NN-*.md` 본문 detail 까지 채운 산출물의 task list 1개씩 처리. 버그픽스 케이스 = /issue-report 분류 후 본 스킬 fallback path (module-architect 선두 추가) 진입.
+description: impl task (architect-loop 의 module-architect × K 산출물) 1개를 받아 정식 impl 루프 (default = test-engineer → engineer → code-validator → pr-reviewer · fallback = module-architect 선두 추가) 자동 진행하는 스킬. 사용자가 "구현해줘", "/impl <task>", "이 task 구현", "impl 루프", "버그픽스", "한 줄 수정" 등을 말할 때 반드시 이 스킬을 사용한다. /architect-loop 의 후속 — architect-loop 가 `impl/NN-*.md` 본문 detail 까지 채운 산출물의 task list 1개씩 처리. 버그픽스 케이스 = /issue-report 분류 후 본 스킬 fallback path (module-architect 선두 추가) 진입.
 ---
 
 # Impl Skill
 
 ## Loop
-`impl-task-loop` ([orchestration.md §2.1 / §4.3](../docs/plugin/orchestration.md)).
-UI 디자인 mid-loop 필요 시 → `impl-ui-design-loop` (orchestration §4.4) 자동 전환.
+`impl-task-loop` (loop 인덱스 = [`loop-procedure.md`](../docs/plugin/loop-procedure.md) §7.0). catastrophic 보존 = [`hooks.md`](../docs/plugin/hooks.md) §3.2.
+UI 디자인 mid-loop 필요 시 → `impl-ui-design-loop` (아래 `## UI 작업 시 designer 선두`) 자동 전환.
 
 ## Inputs (메인이 사용자에게 받아야 할 정보)
 - task 경로 (필수, 예: `docs/milestones/v0.2/epics/epic-01-*/impl/01-*.md`)
@@ -22,7 +22,20 @@ UI 디자인 mid-loop 필요 시 → `impl-ui-design-loop` (orchestration §4.4)
 ## 진입 모드 — default vs fallback (위치 도장)
 - task 경로 매치 + 정식 위치 (`docs/milestones/v\d+/epics/epic-\d+-*/impl/\d+-*.md`) 파일 존재 → **default**: test-engineer 직진 (module-architect skip).
 - 매치 실패 / 파일 부재 → **fallback**: module-architect 1번 호출 후 test-engineer 진입.
-- 근거: architect-loop §4.2 의 Step 4 (module-architect × K) 가 정식 위치 impl 파일 본문 detail 까지 채움. 정식 경로 + 파일 존재 = 통과 보장 (위치 자체가 도장).
+- 근거: architect-loop 의 module-architect × K (loop-procedure §7.0) 가 정식 위치 impl 파일 본문 detail 까지 채움. 정식 경로 + 파일 존재 = 통과 보장 (위치 자체가 도장).
+
+## branch_prefix 결정 (loop clean 후 자동 commit/PR)
+- 신규 기능 (src 신규 파일 / 인터페이스 추가) → `feat/<task-slug>`
+- 리팩토링 / 정리 / 테스트 보강 only → `chore/<task-slug>`
+- 버그픽스 (의도 vs 실제 격차 수정) → `fix/<task-slug>`
+- 메인 Claude 가 task 의 `## 변경 요약` / engineer prose 보고 결정. base 분기 = [`git-spec.md`](../docs/plugin/git-spec.md) §6.
+
+## UI 작업 시 designer 선두 (impl-ui-design-loop)
+UI 작업 감지 시 default 시퀀스 **선두에 designer + 사용자 PICK 2 step 추가**:
+- **step 2 — designer** (`PASS,ESCALATE`) — 시안 생성. 환경 = `docs/design.md` frontmatter `medium: pencil|html` (부재 시 designer 가 detect + 역질문).
+- **step 2.5 — 사용자 PICK** (helper begin/end-step 비대상) — 메인이 시안 경로 (Pencil 캔버스 / `design-variants/<screen>-v<N>.html`) + node-id 안내 + OK/NG. NG 시 designer 재호출 (sub_cycle `designer-ROUND-<n>`, round 한도 X).
+
+이후 test-engineer → engineer:IMPL → code-validator → pr-reviewer = default 동일. fallback 이면 designer 앞에 module-architect 1 step. designer `ESCALATE` → 사용자 위임.
 
 ## Inner loop 4-step 모두 호출 (MUST — false-clean 차단, #431)
 
@@ -41,12 +54,12 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
 - task 를 clean 으로 표기하기 *전*, code-validator 가 PASS 를 냈고 pr-reviewer 가 실행된 뒤 *메인 Claude 가* PR 생성·머지까지 마쳤는지 메인이 직접 확인. 흔적 부재 시 → false-clean 의심 → `blocked` 강등 + 사용자 개입 (#431)
 
 ## 후속 라우팅
-- 본 loop clean → 자동 commit/PR (branch prefix = orchestration §4.3 decision rule: feat/chore/fix)
+- 본 loop clean → 자동 commit/PR (branch prefix = 위 `## branch_prefix 결정`)
 - 주의사항 → 사용자 결정 (수동 7b)
 - multi-task chain 필요 → `/impl-loop`
 
 ## 사전 read (lazy — 필요시만, #400)
-정상 흐름은 본 skill 본문 + 인용된 docs §번호 만으로 진행. 본문에 있는 catastrophic / Pre-flight gate / agent boundary 룰이 1차. *룰 모호 / 분기 발생* 시에만 `docs/plugin/loop-procedure.md` / `orchestration.md` §4.3 / `issue-lifecycle.md` 부분 read (grep + offset/limit). 통째 read 폐기 — 메인 cache_read 기준치 감축.
+정상 흐름은 본 skill 본문 + 인용된 docs §번호 만으로 진행. 본문에 있는 catastrophic / Pre-flight gate / agent boundary 룰이 1차. *룰 모호 / 분기 발생* 시에만 `docs/plugin/loop-procedure.md` (절차 mechanics + §7.0 인덱스) / `issue-lifecycle.md` 부분 read (grep + offset/limit). 통째 read 폐기 — 메인 cache_read 기준치 감축.
 
 ## 워크트리 (기본 켜짐)
 Step 0 진입 시 자동 `EnterWorktree(name="impl-{ts_short}")`. 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시에만 건너뜀. 자세히 = [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1.1.
@@ -129,7 +142,7 @@ tail -50 "<task-path>"
 retry / POLISH 시 기존 sub-step 재활용 — 신규 TaskCreate X.
 
 ## 절차
-[`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1~§6 + [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §4.3 (`impl-task-loop` 풀스펙) 따름. UI 감지 시 §4.4 (`impl-ui-design-loop`).
+[`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1~§6 (Step mechanics) 따름. `impl-task-loop` 풀스펙 = 본 skill 본문. UI 감지 시 위 `## UI 작업 시 designer 선두` (impl-ui-design-loop).
 
 ### PR 생성 직전 — base 분기 체크 (MUST)
 

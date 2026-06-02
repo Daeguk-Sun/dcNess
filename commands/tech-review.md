@@ -161,7 +161,7 @@ tech-review 통과 완료. 다음 단계 — 설계 루프:
 ## 참조
 
 - tech-reviewer agent SSOT: [`agents/tech-reviewer.md`](../agents/tech-reviewer.md)
-- 시퀀스 / 핸드오프 / 권한: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §2.2, [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 (routing 한눈표 — tech-reviewer 행)
+- 기획 시퀀스 풀스펙: [`commands/product-plan.md`](product-plan.md) / 라우팅: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1 (routing 한눈표 — tech-reviewer 행)
 - PRD 작성 (선행 스킬): [`commands/product-plan.md`](product-plan.md)
 - 설계 단계 (후속 스킬): [`commands/architect-loop.md`](architect-loop.md)
 - 옛 plan-reviewer 폐기 배경 (이슈 [#515](https://github.com/alruminum/dcNess/issues/515))

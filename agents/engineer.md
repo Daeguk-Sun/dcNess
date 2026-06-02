@@ -208,7 +208,7 @@ impl task 의 commit/PR 구조 = [`docs/plugin/loop-procedure.md`](../docs/plugi
 - story 의 마지막 task PR: `Closes #story-issue`
 - epic 의 마지막 story 의 마지막 task PR: `Closes #story-issue` + `Closes #epic-issue` (메인이 PR 생성 직전 frontmatter `task_index` + gh API 1 회로 사전 체크 후 씀)
 
-판정 입력 = impl 파일 frontmatter `task_index: i/total` + `story: N` (architect-loop §4.2 Step 4 산출).
+판정 입력 = impl 파일 frontmatter `task_index: i/total` + `story: N` (architect-loop 의 module-architect × K 산출).
 
 **API 직접 close 절대금지** (issue-lifecycle.md §2.3) — `mcp__github__update_issue` state:closed 호출 금지. PR body `Closes #N` 으로만.
 

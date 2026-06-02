@@ -2,7 +2,7 @@
 
 > **Status**: ACTIVE
 > **Scope**: dcness 7 loop 의 *공통 실행 절차* SSOT — Step 0~8 mechanics. 메인 Claude 가 skill 트리거 또는 직접 발화로 루프 시작 시 본 문서를 컨베이어 매뉴얼처럼 따른다.
-> **Cross-ref**: 7 loop 행별 풀스펙 (allowed_enums / 분기 / sub_cycles / branch_prefix) + 시퀀스 mermaid + 결정표 = [`orchestration.md`](orchestration.md) §2~§4.
+> **Cross-ref**: loop 한눈 인덱스 = 본 문서 §7.0. 각 loop 풀스펙 (allowed_enums / 분기 / sub_cycles / branch_prefix) = 해당 `commands/*.md` 본문. catastrophic = [`hooks.md`](hooks.md) §3.2. 라우팅 = [`orchestration.md`](orchestration.md) §3.1.
 
 ---
 
@@ -83,13 +83,13 @@ echo "[<entry>] run started: $RUN_ID"
 
 `<entry_point>` = §7 매트릭스 행의 `entry_point` 컬럼 (예: `impl`, `issue-report`, `architect-loop`, `ux`). begin-run 동작: sid auto-detect + run_id 발급 + `live.json.active_runs` 슬롯 + `.by-pid-current-run/{cc_pid}` 씀.
 
-> `/impl-loop` 은 자기 entry_point 가 없다 — `impl-task-loop × N` driver 이므로 각 task 가 독립 `begin-run impl` … `end-run` run 1개씩 (N task = N run = N review.md). 자세히 = [`orchestration.md`](orchestration.md) §4.8 + [`commands/impl-loop.md`](../../commands/impl-loop.md).
+> `/impl-loop` 은 자기 entry_point 가 없다 — `impl-task-loop × N` driver 이므로 각 task 가 독립 `begin-run impl` … `end-run` run 1개씩 (N task = N run = N review.md). 자세히 = [`commands/impl-loop.md`](../../commands/impl-loop.md).
 
 ---
 
 ## 2. Step 1 — TaskCreate
 
-[`orchestration.md`](orchestration.md) §4 행의 `task_list` 컬럼대로 일괄 등록. **단 `/impl-loop` 아래의 `impl` run 은 TaskCreate skip** — task 리스트는 impl-loop skill 이 진행 뷰로 일괄 관리한다 ([`commands/impl-loop.md`](../../commands/impl-loop.md) §진행 뷰). impl run 은 이미 생성된 sub-step task 를 TaskUpdate 만 한다.
+본 문서 §7.0 인덱스의 `task_list` 컬럼대로 일괄 등록. **단 `/impl-loop` 아래의 `impl` run 은 TaskCreate skip** — task 리스트는 impl-loop skill 이 진행 뷰로 일괄 관리한다 ([`commands/impl-loop.md`](../../commands/impl-loop.md) §진행 뷰). impl run 은 이미 생성된 sub-step task 를 TaskUpdate 만 한다.
 
 ```
 TaskCreate("<agent>: <mode 또는 짧은 설명>")
@@ -198,7 +198,7 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 
 ### 3.2.1 build-worker phase prose (`/impl-loop` Hybrid A 한정)
 
-build-worker 는 한 sub-agent 호출 안에서 3 phase 를 직렬 진행한다 — phase 별 begin-step / end-step 을 worker 가 helper Bash 로 직접 호출 (sub-agent nesting 아님 — Python script 실행). 메인 step 카운트 (orchestration §4.3 Hybrid A 표) 는 build-worker = 1 step / pr-reviewer = 1 step, **phase 는 그 안의 sub-step** 이다.
+build-worker 는 한 sub-agent 호출 안에서 3 phase 를 직렬 진행한다 — phase 별 begin-step / end-step 을 worker 가 helper Bash 로 직접 호출 (sub-agent nesting 아님 — Python script 실행). 메인 step 카운트 ([`commands/impl-loop.md`](../../commands/impl-loop.md) Hybrid A) 는 build-worker = 1 step / pr-reviewer = 1 step, **phase 는 그 안의 sub-step** 이다.
 
 ```bash
 # build-worker sub-agent 안에서 (메인이 호출한 1 step 안)
@@ -293,7 +293,7 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 
 ---
 
-## 3.4 impl-task-loop commit 구조 (orchestration §4.3 한정)
+## 3.4 impl-task-loop commit 구조
 
 `impl-task-loop` / `impl-ui-design-loop` 에서 루프 종료 전 src commit + PR create. **커밋 메시지·브랜치·PR 네이밍 규칙 SSOT** = [`git-spec.md`](git-spec.md). 본 §3.4 는 *시점·포함 파일* 만 정의.
 
@@ -312,7 +312,7 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 # 메시지 형식 = git-spec.md §2~§5 참조.
 
 # branch 생성 + src commit (code-validator PASS 직후)
-BRANCH="<prefix>/<task-slug>"   # prefix = feat/fix/chore (decision rule = orchestration §4.3)
+BRANCH="<prefix>/<task-slug>"   # prefix = feat/fix/chore (decision rule = commands/impl.md ## branch_prefix 결정)
 git checkout -b "$BRANCH" main
 git add src/**
 git commit -m "<git-spec §2 형식>"
@@ -505,7 +505,7 @@ catastrophic 시퀀스 진본 = [`hooks.md`](hooks.md) §3.2 (`hooks/catastrophi
 
 ## 8. 참조
 
-- [`orchestration.md`](orchestration.md) §2~§4 — 시퀀스 mini-graph / 7 loop 행별 풀스펙 / handoff cross-ref
+- [`orchestration.md`](orchestration.md) §3 — 라우팅 / retry / escalate · 본 문서 §7.0 — loop 한눈 인덱스
 - [`hooks.md`](hooks.md) — 7 hook (catastrophic-gate / file-guard / tdd-guard / stop-end-run / session-start / post-agent-clear / post-file-op-trace) 시점·차단·우회 SSOT
 - 본 문서 §3.1 + §6 — echo / 자가점검 / REDO 분류 / 개선점 코멘트 (옛 dcness-rules §3/§4 흡수)
 - `harness/session_state.py` — helper CLI (`begin-run` / `end-run` / `begin-step` / `end-step` / `finalize-run` / `run-dir` / `auto-resolve`)

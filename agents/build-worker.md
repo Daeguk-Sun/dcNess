@@ -19,7 +19,7 @@ model: sonnet
 
 ## 진입 모드 — `/impl-loop` 전용
 
-본 agent 는 `/impl-loop` driver 한정. `/impl` 단발 호출은 기존 4-agent 모델 (test-engineer → engineer → code-validator → pr-reviewer) 유지 — rigor 우선. 진입점 차이 = 의도된 티어링 (`docs/plugin/orchestration.md §4.8`).
+본 agent 는 `/impl-loop` driver 한정. `/impl` 단발 호출은 기존 4-agent 모델 (test-engineer → engineer → code-validator → pr-reviewer) 유지 — rigor 우선. 진입점 차이 = 의도된 티어링 ([`commands/impl-loop.md`](../commands/impl-loop.md)).
 
 호출자 (메인 Claude) 가 prompt 로 전달:
 - impl 계획 파일 경로 (`docs/impl/NN-*.md` 또는 `docs/bugfix/#N-slug.md`)
@@ -250,8 +250,8 @@ worker = 1 task 의 *완결성* 책임. PR 본문·commit message 초안까지 p
 ## 참조
 
 - `/impl-loop` 사용 = [`commands/impl-loop.md`](../commands/impl-loop.md)
-- 시퀀스 / 핸드오프 / 권한 매트릭스: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §4.8
-- impl-task-loop default 4-agent (= `/impl` 단발) 풀스펙: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §4.3
+- 다중 task chain 시퀀스: [`commands/impl-loop.md`](../commands/impl-loop.md) / 라우팅: [`docs/plugin/orchestration.md`](../docs/plugin/orchestration.md) §3.1
+- impl-task-loop default 4-agent (= `/impl` 단발) 풀스펙: [`commands/impl.md`](../commands/impl.md)
 - conveyor helper: [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1.2 + §3.1
 - ALLOW_MATRIX / 인프라 차단: [`harness/agent_boundary.py`](../harness/agent_boundary.py) (권한 경계 코드 SSOT)
 - code-validator A/B/C 체크리스트 (phase 3 self-validate 원본): [`agents/code-validator.md`](code-validator.md) §full / §bugfix
