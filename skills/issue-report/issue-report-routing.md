@@ -14,7 +14,7 @@ qa 는 이슈를 접수해 *원인 분석 + 분류* 를 prose 로 내고, 메인
 flowchart TB
   QA[qa · 분류] -->|FUNCTIONAL_BUG| IL1[/impl-loop · fallback path/]
   QA -->|CLEANUP| IL2[/impl-loop · fallback path/]
-  QA -->|DESIGN_ISSUE| UX[/ux · ux-design-stage/]
+  QA -->|DESIGN_ISSUE| UX[/ux · 모드 자동판정/]
   QA -->|KNOWN_ISSUE| END([종료])
   QA -->|SCOPE_ESCALATE| U((사용자 위임))
 
