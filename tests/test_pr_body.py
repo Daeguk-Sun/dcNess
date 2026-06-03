@@ -1,6 +1,6 @@
 """Regression tests for the PR-body trailer gate (scripts/check_pr_body.mjs).
 
-규칙 SSOT = docs/plugin/git-spec.md §8. 본 테스트는 게이트가 task-index 트레일러 기반
+규칙 SSOT = docs/plugin/git-spec.md 의 PR 트레일러. 본 테스트는 게이트가 task-index 트레일러 기반
 분기를 올바로 강제하는지 검증한다 — 특히 codex 리뷰 F2-b 회귀:
   - 공통 task (task_index: —) 는 task-index trailer 가 omit 되고 `Part of #N` 으로 통과해야 함
     (Story 마지막 task 로 오판돼 Closes 강제되면 안 됨)

@@ -849,7 +849,7 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
     """B4 — prose-only mode 후 enum 컬럼이 PROSE_LOGGED 그대로 박히는 회귀.
 
     agent prose 마지막 단락에 PASS/LGTM/FAIL/ESCALATE 결론 박혀있음
-    (agents/code-validator.md §6 등 강제). 표시 단계에서 그 결론 추출 의무.
+    (agents/code-validator.md 의 결론 + 권장 다음 단계 등 강제). 표시 단계에서 그 결론 추출 의무.
     """
 
     def test_extracts_pass_from_prose_tail(self):
@@ -947,7 +947,7 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
 class MissingConclusionEnumTests(unittest.TestCase):
     """issue #387 — engineer prose 끝 결론 enum 부재 검출.
 
-    agents/engineer.md §21~32: IMPL/POLISH 모드 모두 prose 마지막 단락에
+    agents/engineer.md 의 결론 + 권장 다음 단계: IMPL/POLISH 모드 모두 prose 마지막 단락에
     결론 enum (IMPL_DONE / IMPL_PARTIAL / SPEC_GAP_FOUND / TESTS_FAIL /
     IMPLEMENTATION_ESCALATE / POLISH_DONE) 의무. jajang run-459cce99 step 1
     engineer-IMPL prose 가 어떤 enum 도 박지 않은 caveat 케이스 직접 동기.

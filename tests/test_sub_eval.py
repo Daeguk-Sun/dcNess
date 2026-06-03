@@ -1,7 +1,7 @@
 """test_sub_eval — 자율 친화 재설계 (#272 W1).
 
 기존 anomaly 룰 (임계값 / prose-only 화이트리스트 / promised_write) 자체 제거 →
-hook 은 *raw 측정 데이터* 만 inject. 메인 LLM 이 loop-procedure.md §3.1 보고 자율 판단.
+hook 은 *raw 측정 데이터* 만 inject. 메인 LLM 이 loop-procedure.md 의 표준 1 step 시퀀스 보고 자율 판단.
 
 Coverage:
     format_histogram — raw 데이터 포맷 (자율 친화 inject 의 핵심)

@@ -1,6 +1,6 @@
 """Regression tests for the git-naming gate (scripts/check_git_naming.mjs).
 
-규칙 SSOT = docs/plugin/git-spec.md §1/§2. 본 테스트는 게이트가 그 SSOT 를
+규칙 SSOT = docs/plugin/git-spec.md 의 브랜치/커밋 제목. 본 테스트는 게이트가 그 SSOT 를
 실제로 강제하는지 검증한다 — 특히:
   - feat/ · chore/ · fix/<slug>(issue 없는) 같은 invalid prefix 거부 (PR #566 회귀)
   - story 형태 malformed 브랜치(desc<3자 / story 비숫자)가 generic feature 로 새지 않음
