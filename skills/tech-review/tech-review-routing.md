@@ -12,7 +12,7 @@ tech-reviewer 는 stateless — PRD + 스켈레톤을 받아 본문을 채우고
 
 ```mermaid
 flowchart TB
-  TR[tech-reviewer] -->|PASS / FAIL / ESCALATE| CP{사용자 2차 OK · Step 3}
+  TR[tech-reviewer] -->|PASS / FAIL| CP{사용자 2차 OK · Step 3}
   CP -->|1. OK| AL([/architect-loop 권고 → 종료])
   CP -->|2. PRD 재기술| P1[메인: prd.md patch] --> TR
   CP -->|3. 격리 후보 격상| P2[메인: 스켈레톤 격상] --> TR
