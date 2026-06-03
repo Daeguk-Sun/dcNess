@@ -1,7 +1,7 @@
 # CLAUDE.md — dcNess 프로젝트 작업 지침
 
 > 본 파일은 메인 Claude (Claude Code) 가 dcNess 저장소에서 작업할 때의 지침이다. 작업 규칙 SSOT.
-> 🔴 **세션 시작 시 즉시 인지**: 아래 **사용자 정체성** + **§0 프로젝트 정체성** — 두 영역만 무조건 머리에 박고 시작. 그 외 문서는 lazy 참조.
+> 🔴 **세션 시작 시 즉시 인지**: 아래 **사용자 정체성** + **[프로젝트 정체성](#프로젝트-정체성)** — 두 영역만 무조건 머리에 박고 시작. 그 외 문서는 lazy 참조.
 
 ## 🔴 사용자 정체성 (모든 응답의 최우선 기준)
 
@@ -25,7 +25,7 @@
 ### dcness 자체는 init-dcness 미적용 — 자기 규격 미얽매임
 
 - 본 dcness 저장소는 자기 자신에 `/init-dcness` 를 실행하지 **않는다**.
-- 따라서 dcness plug-in 의 규격(`stories.md` 강제 / `issue-lifecycle.md §1.1` 흐름 / `product-planner` 시퀀스 등) 에 **얽매이지 않는다**.
+- 따라서 dcness plug-in 의 규격(`stories.md` 강제 / `issue-lifecycle.md` 이슈 계층 흐름 / `product-planner` 시퀀스 등) 에 **얽매이지 않는다**.
 - dcness 자체의 작업은 다음 3개만 따른다:
   - 본 `CLAUDE.md` (작업 절차 + 게이트)
   - `docs/plugin/git-spec.md` (브랜치·커밋·PR 네이밍)
@@ -78,7 +78,7 @@
 1. **수정 작업**.
 2. **commit 직전**: git pre-commit hook 자동 게이트 (main-block + pytest).
 3. **branch → PR → regular merge** (직접 `main` push 금지). CI PASS 후 메인이 즉시 머지 — *사용자 수동 승인 대기 X*.
-4. **종료 시 ExitWorktree** — squash 흡수 검사 후 자동 `keep`/`remove` (`docs/plugin/loop-procedure.md §1.1`).
+4. **종료 시 ExitWorktree** — squash 흡수 검사 후 자동 `keep`/`remove` ([`docs/plugin/loop-procedure.md` worktree 분기](docs/plugin/loop-procedure.md#worktree-분기-impl-류-루프-한정)).
 
 ## 게이트 요약
 
@@ -104,7 +104,7 @@
 | 각 skill 의 `<skill>-routing.md` ([`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / Stop = 7 hook) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
-| [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — §0.2 참조) |
+| [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — [dcness 자체는 init-dcness 미적용](#dcness-자체는-init-dcness-미적용-자기-규격-미얽매임) 참조) |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태·TODO·Blockers 확인 시 |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 수정 시 |
 | [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) | PR 체크리스트 확인 시 |

@@ -180,7 +180,7 @@ return prose 안 모든 산출물 언급 = *백틱 + 절대/repo-root 상대 경
 
 ## 단방향 룰 (참조 — 메인 측 catastrophic)
 
-본 agent 호출 시점 = `/tech-review` 스킬 안. `/architect-loop` 진입 *후* 본 agent 재호출 **금지** (메인 측 catastrophic 룰 — `docs/plugin/hooks.md` §3.2 (§2.1.4) 정합). 본 agent 가 알 필요는 없지만 (호출 자체가 차단됨) — 참조만.
+본 agent 호출 시점 = `/tech-review` 스킬 안. `/architect-loop` 진입 *후* 본 agent 재호출 **금지** (메인 측 catastrophic 룰 — [`docs/plugin/hooks.md` catastrophic-gate.sh](../docs/plugin/hooks.md#catastrophic-gatesh) §2.1.4 정합). 본 agent 가 알 필요는 없지만 (호출 자체가 차단됨) — 참조만.
 
 새 cycle 시작 = 사용자 결정 → `/product-plan` 재진입 (PRD 자체 수정) → 새 `/tech-review` cycle.
 

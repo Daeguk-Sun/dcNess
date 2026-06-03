@@ -44,7 +44,7 @@ Step 0 진입 시 자동 `EnterWorktree(name="architect-{ts_short}")`. 사용자
 
 ## Pre-flight gate (Step 0 직후)
 
-[`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#참조) 매치 강제 — 부모 epic stories.md 상단 `**GitHub Epic Issue:** [#\d+]` 또는 `미등록 (사유: …)` 매치 0건 시 즉시 STOP + 사용자 보고. silent skip 금지.
+[`docs/plugin/issue-lifecycle.md` mid-flow 누락 차단](../../docs/plugin/issue-lifecycle.md#mid-flow-누락-차단-pre-flight-gate) 매치 강제 — 부모 epic stories.md 상단 `**GitHub Epic Issue:** [#\d+]` 또는 `미등록 (사유: …)` 매치 0건 시 즉시 STOP + 사용자 보고. silent skip 금지.
 
 ## 기술 스택 그릴미 체크포인트 (Step 2.9 — system-architect 직전)
 
