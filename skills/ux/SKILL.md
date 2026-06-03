@@ -66,7 +66,7 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 ## 참조
 
 - 라우팅 (결론→다음 / 모드 전환 / cycle / escalate / 후속): [`ux-routing.md`](ux-routing.md) — 본 skill 라우팅 SSOT
-- loop 인덱스: [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#한눈-인덱스-loop-진입-ssot)
+- loop spec: 본 skill `## Loop` + 본문. 공통 절차 mechanics: [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#진입-모델)
 - 절차 mechanics: [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md) 의 Step mechanics
 - agent 정의: [`agents/ux-architect.md`](../../agents/ux-architect.md) / [`agents/designer.md`](../../agents/designer.md)
 - design 가이드: [`docs/plugin/design.md`](../../docs/plugin/design.md)

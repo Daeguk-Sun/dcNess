@@ -143,7 +143,7 @@ worktree branch 안 commit / push / PR 생성·머지 = **메인 Claude 전담**
 
 ### 사전 read (lazy — 필요시만, #400)
 
-정상 흐름은 본 skill 본문 + 인용된 docs 섹션 링크 만으로 진행. 본문에 있는 catastrophic / Pre-flight gate / agent boundary 룰이 1차. *룰 모호 / 분기 발생* 시에만 [`impl-loop-routing.md`](impl-loop-routing.md) (라우팅) / `loop-procedure.md` (절차 mechanics + 한눈 인덱스) / `issue-lifecycle.md` 부분 read (grep + offset/limit). 통째 read 폐기 — 메인 cache_read 기준치 감축.
+정상 흐름은 본 skill 본문 + 인용된 docs 섹션 링크 만으로 진행. 본문에 있는 catastrophic / Pre-flight gate / agent boundary 룰이 1차. *룰 모호 / 분기 발생* 시에만 [`impl-loop-routing.md`](impl-loop-routing.md) (라우팅) / `loop-procedure.md` (절차 mechanics) / `issue-lifecycle.md` 부분 read (grep + offset/limit). 통째 read 폐기 — 메인 cache_read 기준치 감축.
 
 ### impl 파일 사전 read 의무 (MUST — module-architect 7 원칙 + cost-aware #436)
 
@@ -362,7 +362,7 @@ PR merge 직후 *반드시* 실행 (issue #396):
 ## 참조
 
 - 라우팅 (결론→다음 / retry / escalate): [`impl-loop-routing.md`](impl-loop-routing.md) — 본 skill 라우팅 SSOT
-- loop 인덱스 + 절차 mechanics: [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#한눈-인덱스-loop-진입-ssot) / Step mechanics
+- loop spec: 본 skill `## Loop` + 본문. 공통 절차 mechanics: [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#진입-모델)
 - 권한 경계: [`agent_boundary.py`](../../harness/agent_boundary.py)
 - 브랜치·커밋·PR 네이밍: [`git-spec.md`](../../docs/plugin/git-spec.md)
 - agent 정의: [`test-engineer.md`](../../agents/test-engineer.md) / [`engineer.md`](../../agents/engineer.md) / [`code-validator.md`](../../agents/code-validator.md) / [`pr-reviewer.md`](../../agents/pr-reviewer.md) / [`build-worker.md`](../../agents/build-worker.md) / [`module-architect.md`](../../agents/module-architect.md) / [`designer.md`](../../agents/designer.md)

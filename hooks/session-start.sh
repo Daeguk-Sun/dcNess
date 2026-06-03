@@ -91,7 +91,7 @@ msg = header + '''## [dcness 활성 환경]
 ### 작업 진입 매트릭스 (lazy — 통째 read 폐기, #400)
 | 상황 | docs |
 |---|---|
-| catastrophic / loop 인덱스 | \`hooks.md\` 의 catastrophic-gate.sh + \`loop-procedure.md\` 의 한눈 인덱스 |
+| catastrophic / loop 진입 | \`hooks.md\` catastrophic-gate.sh + 해당 skill 의 \`## Loop\` + \`<skill>-routing.md\` |
 | Step 0~8 / echo / REDO | \`loop-procedure.md\` |
 | agent 결론 → 다음 (라우팅) | 호출 skill 의 \`<skill>-routing.md\` |
 | hook 시점 / 차단 | \`hooks.md\` |
