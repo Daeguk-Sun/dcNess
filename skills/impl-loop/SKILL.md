@@ -112,12 +112,14 @@ tail -50 "<task-path>"
 
 retry / POLISH 시 기존 sub-step 재활용 — 신규 TaskCreate X.
 
-### branch_prefix 결정 (loop clean 후 자동 commit/PR)
+### 브랜치명 결정 (loop clean 후 자동 commit/PR)
 
-- 신규 기능 (src 신규 파일 / 인터페이스 추가) → `feat/<task-slug>`
-- 리팩토링 / 정리 / 테스트 보강 only → `chore/<task-slug>`
-- 버그픽스 (의도 vs 실제 격차 수정) → `fix/<task-slug>`
-- 메인이 task 의 `## 변경 요약` / worker prose 보고 결정. base 분기 = [`git-spec.md`](../../docs/plugin/git-spec.md) §6.
+브랜치·커밋·PR 네이밍은 [`git-spec.md`](../../docs/plugin/git-spec.md) §1 이 **단일 SSOT** — 본 skill 은 자체 네이밍 규칙을 두지 않고 task 성격에 맞는 SSOT 패턴을 고른다. (`feat/`·`chore/` 류 자체 분류 금지 — git-naming 게이트 [`check_git_naming.mjs`](../../scripts/check_git_naming.mjs) 가 거부해 push/pre-push 에서 막힘.)
+
+- **정식 impl task** (epic/story 컨텍스트 — impl 파일 frontmatter `story: N` + 경로 `.../epic-NN-*/impl/`) → `feature/epic{N}_story{M}_{desc}` (git-spec §1 "스토리 작업 impl")
+- **버그픽스 fallback** (invocation 에 이슈 번호 명시) → `fix/issue{N}_{desc}` (git-spec §1 "버그픽스")
+- `{desc}` = impl 파일 basename 의 앞 순번 `NN-` 를 **제거**한 설명부 (소문자 시작 + `[a-z0-9_-]` + 최소 3자 — git-spec §1 `{desc}` 제약). 순번을 안 떼면 `feature/05-foo` 처럼 desc 가 숫자로 시작해 게이트 FAIL. 예: `impl/03-revival-button.md` + `story: 2` + `epic-07-*` → `feature/epic7_story2_revival-button`.
+- base 분기 = [`git-spec.md`](../../docs/plugin/git-spec.md) §6 (통합 브랜치 마커 매치 시 그 base, 아니면 main).
 
 ### PR 생성 직전 — base 분기 체크 (MUST)
 
@@ -206,7 +208,7 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
    <worker prose 의 commit message 그대로>
    COMMIT
    bash scripts/pr-create.sh \
-     --branch <branch_prefix>/<task-slug> --base <base> \
+     --branch <§브랜치명 결정 산출: feature/epic{N}_story{M}_{desc} 또는 fix/issue{N}_{desc}> --base <base> \
      --title "<...>" --body-file /tmp/pr-body-<slug>.md \
      --commit-msg-file /tmp/commit-msg-<slug>.md
    ```

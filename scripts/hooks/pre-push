@@ -6,9 +6,9 @@
 #
 # 게이트:
 #   1. main 직접 push 차단 (force push 포함)
-#   2. 브랜치명 git-naming-spec 형식 검증 — local PASS / 원격 CI FAIL mismatch 회귀 차단 (#255 W4)
+#   2. 브랜치명 git-spec 형식 검증 — local PASS / 원격 CI FAIL mismatch 회귀 차단 (#255 W4)
 #
-# 규칙: docs/plugin/git-naming-spec.md §1 (SSOT)
+# 규칙: docs/plugin/git-spec.md §1 (SSOT)
 
 resolve_plugin_script() {
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/check_git_naming.mjs" ]; then
@@ -49,7 +49,7 @@ while read local_ref local_sha remote_ref remote_sha; do
         if ! node "$SCRIPT_PATH" --branch "$BRANCH" >&2; then
           echo "ERROR: 브랜치명 형식 위반 — push 차단 (#255 W4 정합)." >&2
           echo "  로컬에서 수정: git branch -m <올바른-브랜치명>" >&2
-          echo "  허용 패턴 = docs/plugin/git-naming-spec.md §1" >&2
+          echo "  허용 패턴 = docs/plugin/git-spec.md §1" >&2
           exit 1
         fi
       fi

@@ -1,6 +1,6 @@
 #!/bin/sh
 # post-checkout hook — 브랜치 생성/전환 시 브랜치명 형식 즉시 경고
-# 규칙: docs/plugin/git-naming-spec.md §1 (SSOT)
+# 규칙: docs/plugin/git-spec.md §1 (SSOT)
 #
 # 설치:
 #   cp scripts/hooks/post-checkout .git/hooks/post-checkout && chmod +x .git/hooks/post-checkout

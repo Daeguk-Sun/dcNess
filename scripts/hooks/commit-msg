@@ -1,6 +1,6 @@
 #!/bin/sh
-# commit-msg hook — git-naming-spec 커밋 제목 형식 검증 (thin shim)
-# 규칙 정의: docs/plugin/git-naming-spec.md §2 (SSOT)
+# commit-msg hook — git-spec 커밋 제목 형식 검증 (thin shim)
+# 규칙 정의: docs/plugin/git-spec.md §2 (SSOT)
 #
 # 본 hook 은 plugin SSOT 에서 검증 스크립트를 직접 호출 — 사용자 repo 에 mjs 복사 X (#198).
 # init-dcness 가 매 실행마다 본 shim 을 .git/hooks/commit-msg 로 always-overwrite — plugin

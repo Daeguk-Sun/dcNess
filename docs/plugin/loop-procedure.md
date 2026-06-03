@@ -326,7 +326,9 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 # 메시지 형식 = git-spec.md §2~§5 참조.
 
 # branch 생성 + src commit (code-validator PASS 직후)
-BRANCH="<prefix>/<task-slug>"   # prefix = feat/fix/chore (decision rule = skills/impl-loop/SKILL.md ## branch_prefix 결정)
+# 브랜치명 = git-spec.md §1 SSOT. 정식 impl task → feature/epic{N}_story{M}_{desc} (desc = task-slug 앞 순번 NN- 제거),
+#            버그픽스 fallback → fix/issue{N}_{desc}. 결정 절차 = skills/impl-loop/SKILL.md "## 브랜치명 결정". base 분기 = git-spec §6.
+BRANCH="feature/epic{N}_story{M}_{desc}"   # 예: feature/epic7_story2_revival-button
 git checkout -b "$BRANCH" main
 git add src/**
 git commit -m "<git-spec §2 형식>"
@@ -420,7 +422,7 @@ clean 아니면 **7b (주의사항)**.
 CHANGED=$(git diff --name-only HEAD)
 HAS_REMOTE=$(git remote get-url origin >/dev/null 2>&1 && echo yes || echo no)
 
-BRANCH="<prefix>/<short-slug>"   # prefix = catalog 행
+BRANCH="<prefix>/<short-slug>"   # prefix = 해당 loop 의 branch_prefix (skill 본문) — git-spec.md §1 valid 패턴(feature/ · fix/issue · docs/)만
 git checkout -b "$BRANCH" main
 git add $CHANGED
 git commit -m "$(cat <<'EOF'
