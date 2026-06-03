@@ -67,7 +67,7 @@ escalate 계열 수신 시 **메인이 즉시 사용자 보고 후 대기** (자
 - 버그 → `/issue-report` (qa 분류)
 - 한 줄 수정 / 버그픽스 → `/issue-report` (분류 후 impl-task-loop fallback)
 - 디자인만 → designer 직접 (Pencil 또는 `design-variants/*.html`)
-- 이미 PRD/stories.md 머지 완료 → 설계는 `/architect-loop`, 구현은 `/impl-loop`
+- 이미 PRD/stories.md 머지 완료 → **먼저 외부 의존 검증 상태 확인**. 외부 의존 0개 (tech-review.md 스켈레톤이 "외부 의존 없음" 명시) *또는* `/tech-review` 통과 상태면 → 설계 `/architect-loop` · 구현 `/impl-loop`. 미검증 외부 의존이 남았으면 → **먼저 `/tech-review`** (architect-loop 진입 후엔 tech-reviewer 재호출이 catastrophic 으로 차단되므로, §3)
 
 ## 5. 후속 (skill 종료 후)
 

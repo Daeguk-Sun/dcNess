@@ -34,7 +34,7 @@ EnterWorktree(name="<skill>-{ts_short}")   # impl 류만
 
 ### 1.1.1 base-ref 분기 (통합 브랜치 모드, #424)
 
-epic 단위 stories.md (`docs/milestones/vNN/epics/epic-NN-<slug>/stories.md`; root `docs/stories.md` 는 legacy 폴백) 상단 `**Base Branch:** feature/<slug>` 마커 매치 시 = **통합 브랜치 모드** (long-lived integration branch + sub-PR 누적 패턴, `commands/product-plan.md` Step 6.5/7). 이 경우 outer worktree base ref 도 integration branch 와 정합해야 함 — `EnterWorktree(name=)` default 인 `worktree.baseRef=fresh` (origin/main 기반) 은 base mismatch → sub-PR diff 거대화 ("삭제 변경" false).
+epic 단위 stories.md (`docs/milestones/vNN/epics/epic-NN-<slug>/stories.md`; root `docs/stories.md` 는 legacy 폴백) 상단 `**Base Branch:** feature/<slug>` 마커 매치 시 = **통합 브랜치 모드** (long-lived integration branch + sub-PR 누적 패턴, `skills/product-plan/SKILL.md` Step 6.5/7). 이 경우 outer worktree base ref 도 integration branch 와 정합해야 함 — `EnterWorktree(name=)` default 인 `worktree.baseRef=fresh` (origin/main 기반) 은 base mismatch → sub-PR diff 거대화 ("삭제 변경" false).
 
 EnterWorktree tool 은 base parameter 미지원 → 사전 `git worktree add` 후 `EnterWorktree(path=)` 진입 패턴:
 
