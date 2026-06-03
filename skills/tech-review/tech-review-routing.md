@@ -21,7 +21,7 @@ flowchart TB
   CP -->|4. 항목 polish| P3[메인: 스켈레톤 polish 메모] --> TR
   RW --> TR
   RW -.->|사용자 명시적 위험 감수 only| AL
-  AL -. 진입 후 .->|tech-reviewer 재호출 금지| X[[단방향 catastrophic §3]]
+  AL -.->|진입 후 tech-reviewer 재호출 금지| X[[단방향 catastrophic §3]]
 
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef main fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
