@@ -4,7 +4,7 @@
 
 본 문서는 세 가지 영역의 원칙을 한 곳에 모은 SSOT 다. 각 agent 본문에서 같은 룰을 반복해 박지 않고, 본 문서를 참조한다.
 
-## §1. Deep Modules — 깊은 모듈
+## Deep Modules — 깊은 모듈
 
 > 출처: John Ousterhout, "A Philosophy of Software Design". 모듈은 *작은 인터페이스* 위에 *풍부한 구현* 이 있을 때 잘 작동한다.
 
@@ -47,7 +47,7 @@
 - module-architect 의 모듈 안 인터페이스 결정 시
 - engineer 의 함수 / 클래스 시그니처 결정 시
 
-## §2. Interface Design for Testability — 테스트 가능성 위한 인터페이스 설계
+## Interface Design for Testability — 테스트 가능성 위한 인터페이스 설계
 
 > 출처: [mattpocock skills](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/interface-design.md). 좋은 인터페이스는 테스트를 자연스럽게 만든다.
 
@@ -96,7 +96,7 @@ function applyDiscount(cart): void {
 - engineer 의 인터페이스 구현 시
 - test-engineer 의 테스트 작성 시 — 인터페이스가 위 세 룰 위반이면 SPEC_GAP_FOUND emit
 
-## §3. 의존성 강제 — 빌드 시점 차단
+## 의존성 강제 — 빌드 시점 차단
 
 모듈 간 의존을 *명시 선언* 하고, 빌드 시점에 규칙 위반을 차단한다. *코드 작성 후 회귀 검증* 영역이 아니라 *작성 시점에 차단* 영역.
 
@@ -146,7 +146,7 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 - module-architect — 모듈 공개 API 영역 명시 + DI 패턴 적용
 - engineer — 빌드 시점 강제 도구 설정 + 의존 작성
 
-## §4. 호출 시 read 의무 agent
+## 호출 시 read 의무 agent
 
 본 SSOT 는 다음 agent 호출 시 read 의무다.
 
@@ -157,7 +157,7 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 | [`engineer`](../../agents/engineer.md) | 코드 작성 영역 — DI 패턴 / 표면 작은 인터페이스 적용 시 |
 | [`test-engineer`](../../agents/test-engineer.md) | 테스트 작성 영역 — 인터페이스가 §2 룰 위반이면 SPEC_GAP_FOUND emit |
 
-## §5. validator 의 자동 검증 영역
+## validator 의 자동 검증 영역
 
 [`architecture-validator`](../../agents/architecture-validator.md) 가 본 SSOT 의 룰 위반 영역을 *자동 가능* 영역과 *수동 review 권고* 영역으로 분리해 검증한다.
 

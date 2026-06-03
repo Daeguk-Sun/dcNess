@@ -136,11 +136,11 @@ tech-review 통과 완료. 다음 단계 — 설계 루프:
 
 ## 단방향 catastrophic (재진입 금지)
 
-`/architect-loop` 진입 *후* 본 스킬 재호출 **금지**. 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md) §3.2 (§2.1.4). tech-reviewer 단계 = *마지막 기술 검증 기회* — 그래서 증거물 / HTML 리포트 룰의 가치가 가중된다. architect-loop 도중 미검증 새 외부 의존 발견 시 처리 (NEW_DEP_ESCALATE 3안) = [`tech-review-routing.md`](tech-review-routing.md) — 어느 옵션이든 tech-reviewer 재호출 0 (단방향 보존).
+`/architect-loop` 진입 *후* 본 스킬 재호출 **금지**. 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) (§2.1.4). tech-reviewer 단계 = *마지막 기술 검증 기회* — 그래서 증거물 / HTML 리포트 룰의 가치가 가중된다. architect-loop 도중 미검증 새 외부 의존 발견 시 처리 (NEW_DEP_ESCALATE 3안) = [`tech-review-routing.md`](tech-review-routing.md) — 어느 옵션이든 tech-reviewer 재호출 0 (단방향 보존).
 
 ## 워크트리 (X)
 
-`/tech-review` 는 워크트리 자동 진입 안 함. 기획·검증 단계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md) §1.1.
+`/tech-review` 는 워크트리 자동 진입 안 함. 기획·검증 단계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-impl-류-루프-한정).
 
 ## 참조
 

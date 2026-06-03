@@ -114,4 +114,4 @@ impl 인터페이스 모호 시 *추측 금지*:
 
 ## 참조
 
-- 라우팅: [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md) (`/impl-loop` · `/impl`) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2
+- 라우팅: [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md) (`/impl-loop` · `/impl`) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md#catastrophic-gatesh)

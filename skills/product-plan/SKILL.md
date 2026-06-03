@@ -108,7 +108,7 @@ epic 단위 `stories.md` 형식:
 - **새 작성** 시만 본 단순화 룰 적용
 - read 시 두 양식 모두 인식 가능 (parser 가 `As a / I want / So that` 매치만 의무)
 
-task-level 세부 진행 추적 X (PR + GitHub Issue close 시스템 SSOT — [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md) §0).
+task-level 세부 진행 추적 X (PR + GitHub Issue close 시스템 SSOT — [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#이슈-계층)).
 
 ## 작성 절차 (메인 직접)
 
@@ -251,7 +251,7 @@ bash scripts/create_epic_story_issues.sh docs/milestones/vNN/epics/epic-NN-<slug
 5. sub-issue API 호출 (epic ↔ story N 연결, GitHub native sub-issue API)
 6. 결과 prose 출력
 
-상세 SSOT = [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md) §1.
+상세 SSOT = [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#sub-issue-연결-epic-story-gh-api-메커니즘).
 
 스크립트 실패 시 메인이 사용자에게 보고 + `docs/plugin/issue-lifecycle.md` §1 따라 수동 처리 가능 (`mcp__github__create_issue` + `gh api` 직접 호출).
 
@@ -278,12 +278,12 @@ PRD + stories.md + tech-review.md 스켈레톤 + 이슈 등록 완료.
 
 ## 워크트리 (X)
 
-`/product-plan` 은 워크트리 자동 진입 안 함. 기획·설계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 별 branch 따고 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md) §1.1.
+`/product-plan` 은 워크트리 자동 진입 안 함. 기획·설계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 별 branch 따고 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-impl-류-루프-한정).
 
 ## 참조
 
 - 라우팅 (skill 시퀀스 / 재진입 / escalate / catastrophic / 비대상): [`product-plan-routing.md`](product-plan-routing.md) — 본 skill 라우팅 SSOT
 - 그릴미 원형: `~/.claude/skills/grill-me/SKILL.md` (사용자 user skill)
-- 이슈 등록 SSOT: [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md) §1
+- 이슈 등록 SSOT: [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#sub-issue-연결-epic-story-gh-api-메커니즘)
 - 브랜치·커밋·PR 네이밍: [`docs/plugin/git-spec.md`](../../docs/plugin/git-spec.md)
 - 선행 기술 검증 (후속 스킬): [`skills/tech-review/SKILL.md`](../tech-review/SKILL.md), [`agents/tech-reviewer.md`](../../agents/tech-reviewer.md)

@@ -197,13 +197,13 @@ attempt 1+ 재시도 시 특히 강제: code-validator FAIL 한 부분만 수정
 
 ### 1 task = 1 PR (engineer 는 src/** 만)
 
-impl task 의 commit/PR 구조 = [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §3.4 의 src commit + PR. engineer 는 working tree 변경물 (`src/**`) 만 남기고 종료. commit/push/PR/머지 모두 메인 영역.
+impl task 의 commit/PR 구조 = [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md#impl-task-loop-commit-구조) 의 src commit + PR. engineer 는 working tree 변경물 (`src/**`) 만 남기고 종료. commit/push/PR/머지 모두 메인 영역.
 
 **engineer 산출 = src/** working tree 변경**:
 - impl/NN-*.md `## 생성/수정 파일` 명시 src 만
 - docs/** / stories.md / backlog.md / impl/NN-*.md = 모두 수정 X (agent-boundary §4.2)
 
-**PR body 트레일러는 메인이 씀** ([`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md) §8 PR 트레일러):
+**PR body 트레일러는 메인이 씀** ([`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md#pr-트레일러-part-of-closes) PR 트레일러):
 - 중간 task PR: `Part of #story-issue`
 - story 의 마지막 task PR: `Closes #story-issue`
 - epic 의 마지막 story 의 마지막 task PR: `Closes #story-issue` + `Closes #epic-issue` (메인이 PR 생성 직전 frontmatter `task_index` + gh API 1 회로 사전 체크 후 씀)
@@ -225,4 +225,4 @@ git diff --name-only
 ## 참조
 
 - 이슈 생명주기 (생성·완료·미등록): [`docs/plugin/issue-lifecycle.md`](../docs/plugin/issue-lifecycle.md)
-- 라우팅: [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md) (`/impl-loop` · `/impl`) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2
+- 라우팅: [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md) (`/impl-loop` · `/impl`) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md#catastrophic-gatesh)

@@ -45,6 +45,10 @@ GitHub 방식 (cross-ref CI의 `slugify`와 동일):
 - `ADR-001` — 결정 기록 ID
 - `F1`~`F14`·`M1`/`N`/`H1`/`L2` — 외부 실측 이슈·audit 코드
 - `task_index: i/total` — 기술 명세
+- **catastrophic 룰 ID `§2.1.1`~`§2.1.8`** — `harness/hooks.py`·`catastrophic-gate.sh`가
+  런타임 에러 메시지(`[catastrophic §2.1.3] …`)·분기 ID로 사용한다(번호 = 룰 ID, 위치 아님).
+  `hooks.md` heading의 위치번호 `§2.1`(local provider)과는 **별개 체계** — `§2.1.N` 표기를
+  그대로 보존한다(anchor 링크로 바꾸지 않는다).
 
 ## 예외 (변환·검증 제외)
 

@@ -202,7 +202,7 @@ DESIGN_HANDOFF 단일 파일 패키지는 폐지. 아래 3 경로로 분산:
 
 ## Anti-AI-Smell (디자인 가이드 적용)
 
-> SSOT: [`docs/plugin/design.md`](../docs/plugin/design.md) §8 "AI 슬롭 안티패턴" — 7 클리셰 카탈로그 (backdrop-filter:blur / gradient-text / "Powered by AI" 배지 / box-shadow 글로우 / 보라·인디고 / 균일 rounded-2xl / blur-3xl orb). designer 는 본 SSOT 사전 read 의무 (Phase 0 — `docs/design.md` 있으면 Read). code-validator 가 grep 검출.
+> SSOT: [`docs/plugin/design.md`](../docs/plugin/design.md#ai-슬롭-안티패턴-donts) "AI 슬롭 안티패턴" — 7 클리셰 카탈로그 (backdrop-filter:blur / gradient-text / "Powered by AI" 배지 / box-shadow 글로우 / 보라·인디고 / 균일 rounded-2xl / blur-3xl orb). designer 는 본 SSOT 사전 read 의무 (Phase 0 — `docs/design.md` 있으면 Read). code-validator 가 grep 검출.
 
 본 agent 추가 가이드 (코드 측면):
 
@@ -245,5 +245,5 @@ DESIGN_HANDOFF 단일 파일 패키지는 폐지. 아래 3 경로로 분산:
 
 ## 참조
 
-- 라우팅: 호출 skill 의 라우팅 파일 ([`ux-routing.md`](../skills/ux/ux-routing.md) / [`architect-loop-routing.md`](../skills/architect-loop/architect-loop-routing.md) / [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md)) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2
+- 라우팅: 호출 skill 의 라우팅 파일 ([`ux-routing.md`](../skills/ux/ux-routing.md) / [`architect-loop-routing.md`](../skills/architect-loop/architect-loop-routing.md) / [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md)) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md#catastrophic-gatesh)
 - 디자인 시스템 SSOT: [`docs/plugin/design.md`](../docs/plugin/design.md)

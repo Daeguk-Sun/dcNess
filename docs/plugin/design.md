@@ -6,7 +6,7 @@
 
 ---
 
-## 1. 파일 구조
+## 파일 구조
 
 `design.md` 파일은 두 부분으로 구성된다:
 
@@ -15,7 +15,7 @@
 
 ---
 
-## 2. 프론트매터 스키마 (Google spec `## Schema`)
+## 프론트매터 스키마 (Google spec `## Schema`)
 
 ```yaml
 version: <string>          # 선택. 알파 채널용.
@@ -45,7 +45,7 @@ components:
 
 ---
 
-## 3. 토큰 참조 문법 (Google spec `# Design Tokens`)
+## 토큰 참조 문법 (Google spec `# Design Tokens`)
 
 ```
 {path.to.token}
@@ -53,11 +53,11 @@ components:
 
 - 프론트매터 안에서 다른 토큰을 가리킬 때 사용.
 - `components` 섹션에서는 복합 토큰도 참조 가능. 예: `{typography.label-md}`
-- 참조 대상이 프론트매터에 실재해야 함 — 유효하지 않은 참조는 code-validator 가 오류로 처리 (§5.2).
+- 참조 대상이 프론트매터에 실재해야 함 — 유효하지 않은 참조는 code-validator 가 오류로 처리 ([토큰 참조 무결성 검증](#토큰-참조-무결성-검증)).
 
 ---
 
-## 4. 본문 섹션 순서 (Google spec `# Sections` → `### Section Order`)
+## 본문 섹션 순서 (Google spec `# Sections` → `### Section Order`)
 
 | 순서 | 영문 헤더 | 한글 표기 |
 |---|---|---|
@@ -74,25 +74,25 @@ components:
 
 ---
 
-## 5. dcness 적용 룰
+## dcness 적용 룰
 
-### 5.1 조건부 read
+### 조건부 read
 
 UI 없는 프로젝트 (dcness self 포함) 에서 `design.md` 미존재 시 silent skip.
 agent 는 파일 부재를 오류로 처리하지 않는다.
 
-### 5.2 토큰 참조 무결성 검증
+### 토큰 참조 무결성 검증
 
 `{colors.X}` 등 참조가 프론트매터에 실재해야 함.
 **검증 담당**: `agents/code-validator.md` (코드 검증 단계의 체크 항목).
 `architecture-validator` 는 본 검증 비대상.
 
-### 5.3 외부 import 1회 변환
+### 외부 import 1회 변환
 
 VoltAgent ecosystem (getdesign.md) 등 외부 `design.md` 가져올 때 LLM 1회 변환으로 dcness 룰 정합.
 호환 변환 레이어 별도 신설 없음.
 
-### 5.4 권장 토큰 이름 (Google spec `# Recommended Token Names (Non-Normative)`)
+### 권장 토큰 이름 (Google spec `# Recommended Token Names (Non-Normative)`)
 
 표준 권장 이름을 따르면 외부 ecosystem import / export 호환성이 높아진다. 다른 이름도 spec 상 허용.
 
@@ -104,7 +104,7 @@ VoltAgent ecosystem (getdesign.md) 등 외부 `design.md` 가져올 때 LLM 1회
 
 ---
 
-## 6. 알 수 없는 내용 처리 (Google spec `# Consumer Behavior for Unknown Content`)
+## 알 수 없는 내용 처리 (Google spec `# Consumer Behavior for Unknown Content`)
 
 | 시나리오 | 처리 방식 |
 |---|---|
@@ -115,7 +115,7 @@ VoltAgent ecosystem (getdesign.md) 등 외부 `design.md` 가져올 때 LLM 1회
 
 ---
 
-## 7. 사용 예시
+## 사용 예시
 
 아래는 새 프로젝트에서 처음 만들 때 복사할 수 있는 최소 구성이다.
 
@@ -149,7 +149,7 @@ MyApp 의 기본 색상은 보라색 계열이며 Material You 기반이다.
 
 ---
 
-## 8. AI 슬롭 안티패턴 (Don'ts)
+## AI 슬롭 안티패턴 (Don'ts)
 
 §4 본문 섹션 순서 표의 8번 "Do's and Don'ts" 위치에서 **Don'ts** 카탈로그. designer / engineer 가 UI 작업 시 본 항목 회피 의무 — 위반 시 code-validator 가 grep 으로 검출 후 보고 (강제 X, 경고).
 

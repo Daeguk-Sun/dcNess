@@ -124,7 +124,7 @@ if [ -f "$PROJECT_ROOT/docs/plugin/skill-guidelines.md" ]; then
 fi
 ```
 
-#### 3. CI 강제 — 사용자 선택 (옵션)
+#### CI 강제 — 사용자 선택 (옵션)
 
 GitHub Actions 에서 git-naming 강제 원하는지 묻는다.
 
@@ -171,7 +171,7 @@ GitHub Actions 에서 git-naming 강제 원하는지 묻는다.
 [dcness] CI 활성화 — 머지 후 push 시 다음 PR 부터 발화
 ```
 
-#### 4. PR body close-keyword 게이트 — 사용자 선택 (옵션)
+#### PR body close-keyword 게이트 — 사용자 선택 (옵션)
 
 GitHub Actions 에서 PR body `Closes #N` 키워드 강제 원하는지 묻는다.
 
@@ -223,7 +223,7 @@ dcness plug-in 의 디자인 시스템 SSOT 는 `docs/design.md` (Google `design
 
 본 Step 은 **bash 자동화 X — 메인 Claude 가 절차 따라 사용자 응답 받고 진행**. 두 단계 모두 멱등.
 
-#### 1. 사용자 CLAUDE.md 매트릭스 패치 제안
+#### 사용자 CLAUDE.md 매트릭스 패치 제안
 
 프로젝트 root 의 `CLAUDE.md` 가 존재하면 read.
 
@@ -241,7 +241,7 @@ dcness plug-in 의 디자인 시스템 SSOT 는 `docs/design.md` (Google `design
 - 사용자 답변 받은 후에만 메인 Claude 가 Edit 으로 씀. 답 없이 silent skip 금지 — 명시적 응답 1회 의무.
 - 이미 `docs/design.md` 행 있으면 본 단계 skip (`이미 등록됨 — skip` 출력).
 
-#### 2. UI 프로젝트 여부 + design.md 템플릿 시드
+#### UI 프로젝트 여부 + design.md 템플릿 시드
 
 ```
 [dcness] 이 프로젝트는 UI (화면 / 컴포넌트 / 시각 디자인) 를 다룹니까? (Y/n)
@@ -285,16 +285,16 @@ dcness plug-in 의 디자인 시스템 SSOT 는 `docs/design.md` (Google `design
 
 - 이미 `docs/design.md` 파일 존재하면 본 단계 skip (`이미 존재 — skip`).
 
-#### 3. 멱등 보장
+#### 멱등 보장
 
 - 두 번 실행해도 추가 변경 없음 — 매트릭스 행 있으면 1번 skip / `docs/design.md` 있으면 2번 skip.
 - 사용자가 \"n\" 답변 시 다음 호출 때 다시 묻지 않게 하려면 별도 marker 필요 (v1 범위 외 — 매번 묻되 사용자가 빠르게 \"n\" 가능).
 
-#### 4. 출처 / 갱신 의무
+#### 출처 / 갱신 의무
 
 본 Step inline 템플릿은 `docs/plugin/design.md` (dcness self repo) §사용 예시와 coupling — Story #125 의 spec 변경 시 본 Step 템플릿도 **수동 동기 의무**. 자동화 검토는 Epic #129 후속 추적.
 
-#### 5. 기존 활성화 프로젝트 — re-run 안내
+#### 기존 활성화 프로젝트 — re-run 안내
 
 이미 `/init-dcness` 활성화한 기존 프로젝트는 본 Step 2.7 가 자동 발화하지 않음. 사용자가 본 plug-in 업데이트 받은 후 `/init-dcness` 재실행해야 Step 2.7 발화. 본 안내는 dcness release note / README 에 별도 명시.
 
@@ -312,14 +312,14 @@ dcness plug-in 의 디자인 시스템 SSOT 는 `docs/design.md` (Google `design
 
 UI 폼은 Step 2.7 의 `docs/design.md` 가 담당 — 별도 `UI_GUIDE.md` 안 깐다.
 
-#### 1. 프로젝트 docs 디렉토리 확인
+#### 프로젝트 docs 디렉토리 확인
 
 ```bash
 PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 mkdir -p "$PROJECT_ROOT/docs"
 ```
 
-#### 2. 부재 파일 시드 (3개 각각 멱등)
+#### 부재 파일 시드 (3개 각각 멱등)
 
 각 파일에 대해:
 
@@ -345,16 +345,16 @@ for FILE in prd.md architecture.md adr.md; do
 done
 ```
 
-#### 3. 멱등 보장
+#### 멱등 보장
 
 - 두 번 실행해도 추가 변경 없음 — 파일 있으면 skip.
 - 사용자가 \"n\" 답변 시 다음 호출 때 다시 묻되 사용자가 빠르게 \"n\" 가능.
 
-#### 4. 출처 / 갱신 의무
+#### 출처 / 갱신 의무
 
 본 Step 이 cp 하는 폼은 plug-in `templates/project-init/{prd,architecture,adr}.md` 가 SSOT. 폼 형식 변경 시 본 디렉토리에서 갱신 — 사용자 repo 의 기존 파일은 cp 대상 아니므로 자동 반영 안 됨 (사용자 작업물 보호 원칙).
 
-#### 5. 기존 활성화 프로젝트 — re-run 안내
+#### 기존 활성화 프로젝트 — re-run 안내
 
 이미 `/init-dcness` 활성화한 기존 프로젝트는 본 Step 2.8 이 자동 발화하지 않음. 사용자가 본 plug-in 업데이트 받은 후 `/init-dcness` 재실행해야 Step 2.8 발화. 단 시드는 *부재 시만* 이라 기존 docs 가 있으면 skip — 안전.
 
@@ -369,14 +369,14 @@ designer 가 Pencil 미연동 환경에서 `.html` fallback 으로 시안을 만
 
 본 Step 은 **bash 자동화 X — 메인 Claude 가 절차 따라 사용자 응답 받고 진행**. UI 없는 프로젝트면 Step 2.7 의 *UI 프로젝트 여부* 판정 결과 따라 skip 가능.
 
-#### 1. 프로젝트 design-variants 디렉토리 확인
+#### 프로젝트 design-variants 디렉토리 확인
 
 ```bash
 PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 mkdir -p "$PROJECT_ROOT/design-variants/_lib"
 ```
 
-#### 2. 부재 파일 시드 (3개 각각 멱등)
+#### 부재 파일 시드 (3개 각각 멱등)
 
 ```
 [dcness] design-variants/ 가 비어있습니다. designer 의 .html fallback 시안 인프라를 깔까요? (Y/n)
@@ -401,16 +401,16 @@ for FILE in _lib/show-ids.js _lib/canvas.js canvas.html; do
 done
 ```
 
-#### 3. 멱등 보장
+#### 멱등 보장
 
 - 두 번 실행해도 추가 변경 없음 — 파일 있으면 skip.
 - 사용자가 \"n\" 답변 시 다음 호출 때 다시 묻되 빠르게 \"n\" 가능.
 
-#### 4. 출처 / 갱신 의무
+#### 출처 / 갱신 의무
 
 본 Step 이 cp 하는 시드는 plug-in `templates/design-variants/{_lib/show-ids.js, _lib/canvas.js, canvas.html}` 가 SSOT. 시드 갱신 시 본 디렉토리에서 갱신 — 사용자 repo 의 기존 파일은 cp 대상 아니므로 자동 반영 안 됨 (사용자 작업물 보호 원칙). 사용자가 shared script 업데이트 받고 싶으면 `design-variants/_lib/*.js` 직접 삭제 후 `/init-dcness` 재실행.
 
-#### 5. 기존 활성화 프로젝트 — re-run 안내
+#### 기존 활성화 프로젝트 — re-run 안내
 
 이미 `/init-dcness` 활성화한 기존 프로젝트는 본 Step 2.8.5 가 자동 발화하지 않음. 사용자가 본 plug-in 업데이트 받은 후 `/init-dcness` 재실행해야 Step 2.8.5 발화. 시드는 *부재 시만* 이라 안전.
 
@@ -420,7 +420,7 @@ agent (메인 Claude / engineer / 등) 가 `Edit` / `Write` 시도 시 **PreTool
 
 > **배경**: 이전 v0.2.10~v0.2.13 의 CI 게이트 / commit-msg TDD chain 은 monorepo lifecycle hook / pm 다양성 / missing test script 등 함정 누적 → 폐기. PreToolUse 시점 차단이 진짜 root — 사후 검증 아닌 *작성 전* 강제.
 
-#### 1. 자동 적용 — 사용자 설정 0
+#### 자동 적용 — 사용자 설정 0
 
 `hooks/tdd-guard.sh` 가 plug-in hook 으로 등록됨 (`hooks/hooks.json` 의 PreToolUse[Edit|Write|NotebookEdit] matcher). 활성화한 프로젝트에서 자동 발화.
 
@@ -435,13 +435,13 @@ agent (메인 Claude / engineer / 등) 가 `Edit` / `Write` 시도 시 **PreTool
   - 프로젝트 root `src/__tests__/`
 - 없으면 deny + 한국어 메시지: *"TDD GUARD: '`<name>`'에 대한 테스트 파일이 존재하지 않습니다. 구현 코드를 작성하기 전에 테스트를 먼저 작성하세요."*
 
-#### 2. TS/JS 프로젝트 한정
+#### TS/JS 프로젝트 한정
 
 `.ts/.tsx/.js/.jsx` 아닌 파일 = silent skip. 즉:
 - Python / Rust / Go 프로젝트: hook 발화하지만 매칭 파일 없어서 차단 X
 - dcness self (Python): 영향 0
 
-#### 3. 자동 skip 룰
+#### 자동 skip 룰
 
 다음은 자동 통과 (TDD 강제 안 함):
 - 테스트 파일 자체 (`*.test.*` / `*.spec.*` / `__tests__/`)
@@ -450,7 +450,7 @@ agent (메인 Claude / engineer / 등) 가 `Edit` / `Write` 시도 시 **PreTool
 - Next.js 특수 (`layout` / `page` / `loading` / `error` / `not-found` / `globals.css`)
 - 비-코드 (`*.md` / `*.css` / `*.scss`)
 
-#### 4. 한계
+#### 한계
 
 - TS / JS 한정 — 다른 언어는 phase 후속
 - *test 실행 X* — 존재만 확인. 실행은 사용자 개별 (vitest watch / CI 등)
@@ -460,7 +460,7 @@ agent (메인 Claude / engineer / 등) 가 `Edit` / `Write` 시도 시 **PreTool
 
 `code-validator` / `architecture-validator` / `pr-reviewer` 만 Codex read-only 실행으로 보낼 수 있다. 이 설정은 **사용자 repo 에 파일을 만들지 않는다**. 전부 local plugin data 와 `$CODEX_HOME/skills/` 안에만 저장된다.
 
-#### 1. Codex skill 설치/갱신
+#### Codex skill 설치/갱신
 
 ```bash
 PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
@@ -474,7 +474,7 @@ for DIR in dcness-code-validator dcness-architecture-validator dcness-pr-reviewe
 done
 ```
 
-#### 2. Codex validation routing opt-in
+#### Codex validation routing opt-in
 
 사용자에게 1회 묻는다.
 
@@ -496,7 +496,7 @@ done
   "$PLUGIN_ROOT/scripts/dcness-helper" routing status
   ```
 
-#### 3. 설정 위치 + 끄기
+#### 설정 위치 + 끄기
 
 - routing config: `~/.claude/plugins/data/dcness-dcness/routing.json`
 - repo 안 provider routing config 없음.
@@ -506,7 +506,7 @@ done
   "$PLUGIN_ROOT/scripts/dcness-helper" routing disable-codex-validation
   ```
 
-#### 4. 기존 활성화 프로젝트
+#### 기존 활성화 프로젝트
 
 이미 dcNess 를 쓰는 프로젝트는 plugin 업데이트 후 각 프로젝트 root 의 새 Claude Code 세션에서 `/init-dcness` 를 다시 실행한다.
 
@@ -525,7 +525,7 @@ claude plugin install dcness@dcness
 
 Step 2.6 ~ 2.9 까지 *깔린 파일들* (workflow yml 등) 은 working tree 변경 상태로 머무름 — 사용자가 git add / commit / push / PR 까지 직접 진행하지 않으면 main 머지 안 됨. 본 Step 이 그 부담을 자동화.
 
-#### 1. 변경 파일 검출
+#### 변경 파일 검출
 
 ```bash
 PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
@@ -548,7 +548,7 @@ if [ -z "$CHANGES_TRIM" ]; then
 fi
 ```
 
-#### 2. 현재 branch 검사 — main 외 진행 중이면 skip
+#### 현재 branch 검사 — main 외 진행 중이면 skip
 
 ```bash
 CUR_BRANCH=$(git rev-parse --abbrev-ref HEAD)
@@ -562,7 +562,7 @@ if [ "$CUR_BRANCH" != "main" ]; then
 fi
 ```
 
-#### 3. 사용자 동의
+#### 사용자 동의
 
 ```
 [dcness] dcness 인프라 변경 자동 commit + PR 만들까요?
@@ -579,7 +579,7 @@ fi
 (Y/n)
 ```
 
-#### 4. 자동 진행 (Y 선택 시)
+#### 자동 진행 (Y 선택 시)
 
 ```bash
 TS=$(date +%Y%m%d_%H%M%S)
@@ -629,7 +629,7 @@ EOF
 )"
 ```
 
-#### 5. 머지 안내
+#### 머지 안내
 
 ```
 [dcness] PR 생성 완료. 다음:
@@ -638,7 +638,7 @@ EOF
   3. 다음 feature PR 부터 모든 게이트 자동 발화
 ```
 
-#### 6. 한계
+#### 한계
 
 - 현재 branch != main 일 때 자동 진행 X — 사용자 작업 보호 (`git stash` 위험 회피)
 - 사용자가 *이미 PR 만든 인프라 변경* 있을 때 중복 시도 가능 — 메인 Claude 가 사전 `gh pr list --search "dcness init"` 검사 권장

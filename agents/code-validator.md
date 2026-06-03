@@ -140,4 +140,4 @@ light 버전 — 수정 범위만 검증.
 
 ## 참조
 
-- 라우팅: [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md) (`/impl-loop` · `/impl`) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2
+- 라우팅: [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md) (`/impl-loop` · `/impl`) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md#catastrophic-gatesh)

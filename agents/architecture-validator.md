@@ -21,7 +21,7 @@ model: sonnet
 
 1. **Placeholder Leak** — 결정해야 할 자리를 비워두고 임시 표시만 박은 영역. PRD Must 기능 직결 placeholder 가 있으면 FAIL.
 2. **Cross-Story Interface 정합성** — Story 간 producer / consumer 시그니처 mismatch. Story 안 cross-task interface 는 module-architect self-check 가 cover 하는 영역이고, 본 agent 는 *Story 간* 영역만 본다.
-3. **공통 SSOT 룰 위반** — [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md) §5 의 자동 가능 영역 (순환 의존 / 미허가 의존 / public API contract 위반). 질적 룰 (Deep Modules / 부작용 없는 반환) 은 *수동 review 권고* 영역으로 분리 명시.
+3. **공통 SSOT 룰 위반** — [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md#validator-의-자동-검증-영역) 의 자동 가능 영역 (순환 의존 / 미허가 의존 / public API contract 위반). 질적 룰 (Deep Modules / 부작용 없는 반환) 은 *수동 review 권고* 영역으로 분리 명시.
 4. **Implementation Simulation (사전부검)** — *표시 없는 암묵 gap*. 대표 impl task 2~3 개를 *맥락 없는 engineer* 입장에서 cold-seat 시뮬레이션 — 이 impl 파일만 보고 코드를 짤 수 있는가. 막히는 자리가 PRD Must 직결이면 FAIL. 영역 1 (명시 표시 있는 placeholder) 과 달리 *표시가 없어* self-check 가 놓친 빈칸을 외부자 관점으로 드러낸다. **Step 5 전용** (impl 파일 존재해야 시뮬레이션 가능).
 5. **Origin Anchor (PRD 원본 ↔ impl 대조)** — 영역 2·3 이 *조각끼리(impl↔impl, architecture↔impl) 수평 대조* 인 것과 달리, 본 영역은 **체인 origin 인 PRD 원본을 기준으로 한 수직 대조**. 검증 체인이 매 게이트마다 *바로 위 문서* 만 기준 삼는 telephone game 구조라 origin 충실도가 한 번도 재검사되지 않는 사각을 닫는다. impl 끼리 self-consistent 하게 PRD 와 어긋난 결함(self-consistently wrong)은 수평 대조로는 구조적으로 못 잡는다. **Step 5 전용** (impl + AC-ID 인용 존재해야 대조 가능).
 
@@ -101,7 +101,7 @@ prose 마지막 단락에 자기 언어로 명시. 권장 표현:
 
 ## 체크리스트
 
-### 1. Placeholder Leak
+### Placeholder Leak
 
 > 결정해야 할 자리를 비워두고 임시 표시만 박은 영역. PRD Must 기능 핵심 가치 직결되는 placeholder 가 있으면 즉시 FAIL.
 
@@ -120,7 +120,7 @@ prose 마지막 단락에 자기 언어로 명시. 권장 표현:
 - **PRD Should / Could 직결** → WARN (본문 명시, 결론은 PASS 가능)
 - **부가 영역 (로깅 · 통계 · 관리자 도구) 직결** → 통과 가능
 
-### 2. Cross-Story Interface 정합성
+### Cross-Story Interface 정합성
 
 > producer Story 의 함수 / Protocol 시그니처 ↔ consumer Story 의 호출 시그니처 mismatch 검출. Story 안 cross-task interface 는 module-architect self-check 영역 이고, 본 영역은 *Story 간* 만 본다.
 
@@ -142,9 +142,9 @@ prose 마지막 단락에 자기 언어로 명시. 권장 표현:
 
 - impl 파일이 아직 module-architect 작성 *전* (Step 3.5 시점) — 본 항목 N/A
 
-### 3. 공통 SSOT 룰 위반
+### 공통 SSOT 룰 위반
 
-> [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md) §5 의 분리에 따라 자동 영역과 수동 영역 분리 검증.
+> [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md#validator-의-자동-검증-영역) 의 분리에 따라 자동 영역과 수동 영역 분리 검증.
 
 **자동 검증 영역 (validator 가 직접)**:
 
@@ -165,7 +165,7 @@ validator prose 결론에 *자동 검증 통과 영역* + *수동 review 권고 
 - **PRD Should / Could 직결** → WARN
 - **부가 영역** → 통과 가능
 
-### 4. Implementation Simulation (사전부검)
+### Implementation Simulation (사전부검)
 
 > 표시 없는 *암묵 gap* 검출. 대표 impl task 를 *맥락 없는 engineer* 입장에서 시뮬레이션 — "이 impl 파일(REQ 표 + 인터페이스 + 수용기준 + 의존)만 보고 막힘 없이 코드를 짤 수 있는가". gajae `ralplan` critic 의 "대표 task 2~3 개 구현 시뮬레이션" 차용. **Step 5 전용** (impl 파일 미작성 시점 = N/A).
 
@@ -194,7 +194,7 @@ validator prose 결론에 *자동 검증 통과 영역* + *수동 review 권고 
 
 - impl 파일이 아직 module-architect 작성 *전* (Step 3.5 시점) — 본 항목 N/A
 
-### 5. Origin Anchor (PRD 원본 ↔ impl 대조)
+### Origin Anchor (PRD 원본 ↔ impl 대조)
 
 > 영역 2·3 은 *조각끼리 수평 대조* (impl↔impl, architecture↔impl) 라, impl 끼리 self-consistent 하게 PRD 와 어긋난 결함은 구조적으로 못 잡는다. 본 영역은 **체인 origin 인 PRD 원본을 수직 기준** 으로 삼아 그 사각을 닫는다. **Step 5 전용** (impl + AC-ID 인용 존재해야 가능). 현재는 PRD 를 Must/Should 분류용으로만 read 했으나, 본 영역에서는 PRD 를 *대조 기준* 으로 쓴다.
 

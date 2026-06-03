@@ -3,7 +3,7 @@
 > dcNess plug-in 활성화 프로젝트의 **git / PR / 이슈 등록 규칙** 단일 SSOT.
 > 본 문서 = *룰 (양식·키워드)* SSOT. *흐름·메커니즘 (gh API 호출 / 멱등성 / pre-flight gate)* 은 [`issue-lifecycle.md`](issue-lifecycle.md).
 
-## 1. 브랜치
+## 브랜치
 
 | 타입 | 패턴 | 예시 |
 |---|---|---|
@@ -18,11 +18,11 @@
   - 공백·특수문자·대문자 금지.
   - **`feature/{desc}` 의 desc 는 `epic{N}_story` 로 시작 불가** — 그 형태는 strict 스토리 패턴(`feature/epic{N}_story{N}_{desc}`, desc ≥3자·story 숫자)만 통과한다. malformed 스토리 브랜치(`feature/epic7_story2_ui` 처럼 desc<3자 / story 비숫자)가 generic 으로 새는 것을 [`check_git_naming.mjs`](../../scripts/check_git_naming.mjs) 부정선행이 차단.
 - `feature/{desc}` 의 용도 = (1) 단발 feature, (2) **통합 브랜치** (epic 단위 long-lived feature branch + sub-PR 누적 → 마지막 한 방 main 머지). 통합 브랜치 의도는 epic issue body / stories.md 상단에 `**Base Branch:** feature/{slug}` 1줄 마커로 명시. 자세한 흐름은 [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md) Step 6.5/7 + 본 spec §8.
-- **공통 task (epic 단위, story 없음)**: `feature/epic{N}_common_{desc}` — `feature/{desc}` 의 epic-traceable 특수형 (module-architect 공통 호출 산출물 = `story: 공통` / `task_index: —`). 게이트는 generic feature 로 통과 (`_common` 은 `_story` 가 아니라 위 부정선행에 안 걸림). 예: `feature/epic7_common_theme_tokens`. 제목 = `[feature] {설명}`, 트레일러 = `Part of #<epic>` (부모 = epic 단일 룰, task-index trailer omit, §8.1).
+- **공통 task (epic 단위, story 없음)**: `feature/epic{N}_common_{desc}` — `feature/{desc}` 의 epic-traceable 특수형 (module-architect 공통 호출 산출물 = `story: 공통` / `task_index: —`). 게이트는 generic feature 로 통과 (`_common` 은 `_story` 가 아니라 위 부정선행에 안 걸림). 예: `feature/epic7_common_theme_tokens`. 제목 = `[feature] {설명}`, 트레일러 = `Part of #<epic>` (부모 = epic 단일 룰, task-index trailer omit, [기본 룰](#기본-룰)).
 - main 직접 push 금지. 항상 branch → PR → merge.
 - 브랜치는 merge 후에도 삭제하지 않는다.
 
-## 2. 커밋 제목
+## 커밋 제목
 
 | 타입 | 형식 | 예시 |
 |---|---|---|
@@ -34,7 +34,7 @@
 
 - `{설명}`: 명사형 또는 동사원형으로 간결하게 한 줄.
 
-## 3. 커밋 메시지 본문
+## 커밋 메시지 본문
 
 빈 섹션은 `-` 로 채운다.
 
@@ -54,7 +54,7 @@
 
 > 상세 컨텍스트 (배경 / 원인 / 결정 근거) 는 PR body 가 SSOT — §5 참조. 1 commit = 1 PR 빈도가 높은 dcness 패턴 정합 — 중복 작성 방지.
 
-## 4. PR 제목
+## PR 제목
 
 | 타입 | 형식 | 예시 |
 |---|---|---|
@@ -64,7 +64,7 @@
 | 버그픽스 | `[issue-{N}] {설명}` | `[issue-32] 중복터치 개선` |
 | 문서 | `[docs] {설명}` | `[docs] API 스펙 업데이트` |
 
-## 5. PR 본문
+## PR 본문
 
 빈 섹션은 `-` 로 채운다. multi-commit PR 시 — 양식을 commit 별로 반복하거나, `## 작업내용` 안에 commit 별 bullet 으로 정리.
 
@@ -103,7 +103,7 @@ Part of #N
 -
 ```
 
-## 6. Git 절차
+## Git 절차
 
 ```
 1. git checkout -b {브랜치명} {base}
@@ -132,13 +132,13 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
 
 ---
 
-## 7. 이슈 등록 (양식)
+## 이슈 등록 (양식)
 
-### 7.1 시점
+### 시점
 
 메인 Claude 가 PRD/stories.md/tech-review.md 스켈레톤 작성 + 사용자 1 차 OK + PR 머지 완료 후 *사용자 confirm trigger* 로 epic + story 이슈 *연속* 생성 ([`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md) Step 8). 자동화 스크립트 = [`scripts/create_epic_story_issues.sh`](../../scripts/create_epic_story_issues.sh) — stories.md parse + epic/story 이슈 생성 + sub-issue API 연결 한 명령으로 처리. 별도 호출 (구 ISSUE_SYNC) X.
 
-### 7.2 Epic 이슈
+### Epic 이슈
 
 - **레이블**: `epic` + `v0N` + `epic-NN-<slug>` (3중)
   - `v0N` = PRD 마일스톤 버전, 소문자 2자리 (예: `v01`)
@@ -151,7 +151,7 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
   **GitHub Epic Issue:** [#NNN](https://github.com/{owner}/{repo}/issues/NNN)
   ```
 
-### 7.3 Story 이슈
+### Story 이슈
 
 - **레이블**: `story` + `v0N` + `epic-NN-<slug>` (3중, epic 과 `epic-NN-<slug>` 공유)
 - **마일스톤**: `Story`
@@ -170,26 +170,26 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
 
 > sub-issue API 연결·멱등성 메커니즘 = [`issue-lifecycle.md`](issue-lifecycle.md) §1.
 
-### 7.4 Task — GitHub 이슈 없음
+### Task — GitHub 이슈 없음
 
-task 는 별도 GitHub 이슈 만들지 않음 — PR 자체가 추적 단위. 트레일러 룰 = §8.
+task 는 별도 GitHub 이슈 만들지 않음 — PR 자체가 추적 단위. 트레일러 룰 = [PR 트레일러 (Part of / Closes)](#pr-트레일러-part-of-closes).
 
 ---
 
-## 8. PR 트레일러 (Part of / Closes)
+## PR 트레일러 (Part of / Closes)
 
-### 8.1 기본 룰
+### 기본 룰
 
 - **중간 task PR**: `Part of #story-issue` (Development 섹션 자동 연결 X — 언급만)
 - **story 마지막 task PR**: `Closes #story-issue`
 - **epic 마지막 story 마지막 task PR**: `Closes #story-issue` + `Closes #epic-issue` (한 줄당 1개 또는 comma 분리)
 - **`task-index: <i>/<total>` trailer**: impl 파일 frontmatter `task_index` 값 그대로 1줄 박는다 (build-worker 가 PR 본문 초안 작성 시점에). CI 게이트 [`scripts/check_pr_body.mjs`](../../scripts/check_pr_body.mjs) 가 본 trailer 로 "Story 마지막 task PR 인가" 식별 → `i == total` 이면 `Closes`/`Fixes`/`Resolves` 1+ 강제 (`Part of` 단독 FAIL). 공통 task (`task_index: —`) 는 trailer omit (게이트 fallback path 통과).
 
-> **반드시 PR body 에 박는다 (commit message 아님)** — 본 프로젝트는 regular merge 채택 (§6, squash 금지). regular merge 시 GitHub auto-close 는 *PR body* 또는 *squash merge commit message* 만 인식. commit message 안 `Closes #N` 은 머지 commit 에 들어가도 auto-close 발동 X. 본 룰 mechanical 강제 = [`scripts/check_pr_body.mjs`](../../scripts/check_pr_body.mjs) + `.github/workflows/pr-body-validation.yml` (init-dcness Step 2.6 으로 사용자 repo 배포).
+> **반드시 PR body 에 박는다 (commit message 아님)** — 본 프로젝트는 regular merge 채택 ([Git 절차](#git-절차), squash 금지). regular merge 시 GitHub auto-close 는 *PR body* 또는 *squash merge commit message* 만 인식. commit message 안 `Closes #N` 은 머지 commit 에 들어가도 auto-close 발동 X. 본 룰 mechanical 강제 = [`scripts/check_pr_body.mjs`](../../scripts/check_pr_body.mjs) + `.github/workflows/pr-body-validation.yml` (init-dcness Step 2.6 으로 사용자 repo 배포).
 >
 > **예외**: issue 없는 infra-only / follow-up split PR 등은 PR body 에 `Document-Exception-PR-Close: <사유>` line 박으면 게이트 우회. `:` + 사유 1단어 이상 동일 line 강제.
 
-### 8.2 통합 브랜치 케이스 — base ≠ main sub-PR 의 auto-close 한계 (MUST)
+### 통합 브랜치 케이스 — base ≠ main sub-PR 의 auto-close 한계 (MUST)
 
 stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통합 브랜치 모드, [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md) Step 6.5/7) 의 sub-PR 은 *base = `feature/<slug>`* 로 머지된다. **GitHub auto-close 는 base = default branch (main) 인 PR 만 인식** — base ≠ main sub-PR 의 PR body `Closes #N` 은 머지 시 발동 X.
 
@@ -210,7 +210,7 @@ stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통
 
 > 별도 자동화 (sub-issue API 기반 base 무관 close 정책) 는 *추후* 자매 이슈에서 다룸. 본 단락은 *최소 명문화* — 통합 브랜치 모드 진입 사용자가 *마지막 머지 PR 에 bulk close* 박는 패턴만 인지하면 충분.
 
-### 8.3 적용 절차 — PR 생성 직전 사전 체크 (impl 파일 frontmatter 기반)
+### 적용 절차 — PR 생성 직전 사전 체크 (impl 파일 frontmatter 기반)
 
 판정 입력 = **impl 파일 frontmatter `task_index: <i>/<total>` + `story: <N>`**. module-architect × K 시점 (architect-loop) 에 박힘. `task_index` 의미 = 그 Story 안 task 의 순번 / 그 Story 의 총 task 수 (옛 의미: 옛 `## impl 목차` 표 행 위치 → 폐기, 이슈 [#511](https://github.com/alruminum/dcNess/issues/511)). 공통 task 는 `task_index: —`. stories.md `[ ]` 카운트 룰 폐기 (2026-05-12) — 새 stories.md 양식엔 task `[ ]` 자체 없음 (user story 만, [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md) §stories.md 산출물).
 
@@ -231,7 +231,7 @@ I="${TASK_INDEX%/*}"
 TOTAL="${TASK_INDEX#*/}"
 ```
 
-### 8.4 Development 섹션 역방향 업데이트
+### Development 섹션 역방향 업데이트
 
 `Closes #story-issue` PR 생성 시 필수. `Closes #story-issue` PR 생성과 동시에, 이전 `Part of #story-issue` PR 들을 찾아 body 앞에 `Fixes #story-issue` 를 추가한다. 이미 머지된 PR body 업데이트는 issue close 를 재발동하지 않으며 Development 섹션에 소급 반영된다.
 
@@ -248,15 +248,15 @@ $cur"
 
 ---
 
-## 9. 이슈 완료 규칙
+## 이슈 완료 규칙
 
-### 9.1 Story 완료
+### Story 완료
 
 - **조건**: story 의 모든 impl task PR merge
 - **Close**: 마지막 task PR body `Closes #story-issue` → GitHub 자동 close (regular merge auto-close)
 - 메인 Claude 사후 작업 없음 — stories.md `[x]` 체크 룰 폐기 (2026-05-12, [`loop-procedure.md`](loop-procedure.md) §4)
 
-### 9.2 Epic 완료
+### Epic 완료
 
 - **조건**: epic 의 모든 story closed
 - **Close 시점**: 마지막 story 의 마지막 task PR — 메인이 PR 생성 *직전* 1회 사전 체크:
@@ -267,13 +267,13 @@ $cur"
 - 메인 Claude 사후 작업 없음 — `backlog.md` 자체 폐기 (2026-05-12, GitHub epic issue close 가 SSOT)
 - 별도 wrap-up PR 만들지 않음
 
-### 9.3 API 직접 close 절대금지
+### API 직접 close 절대금지
 
 `mcp__github__update_issue state:closed` 호출 금지 (epic / story 모두). 반드시 PR body `Closes #N` — §8.1 참조 (regular merge auto-close 인식 한계).
 
 ---
 
-## 10. 참조
+## 참조
 
 - lifecycle 흐름·메커니즘 (sub-issue API / 멱등성 / 마일스톤 조회 / pre-flight gate): [`issue-lifecycle.md`](issue-lifecycle.md)
 - 라우팅 / 핸드오프: 각 loop skill 의 `<skill>-routing.md` (예: [`../../skills/impl-loop/impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md))

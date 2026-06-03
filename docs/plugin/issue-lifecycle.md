@@ -3,7 +3,7 @@
 > **Status**: ACTIVE
 > **Scope**: GitHub 이슈 lifecycle 운영·메커니즘 SSOT. 등록 양식·트레일러 키워드·완료 *룰* 은 [`git-spec.md`](git-spec.md) §7~§9 참조 — 본 문서는 *어떻게 실행하느냐* (gh API 호출 / 멱등성 / pre-flight gate) 만 다룬다.
 
-## 0. 이슈 계층
+## 이슈 계층
 
 ```
 epic issue ─┬─ story issue ── (task: PR 기반, 이슈 없음)
@@ -16,7 +16,7 @@ epic issue ─┬─ story issue ── (task: PR 기반, 이슈 없음)
 
 > 양식 (레이블 / 마일스톤 / 제목 / 본문 / stories.md 기록 형식) 은 [`git-spec.md`](git-spec.md) §7 SSOT.
 
-## 1. Sub-issue 연결 (epic ↔ story, gh API 메커니즘)
+## Sub-issue 연결 (epic ↔ story, gh API 메커니즘)
 
 자동화 = [`scripts/create_epic_story_issues.sh`](../../scripts/create_epic_story_issues.sh) — stories.md parse + epic/story 이슈 생성 + sub-issue API 연결 한 명령으로 처리. 별도 호출 (구 ISSUE_SYNC) X.
 
@@ -33,7 +33,7 @@ gh api -X POST repos/{owner}/{repo}/issues/{epic_number}/sub_issues \
 
 task 는 GitHub 이슈 X — [`git-spec.md`](git-spec.md) §8 PR 트레일러로만 추적.
 
-## 2. 미등록 허용 모드
+## 미등록 허용 모드
 
 프로젝트가 미등록 모드 (spike / 잡탕 epic 등) 채택 시 stories.md 상단:
 
@@ -43,11 +43,11 @@ task 는 GitHub 이슈 X — [`git-spec.md`](git-spec.md) §8 PR 트레일러로
 
 명시 없는 미등록 = 위반. 발견 시 backfill 의무 — 메인이 [`git-spec.md`](git-spec.md) §7 따라 `mcp__github__create_issue` 1회 호출 + stories.md 번호 patch.
 
-## 3. 멱등성 (등록 전 매치 체크)
+## 멱등성 (등록 전 매치 체크)
 
 `mcp__github__create_issue` 전: stories.md 의 `**GitHub Epic Issue:**` / `**GitHub Issue:**` 매치 검사. 링크 있으면 skip. stories.md 가 이슈 등록 상태의 SSOT.
 
-## 4. 마일스톤 파라미터 — tool 별 타입 차이
+## 마일스톤 파라미터 — tool 별 타입 차이
 
 **⚠️ tool 별 milestone 파라미터 타입이 다름** — 혼동 시 silent fail 또는 422 오류:
 
@@ -68,7 +68,7 @@ gh api repos/{owner}/{repo}/milestones --jq '.[] | {number, title}'
 
 **스크립트 예** ([`scripts/create_epic_story_issues.sh`](../../scripts/create_epic_story_issues.sh)) 는 `gh issue create` 사용 → title 추출 필요. mcp tool 호출은 number 추출 필요.
 
-## 5. mid-flow 누락 차단 (pre-flight gate)
+## mid-flow 누락 차단 (pre-flight gate)
 
 `/impl-loop` / `/architect-loop` (ux-architect / system-architect / module-architect × K) 진입 시 부모 epic stories.md 상단 매치 강제:
 
@@ -79,7 +79,7 @@ gh api repos/{owner}/{repo}/milestones --jq '.[] | {number, title}'
 
 story 이슈 부재 시 동일 패턴 (Story N 헤더 직하 `**GitHub Issue:** [#\d+]` 매치).
 
-## 6. 참조
+## 참조
 
 - 등록·트레일러·완료 *룰* SSOT: [`git-spec.md`](git-spec.md) §7~§9
 - 라우팅 / 핸드오프: 각 loop skill 의 `<skill>-routing.md` (예: [`../../skills/impl-loop/impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md))

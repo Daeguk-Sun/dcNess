@@ -134,7 +134,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어:
 - **TESTS_FAIL** — phase 2 attempt 한도 (3) 초과. 본문에 실패 케이스 + 시도 내역 명시.
 - **IMPLEMENTATION_ESCALATE** — 기술 제약 충돌 / 권한 부족 / 진행 불가. 본문에 사유 명시.
 
-> 결론별 다음 호출(라우팅) 진본 = [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md) §2 — build-worker 는 `/impl-loop` 전용 엔진이라 그 skill 의 라우팅 파일이 진본이다. small/medium/large 분량 메타별 SPEC_GAP_FOUND 분기도 §2 + [`/impl-loop`](../skills/impl-loop/SKILL.md) §엔진 B. git/PR/pr-reviewer 는 메인 위임 (위 §"git/PR/pr-reviewer 호출 금지").
+> 결론별 다음 호출(라우팅) 진본 = [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md#결론-다음-호출-매핑) — build-worker 는 `/impl-loop` 전용 엔진이라 그 skill 의 라우팅 파일이 진본이다. small/medium/large 분량 메타별 SPEC_GAP_FOUND 분기도 §2 + [`/impl-loop`](../skills/impl-loop/SKILL.md) §엔진 B. git/PR/pr-reviewer 는 메인 위임 (위 §"git/PR/pr-reviewer 호출 금지").
 
 ## return 형식 (메인 컨텍스트 보호, #446)
 
@@ -250,9 +250,9 @@ worker = 1 task 의 *완결성* 책임. PR 본문·commit message 초안까지 p
 ## 참조
 
 - `/impl-loop` 사용 = [`/impl-loop`](../skills/impl-loop/SKILL.md)
-- 다중 task chain 시퀀스: [`/impl-loop`](../skills/impl-loop/SKILL.md) §chain 모드 / 라우팅: [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md) §2 (build-worker 는 impl-loop 전용 — skill 라우팅 파일이 진본)
+- 다중 task chain 시퀀스: [`/impl-loop`](../skills/impl-loop/SKILL.md) §chain 모드 / 라우팅: [`impl-loop-routing.md`](../skills/impl-loop/impl-loop-routing.md#결론-다음-호출-매핑) (build-worker 는 impl-loop 전용 — skill 라우팅 파일이 진본)
 - 풀 4-agent 엔진(엄정) 시퀀스: [`/impl-loop`](../skills/impl-loop/SKILL.md) §엔진 A
-- conveyor helper: [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1.2 + §3.1
+- conveyor helper: [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md#begin-run) + §3.1
 - ALLOW_MATRIX / 인프라 차단: [`harness/agent_boundary.py`](../harness/agent_boundary.py) (권한 경계 코드 SSOT)
 - code-validator A/B/C 체크리스트 (phase 3 self-validate 원본): [`agents/code-validator.md`](code-validator.md) §full / §bugfix
 - pr-reviewer 호출은 메인 위임: [`agents/pr-reviewer.md`](pr-reviewer.md)

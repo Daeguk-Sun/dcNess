@@ -111,4 +111,4 @@ CRITICAL 이슈 발견 시 다른 이슈 분석 즉시 중단 + 보고.
 
 ## 참조
 
-- 라우팅 진본: [`skills/issue-report/issue-report-routing.md`](../skills/issue-report/issue-report-routing.md) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2
+- 라우팅 진본: [`skills/issue-report/issue-report-routing.md`](../skills/issue-report/issue-report-routing.md) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md#catastrophic-gatesh)

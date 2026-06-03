@@ -242,7 +242,7 @@ class TestSSOTReferencePresent(unittest.TestCase):
 
     def test_loop_procedure_section_present(self):
         body = self._read("docs/plugin/loop-procedure.md")
-        self.assertIn("### 1.1.1 base-ref 분기", body)
+        self.assertIn("### base-ref 분기 (통합 브랜치 모드, #424)", body)
         self.assertIn("**Base Branch:**", body)
         self.assertIn("git worktree add -b", body)
         self.assertIn("EnterWorktree(path=", body)
@@ -250,12 +250,12 @@ class TestSSOTReferencePresent(unittest.TestCase):
     def test_impl_loop_references_section(self):
         # impl + impl-loop 통합 — skills/impl-loop/SKILL.md 단일 진본
         body = self._read("skills/impl-loop/SKILL.md")
-        self.assertIn("§1.1.1", body)
+        self.assertIn("#base-ref-분기-통합-브랜치-모드-424", body)
         self.assertIn("Base ref 분기", body)
 
     def test_architect_loop_references_section(self):
         body = self._read("skills/architect-loop/SKILL.md")
-        self.assertIn("§1.1.1", body)
+        self.assertIn("#base-ref-분기-통합-브랜치-모드-424", body)
         self.assertIn("Base ref 분기", body)
 
 

@@ -11,18 +11,18 @@
 
 꼭 직접 확인해야 직성이 풀리는 성격이기에 문서·파일·링크는 사용자가 한번에 열어볼 수 있도록 백틱 / 클릭 가능한 형태로 표기한다.
 
-## 0. 프로젝트 정체성
+## 프로젝트 정체성
 
 > 🔴 **메인 Claude 가 자주 까먹는 핵심 — 매번 작업 전 반드시 인지**
 
-### 0.1 본 프로젝트 = 하네스 인프라 (plug-in 배포물)
+### 본 프로젝트 = 하네스 인프라 (plug-in 배포물)
 
 - 본 프로젝트(dcness)는 **Claude Code 용 plug-in 으로 배포**된다.
 - 사용자(외부 프로젝트)는 **`/init-dcness` 스킬을 통해 활성화**한다.
 - 본 프로젝트에 추가하는 모든 기능은 **dcness 자체를 위한 것이 아니라**, **활성화한 외부 프로젝트에 적용되기 위한 것**이다.
 - 따라서 "이 프로젝트에서 잘 작동하는가" 가 아니라 **"활성화한 외부 프로젝트에서 잘 작동하는가"** 가 기준.
 
-### 0.2 dcness 자체는 init-dcness 미적용 — 자기 규격 미얽매임
+### dcness 자체는 init-dcness 미적용 — 자기 규격 미얽매임
 
 - 본 dcness 저장소는 자기 자신에 `/init-dcness` 를 실행하지 **않는다**.
 - 따라서 dcness plug-in 의 규격(`stories.md` 강제 / `issue-lifecycle.md §1.1` 흐름 / `product-planner` 시퀀스 등) 에 **얽매이지 않는다**.
@@ -32,12 +32,12 @@
   - GitHub 이슈 (필요 시 자유 형식, 메타-스토리·stories.md 불필요)
 - **헷갈리지 마라**: plug-in 규격은 *외부 활성화 프로젝트* 용이지, dcness 자기 자신용이 아니다.
 
-### 0.3 내부 ID 를 외부 배포물에 포함하지 마라
+### 내부 ID 를 외부 배포물에 포함하지 마라
 
 - **외부에 배포되는 파일** (= plug-in 사용자가 보게 되는 파일: `agents/**`, `commands/**`, `hooks/**`, 그리고 plug-in 사용자가 따라야 하는 SSOT 인 `docs/plugin/issue-lifecycle.md` 등) 안에는 **내부 ID / 내부 추적 표현을 본문으로 포함하지 않는다**.
 - 외부 사용자에게 내부 추적용 표현은 **잡음**이다. 그 변경 이유 / 작동 룰만 자연어로 설명하면 충분.
 
-### 0.5 추가한 기능은 반드시 배포 경로에도 포함
+### 추가한 기능은 반드시 배포 경로에도 포함
 
 - 본 저장소(dcness self) 에만 추가하면 **외부 활성화 프로젝트에서는 작동하지 않는다** — 과거 사례: 기능을 dcness 자체에 추가했는데 정작 설치한 외부 프로젝트(jajang)는 그 기능이 없어 작동 안 함.
 - 모든 기능 추가 작업은 **배포 경로 검증 의무** 가 동반된다. 다음 중 *해당하는 모든 경로* 가 갱신돼야 작업 완료:
@@ -49,12 +49,12 @@
 
 ---
 
-### 0.6 작업 모드
+### 작업 모드
 
 - **메인 Claude 직접 작업** — architect / code-validator / engineer 위임 강제 **없음**.
-- **Document Sync 거버넌스만 강제** — 외부 배포 경로(§0.5) 정합 검증은 필수.
+- **Document Sync 거버넌스만 강제** — 외부 배포 경로([추가한 기능은 반드시 배포 경로에도 포함](#추가한-기능은-반드시-배포-경로에도-포함)) 정합 검증은 필수.
 
-### 0.7 dcness 강제 원칙 (룰 추가·설계 시 가드레일)
+### dcness 강제 원칙 (룰 추가·설계 시 가드레일)
 
 > 🔴 **대 원칙** (외부 활성 프로젝트엔 SessionStart inject 로 자동 노출):
 > **harness 가 강제하는 것은 단 2가지 — (1) 작업 순서, (2) 접근 영역. 그 외 모두 agent 자율.**
@@ -73,14 +73,14 @@
 3. **에이전트 자율성 침해** — agent prompt 안 강제 형식 박기 금지. 결론+이유 명확히 쓰도록 가이드만 (형식이 아니라 의미).
 4. **불필요한 흐름 강제** — 시퀀스 보존은 catastrophic 만. 시퀀스 내부 행동 = 에이전트 자율.
 
-## 1. 작업 절차 (모든 변경 공통)
+## 작업 절차 (모든 변경 공통)
 
 1. **수정 작업**.
 2. **commit 직전**: git pre-commit hook 자동 게이트 (main-block + pytest).
 3. **branch → PR → regular merge** (직접 `main` push 금지). CI PASS 후 메인이 즉시 머지 — *사용자 수동 승인 대기 X*.
 4. **종료 시 ExitWorktree** — squash 흡수 검사 후 자동 `keep`/`remove` (`docs/plugin/loop-procedure.md §1.1`).
 
-## 2. 게이트 요약
+## 게이트 요약
 
 - **main-block**: `scripts/hooks/pre-commit` — main 직접 commit 차단
 - **git-naming**: `scripts/hooks/commit-msg` (로컬) + `git-naming-validation.yml` (CI) — 브랜치·커밋·PR 제목 형식 강제
@@ -91,7 +91,7 @@
 
 > ⚠️ **금지**: `--no-verify` 등 hook 우회. main 직접 push.
 
-## 3. 문서 지도
+## 문서 지도
 
 
 
@@ -114,7 +114,7 @@
 | [`docs/internal/plugin-release.md`](docs/internal/plugin-release.md) | 플러그인 릴리즈·버전 배포 요청 시 — 순서·태그·주의사항 |
 | [`docs/internal/release-notes.md`](docs/internal/release-notes.md) | 릴리즈 노트 기록 — 버전별 커밋 범위·변경 요약 |
 
-## 4. 개발 명령어
+## 개발 명령어
 
 ```sh
 # git hook 설치 (clone 후 1회)
@@ -130,7 +130,7 @@ python3 -m unittest tests.test_signal_io -v   # 단일 모듈
 
 > 빌드 / 런타임 명령어는 코드 도입 시 본 섹션에 추가 (별도 Task-ID).
 
-## 5. 커밋 / PR 절차
+## 커밋 / PR 절차
 
 > 네이밍·메시지·PR 템플릿 상세: **[`docs/plugin/git-spec.md`](docs/plugin/git-spec.md)** (즉시 읽기 문서).
 
@@ -151,6 +151,6 @@ python3 -m unittest tests.test_signal_io -v   # 단일 모듈
 - **argument 없이 호출 시** current branch 의 open PR 자동 검출. 명시 시 `pr-finalize.sh <PR_NUMBER>`.
 - **CI FAIL** 시 pr-finalize 가 exit 1 + 안내. 원인 수정 후 재시도.
 
-## 6. 환경변수
+## 환경변수
 
 현재 없음. 도입 시 본 섹션에 (이름·용도·기본값·필수 여부) 추가.
