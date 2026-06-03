@@ -9,7 +9,7 @@
 #   5. sub-issue API 호출 (epic ↔ story N 연결, GitHub native sub-issue API)
 #   6. 결과 prose 출력
 #
-# SSOT: docs/plugin/issue-lifecycle.md §1
+# SSOT: docs/plugin/issue-lifecycle.md 의 이슈 계층
 #
 # 사용:
 #   create_epic_story_issues.sh docs/milestones/vNN/epics/epic-NN-<slug>/stories.md   # epic 단위 (표준)
@@ -42,7 +42,7 @@ if grep -qE '^\*\*GitHub Epic Issue:\*\* \[#[0-9]+\]' "$STORIES"; then
   exit 0
 fi
 
-# 마일스톤 title 조회 (issue-lifecycle.md §5)
+# 마일스톤 title 조회 (issue-lifecycle.md 의 마일스톤 파라미터)
 # 주의: gh CLI 의 `--milestone` 옵션은 *name* 만 받음 (number 거부). gh issue create --help → `-m, --milestone name`.
 # 따라서 milestone title 그대로 추출 + `--milestone "$EPICS_MS"` 에 전달 (line 127, 174).
 EPICS_MS=$(gh api "repos/$REPO/milestones" --jq '.[] | select(.title=="Epics") | .title' 2>/dev/null)
@@ -210,7 +210,7 @@ PYEOF
 
 done < <(grep -E "$STORY_RE" "$STORIES")
 
-# 포맷 SSOT = docs/plugin/git-spec.md §7.3 (Story 이슈 — stories.md 하단 `## 관련 이슈` 테이블)
+# 포맷 SSOT = docs/plugin/git-spec.md 의 Story 이슈 (stories.md 하단 `## 관련 이슈` 테이블)
 # 하단 ## 관련 이슈 테이블 씀
 {
   echo ""
@@ -225,7 +225,7 @@ done < <(grep -E "$STORY_RE" "$STORIES")
   done
 } >> "$STORIES"
 
-# sub-issue 연결 (issue-lifecycle.md §1.3.1)
+# sub-issue 연결 (issue-lifecycle.md 의 Sub-issue 연결)
 echo "[issue-create] sub-issue 연결 — epic #$EPIC_NUM ↔ story N=${#STORY_IDS[@]}"
 LINKED=0
 for SID in "${STORY_IDS[@]}"; do

@@ -1,6 +1,6 @@
-"""docs/plugin/loop-procedure.md §1.1.1 의 base-ref 추출 sh 명령 검증 (#424).
+"""docs/plugin/loop-procedure.md 의 base-ref 분기 — base-ref 추출 sh 명령 검증 (#424).
 
-§1.1.1 의 sh 블록:
+base-ref 분기 의 sh 블록:
 
     BASE_BRANCH=$(grep -m1 -E '^\\*\\*Base Branch:\\*\\*' docs/stories.md 2>/dev/null \\
       | sed -E 's/.*Base Branch:\\*\\*[[:space:]]+//')
@@ -16,7 +16,7 @@ from pathlib import Path
 
 
 def extract_base_branch(stories_content: str) -> str:
-    """loop-procedure.md §1.1.1 의 grep+sed 로직 wrapping."""
+    """loop-procedure.md 의 base-ref 분기 grep+sed 로직 wrapping."""
     with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as f:
         f.write(stories_content)
         path = f.name
@@ -34,7 +34,7 @@ def extract_base_branch(stories_content: str) -> str:
 
 
 class TestBaseBranchExtraction(unittest.TestCase):
-    """§1.1.1 sh 추출 로직 검증."""
+    """base-ref 분기 sh 추출 로직 검증."""
 
     def test_integration_branch_extracted(self):
         content = (
@@ -80,13 +80,13 @@ class TestBaseBranchExtraction(unittest.TestCase):
 
 
 def resolve_stories_path(task_file: str) -> str:
-    """§3.4 의 epic 단위 stories.md 경로 유도 (impl task 경로 조부모 + stories.md)."""
+    """impl-task-loop commit 구조 의 epic 단위 stories.md 경로 유도 (impl task 경로 조부모 + stories.md)."""
     cmd = f'printf %s "$(dirname "$(dirname "{task_file}")")/stories.md"'
     result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
     return result.stdout.strip()
 
 
-# §1.1.1 self-contained STORIES 유도 (충돌 가드 포함) — 입력은 env 로 주입(escaping 회피).
+# base-ref 분기 self-contained STORIES 유도 (충돌 가드 포함) — 입력은 env 로 주입(escaping 회피).
 # F1-c/F1-d: EPIC_DIR/TASK_FILE 에서 직접 유도 + 둘 다 set 이고 불일치면 정지.
 _SECTION_BASH = r'''
 if [ -n "${EPIC_DIR:-}" ] && [ -n "${TASK_FILE:-}" ]; then
@@ -108,7 +108,7 @@ def resolve_stories_section(epic_dir: str = "", task_file: str = ""):
     return r.returncode, r.stdout.strip()
 
 
-# §3.4 PR 트레일러 분기 (gh epic-close 서브스텝 제외 — EPIC_OPEN_STORIES=0 폴백과 동일).
+# impl-task-loop commit 구조 PR 트레일러 분기 (gh epic-close 서브스텝 제외 — EPIC_OPEN_STORIES=0 폴백과 동일).
 # F2-b/F2-d: 공통 task 는 story:공통 으로 키잉, 정식 story 는 i/total, 숫자 story+malformed index 는 정지.
 _TRAILER_BASH = r'''
 if [ "$STORY_NUM" = "공통" ]; then
@@ -233,7 +233,7 @@ class TestStoriesPathResolution(unittest.TestCase):
 
 
 class TestSSOTReferencePresent(unittest.TestCase):
-    """SSOT (loop-procedure.md §1.1.1) 참조가 skill 본문에 박혀있는지 검증."""
+    """SSOT (loop-procedure.md 의 base-ref 분기) 참조가 skill 본문에 박혀있는지 검증."""
 
     ROOT = Path(__file__).resolve().parent.parent
 

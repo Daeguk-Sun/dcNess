@@ -1953,7 +1953,7 @@ def _cli_finalize_run(args: Any) -> int:
                     review_path = run_dir(sid, rid) / "review.md"
                     review_path.write_text(review_text, encoding="utf-8")
                     print(
-                        f"[REVIEW_READY] {review_path} — 위 리뷰를 세션에 그대로 출력할 것 (loop-procedure.md §6)",
+                        f"[REVIEW_READY] {review_path} — 위 리뷰를 세션에 그대로 출력할 것 (loop-procedure.md 의 Step 8 review 결과 인지)",
                         file=sys.stderr,
                     )
                 except Exception:

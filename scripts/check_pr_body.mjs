@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * PR body 안 issue 트레일러 (`Closes #N` / `Fixes #N` / `Resolves #N` / `Part of #N`) 검증 게이트.
- * 규칙 정의: docs/plugin/git-spec.md §8.1 (SSOT)
+ * 규칙 정의: docs/plugin/git-spec.md 의 PR 트레일러 기본 룰 (SSOT)
  *
  * 본 프로젝트(및 dcness 활성 프로젝트) 는 regular merge 채택 (squash 금지).
  * regular merge 시 GitHub auto-close 는 *PR body* 또는 *squash merge commit message* 만 인식.
@@ -86,7 +86,7 @@ async function main() {
       console.error('    Resolves #N |  Resolve #N |  Resolved #N');
       console.error('');
       console.error('  현재 `Part of #N` 만 박혀있다면: 머지 시 issue 자동 close 안 됨 → silent open 잔존 사고 차단.');
-      console.error('  SSOT: docs/plugin/git-spec.md §8.1 (Story 마지막 task = Closes 강제)');
+      console.error('  SSOT: docs/plugin/git-spec.md 의 PR 트레일러 기본 룰 (Story 마지막 task = Closes 강제)');
       console.error('');
       console.error('  예외 우회 (통합 브랜치 sub-PR 등 main 외 base 머지):');
       console.error('    Document-Exception-PR-Close: <사유>');
@@ -114,7 +114,7 @@ async function main() {
   console.error('');
   console.error('  근거: 본 프로젝트는 regular merge 채택 — GitHub auto-close 는 *PR body* 만 인식.');
   console.error('       commit message 안 Closes #N 만으론 issue 자동 close 안 됨.');
-  console.error('  SSOT: docs/plugin/git-spec.md §8.1');
+  console.error('  SSOT: docs/plugin/git-spec.md 의 PR 트레일러 기본 룰');
   console.error('');
   console.error('  예외 우회 — issue 없는 infra/follow-up PR 등은 다음 line 쓸 것:');
   console.error('    Document-Exception-PR-Close: <사유>');

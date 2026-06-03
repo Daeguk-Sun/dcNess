@@ -240,7 +240,7 @@ def handle_pretooluse_agent(
     *,
     base_dir: Optional[Path] = None,
 ) -> int:
-    """PreToolUse Agent 훅 처리 — catastrophic 룰 검사 (hooks.md §3.2).
+    """PreToolUse Agent 훅 처리 — catastrophic 룰 검사 (hooks.md 의 catastrophic-gate.sh).
 
     Returns:
         0: allow
@@ -619,7 +619,7 @@ def handle_posttooluse_agent(
     # rid 활성 시만 측정 inject + redo_log auto append
     # #272 W1 자율 친화 재설계 — hook 은 *raw 측정 데이터* 만 inject.
     # "REDO_SUSPECT" 같은 결정 X. 임계값 X. prose-only 화이트리스트 X.
-    # 메인 LLM 이 loop-procedure.md §3.1 가이드 보고 자율 판단.
+    # 메인 LLM 이 loop-procedure.md 의 표준 1 step 시퀀스 가이드 보고 자율 판단.
     histogram_str = ""
     input_repeats_str = ""
     pending_match = ""
@@ -680,7 +680,7 @@ def handle_posttooluse_agent(
         pass
 
     # additionalContext — *raw 측정 데이터* + 가이드 1줄. 결정 메시지 X.
-    # 메인 LLM 이 loop-procedure.md §3.1 가이드 (REDO 판단 신호) 보고 자율 판단.
+    # 메인 LLM 이 loop-procedure.md 의 표준 1 step 시퀀스 가이드 (REDO 판단 신호) 보고 자율 판단.
     if histogram_str:
         ctx = f"[감시자 hook] sub={sub_type or '?'} tool histogram: {histogram_str}"
         if input_repeats_str:
@@ -764,8 +764,8 @@ def handle_stop(
     """Stop hook — 메인 응답 종료 시 자동 end-run.
 
     배경 (issue #382): /impl / /impl-loop / /architect-loop 등 컨베이어 루프
-    종료 후 메인 Claude 가 `end-run` 까먹는 회귀 반복 발생. loop-procedure.md §5.1
-    의 prose 의무로는 본능 (PR merge 후 "작업 끝" 인지) 패배.
+    종료 후 메인 Claude 가 `end-run` 까먹는 회귀 반복 발생. loop-procedure.md 의
+    end-run 호출 prose 의무로는 본능 (PR merge 후 "작업 끝" 인지) 패배.
 
     Stop hook 으로 *코드 강제 승격*:
     1. stop_hook_active=true → 무한 루프 방지, skip
@@ -783,8 +783,8 @@ def handle_stop(
     helper 가 `_CONTINUE_ENUMS` + `_TERMINAL_AGENTS` + `stop_block_count` 가드로
     분기.
 
-    review.md 본문 echo 는 *기존 prose 의무* (loop-procedure.md §6 +
-    run-review.md §51 + commands/impl.md §종료 조건) 에 의존.
+    review.md 본문 echo 는 *기존 prose 의무* (loop-procedure.md 의 Step 8 review 결과 인지 +
+    run-review.md 의 Step 1 리포트 출력 + commands/impl.md 의 종료 조건) 에 의존.
 
     return: 항상 0 (block 쓴 경우에도 0 — CC 가 stdout JSON 으로 block 분기 인식).
     """

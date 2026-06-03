@@ -73,7 +73,7 @@ msg = header + '''## [dcness 활성 환경]
 첫 응답 첫 줄에 토큰 \`[dcness 활성 확인]\` 출력 의무.
 
 ### 강제 (코드 hook 차단)
-- **시퀀스**: catastrophic 4 룰 = \`docs/plugin/hooks.md\` §3.2
+- **시퀀스**: catastrophic 4 룰 = \`docs/plugin/hooks.md\` 의 catastrophic-gate.sh
 - **접근 영역**: file 경계 + 인프라 차단 = \`harness/agent_boundary.py\` (권한 경계 코드 SSOT)
 - 그 외 = agent 자율 (형식 / handoff / marker 강제 X)
 
@@ -91,7 +91,7 @@ msg = header + '''## [dcness 활성 환경]
 ### 작업 진입 매트릭스 (lazy — 통째 read 폐기, #400)
 | 상황 | docs |
 |---|---|
-| catastrophic / loop 인덱스 | \`hooks.md\` §3.2 + \`loop-procedure.md\` §7.0 |
+| catastrophic / loop 인덱스 | \`hooks.md\` 의 catastrophic-gate.sh + \`loop-procedure.md\` 의 한눈 인덱스 |
 | Step 0~8 / echo / REDO | \`loop-procedure.md\` |
 | agent 결론 → 다음 (라우팅) | 호출 skill 의 \`<skill>-routing.md\` |
 | hook 시점 / 차단 | \`hooks.md\` |

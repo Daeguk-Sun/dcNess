@@ -188,7 +188,7 @@ class StepRecord:
     # issue #383 B4 — prose 본문 끝 결론 enum (PASS/LGTM/FAIL/ESCALATE).
     # 옛 enum mode 는 helper stdout 에서 enum 직접 씀. prose-only mode
     # (이슈 #284) 이후 helper sentinel = `PROSE_LOGGED` 통일 → agent prose
-    # 마지막 단락 결론 (agents/code-validator.md §6 "PASS / FAIL / ESCALATE")
+    # 마지막 단락 결론 (agents/code-validator.md 의 결론 + 권장 다음 단계 "PASS / FAIL / ESCALATE")
     # 을 표시 단계에서 추출. 부재 시 빈 문자열 (= sentinel 그대로 표시 fallback).
     conclusion_enum: str = ""
 
@@ -282,7 +282,7 @@ def _parse_iso(ts: str) -> Optional[datetime]:
 
 
 # issue #383 B4 — prose 본문 결론 enum 추출.
-# agents/code-validator.md §6 등: "prose 마지막 단락에 결론 (PASS / FAIL / ESCALATE)".
+# agents/code-validator.md 의 결론 + 권장 다음 단계 등: "prose 마지막 단락에 결론 (PASS / FAIL / ESCALATE)".
 # pr-reviewer 는 LGTM 도 사용. 마지막 N줄에서 단어 단위 매칭 — 부정문 (예: "FAIL 없음",
 # "0 FAIL") 회피 위해 같은 줄에 부정 마커 있으면 skip.
 _CONCLUSION_ENUMS: tuple[tuple[str, str], ...] = (
@@ -541,7 +541,7 @@ def detect_wastes(
 
     # issue #387 — MISSING_CONCLUSION_ENUM. engineer prose 끝 결론 enum (IMPL_DONE
     # / IMPL_PARTIAL / SPEC_GAP_FOUND / TESTS_FAIL / IMPLEMENTATION_ESCALATE
-    # / POLISH_DONE) 부재 검출. agents/engineer.md §21~32 명시 강제.
+    # / POLISH_DONE) 부재 검출. agents/engineer.md 의 결론 + 권장 다음 단계 명시 강제.
     # validator/architect 류는 PR #361 enum 통일로 자율 영역 — 본 패턴 미적용.
     for s in steps:
         if s.agent != "engineer":
@@ -557,7 +557,7 @@ def detect_wastes(
             agent=s.agent,
             detail=(
                 f"engineer step {s.idx} prose 끝 결론 enum 부재 — "
-                "agents/engineer.md §21~32 명시 의무 위반 "
+                "agents/engineer.md 의 결론 + 권장 다음 단계 명시 의무 위반 "
                 "(IMPL_DONE / IMPL_PARTIAL / SPEC_GAP_FOUND / TESTS_FAIL / "
                 "IMPLEMENTATION_ESCALATE / POLISH_DONE 중 1)"
             ),
@@ -610,7 +610,7 @@ def detect_wastes(
             step_idx=len(steps) - 1,
             agent=last.agent,
             detail=f"마지막 step ({last.agent}) must_fix=True — caveat 통지 의무",
-            fix="loop-procedure.md §5.4 7b 분기 — 사용자 위임 + 메모리 candidate emit",
+            fix="loop-procedure.md 의 7b — 주의사항 확인 분기 — 사용자 위임 + 메모리 candidate emit",
         ))
 
     # SPEC_GAP_LOOP — architect SPEC_GAP cycle 한도 초과
@@ -838,7 +838,7 @@ def detect_notes(steps: list[StepRecord]) -> list[NoteFinding]:
 
 
 # issue #392 — `detect_goods` 함수 + 5 good patterns 전체 폐기.
-# 사유: dcness 정신 정합 X — CLAUDE.md §0.7 "임계값 hardcode 금지 + 자율 친화".
+# 사유: dcness 정신 정합 X — CLAUDE.md 의 dcness 강제 원칙 "임계값 hardcode 금지 + 자율 친화".
 # jajang 실측: loop-insights 100% PROSE_ECHO_OK (baseline) = 학습 가치 0.
 # 본 함수의 5 patterns (ENUM_CLEAN / PROSE_ECHO_OK / DDD_PHASE_A / DEPENDENCY_CAUSAL /
 # EXTERNAL_VERIFIED_PRESENT) 모두 폐기. 잘한점 섹션은 review.md render 에서도 제거.
