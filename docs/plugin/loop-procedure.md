@@ -36,6 +36,7 @@ EnterWorktree(name="<skill>-{ts_short}")   # impl 류만
 
 - **base 값 판정 규칙** (`**Base Branch:**` 마커 → base, 없으면 main · checkout/PR base 둘 다 적용) = [`git-spec.md` Git 절차](git-spec.md#git-절차).
 - **loop 별 적용** (epic 단위 stories.md 경로 유도 / chain outer 1회) = [`skills/architect-loop/SKILL.md`](../../skills/architect-loop/SKILL.md) · [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md).
+- **stale env 가드 (MUST)**: epic 단위 stories.md 경로 유도 시 `EPIC_DIR`(architect-loop) 와 `TASK_FILE`(impl-loop) 가 *둘 다* set 이면 (resume/chain) 두 경로가 같은 epic 의 stories.md 로 수렴하는지 검증 — 서로 다른 epic 을 가리키면 stale env 의심으로 **정지** (조용히 한쪽 택1 금지). 잘못된 epic 의 `**Base Branch:**` 로 worktree/PR base 가 어긋나는 사고 차단.
 
 ### begin-run
 

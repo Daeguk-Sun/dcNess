@@ -222,7 +222,7 @@ stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통
    - i == total + epic 중간 story → `Closes #${STORY_ISSUE}`
    - i < total → `Part of #${STORY_ISSUE}`
    - **공통 task** (`story: 공통`) → `Part of #${EPIC_ISSUE}` (task-index trailer omit). 공통 여부의 진본 신호 = `story: 공통` (task_index 형식 아님).
-   - **malformed/누락 가드 (MUST)**: `story` 가 숫자인데 `task_index` 가 `i/total` 도 공통(`—`)도 아니면 (누락/malformed — legacy / version-skew) **PR 생성 전 정지**. 공통으로 오분류해 `Part of #epic` 내보내면 story 이슈가 silent open 으로 남아 story-close 의미가 깨진다. `check_pr_body.mjs` 는 task-index 부재를 fallback(트레일러 1건)으로만 통과시켜 이 오분류를 못 잡으므로, 메인이 PR body 작성 전 본 가드를 직접 적용한다.
+   - **malformed/누락 가드 (MUST)**: 공통 형식(`—`)은 `story: 공통` 일 때만 유효하다. `story` 가 숫자(공통 아님)인데 `task_index` 가 `i/total` 형식이 아니면 — `—` 포함 무엇이든 (누락/malformed/legacy/version-skew) — **PR 생성 전 정지**. 숫자 story 의 `—` 를 공통으로 오분류해 `Part of #epic` 내보내면 story 이슈가 silent open 으로 남아 story-close 의미가 깨진다. `check_pr_body.mjs` 는 task-index 부재를 fallback(트레일러 1건)으로만 통과시켜 이 오분류를 못 잡으므로, 메인이 PR body 작성 전 본 가드를 직접 적용한다.
 
 bash one-liner ([`loop-procedure.md`](loop-procedure.md#impl-task-loop-commit-구조) commit3 단계 안):
 
