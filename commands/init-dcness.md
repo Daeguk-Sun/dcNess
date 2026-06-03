@@ -235,7 +235,7 @@ dcness plug-in 의 디자인 시스템 SSOT 는 `docs/design.md` (Google `design
 
   | docs/design.md | UI 모듈 작업 / 디자인 시스템 변경 시 |
 
-  → §3 (또는 동등) lazy 매트릭스에 추가합니다. (Y/n)
+  → lazy 매트릭스 (또는 동등) 에 추가합니다. (Y/n)
   ```
 
 - 사용자 답변 받은 후에만 메인 Claude 가 Edit 으로 씀. 답 없이 silent skip 금지 — 명시적 응답 1회 의무.
@@ -653,7 +653,7 @@ EOF
 
 다음 세션부터 발화하는 것:
 - SessionStart 훅 — by-pid / live.json 자동 생성
-- PreToolUse Agent 훅 — catastrophic 룰 (hooks.md §3.2) 검사
+- PreToolUse Agent 훅 — catastrophic 룰 (hooks.md 의 catastrophic-gate.sh) 검사
 
 git-naming 강제 (Step 2.6 완료 시):
 - 로컬: .git/hooks/commit-msg (thin shim) — 커밋 제목 형식 위반 차단. 본체 로직 plugin SSOT 안.

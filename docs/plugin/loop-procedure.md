@@ -342,15 +342,15 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 ### commit 골격
 
 ```bash
-# 메시지 형식 = git-spec.md §2~§5 참조.
+# 메시지 형식 = git-spec.md 의 커밋 제목~PR 본문 참조.
 
 # branch 생성 + src commit (code-validator PASS 직후)
-# 브랜치명 = git-spec.md §1 SSOT. 정식 impl task → feature/epic{N}_story{M}_{desc} (desc = task-slug 앞 순번 NN- 제거),
+# 브랜치명 = git-spec.md 의 브랜치 SSOT. 정식 impl task → feature/epic{N}_story{M}_{desc} (desc = task-slug 앞 순번 NN- 제거),
 #            공통 task(story: 공통) → feature/epic{N}_common_{desc}, 버그픽스 fallback → fix/issue{N}_{desc}.
 #            결정 절차 = skills/impl-loop/SKILL.md "## 브랜치명 결정".
 BRANCH="feature/epic{N}_story{M}_{desc}"   # 예: feature/epic7_story2_revival-button
 
-# base 분기 = git-spec §6 — epic 단위 stories.md 상단 **Base Branch:** 마커 매치 시 통합 브랜치, 없으면 main.
+# base 분기 = git-spec 의 Git 절차 — epic 단위 stories.md 상단 **Base Branch:** 마커 매치 시 통합 브랜치, 없으면 main.
 # stories.md 는 epic 디렉토리(impl task 경로의 조부모 = epic-NN-<slug>/) 에 있음. root docs/stories.md 는 legacy 폴백.
 # MUST: checkout 과 gh pr create 둘 다 이 BASE 사용 — main 하드코딩 시 통합 브랜치 모드 sub-PR 이 틀린 base 로 가 epic atomic 깨짐.
 TASK_FILE="docs/milestones/.../epics/epic-NN-<slug>/impl/NN-*.md"   # 본 task impl 파일
@@ -360,10 +360,10 @@ BASE=$(grep -m1 -E '^\*\*Base Branch:\*\*' "$STORIES" 2>/dev/null | sed -E 's/.*
 BASE="${BASE:-main}"
 git checkout -b "$BRANCH" "$BASE"
 git add src/**
-git commit -m "<git-spec §2 형식>"
+git commit -m "<git-spec 의 커밋 제목 형식>"
 git push -u origin "$BRANCH"
 
-# PR body: Closes vs Part of 자동 판단 (git-spec.md §8 PR 트레일러 적용 절차)
+# PR body: Closes vs Part of 자동 판단 (git-spec.md 의 PR 트레일러 적용 절차)
 # 입력 = impl 파일 frontmatter `task_index: i/total` + `story: N` (module-architect × K 시점에 있음). TASK_FILE = 위 BASE 블록 재사용.
 TASK_INDEX=$(awk '/^task_index:/ {gsub(/[",]/,""); print $2; exit}' "$TASK_FILE")  # 정식 = "3/3", 공통 task = "—"
 STORY_NUM=$(awk '/^story:/ {gsub(/[",]/,""); print $2; exit}' "$TASK_FILE")          # 정식 = 숫자, 공통 task = "공통"
@@ -371,7 +371,7 @@ STORY_NUM=$(awk '/^story:/ {gsub(/[",]/,""); print $2; exit}' "$TASK_FILE")     
 # 분기 키 = STORY_NUM (공통 여부의 진본 신호). task_index 형식만으로 공통 판정하면 정식 story 의 malformed index 가
 # 공통으로 오분류돼 Part of #epic 으로 story 이슈 silent open 위험 (F2-d).
 if [ "$STORY_NUM" = "공통" ]; then
-  # 공통 task — Part of #<epic> 단일 룰 (git-spec §8.1, task-index trailer omit). check_pr_body 는 task-index 부재 시 fallback 로 트레일러 1건 요구.
+  # 공통 task — Part of #<epic> 단일 룰 (git-spec 의 PR 트레일러 기본 룰, task-index trailer omit). check_pr_body 는 task-index 부재 시 fallback 로 트레일러 1건 요구.
   # EPIC_ISSUE 미설정 시 epic stories.md 의 **GitHub Epic Issue:** [#NNN] 마커에서 파싱 — 빈 "Part of #" 방지 위해 미해결이면 정지.
   EPIC_ISSUE="${EPIC_ISSUE:-$(grep -m1 -E '^\*\*GitHub Epic Issue:\*\*' "$STORIES" 2>/dev/null | grep -oE '#[0-9]+' | head -1 | tr -d '#')}"
   if [ -z "$EPIC_ISSUE" ]; then
@@ -386,7 +386,7 @@ elif printf '%s' "$TASK_INDEX" | grep -qE '^[0-9]+/[0-9]+$'; then
   if [ "$I" = "$TOTAL" ]; then
     # Story 마지막 task → Closes
     PR_BODY="Closes #${STORY_ISSUE}"
-    # epic 마지막 story 판정 (issue-lifecycle.md §2.2)
+    # epic 마지막 story 판정 (git-spec.md 의 Epic 완료)
     EPIC_OPEN_STORIES=$(gh issue list --label "epic-${EPIC_NUM}-${EPIC_SLUG}" --milestone Story --state open --json number --jq 'length' 2>/dev/null || echo 0)
     if [ "$EPIC_OPEN_STORIES" = "1" ]; then
       PR_BODY="${PR_BODY}
@@ -401,7 +401,7 @@ else
   echo "[impl] task_index 형식 오류 (story=$STORY_NUM, task_index='$TASK_INDEX') — 정식 i/total 도 공통(—)도 아님. PR 생성 전 정지." >&2
   exit 1
 fi
-gh pr create --base "$BASE" --title "<git-spec §4 형식>" --body "$PR_BODY"
+gh pr create --base "$BASE" --title "<git-spec 의 PR 제목 형식>" --body "$PR_BODY"
 ```
 
 ### Step 7a (impl-task-loop)
@@ -469,7 +469,7 @@ clean 아니면 **7b (주의사항)**.
 CHANGED=$(git diff --name-only HEAD)
 HAS_REMOTE=$(git remote get-url origin >/dev/null 2>&1 && echo yes || echo no)
 
-BRANCH="<prefix>/<short-slug>"   # prefix = 해당 loop 의 branch_prefix (skill 본문) — git-spec.md §1 valid 패턴(feature/ · fix/issue · docs/)만
+BRANCH="<prefix>/<short-slug>"   # prefix = 해당 loop 의 branch_prefix (skill 본문) — git-spec.md 의 브랜치 valid 패턴(feature/ · fix/issue · docs/)만
 git checkout -b "$BRANCH" main
 git add $CHANGED
 git commit -m "$(cat <<'EOF'
