@@ -31,7 +31,7 @@ cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
 
 ## Prose-Only 패턴 (검증 에이전트)
 
-본 저장소는 [`CLAUDE.md`](CLAUDE.md) §0.7 (Prose-Only 원칙 — 형식 강제 X) 에 따라 검증 결과를 **자유 prose** 로 emit 한다. 검증 에이전트(code-validator, architecture-validator, plan-reviewer, pr-reviewer 등) 호출 시:
+본 저장소는 [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) (Prose-Only 원칙 — 형식 강제 X) 에 따라 검증 결과를 **자유 prose** 로 emit 한다. 검증 에이전트(code-validator, architecture-validator, plan-reviewer, pr-reviewer 등) 호출 시:
 
 1. **stdout 으로 prose**: 형식 자유 (markdown / 평문 / 표). harness 가 prose 파일로 저장(`.claude/harness-state/<run_id>/<agent>[-<MODE>].md`).
 2. **결론 enum**: prose 의 *마지막 단락* 에 enum 단어 1개 명시 (검증 에이전트 통일 — `PASS` / `FAIL` / `ESCALATE`). 모호한 표현 금지.
@@ -42,13 +42,13 @@ cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
    - `preamble.md` 자동 주입 / agent-config 별 layer (자기완결 docs)
    - 모두 사용 금지.
 
-자세한 형식: [`agents/code-validator.md`](agents/code-validator.md), [`agents/architecture-validator.md`](agents/architecture-validator.md), [`CLAUDE.md`](CLAUDE.md) §0.7.
+자세한 형식: [`agents/code-validator.md`](agents/code-validator.md), [`agents/architecture-validator.md`](agents/architecture-validator.md), [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일).
 
 orchestrator 측 결론 routing 은 메인 Claude 가 prose 자체를 직접 읽고 판단 (prose-only, 이슈 #280/#284). [`harness/signal_io.py`](harness/signal_io.py) 는 prose 파일 I/O (`write_prose` / `read_prose`) 만 담당 — `MissingSignal` 은 not_found / empty 단일 normalize.
 
 ## 참조
 
 - [`CLAUDE.md`](CLAUDE.md) — 작업 규칙 SSOT
-- [`CLAUDE.md`](CLAUDE.md) §0.7 — Prose-Only 원칙 현행 SSOT (강제 영역 2 + 안티패턴 4)
+- [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) — Prose-Only 원칙 현행 SSOT (강제 영역 2 + 안티패턴 4)
 - [`PROGRESS.md`](PROGRESS.md) — 현재 상태 / TODO / Blockers
 - [`README.md`](README.md) — 프로젝트 개요 + Quick Start

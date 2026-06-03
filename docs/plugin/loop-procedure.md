@@ -2,7 +2,7 @@
 
 > **Status**: ACTIVE
 > **Scope**: dcness 7 loop 의 *공통 실행 절차* SSOT — Step 0~8 mechanics. 메인 Claude 가 skill 트리거 또는 직접 발화로 루프 시작 시 본 문서를 컨베이어 매뉴얼처럼 따른다.
-> **Cross-ref**: loop 한눈 인덱스 = 본 문서 §7.0. 각 loop 풀스펙 (allowed_enums / 분기 / sub_cycles / branch_prefix) = 해당 skill 본문 (`skills/<skill>/SKILL.md`; 예: impl-task-loop = [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)). catastrophic = [`hooks.md`](hooks.md) §3.2. 라우팅 = 각 loop skill 의 `<skill>-routing.md` (예: [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)).
+> **Cross-ref**: loop 한눈 인덱스 = 본 문서 §7.0. 각 loop 풀스펙 (allowed_enums / 분기 / sub_cycles / branch_prefix) = 해당 skill 본문 (`skills/<skill>/SKILL.md`; 예: impl-task-loop = [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)). catastrophic = [`hooks.md`](hooks.md#catastrophic-gatesh). 라우팅 = 각 loop skill 의 `<skill>-routing.md` (예: [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)).
 
 ---
 
@@ -562,7 +562,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 
 ### catastrophic 룰 정합
 
-catastrophic 시퀀스 진본 = [`hooks.md`](hooks.md) §3.2 (`hooks/catastrophic-gate.sh` 강제). 각 loop sequence 가 이 룰 자연 충족 (code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / module-architect × K 진입 직전 architecture-validator 1차 PASS / K = Story 수 + 공통 호출 / PRD 변경 후 사용자 2 차 OK + `/architect-loop` 진입 후 tech-reviewer 재호출 금지 단방향). 7 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+catastrophic 시퀀스 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제). 각 loop sequence 가 이 룰 자연 충족 (code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / module-architect × K 진입 직전 architecture-validator 1차 PASS / K = Story 수 + 공통 호출 / PRD 변경 후 사용자 2 차 OK + `/architect-loop` 진입 후 tech-reviewer 재호출 금지 단방향). 7 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 ---
 

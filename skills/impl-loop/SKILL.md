@@ -199,7 +199,7 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
 
 시퀀스 = **build-worker (2-step: test+impl+self-validate 통합) → pr-reviewer**. impl 파일 부재 시 module-architect 선두 (3-step).
 
-1. **begin-run + (reset) + build-worker step** — `begin-run impl` → **(chain 의 첫 task 또는 single 모드면 `dcness-helper prev-tasks-reset` — `begin-step` *전*, §prev-tasks 초기화)** → `begin-step build-worker` → `Agent(build-worker, prompt=<impl 경로 + task slug + RUN_ID + (begin-step stdout 의 [PREVIOUS_TASKS] 섹션 있으면 그대로 포함, #525)>)` → 반환 prose 결론 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md) §2). 이후 `end-step build-worker`. worker 안 phase 별 prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 는 worker 자체 Write — [`loop-procedure.md §3.2.1`](../../docs/plugin/loop-procedure.md).
+1. **begin-run + (reset) + build-worker step** — `begin-run impl` → **(chain 의 첫 task 또는 single 모드면 `dcness-helper prev-tasks-reset` — `begin-step` *전*, §prev-tasks 초기화)** → `begin-step build-worker` → `Agent(build-worker, prompt=<impl 경로 + task slug + RUN_ID + (begin-step stdout 의 [PREVIOUS_TASKS] 섹션 있으면 그대로 포함, #525)>)` → 반환 prose 결론 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). 이후 `end-step build-worker`. worker 안 phase 별 prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 는 worker 자체 Write — [`loop-procedure.md §3.2.1`](../../docs/plugin/loop-procedure.md).
 2. **git/PR 생성 (메인)** — worker prose 의 commit message + PR 본문 초안을 임시 파일로 박고 `scripts/pr-create.sh` 통합 호출:
    ```bash
    cat > /tmp/pr-body-<slug>.md <<'PR'
@@ -218,7 +218,7 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
 
 > **impl 파일 부재 시 module-architect 선두** — build-worker 직전에 `begin-step module-architect` → `Agent(module-architect, prompt=<task 컨텍스트 + impl 파일 생성 위치>)` → `PASS` 시 impl 파일 생성 확인 후 `end-step module-architect` → 정상 build-worker 진입. `ESCALATE` 시 사용자 위임.
 >
-> **자동 폴백** — build-worker 가 진행 중 `SPEC_GAP_FOUND` 던지면 분량 메타 (small/medium/large) 기반 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md) §2). attempt 한도 초과 시 사용자 위임.
+> **자동 폴백** — build-worker 가 진행 중 `SPEC_GAP_FOUND` 던지면 분량 메타 (small/medium/large) 기반 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). attempt 한도 초과 시 사용자 위임.
 
 ❌ build-worker 안티패턴: phase 2 종료 전 GREEN 미확인 (false-clean) / build-worker 가 `Agent(pr-reviewer)` 또는 `git commit` 직접 호출 (권한 경계 위반 — 메인이 별 turn 처리) / phase prose 자체 Write 확인 skip (`build-{test,impl,validate}.md` 3개 실존 검증 의무, 부재 시 `blocked` 강등).
 

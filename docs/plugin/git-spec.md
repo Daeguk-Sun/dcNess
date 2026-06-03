@@ -17,7 +17,7 @@
   - `_` 또는 `-` 구분자 택1 권장 (한 브랜치 안에서 일관). 둘 다 통과.
   - 공백·특수문자·대문자 금지.
   - **`feature/{desc}` 의 desc 는 `epic{N}_story` 로 시작 불가** — 그 형태는 strict 스토리 패턴(`feature/epic{N}_story{N}_{desc}`, desc ≥3자·story 숫자)만 통과한다. malformed 스토리 브랜치(`feature/epic7_story2_ui` 처럼 desc<3자 / story 비숫자)가 generic 으로 새는 것을 [`check_git_naming.mjs`](../../scripts/check_git_naming.mjs) 부정선행이 차단.
-- `feature/{desc}` 의 용도 = (1) 단발 feature, (2) **통합 브랜치** (epic 단위 long-lived feature branch + sub-PR 누적 → 마지막 한 방 main 머지). 통합 브랜치 의도는 epic issue body / stories.md 상단에 `**Base Branch:** feature/{slug}` 1줄 마커로 명시. 자세한 흐름은 [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md) Step 6.5/7 + 본 spec §8.
+- `feature/{desc}` 의 용도 = (1) 단발 feature, (2) **통합 브랜치** (epic 단위 long-lived feature branch + sub-PR 누적 → 마지막 한 방 main 머지). 통합 브랜치 의도는 epic issue body / stories.md 상단에 `**Base Branch:** feature/{slug}` 1줄 마커로 명시. 자세한 흐름은 [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md) Step 6.5/7 + 본 spec 의 [PR 트레일러](#pr-트레일러-part-of-closes).
 - **공통 task (epic 단위, story 없음)**: `feature/epic{N}_common_{desc}` — `feature/{desc}` 의 epic-traceable 특수형 (module-architect 공통 호출 산출물 = `story: 공통` / `task_index: —`). 게이트는 generic feature 로 통과 (`_common` 은 `_story` 가 아니라 위 부정선행에 안 걸림). 예: `feature/epic7_common_theme_tokens`. 제목 = `[feature] {설명}`, 트레일러 = `Part of #<epic>` (부모 = epic 단일 룰, task-index trailer omit, [기본 룰](#기본-룰)).
 - main 직접 push 금지. 항상 branch → PR → merge.
 - 브랜치는 merge 후에도 삭제하지 않는다.
@@ -40,7 +40,7 @@
 
 ```
 ## 관련 이슈 번호
-<!-- 본 commit 이 속한 PR 이 가리키는 이슈. 단순 정보 (auto-close 발동 X — §8.1 참조) -->
+<!-- 본 commit 이 속한 PR 이 가리키는 이슈. 단순 정보 (auto-close 발동 X — 기본 룰 참조) -->
 #NNN
 
 ## 작업내용
@@ -52,7 +52,7 @@
 - [ ] 회귀 검증
 ```
 
-> 상세 컨텍스트 (배경 / 원인 / 결정 근거) 는 PR body 가 SSOT — §5 참조. 1 commit = 1 PR 빈도가 높은 dcness 패턴 정합 — 중복 작성 방지.
+> 상세 컨텍스트 (배경 / 원인 / 결정 근거) 는 PR body 가 SSOT — [PR 본문](#pr-본문) 참조. 1 commit = 1 PR 빈도가 높은 dcness 패턴 정합 — 중복 작성 방지.
 
 ## PR 제목
 
@@ -70,7 +70,7 @@
 
 ```markdown
 ## 관련 이슈 번호
-<!-- 트레일러 룰 (§8.1):
+<!-- 트레일러 룰 (기본 룰):
      - 중간 task → Part of #N
      - 마지막 task → Closes #N
      - epic 마지막 task → Closes #story + Closes #epic
@@ -115,7 +115,7 @@ Part of #N
 5. "$PLUGIN_ROOT/scripts/pr-finalize.sh"   # 머지 + CI 대기 + main sync 자동 (한 명령)
 ```
 
-> 통합 브랜치 케이스 — stories.md 상단에 `**Base Branch:** feature/{slug}` 마커가 박혀있으면 모든 sub-PR 의 base = 그 통합 브랜치. 마지막 통합 → main 머지 PR 만 base = main + body 에 `Closes #{epic}` + `Closes #{story1...N}` 일괄 박음 (§8.2).
+> 통합 브랜치 케이스 — stories.md 상단에 `**Base Branch:** feature/{slug}` 마커가 박혀있으면 모든 sub-PR 의 base = 그 통합 브랜치. 마지막 통합 → main 머지 PR 만 base = main + body 에 `Closes #{epic}` + `Closes #{story1...N}` 일괄 박음 ([통합 브랜치 케이스](#통합-브랜치-케이스-base-main-sub-pr-의-auto-close-한계-must)).
 
 `pr-finalize.sh` 내부:
 - `gh pr merge --auto --merge` (auto-merge 토글)
@@ -168,7 +168,7 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
     | Story 1 | [#MMM](url) |
     ```
 
-> sub-issue API 연결·멱등성 메커니즘 = [`issue-lifecycle.md`](issue-lifecycle.md) §1.
+> sub-issue API 연결·멱등성 메커니즘 = [`issue-lifecycle.md`](issue-lifecycle.md#sub-issue-연결-epic-story-gh-api-메커니즘).
 
 ### Task — GitHub 이슈 없음
 
@@ -212,7 +212,7 @@ stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통
 
 ### 적용 절차 — PR 생성 직전 사전 체크 (impl 파일 frontmatter 기반)
 
-판정 입력 = **impl 파일 frontmatter `task_index: <i>/<total>` + `story: <N>`**. module-architect × K 시점 (architect-loop) 에 박힘. `task_index` 의미 = 그 Story 안 task 의 순번 / 그 Story 의 총 task 수 (옛 의미: 옛 `## impl 목차` 표 행 위치 → 폐기, 이슈 [#511](https://github.com/alruminum/dcNess/issues/511)). 공통 task 는 `task_index: —`. stories.md `[ ]` 카운트 룰 폐기 (2026-05-12) — 새 stories.md 양식엔 task `[ ]` 자체 없음 (user story 만, [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md) §stories.md 산출물).
+판정 입력 = **impl 파일 frontmatter `task_index: <i>/<total>` + `story: <N>`**. module-architect × K 시점 (architect-loop) 에 박힘. `task_index` 의미 = 그 Story 안 task 의 순번 / 그 Story 의 총 task 수 (옛 의미: 옛 `## impl 목차` 표 행 위치 → 폐기, 이슈 [#511](https://github.com/alruminum/dcNess/issues/511)). 공통 task 는 `task_index: —`. stories.md `[ ]` 카운트 룰 폐기 (2026-05-12) — 새 stories.md 양식엔 task `[ ]` 자체 없음 (user story 만, [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md#storiesmd-산출물-단순화-user-story-만) stories.md 산출물 절).
 
 1. **task 파일 frontmatter read** — `task_index: 3/3` + `story: 1`
 2. **본 task 가 Story 마지막인지 판정** — `i == total` 이면 마지막
@@ -222,7 +222,7 @@ stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통
    - i == total + epic 중간 story → `Closes #${STORY_ISSUE}`
    - i < total → `Part of #${STORY_ISSUE}`
 
-bash one-liner ([`loop-procedure.md`](loop-procedure.md) §3.4 commit3 단계 안):
+bash one-liner ([`loop-procedure.md`](loop-procedure.md#impl-task-loop-commit-구조) commit3 단계 안):
 
 ```bash
 TASK_FILE="docs/milestones/.../impl/NN-*.md"
@@ -254,7 +254,7 @@ $cur"
 
 - **조건**: story 의 모든 impl task PR merge
 - **Close**: 마지막 task PR body `Closes #story-issue` → GitHub 자동 close (regular merge auto-close)
-- 메인 Claude 사후 작업 없음 — stories.md `[x]` 체크 룰 폐기 (2026-05-12, [`loop-procedure.md`](loop-procedure.md) §4)
+- 메인 Claude 사후 작업 없음 — stories.md `[x]` 체크 룰 폐기 (2026-05-12, [`loop-procedure.md`](loop-procedure.md#step-45-폐기-2026-05-12))
 
 ### Epic 완료
 
@@ -269,7 +269,7 @@ $cur"
 
 ### API 직접 close 절대금지
 
-`mcp__github__update_issue state:closed` 호출 금지 (epic / story 모두). 반드시 PR body `Closes #N` — §8.1 참조 (regular merge auto-close 인식 한계).
+`mcp__github__update_issue state:closed` 호출 금지 (epic / story 모두). 반드시 PR body `Closes #N` — [기본 룰](#기본-룰) 참조 (regular merge auto-close 인식 한계).
 
 ---
 
@@ -277,9 +277,9 @@ $cur"
 
 - lifecycle 흐름·메커니즘 (sub-issue API / 멱등성 / 마일스톤 조회 / pre-flight gate): [`issue-lifecycle.md`](issue-lifecycle.md)
 - 라우팅 / 핸드오프: 각 loop skill 의 `<skill>-routing.md` (예: [`../../skills/impl-loop/impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md))
-- loop 인덱스: [`loop-procedure.md`](loop-procedure.md) §7.0 (각 loop 풀스펙 = 해당 skill 본문 `skills/<skill>/SKILL.md`)
+- loop 인덱스: [`loop-procedure.md`](loop-procedure.md#한눈-인덱스-loop-진입-ssot) (각 loop 풀스펙 = 해당 skill 본문 `skills/<skill>/SKILL.md`)
 - product-plan skill (메인 직접): [`../../skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md)
 - system-architect (모듈 토폴로지 + 공통 task 목록 SSOT): [`../../agents/system-architect.md`](../../agents/system-architect.md)
 - module-architect (Story 안 task 분할 + impl 파일 N 개 산출 SSOT): [`../../agents/module-architect.md`](../../agents/module-architect.md)
 - module-architect (impl 본문 detail per task): [`../../agents/module-architect.md`](../../agents/module-architect.md)
-- engineer: [`../../agents/engineer.md`](../../agents/engineer.md) §1 task = 1 PR
+- engineer: [`../../agents/engineer.md`](../../agents/engineer.md#1-task-1-pr-engineer-는-src-만) 1 task = 1 PR

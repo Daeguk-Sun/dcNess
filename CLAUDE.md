@@ -63,7 +63,7 @@
 > - **출력 형식 / handoff 형식 / preamble / marker / status JSON / Flag = agent 자율, harness 강제 X.**
 
 **강제 vs 자율 vs 권고**:
-- **강제 (코드)**: catastrophic 시퀀스 ([`docs/plugin/hooks.md`](docs/plugin/hooks.md) §3.2) + 권한 경계 ([`harness/agent_boundary.py`](harness/agent_boundary.py)). escalate 결론 자동 복구 금지.
+- **강제 (코드)**: catastrophic 시퀀스 ([`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh)) + 권한 경계 ([`harness/agent_boundary.py`](harness/agent_boundary.py)). escalate 결론 자동 복구 금지.
 - **자율 (agent)**: prose 형식 / handoff 페이로드 / preamble / 도구 순서 (권한 안).
 - **권고 (강제 X)**: 라우팅 (각 skill `<skill>-routing.md` — 예: [`skills/impl-loop/impl-loop-routing.md`](skills/impl-loop/impl-loop-routing.md)) / retry 한도 — 측정 + 사용자 개입.
 

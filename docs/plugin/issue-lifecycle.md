@@ -14,7 +14,7 @@ epic issue ─┬─ story issue ── (task: PR 기반, 이슈 없음)
 - **story** = epic 단위 stories.md 안의 Story N 단위
 - **task** = `docs/milestones/vNN/epics/epic-NN-*/impl/NN-*.md` 단위. PR 1 개 = task 1 개. GitHub 이슈 X — PR 자체가 추적 단위
 
-> 양식 (레이블 / 마일스톤 / 제목 / 본문 / stories.md 기록 형식) 은 [`git-spec.md`](git-spec.md) §7 SSOT.
+> 양식 (레이블 / 마일스톤 / 제목 / 본문 / stories.md 기록 형식) 은 [`git-spec.md`](git-spec.md#이슈-등록-양식) SSOT.
 
 ## Sub-issue 연결 (epic ↔ story, gh API 메커니즘)
 
@@ -31,7 +31,7 @@ gh api -X POST repos/{owner}/{repo}/issues/{epic_number}/sub_issues \
 
 멱등성: 재호출 전 `gh api repos/{owner}/{repo}/issues/{epic_number} --jq '.sub_issues_summary.total'` 로 연결 상태 조회. 누락 story 만 추가 (이미 연결된 story 재추가 시 422).
 
-task 는 GitHub 이슈 X — [`git-spec.md`](git-spec.md) §8 PR 트레일러로만 추적.
+task 는 GitHub 이슈 X — [`git-spec.md`](git-spec.md#pr-트레일러-part-of-closes) PR 트레일러로만 추적.
 
 ## 미등록 허용 모드
 
@@ -41,7 +41,7 @@ task 는 GitHub 이슈 X — [`git-spec.md`](git-spec.md) §8 PR 트레일러로
 **GitHub Epic Issue:** 미등록 (사유: <spike / 잡탕 / …>)
 ```
 
-명시 없는 미등록 = 위반. 발견 시 backfill 의무 — 메인이 [`git-spec.md`](git-spec.md) §7 따라 `mcp__github__create_issue` 1회 호출 + stories.md 번호 patch.
+명시 없는 미등록 = 위반. 발견 시 backfill 의무 — 메인이 [`git-spec.md`](git-spec.md#이슈-등록-양식) 따라 `mcp__github__create_issue` 1회 호출 + stories.md 번호 patch.
 
 ## 멱등성 (등록 전 매치 체크)
 
@@ -83,7 +83,7 @@ story 이슈 부재 시 동일 패턴 (Story N 헤더 직하 `**GitHub Issue:** 
 
 - 등록·트레일러·완료 *룰* SSOT: [`git-spec.md`](git-spec.md) §7~§9
 - 라우팅 / 핸드오프: 각 loop skill 의 `<skill>-routing.md` (예: [`../../skills/impl-loop/impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md))
-- loop 인덱스: [`loop-procedure.md`](loop-procedure.md) §7.0 (각 loop 풀스펙 = 해당 skill 본문 `skills/<skill>/SKILL.md`)
+- loop 인덱스: [`loop-procedure.md`](loop-procedure.md#한눈-인덱스-loop-진입-ssot) (각 loop 풀스펙 = 해당 skill 본문 `skills/<skill>/SKILL.md`)
 - product-plan skill (메인 직접): [`../../skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md)
 - system-architect (impl 목차 표 SSOT): [`../../agents/system-architect.md`](../../agents/system-architect.md)
 - module-architect (impl 본문 detail per task): [`../../agents/module-architect.md`](../../agents/module-architect.md)
