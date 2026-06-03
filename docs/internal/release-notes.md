@@ -4,6 +4,41 @@
 
 ---
 
+## v0.4.0 (2026-06-04)
+
+**커밋 범위**: `v0.3.0..v0.4.0`
+**핵심 변경**: `commands/*.md` → `skills/<name>/SKILL.md` 승격 (7 skill) + 라우팅을 각 skill 옆 `<name>-routing.md` 단일 진본으로 분산 + 전역 SSOT (`orchestration.md` / `handoff-matrix.md` / 전역 `routing.md`) 폐기. 부수 — Codex read-only validator skills 3종 신설 + harness 코드 다이어트 + agent 기능 강화 + 문서 컨벤션 SSOT 신설.
+
+### 무엇이 바뀌나
+
+1. **commands → skills 전환 (7 skill)** — `architect-loop` / `impl-loop` / `impl` / `issue-report` / `product-plan` / `tech-review` / `ux` 를 `commands/<name>.md` 단일 파일에서 `skills/<name>/SKILL.md` (진행 절차) + `skills/<name>/<name>-routing.md` (라우팅 SSOT — mermaid + 결론→다음 매핑 + retry 한도 + escalate) 디렉토리로 승격. SKILL.md 경량화. frontmatter `name` 동일 → 사용자 호출 방식 (`/architect-loop`·`/impl` 등) 그대로. plugin.json 무변경 (skills/ 자동 스캔, namespace `dcness:<name>`). 옛 `commands/<name>.md` 삭제 (동일 name 중복 등록 충돌 회피). 남은 commands = `efficiency` / `init-dcness` / `run-review` / `smart-compact`.
+
+2. **라우팅 SSOT 분산 + 전역 집계 파일 폐기** — `docs/plugin/orchestration.md` + `handoff-matrix.md` + 전역 `routing.md` 폐기. 통찰 = "라우팅은 skill 이 소유, agent 는 결론(enum)만 낸다". 런타임에 안 읽히던 전역 집계 view(중복)를 각 skill 옆 `<name>-routing.md` 단일 진본으로 이전.
+
+3. **Codex read-only validator skills 신설** — `code-validator` / `architecture-validator` / `pr-reviewer` 3종을 Codex read-only 실행으로 route 가능. `codex/skills/dcness-*/SKILL.md` + `scripts/dcness-codex-validator` wrapper (Codex read-only sandbox + prose 수집 + end-step 저장 + mutation guard) + `harness/agent_routing.py` (local routing). **사용자 repo 에 파일 안 만듦** — `~/.claude/plugins/data/dcness-dcness/routing.json` + `$CODEX_HOME/skills/` 에만. read-only 3종 한정(mutation agent migration 차단).
+
+4. **harness 코드 다이어트** — `harness/interpret_strategy.py` + `scripts/analyze_metrics.mjs` + `tests/eval_{deepeval,agentevals}.py` 삭제 (enum 추출 / 전략 해석 / 외부 eval 의존 제거). `harness/agent_routing.py` + `harness/prev_tasks.py` 신규.
+
+5. **agent 기능 강화** — architecture-validator premortem 시뮬레이션 + origin anchor provenance 검증 / tech-reviewer → system-architect signal 전달 / 신규 의존 경량 escalate (G3) / tech-stack grill checkpoint / UI-less 화면 ux skip gate / impl-loop prev-tasks 컨텍스트 inject + dry-run preview.
+
+6. **문서 컨벤션 SSOT + 정리** — `docs/internal/doc-conventions.md` 신규 (문서 작성 규약 단일 진본). anchor-ref 마이그레이션 (§N 참조 → 제목 자연어), codeblock/주석 stale-ref 자연어화, routing/loop 중복 다이어트, README·manifest sync, loop-procedure 단일 목적 슬림화.
+
+### 사용자 영향
+
+- **외부 활성 프로젝트: `claude plugin update dcness@dcness` 로 skills 전환 자동 반영** — 호출 방식 (`/architect-loop`·`/impl-loop`·`/impl`·`/issue-report`·`/product-plan`·`/tech-review`) 그대로. 옛 `commands/<name>.md` 는 삭제됐지만 같은 namespace 로 skills 가 등록돼 동작 동형. (런타임 트리거 100% 확인은 사용자 환경에서 한 번 호출.)
+- **Codex validator 쓰려면 `/init-dcness` 재실행** — plugin update 후 `/init-dcness` 재실행 시 Step 2.10 에서 `$CODEX_HOME/skills/dcness-*` 복사 + routing opt-in (Y/n). 끄기 = `dcness-helper routing disable-codex-validation`. opt-in 안 하면 기존 (메인 Claude in-session) validator 그대로.
+- **옛 전역 SSOT 앵커 참조** — `orchestration.md` / `handoff-matrix.md` / 전역 `routing.md` 의 §N 앵커 참조는 전부 각 skill routing.md 또는 제목 자연어로 마이그레이션됨. 외부 사용자가 직접 참조하던 링크 없으면 영향 없음.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+# Codex validator 까지 쓰려면:
+/init-dcness   # 재실행 → Step 2.10 routing opt-in
+```
+
+---
+
 ## v0.3.0 (2026-05-26)
 
 **커밋 범위**: `v0.2.34..v0.3.0`

@@ -1,6 +1,6 @@
 {
   "name": "dcness",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Lightweight governance harness for Claude Code — prose-only determinism (no format-marker ladder, no meta-LLM) + enforced work-order and access boundaries.",
   "author": {
     "name": "alruminum",
