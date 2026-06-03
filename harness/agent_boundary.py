@@ -2,7 +2,7 @@
 
 본 모듈은 PreToolUse(Edit/Write/Read/Bash) 훅이 호출하여 활성 sub-agent 의 path
 접근을 차단한다. 권한 경계 spec 을 코드로 강제 (DCN-CHG-20260501-01). 사람용 일람 =
-`docs/plugin/routing.md` §1 (적용 모드) + 각 `agents/<agent>.md` `## 권한 경계`.
+각 skill 의 `<skill>-routing.md` (적용 모드) + 각 `agents/<agent>.md` `## 권한 경계`.
 
 핵심 룰:
     ALLOW_MATRIX — agent 별 Write 허용 path
@@ -50,7 +50,7 @@ DCNESS_INFRA_PATTERNS: tuple[str, ...] = (
     r'(^|/)\.claude/',
     r'(^|/)hooks/',
     r'(^|/)harness/(signal_io|hooks|session_state|agent_boundary)\.py$',
-    r'(^|/)docs/plugin/routing\.md$',
+    r'(^|/)skills/[^/]+/[^/]+-routing\.md$',
     r'(^|/)docs/plugin/loop-procedure\.md$',
     r'(^|/)docs/internal/governance\.md$',
     r'(^|/)scripts/(check_document_sync|check_task_id|setup_branch_protection)\.mjs$',

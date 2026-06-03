@@ -70,6 +70,11 @@ const DENY_LIST = [
     pattern: /\b8\s+loop\s+(행별|풀스펙)/,
     label: '옛 loop 카운트 — 현재 7 loop (orchestration.md §4 sub-section 정합)',
   },
+  {
+    // `architect-loop-routing.md` 등 skill 라우팅 파일은 앞에 `-`/단어문자가 붙어 제외.
+    pattern: /(?<![\w-])routing\.md/,
+    label: '폐기 SSOT `docs/plugin/routing.md` — Phase 3 (#564) 폐기, 라우팅은 각 skill `<skill>-routing.md` 로 분산',
+  },
 ];
 
 const EXTERNAL_DIRS = ['docs/plugin', 'commands', 'skills', 'agents', 'hooks', '.claude-plugin'];

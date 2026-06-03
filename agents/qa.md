@@ -24,7 +24,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 - **이미 알려진 이슈** → "KNOWN_ISSUE".
 - **분류 불가 / 범위 초과** → "SCOPE_ESCALATE".
 
-> 결론별 다음 호출(라우팅) 진본 = [`skills/issue-report/issue-report-routing.md`](../skills/issue-report/issue-report-routing.md) (전역 [`routing.md`](../docs/plugin/routing.md) §1 qa 행 = 요약 view).
+> 결론별 다음 호출(라우팅) 진본 = [`skills/issue-report/issue-report-routing.md`](../skills/issue-report/issue-report-routing.md).
 
 **호출자가 prompt 로 전달하는 정보**: GitHub 이슈 번호 또는 버그 설명, (선택) 재현 단계, (선택) 기존 이슈 번호.
 
@@ -66,7 +66,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 
 ## 라우팅 가이드
 
-> 분류별 다음 호출(라우팅) 진본 = [`skills/issue-report/issue-report-routing.md`](../skills/issue-report/issue-report-routing.md) (qa 5 enum). loop 시퀀스 = [`skills/issue-report/SKILL.md`](../skills/issue-report/SKILL.md) (qa-triage) / [`/impl-loop`](../skills/impl-loop/SKILL.md) (impl-task-loop fallback — module-architect 선두 추가). 전역 [`routing.md`](../docs/plugin/routing.md) §1 qa 행은 *요약 view*.
+> 분류별 다음 호출(라우팅) 진본 = [`skills/issue-report/issue-report-routing.md`](../skills/issue-report/issue-report-routing.md) (qa 5 enum). loop 시퀀스 = [`skills/issue-report/SKILL.md`](../skills/issue-report/SKILL.md) (qa-triage) / [`/impl-loop`](../skills/impl-loop/SKILL.md) (impl-task-loop fallback — module-architect 선두 추가).
 
 **판정 기준**:
 - **CLEANUP**: PRD/스펙에 없는 기능 코드 / 사용 안 하는 코드 / behavior 변경 없이 삭제·정리만.
@@ -111,4 +111,4 @@ CRITICAL 이슈 발견 시 다른 이슈 분석 즉시 중단 + 보고.
 
 ## 참조
 
-- 라우팅 진본: [`skills/issue-report/issue-report-routing.md`](../skills/issue-report/issue-report-routing.md) (전역 [`routing.md`](../docs/plugin/routing.md) §1 qa 행 = 요약 view) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2
+- 라우팅 진본: [`skills/issue-report/issue-report-routing.md`](../skills/issue-report/issue-report-routing.md) / catastrophic: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2

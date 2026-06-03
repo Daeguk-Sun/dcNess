@@ -93,7 +93,7 @@ msg = header + '''## [dcness 활성 환경]
 |---|---|
 | catastrophic / loop 인덱스 | \`hooks.md\` §3.2 + \`loop-procedure.md\` §7.0 |
 | Step 0~8 / echo / REDO | \`loop-procedure.md\` |
-| agent 결론 → 다음 (라우팅) | \`routing.md\` §1 |
+| agent 결론 → 다음 (라우팅) | 호출 skill 의 \`<skill>-routing.md\` |
 | hook 시점 / 차단 | \`hooks.md\` |
 | 이슈 lifecycle / PR | \`issue-lifecycle.md\` |
 | 브랜치/커밋 네이밍 | \`git-spec.md\` |

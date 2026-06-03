@@ -176,7 +176,7 @@ validator prose 결론에 *자동 검증 통과 영역* + *수동 review 권고 
 
 ## 참조
 
-- [`docs/plugin/routing.md`](routing.md) — agent 호출 라우팅
+- 각 loop skill 의 `<skill>-routing.md` — agent 호출 라우팅 (예: [`../../skills/architect-loop/architect-loop-routing.md`](../../skills/architect-loop/architect-loop-routing.md))
 - [`harness/agent_boundary.py`](../../harness/agent_boundary.py) — agent 권한 영역 (코드 SSOT)
 - John Ousterhout, "A Philosophy of Software Design"
 - [mattpocock skills — Deep Modules](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/deep-modules.md)

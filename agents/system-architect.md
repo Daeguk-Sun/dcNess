@@ -227,5 +227,5 @@ task 단위 detail = **module-architect 영역** (impl 파일 안에서). archit
 
 ## 참조
 
-- 결론별 다음 호출(라우팅) 진본 = [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1. 설계 loop 풀스펙 = [`skills/architect-loop/SKILL.md`](../skills/architect-loop/SKILL.md) (라우팅 = [`architect-loop-routing.md`](../skills/architect-loop/architect-loop-routing.md)) / catastrophic = [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2. (위 §분기 판정 ESCALATE 케이스는 *언제 escalate 하는가* + catastrophic 제약 영역)
+- 결론별 다음 호출(라우팅) 진본 = [`architect-loop-routing.md`](../skills/architect-loop/architect-loop-routing.md) (system-architect 는 `/architect-loop` 전용 — agent 는 라우팅 미보유, 호출 skill 의 라우팅 파일이 진본). 설계 loop 풀스펙 = [`skills/architect-loop/SKILL.md`](../skills/architect-loop/SKILL.md) / catastrophic = [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2. (위 §분기 판정 ESCALATE 케이스는 *언제 escalate 하는가* + catastrophic 제약 영역)
 - 모듈 설계 원칙 SSOT: [`docs/plugin/module-design-principles.md`](../docs/plugin/module-design-principles.md)

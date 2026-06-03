@@ -90,7 +90,11 @@ class WriteAllowedMainBypassTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self.assertIsNone(check_write_allowed(None, "hooks/x.sh", cwd=cwd))
-            self.assertIsNone(check_write_allowed("", "docs/plugin/routing.md", cwd=cwd))
+            self.assertIsNone(
+                check_write_allowed(
+                    "", "skills/architect-loop/architect-loop-routing.md", cwd=cwd
+                )
+            )
 
 
 class WriteAllowedInfraProjectBypassTests(unittest.TestCase):
@@ -104,7 +108,11 @@ class WriteAllowedInfraProjectBypassTests(unittest.TestCase):
                     check_write_allowed("engineer", "hooks/x.sh", cwd=cwd)
                 )
                 self.assertIsNone(
-                    check_write_allowed("engineer", "docs/plugin/routing.md", cwd=cwd)
+                    check_write_allowed(
+                        "engineer",
+                        "skills/architect-loop/architect-loop-routing.md",
+                        cwd=cwd,
+                    )
                 )
 
 
@@ -128,11 +136,13 @@ class WriteAllowedInfraPatternBlockTests(unittest.TestCase):
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
 
-    def test_architect_blocked_on_routing(self):
+    def test_architect_blocked_on_skill_routing(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             reason = check_write_allowed(
-                "architect", "docs/plugin/routing.md", cwd=cwd
+                "architect",
+                "skills/architect-loop/architect-loop-routing.md",
+                cwd=cwd,
             )
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)

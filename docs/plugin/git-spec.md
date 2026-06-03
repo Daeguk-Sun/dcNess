@@ -276,8 +276,8 @@ $cur"
 ## 10. 참조
 
 - lifecycle 흐름·메커니즘 (sub-issue API / 멱등성 / 마일스톤 조회 / pre-flight gate): [`issue-lifecycle.md`](issue-lifecycle.md)
-- 라우팅 / 핸드오프: [`routing.md`](routing.md) §1
-- loop 인덱스: [`loop-procedure.md`](loop-procedure.md) §7.0 (각 loop 풀스펙 = 해당 skill 본문 `skills/<skill>/SKILL.md` 또는 `commands/<skill>.md`)
+- 라우팅 / 핸드오프: 각 loop skill 의 `<skill>-routing.md` (예: [`../../skills/impl-loop/impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md))
+- loop 인덱스: [`loop-procedure.md`](loop-procedure.md) §7.0 (각 loop 풀스펙 = 해당 skill 본문 `skills/<skill>/SKILL.md`)
 - product-plan skill (메인 직접): [`../../skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md)
 - system-architect (모듈 토폴로지 + 공통 task 목록 SSOT): [`../../agents/system-architect.md`](../../agents/system-architect.md)
 - module-architect (Story 안 task 분할 + impl 파일 N 개 산출 SSOT): [`../../agents/module-architect.md`](../../agents/module-architect.md)

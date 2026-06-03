@@ -65,7 +65,7 @@
 **강제 vs 자율 vs 권고**:
 - **강제 (코드)**: catastrophic 시퀀스 ([`docs/plugin/hooks.md`](docs/plugin/hooks.md) §3.2) + 권한 경계 ([`harness/agent_boundary.py`](harness/agent_boundary.py)). escalate 결론 자동 복구 금지.
 - **자율 (agent)**: prose 형식 / handoff 페이로드 / preamble / 도구 순서 (권한 안).
-- **권고 (강제 X)**: 라우팅 ([`docs/plugin/routing.md`](docs/plugin/routing.md)) / retry 한도 — 측정 + 사용자 개입.
+- **권고 (강제 X)**: 라우팅 (각 skill `<skill>-routing.md` — 예: [`skills/impl-loop/impl-loop-routing.md`](skills/impl-loop/impl-loop-routing.md)) / retry 한도 — 측정 + 사용자 개입.
 
 **안티패턴 (룰 추가 시 피하기)**:
 1. **룰이 룰을 부르는 reactive cycle** — 신규 룰 추가 전 기존 룰 제거 가능성 먼저 검토. 추가→제거 비대칭이 기술 부채.
@@ -101,7 +101,7 @@
 | 파일 | 언제 읽나 |
 |---|---|
 | [`docs/plugin/git-spec.md`](docs/plugin/git-spec.md) | 브랜치·커밋·PR 네이밍 규칙 SSOT — 모든 커밋 작업에 적용 |
-| [`docs/plugin/routing.md`](docs/plugin/routing.md) | 라우팅 한눈표 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑(1-way 진본) 수정 시 |
+| 각 skill 의 `<skill>-routing.md` ([`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / Stop = 7 hook) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
 | [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — §0.2 참조) |

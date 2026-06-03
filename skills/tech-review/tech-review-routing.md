@@ -40,7 +40,7 @@ flowchart TB
 | 입력 | 다음 |
 |---|---|
 | **tech-reviewer PASS** | → 메인이 산출물 echo → 사용자 2차 OK 체크포인트 (Step 3). OK → `/architect-loop` |
-| **tech-reviewer FAIL** | → 메인이 *FAIL + 미해결 항목* 명시 echo → **기본 권고 = PRD patch / 격상 / polish 후 Step 1 재검토** (Step 4 옵션 2/3/4, routing.md §1 요약 정합). 사용자가 *명시적 위험 감수* OK 선택 시에만 진행 (silent 통과 금지) |
+| **tech-reviewer FAIL** | → 메인이 *FAIL + 미해결 항목* 명시 echo → **기본 권고 = PRD patch / 격상 / polish 후 Step 1 재검토** (Step 4 옵션 2/3/4). 사용자가 *명시적 위험 감수* OK 선택 시에만 진행 (silent 통과 금지) |
 | **tech-reviewer ESCALATE** | → 정상 체크포인트 우회 — 사용자 위임 only (외부 검증 실행 불가 / 권한 밖 / 결론 추출 불가 → 게이트 통과 판정 자체 불가) |
 | **사용자 2차 OK — 1. OK** | → Step 5 종료 + `/architect-loop` 권고 |
 | **사용자 — 2. PRD 재기술** | → 메인 `prd.md` patch (+ 필요 시 스켈레톤) → **Step 1 재진입** (cycle 컨텍스트 prompt 명시) |
