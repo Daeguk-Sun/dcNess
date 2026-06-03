@@ -34,7 +34,7 @@ flowchart TB
 |---|---|
 | **FUNCTIONAL_BUG** | `/impl-loop` fallback path (impl 부재 시 module-architect 선두 추가 — 버그픽스 케이스) |
 | **CLEANUP** | `/impl-loop` fallback path (경량 수정) |
-| **DESIGN_ISSUE** | `/ux` (ux-design-stage) 또는 designer 직접 ([`skills/ux/ux-routing.md`](../ux/ux-routing.md)) |
+| **DESIGN_ISSUE** | `/ux` (ux-design-stage — ux-architect 화면 분석 → designer → 사용자 PICK 흐름, [`skills/ux/ux-routing.md`](../ux/ux-routing.md)). qa 는 designer 직접 호출 X (HARNESS_ONLY) — 반드시 `/ux` skill 경유 |
 | **KNOWN_ISSUE** | 종료 (이미 알려진/추적 중 — 추가 작업 없음) |
 | **SCOPE_ESCALATE** | 사용자 위임 (큰 변경 / 다중 모듈 — `/product-plan` 또는 `/architect-loop` 재진입 후보) |
 
