@@ -213,7 +213,19 @@ TaskUpdate(<기존 task>, completed)
 
 ### yolo 모드
 
-발화에 `yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서` 키워드 시 ON — 비-yolo 면 사용자 위임할 soft `*_ESCALATE` / `AMBIGUOUS` 등을 `auto-resolve` 로 자동 진행한다. 상황별 비-yolo↔yolo 분기는 각 `<skill>-routing.md`, catastrophic 룰은 yolo 우회 불가 (hard safety). auto-resolve 동작은 helper 코드(`session_state.py`)가 진본:
+발화에 `yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서` 키워드 시 ON — 평소 사용자 위임할 신호를 자동 진행한다. yolo↔비-yolo 케이스별 동작은 cross-cutting 운전 규칙이라 본 문서가 SSOT (각 `<skill>-routing.md` 의 enum→호출 매핑과 별개):
+
+| 상황 | 비-yolo | yolo |
+|---|---|---|
+| soft `*_ESCALATE` / `AMBIGUOUS` | 사용자 위임 | `auto-resolve` 적용 |
+| `SPEC_GAP_FOUND` | 사용자 위임 | module-architect (보강 케이스) cycle (≤2) |
+| `TESTS_FAIL` / code-validator `FAIL` | 재시도 (≤3) | 동일 |
+| `IMPL_PARTIAL` | engineer 재호출 (split ≤3) | 동일 — 새 context window |
+| `FAIL` | 사용자 위임 | engineer POLISH (cycle ≤2) |
+| Step 7 주의사항 (NICE TO HAVE only, MUST FIX 0) | 사용자 위임 | 7a 자동 |
+| catastrophic 룰 | hard safety | hard safety (yolo 우회 X) |
+
+auto-resolve 의 실제 action/hint/next_enum 매핑 진본 = helper 코드 `session_state.py`:
 
 ```bash
 RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
