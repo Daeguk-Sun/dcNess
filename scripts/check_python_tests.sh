@@ -26,7 +26,7 @@ if [ -z "$CHANGED" ]; then
   exit 0
 fi
 
-if ! printf '%s\n' "$CHANGED" | grep -qE '^(harness/|tests/|agents/|skills/|scripts/check_git_naming\.mjs$|docs/plugin/git-spec\.md$|\.github/workflows/python-tests\.yml$)'; then
+if ! printf '%s\n' "$CHANGED" | grep -qE '^(harness/|tests/|agents/|skills/|scripts/check_git_naming\.mjs$|docs/plugin/git-spec\.md$|docs/plugin/loop-procedure\.md$|\.github/workflows/python-tests\.yml$)'; then
   # 미매칭 — skip
   exit 0
 fi

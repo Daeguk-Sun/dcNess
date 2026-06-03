@@ -39,9 +39,17 @@ epic 단위 stories.md (`docs/milestones/vNN/epics/epic-NN-<slug>/stories.md`; r
 EnterWorktree tool 은 base parameter 미지원 → 사전 `git worktree add` 후 `EnterWorktree(path=)` 진입 패턴:
 
 ```bash
-# stories.md base branch 매치 — epic 단위 stories.md (impl-loop = task 경로 조부모, architect-loop = 입력 epic dir).
-# root docs/stories.md 는 legacy 폴백. 호출자가 STORIES 를 epic 단위 경로로 set (예: STORIES="$(dirname "$(dirname "$TASK_FILE")")/stories.md").
-STORIES="${STORIES:-docs/stories.md}"
+# stories.md base branch 매치 — epic 단위 stories.md 를 입력에서 *직접* 유도 (수동 env 의존 X).
+#   architect-loop = 입력 epic dir($EPIC_DIR) / impl-loop = task 경로 조부모($TASK_FILE 의 epic-NN-<slug>/).
+#   둘 다 부재(또는 derived 파일 부재) 시 root docs/stories.md legacy 폴백.
+if [ -n "${EPIC_DIR:-}" ]; then
+  STORIES="$EPIC_DIR/stories.md"
+elif [ -n "${TASK_FILE:-}" ]; then
+  STORIES="$(dirname "$(dirname "$TASK_FILE")")/stories.md"
+else
+  STORIES="docs/stories.md"
+fi
+[ -f "$STORIES" ] || STORIES="docs/stories.md"
 BASE_BRANCH=$(grep -m1 -E '^\*\*Base Branch:\*\*' "$STORIES" 2>/dev/null \
   | sed -E 's/.*Base Branch:\*\*[[:space:]]+//')
 
@@ -353,8 +361,14 @@ STORY_NUM=$(awk '/^story:/ {gsub(/[",]/,""); print $2; exit}' "$TASK_FILE")
 
 if ! printf '%s' "$TASK_INDEX" | grep -qE '^[0-9]+/[0-9]+$'; then
   # 공통 task (task_index: —, story: 공통) — i/total 비교 비대상 (MUST: "—" 는 I==TOTAL 로 오판돼 Closes 오발 위험).
-  # task-index trailer omit + Part of (git-spec §8.1). check_pr_body.mjs 는 task-index 부재 시 fallback path 로 트레일러 1건만 요구 → Part of 통과.
-  PR_BODY="Part of #${EPIC_ISSUE:-$STORY_ISSUE}"
+  # task-index trailer omit + Part of #<epic> (git-spec §8.1). check_pr_body.mjs 는 task-index 부재 시 fallback path 로 트레일러 1건 요구.
+  # EPIC_ISSUE 미설정 시 epic stories.md 의 **GitHub Epic Issue:** [#NNN] 마커에서 파싱 — 빈 "Part of #" 방지 위해 미해결이면 정지.
+  EPIC_ISSUE="${EPIC_ISSUE:-$(grep -m1 -E '^\*\*GitHub Epic Issue:\*\*' "$STORIES" 2>/dev/null | grep -oE '#[0-9]+' | head -1 | tr -d '#')}"
+  if [ -z "$EPIC_ISSUE" ]; then
+    echo "[impl] 공통 task PR trailer — epic 이슈 번호 미해결. 빈 'Part of #' 방지 위해 정지 (epic stories.md **GitHub Epic Issue:** 마커 확인)." >&2
+    exit 1
+  fi
+  PR_BODY="Part of #${EPIC_ISSUE}"
 else
   I="${TASK_INDEX%/*}"
   TOTAL="${TASK_INDEX#*/}"

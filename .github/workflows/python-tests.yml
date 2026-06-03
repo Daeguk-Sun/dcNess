@@ -8,6 +8,7 @@
 # - PR / push to main 시 tests/ 또는 harness/ 또는 agents/ 또는 skills/ 변경 시
 #   (skills/ = test_loop_procedure_base_ref / test_impl_cost_aware 가 skills/<n>/SKILL.md 내용 단언)
 # - scripts/check_git_naming.mjs / docs/plugin/git-spec.md 변경 시 (test_git_naming 게이트 회귀 차단)
+# - docs/plugin/loop-procedure.md 변경 시 (test_loop_procedure_base_ref base-ref 회귀 차단)
 # - paths 필터로 docs-only PR 에서 불필요 실행 회피
 # - DCN-CHG-20260501-06: branch protection 폐기 후 paths 필터 복구
 #   (BLOCKED 영원히 문제는 protection 자체를 끄면서 자연 해소)
@@ -26,6 +27,7 @@ on:
       - 'skills/**'
       - 'scripts/check_git_naming.mjs'
       - 'docs/plugin/git-spec.md'
+      - 'docs/plugin/loop-procedure.md'
       - '.github/workflows/python-tests.yml'
   push:
     branches: [main]
@@ -36,6 +38,7 @@ on:
       - 'skills/**'
       - 'scripts/check_git_naming.mjs'
       - 'docs/plugin/git-spec.md'
+      - 'docs/plugin/loop-procedure.md'
       - '.github/workflows/python-tests.yml'
 
 permissions:
