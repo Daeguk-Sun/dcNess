@@ -6,7 +6,7 @@
 
 > 🔴 **라우팅 진본 (1-way)** — `agent 결론 → 다음 호출` 매핑은 **본 문서 §1 한눈표가 단일 진본**. `agents/<agent>.md` 본문은 자기 결론 vocabulary(enum + 판단 기준 + 사유)만 명시하고 다음 호출은 미주장. 라우팅 갱신(신 agent / enum / cycle 한도)은 본 §1 한 곳만 고치면 된다.
 >
-> ⚠️ **skill 전환 예외**: `skills/` 로 승격된 skill (`architect-loop` / `impl-loop` / `product-plan` / `ux`) 의 라우팅은 해당 skill 의 `<skill>-routing.md` 가 진본이고, 본 문서의 그 영역 행은 *요약 view* 다 — 상세 분기·retry 는 skill routing 파일이 우선. **공유 agent 의 맥락 의존 분기 주의**: 같은 결론 enum 이 어느 skill 에서 났느냐에 따라 다음 호출이 갈린다 (예: `ux-architect`/`UX_FLOW_READY` → `/architect-loop` 맥락은 system-architect, `/ux` 맥락은 designer). 그 행은 *기본(architect-loop) 맥락* 을 적고, skill 별 차이는 각 `<skill>-routing.md` 가 정한다. 전역 routing.md 는 Phase 3 ([#564](https://github.com/alruminum/dcNess/issues/564)) 에서 폐기 예정 (전 skill 이 자기 routing 파일로 위임 완료 시).
+> ⚠️ **skill 전환 예외**: `skills/` 로 승격된 skill (`architect-loop` / `impl-loop` / `product-plan` / `ux` / `issue-report`) 의 라우팅은 해당 skill 의 `<skill>-routing.md` 가 진본이고, 본 문서의 그 영역 행은 *요약 view* 다 — 상세 분기·retry 는 skill routing 파일이 우선. **공유 agent 의 맥락 의존 분기 주의**: 같은 결론 enum 이 어느 skill 에서 났느냐에 따라 다음 호출이 갈린다 (예: `ux-architect`/`UX_FLOW_READY` → `/architect-loop` 맥락은 system-architect, `/ux` 맥락은 designer). 그 행은 *기본(architect-loop) 맥락* 을 적고, skill 별 차이는 각 `<skill>-routing.md` 가 정한다. 전역 routing.md 는 Phase 3 ([#564](https://github.com/alruminum/dcNess/issues/564)) 에서 폐기 예정 (전 skill 이 자기 routing 파일로 위임 완료 시).
 >
 > agent 12 종이 prose 마지막 단락에 *어떤 결과로 끝났는지 (+ 사유)* 자기 언어로 명시 → 메인이 prose + 아래 표로 다음 호출 결정 (enum 형식 검증 없음 — 이슈 #280). prose 가 모호하거나 결론을 추출 못 하면 사용자 위임 (prose 본문 "결정 불가" 명시 — issue #392). 본 표는 형식 강제가 아니라 *판단 보조* — 의미만 맞으면 OK.
 
@@ -46,9 +46,9 @@ flowchart TB
     BW[build-worker · /impl-loop 한정] -->|PASS → 메인 git/PR| PR
   end
   subgraph triage["triage · qa-triage"]
-    QA[qa] -->|FUNCTIONAL_BUG| MC[module-architect 버그픽스]
-    QA -->|CLEANUP| EL[engineer light]
-    QA -->|DESIGN_ISSUE| DR[designer / ux-architect REFINE]
+    QA[qa] -->|FUNCTIONAL_BUG| IL["/impl-loop fallback"]
+    QA -->|CLEANUP| IL
+    QA -->|DESIGN_ISSUE| UXS["/ux skill"]
     QA -->|KNOWN_ISSUE| E([종료])
     QA -->|SCOPE_ESCALATE| U2((사용자))
   end
@@ -58,7 +58,7 @@ flowchart TB
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class TR,UX,SA,DS,MA,MB,MC,EN,TE,POL,BW,EL,DR produce
+  class TR,UX,SA,DS,MA,MB,EN,TE,POL,BW,IL,UXS produce
   class AV1,AV2,CV,PR,QA verify
   class U1,U2,U3 user
 ```
@@ -79,7 +79,7 @@ flowchart TB
 | code-validator | PASS → pr-reviewer / FAIL → engineer 재시도(≤ 3) / ESCALATE → module-architect(보강) 또는 사용자. impl 경로로 full/bugfix scope 자동 분기 |
 | architecture-validator | PASS(1차) → module-architect × K / PASS(2차) → architect-loop Step 6 / FAIL → 해당 architect 재진입(cycle ≤ 2) / ESCALATE → 사용자. 두 시점 호출 — 1차(Step 3.5) = Placeholder + 공통 SSOT, 2차(Step 5) = Cross-Story Interface + Impl Simulation + Origin Anchor + Placeholder 재검증 |
 | pr-reviewer | PASS → (CI PASS 후) 메인 즉시 regular merge / 변경 요청 → engineer POLISH |
-| qa | FUNCTIONAL_BUG → module-architect(버그픽스) / CLEANUP → engineer(light) / DESIGN_ISSUE → designer·ux-architect(REFINE) / KNOWN_ISSUE → 종료 / SCOPE_ESCALATE → 사용자 |
+| qa | FUNCTIONAL_BUG → `/impl-loop` fallback(module-architect 선두) / CLEANUP → `/impl-loop` fallback / DESIGN_ISSUE → `/ux`(모드 /ux 판정 — 기존 화면 결함이면 UX_REFINE) / KNOWN_ISSUE → 종료 / SCOPE_ESCALATE → 사용자. qa 는 agent 직접 호출 X (HARNESS_ONLY) — 메인이 skill 경유 진입. **진본 = [`skills/issue-report/issue-report-routing.md`](../../skills/issue-report/issue-report-routing.md)**, 본 행은 *요약 view* |
 | build-worker (`/impl-loop` 한정) | PASS → 메인 git/PR → pr-reviewer / SPEC_GAP_FOUND → module-architect(≤ 2) / **TESTS_FAIL → engineer → code-validator → PASS 후 메인 git/PR** (self-validate 미통과분을 code-validator 가 복원 — 검증 없이 PR 금지) 또는 한도 초과 시 사용자 / IMPLEMENTATION_ESCALATE → 사용자. 권한 = engineer + test-engineer 합집합, git/PR/pr-reviewer 호출 금지(메인 위임). 풀 4-agent 엔진(엄정) 미사용. **상세 분기·retry 진본 = [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md) §2** (SPEC_GAP_FOUND small=메인 직접 Edit·cycle 미카운트 / medium·large=module-architect ≤2 / POLISH→메인 commit/push→재리뷰 — 본 행은 요약) |
 
 > 각 agent 의 진입 입력 / 산출물 / self-check 의무 / 결론 prose 표현 상세 = `agents/<agent>.md` 본문 진본. Spike Gate 폐기(이슈 #511) — tech-reviewer 가 PRD 단계 외부 의존 검증 cover.
