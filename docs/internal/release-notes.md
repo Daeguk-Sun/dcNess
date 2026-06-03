@@ -51,7 +51,7 @@
 
 ### 보강 영역 (출시 후 측정 + 후속)
 
-- **Story 크기 가이드 추가** ([`commands/product-plan.md`](../../commands/product-plan.md) 영역) — Story 1 개당 예상 task ≤ 5 권장 / Story 큰 경우 분할 권고 / cross-cutting Story 표시. module-architect 한 호출의 산출 부담 통제.
+- **Story 크기 가이드 추가** (`commands/product-plan.md` 영역, 현 [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md)) — Story 1 개당 예상 task ≤ 5 권장 / Story 큰 경우 분할 권고 / cross-cutting Story 표시. module-architect 한 호출의 산출 부담 통제.
 - **cross-cutting Story 빈도 측정** — 외부 활성 프로젝트의 epic 1-2 개를 새 구조로 수동 시뮬레이션. 빈도 ≥ 30% 면 Architecture Mode opt-in (stories.md 마커로 모듈 묶음 / Story 묶음 선택) 재검토.
 - **module-architect 모델 검토** — 새 구조에서 한 호출의 판단 차원이 깊어짐. sonnet 으로 누락 / 회전 발생 시 opus 승격 검토.
 - **validator 자동 / 수동 영역 분리 운영** — 자동 검증 통과 영역 + 수동 review 권고 영역 분리 명시. 사용자가 수동 review 권고 영역에 PASS 주면 완료.

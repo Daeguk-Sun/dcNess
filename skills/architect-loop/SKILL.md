@@ -52,7 +52,7 @@ system-architect(Step 3) 호출 *직전*에 메인 Claude 가 사용자와 **직
 
 - **발동: 기본 ON.** 사용자 발화에 정규식 `(그릴미|기술\s*스택|스택)\s*(빼|없|말|알아서|생략)` 매치 시에만 skip (워크트리 빼 패턴 동형). skip 시 system-architect 가 기존대로 스택 자율 결정.
 - **UI 판정과 무관** — UI epic (Step 2 ux-architect 후) / UI-less epic (Step 2 skip 후) 둘 다 항상 system-architect 직전에 위치.
-- **진행**: 메인이 `docs/prd.md` + (있으면) `docs/tech-review.md` 를 read → 그릴미 패턴 (한 번에 한 질문 / 가설+권장안 제시 / 코드·문서 탐색 우선 / 결정나무 가지치기, [`product-plan.md`](../../commands/product-plan.md) `## 그릴미 패턴` 차용) 으로 스택 합의. tech-review **축 2 권고** (스펙 강등 / 업그레이드 / 대안 기술) 를 사용자 눈앞에서 채택·미채택 결론까지 도출.
+- **진행**: 메인이 `docs/prd.md` + (있으면) `docs/tech-review.md` 를 read → 그릴미 패턴 (한 번에 한 질문 / 가설+권장안 제시 / 코드·문서 탐색 우선 / 결정나무 가지치기, [`product-plan SKILL.md`](../product-plan/SKILL.md) `## 그릴미 패턴` 차용) 으로 스택 합의. tech-review **축 2 권고** (스펙 강등 / 업그레이드 / 대안 기술) 를 사용자 눈앞에서 채택·미채택 결론까지 도출.
 - **산출**: 별도 파일 X. 합의 결론 (채택 스택 + 축 2 권고 채택/미채택)을 system-architect 호출 prompt 에 박는다. system-architect 가 architecture.md / adr.md 에 영구 기록 (축 2 권고는 채택/미채택 + 이유를 adr.md 1줄, agent 자기 규율).
 - **tech-review.md 미전달 케이스** (외부 의존 0 개 → `/tech-review` skip): 축 2 권고 영역만 N/A. 스택 합의 그릴미 자체는 그대로 진행 (외부 의존 없어도 언어·프레임워크·DB 등 핵심 스택 결정엔 사용자 참여).
 - **미합의** (사용자가 스택 결정 못 냄 / 보류) 시 처리 = [`architect-loop-routing.md`](architect-loop-routing.md) §escalate.

@@ -34,7 +34,7 @@ EnterWorktree(name="<skill>-{ts_short}")   # impl 류만
 
 ### 1.1.1 base-ref 분기 (통합 브랜치 모드, #424)
 
-epic 단위 stories.md (`docs/milestones/vNN/epics/epic-NN-<slug>/stories.md`; root `docs/stories.md` 는 legacy 폴백) 상단 `**Base Branch:** feature/<slug>` 마커 매치 시 = **통합 브랜치 모드** (long-lived integration branch + sub-PR 누적 패턴, `commands/product-plan.md` Step 6.5/7). 이 경우 outer worktree base ref 도 integration branch 와 정합해야 함 — `EnterWorktree(name=)` default 인 `worktree.baseRef=fresh` (origin/main 기반) 은 base mismatch → sub-PR diff 거대화 ("삭제 변경" false).
+epic 단위 stories.md (`docs/milestones/vNN/epics/epic-NN-<slug>/stories.md`; root `docs/stories.md` 는 legacy 폴백) 상단 `**Base Branch:** feature/<slug>` 마커 매치 시 = **통합 브랜치 모드** (long-lived integration branch + sub-PR 누적 패턴, `skills/product-plan/SKILL.md` Step 6.5/7). 이 경우 outer worktree base ref 도 integration branch 와 정합해야 함 — `EnterWorktree(name=)` default 인 `worktree.baseRef=fresh` (origin/main 기반) 은 base mismatch → sub-PR diff 거대화 ("삭제 변경" false).
 
 EnterWorktree tool 은 base parameter 미지원 → 사전 `git worktree add` 후 `EnterWorktree(path=)` 진입 패턴:
 
@@ -417,7 +417,7 @@ git checkout main && git pull --ff-only 2>/dev/null || true
 
 ## 4. Step 4.5 — 폐기 (2026-05-12)
 
-> 옛 `stories.md` / `backlog.md` task 체크 동기화 step 폐기. 진행 추적 SSOT = GitHub issue close (PR body `Closes #N` / `Part of #N` 트레일러) 단일화 — impl task PR diff 는 `src/**` only. 새 stories.md 양식 = [`commands/product-plan.md`](../../commands/product-plan.md) §stories.md 산출물 (옛 양식 잔재 허용, backfill 강제 X). 폐기 상세는 git history.
+> 옛 `stories.md` / `backlog.md` task 체크 동기화 step 폐기. 진행 추적 SSOT = GitHub issue close (PR body `Closes #N` / `Part of #N` 트레일러) 단일화 — impl task PR diff 는 `src/**` only. 새 stories.md 양식 = [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md) §stories.md 산출물 (옛 양식 잔재 허용, backfill 강제 X). 폐기 상세는 git history.
 
 ---
 

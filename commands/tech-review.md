@@ -161,7 +161,7 @@ tech-review 통과 완료. 다음 단계 — 설계 루프:
 ## 참조
 
 - tech-reviewer agent SSOT: [`agents/tech-reviewer.md`](../agents/tech-reviewer.md)
-- 기획 시퀀스 풀스펙: [`commands/product-plan.md`](product-plan.md) / 라우팅: [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1 (routing 한눈표 — tech-reviewer 행)
-- PRD 작성 (선행 스킬): [`commands/product-plan.md`](product-plan.md)
+- 기획 시퀀스 풀스펙: [`skills/product-plan/SKILL.md`](../skills/product-plan/SKILL.md) / 라우팅: [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1 (routing 한눈표 — tech-reviewer 행)
+- PRD 작성 (선행 스킬): [`skills/product-plan/SKILL.md`](../skills/product-plan/SKILL.md)
 - 설계 단계 (후속 스킬): [`skills/architect-loop/SKILL.md`](../skills/architect-loop/SKILL.md)
 - 옛 plan-reviewer 폐기 배경 (이슈 [#515](https://github.com/alruminum/dcNess/issues/515))
