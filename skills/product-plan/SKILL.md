@@ -278,7 +278,7 @@ PRD + stories.md + tech-review.md 스켈레톤 + 이슈 등록 완료.
 
 ## 워크트리 (X)
 
-`/product-plan` 은 워크트리 자동 진입 안 함. 기획·설계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 별 branch 따고 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-impl-류-루프-한정).
+`/product-plan` 은 워크트리 자동 진입 안 함. 기획·설계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 별 branch 따고 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정).
 
 ## 참조
 

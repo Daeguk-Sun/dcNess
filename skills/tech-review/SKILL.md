@@ -140,7 +140,7 @@ tech-review 통과 완료. 다음 단계 — 설계 루프:
 
 ## 워크트리 (X)
 
-`/tech-review` 는 워크트리 자동 진입 안 함. 기획·검증 단계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-impl-류-루프-한정).
+`/tech-review` 는 워크트리 자동 진입 안 함. 기획·검증 단계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정).
 
 ## 참조
 

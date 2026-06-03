@@ -78,7 +78,7 @@
 1. **수정 작업**.
 2. **commit 직전**: git pre-commit hook 자동 게이트 (main-block + pytest).
 3. **branch → PR → regular merge** (직접 `main` push 금지). CI PASS 후 메인이 즉시 머지 — *사용자 수동 승인 대기 X*.
-4. **종료 시 ExitWorktree** — squash 흡수 검사 후 자동 `keep`/`remove` ([`docs/plugin/loop-procedure.md` worktree 분기](docs/plugin/loop-procedure.md#worktree-분기-impl-류-루프-한정)).
+4. **종료 시 ExitWorktree** — squash 흡수 검사 후 자동 `keep`/`remove` ([`docs/plugin/loop-procedure.md` worktree 분기](docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정)).
 
 ## 게이트 요약
 

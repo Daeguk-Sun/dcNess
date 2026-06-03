@@ -67,7 +67,7 @@ UI 작업 감지 시 (풀 4-agent 엔진 한정) 시퀀스 **선두에 designer 
 
 ### 워크트리 (기본 켜짐)
 
-진입 시 자동 `EnterWorktree(name="impl-{ts_short}")`. chain 은 outer 1회 — 모든 task 가 같은 worktree cwd 에서 직렬 진행 (git 충돌 X). 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시에만 건너뜀. 자세히 = [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-impl-류-루프-한정).
+진입 시 자동 `EnterWorktree(name="impl-{ts_short}")`. chain 은 outer 1회 — 모든 task 가 같은 worktree cwd 에서 직렬 진행 (git 충돌 X). 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시에만 건너뜀. 자세히 = [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정).
 
 **prev-tasks 초기화 (#525, build-worker 엔진 한정)**: `[PREVIOUS_TASKS]` 는 build-worker 진입 시 직전 task 산출을 주입(인접 task 인터페이스 정합용)한다. `begin-step build-worker` 가 *그 시점에* prev-tasks 파일을 읽어 stdout 으로 emit 하므로 ([`session_state.py`](../../harness/session_state.py) — single/chain 구분 안 함) — **reset 은 반드시 `begin-step build-worker` *호출 전* 에 해야 한다** (begin-step 후 reset 은 이미 emit 된 stdout 에 늦음). 따라서: **build-worker 진입이 (a) chain 의 첫 task 거나 (b) single 모드(`빠르게`/`worker` override 포함) 이면 `begin-step build-worker` 직전에 `dcness-helper prev-tasks-reset` 1회 호출 의무**. 안 하면 직전 chain 의 `[PREVIOUS_TASKS]` 잔재가 새 worker prompt 에 주입돼 stale 인터페이스에 맞출 위험. **chain 의 2번째+ task 는 reset 안 함** (직전 task 누적이 정합 입력). 까먹어도 FIFO cap(10) 안전망이나 명시 호출 권장. 풀 4-agent 엔진은 build-worker 미사용 → 본 룰 비대상.
 
