@@ -6,7 +6,7 @@
 
 > 🔴 **라우팅 진본 (1-way)** — `agent 결론 → 다음 호출` 매핑은 **본 문서 §1 한눈표가 단일 진본**. `agents/<agent>.md` 본문은 자기 결론 vocabulary(enum + 판단 기준 + 사유)만 명시하고 다음 호출은 미주장. 라우팅 갱신(신 agent / enum / cycle 한도)은 본 §1 한 곳만 고치면 된다.
 >
-> ⚠️ **skill 전환 예외**: `skills/` 로 승격된 skill (`architect-loop` / `impl-loop` / `product-plan` / `ux` / `issue-report`) 의 라우팅은 해당 skill 의 `<skill>-routing.md` 가 진본이고, 본 문서의 그 영역 행은 *요약 view* 다 — 상세 분기·retry 는 skill routing 파일이 우선. **공유 agent 의 맥락 의존 분기 주의**: 같은 결론 enum 이 어느 skill 에서 났느냐에 따라 다음 호출이 갈린다 (예: `ux-architect`/`UX_FLOW_READY` → `/architect-loop` 맥락은 system-architect, `/ux` 맥락은 designer). 그 행은 *기본(architect-loop) 맥락* 을 적고, skill 별 차이는 각 `<skill>-routing.md` 가 정한다. 전역 routing.md 는 Phase 3 ([#564](https://github.com/alruminum/dcNess/issues/564)) 에서 폐기 예정 (전 skill 이 자기 routing 파일로 위임 완료 시).
+> ⚠️ **skill 전환 예외**: `skills/` 로 승격된 skill (`architect-loop` / `impl-loop` / `product-plan` / `ux` / `issue-report` / `tech-review`) 의 라우팅은 해당 skill 의 `<skill>-routing.md` 가 진본이고, 본 문서의 그 영역 행은 *요약 view* 다 — 상세 분기·retry 는 skill routing 파일이 우선. **공유 agent 의 맥락 의존 분기 주의**: 같은 결론 enum 이 어느 skill 에서 났느냐에 따라 다음 호출이 갈린다 (예: `ux-architect`/`UX_FLOW_READY` → `/architect-loop` 맥락은 system-architect, `/ux` 맥락은 designer). 그 행은 *기본(architect-loop) 맥락* 을 적고, skill 별 차이는 각 `<skill>-routing.md` 가 정한다. 전역 routing.md 는 Phase 3 ([#564](https://github.com/alruminum/dcNess/issues/564)) 에서 폐기 예정 (전 skill 이 자기 routing 파일로 위임 완료 시).
 >
 > agent 12 종이 prose 마지막 단락에 *어떤 결과로 끝났는지 (+ 사유)* 자기 언어로 명시 → 메인이 prose + 아래 표로 다음 호출 결정 (enum 형식 검증 없음 — 이슈 #280). prose 가 모호하거나 결론을 추출 못 하면 사용자 위임 (prose 본문 "결정 불가" 명시 — issue #392). 본 표는 형식 강제가 아니라 *판단 보조* — 의미만 맞으면 OK.
 
@@ -69,7 +69,7 @@ flowchart TB
 
 | agent | 주요 결론 → 다음 호출 |
 |---|---|
-| tech-reviewer | PASS → (사용자 2차 OK) → `/architect-loop` 권고 / FAIL → PRD patch·항목 polish 후 재호출 / ESCALATE → 사용자. **단방향**: `/architect-loop` 진입 후 재호출 금지 ([`hooks.md`](hooks.md) §3.2 §2.1.4) |
+| tech-reviewer | PASS → (사용자 2차 OK) → `/architect-loop` 권고 / FAIL → PRD patch·항목 polish 후 재호출 / ESCALATE → 사용자. **단방향**: `/architect-loop` 진입 후 재호출 금지 ([`hooks.md`](hooks.md) §3.2 §2.1.4). **진본 = [`skills/tech-review/tech-review-routing.md`](../../skills/tech-review/tech-review-routing.md)**, 본 행은 *요약 view* |
 | ux-architect | UX_FLOW_READY → system-architect *(`/architect-loop` 맥락)* · **`/ux` skill 맥락은 → designer** ([`skills/ux/ux-routing.md`](../../skills/ux/ux-routing.md)) / UX_REFINE_READY → designer / UX_FLOW_ESCALATE → 사용자. **UI-less epic 이면 메인이 호출 안 함** ([`skills/architect-loop/SKILL.md`](../../skills/architect-loop/SKILL.md) UI-less 분기) |
 | system-architect | PASS → architecture-validator 1차 / ESCALATE → 사용자(`/product-plan`) / NEW_DEP_ESCALATE → 3안 (§3) |
 | module-architect | PASS → (컨텍스트별: 다음 단위 module-architect / test-engineer / engineer / 후속 없음) / ESCALATE → 사용자 / NEW_DEP_ESCALATE → 3안 (§3). 호출 단위 = 1 Story 또는 공통 task 묶음, K = Story 수 + 공통 호출. self-check cross-task interface = PASS 게이트 |

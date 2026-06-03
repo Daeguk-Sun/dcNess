@@ -274,7 +274,7 @@ PRD + stories.md + tech-review.md 스켈레톤 + 이슈 등록 완료.
 진행할까요? (Y/n)
 ```
 
-후속 분기 (외부 의존 0개 skip / 사용자 Y / `/architect-loop` 권고 echo) = [`product-plan-routing.md`](product-plan-routing.md). 자세히 = [`commands/tech-review.md`](../../commands/tech-review.md).
+후속 분기 (외부 의존 0개 skip / 사용자 Y / `/architect-loop` 권고 echo) = [`product-plan-routing.md`](product-plan-routing.md). 자세히 = [`tech-review SKILL.md`](../tech-review/SKILL.md).
 
 ## 워크트리 (X)
 
@@ -286,4 +286,4 @@ PRD + stories.md + tech-review.md 스켈레톤 + 이슈 등록 완료.
 - 그릴미 원형: `~/.claude/skills/grill-me/SKILL.md` (사용자 user skill)
 - 이슈 등록 SSOT: [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md) §1
 - 브랜치·커밋·PR 네이밍: [`docs/plugin/git-spec.md`](../../docs/plugin/git-spec.md)
-- 선행 기술 검증 (후속 스킬): [`commands/tech-review.md`](../../commands/tech-review.md), [`agents/tech-reviewer.md`](../../agents/tech-reviewer.md)
+- 선행 기술 검증 (후속 스킬): [`skills/tech-review/SKILL.md`](../tech-review/SKILL.md), [`agents/tech-reviewer.md`](../../agents/tech-reviewer.md)

@@ -12,6 +12,8 @@ description: >
 
 > 본 스킬 = `/product-plan` 종료 후 *명시 호출* 되는 기술 검증 게이트. tech-reviewer 가 stateless 본문 채움 + 메인이 cycle 관리 + 사용자가 최종 OK.
 
+> 🔴 **라우팅 SSOT** — tech-reviewer 결론 (PASS / FAIL / ESCALATE) → 다음 호출 / 사용자 2차 OK 분기 / cycle 재진입 / 단방향 catastrophic / 비대상 / 후속은 [`tech-review-routing.md`](tech-review-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기 판단이 필요하면 그 파일을 읽는다.
+
 ## 전제 조건
 
 본 스킬 진입 *전* 충족 의무:
@@ -92,7 +94,7 @@ HTML 리포트 (`docs/tech-review/report.html`) 확인 후 결정:
 4. **항목 polish** → 어떤 항목 더 깊이 검증할지 알려주세요
 ```
 
-### Step 4 — 분기
+### Step 4 — 분기 (라우팅 진본 = [`tech-review-routing.md`](tech-review-routing.md))
 
 **4-1. 사용자 OK** → Step 5 (종료 + `/architect-loop` 권고).
 
@@ -134,34 +136,16 @@ tech-review 통과 완료. 다음 단계 — 설계 루프:
 
 ## 단방향 catastrophic (재진입 금지)
 
-`/architect-loop` 진입 *후* 본 스킬 재호출 **금지**. 정합 룰 SSOT = [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2 (§2.1.4).
-
-**왜 단방향?**:
-- tech-reviewer 단계 = *마지막 기술 검증 기회*. 검증 충실 의무 가중 (= 증거물 / HTML 리포트 룰의 가치).
-- architect-loop 진입 후 *역방향 회귀* = ping-pong 사고 패턴 (옛 plan-reviewer 의 cycle 한도 룰이 누적된 원인).
-- architect-loop 도중 tech-review 미검증 새 외부 의존 발견 시 → tech-reviewer 재호출 *없이* `NEW_DEP_ESCALATE` 3안 (채택+수동검증 / 대안 기술 우회 / 전체 원점 회귀 = `/product-plan` 재진입). architect-loop 안엔 tech-reviewer 가 없어 NO_GO 판정 자체 불가 — 그래서 "전체 회귀 only" 가 아니라 사용자 선택 3안. 단, *되돌아가는(tech-reviewer 재호출) 경로는 어느 옵션에도 없다*. 흐름 = [`architect-loop-routing.md`](../skills/architect-loop/architect-loop-routing.md) §4 + [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) §3.2 (§2.1.4).
-
-## 비대상 (다른 skill 추천)
-
-- PRD 미작성 / 스켈레톤 부재 → `/product-plan` 먼저
-- 설계 단계 진입 → `/architect-loop`
-- 구현 단계 진입 → `/impl-loop`
-- 버그 / 이슈 → `/issue-report`
-
-## 후속 라우팅
-
-- tech-review 통과 + 사용자 OK → `/architect-loop` (설계 루프 — 권장)
-- tech-review 실패 (FAIL / ESCALATE) → 메인 + 사용자 patch 토론 → Step 1 재진입
-- tech-review 완료 후 *기술 자체 폐기* 결정 → `/product-plan` 재진입 (PRD 자체 수정)
+`/architect-loop` 진입 *후* 본 스킬 재호출 **금지**. 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md) §3.2 (§2.1.4). tech-reviewer 단계 = *마지막 기술 검증 기회* — 그래서 증거물 / HTML 리포트 룰의 가치가 가중된다. architect-loop 도중 미검증 새 외부 의존 발견 시 처리 (NEW_DEP_ESCALATE 3안) = [`tech-review-routing.md`](tech-review-routing.md) — 어느 옵션이든 tech-reviewer 재호출 0 (단방향 보존).
 
 ## 워크트리 (X)
 
-`/tech-review` 는 워크트리 자동 진입 안 함. 기획·검증 단계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1.1.
+`/tech-review` 는 워크트리 자동 진입 안 함. 기획·검증 단계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 직접 진행. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md) §1.1.
 
 ## 참조
 
-- tech-reviewer agent SSOT: [`agents/tech-reviewer.md`](../agents/tech-reviewer.md)
-- 기획 시퀀스 풀스펙: [`skills/product-plan/SKILL.md`](../skills/product-plan/SKILL.md) / 라우팅: [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1 (routing 한눈표 — tech-reviewer 행)
-- PRD 작성 (선행 스킬): [`skills/product-plan/SKILL.md`](../skills/product-plan/SKILL.md)
-- 설계 단계 (후속 스킬): [`skills/architect-loop/SKILL.md`](../skills/architect-loop/SKILL.md)
+- 라우팅 (결론→다음 / cycle / catastrophic / 비대상 / 후속): [`tech-review-routing.md`](tech-review-routing.md) — 본 skill 라우팅 SSOT
+- tech-reviewer agent SSOT: [`agents/tech-reviewer.md`](../../agents/tech-reviewer.md)
+- PRD 작성 (선행 스킬): [`skills/product-plan/SKILL.md`](../product-plan/SKILL.md)
+- 설계 단계 (후속 스킬): [`skills/architect-loop/SKILL.md`](../architect-loop/SKILL.md)
 - 옛 plan-reviewer 폐기 배경 (이슈 [#515](https://github.com/alruminum/dcNess/issues/515))
