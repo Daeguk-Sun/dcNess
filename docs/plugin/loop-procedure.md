@@ -327,9 +327,15 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 
 # branch 생성 + src commit (code-validator PASS 직후)
 # 브랜치명 = git-spec.md §1 SSOT. 정식 impl task → feature/epic{N}_story{M}_{desc} (desc = task-slug 앞 순번 NN- 제거),
-#            버그픽스 fallback → fix/issue{N}_{desc}. 결정 절차 = skills/impl-loop/SKILL.md "## 브랜치명 결정". base 분기 = git-spec §6.
+#            공통 task(story: 공통) → feature/epic{N}_common_{desc}, 버그픽스 fallback → fix/issue{N}_{desc}.
+#            결정 절차 = skills/impl-loop/SKILL.md "## 브랜치명 결정".
 BRANCH="feature/epic{N}_story{M}_{desc}"   # 예: feature/epic7_story2_revival-button
-git checkout -b "$BRANCH" main
+
+# base 분기 = git-spec §6 — stories.md 상단 **Base Branch:** 마커 매치 시 통합 브랜치, 없으면 main (§1.1.1 추출 패턴 재사용).
+# MUST: checkout 과 gh pr create 둘 다 이 BASE 사용 — main 하드코딩 시 통합 브랜치 모드 sub-PR 이 틀린 base 로 가 epic atomic 깨짐.
+BASE=$(grep -m1 -E '^\*\*Base Branch:\*\*' docs/stories.md 2>/dev/null | sed -E 's/.*Base Branch:\*\*[[:space:]]+//')
+BASE="${BASE:-main}"
+git checkout -b "$BRANCH" "$BASE"
 git add src/**
 git commit -m "<git-spec §2 형식>"
 git push -u origin "$BRANCH"
@@ -354,7 +360,7 @@ Closes #${EPIC_ISSUE}"
 else
   PR_BODY="Part of #${STORY_ISSUE}"
 fi
-gh pr create --title "<git-spec §4 형식>" --body "$PR_BODY"
+gh pr create --base "$BASE" --title "<git-spec §4 형식>" --body "$PR_BODY"
 ```
 
 ### Step 7a (impl-task-loop)

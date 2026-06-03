@@ -12,8 +12,10 @@
  */
 
 // 통일 기본 제약: 소문자 시작 + [a-z0-9_-] + 최소 3자 (= 첫 1자 + {2,})
-// 4 패턴 — feature/epic_story_* (스토리 강제) / feature/<desc> (자유, 통합 브랜치 포함) / fix/issue_* / docs/<desc>
-const BRANCH_RE = /^(feature\/(epic\d+_story\d+_[a-z][a-z0-9_-]{2,}|[a-z][a-z0-9_-]{2,})|fix\/issue\d+(?:_\d+)*_[a-z][a-z0-9_-]{2,}|docs\/[a-z][a-z0-9_-]{2,})$/;
+// 4 패턴 — feature/epic{N}_story{N}_* (스토리 강제) / feature/<desc> (자유·통합·공통 epic{N}_common_*) / fix/issue_* / docs/<desc>
+// generic feature 에 (?!epic\d+_story) 부정선행 — "epic{N}_story" 로 시작하는 malformed 스토리 브랜치(desc<3자 / story 비숫자)가
+// generic 으로 새는 것 차단 → 스토리 작업은 strict 패턴만 통과. 공통 task 의 epic{N}_common_* 은 _story 아니라 generic 통과.
+const BRANCH_RE = /^(feature\/(epic\d+_story\d+_[a-z][a-z0-9_-]{2,}|(?!epic\d+_story)[a-z][a-z0-9_-]{2,})|fix\/issue\d+(?:_\d+)*_[a-z][a-z0-9_-]{2,}|docs\/[a-z][a-z0-9_-]{2,})$/;
 // 5 형식 — [epic{N}][story{N}] (스토리 단위) / [epic{N}] (epic 단위, 통합 → main 머지) / [issue-{N}] / [docs] / [feature]
 const TITLE_RE  = /^(\[epic\d+\](\[story\d+\])?|\[issue-\d+\]|\[docs\]|\[feature\]) .+/;
 
@@ -30,12 +32,13 @@ if (mode === '--branch') {
   if (!BRANCH_RE.test(value)) {
     console.error(`[git-naming] FAIL — 브랜치명 형식 위반: "${value}"`);
     console.error('  허용 패턴:');
-    console.error('    feature/epic{N}_story{N}_{desc}    (스토리 작업 impl)');
+    console.error('    feature/epic{N}_story{N}_{desc}    (스토리 작업 impl — strict 강제)');
+    console.error('    feature/epic{N}_common_{desc}      (epic 공통 task — story 없음)');
     console.error('    feature/{desc}                     (자유 feature / 통합 브랜치)');
     console.error('    fix/issue{N}_{desc}                (단일 이슈)');
     console.error('    fix/issue{N}_{M}_{desc}            (복수 이슈)');
     console.error('    docs/{desc}                        (문서)');
-    console.error('  공통: {desc} = 소문자 + [a-z0-9_-] + 최소 3자');
+    console.error('  공통: {desc} = 소문자 + [a-z0-9_-] + 최소 3자. feature/<desc> 의 desc 는 "epic{N}_story" 로 시작 불가(malformed 스토리 차단).');
     process.exit(1);
   }
   console.log(`[git-naming] PASS — branch: ${value}`);

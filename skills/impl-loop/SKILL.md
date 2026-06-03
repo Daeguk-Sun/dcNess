@@ -116,7 +116,8 @@ retry / POLISH 시 기존 sub-step 재활용 — 신규 TaskCreate X.
 
 브랜치·커밋·PR 네이밍은 [`git-spec.md`](../../docs/plugin/git-spec.md) §1 이 **단일 SSOT** — 본 skill 은 자체 네이밍 규칙을 두지 않고 task 성격에 맞는 SSOT 패턴을 고른다. (`feat/`·`chore/` 류 자체 분류 금지 — git-naming 게이트 [`check_git_naming.mjs`](../../scripts/check_git_naming.mjs) 가 거부해 push/pre-push 에서 막힘.)
 
-- **정식 impl task** (epic/story 컨텍스트 — impl 파일 frontmatter `story: N` + 경로 `.../epic-NN-*/impl/`) → `feature/epic{N}_story{M}_{desc}` (git-spec §1 "스토리 작업 impl")
+- **정식 impl task** (epic/story 컨텍스트 — impl 파일 frontmatter `story: N` (숫자) + 경로 `.../epic-NN-*/impl/`) → `feature/epic{N}_story{M}_{desc}` (git-spec §1 "스토리 작업 impl")
+- **공통 task** (impl 파일 frontmatter `story: 공통` + `task_index: —` — module-architect 공통 호출 산출) → `feature/epic{N}_common_{desc}` (git-spec §1 `feature/{desc}` 의 epic-traceable 형 — story 번호 없음, 게이트는 generic feature 로 통과). 제목·트레일러는 git-spec §2/§8 (task-index trailer omit · `Part of #<epic 또는 첫 story>`)
 - **버그픽스 fallback** (invocation 에 이슈 번호 명시) → `fix/issue{N}_{desc}` (git-spec §1 "버그픽스")
 - `{desc}` = impl 파일 basename 의 앞 순번 `NN-` 를 **제거**한 설명부 (소문자 시작 + `[a-z0-9_-]` + 최소 3자 — git-spec §1 `{desc}` 제약). 순번을 안 떼면 `feature/05-foo` 처럼 desc 가 숫자로 시작해 게이트 FAIL. 예: `impl/03-revival-button.md` + `story: 2` + `epic-07-*` → `feature/epic7_story2_revival-button`.
 - base 분기 = [`git-spec.md`](../../docs/plugin/git-spec.md) §6 (통합 브랜치 마커 매치 시 그 base, 아니면 main).
