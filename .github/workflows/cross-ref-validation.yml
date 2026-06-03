@@ -8,7 +8,7 @@
 # Scope 외 (별 PR 후보):
 # - prose `<file>.md §N.M` heuristic 인용 (false positive 분류 부담)
 #
-# SSOT: docs/plugin/git-spec.md §3.3 (cross-ref 룰)
+# SSOT: docs/internal/doc-conventions.md (참조 표기 규약)
 #
 # 도입 배경 (SSOT audit L2):
 # - H1 (Dead Link 7→0) / N (옛 명칭 12→0) 정리 후 회귀 자동 차단 필요
