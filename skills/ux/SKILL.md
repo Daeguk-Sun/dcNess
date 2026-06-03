@@ -7,9 +7,11 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 
 > design handoff loop. **코드 변경 X (commit 없음)**. ux-architect 가 화면 플로우/와이어프레임 정의 → designer 가 시안 생성 → 사용자 PICK. 산출 = `docs/ux-flow.md` (+ 조건부 `docs/design.md`) + 시안 파일 + DESIGN_HANDOFF 패키지.
 
+> 🔴 **라우팅 SSOT** — agent (ux-architect / designer) 결론 → 다음 호출 / 모드 전환 / cycle 한도 / escalate / 후속은 [`ux-routing.md`](ux-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다.
+
 ## Loop
 
-`ux-design-stage` (UX_FLOW) / `ux-refine-stage` (UX_REFINE). loop 한눈 인덱스 = [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §7.0.
+`ux-design-stage` (UX_FLOW) / `ux-refine-stage` (UX_REFINE). loop 한눈 인덱스 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md) §7.0.
 
 ## 모드 판정 (진입 시)
 
@@ -52,22 +54,12 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 - **Step 2.5 — 사용자 승인** (helper 비대상, 컨벤션 `user-approval-2.5`): ux-architect `UX_REFINE_READY` 후 designer 진입 *전* 메인이 사용자에게 refine 결과 prose 발췌 + 진행 여부 확인. 거절 시 ux-architect 재호출 (cycle ≤ 2).
 - 이후 Step 3 (designer) → Step 3.5 (사용자 PICK) = UX_FLOW 동일.
 
-## 분기 / sub_cycles
-
-- ux-architect self-check FAIL (UX_FLOW) / 사용자 거절 (UX_REFINE Step 2.5) → ux-architect 재진입 (cycle ≤ 2)
-- designer `PASS` + 사용자 NG → `designer-ROUND-<n>` 재생성 (사용자 자유 결정, round 한도 X)
-- designer `ESCALATE` / ux-architect `UX_FLOW_ESCALATE` → 사용자 위임
-- cycle 발생 시 commit 없음 (design handoff loop 자체가 commit X)
-
-## 후속 라우팅
-
-- DESIGN_HANDOFF 완료 → 구현은 `/impl-loop` (impl-ui-design-loop 자동 — designer step 포함)
-- 결론 → 다음 호출 라우팅 진본 = [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1
+> 각 Step 의 agent 결론에 따른 분기·재진입·cycle 한도·escalate·후속(`/impl-loop` 안내) = [`ux-routing.md`](ux-routing.md).
 
 ## 참조
 
-- loop 인덱스: [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §7.0
-- 절차 mechanics: [`docs/plugin/loop-procedure.md`](../docs/plugin/loop-procedure.md) §1~§6
-- 라우팅(핸드오프): [`docs/plugin/routing.md`](../docs/plugin/routing.md) §1
-- agent 정의: [`agents/ux-architect.md`](../agents/ux-architect.md) / [`agents/designer.md`](../agents/designer.md)
-- design 가이드: [`docs/plugin/design.md`](../docs/plugin/design.md)
+- 라우팅 (결론→다음 / 모드 전환 / cycle / escalate / 후속): [`ux-routing.md`](ux-routing.md) — 본 skill 라우팅 SSOT
+- loop 인덱스: [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md) §7.0
+- 절차 mechanics: [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md) §1~§6
+- agent 정의: [`agents/ux-architect.md`](../../agents/ux-architect.md) / [`agents/designer.md`](../../agents/designer.md)
+- design 가이드: [`docs/plugin/design.md`](../../docs/plugin/design.md)
