@@ -1233,6 +1233,9 @@ class CliBeginStepEndStepTests(unittest.TestCase):
             ))
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
+        live_after = read_live(self.sid) or {}
+        slot_after = live_after.get("active_runs", {}).get(self.rid, {})
+        self.assertIsNone(slot_after.get("current_step"))
 
     def test_end_step_no_prose_file_no_staging_returns_1(self) -> None:
         # DCN-CHG-20260501-15: --prose-file 없고 hook staging 도 없으면 rc=1
