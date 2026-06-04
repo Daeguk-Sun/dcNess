@@ -353,6 +353,37 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
             self.assertEqual(rc, 0)
 
 
+class CatastrophicTechReviewerRecallTests(_ArchitectLoopBase):
+    """#597 커밋7 — §2.1.4 부분 코드강제: architect-loop 중 tech-reviewer 재호출 차단."""
+
+    def test_tech_reviewer_blocked_in_architect_loop(self) -> None:
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("tech-reviewer"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_tech_reviewer_allowed_outside_architect_loop(self) -> None:
+        # 비-architect-loop run (entry_point=impl) 에선 tech-reviewer 통과.
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            sid, rid, cc_pid = "sid-impl2", "run-impl5678", 33333
+            write_pid_session(cc_pid, sid, base_dir=base)
+            update_live(sid, base_dir=base)
+            start_run(sid, rid, "impl", base_dir=base)
+            write_pid_current_run(cc_pid, rid, base_dir=base)
+            rc = handle_pretooluse_agent(
+                stdin_data={
+                    "sessionId": sid,
+                    "tool_input": {"subagent_type": "tech-reviewer", "mode": ""},
+                },
+                cc_pid=cc_pid,
+                base_dir=base,
+            )
+            self.assertEqual(rc, 0)
+
+
 # ---------------------------------------------------------------------------
 # rid 폴백 (by-pid-current-run 없을 때 live.json 에서 추정)
 # ---------------------------------------------------------------------------

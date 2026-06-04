@@ -309,9 +309,22 @@ def handle_pretooluse_agent(
             )
             return 1
 
-    # §2.1.2 (LGTM 없이 merge — 자연어 폐기) / §2.1.4 / §2.1.6~§2.1.8 (3-commit) —
+    # §2.1.4 (부분 코드강제) — architect-loop active run 중 tech-reviewer 재호출 금지.
+    # tech-review 는 architect-loop 진입 *전* 단방향 선행 단계다. loop 진입 후 재호출은
+    # catastrophic 시퀀스 역행 → 차단. ("PRD 변경 후 2차 tech-review 없이 진입 금지" 라는
+    # *진입 gate* 는 skill/pre-flight 잔존 — 자연어. 여기선 재호출만 코드강제.)
+    if subagent == "tech-reviewer" and _is_architect_loop(sid, rid, base_dir=base_dir):
+        print(
+            "[catastrophic §2.1.4] architect-loop 진행 중 tech-reviewer 재호출 금지 "
+            "(tech-review 는 architect-loop 진입 전 단방향 선행 단계)",
+            file=sys.stderr,
+        )
+        return 1
+
+    # §2.1.2 (LGTM 없이 merge — 자연어 폐기) / §2.1.6~§2.1.8 (3-commit) —
     # /architect-loop 가 impl/NN-*.md 미리 머지로 의미 소멸 또는 prerequisite
     # 검증은 메인 영역 (skill 안에서 보장) 으로 이전. 코드 강제 폐기.
+    # (§2.1.4 는 위에서 재호출 차단으로 부분 코드강제.)
 
     # DCN-CHG-20260501-01: 통과 시 live.json.active_agent 기록 — sub-agent 내부
     # PreToolUse(Edit/Write/Read/Bash) 훅이 활성 agent 판정에 사용 (agent_boundary).
