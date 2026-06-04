@@ -51,6 +51,7 @@ from harness.session_state import (
     run_dir,
     session_dir,
     start_run,
+    update_current_step,
     update_live,
     write_pid_current_run,
     write_pid_session,
@@ -174,6 +175,11 @@ class _PreToolBase(unittest.TestCase):
                 "mode": mode,
             },
         }
+
+    def _begin_step(self, agent: str, mode: str = "") -> None:
+        update_current_step(
+            self.sid, self.rid, agent, mode or None, base_dir=self.base,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -303,9 +309,15 @@ class _ArchitectLoopBase(unittest.TestCase):
             "tool_input": {"subagent_type": subagent, "mode": mode},
         }
 
+    def _begin_step(self, agent: str, mode: str = "") -> None:
+        update_current_step(
+            self.sid, self.rid, agent, mode or None, base_dir=self.base,
+        )
+
 
 class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
     def test_module_architect_first_call_blocked_without_arch_validator(self) -> None:
+        self._begin_step("module-architect")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("module-architect"),
             cc_pid=self.cc_pid,
@@ -314,6 +326,7 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
         self.assertEqual(rc, 1)
 
     def test_module_architect_first_call_allowed_with_arch_validator_pass(self) -> None:
+        self._begin_step("module-architect")
         (self.run_path / "architecture-validator.md").write_text(
             "## 결론\nPASS\n", encoding="utf-8",
         )
@@ -326,6 +339,7 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
 
     def test_module_architect_subsequent_call_skips_arch_validator_check(self) -> None:
         # 첫 호출 prose 이미 있음 → 후속 호출. gate 미발동.
+        self._begin_step("module-architect")
         (self.run_path / "module-architect.md").write_text(
             "## 결론\nPASS\n", encoding="utf-8",
         )
@@ -345,6 +359,9 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
             update_live(sid, base_dir=base)
             start_run(sid, rid, "impl", base_dir=base)
             write_pid_current_run(cc_pid, rid, base_dir=base)
+            update_current_step(
+                sid, rid, "module-architect", None, base_dir=base,
+            )
             rc = handle_pretooluse_agent(
                 stdin_data={"sessionId": sid, "tool_input": {"subagent_type": "module-architect", "mode": ""}},
                 cc_pid=cc_pid,
@@ -357,6 +374,7 @@ class CatastrophicTechReviewerRecallTests(_ArchitectLoopBase):
     """#597 커밋7 — §2.1.4 부분 코드강제: architect-loop 중 tech-reviewer 재호출 차단."""
 
     def test_tech_reviewer_blocked_in_architect_loop(self) -> None:
+        self._begin_step("tech-reviewer")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("tech-reviewer"),
             cc_pid=self.cc_pid,
@@ -373,6 +391,9 @@ class CatastrophicTechReviewerRecallTests(_ArchitectLoopBase):
             update_live(sid, base_dir=base)
             start_run(sid, rid, "impl", base_dir=base)
             write_pid_current_run(cc_pid, rid, base_dir=base)
+            update_current_step(
+                sid, rid, "tech-reviewer", None, base_dir=base,
+            )
             rc = handle_pretooluse_agent(
                 stdin_data={
                     "sessionId": sid,
@@ -382,6 +403,180 @@ class CatastrophicTechReviewerRecallTests(_ArchitectLoopBase):
                 base_dir=base,
             )
             self.assertEqual(rc, 0)
+
+
+# ---------------------------------------------------------------------------
+# issue #604 — active conveyor run strict begin-step gate
+# ---------------------------------------------------------------------------
+
+
+class StrictConveyorGateTests(_PreToolBase):
+    def setUp(self) -> None:
+        super().setUp()
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        active[self.rid]["entry_point"] = "impl"
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+    def test_blocks_agent_without_begin_step(self) -> None:
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_allows_matching_begin_step(self) -> None:
+        self._begin_step("module-architect")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_blocks_agent_mismatch(self) -> None:
+        self._begin_step("system-architect")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_blocks_agent_mode_mismatch(self) -> None:
+        self._begin_step("engineer", "IMPL")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("engineer", "POLISH"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_blocks_blank_current_step_agent(self) -> None:
+        self._begin_step("module-architect")
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        cur_step = dict(slot["current_step"])
+        cur_step["agent"] = ""
+        slot["current_step"] = cur_step
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_blocks_staged_previous_agent_result(self) -> None:
+        self._begin_step("module-architect")
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        cur_step = dict(slot["current_step"])
+        cur_step["prose_file"] = str(self.run_path / "module-architect.md")
+        slot["current_step"] = cur_step
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_blocks_logged_stale_current_step(self) -> None:
+        self._begin_step("module-architect")
+        steps_path = self.run_path / ".steps.jsonl"
+        steps_path.write_text(
+            json.dumps({"agent": "module-architect", "mode": None}) + "\n",
+            encoding="utf-8",
+        )
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_allows_same_agent_after_new_begin_step(self) -> None:
+        steps_path = self.run_path / ".steps.jsonl"
+        steps_path.write_text(
+            json.dumps({"agent": "module-architect", "mode": None}) + "\n",
+            encoding="utf-8",
+        )
+        self._begin_step("module-architect")
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_allows_same_agent_with_missing_count_and_same_second_timestamp(self) -> None:
+        same_second = "2026-06-04T12:00:00+00:00"
+        steps_path = self.run_path / ".steps.jsonl"
+        steps_path.write_text(
+            json.dumps({
+                "agent": "module-architect",
+                "mode": None,
+                "ts": same_second,
+            }) + "\n",
+            encoding="utf-8",
+        )
+        self._begin_step("module-architect")
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        cur_step = dict(slot["current_step"])
+        cur_step.pop("steps_count_at_begin", None)
+        cur_step["started_at"] = same_second
+        slot["current_step"] = cur_step
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_skips_strict_gate_after_completed_run(self) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        slot["completed_at"] = "2026-06-04T12:00:00+00:00"
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_skips_strict_gate_after_finalized_run(self) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        slot["finalized_at"] = "2026-06-04T12:00:00+00:00"
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
 
 
 # ---------------------------------------------------------------------------
@@ -1941,6 +2136,33 @@ class StopHookGuardTests(unittest.TestCase):
         # sid/rid auto-detect 실패 → skip
         rc = handle_stop(stdin_data={})
         self.assertEqual(rc, 0)
+
+    def test_current_step_none_after_end_step_still_allows_end_run_candidate(self):
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+
+        from harness.session_state import run_dir, start_run, update_live
+
+        sid = "sid-stop-current-step-none"
+        rid = "run-feedbeef"
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            update_live(sid, base_dir=base)
+            start_run(sid, rid, "impl", base_dir=base)
+            steps_path = run_dir(sid, rid, base_dir=base) / ".steps.jsonl"
+            steps_path.write_text(
+                json.dumps({"agent": "pr-reviewer", "mode": None}) + "\n",
+                encoding="utf-8",
+            )
+
+            env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
+            with patch.dict(os.environ, env, clear=False), patch(
+                "harness.session_state._cli_end_run", return_value=0
+            ) as end_run:
+                rc = handle_stop(stdin_data={}, base_dir=base)
+
+        self.assertEqual(rc, 0)
+        end_run.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

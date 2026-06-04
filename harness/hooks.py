@@ -32,6 +32,7 @@ from typing import Any, Dict, Optional
 
 from harness.agent_names import normalize_agent_type
 from harness.session_state import (
+    _read_steps_jsonl,
     read_live,
     read_pid_current_run,
     run_dir,
@@ -52,6 +53,14 @@ __all__ = [
     "handle_subagent_stop",
     "handle_stop",
 ]
+
+
+_STRICT_CONVEYOR_ENTRY_POINTS = frozenset({
+    "architect-loop",
+    "impl",
+    "issue-report",
+    "ux",
+})
 
 
 # ── DCN-CHG-20260501-11 — agent-trace.jsonl 헬퍼 ──────────────────────
@@ -167,6 +176,107 @@ def _extract_sid(payload: Dict[str, Any]) -> str:
         or payload.get("sessionid")
         or ""
     )
+
+
+def _mode_or_none(mode: Any) -> Optional[str]:
+    return str(mode) if isinstance(mode, str) and mode else None
+
+
+def _agent_mode_label(agent: str, mode: Optional[str]) -> str:
+    return f"{agent}:{mode}" if mode else agent
+
+
+def _begin_step_cmd(agent: str, mode: Optional[str]) -> str:
+    return f"dcness-helper begin-step {agent}{' ' + mode if mode else ''}"
+
+
+def _end_step_cmd(agent: str, mode: Optional[str]) -> str:
+    return f"dcness-helper end-step {agent}{' ' + mode if mode else ''}"
+
+
+def _strict_conveyor_gate_message(
+    *,
+    sid: str,
+    rid: str,
+    base_dir: Optional[Path],
+    slot: Dict[str, Any],
+    subagent: str,
+    mode: Optional[str],
+) -> Optional[str]:
+    """active conveyor run 안 Agent 직접 호출을 begin-step/current_step 기준으로 차단."""
+    if not subagent:
+        return None
+    entry_point = slot.get("entry_point", "")
+    if entry_point not in _STRICT_CONVEYOR_ENTRY_POINTS:
+        return None
+    if slot.get("completed_at") or slot.get("finalized_at"):
+        return None
+
+    requested = _agent_mode_label(subagent, mode)
+    cur_step = slot.get("current_step")
+    if not isinstance(cur_step, dict):
+        return (
+            "[strict-conveyor] begin-step 누락 — active conveyor run"
+            f"(entry_point={entry_point}, rid={rid[:8]}...) 안에서 Agent({requested}) "
+            "직접 호출을 차단했습니다. 먼저 "
+            f"`{_begin_step_cmd(subagent, mode)}` 실행 후 Agent를 다시 호출하세요."
+        )
+
+    step_agent = cur_step.get("agent")
+    if not isinstance(step_agent, str) or not step_agent:
+        return (
+            "[strict-conveyor] current_step.agent 공백 — active conveyor run"
+            f"(entry_point={entry_point}, rid={rid[:8]}...) 의 step 상태가 불완전합니다. "
+            f"`{_begin_step_cmd(subagent, mode)}` 로 올바른 step을 다시 설정한 뒤 "
+            "Agent를 호출하세요."
+        )
+    step_mode = _mode_or_none(cur_step.get("mode"))
+    current = _agent_mode_label(step_agent, step_mode)
+
+    if step_agent != subagent or step_mode != mode:
+        return (
+            "[strict-conveyor] begin-step/Agent 불일치 — current_step="
+            f"{current}, requested Agent={requested}. 현재 step을 닫아야 하면 "
+            f"`{_end_step_cmd(step_agent, step_mode)}` 를 먼저 호출하고, 다른 Agent를 "
+            f"호출하려면 `{_begin_step_cmd(subagent, mode)}` 로 step을 재설정하세요."
+        )
+
+    prose_file = cur_step.get("prose_file")
+    if isinstance(prose_file, str) and prose_file:
+        return (
+            "[strict-conveyor] 이전 Agent 결과가 이미 staged 상태입니다 — "
+            f"current_step={current}, prose_file={Path(prose_file).name}. "
+            f"같은 Agent를 다시 호출하기 전에 `{_end_step_cmd(step_agent, step_mode)}` 로 "
+            "현재 step을 먼저 기록하세요."
+        )
+
+    records = [
+        record
+        for record in _read_steps_jsonl(sid, rid, base_dir=base_dir)
+        if isinstance(record, dict)
+    ]
+    if records:
+        last = records[-1]
+        last_agent = last.get("agent")
+        last_mode = _mode_or_none(last.get("mode"))
+        if last_agent == step_agent and last_mode == step_mode:
+            raw_count_at_begin = cur_step.get("steps_count_at_begin")
+            try:
+                count_at_begin = int(raw_count_at_begin)
+            except (TypeError, ValueError):
+                count_at_begin = None
+            current_count = len(records)
+            if (
+                count_at_begin is not None
+                and current_count > count_at_begin
+            ):
+                return (
+                    "[strict-conveyor] 이전 step이 이미 .steps.jsonl 에 기록됐습니다 — "
+                    f"logged_step={current}. 다음 Agent 호출 전 "
+                    f"`{_begin_step_cmd(subagent, mode)}` 로 새 step을 먼저 시작하세요."
+                )
+
+    return None
 
 
 def _resolve_rid(
@@ -297,6 +407,28 @@ def handle_pretooluse_agent(
         return 0  # 컨베이어 외부 — 그 외 agent 는 통과
 
     rd = run_dir(sid, rid, base_dir=base_dir)
+
+    # issue #604 — active conveyor run 안에서는 begin-step 없이 Agent 직접 호출 금지.
+    # PostToolUse staging 이후 같은 step 재호출, end-step 완료 후 stale current_step 도
+    # PreToolUse 시점에서 차단해 `.steps.jsonl` 누락을 실행 전에 막는다.
+    try:
+        live = read_live(sid, base_dir=base_dir) or {}
+        active = live.get("active_runs", {}) if isinstance(live, dict) else {}
+        slot = active.get(rid, {}) if isinstance(active, dict) else {}
+        if isinstance(slot, dict):
+            strict_msg = _strict_conveyor_gate_message(
+                sid=sid,
+                rid=rid,
+                base_dir=base_dir,
+                slot=slot,
+                subagent=subagent,
+                mode=_mode_or_none(mode),
+            )
+            if strict_msg:
+                print(strict_msg, file=sys.stderr)
+                return 1
+    except (OSError, ValueError):
+        pass  # state 읽기 실패는 fail-open — hook 버그발 과차단 회피.
 
     # §2.1.3 — engineer 직전 module-architect PASS 필수 (mode != POLISH)
     if subagent == "engineer" and mode != "POLISH":
@@ -1050,7 +1182,7 @@ def handle_stop(
     # 일치 = end-step 호출됨 (step 종료 상태) / 불일치 = begin-step 후 end-step
     # 미호출 (sub-agent 진행 중 응답 종료 케이스 — end-run 발사 false positive).
     try:
-        steps = _read_steps_jsonl(sid, rid)
+        steps = _read_steps_jsonl(sid, rid, base_dir=base_dir)
     except Exception:
         return 0
     if not steps:

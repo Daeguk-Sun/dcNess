@@ -11,7 +11,7 @@
 skill 트리거 또는 직접 발화 → 메인 Claude 가 **해당 skill 의 `## Loop` contract + 본문 (entry_point / task_list / advance / expected_steps / routing)** 보고 task 리스트 동적 구성 → 본 문서 Step 0~8 mechanics 따름.
 
 - **skill 경유**: skill 본문이 loop spec 진본 (예: impl-task-loop = [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)). skill 은 input 정형화 + 라우팅 추천. 절차는 본 SSOT.
-- **직접 발화** ("이거 impl 로 가자"): 각 loop skill 의 `## Loop` + `<skill>-routing.md` 보고 메인이 자율 구성. 강제 X.
+- **직접 발화** ("이거 impl 로 가자"): 각 loop skill 의 `## Loop` + `<skill>-routing.md` 보고 메인이 자율 구성. 단 `begin-run` 이후 active conveyor run 안의 `Agent` 호출은 아래 표준 1 step 시퀀스가 PreToolUse hook 으로 강제된다.
 - **SessionStart inject** (#596): *최소 활성 안내만* 매 세션 노출 — dcness 활성 사실 + 코드 강제 gate 가 켜져 있다는 안내 + hook-first recovery 원칙. 문서 진입 매트릭스·절차·라우팅은 **미주입** (skill 진입 시 해당 skill 이 안내, 위반 복구는 각 blocking hook 메시지가 그 자리에서 제공). 첫 응답 첫 줄 `[dcness 활성 확인]` 토큰.
 
 ---
@@ -79,6 +79,8 @@ TaskUpdate("<task>", completed)
 begin-step stdout 에 `[INSIGHTS: <agent>/<mode>]` 또는 `[PREVIOUS_TASKS]` 섹션이 있으면 Agent prompt 끝에 그대로 포함시킨다.
 - `[INSIGHTS]` — 해당 agent 의 과거 루프 학습 ("하지 말 것" / "잘 됐던 것"), 프로젝트 레벨 누적.
 - `[PREVIOUS_TASKS]` — `/impl-loop` chain 의 직전 task 산출 요약 list (build-worker 진입 시만, #525). 인접 task 인터페이스 정합 참고용 — build-worker 가 phase 3 통과 시 `prev-tasks-append` 로 자기 산출을 누적한 것.
+
+active conveyor run(`entry_point=architect-loop|impl|issue-report|ux`) 안에서 `begin-step` 없이 `Agent` 를 직접 호출하거나, `begin-step` 의 agent/mode 와 다른 `Agent` 를 호출하면 PreToolUse hook 이 호출 전 차단한다. Agent 결과가 hook 에 의해 staged 된 뒤에는 반드시 `end-step` 으로 기록하고 다음 `begin-step` 으로 넘어간다.
 
 메인이 prose를 직접 Write 할 필요 없음 — PostToolUse Agent hook 이 sub 종료 시 `tool_response.text` 에서 prose 를 자동으로 `<run_dir>/<agent>[-<MODE>].md` 에 저장하고 `live.json.current_step.prose_file` 에 경로 기록. `end-step` 이 이 경로를 자동 읽는다.
 

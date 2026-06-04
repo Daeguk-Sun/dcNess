@@ -71,6 +71,7 @@ __all__ = [
     "update_live",
     "start_run",
     "update_current_step",
+    "clear_current_step",
     "set_pending_agent",
     "clear_pending_agent",
     "complete_run",
@@ -532,14 +533,57 @@ def update_current_step(
             pass
 
     now = _now_iso()
+    try:
+        steps_count_at_begin = len(
+            _read_steps_jsonl(session_id, run_id, base_dir=base_dir)
+        )
+    except Exception:
+        steps_count_at_begin = None
     slot["current_step"] = {
         "agent": agent,
         "mode": mode,
         "started_at": now,
     }
+    if steps_count_at_begin is not None:
+        slot["current_step"]["steps_count_at_begin"] = steps_count_at_begin
     slot["last_confirmed_at"] = now
     active[run_id] = slot
     update_live(session_id, base_dir=base_dir, active_runs=active)
+
+
+def clear_current_step(
+    session_id: str,
+    run_id: str,
+    *,
+    agent: Optional[str] = None,
+    mode: Optional[str] = None,
+    base_dir: Optional[Path] = None,
+) -> bool:
+    """`active_runs[run_id].current_step` 제거.
+
+    agent/mode 가 주어지면 현재 step 이 같은 step 일 때만 제거한다. end-step 성공
+    후 stale current_step 이 남아 다음 Agent 호출을 잘못 통과시키는 회귀를 막기 위한
+    좁은 정리 경로다.
+    """
+    live = read_live(session_id, base_dir=base_dir) or {}
+    active = live.get("active_runs", {})
+    if not isinstance(active, dict) or run_id not in active:
+        return False
+    slot = dict(active[run_id])
+    cur_step = slot.get("current_step")
+    if not isinstance(cur_step, dict):
+        return False
+    if agent is not None:
+        cur_agent = cur_step.get("agent")
+        cur_mode = cur_step.get("mode")
+        if cur_agent != agent or cur_mode != mode:
+            return False
+    slot["current_step"] = None
+    slot["last_confirmed_at"] = _now_iso()
+    active = dict(active)
+    active[run_id] = slot
+    update_live(session_id, base_dir=base_dir, active_runs=active)
+    return True
 
 
 def set_pending_agent(
@@ -1772,6 +1816,7 @@ def _cli_end_step(args: Any) -> int:
     _append_step_status(
         sid, rid, args.agent, mode, "PROSE_LOGGED", prose, prose_path,
     )
+    clear_current_step(sid, rid, agent=args.agent, mode=mode)
     return 0
 
 
@@ -1898,9 +1943,14 @@ def _latest_step_per_role(steps: list) -> list:
     return list(out.values())
 
 
-def _read_steps_jsonl(sid: str, rid: str) -> list:
+def _read_steps_jsonl(
+    sid: str,
+    rid: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> list:
     """`.steps.jsonl` 전체 읽기. 파일 없으면 빈 리스트."""
-    target = _steps_jsonl_path(sid, rid)
+    target = _steps_jsonl_path(sid, rid, base_dir=base_dir)
     if not target.exists():
         return []
     out = []
