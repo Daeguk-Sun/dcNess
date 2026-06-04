@@ -355,6 +355,8 @@ def handle_pretooluse_file_op(
     governance Document Sync 게이트가 별도 보호하므로 본 훅 통과.
     """
     from harness.agent_boundary import (
+        check_bash_mutation,
+        check_github_mcp_mutation,
         check_read_allowed,
         check_write_allowed,
         extract_bash_paths,
@@ -403,11 +405,22 @@ def handle_pretooluse_file_op(
                 return 1
     elif tool_name == "Bash":
         cmd = tool_input.get("command", "") or ""
+        # 외부 시스템 mutation (git push / gh pr·issue mutation) — sub-agent 차단 (#597 커밋5).
+        reason = check_bash_mutation(cmd)
+        if reason:
+            print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
+            return 1
         for fp in extract_bash_paths(cmd):
             reason = check_write_allowed(active_agent, fp, cwd=cwd)
             if reason:
                 print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
                 return 1
+    elif tool_name.startswith("mcp__github__"):
+        # GitHub MCP mutation (create_issue / merge_pull_request / push_files 등) — 차단 (#597 커밋5).
+        reason = check_github_mcp_mutation(tool_name)
+        if reason:
+            print(f"[agent-boundary][MCP] {reason}", file=sys.stderr)
+            return 1
 
     # DCN-CHG-20260501-11 — sub 행동 trace append (rid 활성 시만)
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)

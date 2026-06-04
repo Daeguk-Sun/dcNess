@@ -20,6 +20,8 @@ from harness.agent_boundary import (  # noqa: E402
     ALLOW_MATRIX,
     DCNESS_INFRA_PATTERNS,
     READ_DENY_MATRIX,
+    check_bash_mutation,
+    check_github_mcp_mutation,
     check_read_allowed,
     check_write_allowed,
     extract_bash_paths,
@@ -495,6 +497,81 @@ class BashHeuristicTests(unittest.TestCase):
     def test_perl_in_place(self):
         paths = extract_bash_paths("perl -i -pe 's/a/b/' docs/x.md")
         self.assertIn("docs/x.md", paths)
+
+
+class BashMutationTests(unittest.TestCase):
+    """#597 커밋5 — check_bash_mutation: git push / gh mutation 차단, read-only 통과."""
+
+    def test_git_push_blocked(self):
+        self.assertIsNotNone(check_bash_mutation("git push -u origin feature/x"))
+        self.assertIsNotNone(check_bash_mutation("git add . && git push"))
+
+    def test_git_non_push_passes(self):
+        self.assertIsNone(check_bash_mutation("git add ."))
+        self.assertIsNone(check_bash_mutation("git status"))
+        self.assertIsNone(check_bash_mutation("git commit -m 'x'"))
+
+    def test_gh_pr_mutation_blocked(self):
+        self.assertIsNotNone(check_bash_mutation("gh pr create --title x --body y"))
+        self.assertIsNotNone(check_bash_mutation("gh pr merge 123 --merge"))
+
+    def test_gh_issue_mutation_blocked(self):
+        self.assertIsNotNone(check_bash_mutation("gh issue create --title x"))
+        self.assertIsNotNone(check_bash_mutation("gh issue edit 5 --body y"))
+        self.assertIsNotNone(check_bash_mutation("gh issue close 5"))
+        self.assertIsNotNone(check_bash_mutation("gh issue comment 5 --body hi"))
+
+    def test_gh_readonly_passes(self):
+        self.assertIsNone(check_bash_mutation("gh pr view 123"))
+        self.assertIsNone(check_bash_mutation("gh issue list --state open"))
+        self.assertIsNone(check_bash_mutation("gh pr checks --watch"))
+        self.assertIsNone(check_bash_mutation("gh api repos/o/r/issues"))
+
+    def test_gh_api_mutation_method_blocked(self):
+        self.assertIsNotNone(check_bash_mutation("gh api -X POST repos/o/r/issues"))
+        self.assertIsNotNone(
+            check_bash_mutation("gh api --method PATCH repos/o/r/issues/1")
+        )
+        self.assertIsNotNone(
+            check_bash_mutation("gh api --method=DELETE repos/o/r/x")
+        )
+
+    def test_env_prefix_stripped(self):
+        # `FOO=bar git push` 도 토큰 프리픽스 제거 후 git push 로 인식.
+        self.assertIsNotNone(check_bash_mutation("GIT_TRACE=1 git push"))
+
+    def test_empty_and_plain_pass(self):
+        self.assertIsNone(check_bash_mutation(""))
+        self.assertIsNone(check_bash_mutation("ls -la && cat README.md"))
+
+
+class GithubMcpMutationTests(unittest.TestCase):
+    """#597 커밋5 — check_github_mcp_mutation: mutation tool 차단, read tool 통과."""
+
+    def test_mutation_tools_blocked(self):
+        for t in (
+            "mcp__github__create_issue",
+            "mcp__github__update_issue",
+            "mcp__github__merge_pull_request",
+            "mcp__github__push_files",
+            "mcp__github__create_pull_request",
+            "mcp__github__create_or_update_file",
+            "mcp__github__add_issue_comment",
+        ):
+            self.assertIsNotNone(check_github_mcp_mutation(t), f"{t} 는 차단되어야 함")
+
+    def test_read_tools_pass(self):
+        for t in (
+            "mcp__github__get_issue",
+            "mcp__github__list_issues",
+            "mcp__github__search_code",
+            "mcp__github__get_pull_request",
+        ):
+            self.assertIsNone(check_github_mcp_mutation(t), f"{t} 는 통과해야 함")
+
+    def test_non_github_mcp_passes(self):
+        self.assertIsNone(check_github_mcp_mutation("mcp__pencil__batch_design"))
+        self.assertIsNone(check_github_mcp_mutation("Edit"))
 
 
 class BashIntegrationTests(unittest.TestCase):

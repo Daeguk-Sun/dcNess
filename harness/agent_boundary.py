@@ -41,6 +41,8 @@ __all__ = [
     "check_write_allowed",
     "check_read_allowed",
     "extract_bash_paths",
+    "check_bash_mutation",
+    "check_github_mcp_mutation",
 ]
 
 
@@ -355,3 +357,100 @@ def extract_bash_paths(command: str) -> list[str]:
         if "/" in t or re.search(r"\.(md|py|json|sh|mjs|ts|tsx|js|jsx)$", t):
             paths.append(t)
     return paths
+
+
+# ── 외부 시스템 mutation 차단 (#597 커밋5) ─────────────────────────────
+# 활성 sub-agent 의 외부 상태 mutation (git push / gh pr·issue mutation / GitHub MCP)
+# 차단. push·이슈·PR 은 메인 영역 (git-spec 절차). read-only 는 통과.
+# 토큰 단위 파싱 — 문자열 grep 아님 (`gh issue list` 같은 read 를 오차단하지 않기 위함).
+
+# segment 분리용 shell 연산자.
+_SHELL_SEP = re.compile(r"&&|\|\||[;|\n]")
+
+# gh <noun> <verb> mutation 조합.
+_GH_MUTATION: dict[str, frozenset] = {
+    "pr": frozenset({"create", "merge", "close", "edit", "comment", "ready", "reopen"}),
+    "issue": frozenset({"create", "edit", "close", "comment", "delete", "reopen", "transfer", "pin", "unpin", "lock", "unlock"}),
+    "release": frozenset({"create", "edit", "delete", "upload"}),
+    "repo": frozenset({"create", "delete", "fork", "archive", "rename", "edit"}),
+}
+
+# gh api 의 mutating method.
+_HTTP_MUTATION_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
+
+# GitHub MCP — read-only prefix (통과) / mutation verb prefix (차단).
+_MCP_GH_READ_PREFIXES = ("get_", "list_", "search_")
+_MCP_GH_MUTATION_PREFIXES = (
+    "create_", "update_", "delete_", "merge_", "push_", "add_",
+    "fork_", "remove_", "edit_", "close_", "request_", "submit_", "dismiss_",
+)
+
+
+def _segment_tokens(segment: str) -> list[str]:
+    """한 shell segment 를 토큰화 + 선행 `KEY=VAL` env 프리픽스 제거."""
+    toks = re.findall(r"[\"'][^\"']*[\"']|\S+", segment.strip())
+    toks = [t.strip("\"'") for t in toks]
+    i = 0
+    while i < len(toks) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[i]):
+        i += 1  # env 할당 프리픽스 (FOO=bar cmd ...) skip
+    return toks[i:]
+
+
+def check_bash_mutation(command: str) -> Optional[str]:
+    """Bash command 안의 외부 시스템 mutation 차단 — block reason str / None=allow.
+
+    차단: `git push`, `gh pr (create|merge|...)`, `gh issue (create|edit|close|comment|...)`,
+          `gh api -X POST|PUT|PATCH|DELETE`.
+    통과: read-only (`gh pr view`, `gh issue list`, `gh api` GET, 그 외 모든 명령).
+    """
+    if not command:
+        return None
+    for segment in _SHELL_SEP.split(command):
+        toks = _segment_tokens(segment)
+        if not toks:
+            continue
+        cmd = toks[0]
+        # `git push`
+        if cmd == "git" and len(toks) >= 2 and toks[1] == "push":
+            return "git push 차단 — push 는 메인 영역 (git-spec 절차). sub-agent 는 src/문서 변경만."
+        if cmd != "gh" or len(toks) < 2:
+            continue
+        noun = toks[1]
+        # `gh api` — mutating method flag 있을 때만 차단.
+        if noun == "api":
+            for j, t in enumerate(toks):
+                if t in ("-X", "--method") and j + 1 < len(toks):
+                    if toks[j + 1].upper() in _HTTP_MUTATION_METHODS:
+                        return f"gh api {toks[j + 1].upper()} 차단 — 외부 mutation 은 메인 영역."
+                if t.startswith("--method="):
+                    if t.split("=", 1)[1].upper() in _HTTP_MUTATION_METHODS:
+                        return "gh api mutation method 차단 — 외부 mutation 은 메인 영역."
+            continue  # method flag 없음 = GET = 통과
+        # `gh <noun> <verb>`
+        verbs = _GH_MUTATION.get(noun)
+        if verbs and len(toks) >= 3 and toks[2] in verbs:
+            return (
+                f"gh {noun} {toks[2]} 차단 — 외부 시스템 mutation 은 메인 영역 "
+                f"(git-spec 이슈/PR 절차). read-only (view/list) 는 허용."
+            )
+    return None
+
+
+def check_github_mcp_mutation(tool_name: str) -> Optional[str]:
+    """GitHub MCP tool mutation 차단 — block reason str / None=allow.
+
+    read (`get_*`, `list_*`, `search_*`) = 통과. mutation verb prefix = 차단.
+    보수적 — 알려진 mutation prefix 만 차단, 그 외 unknown 은 통과 (false positive 회피).
+    """
+    prefix = "mcp__github__"
+    if not tool_name.startswith(prefix):
+        return None
+    op = tool_name[len(prefix):]
+    if op.startswith(_MCP_GH_READ_PREFIXES):
+        return None
+    if op.startswith(_MCP_GH_MUTATION_PREFIXES):
+        return (
+            f"GitHub MCP mutation 차단: {tool_name} — 외부 시스템 mutation 은 메인 영역 "
+            f"(git-spec 이슈/PR 절차)."
+        )
+    return None

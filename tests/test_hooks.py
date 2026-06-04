@@ -560,6 +560,84 @@ class FileOpHookTests(_PreToolBase):
         )
         self.assertEqual(rc, 0)
 
+    def test_bash_git_push_blocked(self) -> None:
+        # #597 커밋5 — sub-agent 의 git push 차단.
+        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._file_op_payload("Bash", command="git push -u origin x"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_bash_gh_issue_create_blocked(self) -> None:
+        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._file_op_payload(
+                "Bash", command="gh issue create --title x --body y"
+            ),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_bash_gh_readonly_passes(self) -> None:
+        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._file_op_payload(
+                "Bash", command="gh issue list --state open"
+            ),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_mcp_github_mutation_blocked(self) -> None:
+        # #597 커밋5 — sub-agent 의 GitHub MCP mutation 차단.
+        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        rc = handle_pretooluse_file_op(
+            stdin_data={
+                "sessionId": self.sid,
+                "tool_name": "mcp__github__create_issue",
+                "tool_input": {"title": "x"},
+            },
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_mcp_github_read_passes(self) -> None:
+        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        rc = handle_pretooluse_file_op(
+            stdin_data={
+                "sessionId": self.sid,
+                "tool_name": "mcp__github__get_issue",
+                "tool_input": {"issue_number": 5},
+            },
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_main_claude_mutation_passes(self) -> None:
+        # active_agent 미설정 (메인) → git push / MCP mutation 모두 통과.
+        rc_push = handle_pretooluse_file_op(
+            stdin_data=self._file_op_payload("Bash", command="git push origin main"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        rc_mcp = handle_pretooluse_file_op(
+            stdin_data={
+                "sessionId": self.sid,
+                "tool_name": "mcp__github__merge_pull_request",
+                "tool_input": {"pullNumber": 1},
+            },
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc_push, 0)
+        self.assertEqual(rc_mcp, 0)
+
     def test_mcp_tool_passes_boundary_and_records_trace(self) -> None:
         # #255 W5 — mcp__* 도구는 boundary 검사 skip + trace pre append.
         # designer / qa false positive (prose-only 의심) 차단 의도.
