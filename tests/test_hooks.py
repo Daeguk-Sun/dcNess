@@ -932,6 +932,129 @@ class PostToolUseFileOpTests(_PreToolBase):
 
 
 # ---------------------------------------------------------------------------
+# issue #598 — file-op self-attribution (payload agent_type/agent_id 우선)
+# ---------------------------------------------------------------------------
+
+
+class FileOpSelfAttributionTests(FileOpHookTests):
+    """payload 의 agent_type 로 acting agent self-attribution — 동시 sub-agent 안전.
+
+    공식 CC docs (code.claude.com/docs/en/hooks): PreToolUse/PostToolUse 가
+    sub-agent 안에서 발화하면 payload 에 `agent_id` + `agent_type` 가 실린다.
+    file-guard 가 공유 단일 슬롯(`live.active_agent`) 대신 *각 호출의 payload* 로
+    acting agent 를 귀속하면, 두 번째 sub 가 active_agent 를 덮어써도 권한 판정이
+    서로 안 섞인다 (issue #598 근본원인 해결).
+    """
+
+    def _payload_with_agent(self, tool_name, agent_type, **tool_input):
+        d = self._file_op_payload(tool_name, **tool_input)
+        d["agent_type"] = agent_type
+        return d
+
+    def test_payload_agent_type_overrides_active_agent_allow(self):
+        # active_agent 가 다른 sub(qa: write 전면 불가)로 덮어써져 있어도
+        # payload agent_type=engineer → engineer 매트릭스로 판정 → src 허용.
+        update_live(self.sid, base_dir=self.base, active_agent="qa")
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._payload_with_agent(
+                "Edit", "engineer", file_path="src/foo.ts"
+            ),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)  # qa 로 판정됐다면 차단(rc 1)됐을 것
+
+    def test_payload_agent_type_overrides_active_agent_block(self):
+        # active_agent=engineer(src 허용) 인데 payload agent_type=qa → qa 로 판정 → src 차단.
+        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._payload_with_agent(
+                "Edit", "qa", file_path="src/foo.ts"
+            ),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)  # engineer 로 판정됐다면 통과(rc 0)됐을 것
+
+    def test_payload_agent_type_enforced_without_active_agent(self):
+        # active_agent 미설정(다른 sub 의 SubagentStop 으로 clear됨)이라도 payload
+        # agent_type 있으면 sub 로 인지 → 경계 강제. 단일 슬롯 의존 시 BUG: 메인으로 오인 통과.
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._payload_with_agent(
+                "Write", "engineer", file_path="README.md"
+            ),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)  # engineer 는 README write 불가
+
+    def test_no_agent_type_falls_back_to_active_agent(self):
+        # payload 에 agent_type 없으면 (구버전 CC) 기존 active_agent 폴백 유지.
+        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._file_op_payload("Write", file_path="README.md"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)  # 폴백: engineer README 차단 (기존 동작)
+
+    def test_no_agent_type_no_active_agent_passes(self):
+        # payload agent_type 없음 + active_agent 없음 → 메인 Claude → 통과.
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._file_op_payload("Write", file_path="README.md"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_pre_trace_uses_payload_agent_type(self):
+        # 통과한 file-op 의 pre-trace agent 도 payload agent_type 로 귀속.
+        update_live(self.sid, base_dir=self.base, active_agent="qa")
+        rc = handle_pretooluse_file_op(
+            stdin_data=self._payload_with_agent(
+                "Read", "engineer", file_path="src/foo.ts"
+            ),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+        entries = read_trace(self.sid, self.rid, base_dir=self.base)
+        pre = [e for e in entries if e.get("phase") == "pre"]
+        self.assertTrue(pre)
+        self.assertEqual(pre[-1]["agent"], "engineer")
+
+
+class PostFileOpSelfAttributionTests(PostToolUseFileOpTests):
+    """post trace 의 agent 귀속도 payload agent_type 우선 (issue #598)."""
+
+    def test_post_trace_uses_payload_agent_type(self):
+        update_live(self.sid, base_dir=self.base, active_agent="qa")
+        d = self._post_payload(
+            "Bash", {"exit_code": 0, "stdout": "x"}, command="echo x"
+        )
+        d["agent_type"] = "engineer"
+        d["agent_id"] = "sub-eng-1"
+        rc = handle_posttooluse_file_op(
+            stdin_data=d, cc_pid=self.cc_pid, base_dir=self.base
+        )
+        self.assertEqual(rc, 0)
+        entries = read_trace(self.sid, self.rid, base_dir=self.base)
+        self.assertEqual(entries[-1]["agent"], "engineer")  # active_agent(qa) 아님
+
+    def test_post_trace_records_with_payload_only(self):
+        # active_agent 미설정이라도 payload agent_type 있으면 trace 기록.
+        d = self._post_payload("Bash", {"exit_code": 0}, command="ls")
+        d["agent_type"] = "engineer"
+        rc = handle_posttooluse_file_op(
+            stdin_data=d, cc_pid=self.cc_pid, base_dir=self.base
+        )
+        self.assertEqual(rc, 0)
+        entries = read_trace(self.sid, self.rid, base_dir=self.base)
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["agent"], "engineer")
+
+
+# ---------------------------------------------------------------------------
 # DCN-CHG-20260501-13 — PostToolUse Agent histogram inject + auto redo_log
 # ---------------------------------------------------------------------------
 

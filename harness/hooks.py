@@ -193,6 +193,25 @@ def _resolve_rid(
     return candidates[0][0]
 
 
+def _resolve_acting_agent(
+    stdin_data: Dict[str, Any], live: Dict[str, Any]
+) -> str:
+    """file-op 훅의 acting sub-agent 식별 — issue #598 self-attribution.
+
+    공식 CC docs (code.claude.com/docs/en/hooks): PreToolUse/PostToolUse 가
+    sub-agent 안에서 발화하면 payload 에 `agent_type` (+`agent_id`) 가 실린다.
+    각 도구 호출이 *자기 payload* 로 agent 를 식별하면 동시 sub-agent 가 공유
+    단일 슬롯(`live.active_agent`)을 서로 덮어써도 권한/trace 귀속이 안 섞인다.
+
+    우선순위: payload `agent_type` (자기 식별, 동시 안전) → `live.active_agent`
+    단일 슬롯 폴백 (구버전 CC / payload 미탑재 케이스). 둘 다 없으면 "" = 메인 Claude.
+    """
+    payload_agent = stdin_data.get("agent_type")
+    if isinstance(payload_agent, str) and payload_agent:
+        return payload_agent
+    return live.get("active_agent") or ""
+
+
 def handle_session_start(
     stdin_data: Optional[Dict[str, Any]] = None,
     cc_pid: Optional[int] = None,
@@ -392,8 +411,10 @@ def handle_pretooluse_file_op(
         return 0
 
     live = read_live(sid, base_dir=base_dir) or {}
-    active_agent = live.get("active_agent") or ""
-    if not active_agent:
+    # issue #598 — acting agent 는 payload agent_type(자기 식별, 동시 sub 안전) 우선,
+    # 없으면 live.active_agent 단일 슬롯 폴백 (_resolve_acting_agent).
+    acting_agent = _resolve_acting_agent(stdin_data, live)
+    if not acting_agent:
         return 0  # 메인 Claude — governance 가 보호.
 
     tool_name = stdin_data.get("tool_name", "") or ""
@@ -412,14 +433,14 @@ def handle_pretooluse_file_op(
     if tool_name == "Read":
         fp = tool_input.get("file_path", "") or ""
         if fp:
-            reason = check_read_allowed(active_agent, fp, cwd=cwd)
+            reason = check_read_allowed(acting_agent, fp, cwd=cwd)
             if reason:
                 print(f"[agent-boundary] {reason}", file=sys.stderr)
                 return 1
     elif tool_name in ("Edit", "Write", "NotebookEdit"):
         fp = tool_input.get("file_path", "") or ""
         if fp:
-            reason = check_write_allowed(active_agent, fp, cwd=cwd)
+            reason = check_write_allowed(acting_agent, fp, cwd=cwd)
             if reason:
                 print(f"[agent-boundary] {reason}", file=sys.stderr)
                 return 1
@@ -433,7 +454,7 @@ def handle_pretooluse_file_op(
                 print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
                 return 1
         for fp in extract_bash_paths(cmd):
-            reason = check_write_allowed(active_agent, fp, cwd=cwd)
+            reason = check_write_allowed(acting_agent, fp, cwd=cwd)
             if reason:
                 print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
                 return 1
@@ -453,7 +474,7 @@ def handle_pretooluse_file_op(
             rid,
             {
                 "phase": "pre",
-                "agent": active_agent,
+                "agent": acting_agent,
                 "agent_id": stdin_data.get("agent_id", "") or "",
                 "tool": tool_name,
                 "input": _summarize_input(tool_name, tool_input),
@@ -489,8 +510,9 @@ def handle_posttooluse_file_op(
         return 0
 
     live = read_live(sid, base_dir=base_dir) or {}
-    active_agent = live.get("active_agent") or ""
-    if not active_agent:
+    # issue #598 — payload agent_type(self-attribution) 우선, active_agent 폴백.
+    acting_agent = _resolve_acting_agent(stdin_data, live)
+    if not acting_agent:
         return 0
 
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
@@ -504,7 +526,7 @@ def handle_posttooluse_file_op(
 
     entry: Dict[str, Any] = {
         "phase": "post",
-        "agent": active_agent,
+        "agent": acting_agent,
         "agent_id": stdin_data.get("agent_id", "") or "",
         "tool": tool_name,
     }
