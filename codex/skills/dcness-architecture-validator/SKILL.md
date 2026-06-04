@@ -38,7 +38,7 @@ Write concise prose with:
 
 - Verdict summary.
 - Findings ordered by severity. Each finding must include `path:line` evidence.
-- Classify each Must finding as one of: `system-boundary` (the upper boundary, ownership, or domain invariant is wrong → revisit system architecture), `contract-propagation` (the decision is correct but stale copies remain across architecture/domain/ADR/impl docs → a targeted sync sweep, not a redesign), or `task-local` (a single implementation task doc is wrong → fix that task).
+- Classify each Must finding as one of `SYSTEM_BOUNDARY` (the upper boundary, ownership, or domain invariant is wrong → revisit system architecture), `CONTRACT_PROPAGATION` (the decision is correct but stale copies remain across architecture/domain/ADR/impl docs → a targeted sync sweep, not a redesign), or `TASK_LOCAL` (a single implementation task doc is wrong → fix that task). Use these exact uppercase tokens — they are the canonical routing vocabulary shared with the Claude-side validator and the auto-resolve hint.
 - What architect step should be revisited, if any, consistent with the classification.
 - Recommended next action.
 
