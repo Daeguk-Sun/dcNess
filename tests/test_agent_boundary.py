@@ -538,6 +538,18 @@ class BashMutationTests(unittest.TestCase):
         self.assertIsNotNone(check_bash_mutation("gh pr create --title x --body y"))
         self.assertIsNotNone(check_bash_mutation("gh pr merge 123 --merge"))
 
+    def test_gh_pr_review_blocked(self):
+        # codex P2 (round3) — gh pr review 는 PR 리뷰 제출 = mutation.
+        self.assertIsNotNone(check_bash_mutation("gh pr review 123 --approve"))
+        self.assertIsNotNone(
+            check_bash_mutation("gh pr review 5 --request-changes --body x")
+        )
+
+    def test_heredoc_opener_suffix_still_scanned(self):
+        # codex P2 (round3) — opener 라인의 `&& git push` 는 실행 syntax → 보존·차단.
+        cmd = "cat > f <<'EOF' && git push origin main\nbody line\nEOF\n"
+        self.assertIsNotNone(check_bash_mutation(cmd))
+
     def test_gh_issue_mutation_blocked(self):
         self.assertIsNotNone(check_bash_mutation("gh issue create --title x"))
         self.assertIsNotNone(check_bash_mutation("gh issue edit 5 --body y"))

@@ -371,21 +371,23 @@ def extract_bash_paths(command: str) -> list[str]:
 # segment 분리용 shell 연산자.
 _SHELL_SEP = re.compile(r"&&|\|\||[;|\n]")
 
-# heredoc 본문 제거 — `cat > f <<'EOF' … git push … EOF` 처럼 heredoc *데이터* 안의
-# git/gh 텍스트를 실행 명령으로 오인해 차단하는 false positive 방지 (codex P2).
-# `<<['"]?MARKER` 부터 줄 단독 `MARKER` 까지를 통째로 제거. 명령 라인의 `<<` 앞부분은 보존.
+# heredoc *본문(body)* 만 제거 — `cat > f <<'EOF' … git push … EOF` 처럼 heredoc 데이터
+# 안의 git/gh 텍스트를 실행 명령으로 오인해 차단하는 false positive 방지 (codex P2).
+# 단 opener 라인의 `<<MARKER` *뒤* 에 오는 부분(예 `&& git push`)은 실행 syntax 이므로 보존
+# (codex P2 재지적) — body 는 opener 라인 다음 `\n` 부터 줄 단독 `MARKER` 까지.
 _HEREDOC_RE = re.compile(
-    r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1.*?^\s*\2\s*$",
+    r"<<-?\s*(['\"]?)([A-Za-z_]\w*)\1(?P<rest>[^\n]*)\n.*?^\s*\2\s*$",
     re.DOTALL | re.MULTILINE,
 )
 
 
 def _strip_heredocs(command: str) -> str:
-    return _HEREDOC_RE.sub(" ", command)
+    # body 만 지우고 opener 라인 잔여(rest, 예 `&& git push`)는 살린다.
+    return _HEREDOC_RE.sub(lambda m: " " + m.group("rest") + " ", command)
 
 # gh <noun> <verb> mutation 조합.
 _GH_MUTATION: dict[str, frozenset] = {
-    "pr": frozenset({"create", "merge", "close", "edit", "comment", "ready", "reopen"}),
+    "pr": frozenset({"create", "merge", "close", "edit", "comment", "ready", "reopen", "review"}),
     "issue": frozenset({"create", "edit", "close", "comment", "delete", "reopen", "transfer", "pin", "unpin", "lock", "unlock"}),
     "release": frozenset({"create", "edit", "delete", "upload"}),
     "repo": frozenset({"create", "delete", "fork", "archive", "rename", "edit"}),
