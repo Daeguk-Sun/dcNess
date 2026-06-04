@@ -166,6 +166,7 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 - [영역 1](#영역-1-순환-의존-미허가-의존-빌드-시점-차단) 순환 의존 — grep / 정적 분석으로 검출 가능
 - [영역 1](#영역-1-순환-의존-미허가-의존-빌드-시점-차단) 미허가 의존 — architecture.md 의 의존 그래프 ↔ 실제 import 영역 비교
 - [영역 2](#영역-2-모듈-공개-비공개-영역-구분-강제) public API contract 위반 — 시그니처 grep 비교
+- Contract Ledger 충분성 — epic architecture.md 의 `## Contract Ledger` 가 signature 만 적고 invariant/ordering/error mode/forbidden alternative 를 빠뜨린 *shallow contract* 가 아닌지
 
 ### 수동 review 권고 영역 (사용자에게 안내)
 
@@ -173,6 +174,8 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 - [룰 2](#룰-2-결과를-반환하라-부작용을-만들지-말라) *부작용 없는 결과 반환* 영역 — 코드 의도 판단 영역
 
 validator prose 결론에 *자동 검증 통과 영역* + *수동 review 권고 영역* 분리 명시 의무.
+
+**Contract Ledger (계약 원장) 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 표면 뒤 풍부한 계약 관점의 운영화). 이 계약들은 architect-loop 에서 epic architecture.md 의 `## Contract Ledger` 에 1급 산출물로 모인다 — system-architect 가 작성, architecture-validator 가 충분성(shallow contract 검출) + loop 마지막 producer→consumer→forbidden sweep 으로 검증한다. 분류·라우팅 상세 = [`architect-loop-routing.md`](../../skills/architect-loop/architect-loop-routing.md#finding-분류-라우팅).
 
 ## 참조
 
