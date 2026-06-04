@@ -20,6 +20,13 @@ allow() {
   exit 0
 }
 
+# plugin root 를 PYTHONPATH 에 prepend — cross-project 시나리오 대응 (다른 wrapper 정합).
+export PYTHONPATH="${CLAUDE_PLUGIN_ROOT:-.}:${PYTHONPATH:-}"
+
+# 활성화 게이트 (#597 커밋3) — 미활성 프로젝트는 즉시 allow (no-op).
+# 나머지 6 wrapper 는 이미 보유. tdd-guard 만 누락이라 비활성 프로젝트서도 deny 발동하던 결함 수정.
+python3 -m harness.session_state is-active >/dev/null 2>&1 || allow
+
 INPUT=$(cat)
 [ -z "$INPUT" ] && allow
 

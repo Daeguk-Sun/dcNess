@@ -304,6 +304,57 @@ class TestPathMatcherTier5_MonorepoSrcRoot(unittest.TestCase):
         self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
 
 
+class TestIsActiveGate(unittest.TestCase):
+    """#597 커밋3 — tdd-guard 는 미활성 프로젝트에서 no-op (allow).
+
+    DCNESS_FORCE_ENABLE 미설정 + temp cwd(whitelist 미등록) → is-active 게이트가
+    deny 로직 도달 전에 allow 시킨다. (다른 6 wrapper 와 동일 게이트.)
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp()
+        subprocess.run(["git", "init"], cwd=self._tmp, capture_output=True)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _touch(self, rel: str, content: str = "// stub\n") -> str:
+        p = Path(self._tmp) / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        return str(p)
+
+    def _run_inactive(self, file_path: str) -> subprocess.CompletedProcess:
+        # harness 는 import 가능(PYTHONPATH)하되 활성 신호는 주지 않음 → is-active=inactive.
+        env = {k: v for k, v in os.environ.items() if k != "DCNESS_FORCE_ENABLE"}
+        env["PYTHONPATH"] = str(ROOT)
+        return subprocess.run(
+            ["bash", str(HOOK_PATH)],
+            input=json.dumps({"tool_name": "Edit", "tool_input": {"file_path": file_path}}),
+            capture_output=True, text=True, cwd=self._tmp, timeout=10, env=env,
+        )
+
+    def test_inactive_project_allows_even_without_test(self):
+        # 활성이면 deny 였을 src 파일이, 미활성에선 게이트로 즉시 allow.
+        path = self._touch(
+            "src/biz.ts",
+            "export function calc(a, b) { return a + b; }\n",
+        )
+        result = self._run_inactive(path)
+        self.assertEqual(
+            result.returncode, 0,
+            f"미활성 프로젝트는 allow(exit 0) 여야 함. stderr={result.stderr!r}",
+        )
+
+    def test_active_project_still_denies(self):
+        # 대조군 — DCNESS_FORCE_ENABLE=1 (run_hook 기본) 이면 동일 파일이 deny.
+        path = self._touch(
+            "src/biz2.ts",
+            "export function calc2(a, b) { return a + b; }\n",
+        )
+        self.assertEqual(decision(run_hook(path, self._tmp)), "deny")
+
+
 class TestBlockingSemantics(unittest.TestCase):
     """#597 커밋1 — deny = exit 2 + stderr reason (exit 1/JSON 아님)."""
 
