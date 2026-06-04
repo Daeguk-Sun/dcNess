@@ -146,36 +146,32 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 - module-architect — 모듈 공개 API 영역 명시 + DI 패턴 적용
 - engineer — 빌드 시점 강제 도구 설정 + 의존 작성
 
-## 호출 시 read 의무 agent
+## 산출물 evidence 연결
 
-본 SSOT 는 다음 agent 호출 시 read 의무다.
+본 SSOT 는 단순 read 의무로 끝나지 않는다. 적용 여부는 산출물에 남은 evidence 로 확인한다.
 
-| Agent | 무엇을 위해 read 하는가 |
+| Agent | evidence |
 |---|---|
-| [`system-architect`](../../agents/system-architect.md) | architecture.md 의 기술 스택 / 의존성 강제 도구 영역 결정 시 |
-| [`module-architect`](../../agents/module-architect.md) | epic 단위 architecture.md 의 모듈 공개 API / 인터페이스 정의 시 |
-| [`engineer`](../../agents/engineer.md) | 코드 작성 영역 — DI 패턴 / 표면 작은 인터페이스 적용 시 |
-| [`test-engineer`](../../agents/test-engineer.md) | 테스트 작성 영역 — 인터페이스가 [Interface Design 룰](#interface-design-for-testability-테스트-가능성-위한-인터페이스-설계) 위반이면 SPEC_GAP_FOUND emit |
+| [`system-architect`](../../agents/system-architect.md) | architecture 템플릿의 `Module Design Check`, 의존성 차단 도구, DI 패턴, Contract Ledger |
+| [`module-architect`](../../agents/module-architect.md) | impl 템플릿의 `Module Design Check`, 작은 공개 표면, contract/interface, 검증 가능한 수용 기준 |
+| [`engineer`](../../agents/engineer.md) | 구현 보고의 계약 준수, 의존 주입 또는 wrapper 사용, 검증 결과 |
+| [`test-engineer`](../../agents/test-engineer.md) | 테스트 보고의 REQ 연결, 의존 mock 경계, 구현 독립성 |
+| [`build-worker`](../../agents/build-worker.md) | phase 보고의 RED/GREEN/self-validate 증거 |
+| [`architecture-validator`](../../agents/architecture-validator.md) | 설계 표준, 계약과 인터페이스, 구현 가능성 축의 finding 또는 PASS 근거 |
+| [`code-validator`](../../agents/code-validator.md) | 의존 계약, 도메인/디자인 정합, 구현 위험 축의 finding 또는 PASS 근거 |
 
-## validator 의 자동 검증 영역
+## validator 의 검증 연결
 
-[`architecture-validator`](../../agents/architecture-validator.md) 가 본 SSOT 의 룰 위반 영역을 *자동 가능* 영역과 *수동 review 권고* 영역으로 분리해 검증한다.
+[`architecture-validator`](../../agents/architecture-validator.md) 는 본 SSOT 를 고정 checklist 로 세지 않는다. 다음 축에서 evidence 를 확인한다.
 
-### 자동 검증 가능 영역 (validator 가 직접)
+- **설계 표준**: 모듈 공개 표면, 의존 방향, DI 판단, 차단 도구가 산출물에 남았는가.
+- **계약과 인터페이스**: Contract Ledger 가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 를 담는가.
+- **구현 가능성**: engineer 와 test-engineer 가 의존을 주입하고 결과를 관찰할 수 있는가.
+- **drift 통제**: 같은 계약의 사본이 서로 다른 의미로 남지 않았는가.
 
-- [영역 1](#영역-1-순환-의존-미허가-의존-빌드-시점-차단) 순환 의존 — grep / 정적 분석으로 검출 가능
-- [영역 1](#영역-1-순환-의존-미허가-의존-빌드-시점-차단) 미허가 의존 — architecture.md 의 의존 그래프 ↔ 실제 import 영역 비교
-- [영역 2](#영역-2-모듈-공개-비공개-영역-구분-강제) public API contract 위반 — 시그니처 grep 비교
-- Contract Ledger 충분성 — epic architecture.md 의 `## Contract Ledger` 가 signature 만 적고 invariant/ordering/error mode/config/forbidden alternative 를 빠뜨린 *shallow contract* 가 아닌지
+자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이 필요한 영역은 finding 이 아니라 수동 review 권고로 분리해 사용자에게 보여준다.
 
-### 수동 review 권고 영역 (사용자에게 안내)
-
-- [Deep Modules](#deep-modules-깊은-모듈) 의 *작은 인터페이스 + 풍부한 구현* 룰 — 질적 판단 필요
-- [룰 2](#룰-2-결과를-반환하라-부작용을-만들지-말라) *부작용 없는 결과 반환* 영역 — 코드 의도 판단 영역
-
-validator prose 결론에 *자동 검증 통과 영역* + *수동 review 권고 영역* 분리 명시 의무.
-
-**Contract Ledger (계약 원장) 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 표면 뒤 풍부한 계약 관점의 운영화). 이 계약들은 architect-loop 에서 epic architecture.md 의 `## Contract Ledger` 에 1급 산출물로 모인다 — system-architect 가 작성, architecture-validator 가 충분성(shallow contract 검출) + loop 마지막 모든-필드 sweep 으로 검증한다. 분류·라우팅 상세 = [`architect-loop-routing.md`](../../skills/architect-loop/architect-loop-routing.md#finding-분류-라우팅).
+**Contract Ledger (계약 원장) 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 표면 뒤 풍부한 계약 관점의 운영화). 이 계약들은 architect-loop 에서 epic architecture.md 의 `## Contract Ledger` 에 1급 산출물로 모인다. system-architect 가 작성하고, module-architect 가 public contract 변경 시 갱신하며, architecture-validator 가 stale 사본과 shallow contract 를 검토한다. 분류·라우팅 상세 = [`architect-loop-routing.md`](../../skills/architect-loop/architect-loop-routing.md#finding-분류-라우팅).
 
 ## 참조
 

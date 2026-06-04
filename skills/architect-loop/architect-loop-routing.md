@@ -54,7 +54,7 @@ flowchart TB
 표만으로 안 풀리는 맥락:
 
 - **module-architect 호출 단위** = 1 Story 또는 공통 task 묶음 → epic 전체에서 `K = Story 수 + 공통 호출` 회 반복. self-check 의 cross-task interface 점검이 PASS 게이트.
-- **architecture-validator 2시점** — 1차(Step 3.5) = Placeholder + 공통 SSOT 룰 위반 + Contract Ledger 충분성, 2차(Step 5) = Cross-Story Interface + Implementation Simulation + Origin Anchor + Implementation Detail Leak + Contract Ledger sweep + Placeholder 재검증. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `CONTRACT_PROPAGATION` / `TASK_LOCAL`) 동반.
+- **architecture-validator 2시점** — 1차(Step 3.5) = system 산출물 기준으로 요구사항 출처, 설계 표준, Contract Ledger 충분성, freeze 가능성 검토. 2차(Step 5) = impl 문서까지 포함해 요구사항 출처 충실도, 계약과 인터페이스, 구현 가능성, drift와 scope, 표현 수준 검토. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `CONTRACT_PROPAGATION` / `TASK_LOCAL`) 동반.
 
 ## finding 분류 라우팅
 
@@ -77,7 +77,7 @@ flowchart TB
 | architecture-validator FAIL → architect 재진입 | 2 cycle | 사용자 위임 |
 | module-architect `SPEC_GAP_FOUND` → 보강 → 신규 케이스 재진입 | 2 cycle | 사용자 위임 |
 
-> **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 라우팅](#finding-분류-라우팅)) — **1차**(Placeholder·공통 SSOT·Contract Ledger 충분성) → 검증 대상이 system-architect 산출물이라 **system-architect** 재진입 (이 시점 module-architect 미실행). **2차** → 분류로 분기: `SYSTEM_BOUNDARY`(모듈 경계·의존 그래프 포함) → **system-architect**, `CONTRACT_PROPAGATION` → **module-architect `mode=contract_sweep`**, `TASK_LOCAL`(Implementation Detail Leak 포함) → **module-architect** 보강.
+> **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 라우팅](#finding-분류-라우팅)) — **1차**는 검증 대상이 system-architect 산출물이라 기본적으로 **system-architect** 재진입이다. **2차**는 분류로 분기한다. `SYSTEM_BOUNDARY`(모듈 경계·의존 그래프 포함) → **system-architect**, `CONTRACT_PROPAGATION` → **module-architect `mode=contract_sweep`**, `TASK_LOCAL` → **module-architect** 보강.
 > cycle 발생 시 **working tree only — commit X.** PASS 후에만 commit (cycle 도중 산출물은 덮어쓰기 전제).
 
 > **finding 수용 자세** (점 패치 X, 근본 재설계) — 같은 영역 finding 이 2회+ 반복되면 점 패치 retry 로 한도를 소진하지 말고 근본 원인을 짚어 그 영역을 재설계한다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).
