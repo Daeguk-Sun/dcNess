@@ -33,7 +33,7 @@ risk tier 는 "더 무거운 하나"를 고르는 배타 선택이 **아니다**
 ```mermaid
 flowchart TB
   REQ["자유 형식 작업 요청"] --> HR{"high-risk trigger?"}
-  HR -->|예| T3["product-plan → tech-review → architect-loop → impl-loop"]
+  HR -->|예| T3["product-plan → (외부 의존 시) tech-review → architect-loop → impl-loop"]
   HR -->|아니오| MP{"multi-PR / resume / handoff?"}
   MP -->|예| T4["impl-loop chain"]
   MP -->|아니오| AM{"목표·범위 모호?"}
