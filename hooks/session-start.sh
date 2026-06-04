@@ -96,6 +96,7 @@ msg = header + '''## [dcness 활성 환경]
 ### 작업 진입 매트릭스 (lazy — 통째 read 폐기, #400)
 | 상황 | docs |
 |---|---|
+| 자유 형식 작업 요청 → 어떤 workflow (risk 분류) | \`workflow-router.md\` |
 | catastrophic / loop 진입 | \`hooks.md\` catastrophic-gate.sh + 해당 skill 의 \`## Loop\` + \`<skill>-routing.md\` |
 | Step 0~8 / echo / REDO | \`loop-procedure.md\` |
 | agent 결론 → 다음 (라우팅) | 호출 skill 의 \`<skill>-routing.md\` |
@@ -103,7 +104,7 @@ msg = header + '''## [dcness 활성 환경]
 | 이슈 lifecycle / PR | \`issue-lifecycle.md\` |
 | 브랜치/커밋 네이밍 | \`git-spec.md\` |
 
-skill 트리거 시 해당 skill 의 ## 사전 read 가 정확 경로 안내.
+자유 형식 작업 요청은 먼저 risk 분류 → 가장 작은 workflow 선택 (권고). skill 트리거 시 해당 skill 의 ## 사전 read 가 정확 경로 안내.
 '''
 print(json.dumps({
     'hookSpecificOutput': {

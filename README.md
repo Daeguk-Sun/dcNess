@@ -58,6 +58,16 @@ dcness-helper routing disable-codex-validation
 
 ## 작업 흐름
 
+**명령을 외우지 말고 리스크로 고르기** — 작업 요청의 리스크 신호로 *가장 작은* workflow 를 고른다.
+상세 판정(gate 축 × shape 축)은 [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md).
+
+| 리스크 신호 | 진입점 |
+|---|---|
+| 구체 파일 path · symbol · 이슈 번호 (high-risk 없음) | `/impl-loop` 또는 단발 구현 — 기획/설계 gate 만 skip (branch/PR/test/리뷰 유지) |
+| 목표·범위 모호 ("개선해줘 / 새 기능") | `/product-plan` 그릴미 |
+| 새 feature · 외부 의존(API/SDK/model) · auth/보안 · migration · public API breakage | `/product-plan → /tech-review → /architect-loop → /impl-loop` |
+| 여러 PR 로 분할 · 재개/handoff 필요 | `/impl-loop` chain |
+
 dcNess 는 단계별 skill 로 작업을 끌고 간다. `/impl-loop` 은 **설계 산출물(impl task 문서)이
 있어야** 동작하므로, 보통 아래 순서를 탄다.
 
