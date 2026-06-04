@@ -493,6 +493,8 @@ _CMD_WRAPPERS = frozenset({
 _SHELL_KEYWORDS = frozenset({
     "if", "fi", "done", "while", "until", "for", "case", "esac", "!",
 })
+_SHELL_COMMANDS = frozenset({"bash", "sh", "zsh"})
+_MUTATION_RECURSION_LIMIT = 3
 
 # GitHub MCP — read-only prefix (통과) / mutation verb prefix (차단).
 _MCP_GH_READ_PREFIXES = ("get_", "list_", "search_")
@@ -514,6 +516,11 @@ def _segment_tokens(segment: str) -> list[str]:
     return toks[i:]
 
 
+def _command_basename(token: str) -> str:
+    """실행 파일 토큰을 명령명으로 정규화 (`/usr/bin/git` -> `git`)."""
+    return Path(token).name
+
+
 def _peel_wrappers(toks: list[str]) -> list[str]:
     """선두 명령 래퍼/쉘 키워드를 벗겨 실제 명령 토큰 list 반환 (codex P2).
 
@@ -528,10 +535,11 @@ def _peel_wrappers(toks: list[str]) -> list[str]:
     n = len(toks)
     while i < n:
         t = toks[i]
+        cmd_name = _command_basename(t)
         # 선두의 래퍼/키워드/옵션/`VAR=val` 은 모두 건너뛴다 (codex P2 round5):
         #   `sudo -E git push` / `env -i GH_TOKEN=x gh pr create` / `command -- gh pr create`.
         if (
-            t in _CMD_WRAPPERS
+            cmd_name in _CMD_WRAPPERS
             or t in _SHELL_KEYWORDS
             or t.startswith("-")
             or re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t)
@@ -562,6 +570,24 @@ def _positional_args(toks: list[str], value_flags: frozenset) -> list[str]:
             out.append(t)
             i += 1
     return out
+
+
+def _nested_shell_payload(toks: list[str]) -> Optional[tuple[str, str]]:
+    """`bash -c ...` / `eval ...` 의 실행 payload 추출 (best-effort)."""
+    if not toks:
+        return None
+    cmd = _command_basename(toks[0])
+    if cmd in _SHELL_COMMANDS:
+        for idx, tok in enumerate(toks[1:], start=1):
+            # POSIX shell 계열에서 `-c` 또는 `-lc` 처럼 묶인 short option 뒤 토큰은 실행 문자열.
+            if tok == "-c" or (tok.startswith("-") and not tok.startswith("--") and "c" in tok[1:]):
+                if idx + 1 < len(toks):
+                    return (f"{cmd} -c", toks[idx + 1])
+                return None
+        return None
+    if cmd == "eval" and len(toks) > 1:
+        return ("eval", " ".join(toks[1:]))
+    return None
 
 
 def _gh_api_mutation(toks: list[str]) -> Optional[str]:
@@ -595,23 +621,9 @@ def _gh_api_mutation(toks: list[str]) -> Optional[str]:
     return None
 
 
-def check_bash_mutation(command: str) -> Optional[str]:
-    """Bash command 안의 외부 시스템 mutation 차단 — block reason str / None=allow.
-
-    차단: `git push`, `gh pr (create|merge|...)`, `gh issue (create|edit|close|comment|...)`,
-          `gh api` (mutating method / field flag).
-    통과: read-only (`gh pr view`, `gh issue list`, `gh api` GET, 그 외 모든 명령).
-    global flag (`git -C ...`, `gh -R ...`) 가 앞에 와도 noun/verb 를 정확히 식별 (codex P2).
-    흔한 래퍼(`sudo`/`env`/subshell/쉘 키워드)도 벗겨 식별 (codex P2).
-
-    ⚠️ 한계 (의도적 — 본 guard 는 *보안 경계* 가 아니라 실수 방지용 best-effort denylist):
-      - nested shell (`bash -c`, `eval`), command substitution (`$(...)`), 문자열 조립 우회 가능.
-      - 값-소비 래퍼 옵션 뒤 명령 (`sudo -u root git push`, `nice -n 10 git push`) 은 미탐 —
-        같은 short flag 가 래퍼마다 값 유무가 달라(`-n`: nice=값 / sudo=bare) 정확한 arity
-        판정이 충돌하기 때문. bare 옵션(`sudo -E`, `command --`, `env -i`)까지는 식별.
-      sub-agent 는 Bash 도구를 가지므로 완전 차단은 원천 불가. 실제 경계는 "외부 mutation 은
-      메인 영역" 시퀀스 규약 + 흔한 직접 호출 차단의 조합이다. 추가 강화는 별도 follow-up 영역.
-    """
+def _check_bash_mutation(command: str, *, depth: int = 0) -> Optional[str]:
+    if depth > _MUTATION_RECURSION_LIMIT:
+        return None
     if not command:
         return None
     command = _strip_heredocs(command)  # heredoc 데이터 안 git/gh 텍스트 오인 방지 (codex P2)
@@ -619,7 +631,14 @@ def check_bash_mutation(command: str) -> Optional[str]:
         toks = _peel_wrappers(_segment_tokens(segment))  # sudo/env/subshell/키워드 래퍼 제거
         if not toks:
             continue
-        cmd = toks[0]
+        nested = _nested_shell_payload(toks)
+        if nested:
+            nested_source, payload = nested
+            reason = _check_bash_mutation(payload, depth=depth + 1)
+            if reason:
+                return f"{nested_source} nested command 차단 — {reason}"
+            continue
+        cmd = _command_basename(toks[0])
         if cmd == "git":
             pos = _positional_args(toks[1:], _GIT_VALUE_FLAGS)
             if pos and pos[0] == "push":
@@ -645,6 +664,28 @@ def check_bash_mutation(command: str) -> Optional[str]:
                 f"(git-spec 이슈/PR 절차). read-only (view/list) 는 허용."
             )
     return None
+
+
+def check_bash_mutation(command: str) -> Optional[str]:
+    """Bash command 안의 외부 시스템 mutation 차단 — block reason str / None=allow.
+
+    차단: `git push`, `gh pr (create|merge|...)`, `gh issue (create|edit|close|comment|...)`,
+          `gh api` (mutating method / field flag).
+    통과: read-only (`gh pr view`, `gh issue list`, `gh api` GET, 그 외 모든 명령).
+    절대 실행 경로(`/usr/bin/git`, `/opt/homebrew/bin/gh`)도 명령명으로 정규화해 식별한다.
+    global flag (`git -C ...`, `gh -R ...`) 가 앞에 와도 noun/verb 를 정확히 식별 (codex P2).
+    흔한 래퍼(`sudo`/`env`/subshell/쉘 키워드)도 벗겨 식별 (codex P2).
+    단순 nested shell (`bash/sh/zsh -c "..."`) 과 `eval "..."` payload 는 재귀 검사한다 (#601).
+
+    ⚠️ 한계 (의도적 — 본 guard 는 *보안 경계* 가 아니라 실수 방지용 best-effort denylist):
+      - command substitution (`$(...)`), backtick, 문자열 조립 우회 가능.
+      - 값-소비 래퍼 옵션 뒤 명령 (`sudo -u root git push`, `nice -n 10 git push`) 은 미탐 —
+        같은 short flag 가 래퍼마다 값 유무가 달라(`-n`: nice=값 / sudo=bare) 정확한 arity
+        판정이 충돌하기 때문. bare 옵션(`sudo -E`, `command --`, `env -i`)까지는 식별.
+      sub-agent 는 Bash 도구를 가지므로 완전 차단은 원천 불가. 실제 경계는 "외부 mutation 은
+      메인 영역" 시퀀스 규약 + 흔한 직접 호출 차단의 조합이다. 추가 강화는 별도 follow-up 영역.
+    """
+    return _check_bash_mutation(command)
 
 
 def check_github_mcp_mutation(tool_name: str) -> Optional[str]:

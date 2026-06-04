@@ -619,6 +619,17 @@ class BashMutationTests(unittest.TestCase):
         self.assertIsNone(check_bash_mutation("git -C /repo status"))
         self.assertIsNone(check_bash_mutation("gh -R owner/repo issue list"))
 
+    def test_absolute_executable_path_blocked(self):
+        # #601 — absolute path 로 실행해도 basename 정규화 후 git/gh mutation 식별.
+        self.assertIsNotNone(check_bash_mutation("/usr/bin/git push origin main"))
+        self.assertIsNotNone(
+            check_bash_mutation("/opt/homebrew/bin/gh pr create --title x")
+        )
+
+    def test_absolute_executable_path_readonly_passes(self):
+        self.assertIsNone(check_bash_mutation("/usr/bin/git status"))
+        self.assertIsNone(check_bash_mutation("/opt/homebrew/bin/gh issue list"))
+
     def test_env_prefix_stripped(self):
         # `FOO=bar git push` 도 토큰 프리픽스 제거 후 git push 로 인식.
         self.assertIsNotNone(check_bash_mutation("GIT_TRACE=1 git push"))
@@ -684,6 +695,36 @@ class BashMutationTests(unittest.TestCase):
         # heredoc 본문만 제거 — heredoc 뒤의 진짜 git push 는 여전히 차단.
         cmd = "cat > f.md <<'EOF'\nhello\nEOF\ngit push origin main\n"
         self.assertIsNotNone(check_bash_mutation(cmd))
+
+    def test_nested_shell_c_mutation_blocked(self):
+        # #601 — 흔한 nested shell payload 는 재귀 검사.
+        self.assertIsNotNone(
+            check_bash_mutation("bash -c 'git push origin main'")
+        )
+        self.assertIsNotNone(
+            check_bash_mutation('sh -c "gh pr create --title x"')
+        )
+        self.assertIsNotNone(
+            check_bash_mutation('zsh -lc "gh api -X POST repos/o/r/issues"')
+        )
+        self.assertIsNotNone(
+            check_bash_mutation('/bin/bash -c "git push origin main"')
+        )
+
+    def test_nested_shell_c_readonly_passes(self):
+        self.assertIsNone(check_bash_mutation("bash -c 'git status'"))
+        self.assertIsNone(check_bash_mutation("bash -c \"echo 'git push'\""))
+
+    def test_eval_mutation_blocked(self):
+        self.assertIsNotNone(check_bash_mutation("eval 'git push origin main'"))
+        self.assertIsNotNone(
+            check_bash_mutation('eval "gh issue create --title x"')
+        )
+        self.assertIsNotNone(check_bash_mutation("eval git push origin main"))
+
+    def test_eval_readonly_or_data_passes(self):
+        self.assertIsNone(check_bash_mutation("eval 'git status'"))
+        self.assertIsNone(check_bash_mutation("eval 'echo git push'"))
 
 
 class GithubMcpMutationTests(unittest.TestCase):
