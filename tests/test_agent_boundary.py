@@ -521,6 +521,15 @@ class BashHeuristicTests(unittest.TestCase):
         paths = extract_bash_paths("perl -i -pe 's/a/b/' docs/x.md")
         self.assertIn("docs/x.md", paths)
 
+    def test_url_not_extracted_as_write_path(self):
+        # codex P2 (round9) — `curl URL > local.json` 의 URL 은 로컬 write 대상이 아님 → 후보 제외.
+        # `/` 포함이라는 이유로 write path 로 오인돼 정상 명령이 차단되던 false positive 수정 검증.
+        paths = extract_bash_paths(
+            "curl -s https://example.com/api/v1 > docs/tech-review/evidence/x.json"
+        )
+        self.assertNotIn("https://example.com/api/v1", paths)
+        self.assertIn("docs/tech-review/evidence/x.json", paths)
+
 
 class BashMutationTests(unittest.TestCase):
     """#597 커밋5 — check_bash_mutation: git push / gh mutation 차단, read-only 통과."""
@@ -618,6 +627,22 @@ class BashMutationTests(unittest.TestCase):
         # 인자만 따옴표인 진짜 mutation 은 여전히 차단 (명령부 보존).
         self.assertIsNotNone(check_bash_mutation("git push 'origin' main"))
         self.assertIsNotNone(check_bash_mutation("gh pr create --title 'my title'"))
+
+    def test_value_flag_with_quoted_value_still_blocks(self):
+        # codex P2 (round9) — value-flag(`-C`/`-R`) *직후* 따옴표 값이 와도 mutation 식별.
+        # round8 의 따옴표 통째 삭제가 `-C` 의 값으로 push 를 소비시켜 미탐되던 자가 회귀 수정 검증.
+        self.assertIsNotNone(check_bash_mutation("git -C '/repo' push"))
+        self.assertIsNotNone(
+            check_bash_mutation('git -C "/path/to/repo" push origin main')
+        )
+        self.assertIsNotNone(
+            check_bash_mutation("gh -R 'owner/repo' issue create --title x")
+        )
+
+    def test_value_flag_with_quoted_value_readonly_passes(self):
+        # 같은 따옴표-값 형태라도 read-only 는 통과 (over-block 회피).
+        self.assertIsNone(check_bash_mutation("git -C '/repo' status"))
+        self.assertIsNone(check_bash_mutation("gh -R 'owner/repo' issue list"))
 
     def test_single_ampersand_separator_blocked(self):
         # codex P2 (round8) — 단일 `&`(백그라운드) 뒤 mutation 도 식별.
@@ -740,6 +765,23 @@ class BashIntegrationTests(unittest.TestCase):
                 if check_write_allowed("engineer", p, cwd=cwd) is not None
             ]
             self.assertTrue(any("hooks/" in p for p in blocked))
+
+    def test_tech_reviewer_curl_evidence_not_blocked(self):
+        # codex P2 (round9) — tech-reviewer 의 `curl URL > docs/tech-review/evidence/…` 가
+        # URL 오인으로 차단되지 않아야 한다 (commit4 회귀 수정 검증).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            cmd = (
+                "curl -s https://pypi.org/pypi/foo/json "
+                "> docs/tech-review/evidence/foo.json"
+            )
+            blocked = [
+                p for p in extract_bash_paths(cmd)
+                if check_write_allowed("tech-reviewer", p, cwd=cwd) is not None
+            ]
+            self.assertEqual(
+                blocked, [], f"tech-reviewer evidence 수집이 차단됨: {blocked}"
+            )
 
 
 if __name__ == "__main__":

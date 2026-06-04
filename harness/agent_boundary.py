@@ -357,6 +357,13 @@ def extract_bash_paths(command: str) -> list[str]:
         t = t.strip("\"'")
         if not t or t.startswith("-"):
             continue
+        # URL/원격 스킴 토큰(`https://…`, `ssh://…`, `git://…`)은 로컬 write 대상이 아님 → 제외
+        # (codex P2 round9). `curl https://… > docs/…/x.json` 의 URL 이 `/` 를 포함한다는 이유로
+        # write path 후보로 오인돼 tech-reviewer 의 정상 evidence 수집이 차단되던 false positive 방지.
+        # shell `>` 리다이렉트 대상은 항상 로컬 path 이므로 URL 제외가 write 누락(false negative)을
+        # 만들지 않는다 — 로컬 path 에는 `://` 가 등장하지 않는다.
+        if "://" in t:
+            continue
         # path 후보 — `/` 포함 또는 알려진 확장자.
         if "/" in t or re.search(r"\.(md|py|json|sh|mjs|ts|tsx|js|jsx)$", t):
             paths.append(t)
@@ -375,9 +382,17 @@ _SHELL_SEP = re.compile(r"&&|\|\||[;|&\n]")
 # 하는 false positive 방지 (codex P2 round8). quoted 내용 미스캔은 nested-shell 우회 한계와 정합.
 _QUOTED_RE = re.compile(r"'[^']*'|\"[^\"]*\"")
 
+# quoted 영역을 *공백* 이 아니라 separator/공백 없는 단일 placeholder 토큰으로 치환한다 (codex P2 round9).
+# 공백 치환은 `git -C '/repo' push` 처럼 value-flag(`-C`) *직후* 의 따옴표 값을 통째로 없애,
+# `_positional_args` 가 `-C` 의 값으로 다음 토큰(`push`)을 소비 → push 미탐(false negative)을 만들었다
+# (round8 자가 회귀). placeholder 는 (a) 안에 shell separator(`&& ; | &`)가 없어 가짜 segment 를 안 만들고,
+# (b) 공백이 없어 *한 토큰* 으로 남아 value-flag 의 값 짝을 보존한다. quoted 내용 자체를 못 보는 것은
+# nested-shell(`bash -c "git push"`) 우회 한계와 동일 — 의도된 best-effort 경계.
+_QUOTE_PLACEHOLDER = "\x00Q\x00"
+
 
 def _strip_quoted(command: str) -> str:
-    return _QUOTED_RE.sub(" ", command)
+    return _QUOTED_RE.sub(_QUOTE_PLACEHOLDER, command)
 
 # heredoc *본문(body)* 만 제거 — `cat > f <<'EOF' … git push … EOF` 처럼 heredoc 데이터
 # 안의 git/gh 텍스트를 실행 명령으로 오인해 차단하는 false positive 방지 (codex P2).
