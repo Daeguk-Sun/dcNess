@@ -1597,5 +1597,46 @@ class ShortenPathTests(unittest.TestCase):
         self.assertIn(cwd, result)
 
 
+class PostToolUseStagingDiagnosticsTests(_PreToolBase):
+    """#597 커밋6 — staging 실패 진단이 histogram 없어도 additionalContext 로 노출."""
+
+    def _capture(self, stdin_data: dict):
+        import contextlib
+        import io
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = handle_posttooluse_agent(
+                stdin_data=stdin_data, cc_pid=self.cc_pid, base_dir=self.base
+            )
+        return rc, buf.getvalue()
+
+    def test_diagnostics_surfaced_without_histogram(self) -> None:
+        # current_step 미설정 + subagent_type 없음(histogram 빈) + prose 존재 → 진단만 노출.
+        stdin = {
+            "sessionId": self.sid,
+            "tool_name": "Agent",
+            "tool_input": {},  # subagent_type 없음 → sub_type 빈 → histogram_str 빈
+            "tool_response": [{"type": "text", "text": "## 결론\nPASS\n"}],
+        }
+        rc, out = self._capture(stdin)
+        self.assertEqual(rc, 0)
+        self.assertIn("staging 진단", out)
+        self.assertIn("current_step 부재", out)
+
+    def test_no_output_when_staging_ok_and_no_histogram(self) -> None:
+        # current_step 정상 + staging 성공 + histogram 없음 → additionalContext 미출력.
+        from harness.session_state import update_current_step
+        update_current_step(self.sid, self.rid, "qa", None, base_dir=self.base)
+        stdin = {
+            "sessionId": self.sid,
+            "tool_name": "Agent",
+            "tool_input": {},
+            "tool_response": [{"type": "text", "text": "## 결론\nPASS\n"}],
+        }
+        rc, out = self._capture(stdin)
+        self.assertEqual(rc, 0)
+        self.assertNotIn("staging 진단", out)
+
+
 if __name__ == "__main__":
     unittest.main()

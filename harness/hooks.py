@@ -541,6 +541,10 @@ def handle_posttooluse_agent(
 
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
 
+    # #597 커밋6 — staging 실패 진단을 모델에도 노출 (기존엔 stderr→/tmp 로만 묻혀
+    # histogram 있을 때만 additionalContext 출력 → prose 미staging 원인이 모델에 안 보임).
+    diagnostics: list[str] = []
+
     # prose auto-staging — tool_response → run_dir 에 저장, current_step.prose_file 기록
     # #272 W2 진짜 fix — robust extraction. 도입(2026-05-01) 시 dict 만 가정 → fail.
     # issue-232 가 list[{type:"text",text:...}] 한 형식만 추가 → jajang 보고에서 또 fail.
@@ -556,6 +560,10 @@ def handle_posttooluse_agent(
                 f"[hook prose stage] tool_response 추출 예외: "
                 f"{type(e).__name__}: {e}",
                 file=sys.stderr,
+            )
+            diagnostics.append(
+                f"prose 추출 예외 ({type(e).__name__}) — sub 결과 prose 가 run_dir 에 "
+                f"미저장. 다음 step 전 직전 sub 의 결론을 메인이 직접 확인할 것."
             )
 
         if not prose_text.strip():
@@ -575,6 +583,10 @@ def handle_posttooluse_agent(
                 f"[hook prose stage] robust extraction 실패 — staging skip. {_shape}",
                 file=sys.stderr,
             )
+            diagnostics.append(
+                "sub 결과에서 prose 텍스트를 못 뽑아 run_dir staging skip "
+                f"({_shape}) — 직전 sub 결론을 메인이 직접 확인 후 진행."
+            )
         else:
             try:
                 live_data = read_live(sid, base_dir=base_dir) or {}
@@ -590,6 +602,10 @@ def handle_posttooluse_agent(
                         f"begin-step 호출 누락 의심. staging skip.",
                         file=sys.stderr,
                     )
+                    diagnostics.append(
+                        "current_step 부재 — begin-step 호출 누락 의심. 이번 sub 결과가 "
+                        "run_dir 에 미staging. 다음 step 은 begin-step 먼저 호출할 것."
+                    )
                 else:
                     step_agent = cur_step.get("agent")
                     step_mode = cur_step.get("mode") or None
@@ -598,6 +614,10 @@ def handle_posttooluse_agent(
                             "[hook prose stage] current_step.agent 비어있음 — "
                             "staging skip.",
                             file=sys.stderr,
+                        )
+                        diagnostics.append(
+                            "current_step.agent 공백 — staging skip. begin-step 에 agent "
+                            "인자가 빠졌는지 확인."
                         )
                     else:
                         from harness.signal_io import write_prose as _write_prose
@@ -627,6 +647,10 @@ def handle_posttooluse_agent(
                 print(
                     f"[hook prose stage] write 예외: {type(e).__name__}: {e}",
                     file=sys.stderr,
+                )
+                diagnostics.append(
+                    f"prose write 예외 ({type(e).__name__}) — run_dir staging 실패. "
+                    f"직전 sub 결론을 메인이 직접 확인 후 진행."
                 )
 
     # rid 활성 시만 측정 inject + redo_log auto append
@@ -694,10 +718,17 @@ def handle_posttooluse_agent(
 
     # additionalContext — *raw 측정 데이터* + 가이드 1줄. 결정 메시지 X.
     # 메인 LLM 이 loop-procedure.md 의 표준 1 step 시퀀스 가이드 (REDO 판단 신호) 보고 자율 판단.
-    if histogram_str:
-        ctx = f"[감시자 hook] sub={sub_type or '?'} tool histogram: {histogram_str}"
-        if input_repeats_str:
-            ctx += f"\n같은 input 반복: {input_repeats_str}"
+    # #597 커밋6 — histogram 없어도 staging 진단(diagnostics)이 있으면 모델에 노출.
+    if histogram_str or diagnostics:
+        lines = []
+        if histogram_str:
+            line = f"[감시자 hook] sub={sub_type or '?'} tool histogram: {histogram_str}"
+            if input_repeats_str:
+                line += f"\n같은 input 반복: {input_repeats_str}"
+            lines.append(line)
+        if diagnostics:
+            lines.append("[staging 진단] " + " / ".join(diagnostics))
+        ctx = "\n".join(lines)
 
         try:
             output = {

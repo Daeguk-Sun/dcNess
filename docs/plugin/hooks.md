@@ -182,7 +182,7 @@ Tier 6: <PROJECT_ROOT>/src/__tests__/<name>.{test,spec}.{ts,tsx,js,jsx}
 - (a) `live.json.active_agent / active_mode` clear — 메인 Claude 복귀 표시
 - (b) **sub-agent prose 자동 저장** — `tool_response.text` → `<run_dir>/<agent>[-<MODE>].md` + `live.json.current_step.prose_file` 기록. 메인이 직접 Write 불필요.
 - (c) agent-trace 집계 → tool histogram + anomaly 검출
-- (d) **`additionalContext` inject** (`hookSpecificOutput` JSON) — 메인 다음 turn 의 Agent tool result 옆에 system reminder 로 보임
+- (d) **`additionalContext` inject** (`hookSpecificOutput` JSON) — 메인 다음 turn 의 Agent tool result 옆에 system reminder 로 보임. tool histogram 뿐 아니라 **prose staging 실패 진단**(`current_step` 부재 / extraction 실패 / `step_agent` 공백 등)도 함께 노출 — histogram 이 없어도 진단이 있으면 출력 (#597 커밋6). 기존 stderr→`/tmp` 로그는 유지.
 - (issue #392 — redo_log auto append + routing_telemetry.record_agent_call 폐기. baseline + 매커니즘 실측 0건)
 
 **차단 동작**: X (PostToolUse). stdout = JSON (`hookSpecificOutput`) inject. stderr = `/tmp/dcness-hook-stderr.log` 보존 (디버그용).
