@@ -129,7 +129,7 @@ READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
 }
 
 
-# ── is_infra_project() 4 OR 신호 ──────────────────────────────
+# ── is_infra_project() 3 OR 신호 ──────────────────────────────
 def _is_dcness_self_repo(cwd: Path) -> bool:
     """cwd 또는 그 상위에 dcness self repo 마커가 실재하나.
 
@@ -159,17 +159,19 @@ def is_infra_project(
     env: Optional[dict] = None,
     home: Optional[Path] = None,
 ) -> bool:
-    """4 OR 신호 — 인프라 프로젝트 판정.
+    """3 OR 신호 — 인프라 프로젝트 판정.
 
     1. DCNESS_INFRA=1 환경변수
     2. 마커 파일 ~/.claude/.dcness-infra 존재
-    3. CLAUDE_PLUGIN_ROOT 환경변수 non-empty (dcness 개발 모드)
-    4. cwd 조상에 dcness self repo 마커 (.claude-plugin/plugin.json name=dcness) 실재
+    3. cwd 조상에 dcness self repo 마커 (.claude-plugin/plugin.json name=dcness) 실재
+
+    ⚠️ CLAUDE_PLUGIN_ROOT 는 **신호에서 제외** (#597 P0-2). 이 env 는 *모든* plugin hook
+    실행 시 CC 가 자동 set 하므로, 외부 활성 프로젝트의 sub-agent 도 항상 가지고 있다.
+    이를 infra 신호로 쓰면 file-guard 가 외부 프로젝트서 전면 무력화된다. dcness self
+    저장소는 신호 3(self repo 마커 조상 탐색)으로 충분히 식별된다.
     """
     e = env if env is not None else os.environ
     if e.get("DCNESS_INFRA") == "1":
-        return True
-    if e.get("CLAUDE_PLUGIN_ROOT"):
         return True
     h = home if home is not None else Path.home()
     if (h / ".claude" / ".dcness-infra").exists():

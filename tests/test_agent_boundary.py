@@ -34,10 +34,13 @@ class IsInfraProjectTests(unittest.TestCase):
             cwd = Path(td)
             self.assertTrue(is_infra_project(cwd, env={"DCNESS_INFRA": "1"}, home=Path(td)))
 
-    def test_env_plugin_root(self):
+    def test_env_plugin_root_NOT_infra(self):
+        # #597 P0-2 — CLAUDE_PLUGIN_ROOT 는 더 이상 infra 신호가 아니다.
+        # 이 env 는 모든 plugin hook 실행 시 CC 가 자동 set 하므로 (외부 활성 프로젝트
+        # sub-agent 포함), infra 신호로 쓰면 file-guard 가 전면 무력화된다.
         with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)
-            self.assertTrue(
+            cwd = Path(td)  # dcness self repo 마커 없음 = 외부 프로젝트
+            self.assertFalse(
                 is_infra_project(cwd, env={"CLAUDE_PLUGIN_ROOT": "/x"}, home=Path(td))
             )
 
@@ -81,6 +84,37 @@ class IsInfraProjectTests(unittest.TestCase):
         # 회귀 가드 (#523): 배포되는 agent_boundary.py 소스에 개인 절대경로 0건.
         src = (REPO_ROOT / "harness" / "agent_boundary.py").read_text(encoding="utf-8")
         self.assertNotIn("/Users/", src)
+
+
+class PluginRootDoesNotBypassTests(unittest.TestCase):
+    """#597 P0-2 회귀 — CLAUDE_PLUGIN_ROOT set 이어도 외부 프로젝트 boundary 는 강제된다.
+
+    실제 외부 활성 프로젝트 sub-agent 환경: CC 가 CLAUDE_PLUGIN_ROOT 를 자동 set 한다.
+    이 신호로 infra 우회되던 버그(P0-2)를 제거했으므로, infra path edit 가 차단되어야 한다.
+    """
+
+    def test_external_project_engineer_blocked_on_infra_despite_plugin_root(self):
+        with patch.dict(os.environ, {"DCNESS_INFRA": "", "CLAUDE_PLUGIN_ROOT": "/x"}):
+            with tempfile.TemporaryDirectory() as td:
+                cwd = Path(td)  # dcness self repo 마커 없음 = 외부 프로젝트
+                reason = check_write_allowed("engineer", "hooks/x.sh", cwd=cwd)
+                self.assertIsNotNone(
+                    reason, "CLAUDE_PLUGIN_ROOT 가 set 이어도 외부 프로젝트는 차단되어야 함"
+                )
+                self.assertIn("인프라", reason)
+
+    def test_dcness_self_repo_still_bypasses(self):
+        # dcness self 저장소(신호 3 = self repo 마커 조상)는 CLAUDE_PLUGIN_ROOT 없이도 infra 유지.
+        with patch.dict(os.environ, {"DCNESS_INFRA": "", "CLAUDE_PLUGIN_ROOT": ""}):
+            with tempfile.TemporaryDirectory() as td:
+                root = Path(td)
+                (root / ".claude-plugin").mkdir()
+                (root / ".claude-plugin" / "plugin.json").write_text(
+                    json.dumps({"name": "dcness", "version": "0.3.0"})
+                )
+                self.assertIsNone(
+                    check_write_allowed("engineer", "hooks/x.sh", cwd=root)
+                )
 
 
 class WriteAllowedMainBypassTests(unittest.TestCase):

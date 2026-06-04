@@ -262,7 +262,9 @@ Tier 6: <PROJECT_ROOT>/src/__tests__/<name>.{test,spec}.{ts,tsx,js,jsx}
 |---|---|---|
 | **미활성 프로젝트** | 자동 | `is-active` 게이트 즉시 통과 — 모든 hook no-op |
 | **`.no-dcness-guard`** (cwd marker) | 임시 | file-guard 만 우회. cwd 에 빈 파일 |
-| **인프라 모드** (`DCNESS_INFRA=1` 환경변수 / `~/.claude/.dcness-infra` marker / `CLAUDE_PLUGIN_ROOT` non-empty / cwd whitelist 매칭 중 1+) | 영구 | dcness 자체 작업 — `DCNESS_INFRA_PATTERNS` 해제 |
+| **인프라 모드** (`DCNESS_INFRA=1` 환경변수 / `~/.claude/.dcness-infra` marker / cwd 조상의 dcness self repo 마커 `.claude-plugin/plugin.json name=dcness` 중 1+ = 3 OR 신호) | 영구 | dcness 자체 작업 — `DCNESS_INFRA_PATTERNS` 해제 |
+
+> ⚠️ **`CLAUDE_PLUGIN_ROOT` 는 infra 신호가 아니다** (#597 P0-2). 이 env 는 *모든* plug-in hook 실행 시 CC 가 자동 set 하므로 외부 활성 프로젝트의 sub-agent 도 항상 가진다. 이를 신호로 쓰면 file-guard 가 외부 프로젝트서 전면 무력화되던 버그가 있었다. dcness self 저장소는 self repo 마커(신호 3)로 식별한다.
 
 **우회 불가**:
 - `--no-verify` 등 git hook bypass — [`CLAUDE.md`](../../CLAUDE.md#게이트-요약) 명시 금지
