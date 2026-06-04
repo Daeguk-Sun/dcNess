@@ -32,6 +32,7 @@ from typing import Any, Dict, Optional
 
 from harness.agent_names import normalize_agent_type
 from harness.session_state import (
+    _read_steps_jsonl,
     read_live,
     read_pid_current_run,
     run_dir,
@@ -193,33 +194,11 @@ def _end_step_cmd(agent: str, mode: Optional[str]) -> str:
     return f"dcness-helper end-step {agent}{' ' + mode if mode else ''}"
 
 
-def _read_step_records(rd: Path) -> list[Dict[str, Any]]:
-    """run_dir 의 `.steps.jsonl` 유효 row 목록 반환."""
-    target = rd / ".steps.jsonl"
-    if not target.exists():
-        return []
-    try:
-        lines = target.read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-    records: list[Dict[str, Any]] = []
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(record, dict):
-            records.append(record)
-    return records
-
-
 def _strict_conveyor_gate_message(
     *,
+    sid: str,
     rid: str,
-    rd: Path,
+    base_dir: Optional[Path],
     slot: Dict[str, Any],
     subagent: str,
     mode: Optional[str],
@@ -271,7 +250,11 @@ def _strict_conveyor_gate_message(
             "현재 step을 먼저 기록하세요."
         )
 
-    records = _read_step_records(rd)
+    records = [
+        record
+        for record in _read_steps_jsonl(sid, rid, base_dir=base_dir)
+        if isinstance(record, dict)
+    ]
     if records:
         last = records[-1]
         last_agent = last.get("agent")
@@ -281,22 +264,12 @@ def _strict_conveyor_gate_message(
             try:
                 count_at_begin = int(raw_count_at_begin)
             except (TypeError, ValueError):
-                count_at_begin = -1
+                count_at_begin = None
             current_count = len(records)
-            started_at = cur_step.get("started_at", "")
-            last_ts = last.get("ts", "")
-            logged_after_begin = (
-                current_count > count_at_begin
-                if count_at_begin >= 0
-                else not (
-                    isinstance(started_at, str)
-                    and isinstance(last_ts, str)
-                    and started_at
-                    and last_ts
-                    and started_at > last_ts
-                )
-            )
-            if logged_after_begin:
+            if (
+                count_at_begin is not None
+                and current_count > count_at_begin
+            ):
                 return (
                     "[strict-conveyor] 이전 step이 이미 .steps.jsonl 에 기록됐습니다 — "
                     f"logged_step={current}. 다음 Agent 호출 전 "
@@ -444,8 +417,9 @@ def handle_pretooluse_agent(
         slot = active.get(rid, {}) if isinstance(active, dict) else {}
         if isinstance(slot, dict):
             strict_msg = _strict_conveyor_gate_message(
+                sid=sid,
                 rid=rid,
-                rd=rd,
+                base_dir=base_dir,
                 slot=slot,
                 subagent=subagent,
                 mode=_mode_or_none(mode),

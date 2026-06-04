@@ -444,6 +444,33 @@ class StrictConveyorGateTests(_PreToolBase):
         )
         self.assertEqual(rc, 1)
 
+    def test_blocks_agent_mode_mismatch(self) -> None:
+        self._begin_step("engineer", "IMPL")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("engineer", "POLISH"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_blocks_blank_current_step_agent(self) -> None:
+        self._begin_step("module-architect")
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        cur_step = dict(slot["current_step"])
+        cur_step["agent"] = ""
+        slot["current_step"] = cur_step
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
     def test_blocks_staged_previous_agent_result(self) -> None:
         self._begin_step("module-architect")
         live = read_live(self.sid, base_dir=self.base) or {}
@@ -484,6 +511,65 @@ class StrictConveyorGateTests(_PreToolBase):
             encoding="utf-8",
         )
         self._begin_step("module-architect")
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_allows_same_agent_with_missing_count_and_same_second_timestamp(self) -> None:
+        same_second = "2026-06-04T12:00:00+00:00"
+        steps_path = self.run_path / ".steps.jsonl"
+        steps_path.write_text(
+            json.dumps({
+                "agent": "module-architect",
+                "mode": None,
+                "ts": same_second,
+            }) + "\n",
+            encoding="utf-8",
+        )
+        self._begin_step("module-architect")
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        cur_step = dict(slot["current_step"])
+        cur_step.pop("steps_count_at_begin", None)
+        cur_step["started_at"] = same_second
+        slot["current_step"] = cur_step
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_skips_strict_gate_after_completed_run(self) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        slot["completed_at"] = "2026-06-04T12:00:00+00:00"
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_skips_strict_gate_after_finalized_run(self) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        slot["finalized_at"] = "2026-06-04T12:00:00+00:00"
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
 
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("module-architect"),
