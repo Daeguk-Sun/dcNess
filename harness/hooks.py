@@ -791,6 +791,16 @@ def handle_posttooluse_agent(
             # issue #598 finding1 — 시각 범위 + 끝난 sub 의 agent 로 필터해 동시
             # sub-agent 의 행동이 이 histogram 에 섞이지 않게 한다 (trace 가 payload
             # self-attribution 으로 정확한 agent 를 담으므로). sub_type 미상 시 시각만.
+            #
+            # ⚠️ 알려진 한계 (codex round3 P2 — 측정 신호 한정): *동일* subagent_type
+            # 두 개가 시간대 겹쳐 동시 실행되면 둘의 trace agent 가 같아 시각+agent
+            # 필터로도 분리 불가 → histogram/input-repeat 가 오귀속될 수 있다. invocation
+            # 단위 분리는 trace 의 agent_id(=sub 식별) 로만 가능하나, 본 집계는 PostToolUse
+            # Agent(메인 ctx, tool_use_id 키)에서 일어나고 CC hook payload 에 tool_use_id↔
+            # agent_id join 이 없어(부모 Agent tool_use_id 는 sub trace 에 없음) 정확 매핑
+            # 불가. 영향은 *측정 신호*(additionalContext) 뿐 — file-guard 경계는 per-call
+            # self-attribution, prose staging 은 current_step 키라 무관. 동일-타입 동시
+            # 실행은 순차 컨베이어에서 사실상 안 일어나는 엣지 → 측정 한정 수용 + follow-up.
             _agent_filter = sub_type or None
             hist = (
                 _trace_hist_since(
