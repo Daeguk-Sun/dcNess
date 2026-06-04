@@ -1,8 +1,8 @@
 # tech-review 라우팅 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: `/tech-review` skill **단일 전용** 라우팅 진본 — tech-reviewer 의 결론 (PASS / FAIL / ESCALATE) → 다음 호출 + 사용자 2차 OK 분기 + cycle 재진입 + **단방향 catastrophic** + 비대상 + 후속. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md). tech-reviewer 는 tech-review 전용 agent 라 본 문서가 유일 진본 (맥락 분기 없음).
-> **Cross-ref**: 단방향 catastrophic 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) (§2.1.4) · 강제 영역 = [`../../CLAUDE.md`](../../CLAUDE.md).
+> **Scope**: `/tech-review` skill **단일 전용** 라우팅 진본 — tech-reviewer 의 결론 (PASS / FAIL / ESCALATE) → 다음 호출 + 사용자 2차 OK 분기 + cycle 재진입 + **단방향 관례 (재진입 비권장)** + 비대상 + 후속. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md). tech-reviewer 는 tech-review 전용 agent 라 본 문서가 유일 진본 (맥락 분기 없음).
+> **Cross-ref**: 단방향 관례 (코드 강제 아님) = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례 · 강제 영역 = [`../../CLAUDE.md`](../../CLAUDE.md).
 
 ## 읽는 법
 
@@ -21,7 +21,7 @@ flowchart TB
   CP -->|4. 항목 polish| P3[메인: 스켈레톤 polish 메모] --> TR
   RW --> TR
   RW -.->|사용자 명시적 위험 감수 only| AL
-  AL -.->|진입 후 tech-reviewer 재호출 금지| X[[단방향 catastrophic §2.1.4]]
+  AL -.->|진입 후 재호출 비권장 자연어 관례| X[[단방향 관례 — 코드 강제 아님]]
 
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef main fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
@@ -49,9 +49,9 @@ flowchart TB
 
 > tech-reviewer 는 issue 생성·git mutation 없음 — PRD/스켈레톤 patch 는 모두 **메인**이 수행 후 재호출.
 
-## 단방향 catastrophic (재진입 금지)
+## 단방향 관례 (재진입 비권장)
 
-`/architect-loop` 진입 *후* `/tech-review` (tech-reviewer) 재호출 **금지** — 코드 강제 아닌 *자연어 catastrophic 룰* ([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) §2.1.4).
+`/architect-loop` 진입 *후* `/tech-review` (tech-reviewer) 재호출은 **관례상 비권장** — 코드 강제 아닌 *자연어 관례* (메인/사용자 자율 판단, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례).
 
 **왜 단방향?**
 - tech-reviewer 단계 = *마지막 기술 검증 기회*. 검증 충실 의무 가중 (증거물 / HTML 리포트 룰의 가치 근거).
@@ -62,7 +62,7 @@ flowchart TB
 2. **대안 기술 우회** — tech-review 기검증 대안 지정 → architect 재진입
 3. **전체 원점 회귀** — `/architect-loop` 중단 + `/product-plan` 재진입 + 새 tech-review
 
-(1)·(2) cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 0** (단방향 보존). architect-loop 안엔 tech-reviewer 가 없어 NO_GO 판정 자체 불가 — 그래서 "전체 회귀 only" 가 아니라 사용자 선택 3안. 상세 흐름 = [`../architect-loop/architect-loop-routing.md`](../architect-loop/architect-loop-routing.md#escalate-처리).
+(1)·(2) cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 0** — architect-loop 안엔 tech-reviewer 가 없어 NO_GO 판정 자체 불가 — 그래서 "전체 회귀 only" 가 아니라 사용자 선택 3안. 상세 흐름 = [`../architect-loop/architect-loop-routing.md`](../architect-loop/architect-loop-routing.md#escalate-처리).
 
 ## 비대상 (다른 skill 추천)
 

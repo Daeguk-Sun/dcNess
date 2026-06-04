@@ -353,19 +353,24 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
             self.assertEqual(rc, 0)
 
 
-class CatastrophicTechReviewerRecallTests(_ArchitectLoopBase):
-    """#597 커밋7 — §2.1.4 부분 코드강제: architect-loop 중 tech-reviewer 재호출 차단."""
+class TechReviewerRecallNotBlockedTests(_ArchitectLoopBase):
+    """#609 — architect-loop 중 tech-reviewer 재호출은 코드 강제 차단하지 않는다.
 
-    def test_tech_reviewer_blocked_in_architect_loop(self) -> None:
+    옛 #597 커밋7 의 부분 코드강제 (재호출 시 exit) 를 제거했다 (forcing function 은
+    catastrophic 이 아님 — CLAUDE.md 대원칙). 재호출 비권장은 자연어 관례로만 남는다.
+    in/out 양쪽 모두 통과(rc=0) — 차단 부활 회귀 방지.
+    """
+
+    def test_tech_reviewer_allowed_in_architect_loop(self) -> None:
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("tech-reviewer"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
 
     def test_tech_reviewer_allowed_outside_architect_loop(self) -> None:
-        # 비-architect-loop run (entry_point=impl) 에선 tech-reviewer 통과.
+        # 비-architect-loop run (entry_point=impl) 에서도 tech-reviewer 통과.
         with TemporaryDirectory() as td:
             base = Path(td)
             sid, rid, cc_pid = "sid-impl2", "run-impl5678", 33333

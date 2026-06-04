@@ -6,7 +6,7 @@ description: >
   본문을 채운다. 책임 2 축 — (1) 기술 제약 검토 (사용 가능 / 비용 / 라이선스 /
   불가 시 대안 2개) (2) 용도별 스펙 깎기 (MVP 과스펙 강등 / 고도화 기술 제안).
   검증 방법 Bash / WebFetch / WebSearch 자유 (총동원). 증거물 + 통합 HTML 리포트 산출.
-  `/architect-loop` 진입 후 재호출 금지 (단방향 catastrophic).
+  `/architect-loop` 진입 후 재호출은 비권장 (자연어 관례 — 코드 강제 아님).
 tools: Read, Glob, Grep, WebFetch, WebSearch, Bash, Edit, Write
 model: opus
 ---
@@ -21,7 +21,7 @@ prose 마지막 단락에 결론 (+ 사유) 자연어로:
 - **검토 일부 불가 (FAIL)** → 본문 충족 X 항목 명시 (예: 외부 의존 N 개 중 1개 정식 검증 실패 + 대안 2개 미발견) + "FAIL".
 - **검토 실행 불가 (ESCALATE)** → 부족한 자원 명시 (WebFetch 차단 / API 인증 부재 / 사용자 환경 권한 부족 등) + "ESCALATE".
 
-> 결론별 다음 호출(라우팅) 진본 = [`skills/tech-review/tech-review-routing.md`](../skills/tech-review/tech-review-routing.md). **단방향**: `/architect-loop` 진입 후 tech-reviewer 재호출 금지 ([`hooks.md`](../docs/plugin/hooks.md#catastrophic-gatesh) §2.1.4).
+> 결론별 다음 호출(라우팅) 진본 = [`skills/tech-review/tech-review-routing.md`](../skills/tech-review/tech-review-routing.md). **단방향 관례**: `/architect-loop` 진입 후 tech-reviewer 재호출은 비권장 — 코드 강제 아닌 자연어 관례 ([`hooks.md`](../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례 참조).
 
 **호출자가 prompt 로 전달하는 정보**: PRD 경로 (`docs/prd.md`), tech-review.md 스켈레톤 경로 (`docs/tech-review.md`), (선택) 이전 cycle 컨텍스트 (어떤 항목이 patch 됐는지 / 격리 후보 중 어떤 게 격상됐는지).
 
@@ -178,9 +178,9 @@ return prose 안 모든 산출물 언급 = *백틱 + 절대/repo-root 상대 경
 
 워크트리 절대경로 echo = *처음 1 회* 만, 이후 *repo-root 상대 경로* 또는 *생략*. 메인이 `cwd` 기반으로 echo 가능.
 
-## 단방향 룰 (참조 — 메인 측 catastrophic)
+## 단방향 관례 (참조 — 코드 강제 아님)
 
-본 agent 호출 시점 = `/tech-review` 스킬 안. `/architect-loop` 진입 *후* 본 agent 재호출 **금지** (메인 측 catastrophic 룰 — [`docs/plugin/hooks.md` catastrophic-gate.sh](../docs/plugin/hooks.md#catastrophic-gatesh) §2.1.4 정합). 본 agent 가 알 필요는 없지만 (호출 자체가 차단됨) — 참조만.
+본 agent 호출 시점 = `/tech-review` 스킬 안. `/architect-loop` 진입 *후* 본 agent 재호출은 **관례상 비권장** (메인 측 자연어 관례 — 코드 강제 아님, [`docs/plugin/hooks.md` catastrophic-gate.sh](../docs/plugin/hooks.md#catastrophic-gatesh) 의 "tech-review 자연어 관례" 참조). 재호출 여부는 메인/사용자 자율 판단이라 본 agent 가 알 필요는 없다 — 참조만.
 
 새 cycle 시작 = 사용자 결정 → `/product-plan` 재진입 (PRD 자체 수정) → 새 `/tech-review` cycle.
 

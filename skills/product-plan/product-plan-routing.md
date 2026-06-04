@@ -1,7 +1,7 @@
 # product-plan 라우팅 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: `/product-plan` skill **단일 전용** 라우팅 진본. 본 skill 은 **메인 Claude 직접 작업** (product-planner sub-agent 폐기) 이라 *agent 결론 → 다음 호출* 매핑이 없다. 대신 **skill 간 시퀀스** (PRD → `/tech-review` → `/architect-loop` → `/impl-loop`) + 체크포인트 분기 + 재진입 + escalate + 단방향 catastrophic + 비대상 추천이 라우팅의 전부다. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
+> **Scope**: `/product-plan` skill **단일 전용** 라우팅 진본. 본 skill 은 **메인 Claude 직접 작업** (product-planner sub-agent 폐기) 이라 *agent 결론 → 다음 호출* 매핑이 없다. 대신 **skill 간 시퀀스** (PRD → `/tech-review` → `/architect-loop` → `/impl-loop`) + 체크포인트 분기 + 재진입 + escalate + 단방향 관례 + 비대상 추천이 라우팅의 전부다. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
 > **Cross-ref**: catastrophic 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) · 강제 영역 = [`../../CLAUDE.md`](../../CLAUDE.md).
 
 ## 읽는 법
@@ -35,7 +35,7 @@ flowchart TB
 
 > 파랑 = 본 skill (메인 직접) · 초록 = 후속 skill · 회색 = 사용자 위임. 점선 = 재진입 / escalate.
 >
-> `/tech-review` 는 본 skill *종료 후* 단계다. 외부 의존 0 개 PRD 면 skip 하고 바로 `/architect-loop`. **`/architect-loop` 진입 후 `/tech-review` 재호출은 금지** (단방향 catastrophic, [escalate · 재진입 · 단방향 catastrophic](#escalate-재진입-단방향-catastrophic)).
+> `/tech-review` 는 본 skill *종료 후* 단계다. 외부 의존 0 개 PRD 면 skip 하고 바로 `/architect-loop`. **`/architect-loop` 진입 후 `/tech-review` 재호출은 비권장** (단방향 관례 — 코드 강제 아님, [escalate · 재진입 · 단방향 관례](#escalate-재진입-단방향-관례)).
 
 ## 체크포인트 → 다음 단계 매핑
 
@@ -50,7 +50,7 @@ flowchart TB
 - **`/product-plan` 종료 시점** = PRD/stories.md/tech-review 스켈레톤 머지 + (선택) 이슈 등록 완료. 다음 명시 호출은 사용자 trigger (`/tech-review` 또는 `/architect-loop`) — 자동 진입 X.
 - **외부 의존 0 개 분기** = tech-review.md 스켈레톤이 "외부 의존 없음 — `/tech-review` skip" 상태면 `/tech-review` 단계 전체 skip.
 
-## escalate · 재진입 · 단방향 catastrophic
+## escalate · 재진입 · 단방향 관례
 
 escalate 계열 수신 시 **메인이 즉시 사용자 보고 후 대기** (자동 복구 / 우회 / 재시도 금지 — [`../../CLAUDE.md`](../../CLAUDE.md) 강제 영역).
 
@@ -58,16 +58,16 @@ escalate 계열 수신 시 **메인이 즉시 사용자 보고 후 대기** (자
 - **PRD 위반 / 범위 escalate** → 설계·구현 단계의 agent (system-architect / module-architect / ux-architect / engineer) 가 PRD 불일치·범위 모호를 발견하면 작업 중단 + `/product-plan` 재진입 권고로 본 skill 로 되돌아온다 (해당 agent 가 직접 PRD 수정 X).
 - **`UX_REFINE_READY` 후속** — ux-architect 가 REFINE 분기로 끝나면 designer 호출 (그 라우팅은 [`../architect-loop/architect-loop-routing.md`](../architect-loop/architect-loop-routing.md) 영역 — 본 skill 은 PRD 단계라 여기서 끝).
 
-### 단방향 catastrophic — `/architect-loop` 진입 후 `/tech-review` 재호출 금지
+### 단방향 관례 — `/architect-loop` 진입 후 `/tech-review` 재호출 비권장
 
-기술 NO_GO (사용 불가 / 비용 초과 / 라이선스 결격) 발견은 **`/tech-review` 단계에서 확정** 해야 한다. `/architect-loop` 진입 후엔 tech-reviewer 재호출이 catastrophic hook ([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) (§2.1.4)) 으로 차단된다. architect-loop 도중 미검증 외부 의존이 발견되면 그쪽 `NEW_DEP_ESCALATE` 3안으로 처리 ([`../architect-loop/architect-loop-routing.md`](../architect-loop/architect-loop-routing.md#escalate-처리)) — 어느 옵션이든 tech-reviewer 재호출 없음.
+기술 NO_GO (사용 불가 / 비용 초과 / 라이선스 결격) 발견은 **`/tech-review` 단계에서 확정** 하는 게 좋다. `/architect-loop` 진입 후엔 tech-reviewer 재호출이 관례상 비권장 — 코드 강제 아닌 자연어 관례 ([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례). architect-loop 도중 미검증 외부 의존이 발견되면 그쪽 `NEW_DEP_ESCALATE` 3안으로 처리 ([`../architect-loop/architect-loop-routing.md`](../architect-loop/architect-loop-routing.md#escalate-처리)) — 어느 옵션이든 tech-reviewer 재호출 없음.
 
 ## 비대상 (다른 skill 추천)
 
 - 버그 → `/issue-report` (qa 분류)
 - 한 줄 수정 / 버그픽스 → `/issue-report` (분류 후 impl-task-loop fallback)
 - 디자인만 → designer 직접 (Pencil 또는 `design-variants/*.html`)
-- 이미 PRD/stories.md 머지 완료 → **먼저 외부 의존 검증 상태 확인**. 외부 의존 0개 (tech-review.md 스켈레톤이 "외부 의존 없음" 명시) *또는* `/tech-review` 통과 상태면 → 설계 `/architect-loop` · 구현 `/impl-loop`. 미검증 외부 의존이 남았으면 → **먼저 `/tech-review`** (architect-loop 진입 후엔 tech-reviewer 재호출이 catastrophic 으로 차단되므로, [단방향 catastrophic](#단방향-catastrophic-architect-loop-진입-후-tech-review-재호출-금지))
+- 이미 PRD/stories.md 머지 완료 → **먼저 외부 의존 검증 상태 확인**. 외부 의존 0개 (tech-review.md 스켈레톤이 "외부 의존 없음" 명시) *또는* `/tech-review` 통과 상태면 → 설계 `/architect-loop` · 구현 `/impl-loop`. 미검증 외부 의존이 남았으면 → **먼저 `/tech-review`** (architect-loop 진입 후엔 tech-reviewer 재호출이 관례상 비권장이므로, [단방향 관례](#단방향-관례-architect-loop-진입-후-tech-review-재호출-비권장))
 
 ## 후속 (skill 종료 후)
 

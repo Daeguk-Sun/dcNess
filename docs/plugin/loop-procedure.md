@@ -356,7 +356,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 
 ## catastrophic 정합
 
-각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 catastrophic 룰을 자연 충족한다 — catastrophic 시퀀스 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / module-architect × K 진입 직전 architecture-validator 1차 PASS / PRD 변경 후 사용자 2 차 OK + `/architect-loop` 진입 후 tech-reviewer 재호출 금지 (단방향). 8 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 catastrophic 룰을 자연 충족한다 — catastrophic 시퀀스 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / module-architect × K 진입 직전 architecture-validator 1차 PASS. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/architect-loop` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) 8 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 ---
 

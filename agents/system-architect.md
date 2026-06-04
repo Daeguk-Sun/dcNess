@@ -223,7 +223,7 @@ task 단위 detail = **module-architect 영역** (impl 파일 안에서). archit
 
 1. **PRD 불일치** → 직접 수정 X. 본문에 (현재 PRD / 실제 구현 / 권고) 명시 → `/product-plan` 재진입 권고 (메인 직접)
 2. **기술 제약 vs 비즈니스 요구 충돌** → 설계 중단. 본문에 (충돌 내용 / 영향 범위 / 옵션 A 축소 · B 변경 · C 우회 + 부채 / 권고) 명시 → 사용자 위임
-3. **새 외부 의존 발견 (tech-review 미검증)** → 설계 중단. `docs/tech-review.md` 에 없던 신규 외부 의존(라이브러리 / 외부 서비스 / 유료 API 등)이 설계상 필요해진 경우. 본문에 (의존 이름 / 왜 신규 = tech-review.md 범위 밖 / 용도 / 영향 범위) 명시 → 결론 enum `NEW_DEP_ESCALATE`. **tech-reviewer 재호출 금지 (단방향 catastrophic 보존)** — 검증·결정은 메인이 사용자에게 3안(채택+수동검증 / 대안 기술 우회 / 전체 원점 회귀) 제시 후 처리. 자체 기술 검증으로 NO_GO 단정 X (architect-loop 안엔 tech-reviewer 가 없어 판정 자체 불가).
+3. **새 외부 의존 발견 (tech-review 미검증)** → 설계 중단. `docs/tech-review.md` 에 없던 신규 외부 의존(라이브러리 / 외부 서비스 / 유료 API 등)이 설계상 필요해진 경우. 본문에 (의존 이름 / 왜 신규 = tech-review.md 범위 밖 / 용도 / 영향 범위) 명시 → 결론 enum `NEW_DEP_ESCALATE`. **tech-reviewer 재호출은 없음 — architect-loop 안엔 tech-reviewer 가 없어 호출 경로 자체가 부재** (재호출 비권장은 코드 강제 아닌 자연어 관례). 검증·결정은 메인이 사용자에게 3안(채택+수동검증 / 대안 기술 우회 / 전체 원점 회귀) 제시 후 처리. 자체 기술 검증으로 NO_GO 단정 X.
 
 ## 참조
 

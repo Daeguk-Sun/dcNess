@@ -3,8 +3,8 @@ name: tech-review
 description: >
   PRD + `docs/tech-review.md` 스켈레톤 작성 완료 + 사용자 1차 OK 후 *기술 검토* 단계를
   진행하는 스킬. tech-reviewer 서브에이전트 호출 + return 결과 사용자에 echo + 사용자
-  2차 OK 체크포인트 + 재호출 cycle 관리. `/architect-loop` 진입 후 본 스킬 재호출 금지
-  (단방향 catastrophic). 사용자가 "tech-review", "기술 검토 가자", "이거 진짜 되는지
+  2차 OK 체크포인트 + 재호출 cycle 관리. `/architect-loop` 진입 후 본 스킬 재호출은 비권장
+  (단방향 관례 — 코드 강제 아님). 사용자가 "tech-review", "기술 검토 가자", "이거 진짜 되는지
   확인", "/tech-review" 등을 말할 때 반드시 이 스킬을 사용한다.
 ---
 
@@ -12,7 +12,7 @@ description: >
 
 > 본 스킬 = `/product-plan` 종료 후 *명시 호출* 되는 기술 검증 게이트. tech-reviewer 가 stateless 본문 채움 + 메인이 cycle 관리 + 사용자가 최종 OK.
 
-> 🔴 **라우팅 SSOT** — tech-reviewer 결론 (PASS / FAIL / ESCALATE) → 다음 호출 / 사용자 2차 OK 분기 / cycle 재진입 / 단방향 catastrophic / 비대상 / 후속은 [`tech-review-routing.md`](tech-review-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기 판단이 필요하면 그 파일을 읽는다.
+> 🔴 **라우팅 SSOT** — tech-reviewer 결론 (PASS / FAIL / ESCALATE) → 다음 호출 / 사용자 2차 OK 분기 / cycle 재진입 / 단방향 관례 / 비대상 / 후속은 [`tech-review-routing.md`](tech-review-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기 판단이 필요하면 그 파일을 읽는다.
 
 ## 전제 조건
 
@@ -124,19 +124,19 @@ tech-review 통과 완료. 다음 단계 — 설계 루프:
 → `/architect-loop <epic-path>` 호출 시 ux-architect / system-architect /
   architecture-validator / module-architect × K 순차 진행 + 1 PR 머지.
 
-⚠️ 단방향 catastrophic — /architect-loop 진입 후 tech-reviewer 재호출 금지.
+⚠️ 단방향 관례 — /architect-loop 진입 후 tech-reviewer 재호출은 비권장 (코드 강제 아님).
    설계 도중 tech-review 미검증 새 외부 의존 발견 시 → NEW_DEP_ESCALATE 3안
    (채택+수동검증 / 대안 기술 우회 / 전체 원점 회귀). 어느 옵션이든
-   tech-reviewer 재호출은 없음 (단방향 보존). 전체 회귀는 3안 중 하나일 뿐.
+   tech-reviewer 재호출은 없음 (architect-loop 안엔 tech-reviewer 부재). 전체 회귀는 3안 중 하나일 뿐.
 
 진행할까요? (Y/n)
 ```
 
 사용자 Y → `/architect-loop` 진입. N → 사용자가 나중에 직접 호출.
 
-## 단방향 catastrophic (재진입 금지)
+## 단방향 관례 (재진입 비권장)
 
-`/architect-loop` 진입 *후* 본 스킬 재호출 **금지**. 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) (§2.1.4). tech-reviewer 단계 = *마지막 기술 검증 기회* — 그래서 증거물 / HTML 리포트 룰의 가치가 가중된다. architect-loop 도중 미검증 새 외부 의존 발견 시 처리 (NEW_DEP_ESCALATE 3안) = [`tech-review-routing.md`](tech-review-routing.md) — 어느 옵션이든 tech-reviewer 재호출 0 (단방향 보존).
+`/architect-loop` 진입 *후* 본 스킬 재호출은 **관례상 비권장** (코드 강제 아닌 자연어 관례 — 메인/사용자 자율 판단). 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례. tech-reviewer 단계 = *마지막 기술 검증 기회* — 그래서 증거물 / HTML 리포트 룰의 가치가 가중된다. architect-loop 도중 미검증 새 외부 의존 발견 시 처리 (NEW_DEP_ESCALATE 3안) = [`tech-review-routing.md`](tech-review-routing.md) — 어느 옵션이든 tech-reviewer 재호출 0.
 
 ## 워크트리 (X)
 
