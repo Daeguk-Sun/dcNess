@@ -253,7 +253,10 @@ def current_session_id(*, base_dir: Optional[Path] = None) -> str:
     """현재 세션 ID resolution — 2-tier (RWH 3-tier 의 글로벌 폴백 제외).
 
     1. `DCNESS_SESSION_ID` env (subprocess 전파, 가장 권위)
-    2. `.claude/harness-state/.session-id` pointer (SessionStart 훅이 작성)
+    2. `.claude/harness-state/.session-id` pointer (legacy 폴백 — 현재
+       SessionStart 훅은 `.by-pid/<cc_pid>` 만 작성하고 본 pointer 는 쓰지
+       않는다. `write_session_pointer` 프로덕션 호출자 부재 → 사실상 미사용
+       폴백, 멀티세션 정합은 `auto_detect_session_id` 의 by-pid 단계가 담당)
 
     실패 시 빈 문자열. 호출자가 빈 문자열 처리 책임.
     """

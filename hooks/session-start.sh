@@ -67,44 +67,25 @@ if [[ -n "$INSTALLED_VERSION" && "$INSTALLED_VERSION" != "null" ]]; then
 fi
 export DCNESS_UPDATE_MSG
 
-# 슬림 inject — dcness-rules.md 폐기 (PR-3). 매 세션 system-reminder 로 본문 자동 노출.
-# 외부 plug-in 사용자가 매 세션 강제 영역 + 메인 Claude 필수 + 진입 매트릭스 인지.
+# 슬림 inject (#596) — SessionStart 는 *초기화 + 최소 활성 안내* 만 담당.
+# 문서 진입 매트릭스 / 안티패턴 / soft 필수 / cost-aware 항목은 제거: 하네스 모델은
+# "문서 선독 기반 compliance" 가 아니라 "hook 이 차단하고 그 자리에서 복구". 절차·라우팅은
+# skill 진입 시 해당 skill 이 안내하고, 위반 복구 정보는 각 blocking hook 메시지가 제공한다.
 python3 -c "
 import json, os
 update_msg = os.environ.get('DCNESS_UPDATE_MSG', '').strip()
 header = (update_msg + '\n\n---\n\n') if update_msg else ''
 msg = header + '''## [dcness 활성 환경]
 
-첫 응답 첫 줄에 토큰 \`[dcness 활성 확인]\` 출력 의무.
+첫 응답 첫 줄에 \`[dcness 활성 확인]\` 토큰 출력 (활성 신호 — 부재 시 사용자가 룰 미적용을 즉시 인지).
 
-### 강제 (코드 hook 차단)
-- **시퀀스**: catastrophic 4 룰 = \`docs/plugin/hooks.md\` 의 catastrophic-gate.sh
-- **접근 영역**: file 경계 + 인프라 차단 = \`harness/agent_boundary.py\` (권한 경계 코드 SSOT)
-- 그 외 = agent 자율 (형식 / handoff / marker 강제 X)
+코드 hook 이 강제 영역만 차단한다. 위반하면 해당 hook 메시지가 그 자리에서 무엇을 고칠지 안내한다:
+- 시퀀스 (sub-agent 호출 순서): catastrophic-gate
+- 파일 경계 + 외부 mutation: file-guard
+- 테스트 선행 (구현 전 테스트 먼저): tdd-guard
+- run 종료 자동화: stop-end-run
 
-### 메인 Claude 필수
-- **채널 형식**: chat = 백틱 \`경로\` / 본문 = 마크다운 링크
-- **md 300줄 cap** (loop-procedure.md 등 SSOT 일부 예외): \`agents/**\` / \`commands/*.md\` / \`docs/plugin/*.md\`
-- **Step 7 회고 → 메모리 candidate emit** 의무 (없으면 \"없음\" 1줄)
-- **cost-aware 행동** (#402): 큰 plan/docs 통째 read 회피 → grep + offset/limit. Bash output 길면 \`| head\` 잘라내기. sub-agent 위임 우선 (메인 직접 도구 ↓ → 메인 cache_read 누적 ↓)
-
-### 안티패턴
-- reactive cycle (신규 룰 전 기존 룰 검토)
-- 강제 vs 권고 혼동 (catastrophic 만 block)
-- agent 자율성 침해 (agent prompt 강제 형식 X)
-
-### 작업 진입 매트릭스 (lazy — 통째 read 폐기, #400)
-| 상황 | docs |
-|---|---|
-| 자유 형식 작업 요청 → 어떤 workflow (risk 분류) | \`workflow-router.md\` |
-| catastrophic / loop 진입 | \`hooks.md\` catastrophic-gate.sh + 해당 skill 의 \`## Loop\` + \`<skill>-routing.md\` |
-| Step 0~8 / echo / REDO | \`loop-procedure.md\` |
-| agent 결론 → 다음 (라우팅) | 호출 skill 의 \`<skill>-routing.md\` |
-| hook 시점 / 차단 | \`hooks.md\` |
-| 이슈 lifecycle / PR | \`issue-lifecycle.md\` |
-| 브랜치/커밋 네이밍 | \`git-spec.md\` |
-
-자유 형식 작업 요청은 먼저 risk 분류 → 가장 작은 workflow 선택 (권고). skill 트리거 시 해당 skill 의 ## 사전 read 가 정확 경로 안내.
+hook 이 차단할 때만 그 메시지가 가리키는 doc/path 를 읽어 복구한다. SessionStart 에서 dcness 문서를 미리 통독하지 말 것 — 절차·라우팅은 skill 진입 시 해당 skill 이 안내한다.
 '''
 print(json.dumps({
     'hookSpecificOutput': {

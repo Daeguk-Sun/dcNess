@@ -145,6 +145,51 @@ class BashPipelineSmokeTests(unittest.TestCase):
         )
         self.assertTrue(live_path.exists())
 
+    def test_session_start_inject_is_slim(self) -> None:
+        """#596 — additionalContext 는 최소 활성 안내 (활성 토큰 + 코드 강제 gate
+        + hook-first recovery) 만 담고, 문서 진입 매트릭스 / docs preload 지시는
+        담지 않는다.
+
+        하네스 모델 = "문서 선독 기반 compliance" 가 아니라 "hook 차단 → 그 자리 복구".
+        따라서 SessionStart 가 docs 통독을 지시하면 회귀 (본 테스트가 차단)."""
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-slim"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(
+            result.returncode, 0,
+            f"stderr: {result.stderr}\nstdout: {result.stdout}",
+        )
+        # 임시 cwd 라 plugin.json 부재 → update 헤더 없이 inject JSON 단독.
+        payload = json.loads(result.stdout)
+        out = payload["hookSpecificOutput"]
+        self.assertEqual(out["hookEventName"], "SessionStart")
+        ctx = out["additionalContext"]
+
+        # 유지: 활성 토큰 + 코드 강제 gate + hook-first recovery 원칙
+        self.assertIn("[dcness 활성 확인]", ctx)
+        self.assertIn("catastrophic-gate", ctx)
+        self.assertIn("file-guard", ctx)
+        self.assertIn("tdd-guard", ctx)
+        self.assertIn("stop-end-run", ctx)
+
+        # 제거: 문서 진입 매트릭스 / docs preload 지시 / soft 필수·안티패턴 본문
+        for forbidden in (
+            "진입 매트릭스",
+            "workflow-router.md",
+            "loop-procedure.md",
+            "issue-lifecycle.md",
+            "git-spec.md",
+            "안티패턴",
+            "cost-aware",
+            "메인 Claude 필수",
+        ):
+            self.assertNotIn(
+                forbidden, ctx,
+                f"slim inject 에 '{forbidden}' 잔존 — 문서 선독 지시 회귀 (#596)",
+            )
+
     def test_invalid_sid_silent_no_artifacts(self) -> None:
         result = _run_bash_hook(
             "session-start.sh",

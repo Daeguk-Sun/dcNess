@@ -12,7 +12,7 @@ skill 트리거 또는 직접 발화 → 메인 Claude 가 **해당 skill 의 `#
 
 - **skill 경유**: skill 본문이 loop spec 진본 (예: impl-task-loop = [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)). skill 은 input 정형화 + 라우팅 추천. 절차는 본 SSOT.
 - **직접 발화** ("이거 impl 로 가자"): 각 loop skill 의 `## Loop` + `<skill>-routing.md` 보고 메인이 자율 구성. 강제 X.
-- **SessionStart inject**: 슬림 본문 (강제 영역 / 메인 Claude 필수 / 진입 매트릭스 / 안티패턴) 매 세션 자동 노출. 첫 응답 첫 줄 `[dcness 활성 확인]` 토큰 의무.
+- **SessionStart inject** (#596): *최소 활성 안내만* 매 세션 노출 — dcness 활성 사실 + 코드 강제 gate 가 켜져 있다는 안내 + hook-first recovery 원칙. 문서 진입 매트릭스·절차·라우팅은 **미주입** (skill 진입 시 해당 skill 이 안내, 위반 복구는 각 blocking hook 메시지가 그 자리에서 제공). 첫 응답 첫 줄 `[dcness 활성 확인]` 토큰.
 
 ---
 
