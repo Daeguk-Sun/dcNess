@@ -21,7 +21,8 @@ flowchart TB
   MA -->|PASS × K| AV2[architecture-validator 2차]
   AV2 -->|PASS| M([PR · 머지 → /impl-loop 안내])
   AV1 -->|FAIL ≤2| SA
-  AV2 -->|FAIL ≤2| MA
+  AV2 -->|"FAIL: SYSTEM_BOUNDARY ≤2"| SA
+  AV2 -->|"FAIL: CONTRACT_PROPAGATION · TASK_LOCAL ≤2"| MA
   SA -->|NEW_DEP_ESCALATE| U((사용자 · 3안))
   MA -->|NEW_DEP_ESCALATE| U
   UX -.->|UX_FLOW_ESCALATE| U
@@ -46,14 +47,27 @@ flowchart TB
 |---|---|
 | **ux-architect** | `UX_FLOW_READY` → system-architect · `UX_REFINE_READY` → designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
 | **system-architect** | `PASS` → architecture-validator(1차) · `ESCALATE` → 사용자(`/product-plan` 재진입) · `NEW_DEP_ESCALATE` → 3안([escalate 처리](#escalate-처리)) |
-| **architecture-validator** | `PASS`(1차) → module-architect × K · `PASS`(2차) → SKILL.md Step 6 PR · `FAIL` → 해당 architect 재진입([결론 → 다음 호출 매핑](#결론-다음-호출-매핑)) · `ESCALATE` → 사용자 |
+| **architecture-validator** | `PASS`(1차) → module-architect × K · `PASS`(2차) → SKILL.md Step 6 PR · `FAIL` → finding 분류별 재진입([finding 분류 라우팅](#finding-분류-라우팅)) · `ESCALATE` → 사용자 |
 | **module-architect** | `PASS` → 다음 단위 module-architect / (마지막이면) architecture-validator 2차 · `SPEC_GAP_FOUND` → module-architect 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 3안([escalate 처리](#escalate-처리)) |
 | **designer** | `PASS` → 사용자 PICK · `ESCALATE` → 사용자. (UX_REFINE 분기 진입 시) |
 
 표만으로 안 풀리는 맥락:
 
 - **module-architect 호출 단위** = 1 Story 또는 공통 task 묶음 → epic 전체에서 `K = Story 수 + 공통 호출` 회 반복. self-check 의 cross-task interface 점검이 PASS 게이트.
-- **architecture-validator 2시점** — 1차(Step 3.5) = Placeholder + 공통 SSOT 룰 위반, 2차(Step 5) = Cross-Story Interface + Implementation Simulation + Origin Anchor + Placeholder 재검증.
+- **architecture-validator 2시점** — 1차(Step 3.5) = Placeholder + 공통 SSOT 룰 위반 + Contract Ledger 충분성, 2차(Step 5) = Cross-Story Interface + Implementation Simulation + Origin Anchor + Implementation Detail Leak + Contract Ledger sweep + Placeholder 재검증. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `CONTRACT_PROPAGATION` / `TASK_LOCAL`) 동반.
+
+## finding 분류 라우팅
+
+> 이슈 #612 핵심 — architecture-validator FAIL 을 "어느 레벨로 rollback?" 이 아니라 **finding 분류** 로 라우팅한다. 같은 FAIL 도 분류에 따라 비용이 크게 갈린다. 분류 진본 = [`agents/architecture-validator.md` finding 분류](../../agents/architecture-validator.md#finding-분류).
+
+| finding 분류 | 뜻 | 재진입 대상 | 비고 |
+|---|---|---|---|
+| `SYSTEM_BOUNDARY` | 큰 그림(상위 경계)이 틀림 — 도메인 invariant / port 소비자 / usecase ownership / root ADR / storage policy 잘못 | **system-architect** 재진입 | 비싼 재설계. **system 재진입의 유일한 기본 사유.** |
+| `CONTRACT_PROPAGATION` | 결정은 맞는데 stale 사본이 문서마다 남음 (전파 누락) | **module-architect `mode=contract_sweep`** | 동기화 sweep. **system 재설계 아님.** canonical 값 + sweep 키워드를 prompt 에 박아 전달 |
+| `TASK_LOCAL` | 특정 impl task 문서만 틀림 — 예시 / depends_on / 수용기준 / requirements / Implementation Detail Leak | **module-architect** 보강 (해당 task) | 그 task 만 |
+
+- **"system-architect 재진입은 `SYSTEM_BOUNDARY` 일 때만 기본값"** — stale 문구 전파 누락은 `CONTRACT_PROPAGATION` 으로 처리(sweep), system 재설계로 끌어올리지 않는다. system 문서는 1차 PASS 후 freeze ([`SKILL.md`](SKILL.md) system freeze).
+- **`CONTRACT_AMENDMENT` 은 라우팅 enum 이 아니다** — module-architect 가 Step 4 에서 public contract 를 바꿀 때 취하는 자연어 행동 의무 (Contract Ledger 갱신 / "변경 없음" 명시). 라우팅 결정은 위 3 분류로만.
 
 ## retry 한도
 
@@ -63,7 +77,7 @@ flowchart TB
 | architecture-validator FAIL → architect 재진입 | 2 cycle | 사용자 위임 |
 | module-architect `SPEC_GAP_FOUND` → 보강 → 신규 케이스 재진입 | 2 cycle | 사용자 위임 |
 
-> **architecture-validator FAIL 재진입 대상 = 시점·영역별** — **1차**(Placeholder·공통 SSOT) → **system-architect** 재진입 (이 시점 module-architect 미실행 — 검증 대상이 system-architect 산출물이므로). **2차**(Cross-Story Interface·Implementation Simulation·Origin Anchor) → 해당 **module-architect** 재진입, 단 모듈 의존 그래프 영역이면 **system-architect** 재진입.
+> **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 라우팅](#finding-분류-라우팅)) — **1차**(Placeholder·공통 SSOT·Contract Ledger 충분성) → 검증 대상이 system-architect 산출물이라 **system-architect** 재진입 (이 시점 module-architect 미실행). **2차** → 분류로 분기: `SYSTEM_BOUNDARY`(모듈 경계·의존 그래프 포함) → **system-architect**, `CONTRACT_PROPAGATION` → **module-architect `mode=contract_sweep`**, `TASK_LOCAL`(Implementation Detail Leak 포함) → **module-architect** 보강.
 > cycle 발생 시 **working tree only — commit X.** PASS 후에만 commit (cycle 도중 산출물은 덮어쓰기 전제).
 
 > **finding 수용 자세** (점 패치 X, 근본 재설계) — 같은 영역 finding 이 2회+ 반복되면 점 패치 retry 로 한도를 소진하지 말고 근본 원인을 짚어 그 영역을 재설계한다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).
