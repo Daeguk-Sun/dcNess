@@ -1,11 +1,11 @@
 ---
 name: impl-loop
-description: impl task (architect-loop 의 module-architect × K 산출물) 를 받아 정식 impl 루프로 구현하는 스킬. task 1개(single) 또는 여러 개(chain) 를 메인 Claude 한 세션 안에서 순차 처리 — 각 task = 1 PR + 1 이슈 close. 엔진은 풀 4-agent (test-engineer → engineer → code-validator → pr-reviewer, 엄정) 또는 build-worker (2/3-step, 경량) 를 개수·발화로 선택. 사용자가 "구현해줘", "/impl-loop <task>", "이 task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/architect-loop 후 자동", "버그픽스", "한 줄 수정" 등을 말할 때 반드시 이 스킬을 사용한다. /architect-loop 의 후속.
+description: deep impl task 파일(architect-loop 의 module-architect × K 산출물)을 받아 정식 impl 루프로 구현하는 legacy/advanced runner. task 1개(single) 또는 여러 개(chain) 를 메인 Claude 한 세션 안에서 순차 처리 — 각 task = 1 PR + 1 이슈 close. 엔진은 풀 4-agent (test-engineer → engineer → code-validator → pr-reviewer, 엄정) 또는 build-worker (2/3-step, 경량) 를 개수·발화로 선택. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/architect-loop 후 자동"처럼 impl task 경로/목록을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
 ---
 
-# Impl Loop Skill — impl task 구현 루프 (single / chain × 풀 / build-worker)
+# Impl Loop Skill — deep impl task 구현 루프 (single / chain × 풀 / build-worker)
 
-> 본 스킬 = `/architect-loop` 가 `impl/NN-*.md` 본문 detail 까지 채운 산출물의 task 를 구현으로 옮긴다. task 1개든 여러 개든, 엄정 모드든 경량 모드든 본 스킬 하나가 처리한다. 버그픽스 케이스 = `/issue-report` 분류 후 본 스킬 fallback path (module-architect 선두 추가) 진입.
+> 본 스킬 = `/architect-loop` 가 `impl/NN-*.md` 본문 detail 까지 채운 deep task 를 구현으로 옮기는 legacy/advanced runner 다. 일반 구현 요청은 [`/impl`](../impl/SKILL.md) 이 lane 을 판정하고, deep impl task 파일이 있을 때만 본 스킬로 위임한다.
 
 > 🔴 **라우팅 SSOT** — agent 결론 → 다음 호출 / retry 한도 / escalate 처리는 [`impl-loop-routing.md`](impl-loop-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다.
 
@@ -13,24 +13,25 @@ description: impl task (architect-loop 의 module-architect × K 산출물) 를 
 
 - **loop**: `impl-task-loop` (UI 감지 시 `impl-ui-design-loop` — designer + 사용자 PICK 2 step 선두 추가, 아래 `## UI 작업 시 designer 선두`)
 - **entry_point**: `impl`
-- **task_list** (Step 1): (풀 4-agent, default=single) test-engineer → engineer:IMPL → code-validator → pr-reviewer · (build-worker, default=chain) build-worker → pr-reviewer · (fallback: impl 부재 시 module-architect 선두 추가) · (impl-ui-design-loop) designer → 사용자 PICK 선두
+- **task_list** (Step 1): (풀 4-agent, default=single) test-engineer → engineer:IMPL → code-validator → pr-reviewer · (build-worker, default=chain) build-worker → pr-reviewer · (advanced fallback: deep task 보강 필요 시 module-architect 선두 추가) · (impl-ui-design-loop) designer → 사용자 PICK 선두
 - **advance**: `PASS` → `IMPL_DONE` → `PASS` → `PASS` (풀 4-agent) · `PASS` → `PASS` (build-worker) · `PASS`(designer) → 사용자 PICK → `PASS` → `IMPL_DONE` → `PASS` → `PASS` (impl-ui-design-loop)
-- **expected_steps**: 4 (풀) / 5 (fallback) / 2 (build-worker) · impl-ui-design-loop = 6 (default) / 7 (fallback)
+- **expected_steps**: 4 (풀) / 5 (advanced fallback) / 2 (build-worker) · impl-ui-design-loop = 6 (default) / 7 (advanced fallback)
 - **routing**: [`impl-loop-routing.md`](impl-loop-routing.md)
 
 본 skill 본문 = impl-task-loop / impl-ui-design-loop 풀스펙 진본. catastrophic 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh). chain (N task) 은 `impl-task-loop × N` driver — 각 task 가 독립 `begin-run impl` … `end-run` run 1개씩 (N task = N run = N review.md). 절차 mechanics = [`loop-procedure.md`](../../docs/plugin/loop-procedure.md).
 
 ## Inputs (메인이 사용자에게 받아야 할 정보)
 
-- task 경로 (필수) — 단일 task (예: `docs/milestones/v0.2/epics/epic-01-*/impl/01-*.md`) 또는 task list / glob / epic 경로 (예: `.../impl/*.md`)
+- deep task 경로 (필수) — 단일 task (예: `docs/milestones/v0.2/epics/epic-01-*/impl/01-*.md`) 또는 task list / glob / epic 경로 (예: `.../impl/*.md`)
 - 이슈 번호 (있으면)
 - (선택) `--retry-limit N` — task 당 자동 재시도 한도 (default 3, 0 = 첫 실패 즉시 정지)
 - (선택) `--escalate-on <signals>` — 즉시 정지 신호 (default `blocked`)
 
 ## 비대상 (다른 skill 추천)
 
+- 일반 구현 / 버그픽스 / 한 줄 수정 / compact plan 필요 → `/impl`
 - spec / design 단계 → `/product-plan` (PRD) 또는 `/architect-loop` (설계)
-- task 부재 (계획 X) → `/issue-report` (분류 후 본 skill fallback) 또는 `/product-plan`
+- deep task 부재 (계획 X) → `/impl` 이 Lite / Standard / Deep lane 을 판정
 
 ## 진입 분기 (개수 × 엔진 — 직교)
 
@@ -57,7 +58,7 @@ UI 작업 감지 시 (풀 4-agent 엔진 한정) 시퀀스 **선두에 designer 
 - **designer** (`PASS,ESCALATE`) — 시안 생성. 환경 = `docs/design.md` frontmatter `medium: pencil|html` (부재 시 designer 가 detect + 역질문).
 - **사용자 PICK** (helper begin/end-step 비대상) — 메인이 시안 경로 (Pencil 캔버스 / `design-variants/<screen>-v<N>.html`) + node-id 안내 + OK/NG. NG 시 designer 재호출 (sub_cycle `designer-ROUND-<n>`, round 한도 X).
 
-이후 test-engineer → engineer:IMPL → code-validator → pr-reviewer = 풀 4-agent 동일. fallback 이면 designer 앞에 module-architect 1 step. designer `ESCALATE` → 사용자 위임.
+이후 test-engineer → engineer:IMPL → code-validator → pr-reviewer = 풀 4-agent 동일. deep task 보강이 필요하면 designer 앞에 module-architect 1 step. designer `ESCALATE` → 사용자 위임.
 
 ---
 
@@ -125,7 +126,7 @@ retry / POLISH 시 기존 sub-step 재활용 — 신규 TaskCreate X.
 
 - **정식 impl task** (epic/story 컨텍스트 — impl 파일 frontmatter `story: N` (숫자) + 경로 `.../epic-NN-*/impl/`) → `feature/epic{N}_story{M}_{desc}` ([git-spec 브랜치](../../docs/plugin/git-spec.md#브랜치) "스토리 작업 impl")
 - **공통 task** (impl 파일 frontmatter `story: 공통` + `task_index: —` — module-architect 공통 호출 산출) → `feature/epic{N}_common_{desc}` ([git-spec 브랜치](../../docs/plugin/git-spec.md#브랜치) `feature/{desc}` 의 epic-traceable 형 — story 번호 없음, 게이트는 generic feature 로 통과). 제목 = `[feature] {설명}`, 트레일러 = `Part of #<epic>` (부모 = epic 단일 룰, task-index trailer omit — [git-spec 기본 룰](../../docs/plugin/git-spec.md#기본-룰))
-- **버그픽스 fallback** (invocation 에 이슈 번호 명시) → `fix/issue{N}_{desc}` ([git-spec 브랜치](../../docs/plugin/git-spec.md#브랜치) "버그픽스")
+- **advanced bugfix task** (invocation 에 이슈 번호와 deep task 보강 컨텍스트 명시) → `fix/issue{N}_{desc}` ([git-spec 브랜치](../../docs/plugin/git-spec.md#브랜치) "버그픽스")
 - `{desc}` = impl 파일 basename 의 앞 순번 `NN-` 를 **제거**한 설명부 (소문자 시작 + `[a-z0-9_-]` + 최소 3자 — [git-spec 브랜치](../../docs/plugin/git-spec.md#브랜치) `{desc}` 제약). 순번을 안 떼면 `feature/05-foo` 처럼 desc 가 숫자로 시작해 게이트 FAIL. 예: `impl/03-revival-button.md` + `story: 2` + `epic-07-*` → `feature/epic7_story2_revival-button`.
 - base 분기 = [`git-spec.md`](../../docs/plugin/git-spec.md#git-절차) (통합 브랜치 마커 매치 시 그 base, 아니면 main).
 
@@ -199,12 +200,12 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
 
 후반 3 단계 (code-validator + pr-reviewer + 메인 PR) skip 차단: task 를 clean 표기 *전*, code-validator 가 PASS 를 냈고 pr-reviewer 가 실행된 뒤 *메인 Claude 가* PR 생성·머지까지 마쳤는지 직접 확인. 흔적 부재 시 → false-clean 의심 → `blocked` 강등 + 사용자 개입.
 
-- fallback (정식 위치 부재 / impl 파일 부재) → 시퀀스 선두에 module-architect 1 step 추가.
+- advanced fallback (deep task 보강 필요) → 시퀀스 선두에 module-architect 1 step 추가.
 - UI 감지 → 선두에 designer + 사용자 PICK (위 `## UI 작업 시 designer 선두`).
 
 ## 엔진 B — build-worker (default = chain)
 
-시퀀스 = **build-worker (2-step: test+impl+self-validate 통합) → pr-reviewer**. impl 파일 부재 시 module-architect 선두 (3-step).
+시퀀스 = **build-worker (2-step: test+impl+self-validate 통합) → pr-reviewer**. deep task 보강 필요 시 module-architect 선두 (3-step).
 
 1. **begin-run + (reset) + build-worker step** — `begin-run impl` → **(chain 의 첫 task 또는 single 모드면 `dcness-helper prev-tasks-reset` — `begin-step` *전*, prev-tasks 초기화)** → `begin-step build-worker` → `Agent(build-worker, prompt=<impl 경로 + task slug + RUN_ID + (begin-step stdout 의 [PREVIOUS_TASKS] 섹션 있으면 그대로 포함, #525)>)` → 반환 prose 결론 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). 이후 `end-step build-worker`. worker 안 phase 별 prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 는 worker 자체 Write — [`loop-procedure.md` build-worker phase prose](../../docs/plugin/loop-procedure.md#build-worker-phase-prose-impl-loop-hybrid-a-한정).
 2. **git/PR 생성 (메인)** — worker prose 의 commit message + PR 본문 초안을 임시 파일로 박고 `scripts/pr-create.sh` 통합 호출:
@@ -223,7 +224,7 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
    분리 명령 (`git checkout -b` / `add` / `commit` / `push` / `gh pr create` 각각) 은 *비권장* — 메인 turn 누적 영역.
 3. **pr-reviewer step + 머지** — `begin-step pr-reviewer` → `Agent(pr-reviewer, ...)` → `PASS` 시 `bash scripts/pr-finalize.sh <PR>` (gh pr merge --auto + watch + main sync 자동). `FAIL` 시 engineer POLISH 단발 진입 → **POLISH_DONE 후 메인이 POLISH 변경을 PR 브랜치에 `git add`/`commit`/`push` 1회** (PR 은 step 2 에서 이미 생성됨 — 변경이 worktree 에만 남으면 stale PR 머지/ dirty finalize 위험) → pr-reviewer 재리뷰 (cycle ≤ 2). `end-step pr-reviewer`.
 
-> **impl 파일 부재 시 module-architect 선두** — build-worker 직전에 `begin-step module-architect` → `Agent(module-architect, prompt=<task 컨텍스트 + impl 파일 생성 위치>)` → `PASS` 시 impl 파일 생성 확인 후 `end-step module-architect` → 정상 build-worker 진입. `ESCALATE` 시 사용자 위임.
+> **advanced fallback — deep task 보강 필요 시 module-architect 선두** — build-worker 직전에 `begin-step module-architect` → `Agent(module-architect, prompt=<task 컨텍스트 + impl 파일 생성 위치>)` → `PASS` 시 impl 파일 생성 확인 후 `end-step module-architect` → 정상 build-worker 진입. 이것은 Lite direct 구현이 아니라 deep task 보강 경로다. `ESCALATE` 시 사용자 위임.
 >
 > **자동 폴백** — build-worker 가 진행 중 `SPEC_GAP_FOUND` 던지면 분량 메타 (small/medium/large) 기반 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). attempt 한도 초과 시 사용자 위임.
 
@@ -282,7 +283,7 @@ next: <다음 task slug 진입 | 정지 사유>
 
 **2번째 줄 = 엔진별 (chain 은 build-worker / 풀 4-agent 둘 다 가능 — 엔진에 맞춰 채운다)**:
 - **build-worker 엔진**: `build-worker: N tests RED→GREEN · M files +X -Y · validate PASS|FAIL · pr-reviewer: LGTM|FAIL` (impl 부재로 module-architect 선두면 앞에 `module-architect: PASS|ESCALATE · ` 추가)
-- **풀 4-agent 엔진** (chain + `엄정하게` override): `test-engineer: N tests · engineer: M files +X -Y · code-validator: PASS|FAIL · pr-reviewer: LGTM|FAIL` (fallback module-architect 선두면 앞에 `module-architect: PASS · ` 추가)
+- **풀 4-agent 엔진** (chain + `엄정하게` override): `test-engineer: N tests · engineer: M files +X -Y · code-validator: PASS|FAIL · pr-reviewer: LGTM|FAIL` (advanced fallback 으로 module-architect 선두면 앞에 `module-architect: PASS · ` 추가)
 
 **5줄 작성 책임 = 메인 (PR 생성·머지 완료 후)** — `PR <#NNN> merged` 의 번호·merged 상태는 `scripts/pr-create.sh` / `pr-finalize.sh` 완료 후에야 확정된다. 특히 **풀 4-agent 엔진은 PR 이 pr-reviewer PASS *후* 생성**되므로 pr-reviewer 는 PR 번호조차 모른다 — pr-reviewer 가 5줄을 박을 수 없다. 따라서 pr-reviewer 는 자기 결론(LGTM/FAIL) + 엔진별 메트릭 *재료* 만 prose 에 제공하고 ([`pr-reviewer-agent.md` 결론과 보고](../../agents/pr-reviewer/pr-reviewer-agent.md#결론과-보고) 정합), **메인이 머지(pr-finalize) 완료 후 위 5줄을 종합해 chat 에 echo** 한다 — 자유 형식 단축 금지 (외부 사용자 [F8 실측](https://github.com/alruminum/dcNess/issues/507)). build-worker 엔진은 PR 이 pr-reviewer *전* 생성되지만, merged 상태는 동일하게 머지 후 확정이라 5줄 종합은 메인 책임으로 통일.
 
@@ -300,7 +301,7 @@ next: <다음 task slug 진입 | 정지 사유>
 ○ task3 · <모듈명>          ← 예정 (pending)
 ```
 
-- sub-step 수 = 엔진별. build-worker: 2 (`build-worker` / `pr-reviewer`), impl 부재 시 3 (`module-architect` 선두). 풀 4-agent: 4 (`test-engineer` / `engineer:IMPL` / `code-validator` / `pr-reviewer`), fallback 5.
+- sub-step 수 = 엔진별. build-worker: 2 (`build-worker` / `pr-reviewer`), deep task 보강 시 3 (`module-architect` 선두). 풀 4-agent: 4 (`test-engineer` / `engineer:IMPL` / `code-validator` / `pr-reviewer`), advanced fallback 5.
 - **task 완료 → 다음 (다시 그리기 — task 수 별 분기)**:
 
 | 총 task 수 | 절차 | 비용 |
@@ -365,5 +366,6 @@ PR merge 직후 *반드시* 실행 (issue #396):
 - loop spec: 본 skill `## Loop` + 본문. 공통 절차 mechanics: [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#진입-모델)
 - 권한 경계: [`agent_boundary.py`](../../harness/agent_boundary.py)
 - 브랜치·커밋·PR 네이밍: [`git-spec.md`](../../docs/plugin/git-spec.md)
+- 기본 구현 진입점: [`/impl`](../impl/SKILL.md)
 - agent 정의: [`test-engineer.md`](../../agents/test-engineer.md) / [`engineer.md`](../../agents/engineer.md) / [`code-validator.md`](../../agents/code-validator.md) / [`pr-reviewer.md`](../../agents/pr-reviewer.md) / [`build-worker.md`](../../agents/build-worker.md) / [`module-architect.md`](../../agents/module-architect.md) / [`designer.md`](../../agents/designer.md)
 - 트랙 SSOT (Hybrid A): [issue #446](https://github.com/alruminum/dcNess/issues/446)

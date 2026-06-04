@@ -87,6 +87,7 @@
 - **pytest**: `scripts/check_python_tests.sh` — harness/tests/agents 변경 시만
 - **plugin-manifest**: `scripts/check_plugin_manifest.mjs` (CI `plugin-manifest.yml`) — `.claude-plugin/plugin.json` version / manifest 정합 검증
 - **pr-body**: `scripts/check_pr_body.mjs` (CI `pr-body-validation.yml`) — PR 본문 템플릿 충족 검증
+- **public-surface**: `scripts/check_public_surface.mjs` (CI `public-surface-validation.yml`) — 공개 workflow/command/agent 표면 계약 검증
 - **cross-ref**: `scripts/check_cross_refs.mjs` (CI `cross-ref-validation.yml`) — markdown link 파일/anchor 실존 + 옛 명칭 deny-list (외부 배포 영역 한정) 회귀 차단
 
 > ⚠️ **금지**: `--no-verify` 등 hook 우회. main 직접 push.
@@ -100,9 +101,11 @@
 
 | 파일 | 언제 읽나 |
 |---|---|
-| [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 작업 요청을 어떤 workflow 로 보낼지 (risk tier — gate 축 × shape 축) 판단 시 |
+| [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | public workflow surface 의 기본/고급/유틸리티/내부 agent 분류 수정 시 |
+| [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 작업 요청을 어떤 workflow 로 보낼지 (lane — gate 축 × shape 축) 판단 시 |
 | [`docs/plugin/git-spec.md`](docs/plugin/git-spec.md) | 브랜치·커밋·PR 네이밍 규칙 SSOT — 모든 커밋 작업에 적용 |
-| 각 skill 의 `<skill>-routing.md` ([`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
+| 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
+| [`scripts/check_public_surface.mjs`](scripts/check_public_surface.mjs) | public workflow surface gate 기대값 수정 시 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop = 8 hook) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
 | [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — [dcness 자체는 init-dcness 미적용](#dcness-자체는-init-dcness-미적용-자기-규격-미얽매임) 참조) |
@@ -127,6 +130,7 @@ cp scripts/hooks/post-checkout .git/hooks/post-checkout && chmod +x .git/hooks/p
 # 하네스 단위 테스트 실행
 python3 -m unittest discover -s tests -v
 python3 -m unittest tests.test_signal_io -v   # 단일 모듈
+node scripts/check_public_surface.mjs
 ```
 
 > 빌드 / 런타임 명령어는 코드 도입 시 본 섹션에 추가 (별도 Task-ID).

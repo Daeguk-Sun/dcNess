@@ -692,11 +692,21 @@ Codex validator routing (Step 2.10 — local opt-in):
 - Step 2.6 ~ 2.9 깔린 인프라 파일들 자동 stage + commit + push + PR
 - 현재 branch = main 일 때만 자동 진행 (사용자 작업 중 branch 보호)
 
-사용 가능한 skill:
-- /issue-report — 이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE)
-- /impl-loop — impl task 구현 (single 1개 / chain 여러 개 × 풀 4-agent 엄정 / build-worker 경량, 개수·발화 분기. fallback = module-architect 선두)
+기본 workflow:
+- /impl — 구현 진입 통합 (Lite / Standard / Deep lane 내부 판정)
 - /product-plan — 새 기능 spec/design
+- /issue-report — 이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE)
+
+고급 workflow:
+- /tech-review — Deep lane 선행 기술 검증
+- /architect-loop — 1 epic 설계 루프
+- /impl-loop — deep impl task 파일용 advanced runner
+- /ux — 화면 UX / 디자인 핸드오프
+
+유틸리티:
 - /smart-compact — 컨텍스트 압축 + resume prompt
+- /run-review — run 사후 분석
+- /efficiency — 세션 토큰/비용 분석
 
 비활성화 — `/disable-dcness` 또는 `"$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)/scripts/dcness-helper" disable`.
 

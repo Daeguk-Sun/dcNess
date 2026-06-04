@@ -1,6 +1,6 @@
 ---
 name: issue-report
-description: 버그/이슈를 자연어로 받아 qa 에이전트로 분류하고 다음 액션을 추천하는 스킬. 사용자가 "버그 있다", "이슈", "이상해", "안 돼", "오류", "이슈 리포팅", "이슈있다", "이슈왔쪄염", "뿌우 이슈 하나줄게", "뻐그있다", "버그있다" 등의 표현을 쓸 때 반드시 이 스킬을 사용한다. 분류 결과 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE) 에 따라 후속 skill 추천.
+description: 버그/이슈를 자연어로 받아 qa 에이전트로 분류하고 다음 액션을 추천하는 스킬. 사용자가 "버그 있다", "이슈", "이상해", "안 돼", "오류", "이슈 리포팅", "이슈있다", "이슈왔쪄염", "뿌우 이슈 하나줄게", "뻐그있다", "버그있다" 등의 표현을 쓸 때 반드시 이 스킬을 사용한다. 분류 결과 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE) 에 따라 `/impl` 등 후속 skill 추천.
 ---
 
 # Issue Report Skill

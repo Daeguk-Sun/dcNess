@@ -1,7 +1,7 @@
 # product-plan 라우팅 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: `/product-plan` skill **단일 전용** 라우팅 진본. 본 skill 은 **메인 Claude 직접 작업** (product-planner sub-agent 폐기) 이라 *agent 결론 → 다음 호출* 매핑이 없다. 대신 **skill 간 시퀀스** (PRD → `/tech-review` → `/architect-loop` → `/impl-loop`) + 체크포인트 분기 + 재진입 + escalate + 단방향 관례 + 비대상 추천이 라우팅의 전부다. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
+> **Scope**: `/product-plan` skill **단일 전용** 라우팅 진본. 본 skill 은 **메인 Claude 직접 작업** (product-planner sub-agent 폐기) 이라 *agent 결론 → 다음 호출* 매핑이 없다. 대신 **skill 간 시퀀스** (PRD → `/tech-review` → `/architect-loop` → `/impl`) + 체크포인트 분기 + 재진입 + escalate + 단방향 관례 + 비대상 추천이 라우팅의 전부다. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
 > **Cross-ref**: catastrophic 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) · 강제 영역 = [`../../CLAUDE.md`](../../CLAUDE.md).
 
 ## 읽는 법
@@ -21,7 +21,7 @@ flowchart TB
   TR --> CP2{2차 OK?}
   CP2 -->|NO_GO / 보류| U((사용자 위임))
   CP2 -->|OK| AL
-  AL --> IL[/impl-loop/]
+  AL --> SH[/impl/]
   PP -.->|PRD 변경| PP
   PP -.->|범위·PRD 위반 escalate| U
 
@@ -29,7 +29,7 @@ flowchart TB
   classDef next fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
   class PP main
-  class TR,AL,IL next
+  class TR,AL,SH next
   class U user
 ```
 
@@ -65,12 +65,12 @@ escalate 계열 수신 시 **메인이 즉시 사용자 보고 후 대기** (자
 ## 비대상 (다른 skill 추천)
 
 - 버그 → `/issue-report` (qa 분류)
-- 한 줄 수정 / 버그픽스 → `/issue-report` (분류 후 impl-task-loop fallback)
+- 한 줄 수정 / 버그픽스 → `/impl` 또는 새 미분류 버그면 `/issue-report`
 - 디자인만 → designer 직접 (Pencil 또는 `design-variants/*.html`)
-- 이미 PRD/stories.md 머지 완료 → **먼저 외부 의존 검증 상태 확인**. 외부 의존 0개 (tech-review.md 스켈레톤이 "외부 의존 없음" 명시) *또는* `/tech-review` 통과 상태면 → 설계 `/architect-loop` · 구현 `/impl-loop`. 미검증 외부 의존이 남았으면 → **먼저 `/tech-review`** (architect-loop 진입 후엔 tech-reviewer 재호출이 관례상 비권장이므로, [단방향 관례](#단방향-관례-architect-loop-진입-후-tech-review-재호출-비권장))
+- 이미 PRD/stories.md 머지 완료 → **먼저 외부 의존 검증 상태 확인**. 외부 의존 0개 (tech-review.md 스켈레톤이 "외부 의존 없음" 명시) *또는* `/tech-review` 통과 상태면 → 설계 `/architect-loop` · 구현 `/impl` (deep task 파일이 있으면 내부적으로 `/impl-loop` 위임). 미검증 외부 의존이 남았으면 → **먼저 `/tech-review`** (architect-loop 진입 후엔 tech-reviewer 재호출이 관례상 비권장이므로, [단방향 관례](#단방향-관례-architect-loop-진입-후-tech-review-재호출-비권장))
 
 ## 후속 (skill 종료 후)
 
-- PRD/stories/tech-review 스켈레톤 완성 + 머지 + 이슈 등록 → `/tech-review` (선행 기술 검증) → 사용자 2차 OK → `/architect-loop` (설계 루프) → `/impl-loop` (구현 루프)
+- PRD/stories/tech-review 스켈레톤 완성 + 머지 + 이슈 등록 → `/tech-review` (선행 기술 검증) → 사용자 2차 OK → `/architect-loop` (설계 루프) → `/impl` (구현 진입)
 - 외부 의존 0 개 PRD → `/tech-review` skip + 바로 `/architect-loop`
 - 기존 PRD 변경 → 본 skill 재진입 (`Edit` 섹션 단위 patch 의무)

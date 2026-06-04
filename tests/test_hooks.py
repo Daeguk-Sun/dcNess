@@ -9,9 +9,9 @@ Coverage matrix:
         - 기존 live.json 보존 (재호출 안전)
 
     handle_pretooluse_agent:
-        - pr-reviewer 게이트 — pr-reviewer 직전 CODE_VALIDATION 없으면 차단
+        - pr-reviewer 게이트 — engineer 산출물 이후 CODE_VALIDATION 없으면 차단
         - pr-reviewer 게이트 — engineer 변경 후 CODE_VALIDATION PASS 있으면 통과
-        - pr-reviewer 게이트 — BUGFIX_VALIDATION PASS 도 인정
+        - pr-reviewer 게이트 — Lite 직접 구현처럼 engineer 산출물이 없으면 통과
         - engineer 게이트 — engineer 직전 module-architect PASS 없으면 차단
         - engineer 게이트 — module-architect.md 안 PASS 있으면 통과
         - engineer 게이트 — module-architect-N.md (occurrence) 안 PASS 도 인정
@@ -431,6 +431,28 @@ class StrictConveyorGateTests(_PreToolBase):
             base_dir=self.base,
         )
         self.assertEqual(rc, 1)
+
+    def test_impl_entry_point_is_strict(self) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        active[self.rid]["entry_point"] = "impl"
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("pr-reviewer"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_impl_lite_pr_reviewer_allows_without_code_validator_when_no_engineer_step(self) -> None:
+        self._begin_step("pr-reviewer")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("pr-reviewer"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
 
     def test_allows_matching_begin_step(self) -> None:
         self._begin_step("module-architect")

@@ -68,7 +68,7 @@ flowchart TB
 
 - PRD 미작성 / 스켈레톤 부재 → `/product-plan` 먼저
 - 설계 단계 진입 → `/architect-loop`
-- 구현 단계 진입 → `/impl-loop`
+- 구현 단계 진입 → `/impl`
 - 버그 / 이슈 → `/issue-report`
 
 ## 후속 (skill 종료 후)

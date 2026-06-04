@@ -17,7 +17,7 @@ description: Claude Code 세션 JSONL 로그 (`~/.claude/projects/<encoded-repo>
 
 ## 언제 사용하지 않음
 
-- 코드 작성 / 버그픽스 / 기획 → `/issue-report` `/impl-loop` `/product-plan` 등 다른 skill
+- 코드 작성 / 버그픽스 / 기획 → `/issue-report` `/impl` `/product-plan` 등 다른 skill
 - AI-readiness 평가 (코드베이스 자체) → 본 skill 비대상 (별도 ai-readiness 도구 후보)
 
 ## 시퀀스

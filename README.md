@@ -58,50 +58,56 @@ dcness-helper routing disable-codex-validation
 
 ## 작업 흐름
 
-**명령을 외우지 말고 리스크로 고르기** — 작업 요청의 리스크 신호로 *가장 작은* workflow 를 고른다.
-상세 판정(gate 축 × shape 축)은 [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md).
+**기본 공개 workflow 는 작게 유지한다.** 사용자가 기본으로 외울 진입점은 세 개다.
+상세 표면 계약은 [`docs/plugin/positioning.md`](docs/plugin/positioning.md), lane 판정은
+[`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md).
 
-| 리스크 신호 | 진입점 |
+| 기본 진입점 | 언제 쓰나 |
 |---|---|
-| 구체 파일 path · symbol · 승인된 이슈/PR 번호 (high-risk 없음) | `/impl-loop` 또는 단발 구현 — 기획/설계 gate 만 skip (branch/PR/test/리뷰 유지) |
-| 목표·범위 모호 ("개선해줘 / 새 기능") | `/product-plan` 그릴미 |
-| 새 feature · 외부 의존(API/SDK/model) · auth/보안 · migration · public API breakage | `/product-plan → (외부 의존 시) /tech-review → /architect-loop → /impl-loop` |
-| (설계 완료 후) 여러 task/PR 로 분할 · 재개/handoff | `/impl-loop` chain |
+| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 |
+| `/product-plan` | 새 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 |
+| `/issue-report` | 아직 분류되지 않은 버그나 이상 동작을 접수할 때 |
 
-dcNess 는 단계별 skill 로 작업을 끌고 간다. `/impl-loop` 은 **설계 산출물(impl task 문서)이
-있어야** 동작하므로, 보통 아래 순서를 탄다.
+`/impl` 이 내부적으로 Lite / Standard / Deep lane 을 고른다.
+
+| lane | 조건 | 실행 |
+|---|---|---|
+| Lite | high-risk 없음 + 파일/symbol/승인된 issue 같은 concrete signal + 테스트 기준 명확 | 메인 직접 `test -> impl -> test pass -> pr-reviewer -> PR` |
+| Standard | high-risk 는 없지만 구현 경계나 테스트 기준이 애매함 | `module-architect` compact plan 1-pass 후 구현 |
+| Deep | high-risk trigger 또는 새 epic/product feature | `/product-plan` / `/tech-review` / `/architect-loop` / deep task runner 사용 |
 
 **새 기능**
 
 ```
-/product-plan       # PRD + stories + tech-review 스켈레톤 (그릴미 대화)
-/architect-loop     # 1 epic 설계 — ux/system/module architect + validator → impl task 문서 생성
-/impl-loop          # 생성된 task 들을 순차 구현 (task 마다 1 PR)
-/run-review         # 방금 run 의 step별 비용·차단 분석
+/product-plan       # PRD + stories + tech-review 스켈레톤
+/architect-loop     # 필요 시 deep 설계 — ux/system/module architect + validator
+/impl               # 생성된 deep task 파일이 있으면 내부적으로 /impl-loop 위임
 ```
 
 **버그 수정**
 
 ```
-/issue-report       # 이슈 분류 → 라우팅 추천
-/impl-loop <task>   # 분류 결과에 따라 fallback 경로로 구현
+/issue-report       # 미분류 버그면 먼저 분류
+/impl               # 구현 lane 자동 판정 + PR/review/CI
 ```
 
-각 task 는 **1 PR** 로 처리되며, 엔진은 둘 중 하나다(개수·발화로 자동 분기).
+Advanced entrypoint 는 여전히 존재하지만 기본 표면은 아니다.
 
-- **풀 4-agent**(단일 task 기본·`엄정` 발화) — `test-engineer → engineer → code-validator
-  → pr-reviewer`. **독립 code-validator** 가 구현↔계획 정합을 검증한 뒤에야 pr-reviewer 로 간다.
-- **build-worker**(다중 task chain 기본·`빠르게` 발화) — `build-worker(test+impl+self-validate)
-  → pr-reviewer`. 검증은 build-worker 가 **self-validate** 로 수행하고(독립 code-validator 단계
-  없음 — 단 self-validate 미통과 시 code-validator 로 복원), pr-reviewer 가 2차 게이트다.
+- `/tech-review` — Deep lane 의 선행 기술 검증
+- `/architect-loop` — Deep lane 의 설계 루프
+- `/impl-loop` — deep impl task 파일용 legacy/advanced runner
+- `/ux` — 화면 UX / 디자인 핸드오프 전문 흐름
 
-어느 엔진이든 검증·리뷰를 건너뛴 채 PR 머지로 못 가는 것이 dcNess 의 핵심이다.
+검증·리뷰를 건너뛴 채 PR 머지로 못 가는 것이 dcNess 의 핵심이다. `pr-reviewer` 는 read-only
+provider routing 대상이라 Codex 로 route 될 수 있지만, 사용자-facing 단계 이름은 `pr-reviewer`
+하나로 유지한다.
 
 agent 의 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등) → 다음 호출 매핑은
 각 loop skill 의 `<skill>-routing.md` (**mermaid 라우팅 그래프** + enum 표 + retry +
-escalate) 가 진본이다 — 예: [`skills/architect-loop/architect-loop-routing.md`](skills/architect-loop/architect-loop-routing.md)
+escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/impl-routing.md)
+(구현 진입), [`skills/architect-loop/architect-loop-routing.md`](skills/architect-loop/architect-loop-routing.md)
 (설계), [`skills/impl-loop/impl-loop-routing.md`](skills/impl-loop/impl-loop-routing.md)
-(구현). loop 별 진입 spec(entry_point / task_list / advance / expected_steps)은
+(deep task 구현). loop 별 진입 spec(entry_point / task_list / advance / expected_steps)은
 각 skill 본문(`skills/<skill>/SKILL.md`)의 `## Loop` contract 가 진본이고, 공통 실행 절차(Step 0~8 mechanics)는
 [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델)다.
 
@@ -112,32 +118,33 @@ escalate) 가 진본이다 — 예: [`skills/architect-loop/architect-loop-routi
 | 결정론 | **prose-only** — agent 가 prose 자유 emit, 메인 Claude 가 prose 를 직접 읽고 routing. 기계 enum 추출·메타 LLM 호출 0 |
 | 형식 강제 | **0** — 형식/flag/schema 모두 agent 자율. harness 강제 = 작업 순서 + 접근 영역만 |
 | 컨텍스트 layer | 2 layer (CLAUDE.md + agents) |
-| 게이트 | 거버넌스 + 6 CI workflow (cross-ref / git-naming / plugin-manifest / pr-body / python-tests / release-sync) |
+| 게이트 | 거버넌스 + 7 CI workflow (cross-ref / git-naming / plugin-manifest / pr-body / public-surface / python-tests / release-sync) |
 | Codex route | opt-in local routing — `code-validator` / `architecture-validator` / `pr-reviewer` 만 Codex read-only wrapper 로 실행 가능 |
 
-## Skill (10개)
+## Public Surface
 
-| 발화 | 역할 |
-|---|---|
-| `/init-dcness` | 현 프로젝트를 plugin 활성 whitelist 에 등록 (부트스트랩) |
-| `/issue-report` | 버그/이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE) |
-| `/product-plan` | 새 기능 spec/design — 그릴미 대화로 PRD + stories + tech-review 스켈레톤 작성 |
-| `/tech-review` | 선행 기술 검증 (tech-reviewer 가 의존성·실현성 검토, `/architect-loop` 진입 전 단방향) |
-| `/architect-loop` | 1 epic 설계 루프 — ux-architect → system-architect → architecture-validator(1차) → module-architect × K → architecture-validator(2차) |
-| `/ux` | 화면 UX 플로우 + 디자인 시안 핸드오프 (ux-architect → designer → 사용자 PICK, UX_FLOW / UX_REFINE 2 모드) |
-| `/impl-loop` | impl task 구현 루프 — 1개(single) / 여러 개(chain) × 풀 4-agent(엄정) / build-worker(경량). 개수·발화로 자동 분기 |
-| `/run-review` | run 사후 분석 — step별 비용·차단 검출 |
-| `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 자동 생성 |
-| `/efficiency` | 세션 토큰/캐시/비용 분석 + HTML 대시보드 |
+| 분류 | 발화 | 역할 |
+|---|---|---|
+| 기본 workflow | `/impl` | 구현 진입 통합 — Lite / Standard / Deep lane 내부 판정 |
+| 기본 workflow | `/product-plan` | 새 기능 spec/design — 그릴미 대화로 PRD + stories + tech-review 스켈레톤 작성 |
+| 기본 workflow | `/issue-report` | 버그/이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE) |
+| 고급 workflow | `/tech-review` | Deep lane 선행 기술 검증 |
+| 고급 workflow | `/architect-loop` | 1 epic 설계 루프 |
+| 고급 workflow | `/impl-loop` | deep impl task 파일용 legacy/advanced runner |
+| 고급 workflow | `/ux` | 화면 UX 플로우 + 디자인 시안 핸드오프 |
+| 유틸리티 | `/init-dcness` | 현 프로젝트를 plugin 활성 whitelist 에 등록 |
+| 유틸리티 | `/run-review` | run 사후 분석 — step별 비용·차단 검출 |
+| 유틸리티 | `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 자동 생성 |
+| 유틸리티 | `/efficiency` | 세션 토큰/캐시/비용 분석 + HTML 대시보드 |
 
-12개 sub-agent(`agents/`) — architect / validator / engineer / reviewer 계열 — 가 위
-skill 안에서 작업 순서와 접근 권한 경계에 따라 호출된다.
+12개 sub-agent(`agents/`) — architect / validator / engineer / reviewer 계열 — 는 사용자-facing
+entrypoint 가 아니라 workflow 내부 gate/worker/reviewer 로 호출된다.
 
 ## 거버넌스 (dcNess 자체 저장소 작업 기준)
 
 본 저장소의 모든 변경은 [`CLAUDE.md`](CLAUDE.md)(SSOT) 를 따른다.
 
-- **게이트**: main-block · git-naming · pytest(pre-commit hook) + plugin-manifest · pr-body · cross-ref(CI)
+- **게이트**: main-block · git-naming · pytest(pre-commit hook) + plugin-manifest · pr-body · public-surface · cross-ref(CI)
 - **branch → PR → merge** 필수, main 직접 push 금지
 - PR 절차: [`CLAUDE.md`](CLAUDE.md#커밋-pr-절차)
 
@@ -150,6 +157,7 @@ cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
 
 python3 -m unittest discover -s tests -v   # 단위 테스트
 node scripts/check_plugin_manifest.mjs     # manifest 검증
+node scripts/check_public_surface.mjs      # public workflow surface 검증
 node scripts/check_cross_refs.mjs          # link/anchor + 옛 명칭 게이트
 bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 ```
@@ -161,7 +169,8 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 | 문서 | 역할 |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성 SSOT (강제 영역 2 + 안티패턴 4) |
-| 각 skill 의 `<skill>-routing.md` ([`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표 + retry + escalate) |
+| [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | public workflow surface 계약 — 기본/고급/유틸리티/내부 agent 분류 |
+| 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표 + retry + escalate) |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | 컨베이어 운전법 — Step 0~8 mechanics (각 loop spec = 해당 skill `## Loop`) |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | catastrophic 시퀀스 + 8 hook SSOT |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |

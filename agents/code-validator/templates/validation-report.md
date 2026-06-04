@@ -2,7 +2,7 @@
 
 ## 대상
 
-- 계획:
+- 계획(impl / bugfix / compact-plan):
 - 구현 파일:
 - scope:
 
