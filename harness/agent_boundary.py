@@ -497,13 +497,20 @@ _SHELL_COMMANDS = frozenset({"bash", "sh", "zsh"})
 _MUTATION_RECURSION_LIMIT = 3
 
 # leader-owned dcness helper 서브커맨드 — 병렬 wave worker(sub-agent) 금지 (#636, 정책 §5).
-# run ledger / step / checkpoint / lifecycle marker 는 leader(메인) 전담. worker 는
-# patch/evidence 만 반환한다. read-only (run-dir/run-status/is-active/status/routing/
-# wave-plan) 는 deny 목록에 없으므로 통과.
+# **run-lifecycle 한정** — run 시작/종료/경계/checkpoint 는 leader(메인/훅) 전담이고
+# 어떤 sub-agent 도 호출하지 않는다(전수 grep 확인). 따라서 차단해도 회귀 0.
+#
+# ⚠️ 의도적 제외 — serial build-worker(sub-agent)가 정상적으로 호출하는 것들은 넣지 않는다:
+#   - `begin-step`/`end-step`: hybrid-A build-worker 가 phase(test/impl/validate)마다 직접
+#     호출 (loop-procedure.md). 막으면 기존 직렬 conveyor 가 깨진다.
+#   - `prev-tasks-append`: build-worker 가 phase 3 에서 자기 산출 누적 (#525). 막으면 다음
+#     task 의 [PREVIOUS_TASKS] 정합이 깨진다. (`prev-tasks-reset` 도 같은 subsystem → 제외.)
+#   이들은 agent_boundary 가 parallel-worker 와 serial-build-worker 를 구별할 신호가 없어
+#   구조 차단이 불가능 → 병렬 worker 에 대해서는 prompt 경계(정책 §5 + agent 지침)로 닫는다.
+# read-only (run-dir/run-status/is-active/status/routing/wave-plan) 도 비대상이라 통과.
 _HELPER_LEADER_SUBCOMMANDS = frozenset({
-    "init-session", "begin-run", "end-run", "next-task", "post-task-begin",
-    "begin-step", "end-step", "finalize-run", "ledger-event", "insight",
-    "prev-tasks-append", "prev-tasks-reset", "auto-resolve",
+    "begin-run", "end-run", "next-task", "post-task-begin",
+    "finalize-run", "ledger-event", "init-session",
 })
 # 호출 형태 식별 — script basename / `python -m` 모듈명.
 _HELPER_SCRIPT_NAMES = frozenset({"dcness-helper"})
@@ -660,8 +667,8 @@ def _helper_leader_mutation(toks: list[str]) -> Optional[str]:
             continue  # 옵션/플래그 skip
         if t in _HELPER_LEADER_SUBCOMMANDS:
             return (
-                f"dcness-helper {t} 차단 — run ledger / step / checkpoint 는 leader "
-                f"영역 (병렬 wave 정책 §5). worker 는 patch/evidence 만 반환."
+                f"dcness-helper {t} 차단 — run 시작/종료/경계/checkpoint 는 leader "
+                f"영역 (병렬 wave 정책 권한 경계). worker 는 patch/evidence 만 반환."
             )
         return None  # 첫 positional 이 leader-owned 아님 (read-only 등) → 통과
     return None
@@ -720,11 +727,12 @@ def check_bash_mutation(command: str) -> Optional[str]:
     """Bash command 안의 외부 시스템 mutation 차단 — block reason str / None=allow.
 
     차단: `git push`, `gh pr (create|merge|...)`, `gh issue (create|edit|close|comment|...)`,
-          `gh api` (mutating method / field flag), leader-owned `dcness-helper` 서브커맨드
-          (begin-run/end-run/next-task/begin-step/end-step/ledger-event/... — 병렬 wave
-          worker 금지, #636).
+          `gh api` (mutating method / field flag), leader-owned run-lifecycle `dcness-helper`
+          서브커맨드 (begin-run/end-run/next-task/post-task-begin/finalize-run/ledger-event/
+          init-session — 병렬 wave worker 금지, #636).
     통과: read-only (`gh pr view`, `gh issue list`, `gh api` GET, `dcness-helper run-dir`,
-          `dcness-helper wave-plan`, 그 외 모든 명령).
+          `dcness-helper wave-plan`), `git commit`(transport), serial build-worker 가 쓰는
+          `begin-step`/`end-step`/`prev-tasks-append`(회귀 방지), 그 외 모든 명령.
     절대 실행 경로(`/usr/bin/git`, `/opt/homebrew/bin/gh`)도 명령명으로 정규화해 식별한다.
     global flag (`git -C ...`, `gh -R ...`) 가 앞에 와도 noun/verb 를 정확히 식별 (codex P2).
     흔한 래퍼(`sudo`/`env`/subshell/쉘 키워드)도 벗겨 식별 (codex P2).

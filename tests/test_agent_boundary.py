@@ -747,7 +747,7 @@ class BashMutationTests(unittest.TestCase):
             check_bash_mutation("bash scripts/dcness-helper end-run")
         )
         self.assertIsNotNone(
-            check_bash_mutation('bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" begin-step build-worker')
+            check_bash_mutation('bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" post-task-begin --reason x')
         )
 
     def test_helper_leader_subcommand_blocked_via_module(self):
@@ -755,6 +755,17 @@ class BashMutationTests(unittest.TestCase):
         self.assertIsNotNone(
             check_bash_mutation("python3 -m harness.session_state finalize-run")
         )
+
+    def test_helper_buildworker_subcommands_pass(self):
+        # #636 회귀 가드 — serial build-worker(sub-agent)가 정상 호출하는 것은 통과.
+        # begin-step/end-step: hybrid-A phase 직접 구동. prev-tasks-append: phase 3 누적.
+        # (deny set 에 넣으면 기존 직렬 conveyor 가 깨진다 — codex P2 F2.)
+        self.assertIsNone(check_bash_mutation("dcness-helper begin-step build-worker"))
+        self.assertIsNone(check_bash_mutation("dcness-helper end-step build-worker"))
+        self.assertIsNone(
+            check_bash_mutation("bash scripts/dcness-helper prev-tasks-append --slug 01-x --summary y")
+        )
+        self.assertIsNone(check_bash_mutation("dcness-helper prev-tasks-reset"))
 
     def test_helper_readonly_subcommand_passes(self):
         # read-only 서브커맨드는 통과 (worker 가 run_dir 등 조회는 무해)

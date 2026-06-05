@@ -118,6 +118,15 @@ class TestParseDependsOn(unittest.TestCase):
         t = self._parse("depends_on: []   # 선행 없음")
         self.assertEqual(t.depends_on, ())
 
+    def test_depends_on_inline_list_with_comment(self):
+        t = self._parse("depends_on: [01-a, 02-b]   # 선행 둘")
+        self.assertEqual(t.depends_on, ("01-a", "02-b"))
+
+    def test_depends_on_block_list_with_inline_comment(self):
+        # codex P2 F1 회귀 가드 — block 원소의 inline 주석이 slug 에 새면 안 됨.
+        t = self._parse("depends_on:\n  - 01-a  # produces X\n  - 02-b")
+        self.assertEqual(t.depends_on, ("01-a", "02-b"))
+
 
 class TestParseScope(unittest.TestCase):
     def _parse_scope(self, scope_block):
@@ -166,6 +175,18 @@ class TestParseScope(unittest.TestCase):
     def test_directory_scope(self):
         t = self._parse_scope("- src/feature/\n")
         self.assertEqual(t.scope_paths, frozenset({"src/feature/"}))
+        self.assertFalse(t.scope_ambiguous)
+
+    def test_hyphenated_paths_accepted(self):
+        # codex P2 F3 회귀 가드 — 하이픈 포함 경로는 흔함(parallel-policy.md / package-lock.json).
+        # ambiguous 로 오판하면 독립 task 가 직렬로 강등돼 병렬 후보 과소탐지.
+        t = self._parse_scope(
+            "- docs/plugin/parallel-policy.md\n- package-lock.json\n"
+        )
+        self.assertEqual(
+            t.scope_paths,
+            frozenset({"docs/plugin/parallel-policy.md", "package-lock.json"}),
+        )
         self.assertFalse(t.scope_ambiguous)
 
 
@@ -332,6 +353,30 @@ class TestComputeWaves(unittest.TestCase):
 
     def test_default_cap_is_two(self):
         self.assertEqual(DEFAULT_MAX_PARALLEL_WORKERS, 2)
+
+    def test_block_depends_on_comment_does_not_parallelize_dependent(self):
+        # codex P2 F1 통합 — block depends_on 의 inline 주석이 slug 에 새면 의존이
+        # 끊겨 의존 task 가 선행과 같은 wave 로 올라간다. parse→compute 로 방지 검증.
+        with tempfile.TemporaryDirectory() as d:
+            _write_impl(
+                d,
+                "01-a.md",
+                "---\ndepends_on: []\n---\n\n## Scope\n\n### 수정 허용\n\n- src/a.py\n",
+            )
+            _write_impl(
+                d,
+                "02-b.md",
+                "---\ndepends_on:\n  - 01-a  # produces shared contract\n---\n\n"
+                "## Scope\n\n### 수정 허용\n\n- src/b.py\n",
+            )
+            a = parse_impl_task(Path(d) / "01-a.md")
+            b = parse_impl_task(Path(d) / "02-b.md")
+        self.assertEqual(b.depends_on, ("01-a",))
+        plan = compute_waves([a, b])
+        # 02-b 가 01-a 에 의존 → 절대 같은 wave 가 아니어야 함 (직렬 2단계).
+        self.assertFalse(plan.has_parallel)
+        self.assertEqual(plan.steps[0].tasks[0].slug, "01-a")
+        self.assertEqual(plan.steps[1].tasks[0].slug, "02-b")
 
 
 # ── fan_in_check ────────────────────────────────────────────

@@ -79,7 +79,7 @@
 leader 가 opt-in 병렬 wave 의 한 worker 로 격리 worktree 에서 호출하면 **patch/evidence only** 만 반환한다 (정책 = `docs/plugin/parallel-policy.md` 의 권한 경계):
 
 - 반환: 격리 worktree 안 코드 diff/patch + 테스트·검증 결과 + evidence prose. transport 용 로컬 commit 은 허용(authoritative 아님).
-- 금지(위 금지에 더해): `git push`, issue close, `dcness-helper` 의 run/step/next-task/ledger/checkpoint 같은 leader-owned 이벤트. 병렬 worker 완료가 곧 task 완료가 아니다 — task 완료는 leader 의 PR merge + issue close 로만 성립한다.
+- 금지(위 금지에 더해): `git push`, issue close, leader 의 run 경계 이벤트(`dcness-helper` 의 begin-run/end-run/next-task/post-task-begin/finalize-run/ledger-event). 병렬 worker 완료가 곧 task 완료가 아니다 — task 완료는 leader 의 PR merge + issue close 로만 성립한다. (자기 phase 의 begin-step/end-step·prev-tasks-append 같은 build-worker 자체 메커니즘은 그대로 쓴다.)
 - 변경은 자기 task 의 `수정 허용` Scope 안에만 둔다 — fan-in 시 leader 가 scope 준수·cross-worker 충돌을 검증한다.
 - 외부 활성 프로젝트에서는 위 금지의 다수가 `harness/agent_boundary.py` 로 구조적으로도 차단된다(prompt + 코드 이중 경계).
 

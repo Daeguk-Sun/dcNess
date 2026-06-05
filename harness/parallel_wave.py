@@ -189,10 +189,15 @@ def _extract_frontmatter_lines(text: str) -> list[str]:
 
 
 def _finalize_dep_items(items: Iterable[str]) -> Optional[tuple[str, ...]]:
-    """파싱한 depends_on 원소들을 정리. placeholder 잔존 시 미상(None)."""
+    """파싱한 depends_on 원소들을 정리. placeholder 잔존 시 미상(None).
+
+    block 리스트 원소의 inline 주석(`- 01-a  # produces X`)도 제거한다 — slug 는
+    `#` 를 포함하지 않으므로 안전. 안 떼면 주석이 slug 에 섞여 `_deps_satisfied`
+    가 선행 task 와 매칭 못 해 의존 task 를 같은 wave 로 잘못 올린다.
+    """
     cleaned: list[str] = []
     for raw in items:
-        it = raw.strip().strip("'\"").strip("`").strip()
+        it = _strip_inline_comment(raw).strip().strip("'\"").strip("`").strip()
         if not it:
             continue
         # placeholder 미충전 (`<NN-slug>`, `...`) → 미상으로 강등 (오판 방지).

@@ -110,11 +110,12 @@ active conveyor run 안의 `Agent` 호출은 직전 `begin-step` 의 단일 `cur
 
 ## 9. agent_boundary 강제 (driver 구현으로 확정 — #636)
 
-[`agent_boundary.py`](../../harness/agent_boundary.py) 의 `check_bash_mutation` 은 sub-agent 의 `git push` / `gh` mutation 에 더해, **leader-owned `dcness-helper` 서브커맨드**(`begin-run` / `end-run` / `next-task` / `begin-step` / `end-step` / `finalize-run` / `ledger-event` / `post-task-begin` / `insight` / `prev-tasks-*` / `auto-resolve` / `init-session`)를 차단한다. 호출 형태 3가지(wrapper 직접 / `bash <path>/dcness-helper` / `python -m harness.session_state`)를 모두 식별한다.
+[`agent_boundary.py`](../../harness/agent_boundary.py) 의 `check_bash_mutation` 은 sub-agent 의 `git push` / `gh` mutation 에 더해, **leader-owned run-lifecycle `dcness-helper` 서브커맨드**(`begin-run` / `end-run` / `next-task` / `post-task-begin` / `finalize-run` / `ledger-event` / `init-session`)를 차단한다. 호출 형태 3가지(wrapper 직접 / `bash <path>/dcness-helper` / `python -m harness.session_state`)를 모두 식별한다.
 
-- 따라서 worker→leader-mutation 은 **prompt 경계(agent 지침 + 본 문서 "권한 경계") + 코드 경계(agent_boundary) 이중**으로 닫힌다.
-- `git commit` 은 통과시킨다 — worker 의 transport 용 로컬 commit 은 허용("권한 경계")이기 때문. read-only helper(`run-dir` / `run-status` / `is-active` / `status` / `routing` / `wave-plan`)도 통과.
-- 한계: 변수 indirection(`"$HELPER" end-run`) 등은 미탐 — 본 guard 는 보안 경계가 아니라 best-effort denylist(기존 git/gh 차단과 동일 시맨틱). 실제 경계는 "leader-owned 는 leader 영역" 시퀀스 규약 + 직접 호출 차단의 조합이다.
+- 차단 대상은 **run 시작/종료/경계/checkpoint** 한정이다 — 이들은 어떤 sub-agent 도 호출하지 않아(전수 확인) 차단해도 기존 흐름 회귀가 0이다.
+- **의도적 제외** — serial build-worker(sub-agent)가 정상적으로 호출하는 것은 구조 차단하지 않는다: `begin-step`/`end-step`(hybrid-A 가 phase 마다 직접 호출 — [`loop-procedure.md`](loop-procedure.md))과 `prev-tasks-append`(phase 3 산출 누적). agent_boundary 는 parallel-worker 와 serial-build-worker 를 구별할 신호가 없으므로, 이들은 막으면 직렬 conveyor 가 깨진다. 병렬 worker 의 step/prev-tasks 경계는 **prompt 경계**("권한 경계" + agent 지침)로 닫는다.
+- 따라서 경계는 **run-lifecycle = 코드 차단**, **step/prev-tasks·기타 = prompt 경계** 의 조합이다. `git commit`(transport)·read-only helper(`run-dir` / `run-status` / `is-active` / `status` / `routing` / `wave-plan`)도 통과.
+- 한계: 변수 indirection(`"$HELPER" end-run`) 등은 미탐 — 본 guard 는 보안 경계가 아니라 best-effort denylist(기존 git/gh 차단과 동일 시맨틱).
 - dcness self repo 는 infra 라 이 guard 가 bypass 된다(기존 git-push 차단과 동일) — 강제는 *외부 활성 프로젝트* 에서 발화한다.
 
 ## 10. 범위 경계 — 정책(#589) → driver(#636) → 후속
