@@ -194,7 +194,7 @@ def _normalize_legacy_rows(legacy: Path) -> List[Dict[str, Any]]:
     return out
 
 
-def append_event(
+def _append_event_raw(
     sid: str,
     rid: str,
     event: str,
@@ -203,7 +203,11 @@ def append_event(
     ts: Optional[str] = None,
     **fields: Any,
 ) -> Dict[str, Any]:
-    """ledger.jsonl 에 event 한 줄 append (append-only). 작성된 record 반환.
+    """저수준 append — event ∈ EVENT_TYPES 만 검증. 작성된 record 반환.
+
+    🔴 helper 내부 전용 (`_` prefix). 직접 호출 금지 — step_completed 는 receipt
+    동반이 강제이므로 반드시 `append_step_completed` 를, 그 외 event 는
+    `append_event` (public, step_completed 거부) 를 쓴다.
 
     Raises:
         ValueError: event 가 EVENT_TYPES 에 없음.
@@ -223,6 +227,35 @@ def append_event(
     with open(target, "a", encoding="utf-8") as f:
         f.write(json.dumps(record, ensure_ascii=False) + "\n")
     return record
+
+
+def append_event(
+    sid: str,
+    rid: str,
+    event: str,
+    *,
+    base_dir: Optional[Path] = None,
+    ts: Optional[str] = None,
+    **fields: Any,
+) -> Dict[str, Any]:
+    """ledger.jsonl 에 event 한 줄 append (append-only). 작성된 record 반환.
+
+    🔴 step_completed 직접 생성 거부 (codex review): step_completed 는 prose 무결성
+    receipt (sha256 / prose_file / evidence_paths) 를 동반해야 하고, 소비처
+    (read_step_completed / list_runs / finalize-run) 가 이를 진짜 step 으로 신뢰한다.
+    receipt 없는 위조 step_completed 가 prose-as-SSOT invariant 를 깨지 못하도록
+    step_completed 는 오직 `append_step_completed` 만 생성한다. run_started /
+    step_started / run_finished 같은 lifecycle marker 와 manual event 는 그대로 허용.
+
+    Raises:
+        ValueError: event 가 step_completed 이거나 EVENT_TYPES 에 없음.
+    """
+    if event == "step_completed":
+        raise ValueError(
+            "step_completed 는 append_step_completed (receipt 동반) 전용 — "
+            "append_event 직접 생성 금지 (prose-as-SSOT invariant)."
+        )
+    return _append_event_raw(sid, rid, event, base_dir=base_dir, ts=ts, **fields)
 
 
 def _read_events_paths(
@@ -423,9 +456,14 @@ def append_step_completed(
     *,
     base_dir: Optional[Path] = None,
 ) -> Dict[str, Any]:
-    """end-step 시점: prose 에서 receipt 생성 → step_completed event append."""
+    """end-step 시점: prose 에서 receipt 생성 → step_completed event append.
+
+    step_completed 의 *유일한* 정당 생성 경로 — receipt (sha256 / prose_file /
+    evidence_paths) 를 동반해 _append_event_raw 로 기록한다. public append_event 는
+    step_completed 를 거부하므로 위조 경로가 없다 (codex review).
+    """
     receipt = build_receipt(agent, mode, enum, prose, prose_path)
-    return append_event(
+    return _append_event_raw(
         sid, rid, "step_completed", base_dir=base_dir, **receipt
     )
 

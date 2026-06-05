@@ -110,6 +110,22 @@ class AppendEventTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 ledger.append_event(_SID, _RID, "not_a_real_event", base_dir=base)
 
+    def test_append_event_rejects_step_completed(self) -> None:
+        """public append_event 는 step_completed 위조 거부 — append_step_completed 전용 (codex review)."""
+        with TemporaryDirectory() as d:
+            base = Path(d)
+            _seed_run(base)
+            with self.assertRaises(ValueError):
+                ledger.append_event(_SID, _RID, "step_completed", base_dir=base, agent="fake")
+            # 디스크에 위조 step_completed 가 안 남음
+            self.assertEqual(ledger.read_step_completed(_SID, _RID, base_dir=base), [])
+            # 정당 경로(append_step_completed)는 receipt 동반으로 생성
+            rec = ledger.append_step_completed(
+                _SID, _RID, "real", None, "PROSE_LOGGED", "p", "/tmp/r.md", base_dir=base)
+            self.assertEqual(rec["event"], "step_completed")
+            self.assertIn("sha256", rec)
+            self.assertEqual(len(ledger.read_step_completed(_SID, _RID, base_dir=base)), 1)
+
     def test_append_order_preserved(self) -> None:
         with TemporaryDirectory() as d:
             base = Path(d)
