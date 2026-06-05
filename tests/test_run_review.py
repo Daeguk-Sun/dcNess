@@ -501,6 +501,40 @@ class ReportRenderTests(unittest.TestCase):
             self.assertIn("MODULE_PLAN", text)
             self.assertIn("IMPL_DONE", text)
 
+    def test_verify_only_pass_step_is_clean_without_pr_step(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            rd = _make_run_dir(
+                tmp,
+                "sid1",
+                "rid1",
+                [
+                    {
+                        "ts": "2026-06-05T10:00:00+00:00",
+                        "agent": "code-validator",
+                        "mode": "VERIFY_ONLY",
+                        "enum": "PROSE_LOGGED",
+                        "must_fix": False,
+                        "prose_excerpt": "verify-only import contracts kept\n\nPASS",
+                    },
+                ],
+                {
+                    "code-validator-VERIFY_ONLY.md": (
+                        "검증 명령: lint-imports\n"
+                        "exit code: 0\n"
+                        "git status --porcelain: empty\n\n"
+                        "PASS\n"
+                    )
+                },
+            )
+            report = build_report(rd, repo_path=tmp)
+            text = render_report(report)
+            self.assertEqual(len(report.steps), 1)
+            self.assertEqual(report.final_enum, "PASS")
+            self.assertTrue(report.final_clean)
+            self.assertIn("code-validator [VERIFY_ONLY]", text)
+            self.assertIn("| clean 판정 | ✅ |", text)
+
 
 class RunListTests(unittest.TestCase):
     def test_list_and_find(self):

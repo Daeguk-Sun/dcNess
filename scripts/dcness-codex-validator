@@ -20,6 +20,9 @@ Options:
   --helper            dcness-helper path. Default: sibling script.
   --help, -h          Show this help.
 
+Environment:
+  DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 600.
+
 The wrapper runs Codex in read-only mode. On Codex CLI versions that expose
 approval flags, it also passes -a never:
   codex exec -C "$PROJECT_ROOT" -s read-only [-a never] --output-last-message "$TMP_PROSE"
@@ -63,6 +66,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
+CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-600}"
+
+abs_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "$(pwd)" "$1" ;;
+  esac
+}
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -94,20 +105,72 @@ if [ -z "$PROMPT_FILE" ] || [ ! -f "$PROMPT_FILE" ]; then
   echo "[dcness-codex-validator] --prompt-file is required and must exist" >&2
   exit 2
 fi
+PROMPT_FILE="$(abs_path "$PROMPT_FILE")"
 
 if [ -z "$PROJECT_ROOT" ]; then
   PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
+if [ ! -d "$PROJECT_ROOT" ]; then
+  echo "[dcness-codex-validator] project root not found: $PROJECT_ROOT" >&2
+  exit 2
+fi
+PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
+HELPER="$(abs_path "$HELPER")"
 
 if [ ! -x "$HELPER" ]; then
   echo "[dcness-codex-validator] helper not executable: $HELPER" >&2
   exit 2
 fi
 
+case "$CODEX_TIMEOUT" in
+  ''|*[!0-9]*)
+    echo "[dcness-codex-validator] DCNESS_CODEX_TIMEOUT must be a positive integer: $CODEX_TIMEOUT" >&2
+    exit 2
+    ;;
+esac
+if [ "$CODEX_TIMEOUT" -lt 1 ]; then
+  echo "[dcness-codex-validator] DCNESS_CODEX_TIMEOUT must be >= 1" >&2
+  exit 2
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[dcness-codex-validator] python3 not found; required for timeout and context resolution" >&2
+  exit 127
+fi
+
 if ! command -v codex >/dev/null 2>&1; then
   echo "[dcness-codex-validator] codex CLI not found" >&2
   exit 127
 fi
+
+cd "$PROJECT_ROOT"
+
+CONTEXT="$(
+  PYTHONPATH="$SCRIPT_DIR/.." python3 -c '
+import sys
+from harness.session_state import (
+    auto_detect_run_id,
+    auto_detect_session_id,
+    diagnose_sid_rid_resolution,
+)
+
+sid = auto_detect_session_id()
+rid = auto_detect_run_id()
+if not sid or not rid:
+    print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
+    sys.exit(1)
+print(f"{sid}\t{rid}")
+'
+)"
+if [ $? -ne 0 ]; then
+  echo "[dcness-codex-validator] sid/rid resolve failed before Codex launch" >&2
+  exit 1
+fi
+IFS="$(printf '\t')" read -r RESOLVED_SID RESOLVED_RID <<EOF
+$CONTEXT
+EOF
+export DCNESS_SESSION_ID="$RESOLVED_SID"
+export DCNESS_RUN_ID="$RESOLVED_RID"
 
 BEFORE_STATUS="$(git -C "$PROJECT_ROOT" status --porcelain=v1 2>/dev/null || true)"
 BASELINE_CLEAN=0
@@ -164,9 +227,80 @@ if codex exec --help 2>/dev/null | grep -Eq -- '(^|[[:space:]])-a,|--ask-for-app
 fi
 CODEX_ARGS+=( - )
 
-if ! codex "${CODEX_ARGS[@]}" < "$TMP_PROMPT"; then
-  echo "[dcness-codex-validator] codex exec failed" >&2
+run_codex_once() {
+  python3 -c '
+import os
+import signal
+import subprocess
+import sys
+
+timeout = int(sys.argv[1])
+cmd = sys.argv[2:]
+proc = subprocess.Popen(cmd, stdin=sys.stdin.buffer, start_new_session=True)
+try:
+    proc.wait(timeout=timeout)
+except subprocess.TimeoutExpired:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+    sys.exit(124)
+sys.exit(proc.returncode)
+' "$CODEX_TIMEOUT" codex "${CODEX_ARGS[@]}" < "$TMP_PROMPT"
+}
+
+write_timeout_prose() {
+  cat > "$TMP_PROSE" <<EOF
+# Codex validation timeout
+
+dcNess Codex validation did not finish within ${CODEX_TIMEOUT}s. The wrapper killed the hung codex exec process, retried once, and the retry timed out as well.
+
+검증이 완료되지 않았으므로 이 결과를 PASS 또는 FAIL로 간주하면 안 된다. 호출 측은 이 task를 수동 검증하거나 사용자에게 에스컬레이트해야 한다.
+
+ESCALATE
+EOF
+}
+
+ATTEMPT=1
+MAX_ATTEMPTS=2
+CODEX_RC=0
+TIMED_OUT=0
+while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+  : > "$TMP_PROSE"
+  run_codex_once
+  CODEX_RC=$?
+  if [ "$CODEX_RC" -eq 0 ]; then
+    break
+  fi
+  if [ "$CODEX_RC" -eq 124 ]; then
+    echo "[dcness-codex-validator] codex exec timed out after ${CODEX_TIMEOUT}s (attempt ${ATTEMPT}/${MAX_ATTEMPTS})" >&2
+    if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
+      ATTEMPT=$((ATTEMPT + 1))
+      continue
+    fi
+    TIMED_OUT=1
+    break
+  fi
+  echo "[dcness-codex-validator] codex exec failed (exit $CODEX_RC)" >&2
   exit 1
+done
+
+if [ "$TIMED_OUT" = "1" ]; then
+  write_timeout_prose
+  if [ -n "$MODE" ]; then
+    "$HELPER" end-step "$AGENT" "$MODE" --prose-file "$TMP_PROSE" || true
+  else
+    "$HELPER" end-step "$AGENT" --prose-file "$TMP_PROSE" || true
+  fi
+  exit 124
 fi
 
 if [ ! -s "$TMP_PROSE" ]; then
