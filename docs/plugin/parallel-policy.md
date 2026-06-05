@@ -59,6 +59,7 @@ peer task 는 PR 생성까지 독립적으로 갈 수 있지만, merge 단계는
 - lock 획득 후 `git fetch origin main`, `gh pr update-branch`, `gh pr checks` 로 base/PR 상태를 다시 확인한다. 최종 pass/fail 은 기존 `gh pr checks --watch` 와 merge 결과가 결정한다.
 - merge 성공 후 `merge-lock complete` 가 claim 을 `completed` 로 기록하고 lock 을 해제한다.
 - merge 실패 / CI fail / conflict / 중단은 claim 을 failed/stale-reclaimable 상태로 남긴다. 사용자가 상태를 보고 재시도 또는 reclaim 한다.
+- peer finalize 도중 프로세스가 `SIGKILL` 등으로 종료돼 `EXIT` trap 이 실행되지 않으면 merge lock 파일이 남을 수 있다. operator 가 holder/session 이 실제로 종료됐음을 확인한 뒤에만 `dcness-helper merge-lock break --stale-after <seconds> --reason "<why>"` 로 tokenless stale break 를 수행한다. fresh lock 은 break 되지 않는다.
 
 ### task_index order gate
 
@@ -108,6 +109,7 @@ peer task 는 PR 생성까지 독립적으로 갈 수 있지만, merge 단계는
 | `wave-reclaim` | stale claim 명시 reclaim |
 | `wave-release` | completed/failed/released 상태 기록 |
 | `merge-lock acquire/release/complete` | `pr-finalize.sh` 내부 merge mutex + completed 기록 |
+| `merge-lock break` | operator 확인 후 stale merge lock tokenless 복구 |
 
 ## 9. legacy residue
 

@@ -1945,6 +1945,22 @@ def _cli_merge_lock(args: Any) -> int:
             return 1
         _json_stdout({"ok": True, "claim": claim, "lock": lock_record})
         return 0
+    if action == "break":
+        owner = args.owner or f"operator:{os.getpid()}"
+        try:
+            record = lock.break_stale(
+                owner=owner,
+                stale_after_seconds=args.stale_after,
+                reason=args.reason or "",
+            )
+        except LockBusy as exc:
+            _json_stdout({"ok": False, "error": str(exc)})
+            return 1
+        except Exception as exc:
+            print(f"[merge-lock] {exc}", file=sys.stderr)
+            return 1
+        _json_stdout({"ok": True, "record": record})
+        return 0
     print(f"[merge-lock] unknown action: {action}", file=sys.stderr)
     return 1
 
@@ -2786,6 +2802,20 @@ def _build_arg_parser() -> Any:
     p_mlc.add_argument("--pr", type=int, default=None)
     p_mlc.add_argument("--url", default=None)
     p_mlc.set_defaults(func=_cli_merge_lock)
+    p_mlb = ml_sub.add_parser(
+        "break",
+        help="#641 peer merge lock stale 복구 (tokenless, stale 확인 후)",
+    )
+    p_mlb.add_argument(
+        "--stale-after",
+        type=int,
+        default=2 * 60 * 60,
+        dest="stale_after",
+        help="stale 판정 초 (default 7200). fresh lock 은 해제하지 않음.",
+    )
+    p_mlb.add_argument("--owner", default=None)
+    p_mlb.add_argument("--reason", default="")
+    p_mlb.set_defaults(func=_cli_merge_lock)
 
     p_le = sub.add_parser(
         "ledger-event",

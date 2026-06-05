@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from harness.merge_lock import LockBusy, MergeLock, check_merge_order
@@ -54,6 +55,35 @@ class MergeLockTests(unittest.TestCase):
         second = lock.acquire(owner="session-b", branch="feature/b", pr_number=102)
         self.assertNotEqual(first.token, second.token)
         lock.release(second.token, state="released")
+
+    def test_tokenless_break_releases_only_stale_lock(self) -> None:
+        now = datetime(2026, 6, 5, 12, 0, tzinfo=timezone.utc)
+        later = now + timedelta(hours=3)
+        lock = MergeLock(self.root)
+        first = lock.acquire(
+            owner="session-a",
+            branch="feature/a",
+            pr_number=101,
+            now=now,
+        )
+
+        with self.assertRaises(LockBusy):
+            lock.break_stale(owner="operator", stale_after_seconds=4 * 60 * 60, now=later)
+        self.assertTrue(lock.lock_path.exists())
+
+        broken = lock.break_stale(
+            owner="operator",
+            stale_after_seconds=60 * 60,
+            reason="session was SIGKILLed",
+            now=later,
+        )
+
+        self.assertEqual(broken["state"], "stale_broken")
+        self.assertEqual(broken["token"], first.token)
+        self.assertEqual(broken["broken_by"], "operator")
+        self.assertFalse(lock.lock_path.exists())
+        second = lock.acquire(owner="session-b", branch="feature/b", pr_number=102)
+        self.assertNotEqual(first.token, second.token)
 
     def test_order_check_uses_all_prior_sibling_tasks_not_only_claimed_tasks(self) -> None:
         first = _write_impl(self.root, "01-first.md", story="1", task_index="1/2")
@@ -230,6 +260,35 @@ class MergeLockCliTests(unittest.TestCase):
         self.assertEqual(acquire.returncode, 1)
         payload = json.loads(acquire.stdout)
         self.assertIn("explicit wave-reclaim", payload["error"])
+
+    def test_merge_lock_break_stale_cli_releases_without_token(self) -> None:
+        old = datetime.now(timezone.utc) - timedelta(hours=3)
+        lock = MergeLock(self.root)
+        acquired = lock.acquire(
+            owner="dead-session",
+            branch="feature/a",
+            pr_number=101,
+            now=old,
+        )
+
+        broken = self._run_cli(
+            [
+                "merge-lock",
+                "break",
+                "--stale-after",
+                str(60 * 60),
+                "--owner",
+                "operator",
+                "--reason",
+                "operator confirmed stale",
+            ]
+        )
+
+        self.assertEqual(broken.returncode, 0, broken.stderr)
+        payload = json.loads(broken.stdout)
+        self.assertEqual(payload["record"]["state"], "stale_broken")
+        self.assertEqual(payload["record"]["token"], acquired.token)
+        self.assertFalse(lock.lock_path.exists())
 
 
 class ExternalGitCompletedTests(unittest.TestCase):

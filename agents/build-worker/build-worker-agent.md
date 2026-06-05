@@ -74,14 +74,11 @@
 - build-test phase에서는 구현 source를 읽지 않는다.
 - Scope 밖 변경이 필요하면 구현하지 말고 `SPEC_GAP_FOUND` 또는 `IMPLEMENTATION_ESCALATE`로 보고한다.
 
-### 병렬 wave 모드 (leader 가 격리 worktree 에서 호출한 경우 — #636)
+### 병렬 wave legacy boundary
 
-leader 가 opt-in 병렬 wave 의 한 worker 로 격리 worktree 에서 호출하면 **patch/evidence only** 만 반환한다 (정책 = `docs/plugin/parallel-policy.md` 의 권한 경계):
+현재 `docs/plugin/parallel-policy.md` 의 peer 모델에서는 leader 가 build-worker 를 격리 worktree worker 로 호출하지 않는다. 병렬 실행은 사용자가 별도 interactive `/impl-loop <canonical-impl-path>` 세션을 여는 방식이며, 각 세션은 일반 single task 경계와 peer claim / merge-lock 경로를 따른다.
 
-- 반환: 격리 worktree 안 코드 diff/patch + 테스트·검증 결과 + evidence prose. transport 용 로컬 commit 은 허용(authoritative 아님).
-- 금지(위 금지에 더해): `git push`, issue close, leader 의 run 경계 이벤트(`dcness-helper` 의 begin-run/end-run/next-task/post-task-begin/finalize-run/ledger-event). 병렬 worker 완료가 곧 task 완료가 아니다 — task 완료는 leader 의 PR merge + issue close 로만 성립한다. (자기 phase 의 begin-step/end-step·prev-tasks-append 같은 build-worker 자체 메커니즘은 그대로 쓴다.)
-- 변경은 자기 task 의 `수정 허용` Scope 안에만 둔다 — fan-in 시 leader 가 scope 준수·cross-worker 충돌을 검증한다.
-- 외부 활성 프로젝트에서는 위 금지의 다수가 `harness/agent_boundary.py` 로 구조적으로도 차단된다(prompt + 코드 이중 경계).
+이전 fan-in 모델의 driver 가 이 agent 를 worker 로 호출하는 경우에만 legacy 경계가 적용된다: build-worker 는 patch/evidence 만 반환하고 PR 생성·머지·issue close·leader run lifecycle mutation 을 수행하지 않는다.
 
 ## 결론과 보고
 

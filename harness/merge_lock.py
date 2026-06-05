@@ -14,6 +14,7 @@ from typing import Callable, Optional
 from harness.wave_board import WaveBoard
 
 __all__ = [
+    "DEFAULT_LOCK_STALE_AFTER_SECONDS",
     "LockBusy",
     "MergeLock",
     "MergeLockToken",
@@ -24,6 +25,7 @@ __all__ = [
     "external_git_completed",
 ]
 
+DEFAULT_LOCK_STALE_AFTER_SECONDS = 2 * 60 * 60
 _JSON_MODE = 0o600
 
 
@@ -62,8 +64,21 @@ class PeerMergeGuard:
     order: MergeOrderResult
 
 
-def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat()
+def _now_iso(now: datetime | None = None) -> str:
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    return now.astimezone(timezone.utc).isoformat()
+
+
+def _parse_iso(value: str) -> Optional[datetime]:
+    try:
+        dt = datetime.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def _read_json(path: Path) -> dict:
@@ -113,7 +128,14 @@ class MergeLock:
         self.lock_path = self.root / "merge.lock"
         self.archive_dir = self.root / "archive"
 
-    def acquire(self, *, owner: str, branch: str, pr_number: int | None = None) -> MergeLockToken:
+    def acquire(
+        self,
+        *,
+        owner: str,
+        branch: str,
+        pr_number: int | None = None,
+        now: datetime | None = None,
+    ) -> MergeLockToken:
         token = uuid.uuid4().hex
         record = {
             "token": token,
@@ -122,7 +144,7 @@ class MergeLock:
             "pr_number": pr_number,
             "pid": os.getpid(),
             "state": "locked",
-            "acquired_at": _now_iso(),
+            "acquired_at": _now_iso(now),
         }
         try:
             _direct_create_json(self.lock_path, record)
@@ -135,21 +157,71 @@ class MergeLock:
             raise LockBusy(f"merge lock is held by {holder}")
         return MergeLockToken(token, str(self.lock_path), record)
 
-    def release(self, token: str, *, state: str = "released", reason: str = "") -> dict:
+    def release(
+        self,
+        token: str,
+        *,
+        state: str = "released",
+        reason: str = "",
+        now: datetime | None = None,
+    ) -> dict:
         if not self.lock_path.exists():
             return {"state": "missing"}
         record = _read_json(self.lock_path)
         if record.get("token") != token:
             raise LockBusy("merge lock token mismatch")
         record["state"] = state
-        record["released_at"] = _now_iso()
+        record["released_at"] = _now_iso(now)
         if reason:
             record["reason"] = reason
+        self._archive_and_unlink(record)
+        return record
+
+    def break_stale(
+        self,
+        *,
+        owner: str,
+        stale_after_seconds: int = DEFAULT_LOCK_STALE_AFTER_SECONDS,
+        reason: str = "",
+        now: datetime | None = None,
+    ) -> dict:
+        """Explicit operator recovery for a stale lock when the token is lost."""
+
+        if not self.lock_path.exists():
+            return {"state": "missing"}
+        record = _read_json(self.lock_path)
+        if not self._is_stale(record, stale_after_seconds=stale_after_seconds, now=now):
+            holder = record.get("owner") or record.get("branch") or "unknown"
+            raise LockBusy(f"merge lock is not stale; held by {holder}")
+        record["state"] = "stale_broken"
+        record["released_at"] = _now_iso(now)
+        record["broken_by"] = owner
+        record["stale_after_seconds"] = stale_after_seconds
+        if reason:
+            record["reason"] = reason
+        self._archive_and_unlink(record)
+        return record
+
+    def _is_stale(
+        self,
+        record: dict,
+        *,
+        stale_after_seconds: int,
+        now: datetime | None = None,
+    ) -> bool:
+        acquired = _parse_iso(str(record.get("acquired_at", "")))
+        if acquired is None:
+            return False
+        now_dt = now or datetime.now(timezone.utc)
+        if now_dt.tzinfo is None:
+            now_dt = now_dt.replace(tzinfo=timezone.utc)
+        return (now_dt.astimezone(timezone.utc) - acquired).total_seconds() > stale_after_seconds
+
+    def _archive_and_unlink(self, record: dict) -> None:
         self.archive_dir.mkdir(parents=True, exist_ok=True)
         archive_path = self.archive_dir / f"{record['token']}.json"
         _atomic_write_json(archive_path, record)
         self.lock_path.unlink()
-        return record
 
 
 def _extract_frontmatter(path: Path) -> dict[str, str]:
