@@ -66,24 +66,6 @@ claude plugin install dcness@dcness
 dcness-helper routing disable-codex-validation
 ```
 
-## 30초 데모: What It Catches
-
-가장 작은 데모는 "잘못된 순서 → hook block → 복구 → PR" 흐름이다. 전체 transcript 는
-[`docs/plugin/demo.md`](docs/plugin/demo.md) 에 있다.
-
-```text
-Claude tries to call pr-reviewer before code-validator PASS
-→ dcNess blocks the call: review cannot run before validation
-→ run code-validator read-only
-→ code-validator returns PASS
-→ pr-reviewer runs read-only
-→ tests pass
-→ branch → PR
-```
-
-이 흐름의 핵심은 절차를 늘리는 것이 아니라, 사고가 PR 로 번지기 전에 guard 가 멈추고
-복구 경로를 바로 보여주는 것이다.
-
 ## 작업 흐름
 
 **기본 공개 workflow 는 작게 유지한다.** 사용자가 기본으로 외울 진입점은 세 개다.
@@ -216,7 +198,7 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 
 - [`#520 /init-dcness doctor`](https://github.com/alruminum/dcNess/issues/520) — 활성화 실패를 사용자가 직접 진단할 수 있게 한다.
 - [`#521 agent/skill RED-GREEN 시나리오 테스트`](https://github.com/alruminum/dcNess/issues/521) — guard 동작을 예제 기반으로 검증한다.
-- [`#522 public benchmark`](https://github.com/alruminum/dcNess/issues/522) — 위 30초 데모의 block / recovery / PR 지점을 측정 포인트로 삼는다.
+- [`#522 public benchmark`](https://github.com/alruminum/dcNess/issues/522) — public launch 전 성능·효용 근거를 정리한다.
 - [`#524 runtime non-goal vs interop 포지셔닝`](https://github.com/alruminum/dcNess/issues/524) — provider router 가 아니라 PR workflow guard 라는 경계를 명확히 한다.
 
 ### 역사 자료 (archive)
