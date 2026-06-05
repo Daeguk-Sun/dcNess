@@ -2198,7 +2198,7 @@ class StopHookGuardTests(unittest.TestCase):
         from unittest.mock import patch
 
         from harness import ledger
-        from harness.session_state import read_live, start_run, update_live
+        from harness.session_state import read_live, run_dir, start_run, update_live
 
         sid = "sid-finalize-only"
         rid = "run-cafe1234"
@@ -2206,8 +2206,10 @@ class StopHookGuardTests(unittest.TestCase):
             base = Path(td)
             update_live(sid, base_dir=base)
             start_run(sid, rid, "impl", base_dir=base)
+            prose_path = run_dir(sid, rid, base_dir=base) / "pr-reviewer.md"
+            prose_path.write_text("ok", encoding="utf-8")
             ledger.append_step_completed(
-                sid, rid, "pr-reviewer", None, "PROSE_LOGGED", "ok", "/tmp/pr.md", base_dir=base)
+                sid, rid, "pr-reviewer", None, "PROSE_LOGGED", "ok", prose_path, base_dir=base)
             # finalize-run 흉내 — finalized_at 세팅, run_finished 는 없음
             live = read_live(sid, base_dir=base)
             slot = dict(live["active_runs"][rid])
@@ -2230,7 +2232,7 @@ class StopHookGuardTests(unittest.TestCase):
         from unittest.mock import patch
 
         from harness import ledger
-        from harness.session_state import read_live, start_run, update_live
+        from harness.session_state import read_live, run_dir, start_run, update_live
 
         sid = "sid-already-finished"
         rid = "run-beef5678"
@@ -2238,8 +2240,10 @@ class StopHookGuardTests(unittest.TestCase):
             base = Path(td)
             update_live(sid, base_dir=base)
             start_run(sid, rid, "impl", base_dir=base)
+            prose_path = run_dir(sid, rid, base_dir=base) / "pr-reviewer.md"
+            prose_path.write_text("ok", encoding="utf-8")
             ledger.append_step_completed(
-                sid, rid, "pr-reviewer", None, "PROSE_LOGGED", "ok", "/tmp/pr.md", base_dir=base)
+                sid, rid, "pr-reviewer", None, "PROSE_LOGGED", "ok", prose_path, base_dir=base)
             ledger.append_event(sid, rid, "run_finished", base_dir=base)
             live = read_live(sid, base_dir=base)
             slot = dict(live["active_runs"][rid])

@@ -239,9 +239,10 @@ def list_runs(sessions_root: Path) -> list[Path]:
     """`.sessions/{sid}/runs/{rid}/` 디렉토리 list (mtime 내림차순) — implicit --latest/--list 후보.
 
     이슈 #587 (codex review): run-review 는 *끝난* run 분석 도구다.
-    - ledger-backed run(ledger.jsonl): `run_finished` event 가 있어야 포함한다. 신규
-      ledger 는 begin-run 부터 event 를 쓰므로, 첫 step_completed 후 end-run 전의
-      partial active run 이 implicit --latest 로 선택돼 미완 리포트가 나오는 것을 막는다.
+    - ledger-backed run(ledger.jsonl): `run_finished` event 와 유효 step_completed 가
+      둘 다 있어야 포함한다. 신규 ledger 는 begin-run 부터 event 를 쓰므로, 첫
+      step_completed 후 end-run 전의 partial active run 이 implicit --latest 로
+      선택돼 미완 리포트가 나오는 것을 막고, step 없는 완료 run 도 제외한다.
       (명시 `--run-id` 는 find_run_dir 직접 탐색으로 partial 도 분석 가능.)
     - legacy .steps.jsonl run: run_finished 개념이 없으므로 step_completed≥1 로 판정
       (옛 '파일 존재 = 최소 1 step' 동작과 동등, 호환 경로).
@@ -259,10 +260,11 @@ def list_runs(sessions_root: Path) -> list[Path]:
             events = ledger.read_events_at(rid_dir)
             if not events:
                 continue
+            has_step = any(e.get("event") == "step_completed" for e in events)
             if (rid_dir / "ledger.jsonl").exists():
-                if any(e.get("event") == "run_finished" for e in events):
+                if has_step and any(e.get("event") == "run_finished" for e in events):
                     runs.append(rid_dir)
-            elif any(e.get("event") == "step_completed" for e in events):
+            elif has_step:
                 runs.append(rid_dir)
     return sorted(runs, key=lambda p: p.stat().st_mtime, reverse=True)
 

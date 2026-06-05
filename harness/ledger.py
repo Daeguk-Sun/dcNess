@@ -258,31 +258,54 @@ def append_event(
     return _append_event_raw(sid, rid, event, base_dir=base_dir, ts=ts, **fields)
 
 
+def _validate_primary_step_receipt(event: Dict[str, Any]) -> str:
+    """primary step_completed receipt 검증. 정상 = 빈 문자열, 비정상 = reason."""
+    prose_file = event.get("prose_file")
+    expected_sha = event.get("sha256")
+    if not isinstance(prose_file, str) or not prose_file:
+        return "missing_field"
+    if not isinstance(expected_sha, str) or not expected_sha:
+        return "missing_field"
+
+    prose_path = Path(prose_file)
+    if not prose_path.exists():
+        return "missing_file"
+    try:
+        actual = prose_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return "unreadable_file"
+    if sha256_text(actual) != expected_sha:
+        return "sha256_mismatch"
+    return ""
+
+
 def _drop_invalid_primary_steps(
     events: List[Dict[str, Any]], primary: Path
 ) -> List[Dict[str, Any]]:
-    """primary ledger.jsonl 의 receipt 없는 step_completed 를 drop + warn (codex review).
+    """primary ledger.jsonl 의 invalid receipt step_completed 를 drop + warn.
 
-    정당한 step_completed 는 append_step_completed 가 prose_file 을 동반한다.
-    prose_file 이 없는 step_completed 는 위조(append API 우회) 또는 손상이므로
-    소비처가 진짜 step 으로 신뢰하지 않도록 제거한다. step_completed 외 event 는 보존.
+    정당한 step_completed 는 append_step_completed 가 생성한 prose_file + sha256 를
+    동반하고, read 시점에 prose 파일이 실제 존재하며 digest 가 일치해야 한다.
+    위조(append API 우회) 또는 손상된 durable event 를 소비처가 진짜 step 으로
+    신뢰하지 않도록 제거한다. step_completed 외 event 는 보존.
     """
     kept: List[Dict[str, Any]] = []
-    dropped = 0
+    dropped_by_reason: Dict[str, int] = {}
     for e in events:
-        if e.get("event") == "step_completed" and not (
-            e.get("prose_file") and e.get("sha256")
-        ):
-            # prose_file + sha256 둘 다 있어야 정당한 receipt (append_step_completed 산출).
-            # 한쪽이라도 없으면 위조(append API 우회)/손상이므로 drop.
-            dropped += 1
-            continue
+        if e.get("event") == "step_completed":
+            reason = _validate_primary_step_receipt(e)
+            if reason:
+                dropped_by_reason[reason] = dropped_by_reason.get(reason, 0) + 1
+                continue
         kept.append(e)
-    if dropped:
+    if dropped_by_reason:
+        total = sum(dropped_by_reason.values())
+        detail = ", ".join(
+            f"{reason}={count}" for reason, count in sorted(dropped_by_reason.items())
+        )
         print(
-            f"[ledger] {dropped} step_completed without complete receipt "
-            f"(prose_file + sha256) dropped from {primary} — 위조/손상 의심 (prose-as-SSOT). "
-            f"prose 파일 실존·digest 매치 strict 검증은 follow-up.",
+            f"[ledger] {total} step_completed with invalid receipt dropped from {primary} "
+            f"({detail}) — prose_file 실존 + sha256 digest match strict 검증 실패.",
             file=sys.stderr,
         )
     return kept
@@ -306,7 +329,7 @@ def _read_events_paths(
     """
     primary_events = _read_jsonl(primary) if primary.exists() else []
     legacy_events = _normalize_legacy_rows(legacy) if legacy.exists() else []
-    # primary ledger.jsonl 의 step_completed 는 receipt(prose_file) 필수 (codex review).
+    # primary ledger.jsonl 의 step_completed 는 strict receipt 검증 필수 (codex review).
     # append API 가 위조 append 를 막아도, durable ledger 에 stale/downgrade/손상으로
     # receipt 없는 step_completed 가 남으면 reader 가 진짜 step 으로 신뢰해버린다 —
     # invariant 가 writer path 가 아니라 *소비되는 데이터* 에 걸리도록 read 측에서도
