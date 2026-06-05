@@ -299,7 +299,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" wave-plan <impl-glob-or-dir> 
 
 1. 각 worker worktree 의 변경 파일(`git -C <wt> diff --name-only <base>`) + evidence 수집.
 2. 별도 fan-in worktree 에 wave patch 들을 합친다 (`git -C <fanin> cherry-pick` 또는 `git apply`).
-3. **scope 준수**(각 변경 파일이 그 task `수정 허용` 안) + **cross-worker 파일 충돌**(두 worker 가 같은 파일) + **evidence 존재** 판정. 이 구조 게이트의 판정 로직 = [`parallel_wave.fan_in_check`](../../harness/parallel_wave.py) (PASS/FALLBACK).
+3. **scope 준수**(각 변경 파일이 그 task `수정 허용` 안) + **cross-worker 파일 충돌**(두 worker 가 같은 파일) + **evidence 존재** 판정. 이 구조 게이트의 판정 로직 = [`parallel_wave.fan_in_check`](../../harness/parallel_wave.py) (PASS/FALLBACK). 호출 시 wave 의 기대 task slug 전체를 `expected_slugs` 로 반드시 넘긴다. worker 결과 record 자체가 누락된 경우는 evidence 누락으로, 기대 slug 밖 worker 결과가 섞인 경우는 identity 오류로 강등한다.
 4. aggregate tree 전체 테스트를 1회 이상 돌린다 (이 *실행* 은 leader Bash — 구조 게이트와 별개의 절차 요건).
 5. **PASS** → ③ merge 단계 진입. **FAIL** → 충돌/실패 worker 산출물만 폐기하고 그 task 를 직렬 chain 으로 강등(나머지 wave 는 PASS 분만 진행 가능).
 

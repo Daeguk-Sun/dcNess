@@ -552,12 +552,19 @@ class TestComputeWaves(unittest.TestCase):
 
 
 class TestFanInCheck(unittest.TestCase):
+    def test_expected_slugs_required(self):
+        results = [
+            WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
+        ]
+        with self.assertRaises(TypeError):
+            fan_in_check(results)
+
     def test_clean_wave_passes(self):
         results = [
             WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
             WorkerResult("02-b", frozenset({"src/b.py"}), frozenset({"src/b.py"})),
         ]
-        r = fan_in_check(results)
+        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
         self.assertTrue(r.passed)
         self.assertEqual(r.verdict, "PASS")
         self.assertEqual(r.reasons, ())
@@ -571,7 +578,7 @@ class TestFanInCheck(unittest.TestCase):
                 frozenset({"src/a.py"}),
             ),
         ]
-        r = fan_in_check(results)
+        r = fan_in_check(results, expected_slugs=("01-a",))
         self.assertFalse(r.passed)
         self.assertEqual(r.verdict, "FALLBACK")
         self.assertIn(("01-a", "src/other.py"), r.scope_violations)
@@ -585,7 +592,7 @@ class TestFanInCheck(unittest.TestCase):
                 "02-b", frozenset({"src/shared.py"}), frozenset({"src/shared.py"})
             ),
         ]
-        r = fan_in_check(results)
+        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
         self.assertFalse(r.passed)
         self.assertEqual(len(r.conflicts), 1)
         self.assertEqual(r.conflicts[0][0], "src/shared.py")
@@ -600,9 +607,52 @@ class TestFanInCheck(unittest.TestCase):
                 evidence_present=False,
             ),
         ]
-        r = fan_in_check(results)
+        r = fan_in_check(results, expected_slugs=("01-a",))
         self.assertFalse(r.passed)
         self.assertEqual(r.missing_evidence, ("01-a",))
+
+    def test_empty_worker_results_fallback(self):
+        # worker 결과 수집 자체가 실패했는데 빈 입력을 PASS 로 보면 안 됨.
+        r = fan_in_check([], expected_slugs=())
+        self.assertFalse(r.passed)
+        self.assertEqual(r.verdict, "FALLBACK")
+        self.assertIn("worker 결과 없음", r.reasons)
+
+    def test_missing_expected_worker_result_fallback(self):
+        # 2-worker wave 에서 한 worker 결과 record 가 통째로 누락된 경우도 evidence 누락.
+        results = [
+            WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
+        ]
+        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
+        self.assertFalse(r.passed)
+        self.assertEqual(r.missing_evidence, ("02-b",))
+        self.assertIn("evidence 누락 1건", r.reasons)
+
+    def test_expected_worker_and_flagged_missing_deduped(self):
+        # expected 에도 있고 evidence_present=False 인 경우 missing_evidence 중복 방지.
+        results = [
+            WorkerResult(
+                "01-a",
+                frozenset({"src/a.py"}),
+                frozenset({"src/a.py"}),
+                evidence_present=False,
+            ),
+        ]
+        r = fan_in_check(results, expected_slugs=("01-a",))
+        self.assertFalse(r.passed)
+        self.assertEqual(r.missing_evidence, ("01-a",))
+
+    def test_unexpected_worker_result_fallback(self):
+        # wave 밖 worker 결과가 섞이면 identity 오류라 fan-in 을 통과하면 안 됨.
+        results = [
+            WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
+            WorkerResult("02-b", frozenset({"src/b.py"}), frozenset({"src/b.py"})),
+            WorkerResult("99-z", frozenset({"src/z.py"}), frozenset({"src/z.py"})),
+        ]
+        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
+        self.assertFalse(r.passed)
+        self.assertEqual(r.unexpected_workers, ("99-z",))
+        self.assertIn("예상 밖 worker 1건", r.reasons)
 
     def test_scope_dir_prefix_allowed(self):
         # 선언 scope 가 디렉토리면 그 아래 파일 변경은 준수
@@ -611,7 +661,7 @@ class TestFanInCheck(unittest.TestCase):
                 "01-a", frozenset({"src/feature/x.py"}), frozenset({"src/feature/"})
             ),
         ]
-        r = fan_in_check(results)
+        r = fan_in_check(results, expected_slugs=("01-a",))
         self.assertTrue(r.passed)
 
     def test_file_scope_no_descendant(self):
@@ -620,16 +670,18 @@ class TestFanInCheck(unittest.TestCase):
         violator = WorkerResult(
             "01-a", frozenset({"scripts/tool/x.py"}), frozenset({"scripts/tool"})
         )
-        self.assertFalse(fan_in_check([violator]).passed)
+        self.assertFalse(
+            fan_in_check([violator], expected_slugs=("01-a",)).passed
+        )
         exact = WorkerResult(
             "02-b", frozenset({"scripts/tool"}), frozenset({"scripts/tool"})
         )
-        self.assertTrue(fan_in_check([exact]).passed)
+        self.assertTrue(fan_in_check([exact], expected_slugs=("02-b",)).passed)
         # 명시적 디렉토리 scope(끝 /)는 하위 허용
         dir_ok = WorkerResult(
             "03-c", frozenset({"scripts/tool/x.py"}), frozenset({"scripts/tool/"})
         )
-        self.assertTrue(fan_in_check([dir_ok]).passed)
+        self.assertTrue(fan_in_check([dir_ok], expected_slugs=("03-c",)).passed)
 
     def test_glob_scope_segment_aware_violation(self):
         # codex F4 — glob scope `src/*.py` 선언했는데 src/sub/a.py 를 건드리면
@@ -637,12 +689,14 @@ class TestFanInCheck(unittest.TestCase):
         violator = WorkerResult(
             "01-a", frozenset({"src/sub/a.py"}), frozenset({"src/*.py"})
         )
-        self.assertFalse(fan_in_check([violator]).passed)
+        self.assertFalse(
+            fan_in_check([violator], expected_slugs=("01-a",)).passed
+        )
         # 같은 glob scope 의 직접 자식은 준수
         ok = WorkerResult(
             "02-b", frozenset({"src/a.py"}), frozenset({"src/*.py"})
         )
-        self.assertTrue(fan_in_check([ok]).passed)
+        self.assertTrue(fan_in_check([ok], expected_slugs=("02-b",)).passed)
 
 
 class TestWavePlanFromPaths(unittest.TestCase):

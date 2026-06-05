@@ -149,6 +149,7 @@ class FanInResult:
     scope_violations: tuple[tuple[str, str], ...]  # (slug, scope 밖 path)
     conflicts: tuple[tuple[str, tuple[str, ...]], ...]  # (path, 그 path 건드린 slug 들)
     missing_evidence: tuple[str, ...]  # evidence 없는 slug
+    unexpected_workers: tuple[str, ...]  # wave 기대 slug 밖 worker 결과
     reasons: tuple[str, ...]
 
     @property
@@ -162,6 +163,7 @@ class FanInResult:
             "scope_violations": [list(v) for v in self.scope_violations],
             "conflicts": [[p, list(s)] for p, s in self.conflicts],
             "missing_evidence": list(self.missing_evidence),
+            "unexpected_workers": list(self.unexpected_workers),
             "reasons": list(self.reasons),
         }
 
@@ -629,16 +631,26 @@ def _path_in_scope(path: str, scope: Iterable[str]) -> bool:
     return False
 
 
-def fan_in_check(results: Iterable[WorkerResult]) -> FanInResult:
+def fan_in_check(
+    results: Iterable[WorkerResult],
+    *,
+    expected_slugs: Iterable[str],
+) -> FanInResult:
     """fan-in gate 의 최소 구조 판정 (정책 §6).
 
     PASS = 모든 worker diff 가 자기 Scope 안 + cross-worker 파일 충돌 없음 +
-    evidence 전부 존재. 하나라도 어기면 FALLBACK (직렬 강등 신호).
+    evidence 전부 존재 + 결과 slug 가 기대 wave 와 일치. 하나라도 어기면
+    FALLBACK (직렬 강등 신호). `expected_slugs` 는 필수 입력이다. caller 가
+    wave 에 있어야 하는 worker 전체를 넘기지 않으면 부분 누락을 알 수 없기
+    때문이다.
 
     주의: aggregate tree 전체 테스트 PASS 는 별개의 절차적 요건이라 leader 가
     Bash 로 수행한다 — 본 함수는 그 *전* 의 구조 게이트만 본다.
     """
     results = list(results)
+    expected = tuple(dict.fromkeys(s for s in expected_slugs if s))
+    expected_set = set(expected)
+    present = {r.slug for r in results}
 
     scope_violations: list[tuple[str, str]] = []
     for r in results:
@@ -654,15 +666,27 @@ def fan_in_check(results: Iterable[WorkerResult]) -> FanInResult:
         (p, tuple(sorted(s))) for p, s in sorted(owners.items()) if len(s) > 1
     ]
 
-    missing = tuple(r.slug for r in results if not r.evidence_present)
+    missing = tuple(
+        dict.fromkeys(
+            [s for s in expected if s not in present]
+            + [r.slug for r in results if not r.evidence_present]
+        )
+    )
+    unexpected = tuple(
+        dict.fromkeys(r.slug for r in results if r.slug not in expected_set)
+    )
 
     reasons: list[str] = []
+    if not results and not expected:
+        reasons.append("worker 결과 없음")
     if scope_violations:
         reasons.append(f"scope 이탈 {len(scope_violations)}건")
     if conflicts:
         reasons.append(f"cross-worker 파일 충돌 {len(conflicts)}건")
     if missing:
         reasons.append(f"evidence 누락 {len(missing)}건")
+    if unexpected:
+        reasons.append(f"예상 밖 worker {len(unexpected)}건")
 
     verdict = "PASS" if not reasons else "FALLBACK"
     return FanInResult(
@@ -670,6 +694,7 @@ def fan_in_check(results: Iterable[WorkerResult]) -> FanInResult:
         scope_violations=tuple(scope_violations),
         conflicts=tuple(conflicts),
         missing_evidence=missing,
+        unexpected_workers=unexpected,
         reasons=tuple(reasons),
     )
 
