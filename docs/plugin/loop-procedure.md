@@ -181,6 +181,8 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 
 build-worker 는 한 sub-agent 호출(= 메인 1 step) 안에서 3 phase (test → impl → validate) 를 직렬 진행하며, **phase 별 begin-step/end-step 을 worker 가 helper Bash 로 직접 호출하고 phase prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 를 *자체 Write*** 한다 (PostToolUse 자동 staging 은 sub-agent 내부 Bash 엔 미도달). 명명 규약은 [step 명명 + prose 파일 자동 명명](#step-명명-prose-파일-자동-명명) 그대로. phase 분할·각 phase 책임·검증 항목 풀스펙 = [`agents/build-worker.md`](../../agents/build-worker.md) + [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md).
 
+phase prose 실제 기록 디렉토리 = `dcness-helper run-dir` 이 출력하는 harness-state run_dir (`.claude/harness-state/.sessions/<sid>/runs/<run-id>`). worktree 안 `phases/<RUN_ID>/` 는 현행 규약이 아니다. build-worker 는 phase prose 3개를 쓴 뒤 `ls <run_dir>/build-test.md <run_dir>/build-impl.md <run_dir>/build-validate.md` 로 실존을 확인하고, 부재 시 PASS 를 내지 않는다.
+
 ### ENUM 분기
 
 **공통 골격만 본 문서 책임** — agent 결론이 그 loop 의 advance enum (해당 skill `## Loop` 의 `advance`) 이면 다음 step 진행, **마지막 step 이면 사용자 대기 없이 즉시 Step 7 (end-run)**. 그 외 결론 (`FAIL` / `*_ESCALATE` / `SPEC_GAP_FOUND` / `TESTS_FAIL` / `AMBIGUOUS` 등) → 다음 호출·재시도·cycle 한도·escalate 판정은 **각 loop skill 의 `<skill>-routing.md` 가 진본** ([`impl-routing.md`](../../skills/impl/impl-routing.md) / [`architect-loop-routing.md`](../../skills/architect-loop/architect-loop-routing.md) / [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md) / [`ux-routing.md`](../../skills/ux/ux-routing.md) / [`issue-report-routing.md`](../../skills/issue-report/issue-report-routing.md) / [`tech-review-routing.md`](../../skills/tech-review/tech-review-routing.md)). loop-procedure 는 enum→처리 표를 재서술하지 않는다.
@@ -302,6 +304,8 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 1. `has_ambiguous == false` && `has_must_fix == false`
 2. step enum 이 해당 skill `## Loop` 의 advance/expected_steps 와 정합
 3. git 안전 가드: `git status --porcelain` 에 `.env` / `secrets.*` / `credentials.*` 없음 · unstaged + untracked ≤ 10 · submodule 변경 없음
+
+**verify-only 예외 (`/impl-loop`)**: `code-validator:VERIFY_ONLY` prose 가 `PASS`이고 prose 안에 검증 명령 exit 0 + `git status --porcelain` 변경 0 증거가 있으면, step 1개 + PR 0개도 clean 이다. 이 예외에서는 `pr-create.sh` 를 호출하지 않는다.
 
 ### 7a — Clean 자동 commit/PR
 

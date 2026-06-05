@@ -1042,7 +1042,7 @@ def _scan_recent_active_run_slot(
     base_dir: Optional[Path] = None,
     max_sessions: int = 5,
 ) -> Optional[tuple[str, str]]:
-    """sessions/ 디렉토리 scan 후 가장 최근 미finalized active_run slot 의 (sid, rid).
+    """.sessions/ 디렉토리 scan 후 가장 최근 미finalized active_run slot 의 (sid, rid).
 
     issue #469 결함 B 의 best-effort 폴백 — PPID chain 미해결 시 사용.
     다음 우선순위:
@@ -1059,24 +1059,26 @@ def _scan_recent_active_run_slot(
     `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` env var 명시 권장.
     """
     base = _resolve_base(base_dir)
-    sessions_dir = base / "sessions"
-    if not sessions_dir.is_dir():
+    session_roots = [base / ".sessions", base / "sessions"]  # legacy fallback
+    session_roots = [p for p in session_roots if p.is_dir()]
+    if not session_roots:
         return None
 
     # live.json mtime 최신 max_sessions 개만 추출 (비용 가드)
     candidates: list[tuple[float, Path]] = []
-    try:
-        for entry in sessions_dir.iterdir():
-            if not entry.is_dir():
-                continue
-            live_file = entry / "live.json"
-            try:
-                stat = live_file.stat()
-            except OSError:
-                continue
-            candidates.append((stat.st_mtime, live_file))
-    except OSError:
-        return None
+    for sessions_dir in session_roots:
+        try:
+            for entry in sessions_dir.iterdir():
+                if not entry.is_dir():
+                    continue
+                live_file = entry / "live.json"
+                try:
+                    stat = live_file.stat()
+                except OSError:
+                    continue
+                candidates.append((stat.st_mtime, live_file))
+        except OSError:
+            continue
     candidates.sort(key=lambda x: x[0], reverse=True)
     candidates = candidates[:max_sessions]
 
