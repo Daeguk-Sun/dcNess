@@ -12,7 +12,7 @@ agent 는 일을 마치면 prose 마지막 단락에 *어떤 결과로 끝났는
 
 **개수 vs 엔진** — 개수(single/chain)는 절차 골격(1 run vs N run), 엔진(풀 4-agent / build-worker)은 각 run 안의 시퀀스를 정한다 ([진입 분기](SKILL.md#진입-분기-개수-엔진-직교)). 본 라우팅은 *엔진별* 시퀀스 안의 결론→다음을 다룬다. chain 의 task 경계 라우팅(`clean`/`error`/`blocked`)은 [chain 모드 task 경계 라우팅](#chain-모드-task-경계-라우팅).
 
-**고위험 task 승격** — build-worker 는 비용 절감 엔진이지 보안 경계가 아니다. 외부 HTTP/네트워크 어댑터, URL·파일·사용자 입력 파싱, auth/security/PII, 도메인 invariant 변경 task 는 chain 안에서도 해당 task만 풀 4-agent 경로로 라우팅한다. 일반 UI/문구/내부 도메인 task 는 build-worker 경량 경로를 유지한다.
+**고위험 task 승격** — build-worker 는 비용 절감 엔진이지 보안 경계가 아니다. 외부 HTTP/네트워크 어댑터, URL·파일·사용자 입력 파싱, auth/security/PII, 도메인 invariant 변경 task 는 chain 안에서도 해당 task만 풀 4-agent 경로로 라우팅한다. 일반 UI/문구/순수 내부 도메인 task 는 build-worker 경량 경로를 유지한다. 이 판정은 task1 진입 전 dry preview 표의 `risk / engine / reason` 열에 남긴다. 고위험 trigger 는 build-worker 선호보다 우선하며, 사용자가 고위험 사유를 인지하고도 경량 강행을 명시한 경우에만 그 결정을 `reason` 에 기록한다.
 
 **verify-only 예외** — task 산출물이 코드 변경이 아니라 검증 결과이고 검증 exit 0 + 변경 0 이면 PR 생성이 정상적으로 생략된다. 이때 `code-validator:VERIFY_ONLY` prose `PASS` 기록을 clean 증거로 삼고 `pr-create.sh` 를 호출하지 않는다. 검증 실패나 BROKEN 확인 시 일반 impl 수정 경로로 전환한다.
 

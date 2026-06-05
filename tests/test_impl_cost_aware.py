@@ -18,6 +18,10 @@ def read_impl_skill() -> str:
     return (ROOT / "skills" / "impl-loop" / "SKILL.md").read_text(encoding="utf-8")
 
 
+def read_impl_routing() -> str:
+    return (ROOT / "skills" / "impl-loop" / "impl-loop-routing.md").read_text(encoding="utf-8")
+
+
 class TestPreReadCostAware(unittest.TestCase):
     """#436 — 사전 read 의무가 cost-aware 룰 명시."""
 
@@ -72,6 +76,36 @@ class TestPreReadCostAware(unittest.TestCase):
         body = read_impl_skill()
         self.assertIn("#402", body)
         self.assertIn("cost-aware", body)
+
+
+class TestImplLoopRiskPreview(unittest.TestCase):
+    """chain dry preview 가 task 별 risk/engine 판정 증거를 남기는지 검증."""
+
+    def test_chain_plan_table_has_risk_engine_reason_columns(self):
+        body = read_impl_skill()
+        self.assertIn(
+            "| # | 모듈 | impl 파일 | task_index | PR 트레일러 | risk | engine | reason | sub-step |",
+            body,
+        )
+        self.assertIn(
+            "|---|------|----------|-----------|-----------|------|--------|--------|----------|",
+            body,
+        )
+
+    def test_risk_reason_is_required_before_task_execution(self):
+        body = read_impl_skill()
+        self.assertIn("task1 진입 *전* 실행 계획", body)
+        self.assertIn("`risk` 는 `normal` / `high-risk` / `verify-only`", body)
+        self.assertIn("`reason` 은 비워 두지 않는다", body)
+        self.assertIn("고위험 trigger 없음", body)
+
+    def test_high_risk_routes_to_full_agent_even_when_chain_defaults_worker(self):
+        skill = read_impl_skill()
+        routing = read_impl_routing()
+        for body in (skill, routing):
+            self.assertIn("고위험 trigger 는 build-worker 선호보다 우선", body)
+            self.assertIn("풀 4-agent", body)
+            self.assertIn("reason", body)
 
 
 if __name__ == "__main__":
