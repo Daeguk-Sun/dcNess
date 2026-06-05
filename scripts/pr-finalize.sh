@@ -27,7 +27,36 @@
 
 set -e
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+HELPER="$SCRIPT_DIR/dcness-helper"
+
 PR="$1"
+BRANCH=""
+MERGE_LOCK_TOKEN=""
+MERGE_CLAIM_KEY=""
+
+json_field() {
+  python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"
+}
+
+cleanup_merge_lock() {
+  rc=$?
+  if [ -n "$MERGE_LOCK_TOKEN" ]; then
+    if [ -n "$MERGE_CLAIM_KEY" ]; then
+      "$HELPER" merge-lock release \
+        --token "$MERGE_LOCK_TOKEN" \
+        --claim-key "$MERGE_CLAIM_KEY" \
+        --state failed \
+        --reason "pr-finalize exit $rc" >/dev/null 2>&1 || true
+    else
+      "$HELPER" merge-lock release \
+        --token "$MERGE_LOCK_TOKEN" \
+        --state failed \
+        --reason "pr-finalize exit $rc" >/dev/null 2>&1 || true
+    fi
+  fi
+}
+trap cleanup_merge_lock EXIT
 
 # PR 번호 자동 검출 — current branch
 if [ -z "$PR" ]; then
@@ -44,6 +73,10 @@ if [ -z "$PR" ]; then
   echo "[pr-finalize] current branch '$BRANCH' → PR #$PR 자동 검출" >&2
 fi
 
+if [ -z "$BRANCH" ]; then
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+fi
+
 # working tree dirty check
 if [ -n "$(git status --porcelain)" ]; then
   echo "[pr-finalize] WARN: working tree dirty — fetch sync 영향은 없지만 다음 작업 시 충돌 위험" >&2
@@ -54,6 +87,30 @@ if [ -n "$(git status --porcelain)" ]; then
     exit 1
   fi
   SKIP_SYNC=true
+fi
+
+# Peer mode guard (#641): unregistered branches return mode=serial and keep the
+# existing finalize path unchanged. Registered peer claims acquire a repo-level
+# mutex and check same-story task_index order before any merge attempt.
+echo "[pr-finalize] peer merge guard 확인" >&2
+MERGE_LOCK_JSON=$("$HELPER" merge-lock acquire --branch "$BRANCH" --pr "$PR") || {
+  echo "[pr-finalize] ERROR: peer merge guard 실패" >&2
+  printf '%s\n' "$MERGE_LOCK_JSON" >&2
+  exit 1
+}
+MERGE_LOCK_MODE=$(printf '%s\n' "$MERGE_LOCK_JSON" | json_field mode)
+if [ "$MERGE_LOCK_MODE" = "peer" ]; then
+  MERGE_LOCK_TOKEN=$(printf '%s\n' "$MERGE_LOCK_JSON" | json_field token)
+  MERGE_CLAIM_KEY=$(printf '%s\n' "$MERGE_LOCK_JSON" | json_field claim_key)
+  echo "[pr-finalize] peer merge lock 획득 — claim $MERGE_CLAIM_KEY" >&2
+  echo "[pr-finalize] lock 이후 base/PR 상태 재확인" >&2
+  git fetch origin main --quiet
+  if ! gh pr update-branch "$PR" >&2; then
+    echo "[pr-finalize] WARN: gh pr update-branch 실패 또는 불필요 — merge/check 단계에서 재검증" >&2
+  fi
+  if ! gh pr checks "$PR" >&2; then
+    echo "[pr-finalize] WARN: 현재 CI 상태가 clean 이 아님 — --watch 단계에서 최종 판정" >&2
+  fi
 fi
 
 # Step 1: auto-merge 토글
@@ -99,6 +156,16 @@ fi
 
 # Step 4: origin/main ref 동기화 (refspec 없이 fetch — worktree 호환)
 PR_URL=$(gh pr view "$PR" --json url -q .url 2>/dev/null)
+
+if [ -n "$MERGE_LOCK_TOKEN" ]; then
+  "$HELPER" merge-lock complete \
+    --token "$MERGE_LOCK_TOKEN" \
+    --claim-key "$MERGE_CLAIM_KEY" \
+    --pr "$PR" \
+    --url "$PR_URL" >/dev/null
+  MERGE_LOCK_TOKEN=""
+  MERGE_CLAIM_KEY=""
+fi
 
 if [ "${SKIP_SYNC:-}" = "true" ]; then
   echo "[pr-finalize] origin/main 동기화 skip (working tree dirty)" >&2

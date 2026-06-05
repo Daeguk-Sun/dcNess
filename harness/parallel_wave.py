@@ -1,9 +1,8 @@
-"""parallel_wave — impl chain 의 opt-in 병렬 wave 계산 (#636).
+"""parallel_wave — impl chain 의 opt-in 병렬 wave 계산.
 
-정책 SSOT = `docs/plugin/parallel-policy.md` (모델 A: worktree 격리 fan-in).
-본 모듈은 그 정책의 *판정 로직* 만 코드로 하강한다. 오케스트레이션
-(worktree fan-out / git apply / aggregate test 실행 / PR·merge)은
-`skills/impl-loop/SKILL.md` 절차 영역이며 본 모듈은 결정 로직만 담는다.
+정책 SSOT = `docs/plugin/parallel-policy.md` (독립 interactive peer sessions).
+본 모듈은 병렬 후보 *판정 로직* 만 담는다. peer 등록/claim/merge lock 은
+`harness.wave_board` / `harness.merge_lock` / `scripts/pr-finalize.sh` 영역이다.
 
 담는 것:
 
@@ -12,9 +11,8 @@
 - `compute_waves` — depends_on DAG 위상 + Scope 파일집합 disjoint +
   `max_parallel_workers` cap → 병렬 wave 후보. 불명확(미상 / scope 자유서술 /
   force_serial)은 직렬 강등 (정책 §3.1 · §4).
-- `fan_in_check` — leader fan-in gate 의 최소 구조 판정 (scope 준수 +
-  cross-worker 파일 충돌 + evidence 존재). aggregate test 실행 PASS 는
-  이와 별개의 *절차적* 요건이라 leader 가 Bash 로 수행한다 (정책 §6).
+- `fan_in_check` — 이전 fan-in 모델의 구조 판정 helper. 현재 peer 모델의
+  핵심 경로는 아니며 호환/후속 정리 대상으로 남겨둔다.
 
 3-state `depends_on` (정책 §3.1):
 
@@ -133,17 +131,17 @@ class WavePlan:
 
 @dataclass(frozen=True)
 class WorkerResult:
-    """fan-in 시 worker 한 명이 반환한 산출물의 검증 입력."""
+    """Legacy fan-in helper input."""
 
     slug: str
-    changed_paths: frozenset[str]  # worker diff 가 실제로 건드린 파일
+    changed_paths: frozenset[str]  # legacy worker diff 가 실제로 건드린 파일
     declared_scope: frozenset[str]  # 해당 task 의 `수정 허용`
     evidence_present: bool = True
 
 
 @dataclass(frozen=True)
 class FanInResult:
-    """leader fan-in gate 의 최소 구조 판정 결과."""
+    """Legacy fan-in gate result."""
 
     verdict: str  # "PASS" | "FALLBACK"
     scope_violations: tuple[tuple[str, str], ...]  # (slug, scope 밖 path)
@@ -608,11 +606,11 @@ def compute_waves(
     return WavePlan(tuple(steps), max_parallel_workers)
 
 
-# ── fan-in 검증 ──────────────────────────────────────────────
+# ── legacy fan-in 검증 ───────────────────────────────────────
 
 
 def _path_in_scope(path: str, scope: Iterable[str]) -> bool:
-    """changed path 가 declared scope 안인가 (fan-in scope gate).
+    """changed path 가 declared scope 안인가 (legacy fan-in scope gate).
 
     - exact 파일 매치.
     - **명시적 디렉토리 scope(끝이 `/`)** 만 하위 파일을 허용. 확장자 없는 파일
@@ -636,7 +634,7 @@ def fan_in_check(
     *,
     expected_slugs: Iterable[str],
 ) -> FanInResult:
-    """fan-in gate 의 최소 구조 판정 (정책 §6).
+    """legacy fan-in gate 의 최소 구조 판정.
 
     PASS = 모든 worker diff 가 자기 Scope 안 + cross-worker 파일 충돌 없음 +
     evidence 전부 존재 + 결과 slug 가 기대 wave 와 일치. 하나라도 어기면
@@ -644,8 +642,8 @@ def fan_in_check(
     wave 에 있어야 하는 worker 전체를 넘기지 않으면 부분 누락을 알 수 없기
     때문이다.
 
-    주의: aggregate tree 전체 테스트 PASS 는 별개의 절차적 요건이라 leader 가
-    Bash 로 수행한다 — 본 함수는 그 *전* 의 구조 게이트만 본다.
+    주의: 현재 peer 모델의 핵심 경로는 claim board + merge lock 이다. 본 함수는
+    이전 fan-in 모델의 호환 helper 로 남아 있다.
     """
     results = list(results)
     expected = tuple(dict.fromkeys(s for s in expected_slugs if s))

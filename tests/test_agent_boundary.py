@@ -779,9 +779,28 @@ class BashMutationTests(unittest.TestCase):
         self.assertIsNone(check_bash_mutation("dcness-helper run-dir"))
         self.assertIsNone(check_bash_mutation("dcness-helper run-status"))
         self.assertIsNone(check_bash_mutation("dcness-helper is-active"))
+        self.assertIsNone(check_bash_mutation("dcness-helper wave-status"))
         self.assertIsNone(
             check_bash_mutation("bash scripts/dcness-helper wave-plan docs/x/impl")
         )
+
+    def test_helper_peer_state_mutation_blocked(self):
+        # #641 peer mode board/merge mutations are main-owned. `wave-plan` is
+        # read-only unless --register is present.
+        self.assertIsNotNone(
+            check_bash_mutation("dcness-helper wave-plan --register docs/x/impl")
+        )
+        self.assertIsNotNone(check_bash_mutation("dcness-helper wave-claim docs/x/impl/01-a.md"))
+        self.assertIsNotNone(check_bash_mutation("dcness-helper wave-heartbeat abc"))
+        self.assertIsNotNone(check_bash_mutation("dcness-helper wave-release abc --state failed"))
+        self.assertIsNotNone(check_bash_mutation("dcness-helper wave-reclaim abc --reason stale"))
+        self.assertIsNotNone(check_bash_mutation("dcness-helper merge-lock acquire --pr 1"))
+
+    def test_pr_finalize_wrapper_blocked(self):
+        # #641 review finding — sub-agents must not bypass merge-lock/gh mutation
+        # guards by invoking the finalize wrapper script.
+        self.assertIsNotNone(check_bash_mutation("bash scripts/pr-finalize.sh 123"))
+        self.assertIsNotNone(check_bash_mutation("scripts/pr-finalize.sh 123"))
 
     def test_helper_unrelated_command_passes(self):
         # dcness-helper 아닌 명령은 무관 — end-run 같은 토큰이 있어도 false-positive 없음

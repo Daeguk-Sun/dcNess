@@ -496,8 +496,8 @@ _SHELL_KEYWORDS = frozenset({
 _SHELL_COMMANDS = frozenset({"bash", "sh", "zsh"})
 _MUTATION_RECURSION_LIMIT = 3
 
-# leader-owned dcness helper 서브커맨드 — 병렬 wave worker(sub-agent) 금지 (#636, 정책 §5).
-# **run-lifecycle 한정** — run 시작/종료/경계/checkpoint 는 leader(메인/훅) 전담이고
+# main-owned dcness helper 서브커맨드 — sub-agent 금지.
+# run 시작/종료/경계/checkpoint + peer claim board / merge lock 은 메인/훅 전담이고
 # 어떤 sub-agent 도 호출하지 않는다(전수 grep 확인). 따라서 차단해도 회귀 0.
 #
 # ⚠️ 의도적 제외 — serial build-worker(sub-agent)가 정상적으로 호출하는 것들은 넣지 않는다:
@@ -510,14 +510,19 @@ _MUTATION_RECURSION_LIMIT = 3
 # 단 `prev-tasks-reset` 은 **메인 전담 + 파괴적**(메인 repo 의 .prev-tasks.md FIFO 삭제)이고
 # 어떤 sub-agent 도 호출 안 하므로 차단한다 — 병렬 worker 가 leader 의 handoff 컨텍스트를
 # 지우지 못하게 (#636 F16). append(추가)는 허용, reset(삭제)은 차단으로 비대칭.
-# read-only (run-dir/run-status/is-active/status/routing/wave-plan) 도 비대상이라 통과.
+# read-only (run-dir/run-status/is-active/status/routing/wave-plan/wave-status) 는 통과.
+# 단 `wave-plan --register` 는 claim board 를 mutate 하므로 차단한다.
+# `pr-create.sh` / `pr-finalize.sh` 같은 main-owned wrapper 도 command position 에서 차단한다.
 _HELPER_LEADER_SUBCOMMANDS = frozenset({
     "begin-run", "end-run", "next-task", "post-task-begin",
     "finalize-run", "ledger-event", "init-session", "prev-tasks-reset",
+    "wave-claim", "wave-heartbeat", "wave-release", "wave-reclaim",
+    "merge-lock",
 })
 # 호출 형태 식별 — script basename / `python -m` 모듈명.
 _HELPER_SCRIPT_NAMES = frozenset({"dcness-helper"})
 _HELPER_MODULE_NAMES = frozenset({"harness.session_state"})
+_MAIN_OWNED_SCRIPT_NAMES = frozenset({"pr-finalize.sh", "pr-create.sh"})
 
 # GitHub MCP — read-only prefix (통과) / mutation verb prefix (차단).
 _MCP_GH_READ_PREFIXES = ("get_", "list_", "search_")
@@ -652,8 +657,8 @@ def _helper_leader_mutation(toks: list[str]) -> Optional[str]:
       - `bash <...>/dcness-helper <subcommand>`      (shell 의 첫 positional = 스크립트)
       - `python -m harness.session_state <subcommand>` (`-m` 모듈 직접)
 
-    그 뒤 *첫 positional* 토큰이 leader-owned 서브커맨드면 차단. read-only
-    (run-dir/run-status/.../wave-plan)는 deny 목록에 없어 통과.
+    그 뒤 *첫 positional* 토큰이 main-owned 서브커맨드면 차단. read-only
+    (run-dir/run-status/.../wave-plan/wave-status)는 deny 목록에 없어 통과.
 
     data 위치 helper 토큰(`echo dcness-helper end-run`)은 명령이 아니므로 통과
     (#636 codex F9 — false-positive 제거). `bash -c "..."` 의 payload 는 호출부
@@ -684,15 +689,39 @@ def _helper_leader_mutation(toks: list[str]) -> Optional[str]:
                 break
     if sub_start is None:
         return None
-    for t in toks[sub_start:]:
+    remaining = toks[sub_start:]
+    for t in remaining:
         if t.startswith("-"):
             continue  # 옵션/플래그 skip
+        if t == "wave-plan" and "--register" in remaining:
+            return (
+                "dcness-helper wave-plan --register 차단 — peer claim board 등록은 "
+                "메인 영역."
+            )
         if t in _HELPER_LEADER_SUBCOMMANDS:
             return (
-                f"dcness-helper {t} 차단 — run 시작/종료/경계/checkpoint 는 leader "
-                f"영역 (병렬 wave 정책 권한 경계). worker 는 patch/evidence 만 반환."
+                f"dcness-helper {t} 차단 — run 시작/종료/경계/checkpoint 및 "
+                f"peer claim/merge lock 은 메인 영역."
             )
-        return None  # 첫 positional 이 leader-owned 아님 (read-only 등) → 통과
+        return None  # 첫 positional 이 main-owned 아님 (read-only 등) → 통과
+    return None
+
+
+def _main_owned_script_mutation(toks: list[str]) -> Optional[str]:
+    """Main-owned wrapper scripts invoked from command position."""
+    if not toks:
+        return None
+    cmd0 = _command_basename(toks[0])
+    if cmd0 in _MAIN_OWNED_SCRIPT_NAMES:
+        return f"{cmd0} 차단 — PR 생성/머지는 메인 영역."
+    if cmd0 in _SHELL_COMMANDS:
+        for i in range(1, len(toks)):
+            if toks[i].startswith("-"):
+                continue
+            script = _command_basename(toks[i])
+            if script in _MAIN_OWNED_SCRIPT_NAMES:
+                return f"{script} 차단 — PR 생성/머지는 메인 영역."
+            break
     return None
 
 
@@ -717,6 +746,9 @@ def _check_bash_mutation(command: str, *, depth: int = 0) -> Optional[str]:
         helper_reason = _helper_leader_mutation(toks)
         if helper_reason:
             return helper_reason
+        script_reason = _main_owned_script_mutation(toks)
+        if script_reason:
+            return script_reason
         cmd = _command_basename(toks[0])
         if cmd == "git":
             pos = _positional_args(toks[1:], _GIT_VALUE_FLAGS)
@@ -749,9 +781,10 @@ def check_bash_mutation(command: str) -> Optional[str]:
     """Bash command 안의 외부 시스템 mutation 차단 — block reason str / None=allow.
 
     차단: `git push`, `gh pr (create|merge|...)`, `gh issue (create|edit|close|comment|...)`,
-          `gh api` (mutating method / field flag), leader-owned run-lifecycle `dcness-helper`
+          `gh api` (mutating method / field flag), main-owned `dcness-helper`
           서브커맨드 (begin-run/end-run/next-task/post-task-begin/finalize-run/ledger-event/
-          init-session/prev-tasks-reset — 병렬 wave worker 금지, #636).
+          init-session/prev-tasks-reset/wave-claim/merge-lock 등), main-owned wrapper
+          scripts (`pr-create.sh` / `pr-finalize.sh`).
     통과: read-only (`gh pr view`, `gh issue list`, `gh api` GET, `dcness-helper run-dir`,
           `dcness-helper wave-plan`), `git commit`(transport), serial build-worker 가 쓰는
           `begin-step`/`end-step`/`prev-tasks-append`(회귀 방지), 그 외 모든 명령.

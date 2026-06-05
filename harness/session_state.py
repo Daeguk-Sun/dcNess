@@ -1680,7 +1680,7 @@ def _cli_wave_plan(args: Any) -> int:
     """impl task 들의 opt-in 병렬 wave 계획 계산 → JSON stdout (#636).
 
     `/impl-loop` chain dry preview 가 호출해 병렬 wave 후보를 표에 echo 한다.
-    정책 SSOT = docs/plugin/parallel-policy.md (모델 A: worktree 격리 fan-in).
+    정책 SSOT = docs/plugin/parallel-policy.md (독립 interactive peer sessions).
     내부 helper (run-dir / run-status 류) — 새 public surface 아님.
     """
     import json as _json
@@ -1691,8 +1691,262 @@ def _cli_wave_plan(args: Any) -> int:
     plan = parallel_wave.wave_plan_from_paths(
         args.paths, args.max_parallel, high_risk
     )
-    print(_json.dumps(plan.to_dict(), ensure_ascii=False, indent=2))
+    payload = plan.to_dict()
+    payload["execution_model"] = "independent_interactive_sessions"
+    payload["worker_command"] = "/impl-loop <canonical-impl-path>"
+    payload["merge_model"] = "per-session PR finalize guarded by merge-lock"
+    payload["registered_count"] = 0
+    if getattr(args, "register", False):
+        board = _current_wave_board()
+        paths = [
+            task.path
+            for step in plan.parallel_steps
+            for task in step.tasks
+        ]
+        records = board.register(paths, plan_id=getattr(args, "plan_id", None))
+        payload["registered_count"] = len(records)
+        payload["registered"] = [
+            {
+                "key": r["key"],
+                "canonical_impl_path": r["canonical_impl_path"],
+                "impl_name": r["impl_name"],
+            }
+            for r in records
+        ]
+    print(_json.dumps(payload, ensure_ascii=False, indent=2))
     return 0
+
+
+def _repo_root_from_state_root() -> Path:
+    state_root = _default_base().resolve()
+    # state_root = <repo>/.claude/harness-state
+    try:
+        return state_root.parent.parent.resolve()
+    except IndexError:
+        return Path.cwd().resolve()
+
+
+def _current_wave_board() -> Any:
+    from harness.wave_board import WaveBoard
+
+    state_root = _default_base().resolve()
+    return WaveBoard(_repo_root_from_state_root(), state_root=state_root)
+
+
+def _current_merge_lock() -> Any:
+    from harness.merge_lock import MergeLock
+
+    state_root = _default_base().resolve()
+    return MergeLock(_repo_root_from_state_root(), state_root=state_root)
+
+
+def _current_branch_fallback() -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=str(Path.cwd()),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "unknown"
+    if result.returncode == 0 and result.stdout.strip():
+        return result.stdout.strip()
+    return "unknown"
+
+
+def _merge_order_base_ref(repo_root: Path) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
+            cwd=str(repo_root),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return "main"
+    return "origin/main" if result.returncode == 0 else "main"
+
+
+def _json_stdout(payload: dict[str, Any]) -> None:
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+
+
+def _cli_wave_claim(args: Any) -> int:
+    from harness.wave_board import ClaimConflict
+
+    board = _current_wave_board()
+    session_id = args.session_id or auto_detect_session_id() or "unknown-session"
+    run_id = args.run_id or auto_detect_run_id() or "unknown-run"
+    worktree = args.worktree or str(Path.cwd().resolve())
+    branch = args.branch or _current_branch_fallback()
+    try:
+        result = board.claim_if_registered(
+            args.impl_path,
+            session_id=session_id,
+            run_id=run_id,
+            worktree=worktree,
+            branch=branch,
+            stale_after_seconds=args.stale_after,
+        )
+    except ClaimConflict as exc:
+        _json_stdout(
+            {
+                "ok": False,
+                "error": str(exc),
+                "stale": exc.stale,
+                "record": exc.record,
+            }
+        )
+        return 1
+    payload = {
+        "ok": True,
+        "mode": result.mode,
+        "claimed": result.claimed,
+        "key": result.key,
+        "canonical_impl_path": result.canonical_impl_path,
+        "record": result.record,
+    }
+    _json_stdout(payload)
+    return 0
+
+
+def _cli_wave_heartbeat(args: Any) -> int:
+    session_id = args.session_id or auto_detect_session_id() or "unknown-session"
+    run_id = args.run_id or auto_detect_run_id() or "unknown-run"
+    try:
+        record = _current_wave_board().heartbeat(
+            args.key_or_path,
+            session_id=session_id,
+            run_id=run_id,
+        )
+    except Exception as exc:
+        print(f"[wave-heartbeat] {exc}", file=sys.stderr)
+        return 1
+    _json_stdout({"ok": True, "record": record})
+    return 0
+
+
+def _cli_wave_release(args: Any) -> int:
+    board = _current_wave_board()
+    try:
+        if args.state == "completed":
+            record = board.complete(args.key_or_path, pr_number=args.pr, url=args.url)
+        else:
+            record = board.release(args.key_or_path, state=args.state, reason=args.reason or "")
+    except Exception as exc:
+        print(f"[wave-release] {exc}", file=sys.stderr)
+        return 1
+    _json_stdout({"ok": True, "record": record})
+    return 0
+
+
+def _cli_wave_reclaim(args: Any) -> int:
+    try:
+        record = _current_wave_board().reclaim(args.key_or_path, reason=args.reason)
+    except Exception as exc:
+        print(f"[wave-reclaim] {exc}", file=sys.stderr)
+        return 1
+    _json_stdout({"ok": True, "record": record})
+    return 0
+
+
+def _cli_wave_status(args: Any) -> int:
+    board = _current_wave_board()
+    if getattr(args, "json", False):
+        _json_stdout({"records": board.status_records()})
+    else:
+        print(board.status_text())
+    return 0
+
+
+def _cli_merge_lock(args: Any) -> int:
+    from harness.merge_lock import (
+        LockBusy,
+        MergeOrderBlocked,
+        acquire_peer_merge_guard,
+        external_git_completed,
+    )
+
+    board = _current_wave_board()
+    lock = _current_merge_lock()
+    repo_root = _repo_root_from_state_root()
+    base_ref = _merge_order_base_ref(repo_root)
+    action = args.merge_lock_cmd
+    if action == "acquire":
+        branch = args.branch or _current_branch_fallback()
+        owner = (
+            args.owner
+            or f"{auto_detect_session_id() or 'unknown-session'}:"
+            f"{auto_detect_run_id() or 'unknown-run'}:{os.getpid()}"
+        )
+        try:
+            guard = acquire_peer_merge_guard(
+                board,
+                lock,
+                branch=branch,
+                pr_number=args.pr,
+                owner=owner,
+                external_completed=lambda p: external_git_completed(
+                    repo_root,
+                    p,
+                    base_ref=base_ref,
+                ),
+            )
+        except MergeOrderBlocked as exc:
+            _json_stdout(
+                {
+                    "ok": False,
+                    "error": str(exc),
+                    "blocked_prior_paths": list(exc.result.blocked_prior_paths),
+                }
+            )
+            return 1
+        except LockBusy as exc:
+            _json_stdout({"ok": False, "error": str(exc)})
+            return 1
+        _json_stdout(
+            {
+                "ok": True,
+                "mode": guard.mode,
+                "token": guard.token,
+                "claim_key": guard.claim_key,
+                "impl_path": guard.impl_path,
+                "order_reason": guard.order.reason,
+            }
+        )
+        return 0
+    if action == "release":
+        try:
+            claim_record = None
+            if getattr(args, "claim_key", None):
+                claim_record = board.release(
+                    args.claim_key,
+                    state=args.state,
+                    reason=args.reason or "",
+                )
+            record = lock.release(args.token, state=args.state, reason=args.reason or "")
+        except Exception as exc:
+            print(f"[merge-lock] {exc}", file=sys.stderr)
+            return 1
+        payload: dict[str, Any] = {"ok": True, "record": record}
+        if claim_record is not None:
+            payload["claim"] = claim_record
+        _json_stdout(payload)
+        return 0
+    if action == "complete":
+        try:
+            claim = board.complete(args.claim_key, pr_number=args.pr, url=args.url)
+            lock_record = lock.release(args.token, state="completed")
+        except Exception as exc:
+            print(f"[merge-lock] {exc}", file=sys.stderr)
+            return 1
+        _json_stdout({"ok": True, "claim": claim, "lock": lock_record})
+        return 0
+    print(f"[merge-lock] unknown action: {action}", file=sys.stderr)
+    return 1
 
 
 def _cli_ledger_event(args: Any) -> int:
@@ -2455,7 +2709,83 @@ def _build_arg_parser() -> Any:
         dest="high_risk",
         help="메인 dry-preview 고위험 판정 slug (콤마 구분) → 직렬 강제",
     )
+    p_wp.add_argument(
+        "--register",
+        action="store_true",
+        help="#641 peer mode opt-in: wave 후보 impl path 를 claim board 에 등록",
+    )
+    p_wp.add_argument(
+        "--plan-id",
+        default=None,
+        dest="plan_id",
+        help="claim board 등록 묶음 식별자 (선택)",
+    )
     p_wp.set_defaults(func=_cli_wave_plan)
+
+    p_wc = sub.add_parser(
+        "wave-claim",
+        help="#641 peer mode: canonical impl path claim (unregistered면 serial flow)",
+    )
+    p_wc.add_argument("impl_path")
+    p_wc.add_argument("--session-id", default=None, dest="session_id")
+    p_wc.add_argument("--run-id", default=None, dest="run_id")
+    p_wc.add_argument("--worktree", default=None)
+    p_wc.add_argument("--branch", default=None)
+    p_wc.add_argument(
+        "--stale-after",
+        type=int,
+        default=2 * 60 * 60,
+        dest="stale_after",
+        help="stale 판정 초 (default 7200). 자동 reclaim 은 하지 않음.",
+    )
+    p_wc.set_defaults(func=_cli_wave_claim)
+
+    p_wh = sub.add_parser("wave-heartbeat", help="#641 peer claim heartbeat 갱신")
+    p_wh.add_argument("key_or_path")
+    p_wh.add_argument("--session-id", default=None, dest="session_id")
+    p_wh.add_argument("--run-id", default=None, dest="run_id")
+    p_wh.set_defaults(func=_cli_wave_heartbeat)
+
+    p_wrel = sub.add_parser("wave-release", help="#641 peer claim 상태 기록")
+    p_wrel.add_argument("key_or_path")
+    p_wrel.add_argument(
+        "--state",
+        choices=("completed", "failed", "released"),
+        default="released",
+    )
+    p_wrel.add_argument("--pr", type=int, default=None)
+    p_wrel.add_argument("--url", default=None)
+    p_wrel.add_argument("--reason", default="")
+    p_wrel.set_defaults(func=_cli_wave_release)
+
+    p_wre = sub.add_parser("wave-reclaim", help="#641 stale claim 명시 reclaim")
+    p_wre.add_argument("key_or_path")
+    p_wre.add_argument("--reason", required=True)
+    p_wre.set_defaults(func=_cli_wave_reclaim)
+
+    p_ws = sub.add_parser("wave-status", help="#641 peer claim board 현황")
+    p_ws.add_argument("--json", action="store_true")
+    p_ws.set_defaults(func=_cli_wave_status)
+
+    p_ml = sub.add_parser("merge-lock", help="#641 peer PR finalize mutex")
+    ml_sub = p_ml.add_subparsers(dest="merge_lock_cmd", required=True)
+    p_mla = ml_sub.add_parser("acquire", help="peer claim 이 있으면 merge lock 획득")
+    p_mla.add_argument("--branch", default=None)
+    p_mla.add_argument("--pr", type=int, default=None)
+    p_mla.add_argument("--owner", default=None)
+    p_mla.set_defaults(func=_cli_merge_lock)
+    p_mlr = ml_sub.add_parser("release", help="merge lock 해제")
+    p_mlr.add_argument("--token", required=True)
+    p_mlr.add_argument("--claim-key", default=None, dest="claim_key")
+    p_mlr.add_argument("--state", choices=("released", "failed"), default="released")
+    p_mlr.add_argument("--reason", default="")
+    p_mlr.set_defaults(func=_cli_merge_lock)
+    p_mlc = ml_sub.add_parser("complete", help="PR merged 후 claim completed + lock release")
+    p_mlc.add_argument("--token", required=True)
+    p_mlc.add_argument("--claim-key", required=True, dest="claim_key")
+    p_mlc.add_argument("--pr", type=int, default=None)
+    p_mlc.add_argument("--url", default=None)
+    p_mlc.set_defaults(func=_cli_merge_lock)
 
     p_le = sub.add_parser(
         "ledger-event",
