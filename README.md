@@ -1,12 +1,17 @@
 # dcNess
 
+> Stop Claude Code from skipping tests, reviews, and file boundaries before PRs.
+> A Claude Code PR workflow guard that preserves test/review order and agent file boundaries.
+
 > **Origin**: [`alruminum/realworld-harness`](https://github.com/alruminum/realworld-harness) fork-and-refactor
 > **Spec(SSOT)**: [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)
 
-**dcNess 는 Claude Code 용 거버넌스 하네스 plugin 이다.**
+**dcNess 는 Claude Code 용 PR workflow guard plugin 이다.**
 
-코딩 에이전트가 혼자 달릴 때 빠지는 함정 — 검증 건너뛰기, 권한 밖 파일 수정,
-순서 뒤집기 — 을 막는 데 집중한다.
+Claude Code 가 혼자 달릴 때 가장 비싼 실수 — 테스트 생략, 리뷰 순서 뒤집기,
+권한 밖 파일 수정, PR 조기 생성 — 를 PR 전에 hook 으로 막고 복구 경로를 안내한다.
+Claude Code 기본 기능이 실행 능력을 준다면, dcNess 는 사용자가 정한 작업 순서와
+agent 파일 경계를 보존하는 얇은 안전장치다.
 
 dcNess 는 *모델을 불신해서 모든 사고를 대신하는* 하네스가 아니다. 모델이 좋아질수록
 절차를 없애는 게 아니라 **절차의 목적을 이해하고 더 적은 마찰로 지키게** 하는, 사용자의
@@ -24,8 +29,8 @@ risk 가 높을 때만 조건부로 부른다([`docs/plugin/workflow-router.md`]
 
 ## 누구에게 맞나
 
-**맞다** — Claude Code 로 실제 제품을 만들면서 PR/이슈/구현 루프에 **거버넌스**(검증
-순서 보존, 파일 경계, 재현 가능한 run-review)가 필요한 사람.
+**맞다** — Claude Code 로 실제 제품을 만들면서 `test → implement → review → PR`
+순서와 agent 파일 경계를 반복적으로 지키고 싶은 사람.
 
 **안 맞다** — 범용 model/provider 라우팅이나 MCP 런타임 확장이 목적인 경우(그건 dcNess 의
 scope 가 아니다). Codex route 는 read-only validator 3종 opt-in 에만 한정된다. 가벼운
@@ -60,6 +65,24 @@ claude plugin install dcness@dcness
 ```sh
 dcness-helper routing disable-codex-validation
 ```
+
+## 30초 데모: What It Catches
+
+가장 작은 데모는 "잘못된 순서 → hook block → 복구 → PR" 흐름이다. 전체 transcript 는
+[`docs/plugin/demo.md`](docs/plugin/demo.md) 에 있다.
+
+```text
+Claude tries to call pr-reviewer before code-validator PASS
+→ dcNess blocks the call: review cannot run before validation
+→ run code-validator read-only
+→ code-validator returns PASS
+→ pr-reviewer runs read-only
+→ tests pass
+→ branch → PR
+```
+
+이 흐름의 핵심은 절차를 늘리는 것이 아니라, 사고가 PR 로 번지기 전에 guard 가 멈추고
+복구 경로를 바로 보여주는 것이다.
 
 ## 작업 흐름
 
@@ -155,12 +178,16 @@ entrypoint 가 아니라 workflow 내부 gate/worker/reviewer 로 호출된다.
 
 ## 개발자 셋업 (dcNess 에 기여)
 
+검증 기준은 Python 3.11 이다. macOS 기본 `python3` 는 Python 3.9 일 수 있으므로
+로컬에서는 `python3.11` 을 명시한다. pre-commit hook 은 `python3.11` 을 우선 탐색하고,
+CI 는 GitHub Actions `setup-python` 으로 Python 3.11 을 고정한다.
+
 ```sh
 git clone https://github.com/alruminum/dcNess.git
 cd dcNess
 cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 
-python3 -m unittest discover -s tests -v   # 단위 테스트
+python3.11 -m unittest discover -s tests -v # 단위 테스트
 node scripts/check_plugin_manifest.mjs     # manifest 검증
 node scripts/check_public_surface.mjs      # public workflow surface 검증
 node scripts/check_cross_refs.mjs          # link/anchor + 옛 명칭 게이트
@@ -181,6 +208,16 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |
 | [`CLAUDE.md`](CLAUDE.md) | 메인 Claude 작업 지침 |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 |
+
+## Public Launch Tracker
+
+현재 public launch surface 는 README / plugin manifest / GitHub About description 을 같은
+포지셔닝으로 맞추는 것이 기준이다. 후속 readiness 항목은 아래 이슈가 맡는다.
+
+- [`#520 /init-dcness doctor`](https://github.com/alruminum/dcNess/issues/520) — 활성화 실패를 사용자가 직접 진단할 수 있게 한다.
+- [`#521 agent/skill RED-GREEN 시나리오 테스트`](https://github.com/alruminum/dcNess/issues/521) — guard 동작을 예제 기반으로 검증한다.
+- [`#522 public benchmark`](https://github.com/alruminum/dcNess/issues/522) — 위 30초 데모의 block / recovery / PR 지점을 측정 포인트로 삼는다.
+- [`#524 runtime non-goal vs interop 포지셔닝`](https://github.com/alruminum/dcNess/issues/524) — provider router 가 아니라 PR workflow guard 라는 경계를 명확히 한다.
 
 ### 역사 자료 (archive)
 

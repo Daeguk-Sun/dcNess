@@ -1,20 +1,22 @@
 {
   "name": "dcness",
   "version": "0.4.0",
-  "description": "Lightweight governance harness for Claude Code — prose-only determinism (no format-marker ladder, no meta-LLM) + enforced work-order and access boundaries.",
+  "description": "Claude Code PR workflow guard that stops skipped tests, skipped reviews, and out-of-bound agent writes before PRs.",
   "author": {
     "name": "alruminum",
     "email": "alruminum@gmail.com"
   },
   "license": "MIT",
   "keywords": [
-    "agent",
-    "workflow",
-    "orchestration",
     "claude-code",
+    "claude-code-plugin",
+    "ai-agents",
+    "code-review",
+    "governance",
+    "hooks",
+    "workflow",
     "harness",
-    "prose-only",
-    "governance"
+    "prose-only"
   ],
   "homepage": "https://github.com/alruminum/dcNess",
   "repository": "https://github.com/alruminum/dcNess"

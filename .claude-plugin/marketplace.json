@@ -1,28 +1,31 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "dcness",
-  "description": "Lightweight governance harness — prose-only determinism (no meta-LLM) + enforced work-order and access boundaries.",
+  "description": "Claude Code PR workflow guard that stops skipped tests, skipped reviews, and out-of-bound agent writes before PRs.",
   "owner": {
     "name": "alruminum",
     "email": "alruminum@gmail.com"
   },
   "metadata": {
-    "description": "dcNess — prose-only 결정론(메타 LLM 호출 0) + 작업 순서·접근 영역 강제. release 브랜치 배포 (docs/internal/ · docs/archive/ 미포함).",
+    "description": "dcNess — Claude Code 가 테스트/리뷰/파일 경계를 건너뛰기 전에 막는 PR workflow guard. release 브랜치 배포 (docs/internal/ · docs/archive/ 미포함).",
     "version": "0.4.0"
   },
   "plugins": [
     {
       "name": "dcness",
       "source": "./",
-      "description": "Prose-only governance harness — agent 가 prose 자유 emit, 메인 Claude 가 prose 를 직접 읽고 routing(메타 LLM 0). 형식 강제 사다리 폐기.",
+      "description": "Claude Code PR workflow guard — skipped tests, skipped reviews, and out-of-bound agent writes are blocked before PRs.",
       "category": "development",
       "tags": [
-        "agent",
+        "claude-code",
+        "claude-code-plugin",
+        "ai-agents",
+        "code-review",
+        "governance",
+        "hooks",
         "workflow",
-        "orchestration",
         "harness",
-        "prose-only",
-        "governance"
+        "prose-only"
       ]
     }
   ]

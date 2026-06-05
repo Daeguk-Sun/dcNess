@@ -130,9 +130,9 @@ cp scripts/hooks/commit-msg .git/hooks/commit-msg && chmod +x .git/hooks/commit-
 cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
 cp scripts/hooks/post-checkout .git/hooks/post-checkout && chmod +x .git/hooks/post-checkout
 
-# 하네스 단위 테스트 실행
-python3 -m unittest discover -s tests -v
-python3 -m unittest tests.test_signal_io -v   # 단일 모듈
+# 하네스 단위 테스트 실행 (Python 3.11 기준 — macOS system python3 는 3.9 일 수 있음)
+python3.11 -m unittest discover -s tests -v
+python3.11 -m unittest tests.test_signal_io -v   # 단일 모듈
 node scripts/check_public_surface.mjs
 ```
 
