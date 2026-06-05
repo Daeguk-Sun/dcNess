@@ -781,6 +781,15 @@ class BashMutationTests(unittest.TestCase):
         self.assertIsNone(check_bash_mutation("echo end-run"))
         self.assertIsNone(check_bash_mutation("ls scripts/dcness-helper"))
 
+    def test_helper_token_in_data_position_passes(self):
+        # codex F9 — helper 가 *명령 위치* 가 아니라 데이터일 땐 통과 (false-positive 제거).
+        self.assertIsNone(check_bash_mutation("echo dcness-helper end-run"))
+        self.assertIsNone(check_bash_mutation("echo 'run dcness-helper end-run later'"))
+        self.assertIsNone(check_bash_mutation("grep next-task scripts/dcness-helper"))
+        # 진짜 명령 위치는 여전히 차단 (회귀 아님 확인)
+        self.assertIsNotNone(check_bash_mutation("dcness-helper end-run"))
+        self.assertIsNotNone(check_bash_mutation("bash scripts/dcness-helper next-task"))
+
 
 class GithubMcpMutationTests(unittest.TestCase):
     """#597 커밋5 — check_github_mcp_mutation: PR/repo mutation 차단, read·issue mutation 통과."""

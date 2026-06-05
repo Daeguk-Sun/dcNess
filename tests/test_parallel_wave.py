@@ -127,6 +127,11 @@ class TestParseDependsOn(unittest.TestCase):
         t = self._parse("depends_on:\n  - 01-a  # produces X\n  - 02-b")
         self.assertEqual(t.depends_on, ("01-a", "02-b"))
 
+    def test_depends_on_block_list_with_standalone_comment(self):
+        # codex F6 회귀 가드 — 원소 사이 standalone 주석 라인에서 끊겨 뒤 원소 누락 금지.
+        t = self._parse("depends_on:\n  - 01-a\n  # 02 는 forward dep\n  - 02-b")
+        self.assertEqual(t.depends_on, ("01-a", "02-b"))
+
 
 class TestParseScope(unittest.TestCase):
     def _parse_scope(self, scope_block):
@@ -169,6 +174,12 @@ class TestParseScope(unittest.TestCase):
 
     def test_mixed_path_and_prose_is_ambiguous(self):
         t = self._parse_scope("- src/a.py\n- 그리고 여러 곳\n")
+        self.assertTrue(t.scope_ambiguous)
+        self.assertTrue(t.serial_only)
+
+    def test_nonbullet_prose_plus_path_is_ambiguous(self):
+        # codex F7 — bullet 아닌 자유서술 산문 + 유효 path 가 섞이면 정규화 실패 → 미상.
+        t = self._parse_scope("핵심 파서 전반을 수정한다\n\n- src/a.py\n")
         self.assertTrue(t.scope_ambiguous)
         self.assertTrue(t.serial_only)
 
@@ -233,6 +244,16 @@ class TestScopesDisjoint(unittest.TestCase):
     def test_glob_glob_same_dir_conservative_overlap(self):
         # glob-vs-glob 같은 디렉토리 → 보수적으로 충돌(직렬) 가정.
         self.assertFalse(scopes_disjoint({"src/*.py"}, {"src/a*"}))
+
+    def test_globstar_zero_and_deep_dirs(self):
+        # codex F8 — src/**/*.py 는 중간 디렉토리 0개(src/a.py)도 매치해야 함.
+        from harness.parallel_wave import _path_in_scope
+        self.assertTrue(_path_in_scope("src/a.py", {"src/**/*.py"}))
+        self.assertTrue(_path_in_scope("src/x/a.py", {"src/**/*.py"}))
+        self.assertTrue(_path_in_scope("src/x/y/a.py", {"src/**/*.py"}))
+        self.assertFalse(_path_in_scope("lib/a.py", {"src/**/*.py"}))
+        # disjoint: src/**/*.py 는 src/a.py 와 겹침(둘 다 src 하위 .py)
+        self.assertFalse(scopes_disjoint({"src/**/*.py"}, {"src/a.py"}))
 
 
 # ── compute_waves ───────────────────────────────────────────

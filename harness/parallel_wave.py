@@ -228,11 +228,12 @@ def _parse_depends_on(fm_lines: list[str]) -> Optional[tuple[str, ...]]:
         # same-line 값 없음 → 블록 리스트(`  - x`) 탐색.
         items: list[str] = []
         for j in range(idx + 1, len(fm_lines)):
+            stripped = fm_lines[j].strip()
             m = re.match(r"^\s+-\s+(.+)$", fm_lines[j])
             if m:
                 items.append(m.group(1))
-            elif fm_lines[j].strip() == "":
-                continue
+            elif stripped == "" or stripped.startswith("#"):
+                continue  # 빈 줄·standalone 주석 → block 중간이라도 종료 X (#636 codex F6)
             else:
                 break  # 다음 key → 블록 종료
         if not items:
@@ -296,9 +297,13 @@ def _parse_scope(text: str) -> tuple[frozenset[str], bool]:
         s = lines[j].strip()
         if re.match(r"^#{2,4}\s", s):
             break  # 다음 헤더
+        if s == "":
+            continue
         if s.startswith(">"):  # blockquote 안내문 무시
             continue
         if not s.startswith("-"):
+            # bullet 아닌 자유서술 prose → 정규화 안 됨 → 미상(직렬) (#636 codex F7)
+            has_nonpath = True
             continue
         token = s[1:].strip()
         if token.startswith("`") and token.endswith("`") and len(token) >= 2:
@@ -348,7 +353,13 @@ def _glob_to_regex(pattern: str) -> str:
         ch = pattern[i]
         if ch == "*":
             if i + 1 < n and pattern[i + 1] == "*":
-                out.append(".*")  # ** → recursive (crosses /)
+                # globstar. `**/` 는 0개 이상 디렉토리 → `src/**/*.py` 가 `src/a.py`
+                # (중간 디렉토리 0개)도 매치하도록 slash 를 optional 로 (#636 codex F8).
+                if i + 2 < n and pattern[i + 2] == "/":
+                    out.append("(?:.*/)?")
+                    i += 3
+                    continue
+                out.append(".*")  # 끝의 ** → 나머지 전부
                 i += 2
                 continue
             out.append("[^/]*")  # * → segment-local (no /)

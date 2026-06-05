@@ -644,25 +644,44 @@ def _gh_api_mutation(toks: list[str]) -> Optional[str]:
 def _helper_leader_mutation(toks: list[str]) -> Optional[str]:
     """leader-owned dcness helper 서브커맨드 호출인지 — block reason / None (#636).
 
-    식별 형태(셋 다):
-      - `<...>/dcness-helper <subcommand>`          (wrapper 직접 — basename 매칭)
-      - `bash <...>/dcness-helper <subcommand>`      (bash 로 스크립트 실행)
-      - `python -m harness.session_state <subcommand>` (모듈 직접)
+    식별 형태(셋 다) — helper 가 **실제 실행 명령 위치(command position)** 일 때만:
+      - `<...>/dcness-helper <subcommand>`          (wrapper 직접 — toks[0] basename)
+      - `bash <...>/dcness-helper <subcommand>`      (shell 의 첫 positional = 스크립트)
+      - `python -m harness.session_state <subcommand>` (`-m` 모듈 직접)
 
-    helper 토큰을 찾은 뒤 *첫 positional* 토큰이 leader-owned 서브커맨드면 차단.
-    read-only (run-dir/run-status/.../wave-plan)는 deny 목록에 없어 통과.
+    그 뒤 *첫 positional* 토큰이 leader-owned 서브커맨드면 차단. read-only
+    (run-dir/run-status/.../wave-plan)는 deny 목록에 없어 통과.
+
+    data 위치 helper 토큰(`echo dcness-helper end-run`)은 명령이 아니므로 통과
+    (#636 codex F9 — false-positive 제거). `bash -c "..."` 의 payload 는 호출부
+    `_check_bash_mutation` 의 nested 재귀가 따로 처리한다.
 
     한계(의도적): `"$HELPER" end-run` 처럼 변수 indirection 은 미탐 — 본 guard 는
     보안 경계가 아니라 best-effort denylist (check_bash_mutation 한계와 동일).
     """
-    helper_idx = None
-    for i, t in enumerate(toks):
-        if _command_basename(t) in _HELPER_SCRIPT_NAMES or t in _HELPER_MODULE_NAMES:
-            helper_idx = i
-            break
-    if helper_idx is None:
+    if not toks:
         return None
-    for t in toks[helper_idx + 1:]:
+    cmd0 = _command_basename(toks[0])
+    sub_start: Optional[int] = None
+    if cmd0 in _HELPER_SCRIPT_NAMES:
+        sub_start = 1  # <helper> <sub>
+    elif cmd0 in _SHELL_COMMANDS:
+        # `bash <helper> <sub>` — 첫 positional(스크립트)이 helper 인 경우만.
+        for i in range(1, len(toks)):
+            if toks[i].startswith("-"):
+                continue
+            if _command_basename(toks[i]) in _HELPER_SCRIPT_NAMES:
+                sub_start = i + 1
+            break  # 첫 positional 만 본다 (그게 스크립트)
+    elif cmd0.startswith("python"):
+        # `python -m harness.session_state <sub>`
+        for i in range(1, len(toks) - 1):
+            if toks[i] == "-m" and toks[i + 1] in _HELPER_MODULE_NAMES:
+                sub_start = i + 2
+                break
+    if sub_start is None:
+        return None
+    for t in toks[sub_start:]:
         if t.startswith("-"):
             continue  # 옵션/플래그 skip
         if t in _HELPER_LEADER_SUBCOMMANDS:
