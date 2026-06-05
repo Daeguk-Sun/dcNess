@@ -604,6 +604,37 @@ class TestFanInCheck(unittest.TestCase):
         self.assertFalse(r.passed)
         self.assertEqual(r.missing_evidence, ("01-a",))
 
+    def test_empty_worker_results_fallback(self):
+        # worker 결과 수집 자체가 실패했는데 빈 입력을 PASS 로 보면 안 됨.
+        r = fan_in_check([])
+        self.assertFalse(r.passed)
+        self.assertEqual(r.verdict, "FALLBACK")
+        self.assertIn("worker 결과 없음", r.reasons)
+
+    def test_missing_expected_worker_result_fallback(self):
+        # 2-worker wave 에서 한 worker 결과 record 가 통째로 누락된 경우도 evidence 누락.
+        results = [
+            WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
+        ]
+        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
+        self.assertFalse(r.passed)
+        self.assertEqual(r.missing_evidence, ("02-b",))
+        self.assertIn("evidence 누락 1건", r.reasons)
+
+    def test_expected_worker_and_flagged_missing_deduped(self):
+        # expected 에도 있고 evidence_present=False 인 경우 missing_evidence 중복 방지.
+        results = [
+            WorkerResult(
+                "01-a",
+                frozenset({"src/a.py"}),
+                frozenset({"src/a.py"}),
+                evidence_present=False,
+            ),
+        ]
+        r = fan_in_check(results, expected_slugs=("01-a",))
+        self.assertFalse(r.passed)
+        self.assertEqual(r.missing_evidence, ("01-a",))
+
     def test_scope_dir_prefix_allowed(self):
         # 선언 scope 가 디렉토리면 그 아래 파일 변경은 준수
         results = [

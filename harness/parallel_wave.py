@@ -629,16 +629,24 @@ def _path_in_scope(path: str, scope: Iterable[str]) -> bool:
     return False
 
 
-def fan_in_check(results: Iterable[WorkerResult]) -> FanInResult:
+def fan_in_check(
+    results: Iterable[WorkerResult],
+    *,
+    expected_slugs: Iterable[str] = (),
+) -> FanInResult:
     """fan-in gate 의 최소 구조 판정 (정책 §6).
 
     PASS = 모든 worker diff 가 자기 Scope 안 + cross-worker 파일 충돌 없음 +
     evidence 전부 존재. 하나라도 어기면 FALLBACK (직렬 강등 신호).
+    `expected_slugs` 를 주면 wave 에 있어야 하는 worker 결과가 통째로 누락된
+    경우도 evidence 누락으로 본다.
 
     주의: aggregate tree 전체 테스트 PASS 는 별개의 절차적 요건이라 leader 가
     Bash 로 수행한다 — 본 함수는 그 *전* 의 구조 게이트만 본다.
     """
     results = list(results)
+    expected = tuple(dict.fromkeys(s for s in expected_slugs if s))
+    present = {r.slug for r in results}
 
     scope_violations: list[tuple[str, str]] = []
     for r in results:
@@ -654,9 +662,16 @@ def fan_in_check(results: Iterable[WorkerResult]) -> FanInResult:
         (p, tuple(sorted(s))) for p, s in sorted(owners.items()) if len(s) > 1
     ]
 
-    missing = tuple(r.slug for r in results if not r.evidence_present)
+    missing = tuple(
+        dict.fromkeys(
+            [s for s in expected if s not in present]
+            + [r.slug for r in results if not r.evidence_present]
+        )
+    )
 
     reasons: list[str] = []
+    if not results and not expected:
+        reasons.append("worker 결과 없음")
     if scope_violations:
         reasons.append(f"scope 이탈 {len(scope_violations)}건")
     if conflicts:

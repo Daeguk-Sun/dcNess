@@ -94,7 +94,7 @@ active conveyor run 안의 `Agent` 호출은 직전 `begin-step` 의 단일 `cur
 
 1. 각 worker worktree 의 diff + evidence 를 수집한다.
 2. 별도 fan-in worktree 에서 wave 의 patch 들을 합친다.
-3. scope 준수(각 patch 가 자기 Scope 안인가)와 diff 충돌 여부를 확인한다.
+3. scope 준수(각 patch 가 자기 Scope 안인가)와 diff 충돌 여부를 확인한다. 구조 게이트는 wave 의 기대 task slug 전체를 함께 받아, worker 결과 record 자체가 누락된 경우도 evidence 누락으로 처리한다.
 4. aggregate tree 전체 테스트를 1회 이상 돌린다.
 5. PASS → merge 단계 진입(각 task PR 은 기존 pr-reviewer·CI 그대로). FAIL → 충돌/실패 worker 산출물만 폐기하고 해당 task 직렬 fallback.
 
