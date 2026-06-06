@@ -4,6 +4,40 @@
 
 ---
 
+## v0.5.0 (2026-06-06)
+
+**커밋 범위**: `v0.4.0..v0.5.0` (머지 PR 20개)
+**핵심 변경**: 사용자 진입 표면 재편 — 신규 `/impl` public lane (Lite/Standard/Deep 내부 라우팅) + risk-based workflow router. 부수 — model-trust era harness doctrine 전환 + hook 경계 정합 (hook 7→8) + 설계영역 Contract lifecycle 도입 + run-ledger(prose receipt) 신설 + opt-in 병렬 실행(독립 peer 세션 + claim board + merge lock).
+
+### 무엇이 바뀌나
+
+1. **신규 `/impl` public lane + risk-based workflow router** ([#616](https://github.com/alruminum/dcNess/pull/616) [#585](https://github.com/alruminum/dcNess/issues/585)/[#588](https://github.com/alruminum/dcNess/issues/588), [#595](https://github.com/alruminum/dcNess/pull/595) [#586](https://github.com/alruminum/dcNess/issues/586)) — 사용자가 lane별 command 를 외우는 대신 단일 구현 entrypoint `/impl` 이 Lite / Standard / Deep lane 으로 내부 라우팅한다. 기본 public workflow surface = `/impl` · `/product-plan` · `/issue-report` 3종으로 문서화. workflow 선택 기준을 `docs/plugin/workflow-router.md` 단일 진본으로 — gate 축(high-risk = planning gate) × shape 축(durable = implementation shape) 직교. `/impl-loop` 는 deep impl task 파일용 **legacy/advanced runner 로 재분류**(호출 자체는 유지). `scripts/check_public_surface.mjs` + CI gate 신설로 public surface 계약 회귀 차단.
+
+2. **model-trust era harness doctrine 전환** ([#617](https://github.com/alruminum/dcNess/pull/617) [#591](https://github.com/alruminum/dcNess/issues/591), [#611](https://github.com/alruminum/dcNess/pull/611) [#609](https://github.com/alruminum/dcNess/issues/609), [#610](https://github.com/alruminum/dcNess/pull/610) [#607](https://github.com/alruminum/dcNess/issues/607)) — dcNess 는 model-distrust 하네스가 아니라 working-style 보존 하네스라는 doctrine 을 CLAUDE.md/SSOT 에 명문화. 강제는 (1) 작업 순서 (2) 접근 영역 둘만, 그 외는 agent 자율. 무거운 절차(product-plan / tech-review / architect-loop)는 항상-on 이 아니라 risk-triggered escalation. tech-reviewer 재호출 hard block(코드 강제) 제거 + catastrophic 게이트 번호(§2.1.N) → 자연어 이름. finding 수용 원칙(점 패치 금지, 근본 재설계) 추가.
+
+3. **hook / 권한 경계 정합 (hook 7 → 8)** ([#599](https://github.com/alruminum/dcNess/pull/599) [#597](https://github.com/alruminum/dcNess/issues/597), [#606](https://github.com/alruminum/dcNess/pull/606) [#598](https://github.com/alruminum/dcNess/issues/598), [#605](https://github.com/alruminum/dcNess/pull/605) [#604](https://github.com/alruminum/dcNess/issues/604), [#602](https://github.com/alruminum/dcNess/pull/602) [#596](https://github.com/alruminum/dcNess/issues/596), [#603](https://github.com/alruminum/dcNess/pull/603) [#601](https://github.com/alruminum/dcNess/issues/601)) — **SubagentStop hook 등록(7→8)** 으로 병렬/백그라운드 sub-agent active_agent 신뢰 clear + file-op self-attribution + pending_agents multi-slot. PreToolUse blocking semantics 통일(exit 2) + sub-agent external mutation denylist(Bash + GitHub MCP) + 따옴표-인지 토크나이저. strict conveyor gate(current_step 단일 슬롯 강제). SessionStart inject 슬림화 + hook-first recovery.
+
+4. **설계영역 — Contract lifecycle 도입** ([#613](https://github.com/alruminum/dcNess/pull/613) [#612](https://github.com/alruminum/dcNess/issues/612), [#615](https://github.com/alruminum/dcNess/pull/615)) — architect 레벨을 늘리지 않고 **계약(Contract)을 1급 산출물로 관리**. architecture-validator 가 `FAIL` 을 "전파 누락(stale 사본)" vs "진짜 경계 오류" 로 분류 라우팅 → 단순 전파 누락이 불필요한 system 재설계로 비화하던 비용 차단. interface 를 시그니처뿐 아니라 invariant/ordering/error/forbidden 까지 단일 Contract Ledger 로 관리. module-architect impl 템플릿 경량화(private helper 이름·loop body·의사코드 선점 제거 → drift 표면 축소).
+
+5. **run-ledger / prose receipt** ([#623](https://github.com/alruminum/dcNess/pull/623) [#587](https://github.com/alruminum/dcNess/issues/587), [#632](https://github.com/alruminum/dcNess/pull/632) [#631](https://github.com/alruminum/dcNess/issues/631)) — `harness/ledger.py` 신규 — run 단위 append-only event 장부 + helper-generated receipt(sha256 / prose_excerpt / must_fix / evidence_paths / next_action). 긴 prose 재주입 대신 evidence pointer 로 chain 상태(현재 task/phase/PR/next)를 한눈에 색인. read-side strict 검증(prose_file 실존 + sha256 digest match)으로 위조/손상 step 차단. 옛 `.steps.jsonl` deny-list. Epic4 하네스 회귀 8건 일괄 보강.
+
+6. **opt-in 병렬 실행 — 독립 peer 세션** ([#637](https://github.com/alruminum/dcNess/pull/637) [#589](https://github.com/alruminum/dcNess/issues/589), [#638](https://github.com/alruminum/dcNess/pull/638) [#636](https://github.com/alruminum/dcNess/issues/636), [#639](https://github.com/alruminum/dcNess/pull/639), [#642](https://github.com/alruminum/dcNess/pull/642) [#641](https://github.com/alruminum/dcNess/issues/641)) — 기본은 직렬 chain, 병렬은 독립 task 가 기계 판정으로 확신될 때만 opt-in. 정책 SSOT = `docs/plugin/parallel-policy.md`(depends_on 3-state + Scope 파일집합 disjoint 판정). 실행 모델은 **별도 터미널 interactive peer 세션** — 각 세션이 기존 `/impl-loop <canonical-impl-path>` single task 를 수행. `harness/wave_board.py`(canonical impl path 단위 O_EXCL claim board) + `harness/merge_lock.py`(repo-level merge mutex + 같은 story prior task_index order gate + stale 복구)로 중복 작업·조기 close 차단. `scripts/pr-finalize.sh` 가 실제 merge 경로에서 peer guard 적용(미등록 PR 은 `mode=serial` 로 기존 흐름 유지). **주의**: 사이클 중 모델 진화 — [#638](https://github.com/alruminum/dcNess/pull/638) 의 "worktree 격리 fan-in" 은 [#642](https://github.com/alruminum/dcNess/pull/642) 의 peer 세션 모델로 대체됨(fan-in helper 는 legacy residue 로 잔존, 후속 정리 대상).
+
+### 사용자 영향
+
+- **외부 활성 프로젝트: `claude plugin update dcness@dcness` 로 자동 반영** — 신규 `/impl` 진입점 + risk router + 8 hook + Contract lifecycle + run-ledger + 병렬 opt-in 이 plug-in 본체 경로(`skills/**`, `hooks/**`, `harness/**`, `scripts/**`, `docs/plugin/**`)로 자동 적용. 호출 방식(`/impl`·`/product-plan`·`/issue-report`·`/impl-loop`) 그대로.
+- **`/impl` 권장, `/impl-loop` 는 advanced 유지** — 일반 구현·버그픽스·한 줄 수정의 기본 진입점은 이제 `/impl`. `/impl-loop` 는 architect-loop 산출 deep impl task 파일용 legacy/advanced runner 로 그대로 호출 가능.
+- **tech-reviewer 재호출 코드 hard block 제거** — `/architect-loop` 진입 후 재호출은 이제 코드 강제 차단이 아니라 skill prose 권고. doctrine 전환(강제 최소화)의 일환.
+- **병렬은 명시적 opt-in 한정** — `wave-plan --register` 로 등록 + 사용자가 별도 터미널에서 peer 세션을 직접 띄울 때만 발화. 미등록 경로·yolo 모드는 기존 직렬 그대로(자동 ON 안 함). [#216](https://github.com/alruminum/dcNess/issues/216) cache_read 폭주 안티패턴 가드 유지.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
+
+---
+
 ## v0.4.0 (2026-06-04)
 
 **커밋 범위**: `v0.3.0..v0.4.0`
