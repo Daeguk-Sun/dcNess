@@ -107,6 +107,7 @@ Advanced entrypoint 는 여전히 존재하지만 기본 표면은 아니다.
 - `/acceptance` — story/epic 제품 검수 MVP
 - `/tech-review` — Deep lane 의 선행 기술 검증
 - `/architect-loop` — Deep lane 의 설계 루프
+- `/design` — `/architect-loop` 호환 alias. product/technical design, 즉 설계 전체를 뜻하며 visual design 단독 요청은 `/ux`
 - `/impl-loop` — deep impl task 파일용 legacy/advanced runner
 - `/ux` — 화면 UX / 디자인 핸드오프 전문 흐름
 
@@ -144,6 +145,7 @@ escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/
 | 고급 workflow | `/acceptance` | story/epic 제품 검수 MVP |
 | 고급 workflow | `/tech-review` | Deep lane 선행 기술 검증 |
 | 고급 workflow | `/architect-loop` | 1 epic 설계 루프 |
+| 고급 workflow | `/design` | `/architect-loop` 호환 alias. product/technical design, visual design 단독 요청은 `/ux` |
 | 고급 workflow | `/impl-loop` | deep impl task 파일용 legacy/advanced runner |
 | 고급 workflow | `/ux` | 화면 UX 플로우 + 디자인 시안 핸드오프 |
 | 유틸리티 | `/init-dcness` | 현 프로젝트를 plugin 활성 whitelist 에 등록 |
