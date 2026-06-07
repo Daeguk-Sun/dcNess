@@ -699,6 +699,7 @@ Codex validator routing (Step 2.10 — local opt-in):
 - /issue-report — 이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE)
 
 고급 workflow:
+- /acceptance — story/epic 제품 검수 MVP
 - /tech-review — Deep lane 선행 기술 검증
 - /architect-loop — 1 epic 설계 루프
 - /impl-loop — deep impl task 파일용 advanced runner

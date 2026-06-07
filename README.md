@@ -104,6 +104,7 @@ dcness-helper routing disable-codex-validation
 
 Advanced entrypoint 는 여전히 존재하지만 기본 표면은 아니다.
 
+- `/acceptance` — story/epic 제품 검수 MVP
 - `/tech-review` — Deep lane 의 선행 기술 검증
 - `/architect-loop` — Deep lane 의 설계 루프
 - `/impl-loop` — deep impl task 파일용 legacy/advanced runner
@@ -140,6 +141,7 @@ escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/
 | 기본 workflow | `/spec` | 새 기능 spec — `/product-plan` 호환 alias + SPEC_ACCEPTANCE 체크포인트 |
 | 기본 workflow | `/product-plan` | 새 기능 spec/design — 그릴미 대화로 PRD + stories + tech-review 스켈레톤 작성 |
 | 기본 workflow | `/issue-report` | 버그/이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE) |
+| 고급 workflow | `/acceptance` | story/epic 제품 검수 MVP |
 | 고급 workflow | `/tech-review` | Deep lane 선행 기술 검증 |
 | 고급 workflow | `/architect-loop` | 1 epic 설계 루프 |
 | 고급 workflow | `/impl-loop` | deep impl task 파일용 legacy/advanced runner |
