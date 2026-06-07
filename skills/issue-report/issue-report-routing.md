@@ -8,6 +8,12 @@
 
 qa 는 이슈를 접수해 *원인 분석 + 분류* 를 prose 로 내고, 메인 Claude 가 그 결론을 읽어 다음 액션을 *추천* 한다. qa 는 직접 다음 agent 를 호출하지 않는다 (HARNESS_ONLY — qa 권한 밖). 후속 skill 자동 진입 X — **사용자 결정**. 이 문서는 형식 강제가 아니라 *판단 보조* — 의미만 맞으면 된다.
 
+## acceptance 와의 경계
+
+- `/issue-report` = 미분류 버그 접수. 사용자가 "이상해 / 안 돼 / 버그 있다"처럼 아직 분류되지 않은 현상을 신고하면 qa 가 FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE 로 분류한다.
+- acceptance gap issue = `/acceptance` 제품 검수 후속. story/epic 검수 뒤 PRD / AC 미충족, 구현 증거 부족, cross-story gap, security/ops risk 가 확인된 항목을 후속 작업 단위로 바꾼 것이다.
+- acceptance gap issue 는 `/issue-report` 의 KNOWN_ISSUE 중복 제거를 우회하는 새 미분류 신고가 아니다. 사용자 승인 후 GitHub issue 를 만들 때도 근거는 acceptance prose 와 기준 문서다.
+
 ## 라우팅 그래프
 
 ```mermaid
