@@ -51,7 +51,9 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 PRD Must,
 - story 사이의 흐름, 상태, 권한, 데이터 ownership 이 서로 어긋나지 않는다.
 - 보안/권한/데이터 리스크가 새로 생겼는데 별도 후속 없이 묻히지 않았다.
 - 비용, 성능, migration, 배포 설정 같은 운영 리스크가 출시 판단을 막지 않는지 확인한다.
-- 남은 gap 은 `/impl`, `/design`, `/ux`, performance improvement, security deep-dive 같은 후속으로 라우팅 가능하게 쓴다.
+- 남은 gap 은 `/impl`, `/design`, `/spec`, `/ux`, issue 등록 후보, 사용자 위임 같은 후속으로 라우팅 가능하게 쓴다.
+- 성능 병목 / 리팩토링 필요는 issue 등록 후보 + `/impl` 또는 `/design` 으로 제안한다.
+- 보안 / 권한 / 데이터 리스크는 issue 등록 후보 + `/design` 또는 사용자 위임으로 제안한다.
 
 ### RELEASE_ACCEPTANCE
 

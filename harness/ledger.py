@@ -104,7 +104,7 @@ MANUAL_EVENT_TYPES = EVENT_TYPES - LIFECYCLE_EVENT_TYPES
 
 # step_completed 에서 validator pass/fail 을 *파생* 할 때 쓰는 validator agent 집합.
 _VALIDATOR_AGENTS = frozenset(
-    {"code-validator", "pr-reviewer", "architecture-validator"}
+    {"code-validator", "pr-reviewer", "architecture-validator", "product-acceptance"}
 )
 
 # phase 추론 — entry_point + 마지막 step agent 로 "지금 어느 단계인가" best-effort.
@@ -123,6 +123,7 @@ _PHASE_BY_AGENT = {
     "ux-architect": "ux",
     "designer": "ux",
     "qa": "triage",
+    "product-acceptance": "acceptance",
     "product-planner": "plan",
     "tech-reviewer": "tech-review",
 }
@@ -428,6 +429,11 @@ _BACKTICK_RE = re.compile(r"`([^`\n]+)`")
 _PATH_TOKEN_RE = re.compile(r"^[\w.][\w./\-]*$")
 # PR / issue URL.
 _PR_URL_RE = re.compile(r"https?://[^\s`)\]]+/pull/\d+")
+_FAIL_RE = re.compile(r"\bFAIL\b")
+_FAIL_NEGATION_RE = re.compile(
+    r"(없|미발견|아님|아니|불필요|\bno\b|\bnot\b|\bzero\b|\b0\s*\b)",
+    re.IGNORECASE,
+)
 
 
 def extract_evidence_paths(prose: str) -> List[str]:
@@ -466,7 +472,11 @@ def infer_next_action(
     🔴 prose-only 철학 보존: 이건 *hint* 일 뿐 메인 Claude 의 routing 판단을
     대체하지 않는다. 확실하지 않으면 빈 문자열 → status 가 생략.
     """
-    if agent not in _VALIDATOR_AGENTS or not must_fix:
+    if agent not in _VALIDATOR_AGENTS:
+        return ""
+    if agent == "product-acceptance" and enum == "FAIL":
+        return "acceptance gap 후속 라우팅(`/impl`/`/design`/`/spec`/`/ux`) 예상"
+    if not must_fix:
         return ""
     if agent == "code-validator":
         return "engineer 재호출 (FAIL 본문 반영) 예상"
@@ -475,6 +485,16 @@ def infer_next_action(
     if agent == "architecture-validator":
         return "finding 분류로 architect 라우팅 예상 (engineer 단계 아님)"
     return ""
+
+
+def _product_acceptance_fail_from_prose(prose: str) -> bool:
+    """product-acceptance prose-only 결론에서 FAIL hint 만 보수적으로 추출."""
+    for line in reversed(prose.splitlines()):
+        stripped = line.strip()
+        if not stripped:
+            continue
+        return bool(_FAIL_RE.search(stripped) and not _FAIL_NEGATION_RE.search(stripped))
+    return False
 
 
 def build_receipt(
@@ -492,6 +512,9 @@ def build_receipt(
     from harness.session_state import _extract_prose_summary, _has_positive_must_fix
 
     must_fix = _has_positive_must_fix(prose)
+    hint_enum = enum
+    if agent == "product-acceptance" and enum == "PROSE_LOGGED":
+        hint_enum = "FAIL" if _product_acceptance_fail_from_prose(prose) else enum
     return {
         "agent": agent,
         "mode": mode,
@@ -501,7 +524,7 @@ def build_receipt(
         "prose_file": str(prose_path),
         "sha256": sha256_text(prose),
         "evidence_paths": extract_evidence_paths(prose),
-        "next_action": infer_next_action(agent, mode, must_fix=must_fix, enum=enum),
+        "next_action": infer_next_action(agent, mode, must_fix=must_fix, enum=hint_enum),
     }
 
 

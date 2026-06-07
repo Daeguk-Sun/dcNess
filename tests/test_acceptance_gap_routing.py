@@ -25,8 +25,8 @@ class AcceptanceGapRoutingContractTests(unittest.TestCase):
             "설계 결함 / 범위 재정의 필요": "`/design` 또는 `/spec`",
             "검수 증거 부족 / 스모크 실패": "gap 또는 bug issue 후보 + `/impl`",
             "UX 미완성": "`/ux`",
-            "성능 병목 / 리팩토링 필요": "performance improvement loop",
-            "보안 / 권한 / 데이터 리스크": "security deep-dive 또는 사용자 위임",
+            "성능 병목 / 리팩토링 필요": "issue 등록 후보 + `/impl` 또는 `/design`",
+            "보안 / 권한 / 데이터 리스크": "issue 등록 후보 + `/design` 또는 사용자 위임",
         }
         for gap_kind, follow_up in expected_rows.items():
             with self.subTest(gap_kind=gap_kind):

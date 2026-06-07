@@ -52,6 +52,21 @@ class AcceptanceSkillContractTests(unittest.TestCase):
         self.assertIn("Lite `/impl`", text)
         self.assertIn("강제하지 않는다", text)
 
+    def test_acceptance_prefers_design_surface_and_valid_mermaid(self) -> None:
+        skill = self.skill.read_text(encoding="utf-8")
+        routing = self.routing.read_text(encoding="utf-8")
+
+        self.assertIn("설계 산출물 작성/수정 → `/design` (`/architect-loop` 호환)", skill)
+        self.assertNotIn("설계 산출물 작성/수정 → `/architect-loop` 또는 후속 `/design`", skill)
+
+        self.assertIn('TAX --> NEXT1["/impl · /design · /spec · /ux', routing)
+        self.assertNotIn("TAX --> NEXT1[/impl", routing)
+
+        self.assertIn("성능 병목 / 리팩토링 필요 | issue 등록 후보 + `/impl` 또는 `/design`", routing)
+        self.assertIn("보안 / 권한 / 데이터 리스크 | issue 등록 후보 + `/design` 또는 사용자 위임", routing)
+        self.assertNotIn("performance improvement loop", routing)
+        self.assertNotIn("security deep-dive", routing)
+
     def test_public_surface_tracks_acceptance_as_lifecycle_default(self) -> None:
         script = (ROOT / "scripts" / "check_public_surface.mjs").read_text(
             encoding="utf-8"

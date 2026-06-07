@@ -434,6 +434,16 @@ class InferNextActionTests(unittest.TestCase):
         self.assertTrue(hint)  # 비어있지 않음
         self.assertIn("engineer", hint.lower())
 
+    def test_product_acceptance_fail_hint_without_must_fix_marker(self) -> None:
+        hint = ledger.infer_next_action(
+            "product-acceptance",
+            "STORY_ACCEPTANCE",
+            must_fix=False,
+            enum="FAIL",
+        )
+        self.assertIn("acceptance gap", hint)
+        self.assertIn("`/design`", hint)
+
     def test_advance_empty(self) -> None:
         hint = ledger.infer_next_action("engineer", "IMPL", must_fix=False, enum="PROSE_LOGGED")
         self.assertEqual(hint, "")
@@ -478,6 +488,28 @@ class AppendStepCompletedTests(unittest.TestCase):
                 self.assertIn(k, rec, f"receipt 필드 누락: {k}")
             self.assertEqual(rec["event"], "step_completed")
             self.assertEqual(rec["sha256"], ledger.sha256_text(prose))
+
+    def test_product_acceptance_prose_only_fail_sets_next_action(self) -> None:
+        with TemporaryDirectory() as d:
+            base = Path(d)
+            _seed_run(base)
+            prose = (
+                "## Findings\n"
+                "- `docs/prd.md:10` acceptance gap.\n\n"
+                "FAIL\n"
+            )
+            prose_path = _write_prose_file(base, "product-acceptance-STORY_ACCEPTANCE.md", prose)
+            rec = ledger.append_step_completed(
+                _SID, _RID, "product-acceptance", "STORY_ACCEPTANCE",
+                "PROSE_LOGGED", prose, prose_path, base_dir=base,
+            )
+            expected = "acceptance gap 후속 라우팅(`/impl`/`/design`/`/spec`/`/ux`) 예상"
+            self.assertEqual(rec["enum"], "PROSE_LOGGED")
+            self.assertEqual(rec["next_action"], expected)
+            self.assertEqual(
+                ledger.read_step_completed(_SID, _RID, base_dir=base)[-1]["next_action"],
+                expected,
+            )
 
 
 class ReadAtPathTests(unittest.TestCase):

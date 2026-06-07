@@ -66,6 +66,12 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.loop_procedure = (
             ROOT / "docs" / "plugin" / "loop-procedure.md"
         ).read_text(encoding="utf-8")
+        self.hooks_doc = (ROOT / "docs" / "plugin" / "hooks.md").read_text(
+            encoding="utf-8"
+        )
+        self.cross_ref_script = (ROOT / "scripts" / "check_cross_refs.mjs").read_text(
+            encoding="utf-8"
+        )
 
     def test_readme_uses_lifecycle_defaults_and_separate_legacy_surface(self) -> None:
         basic_table = self._section(self.readme, r"\| 기본 진입점 \|", r"\n`/impl`")
@@ -92,6 +98,21 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertIn("/spec -> /design -> /impl -> /acceptance", text)
             self.assertNotIn("후속 #645", text)
             self.assertNotIn("future", text)
+
+    def test_cross_ref_gate_agent_count_label_matches_public_surface(self) -> None:
+        self.assertIn("현재 13 종", self.cross_ref_script)
+        self.assertIn(r"agent\s+1[0-2]\s*종", self.cross_ref_script)
+        self.assertNotIn(r"agent\s+1[01]\s*종", self.cross_ref_script)
+        self.assertNotIn("현재 12 종", self.cross_ref_script)
+
+    def test_strict_conveyor_docs_include_design_alias_guard(self) -> None:
+        expected = "entry_point=architect-loop|design|impl|issue-report|ux"
+        self.assertIn(expected, self.hooks_doc)
+        self.assertIn(expected, self.loop_procedure)
+        self.assertIn("정상 `/design` 은 `begin-run architect-loop`", self.hooks_doc)
+        self.assertIn("실수로 `begin-run design`", self.hooks_doc)
+        self.assertNotIn("entry_point=architect-loop|impl|issue-report|ux", self.hooks_doc)
+        self.assertNotIn("entry_point=architect-loop|impl|issue-report|ux", self.loop_procedure)
 
     def test_init_summary_uses_same_lifecycle_surface(self) -> None:
         default_block = self._section(
@@ -143,6 +164,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("Lite: /impl direct PR", self.router)
         self.assertIn("Lite (`/impl` 직접)", self.router)
         self.assertNotIn("Deep `/architect-loop` 승격", self.router)
+        self.assertIn(
+            "concrete signal 로 보고 `/impl`, `/design`, `/spec`, `/ux` 등",
+            self.router,
+        )
 
     def test_internal_routing_docs_prefer_lifecycle_names_with_compat_aliases(self) -> None:
         self.assertIn("`/spec` / `/design` / `/impl-loop`", self.impl_skill)
@@ -190,6 +215,21 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "`/tech-review` → `/architect-loop` → `/impl`",
             self.product_plan_skill,
         )
+        self.assertIn(
+            "`docs/milestones/vNN/epics/epic-NN-<slug>/stories.md` — Epic + N Story",
+            self.product_plan_skill,
+        )
+        self.assertIn(
+            "`docs/prd.md` + epic 단위 `docs/milestones/vNN/epics/epic-NN-<slug>/stories.md` + `docs/tech-review.md`",
+            self.product_plan_skill,
+        )
+        self.assertIn(
+            "docs/prd.md docs/milestones/vNN/epics/epic-NN-<slug>/stories.md docs/tech-review.md",
+            self.product_plan_skill,
+        )
+        self.assertNotIn("`docs/stories.md` — Epic + N Story", self.product_plan_skill)
+        self.assertNotIn("`docs/stories.md`", self.product_plan_skill)
+        self.assertNotIn("git add docs/prd.md docs/stories.md", self.product_plan_skill)
 
         self.assertIn(
             "`/design` (`/architect-loop` 호환)",

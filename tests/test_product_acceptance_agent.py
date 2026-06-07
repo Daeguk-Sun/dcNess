@@ -6,6 +6,13 @@ from pathlib import Path
 
 from harness.agent_boundary import ALLOW_MATRIX
 from harness.agent_routing import ROUTABLE_VALIDATION_AGENTS
+from harness.ledger import infer_next_action, infer_phase
+from harness.run_review import (
+    DCNESS_AGENT_NAMES,
+    EXPECTED_AGENT_BUDGETS,
+    EXPECTED_FINAL_ENUMS,
+    READONLY_AGENTS,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -19,6 +26,9 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
             / "agents"
             / "product-acceptance"
             / "product-acceptance-agent.md"
+        )
+        self.acceptance_routing = (
+            ROOT / "skills" / "acceptance" / "acceptance-routing.md"
         )
 
     def test_agent_entrypoint_exists_and_points_to_prompt(self) -> None:
@@ -82,6 +92,45 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         )
         self.assertIn("'product-acceptance'", script)
         self.assertIn("`product-acceptance`", positioning)
+
+    def test_harness_review_and_ledger_track_product_acceptance(self) -> None:
+        self.assertEqual(EXPECTED_FINAL_ENUMS["product-acceptance"], {None: "PASS"})
+        self.assertIn("product-acceptance", EXPECTED_AGENT_BUDGETS)
+        self.assertIn("product-acceptance", DCNESS_AGENT_NAMES)
+        self.assertIn("product-acceptance", READONLY_AGENTS)
+        self.assertEqual(
+            infer_phase("acceptance", "product-acceptance", "STORY_ACCEPTANCE"),
+            "acceptance",
+        )
+        self.assertEqual(
+            infer_next_action(
+                "product-acceptance",
+                "STORY_ACCEPTANCE",
+                must_fix=True,
+                enum="FAIL",
+            ),
+            "acceptance gap 후속 라우팅(`/impl`/`/design`/`/spec`/`/ux`) 예상",
+        )
+        self.assertEqual(
+            infer_next_action(
+                "product-acceptance",
+                "EPIC_ACCEPTANCE",
+                must_fix=False,
+                enum="FAIL",
+            ),
+            "acceptance gap 후속 라우팅(`/impl`/`/design`/`/spec`/`/ux`) 예상",
+        )
+
+    def test_prompt_uses_acceptance_routing_surface_names(self) -> None:
+        prompt = self.prompt.read_text(encoding="utf-8")
+        routing = self.acceptance_routing.read_text(encoding="utf-8")
+
+        self.assertIn("issue 등록 후보 + `/impl` 또는 `/design`", prompt)
+        self.assertIn("issue 등록 후보 + `/design` 또는 사용자 위임", prompt)
+        self.assertIn("issue 등록 후보 + `/impl` 또는 `/design`", routing)
+        self.assertIn("issue 등록 후보 + `/design` 또는 사용자 위임", routing)
+        self.assertNotIn("performance improvement", prompt)
+        self.assertNotIn("security deep-dive", prompt)
 
 
 if __name__ == "__main__":

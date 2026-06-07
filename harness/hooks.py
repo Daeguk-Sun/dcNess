@@ -57,6 +57,7 @@ __all__ = [
 
 _STRICT_CONVEYOR_ENTRY_POINTS = frozenset({
     "architect-loop",
+    "design",
     "impl",
     "issue-report",
     "ux",
@@ -1072,10 +1073,11 @@ def _is_architect_loop(
     *,
     base_dir: Optional[Path] = None,
 ) -> bool:
-    """현재 run 이 architect-loop 인지 확인 (entry_point 기준).
+    """현재 run 이 architect-loop/design 설계 루프인지 확인 (entry_point 기준).
 
     module-architect 게이트 발동 조건 — architect-loop 안 module-architect
-    × K 첫 호출 직전 architecture-validator PASS 필수.
+    × K 첫 호출 직전 architecture-validator PASS 필수. `/design` alias 로
+    begin-run 한 실수 경로도 같은 안전장치를 적용한다.
     """
     try:
         live = read_live(sid, base_dir=base_dir) or {}
@@ -1084,7 +1086,7 @@ def _is_architect_loop(
             return False
         slot = active.get(rid, {})
         entry = slot.get("entry_point", "") if isinstance(slot, dict) else ""
-        return entry == "architect-loop"
+        return entry in {"architect-loop", "design"}
     except Exception:  # noqa: BLE001 — safe default
         return False
 

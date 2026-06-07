@@ -36,7 +36,7 @@ class DesignAliasContractTests(unittest.TestCase):
         hooks = (ROOT / "harness" / "hooks.py").read_text(encoding="utf-8")
         self.assertIn("../architect-loop/SKILL.md", design)
         self.assertIn("../architect-loop/architect-loop-routing.md", design)
-        self.assertIn('entry == "architect-loop"', hooks)
+        self.assertIn('entry in {"architect-loop", "design"}', hooks)
         self.assertIn("begin-run architect-loop", design)
         self.assertIn("entry_point = `architect-loop`", design)
         self.assertIn("`design` 으로 시작하지 않는다", design)

@@ -62,8 +62,8 @@ const DENY_LIST = [
     label: '옛 step 로그 `.steps.jsonl` — `ledger.jsonl` 의 step_completed event 로 흡수 (이슈 #587). legacy/폴백 맥락(옛·legacy 키워드 동반)만 허용.',
   },
   {
-    pattern: /agent\s+1[01]\s*종/,
-    label: '옛 agent 카운트 (10 또는 11 종) — 현재 12 종 (designer / build-worker 포함)',
+    pattern: /agent\s+1[0-2]\s*종/,
+    label: '옛 agent 카운트 (10, 11, 12 종) — 현재 13 종 (product-acceptance / designer / build-worker 포함)',
   },
   {
     pattern: /\b[79]\s*hook\s+(상세|전체|공유|충족|시점)/,

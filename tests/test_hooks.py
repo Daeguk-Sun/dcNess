@@ -314,6 +314,12 @@ class _ArchitectLoopBase(unittest.TestCase):
             self.sid, self.rid, agent, mode or None, base_dir=self.base,
         )
 
+    def _set_entry_point(self, entry_point: str) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        active[self.rid]["entry_point"] = entry_point
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
 
 class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
     def test_module_architect_first_call_blocked_without_arch_validator(self) -> None:
@@ -368,6 +374,16 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
                 base_dir=base,
             )
             self.assertEqual(rc, 0)
+
+    def test_design_entry_point_alias_enforces_arch_validator_gate(self) -> None:
+        self._set_entry_point("design")
+        self._begin_step("module-architect")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
 
 
 class TechReviewerRecallNotBlockedTests(_ArchitectLoopBase):
@@ -453,6 +469,19 @@ class StrictConveyorGateTests(_PreToolBase):
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
+
+    def test_design_entry_point_is_strict_alias(self) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        active[self.rid]["entry_point"] = "design"
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("pr-reviewer"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
 
     def test_allows_matching_begin_step(self) -> None:
         self._begin_step("module-architect")
