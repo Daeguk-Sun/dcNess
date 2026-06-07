@@ -42,7 +42,7 @@ flowchart TB
 | **CLEANUP** | `/impl` (대개 Lite, 경계가 애매하면 Standard) |
 | **DESIGN_ISSUE** | `/ux` — 모드는 `/ux` 가 판정 (기존 화면 결함이면 **ux-refine-stage / UX_REFINE** — ux-architect 분석 → 사용자 승인 → designer → PICK, [`skills/ux/ux-routing.md`](../ux/ux-routing.md)). qa 는 designer 직접 호출 X (HARNESS_ONLY) — 반드시 `/ux` skill 경유 |
 | **KNOWN_ISSUE** | 종료 (이미 알려진/추적 중 — 추가 작업 없음) |
-| **SCOPE_ESCALATE** | 사용자 위임 (큰 변경 / 다중 모듈 — `/product-plan` 또는 `/architect-loop` 재진입 후보) |
+| **SCOPE_ESCALATE** | 사용자 위임 (큰 변경 / 다중 모듈 — `/spec` 또는 `/design` 재진입 후보, `/product-plan` / `/architect-loop` 호환) |
 
 > **HARNESS_ONLY 정합** — qa 는 engineer / module-architect / designer 를 *직접 호출하지 않는다*. 메인이 위 추천을 받아 `/impl` / `/ux` skill 로 진입한다. 옛 "engineer 직접 / module-architect 직접" 표현은 추천 대상 *skill 의 내부 lane/선두 agent* 를 가리킨 축약 — 실제 진입은 skill 경유. qa 결론 → 다음 호출 라우팅은 본 문서가 진본.
 

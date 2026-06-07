@@ -17,6 +17,6 @@ description: product/technical design 을 `/architect-loop` 호환 흐름으로 
 
 ## 범위
 
-- 본 alias 는 #645의 분해 PR 중 `/design` entrypoint 추가 단계다.
-- 기본 workflow surface flip(`/spec -> /design -> /impl -> /acceptance`)은 후속 #645 PR에서 처리한다.
+- 본 alias 는 현재 기본 workflow surface 의 `/design` entrypoint 다.
+- 기본 lifecycle surface 는 `/spec -> /design -> /impl -> /acceptance` 다. `/design` 은 PRD 이후 구현 전 product/technical design 을 담당하고, 내부 실행은 `/architect-loop` 호환 흐름을 따른다.
 - visual design 단독 보강이나 화면 시안 핸드오프는 `/ux` 흐름이 담당한다.

@@ -20,10 +20,10 @@ skill 트리거 또는 직접 발화 → 메인 Claude 가 **해당 skill 의 `#
 
 ### worktree 분기 (action 루프 한정)
 
-**worktree 격리로 산출물을 커밋하는 action 루프 (`/impl` · `/impl-loop` · `/architect-loop`) 진입 시 Step 0 에서 EnterWorktree 자동 호출** — 동시 다중 세션 충돌 회피 + 메인 working tree 보호. `/product-plan` / `/tech-review` / `/ux` (commit 없음) / qa-triage 는 commit 격리 목적 부재라 워크트리 X (메인 working tree 에서 직접 또는 별 branch). loop 별 적용 여부는 각 skill 본문 (예: [`impl/SKILL.md`](../../skills/impl/SKILL.md) · [`architect-loop/SKILL.md`](../../skills/architect-loop/SKILL.md) 워크트리 절 · [`impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)).
+**worktree 격리로 산출물을 커밋하는 action 루프 (`/impl` · `/impl-loop` · `/design` (`/architect-loop` 호환)) 진입 시 Step 0 에서 EnterWorktree 자동 호출** — 동시 다중 세션 충돌 회피 + 메인 working tree 보호. `/spec` (`/product-plan` 호환) / `/tech-review` / `/ux` (commit 없음) / qa-triage 는 commit 격리 목적 부재라 워크트리 X (메인 working tree 에서 직접 또는 별 branch). loop 별 적용 여부는 각 skill 본문 (예: [`impl/SKILL.md`](../../skills/impl/SKILL.md) · [`architect-loop/SKILL.md`](../../skills/architect-loop/SKILL.md) 워크트리 절 · [`impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)).
 
 ```
-EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / architect-loop)
+EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / design(architect-loop))
 ```
 
 - **거부 표현 시에만 건너뜀** — 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시 EnterWorktree 호출 0, 일반 cwd 그대로 진행.
@@ -399,7 +399,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 
 ## catastrophic 정합
 
-각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 catastrophic 룰을 자연 충족한다 — catastrophic 시퀀스 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / module-architect × K 진입 직전 architecture-validator 1차 PASS. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/architect-loop` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) 8 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 catastrophic 룰을 자연 충족한다 — catastrophic 시퀀스 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / module-architect × K 진입 직전 architecture-validator 1차 PASS. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` (`/architect-loop` 호환) 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) 8 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 ---
 

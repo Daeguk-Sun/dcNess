@@ -70,7 +70,7 @@ flowchart TB
 
 escalate 계열 결론(`UX_FLOW_ESCALATE` / designer `ESCALATE`) 수신 시 **메인이 즉시 사용자 보고 후 대기** (자동 복구 / 우회 / 재시도 금지 — [`../../CLAUDE.md`](../../CLAUDE.md) 강제 영역).
 
-- **화면 전환 / 인터랙션 모호** (ux-architect) → 추측 X. 다중 해석 제시 + 사용자 위임 (PRD 범위 문제면 메인 `/product-plan` 재진입 권고).
+- **화면 전환 / 인터랙션 모호** (ux-architect) → 추측 X. 다중 해석 제시 + 사용자 위임 (PRD 범위 문제면 메인 `/spec` 재진입 권고 (`/product-plan` 호환)).
 - **designer 환경 미감지 / 시안 불가** → 사용자 위임.
 
 ## 후속 (skill 종료 후)

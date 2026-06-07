@@ -16,6 +16,8 @@ class SpecAliasContractTests(unittest.TestCase):
         self.assertIn("/product-plan", spec)
         self.assertIn("호환", spec)
         self.assertIn("SPEC_ACCEPTANCE", spec)
+        self.assertIn("/spec -> /design -> /impl -> /acceptance", spec)
+        self.assertNotIn("후속 #645", spec)
 
         product_plan = (
             ROOT / "skills" / "product-plan" / "SKILL.md"

@@ -16,7 +16,7 @@ flowchart TB
   BUG -->|아니오| HR{"high-risk trigger?"}
   HR -->|예| DP["Deep"]
   HR -->|아니오| AM{"목표/범위/성공 기준 모호?"}
-  AM -->|예| CL["명확화 또는 /product-plan"]
+  AM -->|예| CL["명확화 또는 /spec"]
   AM -->|아니오| CS{"concrete signal + 즉시 구현 경계?"}
   CS -->|예| LT["Lite"]
   CS -->|아니오| ST["Standard"]
@@ -24,7 +24,7 @@ flowchart TB
   ST -->|너무 단순함| LT
   DP --> DPT{"deep impl task 있음?"}
   DPT -->|예| IL["/impl-loop <task>"]
-  DPT -->|아니오| PLAN["/product-plan 또는 /architect-loop"]
+  DPT -->|아니오| PLAN["/spec 또는 /design"]
 ```
 
 ## Lane 별 실행 매핑
@@ -33,7 +33,7 @@ flowchart TB
 |---|---|
 | Lite | 메인 직접 `test -> impl -> test pass` 후 `pr-reviewer` local diff. `code-validator` 없음 |
 | Standard | `module-architect:COMPACT_PLAN -> test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
-| Deep | deep impl task 있으면 `/impl-loop`, 없으면 `/product-plan` / `/tech-review` / `/architect-loop` 선행 |
+| Deep | deep impl task 있으면 `/impl-loop`, 없으면 `/spec` / `/tech-review` / `/design` 선행 (`/product-plan` / `/architect-loop` 호환) |
 
 ## 결론 → 다음 호출
 

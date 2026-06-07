@@ -20,6 +20,8 @@ class DesignAliasContractTests(unittest.TestCase):
         self.assertIn("product/technical design", design)
         self.assertIn("visual design", design)
         self.assertIn("설계 전체", design)
+        self.assertIn("/spec -> /design -> /impl -> /acceptance", design)
+        self.assertNotIn("후속 #645", design)
 
         architect_loop = (
             ROOT / "skills" / "architect-loop" / "SKILL.md"

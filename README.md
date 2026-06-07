@@ -68,16 +68,16 @@ dcness-helper routing disable-codex-validation
 
 ## 작업 흐름
 
-**기본 공개 workflow 는 작게 유지한다.** 현재 기본 역할은 구현 / 기획 / 이슈 접수이고, 기획 역할은 `/spec` alias 를 함께 제공한다.
+**기본 공개 workflow 는 제품 생명주기 기준으로 작게 유지한다.** 사용자가 기본으로 기억할 흐름은 `/spec -> /design -> /impl -> /acceptance` 다.
 상세 표면 계약은 [`docs/plugin/positioning.md`](docs/plugin/positioning.md), lane 판정은
 [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md).
 
 | 기본 진입점 | 언제 쓰나 |
 |---|---|
-| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 |
 | `/spec` | 새 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 (`/product-plan` 호환 alias) |
-| `/product-plan` | 새 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 |
-| `/issue-report` | 아직 분류되지 않은 버그나 이상 동작을 접수할 때 |
+| `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때 (`/architect-loop` 호환 alias). visual design 단독 요청은 `/ux` |
+| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 |
+| `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 |
 
 `/impl` 이 내부적으로 Lite / Standard / Deep lane 을 고른다.
 
@@ -85,14 +85,15 @@ dcness-helper routing disable-codex-validation
 |---|---|---|
 | Lite | high-risk 없음 + 파일/symbol/승인된 issue 같은 concrete signal + 테스트 기준 명확 | 메인 직접 `test -> impl -> test pass -> pr-reviewer -> PR` |
 | Standard | high-risk 는 없지만 구현 경계나 테스트 기준이 애매함 | `module-architect` compact plan 1-pass 후 구현 |
-| Deep | high-risk trigger 또는 새 epic/product feature | `/product-plan` / `/tech-review` / `/architect-loop` / deep task runner 사용 |
+| Deep | high-risk trigger 또는 새 epic/product feature | `/spec` / `/tech-review` 필요 시 / `/design` / `/impl` / `/acceptance` 사용 |
 
 **새 기능**
 
 ```
 /spec               # PRD + stories + tech-review 스켈레톤 (/product-plan 호환)
-/architect-loop     # 필요 시 deep 설계 — ux/system/module architect + validator
+/design             # 필요 시 deep 설계 — ux/system/module architect + validator (/architect-loop 호환)
 /impl               # 생성된 deep task 파일이 있으면 내부적으로 /impl-loop 위임
+/acceptance         # story/epic 제품 검수와 gap 후속 라우팅
 ```
 
 **버그 수정**
@@ -102,12 +103,12 @@ dcness-helper routing disable-codex-validation
 /impl               # 구현 lane 자동 판정 + PR/review/CI
 ```
 
-Advanced entrypoint 는 여전히 존재하지만 기본 표면은 아니다.
+호환/support/advanced entrypoint 는 여전히 존재하지만 기본 생명주기 표면은 아니다.
 
-- `/acceptance` — story/epic 제품 검수 MVP
+- `/product-plan` — `/spec` 호환 alias
+- `/architect-loop` — `/design` 호환 alias
+- `/issue-report` — 미분류 버그/이슈 support/triage
 - `/tech-review` — Deep lane 의 선행 기술 검증
-- `/architect-loop` — Deep lane 의 설계 루프
-- `/design` — `/architect-loop` 호환 alias. product/technical design, 즉 설계 전체를 뜻하며 visual design 단독 요청은 `/ux`
 - `/impl-loop` — deep impl task 파일용 legacy/advanced runner
 - `/ux` — 화면 UX / 디자인 핸드오프 전문 흐름
 
@@ -138,14 +139,14 @@ escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/
 
 | 분류 | 발화 | 역할 |
 |---|---|---|
-| 기본 workflow | `/impl` | 구현 진입 통합 — Lite / Standard / Deep lane 내부 판정 |
 | 기본 workflow | `/spec` | 새 기능 spec — `/product-plan` 호환 alias + SPEC_ACCEPTANCE 체크포인트 |
-| 기본 workflow | `/product-plan` | 새 기능 spec/design — 그릴미 대화로 PRD + stories + tech-review 스켈레톤 작성 |
-| 기본 workflow | `/issue-report` | 버그/이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE) |
-| 고급 workflow | `/acceptance` | story/epic 제품 검수 MVP |
+| 기본 workflow | `/design` | product/technical design — `/architect-loop` 호환 alias |
+| 기본 workflow | `/impl` | 구현 진입 통합 — Lite / Standard / Deep lane 내부 판정 |
+| 기본 workflow | `/acceptance` | story/epic 제품 검수 MVP |
+| 호환 workflow | `/product-plan` | `/spec` 호환 alias |
+| 호환 workflow | `/architect-loop` | `/design` 호환 alias |
+| support/triage | `/issue-report` | 버그/이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE) |
 | 고급 workflow | `/tech-review` | Deep lane 선행 기술 검증 |
-| 고급 workflow | `/architect-loop` | 1 epic 설계 루프 |
-| 고급 workflow | `/design` | `/architect-loop` 호환 alias. product/technical design, visual design 단독 요청은 `/ux` |
 | 고급 workflow | `/impl-loop` | deep impl task 파일용 legacy/advanced runner |
 | 고급 workflow | `/ux` | 화면 UX 플로우 + 디자인 시안 핸드오프 |
 | 유틸리티 | `/init-dcness` | 현 프로젝트를 plugin 활성 whitelist 에 등록 |
@@ -189,7 +190,7 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 | 문서 | 역할 |
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성 SSOT (강제 영역 2 + 안티패턴 4) |
-| [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | public workflow surface 계약 — 기본/고급/유틸리티/내부 agent 분류 |
+| [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | public workflow surface 계약 — 기본/호환/support/triage/고급/유틸리티/내부 agent 분류 |
 | 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표 + retry + escalate) |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | 컨베이어 운전법 — Step 0~8 mechanics (각 loop spec = 해당 skill `## Loop`) |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | catastrophic 시퀀스 + 8 hook SSOT |

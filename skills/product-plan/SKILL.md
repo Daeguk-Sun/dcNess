@@ -1,13 +1,13 @@
 ---
 name: product-plan
-description: 새 기능 / PRD 변경 / 큰 기획을 받아 메인 Claude 가 사용자와 직접 그릴미 대화하며 `docs/prd.md` + `docs/stories.md` + `docs/tech-review.md` *스켈레톤* 작성 → 사용자 1차 OK → `product-acceptance:SPEC_ACCEPTANCE` → PR 머지 + 이슈 등록 → `/tech-review` (선행 기술 검증) 권고 → 사용자 2차 OK 후 `/architect-loop` 진입 시퀀스로 진행하는 스킬. 사용자가 "기획자야", "새 기능", "피쳐 추가", "이런 기능이 필요할 것 같아", "기획해줘", "스펙 작성", "PRD 작성", "프로덕트 플랜", "/spec", "/product-plan" 등을 말할 때 반드시 이 스킬을 사용한다. 구현 진입은 `/impl` 이 lane 을 판정한다.
+description: 새 기능 / PRD 변경 / 큰 기획을 받아 메인 Claude 가 사용자와 직접 그릴미 대화하며 `docs/prd.md` + `docs/stories.md` + `docs/tech-review.md` *스켈레톤* 작성 → 사용자 1차 OK → `product-acceptance:SPEC_ACCEPTANCE` → PR 머지 + 이슈 등록 → `/tech-review` (선행 기술 검증) 권고 → 사용자 2차 OK 후 `/design` (`/architect-loop` 호환) 진입 시퀀스로 진행하는 스킬. 사용자가 "기획자야", "새 기능", "피쳐 추가", "이런 기능이 필요할 것 같아", "기획해줘", "스펙 작성", "PRD 작성", "프로덕트 플랜", "/spec", "/product-plan" 등을 말할 때 반드시 이 스킬을 사용한다. 구현 진입은 `/impl` 이 lane 을 판정하고, story/epic 구현 완료 후 `/acceptance` 로 제품 검수한다.
 ---
 
 # Product Plan Skill — 메인 직접 인터랙션 + tech-review 단계 분리
 
 > **본 스킬 = 메인 Claude 가 사용자와 *직접* 대화하며 PRD/stories.md + tech-review.md *스켈레톤* 작성**. product-planner sub-agent 폐기 (컨텍스트 손실 회피). 기술 검증은 별도 스킬 `/tech-review` 단계로 분리 (선행 기술 검증 전문 — tech-reviewer agent). `/spec` 는 본 스킬의 호환 alias 다.
 
-> 🔴 **라우팅 SSOT** — skill 간 시퀀스 (PRD → `product-acceptance:SPEC_ACCEPTANCE` → `/tech-review` → `/architect-loop` → `/impl`) / 재진입 / escalate / 단방향 관례 / 비대상 추천은 [`product-plan-routing.md`](product-plan-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기·다음 단계 판단이 필요하면 그 파일을 읽는다. 본 skill 은 메인 직접 작업이지만, `/spec` 이행 기준 검수로 `product-acceptance:SPEC_ACCEPTANCE` 를 1회 호출한다.
+> 🔴 **라우팅 SSOT** — skill 간 시퀀스 (PRD → `product-acceptance:SPEC_ACCEPTANCE` → `/tech-review` → `/design` (`/architect-loop` 호환) → `/impl` → `/acceptance`) / 재진입 / escalate / 단방향 관례 / 비대상 추천은 [`product-plan-routing.md`](product-plan-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기·다음 단계 판단이 필요하면 그 파일을 읽는다. 본 skill 은 메인 직접 작업이지만, `/spec` 이행 기준 검수로 `product-acceptance:SPEC_ACCEPTANCE` 를 1회 호출한다.
 
 ## 그릴미 패턴 (PRD 작성 시 의무)
 
@@ -302,13 +302,13 @@ PRD + stories.md + tech-review.md 스켈레톤 + 이슈 등록 완료.
 → `/tech-review` 호출 시 tech-reviewer 가 `docs/tech-review.md` 본문 채움
   + 증거물 (docs/tech-review/evidence/**) + 통합 HTML 리포트 (`docs/tech-review/report.html`)
 
-⚠️ 단방향 관례 — `/architect-loop` 진입 후 tech-reviewer 재호출은 비권장 (코드 강제 아님).
+⚠️ 단방향 관례 — `/design` (`/architect-loop` 호환) 진입 후 tech-reviewer 재호출은 비권장 (코드 강제 아님).
    기술 NO_GO 발견은 본 `/tech-review` 단계에서 확정하는 게 좋음.
 
 진행할까요? (Y/n)
 ```
 
-후속 분기 (외부 의존 0개 skip / 사용자 Y / `/architect-loop` 권고 echo) = [`product-plan-routing.md`](product-plan-routing.md). 자세히 = [`tech-review SKILL.md`](../tech-review/SKILL.md).
+후속 분기 (외부 의존 0개 skip / 사용자 Y / `/design` 권고 echo) = [`product-plan-routing.md`](product-plan-routing.md). 자세히 = [`tech-review SKILL.md`](../tech-review/SKILL.md).
 
 ## 워크트리 (X)
 

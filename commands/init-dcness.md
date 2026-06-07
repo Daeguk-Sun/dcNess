@@ -693,15 +693,20 @@ Codex validator routing (Step 2.10 — local opt-in):
 - 현재 branch = main 일 때만 자동 진행 (사용자 작업 중 branch 보호)
 
 기본 workflow:
+- /spec — PRD / Epic / Story / AC 정의 (`/product-plan` 호환 alias)
+- /design — product/technical design (`/architect-loop` 호환 alias)
 - /impl — 구현 진입 통합 (Lite / Standard / Deep lane 내부 판정)
-- /spec — 새 기능 spec/design (`/product-plan` 호환 alias)
-- /product-plan — 새 기능 spec/design (호환 유지)
+- /acceptance — story/epic 제품 검수 MVP
+
+호환 workflow:
+- /product-plan — /spec 호환 alias
+- /architect-loop — /design 호환 alias
+
+support/triage:
 - /issue-report — 이슈 분류 (FUNCTIONAL_BUG / CLEANUP / DESIGN_ISSUE / KNOWN_ISSUE / SCOPE_ESCALATE)
 
 고급 workflow:
-- /acceptance — story/epic 제품 검수 MVP
 - /tech-review — Deep lane 선행 기술 검증
-- /architect-loop — 1 epic 설계 루프
 - /impl-loop — deep impl task 파일용 advanced runner
 - /ux — 화면 UX / 디자인 핸드오프
 
