@@ -34,6 +34,7 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 - 대상 화면/플로우 (PRD 화면 인벤토리 또는 사용자 지정)
 - (UX_REFINE) 개선 대상 기존 화면 경로 (routes/screens 등)
 - (선택) design medium — 미지정 시 designer 가 `docs/design.md` frontmatter `medium` detect + 역질문
+- (선택) GitHub issue 번호 — 대상이 있으면 시작 전 [`../../docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle)에 따라 Project `Status=In progress` 로 이동한다.
 
 ## 비대상 (다른 skill 추천)
 

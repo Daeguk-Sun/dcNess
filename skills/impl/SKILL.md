@@ -44,6 +44,8 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
 
 GitHub issue 등록이 목표인 요청이면 `/to-issue` 로 보내고, 수정/구현이 목표인 버그 신고는 아래 lane 판정으로 처리한다.
 
+GitHub issue 번호가 대상이면 lane 실행 전 [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle)에 따라 Project `Status=In progress` 로 이동한다. Project bootstrap 이 안 되어 있으면 `/init-dcness` 의 GitHub Project lifecycle bootstrap 을 먼저 수행한다.
+
 ## Step 1 — lane 판정
 
 판정 순서:

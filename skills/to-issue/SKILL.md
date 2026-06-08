@@ -27,6 +27,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 ## 기준 파일
 
 - IssueType, Priority, repo label 매핑은 [`issue-fields.md`](issue-fields.md)를 SSOT 로 사용한다.
+- Project lifecycle 전체 축과 status 전이는 [`../../docs/plugin/github-project.md`](../../docs/plugin/github-project.md)를 SSOT 로 사용한다.
 - Issue Brief 본문 구조는 [`templates/issue-brief.md`](templates/issue-brief.md)를 템플릿으로 사용한다.
 - `SKILL.md` 에 필드 선택지 목록이나 Issue Brief 본문 템플릿을 다시 쓰지 않는다. 선택지나 템플릿을 바꿔야 하면 기준 파일을 먼저 바꾼다.
 
@@ -116,6 +117,14 @@ gh project item-edit --project-id "$PROJECT_ID" --id "$ITEM_ID" --field-id <Prio
 ```bash
 gh issue view <number> --json number,title,labels,url
 gh project item-list <number> --owner <owner> --format json
+node scripts/github_project_lifecycle.mjs validate-issue \
+  --repo <owner/repo> \
+  --owner <owner> \
+  --project <project-number> \
+  --issue <number> \
+  --expected-status Todo \
+  --expected-issue-type "<IssueType>" \
+  --expected-priority "<Priority>"
 ```
 
 등록된 issue 는 Project 에 추가되고 `Status=Todo`, 선택한 `IssueType`, 선택한 `Priority` 를 가져야 한다. 등록된 issue 는 Project `IssueType`과 같은 repo label 을 가져야 한다. 저장 실패나 Project field 반영 실패 상황에서 성공 안내를 하지 않는다. 이미 issue 는 생성됐지만 Project 반영이 실패했다면 partial state 를 명확히 말하고 필요한 후속 조치만 제안한다.

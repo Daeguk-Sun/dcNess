@@ -33,6 +33,72 @@ gh api -X POST repos/{owner}/{repo}/issues/{epic_number}/sub_issues \
 
 task 는 GitHub 이슈 X — [`git-spec.md`](git-spec.md#pr-트레일러-part-of-closes) PR 트레일러로만 추적.
 
+## GitHub Project Status lifecycle
+
+Project 축 정의의 SSOT 는 [`github-project.md`](github-project.md) 이다. 본 절은 `/spec`, `/design`, `/impl`, `/ux`, PR merge 후처리가 그 축을 어떻게 갱신하는지만 다룬다.
+
+### 작업 시작 — Status=In progress
+
+특정 GitHub issue 를 대상으로 `/spec`, `/design`, `/impl`, `/ux` 같은 설계나 구현 흐름을 실제 시작하면 메인은 시작 직전에 Project item 을 `Status=In progress` 로 이동한다. Project 번호와 owner 를 알 수 없으면 추측하지 말고 `/init-dcness` bootstrap 을 먼저 수행한다.
+
+```bash
+node scripts/github_project_lifecycle.mjs start-work \
+  --repo OWNER/REPO \
+  --owner OWNER \
+  --project PROJECT_NUMBER \
+  --issue ISSUE_NUMBER \
+  --apply
+```
+
+`--apply` 없이 실행하면 현재 Status 를 읽고 status drift 를 보고한다. 메시지는 어떤 issue 의 어떤 field 를 고쳐야 하는지 포함한다.
+
+```text
+issue #663: status drift on Project field Status. expected=In progress, actual=Todo.
+```
+
+### PR merge 후처리 — Status=Done
+
+default branch 로 PR merge 가 끝난 뒤 후처리 경로는 PR body 또는 GitHub closing issue reference 에서 완료 후보 issue 를 찾고 `Status=Done` 으로 이동한다.
+
+```bash
+node scripts/github_project_lifecycle.mjs pr-merged \
+  --repo OWNER/REPO \
+  --owner OWNER \
+  --project PROJECT_NUMBER \
+  --pr PR_NUMBER \
+  --apply
+```
+
+완료 후보는 `Closes #N`, `Fixes #N`, `Resolves #N` 또는 GitHub 가 실제 close 후보로 제공한 issue 뿐이다. `Part of #N` 은 완료 신호가 아니다. `Part of #N` 만 있는 PR 은 issue 를 `Done` 으로 옮기지 않는다.
+
+`--apply` 없이 실행하면 `Status=Done` 누락을 drift 로 보고한다. 메시지는 어떤 issue 와 어떤 field 를 고쳐야 하는지 포함한다.
+
+```text
+issue #663: status drift on Project field Status. expected=Done, actual=In progress.
+```
+
+### IssueType / repo label drift
+
+issue 는 Project `IssueType` 과 같은 repo label 을 정확히 하나 가져야 한다. 값이 어긋나면 어떤 issue 에서 어떤 값이 다른지 보고한다.
+
+```bash
+node scripts/github_project_lifecycle.mjs validate-issue \
+  --repo OWNER/REPO \
+  --owner OWNER \
+  --project PROJECT_NUMBER \
+  --issue ISSUE_NUMBER
+```
+
+예:
+
+```text
+issue #663: Project IssueType=feature, repo label=bug. Set Project IssueType and exactly one matching repo label to the same value.
+```
+
+### CI/CD harness
+
+`/init-dcness` 는 선택적으로 `github-project-lifecycle` thin workflow 를 활성 repo 에 설치한다. 이 workflow 는 본 repo 의 composite action 을 호출해 issue label/type drift 를 PR/issue 이벤트에서 검증하고, merge 된 PR 의 완료 후보 issue 를 `Done` 으로 보정한다. Project v2 쓰기에는 `project` scope 가 필요하므로 사용자 repo 는 `DCNESS_PROJECT_TOKEN` secret 과 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` variables 를 설정해야 한다. token 이 없으면 workflow 는 drift 검출 중심으로 실패 메시지를 남긴다.
+
 ## 미등록 허용 모드
 
 프로젝트가 미등록 모드 (spike / 잡탕 epic 등) 채택 시 stories.md 상단:

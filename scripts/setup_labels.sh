@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# setup_labels.sh — dcNess 정적 GitHub 레이블 생성 (BugFix / UI / Docs)
-# 동적 레이블 (V0N / EPIC0N / Story0N) 은 agent 가 이슈 생성 시 자동 생성.
+# setup_labels.sh — dcNess IssueType 동기 GitHub label 생성
+# Project IssueType 과 repo label 이 같은 분류 체계를 쓰도록 표준 6종을 생성/갱신한다.
 #
 # 사용:
 #   bash scripts/setup_labels.sh [<owner/repo>]
@@ -28,8 +28,11 @@ _upsert_label() {
   fi
 }
 
-_upsert_label "BugFix" "d73a4a" "버그 수정"
-_upsert_label "UI"     "0075ca" "UI/Design 이슈 — designer 생성"
-_upsert_label "Docs"   "cfd3d7" "문서 변경"
+_upsert_label "epic"    "7057ff" "epic-level GitHub issue"
+_upsert_label "feature" "a2eeef" "feature-level GitHub issue"
+_upsert_label "story"   "0e8a16" "story-level GitHub issue"
+_upsert_label "task"    "c5def5" "task-level GitHub issue"
+_upsert_label "subTask" "bfdadc" "subTask-level GitHub issue"
+_upsert_label "bug"     "d73a4a" "bug-level GitHub issue"
 
-echo "[setup_labels] 완료 — BugFix / UI / Docs"
+echo "[setup_labels] 완료 — IssueType label 6종"
