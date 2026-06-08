@@ -541,7 +541,7 @@ dcNess self repo 안에서 직접 검증할 때는 `node scripts/github_project_
 (Y/n)
 ```
 
-- **n**: skip. `/to-issue` 는 Project field 를 확인할 수 없으면 issue 생성 전 정지한다.
+- **n**: skip. 보드 미연결 상태에서 `/to-issue` 와 epic/story 일괄 생성은 issue 는 그대로 만들고 보드 등록만 건너뛴다. 등록이 필요하면 사용자에게 보드 셋업을 물어본 뒤 진행하고, 거부하면 보드 없이 issue 만 생성한다 (issue 생성 자체는 막지 않는다).
 - **Y**: Project owner 와 number 를 확인한다. 모르면 `gh project list --owner <owner>` 로 조회한다.
 
 ```bash
@@ -555,6 +555,13 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
   --repo "$REPO" \
   --owner "$OWNER" \
   --project "$PROJECT_NUMBER"
+```
+
+보드 번호를 확정했으면 좌표를 repo 변수로 저장한다. 이후 `/to-issue` 와 epic/story 일괄 생성이 이 값을 자동으로 읽어 보드에 등록하며, 같은 변수를 CI lifecycle workflow (`vars.DCNESS_PROJECT_NUMBER` / `vars.DCNESS_PROJECT_OWNER`) 도 공유한다 (단일 SSOT). 권한이 없어 실패하면 경고만 남기고 진행한다 — 좌표는 `--project` / `--owner` 플래그로도 넘길 수 있다.
+
+```bash
+gh variable set DCNESS_PROJECT_NUMBER --body "$PROJECT_NUMBER"
+gh variable set DCNESS_PROJECT_OWNER --body "$OWNER"
 ```
 
 Project가 없거나 필드가 부족하면 생성 또는 명확한 복구 안내를 제공한다.
