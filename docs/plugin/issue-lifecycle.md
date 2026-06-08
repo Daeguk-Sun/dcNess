@@ -33,6 +33,20 @@ gh api -X POST repos/{owner}/{repo}/issues/{epic_number}/sub_issues \
 
 task 는 GitHub 이슈 X — [`git-spec.md`](git-spec.md#pr-트레일러-part-of-closes) PR 트레일러로만 추적.
 
+## Issue pre-create validation
+
+에이전트 workflow 가 `gh issue create` 를 실행하기 전에는 Issue Brief 본문과 repo label 매핑을 로컬에서 먼저 검증한다. 이 검증은 사람의 GitHub UI issue 생성을 막는 hard gate 가 아니다. 목적은 dcNess/Codex/Claude workflow 가 issue 생성 전에 같은 문서 형식과 IssueType/Priority/label 계약을 따르도록 하는 것이다.
+
+```bash
+node scripts/check_issue_body.mjs \
+  --body-file <brief.md> \
+  --labels "<IssueType>"
+
+gh issue create --title "<title>" --body-file <brief.md> --label "<IssueType>"
+```
+
+`scripts/check_issue_body.mjs` 가 실패하면 `gh issue create` 를 실행하지 않는다. 실제 issue 생성 preflight 는 `--labels` 를 함께 넘겨 label 계약까지 검증하고, 본문 초안만 점검할 때만 `--body-only` 를 명시한다. `/to-issue` 는 권장 도우미이며, `/to-issue` 외 이미 승인된 대화나 agent workflow 가 issue 를 생성하는 경우에도 같은 pre-create validation 을 통과해야 한다.
+
 ## GitHub Project Status lifecycle
 
 Project 축 정의의 SSOT 는 [`github-project.md`](github-project.md) 이다. 본 절은 `/spec`, `/design`, `/impl`, `/ux`, PR merge 후처리가 그 축을 어떻게 갱신하는지만 다룬다.

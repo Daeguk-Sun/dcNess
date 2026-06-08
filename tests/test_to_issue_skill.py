@@ -100,6 +100,17 @@ class ToIssueSkillTests(unittest.TestCase):
         ):
             self.assertIn(phrase, text)
 
+    def test_issue_creation_runs_body_validator_before_gh_create(self) -> None:
+        text = self.skill_path.read_text(encoding="utf-8")
+        validator = "scripts/check_issue_body.mjs"
+        create = "gh issue create"
+
+        self.assertTrue((ROOT / validator).exists())
+        self.assertIn(validator, text)
+        self.assertIn("--body-file <brief.md>", text)
+        self.assertLess(text.index(validator), text.index(create))
+        self.assertIn("validator 실패", text)
+
     def test_internal_classification_enums_are_not_to_issue_criteria(self) -> None:
         text = self.skill_path.read_text(encoding="utf-8")
         enum_pattern = (
