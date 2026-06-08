@@ -521,6 +521,115 @@ claude plugin uninstall dcness@dcness
 claude plugin install dcness@dcness
 ```
 
+### Step 2.10.5 — GitHub Project lifecycle bootstrap
+
+GitHub Project v2 `Status / IssueType / Priority` 축과 repo label 6종을 점검한다. 이 Step 은 `/to-issue` issue 등록, `/spec` / `/design` / `/impl` / `/ux` 시작 시 `Status=In progress`, PR merge 후 `Status=Done` 후처리가 같은 축을 쓰도록 만드는 bootstrap 이다.
+
+Project 축 SSOT 는 [`docs/plugin/github-project.md`](../docs/plugin/github-project.md) 이며, 실행 본체는 plug-in 의 `scripts/github_project_lifecycle.mjs` 이다. 사용자 repo 에 mjs 를 복사하지 않는다.
+
+dcNess self repo 안에서 직접 검증할 때는 `node scripts/github_project_lifecycle.mjs bootstrap --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER` 형식으로 실행할 수 있다. 활성화한 다른 repo 에서는 아래 예시처럼 `$PLUGIN_ROOT` 안의 같은 스크립트를 호출한다.
+
+#### Project / label 점검
+
+```
+[dcness] GitHub Project lifecycle bootstrap 을 수행할까요?
+  - Project v2 field: Status / IssueType / Priority
+  - repo label 6종: epic / feature / story / task / subTask / bug
+  - /to-issue 등록 후 Status=Todo, IssueType/Priority, 동기 label 검증
+  - workflow 시작 시 Status=In progress 경로
+  - PR merge 후 Status=Done drift 검출/보정 경로
+(Y/n)
+```
+
+- **n**: skip. `/to-issue` 는 Project field 를 확인할 수 없으면 issue 생성 전 정지한다.
+- **Y**: Project owner 와 number 를 확인한다. 모르면 `gh project list --owner <owner>` 로 조회한다.
+
+```bash
+PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
+REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
+OWNER="${REPO%%/*}"
+
+gh project list --owner "$OWNER"
+
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
+  --repo "$REPO" \
+  --owner "$OWNER" \
+  --project "$PROJECT_NUMBER"
+```
+
+Project가 없거나 필드가 부족하면 생성 또는 명확한 복구 안내를 제공한다.
+
+```bash
+gh project create --owner "$OWNER" --title "dcNess" --format json
+gh project link "$PROJECT_NUMBER" --owner "$OWNER" --repo "${REPO#*/}"
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
+  --repo "$REPO" \
+  --owner "$OWNER" \
+  --project "$PROJECT_NUMBER" \
+  --apply
+```
+
+repo label이 부족하면 같은 script 의 `--apply` 경로가 label 을 생성/갱신한다. 기존 Project field 의 option 이 부족한 경우는 GitHub CLI 가 option 추가를 직접 지원하지 않으므로 script 가 어떤 field/option 을 고쳐야 하는지 보고하고 멈춘다. 다른 repo 에서도 같은 명령을 `--repo other-owner/other-repo --owner other-owner --project <number>` 로 실행하면 같은 Project 축과 repo label 6종을 bootstrap 할 수 있다.
+
+#### lifecycle CI/CD workflow — 사용자 선택
+
+GitHub Actions 에서 Project lifecycle drift 검출과 PR merge 후 `Done` 보정을 수행할지 묻는다.
+
+```
+[dcness] GitHub Actions CI/CD 에서 Project lifecycle guard 를 활성화할까요?
+  - issue open/edit/label 변경 시 Project IssueType 과 repo label drift 검출
+  - PR closed+merged 시 Closes/Fixes/Resolves issue 의 Status=Done 보정
+  - Part of #N 만 있는 PR 은 Done 후보로 보지 않음
+  - Project v2 쓰기에는 project scope token 필요: secrets.DCNESS_PROJECT_TOKEN
+  - Project 번호/owner 는 vars.DCNESS_PROJECT_NUMBER / vars.DCNESS_PROJECT_OWNER 사용
+(Y/n)
+```
+
+- **Y**: 다음 thin yml 을 `$PROJECT_ROOT/.github/workflows/github-project-lifecycle.yml` 로 *always-overwrite*:
+
+  ```yaml
+  name: github-project-lifecycle
+  on:
+    issues:
+      types: [opened, edited, labeled, unlabeled]
+    pull_request:
+      types: [closed]
+  permissions:
+    contents: read
+    issues: read
+    pull-requests: read
+  jobs:
+    issue-drift:
+      if: ${{ github.event_name == 'issues' && vars.DCNESS_PROJECT_NUMBER != '' }}
+      runs-on: ubuntu-latest
+      steps:
+        - uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main
+          env:
+            GH_TOKEN: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
+          with:
+            mode: validate-issue
+            repo: ${{ github.repository }}
+            project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
+            project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
+            issue-number: ${{ github.event.issue.number }}
+    pr-merged:
+      if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && vars.DCNESS_PROJECT_NUMBER != '' }}
+      runs-on: ubuntu-latest
+      steps:
+        - uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main
+          env:
+            GH_TOKEN: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
+          with:
+            mode: pr-merged
+            repo: ${{ github.repository }}
+            project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
+            project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
+            pr-body: ${{ github.event.pull_request.body }}
+            apply: "true"
+  ```
+
+- **n**: skip. 메인은 PR merge 후 `scripts/github_project_lifecycle.mjs pr-merged` 를 수동 실행해 drift 를 확인한다.
+
 ### Step 2.11 — 자동 commit + PR (인프라 머지 자동화)
 
 Step 2.6 ~ 2.9 까지 *깔린 파일들* (workflow yml 등) 은 working tree 변경 상태로 머무름 — 사용자가 git add / commit / push / PR 까지 직접 진행하지 않으면 main 머지 안 됨. 본 Step 이 그 부담을 자동화.
@@ -687,6 +796,12 @@ Codex validator routing (Step 2.10 — local opt-in):
 - route 대상은 read-only validation 3종만. build/engineer 계열은 Claude 유지
 - 상태 확인: `dcness-helper routing status`
 - 끄기: `dcness-helper routing disable-codex-validation`
+
+GitHub Project lifecycle bootstrap (Step 2.10.5 완료 시):
+- Project field: Status / IssueType / Priority 점검
+- repo label 6종: epic / feature / story / task / subTask / bug 점검/생성
+- optional CI/CD: issue drift 검출 + PR merge 후 Done 보정 workflow
+- 기존 활성 프로젝트는 plugin update 후 `/init-dcness` 재실행 필요
 
 자동 commit + PR (Step 2.11 완료 시):
 - Step 2.6 ~ 2.9 깔린 인프라 파일들 자동 stage + commit + push + PR

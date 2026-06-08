@@ -14,6 +14,7 @@ description: product/technical design 을 `/architect-loop` 호환 흐름으로 
 3. loop contract 의 `begin-run` 인자는 `begin-run architect-loop` 로 유지한다.
 4. entry_point = `architect-loop` 를 사용하고 `design` 으로 시작하지 않는다. `harness/hooks.py` 의 architect-loop gate 가 exact entry point 를 기준으로 동작하기 때문이다.
 5. 기존 `/architect-loop` 사용자는 그대로 호환된다. `/design` 추가가 `/architect-loop` 제거를 뜻하지 않는다.
+6. GitHub issue 번호가 대상이면 `/architect-loop` 진입 전 [`../../docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle)에 따라 Project `Status=In progress` 로 이동한다.
 
 ## 범위
 

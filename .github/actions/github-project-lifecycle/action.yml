@@ -1,0 +1,78 @@
+name: 'dcness GitHub Project lifecycle'
+description: 'Validate or update dcNess GitHub Project v2 Status, IssueType, Priority lifecycle.'
+inputs:
+  mode:
+    description: 'bootstrap, validate-issue, start-work, or pr-merged'
+    required: true
+  repo:
+    description: 'OWNER/REPO'
+    required: true
+  project-owner:
+    description: 'GitHub Project owner'
+    required: true
+  project-number:
+    description: 'GitHub Project number'
+    required: true
+  issue-number:
+    description: 'Issue number for validate-issue or start-work'
+    required: false
+    default: ''
+  pr-body:
+    description: 'PR body for pr-merged mode'
+    required: false
+    default: ''
+  expected-status:
+    description: 'Optional expected Status for validate-issue'
+    required: false
+    default: ''
+  expected-issue-type:
+    description: 'Optional expected IssueType for validate-issue'
+    required: false
+    default: ''
+  expected-priority:
+    description: 'Optional expected Priority for validate-issue'
+    required: false
+    default: ''
+  apply:
+    description: 'Set to true to create labels/fields or update Status'
+    required: false
+    default: 'false'
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Run Project lifecycle guard
+      shell: bash
+      env:
+        PR_BODY: ${{ inputs.pr-body }}
+      run: |
+        set -euo pipefail
+        ARGS=(
+          "${{ inputs.mode }}"
+          --repo "${{ inputs.repo }}"
+          --owner "${{ inputs.project-owner }}"
+          --project "${{ inputs.project-number }}"
+        )
+        if [ -n "${{ inputs.issue-number }}" ]; then
+          ARGS+=(--issue "${{ inputs.issue-number }}")
+        fi
+        if [ -n "${{ inputs.expected-status }}" ]; then
+          ARGS+=(--expected-status "${{ inputs.expected-status }}")
+        fi
+        if [ -n "${{ inputs.expected-issue-type }}" ]; then
+          ARGS+=(--expected-issue-type "${{ inputs.expected-issue-type }}")
+        fi
+        if [ -n "${{ inputs.expected-priority }}" ]; then
+          ARGS+=(--expected-priority "${{ inputs.expected-priority }}")
+        fi
+        if [ "${{ inputs.mode }}" = "pr-merged" ]; then
+          ARGS+=(--body-env PR_BODY)
+        fi
+        if [ "${{ inputs.apply }}" = "true" ]; then
+          ARGS+=(--apply)
+        fi
+        node "${{ github.action_path }}/../../../scripts/github_project_lifecycle.mjs" "${ARGS[@]}"
