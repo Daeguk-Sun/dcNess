@@ -73,7 +73,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-    def test_readme_uses_lifecycle_defaults_and_separate_legacy_surface(self) -> None:
+    def test_readme_uses_lifecycle_defaults_without_exposing_compat_aliases(self) -> None:
         basic_table = self._section(self.readme, r"\| 기본 진입점 \|", r"\n`/impl`")
         for name in LIFECYCLE:
             self.assertIn(f"| `{name}` |", basic_table)
@@ -84,14 +84,22 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         for name in LIFECYCLE:
             self.assertIn(f"| 기본 workflow | `{name}` |", public_surface)
         for name in COMPAT:
-            self.assertIn(f"| 호환 workflow | `{name}` |", public_surface)
+            self.assertNotIn(f"| 호환 workflow | `{name}` |", public_surface)
         for name in SUPPORT:
             self.assertIn(f"| support/triage | `{name}` |", public_surface)
         self.assertIn("`/spec -> /design -> /impl -> /acceptance`", self.readme)
         self.assertIn("`/spec -> /design -> /impl -> /acceptance`", self.positioning)
-        self.assertIn("기본/호환/support/triage/고급/유틸리티/내부 agent 분류", self.readme)
+        self.assertIn("기본/support/triage/고급/유틸리티/내부 agent 분류", self.readme)
+        self.assertNotIn("호환 workflow", self.readme)
+        self.assertNotIn("호환 alias", self.readme)
         self.assertIn("Lite", self.readme)
         self.assertIn("`/impl` 이 내부적으로 Lite / Standard / Deep lane", self.readme)
+
+    def test_positioning_hides_compat_aliases_from_public_surface(self) -> None:
+        self.assertNotIn("Compatibility Entrypoints", self.positioning)
+        self.assertNotIn("호환 alias", self.positioning)
+        for name in COMPAT:
+            self.assertNotIn(f"`{name}`", self.positioning)
 
     def test_public_wrapper_docs_treat_lifecycle_surface_as_current(self) -> None:
         for text in (self.spec_skill, self.design_skill):
@@ -116,10 +124,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
 
     def test_init_summary_uses_same_lifecycle_surface(self) -> None:
         default_block = self._section(
-            self.init_doc, r"기본 workflow:\n", r"\n\n호환 workflow:"
-        )
-        compat_block = self._section(
-            self.init_doc, r"호환 workflow:\n", r"\n\nsupport/triage:"
+            self.init_doc, r"기본 workflow:\n", r"\n\nsupport/triage:"
         )
         support_block = self._section(
             self.init_doc, r"support/triage:\n", r"\n\n고급 workflow:"
@@ -136,7 +141,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertNotIn("- /spec — 새 기능 spec/design", default_block)
 
         for name in COMPAT:
-            self.assertIn(f"- {name} ", compat_block)
+            self.assertNotIn(f"- {name} ", self.init_doc)
+        self.assertNotIn("호환 workflow", self.init_doc)
+        self.assertNotIn("호환 alias", self.init_doc)
         for name in SUPPORT:
             self.assertIn(f"- {name} ", support_block)
         for name in ("/tech-review", "/impl-loop", "/ux"):
@@ -146,7 +153,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
     def test_workflow_router_uses_design_surface_without_breaking_lite_impl(self) -> None:
         self.assertIn("/spec -> /design -> /impl -> /acceptance", self.router)
         self.assertIn("/spec -> /design -> /impl -> /acceptance", self.positioning)
-        self.assertIn("`/design` (`/architect-loop` 호환)", self.router)
+        self.assertNotIn("`/design` (`/architect-loop` 호환)", self.router)
+        self.assertNotIn("`/product-plan` 호환", self.router)
+        self.assertNotIn("/product-plan` / `/architect-loop` 호환 유지", self.router)
         self.assertIn("Deep: /spec → tech-review? → /design → /impl → /acceptance", self.router)
         self.assertIn(
             "`/spec` / `/tech-review` 필요 시 / `/design` / `/impl` / `/acceptance` 흐름",

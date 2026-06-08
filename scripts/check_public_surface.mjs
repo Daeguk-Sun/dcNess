@@ -12,6 +12,8 @@ const POSITIONING = 'docs/plugin/positioning.md';
 
 const EXPECTED = {
   defaultSkills: ['spec', 'design', 'impl', 'acceptance'],
+  // Hidden compatibility skill dirs stay installed for old invocations, but
+  // positioning.md must not list them as public workflow surface.
   compatSkills: ['architect-loop', 'product-plan'],
   supportSkills: ['issue-report'],
   advancedSkills: ['impl-loop', 'tech-review', 'ux'],
@@ -135,7 +137,6 @@ assertSet('commands', commands.map((item) => item.name), EXPECTED.utilityCommand
 assertSet('agents', agents.map((item) => item.name), EXPECTED.internalAgents);
 
 assertDocsMention('default skill', EXPECTED.defaultSkills, '/');
-assertDocsMention('compat skill', EXPECTED.compatSkills, '/');
 assertDocsMention('support skill', EXPECTED.supportSkills, '/');
 assertDocsMention('advanced skill', EXPECTED.advancedSkills, '/');
 assertDocsMention('utility command', EXPECTED.utilityCommands, '/');

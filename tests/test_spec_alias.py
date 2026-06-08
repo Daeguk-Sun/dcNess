@@ -38,7 +38,7 @@ class SpecAliasContractTests(unittest.TestCase):
             self.assertIn("full E2E", text)
             self.assertIn("범위 밖", text)
 
-    def test_public_surface_keeps_spec_default_and_product_plan_compat(self) -> None:
+    def test_public_surface_keeps_spec_default_and_hides_product_plan_compat(self) -> None:
         script = (ROOT / "scripts" / "check_public_surface.mjs").read_text(
             encoding="utf-8"
         )
@@ -55,16 +55,16 @@ class SpecAliasContractTests(unittest.TestCase):
         self.assertNotIn("'product-plan'", defaults)
         self.assertIn("'product-plan'", compat)
         self.assertIn("`/spec`", positioning)
-        self.assertIn("`/product-plan`", positioning)
-        self.assertIn("호환", positioning)
+        self.assertNotIn("`/product-plan`", positioning)
+        self.assertNotIn("호환 alias", positioning)
 
-    def test_workflow_router_prefers_spec_with_product_plan_compat(self) -> None:
+    def test_workflow_router_prefers_spec_without_public_product_plan_alias(self) -> None:
         router = (ROOT / "docs" / "plugin" / "workflow-router.md").read_text(
             encoding="utf-8"
         )
         self.assertIn("clarify 또는 `/spec`", router)
         self.assertIn("Deep: /spec", router)
-        self.assertIn("`/product-plan` 호환", router)
+        self.assertNotIn("`/product-plan` 호환", router)
         self.assertIn("/spec` → `/tech-review`", router)
 
 

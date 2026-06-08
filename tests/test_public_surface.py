@@ -46,11 +46,13 @@ class PublicSurfaceGateTests(unittest.TestCase):
 
         for name in defaults:
             self.assertIn(f"`/{name}`", positioning)
+        for name in compat:
+            self.assertNotIn(f"`/{name}`", positioning)
         self.assertIn("계획 / 설계 / 구현 / 검수", positioning)
         self.assertIn("/spec -> /design -> /impl -> /acceptance", positioning)
-        self.assertIn("Compatibility Entrypoints", positioning)
+        self.assertNotIn("Compatibility Entrypoints", positioning)
         self.assertIn("Support/Triage Entrypoints", positioning)
-        self.assertIn("기본/호환/support/triage/고급/유틸리티/내부 agent", positioning)
+        self.assertIn("기본/support/triage/고급/유틸리티/내부 agent", positioning)
 
     def _array(self, text: str, key: str) -> list[str]:
         match = re.search(rf"{key}:\s*\[([^\]]*)\]", text)
