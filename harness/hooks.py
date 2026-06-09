@@ -631,7 +631,9 @@ def handle_pretooluse_file_op(
                 print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
                 return 1
         for fp in extract_bash_paths(cmd):
-            reason = check_write_allowed(acting_agent, fp, cwd=cwd)
+            # shell_context=True — Bash 추출 경로의 $VAR/$()/backtick 셸 확장 토큰 차단
+            # (#694 codex P2). Edit/Write 의 literal 경로 검사(위)는 기본 False 라 영향 없음.
+            reason = check_write_allowed(acting_agent, fp, cwd=cwd, shell_context=True)
             if reason:
                 print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
                 return 1

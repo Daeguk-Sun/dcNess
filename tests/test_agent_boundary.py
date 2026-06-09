@@ -524,8 +524,8 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 )
 
     def test_shell_expansion_path_blocked(self):
-        # #694 codex P2 — Bash 의 $VAR/${}/$()/backtick 은 셸이 hook 후 확장하므로 위치 미확정.
-        # ALLOW 매칭 전 차단 (Edit/Write 리터럴엔 이 토큰 없음). tilde 와 동일 클래스.
+        # #694 codex P2 — Bash 출처(shell_context=True)의 $VAR/${}/$()/backtick 은 셸이 hook 후
+        # 확장하므로 위치 미확정 → 차단. (literal Edit/Write 경로는 shell_context=False 라 허용.)
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
@@ -534,8 +534,25 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 ("engineer", "$(pwd)/src/x.py"),
                 ("engineer", "`echo /etc`/src/x.py"),
             ]:
-                reason = check_write_allowed(agent, p, cwd=cwd)
-                self.assertIsNotNone(reason, f"{agent} 셸 확장 경로 {p} 차단")
+                reason = check_write_allowed(agent, p, cwd=cwd, shell_context=True)
+                self.assertIsNotNone(reason, f"{agent} Bash 셸 확장 경로 {p} 차단")
+
+    def test_literal_dollar_filename_allowed_for_edit_write(self):
+        # #694 codex P2 — Edit/Write 의 literal 파일명에 $ 가 있어도(Remix/React Router route
+        # users.$id.tsx) 허용 (shell_context=False 기본). 셸확장 검사는 Bash 출처에만 적용.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for p in ("src/routes/users.$userId.tsx", "app/routes/$slug.tsx"):
+                self.assertIsNone(
+                    check_write_allowed("engineer", p, cwd=cwd),
+                    f"literal $ 파일명 {p} 허용 (Edit/Write)",
+                )
+            # 동일 경로라도 Bash 출처(shell_context=True)면 셸 변수로 간주 차단
+            self.assertIsNotNone(
+                check_write_allowed("engineer", "src/routes/users.$userId.tsx",
+                                    cwd=cwd, shell_context=True),
+                "Bash 출처의 $ 경로는 차단",
+            )
 
     def test_tilde_home_path_blocked(self):
         # #694 codex P2 — Bash 의 ~/... 는 셸이 hook 통과 후 home 으로 확장하므로 cwd 밖.
