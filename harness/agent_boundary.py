@@ -173,9 +173,12 @@ ALLOW_MATRIX["build-worker"] = ALLOW_MATRIX["engineer"] + ALLOW_MATRIX["test-eng
 # design-variants/ 는 designer 전용이므로, 코드 agent 의 write 를 ALLOW 검사보다 *먼저*
 # 차단해 역할 경계를 지킨다. (기존 src/ 패턴의 docs/src/ 우회도 함께 닫힌다.)
 _CODE_AGENTS: frozenset = frozenset({"engineer", "test-engineer", "build-worker"})
+# 루트(^) 앵커 — monorepo 의 동명 app/package(apps/docs/src·packages/docs/src)를 문서로
+# 오인해 정상 소스를 막지 않도록 루트 docs 트리만 deny (#694 codex P2). _normalize 가
+# ./·.. 를 해소하므로 ^ 앵커가 안전(우회 prefix 없음).
 _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
-    r'(^|/)docs/',            # architect / ux-architect / tech-reviewer 전용
-    r'(^|/)design-variants/', # designer 전용
+    r'^docs/',            # architect / ux-architect / tech-reviewer 전용 (루트 docs 트리)
+    r'^design-variants/', # designer 전용
 )
 
 
@@ -311,6 +314,15 @@ def check_write_allowed(
         return None
 
     norm = _normalize(file_path, cwd)
+
+    # cwd 밖 경로 차단 (#694 codex P2) — _normalize 가 cwd 상대화에 성공하면 항상 cwd-내
+    # 상대경로다. `/`(절대 외부) 또는 `../`(상위 탈출)로 시작하면 cwd 밖이며, 이때 원본을
+    # ALLOW 패턴에 먹이면 `../tests/x` 가 `(^|/)tests?/` 에 매칭되는 등 경계 우회가 생긴다.
+    if norm.startswith("/") or norm == ".." or norm.startswith("../"):
+        return (
+            f"{agent} cwd 밖 경로 차단: `{norm}` — 프로젝트 루트 밖 write 금지 "
+            f"(.. 상위 탈출 / 절대 외부 경로)."
+        )
 
     # 0. run_dir prose carve-out — build-worker 의 build-{test,impl,validate}.md self-write 한정.
     #    agent + 파일명 둘 다 좁혀 PASS 마커 위조를 차단 (codex P1). INFRA/ALLOW 검사보다 먼저.

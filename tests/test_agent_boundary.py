@@ -439,6 +439,31 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             self.assertIsNotNone(reason, "./docs/ 우회가 차단돼야 함")
             self.assertIn("docs", reason)
 
+    def test_code_agents_can_write_docs_named_package(self):
+        # #694 codex P2 — docs deny 는 루트 docs 트리(^docs/)만. monorepo 의 docs 이름
+        # app/package(apps/docs/src·packages/docs/src)는 정상 소스라 허용돼야 한다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for p in ("apps/docs/src/App.tsx", "packages/docs/src/index.ts"):
+                self.assertIsNone(
+                    check_write_allowed("engineer", p, cwd=cwd),
+                    f"docs 이름 패키지 소스 {p} 허용",
+                )
+
+    def test_dotdot_escape_via_allowed_dirname_blocked(self):
+        # #694 codex P2 — 부모 경로가 허용 디렉토리명(tests/spec/lib)이어도 cwd 밖 탈출은
+        # ALLOW 검사 전에 차단. `../tests/x` 가 (^|/)tests?/ 에 매칭되던 우회 봉쇄.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent, p in [
+                ("test-engineer", "../tests/test_x.py"),
+                ("test-engineer", "../spec/foo_spec.rb"),
+                ("engineer", "../lib/x.rb"),
+                ("build-worker", "../src/main.py"),
+            ]:
+                reason = check_write_allowed(agent, p, cwd=cwd)
+                self.assertIsNotNone(reason, f"{agent} cwd 밖 {p} 차단")
+
     def test_dotdot_escape_blocked(self):
         # #694 codex P1 — 상대 path 의 .. 세그먼트로 경계 밖(루트 문서·구현 코드)으로 탈출하는
         # 우회 차단. _normalize 가 cwd 기준 resolve 로 실제 write 위치를 매칭 대상으로 삼는다.
