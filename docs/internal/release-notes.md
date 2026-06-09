@@ -4,6 +4,35 @@
 
 ---
 
+## v0.6.0 (2026-06-09)
+
+**커밋 범위**: `v0.5.0..v0.6.0` (머지 PR 20개)
+**핵심 변경**: GitHub Project v2 lifecycle 통합 — 단발 `/to-issue` issue 등록 흐름 신설 + 보드 등록 경로(`register-issue` / `bootstrap`) 통일 + 좌표 저장(gh variable) + Priority 맥락 추론. 부수 — product/spec public surface 확장(`/acceptance` 등) + plugin 문서 표면 정리(`module-design-principles` 를 agent shared reference 로 이동) + public surface 계약 테스트 보강.
+
+### 무엇이 바뀌나
+
+1. **GitHub Project v2 lifecycle 통합** ([#666](https://github.com/alruminum/dcNess/pull/666), [#668](https://github.com/alruminum/dcNess/pull/668), [#670](https://github.com/alruminum/dcNess/pull/670), [#675](https://github.com/alruminum/dcNess/pull/675) [#669](https://github.com/alruminum/dcNess/issues/669)) — Project 보드(`Status`/`IssueType`/`Priority` 3축 + repo label 6종)를 점검·생성하는 `github_project_lifecycle.mjs bootstrap` + issue 를 item 으로 등록하고 field 를 set 하는 `register-issue` subcommand 신설. 단발 `/to-issue` 와 epic/story 일괄 생성이 같은 register-issue 경로를 공유(멱등 add + drift 사후검증). 보드 좌표(owner/number)는 repo 변수 `DCNESS_PROJECT_NUMBER`/`DCNESS_PROJECT_OWNER` 에 저장(`/init-dcness` 셋업). 일괄 백필 시 사용자가 triage 한 기존 `Status`/`Priority` 를 보존([#669](https://github.com/alruminum/dcNess/issues/669)).
+
+2. **단발 `/to-issue` 등록 흐름 신설** ([#664](https://github.com/alruminum/dcNess/pull/664), [#665](https://github.com/alruminum/dcNess/pull/665), [#668](https://github.com/alruminum/dcNess/pull/668), [#677](https://github.com/alruminum/dcNess/pull/677) [#676](https://github.com/alruminum/dcNess/issues/676)) — 자연어 문제/작업 후보를 표준 Issue Brief 로 만들어 GitHub issue + Project item 으로 등록하는 메인-직접 흐름. 필드 SSOT(`issue-fields.md`) + Issue Brief 템플릿 분리 + 생성 직전 `check_issue_body.mjs` pre-create validation. Priority 는 default `major` 로 조용히 수렴하지 않고 발화 맥락에서 추론([#676](https://github.com/alruminum/dcNess/issues/676)).
+
+3. **product/spec public surface 확장** ([#650](https://github.com/alruminum/dcNess/pull/650), [#651](https://github.com/alruminum/dcNess/pull/651), [#652](https://github.com/alruminum/dcNess/pull/652), [#653](https://github.com/alruminum/dcNess/pull/653), [#654](https://github.com/alruminum/dcNess/pull/654), [#655](https://github.com/alruminum/dcNess/pull/655)) — product acceptance agent + `/acceptance`(mvp) + acceptance gap 라우팅 + `/spec`·`/design` alias 추가. public surface gate flip 으로 기본 노출 표면 재정렬.
+
+4. **plugin 문서 표면 정리 + 계약 테스트 보강** ([#656](https://github.com/alruminum/dcNess/pull/656), [#657](https://github.com/alruminum/dcNess/pull/657) [#645](https://github.com/alruminum/dcNess/issues/645), [#658](https://github.com/alruminum/dcNess/pull/658), [#659](https://github.com/alruminum/dcNess/pull/659) [#521](https://github.com/alruminum/dcNess/issues/521), [#660](https://github.com/alruminum/dcNess/pull/660), [#661](https://github.com/alruminum/dcNess/pull/661), [#678](https://github.com/alruminum/dcNess/pull/678)) — `module-design-principles.md` 를 `docs/plugin` 에서 `agents/_shared` 로 이동(architect/implementation agent 내부 기준이라 소유권 정합) + `parallel-policy.md` 를 현행 peer 세션 정책으로 명확화(옛 fan-in 잔재 제거) + 사용자-facing 문서의 `doctrine` 표현을 설계/운영 원칙으로 교체([#678](https://github.com/alruminum/dcNess/pull/678)). compat alias 공개 노출 축소 + lifecycle alias drift 보강 + acceptance follow-up. skill/agent RED-GREEN 시나리오 테스트 하네스([#521](https://github.com/alruminum/dcNess/issues/521)) + init-dcness 회귀 트리거 + spec PRD 기술검토 preflight 흐름 정리.
+
+### 사용자 영향
+
+- **외부 활성 프로젝트: `claude plugin update dcness@dcness` 로 자동 반영** — 보드 lifecycle(bootstrap/register-issue) + `/to-issue` + `/acceptance` 가 plug-in 본체 경로(`skills/**`, `scripts/**`, `agents/**`, `docs/plugin/**`)로 적용. 보드를 쓰려면 `/init-dcness` 재실행 또는 좌표 수동 저장 필요.
+- **`/to-issue` 신규** — 단발 issue 등록의 기본 진입점. Priority 는 맥락 추론값으로 근거와 함께 초안에 제시되고, 사용자는 교정만.
+- **Priority 자동 추론** — `/to-issue` 가 더 이상 항상 `major` 로 박지 않는다([#676](https://github.com/alruminum/dcNess/issues/676)). epic/story 일괄 생성은 의도된 `major` 고정 유지.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
+
+---
+
 ## v0.5.0 (2026-06-06)
 
 **커밋 범위**: `v0.4.0..v0.5.0` (머지 PR 20개)
