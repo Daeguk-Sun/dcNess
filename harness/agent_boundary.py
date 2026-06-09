@@ -288,6 +288,11 @@ def _normalize(file_path: str, cwd: Optional[Path] = None) -> str:
     """
     if cwd is None:
         cwd = Path.cwd()
+    # 디렉토리 타깃(`cp x tests/`·`mv y apps/web/src/`)의 끝 구분자 보존 — resolve()가 끝 `/`를
+    # 떼면 ALLOW 패턴(`tests?/`·`.../src/`)과 deny 패턴(`^docs/`·`(^|/)hooks/`)이 디렉토리 루트를
+    # 미매칭해, 정당 in-bound write 가 오차단되고 보호 디렉토리 타깃이 누락된다 (#694 codex P2 r10).
+    # 끝 `/`를 정규화 결과에 다시 붙여 매칭 정합을 복원한다.
+    trailing = "/" if file_path.endswith(("/", os.sep)) else ""
     try:
         # ~ / ~user 는 셸이 hook 통과 *후* home 으로 확장하므로 미리 모사 — home 은 cwd 밖이라
         # 아래 resolve 가 절대경로화 → 호출부 cwd-밖 가드가 차단 (#694 codex P2).
@@ -295,10 +300,13 @@ def _normalize(file_path: str, cwd: Optional[Path] = None) -> str:
         base = p if p.is_absolute() else (cwd / p)
         resolved = base.resolve()
         try:
-            return str(resolved.relative_to(cwd.resolve()))
+            rel = str(resolved.relative_to(cwd.resolve()))
+            # cwd 자기 자신(rel == ".")엔 `/`를 붙이지 않는다 — 루트는 어떤 ALLOW 도 아니며
+            # `./` 오매칭을 막는다. resolve() 결과는 끝 `/`가 없으므로 슬래시 중복 없음.
+            return rel + trailing if rel != "." else rel
         except ValueError:
-            # cwd 밖 — 절대경로 반환 (가드의 `/` 시작 체크가 차단).
-            return str(resolved)
+            # cwd 밖 — 절대경로 반환 (가드의 `/` 시작 체크가 차단). 끝 `/`는 무해(가드 우선).
+            return str(resolved) + trailing
     except (OSError, ValueError, RuntimeError):
         # expanduser 가 home 미해결 시 RuntimeError — 원본 반환(`~` 시작은 가드가 차단).
         return file_path

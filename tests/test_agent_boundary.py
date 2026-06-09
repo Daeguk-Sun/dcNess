@@ -551,6 +551,41 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                     f"{agent} 가 vendored 트리 {p} 를 쓰면 안 됨",
                 )
 
+    def test_directory_target_write_allowed(self):
+        # #694 codex P2 round10 — `cp x tests/`·`mv y apps/web/src/` 의 디렉토리 목적지 토큰은
+        # resolve() 가 끝 `/`를 떼면 ALLOW 패턴(`tests?/`·`.../src/`)에 미매칭돼 정당 in-bound
+        # write 가 오차단되던 결함. 끝 `/`를 보존해 디렉토리 루트 자체가 허용돼야 한다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent, p in [
+                ("test-engineer", "tests/"),
+                ("engineer", "src/"),
+                ("engineer", "apps/web/src/"),
+                ("engineer", "lib/"),
+                ("engineer", "packages/core/src/"),
+            ]:
+                self.assertIsNone(
+                    check_write_allowed(agent, p, cwd=cwd, shell_context=True),
+                    f"{agent} 의 허용 디렉토리 타깃 {p} 허용",
+                )
+
+    def test_directory_target_role_and_deny_preserved(self):
+        # 디렉토리 타깃이라도 역할 격리(engineer 는 tests/ 못 씀)와 전용영역/인프라 deny 는 유지.
+        # 끝 `/` 보존이 보호를 뚫으면 안 됨 — 오히려 `docs/`·`hooks/` 디렉토리 타깃이 정확히 매칭.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent, p in [
+                ("engineer", "tests/"),         # 역할 격리 — engineer ALLOW 미매칭
+                ("engineer", "docs/"),          # 전용영역 deny
+                ("engineer", "node_modules/"),  # 의존성 deny
+                ("engineer", "vendor/"),        # vendored deny (루트)
+                ("engineer", "hooks/"),         # 인프라 deny
+            ]:
+                self.assertIsNotNone(
+                    check_write_allowed(agent, p, cwd=cwd, shell_context=True),
+                    f"{agent} 의 보호 디렉토리 타깃 {p} 차단",
+                )
+
     def test_shell_expansion_path_blocked(self):
         # #694 codex P2 — Bash 출처(shell_context=True)의 $VAR/${}/$()/backtick 은 셸이 hook 후
         # 확장하므로 위치 미확정 → 차단. (literal Edit/Write 경로는 shell_context=False 라 허용.)
@@ -1391,6 +1426,26 @@ class BashIntegrationTests(unittest.TestCase):
                 any("$" in p for p in blocked),
                 f"quoted 셸확장 redirect 가 차단되지 않음: {paths}",
             )
+
+    def test_cp_mv_into_allowed_dir_not_blocked(self):
+        # codex P2 (round10) — `cp src/foo.ts apps/web/src/`·`mv test_helper.py tests/` 의
+        # 디렉토리 목적지가 끝 `/` 소실로 차단되던 false positive 수정 검증 (end-to-end).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            blocked_eng = [
+                p for p in extract_bash_paths("cp src/foo.ts apps/web/src/")
+                if check_write_allowed("engineer", p, cwd=cwd,
+                                       shell_context=True) is not None
+            ]
+            self.assertEqual(blocked_eng, [],
+                             f"engineer cp 디렉토리 타깃 차단됨: {blocked_eng}")
+            blocked_te = [
+                p for p in extract_bash_paths("mv test_helper.py tests/")
+                if check_write_allowed("test-engineer", p, cwd=cwd,
+                                       shell_context=True) is not None
+            ]
+            self.assertEqual(blocked_te, [],
+                             f"test-engineer mv 디렉토리 타깃 차단됨: {blocked_te}")
 
     def test_quoted_sed_with_var_legit_edit_not_blocked(self):
         # codex P2 (round10) — engineer 의 `sed -i "s/$old/$new/" src/main.ts` 가 따옴표 안
