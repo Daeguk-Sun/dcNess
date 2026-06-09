@@ -1,6 +1,7 @@
 """Surface documentation sync tests for issues #644/#645."""
 from __future__ import annotations
 
+import json
 import re
 import unittest
 from pathlib import Path
@@ -180,6 +181,60 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("실수로 `begin-run design`", self.hooks_doc)
         self.assertNotIn("entry_point=architect-loop|design|impl|issue-report|ux", self.hooks_doc)
         self.assertNotIn("entry_point=architect-loop|design|impl|issue-report|ux", self.loop_procedure)
+
+    def test_hooks_doc_tracks_registered_enforcement_layers(self) -> None:
+        hooks_json = json.loads(
+            (ROOT / "hooks" / "hooks.json").read_text(encoding="utf-8")
+        )
+        runtime_hooks: set[str] = set()
+        for entries in hooks_json["hooks"].values():
+            for entry in entries:
+                for hook in entry.get("hooks", []):
+                    command = hook.get("command", "")
+                    match = re.search(r"/hooks/([A-Za-z0-9_.-]+\.sh)", command)
+                    self.assertIsNotNone(match, command)
+                    runtime_hooks.add(match.group(1))
+
+        self.assertEqual(8, len(runtime_hooks))
+        for hook_name in sorted(runtime_hooks):
+            self.assertIn(f"### {hook_name}", self.hooks_doc)
+            self.assertRegex(
+                self.hooks_doc,
+                rf"\| `{re.escape(hook_name)}` \|",
+                msg=f"{hook_name} missing from CC hook summary table",
+            )
+
+        git_hooks = set(
+            re.findall(r'scripts/hooks/([A-Za-z0-9_.-]+)"', self.init_doc)
+        )
+        self.assertEqual({"commit-msg", "post-checkout", "pre-push"}, git_hooks)
+        for hook_name in sorted(git_hooks):
+            self.assertIn(f"### .git/hooks/{hook_name}", self.hooks_doc)
+            self.assertIn(f"`scripts/hooks/{hook_name}`", self.hooks_doc)
+
+        workflows = set(
+            re.findall(
+                r"다음 thin yml 을 `\$PROJECT_ROOT/\.github/workflows/"
+                r"([A-Za-z0-9_.-]+\.yml)`",
+                self.init_doc,
+            )
+        )
+        self.assertEqual(
+            {
+                "git-naming-validation.yml",
+                "github-project-lifecycle.yml",
+                "pr-body-validation.yml",
+            },
+            workflows,
+        )
+        for workflow_name in sorted(workflows):
+            workflow_path = f".github/workflows/{workflow_name}"
+            self.assertIn(f"### {workflow_path}", self.hooks_doc)
+            self.assertRegex(
+                self.hooks_doc,
+                rf"\| `{re.escape(workflow_path)}` \|",
+                msg=f"{workflow_path} missing from CI/CD summary table",
+            )
 
     def test_init_summary_uses_same_lifecycle_surface(self) -> None:
         default_block = self._section(
