@@ -546,6 +546,75 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
             result["sets"],
         )
 
+    def test_plan_registration_preserve_existing_keeps_triaged_state(self) -> None:
+        # 백필 회귀 가드 (#669): preserveExisting 이면 사용자가 옮긴 In progress /
+        # 바뀐 priority 를 Todo/major 로 되돌리지 않는다 (이미 값 있으면 보존).
+        item = {"status": "In progress", "issueType": "story", "priority": "minor"}
+
+        result = run_node(
+            "lifecycle.planRegistration({"
+            f"item: {json.dumps(item)},"
+            f"fields: {json.dumps(STANDARD_FIELDS)},"
+            "issueType: 'story',"
+            "preserveExisting: true"
+            "})"
+        )
+
+        self.assertFalse(result["needsAdd"])
+        self.assertEqual([], result["sets"])
+
+    def test_plan_registration_preserve_existing_fills_only_empty_field(self) -> None:
+        # preserveExisting 이라도 비어있는 필드(부분 등록 실패 잔여)는 채운다.
+        item = {"issueType": "story", "priority": "major"}  # status 미설정
+
+        result = run_node(
+            "lifecycle.planRegistration({"
+            f"item: {json.dumps(item)},"
+            f"fields: {json.dumps(STANDARD_FIELDS)},"
+            "issueType: 'story',"
+            "preserveExisting: true"
+            "})"
+        )
+
+        self.assertFalse(result["needsAdd"])
+        set_map = {entry["fieldName"]: entry["optionName"] for entry in result["sets"]}
+        self.assertEqual({"Status": "Todo"}, set_map)
+
+    def test_plan_registration_preserve_existing_new_item_sets_all(self) -> None:
+        # 보드에 없던 item 은 preserveExisting 여도 풀 등록 (Todo/story/major).
+        result = run_node(
+            "lifecycle.planRegistration({"
+            "item: null,"
+            f"fields: {json.dumps(STANDARD_FIELDS)},"
+            "issueType: 'story',"
+            "preserveExisting: true"
+            "})"
+        )
+
+        self.assertTrue(result["needsAdd"])
+        set_map = {entry["fieldName"]: entry["optionName"] for entry in result["sets"]}
+        self.assertEqual(
+            {"Status": "Todo", "IssueType": "story", "Priority": "major"},
+            set_map,
+        )
+
+    def test_plan_registration_preserve_existing_still_corrects_issue_type(self) -> None:
+        # IssueType 은 정체성이라 preserve 모드여도 drift 교정 (Status/Priority 만 보존).
+        item = {"status": "In progress", "issueType": "epic", "priority": "minor"}
+
+        result = run_node(
+            "lifecycle.planRegistration({"
+            f"item: {json.dumps(item)},"
+            f"fields: {json.dumps(STANDARD_FIELDS)},"
+            "issueType: 'story',"
+            "preserveExisting: true"
+            "})"
+        )
+
+        self.assertFalse(result["needsAdd"])
+        set_map = {entry["fieldName"]: entry["optionName"] for entry in result["sets"]}
+        self.assertEqual({"IssueType": "story"}, set_map)
+
     def test_plan_registration_rejects_unknown_issue_type(self) -> None:
         with self.assertRaises(subprocess.CalledProcessError):
             run_node(
@@ -595,6 +664,58 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
                 "issueType: 'epic'"
                 "})"
             )
+
+    def test_resolve_validation_relaxes_only_preserved_non_empty_field(self) -> None:
+        # preserve + 원래 값이 있던 필드 → 완화('any')로 보존값을 drift 오판 안 함.
+        item = {"status": "In progress", "priority": "minor"}
+        result = run_node(
+            "lifecycle.resolveValidationExpectations({"
+            f"item: {json.dumps(item)},"
+            "preserveExisting: true"
+            "})"
+        )
+        self.assertEqual(
+            {"validateStatus": "any", "validatePriority": "any"}, result
+        )
+
+    def test_resolve_validation_keeps_strict_for_blank_field(self) -> None:
+        # 백필 회귀 가드 (#669 round3): preserve 라도 원래 비어있던 Status 는 채우기 대상이라
+        # strict('Todo') 유지 → apply 가 실제로 채웠는지(부분 백필 실패) 검증한다.
+        item = {"priority": "major"}  # status 미설정 → 채움 대상
+        result = run_node(
+            "lifecycle.resolveValidationExpectations({"
+            f"item: {json.dumps(item)},"
+            "preserveExisting: true"
+            "})"
+        )
+        self.assertEqual(
+            {"validateStatus": "Todo", "validatePriority": "any"}, result
+        )
+
+    def test_resolve_validation_new_item_all_strict(self) -> None:
+        # 신규 add(item 없음)는 보존 대상 없음 → 전부 strict.
+        result = run_node(
+            "lifecycle.resolveValidationExpectations({"
+            "item: null,"
+            "preserveExisting: true"
+            "})"
+        )
+        self.assertEqual(
+            {"validateStatus": "Todo", "validatePriority": "major"}, result
+        )
+
+    def test_resolve_validation_non_preserve_all_strict(self) -> None:
+        # preserve 아님(fresh) → 기존 값 있어도 전부 strict (Todo/major 강제 검증).
+        item = {"status": "In progress", "priority": "minor"}
+        result = run_node(
+            "lifecycle.resolveValidationExpectations({"
+            f"item: {json.dumps(item)},"
+            "preserveExisting: false"
+            "})"
+        )
+        self.assertEqual(
+            {"validateStatus": "Todo", "validatePriority": "major"}, result
+        )
 
 
 if __name__ == "__main__":

@@ -152,6 +152,8 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         self.assertEqual(3, node_log.count("register-issue"))
         self.assertEqual(1, node_log.count("--issue-type epic"))
         self.assertEqual(2, node_log.count("--issue-type story"))
+        # fresh 경로(새 이슈)는 strict 등록 — preserve 안 함 (Todo/major 강제 + 검증).
+        self.assertEqual(0, node_log.count("--preserve-existing"))
 
     def test_skips_board_when_no_coords_but_still_creates_issues(self):
         result, gh_log, node_log, _ = self._run(STORIES_NEW, {})
@@ -181,6 +183,9 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         self.assertIn("--issue 100", node_log)
         self.assertIn("--issue 101", node_log)
         self.assertIn("--issue 102", node_log)
+        # 백필 회귀 가드 (#669): 기존 item 의 triage 상태(In progress/Done/priority)를
+        # 되돌리지 않도록 백필 경로는 register-issue 에 --preserve-existing 를 넘긴다.
+        self.assertEqual(3, node_log.count("--preserve-existing"))
 
 
 if __name__ == "__main__":

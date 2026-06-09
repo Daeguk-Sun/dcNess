@@ -60,33 +60,41 @@ if [ -z "$PROJECT_OWNER" ]; then PROJECT_OWNER="${REPO%%/*}"; fi
 
 LIFECYCLE_MJS="$(dirname "$0")/github_project_lifecycle.mjs"
 
-# register_board — 생성/backfill 한 epic+story 이슈를 GitHub Project 보드에 등록.
-# epic → Status=Todo, IssueType=epic, Priority=major / story → Status=Todo, IssueType=story, Priority=major.
+# register_board [mode] — 생성/backfill 한 epic+story 이슈를 GitHub Project 보드에 등록.
+# epic → IssueType=epic / story → IssueType=story. 신규 등록 시 Status=Todo, Priority=major.
+# mode="backfill" (멱등 재실행) → --preserve-existing: 이미 보드에 있는 item 의 triage 상태
+#   (In progress/Done/바뀐 priority)를 Todo/major 로 되돌리지 않고 보존, 비어있는 필드만 채움 (#669).
+# mode="fresh" (기본, 새 이슈) → strict 등록 (Todo/major 강제 + 검증).
 # 좌표 없으면 skip (이슈는 이미 생성됨). register-issue 실패는 흡수 + partial 보고 (이슈를 막지 않는다).
 register_board() {
+  local mode="${1:-fresh}"
   if [ -z "$PROJECT_NUMBER" ]; then
     echo "[issue-create] Project 보드 미연결 (번호 없음) — 보드 등록 skip. 이슈는 생성됨."
     echo "  보드 연결 후 backfill: --project <N> --owner <O> 로 재실행 또는 'gh variable set DCNESS_PROJECT_NUMBER --body <N>'."
     return 0
   fi
-  local reg_ok=0 reg_total out failed=""
+  local reg_ok=0 reg_total out failed="" preserve_flag="" note="신규 Status=Todo, Priority=major"
+  if [ "$mode" = "backfill" ]; then
+    preserve_flag="--preserve-existing"
+    note="기존 triage 상태 보존, 빈 필드만 채움"
+  fi
   reg_total=$((1 + ${#STORY_NUMS[@]}))
-  echo "[issue-create] 보드 등록 — Project #$PROJECT_NUMBER (owner=$PROJECT_OWNER), 대상 ${reg_total}건"
-  if out=$(node "$LIFECYCLE_MJS" register-issue --repo "$REPO" --owner "$PROJECT_OWNER" --project "$PROJECT_NUMBER" --issue "$EPIC_NUM" --issue-type epic --apply 2>&1); then
+  echo "[issue-create] 보드 등록 ($mode) — Project #$PROJECT_NUMBER (owner=$PROJECT_OWNER), 대상 ${reg_total}건"
+  if out=$(node "$LIFECYCLE_MJS" register-issue --repo "$REPO" --owner "$PROJECT_OWNER" --project "$PROJECT_NUMBER" --issue "$EPIC_NUM" --issue-type epic $preserve_flag --apply 2>&1); then
     reg_ok=$((reg_ok+1))
   else
     failed="$failed epic#$EPIC_NUM"
     echo "  WARN: epic #$EPIC_NUM 보드 등록 실패 — $(echo "$out" | tail -1)"
   fi
   for sn in "${STORY_NUMS[@]}"; do
-    if out=$(node "$LIFECYCLE_MJS" register-issue --repo "$REPO" --owner "$PROJECT_OWNER" --project "$PROJECT_NUMBER" --issue "$sn" --issue-type story --apply 2>&1); then
+    if out=$(node "$LIFECYCLE_MJS" register-issue --repo "$REPO" --owner "$PROJECT_OWNER" --project "$PROJECT_NUMBER" --issue "$sn" --issue-type story $preserve_flag --apply 2>&1); then
       reg_ok=$((reg_ok+1))
     else
       failed="$failed story#$sn"
       echo "  WARN: story #$sn 보드 등록 실패 — $(echo "$out" | tail -1)"
     fi
   done
-  echo "[issue-create] 보드 등록 완료 — ${reg_ok}/${reg_total} 성공 (Status=Todo, Priority=major)"
+  echo "[issue-create] 보드 등록 완료 — ${reg_ok}/${reg_total} 성공 ($note)"
   if [ "$reg_ok" -lt "$reg_total" ]; then
     echo "[issue-create] WARN: partial state — 등록 실패:$failed. 이슈는 생성됨, 보드는 미반영."
     echo "  보드/field 셋업 확인 후 재실행으로 backfill (이슈 생성은 멱등 skip, 보드만 재시도)."
@@ -105,7 +113,7 @@ if grep -qE '^\*\*GitHub Epic Issue:\*\* \[#[0-9]+\]' "$STORIES"; then
     _n=$(echo "$_ln" | grep -oE '#[0-9]+' | head -1 | tr -d '#')
     [ -n "$_n" ] && STORY_NUMS+=("$_n")
   done < <(grep -E '^\*\*GitHub Issue:\*\* \[#[0-9]+\]' "$STORIES")
-  register_board
+  register_board backfill
   exit 0
 fi
 
