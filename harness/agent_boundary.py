@@ -164,6 +164,19 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
 ALLOW_MATRIX["build-worker"] = ALLOW_MATRIX["engineer"] + ALLOW_MATRIX["test-engineer"]
 
 
+# ── 코드 agent 전용영역 deny (#694 codex P2) ───────────────────────
+# engineer / test-engineer / build-worker 의 언어 중립 ALLOW 패턴(lib/·internal/·cmd/·
+# tests?/·spec/·test_*.py 등)은 re.search 라 docs/ 하위 동명 디렉토리(docs/internal/·
+# docs/spec/·docs/tests/)나 docs 안 테스트 파일명을 *우회 허용* 한다. docs/ 는 architect,
+# design-variants/ 는 designer 전용이므로, 코드 agent 의 write 를 ALLOW 검사보다 *먼저*
+# 차단해 역할 경계를 지킨다. (기존 src/ 패턴의 docs/src/ 우회도 함께 닫힌다.)
+_CODE_AGENTS: frozenset = frozenset({"engineer", "test-engineer", "build-worker"})
+_CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
+    r'(^|/)docs/',            # architect / ux-architect / tech-reviewer 전용
+    r'(^|/)design-variants/', # designer 전용
+)
+
+
 # ── READ_DENY_MATRIX (agent 별 Read 금지) ──────────────────────
 READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
     "designer": (
@@ -300,7 +313,18 @@ def check_write_allowed(
     if matched:
         return f"인프라 path 보호: matched `{matched}` (DCNESS_INFRA_PATTERNS)"
 
-    # 2. ALLOW_MATRIX 미매칭 → 차단.
+    # 2. 코드 agent 전용영역 deny → ALLOW 검사보다 먼저 (#694 codex P2).
+    #    언어 중립 ALLOW 패턴이 docs/·design-variants/ 하위 동명 디렉토리/파일명을
+    #    re.search 로 우회 허용하는 것을 차단 — docs/ 는 architect, design-variants/ 는 designer.
+    if agent in _CODE_AGENTS:
+        matched = _matches_any(norm, _CODE_AGENT_EXCLUSIVE_DENY)
+        if matched:
+            return (
+                f"{agent} 전용영역 침범 차단: `{norm}` matched `{matched}` — "
+                f"docs/ 는 architect, design-variants/ 는 designer 전용 (코드 agent write 금지)."
+            )
+
+    # 3. ALLOW_MATRIX 미매칭 → 차단.
     allowed = ALLOW_MATRIX.get(agent)
     if allowed is None:
         # 미정의 agent — false positive 회피로 통과.

@@ -423,10 +423,42 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         # 회귀 가드 — engineer 가 docs / 루트 비소스 문서를 쓰면 안 된다 (기존 invariant 유지).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            for p in ("README.md", "docs/storage-layout.md", "CHANGELOG.md"):
+            # 루트 비소스 문서 — ALLOW_MATRIX 미매칭 차단.
+            for p in ("README.md", "CHANGELOG.md"):
                 reason = check_write_allowed("engineer", p, cwd=cwd)
                 self.assertIsNotNone(reason, f"engineer 가 {p} 를 쓰면 안 됨")
                 self.assertIn("ALLOW_MATRIX", reason)
+            # docs/ — 전용영역 deny 로 차단 (#694 codex P2).
+            reason = check_write_allowed("engineer", "docs/storage-layout.md", cwd=cwd)
+            self.assertIsNotNone(reason)
+            self.assertIn("docs", reason)
+
+    def test_code_agents_cannot_write_docs_subtree(self):
+        # #694 codex P2 — 언어중립 패턴이 docs/ 하위 동명 디렉토리(docs/internal·docs/lib·
+        # docs/spec·docs/tests)나 docs 안 테스트 파일명을 re.search 로 우회 허용하면 안 된다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            cases = [
+                ("engineer", "docs/internal/release-notes.md"),  # internal/ 우회
+                ("engineer", "docs/lib/guide.md"),               # lib/ 우회
+                ("engineer", "docs/app/overview.md"),            # app/ 우회
+                ("test-engineer", "docs/spec/api.md"),           # spec/ 우회
+                ("test-engineer", "docs/tests/plan.md"),         # tests/ 우회
+                ("test-engineer", "docs/test_examples.py"),      # test_*.py 파일명 우회
+                ("build-worker", "docs/internal/x.md"),          # 합집합 상속
+            ]
+            for agent, p in cases:
+                reason = check_write_allowed(agent, p, cwd=cwd)
+                self.assertIsNotNone(reason, f"{agent} 가 docs 하위 {p} 를 쓰면 안 됨")
+                self.assertIn("docs", reason)
+
+    def test_code_agents_cannot_write_design_variants(self):
+        # design-variants/ 는 designer 전용 — 코드 agent 차단.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent in ("engineer", "test-engineer", "build-worker"):
+                reason = check_write_allowed(agent, "design-variants/v1/index.html", cwd=cwd)
+                self.assertIsNotNone(reason, f"{agent} 가 design-variants 를 쓰면 안 됨")
 
     # ── build-worker: 합집합으로 둘 다 허용 (youTubeGenerator 통합 시나리오) ──
     def test_build_worker_youtube_generator_scenario(self):
@@ -559,7 +591,8 @@ class RunDirProseCarveOutTests(unittest.TestCase):
             cwd = Path(td)
             reason = check_write_allowed("build-worker", "docs/impl/01-x.md", cwd=cwd)
             self.assertIsNotNone(reason)
-            self.assertIn("ALLOW_MATRIX", reason)
+            # docs/ 는 architect 전용 — 코드 agent 전용영역 deny 로 차단 (#694 codex P2).
+            self.assertIn("docs", reason)
 
     def test_tech_reviewer_allowed_paths(self):
         with tempfile.TemporaryDirectory() as td:
