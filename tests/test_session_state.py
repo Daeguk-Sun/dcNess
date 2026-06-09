@@ -2242,6 +2242,29 @@ class AutoDetectFallbackTests(unittest.TestCase):
         result = _scan_recent_active_run_slot(base_dir=self.base)
         self.assertEqual(result, (self.SID_B, self.RID_B))
 
+    def test_scan_skips_completed_runs_without_finalized_at(self) -> None:
+        """completed_at tombstone 만 있는 end-run 완료 슬롯도 fallback 후보에서 제외."""
+        from harness.session_state import _scan_recent_active_run_slot
+
+        self._write_live(
+            self.SID_A,
+            runs={self.RID_A: {
+                "run_id": self.RID_A,
+                "started_at": "2026-05-22T02:00:00+00:00",
+                "completed_at": "2026-05-22T02:30:00+00:00",
+            }},
+        )
+        self._write_live(
+            self.SID_B,
+            runs={self.RID_B: {
+                "run_id": self.RID_B,
+                "started_at": "2026-05-22T01:00:00+00:00",
+                "completed_at": None,
+            }},
+        )
+        result = _scan_recent_active_run_slot(base_dir=self.base)
+        self.assertEqual(result, (self.SID_B, self.RID_B))
+
     def test_scan_no_sessions_returns_none(self) -> None:
         from harness.session_state import _scan_recent_active_run_slot
         # sessions/ 디렉토리 자체 부재
