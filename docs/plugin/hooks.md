@@ -59,6 +59,7 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 - sid 추출, `.by-pid/<cc_pid>` 작성, `live.json` 초기화
 - `hookSpecificOutput.additionalContext` 로 dcNess 활성 사실과 핵심 guard 안내 inject
 - 메인 Claude 첫 응답 첫 줄에 `[dcness 활성 확인]` 토큰을 요구해 활성 여부를 사용자가 바로 확인 가능하게 함
+- 설치된 plug-in 버전과 `main` 의 최신 버전을 비교(하루 1회 캐시)해 더 높은 버전이 있을 때만 `claude plugin update` 알림을 함께 inject — 외부 활성 프로젝트가 옛 plug-in 버전 운영 룰에 묶이는 drift 회피
 
 **차단**: 없음. 실패해도 세션 시작을 막지 않는다.
 
@@ -79,7 +80,7 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 
 **tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. /design 도중 미검증 새 외부 의존이 발견되면 design 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
 
-**차단**: 위반 시 `exit 2` + stderr. 에러 메시지는 `[catastrophic: <gate>]` 형태를 포함한다.
+**차단**: 위반 시 `exit 2` + stderr. engineer / pr-reviewer / module-architect 게이트 위반은 `[catastrophic: <gate>]`, strict conveyor 게이트 위반은 `[strict-conveyor]` 접두사를 포함한다.
 
 ### file-guard.sh
 
