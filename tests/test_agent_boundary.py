@@ -523,6 +523,34 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                     f"산출물 루트 {p} 차단",
                 )
 
+    def test_vendor_named_package_allowed(self):
+        # #694 codex P2 round10 — vendor/third_party 는 패키지명과 겹칠 수 있어 루트/패키지 루트
+        # 앵커. monorepo 의 `apps/vendor/src/` 같은 정당 패키지 소스는 허용돼야 한다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for p in ("apps/vendor/src/index.ts",
+                      "packages/third_party/src/x.ts"):
+                self.assertIsNone(
+                    check_write_allowed("engineer", p, cwd=cwd),
+                    f"vendor/third_party 이름의 정당 패키지 소스 {p} 허용",
+                )
+
+    def test_vendor_tree_root_and_package_blocked(self):
+        # 루트(^vendor/·^third_party/) 및 monorepo 패키지 루트(apps/*/vendor·packages/*/third_party)
+        # vendored 트리는 여전히 차단 — 동명 패키지 허용이 진짜 vendored 트리를 뚫으면 안 됨.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent, p in [
+                ("engineer", "vendor/p/index.ts"),
+                ("test-engineer", "third_party/lib/spec/x_spec.rb"),
+                ("engineer", "apps/web/vendor/p/y.ts"),
+                ("build-worker", "packages/core/third_party/foo_test.go"),
+            ]:
+                self.assertIsNotNone(
+                    check_write_allowed(agent, p, cwd=cwd),
+                    f"{agent} 가 vendored 트리 {p} 를 쓰면 안 됨",
+                )
+
     def test_shell_expansion_path_blocked(self):
         # #694 codex P2 — Bash 출처(shell_context=True)의 $VAR/${}/$()/backtick 은 셸이 hook 후
         # 확장하므로 위치 미확정 → 차단. (literal Edit/Write 경로는 shell_context=False 라 허용.)
@@ -907,6 +935,35 @@ class BashHeuristicTests(unittest.TestCase):
         paths2 = extract_bash_paths("sed -i s/foo/bar/ src/main.ts")
         self.assertNotIn("s/foo/bar/", paths2)
         self.assertIn("src/main.ts", paths2)
+
+    def test_quoted_shell_expansion_token_extracted(self):
+        # codex P2 (round10) — 큰따옴표 안에 $/backtick 이 있는 토큰은 셸이 확장하므로 inner 를
+        # 살려 후보로 반환해야 한다. 따옴표째 버리면 `echo x > "$HOME/tests/x"` 가
+        # check_write_allowed 셸확장 가드에 도달 못 해 프로젝트 밖 write 우회가 된다.
+        paths = extract_bash_paths('echo x > "$HOME/tests/x.py"')
+        self.assertIn("$HOME/tests/x.py", paths)
+        # backtick 명령치환도 동일.
+        paths_bt = extract_bash_paths('echo x > "`pwd`/lib/y.rb"')
+        self.assertIn("`pwd`/lib/y.rb", paths_bt)
+
+    def test_quoted_literal_path_still_excluded(self):
+        # 확장 토큰 없는 따옴표(작은따옴표 전체 / $·backtick 없는 큰따옴표)는 제외 유지 —
+        # sed 스크립트 false positive 방지 원칙 보존.
+        self.assertNotIn(
+            "s/foo/bar/", extract_bash_paths("sed -i 's/foo/bar/' src/main.ts")
+        )
+        # $·backtick 없는 큰따옴표 literal 경로도 제외(false negative 우선 원칙).
+        self.assertNotIn(
+            "docs/x.md", extract_bash_paths('sed -i "s/a/b/" "docs/x.md"')
+        )
+
+    def test_quoted_sed_script_with_var_excluded(self):
+        # codex P2 (round10) — `sed -i "s/$old/$new/" src/main.ts` 의 큰따옴표 치환 스크립트는
+        # $ 가 있어 inner 가 살아나지만, 곧바로 sed 스크립트 제외 로직(^[sy]<delim>…)에 걸려
+        # 후보에서 빠진다. 실제 대상 src/main.ts 만 남아 정상 편집이 안 막혀야 한다.
+        paths = extract_bash_paths('sed -i "s/$old/$new/" src/main.ts')
+        self.assertNotIn("s/$old/$new/", paths)
+        self.assertIn("src/main.ts", paths)
 
 
 class BashMutationTests(unittest.TestCase):
@@ -1315,6 +1372,35 @@ class BashIntegrationTests(unittest.TestCase):
             blocked = [
                 p for p in extract_bash_paths("sed -i 's/foo/bar/' src/main.ts")
                 if check_write_allowed("engineer", p, cwd=cwd) is not None
+            ]
+            self.assertEqual(blocked, [], f"engineer 정상 편집이 차단됨: {blocked}")
+
+    def test_quoted_redirect_shell_expansion_blocked(self):
+        # codex P2 (round10) — `echo x > "$HOME/tests/x.py"` 가 따옴표째 버려져 검사 미도달로
+        # 프로젝트 밖 write 우회되던 결함 수정 검증. extract → shell_context 가드까지 도달해 차단.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            paths = extract_bash_paths('echo x > "$HOME/tests/x.py"')
+            self.assertIn("$HOME/tests/x.py", paths)
+            blocked = [
+                p for p in paths
+                if check_write_allowed("test-engineer", p, cwd=cwd,
+                                       shell_context=True) is not None
+            ]
+            self.assertTrue(
+                any("$" in p for p in blocked),
+                f"quoted 셸확장 redirect 가 차단되지 않음: {paths}",
+            )
+
+    def test_quoted_sed_with_var_legit_edit_not_blocked(self):
+        # codex P2 (round10) — engineer 의 `sed -i "s/$old/$new/" src/main.ts` 가 따옴표 안
+        # 치환 스크립트 오인으로 차단되면 안 됨 (src/main.ts 만 후보, 정상 통과).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            blocked = [
+                p for p in extract_bash_paths('sed -i "s/$old/$new/" src/main.ts')
+                if check_write_allowed("engineer", p, cwd=cwd,
+                                       shell_context=True) is not None
             ]
             self.assertEqual(blocked, [], f"engineer 정상 편집이 차단됨: {blocked}")
 

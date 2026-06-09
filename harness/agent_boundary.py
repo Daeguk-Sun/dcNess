@@ -182,19 +182,21 @@ _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
     r'^design-variants/', # designer 전용
     # 의존성 / 빌드 산출 트리 — 누구도 직접 write 하지 않는다. engineer 의 (^|/)src/ 와
     # test-engineer 의 (^|/)tests?/·spec/ 가 이 트리 안 src/tests 를 *중첩* 매칭하던 우회를
-    # 차단 (codex P1/P2). monorepo 패키지별 중첩도 막도록 (^|/). 언어 전반의 보편 집합 —
-    # 프로젝트 고유 추가는 #696 override.
+    # 차단 (codex P1/P2). 언어 전반의 보편 집합 — 프로젝트 고유 추가는 #696 override.
+    #
+    # 두 그룹으로 나눈다 (codex P2 round10):
+    #  A. 이름 충돌 없는 트리 — 디렉토리명이 소스 디렉토리·패키지명과 겹칠 일이 없어 어디서든
+    #     (^|/) deny 가 안전.
     r'(^|/)node_modules/',   # JS/TS 의존성
-    r'(^|/)vendor/',          # Go·PHP·Ruby vendored
-    r'(^|/)third_party/',     # 일반 vendored
     r'(^|/)\.venv/',          # Python 가상환경
     r'(^|/)venv/',
     r'(^|/)__pycache__/',     # Python 캐시 (항상 캐시 — 어디든)
-    # 빌드 산출물 — 루트 또는 monorepo 패키지 루트(apps/*·packages/*)에 위치. 의존성과 달리
-    # 이름(build·dist·out·target)이 소스 디렉토리명과 충돌할 수 있어, 허용된 src/ 트리 안의
-    # 동명 소스(src/build/ 등)를 막지 않도록 루트/패키지 루트만 앵커한다 (codex P2).
-    r'^(?:dist|build|target|out)/',
-    r'(^|/)(?:apps|packages)/[^/]+/(?:dist|build|target|out)/',
+    #  B. 이름 충돌 가능 트리 — vendor·third_party·dist·build·target·out 은 패키지명이나
+    #     소스 디렉토리명과 겹칠 수 있다 (예 monorepo 의 `apps/vendor/src/` 정상 패키지,
+    #     허용된 `src/build/`). 어디서든 (^|/) deny 하면 이런 정당 소스를 오차단하므로,
+    #     루트 또는 monorepo 패키지 루트(apps/*·packages/*)에만 앵커한다 (codex P2 round10).
+    r'^(?:vendor|third_party|dist|build|target|out)/',
+    r'(^|/)(?:apps|packages)/[^/]+/(?:vendor|third_party|dist|build|target|out)/',
 )
 
 
@@ -457,12 +459,23 @@ def extract_bash_paths(command: str) -> list[str]:
     tokens = re.findall(r"[\"'][^\"']*[\"']|\S+", command)
     paths: list[str] = []
     for t in tokens:
-        # 따옴표로 감싼 토큰은 path 후보에서 제외 (codex P2 round10). sed/awk/perl 스크립트
-        # (`'s/foo/bar/'`)가 `/` 를 포함한다는 이유로 write path 로 오인돼 정상 편집
-        # (`sed -i 's/foo/bar/' src/main.ts`)이 차단되던 false positive 방지. 따옴표 친 write
-        # 대상이 누락되는 것은 본 guard 의 "false negative 우선" 원칙 + nested-shell 한계와 정합.
+        # 따옴표로 감싼 토큰 처리 (codex P2 round10):
+        #   - 작은따옴표('…') = 셸 확장 없음 → 통째로 제외. sed/awk/perl 스크립트(`'s/foo/bar/'`)가
+        #     `/` 를 포함한다는 이유로 write path 로 오인돼 정상 편집(`sed -i 's/foo/bar/' src/main.ts`)이
+        #     차단되던 false positive 방지.
+        #   - 확장 토큰 없는 큰따옴표("…") = 동일하게 제외 (확장 없는 literal 인용).
+        #   - $/backtick 든 큰따옴표("$HOME/…", "`cmd`/…") = 셸이 hook 후 확장 → inner 를 *살려*
+        #     아래 path 후보 검사를 거쳐 반환한다. 그러면 check_write_allowed 의 셸확장 가드
+        #     (shell_context)가 위치 미확정으로 차단. 따옴표째 버리면 `echo x > "$HOME/tests/x"`
+        #     가 검사 미도달로 프로젝트 밖 write 우회가 된다 (codex P2 round10).
+        #     ($ 든 큰따옴표 안의 sed 치환 `"s/$old/$new/"` 은 inner 가 아래 sed 스크립트 제외
+        #      로직에 걸려 자연히 후보에서 빠진다 — false positive 안 생김.)
         if len(t) >= 2 and t[0] in "\"'" and t[-1] == t[0]:
-            continue
+            inner = t[1:-1]
+            if t[0] == '"' and ("$" in inner or "`" in inner):
+                t = inner   # 따옴표 벗긴 내용으로 후속 path/sed 검사 진행
+            else:
+                continue
         if not t or t.startswith("-"):
             continue
         # URL/원격 스킴 토큰(`https://…`, `ssh://…`, `git://…`)은 로컬 write 대상이 아님 → 제외
