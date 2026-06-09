@@ -859,6 +859,57 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         # path 가 .sessions/{sid}/runs/{rid} 끝남
         self.assertTrue(printed.endswith(f".sessions/{self.sid}/runs/{self.rid}"))
 
+    def test_cli_resolves_active_run_when_pid_current_run_pointer_missing(self) -> None:
+        """issue #684 — escape hatch 없이 helper CLI 가 sid-scoped active_runs 로 복구."""
+        from harness.session_state import (
+            _cli_begin_step,
+            _cli_end_step,
+            _cli_run_dir,
+            _cli_run_status,
+            clear_pid_current_run,
+            read_live,
+            run_dir,
+        )
+        from types import SimpleNamespace
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        clear_pid_current_run(self.cc_pid)
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_begin_step(SimpleNamespace(agent="validator", mode="CODE_VALIDATION"))
+        self.assertEqual(rc, 0)
+        self.assertIn("ok", out.getvalue())
+        live = read_live(self.sid)
+        slot = live["active_runs"][self.rid]
+        self.assertEqual(slot["current_step"]["agent"], "validator")
+        self.assertEqual(slot["current_step"]["mode"], "CODE_VALIDATION")
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_run_dir(SimpleNamespace())
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().strip(), str(run_dir(self.sid, self.rid)))
+
+        prose_path = self.base / "validator_prose.md"
+        prose_path.write_text("검증 결과 정상\n\nPASS\n", encoding="utf-8")
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_end_step(SimpleNamespace(
+                agent="validator",
+                mode="CODE_VALIDATION",
+                prose_file=str(prose_path),
+            ))
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_run_status(SimpleNamespace(run_id=None))
+        self.assertEqual(rc, 0)
+        self.assertIn(self.rid, out.getvalue())
+
     def test_end_step_drift_warn_on_agent_mismatch(self) -> None:
         # DCN-30-25: end-step 호출 시 current_step 의 agent 와 args.agent 불일치
         # → stderr DRIFT WARN. 자동 보정 X (동작은 정상 진행).
@@ -2080,6 +2131,11 @@ class AutoDetectFallbackTests(unittest.TestCase):
 
     PPID chain mismatch (bash subprocess 재시작 / fork) 시 sid/rid 미해결
     회귀 차단. env > PPID > pointer > active_runs scan 폴백 우선순위.
+
+    회귀 계보:
+      - #469: impl-loop/helper 직접 호출의 PPID mismatch fallback
+      - #483: sid/rid 미해결 진단 출력
+      - #684: by-pid sid 는 있으나 current-run pointer 유실 + 전역 scan miss
     """
 
     SID_A = "11111111-2222-4333-8444-555555555555"
@@ -2104,19 +2160,22 @@ class AutoDetectFallbackTests(unittest.TestCase):
         sid: str,
         *,
         runs: dict,
-    ) -> None:
+        root: str = "sessions",
+    ) -> Path:
         """sessions/<sid>/live.json 작성 helper."""
-        sess_dir = self.base / "sessions" / sid
+        sess_dir = self.base / root / sid
         sess_dir.mkdir(parents=True, exist_ok=True)
         payload = {
             "_meta": {"sessionId": sid, "version": 1, "writtenAt": "2026-05-22T00:00:00+00:00"},
             "session_id": sid,
             "active_runs": runs,
         }
-        (sess_dir / "live.json").write_text(
+        live_file = sess_dir / "live.json"
+        live_file.write_text(
             json.dumps(payload, ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+        return live_file
 
     def test_env_var_takes_priority_for_session_id(self) -> None:
         from harness.session_state import auto_detect_session_id
@@ -2213,6 +2272,53 @@ class AutoDetectFallbackTests(unittest.TestCase):
         )
         rid = auto_detect_run_id(base_dir=self.base)
         self.assertEqual(rid, self.RID_A)
+
+    def test_auto_detect_run_id_uses_pid_sid_scoped_scan_when_current_run_pointer_missing(self) -> None:
+        """issue #684 — sid 는 by-pid 에 있으나 by-pid-current-run 만 유실된 장시간 run."""
+        from harness.session_state import (
+            auto_detect_run_id,
+            diagnose_sid_rid_resolution,
+            write_pid_session,
+        )
+
+        cc_pid = 12345
+        write_pid_session(cc_pid, self.SID_A, base_dir=self.base)
+        target_live = self._write_live(
+            self.SID_A,
+            root=".sessions",
+            runs={self.RID_A: {
+                "run_id": self.RID_A,
+                "started_at": "2026-05-22T01:00:00+00:00",
+                "completed_at": None,
+                "current_step": {"agent": "module-architect", "mode": None},
+            }},
+        )
+        os.utime(target_live, (1000, 1000))
+
+        # 전역 scan 의 live.json mtime 최신 5개가 모두 finalized 면 기존 fallback 은
+        # target sid 의 active_runs 를 보지 못하고 None 으로 떨어졌다.
+        for idx in range(6):
+            sid = f"noise-sid-{idx}"
+            rid = f"run-abc0000{idx}"
+            live_file = self._write_live(
+                sid,
+                root=".sessions",
+                runs={rid: {
+                    "run_id": rid,
+                    "started_at": "2026-05-22T02:00:00+00:00",
+                    "completed_at": None,
+                    "finalized_at": "2026-05-22T02:30:00+00:00",
+                }},
+            )
+            os.utime(live_file, (2000 + idx, 2000 + idx))
+
+        with patch("harness.session_state.get_cc_pid_via_ppid_chain", return_value=cc_pid):
+            rid = auto_detect_run_id(base_dir=self.base)
+            msg = diagnose_sid_rid_resolution(base_dir=self.base, mode="rid")
+        self.assertEqual(rid, self.RID_A)
+        self.assertIn("active_runs scan best-guess", msg)
+        self.assertIn(self.SID_A, msg)
+        self.assertIn(self.RID_A, msg)
 
     # ── issue #483 — diagnose_sid_rid_resolution 진단성 강화 ────────────
 

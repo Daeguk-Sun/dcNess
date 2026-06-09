@@ -986,7 +986,18 @@ def auto_detect_run_id(*, base_dir: Optional[Path] = None) -> str:
         rid = read_pid_current_run(cc_pid, base_dir=base_dir)
         if rid:
             return rid
-    # (c) active_runs scan 폴백 — 가장 최근 미finalized run 의 run_id
+        sid = read_pid_session(cc_pid, base_dir=base_dir)
+        if sid:
+            slot_info = _scan_recent_active_run_slot(base_dir=base_dir, session_id=sid)
+            if slot_info:
+                return slot_info[1]
+    # (c) pointer/env sid 가 있으면 해당 세션 active_runs 를 먼저 scan
+    sid = current_session_id(base_dir=base_dir)
+    if sid:
+        slot_info = _scan_recent_active_run_slot(base_dir=base_dir, session_id=sid)
+        if slot_info:
+            return slot_info[1]
+    # (d) active_runs scan 폴백 — 가장 최근 미finalized run 의 run_id
     slot_info = _scan_recent_active_run_slot(base_dir=base_dir)
     if slot_info:
         return slot_info[1]
@@ -1011,6 +1022,7 @@ def diagnose_sid_rid_resolution(
     env_sid = os.environ.get("DCNESS_SESSION_ID", "")
     env_rid = os.environ.get("DCNESS_RUN_ID", "")
     cc_pid = get_cc_pid_via_ppid_chain()
+    sid_hint = env_sid if valid_session_id(env_sid) else ""
 
     lines: list[str] = []
     header = "sid/rid" if mode == "both" else mode
@@ -1032,8 +1044,10 @@ def diagnose_sid_rid_resolution(
         )
     else:
         lines.append(f"  (b) PPID chain cc_pid: {cc_pid}")
+        sid_from_pid = read_pid_session(cc_pid, base_dir=base_dir)
+        if sid_from_pid and not sid_hint:
+            sid_hint = sid_from_pid
         if mode in ("sid", "both"):
-            sid_from_pid = read_pid_session(cc_pid, base_dir=base_dir)
             lines.append(
                 f"  (b) by-pid/{cc_pid}: "
                 f"{'sid 있음' if sid_from_pid else 'sid 없음 (SessionStart 훅 미실행 또는 stale by-pid 파일)'}"
@@ -1046,7 +1060,12 @@ def diagnose_sid_rid_resolution(
             )
 
     # (c) active_runs scan layer (rid 영역만 의미 — sid 도 같이 매칭)
-    slot = _scan_recent_active_run_slot(base_dir=base_dir)
+    if not sid_hint:
+        sid_hint = current_session_id(base_dir=base_dir)
+    slot = _scan_recent_active_run_slot(
+        base_dir=base_dir,
+        session_id=sid_hint or None,
+    )
     if slot is None:
         lines.append("  (c) active_runs scan: 매치 없음 (모든 run finalized 또는 sessions dir 비어있음)")
     else:
@@ -1062,18 +1081,81 @@ def diagnose_sid_rid_resolution(
     return "\n".join(lines)
 
 
+def _is_open_active_run_slot(slot: Any) -> bool:
+    """active_runs 슬롯이 helper fallback 후보인지 판정."""
+    if not isinstance(slot, dict):
+        return False
+    if slot.get("finalized_at"):
+        return False
+    return slot.get("completed_at") is None
+
+
+def _scan_live_file_for_active_run(
+    live_file: Path,
+    *,
+    session_id: Optional[str] = None,
+) -> Optional[tuple[str, str, str]]:
+    """live.json 하나에서 최신 open active_run 후보 반환.
+
+    Returns:
+        (started_at, sid, rid) 또는 None.
+    """
+    try:
+        data = json.loads(live_file.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+
+    sid = data.get("session_id")
+    meta = data.get("_meta")
+    meta_sid = meta.get("sessionId") if isinstance(meta, dict) else None
+    if session_id:
+        if not valid_session_id(session_id):
+            return None
+        if isinstance(sid, str) and sid != session_id:
+            return None
+        if isinstance(meta_sid, str) and meta_sid != session_id:
+            return None
+        sid = session_id
+    else:
+        if isinstance(sid, str) and isinstance(meta_sid, str) and sid != meta_sid:
+            return None
+        sid = sid or meta_sid
+    if not isinstance(sid, str) or not valid_session_id(sid):
+        return None
+
+    active_runs = data.get("active_runs", {})
+    if not isinstance(active_runs, dict):
+        return None
+    best: Optional[tuple[str, str, str]] = None
+    for rid, slot in active_runs.items():
+        if not isinstance(rid, str) or not RUN_ID_RE.match(rid):
+            continue
+        if not _is_open_active_run_slot(slot):
+            continue
+        started = slot.get("started_at") or slot.get("last_confirmed_at") or ""
+        if not isinstance(started, str):
+            started = ""
+        if best is None or started > best[0]:
+            best = (started, sid, rid)
+    return best
+
+
 def _scan_recent_active_run_slot(
     *,
     base_dir: Optional[Path] = None,
     max_sessions: int = 5,
+    session_id: Optional[str] = None,
 ) -> Optional[tuple[str, str]]:
     """.sessions/ 디렉토리 scan 후 가장 최근 미finalized active_run slot 의 (sid, rid).
 
     issue #469 결함 B 의 best-effort 폴백 — PPID chain 미해결 시 사용.
     다음 우선순위:
-    1. live.json mtime 최신 `max_sessions` 개만 검사 (비용 가드)
-    2. 각 live.json 의 `active_runs` 중 `finalized_at` 부재 + `started_at`
-       가장 최근 slot 있는 (sid, rid) 반환
+    1. `session_id` 가 주어지면 그 세션 live.json 을 직접 검사 (#684)
+    2. live.json mtime 최신 `max_sessions` 개만 검사 (비용 가드)
+    3. 각 live.json 의 `active_runs` 중 `finalized_at`/`completed_at` 부재 +
+       `started_at` 가장 최근 slot 있는 (sid, rid) 반환
 
     Returns:
         (session_id, run_id) tuple — best-guess.
@@ -1088,6 +1170,19 @@ def _scan_recent_active_run_slot(
     session_roots = [p for p in session_roots if p.is_dir()]
     if not session_roots:
         return None
+
+    if session_id:
+        best: Optional[tuple[str, str, str]] = None
+        for sessions_dir in session_roots:
+            slot = _scan_live_file_for_active_run(
+                sessions_dir / session_id / "live.json",
+                session_id=session_id,
+            )
+            if slot and (best is None or slot[0] > best[0]):
+                best = slot
+        if best is None:
+            return None
+        return (best[1], best[2])
 
     # live.json mtime 최신 max_sessions 개만 추출 (비용 가드)
     candidates: list[tuple[float, Path]] = []
@@ -1110,28 +1205,9 @@ def _scan_recent_active_run_slot(
     # 각 live.json 의 미finalized active_run 중 started_at 최신 후보 수집
     best: Optional[tuple[str, str, str]] = None  # (started_at, sid, rid)
     for _, live_file in candidates:
-        try:
-            data = json.loads(live_file.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        if not isinstance(data, dict):
-            continue
-        sid = data.get("session_id")
-        if not isinstance(sid, str) or not valid_session_id(sid):
-            continue
-        active_runs = data.get("active_runs", {})
-        if not isinstance(active_runs, dict):
-            continue
-        for rid, slot in active_runs.items():
-            if not isinstance(slot, dict):
-                continue
-            if slot.get("finalized_at"):
-                continue
-            started = slot.get("started_at", "")
-            if not isinstance(started, str):
-                continue
-            if best is None or started > best[0]:
-                best = (started, sid, rid)
+        slot = _scan_live_file_for_active_run(live_file)
+        if slot and (best is None or slot[0] > best[0]):
+            best = slot
     if best is None:
         return None
     return (best[1], best[2])

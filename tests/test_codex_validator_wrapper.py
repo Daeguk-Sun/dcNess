@@ -145,6 +145,7 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             )
 
     def test_resolves_sid_rid_without_caller_env(self) -> None:
+        """issue #625 — Codex subprocess PPID/env 단절 전 wrapper 가 sid/rid 를 export."""
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             project = tmp / "project"
