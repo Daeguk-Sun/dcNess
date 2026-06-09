@@ -1,0 +1,61 @@
+# GitHub Actions — GitHub Project v2 lifecycle 자동화 (issue drift 검출 + 머지→Done 보정)
+#
+# 모드/룰 정의: docs/plugin/github-project.md + scripts/github_project_lifecycle.mjs (SSOT)
+# 본 dcness self repo 는 자기 composite action (.github/actions/github-project-lifecycle) 을 dogfooding.
+# 외부 활성화 프로젝트는 init-dcness Step 2.10.5 가 묻고 Y 답변 시 thin yml 을 사용자 repo 에 배포 — 그 yml 은
+# `uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main` 1줄로 동일 검증.
+#
+# Project v2 쓰기에는 project scope token 필요: secrets.DCNESS_PROJECT_TOKEN
+#   (없으면 github.token 폴백 → Projects v2 쓰기 불가, drift 검출만 동작).
+# Project 좌표: vars.DCNESS_PROJECT_NUMBER / vars.DCNESS_PROJECT_OWNER.
+
+name: github-project-lifecycle
+
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  issue-drift:
+    if: ${{ github.event_name == 'issues' && vars.DCNESS_PROJECT_NUMBER != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate issue lifecycle via composite action
+        uses: ./.github/actions/github-project-lifecycle
+        env:
+          GH_TOKEN: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
+        with:
+          mode: validate-issue
+          repo: ${{ github.repository }}
+          project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
+          project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
+          issue-number: ${{ github.event.issue.number }}
+
+  pr-merged:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && vars.DCNESS_PROJECT_NUMBER != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Correct Status=Done on merge via composite action
+        uses: ./.github/actions/github-project-lifecycle
+        env:
+          GH_TOKEN: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
+        with:
+          mode: pr-merged
+          repo: ${{ github.repository }}
+          project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
+          project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
+          pr-body: ${{ github.event.pull_request.body }}
+          apply: "true"
