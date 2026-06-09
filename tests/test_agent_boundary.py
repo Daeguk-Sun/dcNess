@@ -499,6 +499,43 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 reason = check_write_allowed(agent, p, cwd=cwd)
                 self.assertIsNotNone(reason, f"{agent} 가 의존성/산출물 트리 {p} 를 쓰면 안 됨")
 
+    def test_source_dir_named_like_output_allowed(self):
+        # #694 codex P2 — 빌드 산출물 deny 는 루트/패키지 루트 앵커. 허용된 src/ 트리 안의
+        # 동명 디렉토리(src/build·src/dist·.../src/out)는 정당 소스라 허용돼야 한다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for p in ("src/build/index.ts", "src/dist/util.ts",
+                      "packages/core/src/out/x.ts", "apps/web/src/build/m.ts"):
+                self.assertIsNone(
+                    check_write_allowed("engineer", p, cwd=cwd),
+                    f"src 트리 안 동명 디렉토리 {p} 허용",
+                )
+
+    def test_output_dirs_root_and_package_blocked(self):
+        # 루트(^build/) 및 monorepo 패키지 루트(apps/*/build·packages/*/dist) 산출물은 차단.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for p in ("build/x.js", "dist/foo/src/a.js", "target/debug/x.rs",
+                      "out/index.html", "apps/web/build/foo/src/m.ts",
+                      "packages/core/dist/i.js"):
+                self.assertIsNotNone(
+                    check_write_allowed("engineer", p, cwd=cwd),
+                    f"산출물 루트 {p} 차단",
+                )
+
+    def test_tilde_home_path_blocked(self):
+        # #694 codex P2 — Bash 의 ~/... 는 셸이 hook 통과 후 home 으로 확장하므로 cwd 밖.
+        # _normalize expanduser + cwd-밖 가드로 차단 (tests?/ 등 ALLOW 매칭 우회 방지).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent, p in [
+                ("test-engineer", "~/tests/test_x.py"),
+                ("engineer", "~/lib/x.rb"),
+                ("engineer", "~/src/main.py"),
+            ]:
+                reason = check_write_allowed(agent, p, cwd=cwd)
+                self.assertIsNotNone(reason, f"{agent} tilde 경로 {p} 차단")
+
     def test_dotdot_escape_blocked(self):
         # #694 codex P1 — 상대 path 의 .. 세그먼트로 경계 밖(루트 문서·구현 코드)으로 탈출하는
         # 우회 차단. _normalize 가 cwd 기준 resolve 로 실제 write 위치를 매칭 대상으로 삼는다.

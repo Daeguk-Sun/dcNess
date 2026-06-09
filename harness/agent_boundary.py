@@ -189,11 +189,12 @@ _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
     r'(^|/)third_party/',     # 일반 vendored
     r'(^|/)\.venv/',          # Python 가상환경
     r'(^|/)venv/',
-    r'(^|/)__pycache__/',     # Python 캐시
-    r'(^|/)dist/',            # 번들/패키지 산출물
-    r'(^|/)build/',           # 빌드 산출물
-    r'(^|/)target/',          # Rust·Java(Maven) 산출물
-    r'(^|/)out/',             # 일반 빌드 산출물
+    r'(^|/)__pycache__/',     # Python 캐시 (항상 캐시 — 어디든)
+    # 빌드 산출물 — 루트 또는 monorepo 패키지 루트(apps/*·packages/*)에 위치. 의존성과 달리
+    # 이름(build·dist·out·target)이 소스 디렉토리명과 충돌할 수 있어, 허용된 src/ 트리 안의
+    # 동명 소스(src/build/ 등)를 막지 않도록 루트/패키지 루트만 앵커한다 (codex P2).
+    r'^(?:dist|build|target|out)/',
+    r'(^|/)(?:apps|packages)/[^/]+/(?:dist|build|target|out)/',
 )
 
 
@@ -286,7 +287,9 @@ def _normalize(file_path: str, cwd: Optional[Path] = None) -> str:
     if cwd is None:
         cwd = Path.cwd()
     try:
-        p = Path(file_path)
+        # ~ / ~user 는 셸이 hook 통과 *후* home 으로 확장하므로 미리 모사 — home 은 cwd 밖이라
+        # 아래 resolve 가 절대경로화 → 호출부 cwd-밖 가드가 차단 (#694 codex P2).
+        p = Path(file_path).expanduser()
         base = p if p.is_absolute() else (cwd / p)
         resolved = base.resolve()
         try:
@@ -294,7 +297,8 @@ def _normalize(file_path: str, cwd: Optional[Path] = None) -> str:
         except ValueError:
             # cwd 밖 — 절대경로 반환 (가드의 `/` 시작 체크가 차단).
             return str(resolved)
-    except (OSError, ValueError):
+    except (OSError, ValueError, RuntimeError):
+        # expanduser 가 home 미해결 시 RuntimeError — 원본 반환(`~` 시작은 가드가 차단).
         return file_path
 
 
@@ -332,10 +336,15 @@ def check_write_allowed(
     # cwd 밖 경로 차단 (#694 codex P2) — _normalize 가 cwd 상대화에 성공하면 항상 cwd-내
     # 상대경로다. `/`(절대 외부) 또는 `../`(상위 탈출)로 시작하면 cwd 밖이며, 이때 원본을
     # ALLOW 패턴에 먹이면 `../tests/x` 가 `(^|/)tests?/` 에 매칭되는 등 경계 우회가 생긴다.
-    if norm.startswith("/") or norm == ".." or norm.startswith("../"):
+    if (
+        norm.startswith("/")
+        or norm == ".."
+        or norm.startswith("../")
+        or norm.startswith("~")  # expanduser 가 home 미해결 시 잔존 — 셸 확장되면 cwd 밖
+    ):
         return (
             f"{agent} cwd 밖 경로 차단: `{norm}` — 프로젝트 루트 밖 write 금지 "
-            f"(.. 상위 탈출 / 절대 외부 경로)."
+            f"(.. 상위 탈출 / 절대 외부 / ~ home 경로)."
         )
 
     # 0. run_dir prose carve-out — build-worker 의 build-{test,impl,validate}.md self-write 한정.
