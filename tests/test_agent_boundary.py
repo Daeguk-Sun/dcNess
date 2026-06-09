@@ -419,6 +419,26 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                     f"흔한 소스 레이아웃 {p} 허용",
                 )
 
+    def test_dot_slash_prefix_normalized(self):
+        # #694 codex P2 (라운드3) — Edit/Write/Bash 가 ./ prefix 로 넘긴 경로도 정규화되어
+        # 루트 앵커(^lib/ 등)가 빗나가지 않아야 하고, ./docs/ 우회는 여전히 차단돼야 한다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            # ./ prefix 소스 — 허용
+            for p in ("./lib/parser.rb", "./remotion/shorts-types.ts", "./cmd/main.go"):
+                self.assertIsNone(
+                    check_write_allowed("engineer", p, cwd=cwd),
+                    f"./ prefix 소스 {p} 허용",
+                )
+            # ./ prefix 테스트 — 허용
+            self.assertIsNone(
+                check_write_allowed("test-engineer", "./tests/test_x.py", cwd=cwd)
+            )
+            # ./ prefix docs 우회 — 차단 유지
+            reason = check_write_allowed("engineer", "./docs/internal/x.md", cwd=cwd)
+            self.assertIsNotNone(reason, "./docs/ 우회가 차단돼야 함")
+            self.assertIn("docs", reason)
+
     def test_engineer_nested_common_names_not_matched(self):
         # #694 codex P2 (라운드2) — 루트 소스 레이아웃 패턴은 루트(^) 앵커. 중첩 동명
         # 디렉토리(node_modules/*/lib·.github/*/lib·vendor/*/pkg)는 소스 루트가 아니므로

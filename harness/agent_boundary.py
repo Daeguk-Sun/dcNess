@@ -269,7 +269,10 @@ def _normalize(file_path: str, cwd: Optional[Path] = None) -> str:
             except ValueError:
                 # cwd 밖 — 그대로 반환 (외부 path 는 패턴 매칭에서 잡거나 통과)
                 return str(p)
-        return file_path
+        # 상대 path — str(Path(...)) 로 정규화해 leading `./`·중복 separator 를 제거 (#694 codex P2).
+        # Edit/Write/Bash 가 `./lib/x` 처럼 넘겨도 루트 앵커(^lib/ 등) 패턴이 빗나가지 않게 하고,
+        # `./docs/x` 같은 prefix 우회도 docs deny 에 정상 매칭되게 한다.
+        return str(p)
     except (OSError, ValueError):
         return file_path
 
