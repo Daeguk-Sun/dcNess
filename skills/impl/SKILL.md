@@ -15,7 +15,7 @@ description: 구현 요청을 받아 가장 작은 안전 workflow 로 PR 까지
 |---|---|---|
 | Lite | high-risk 0개 + concrete signal 충분 + 구현 경계와 테스트 기준 명확 | 메인 직접 구현 + `pr-reviewer` |
 | Standard | high-risk 0개지만 수정 범위, 테스트 기준, 작은 contract 가 애매함 | `module-architect` compact plan 1-pass 후 구현 |
-| Deep | high-risk trigger 있거나 이미 deep impl task 파일이 있음 | `/spec` / `/design` / `/impl-loop` 로 위임 (`/architect-loop` 호환) |
+| Deep | high-risk trigger 있거나 이미 deep impl task 파일이 있음 | `/spec` / `/design` / `/impl-loop` 로 위임 |
 
 high-risk trigger: 새 product feature/epic, 외부 dependency/API/SDK/model 선택, auth/security/PII/compliance, migration/destructive change, public API breakage, cross-module/cross-story interface, 비용/성능/운영 리스크, 되돌리기 비싼 데이터/계약 변경.
 
@@ -31,7 +31,7 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
   - **advance**: `PASS` → `TESTS_WRITTEN` → `IMPL_DONE` → `PASS` → `PASS`
   - **expected_steps**: 5
   - **routing**: [`impl-routing.md`](impl-routing.md)
-- **Deep lane**: 본 skill 이 직접 deep loop 를 재서술하지 않는다. deep impl task 파일이 있으면 `/impl-loop <task>` 로 위임하고, 없으면 `/spec` 또는 `/design` 선행을 권고한다 (`/architect-loop` 호환).
+- **Deep lane**: 본 skill 이 직접 deep loop 를 재서술하지 않는다. deep impl task 파일이 있으면 `/impl-loop <task>` 로 위임하고, 없으면 `/spec` 또는 `/design` 선행을 권고한다.
 
 ## Step 0 — 실존 검증
 
@@ -132,7 +132,7 @@ Deep 은 사전 설계 합의가 필요한 경우다.
 
 - deep impl task 파일이 이미 있다 → `/impl-loop <task>` 또는 task glob 으로 위임한다.
 - PRD/stories 가 없다 → `/spec` 부터 시작한다.
-- PRD/stories 는 있으나 architecture/impl task 가 없다 → `/design` 으로 설계한다 (`/architect-loop` 호환).
+- PRD/stories 는 있으나 architecture/impl task 가 없다 → `/design` 으로 설계한다.
 - 외부 의존 검증이 필요하면 `/tech-review` 를 선행한다.
 
 `/impl-loop` 는 normal implementation entrypoint 가 아니라 deep impl task 파일용 legacy/advanced runner 다.

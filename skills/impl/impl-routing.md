@@ -33,7 +33,7 @@ flowchart TB
 |---|---|
 | Lite | 메인 직접 `test -> impl -> test pass` 후 `pr-reviewer` local diff. `code-validator` 없음 |
 | Standard | `module-architect:COMPACT_PLAN -> test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
-| Deep | deep impl task 있으면 `/impl-loop`, 없으면 `/spec` / `/tech-review` / `/design` 선행 (`/architect-loop` 호환) |
+| Deep | deep impl task 있으면 `/impl-loop`, 없으면 `/spec` / `/tech-review` / `/design` 선행 |
 
 ## 결론 → 다음 호출
 

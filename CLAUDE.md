@@ -25,7 +25,7 @@
 ### dcness 자체는 init-dcness 미적용 — 자기 규격 미얽매임
 
 - 본 dcness 저장소는 자기 자신에 `/init-dcness` 를 실행하지 **않는다**.
-- 따라서 dcness plug-in 의 규격(`stories.md` 강제 / `issue-lifecycle.md` 이슈 계층 흐름 / `product-planner` 시퀀스 등) 에 **얽매이지 않는다**.
+- 따라서 dcness plug-in 의 규격(`stories.md` 강제 / `issue-lifecycle.md` 이슈 계층 흐름 / `/spec` 시퀀스 등) 에 **얽매이지 않는다**.
 - dcness 자체의 작업은 다음 3개만 따른다:
   - 본 `CLAUDE.md` (작업 절차 + 게이트)
   - `docs/plugin/git-spec.md` (브랜치·커밋·PR 네이밍)
@@ -56,7 +56,7 @@
 
 ### dcness 강제 원칙 (룰 추가·설계 시 가드레일)
 
-> 🟢 **설계 원칙 (왜 강제를 최소화하나)** — dcNess 는 모델을 불신해 가두는 하네스가 아니라, 사용자의 작업 방식을 보존하는 하네스다. 모델이 좋아질수록 절차를 *없애는* 게 아니라, 절차의 *목적*을 이해하고 더 적은 마찰로 지키게 한다. harness 의 일은 모델의 사고를 대신하는 게 아니라, 모델이 놓치기 쉬운 **되돌릴 수 없는 경계(irreversible boundary)** 만 붙잡는 것. 그래서 기본 경로는 가볍고, 무거운 절차(product-plan / tech-review / architect-loop / consensus)는 항상 켜두지 않고 **위험할 때만 올린다** (lane 판정 SSOT = [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md)). 설계 원칙 출처: [#591](https://github.com/alruminum/dcNess/issues/591).
+> 🟢 **설계 원칙 (왜 강제를 최소화하나)** — dcNess 는 모델을 불신해 가두는 하네스가 아니라, 사용자의 작업 방식을 보존하는 하네스다. 모델이 좋아질수록 절차를 *없애는* 게 아니라, 절차의 *목적*을 이해하고 더 적은 마찰로 지키게 한다. harness 의 일은 모델의 사고를 대신하는 게 아니라, 모델이 놓치기 쉬운 **되돌릴 수 없는 경계(irreversible boundary)** 만 붙잡는 것. 그래서 기본 경로는 가볍고, 무거운 절차(spec / tech-review / design / consensus)는 항상 켜두지 않고 **위험할 때만 올린다** (lane 판정 SSOT = [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md)). 설계 원칙 출처: [#591](https://github.com/alruminum/dcNess/issues/591).
 
 > 🔴 **대 원칙** (외부 활성 프로젝트엔 hook 이 그 자리에서 강제 — SessionStart 는 슬림 활성 안내만 inject, 설계 원칙 전문은 본 SSOT):
 > **harness 가 강제하는 것은 단 2가지 — (1) 작업 순서, (2) 접근 영역. 그 외 모두 agent 자율.**
@@ -107,7 +107,7 @@
 | [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | public workflow surface 의 기본/고급/유틸리티/내부 agent 분류 수정 시 |
 | [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 작업 요청을 어떤 workflow 로 보낼지 (lane — gate 축 × shape 축) 판단 시 |
 | [`docs/plugin/git-spec.md`](docs/plugin/git-spec.md) | 브랜치·커밋·PR 네이밍 규칙 SSOT — 모든 커밋 작업에 적용 |
-| 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
+| 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`design`](skills/design/design-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
 | [`scripts/check_public_surface.mjs`](scripts/check_public_surface.mjs) | public workflow surface gate 기대값 수정 시 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop = 8 hook) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |

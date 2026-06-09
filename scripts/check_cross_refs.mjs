@@ -82,7 +82,7 @@ const DENY_LIST = [
     label: '옛 loop 카운트 — 현재 loop 진본은 각 `skills/<skill>/SKILL.md` 의 `## Loop` contract',
   },
   {
-    // `architect-loop-routing.md` 등 skill 라우팅 파일은 앞에 `-`/단어문자가 붙어 제외.
+    // `design-routing.md` 등 skill 라우팅 파일은 앞에 `-`/단어문자가 붙어 제외.
     pattern: /(?<![\w-])routing\.md/,
     label: '폐기 SSOT `docs/plugin/routing.md` — Phase 3 (#564) 폐기, 라우팅은 각 skill `<skill>-routing.md` 로 분산',
   },

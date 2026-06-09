@@ -149,7 +149,7 @@ claude plugin update dcness@dcness
 
 ### 보강 영역 (출시 후 측정 + 후속)
 
-- **Story 크기 가이드 추가** (`commands/product-plan.md` 영역, 현 [`skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md)) — Story 1 개당 예상 task ≤ 5 권장 / Story 큰 경우 분할 권고 / cross-cutting Story 표시. module-architect 한 호출의 산출 부담 통제.
+- **Story 크기 가이드 추가** (`commands/product-plan.md` 영역, 현 [`skills/spec/SKILL.md`](../../skills/spec/SKILL.md)) — Story 1 개당 예상 task ≤ 5 권장 / Story 큰 경우 분할 권고 / cross-cutting Story 표시. module-architect 한 호출의 산출 부담 통제.
 - **cross-cutting Story 빈도 측정** — 외부 활성 프로젝트의 epic 1-2 개를 새 구조로 수동 시뮬레이션. 빈도 ≥ 30% 면 Architecture Mode opt-in (stories.md 마커로 모듈 묶음 / Story 묶음 선택) 재검토.
 - **module-architect 모델 검토** — 새 구조에서 한 호출의 판단 차원이 깊어짐. sonnet 으로 누락 / 회전 발생 시 opus 승격 검토.
 - **validator 자동 / 수동 영역 분리 운영** — 자동 검증 통과 영역 + 수동 review 권고 영역 분리 명시. 사용자가 수동 review 권고 영역에 PASS 주면 완료.
@@ -893,7 +893,7 @@ agent 13 → 9.
 - 옛 `feature-build-loop` (Step 2~6.N 통째 commit X 후 첫 task PR commit3 에 누적) → `/product-plan` (Step 2~3, PRD+stories PR1) + `/architect-loop` (Step 4~6.N, 설계 PR2) 분리
 - `/architect-loop` 진입 = 사용자 명시 호출 (자동 X). 워크트리 ON 자동
 - commit 단위: ux-flow → commit1 / architecture.md+adr.md → commit2 / impl/NN-*.md K 개 → commit 3..K+2 / PR 1개 + 머지
-- 본 변경 SSOT = `commands/architect-loop.md`, `orchestration.md §3.1.5 / §4.2` (당시 기준 — 현 `skills/architect-loop/` + loop-procedure §7.0 으로 해체)
+- 본 변경 SSOT = `commands/architect-loop.md`, `orchestration.md §3.1.5 / §4.2` (당시 기준 — 현 `skills/design/` + loop-procedure 로 해체)
 
 ### `Step 4.5 sync` + `backlog.md` 폐기 (본 PR)
 

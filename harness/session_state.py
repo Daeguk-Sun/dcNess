@@ -2489,7 +2489,7 @@ _YOLO_FALLBACKS: Dict[str, Dict[str, str]] = {
         # 메인이 분류를 읽고 라우팅, 분류 모호하면 사용자 위임 (mechanical 재호출 금지).
         "action": "route-by-classification",
         "hint": (
-            "validator 재호출 X — finding 분류로 architect 라우팅 (architect-loop-routing): "
+            "validator 재호출 X — finding 분류로 architect 라우팅 (design-routing): "
             "SYSTEM_BOUNDARY → system-architect 재진입 / "
             "CONTRACT_PROPAGATION → module-architect mode=contract_sweep / "
             "TASK_LOCAL → module-architect 보강(해당 task). 분류 모호 시 사용자 위임 (cycle ≤ 2)"

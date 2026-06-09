@@ -878,7 +878,7 @@ class DcnessAgentNamesCompletenessTests(unittest.TestCase):
     """B2 — agents/ 디렉토리와 DCNESS_AGENT_NAMES 정합 검증."""
 
     def test_includes_module_and_system_architect(self):
-        # jajang `/architect-loop` run 의 module-architect / system-architect
+        # jajang design run 의 module-architect / system-architect
         # invocation 도 매칭되어야 함 (이전엔 `architect` 만 있어 미매칭).
         self.assertIn("module-architect", DCNESS_AGENT_NAMES)
         self.assertIn("system-architect", DCNESS_AGENT_NAMES)

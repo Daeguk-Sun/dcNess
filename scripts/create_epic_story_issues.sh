@@ -132,7 +132,7 @@ fi
 
 # stories.md parse — 헤더 양식 auto-detect
 # 두 양식 지원:
-#   format1 (product-plan 신양식): "## Epic — <title>"  + "### Story N — <title>"  (h2 + h3)
+#   format1 (spec 신양식): "## Epic — <title>"  + "### Story N — <title>"  (h2 + h3)
 #   format2 (jajang 등 기존 양식): "# Epic NN — <title>" + "## Story N — <title>"   (h1 + h2)
 EPIC_HEADER_LINE=$(grep -m1 -E '^#+[[:space:]]+Epic([[:space:]]|—)' "$STORIES" || true)
 if [ -z "$EPIC_HEADER_LINE" ]; then

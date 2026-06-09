@@ -3,7 +3,7 @@ name: tech-review
 description: >
   PRD 초안 작성 + 사용자 초안 OK 후, PRD의 기술 검토 필요 영역을 바탕으로 *기술 검토* 단계를
   진행하는 스킬. tech-reviewer 서브에이전트 호출 + return 결과 사용자에 echo + 사용자
-  2차 OK 체크포인트 + 재호출 cycle 관리. `/design` (`/architect-loop` 호환) 진입 후 본 스킬 재호출은 비권장
+  2차 OK 체크포인트 + 재호출 cycle 관리. `/design` 진입 후 본 스킬 재호출은 비권장
   (단방향 관례 — 코드 강제 아님). 사용자가 "tech-review", "기술 검토 가자", "이거 진짜 되는지
   확인", "/tech-review" 등을 말할 때 반드시 이 스킬을 사용한다.
 ---
@@ -130,7 +130,7 @@ tech-review 통과 완료.
 
 ## 단방향 관례 (재진입 비권장)
 
-`/design` (`/architect-loop` 호환) 진입 *후* 본 스킬 재호출은 **관례상 비권장** (코드 강제 아닌 자연어 관례 — 메인/사용자 자율 판단). 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례. tech-reviewer 단계 = PRD 최종화 전 기술 검증 기회 — 그래서 증거물 / HTML 리포트 룰의 가치가 가중된다. design/architect-loop 도중 미검증 새 외부 의존 발견 시 처리 (NEW_DEP_ESCALATE 3안) = [`tech-review-routing.md`](tech-review-routing.md) — 어느 옵션이든 tech-reviewer 재호출 0.
+`/design` 진입 *후* 본 스킬 재호출은 **관례상 비권장** (코드 강제 아닌 자연어 관례 — 메인/사용자 자율 판단). 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례. tech-reviewer 단계 = PRD 최종화 전 기술 검증 기회 — 그래서 증거물 / HTML 리포트 룰의 가치가 가중된다. /design 도중 미검증 새 외부 의존 발견 시 처리 (NEW_DEP_ESCALATE 3안) = [`tech-review-routing.md`](tech-review-routing.md) — 어느 옵션이든 tech-reviewer 재호출 0.
 
 ## 워크트리 (X)
 
@@ -140,6 +140,6 @@ tech-review 통과 완료.
 
 - 라우팅 (결론→다음 / cycle / catastrophic / 비대상 / 후속): [`tech-review-routing.md`](tech-review-routing.md) — 본 skill 라우팅 SSOT
 - tech-reviewer agent SSOT: [`agents/tech-reviewer.md`](../../agents/tech-reviewer.md)
-- PRD 작성 (선행 스킬): [`skills/product-plan/SKILL.md`](../product-plan/SKILL.md)
-- 설계 단계 (후속 스킬): [`skills/architect-loop/SKILL.md`](../architect-loop/SKILL.md)
+- PRD 작성 (선행 스킬): [`skills/spec/SKILL.md`](../spec/SKILL.md)
+- 설계 단계 (후속 스킬): [`skills/design/SKILL.md`](../design/SKILL.md)
 - 옛 plan-reviewer 폐기 배경 (이슈 [#515](https://github.com/alruminum/dcNess/issues/515))

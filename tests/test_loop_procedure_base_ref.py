@@ -200,7 +200,7 @@ class TestStoriesPathResolution(unittest.TestCase):
         self.assertTrue(resolved.endswith("/epic-11-monkey/stories.md"), resolved)
 
     def test_section_self_contained_from_epic_dir(self):
-        # architect-loop: EPIC_DIR 입력 → epic 단위 stories.md
+        # design: EPIC_DIR 입력 → epic 단위 stories.md
         epic_dir = "docs/milestones/v01/epics/epic-11-monkey"
         rc, path = resolve_stories_section(epic_dir=epic_dir)
         self.assertEqual((rc, path), (0, "docs/milestones/v01/epics/epic-11-monkey/stories.md"))
@@ -242,7 +242,7 @@ class TestSSOTReferencePresent(unittest.TestCase):
     이전됐다. 검증 3 축:
     (a) loop-procedure 는 base-ref 운전 원칙(heading) + git-spec 링크만 보유 —
         판정 bash(STORIES 유도 / task_index 트레일러) 는 제거.
-    (b) impl-loop / architect-loop SKILL 이 base-ref 적용을 설명 (anchor 참조).
+    (b) impl-loop / design SKILL 이 base-ref 적용을 설명 (anchor 참조).
     (c) git-spec 이 Base Branch / sub-PR base / 트레일러 규칙 보유.
     """
 
@@ -267,9 +267,9 @@ class TestSSOTReferencePresent(unittest.TestCase):
         self.assertIn("#base-ref-분기-통합-브랜치-모드-424", body)
         self.assertIn("Base ref 분기", body)
 
-    def test_architect_loop_references_section(self):
+    def test_design_references_section(self):
         # (b)
-        body = self._read("skills/architect-loop/SKILL.md")
+        body = self._read("skills/design/SKILL.md")
         self.assertIn("#base-ref-분기-통합-브랜치-모드-424", body)
         self.assertIn("Base ref 분기", body)
 

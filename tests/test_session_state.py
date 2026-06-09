@@ -542,7 +542,7 @@ class ActiveRunsTests(unittest.TestCase):
     def test_multiple_active_runs(self) -> None:
         # 동시 다중 run 지원 검증 (OMC 차용 핵심)
         start_run(self.sid, "run-aaaaaaaa", "impl", base_dir=self.base)
-        start_run(self.sid, "run-bbbbbbbb", "product-plan", base_dir=self.base)
+        start_run(self.sid, "run-bbbbbbbb", "spec", base_dir=self.base)
         data = read_live(self.sid, base_dir=self.base)
         self.assertEqual(len(data["active_runs"]), 2)
 
