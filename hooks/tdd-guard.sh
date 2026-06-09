@@ -55,9 +55,17 @@ PY
 
 [ -z "$FILE_PATH" ] && allow
 
-# 자동 skip — test 파일 자체
+# 자동 skip — test/spec 파일 자체 + 표준 test 디렉터리 (#681)
+# 주의: 단순 *test* / *spec* 광역 glob 은 contest.ts / spectrum.ts / latest.ts 같은
+# 구현 파일을 test 파일로 오인 skip → TDD 강제를 우회시킨다 (false negative).
+# 따라서 (1) basename 의 `.test.` / `.spec.` 접미 컨벤션, (2) 슬래시로 구분된 표준
+# test 디렉터리 마디만 매치한다. basename 에 우연히 test/spec 이 든 구현 파일은 skip 안 함.
+case "$(basename "$FILE_PATH")" in
+  *.test.*|*.spec.*) allow ;;
+esac
 case "$FILE_PATH" in
-  *test*|*spec*|*.test.*|*.spec.*|*__tests__*) allow ;;
+  */__tests__/*|*/__test__/*|*/__mocks__/*) allow ;;
+  */test/*|*/tests/*|*/spec/*|*/specs/*|*/e2e/*) allow ;;
 esac
 
 # 자동 skip — 설정 / 비-코드 / 타입 / Next.js 특수

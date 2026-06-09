@@ -93,29 +93,46 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 | `RUN_DIR_PROSE_ALLOW` | build-worker 가 자기 run dir 의 `build-*.md` prose 를 쓰는 좁은 예외 |
 | `ALLOW_MATRIX` | agent 별 Write 허용 path 제한 |
 | `READ_DENY_MATRIX` | agent 별 Read 금지 path 제한 |
-| 외부 mutation denylist | sub-agent 의 `git push`, `gh pr create/merge/review`, mutating `gh api`, GitHub MCP PR/repo mutation 차단 |
+| 외부 mutation denylist | sub-agent 의 `git push`, Bash `gh pr create/merge/review`, Bash `gh issue create/edit/close/comment`, mutating `gh api`, GitHub MCP PR/repo mutation 차단 |
 
-메인 Claude turn 은 file boundary 를 통과한다. GitHub issue mutation 은 agent tool 권한 설계에 맡기고 file-guard 에서는 예외로 둔다. PR/repo mutation 은 sub-agent 에서 차단한다.
+메인 Claude turn 은 file boundary 를 통과한다.
+
+GitHub issue mutation 은 경로에 따라 다르게 처리한다 — 같은 "issue 변경"이라도 차단 여부가 갈린다.
+
+| issue mutation 경로 | file-guard 동작 |
+|---|---|
+| Bash `gh issue create/edit/close/comment/...` | **차단** (Bash mutation denylist — `harness/agent_boundary.py` 의 `check_bash_mutation`) |
+| GitHub MCP issue 도구 (`mcp__github__create_issue`, `update_issue`, `add_issue_comment` 등) | **통과** (의도된 예외 — `check_github_mcp_mutation`). per-agent `tools:` 권한이 이미 gate 하므로 도구 미부여 agent 는 호출 자체 불가. designer 등 issue 도구를 가진 agent 의 설계된 흐름을 막지 않는다. |
+
+PR/repo mutation (`gh pr ...` / `merge_pull_request` / `push_files` / `create_or_update_file` 등) 은 Bash·MCP 양쪽 다 sub-agent 에서 차단한다.
 
 **차단**: 경계 위반 시 `exit 2` + stderr. `.no-dcness-guard` marker 는 file-guard 만 임시 우회한다.
 
 ### tdd-guard.sh
 
-**시점**: `Edit`, `Write`, `NotebookEdit` 로 파일을 수정하기 직전.
+**시점**: `Edit`, `Write`, `NotebookEdit` 로 파일을 수정하기 직전. **`Bash` 로 만든 파일에는 발화하지 않는다** (아래 한계 참조).
 
-**역할**: TS/JS 구현 파일 (`*.ts`, `*.tsx`, `*.js`, `*.jsx`) 에 대응하는 test/spec 파일이 있는지 확인한다. 없으면 구현 파일 작성을 막는다.
+**지원 언어**: TS/JS 만 (`*.ts`, `*.tsx`, `*.js`, `*.jsx`). 그 외 확장자는 silent skip — Python·Rust·Go 등 다른 ecosystem 의 TDD 강제는 현재 범위 밖이다.
+
+**역할**: 위 TS/JS 구현 파일에 대응하는 test/spec 파일이 *존재하는지* 확인한다. 없으면 구현 파일 작성을 막는다. **test 의 존재만 검사하고, test 를 실행하지는 않는다** — green/red 판정이 아니라 "작성 전 test 가 먼저 있는가" 강제다.
 
 **skip 대상**:
 
-- test/spec 파일 자체, `__tests__`
+- test/spec 파일 자체 — basename 의 `.test.` / `.spec.` 접미 컨벤션 (`foo.test.ts`, `bar.spec.tsx`)
+- 표준 test 디렉터리 마디 — `__tests__/`, `__test__/`, `__mocks__/`, `test/`, `tests/`, `spec/`, `specs/`, `e2e/`
 - 설정, markdown, yaml, env, css, 타입 선언
 - Next.js 특수 파일 (`layout`, `page`, `loading`, `error`, `not-found`, `globals.css`)
+- entry-file 예외 — path heuristic (`*/App.{ts,tsx,js,jsx}`, `*/_layout.*`, `*/apps/*/index.*`, `*/src/main.*`) + 내용 시그니처 (`registerRootComponent(`, `AppRegistry.registerComponent(`)
 - `templates/`, `design-variants/`
 - TS/JS 외 언어
+
+> basename 에 우연히 `test`/`spec` 이 든 **구현 파일** (`contest.ts`, `spectrum.ts`, `latest.ts`) 은 skip 하지 않는다 — TDD 강제 대상이다 (#681). skip 은 `.test.`/`.spec.` 접미와 슬래시로 구분된 표준 test 디렉터리 마디에만 적용된다.
 
 **매칭 위치**: 같은 디렉터리, 같은 디렉터리의 `__tests__`, 부모/조부모 `__tests__`, monorepo `src_root/__tests__`, 프로젝트 root `src/__tests__`.
 
 **차단**: test 부재 시 `exit 2` + 한국어 안내.
+
+**한계 (Bash write 는 범위 밖)**: TDD guard 는 `Edit`/`Write`/`NotebookEdit` 직접 파일 도구에서만 발화한다. `Bash` 로 작성한 구현 파일(`echo > foo.ts`, `cat <<EOF` 등)은 [file-guard.sh](#file-guardsh) 가 검사하지만, file-guard 는 *경로 경계*(agent 가 그 path 를 쓸 수 있는가)만 보고 *매칭 test 존재*는 보지 않는다. 즉 Bash 경유 구현 파일은 현재 TDD 강제가 닿지 않으며, 이 동작을 명시적으로 추가하지 않는 한 그대로다.
 
 ### post-agent-clear.sh
 

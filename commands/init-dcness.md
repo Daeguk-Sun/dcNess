@@ -444,17 +444,21 @@ agent (메인 Claude / engineer / 등) 가 `Edit` / `Write` 시도 시 **PreTool
 #### 자동 skip 룰
 
 다음은 자동 통과 (TDD 강제 안 함):
-- 테스트 파일 자체 (`*.test.*` / `*.spec.*` / `__tests__/`)
+- 테스트 파일 자체 — basename 의 `.test.` / `.spec.` 접미 (`foo.test.ts` / `bar.spec.tsx`)
+- 표준 test 디렉터리 마디 — `__tests__/` / `__test__/` / `__mocks__/` / `test/` / `tests/` / `spec/` / `specs/` / `e2e/`
 - 설정 (`*.json` / `*.yml` / `*.yaml` / `*.env*` / `*.config.*` / `tailwind*` / `postcss*` / `next.config*` / `tsconfig*`)
 - 타입 (`types/` / `types.ts` / `types.d.ts`)
 - Next.js 특수 (`layout` / `page` / `loading` / `error` / `not-found` / `globals.css`)
+- entry-file (`App.*` / `_layout.*` / `apps/*/index.*` / `src/main.*` + `registerRootComponent(` / `AppRegistry.registerComponent(` 시그니처)
 - 비-코드 (`*.md` / `*.css` / `*.scss`)
+
+> basename 에 우연히 `test`/`spec` 이 든 **구현 파일** (`contest.ts` / `spectrum.ts` / `latest.ts`) 은 skip 하지 않음 — TDD 강제 대상. skip 은 `.test.`/`.spec.` 접미와 슬래시로 구분된 표준 test 디렉터리 마디에만 적용된다.
 
 #### 한계
 
 - TS / JS 한정 — 다른 언어는 phase 후속
 - *test 실행 X* — 존재만 확인. 실행은 사용자 개별 (vitest watch / CI 등)
-- agent 가 hook 우회 (예: `Bash` 으로 직접 파일 작성) 시 차단 X — 단 catastrophic-gate 등 다른 hook 이 잡음
+- `Bash` 로 직접 파일 작성 시 TDD guard 는 발화하지 않음 — TDD guard 는 `Edit`/`Write`/`NotebookEdit` 전용. Bash 쓰기는 file-guard 가 *경로 경계* 만 검사하고 매칭 test 존재는 검사하지 않으므로, Bash 경유 구현 파일은 현재 TDD 강제 범위 밖이다 (이 동작을 명시적으로 추가하지 않는 한)
 
 ### Step 2.10 — Codex validator skills + local routing opt-in
 
@@ -649,10 +653,10 @@ cd "$PROJECT_ROOT"
 
 # dcness 가 cp 한 파일만 명시 path — 사용자 다른 untracked 안 건드림
 NEW_FILES=$(git status --short \
-  .github/workflows/ .dcness/ 2>/dev/null \
+  .github/workflows/ 2>/dev/null \
   | grep -E '^\?\?' | awk '{print $2}')
 MODIFIED=$(git status --short \
-  .github/workflows/ .dcness/ 2>/dev/null \
+  .github/workflows/ 2>/dev/null \
   | grep -E '^.M' | awk '{print $2}')
 CHANGES="$NEW_FILES $MODIFIED"
 CHANGES_TRIM=$(echo $CHANGES | tr -s ' ')
@@ -685,8 +689,7 @@ fi
   변경 파일 (N개):
     .github/workflows/git-naming-validation.yml (신규)
     .github/workflows/pr-body-validation.yml (신규)
-    .github/workflows/tdd-gate.yml (신규)
-    .dcness/tdd-gate-enabled (신규)
+    .github/workflows/github-project-lifecycle.yml (신규)
   자동 진행 시:
     1. branch 생성: docs/dcness-init-{timestamp}
     2. 위 파일들 stage + commit (메시지 자동)
@@ -713,11 +716,10 @@ git commit -m "[docs] dcNess init — workflows + 마커 stage
 dcness plug-in 의 인프라 파일 main 등록:
 $(for f in $CHANGES; do echo "  - $f"; done)
 
-본 commit 머지 후 다음 PR 부터:
+본 commit 머지 후 다음 PR/issue 이벤트부터:
 - git-naming-validation 발화
 - pr-body-validation 발화
-- tdd-gate (CI affected) 발화
-- pre-commit TDD 게이트 (.dcness/tdd-gate-enabled 인지) 발화
+- github-project-lifecycle 발화 (issue/PR merge 이벤트)
 "
 
 git push -u origin "$BR"
@@ -739,8 +741,7 @@ Document-Exception-PR-Close: dcness init 인프라 PR — issue 매핑 없음. d
 
 - \`git-naming-validation\` CI 자동
 - \`pr-body-validation\` CI 자동
-- \`tdd-gate\` (CI affected) 자동
-- pre-commit TDD 게이트 (\`.dcness/tdd-gate-enabled\` 인지) 즉시 발화
+- \`github-project-lifecycle\` CI/CD 자동 (issue/PR merge 이벤트)
 EOF
 )"
 ```

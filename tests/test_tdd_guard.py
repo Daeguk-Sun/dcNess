@@ -196,6 +196,84 @@ class TestRegressionPreserved(unittest.TestCase):
         self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
 
 
+class TestBasenameSubstringFalseNegative(unittest.TestCase):
+    """issue #681 — basename 에 우연히 'test'/'spec' 이 든 구현 파일은 skip 아님.
+
+    버그: 기존 skip 매처가 `*test*` / `*spec*` 광역 glob 이라 `contest.ts` / `spectrum.ts`
+    같은 구현 파일을 test 파일로 오인 → TDD 강제 우회. 매칭은 (1) basename 의
+    `.test.` / `.spec.` 접미 컨벤션, (2) 슬래시로 구분된 표준 test 디렉터리 마디만 해야 한다.
+    """
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp()
+        subprocess.run(["git", "init"], cwd=self._tmp, capture_output=True)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _touch(self, rel: str, content: str = "// stub\n") -> str:
+        p = Path(self._tmp) / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        return str(p)
+
+    def test_contest_impl_without_test_denied(self):
+        """contest.ts — basename 에 'test' 포함하나 구현 파일 → 테스트 부재면 deny."""
+        path = self._touch(
+            "src/contest.ts",
+            "export function joinContest(id) { return id; }\n",
+        )
+        self.assertEqual(decision(run_hook(path, self._tmp)), "deny")
+
+    def test_spectrum_impl_without_test_denied(self):
+        """spectrum.ts — basename 에 'spec' 포함하나 구현 파일 → 테스트 부재면 deny."""
+        path = self._touch(
+            "src/spectrum.ts",
+            "export function analyzeSpectrum(buf) { return buf.length; }\n",
+        )
+        self.assertEqual(decision(run_hook(path, self._tmp)), "deny")
+
+    def test_latest_impl_without_test_denied(self):
+        """latest.ts — basename 에 'test' 포함하나 구현 파일 → 테스트 부재면 deny."""
+        path = self._touch(
+            "src/latest.ts",
+            "export function latest(arr) { return arr[arr.length - 1]; }\n",
+        )
+        self.assertEqual(decision(run_hook(path, self._tmp)), "deny")
+
+    def test_contest_with_matching_test_allowed(self):
+        """contest.ts + 매칭 contest.test.ts 존재 → allow (정상 TDD)."""
+        self._touch("src/contest.ts", "export const c = 1;\n")
+        self._touch("src/contest.test.ts", "test('ok', () => {})\n")
+        path = str(Path(self._tmp) / "src/contest.ts")
+        self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
+
+    def test_real_test_file_still_skipped(self):
+        """진짜 test 파일 (.test. 접미) 은 계속 skip — 회귀 방지."""
+        path = self._touch("src/spectrum.test.ts", "test('x', () => {})\n")
+        self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
+
+    def test_real_spec_file_still_skipped(self):
+        """진짜 spec 파일 (.spec. 접미) 은 계속 skip — 회귀 방지."""
+        path = self._touch("src/contest.spec.tsx", "test('x', () => {})\n")
+        self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
+
+    def test_file_inside_tests_dir_skipped(self):
+        """표준 test 디렉터리(__tests__) 안 파일은 .test. 접미 없어도 skip."""
+        path = self._touch("src/__tests__/helper.ts", "export const h = 1;\n")
+        self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
+
+    def test_file_inside_test_dir_segment_skipped(self):
+        """슬래시로 구분된 test/ 디렉터리 마디 안 파일은 skip."""
+        path = self._touch("src/test/fixtures.ts", "export const f = 1;\n")
+        self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
+
+    def test_contest_dir_segment_not_skipped(self):
+        """디렉터리명이 'contest' (test 아님) 인 구현 파일은 skip 아님 → deny."""
+        path = self._touch("src/contest/board.ts", "export const b = 1;\n")
+        self.assertEqual(decision(run_hook(path, self._tmp)), "deny")
+
+
 class TestPathMatcherTier4_Grandparent(unittest.TestCase):
     """issue #469 결함 C — Tier 4: <grandparent>/__tests__/<name>.{test,spec}.<ext>.
 

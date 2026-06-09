@@ -459,6 +459,35 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.issue_lifecycle,
         )
 
+    def test_init_doc_drops_removed_tdd_gate_references(self) -> None:
+        """#681 — /init-dcness 가 폐기된 TDD CI/pre-commit flow 를 더는 언급하지 않는다.
+
+        제거 대상: `tdd-gate.yml` workflow, `.dcness/tdd-gate-enabled` 마커,
+        pre-commit TDD 게이트 활성화 문구. (현재 setup/commit 예시에서 stale.)
+        """
+        for stale in ("tdd-gate.yml", ".dcness/tdd-gate-enabled", "pre-commit TDD", "TDD 게이트"):
+            self.assertNotIn(
+                stale,
+                self.init_doc,
+                msg=f"init-dcness.md 에 폐기된 TDD flow 참조 '{stale}' 잔존 (#681)",
+            )
+
+    def test_hooks_doc_distinguishes_issue_mutation_paths(self) -> None:
+        """#681 AC#4 — hooks.md 가 Bash `gh issue` 차단 vs GitHub MCP issue 통과를 구별한다."""
+        self.assertIn(
+            "Bash `gh issue create/edit/close/comment`",
+            self.hooks_doc,
+        )
+        self.assertIn("check_github_mcp_mutation", self.hooks_doc)
+        self.assertIn("per-agent `tools:` 권한", self.hooks_doc)
+
+    def test_hooks_doc_tdd_guard_scope_is_accurate(self) -> None:
+        """#681 AC#2/#3 — tdd-guard 문서가 존재-검사·entry-file·Bash 범위 밖을 명시한다."""
+        self.assertIn("test 의 존재만 검사하고, test 를 실행하지는 않는다", self.hooks_doc)
+        self.assertIn("registerRootComponent(", self.hooks_doc)
+        self.assertIn("Bash write 는 범위 밖", self.hooks_doc)
+        self.assertIn("contest.ts", self.hooks_doc)
+
     def _section(self, text: str, start: str, end: str) -> str:
         match = re.search(start + r"(?P<body>.*?)" + end, text, flags=re.S)
         self.assertIsNotNone(match)
