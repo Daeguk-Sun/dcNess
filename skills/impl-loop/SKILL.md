@@ -290,7 +290,9 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" wave-plan <impl-glob-or-dir> 
 
 > 🔴 **고위험 판정 전달 (MUST)**: dry preview 의 risk 열(`high-risk`)이 진본이며, 그 slug 들을 `--high-risk` 로 넘겨야 driver 가 직렬로 강등한다. 경로상 명백한 것(migrations/·secrets·.env)은 harness 가 backstop 으로 자동 직렬화하지만, auth 로직·도메인 invariant 처럼 의미 기반 고위험은 메인이 넘기지 않으면 병렬로 샐 수 있다.
 
-- `has_parallel=false` → 전부 직렬. 기존 chain 그대로 진행한다.
+**직렬 강등 사유 안내 (MUST — `has_parallel` 값과 무관, 항상 먼저 확인)**: `format_unnormalized_slugs` 가 비어있지 않으면 — 그 task 들은 *진짜 의존성이 아니라 `### 수정 허용` 형식 미정규화* 때문에 직렬로 떨어진 것이다. **일부 wave 가 병렬로 떴어도(`has_parallel=true`) 형식 미정규화 task 는 그 wave 에 못 끼고 직렬로 남으므로**, 이 안내는 두 분기 어디서든 동일하게 적용된다(mixed plan 에서 형식 강등이 silent 로 묻히던 결함 차단). 사용자에게 사유+교정 방향을 1줄 안내한다: `직렬 강등 [03-bar]: Scope 형식 미정규화 — '### 수정 허용' 아래 bullet 당 순수 파일 경로 하나로 고치면 병렬 후보가 됩니다 (볼드/라벨/괄호 설명 금지, 설명은 # 주석/blockquote).` 형식 교정은 설계(`/design`) 영역이므로 강제 수정하지 않고 안내만 한다. (`serial_demotions` 의 `cause` 가 전부 의존/구조 사유 — `no_disjoint_pair`/`dep_unresolved`/`forced`/`high_risk` — 면 진짜 직렬이라 추가 안내 불필요. 의존성 직렬과 형식 직렬을 이렇게 구분해 "병렬 될 줄 알았는데 왜 다 직렬?"의 원인을 드러낸다, [#693](https://github.com/alruminum/dcNess/issues/693).)
+
+- `has_parallel=false` → 전부 직렬. 기존 chain 그대로 진행한다 (위 직렬 강등 사유 안내는 이미 수행).
 - `has_parallel=true` → 각 `parallel` step 의 task 묶음을 표에 한 줄 덧붙여 echo + opt-in 1회 확인: `wave: [taskX, taskY] 를 별도 터미널 peer 세션으로 병렬 실행할까요? (Y/n)`.
   - yolo 모드여도 병렬은 자동 ON 하지 않는다.
   - `n` / 무응답 / 모호 → 해당 wave 는 직렬 fallback.

@@ -738,5 +738,176 @@ class TestWavePlanFromPaths(unittest.TestCase):
             self.assertTrue(plan.has_parallel)
 
 
+# ── 직렬 강등 사유 진단 (#693) ───────────────────────────────
+
+
+class TestSerialCause(unittest.TestCase):
+    """#693 — 직렬 강등 사유의 기계 판독 분류 (형식 미정규화 vs 의도/의존)."""
+
+    def test_scope_unnormalized_cause(self):
+        t = _task("01-a", (), set(), scope_ambiguous=True)
+        self.assertEqual(t.serial_cause, "scope_unnormalized")
+
+    def test_empty_scope_is_scope_unnormalized(self):
+        t = _task("01-a", (), set())  # 경로 없음
+        self.assertEqual(t.serial_cause, "scope_unnormalized")
+
+    def test_unknown_deps_cause(self):
+        t = _task("01-a", None, {"src/a.py"})  # depends_on 미상
+        self.assertEqual(t.serial_cause, "unknown_deps")
+
+    def test_forced_cause(self):
+        t = _task("01-a", (), {"src/a.py"}, force_serial=True)
+        self.assertEqual(t.serial_cause, "forced")
+
+    def test_parallel_capable_has_no_cause(self):
+        t = _task("01-a", (), {"src/a.py"})
+        self.assertIsNone(t.serial_cause)
+
+    def test_cause_precedence_forced_over_scope(self):
+        # 의도적 직렬이 우선 — 형식 잡음 안 냄.
+        t = _task("01-a", (), set(), scope_ambiguous=True, force_serial=True)
+        self.assertEqual(t.serial_cause, "forced")
+
+    def test_cause_precedence_unknown_deps_over_scope(self):
+        t = _task("01-a", None, set(), scope_ambiguous=True)
+        self.assertEqual(t.serial_cause, "unknown_deps")
+
+    def test_serial_cause_and_reason_consistent(self):
+        # serial_cause(코드)와 serial_reason(문장)은 같은 조건에서 동시에 None/non-None.
+        for t in (
+            _task("a", (), {"x.py"}),                      # 병렬 가능
+            _task("b", None, {"x.py"}),                    # 미상
+            _task("c", (), set(), scope_ambiguous=True),   # 형식
+            _task("d", (), {"x.py"}, force_serial=True),   # forced
+        ):
+            self.assertEqual(
+                t.serial_cause is None, t.serial_reason is None, msg=t.slug
+            )
+
+
+class TestWaveStepCause(unittest.TestCase):
+    """#693 — WaveStep 에 기계 판독 cause 부여 + to_dict 노출."""
+
+    def _step_for(self, plan, slug):
+        return next(s for s in plan.steps if any(t.slug == slug for t in s.tasks))
+
+    def test_parallel_step_cause(self):
+        plan = compute_waves([
+            _task("01-a", (), {"a.py"}),
+            _task("02-b", (), {"b.py"}),
+        ])
+        self.assertEqual(plan.steps[0].mode, "parallel")
+        self.assertEqual(plan.steps[0].cause, "parallel")
+        self.assertEqual(plan.steps[0].to_dict()["cause"], "parallel")
+
+    def test_scope_unnormalized_step_cause(self):
+        plan = compute_waves([
+            _task("01-a", (), set(), scope_ambiguous=True),
+            _task("02-b", (), {"b.py"}),
+        ])
+        a = self._step_for(plan, "01-a")
+        self.assertEqual(a.mode, "serial")
+        self.assertEqual(a.cause, "scope_unnormalized")
+
+    def test_unknown_deps_step_cause(self):
+        plan = compute_waves([
+            _task("01-a", None, {"a.py"}),
+            _task("02-b", (), {"b.py"}),
+        ])
+        self.assertEqual(self._step_for(plan, "01-a").cause, "unknown_deps")
+
+    def test_forced_step_cause(self):
+        plan = compute_waves([
+            _task("01-a", (), {"a.py"}, force_serial=True),
+            _task("02-b", (), {"b.py"}),
+        ])
+        self.assertEqual(self._step_for(plan, "01-a").cause, "forced")
+
+    def test_high_risk_step_cause(self):
+        plan = compute_waves(
+            [_task("01-a", (), {"a.py"})], high_risk_slugs={"01-a"}
+        )
+        self.assertEqual(plan.steps[0].cause, "high_risk")
+
+    def test_dependency_chain_cause_not_format(self):
+        # 의존 사슬 — 형식 멀쩡, 짝 없어 직렬. format 사유 아님.
+        plan = compute_waves([
+            _task("01-a", (), {"a.py"}),
+            _task("02-b", ("01-a",), {"b.py"}),
+        ])
+        self.assertFalse(plan.has_parallel)
+        for s in plan.steps:
+            self.assertNotEqual(s.cause, "scope_unnormalized")
+            self.assertEqual(s.cause, "no_disjoint_pair")
+
+
+class TestWavePlanSerialDiagnostics(unittest.TestCase):
+    """#693 — wave-plan 집계 (소비측 dry preview 안내 입력)."""
+
+    def test_all_format_unnormalized(self):
+        # youTubeGenerator 실증 축약 — 전부 라벨/산문 형식 → 전부 형식 직렬.
+        plan = compute_waves([
+            _task("01-a", (), set(), scope_ambiguous=True),
+            _task("02-b", (), set(), scope_ambiguous=True),
+            _task("03-c", (), set(), scope_ambiguous=True),
+        ])
+        d = plan.to_dict()
+        self.assertFalse(d["has_parallel"])
+        self.assertEqual(
+            sorted(d["format_unnormalized_slugs"]), ["01-a", "02-b", "03-c"]
+        )
+        self.assertTrue(
+            all(x["cause"] == "scope_unnormalized" for x in d["serial_demotions"])
+        )
+
+    def test_dependency_serial_not_flagged_as_format(self):
+        plan = compute_waves([
+            _task("01-a", (), {"a.py"}),
+            _task("02-b", ("01-a",), {"b.py"}),
+        ])
+        d = plan.to_dict()
+        self.assertEqual(d["format_unnormalized_slugs"], [])
+        causes = {x["cause"] for x in d["serial_demotions"]}
+        self.assertNotIn("scope_unnormalized", causes)
+
+    def test_parallel_step_excluded_from_demotions(self):
+        plan = compute_waves([
+            _task("01-a", (), {"a.py"}),
+            _task("02-b", (), {"b.py"}),
+        ])
+        d = plan.to_dict()
+        self.assertTrue(d["has_parallel"])
+        self.assertEqual(d["serial_demotions"], [])
+        self.assertEqual(d["format_unnormalized_slugs"], [])
+
+    def test_demotion_entry_shape(self):
+        plan = compute_waves([_task("01-a", (), set(), scope_ambiguous=True)])
+        entry = plan.to_dict()["serial_demotions"][0]
+        self.assertEqual(entry["slug"], "01-a")
+        self.assertEqual(entry["cause"], "scope_unnormalized")
+        self.assertIn("미정규화", entry["reason"])
+
+    def test_mixed_format_and_dependency(self):
+        # 형식 직렬(03) + 의존 직렬(01,02) 혼재 — 형식만 집계.
+        plan = compute_waves([
+            _task("01-a", (), {"a.py"}),
+            _task("02-b", ("01-a",), {"b.py"}),
+            _task("03-c", (), set(), scope_ambiguous=True),
+        ])
+        d = plan.to_dict()
+        self.assertEqual(d["format_unnormalized_slugs"], ["03-c"])
+
+    def test_format_normalized_paths_enable_parallel(self):
+        # AC1 회귀 — 규격(순수 경로) 형식이면 의존 독립 task 가 병렬 후보로 잡힌다.
+        plan = compute_waves([
+            _task("01-a", (), {"src/a.py"}),
+            _task("02-b", (), {"src/b.py"}),
+        ])
+        d = plan.to_dict()
+        self.assertTrue(d["has_parallel"])
+        self.assertEqual(d["format_unnormalized_slugs"], [])
+
+
 if __name__ == "__main__":
     unittest.main()

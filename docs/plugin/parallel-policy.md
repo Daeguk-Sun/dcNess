@@ -84,6 +84,8 @@ peer task 는 PR 생성까지 독립적으로 갈 수 있지만, merge 단계는
 | `depends_on` | task 실행 선후. contract produces/consumes 와 ordering 을 흡수한 단일 SSOT | impl task frontmatter |
 | Scope 파일집합 | 두 task 의 `수정 허용` 파일 경로 교집합이 있으면 동시 금지 | impl task `Scope > 수정 허용` |
 
+`수정 허용` 은 **bullet 당 순수 파일 경로 하나**(또는 끝 `/` 디렉토리) 형식이어야 파서가 경로로 인식한다. 볼드/라벨/괄호 설명/다중 토큰/산문 bullet 은 경로 미인식 → 해당 task 가 *형식 미정규화*로 직렬 강등된다(의존성과 무관). 부가 설명은 `# 주석`(파서가 떼어냄) 또는 blockquote 로 둔다. 형식 미정규화로 강등된 slug 는 `wave-plan` 출력의 `format_unnormalized_slugs`(+ `serial_demotions[].cause = scope_unnormalized`)로 노출되어, 설계 검증(`/design` Step 5)·소비측 dry preview 가 "진짜 의존성 직렬"과 구분해 교정 방향을 안내한다([#693](https://github.com/alruminum/dcNess/issues/693)).
+
 `depends_on` 은 세 상태를 구별한다.
 
 - 미작성 / placeholder 잔존 = 미상 → 직렬 강등.

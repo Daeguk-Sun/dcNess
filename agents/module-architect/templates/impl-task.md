@@ -30,7 +30,10 @@ contract:
 
 ### 수정 허용
 
-> repo-relative 파일 경로 단위로 적는다 (자유 서술 금지). 이 목록의 교집합으로 병렬 wave 충돌이 판정된다 (정책: `docs/plugin/parallel-policy.md`).
+> **한 bullet = 정확히 하나의 repo-relative 파일 경로** (또는 끝에 `/` 붙인 디렉토리). 이 목록의 교집합으로 병렬 wave 충돌이 판정된다 (정책: `docs/plugin/parallel-policy.md`). 형식이 어긋나면 파서가 경로로 인식 못 해 병렬 후보가 *조용히 직렬로 강등*된다.
+> - ✅ `- src/narration/synth.py` · `- src/scene/` · `- src/api.py  # 핸들러 (# 뒤 주석은 파서가 떼어냄)`
+> - ❌ 볼드/라벨 (`- **합성**: src/synth.py`) · 괄호 설명 (`- src/synth.py (TTS)`) · 다중 토큰/산문 (`- 합성 파이프라인 전반`) · 빈 bullet (`-`)
+> - 부가 설명이 필요하면 위 blockquote 처럼 `>` 로 적는다 (파서가 무시). bullet 본문에는 경로만.
 
 -
 

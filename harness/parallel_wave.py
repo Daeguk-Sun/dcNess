@@ -87,6 +87,26 @@ class ImplTask:
             return "Scope 파일 경로 미정규화(자유서술/빈값)"
         return None
 
+    @property
+    def serial_cause(self) -> Optional[str]:
+        """직렬 강등 사유의 기계 판독 코드 (#693). 병렬 가능이면 None.
+
+        `serial_reason`(사람용 문장)과 동일 우선순위 — 같은 조건에서 동시에
+        None/non-None. 소비측(dry preview)·검증측이 "형식 미정규화(교정 가능)"와
+        "의도/의존(정상)"을 구분하는 입력이다.
+
+        - `forced`             = parallel: serial / 고위험 → 의도적 직렬.
+        - `unknown_deps`       = depends_on 미작성/placeholder → 작성 누락.
+        - `scope_unnormalized` = `수정 허용` 자유서술/빈값 → 형식 미정규화(교정 가능).
+        """
+        if self.force_serial:
+            return "forced"
+        if self.depends_on is None:
+            return "unknown_deps"
+        if self.scope_ambiguous or not self.scope_paths:
+            return "scope_unnormalized"
+        return None
+
 
 @dataclass(frozen=True)
 class WaveStep:
@@ -96,6 +116,9 @@ class WaveStep:
     mode: str  # "parallel" | "serial"
     tasks: tuple[ImplTask, ...]
     reason: str
+    # 기계 판독 사유 코드 (#693) — reason(사람용)과 짝. "parallel" / "scope_unnormalized"
+    # / "unknown_deps" / "forced" / "high_risk" / "dep_unresolved" / "no_disjoint_pair".
+    cause: str = "parallel"
 
     def to_dict(self) -> dict:
         return {
@@ -103,6 +126,7 @@ class WaveStep:
             "mode": self.mode,
             "tasks": [t.slug for t in self.tasks],
             "reason": self.reason,
+            "cause": self.cause,
         }
 
 
@@ -121,11 +145,41 @@ class WavePlan:
     def parallel_steps(self) -> tuple[WaveStep, ...]:
         return tuple(s for s in self.steps if s.mode == "parallel")
 
+    @property
+    def serial_demotions(self) -> tuple[dict, ...]:
+        """직렬 강등된 단계의 (slug, cause, reason) 목록 (#693).
+
+        소비측 dry preview 가 "왜 직렬인지" 사용자에게 안내하는 입력. 병렬 step 은
+        강등이 아니므로 제외. 직렬 step 은 단일 task 라 task 별 1행이다.
+        """
+        out: list[dict] = []
+        for s in self.steps:
+            if s.mode != "serial":
+                continue
+            for t in s.tasks:
+                out.append({"slug": t.slug, "cause": s.cause, "reason": s.reason})
+        return tuple(out)
+
+    @property
+    def format_unnormalized_slugs(self) -> tuple[str, ...]:
+        """`수정 허용` 형식 미정규화로 직렬 강등된 task slug (#693).
+
+        의존성·고위험 등 정상 직렬과 구분되는, *교정 가능한* 형식 결함만 모은다
+        (전용 헤더 + bullet 당 순수 경로 1개로 고치면 병렬 후보가 될 수 있다).
+        """
+        return tuple(
+            d["slug"]
+            for d in self.serial_demotions
+            if d["cause"] == "scope_unnormalized"
+        )
+
     def to_dict(self) -> dict:
         return {
             "max_parallel_workers": self.max_parallel_workers,
             "has_parallel": self.has_parallel,
             "steps": [s.to_dict() for s in self.steps],
+            "serial_demotions": list(self.serial_demotions),
+            "format_unnormalized_slugs": list(self.format_unnormalized_slugs),
         }
 
 
@@ -531,6 +585,11 @@ def compute_waves(
             return "고위험 task (dry-preview 판정) → 직렬"
         return t.serial_reason or "직렬"
 
+    def _serial_cause(t: ImplTask) -> str:
+        if t.slug in hr and not t.serial_only:
+            return "high_risk"
+        return t.serial_cause or "serial"
+
     in_batch = {t.slug for t in tasks}
     remaining = list(tasks)
     done: set[str] = set()
@@ -544,7 +603,13 @@ def compute_waves(
             head = remaining[0]
             step_index += 1
             steps.append(
-                WaveStep(step_index, "serial", (head,), "의존 미해결/순환 → 직렬")
+                WaveStep(
+                    step_index,
+                    "serial",
+                    (head,),
+                    "의존 미해결/순환 → 직렬",
+                    cause="dep_unresolved",
+                )
             )
             remaining.remove(head)
             done.add(head.slug)
@@ -555,7 +620,13 @@ def compute_waves(
         if _is_serial(head):
             step_index += 1
             steps.append(
-                WaveStep(step_index, "serial", (head,), _serial_reason(head))
+                WaveStep(
+                    step_index,
+                    "serial",
+                    (head,),
+                    _serial_reason(head),
+                    cause=_serial_cause(head),
+                )
             )
             remaining.remove(head)
             done.add(head.slug)
@@ -585,19 +656,27 @@ def compute_waves(
         step_index += 1
         if len(wave) >= 2:
             steps.append(
-                WaveStep(step_index, "parallel", tuple(wave), _PARALLEL_REASON)
+                WaveStep(
+                    step_index,
+                    "parallel",
+                    tuple(wave),
+                    _PARALLEL_REASON,
+                    cause="parallel",
+                )
             )
             for t in wave:
                 remaining.remove(t)
                 done.add(t.slug)
         else:
-            # 짝 없음 → head 단독 직렬.
+            # 짝 없음 → head 단독 직렬. head 자체는 병렬 후보였으나 동시 가능한 짝이 없다
+            # (의존 barrier / Scope 겹침 / cap). 형식 결함이 아니라 구조적 사유.
             steps.append(
                 WaveStep(
                     step_index,
                     "serial",
                     (head,),
                     "동시 가능한 짝 없음 (Scope 중첩 등) → 직렬",
+                    cause="no_disjoint_pair",
                 )
             )
             remaining.remove(head)
