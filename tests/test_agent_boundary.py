@@ -523,6 +523,20 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                     f"산출물 루트 {p} 차단",
                 )
 
+    def test_shell_expansion_path_blocked(self):
+        # #694 codex P2 — Bash 의 $VAR/${}/$()/backtick 은 셸이 hook 후 확장하므로 위치 미확정.
+        # ALLOW 매칭 전 차단 (Edit/Write 리터럴엔 이 토큰 없음). tilde 와 동일 클래스.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent, p in [
+                ("test-engineer", "$HOME/tests/test_x.py"),
+                ("engineer", "${HOME}/lib/x.rb"),
+                ("engineer", "$(pwd)/src/x.py"),
+                ("engineer", "`echo /etc`/src/x.py"),
+            ]:
+                reason = check_write_allowed(agent, p, cwd=cwd)
+                self.assertIsNotNone(reason, f"{agent} 셸 확장 경로 {p} 차단")
+
     def test_tilde_home_path_blocked(self):
         # #694 codex P2 — Bash 의 ~/... 는 셸이 hook 통과 후 home 으로 확장하므로 cwd 밖.
         # _normalize expanduser + cwd-밖 가드로 차단 (tests?/ 등 ALLOW 매칭 우회 방지).

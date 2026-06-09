@@ -336,15 +336,22 @@ def check_write_allowed(
     # cwd 밖 경로 차단 (#694 codex P2) — _normalize 가 cwd 상대화에 성공하면 항상 cwd-내
     # 상대경로다. `/`(절대 외부) 또는 `../`(상위 탈출)로 시작하면 cwd 밖이며, 이때 원본을
     # ALLOW 패턴에 먹이면 `../tests/x` 가 `(^|/)tests?/` 에 매칭되는 등 경계 우회가 생긴다.
+    # 셸 확장·변수·치환·상위탈출·절대외부 — hook 은 셸 확장 *전* 토큰을 보므로 위치가 미확정
+    # 이거나 cwd 밖이다 (#694 codex P2). ~ 는 _normalize expanduser 가 우선 모사하고, 잔존분과
+    # $VAR/${}/$()/backtick 은 여기서 막는다. Edit/Write 의 리터럴 경로엔 이 토큰이 없다.
+    # (참고: quoted "$VAR"·eval·문자열 조립은 extract_bash_paths 의 best-effort 한계 — 본 guard
+    #  는 보안 경계가 아니라 실수 방지 denylist. sub-agent 는 Bash 로 원천 우회 가능.)
     if (
         norm.startswith("/")
         or norm == ".."
         or norm.startswith("../")
-        or norm.startswith("~")  # expanduser 가 home 미해결 시 잔존 — 셸 확장되면 cwd 밖
+        or norm.startswith("~")
+        or "$" in norm        # $VAR · ${VAR} · $(cmd) 셸 변수/명령치환
+        or "`" in norm        # `cmd` 백틱 명령치환
     ):
         return (
-            f"{agent} cwd 밖 경로 차단: `{norm}` — 프로젝트 루트 밖 write 금지 "
-            f"(.. 상위 탈출 / 절대 외부 / ~ home 경로)."
+            f"{agent} 경계 밖/미확정 경로 차단: `{norm}` — 프로젝트 루트 밖이거나 셸 확장"
+            f"(~ $VAR $() ` / .. 상위 탈출 / 절대 외부)으로 위치 미확정."
         )
 
     # 0. run_dir prose carve-out — build-worker 의 build-{test,impl,validate}.md self-write 한정.
