@@ -291,8 +291,11 @@ def _normalize(file_path: str, cwd: Optional[Path] = None) -> str:
     # 디렉토리 타깃(`cp x tests/`·`mv y apps/web/src/`)의 끝 구분자 보존 — resolve()가 끝 `/`를
     # 떼면 ALLOW 패턴(`tests?/`·`.../src/`)과 deny 패턴(`^docs/`·`(^|/)hooks/`)이 디렉토리 루트를
     # 미매칭해, 정당 in-bound write 가 오차단되고 보호 디렉토리 타깃이 누락된다 (#694 codex P2 r10).
-    # 끝 `/`를 정규화 결과에 다시 붙여 매칭 정합을 복원한다.
-    trailing = "/" if file_path.endswith(("/", os.sep)) else ""
+    # 끝 `/` 외에 `/.`(예 `cp x tests/.`)·`/./` 도 같은 디렉토리를 가리키는 흔한 스펠링이므로
+    # 동일하게 끝 `/`로 보존한다. resolve() 가 `/.` 를 떼어 `tests` 로 만드는 것을 보정 (codex P2 r10).
+    trailing = (
+        "/" if file_path.endswith(("/", os.sep, "/.", os.sep + ".")) else ""
+    )
     try:
         # ~ / ~user 는 셸이 hook 통과 *후* home 으로 확장하므로 미리 모사 — home 은 cwd 밖이라
         # 아래 resolve 가 절대경로화 → 호출부 cwd-밖 가드가 차단 (#694 codex P2).
@@ -346,6 +349,18 @@ def check_write_allowed(
     if is_opt_out(cwd):
         return None
 
+    # 셸 변수/명령치환 — Bash 출처(shell_context)만, *정규화 전 원본* 에 대해 검사한다.
+    # `$PWD/../tests/x` 처럼 `..` 가 `$` 세그먼트를 상쇄하면 _normalize 후 norm 에서 `$` 가
+    # 사라져(→ `tests/x`) 셸가드를 우회하지만, 런타임엔 셸이 `$PWD` 를 확장해 프로젝트 밖에
+    # write 한다 (#694 codex P2 r10). 원본 file_path 에 `$`/backtick 이 있으면 위치 미확정으로
+    # 즉시 차단. Edit/Write 의 literal `$` 파일명(users.$id.tsx)은 shell_context=False 라 통과.
+    # (Bash 에서 literal `$` 파일은 따옴표로 써야 하고, 따옴표 토큰은 extract_bash_paths 가 제외.)
+    if shell_context and ("$" in file_path or "`" in file_path):
+        return (
+            f"{agent} 셸 확장 경로 차단: `{file_path}` — Bash 의 $VAR/$()/backtick 은 hook 후 "
+            f"셸 확장돼 위치 미확정 (프로젝트 밖 write 우회 방지)."
+        )
+
     norm = _normalize(file_path, cwd)
 
     # cwd 밖 경로 차단 (#694 codex P2) — _normalize 가 cwd 상대화에 성공하면 항상 cwd-내
@@ -359,15 +374,6 @@ def check_write_allowed(
         return (
             f"{agent} 경계 밖 경로 차단: `{norm}` — 프로젝트 루트 밖 write 금지 "
             f"(.. 상위 탈출 / 절대 외부 / ~ home)."
-        )
-    # 셸 변수/명령치환 — Bash 출처(shell_context)만. Bash 의 $VAR/$()/backtick 은 hook 후 셸이
-    # 확장해 위치가 미확정이므로 차단 (#694 codex P2). Edit/Write 의 literal file_path 는
-    # shell_context=False 라 프레임워크 route 파일명(users.$id.tsx 등)의 literal `$` 를 허용.
-    # (Bash 에서 literal `$` 파일은 따옴표로 써야 하고, 따옴표 토큰은 extract_bash_paths 가 제외.)
-    if shell_context and ("$" in norm or "`" in norm):
-        return (
-            f"{agent} 셸 확장 경로 차단: `{norm}` — Bash 의 $VAR/$()/backtick 은 hook 후 "
-            f"셸 확장돼 위치 미확정 (프로젝트 밖 write 우회 방지)."
         )
 
     # 0. run_dir prose carve-out — build-worker 의 build-{test,impl,validate}.md self-write 한정.

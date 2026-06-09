@@ -563,6 +563,10 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 ("engineer", "apps/web/src/"),
                 ("engineer", "lib/"),
                 ("engineer", "packages/core/src/"),
+                # `/.`·`/./` 스펠링도 같은 디렉토리 타깃 (codex P2 r10).
+                ("test-engineer", "tests/."),
+                ("engineer", "apps/web/src/."),
+                ("engineer", "src/./"),
             ]:
                 self.assertIsNone(
                     check_write_allowed(agent, p, cwd=cwd, shell_context=True),
@@ -580,10 +584,31 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 ("engineer", "node_modules/"),  # 의존성 deny
                 ("engineer", "vendor/"),        # vendored deny (루트)
                 ("engineer", "hooks/"),         # 인프라 deny
+                # `/.` 스펠링도 동일하게 deny 매칭돼야 함 (보호 우회 방지).
+                ("engineer", "docs/."),
+                ("engineer", "node_modules/."),
+                ("engineer", "hooks/."),
             ]:
                 self.assertIsNotNone(
                     check_write_allowed(agent, p, cwd=cwd, shell_context=True),
                     f"{agent} 의 보호 디렉토리 타깃 {p} 차단",
+                )
+
+    def test_shell_expansion_collapsed_by_dotdot_blocked(self):
+        # #694 codex P2 round10 — `$PWD/../tests/x` 는 _normalize 가 `$PWD/..` 를 상쇄해 norm 에서
+        # `$` 가 사라지지만, 런타임엔 셸이 `$PWD` 를 확장해 프로젝트 밖에 write 한다. 셸확장 검사를
+        # 정규화 *전* 원본에 적용해 차단해야 한다 (norm 기반 검사의 우회 봉쇄).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent, p in [
+                ("test-engineer", "$PWD/../tests/x.py"),
+                ("engineer", "$PWD/../../etc/src/x.py"),
+                ("engineer", "`pwd`/../src/x.py"),
+                ("engineer", "${PWD}/../app/x.rb"),
+            ]:
+                self.assertIsNotNone(
+                    check_write_allowed(agent, p, cwd=cwd, shell_context=True),
+                    f"{agent} 셸확장+상쇄 경로 {p} 차단",
                 )
 
     def test_shell_expansion_path_blocked(self):
@@ -1446,6 +1471,23 @@ class BashIntegrationTests(unittest.TestCase):
             ]
             self.assertEqual(blocked_te, [],
                              f"test-engineer mv 디렉토리 타깃 차단됨: {blocked_te}")
+
+    def test_quoted_redirect_dotdot_collapse_blocked(self):
+        # codex P2 (round10) — `echo x > "$PWD/../tests/x.py"` 는 추출되어 norm 에서 `$PWD/..`
+        # 가 상쇄(→ tests/x.py)되지만, 원본 셸확장 검사로 차단돼야 한다 (프로젝트 밖 write).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            paths = extract_bash_paths('echo x > "$PWD/../tests/x.py"')
+            self.assertIn("$PWD/../tests/x.py", paths)
+            blocked = [
+                p for p in paths
+                if check_write_allowed("test-engineer", p, cwd=cwd,
+                                       shell_context=True) is not None
+            ]
+            self.assertTrue(
+                any("$" in p for p in blocked),
+                f"$PWD/.. 상쇄 escape 가 차단되지 않음: {paths}",
+            )
 
     def test_quoted_sed_with_var_legit_edit_not_blocked(self):
         # codex P2 (round10) — engineer 의 `sed -i "s/$old/$new/" src/main.ts` 가 따옴표 안
