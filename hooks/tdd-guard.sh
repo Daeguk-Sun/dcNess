@@ -63,12 +63,25 @@ PY
 case "$(basename "$FILE_PATH")" in
   *.test.*|*.spec.*) allow ;;
 esac
-# 디렉터리 마디 매치는 절대/상대 경로 모두 대응 — 선두 슬래시를 1개로 정규화해
-# top-level 상대 경로 (`tests/helper.ts`, `__tests__/setup.ts`) 도 `*/tests/*` 로 잡는다.
-# 정규화 없이는 leading-slash 요구 패턴이 상대 top-level test 디렉터리를 놓쳐
-# 문서가 약속한 skip 과 어긋난다 (codex P2).
-_tdd_norm="/${FILE_PATH#/}"
-case "$_tdd_norm" in
+# 디렉터리 마디 매치는 **repo-relative 경로 기준** — PROJECT_ROOT 바깥 조상
+# 디렉터리가 우연히 test 디렉터리명(e2e / __mocks__ 등)이어도 repo 내부 구현 파일을
+# 오인 skip 하지 않게 한다 (codex P2 round2: `.../e2e/app/src/foo.ts` 가 e2e 조상으로
+# TDD guard 가 무력화되던 결함). 절대/상대·심볼릭링크 경로 차이를 흡수하려 부모
+# 디렉터리를 물리경로(`pwd -P`)로 정규화한 뒤 PROJECT_ROOT 접두를 제거한다. 부모 dir 이
+# 아직 없으면(신규 중첩 경로) 원본을 그대로 쓴다. 선두 슬래시 1개로 정규화해 top-level
+# 상대 경로 (`tests/helper.ts`) 도 `*/tests/*` 로 잡는다.
+_tdd_pdir=$(cd "$(dirname "$FILE_PATH")" 2>/dev/null && pwd -P || true)
+if [ -n "$_tdd_pdir" ]; then
+  _tdd_abs="${_tdd_pdir}/$(basename "$FILE_PATH")"
+else
+  _tdd_abs="$FILE_PATH"
+fi
+_tdd_root=$(cd "$PROJECT_ROOT" 2>/dev/null && pwd -P || printf '%s' "$PROJECT_ROOT")
+case "$_tdd_abs" in
+  "$_tdd_root"/*) _tdd_rel="${_tdd_abs#"$_tdd_root"/}" ;;
+  *) _tdd_rel="$_tdd_abs" ;;
+esac
+case "/${_tdd_rel#/}" in
   */__tests__/*|*/__test__/*|*/__mocks__/*) allow ;;
   */test/*|*/tests/*|*/spec/*|*/specs/*|*/e2e/*) allow ;;
 esac

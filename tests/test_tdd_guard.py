@@ -289,6 +289,32 @@ class TestBasenameSubstringFalseNegative(unittest.TestCase):
         self._touch("contest.ts", "export const c = 1;\n")
         self.assertEqual(decision(run_hook("contest.ts", self._tmp)), "deny")
 
+    def test_repo_under_e2e_parent_does_not_skip_impl(self):
+        """repo 루트의 *조상* 디렉터리명이 test 디렉터리(e2e)여도 구현 파일은 skip 안 함 → deny.
+
+        codex P2 round2 — 디렉터리 마디 매치는 PROJECT_ROOT 상대 경로 기준이어야 한다.
+        체크아웃이 `.../e2e/app` 밑에 있으면 절대 경로의 `e2e` 조상 마디가 매치돼
+        TDD guard 가 무력화되던 결함.
+        """
+        repo = Path(self._tmp) / "e2e" / "app"
+        repo.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=str(repo), capture_output=True)
+        src = repo / "src" / "foo.ts"
+        src.parent.mkdir(parents=True, exist_ok=True)
+        src.write_text("export function foo() { return 1; }\n", encoding="utf-8")
+        # cwd = repo (PROJECT_ROOT 가 .../e2e/app 로 잡힘), 절대 경로 전달.
+        self.assertEqual(decision(run_hook(str(src), str(repo))), "deny")
+
+    def test_repo_internal_e2e_dir_still_skips(self):
+        """repo *내부* 의 e2e/ 디렉터리 파일은 계속 skip — 회귀 방지 (상대 경로 매치 보존)."""
+        repo = Path(self._tmp) / "e2e" / "app"
+        repo.mkdir(parents=True, exist_ok=True)
+        subprocess.run(["git", "init"], cwd=str(repo), capture_output=True)
+        f = repo / "src" / "e2e" / "flow.ts"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text("export const flow = 1;\n", encoding="utf-8")
+        self.assertEqual(decision(run_hook(str(f), str(repo))), "allow")
+
 
 class TestPathMatcherTier4_Grandparent(unittest.TestCase):
     """issue #469 결함 C — Tier 4: <grandparent>/__tests__/<name>.{test,spec}.<ext>.
