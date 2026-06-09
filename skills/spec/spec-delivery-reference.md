@@ -1,6 +1,6 @@
-# Product Plan Delivery Reference
+# Spec Delivery Reference
 
-`/spec` 산출물을 PR 로 머지하고, 필요 시 issue 를 등록한 뒤 `/design` 을 권고할 때 쓰는 참고 자료다. 실행 순서는 [`SKILL.md`](SKILL.md), 분기는 [`product-plan-routing.md`](product-plan-routing.md) 가 진본이다.
+`/spec` 산출물을 PR 로 머지하고, 필요 시 issue 를 등록한 뒤 `/design` 을 권고할 때 쓰는 참고 자료다. 실행 순서는 [`SKILL.md`](SKILL.md), 분기는 [`spec-routing.md`](spec-routing.md) 가 진본이다.
 
 ## 일반 branch + PR
 

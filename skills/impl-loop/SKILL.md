@@ -1,11 +1,11 @@
 ---
 name: impl-loop
-description: deep impl task 파일(architect-loop 의 module-architect × K 산출물)을 받아 정식 impl 루프로 구현하는 legacy/advanced runner. task 1개(single) 또는 여러 개(chain) 를 처리 — 기본은 한 세션 직렬, opt-in 병렬은 별도 interactive 세션들이 각자 single task 를 수행. 각 task = 1 PR + 1 이슈 close. 엔진은 풀 4-agent (test-engineer → engineer → code-validator → pr-reviewer, 엄정) 또는 build-worker (2/3-step, 경량) 를 개수·발화로 선택. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/architect-loop 후 자동"처럼 impl task 경로/목록을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
+description: deep impl task 파일(design 의 module-architect × K 산출물)을 받아 정식 impl 루프로 구현하는 legacy/advanced runner. task 1개(single) 또는 여러 개(chain) 를 처리 — 기본은 한 세션 직렬, opt-in 병렬은 별도 interactive 세션들이 각자 single task 를 수행. 각 task = 1 PR + 1 이슈 close. 엔진은 풀 4-agent (test-engineer → engineer → code-validator → pr-reviewer, 엄정) 또는 build-worker (2/3-step, 경량) 를 개수·발화로 선택. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
 ---
 
 # Impl Loop Skill — deep impl task 구현 루프 (single / chain × 풀 / build-worker)
 
-> 본 스킬 = `/architect-loop` 가 `impl/NN-*.md` 본문 detail 까지 채운 deep task 를 구현으로 옮기는 legacy/advanced runner 다. 일반 구현 요청은 [`/impl`](../impl/SKILL.md) 이 lane 을 판정하고, deep impl task 파일이 있을 때만 본 스킬로 위임한다.
+> 본 스킬 = `/design` 가 `impl/NN-*.md` 본문 detail 까지 채운 deep task 를 구현으로 옮기는 legacy/advanced runner 다. 일반 구현 요청은 [`/impl`](../impl/SKILL.md) 이 lane 을 판정하고, deep impl task 파일이 있을 때만 본 스킬로 위임한다.
 
 > 🔴 **라우팅 SSOT** — agent 결론 → 다음 호출 / retry 한도 / escalate 처리는 [`impl-loop-routing.md`](impl-loop-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다.
 

@@ -1,6 +1,6 @@
-# Product Plan PRD Reference
+# Spec PRD Reference
 
-`/spec` 내부 구현 절차가 PRD 초안을 만들 때 쓰는 참고 자료다. 진행 순서와 분기는 [`SKILL.md`](SKILL.md) 와 [`product-plan-routing.md`](product-plan-routing.md) 가 진본이다.
+`/spec` 내부 구현 절차가 PRD 초안을 만들 때 쓰는 참고 자료다. 진행 순서와 분기는 [`SKILL.md`](SKILL.md) 와 [`spec-routing.md`](spec-routing.md) 가 진본이다.
 
 ## 그릴미 패턴
 

@@ -49,24 +49,24 @@ flowchart TB
 
 ## 단방향 관례 (재진입 비권장)
 
-`/design` (`/architect-loop` 호환) 진입 *후* `/tech-review` (tech-reviewer) 재호출은 **관례상 비권장** — 코드 강제 아닌 *자연어 관례* (메인/사용자 자율 판단, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례).
+`/design` 진입 *후* `/tech-review` (tech-reviewer) 재호출은 **관례상 비권장** — 코드 강제 아닌 *자연어 관례* (메인/사용자 자율 판단, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례).
 
 **왜 단방향?**
 - tech-reviewer 단계 = PRD 최종화 전 기술 검증 기회. 검증 충실 의무 가중 (증거물 / HTML 리포트 룰의 가치 근거).
-- design/architect-loop 진입 후 역방향 회귀 = ping-pong 사고 패턴 (옛 plan-reviewer cycle 한도 룰이 누적된 원인, 이슈 [#515](https://github.com/alruminum/dcNess/issues/515)).
+- /design 진입 후 역방향 회귀 = ping-pong 사고 패턴 (옛 plan-reviewer cycle 한도 룰이 누적된 원인, 이슈 [#515](https://github.com/alruminum/dcNess/issues/515)).
 
-**design/architect-loop 도중 미검증 새 외부 의존 발견 시 → `NEW_DEP_ESCALATE` 3안** (tech-reviewer 재호출 *없이*):
+**/design 도중 미검증 새 외부 의존 발견 시 → `NEW_DEP_ESCALATE` 3안** (tech-reviewer 재호출 *없이*):
 1. **채택 + 수동 검증** — 사용자 승인 → 해당 architect 재진입
 2. **대안 기술 우회** — tech-review 기검증 대안 지정 → architect 재진입
-3. **전체 원점 회귀** — `/design` (`/architect-loop` 호환) 중단 + `/spec` 재진입 + 새 tech-review
+3. **전체 원점 회귀** — `/design` 중단 + `/spec` 재진입 + 새 tech-review
 
-(1)·(2) cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 0** — architect-loop 안엔 tech-reviewer 가 없어 NO_GO 판정 자체 불가 — 그래서 "전체 회귀 only" 가 아니라 사용자 선택 3안. 상세 흐름 = [`../architect-loop/architect-loop-routing.md`](../architect-loop/architect-loop-routing.md#escalate-처리).
+(1)·(2) cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 0** — design 안엔 tech-reviewer 가 없어 NO_GO 판정 자체 불가 — 그래서 "전체 회귀 only" 가 아니라 사용자 선택 3안. 상세 흐름 = [`../design/design-routing.md`](../design/design-routing.md#escalate-처리).
 
 ## 비대상 (다른 skill 추천)
 
 - PRD 미작성 / 기술 검토 필요 영역 부재 → `/spec` 먼저
 - 기술 검토 필요 영역이 "해당 없음" → `/tech-review` skip 후 `/spec` Step 5 PRD 최종화
-- 설계 단계 진입 → `/design` (`/architect-loop` 호환)
+- 설계 단계 진입 → `/design`
 - 구현 단계 진입 → `/impl`
 - GitHub issue 초안/등록 → `/to-issue`
 

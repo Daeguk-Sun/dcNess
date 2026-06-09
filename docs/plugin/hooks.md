@@ -72,12 +72,12 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 |---|---|
 | pr-reviewer gate | engineer 산출물이 있는데 code-validator PASS 없이 pr-reviewer 호출 |
 | engineer gate | module-architect PASS 없이 engineer 가 src 구현으로 진입 |
-| module-architect gate | architecture-validator 1차 PASS 없이 architect-loop 의 module-architect 반복 진입 |
+| module-architect gate | architecture-validator 1차 PASS 없이 design 의 module-architect 반복 진입 |
 | strict conveyor gate | active run 안에서 직전 `begin-step` 과 다른 agent/mode 호출, `current_step` 부재, 이미 staged 된 stale step |
 
-**strict conveyor 대상**: `entry_point=architect-loop|design|impl|ux`. 정상 `/design` 은 `begin-run architect-loop` 로 시작하지만, 실수로 `begin-run design` 한 run 도 같은 strict conveyor gate 와 module-architect gate 를 탄다.
+**strict conveyor 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 strict conveyor gate 와 module-architect gate 를 탄다.
 
-**tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. design/architect-loop 도중 미검증 새 외부 의존이 발견되면 architect-loop 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
+**tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. /design 도중 미검증 새 외부 의존이 발견되면 design 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
 
 **차단**: 위반 시 `exit 2` + stderr. 에러 메시지는 `[catastrophic: <gate>]` 형태를 포함한다.
 

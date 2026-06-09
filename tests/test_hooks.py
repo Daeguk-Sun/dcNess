@@ -279,13 +279,13 @@ class CatastrophicPrReviewerTests(_PreToolBase):
 
 
 # ---------------------------------------------------------------------------
-# module-architect 게이트 — architect-loop 안 module-architect × N 첫 호출 직전
+# module-architect 게이트 — design 안 module-architect × N 첫 호출 직전
 # architecture-validator PASS 필수 (PR B-4 부활, β-strong)
 # ---------------------------------------------------------------------------
 
 
-class _ArchitectLoopBase(unittest.TestCase):
-    """architect-loop entry_point 컨텍스트 — module-architect 게이트 발동 조건."""
+class _DesignLoopBase(unittest.TestCase):
+    """design entry_point 컨텍스트 — module-architect 게이트 발동 조건."""
 
     sid = "test-sid-arch"
     rid = "run-archloop"
@@ -296,7 +296,7 @@ class _ArchitectLoopBase(unittest.TestCase):
         self.base = Path(self._td.name)
         write_pid_session(self.cc_pid, self.sid, base_dir=self.base)
         update_live(self.sid, base_dir=self.base)
-        start_run(self.sid, self.rid, "architect-loop", base_dir=self.base)
+        start_run(self.sid, self.rid, "design", base_dir=self.base)
         write_pid_current_run(self.cc_pid, self.rid, base_dir=self.base)
         self.run_path = run_dir(self.sid, self.rid, base_dir=self.base)
 
@@ -321,7 +321,7 @@ class _ArchitectLoopBase(unittest.TestCase):
         update_live(self.sid, base_dir=self.base, active_runs=active)
 
 
-class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
+class CatastrophicArchitectureValidatorTests(_DesignLoopBase):
     def test_module_architect_first_call_blocked_without_arch_validator(self) -> None:
         self._begin_step("module-architect")
         rc = handle_pretooluse_agent(
@@ -356,7 +356,7 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_gate_skipped_for_non_architect_loop(self) -> None:
+    def test_gate_skipped_for_non_design_loop(self) -> None:
         """impl-task-loop 등 다른 entry_point 는 module-architect 게이트 미적용."""
         with TemporaryDirectory() as td:
             base = Path(td)
@@ -375,8 +375,7 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
             )
             self.assertEqual(rc, 0)
 
-    def test_design_entry_point_alias_enforces_arch_validator_gate(self) -> None:
-        self._set_entry_point("design")
+    def test_design_entry_point_enforces_arch_validator_gate(self) -> None:
         self._begin_step("module-architect")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("module-architect"),
@@ -386,15 +385,15 @@ class CatastrophicArchitectureValidatorTests(_ArchitectLoopBase):
         self.assertEqual(rc, 1)
 
 
-class TechReviewerRecallNotBlockedTests(_ArchitectLoopBase):
-    """#609 — architect-loop 중 tech-reviewer 재호출은 코드 강제 차단하지 않는다.
+class TechReviewerRecallNotBlockedTests(_DesignLoopBase):
+    """#609 — design 중 tech-reviewer 재호출은 코드 강제 차단하지 않는다.
 
     옛 #597 커밋7 의 부분 코드강제 (재호출 시 exit) 를 제거했다 (forcing function 은
     catastrophic 이 아님 — CLAUDE.md 대원칙). 재호출 비권장은 자연어 관례로만 남는다.
     in/out 양쪽 모두 통과(rc=0) — 차단 부활 회귀 방지.
     """
 
-    def test_tech_reviewer_allowed_in_architect_loop(self) -> None:
+    def test_tech_reviewer_allowed_in_design_loop(self) -> None:
         # strict-conveyor gate(#604) 통과 위해 begin-step 으로 current_step 설정.
         self._begin_step("tech-reviewer")
         rc = handle_pretooluse_agent(
@@ -404,8 +403,8 @@ class TechReviewerRecallNotBlockedTests(_ArchitectLoopBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_tech_reviewer_allowed_outside_architect_loop(self) -> None:
-        # 비-architect-loop run (entry_point=impl) 에서도 tech-reviewer 통과.
+    def test_tech_reviewer_allowed_outside_design_loop(self) -> None:
+        # 비-design run (entry_point=impl) 에서도 tech-reviewer 통과.
         with TemporaryDirectory() as td:
             base = Path(td)
             sid, rid, cc_pid = "sid-impl2", "run-impl5678", 33333

@@ -128,7 +128,7 @@ class WriteAllowedMainBypassTests(unittest.TestCase):
             self.assertIsNone(check_write_allowed(None, "hooks/x.sh", cwd=cwd))
             self.assertIsNone(
                 check_write_allowed(
-                    "", "skills/architect-loop/architect-loop-routing.md", cwd=cwd
+                    "", "skills/design/design-routing.md", cwd=cwd
                 )
             )
 
@@ -146,7 +146,7 @@ class WriteAllowedInfraProjectBypassTests(unittest.TestCase):
                 self.assertIsNone(
                     check_write_allowed(
                         "engineer",
-                        "skills/architect-loop/architect-loop-routing.md",
+                        "skills/design/design-routing.md",
                         cwd=cwd,
                     )
                 )
@@ -177,7 +177,7 @@ class WriteAllowedInfraPatternBlockTests(unittest.TestCase):
             cwd = Path(td)
             reason = check_write_allowed(
                 "architect",
-                "skills/architect-loop/architect-loop-routing.md",
+                "skills/design/design-routing.md",
                 cwd=cwd,
             )
             self.assertIsNotNone(reason)
@@ -487,7 +487,7 @@ class ReadAllowedTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             reason = check_read_allowed(
-                "product-planner", "hooks/file-guard.sh", cwd=cwd
+                "module-architect", "hooks/file-guard.sh", cwd=cwd
             )
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)

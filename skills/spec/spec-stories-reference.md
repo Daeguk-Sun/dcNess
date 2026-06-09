@@ -1,6 +1,6 @@
-# Product Plan Stories Reference
+# Spec Stories Reference
 
-`/spec` 이 최종 PRD 기준으로 epic 단위 `stories.md` 를 만들 때 쓰는 참고 자료다. 실행 순서는 [`SKILL.md`](SKILL.md), 분기는 [`product-plan-routing.md`](product-plan-routing.md) 가 진본이다.
+`/spec` 이 최종 PRD 기준으로 epic 단위 `stories.md` 를 만들 때 쓰는 참고 자료다. 실행 순서는 [`SKILL.md`](SKILL.md), 분기는 [`spec-routing.md`](spec-routing.md) 가 진본이다.
 
 ## stories.md 산출물
 

@@ -122,7 +122,7 @@ provider routing 대상이라 Codex 로 route 될 수 있지만, 사용자-facin
 agent 의 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등) → 다음 호출 매핑은
 각 loop skill 의 `<skill>-routing.md` (**mermaid 라우팅 그래프** + enum 표 + retry +
 escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/impl-routing.md)
-(구현 진입), [`skills/architect-loop/architect-loop-routing.md`](skills/architect-loop/architect-loop-routing.md)
+(구현 진입), [`skills/design/design-routing.md`](skills/design/design-routing.md)
 (설계), [`skills/impl-loop/impl-loop-routing.md`](skills/impl-loop/impl-loop-routing.md)
 (deep task 구현). loop 별 진입 spec(entry_point / task_list / advance / expected_steps)은
 각 skill 본문(`skills/<skill>/SKILL.md`)의 `## Loop` contract 가 진본이고, 공통 실행 절차(Step 0~8 mechanics)는
@@ -192,7 +192,7 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 |---|---|
 | [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성 SSOT (강제 영역 2 + 안티패턴 4) |
 | [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | public workflow surface 계약 — 기본/support/고급/유틸리티/내부 agent 분류 |
-| 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`architect-loop`](skills/architect-loop/architect-loop-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표 + retry + escalate) |
+| 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`design`](skills/design/design-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 라우팅 진본 (mermaid + enum 표 + retry + escalate) |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | 컨베이어 운전법 — Step 0~8 mechanics (각 loop spec = 해당 skill `## Loop`) |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | catastrophic 시퀀스 + 8 hook SSOT |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |

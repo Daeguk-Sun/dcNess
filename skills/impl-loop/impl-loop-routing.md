@@ -134,4 +134,4 @@ chain (N task) 에서 *각 task run* 의 종료 결론에 따른 다음 task 진
 - single clean → review.md 원본 echo (rigor) + 자율 insight 1줄 (선택).
 - chain clean → 5줄 요약 echo (task 별) + 전체 완료 보고. 자율 작업 진입 전 `post-task-begin` marker (#472).
 - error / blocked + 한도 초과 → 사용자 위임.
-- spec gap + cycle 한도 초과 → 사용자 위임 (module-architect 보강 또는 `/architect-loop` 재진입 권고).
+- spec gap + cycle 한도 초과 → 사용자 위임 (module-architect 보강 또는 `/design` 재진입 권고).

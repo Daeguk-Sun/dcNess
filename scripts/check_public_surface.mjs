@@ -12,9 +12,6 @@ const POSITIONING = 'docs/plugin/positioning.md';
 
 const EXPECTED = {
   defaultSkills: ['spec', 'design', 'impl', 'acceptance'],
-  // Internal implementation skill dirs stay installed, but positioning.md must
-  // not list them as public workflow surface.
-  internalWorkflowSkills: ['architect-loop', 'product-plan'],
   supportSkills: ['to-issue'],
   advancedSkills: ['impl-loop', 'tech-review', 'ux'],
   utilityCommands: ['efficiency', 'init-dcness', 'run-review', 'smart-compact'],
@@ -127,7 +124,6 @@ const agents = listAgents();
 
 const expectedSkills = [
   ...EXPECTED.defaultSkills,
-  ...EXPECTED.internalWorkflowSkills,
   ...EXPECTED.supportSkills,
   ...EXPECTED.advancedSkills,
 ];

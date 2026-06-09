@@ -1,7 +1,7 @@
-# architect-loop 라우팅 SSOT
+# design 라우팅 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: `/architect-loop` skill **단일 전용** 라우팅 진본 — 이 skill 안 agent (ux-architect / system-architect / architecture-validator / module-architect / designer) 의 결론 → 다음 호출 + retry 한도 + escalate 처리. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
+> **Scope**: `/design` skill **단일 전용** 라우팅 진본 — 이 skill 안 agent (ux-architect / system-architect / architecture-validator / module-architect / designer) 의 결론 → 다음 호출 + retry 한도 + escalate 처리. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
 > **Cross-ref**: catastrophic 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) · 권한 경계 = [`agent_boundary.py`](../../harness/agent_boundary.py).
 
 ## 읽는 법
@@ -39,7 +39,7 @@ flowchart TB
 
 > 파랑 = 생산 agent · 초록 = 검증 agent · 회색 = 사용자 위임. 점선 = escalate. 엣지의 `≤N` = retry 한도 ([retry 한도](#retry-한도)).
 >
-> tech-reviewer 는 architect-loop 진입 *전* (`/tech-review` skill) 단계라 본 그래프에 없다. architect-loop 진입 후 tech-reviewer 재호출은 **하지 않는다** — architect-loop 안엔 tech-reviewer 가 없고, `/tech-review` 재진입도 자연어 관례상 비권장 (코드 강제 아님, [escalate 처리](#escalate-처리)).
+> tech-reviewer 는 design 진입 *전* (`/tech-review` skill) 단계라 본 그래프에 없다. design 진입 후 tech-reviewer 재호출은 **하지 않는다** — design 안엔 tech-reviewer 가 없고, `/tech-review` 재진입도 자연어 관례상 비권장 (코드 강제 아님, [escalate 처리](#escalate-처리)).
 
 ## 결론 → 다음 호출 매핑
 
@@ -91,13 +91,13 @@ escalate 계열 결론(`UX_FLOW_ESCALATE` / `ESCALATE` / `NEW_DEP_ESCALATE`) 수
 
 ### NEW_DEP_ESCALATE — 3안 (단순 대기 아님)
 
-system-architect / module-architect 가 **architect-loop 도중 tech-review 미검증 새 외부 의존을 발견** 했을 때. loop 자동 중단 X. 메인이 사용자에게 3안 제시:
+system-architect / module-architect 가 **design 도중 tech-review 미검증 새 외부 의존을 발견** 했을 때. loop 자동 중단 X. 메인이 사용자에게 3안 제시:
 
 1. **채택 + 수동 검증** — 사용자 승인 → 해당 architect 재진입 (architecture.md/adr.md 에 "사용자 승인, tech-review 미경유" 흔적 명시)
 2. **대안 기술 우회** — 이미 tech-review 검증된 대안 지정 → architect 재진입
-3. **전체 원점 회귀** — `/design` (`/architect-loop` 호환) 중단 + `/spec` 재진입 + 새 tech-review
+3. **전체 원점 회귀** — `/design` 중단 + `/spec` 재진입 + 새 tech-review
 
-(1)·(2) 재진입 cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 없음** — architect-loop 안엔 tech-reviewer 가 없어 호출 경로 자체 부재 (재호출 비권장은 코드 강제 아닌 자연어 관례, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례).
+(1)·(2) 재진입 cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 없음** — design 안엔 tech-reviewer 가 없어 호출 경로 자체 부재 (재호출 비권장은 코드 강제 아닌 자연어 관례, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례).
 
 ## 후속 (loop 종료 후)
 

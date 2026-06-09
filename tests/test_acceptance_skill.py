@@ -56,8 +56,8 @@ class AcceptanceSkillContractTests(unittest.TestCase):
         skill = self.skill.read_text(encoding="utf-8")
         routing = self.routing.read_text(encoding="utf-8")
 
-        self.assertIn("설계 산출물 작성/수정 → `/design` (`/architect-loop` 호환)", skill)
-        self.assertNotIn("설계 산출물 작성/수정 → `/architect-loop` 또는 후속 `/design`", skill)
+        self.assertIn("설계 산출물 작성/수정 → `/design`", skill)
+        self.assertNotIn("`/architect-loop`", skill)
 
         self.assertIn('TAX --> NEXT1["/impl · /design · /spec · /ux', routing)
         self.assertNotIn("TAX --> NEXT1[/impl", routing)

@@ -525,7 +525,7 @@ def detect_wastes(
                  # plan-reviewer / system-architect / module-architect /
                  # test-engineer / pr-reviewer / designer 공통)
         "IMPL_DONE", "POLISH_DONE",  # engineer 분기 enum (통일 부적합)
-        "PRODUCT_PLAN_READY",  # product-planner workflow enum
+        "PRODUCT_PLAN_READY",  # old product-planner trace enum
         "UX_FLOW_READY", "UX_FLOW_PATCHED", "UX_REFINE_READY",  # ux-architect 분기
         "PROSE_LOGGED",  # #284 prose-only mode default sentinel
     }
@@ -633,7 +633,7 @@ def detect_wastes(
             step_idx=-1,
             agent="architect",
             detail=f"architect SPEC_GAP {spec_gap_count}회 — cycle 한도 2 초과",
-            fix="impl batch 자체 보강 또는 product-planner escalate",
+            fix="impl batch 자체 보강 또는 /spec 재진입",
         ))
 
     # INFRA_READ — prose 안 인프라 경로 흔적

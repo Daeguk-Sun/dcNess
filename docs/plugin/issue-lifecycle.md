@@ -172,7 +172,7 @@ gh api repos/{owner}/{repo}/milestones --jq '.[] | {number, title}'
 
 ## mid-flow 누락 차단 (pre-flight gate)
 
-`/impl-loop` / `/architect-loop` (ux-architect / system-architect / module-architect × K) 진입 시 부모 epic stories.md 상단 매치 강제:
+`/impl-loop` / `/design` (ux-architect / system-architect / module-architect × K) 진입 시 부모 epic stories.md 상단 매치 강제:
 
 - `**GitHub Epic Issue:** [#\d+]` (정식 등록), 또는
 - `**GitHub Epic Issue:** 미등록 (사유: …)` ([미등록 허용 모드](#미등록-허용-모드))
@@ -189,7 +189,7 @@ story 이슈 부재 시 동일 패턴:
 - 등록·트레일러·완료 *룰* SSOT: [`git-spec.md`](git-spec.md) 의 이슈 등록 양식·PR 트레일러·이슈 완료 규칙
 - 라우팅 / 핸드오프: 각 loop skill 의 `<skill>-routing.md` (예: [`../../skills/impl-loop/impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md))
 - loop 진입 spec: 각 skill 본문 `skills/<skill>/SKILL.md` 의 `## Loop` contract. 공통 실행 절차 = [`loop-procedure.md`](loop-procedure.md#진입-모델)
-- product-plan skill (메인 직접): [`../../skills/product-plan/SKILL.md`](../../skills/product-plan/SKILL.md)
+- spec skill (메인 직접): [`../../skills/spec/SKILL.md`](../../skills/spec/SKILL.md)
 - system-architect (impl 목차 표 SSOT): [`../../agents/system-architect.md`](../../agents/system-architect.md)
 - module-architect (impl 본문 detail per task): [`../../agents/module-architect.md`](../../agents/module-architect.md)
 - engineer: [`../../agents/engineer.md`](../../agents/engineer.md) — task = 1 PR
