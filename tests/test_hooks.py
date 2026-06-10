@@ -219,6 +219,41 @@ class CatastrophicEngineerTests(_PreToolBase):
         )
         self.assertEqual(rc, 0)
 
+    # -- #709 — POLISH 면제의 effective mode 는 tool_input.mode ∪ current_step.mode --
+
+    def test_polish_via_current_step_when_toolinput_mode_absent(self) -> None:
+        # impl-loop engine B 실전 — Agent 도구 스키마에 mode 파라미터가 없는 CC 빌드에선
+        # tool_input.mode 가 안 실린다. begin-step 이 기록한 current_step.mode=POLISH 를
+        # effective mode 로 봐야 POLISH 면제가 환경 무관하게 작동한다.
+        (self.run_path / "build-worker.md").write_text("PASS\n", encoding="utf-8")
+        self._begin_step("engineer", "POLISH")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("engineer"),  # mode 키 부재 (실전 payload)
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_impl_still_blocked_when_current_step_mode_impl_and_no_artifact(self) -> None:
+        # 회귀 가드 — current_step.mode=IMPL 이고 설계 산출물 없으면 여전히 차단.
+        # effective-mode fallback 이 IMPL 까지 면제로 새지 않는다.
+        self._begin_step("engineer", "IMPL")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("engineer"),  # mode 키 부재
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_blocked_when_no_mode_anywhere_and_no_artifact(self) -> None:
+        # 회귀 가드 — tool_input.mode 도 current_step.mode 도 없고 설계 산출물도 없으면 차단.
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("engineer"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
     def test_allowed_with_module_architect_occurrence(self) -> None:
         # module-architect-2.md (occurrence 카운터) 안 PASS 도 인정
         (self.run_path / "module-architect-2.md").write_text(

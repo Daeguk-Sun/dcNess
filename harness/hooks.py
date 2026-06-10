@@ -422,11 +422,17 @@ def handle_pretooluse_agent(
     # issue #604 — active conveyor run 안에서는 begin-step 없이 Agent 직접 호출 금지.
     # PostToolUse staging 이후 같은 step 재호출, end-step 완료 후 stale current_step 도
     # PreToolUse 시점에서 차단해 `.steps.jsonl` 누락을 실행 전에 막는다.
+    step_mode = None
     try:
         live = read_live(sid, base_dir=base_dir) or {}
         active = live.get("active_runs", {}) if isinstance(live, dict) else {}
         slot = active.get(rid, {}) if isinstance(active, dict) else {}
         if isinstance(slot, dict):
+            # #709 — begin-step 이 기록한 current_step.mode 를 effective mode fallback 으로
+            # 쓰기 위해 같은 slot read 에서 함께 추출(중복 read 회피).
+            cur_step = slot.get("current_step")
+            if isinstance(cur_step, dict):
+                step_mode = _mode_or_none(cur_step.get("mode"))
             strict_msg = _strict_conveyor_gate_message(
                 sid=sid,
                 rid=rid,
@@ -441,12 +447,19 @@ def handle_pretooluse_agent(
     except (OSError, ValueError):
         pass  # state 읽기 실패는 fail-open — hook 버그발 과차단 회피.
 
-    # engineer 게이트 — engineer 직전 설계 산출물 필수 (mode != POLISH).
+    # engineer 게이트 — engineer 직전 설계 산출물 필수 (effective mode != POLISH).
     # #700 — namespaced 우회 차단을 위해 norm_subagent 비교(codex P1).
     # #701 — prerequisite = 같은-run module-architect PASS ∪ begin-run 에 기록된
     # 머지된 설계 문서(design_doc) 실존. impl-loop 풀 4-agent 는 설계가 별도 run
     # 에서 머지된 뒤 진입하므로 같은-run prose 단일 기준이면 구조적으로 차단된다.
-    if norm_subagent == "engineer" and mode != "POLISH":
+    # #709 — effective mode = tool_input.mode ∪ current_step.mode. Agent 도구 스키마에
+    # mode 파라미터가 없는 CC 빌드에선 tool_input.mode 가 안 실려, POLISH 면제가
+    # tool_input.mode 단독이면 죽는다(impl-loop engine B 의 pr-reviewer→engineer:POLISH 가
+    # design_doc·MA PASS 둘 다 없어 구조적 차단). begin-step 이 CLI 로 확실히 기록한
+    # current_step.mode 를 fallback 으로 봐 환경 무관하게 면제를 복원한다. strict-conveyor 가
+    # begin-step↔Agent(agent) 정합을 이미 보장하므로 current_step.mode=POLISH 는 신뢰 신호.
+    effective_mode = _mode_or_none(mode) or step_mode
+    if norm_subagent == "engineer" and effective_mode != "POLISH":
         if not _has_module_architect_pass(rd) and not _run_design_doc_exists(
             sid, rid, base_dir=base_dir
         ):
