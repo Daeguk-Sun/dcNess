@@ -42,11 +42,13 @@ EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / d
 
 ```bash
 HELPER="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)/scripts/dcness-helper"
-RUN_ID=$("$HELPER" begin-run <entry_point> [--issue-num N])
+RUN_ID=$("$HELPER" begin-run <entry_point> [--issue-num N] [--design-doc <path>])
 echo "[<entry>] run started: $RUN_ID"
 ```
 
 `<entry_point>` = 해당 skill 의 `## Loop` 의 `entry_point` 필드 (예: `impl`, `design`, `ux`). begin-run 동작: sid auto-detect + run_id 발급 + `live.json.active_runs` 슬롯 + `.by-pid-current-run/{cc_pid}` 씀.
+
+`--design-doc <path>` — 이 run 이 참조하는 **머지된 설계 문서**(impl task 문서 / compact plan) 경로. 설계가 별도 run 에서 머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서 기록하면, engineer 게이트가 같은-run module-architect PASS 의 등가 prerequisite 로 인정한다 ([`hooks.md` catastrophic-gate](hooks.md#catastrophic-gatesh)). 설계 산출물 규약 경로(`docs/milestones/**` / `docs/compact-plans/**` / `docs/bugfix/**`)의 실존 `.md` 만 허용 — 아니면 begin-run 이 fail-fast 거부한다. chain 의 다음 task 진입은 `next-task --design-doc <path>` 로 동일 기록.
 
 > `/impl-loop` 의 **chain 모드(N task)** 는 자기 run 을 갖지 않는 driver 다 — `impl-task-loop × N` 이므로 각 task 가 독립 `begin-run impl` … `end-run` run 1개씩 (N task = N run = N review.md). **single 모드(1 task)** 는 `impl` entry_point 로 run 1개. 자세히 = [`/impl-loop`](../../skills/impl-loop/SKILL.md).
 
@@ -380,7 +382,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 `begin-run` / `begin-step` / `end-step` / `end-run` 은 prose 저장과 별개로 run_dir 안 `ledger.jsonl` 에 append-only event 를 자동 기록한다. prose 파일 (`<run_dir>/<agent>[-<MODE>].md`) 이 계속 SSOT 이고, ledger 는 긴 prose 를 매번 대화 context 에 재주입하지 않고도 resume / handoff / audit 에 필요한 상태를 담는 색인 장부다. **agent 에게 JSON 출력 형식을 강제하지 않는다** — helper 가 저장된 prose + known state 에서 receipt 를 생성한다.
 
 **자동 기록 event** (코드 경로):
-- `run_started` (begin-run) — entry_point / issue_num
+- `run_started` (begin-run) — entry_point / issue_num / design_doc(기록 시)
 - `step_started` (begin-step) — agent / mode
 - `step_completed` (end-step) — = **receipt**: agent / mode / enum / prose_excerpt / must_fix / prose_file / sha256 / evidence_paths / next_action(hint)
 - `run_finished` (end-run)

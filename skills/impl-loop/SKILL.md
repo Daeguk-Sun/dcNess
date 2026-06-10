@@ -210,6 +210,8 @@ wrapper 가 Codex 마지막 응답을 `/tmp` 에 받고 `dcness-helper end-step 
 
 default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → pr-reviewer**. 4 단계 *모두 호출* 의무 (MUST — false-clean 차단, #431).
 
+🔴 **begin-run 에 `--design-doc` 필수**: 엔진 A 는 설계(impl 문서)가 별도 run 에서 머지된 *뒤* 진입하므로 같은 run 안에 module-architect prose 가 없다 — `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 머지된 설계 문서를 run 에 기록해야 engineer 게이트(catastrophic)가 IMPL 진입을 허용한다 ([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). chain 에서 다음 task 도 풀 4-agent 면 `next-task --design-doc <다음 task 의 impl 문서 경로>` 로 동일 기록. advanced fallback 으로 module-architect 를 선두 추가한 run 은 같은-run PASS prose 가 생기므로 생략 가능하나, task 의 impl 문서가 이미 있으면 기록을 권장한다.
+
 ✅ 정상 흐름:
 1. **test-engineer** (TESTS_WRITTEN) → 테스트 선작성
 2. **engineer:IMPL** (IMPL_DONE) → 구현 + 테스트 PASS
@@ -331,11 +333,11 @@ merge lock 이 보존하는 것:
 
 ### task 경계 — next-task 통합 호출 (#471)
 
-마지막이 아닌 task 종료 시 `dcness-helper next-task --entry-point impl` 1회 호출 — helper 가 (이전 run end-run + previous review.md stdout + 새 run begin-run) 통합 처리 → 메인은 stdout 의 `[new] run_id` 만 받아 다음 task 진입. *마지막* task = `next-task` 대신 `end-run` 단독.
+마지막이 아닌 task 종료 시 `dcness-helper next-task --entry-point impl` 1회 호출 — helper 가 (이전 run end-run + previous review.md stdout + 새 run begin-run) 통합 처리 → 메인은 stdout 의 `[new] run_id` 만 받아 다음 task 진입. *마지막* task = `next-task` 대신 `end-run` 단독. **다음 task 가 풀 4-agent(엔진 A)면 `--design-doc <다음 task 의 impl 문서 경로>` 동반** (engineer 게이트 prerequisite — 위 `## 엔진 A` 참조).
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" next-task --entry-point impl   # 마지막 아님
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" end-run                         # 마지막
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" next-task --entry-point impl [--design-doc <path>]   # 마지막 아님
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" end-run                                              # 마지막
 ```
 
 ### enum 별 분기
