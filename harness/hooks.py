@@ -1332,6 +1332,9 @@ def handle_stop(
 _CONTINUE_ENUMS: frozenset[str] = frozenset({
     "PASS", "IMPL_DONE", "POLISH_DONE",
     "TESTS_WRITTEN", "UX_FLOW_DONE",
+    # build-worker 검증 실행 불가 — 메인 게이트 대행이 MUST 인 결론. 누락 시 메인 침묵
+    # Stop 에서 auto end-run 으로 run 이 대행 없이 닫힌다 (#705 리뷰 — impl-loop-routing 짝).
+    "VALIDATION_BLOCKED",
 })
 # 종료 agent — 본 agent 의 PASS/LGTM 은 run 끝 = block 안 함.
 _TERMINAL_AGENTS: frozenset[str] = frozenset({"pr-reviewer"})
@@ -1405,11 +1408,17 @@ def _maybe_emit_continuation_signal(
     except Exception:
         pass  # persist 실패해도 block 자체는 씀 (다음 호출 시 cur_count 만 미증가)
 
+    next_hint = (
+        "worker 가 남긴 검증 명령을 메인이 직접 실행(게이트 대행) 후 exit 0 이면 "
+        "git/PR, FAIL 이면 engineer 재시도 라우팅. "
+        if enum == "VALIDATION_BLOCKED"
+        else "정의된 다음 agent 호출 또는 PR/review/merge 영역 "
+        "(예: begin-step pr-reviewer + Agent pr-reviewer + end-step + PR 머지). "
+    )
     reason = (
         f"[dcness Stop hook · issue #469 결함 A] sub-step "
         f"'{last_agent}{mode_suffix}' 결론 '{enum}' — 다음 sub-step 진입 turn "
-        "필요. 정의된 다음 agent 호출 또는 PR/review/merge 영역 "
-        "(예: begin-step pr-reviewer + Agent pr-reviewer + end-step + PR 머지). "
+        f"필요. {next_hint}"
         "사용자 의도로 정말 종료 "
         f"하려면 메인 발화 → 다시 Stop trigger 시 본 가드가 {_STOP_BLOCK_COUNT_MAX}회 후 "
         "skip 처리됨."

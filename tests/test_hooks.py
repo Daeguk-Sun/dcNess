@@ -2819,5 +2819,17 @@ class MainFailOpenTests(unittest.TestCase):
             self.assertEqual(H._main(["session-start", "--cc-pid", "1"]), 0)
 
 
+class ContinueEnumsValidationBlockedTests(unittest.TestCase):
+    """리뷰 P2 — VALIDATION_BLOCKED 는 메인 행동(게이트 대행)이 필수인 결론.
+
+    _CONTINUE_ENUMS 에 없으면 메인 침묵 Stop 시 continuation block 없이 auto end-run
+    으로 run 이 대행 실행 없이 닫힌다 — "메인 게이트 대행 (MUST)" 계약의 코드 측 짝.
+    """
+
+    def test_validation_blocked_is_continue_enum(self):
+        from harness.hooks import _CONTINUE_ENUMS
+        self.assertIn("VALIDATION_BLOCKED", _CONTINUE_ENUMS)
+
+
 if __name__ == "__main__":
     unittest.main()

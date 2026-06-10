@@ -1598,6 +1598,24 @@ class FdRedirectAndDeviceSinkTests(unittest.TestCase):
             extract_bash_paths("npm test 2>&1 | tee /tmp/test.log"), ["/tmp/test.log"]
         )
 
+    def test_unicode_digit_fd_lookalike_still_extracted(self):
+        # 리뷰 P3 — bash 는 `>&²` 를 파일 `²` write 로 본다 (ASCII 숫자만 fd).
+        # str.isdigit() 단독 판정이면 유니코드 숫자가 fd 로 오인돼 추출 누락.
+        self.assertIn("²", extract_bash_paths("echo x >&²"))
+
+    def test_device_sink_equivalent_spellings_not_extracted(self):
+        # 리뷰 P3 — `/dev/./null`·`//dev/null` 은 `/dev/null` 과 동일 대상.
+        self.assertEqual(extract_bash_paths("pytest -q > /dev/./null"), [])
+        self.assertEqual(extract_bash_paths("pytest -q > //dev/null"), [])
+
+    def test_device_sink_case_and_traversal_still_extracted(self):
+        # 대소문자(POSIX 구분)·경로 탈출은 동등 스펠링이 아님 — 추출 유지.
+        self.assertEqual(extract_bash_paths("echo x > /dev/NULL"), ["/dev/NULL"])
+        self.assertEqual(
+            extract_bash_paths("echo x > /dev/null/../../etc/x"),
+            ["/dev/null/../../etc/x"],
+        )
+
 
 class WorktreeValidationBoundaryTests(unittest.TestCase):
     """#705 통합 — worktree(.venv/node_modules 심볼릭) 의 read-only 검증 명령 비차단.
@@ -1748,6 +1766,32 @@ class RootCodeFileAllowTests(unittest.TestCase):
             # docs/ 하위 코드 파일명은 전용영역 deny 가 계속 우선.
             self.assertIsNotNone(
                 check_write_allowed("engineer", "docs/app.py", cwd=cwd)
+            )
+
+    def test_root_validation_toolchain_files_blocked_for_engineer(self):
+        # 리뷰 P2 — 루트 코드 파일 ALLOW 가 *검증 도구체인 설정* 까지 열면 안 된다.
+        # conftest.py 한 줄(collect_ignore)로 테스트 전체 침묵 skip = false-clean 재유입.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for fp in (
+                "conftest.py",        # pytest collection 제어 — engineer 금지
+                "noxfile.py",         # 테스트 세션 러너
+                "jest.config.js",
+                "vitest.config.ts",
+                "eslint.config.mjs",
+                ".eslintrc.js",       # dotfile 설정
+            ):
+                with self.subTest(fp=fp):
+                    self.assertIsNotNone(
+                        check_write_allowed("engineer", fp, cwd=cwd)
+                    )
+
+    def test_build_worker_keeps_conftest_via_test_union(self):
+        # build-worker 는 테스트도 쓰는 엔진 — test-engineer 합집합으로 conftest 유지.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self.assertIsNone(
+                check_write_allowed("build-worker", "conftest.py", cwd=cwd)
             )
 
     def test_conftest_allowed_for_test_engineer(self):

@@ -975,6 +975,15 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
         prose = "재시도 한도 초과.\n\nIMPLEMENTATION_ESCALATE — 사용자 위임."
         self.assertEqual(_extract_conclusion_enum(prose), "IMPLEMENTATION_ESCALATE")
 
+    def test_validation_blocked_beats_tests_fail_mention(self):
+        # 리뷰 P3 — agent 문서가 가르치는 구분 문장("TESTS_FAIL 이 아니라 VALIDATION_BLOCKED")
+        # 에서 둘 다 standalone(negation skip)이라 매칭 순서가 결론을 정한다.
+        prose = (
+            "self-validate 시도.\n\n"
+            "검증이 실행돼 실패한 게 아니므로 TESTS_FAIL 이 아니라 VALIDATION_BLOCKED 입니다."
+        )
+        self.assertEqual(_extract_conclusion_enum(prose), "VALIDATION_BLOCKED")
+
     def test_extracts_validation_blocked(self):
         # build-worker 결론 — 검증 명령 실행 불가 (환경 제약). PASS 로 오인 금지 (#705).
         prose = (

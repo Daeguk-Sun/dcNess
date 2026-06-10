@@ -109,7 +109,17 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
         # 패턴만 있으면 worker 가 루트 엔트리 파일을 못 고쳐 "prose 제시 → 메인 대리 적용"
         # 우회가 강제됨). *코드 확장자만* — `.sh`(게이트 스크립트)·`.md`(문서)·toml/json/yaml
         # (매니페스트)·Makefile/Dockerfile 은 계속 미매칭 차단. 그 외 언어는 #696 override 영역.
-        r'^[^/]+\.(?:py|pyi|go|rs|rb|php|ex|exs|js|jsx|ts|tsx|mjs|cjs)$',
+        #
+        # 단 *검증 도구체인 설정* 은 코드 확장자라도 제외 (#705 리뷰 P2) — 이들을 engineer 가
+        # 고치면 자기 산출을 검증하는 게이트 자체를 침묵시킬 수 있다 (conftest.py 의
+        # collect_ignore 한 줄 = 테스트 전체 skip → false-clean 재유입):
+        #   - dotfile 설정 (.eslintrc.js 등) — `(?!\.)` 선두 제외
+        #   - conftest.py (pytest collection 제어) / noxfile.py (테스트 세션 러너)
+        #     — test-engineer 의 `conftest\.py$` ALLOW 는 별개라 build-worker(합집합)는 유지
+        #   - *.config.{js,ts,mjs,cjs} (jest/vitest/eslint/playwright 류 설정)
+        r'^(?!\.)(?!conftest\.py$)(?!noxfile\.py$)'
+        r'(?![^/]+\.config\.(?:js|ts|mjs|cjs)$)'
+        r'[^/]+\.(?:py|pyi|go|rs|rb|php|ex|exs|js|jsx|ts|tsx|mjs|cjs)$',
     ),
     "architect": (
         r'(^|/)docs/',
@@ -480,8 +490,18 @@ _SED_EXPR_FLAGS = frozenset({"-e", "--expression", "-f", "--file"})
 # 경계 밖(`/dev/null`) 차단이 발화하는데, `2>&1`·`>/dev/null` 은 테스트/lint 게이트 호출의
 # 보편 스펠링이라 sub-agent (특히 worktree 기반 /impl-loop 의 build-worker) 의 read-only
 # 검증 실행이 통째로 막히고, 검증 미실행이 정적 분석 PASS 로 흡수되는 false-clean 으로
-# 이어졌다. device sink 는 *정확 일치* 만 — `/dev/shm/...` 등 하위 경로는 일반 경계 검사 유지.
+# 이어졌다. device sink 는 *동등 스펠링 정규화 후 일치* 만 — `/dev/shm/...` 등 하위 경로,
+# `..` 탈출(`/dev/null/../../etc/x`), 대소문자 변형(POSIX 는 case-sensitive)은 일반 경계 검사 유지.
 _DEVICE_SINKS = frozenset({"/dev/null", "/dev/stdout", "/dev/stderr", "/dev/tty"})
+
+
+def _is_device_sink(path: str) -> bool:
+    """`/dev/./null`·`//dev/null` 같은 동등 스펠링을 정규화해 sink 판정 (#705 리뷰).
+
+    os.path.normpath 는 선두 `//` 를 POSIX 규약상 보존하므로 중복 슬래시를 먼저 접는다.
+    `..` 가 섞이면 normpath 결과가 sink 정확 일치에서 벗어나 일반 검사로 흘러간다.
+    """
+    return os.path.normpath(re.sub(r"/{2,}", "/", path)) in _DEVICE_SINKS
 
 
 def _is_fd_dup_target(op: str, target: str) -> bool:
@@ -489,8 +509,9 @@ def _is_fd_dup_target(op: str, target: str) -> bool:
 
     bash 시맨틱 그대로 — `>&word` 는 word 가 숫자/`-` 면 fd 복제, 그 외면 파일 redirect
     (csh 스타일 `>& out.log` 는 계속 write target). `&>word` 는 항상 파일이라 비대상.
+    fd 는 ASCII 숫자만 — 유니코드 숫자(`>&²`)는 bash 가 파일명으로 취급 (#705 리뷰).
     """
-    return op == ">&" and (target.isdigit() or target == "-")
+    return op == ">&" and ((target.isascii() and target.isdigit()) or target == "-")
 
 
 def _shell_tokens_for_paths(command: str) -> list[str]:
@@ -763,7 +784,7 @@ def extract_bash_paths(command: str) -> list[str]:
     seen: set[str] = set()
     deduped: list[str] = []
     for path in paths:
-        if path in _DEVICE_SINKS:
+        if _is_device_sink(path):
             continue  # `/dev/null` 등 무해 sink — 프로젝트 write 아님 (#705)
         if path not in seen:
             seen.add(path)

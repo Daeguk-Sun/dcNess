@@ -83,6 +83,20 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         # impl-loop 안티패턴 — phase prose 부재 시 blocked 강등.
         self.assertIn("build-{test,impl,validate}.md", self.impl_loop_skill)
 
+    # ----- 시나리오 2a-2 — build-worker 결론 enum 표면 정합 -----
+    def test_build_worker_conclusion_enums_consistent_with_template(self):
+        """agent 본문과 report 템플릿의 결론 enum 집합이 갈라지면 worker 가 템플릿 쪽
+        구식 enum 으로 보고해 라우팅이 오분기된다 (리뷰 P2 실측 — VALIDATION_BLOCKED 누락)."""
+        template = (
+            ROOT / "agents" / "build-worker" / "templates" / "build-worker-report.md"
+        ).read_text(encoding="utf-8")
+        for enum in (
+            "PASS", "SPEC_GAP_FOUND", "TESTS_FAIL",
+            "VALIDATION_BLOCKED", "IMPLEMENTATION_ESCALATE",
+        ):
+            self.assertIn(enum, self.build_worker)
+            self.assertIn(enum, template)
+
     # ----- 시나리오 2b — /impl-loop chain review 5줄 echo -----
     def test_impl_loop_chain_review_echo_is_five_line(self) -> None:
         """chain review echo = 5줄 요약, 자유 형식 단축 금지 (#446, F8 실측 #507)."""

@@ -318,15 +318,17 @@ _CONCLUSION_ENUMS: tuple[tuple[str, str], ...] = (
     # engineer IMPL
     ("IMPL_DONE", re.compile(r"\bIMPL_DONE\b")),
     ("IMPL_PARTIAL", re.compile(r"\bIMPL_PARTIAL\b")),
+    # build-worker — 검증 명령 실행 불가 (환경 제약) 보고. 정적 분석 PASS 흡수 금지 —
+    # 메인이 게이트 대행 실행 (skills/impl-loop/impl-loop-routing.md).
+    # TESTS_FAIL 보다 *앞* — 구분 문장("TESTS_FAIL 이 아니라 VALIDATION_BLOCKED")에서
+    # 둘 다 standalone(negation skip)이라 순서가 결론을 정한다 (#705 리뷰).
+    ("VALIDATION_BLOCKED", re.compile(r"\bVALIDATION_BLOCKED\b")),
     ("TESTS_FAIL", re.compile(r"\bTESTS_FAIL\b")),
     # engineer POLISH
     ("POLISH_DONE", re.compile(r"\bPOLISH_DONE\b")),
     ("IMPLEMENTATION_ESCALATE", re.compile(r"\bIMPLEMENTATION_ESCALATE\b")),
     # test-engineer
     ("TESTS_WRITTEN", re.compile(r"\bTESTS_WRITTEN\b")),
-    # build-worker — 검증 명령 실행 불가 (환경 제약) 보고. 정적 분석 PASS 흡수 금지 —
-    # 메인이 게이트 대행 실행 (skills/impl-loop/impl-loop-routing.md).
-    ("VALIDATION_BLOCKED", re.compile(r"\bVALIDATION_BLOCKED\b")),
     # ux-architect
     ("UX_FLOW_DONE", re.compile(r"\bUX_FLOW_DONE\b")),
     ("UX_FLOW_ESCALATE", re.compile(r"\bUX_FLOW_ESCALATE\b")),
