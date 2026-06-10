@@ -580,6 +580,35 @@ class ActiveRunsTests(unittest.TestCase):
         slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
         self.assertEqual(slot["design_doc"], str(doc.resolve()))
 
+    # -- #714 — lane 기록 (engineer 게이트 lane-aware prerequisite) --
+
+    def test_start_run_records_lane(self) -> None:
+        start_run(self.sid, self.run_id, "impl", base_dir=self.base, lane="lite")
+        slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
+        self.assertEqual(slot["lane"], "lite")
+
+    def test_start_run_records_lane_standard(self) -> None:
+        start_run(self.sid, self.run_id, "impl", base_dir=self.base, lane="standard")
+        slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
+        self.assertEqual(slot["lane"], "standard")
+
+    def test_start_run_without_lane_records_none(self) -> None:
+        start_run(self.sid, self.run_id, "impl", base_dir=self.base)
+        slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
+        self.assertIsNone(slot["lane"])
+
+    def test_start_run_lane_invalid_value_raises(self) -> None:
+        # lane 은 닫힌 enum(lite/standard) — 임의 값으로 게이트 면제를 유발하지 못한다.
+        with self.assertRaises(ValueError):
+            start_run(self.sid, self.run_id, "impl", base_dir=self.base, lane="deep")
+
+    def test_start_run_lane_non_impl_entry_rejected(self) -> None:
+        # lane 은 impl 구현 run 전용 — design/architect-loop run 의 engineer ←
+        # module-architect PASS 강제가 코드 보장으로 유지되도록 다른 entry_point
+        # 의 lane 기록 자체를 거부한다 (lite 면제가 설계 루프로 새는 것 차단).
+        with self.assertRaises(ValueError):
+            start_run(self.sid, self.run_id, "design", base_dir=self.base, lane="lite")
+
     def test_update_current_step(self) -> None:
         start_run(self.sid, self.run_id, "impl", base_dir=self.base)
         update_current_step(
@@ -2663,6 +2692,21 @@ class DesignDocArgparseTests(unittest.TestCase):
             ns.design_doc,
             "docs/milestones/v01/epics/epic-01-x/impl/01-x.md",
         )
+
+    # -- #714 — begin-run --lane 플래그 파싱 --
+
+    def test_begin_run_accepts_lane(self) -> None:
+        from harness.session_state import _build_arg_parser
+        ns = _build_arg_parser().parse_args(
+            ["begin-run", "impl", "--lane", "lite"]
+        )
+        self.assertEqual(ns.cmd, "begin-run")
+        self.assertEqual(ns.lane, "lite")
+
+    def test_begin_run_lane_defaults_none(self) -> None:
+        from harness.session_state import _build_arg_parser
+        ns = _build_arg_parser().parse_args(["begin-run", "impl"])
+        self.assertIsNone(ns.lane)
 
 
 # ---------------------------------------------------------------------------

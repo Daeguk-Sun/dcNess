@@ -496,6 +496,13 @@ def _validate_design_doc(design_doc: str) -> str:
     return str(resolved)
 
 
+# /impl 2축 모델의 lane(설계도 유무) 닫힌 enum (#714). lite = 설계도 없음,
+# standard = 설계도 있음. engineer 게이트가 lane=lite 를 설계 산출물
+# prerequisite 면제 신호로 인정하므로, 임의 문자열이 면제를 유발하지 못하게
+# 기록 시점에 이 집합으로 fail-fast 검증한다.
+_VALID_LANES = ("lite", "standard")
+
+
 def start_run(
     session_id: str,
     run_id: str,
@@ -504,6 +511,7 @@ def start_run(
     base_dir: Optional[Path] = None,
     issue_num: Optional[int] = None,
     design_doc: Optional[str] = None,
+    lane: Optional[str] = None,
 ) -> None:
     """`active_runs[run_id]` 슬롯 추가 + run 디렉토리 생성.
 
@@ -513,6 +521,13 @@ def start_run(
     engineer 게이트가 같은-run module-architect PASS 의 등가 prerequisite
     증거로 인정한다 (impl-loop 풀 4-agent 처럼 설계가 별도 run 에서 머지된
     뒤 진입하는 경우).
+
+    lane — /impl 2축 모델의 lane(설계도 유무: "lite" / "standard", #714).
+    lane="lite" 는 설계도 없는 Lite lane 으로, engineer 게이트가 설계 산출물
+    prerequisite 를 면제하는 신호다. 면제 누수 방지를 위해 (1) 닫힌 enum 만
+    수용하고 (2) design_doc 과 동일하게 entry_point=impl run 에서만 기록을
+    허용한다 — design/architect-loop run 의 module-architect PASS 강제는 코드
+    보장으로 유지된다.
     """
     if not valid_session_id(session_id):
         raise ValueError(f"invalid session_id: {session_id!r}")
@@ -520,6 +535,15 @@ def start_run(
         raise ValueError(f"invalid run_id: {run_id!r}")
     if not isinstance(entry_point, str) or not entry_point:
         raise ValueError("entry_point must be non-empty str")
+    if lane is not None:
+        if entry_point != "impl":
+            raise ValueError(
+                f"lane is only valid for entry_point=impl (got {entry_point!r})"
+            )
+        if lane not in _VALID_LANES:
+            raise ValueError(
+                f"lane must be one of {_VALID_LANES} (got {lane!r})"
+            )
     if design_doc is not None:
         # design_doc 은 impl 구현 run 전용 — design/architect-loop run 의
         # engineer ← module-architect PASS 강제가 코드 보장으로 유지되도록
@@ -548,6 +572,7 @@ def start_run(
         "current_step": None,
         "issue_num": issue_num,
         "design_doc": design_doc,
+        "lane": lane,
     }
     update_live(session_id, base_dir=base_dir, active_runs=active)
     # run 디렉토리 생성
@@ -561,6 +586,7 @@ def _ledger_run_started(
     *,
     issue_num: Optional[int] = None,
     design_doc: Optional[str] = None,
+    lane: Optional[str] = None,
     base_dir: Optional[Path] = None,
 ) -> None:
     """start_run 직후 ledger run_started checkpoint 기록 (이슈 #587).
@@ -577,6 +603,8 @@ def _ledger_run_started(
             extra["issue_num"] = issue_num
         if design_doc is not None:
             extra["design_doc"] = design_doc
+        if lane is not None:
+            extra["lane"] = lane
         ledger.append_event(session_id, run_id, "run_started", base_dir=base_dir, **extra)
     except Exception:
         pass
@@ -1429,13 +1457,18 @@ def _cli_begin_run(args: Any) -> int:
     rid = generate_run_id()
     issue_num = args.issue_num if args.issue_num is not None else None
     design_doc = getattr(args, "design_doc", None)
+    lane = getattr(args, "lane", None)
     try:
-        start_run(sid, rid, args.entry_point, issue_num=issue_num, design_doc=design_doc)
+        start_run(
+            sid, rid, args.entry_point,
+            issue_num=issue_num, design_doc=design_doc, lane=lane,
+        )
     except ValueError as exc:
         print(f"[begin-run] FAIL — {exc}", file=sys.stderr)
         return 1
     _ledger_run_started(
-        sid, rid, args.entry_point, issue_num=issue_num, design_doc=design_doc,
+        sid, rid, args.entry_point,
+        issue_num=issue_num, design_doc=design_doc, lane=lane,
     )
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
@@ -2811,6 +2844,12 @@ def _build_arg_parser() -> Any:
         "--design-doc", default=None, dest="design_doc",
         help="이 run 이 참조하는 머지된 설계 문서 경로 — engineer 게이트가 "
              "같은-run module-architect PASS 의 등가 prerequisite 로 인정",
+    )
+    p_br.add_argument(
+        "--lane", default=None, choices=_VALID_LANES,
+        help="/impl 2축 lane(설계도 유무: lite / standard, #714) — lane=lite 는 "
+             "설계도 없는 Lite lane 으로 engineer 게이트 설계 산출물 prerequisite "
+             "면제 신호. entry_point=impl 에서만 수용",
     )
     p_br.set_defaults(func=_cli_begin_run)
 

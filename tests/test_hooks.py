@@ -419,6 +419,76 @@ class CatastrophicEngineerTests(_PreToolBase):
 
 
 # ---------------------------------------------------------------------------
+# #714 — engineer 게이트 lane-aware 면제 (Lite lane + sub-agent 엔진)
+# ---------------------------------------------------------------------------
+
+
+class CatastrophicEngineerLiteLaneTests(_PreToolBase):
+    """기록된 lane=lite 가 engineer 게이트의 설계 산출물 prerequisite 를 면제한다.
+
+    Lite lane 은 정의상 설계도가 없어 module-architect PASS / design_doc 둘 다
+    없다. 면제 경계는 *명시적으로 기록된* lane=lite 한정 — lane 미기록(impl-loop
+    풀4 / 기본) 과 lane=standard 는 종전 차단 유지(면제 누수 차단). pr-reviewer ←
+    code-validator 잔존 보호는 lane 무관 불변.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self._set_slot(entry_point="impl")  # Lite lane = impl 구현 run (strict)
+
+    def _set_slot(self, **fields) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        active[self.rid].update(fields)
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+    def test_lite_lane_allows_engineer_without_design_artifact(self) -> None:
+        # 핵심 — lane=lite 면 설계 산출물 없이도 sub-agent engineer:IMPL 가 통과.
+        self._set_slot(lane="lite")
+        self._begin_step("engineer", "IMPL")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("engineer", "IMPL"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_lane_standard_still_requires_design_artifact(self) -> None:
+        # 회귀 — lane=standard 는 설계 산출물 없으면 종전대로 차단(면제는 lite 한정).
+        self._set_slot(lane="standard")
+        self._begin_step("engineer", "IMPL")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("engineer", "IMPL"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_lane_none_still_requires_design_artifact(self) -> None:
+        # 회귀 — lane 미기록(impl-loop 풀4 / 기본) impl run 은 설계 산출물 요구 유지.
+        self._begin_step("engineer", "IMPL")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("engineer", "IMPL"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_lite_lane_does_not_weaken_pr_reviewer_gate(self) -> None:
+        # 면제가 catastrophic 보호를 약화하지 않음 — Lite + 풀4 라도 engineer 산출물
+        # 이후 pr-reviewer 는 code-validator PASS 없이는 여전히 차단(잔존 보호 불변).
+        self._set_slot(lane="lite")
+        (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
+        self._begin_step("pr-reviewer")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("pr-reviewer", ""),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+
+# ---------------------------------------------------------------------------
 # pr-reviewer 게이트 — pr-reviewer 직전 validator PASS 검사
 # ---------------------------------------------------------------------------
 

@@ -42,15 +42,19 @@ lane 판정 *전*에 "이 작업을 닫을 설계 산출물이 이미 있는가"
 
 ## Lane × 엔진 실행 매핑
 
-lane(설계도 유무)과 엔진(풀4/경량)은 직교다. 이번 범위에서 엔진 선택은 Standard 에 적용한다 — Lite 는 메인 직접 구현이고, Lite 에 sub-agent 엔진을 붙이는 조합은 engineer 게이트(설계 산출물 prerequisite)·lane 인프라 선행이 필요해 follow-up 으로 분리한다.
+lane(설계도 유무)과 엔진(풀4/경량)은 직교다 — `lane × 엔진` 4조합이 모두 유효하다(#714). lane 별 engineer 게이트 prerequisite 충족 메커니즘만 다르다: Standard 는 `--design-doc`, Lite 는 `--lane lite`(설계도 면제).
 
 | 경로 | 다음 |
 |---|---|
-| Lite | 메인 직접 `test -> impl -> test pass` 후 `pr-reviewer` local diff. `code-validator` 없음 |
+| Lite · 메인 직접 (기본) | 메인 직접 `test -> impl -> test pass` 후 `begin-run impl` → `pr-reviewer` local diff. `code-validator` 없음 |
+| Lite · 풀 4-agent | `begin-run impl --lane lite` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
+| Lite · 경량 build-worker | `begin-run impl --lane lite` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) |
 | Standard · 풀 4-agent (디폴트) | `begin-run impl --design-doc <경로>` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
 | Standard · 경량 build-worker | `begin-run impl --design-doc <경로>` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) |
 
-Standard 의 설계도는 (a) 이미 머지된 설계 문서이거나 (b) `compact-design` 이 방금 산출한 compact plan 이다. 두 경우 모두 메인이 `begin-run impl --design-doc <경로>` 로 같은 경로를 기록하며, Standard 는 same-run module-architect step 없이 받은 설계도로 구현만 한다 — `--design-doc` 이 engineer 게이트 prerequisite 의 단일 메커니즘이다.
+Standard 의 설계도는 (a) 이미 머지된 설계 문서이거나 (b) `compact-design` 이 방금 산출한 compact plan 이다. 두 경우 모두 메인이 `begin-run impl --design-doc <경로>` 로 같은 경로를 기록하며, Standard 는 same-run module-architect step 없이 받은 설계도로 구현만 한다 — `--design-doc` 이 Standard engineer 게이트 prerequisite 의 단일 메커니즘이다.
+
+Lite 에 sub-agent 엔진을 붙일 때는 설계도가 없으므로 `begin-run impl --lane lite` 로 lane 을 기록해 engineer 게이트의 설계 산출물 prerequisite 를 면제한다(#714). 면제는 *명시적으로 기록된* lane=lite 한정이며 engineer 게이트 *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 lane 무관 불변(풀4 경로). lane 은 `entry_point=impl` 에서만 기록되므로 design/architect-loop 의 module-architect PASS 강제는 영향받지 않는다.
 
 high-risk 는 impl 밖 — deep impl task 있으면 `/impl-loop`, 없으면 `/spec` / `/tech-review` / `/design` 선행. 산출된 설계도를 들고 Standard 로 (재)진입한다.
 
@@ -64,6 +68,8 @@ high-risk 는 impl 밖 — deep impl task 있으면 `/impl-loop`, 없으면 `/sp
 | Standard `code-validator` | `PASS` → pr-reviewer · `FAIL` → engineer 재진입(≤3) · `ESCALATE` → `compact-design` 설계 되돌림 또는 사용자 |
 | Standard `pr-reviewer` | `PASS` → commit/PR/CI/merge · `FAIL` → engineer:POLISH + test 재통과 + pr-reviewer 재호출(≤3) |
 | Standard `build-worker` (경량) | `PASS` → commit/PR/CI · `FAIL`/`BLOCKED` → 메인 root-cause 수정 또는 풀 4-agent 승격 |
+
+엔진 step(test-engineer / engineer / code-validator / build-worker)의 결론 → 다음 매핑은 엔진 레벨이라 **Lite · sub-agent 엔진에도 동일하게 적용**된다 — 위 표의 `Standard <agent>` 행을 그대로 따른다(lane 차이는 진입 시 `--lane lite` ↔ `--design-doc` 기록 메커니즘뿐). Lite · 메인 직접은 엔진 step 없이 `pr-reviewer` 만 기록한다.
 
 ## Retry 한도
 

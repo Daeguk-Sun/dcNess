@@ -72,13 +72,15 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 | Gate | 차단 조건 |
 |---|---|
 | pr-reviewer gate | engineer 산출물이 있는데 code-validator PASS 없이 pr-reviewer 호출 |
-| engineer gate | 설계 산출물 없이 engineer 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존, 둘 중 하나로 충족 |
+| engineer gate | 설계 산출물 없이 engineer 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* `begin-run --lane lite` 로 기록된 Lite lane(#714), 셋 중 하나로 충족 |
 | module-architect gate | architecture-validator 1차 PASS 없이 design 의 module-architect 반복 진입 |
 | strict conveyor gate | active run 안에서 직전 `begin-step` 과 다른 agent/mode 호출, `current_step` 부재, 이미 staged 된 stale step |
 
 **strict conveyor 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 strict conveyor gate 와 module-architect gate 를 탄다.
 
 **engineer gate 의 design_doc 경로**: 설계(impl 문서 / compact plan)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 engineer gate 가 그 실존을 prerequisite 증거로 인정한다. 경로는 설계 산출물 규약(`docs/milestones/**` / `docs/compact-plans/**` / `docs/bugfix/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
+
+**engineer gate 의 lane 경로 (#714)**: `/impl` 2축 모델의 Lite lane(설계도 없음)에 sub-agent 엔진(풀4 / 경량 build-worker)을 붙이는 4번째 조합용 면제 경로다. Lite 는 정의상 설계도가 없어 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 lane 을 기록하면 engineer gate 가 그 기록을 설계 산출물 prerequisite 면제 신호로 인정한다. **면제 경계** — (1) lane 값은 닫힌 enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* lane=lite 한정 — lane 미기록(impl-loop 풀4 / 기본)과 lane=standard 는 종전대로 설계 산출물을 요구(면제 누수 차단), (4) 면제는 engineer gate *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 lane 무관하게 그대로 강제된다(풀4 경로의 catastrophic 보호 불변).
 
 **tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. /design 도중 미검증 새 외부 의존이 발견되면 design 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
 

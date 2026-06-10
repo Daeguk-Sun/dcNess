@@ -456,6 +456,14 @@ def handle_pretooluse_agent(
     # #701 — prerequisite = 같은-run module-architect PASS ∪ begin-run 에 기록된
     # 머지된 설계 문서(design_doc) 실존. impl-loop 풀 4-agent 는 설계가 별도 run
     # 에서 머지된 뒤 진입하므로 같은-run prose 단일 기준이면 구조적으로 차단된다.
+    # #714 — /impl 2축 모델의 Lite lane(설계도 없음)에 sub-agent 엔진을 붙이는
+    # 4번째 조합. lane="lite"(begin-run --lane lite 로 start_run 에 기록)는 정의상
+    # 설계도가 없으므로 module-architect PASS / design_doc 둘 다 없다. 면제 경계는
+    # *명시적으로 기록된* lane="lite" 한정 — lane 미기록(impl-loop 풀4 / 기본)과
+    # lane="standard" 는 종전대로 설계 산출물을 요구한다(면제 누수 차단). lane 은
+    # entry_point=impl 에서만 기록 가능(start_run 강제)하므로 design/architect-loop
+    # run 의 module-architect PASS 강제는 영향받지 않는다. 이 면제는 engineer 게이트
+    # *만* 푼다 — 뒤따르는 pr-reviewer←code-validator 잔존 보호는 lane 무관 불변.
     # #709 — effective mode = tool_input.mode ∪ current_step.mode. Agent 도구 스키마에
     # mode 파라미터가 없는 CC 빌드에선 tool_input.mode 가 안 실려, POLISH 면제가
     # tool_input.mode 단독이면 죽는다(impl-loop engine B 의 pr-reviewer→engineer:POLISH 가
@@ -464,8 +472,11 @@ def handle_pretooluse_agent(
     # begin-step↔Agent(agent) 정합을 이미 보장하므로 current_step.mode=POLISH 는 신뢰 신호.
     effective_mode = _mode_or_none(mode) or step_mode
     if norm_subagent == "engineer" and effective_mode != "POLISH":
-        if not _has_module_architect_pass(rd) and not _run_design_doc_exists(
-            sid, rid, base_dir=base_dir
+        lane_lite = _run_lane(sid, rid, base_dir=base_dir) == "lite"
+        if (
+            not lane_lite
+            and not _has_module_architect_pass(rd)
+            and not _run_design_doc_exists(sid, rid, base_dir=base_dir)
         ):
             print(
                 "[catastrophic: engineer 게이트] engineer 호출은 설계 산출물 확보 후만 — "
@@ -1151,6 +1162,29 @@ def _run_design_doc_exists(
         return Path(doc).is_file()
     except (OSError, ValueError):
         return False
+
+
+def _run_lane(
+    sid: str,
+    rid: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Optional[str]:
+    """현재 run 슬롯에 기록된 lane(설계도 유무) 반환 (#714).
+
+    /impl 2축 모델의 lane 은 begin-run `--lane lite|standard` 로 start_run 슬롯에
+    기록된다. engineer 게이트는 lane="lite"(설계도 없는 Lite lane) 를 설계 산출물
+    prerequisite 면제 신호로 인정한다. 기록 부재 / state 읽기 실패는 None 반환 →
+    종전 차단 경로(설계 산출물 요구)로 떨어진다 (면제 누수 차단, fail-strict).
+    """
+    try:
+        live = read_live(sid, base_dir=base_dir) or {}
+        active = live.get("active_runs", {}) if isinstance(live, dict) else {}
+        slot = active.get(rid, {}) if isinstance(active, dict) else {}
+        lane = slot.get("lane") if isinstance(slot, dict) else None
+        return lane if isinstance(lane, str) else None
+    except (OSError, ValueError):
+        return None
 
 
 def _is_design_loop(
