@@ -403,11 +403,13 @@ def handle_pretooluse_agent(
         return 0
     subagent = tool_input.get("subagent_type", "") or ""
     mode = tool_input.get("mode", "") or ""
-    # #700 — strict-conveyor 게이트 비교는 canonical 이름으로. namespaced(`dcness:engineer`) /
-    # legacy alias 가 raw 비교에서 begin-step/Agent 불일치로 차단되던 것을 정규화로 해소.
-    # active_agent / pending 기록은 raw subagent 유지(식별 원본 보존). engineer/pr-reviewer/
-    # module-architect catastrophic 게이트의 lane-aware 화는 lane 신호 인프라가 선행돼야 하는
-    # 별개 작업이라 이번 PR scope 밖(raw 유지) — Finding C follow-up.
+    # #700 — 게이트 비교는 canonical 이름으로 일관화. namespaced(`dcness:engineer`) / legacy
+    # alias 가 raw 비교에서 strict-conveyor 불일치로 차단되던 것을 정규화로 해소(A). 그리고
+    # strict-conveyor 가 namespaced 를 통과시키는 이상, 뒤따르는 catastrophic 게이트(engineer/
+    # pr-reviewer/module-architect)도 norm 으로 비교해야 namespaced 우회를 막는다(codex P1).
+    # active_agent / pending 기록은 raw subagent 유지(식별 원본 보존). 단 게이트의 *판정 로직*
+    # (module-architect PASS 요구)은 main 그대로 — engineer 게이트의 lane-aware 면제 + effective
+    # mode(POLISH) 판정은 #701(Finding C).
     norm_subagent = normalize_agent_type(subagent) or subagent
 
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
@@ -439,8 +441,9 @@ def handle_pretooluse_agent(
     except (OSError, ValueError):
         pass  # state 읽기 실패는 fail-open — hook 버그발 과차단 회피.
 
-    # engineer 게이트 — engineer 직전 module-architect PASS 필수 (mode != POLISH)
-    if subagent == "engineer" and mode != "POLISH":
+    # engineer 게이트 — engineer 직전 module-architect PASS 필수 (mode != POLISH).
+    # #700 — namespaced 우회 차단을 위해 norm_subagent 비교(codex P1). 판정 로직은 main 그대로.
+    if norm_subagent == "engineer" and mode != "POLISH":
         if not _has_pass(rd, "module-architect"):
             print(
                 "[catastrophic: engineer 게이트] engineer 호출은 module-architect PASS 후만 "
@@ -451,7 +454,7 @@ def handle_pretooluse_agent(
 
     # pr-reviewer 게이트 — engineer sub-agent 산출물 이후 code-validator PASS 필수.
     # Lite lane 은 메인 직접 구현 경로라 engineer prose 가 없고, pr-reviewer 단독 허용.
-    if subagent == "pr-reviewer":
+    if norm_subagent == "pr-reviewer":
         if _has_engineer_write(rd) and not _has_pass(rd, "code-validator"):
             print(
                 "[catastrophic: pr-reviewer 게이트] engineer 산출물 이후 "
@@ -463,7 +466,7 @@ def handle_pretooluse_agent(
     # module-architect 게이트 — design 안 module-architect × K *첫 호출* 직전
     # architecture-validator PASS 필수. jajang Spike Gate 사단 회피.
     if (
-        subagent == "module-architect"
+        norm_subagent == "module-architect"
         and _is_design_loop(sid, rid, base_dir=base_dir)
         and _module_architect_first_call(rd)
     ):

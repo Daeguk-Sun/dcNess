@@ -227,6 +227,16 @@ class CatastrophicEngineerTests(_PreToolBase):
         )
         self.assertEqual(rc, 0)
 
+    def test_namespaced_engineer_does_not_bypass_gate(self) -> None:
+        # #700 (codex P1) — strict-conveyor 가 namespaced 를 통과시키므로 engineer 게이트도
+        # 정규화 비교한다. dcness:engineer 가 module-architect PASS 게이트를 우회하면 안 된다.
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("dcness:engineer", "IMPL"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
 
 # ---------------------------------------------------------------------------
 # pr-reviewer 게이트 — pr-reviewer 직전 validator PASS 검사
@@ -247,6 +257,16 @@ class CatastrophicPrReviewerTests(_PreToolBase):
         (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("pr-reviewer", ""),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_namespaced_pr_reviewer_does_not_bypass_gate(self) -> None:
+        # #700 (codex P1) — namespaced pr-reviewer 도 정규화 후 게이트 발동(우회 차단).
+        (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("dcness:pr-reviewer", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -554,6 +574,18 @@ class StrictConveyorGateTests(_PreToolBase):
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
+
+    def test_namespaced_agent_passing_strict_does_not_bypass_catastrophic_gate(self) -> None:
+        # #700 (codex P1) — active impl run 에서 begin-step engineer 후 dcness:engineer 가
+        # strict-conveyor 를 통과해도 engineer catastrophic 게이트(module-architect PASS)를
+        # 우회하면 안 된다 (strict norm 과 게이트 norm 의 연계 검증).
+        self._begin_step("engineer", "IMPL")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("dcness:engineer", "IMPL"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
 
     def test_blocks_blank_current_step_agent(self) -> None:
         self._begin_step("module-architect")
