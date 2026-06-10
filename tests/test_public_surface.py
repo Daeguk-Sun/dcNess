@@ -37,11 +37,13 @@ class PublicSurfaceGateTests(unittest.TestCase):
         defaults = self._array(script, "defaultSkills")
         advanced = self._array(script, "advancedSkills")
         support = self._array(script, "supportSkills")
+        internal_skills = self._array(script, "internalSkills")
         internal_agents = self._array(script, "internalAgents")
 
         self.assertEqual(["spec", "design", "impl", "acceptance"], defaults)
         self.assertEqual(["impl-loop", "tech-review", "ux"], advanced)
         self.assertEqual(["to-issue"], support)
+        self.assertEqual(["compact-design"], internal_skills)
         self.assertNotIn("qa", internal_agents)
 
         for name in defaults:

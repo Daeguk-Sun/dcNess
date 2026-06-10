@@ -14,6 +14,7 @@ const EXPECTED = {
   defaultSkills: ['spec', 'design', 'impl', 'acceptance'],
   supportSkills: ['to-issue'],
   advancedSkills: ['impl-loop', 'tech-review', 'ux'],
+  internalSkills: ['compact-design'],
   utilityCommands: ['efficiency', 'init-dcness', 'run-review', 'smart-compact'],
   internalAgents: [
     'architecture-validator',
@@ -126,6 +127,7 @@ const expectedSkills = [
   ...EXPECTED.defaultSkills,
   ...EXPECTED.supportSkills,
   ...EXPECTED.advancedSkills,
+  ...EXPECTED.internalSkills,
 ];
 assertSet('skills', skills.map((item) => item.name), expectedSkills);
 assertSet('commands', commands.map((item) => item.name), EXPECTED.utilityCommands);
@@ -135,6 +137,8 @@ assertDocsMention('default skill', EXPECTED.defaultSkills, '/');
 assertDocsMention('support skill', EXPECTED.supportSkills, '/');
 assertDocsMention('advanced skill', EXPECTED.advancedSkills, '/');
 assertDocsMention('utility command', EXPECTED.utilityCommands, '/');
+// internal skill 은 public command 표면이 아니다 — `/` 진입점이 아닌 내부 skill 로만 명시.
+assertDocsMention('internal skill', EXPECTED.internalSkills);
 assertDocsMention('internal agent', EXPECTED.internalAgents);
 
 if (violations.length) {

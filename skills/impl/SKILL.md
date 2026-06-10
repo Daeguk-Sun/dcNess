@@ -46,6 +46,20 @@ GitHub issue 등록이 목표인 요청이면 `/to-issue` 로 보내고, 수정/
 
 GitHub issue 번호가 대상이면 lane 실행 전 [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle)에 따라 Project `Status=In progress` 로 이동한다. Project bootstrap 이 안 되어 있으면 `/init-dcness` 의 GitHub Project lifecycle bootstrap 을 먼저 수행한다.
 
+## Step 0.5 — 설계 산출물 유무 분기 (되돌림 1차 기준)
+
+> impl 이 보는 **1차 분기는 "설계 문서 유무"** 다. 설계 깊이(경량/full) 판단은 impl 이 직접 하지 않고 설계 레이어로 내려보낸다. 원리 SSOT = [`workflow-router.md` 되돌림 원리](../../docs/plugin/workflow-router.md#되돌림backpressure-원리).
+
+lane 을 고르기 전에 먼저 묻는다 — **이 작업을 닫을 설계 산출물이 이미 있는가?** (머지된 `docs/milestones/**/impl/*.md` / `docs/compact-plans/<slug>.md` / `docs/bugfix/**` 또는 같은 run 안에서 만들 예정인 compact plan).
+
+- **있음** → 그 산출물을 기준으로 곧장 구현 lane 으로 진행한다. 별도 run(설계가 이미 머지됨)으로 풀 4-agent 진입이면 `begin-run impl --design-doc <설계 문서 경로>` 로 산출물을 기록해 engineer 게이트 prerequisite 를 충족한다([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)).
+- **없음** → 메인이 "직접 고칠 수준인가 / 설계가 필요한가" 를 판단한다.
+  - 직접 고칠 수준(concrete signal 충분, high-risk 0개) → Lite 로 직접 구현.
+  - 경량 설계 필요(구현 경계·테스트 기준·작은 contract 가 애매) → 내부 [`compact-design`](../../skills/compact-design/SKILL.md) skill 로 **되돌려** compact plan 을 받고, 그 산출물(`docs/compact-plans/<slug>.md`)을 기준으로 구현한다. (`/impl` Standard lane 이 같은 run 에서 이 호출을 직접 수행하는 형태이며, 별도 run 으로 분리되면 `--design-doc` 기록이 prerequisite 가 된다.)
+  - full 설계 필요(high-risk trigger 있음) → Deep — `/design` 또는 `/spec` 선행.
+
+이 되돌림은 한 번으로 끝나지 않는다. 구현 중 설계가 또 부족하면 다시 `compact-design`/`/design` 으로 되돌릴 수 있다 — 되돌림은 정상 루프다.
+
 ## Step 1 — lane 판정
 
 판정 순서:
@@ -105,14 +119,14 @@ Lite 에서 `code-validator` 를 호출하지 않는 이유: 검증 대상인 im
 
 ## Standard Lane — Compact Plan 1-pass
 
-Standard 는 Lite 로 바로 가기 애매하지만 Deep ceremony 는 과한 완충지대다.
+Standard 는 Lite 로 바로 가기 애매하지만 Deep ceremony 는 과한 완충지대다. Step 0.5 에서 "경량 설계 필요" 로 판정된 경로가 여기다 — 경량 설계 산출은 내부 [`compact-design`](../../skills/compact-design/SKILL.md) skill 로 정의되며, 그 실체는 아래 `module-architect:COMPACT_PLAN` 호출이다(새 agent 가 아니라 호출 위치만 독립 skill 로 옮긴 wrapper). 같은 run 에서 직접 수행하면 PASS prose 가 engineer 게이트 prerequisite 가 되고, 설계를 별도 run 으로 머지한 뒤 진입하면 `--design-doc` 기록이 그 역할을 한다.
 
 실행:
 
-1. `module-architect:COMPACT_PLAN`
+1. `module-architect:COMPACT_PLAN` (= `compact-design` 내부 skill 의 산출 단계)
    - `docs/compact-plans/<slug>.md` 를 작성한다.
    - 산출물은 [`agents/module-architect/templates/compact-plan.md`](../../agents/module-architect/templates/compact-plan.md) 형식을 따른다.
-   - compact plan 작성 중 high-risk 가 발견되면 Deep 로 승격한다.
+   - compact plan 작성 중 high-risk 가 발견되면 Deep 로 승격한다(되돌림 — 설계 깊이가 경량을 넘어섰다는 신호).
 2. `test-engineer`
    - compact plan 의 테스트 기준을 실패 테스트로 만든다.
 3. `engineer:IMPL`

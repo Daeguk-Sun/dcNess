@@ -122,6 +122,22 @@ flowchart TB
 
 R5 는 **반대 방향** 가드다 — high-risk 를 light lane 으로 *내리는 것*도 회귀다. regression 은 "무거운 걸 가볍게(R5)" 와 "가벼운 걸 무겁게(R1~R4)" **양방향**을 모두 막는다. low-risk → light, high-risk → escalation 이 동시에 성립해야 운영 원칙이 지켜진다. 경량화 대상은 사전 ceremony 이지 safety gate(branch / PR / test / review / CI / false-clean 방지)가 아니다 — R1~R4 도 PR·review·CI 는 그대로 탄다.
 
+## 되돌림(backpressure) 원리
+
+> 🟢 **일급 원리 — 되돌림은 예외가 아니라 완성도를 만드는 정상 루프다.** 라우팅은 spec → design → impl → review 로 흐르기만 하는 단방향 파이프가 아니다. downstream 단계가 upstream 산출물의 부족을 발견하면 upstream 으로 **되돌려 보강**하고, 부족이 남으면 다시 되돌릴 수 있다. 이 되돌림을 "되돌릴 수 없는 경계의 예외" 로 취급하지 않는다 — 정상 루프다.
+
+dcNess 는 단계 *내부* 되돌림 루프는 이미 일급으로 갖췄다. 본 절은 단계 *간* 되돌림까지 같은 원리로 통합 기술한다.
+
+| 되돌림 경로 | 발견 주체 → 되돌림 목적지 | 트리거 | 비고 |
+|---|---|---|---|
+| **design → spec** | design 중 PRD/요구사항 부족 발견 → 메인 `/spec` 재진입 권고 | architect 가 PRD 충돌/누락(`ESCALATE`) 또는 미검증 새 외부 의존(`NEW_DEP_ESCALATE`) 보고 | 진본 = [`design-routing.md` escalate 처리](../../skills/design/design-routing.md#escalate-처리) |
+| **impl → 설계** | impl 진입 시 설계 산출물 부족 발견 → 경량은 [`compact-design`](../../skills/compact-design/SKILL.md) 내부 skill, full 은 `/design` | 설계 문서가 없고 메인이 "직접 고칠 수준 아님 / 설계 필요" 로 판정 | compact-design 산출물 경로가 후속 impl 의 engineer 게이트 prerequisite |
+| **review → 구현** (단계 내부) | pr-reviewer FAIL / 꼼꼼구현 리뷰 결함 발견 → engineer 재시도 | finding 발생 | **이미 존재** — 단계 내부 되돌림. 단계 간 되돌림과 동일 원리 |
+
+**단계 내부 되돌림** (pr-reviewer → engineer 재시도, code-validator FAIL → engineer 재진입, 꼼꼼구현 codex/서브에이전트 리뷰 → 근본원인 재수정)과 **단계 간 되돌림** (design→spec, impl→설계)은 *같은 원리의 다른 반경*일 뿐이다 — 둘 다 "downstream 이 upstream 부족을 판단하면 upstream 으로 되돌려 보강한다". retry 한도와 escalate 는 각 `<skill>-routing.md` 가 소유한다([impl](../../skills/impl/impl-routing.md) · [design](../../skills/design/design-routing.md)).
+
+되돌림이 무한 추격이 되지 않도록 한도가 붙는다 — 같은 영역 부족이 반복되면 점 패치 retry 로 한도를 소진하지 말고 한 단계 더 upstream 에서 근본을 본다. cycle 한도 초과 시 사용자 위임이 기본이다([`loop-procedure.md` finding 수용 원칙](loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정)).
+
 ## to-issue 와 작업 라우팅의 경계
 
 본 router 와 [`to-issue`](../../skills/to-issue/SKILL.md) 는 **scope 가 다르다**:

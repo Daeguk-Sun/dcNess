@@ -373,6 +373,43 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("Bash write 는 범위 밖", self.hooks_doc)
         self.assertIn("contest.ts", self.hooks_doc)
 
+    def test_backpressure_loop_is_first_class_across_stages(self) -> None:
+        """#702 — 단계 간 되돌림(backpressure) 원리가 router SSOT 에 일급으로 명시된다."""
+        # 원리 SSOT — workflow-router: 정의 + 최소 경로(design→spec, impl→설계) + 내부 루프 통합 기술
+        self.assertIn("## 되돌림(backpressure) 원리", self.router)
+        self.assertIn("정상 루프", self.router)
+        self.assertIn("`/spec` 재진입", self.router)
+        self.assertIn("compact-design", self.router)
+        self.assertIn("단계 내부 되돌림", self.router)
+
+        # impl 의 1차 분기 = 설계 문서 유무 + 설계 부족 시 되돌림 경로
+        self.assertIn("설계 산출물이 이미 있는가", self.impl_skill)
+        self.assertIn("compact-design", self.impl_skill)
+        self.assertIn("--design-doc", self.impl_skill)
+        self.assertIn("compact-design", self.impl_routing)
+
+        # design → spec 되돌림이 동일 원리로 참조됨
+        self.assertIn("되돌림", self.design_skill)
+
+    def test_compact_design_is_internal_skill_not_public_surface(self) -> None:
+        """#702 — 경량 모듈 설계는 module-architect:COMPACT_PLAN wrapper 내부 skill 이다."""
+        skill_path = ROOT / "skills" / "compact-design" / "SKILL.md"
+        self.assertTrue(skill_path.exists())
+        compact_design = skill_path.read_text(encoding="utf-8")
+
+        # 설계 산출 주체 = module-architect COMPACT_PLAN, 산출 경로 = docs/compact-plans/
+        self.assertIn("COMPACT_PLAN", compact_design)
+        self.assertIn("module-architect", compact_design)
+        self.assertIn("docs/compact-plans/", compact_design)
+        # engineer 게이트 prerequisite 두 경로 (같은-run PASS / --design-doc) 명시
+        self.assertIn("--design-doc", compact_design)
+
+        # positioning: internal 분류로만 노출 — 기본/고급 public 진입점 표에 추가되지 않는다
+        self.assertIn("## Internal Skills", self.positioning)
+        self.assertIn("`compact-design`", self.positioning)
+        self.assertNotIn("| `/compact-design` |", self.positioning)
+        self.assertNotIn("/compact-design", self.readme)
+
     def _section(self, text: str, start: str, end: str) -> str:
         match = re.search(start + r"(?P<body>.*?)" + end, text, flags=re.S)
         self.assertIsNotNone(match)
