@@ -1,7 +1,7 @@
 # impl-loop 라우팅 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: `/impl-loop` skill **단일 전용** 라우팅 진본 — 이 skill 안 agent (test-engineer / engineer / code-validator / pr-reviewer / build-worker / module-architect / designer) 의 결론 → 다음 호출 + retry 한도 + escalate 처리. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
+> **Scope**: `/impl-loop` skill **단일 전용** 라우팅 진본 — 이 skill 안 agent (test-engineer / engineer / code-validator / pr-reviewer / build-worker / module-architect / designer / product-acceptance) 의 결론 → 다음 호출 + retry 한도 + escalate 처리. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
 > **Cross-ref**: catastrophic 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) · 권한 경계 = [`agent_boundary.py`](../../harness/agent_boundary.py).
 
 ## 읽는 법
@@ -26,6 +26,10 @@ flowchart TB
   EN -->|IMPL_DONE| CV[code-validator]
   CV -->|PASS| PR[pr-reviewer]
   PR -->|PASS| M([메인 regular merge])
+  PR -->|PASS · 마감 task| PA[product-acceptance]
+  PA -->|PASS| M
+  PA -->|FAIL ≤3 · auto-fixable gap| ENP
+  PA -.->|ESCALATE / round 초과 / 비자동 gap| U
   PR -->|변경 요청| ENP[engineer:POLISH]
   ENP -->|POLISH_DONE| PR
   CV -->|FAIL ≤3| EN
@@ -39,7 +43,7 @@ flowchart TB
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
   class TE,EN,ENP,MA produce
-  class CV,PR verify
+  class CV,PR,PA verify
   class U user
 ```
 
@@ -51,6 +55,10 @@ flowchart TB
 flowchart TB
   BW[build-worker] -->|PASS| MG([메인 git/PR]) --> PR2[pr-reviewer]
   PR2 -->|PASS| M2([메인 regular merge])
+  PR2 -->|PASS · 마감 task| PA2[product-acceptance]
+  PA2 -->|PASS| M2
+  PA2 -->|FAIL ≤3 · auto-fixable gap| ENP2
+  PA2 -.->|ESCALATE / round 초과 / 비자동 gap| U2
   PR2 -->|변경 요청 ≤2| ENP2[engineer:POLISH] --> MGP([메인 commit/push to PR branch]) --> PR2
   BW -->|SPEC_GAP_FOUND small| ME([메인 직접 Edit]) --> BW
   BW -->|SPEC_GAP_FOUND medium·large ≤2| MA2[module-architect] -->|PASS| BW
@@ -67,7 +75,7 @@ flowchart TB
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
   class BW,EN2,ENP2,MA2 produce
-  class PR2,CV2 verify
+  class PR2,CV2,PA2 verify
   class U2 user
 ```
 
@@ -83,10 +91,11 @@ flowchart TB
 | **test-engineer** | `TESTS_WRITTEN`(=PASS) → engineer(attempt 0) · `SPEC_GAP_FOUND` → module-architect(보강) |
 | **engineer** | `IMPL_DONE` → code-validator · `IMPL_PARTIAL` → engineer(분할 — retry 아님, 상한 없음 [retry 한도](#retry-한도)) · `SPEC_GAP_FOUND` → module-architect(보강, ≤2) · `TESTS_FAIL` → engineer 재시도(≤3) · `POLISH_DONE` → pr-reviewer · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | **code-validator** | `PASS` → pr-reviewer · `FAIL` → engineer 재시도(≤3) · `ESCALATE` → module-architect(보강) 또는 사용자. impl/bugfix/compact plan 경로로 scope 자동 분기 |
-| **pr-reviewer** | `PASS`(LGTM) → (CI PASS 후) 메인 즉시 regular merge · 변경 요청 → engineer POLISH → **메인 commit/push to PR branch** (엔진 B 는 PR 이 이미 생성됨 — POLISH 변경 반영 필수) → pr-reviewer 재리뷰(≤2) |
+| **pr-reviewer** | `PASS`(LGTM) → (CI PASS 후) 메인 즉시 regular merge — **단 story/epic 마감 task 는 merge 전 product-acceptance 선행** ([마감 acceptance 라우팅](#마감-acceptance-라우팅)) · 변경 요청 → engineer POLISH → **메인 commit/push to PR branch** (엔진 B 는 PR 이 이미 생성됨 — POLISH 변경 반영 필수) → pr-reviewer 재리뷰(≤2) |
 | **build-worker** | `PASS` → 메인 git/PR → pr-reviewer · `SPEC_GAP_FOUND` → 분량 메타 분기(아래) · `TESTS_FAIL` → engineer(마저 구현) → **`IMPL_DONE` → code-validator → `PASS` 후 메인 git/PR** (self-validate 미통과분을 code-validator 가 복원 — 검증 없이 PR 금지) 또는 attempt 한도 초과 시 사용자 · `VALIDATION_BLOCKED` → **메인이 worker 가 남긴 검증 명령을 직접 실행(게이트 대행)** — exit 0 → 메인 git/PR → pr-reviewer · 게이트 FAIL → engineer 재시도(TESTS_FAIL 경로 합류, ≤3) · 메인도 실행 불가 → 사용자 · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | **module-architect** | `PASS` → (impl 파일 생성·보강 후) build-worker 또는 test-engineer · `ESCALATE` → 사용자 |
 | **designer** | `PASS` → 사용자 PICK → test-engineer · `ESCALATE` → 사용자. 환경 = `docs/design.md` frontmatter `medium`. 재호출 한도 X |
+| **product-acceptance** | 마감 task 한정 (pr-reviewer PASS 후 · pr-finalize 전, [마감 acceptance 라우팅](#마감-acceptance-라우팅)). `PASS` → 메인 pr-finalize 머지 (epic 마감은 STORY → EPIC 2회 모두 PASS 후) · `FAIL` (auto-fixable gap) → engineer POLISH(gap 수정) → 메인 commit/push to PR branch → pr-reviewer 재리뷰 → product-acceptance 재검수 (round ≤3) · `FAIL` (설계 결함·범위 재정의·보안/권한/데이터 gap) 또는 round 초과 → 정지 + 사용자 위임 · `ESCALATE` → 정지 + 사용자 위임 |
 
 **build-worker `SPEC_GAP_FOUND` 분량 메타 분기** (외부 사용자 [F4 실측](https://github.com/alruminum/dcNess/issues/506)):
 - **small** (1 enum 값 / 1 필드 / 1 메서드 시그니처) → 메인이 직접 Edit (`docs/impl/NN-*.md` / `docs/domain-model.md`) + build-worker 재호출. **cycle 카운트 불포함** (경량 예외).
@@ -104,12 +113,34 @@ flowchart TB
 | build-worker `VALIDATION_BLOCKED` → 메인 대행 게이트 FAIL → engineer 재진입 | engineer attempt 흡수 | engineer attempt 한도(3) 도달 시 사용자 위임 |
 | build-worker phase 2 (TESTS_FAIL → src retry, worker 내부) | 3 (worker 내부) | `TESTS_FAIL` emit → 메인이 engineer 재호출 또는 사용자 위임 |
 | chain task 자동 재시도 (`--retry-limit`) | 3 (default, 0 = 첫 실패 즉시 정지) | 정지 + 사용자 위임 |
+| product-acceptance `FAIL` → gap 수정 → 재검수 round (story/epic 경계당 독립 카운트) | 3 | 정지 + 사용자 위임 |
 
 > **분할(IMPL_PARTIAL)은 retry 아님** — engineer 가 단일 호출에 다 못 끝내 남은 작업을 명시하고 재호출되는 것. attempt 카운터 미소비, 상한 없음 (자율 판단). 실패 재시도(retry, 한도 있음)와 구분.
 > cycle 발생 시 **working tree only — commit X.** PASS 후에만 commit.
 > `.attempts.json` = fail_type → 카운터 매핑. force-retry 시 리셋.
 
 > **finding 수용 자세** (점 패치 X, 근본 재설계) — code-validator / pr-reviewer finding 이 같은 task 의 같은 파일·주제·위험 클래스에서 2회+ 반복되면 단순 POLISH 재진입을 멈추고 "클래스형 결함 의심 — 점 수정 금지"를 명시한다. 코드 내 root cause 가 보이면 근본 재설계 후 1회 재검증하고, 스펙·설계 차원이면 `SPEC_GAP_FOUND` 로 module-architect 보강한다. root cause 를 특정할 수 없거나 retry 한도에 닿으면 사용자 escalate 다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).
+
+## 마감 acceptance 라우팅
+
+story/epic 마감 task (PR 트레일러 `Closes #story` / `Closes #epic` 대상) 의 pr-reviewer `PASS` 후 · pr-finalize(머지) *전* 에 product-acceptance 검수를 끼운다 (절차·경계 판정 = [`SKILL.md` 마감 acceptance](SKILL.md#마감-acceptance)). 기본 ON, `--no-acceptance` 명시 run 만 비대상. epic 마감 task 는 `STORY_ACCEPTANCE` → `EPIC_ACCEPTANCE` 직렬 2회 — 앞이 PASS 못 닫으면 뒤로 진행하지 않는다.
+
+standalone `/acceptance` 의 라우팅([`acceptance-routing.md`](../acceptance/acceptance-routing.md) — 자동 수정 X, 보고만)과 **별개** — 같은 agent 지만 inline 검수의 결론→다음은 본 문서가 소유한다 (위 "라우팅은 skill 이 소유" 원칙). inline 검수에서 gap 수정 루프가 도는 이유: 마감 PR 이 아직 열려 있어 gap 수정이 같은 PR 의 commit 으로 수렴 가능한 시점이기 때문이다.
+
+**`FAIL` → gap 분류 분기** (gap taxonomy = [`acceptance-routing.md`](../acceptance/acceptance-routing.md) 기준):
+
+| gap 종류 | 라우팅 |
+|---|---|
+| PRD / AC 미충족 · 검수 증거 부족 · 스모크 실패 (auto-fixable) | engineer POLISH(gap 수정) → lint/build/test green → 메인 commit/push to PR branch → pr-reviewer 재리뷰 → product-acceptance 재검수 (round ≤3) |
+| 설계 결함 / 범위 재정의 필요 | 정지 + 사용자 위임 (`/design`·`compact-design` 회수 후보 제시) |
+| 보안 / 권한 / 데이터 리스크 | 정지 + 사용자 위임 |
+| UX 미완성 | 정지 + 사용자 위임 (`/ux` 후보 제시) |
+
+- gap 수정도 [finding 수용 자세](#retry-한도) 를 따른다 — 같은 클래스 gap 이 반복되면 점 패치 대신 root cause 를 의심한다.
+- round 카운트는 story 경계와 epic 경계가 독립이다 (STORY round ≤3, EPIC round ≤3).
+- round 초과 → 정지 + 사용자 위임: 남은 gap 목록 + follow-up 분리 후보 + 머지/보류 판단 지점을 보고한다. 사용자 결정(머지 강행 / gap 수정 계속 / follow-up 분리) 전 pr-finalize 금지.
+- `ESCALATE` (기준 문서·구현 증거 부족) → 정지 + 사용자 위임 (하드스톱).
+- chain 에서 acceptance 정지는 해당 task 의 `blocked` 와 동일하게 다음 task 진입을 막는다 — 검수 안 된 story 위에 다음 story 를 쌓지 않는다.
 
 ## escalate 처리
 
@@ -119,6 +150,7 @@ escalate 계열 결론 수신 시 **메인이 즉시 사용자 보고 후 대기
 - **`ESCALATE`** (module-architect / designer) → 사용자 위임 (하드스톱).
 - **code-validator `ESCALATE` = 하드스톱 예외, 사유별 분기** ([`loop-procedure.md`](../../docs/plugin/loop-procedure.md#enum-분기) 정합): *사유 = spec 부재* → module-architect(보강 케이스) 자동 호출 (spec 갭 메움이지 trust boundary 우회 아님) · *사유 = 재시도 한도 초과 등 그 외* → 사용자 위임 (하드스톱). prose 에 사유가 모호하면 사용자 위임이 기본.
 - **`blocked`** (chain task — false-clean 의심 / 권한 위반 / phase prose 부재) → 즉시 정지 + 사용자 위임 ([chain 모드 task 경계 라우팅](#chain-모드-task-경계-라우팅)).
+- **product-acceptance `ESCALATE` / `FAIL`(round 초과·비자동 gap)** → 정지 + 사용자 위임 (하드스톱 — [마감 acceptance 라우팅](#마감-acceptance-라우팅)).
 
 ## chain 모드 task 경계 라우팅
 
@@ -131,6 +163,7 @@ chain (N task) 에서 *각 task run* 의 종료 결론에 따른 다음 task 진
 | `blocked` | 즉시 정지 + 사용자 위임 (재호출 또는 수동 처리) |
 
 - `clean` 판정 게이트 = code-validator(또는 build-worker self-validate) PASS + pr-reviewer 실행 + 메인 PR 생성·머지 완료 흔적 (셋 중 하나 부재 → false-clean → `blocked` 강등, #431). build-worker `VALIDATION_BLOCKED` 는 메인 게이트 대행 exit 0 증거가 있을 때만 self-validate PASS 와 동치 — 대행 증거 없는 `VALIDATION_BLOCKED` 진행은 false-clean 으로 `blocked` 강등.
+- **story/epic 마감 task 의 `clean` 판정 게이트에는 product-acceptance PASS 흔적이 추가된다** (epic 마감은 STORY + EPIC 둘 다, `--no-acceptance` 명시 run 제외) — 흔적 부재 시 false-clean 으로 `blocked` 강등 ([마감 acceptance 라우팅](#마감-acceptance-라우팅)).
 - verify-only task 의 `clean` 판정 게이트 = `code-validator:VERIFY_ONLY` prose PASS + 검증 명령 exit 0 증거 + `git status --porcelain` 변경 0. 이 경우 pr-reviewer/PR 생성·머지 흔적은 요구하지 않는다.
 - 전체 완료 → 보고 (처리 N/N + 각 PR URL). 마지막 task = `next-task` 대신 `end-run` 단독.
 

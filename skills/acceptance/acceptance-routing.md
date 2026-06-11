@@ -71,7 +71,7 @@ acceptance gap issue 는 제품 검수 후속이다. 이미 기준 문서와 구
 
 `FAIL` 은 끝이 아니라 다음 작업 단위로 돌아가기 위한 보고다.
 
-- 자동 수정하지 않는다.
+- 자동 수정하지 않는다. (standalone `/acceptance` 한정 — `/impl-loop` 의 story/epic 마감 inline 검수는 마감 PR 이 아직 열려 있어 auto-fixable gap 의 수정 루프를 돌며, 그 라우팅은 [`impl-loop-routing.md` 마감 acceptance 라우팅](../impl-loop/impl-loop-routing.md#마감-acceptance-라우팅) 이 소유한다.)
 - 자동 issue 생성하지 않는다.
 - 사용자 승인 없이 GitHub issue 를 만들지 않는다.
 - gap 은 기준 문서, 구현 증거, 누락 사실, 후속 라우팅을 포함한다.
