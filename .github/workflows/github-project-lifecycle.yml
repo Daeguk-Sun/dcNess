@@ -32,14 +32,13 @@ jobs:
 
       - name: Validate issue lifecycle via composite action
         uses: ./.github/actions/github-project-lifecycle
-        env:
-          GH_TOKEN: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
         with:
           mode: validate-issue
           repo: ${{ github.repository }}
           project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
           project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
           issue-number: ${{ github.event.issue.number }}
+          gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
 
   pr-merged:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && vars.DCNESS_PROJECT_NUMBER != '' }}
@@ -50,8 +49,6 @@ jobs:
 
       - name: Correct Status=Done on merge via composite action
         uses: ./.github/actions/github-project-lifecycle
-        env:
-          GH_TOKEN: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
         with:
           mode: pr-merged
           repo: ${{ github.repository }}
@@ -59,3 +56,4 @@ jobs:
           project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
           pr-body: ${{ github.event.pull_request.body }}
           apply: "true"
+          gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}

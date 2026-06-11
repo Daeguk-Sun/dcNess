@@ -37,6 +37,10 @@ inputs:
     description: 'Set to true to create labels/fields or update Status'
     required: false
     default: 'false'
+  gh-token:
+    description: 'GitHub token with project scope (gh project read/write). 호출 워크플로에서 secrets.DCNESS_PROJECT_TOKEN || github.token 전달.'
+    required: false
+    default: ''
 runs:
   using: composite
   steps:
@@ -49,6 +53,8 @@ runs:
       shell: bash
       env:
         PR_BODY: ${{ inputs.pr-body }}
+        # composite action 은 부모 step 의 env 를 상속하지 않으므로 GH_TOKEN 을 input 으로 받아 명시 매핑.
+        GH_TOKEN: ${{ inputs.gh-token }}
       run: |
         set -euo pipefail
         ARGS=(
