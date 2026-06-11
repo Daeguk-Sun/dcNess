@@ -1129,6 +1129,70 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         slot = read_live(self.sid)["active_runs"][self.rid]
         self.assertEqual(slot["current_step"]["agent"], "build-worker")
 
+    def test_step_reentry_after_finalize_resolves_when_pid_mapping_missing(self) -> None:
+        """#625 + #730 — PPID mapping 단절 후 finalized 미완료 run 전역 fallback."""
+        from harness.session_state import (
+            _cli_begin_step,
+            _cli_end_step,
+            _cli_finalize_run,
+            clear_pid_current_run,
+            pid_session_path,
+            read_live,
+        )
+        from types import SimpleNamespace
+        from io import StringIO
+        from contextlib import redirect_stdout, redirect_stderr
+
+        clear_pid_current_run(self.cc_pid)
+        pid_session_path(self.cc_pid).unlink()
+
+        with redirect_stdout(StringIO()):
+            rc = _cli_begin_step(SimpleNamespace(agent="build-worker", mode=None))
+        self.assertEqual(rc, 0)
+
+        build_prose = self.base / "build_prose_global.md"
+        build_prose.write_text("구현 라운드 완료\n\nPASS\n", encoding="utf-8")
+        with redirect_stdout(StringIO()):
+            rc = _cli_end_step(SimpleNamespace(
+                agent="build-worker",
+                mode=None,
+                prose_file=str(build_prose),
+            ))
+        self.assertEqual(rc, 0)
+
+        with redirect_stdout(StringIO()):
+            rc = _cli_begin_step(SimpleNamespace(agent="pr-reviewer", mode=None))
+        self.assertEqual(rc, 0)
+
+        review_prose = self.base / "review_prose_global.md"
+        review_prose.write_text("MUST FIX: 보강 필요\n\nFAIL\n", encoding="utf-8")
+        with redirect_stdout(StringIO()):
+            rc = _cli_end_step(SimpleNamespace(
+                agent="pr-reviewer",
+                mode=None,
+                prose_file=str(review_prose),
+            ))
+        self.assertEqual(rc, 0)
+
+        with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+            rc = _cli_finalize_run(SimpleNamespace(
+                expected_steps=2,
+                auto_review=False,
+            ))
+        self.assertEqual(rc, 0)
+        slot = read_live(self.sid)["active_runs"][self.rid]
+        self.assertIsNotNone(slot.get("finalized_at"))
+        self.assertIsNone(slot.get("completed_at"))
+
+        out = StringIO()
+        err = StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            rc = _cli_begin_step(SimpleNamespace(agent="build-worker", mode=None))
+        self.assertEqual(rc, 0, err.getvalue())
+        self.assertIn("ok", out.getvalue())
+        slot = read_live(self.sid)["active_runs"][self.rid]
+        self.assertEqual(slot["current_step"]["agent"], "build-worker")
+
     def test_end_step_drift_warn_on_agent_mismatch(self) -> None:
         # DCN-30-25: end-step 호출 시 current_step 의 agent 와 args.agent 불일치
         # → stderr DRIFT WARN. 자동 보정 X (동작은 정상 진행).
@@ -2426,9 +2490,9 @@ class AutoDetectFallbackTests(unittest.TestCase):
         # env 무시 + PPID chain (실 환경 X) + pointer 부재 → active_runs scan 박힘
         self.assertEqual(sid, self.SID_B)
 
-    def test_scan_picks_recent_unfinalized_run(self) -> None:
+    def test_scan_picks_recent_uncompleted_run(self) -> None:
         from harness.session_state import _scan_recent_active_run_slot
-        # session A 의 run A = 미finalized (오래된), session B 의 run B = 미finalized (최신)
+        # session A 의 run A = 미완료 (오래된), session B 의 run B = 미완료 (최신)
         self._write_live(
             self.SID_A,
             runs={self.RID_A: {"run_id": self.RID_A, "started_at": "2026-05-22T00:00:00+00:00"}},
@@ -2440,27 +2504,20 @@ class AutoDetectFallbackTests(unittest.TestCase):
         result = _scan_recent_active_run_slot(base_dir=self.base)
         self.assertEqual(result, (self.SID_B, self.RID_B))
 
-    def test_scan_skips_finalized_runs(self) -> None:
+    def test_global_scan_includes_finalized_uncompleted_run(self) -> None:
         from harness.session_state import _scan_recent_active_run_slot
-        # session A: finalized run (skip 대상)
-        # session B: 미finalized run (선택 대상)
+
         self._write_live(
             self.SID_A,
             runs={self.RID_A: {
                 "run_id": self.RID_A,
-                "started_at": "2026-05-22T02:00:00+00:00",  # 더 최신이지만
-                "finalized_at": "2026-05-22T02:30:00+00:00",  # finalized = skip
-            }},
-        )
-        self._write_live(
-            self.SID_B,
-            runs={self.RID_B: {
-                "run_id": self.RID_B,
-                "started_at": "2026-05-22T01:00:00+00:00",
+                "started_at": "2026-06-11T01:00:00+00:00",
+                "completed_at": None,
+                "finalized_at": "2026-06-11T01:30:00+00:00",
             }},
         )
         result = _scan_recent_active_run_slot(base_dir=self.base)
-        self.assertEqual(result, (self.SID_B, self.RID_B))
+        self.assertEqual(result, (self.SID_A, self.RID_A))
 
     def test_session_scoped_scan_includes_finalized_uncompleted_run(self) -> None:
         """issue #730 — finalized_at 은 review snapshot 이지 run close 가 아니다."""
@@ -2511,14 +2568,15 @@ class AutoDetectFallbackTests(unittest.TestCase):
         result = _scan_recent_active_run_slot(base_dir=self.base)
         self.assertIsNone(result)
 
-    def test_scan_all_finalized_returns_none(self) -> None:
+    def test_scan_all_completed_returns_none(self) -> None:
         from harness.session_state import _scan_recent_active_run_slot
-        # 모든 run finalized → None
+        # 모든 run completed → None
         self._write_live(
             self.SID_A,
             runs={self.RID_A: {
                 "run_id": self.RID_A,
                 "started_at": "2026-05-22T00:00:00+00:00",
+                "completed_at": "2026-05-22T00:31:00+00:00",
                 "finalized_at": "2026-05-22T00:30:00+00:00",
             }},
         )
@@ -2558,8 +2616,8 @@ class AutoDetectFallbackTests(unittest.TestCase):
         )
         os.utime(target_live, (1000, 1000))
 
-        # 전역 scan 의 live.json mtime 최신 5개가 모두 finalized 면 기존 fallback 은
-        # target sid 의 active_runs 를 보지 못하고 None 으로 떨어졌다.
+        # 전역 scan 의 최신 후보가 다른 session 의 finalized-only noise 여도,
+        # by-pid 로 sid 가 특정되면 target sid active_runs 를 직접 봐야 한다.
         for idx in range(6):
             sid = f"noise-sid-{idx}"
             rid = f"run-abc0000{idx}"

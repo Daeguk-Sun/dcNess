@@ -947,7 +947,23 @@ class StrictConveyorGateTests(_PreToolBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_skips_strict_gate_after_finalized_run(self) -> None:
+    def test_enforces_strict_gate_after_finalized_uncompleted_run(self) -> None:
+        live = read_live(self.sid, base_dir=self.base) or {}
+        active = live.get("active_runs", {}) or {}
+        slot = dict(active[self.rid])
+        slot["finalized_at"] = "2026-06-04T12:00:00+00:00"
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_allows_matching_begin_step_after_finalized_uncompleted_run(self) -> None:
+        self._begin_step("module-architect")
         live = read_live(self.sid, base_dir=self.base) or {}
         active = live.get("active_runs", {}) or {}
         slot = dict(active[self.rid])

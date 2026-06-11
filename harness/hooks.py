@@ -208,7 +208,7 @@ def _strict_conveyor_gate_message(
     entry_point = slot.get("entry_point", "")
     if entry_point not in _STRICT_CONVEYOR_ENTRY_POINTS:
         return None
-    if slot.get("completed_at") or slot.get("finalized_at"):
+    if slot.get("completed_at"):
         return None
 
     requested = _agent_mode_label(subagent, mode)
@@ -1231,7 +1231,8 @@ def handle_stop(
 
     Stop hook 으로 *코드 강제 승격*:
     1. stop_hook_active=true → 무한 루프 방지, skip
-    2. active_runs[rid] 슬롯 부재 / finalized_at 있음 → skip (이미 종료)
+    2. active_runs[rid] 슬롯 부재 → skip. finalized-only 상태는 run_finished 가
+       없으면 end-run 후보로 유지하고, run_finished 가 있으면 이미 종료로 skip
     3. `.steps.jsonl` 마지막 row 의 (agent, mode) 가 live.json.current_step.
        (agent, mode) 와 일치 → end-step 완료 상태 = 종료 후보 / 불일치 →
        begin-step 후 end-step 미호출 진행 중 → skip (false positive 회피)
