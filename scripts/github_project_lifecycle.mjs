@@ -823,11 +823,25 @@ function main() {
   }
 }
 
+// 토큰/권한 부재로 추정되는 실패 패턴 — gh project 가 인증 실패를 "unknown owner type" 으로 표시하는 것 포함.
+// 이 부류는 CI 를 깨지 않고 graceful degrade (warn + exit 0): lifecycle 자동화는 best-effort 이고,
+// project scope 토큰이 없는 외부 활성 프로젝트의 PR CI 를 빨갛게 만들지 않기 위함.
+const TOKEN_DEGRADE_RE =
+  /unknown owner type|bad credentials|HTTP 40[13]|resource not accessible|requires .*scope|read:project|gh auth|not logged in|authentication/i;
+
 if (import.meta.url === `file://${process.argv[1]}`) {
   try {
     process.exitCode = main();
   } catch (error) {
     console.error(`[dcness-project] ${error.message}`);
-    process.exitCode = 1;
+    if (TOKEN_DEGRADE_RE.test(error.message)) {
+      console.error(
+        '[dcness-project] WARN: GitHub Project 토큰/권한 부재로 추정 — lifecycle 자동화를 건너뜁니다 (graceful degrade). ' +
+          'project scope 토큰(secrets.DCNESS_PROJECT_TOKEN)을 설정하면 활성화됩니다. CI 는 실패시키지 않습니다.',
+      );
+      process.exitCode = 0;
+    } else {
+      process.exitCode = 1;
+    }
   }
 }
