@@ -179,6 +179,10 @@ if git -C "$PROJECT_ROOT" diff --quiet --no-ext-diff 2>/dev/null \
   BASELINE_CLEAN=1
 fi
 
+# BSD(macOS) mktemp 는 템플릿 끝에 붙은 X 만 랜덤화한다. X 뒤에 확장자(예: .md)를
+# 두면 mktemp 가 리터럴 파일을 만들어, 같은 템플릿의 다음 호출이 'File exists' 로
+# 깨지고 잔재가 다음 실행을 오염시킨다. 그래서 템플릿은 반드시 trailing XXXXXX 로
+# 끝나야 한다 (GNU mktemp 는 embedded X 도 처리하므로 Linux CI 에선 안 드러남).
 TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-${AGENT}.XXXXXX")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-prompt-${AGENT}.XXXXXX")"
 trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -259,6 +260,8 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             attempts_file = tmp / "attempts.txt"
             prose_capture = tmp / "timeout-prose.md"
             helper_args = tmp / "helper-args.txt"
+            wrapper_tmpdir = tmp / "wrapper-tmp"
+            wrapper_tmpdir.mkdir()
 
             bin_dir = tmp / "bin"
             bin_dir.mkdir()
@@ -316,6 +319,7 @@ class CodexValidatorWrapperTests(unittest.TestCase):
                     "HELPER_ARGS": str(helper_args),
                     "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
                     "PROSE_CAPTURE": str(prose_capture),
+                    "TMPDIR": str(wrapper_tmpdir),
                 }
             )
 
@@ -348,6 +352,145 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             prose = prose_capture.read_text(encoding="utf-8")
             self.assertIn("did not finish within 1s", prose)
             self.assertTrue(prose.rstrip().endswith("ESCALATE"))
+            # issue #723 — the timeout/retry path must clean up its temp files so
+            # no residue pollutes the next run (the EXIT trap fires on exit 124).
+            residue = sorted(p.name for p in wrapper_tmpdir.iterdir())
+            self.assertEqual(
+                residue, [], f"wrapper left temp residue after timeout: {residue}"
+            )
+
+
+    def test_mktemp_templates_use_trailing_random_field(self) -> None:
+        """issue #723 — BSD(macOS) mktemp only randomizes a trailing run of X's;
+        a suffix after the X-field (e.g. '.md') makes literal, colliding temp
+        files. GNU mktemp on Linux CI tolerates embedded X's, so only this static
+        check catches reintroduction across platforms."""
+        text = WRAPPER.read_text(encoding="utf-8")
+        templates = re.findall(r'mktemp\s+(?:-\S+\s+)?"([^"]+)"', text)
+        self.assertTrue(
+            templates, "expected at least one mktemp template in the wrapper"
+        )
+        for tpl in templates:
+            self.assertRegex(
+                tpl,
+                r"X{6,}$",
+                f"mktemp template must end with the trailing random field: {tpl!r}",
+            )
+
+    def test_tempfiles_unique_and_cleaned_in_isolated_tmpdir(self) -> None:
+        """issue #723 — temp file creation must succeed uniquely and leave no
+        residue regardless of prior TMPDIR state (deterministic across runs)."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            wrapper_tmpdir = tmp / "wrapper-tmp"
+            wrapper_tmpdir.mkdir()
+            # Residue a prior SIGKILLed run could leave under the broken
+            # embedded-suffix template; the wrapper must not collide with it.
+            seed = wrapper_tmpdir / "dcness-codex-pr-reviewer.XXXXXX"
+            seed.write_text("stale", encoding="utf-8")
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Review this implementation.\n", encoding="utf-8")
+            prose_capture = tmp / "prose.md"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    if [ "$1" = "exec" ] && [ "${2:-}" = "--help" ]; then
+                      echo "Usage: codex exec"
+                      exit 0
+                    fi
+                    out=""
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --output-last-message)
+                          out="$2"
+                          shift 2
+                          ;;
+                        *)
+                          shift
+                          ;;
+                      esac
+                    done
+                    cat >/dev/null
+                    printf 'Codex prose\\n\\nPASS\\n' > "$out"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            helper = tmp / "dcness-helper"
+            helper.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --prose-file)
+                          cp "$2" "$PROSE_CAPTURE"
+                          exit 0
+                          ;;
+                      esac
+                      shift
+                    done
+                    exit 1
+                    """
+                ),
+                encoding="utf-8",
+            )
+            helper.chmod(0o755)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_RUN_ID": "run-13572468",
+                    "DCNESS_SESSION_ID": "sid-iso",
+                    "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
+                    "PROSE_CAPTURE": str(prose_capture),
+                    "TMPDIR": str(wrapper_tmpdir),
+                }
+            )
+
+            # Two consecutive runs: the broken embedded-suffix template would make
+            # the second mktemp fail with 'File exists'; trailing X's stay unique.
+            for _ in range(2):
+                result = subprocess.run(
+                    [
+                        str(WRAPPER),
+                        "pr-reviewer",
+                        "--prompt-file",
+                        str(prompt_file),
+                        "--project-root",
+                        str(project),
+                        "--helper",
+                        str(helper),
+                    ],
+                    capture_output=True,
+                    env=env,
+                    text=True,
+                    timeout=30,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+            self.assertEqual(
+                prose_capture.read_text(encoding="utf-8"), "Codex prose\n\nPASS\n"
+            )
+            # Only the pre-seeded residue remains; the wrapper cleaned its own files.
+            leftovers = sorted(p.name for p in wrapper_tmpdir.iterdir())
+            self.assertEqual(
+                leftovers,
+                ["dcness-codex-pr-reviewer.XXXXXX"],
+                f"wrapper left unexpected temp residue: {leftovers}",
+            )
 
 
 if __name__ == "__main__":
