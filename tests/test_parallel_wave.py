@@ -272,6 +272,17 @@ class TestHighRisk(unittest.TestCase):
         t = self._parse("risk: high-risk\n", "- src/x.py")
         self.assertTrue(t.force_serial)
 
+    def test_risk_frontmatter_canonical_high_forces_serial(self):
+        # #703 — 설계 산출물 frontmatter 의 canonical 값 `risk: high` 가 직렬 강등.
+        t = self._parse("risk: high\n", "- src/x.py")
+        self.assertTrue(t.force_serial)
+
+    def test_risk_frontmatter_normal_low_not_serial(self):
+        # #703 — normal/low 는 고위험 아님 → 병렬 후보 유지 (Scope disjoint 전제).
+        for val in ("normal", "low"):
+            t = self._parse(f"risk: {val}\n", "- src/x.py")
+            self.assertFalse(t.force_serial, f"risk: {val} 는 고위험 아님")
+
     def test_ordinary_scope_not_high_risk(self):
         t = self._parse("", "- src/feature/widget.py")
         self.assertFalse(t.force_serial)

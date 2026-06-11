@@ -92,7 +92,7 @@ peer task 는 PR 생성까지 독립적으로 갈 수 있지만, merge 단계는
 - 명시적 `[]` = 선행 없음 선언 → Scope 도 disjoint 면 병렬 후보.
 - 목록 = 해당 선행 task 들에 의존.
 
-고위험 task 는 직렬 강등한다. dry preview 의 `risk=high-risk` slug 를 `wave-plan --high-risk` 로 넘긴다. 경로상 명백한 migration/secrets/.env 계열은 parser 가 backstop 으로 직렬화한다.
+고위험 task 는 직렬 강등한다. 진본은 impl 문서 frontmatter `risk: high` (설계자 명시, #703) 이며, parser(`_parse_risk_marker`)가 이를 읽어 독립으로도 직렬화한다. dry preview 는 그 `risk: high` slug 를 `wave-plan --high-risk` 로 넘겨 driver 판정과 일치시킨다(frontmatter 부재 task 는 메인 추론으로 보완). 경로상 명백한 migration/secrets/.env 계열은 parser 가 또 다른 backstop 으로 직렬화한다.
 
 ## 7. 비용가드 / fallback
 

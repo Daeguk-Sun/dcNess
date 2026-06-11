@@ -95,9 +95,18 @@ class TestImplLoopRiskPreview(unittest.TestCase):
     def test_risk_reason_is_required_before_task_execution(self):
         body = read_impl_skill()
         self.assertIn("task1 진입 *전* 실행 계획", body)
-        self.assertIn("`risk` 는 `normal` / `high-risk` / `verify-only`", body)
+        # #703 — risk enum = frontmatter canonical 값 (normal/high/low), engine = 2agent/4agent.
+        self.assertIn("`risk` ∈ `normal`/`high`/`low`", body)
         self.assertIn("`reason` 은 비워 두지 않는다", body)
         self.assertIn("고위험 trigger 없음", body)
+
+    def test_risk_engine_read_from_frontmatter_first(self):
+        # #703 — dry preview / 진입 분기가 frontmatter risk/engine 을 추론보다 우선.
+        skill = read_impl_skill()
+        routing = read_impl_routing()
+        self.assertIn("frontmatter 에 `risk`/`engine`/`risk_reason` 이 있으면", skill)
+        self.assertIn("frontmatter 우선", skill)
+        self.assertIn("`engine: 4agent` → 풀 4-agent", routing)
 
     def test_high_risk_routes_to_full_agent_even_when_chain_defaults_worker(self):
         skill = read_impl_skill()

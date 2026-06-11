@@ -3,6 +3,9 @@ depth: simple|std|deep
 design: optional|required
 story: <N|공통>
 task_index: <i>/<total>|—
+risk: normal|high|low   # 설계 시점 위험 등급. high = 고위험 trigger 보유 (아래 risk_reason). 부재 시 impl-loop 진입에서 메인이 추론(하위호환)
+engine: 2agent|4agent   # 권장 엔진. 2agent = build-worker(경량) · 4agent = 풀 4-agent(test→impl→validate→review 엄정). risk: high → 4agent
+risk_reason:            # 자연어 한 줄 — 판정 근거. 예: "외부 HTTP", "URL 파싱", "auth/PII", "도메인 invariant 변경" / 고위험 아니면 "고위험 trigger 없음"
 depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존 흡수). 선행 없으면 [] 로 명시. 비운 채로 두면(미작성) 미상 → 병렬에서 직렬 강등
 contract:
   produces:             # 이 task 가 만드는 public contract

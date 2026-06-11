@@ -35,7 +35,7 @@
 2. 도메인 모델과 architecture의 계약 원장을 먼저 읽는다.
 3. compact plan 요청이면 `docs/compact-plans/<slug>.md` 한 파일로 닫을 수 있는지 먼저 본다. high-risk trigger 가 있으면 `NEW_DEP_ESCALATE` 또는 `ESCALATE` 로 경량 범위 초과 → full 설계(`/design`) escalate 를 보고한다.
 4. Story/공통 작업이면 단위를 task로 나누고 의존 순서를 정한다. 의존은 `depends_on` 한 곳에 적고(contract produces/consumes·ordering 을 그리로 흡수), `수정 허용` 은 **한 bullet 당 정확히 하나의 repo-relative 파일 경로**(또는 끝 `/` 디렉토리)로 적는다 — 이 둘이 병렬 wave 독립성 판정 입력이다([`parallel-policy.md`](../../docs/plugin/parallel-policy.md)). 🔴 볼드/라벨/괄호 설명/다중 토큰 bullet 은 파서가 경로로 인식 못 해 **독립 task 도 조용히 직렬로 강등**된다 — 부가 설명은 `# 주석` 이나 blockquote 로 두고 bullet 본문엔 경로만 남긴다([`templates/impl-task.md`](templates/impl-task.md) `### 수정 허용` 예시 참조).
-5. 각 task 또는 compact plan 에 대해 템플릿으로 구현 문서를 작성한다.
+5. 각 task 또는 compact plan 에 대해 템플릿으로 구현 문서를 작성한다. 이때 frontmatter 의 risk 메타(`risk` / `engine` / `risk_reason`)를 **task 를 자르는 시점에 함께 판정해 적는다**. 고위험 trigger — 외부 HTTP·네트워크 어댑터 / URL·파일·사용자 입력 파싱 / auth·security·PII / 도메인 invariant 변경 — 중 하나라도 있으면 `risk: high` + `engine: 4agent` (풀 4-agent) + `risk_reason` 에 그 근거. 없으면 `risk: normal`(순수 내부 로직·문구·UI 변경은 `low`) + `engine: 2agent` (build-worker) + `risk_reason: 고위험 trigger 없음`. 이 메타가 impl-loop 진입의 엔진 선택·병렬 직렬 강등 입력이다 — 고위험 지식은 설계 시점에 이미 알 수 있으므로 진입까지 미루지 않는다. 비우면 메인이 진입 시 재추론하지만(하위호환), 채우는 것이 결정론적 기본이다.
 6. public contract를 만들거나 바꾸면 Contract Ledger와 impl/compact plan 문서를 함께 맞춘다.
 7. DB, 디자인 토큰, 외부 의존 같은 영향 축이 있으면 별도 증거를 남긴다.
 8. 완료 전에 구현 세부 유출과 수용 기준 검증 가능성을 다시 본다.
@@ -46,6 +46,7 @@
 - compact plan 요청에서는 `docs/compact-plans/<slug>.md` 가 생성되고 수정 허용/금지, 변경 방향, 테스트 기준, 수용 기준을 포함한다.
 - 각 impl 문서가 scope, contract/interface, acceptance criteria, 금지 경계를 포함한다.
 - task 분할이 있는 경우 각 impl 문서의 `depends_on`(선행 있으면 목록, 없으면 명시적 `[]`)과 `수정 허용`(**bullet 당 순수 파일 경로 하나**, 볼드/라벨/괄호/산문 금지)이 채워진다. 비운 채/placeholder 잔존은 미상으로, 형식 미정규화(라벨/설명 섞인 bullet)는 경로 미인식으로 읽혀 둘 다 병렬에서 직렬 강등된다.
+- 각 impl 문서 frontmatter 에 `risk` / `engine` / `risk_reason` 이 채워진다 — 고위험 trigger 보유 시 `risk: high` · `engine: 4agent`, 아니면 `normal`(또는 순수 내부 변경 `low`) · `engine: 2agent`. `risk_reason` 은 근거 한 줄로, 비우지 않는다. 누락 시 impl-loop 진입에서 메인 추론 fallback 으로 떨어진다(하위호환).
 - cross-task contract가 있으면 Contract Ledger와 impl 문서가 같은 값을 가리킨다.
 - `Module Design Check` 또는 동등한 문구로 모듈 설계 원칙 적용 증거가 남는다.
 - contract_sweep에서는 canonical 값, patch 위치, 남은 stale 위치를 보고한다.
