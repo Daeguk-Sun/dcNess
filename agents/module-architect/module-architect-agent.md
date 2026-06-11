@@ -46,7 +46,7 @@
 - compact plan 요청에서는 `docs/compact-plans/<slug>.md` 가 생성되고 수정 허용/금지, 변경 방향, 테스트 기준, 수용 기준을 포함한다.
 - 각 impl 문서가 scope, contract/interface, acceptance criteria, 금지 경계를 포함한다.
 - task 분할이 있는 경우 각 impl 문서의 `depends_on`(선행 있으면 목록, 없으면 명시적 `[]`)과 `수정 허용`(**bullet 당 순수 파일 경로 하나**, 볼드/라벨/괄호/산문 금지)이 채워진다. 비운 채/placeholder 잔존은 미상으로, 형식 미정규화(라벨/설명 섞인 bullet)는 경로 미인식으로 읽혀 둘 다 병렬에서 직렬 강등된다.
-- 각 impl 문서 frontmatter 에 `risk` / `engine` / `risk_reason` 이 채워진다 — 고위험 trigger 보유 시 `risk: high` · `engine: 4agent`, 아니면 `normal`(또는 순수 내부 변경 `low`) · `engine: 2agent`. `risk_reason` 은 근거 한 줄로, 비우지 않는다. 누락 시 impl-loop 진입에서 메인 추론 fallback 으로 떨어진다(하위호환).
+- 각 impl 문서(impl-task 한정) frontmatter 에 `risk` / `engine` / `risk_reason` 이 채워진다 — 고위험 trigger 보유 시 `risk: high` · `engine: 4agent`, 아니면 `normal`(또는 순수 내부 변경 `low`) · `engine: 2agent`. 🔴 템플릿의 파이프 옵션(`normal|high|low` / `2agent|4agent`)을 **반드시 하나로 골라 치환**한다 — `|` 가 남으면 소비측(impl-loop)이 placeholder=부재로 보고 추론 fallback 하므로 고위험 task 가 경량으로 샐 수 있다. `risk_reason` 은 근거 한 줄로, 비우지 않는다. 누락/placeholder 잔존 시 impl-loop 진입에서 메인 추론 fallback 으로 떨어진다(하위호환).
 - cross-task contract가 있으면 Contract Ledger와 impl 문서가 같은 값을 가리킨다.
 - `Module Design Check` 또는 동등한 문구로 모듈 설계 원칙 적용 증거가 남는다.
 - contract_sweep에서는 canonical 값, patch 위치, 남은 stale 위치를 보고한다.
