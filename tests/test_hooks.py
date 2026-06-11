@@ -2717,6 +2717,53 @@ class StopHookContinuationSignalTests(unittest.TestCase):
         self.assertFalse(result)
         self.assertEqual(stdout, "")
 
+    def test_pr_reviewer_blocks_when_acceptance_required(self):
+        # #722 — 마감 acceptance 대상 run 에서는 pr-reviewer 가 종료 agent 가 아니다.
+        self._write_prose("pr-reviewer", "LGTM — product acceptance 전 merge 금지")
+        slot = self._slot()
+        slot["acceptance_required"] = True
+        result, stdout = self._invoke(slot=slot, last_agent="pr-reviewer")
+        self.assertTrue(result)
+        payload = json.loads(stdout)
+        self.assertEqual(payload["decision"], "block")
+        self.assertIn("product-acceptance", payload["reason"])
+        self.assertIn("LGTM", payload["reason"])
+
+    def test_stop_hook_does_not_auto_end_run_before_required_acceptance(self):
+        # #722 — pr-reviewer 직후 메인 turn 이 멈춰도 acceptance 전 auto end-run 금지.
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+
+        from harness import ledger
+        from harness.session_state import read_live, run_dir, start_run, update_live
+
+        sid = "sid-acceptance-required"
+        rid = "run-7220abcd"
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            update_live(sid, base_dir=base)
+            start_run(sid, rid, "impl", base_dir=base, acceptance_required=True)
+            prose_path = run_dir(sid, rid, base_dir=base) / "pr-reviewer.md"
+            prose = "LGTM — product acceptance 전 merge 금지\n"
+            prose_path.write_text(prose, encoding="utf-8")
+            ledger.append_step_completed(
+                sid, rid, "pr-reviewer", None, "PROSE_LOGGED", prose, prose_path, base_dir=base)
+
+            live = read_live(sid, base_dir=base)
+            slot = dict(live["active_runs"][rid])
+            active = dict(live["active_runs"])
+            active[rid] = slot
+            update_live(sid, base_dir=base, active_runs=active)
+
+            env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
+            with patch.dict(os.environ, env, clear=False), patch(
+                "harness.session_state._cli_end_run", return_value=0
+            ) as end_run:
+                rc = handle_stop(stdin_data={}, base_dir=base)
+
+        self.assertEqual(rc, 0)
+        end_run.assert_not_called()
+
     def test_fail_enum_skips(self):
         # FAIL → 메인 사용자 위임 영역 — block 안 박음
         self._write_prose("code-validator", "전반적 FAIL — 4 항목 위반")

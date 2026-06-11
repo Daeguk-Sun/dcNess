@@ -442,6 +442,7 @@ class ActiveRunsTests(unittest.TestCase):
         self.assertIn("started_at", slot)
         self.assertIn("last_confirmed_at", slot)
         self.assertIn("run_dir", slot)
+        self.assertFalse(slot["acceptance_required"])
 
     def test_start_run_creates_dir(self) -> None:
         start_run(self.sid, self.run_id, "impl", base_dir=self.base)
@@ -608,6 +609,24 @@ class ActiveRunsTests(unittest.TestCase):
         # 의 lane 기록 자체를 거부한다 (lite 면제가 설계 루프로 새는 것 차단).
         with self.assertRaises(ValueError):
             start_run(self.sid, self.run_id, "design", base_dir=self.base, lane="lite")
+
+    # -- #722 — 마감 acceptance 대상 run marker --
+
+    def test_start_run_records_acceptance_required(self) -> None:
+        start_run(
+            self.sid, self.run_id, "impl",
+            base_dir=self.base, acceptance_required=True,
+        )
+        slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
+        self.assertTrue(slot["acceptance_required"])
+
+    def test_start_run_acceptance_required_non_impl_entry_rejected(self) -> None:
+        # inline product-acceptance 는 impl-loop/impl run 의 마감 PR 전 게이트다.
+        with self.assertRaises(ValueError):
+            start_run(
+                self.sid, self.run_id, "design",
+                base_dir=self.base, acceptance_required=True,
+            )
 
     def test_update_current_step(self) -> None:
         start_run(self.sid, self.run_id, "impl", base_dir=self.base)
@@ -2781,6 +2800,25 @@ class NextTaskTransitionTests(unittest.TestCase):
         self.assertIn(resolved, recorded)
         self.assertIn(f"[new] design_doc: {resolved}", buf.getvalue())
 
+    def test_transition_records_acceptance_required(self) -> None:
+        # chain task — 다음 task 가 story/epic 마감이면 새 run 에 acceptance marker 를 기록.
+        from harness.session_state import _cli_next_task, read_live
+        from io import StringIO
+        from contextlib import redirect_stdout
+        from types import SimpleNamespace
+        sid = "11111111-2222-4333-8444-555555555555"
+        os.environ["DCNESS_SESSION_ID"] = sid
+
+        buf = StringIO()
+        with redirect_stdout(buf):
+            rc = _cli_next_task(SimpleNamespace(
+                entry_point="impl", acceptance_required=True,
+            ))
+        self.assertEqual(rc, 0)
+        active = read_live(sid)["active_runs"]
+        self.assertIn(True, [s.get("acceptance_required") for s in active.values()])
+        self.assertIn("[new] acceptance_required: true", buf.getvalue())
+
     def test_transition_invalid_design_doc_fails_before_end_run(self) -> None:
         # 실존하지 않는 design_doc — begin-run FAIL fail-fast (exit 1). 검증은
         # 이전 run end-run *전* 이라 이전 run 이 닫히지 않고 보존돼야 한다
@@ -2806,6 +2844,29 @@ class NextTaskTransitionTests(unittest.TestCase):
         prev_slot = read_live(sid)["active_runs"][prev_rid]
         self.assertIsNone(prev_slot["completed_at"])
 
+    def test_transition_invalid_acceptance_marker_fails_before_end_run(self) -> None:
+        # acceptance_required 는 impl run 전용 — 잘못된 entry_point 면 이전 run 닫기 전 실패.
+        from harness.session_state import _cli_next_task, read_live, start_run
+        from io import StringIO
+        from contextlib import redirect_stdout, redirect_stderr
+        from types import SimpleNamespace
+        sid = "11111111-2222-4333-8444-555555555555"
+        prev_rid = "run-prev1234"
+        os.environ["DCNESS_SESSION_ID"] = sid
+        os.environ["DCNESS_RUN_ID"] = prev_rid
+        start_run(sid, prev_rid, "impl", issue_num=None)
+
+        out, err = StringIO(), StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            rc = _cli_next_task(SimpleNamespace(
+                entry_point="design",
+                acceptance_required=True,
+            ))
+        self.assertEqual(rc, 1)
+        self.assertIn("acceptance_required is only valid", err.getvalue())
+        prev_slot = read_live(sid)["active_runs"][prev_rid]
+        self.assertIsNone(prev_slot["completed_at"])
+
 
 class DesignDocArgparseTests(unittest.TestCase):
     """begin-run / next-task 의 --design-doc 플래그 파싱 회귀."""
@@ -2823,6 +2884,19 @@ class DesignDocArgparseTests(unittest.TestCase):
         ns = _build_arg_parser().parse_args(["begin-run", "impl"])
         self.assertIsNone(ns.design_doc)
 
+    def test_begin_run_accepts_acceptance_required(self) -> None:
+        from harness.session_state import _build_arg_parser
+        ns = _build_arg_parser().parse_args(
+            ["begin-run", "impl", "--acceptance-required"]
+        )
+        self.assertEqual(ns.cmd, "begin-run")
+        self.assertTrue(ns.acceptance_required)
+
+    def test_begin_run_acceptance_required_defaults_false(self) -> None:
+        from harness.session_state import _build_arg_parser
+        ns = _build_arg_parser().parse_args(["begin-run", "impl"])
+        self.assertFalse(ns.acceptance_required)
+
     def test_next_task_accepts_design_doc(self) -> None:
         from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
@@ -2834,6 +2908,12 @@ class DesignDocArgparseTests(unittest.TestCase):
             ns.design_doc,
             "docs/milestones/v01/epics/epic-01-x/impl/01-x.md",
         )
+
+    def test_next_task_accepts_acceptance_required(self) -> None:
+        from harness.session_state import _build_arg_parser
+        ns = _build_arg_parser().parse_args(["next-task", "--acceptance-required"])
+        self.assertEqual(ns.cmd, "next-task")
+        self.assertTrue(ns.acceptance_required)
 
     # -- #714 — begin-run --lane 플래그 파싱 --
 

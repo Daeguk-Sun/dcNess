@@ -212,7 +212,7 @@ wrapper 가 Codex 마지막 응답을 `/tmp` 에 받고 `dcness-helper end-step 
 
 default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → pr-reviewer**. 4 단계 *모두 호출* 의무 (MUST — false-clean 차단, #431).
 
-🔴 **begin-run 에 `--design-doc` 필수**: 엔진 A 는 설계(impl 문서)가 별도 run 에서 머지된 *뒤* 진입하므로 같은 run 안에 module-architect prose 가 없다 — `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 머지된 설계 문서를 run 에 기록해야 engineer 게이트(순서 차단 훅)가 IMPL 진입을 허용한다 ([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). chain 에서 다음 task 도 풀 4-agent 면 `next-task --design-doc <다음 task 의 impl 문서 경로>` 로 동일 기록. advanced fallback 으로 module-architect 를 선두 추가한 run 은 같은-run PASS prose 가 생기므로 생략 가능하나, task 의 impl 문서가 이미 있으면 기록을 권장한다.
+🔴 **begin-run 에 `--design-doc` 필수**: 엔진 A 는 설계(impl 문서)가 별도 run 에서 머지된 *뒤* 진입하므로 같은 run 안에 module-architect prose 가 없다 — `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 머지된 설계 문서를 run 에 기록해야 engineer 게이트(순서 차단 훅)가 IMPL 진입을 허용한다 ([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). story/epic 마감 task 이고 acceptance 기본 ON 이면 같은 begin-run 에 `--acceptance-required` 도 붙인다. 이 marker 는 Stop hook 이 pr-reviewer 직후 run 을 자동 종료하지 않고 product-acceptance 진입 turn 을 재발화하게 하는 신호다. chain 에서 다음 task 도 풀 4-agent 면 `next-task --design-doc <다음 task 의 impl 문서 경로>` 로 동일 기록하고, 다음 task 가 마감 acceptance 대상이면 `--acceptance-required` 도 함께 기록한다. advanced fallback 으로 module-architect 를 선두 추가한 run 은 같은-run PASS prose 가 생기므로 생략 가능하나, task 의 impl 문서가 이미 있으면 기록을 권장한다.
 
 ✅ 정상 흐름:
 1. **test-engineer** (TESTS_WRITTEN) → 테스트 선작성
@@ -232,7 +232,7 @@ default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → p
 
 시퀀스 = **build-worker (2-step: test+impl+self-validate 통합) → pr-reviewer**. deep task 보강 필요 시 module-architect 선두 (3-step).
 
-1. **begin-run + (reset) + build-worker step** — `begin-run impl --design-doc <task 의 impl 문서 경로>` → **(chain 의 첫 task 또는 single 모드면 `dcness-helper prev-tasks-reset` — `begin-step` *전*, prev-tasks 초기화)** → `begin-step build-worker` → `dcness-helper run-dir` 로 `<run_dir>` 확인 → `Agent(build-worker, prompt=<impl 경로 + task slug + RUN_ID + run_dir + (begin-step stdout 의 [PREVIOUS_TASKS] 섹션 있으면 그대로 포함, #525)>)` → 반환 prose 결론 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). 이후 `end-step build-worker`. worker 안 phase 별 prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 는 worker 자체 Write — [`loop-procedure.md` build-worker phase prose](../../docs/plugin/loop-procedure.md#build-worker-phase-prose-impl-loop-hybrid-a-한정). `<run_dir>` 는 harness-state run_dir 그대로이며 `phases/<RUN_ID>/` 별도 경로가 아니다.
+1. **begin-run + (reset) + build-worker step** — `begin-run impl --design-doc <task 의 impl 문서 경로>` (마감 acceptance 대상이면 `--acceptance-required` 추가) → **(chain 의 첫 task 또는 single 모드면 `dcness-helper prev-tasks-reset` — `begin-step` *전*, prev-tasks 초기화)** → `begin-step build-worker` → `dcness-helper run-dir` 로 `<run_dir>` 확인 → `Agent(build-worker, prompt=<impl 경로 + task slug + RUN_ID + run_dir + (begin-step stdout 의 [PREVIOUS_TASKS] 섹션 있으면 그대로 포함, #525)>)` → 반환 prose 결론 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). 이후 `end-step build-worker`. worker 안 phase 별 prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 는 worker 자체 Write — [`loop-procedure.md` build-worker phase prose](../../docs/plugin/loop-procedure.md#build-worker-phase-prose-impl-loop-hybrid-a-한정). `<run_dir>` 는 harness-state run_dir 그대로이며 `phases/<RUN_ID>/` 별도 경로가 아니다.
    `--design-doc` 은 build-worker 자체를 위한 값이 아니라, worker self-validate 실패나 마감 acceptance FAIL 뒤 `engineer:IMPL` 로 재진입할 때 engineer gate 의 설계 산출물 사전 조건을 만족시키는 기록이다. deep task 구현은 항상 impl 문서가 입력이므로 엔진 B 에서도 기록한다.
 2. **git/PR 생성 (메인)** — worker prose 의 commit message + PR 본문 초안을 임시 파일로 박고 `scripts/pr-create.sh` 통합 호출:
    ```bash
@@ -270,6 +270,8 @@ story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후
 - **epic 마감 task** (`Closes #story` + `Closes #epic`) → `STORY_ACCEPTANCE` → `EPIC_ACCEPTANCE` 순 2회 (마지막 story 의 AC 와 epic 전체 PRD Must·cross-story 를 각각 닫는다)
 - 중간 task (`Part of`) / 공통 task / verify-only task → 비대상
 - **통합 브랜치 모드 (sub-PR base ≠ main)** — sub-PR 의 `Closes` 는 머지해도 발동하지 않으므로 **sub-PR 단계에서는 acceptance 를 발동하지 않는다**. 검수는 *마지막 main 머지 PR* (`Closes #story×N + #epic` 일괄) 의 머지 전에 story×N → epic 순으로 일괄 수행한다 — 발동 기준은 "task_index" 가 아니라 "이 PR 머지로 issue close 가 실제 발동하는가"다.
+
+**run marker**: 위 판정 결과가 acceptance 대상이고 `--no-acceptance` 가 아니면 run 시작 시 `begin-run impl --acceptance-required` 를 기록한다. chain 에서 다음 task 가 대상이면 `next-task --acceptance-required` 로 새 run 에 승계한다. 이 marker 는 Stop hook 이 `pr-reviewer` 를 종료 agent 로 보지 않게 하는 신호다. marker 없는 run 은 `pr-reviewer` 직후 기존처럼 auto end-run 후보가 된다.
 
 **시점 — pr-reviewer PASS 후 · `pr-finalize.sh`(머지) *전*, 단 story 구현 증거가 모두 모인 뒤**. `Closes #story` auto-close 는 머지 시 발동하므로, 머지 전에 검수해야 (1) story/epic issue close = 검수 통과와 동기화되고 (2) gap 수정이 *열려 있는 같은 PR* 에 commit 추가로 들어간다 (gap fix PR 난립 X). 엔진별 삽입점: 엔진 A 는 `pr-create.sh` 로 PR 생성까지 마친 뒤 pr-finalize 전, 엔진 B 는 pr-reviewer PASS 후 pr-finalize 전 — 두 경우 모두 open PR 번호가 검수 증거에 들어간다. **병렬 peer 세션의 마감 task 는 같은 story 의 prior sibling task 가 *모두 완료(머지)* 됐음을 `wave-status` 로 먼저 확인한 후** acceptance 를 수행하고, 그 다음 `pr-finalize.sh`(merge lock + order gate) 를 호출한다 — sibling 미완료 상태의 검수는 불완전 증거 검수라 금지. sibling 이 아직 진행 중이면 완료를 기다렸다가 검수한다 (직렬 chain 은 순서상 자동 충족).
 
@@ -379,11 +381,11 @@ merge lock 이 보존하는 것:
 
 ### task 경계 — next-task 통합 호출 (#471)
 
-마지막이 아닌 task 종료 시 `dcness-helper next-task --entry-point impl --design-doc <다음 task 의 impl 문서 경로>` 1회 호출 — helper 가 (이전 run end-run + previous review.md stdout + 새 run begin-run) 통합 처리 → 메인은 stdout 의 `[new] run_id` 만 받아 다음 task 진입. *마지막* task = `next-task` 대신 `end-run` 단독. `--design-doc` 은 풀 4-agent(엔진 A)의 최초 engineer 진입뿐 아니라 build-worker(엔진 B)의 fallback/acceptance gap 수정 `engineer:IMPL` 재진입에도 쓰이는 사전 조건 기록이다.
+마지막이 아닌 task 종료 시 `dcness-helper next-task --entry-point impl --design-doc <다음 task 의 impl 문서 경로>` 1회 호출 — helper 가 (이전 run end-run + previous review.md stdout + 새 run begin-run) 통합 처리 → 메인은 stdout 의 `[new] run_id` 만 받아 다음 task 진입. *마지막* task = `next-task` 대신 `end-run` 단독. `--design-doc` 은 풀 4-agent(엔진 A)의 최초 engineer 진입뿐 아니라 build-worker(엔진 B)의 fallback/acceptance gap 수정 `engineer:IMPL` 재진입에도 쓰이는 사전 조건 기록이다. 다음 task 가 story/epic 마감 acceptance 대상이면 같은 호출에 `--acceptance-required` 를 추가한다.
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" next-task --entry-point impl --design-doc <path>   # 마지막 아님
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" end-run                                              # 마지막
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" next-task --entry-point impl --design-doc <path> [--acceptance-required]   # 마지막 아님
+bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" end-run                                                                       # 마지막
 ```
 
 ### enum 별 분기

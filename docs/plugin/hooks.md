@@ -178,6 +178,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 - 마지막 step 이 완료됐고 run 이 미finalized 상태면 `end-run` 을 자동 수행
 - 마지막 step 결론이 다음 step 으로 이어져야 하는 enum 이고 종료 agent 가 아니면 continuation signal 을 내보내 메인 turn 재발화
+- `begin-run impl --acceptance-required` 로 기록된 마감 task run 에서는 `pr-reviewer` 를 종료 agent 로 취급하지 않는다. `pr-reviewer` 결론이 `PASS`/`LGTM` 이면 Stop hook 이 `product-acceptance` 진입용 continuation signal 을 내보내며, marker 가 없는 중간 task / `--no-acceptance` run / verify-only run 은 기존 종료 동작을 유지한다.
 - 같은 step 에서 반복 block 횟수가 한도를 넘으면 사용자/메인의 종료 의도를 존중하고 skip
 
 **차단**: tool 차단은 아니다. 필요 시 stdout JSON 으로 메인 turn 을 재발화한다.

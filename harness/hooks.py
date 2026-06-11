@@ -1390,7 +1390,9 @@ def _maybe_emit_continuation_signal(
     """issue #469 결함 A — 중간 step PASS 후 메인 turn 발화 강제 신호 박기.
 
     조건:
-    1. 마지막 step agent 가 종료 agent (pr-reviewer) 아님
+    1. 마지막 step agent 가 종료 agent (pr-reviewer) 아님. 단
+       acceptance_required run 의 pr-reviewer 는 product-acceptance 전 단계라 종료 agent
+       로 취급하지 않음 (#722).
     2. 마지막 step prose 파일 존재 + 결론 enum 이 다음 step 진입 가능 enum
     3. stop_block_count[step_key] < _STOP_BLOCK_COUNT_MAX (무한 루프 가드)
 
@@ -1398,7 +1400,12 @@ def _maybe_emit_continuation_signal(
         True  — decision:block JSON stdout 씀 + 호출자는 return 0 해야 함
         False — 조건 미충족, 호출자는 기존 분기 (end-run 자동 호출) 진행
     """
-    if not last_agent or last_agent in _TERMINAL_AGENTS:
+    if not last_agent:
+        return False
+    acceptance_after_pr = (
+        last_agent == "pr-reviewer" and slot.get("acceptance_required") is True
+    )
+    if last_agent in _TERMINAL_AGENTS and not acceptance_after_pr:
         return False
     rdir = slot.get("run_dir")
     if not isinstance(rdir, str) or not rdir:
@@ -1419,7 +1426,7 @@ def _maybe_emit_continuation_signal(
     except OSError:
         return False
     enum = _extract_conclusion_enum(prose)
-    if enum not in _CONTINUE_ENUMS:
+    if enum not in _CONTINUE_ENUMS and not (acceptance_after_pr and enum == "LGTM"):
         return False
 
     # 무한 루프 가드 — 같은 step 에서 block 쓴 횟수 상한 검사.
@@ -1443,13 +1450,19 @@ def _maybe_emit_continuation_signal(
     except Exception:
         pass  # persist 실패해도 block 자체는 씀 (다음 호출 시 cur_count 만 미증가)
 
-    next_hint = (
-        "worker 가 남긴 검증 명령을 메인이 직접 실행(게이트 대행) 후 exit 0 이면 "
-        "git/PR, FAIL 이면 engineer 재시도 분기. "
-        if enum == "VALIDATION_BLOCKED"
-        else "정의된 다음 agent 호출 또는 PR/review/merge 영역 "
-        "(예: begin-step pr-reviewer + Agent pr-reviewer + end-step + PR 머지). "
-    )
+    if acceptance_after_pr:
+        next_hint = (
+            "이 run 은 story/epic 마감 acceptance 대상이므로 "
+            "begin-step product-acceptance 후 inline 검수를 진행해야 함. "
+        )
+    else:
+        next_hint = (
+            "worker 가 남긴 검증 명령을 메인이 직접 실행(게이트 대행) 후 exit 0 이면 "
+            "git/PR, FAIL 이면 engineer 재시도 분기. "
+            if enum == "VALIDATION_BLOCKED"
+            else "정의된 다음 agent 호출 또는 PR/review/merge 영역 "
+            "(예: begin-step pr-reviewer + Agent pr-reviewer + end-step + PR 머지). "
+        )
     reason = (
         f"[dcness Stop hook · issue #469 결함 A] sub-step "
         f"'{last_agent}{mode_suffix}' 결론 '{enum}' — 다음 sub-step 진입 turn "

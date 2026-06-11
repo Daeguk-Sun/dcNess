@@ -512,6 +512,7 @@ def start_run(
     issue_num: Optional[int] = None,
     design_doc: Optional[str] = None,
     lane: Optional[str] = None,
+    acceptance_required: bool = False,
 ) -> None:
     """`active_runs[run_id]` 슬롯 추가 + run 디렉토리 생성.
 
@@ -528,6 +529,10 @@ def start_run(
     수용하고 (2) design_doc 과 동일하게 entry_point=impl run 에서만 기록을
     허용한다 — design/architect-loop run 의 module-architect PASS 강제는 코드
     보장으로 유지된다.
+
+    acceptance_required — story/epic 마감 task 로, pr-reviewer PASS 뒤 inline
+    product-acceptance 를 거쳐야 정상 종료되는 run 이라는 신호 (#722).
+    Stop hook 이 이 marker 를 읽어 pr-reviewer 를 종료 agent 로 취급하지 않는다.
     """
     if not valid_session_id(session_id):
         raise ValueError(f"invalid session_id: {session_id!r}")
@@ -544,6 +549,11 @@ def start_run(
             raise ValueError(
                 f"lane must be one of {_VALID_LANES} (got {lane!r})"
             )
+    if acceptance_required and entry_point != "impl":
+        raise ValueError(
+            "acceptance_required is only valid for entry_point=impl "
+            f"(got {entry_point!r})"
+        )
     if design_doc is not None:
         # design_doc 은 impl 구현 run 전용 — design/architect-loop run 의
         # engineer ← module-architect PASS 강제가 코드 보장으로 유지되도록
@@ -573,6 +583,7 @@ def start_run(
         "issue_num": issue_num,
         "design_doc": design_doc,
         "lane": lane,
+        "acceptance_required": bool(acceptance_required),
     }
     update_live(session_id, base_dir=base_dir, active_runs=active)
     # run 디렉토리 생성
@@ -587,6 +598,7 @@ def _ledger_run_started(
     issue_num: Optional[int] = None,
     design_doc: Optional[str] = None,
     lane: Optional[str] = None,
+    acceptance_required: bool = False,
     base_dir: Optional[Path] = None,
 ) -> None:
     """start_run 직후 ledger run_started checkpoint 기록 (이슈 #587).
@@ -605,6 +617,8 @@ def _ledger_run_started(
             extra["design_doc"] = design_doc
         if lane is not None:
             extra["lane"] = lane
+        if acceptance_required:
+            extra["acceptance_required"] = True
         ledger.append_event(session_id, run_id, "run_started", base_dir=base_dir, **extra)
     except Exception:
         pass
@@ -1461,10 +1475,12 @@ def _cli_begin_run(args: Any) -> int:
     issue_num = args.issue_num if args.issue_num is not None else None
     design_doc = getattr(args, "design_doc", None)
     lane = getattr(args, "lane", None)
+    acceptance_required = bool(getattr(args, "acceptance_required", False))
     try:
         start_run(
             sid, rid, args.entry_point,
             issue_num=issue_num, design_doc=design_doc, lane=lane,
+            acceptance_required=acceptance_required,
         )
     except ValueError as exc:
         print(f"[begin-run] FAIL — {exc}", file=sys.stderr)
@@ -1472,6 +1488,7 @@ def _cli_begin_run(args: Any) -> int:
     _ledger_run_started(
         sid, rid, args.entry_point,
         issue_num=issue_num, design_doc=design_doc, lane=lane,
+        acceptance_required=acceptance_required,
     )
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
@@ -1611,6 +1628,14 @@ def _cli_next_task(args: Any) -> int:
 
     entry_point = getattr(args, "entry_point", "impl") or "impl"
     design_doc = getattr(args, "design_doc", None)
+    acceptance_required = bool(getattr(args, "acceptance_required", False))
+    if acceptance_required and entry_point != "impl":
+        print(
+            "[next-task] begin-run FAIL — acceptance_required is only valid "
+            f"for entry_point=impl (got {entry_point!r})",
+            file=sys.stderr,
+        )
+        return 1
     if design_doc is not None:
         # 이전 run end-run(비가역) *전* 선검증 — 경로 오타로 이전 run 만 닫히고
         # 새 run 발급이 실패하는 어긋남(prev review echo 영구 소실) 방지.
@@ -1637,12 +1662,18 @@ def _cli_next_task(args: Any) -> int:
 
     new_rid = generate_run_id()
     try:
-        start_run(sid, new_rid, entry_point, issue_num=None, design_doc=design_doc)
+        start_run(
+            sid, new_rid, entry_point, issue_num=None, design_doc=design_doc,
+            acceptance_required=acceptance_required,
+        )
     except Exception as exc:
         print(f"[next-task] begin-run FAIL — {exc}", file=sys.stderr)
         return 1
     # 이슈 #587 (codex review) — chain task run 도 run_started checkpoint 남김.
-    _ledger_run_started(sid, new_rid, entry_point, design_doc=design_doc)
+    _ledger_run_started(
+        sid, new_rid, entry_point, design_doc=design_doc,
+        acceptance_required=acceptance_required,
+    )
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
         write_pid_current_run(cc_pid, new_rid)
@@ -1671,6 +1702,8 @@ def _cli_next_task(args: Any) -> int:
     print(f"[new] entry_point: {entry_point}")
     if design_doc:
         print(f"[new] design_doc: {design_doc}")
+    if acceptance_required:
+        print("[new] acceptance_required: true")
     print("=== /next-task transition ===")
     return 0
 
@@ -2854,6 +2887,11 @@ def _build_arg_parser() -> Any:
              "설계도 없는 Lite 구현 경로로 engineer 게이트 설계 산출물 사전 조건 "
              "면제 신호. entry_point=impl 에서만 수용",
     )
+    p_br.add_argument(
+        "--acceptance-required", action="store_true",
+        help="story/epic 마감 task run marker (#722) — pr-reviewer PASS 뒤 "
+             "product-acceptance 전 Stop hook auto end-run 방지. entry_point=impl 전용",
+    )
     p_br.set_defaults(func=_cli_begin_run)
 
     p_er = sub.add_parser("end-run", help="complete_run + clear by-pid-current-run")
@@ -2870,6 +2908,10 @@ def _build_arg_parser() -> Any:
     p_nt.add_argument(
         "--design-doc", default=None, dest="design_doc",
         help="다음 task 가 참조하는 머지된 설계 문서 경로 (begin-run --design-doc 동일)",
+    )
+    p_nt.add_argument(
+        "--acceptance-required", action="store_true",
+        help="다음 task 가 story/epic 마감 acceptance 대상임을 기록 (#722)",
     )
     p_nt.set_defaults(func=_cli_next_task)
 
