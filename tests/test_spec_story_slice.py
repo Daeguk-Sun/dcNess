@@ -99,7 +99,8 @@ class SpecStorySliceContractTests(unittest.TestCase):
     def test_system_architect_orders_for_early_product_boundary_evidence(self) -> None:
         for needle in (
             "첫 제품 경계 동작 증거를 앞당기는 순서를 설명하는가",
-            "부품을 다 만든 뒤에야 처음 동작하는 순서는 경고로 남긴다",
+            "부품을 다 만든 뒤에야 처음 동작하는 순서는 epic `architecture.md` 의 "
+            "`구현 순서` 섹션에 경고와 사유로 남긴다",
             "첫 제품 경계 동작 증거를 앞당기는 관점을 포함한다",
         ):
             with self.subTest(needle=needle):

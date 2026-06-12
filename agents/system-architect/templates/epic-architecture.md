@@ -30,6 +30,12 @@ flowchart LR
 |---|---|---|
 |  |  |  |
 
+## 구현 순서
+
+- 순서와 근거:
+- 첫 제품 경계 동작 증거가 나오는 시점:
+- 부품-먼저 순서면 경고와 사유:
+
 ## Module Design Check
 
 - Deep module:

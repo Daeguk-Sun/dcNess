@@ -138,6 +138,70 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
         ):
             self.assertIn(needle, self.design_skill)
 
+    def test_architecture_validator_checks_epic_implementation_order(self) -> None:
+        for needle in (
+            "구현 순서: epic architecture 의 Story/모듈 구현 순서가 의존만이 아니라 "
+            "첫 제품 경계 동작 증거를 앞당기는가",
+            "system 단위(1차) 검증에서는 epic architecture 의 구현 순서가 "
+            "첫 제품 경계 동작 증거를 앞당기는지 확인한다",
+            "epic 구현 순서가 사유 없이 부품-먼저로 남은 상태는 `SYSTEM_BOUNDARY` 다",
+            "system 단위(1차) 검증이면 epic architecture 의 구현 순서가 "
+            "첫 제품 경계 동작 증거를 앞당기는지 검토했다",
+        ):
+            self.assertIn(needle, self.arch_validator)
+
+        self.assertIn(
+            "epic architecture 의 `구현 순서` 섹션 또는 stories.md epic 완료 기준 "
+            "근처에 경고와 사유가 있는지 본다",
+            self.arch_validator,
+        )
+        self.assertIn(
+            "사유가 기록돼 있으면 finding 대신 warning 으로 보고한다",
+            self.arch_validator,
+        )
+        self.assertIn("| 구현 순서 |", self.arch_validator_template)
+        self.assertIn("## 구현 순서", self.arch_validator_examples)
+        self.assertIn(
+            "인프라/부품 모듈을 전부 만든 뒤에야 첫 사용자 동작이 나오게 정렬됐는데 "
+            "사유와 경고가 없음",
+            self.arch_validator_examples,
+        )
+        epic_architecture_template = (
+            ROOT
+            / "agents"
+            / "system-architect"
+            / "templates"
+            / "epic-architecture.md"
+        ).read_text(encoding="utf-8")
+        for needle in (
+            "## 구현 순서",
+            "첫 제품 경계 동작 증거가 나오는 시점:",
+            "부품-먼저 순서면 경고와 사유:",
+        ):
+            self.assertIn(needle, epic_architecture_template)
+
+    def test_codex_architecture_validator_checks_epic_implementation_order(
+        self,
+    ) -> None:
+        for needle in (
+            "epic architecture 의 Story/모듈 구현 순서가 의존만이 아니라 "
+            "첫 제품 경계 동작 증거를 앞당기는가",
+            "system 단위(1차) 검증에서는 epic architecture 의 구현 순서가 "
+            "첫 제품 경계 동작 증거를 앞당기는지, 부품-먼저 순서면 epic architecture 의 "
+            "`구현 순서` 섹션 또는 stories.md epic 완료 기준 근처에 사유와 경고가 "
+            "남았는지 확인한다",
+            "사유가 기록돼 있으면 finding 대신 warning 으로 보고한다",
+            "epic 구현 순서가 사유 없이 부품-먼저로 남은 상태는 `SYSTEM_BOUNDARY` 다",
+        ):
+            self.assertIn(needle, self.codex_arch_validator)
+
+    def test_design_loop_first_validation_includes_implementation_order(self) -> None:
+        design_routing = (
+            ROOT / "skills" / "design" / "design-routing.md"
+        ).read_text(encoding="utf-8")
+        for text in (self.design_skill, design_routing):
+            self.assertIn("구현 순서(첫 제품 경계 동작 앞당김)", text)
+
 
 if __name__ == "__main__":
     unittest.main()

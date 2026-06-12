@@ -65,7 +65,7 @@ flowchart TB
 표만으로 안 풀리는 맥락:
 
 - **module-architect 호출 단위** = 공통 task 묶음 0~1개 + Story 1개씩. 각 module-architect `PASS` 는 곧장 같은 단위 architecture-validator 로 이어지며, validator `PASS` 전에는 다음 module-architect 를 호출하지 않는다.
-- **architecture-validator 시점** — 1차(Step 3.5) = system 산출물 기준으로 요구사항 출처, 설계 표준, Contract Ledger 충분성, freeze 가능성 검토. 공통/Story 단위 검증(Step 4) = 방금 작성한 impl 문서와 frozen system/이전 단위의 계약 정합성 검토. cross-story 통합(Step 5) = 모든 단위 freeze 뒤 Story 간 compose/wiring, forward-ref 회수, Contract Ledger sweep, Cross-Story Lessons 일관성, cold-seat 구현 가능성 검토. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `CONTRACT_PROPAGATION` / `TASK_LOCAL`) 동반.
+- **architecture-validator 시점** — 1차(Step 3.5) = system 산출물 기준으로 요구사항 출처, 설계 표준, Contract Ledger 충분성, 구현 순서(첫 제품 경계 동작 앞당김), freeze 가능성 검토. 공통/Story 단위 검증(Step 4) = 방금 작성한 impl 문서와 frozen system/이전 단위의 계약 정합성 검토. cross-story 통합(Step 5) = 모든 단위 freeze 뒤 Story 간 compose/wiring, forward-ref 회수, Contract Ledger sweep, Cross-Story Lessons 일관성, cold-seat 구현 가능성 검토. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `CONTRACT_PROPAGATION` / `TASK_LOCAL`) 동반.
 - **교훈 누적 전달** — 단위 검증에서 확정된 횡단 규칙은 SSOT 문서 기록 + 포인터 전달을 기본으로 한다. prompt 직접 전달은 미기록 결정 예외에 한정하고, 큰 본문을 매 Story prompt 에 반복하지 않는다.
 
 ## finding 분류 분기

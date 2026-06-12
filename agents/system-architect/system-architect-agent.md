@@ -28,7 +28,7 @@ epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 root
 - 의존 방향: 모듈 간 의존 이유와 차단 방법이 설명되는가.
 - 계약 원장: cross-task 계약의 owner, producer, consumer, invariant, ordering, error mode, config, forbidden alternative가 빠지지 않는가.
 - 결정 기록: 기술 스택과 외부 의존 결정이 ADR로 남는가.
-- 구현 순서: 모듈/Story 의존 그래프가 의존 순서만이 아니라 첫 제품 경계 동작 증거를 앞당기는 순서를 설명하는가. 부품을 다 만든 뒤에야 처음 동작하는 순서는 경고로 남긴다.
+- 구현 순서: 모듈/Story 의존 그래프가 의존 순서만이 아니라 첫 제품 경계 동작 증거를 앞당기는 순서를 설명하는가. 부품을 다 만든 뒤에야 처음 동작하는 순서는 epic `architecture.md` 의 `구현 순서` 섹션에 경고와 사유로 남긴다.
 - 변경 안정성: 1차 PASS 뒤 system 문서가 쉽게 흔들리지 않게 설계했는가.
 
 ## 작업 흐름
