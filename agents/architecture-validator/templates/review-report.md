@@ -18,6 +18,13 @@
 | drift와 scope |  |  |
 | 표현 수준 |  |  |
 
+## Story 동작 수직 슬라이스 검토
+
+- Story 완료 시 실제로 검증되는 동작:
+- 첫 제품 경계 동작 증거:
+- 마지막 task까지 동작이 밀리는 분할 여부:
+- 병렬성 때문에 동작 슬라이스가 찢긴 증거:
+
 ## Must Findings
 
 | 분류 | 위치 | 사실 | 영향 | Recommended Next Action |

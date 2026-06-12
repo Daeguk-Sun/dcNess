@@ -31,6 +31,8 @@
 - Story impl 이 ports / adapter / usecase 같은 레이어별 부품 task로만 나뉘고, Story 완료 시 실제로 검증되는 사용자/API/CLI 동작이 어느 task 또는 task 묶음 책임인지 비어 있음
 - 병렬 파일 경계를 맞추느라 한 제품 흐름의 입력, 처리, 출력이 서로 독립 task처럼 분리됐지만 `depends_on` 과 첫 동작 증거 지점이 없음
 - 첫 제품 경계 동작이 마지막 task까지 밀렸는데 왜 앞당길 수 없는지와 후속 검증 방법이 없음
+- `Story 동작 슬라이스` 섹션은 있지만 "추후 통합에서 확인" 같은 추상 문구만 있고 실제 제품 경계나 검증 명령이 없음
+- cross-story 통합 검증에서 각 task 는 PASS 했지만 Story 간 compose/wiring 으로 열리는 사용자 흐름의 첫 동작 증거가 어디에도 없음
 
 ## drift와 scope
 
