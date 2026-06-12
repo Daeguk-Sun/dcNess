@@ -27,7 +27,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 
 ### 동작 증거 판정 (STORY / EPIC 공통)
 
-핵심 AC는 "코드가 있다" 또는 "테스트가 green이다"가 아니라 사용자에게 약속한 동작이 실제 제품 경계에서 확인됐는지로 본다.
+핵심 AC는 "코드가 있다" 또는 "테스트가 green이다"가 아니라 사용자에게 약속한 동작이 실제 제품 경계에서 확인됐는지로 본다. 기준 정의 = [`module-design-principles.md` 동작 증거 기준](../_shared/module-design-principles.md#동작-증거-기준) — 아래는 그 기준의 검수 단계 적용이다.
 
 - 동작 증거는 사람 E2E만 뜻하지 않는다. AC 성격에 맞으면 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 기록을 인정한다.
 - 정적 타입검사/compile 은 wiring, public type contract, generated artifact import, renderer hook signature 같은 compile-time 계약 AC를 닫는 증거가 될 수 있다. 사용자 visible flow 자체를 단독으로 증명하지는 않으므로 AC 성격과 맞춰 판단한다.

@@ -21,7 +21,7 @@ engineer 구현 전에 impl 문서의 수용 기준을 테스트로 고정한다
 - 명확한 성공 기준: 각 테스트가 한 가지 관찰 가능한 사실을 검증하는가.
 - 구현 독립성: src 구현 코드를 읽지 않고 계획과 계약만으로 테스트하는가.
 - 의존 경계: 의존 대상 정상, 실패, 부재 상황이 드러나는가.
-- 동작 증거: 핵심 AC 가 public behavior 또는 실제 제품 경계(API/CLI/UI/통합 wiring/compile-time contract)에서 관찰 가능한가. mock/stub/fake 만으로 닫히는 AC 는 보고에 mock-only risk 로 남기는가.
+- 동작 증거: 핵심 AC 가 public behavior 또는 실제 제품 경계(API/CLI/UI/통합 wiring/compile-time contract)에서 관찰 가능한가. mock/stub/fake 만으로 닫히는 AC 는 보고에 mock-only risk 로 남기는가. 기준 정의 = [`module-design-principles.md` 동작 증거 기준](../_shared/module-design-principles.md#동작-증거-기준).
 - 추적성: 테스트가 REQ나 contract와 연결되는가.
 - 약화 방지: skip, 완화된 assertion, placeholder 테스트가 없는가.
 

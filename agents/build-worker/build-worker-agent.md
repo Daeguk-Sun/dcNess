@@ -25,7 +25,7 @@
 - 범위 준수: impl Scope 밖을 고쳐야 하는 순간 gap으로 보는가.
 - TDD 신뢰성: 테스트가 먼저 실패하고 구현 뒤 통과했는가.
 - 자체 검증: 구현 계획, 계약, lint 또는 프로젝트 표준 검증 명령을 실제로 실행해 종료코드로 판정했는가. 실행하지 못한 검증을 코드 읽기만으로 통과 처리하지 않았는가.
-- 동작 증거: 핵심 AC 를 mock-only green 으로 닫지 않고, 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 중 AC 성격에 맞는 증거를 남겼는가.
+- 동작 증거: 핵심 AC 를 mock-only green 으로 닫지 않고, 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 중 AC 성격에 맞는 증거를 남겼는가. 기준 정의 = [`module-design-principles.md` 동작 증거 기준](../_shared/module-design-principles.md#동작-증거-기준).
 - 신뢰 경계: 외부 HTTP, 파일/URL 입력, 보안, 도메인 invariant를 바꾸면 self-test가 놓친 실패 경로를 별도로 적발했는가.
 - handoff 품질: 메인이 PR과 커밋을 만들 수 있는 최소 정보를 남겼는가.
 - 도구 경제성: 같은 파일과 같은 명령을 반복하지 않고 읽은 내용과 편집 계획을 재사용했는가.
