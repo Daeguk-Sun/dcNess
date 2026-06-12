@@ -36,6 +36,13 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             / "references"
             / "finding-examples.md"
         ).read_text(encoding="utf-8")
+        self.codex_arch_validator = (
+            ROOT
+            / "codex"
+            / "skills"
+            / "dcness-architecture-validator"
+            / "SKILL.md"
+        ).read_text(encoding="utf-8")
         self.shared_principles = (
             ROOT / "agents" / "_shared" / "module-design-principles.md"
         ).read_text(encoding="utf-8")
@@ -95,6 +102,20 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
         self.assertIn("마지막 task까지 동작이 밀리는 분할 여부", self.arch_validator_template)
         self.assertIn("## 제품 동작 슬라이스", self.arch_validator_examples)
         self.assertIn("cross-story 통합 검증", self.arch_validator_examples)
+
+    def test_codex_architecture_validator_checks_same_vertical_slice_axis(
+        self,
+    ) -> None:
+        for needle in (
+            "사용자가 검증할 제품 동작 수직 슬라이스",
+            "Story 완료 시 실제로 검증되는 동작",
+            "제품 경계(UI/API/CLI/worker entrypoint/통합 wiring)",
+            "섹션명만 보지 말고",
+            "cross-story 통합 검증에서는 Story별 첫 제품 경계 동작 증거",
+            "마지막 task까지 첫 제품 동작이 밀린 상태",
+            "`TASK_LOCAL`",
+        ):
+            self.assertIn(needle, self.codex_arch_validator)
 
     def test_shared_design_principles_and_parallel_policy_preserve_priority(
         self,
