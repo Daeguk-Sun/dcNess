@@ -93,6 +93,16 @@ flowchart TB
 | cross-module / cross-story interface | 모듈 경계 정합 → architecture 검증 |
 | 비용 / 성능 / 운영 리스크 | 운영 영향 → 사전 설계·측정 |
 
+### 판정 보조 신호 (권고 — 차단 아님)
+
+high-risk trigger 판정은 메인의 prose 판단이라 놓칠 수 있다. 진입점을 고르기 전에 요청과 함께 이미 손에 있는 신호를 먼저 본다 — 아래 신호가 보이면 high-risk 후보로 보고, 어떤 신호 때문인지 근거와 함께 사용자에게 표시한 뒤 진입점을 고른다.
+
+- **이슈/PR 라벨**: `security`, `migration`, `breaking`, `high-risk` 류 라벨이 붙어 있는가.
+- **변경 대상 경로**: `auth/`, `security/`, `migration/`, schema 정의, `payment`/`billing` 류 디렉토리·파일명이 대상에 포함되는가.
+- **요청 문구**: "전부 갈아엎자", "재설계", "스키마 변경", "외부 API 교체" 같은 광범위·비가역 변경 표현이 있는가.
+
+이 신호는 권고다 — 신호가 있어도 차단하지 않고, 최종 진입점 결정은 메인/사용자가 한다 (권고 → 강제 자동 승격 금지). 신호가 없다고 high-risk 가 아닌 것도 아니다 — 위 trigger 표 판단을 대체하지 않고 보조한다.
+
 ## tech-review / architecture-validator 조건
 
 경량화는 사전 ceremony 를 줄이는 것이지 검증을 없애는 것이 아니다. 다만 검증의 종류는 구현 경로별로 다르다.
