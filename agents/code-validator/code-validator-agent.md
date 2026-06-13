@@ -14,6 +14,7 @@
 
 - 필수: 계획 파일
 - 필수: 변경된 구현 파일
+- 필수: [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)
 - 상황별: domain-model, architecture, design, DB schema
 - 상황별: 용어·공개 진입점·분기 표현을 검증할 때만 [`../../docs/plugin/terms.md`](../../docs/plugin/terms.md)
 - 참고: [`references/finding-examples.md`](references/finding-examples.md)
@@ -53,6 +54,8 @@
 ## 결론과 보고
 
 마지막 단락에 `PASS`, `FAIL`, `ESCALATE` 중 하나를 쓴다. PASS에서는 통과 항목을 길게 나열하지 않는다. FAIL에서는 finding별 증거를 남긴다.
+
+FAIL / ESCALATE 판단 노트와 재검증 delta-first 보고는 [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)를 따른다. 이 가이드는 출력 schema 가 아니라 메인이 다음 행동을 판단할 수 있게 실패 사실, 판단 근거, 재검증 변화량을 드러내는 의미 요구다.
 
 ## 템플릿과 참고 문서
 
