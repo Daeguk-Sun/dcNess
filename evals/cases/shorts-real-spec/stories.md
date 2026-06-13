@@ -4,7 +4,7 @@
 
 **목표**: 사용자가 가져온 짧은 영상 클립(자막 없음)에, 한 번 정해둔 일관 스타일 템플릿(세로 프레이밍 + 상단 훅 자막 + 본문 대사 자막 + 채널 워터마크)을 입혀 세로 9:16 쇼츠 한 편으로 마무리하는 도구를 만든다. 편집기는 직접 만들지 않고(클립은 미리 잘라 가져옴), repo 기존 인프라(Remotion 렌더 / ffmpeg / Streamlit 셸 / YouTube 업로드 / LLM)를 재사용해 코드 자작 경로로 브랜드 룩의 픽셀 단위 일관성을 보장한다. 저작권 판단·책임은 사람에게 두고 자동 검사는 하지 않으며 업로드 디폴트는 unlisted 로 보수적으로 간다.
 
-**선행 조건**: v02 Epic 1(자동 영상 파이프라인) 구현·머지 완료 — Remotion 렌더 파이프라인 / ffmpeg 어댑터 / Streamlit 앱 셸 / YouTube 업로드 어댑터 / LLM 연동이 존재. 본 epic 은 그 위에 "세로 쇼츠 + 템플릿" 모드를 얹는다. **`/tech-review` 한국어 STT 정확도 검증 = 🟢 GO 완료(2026-06-09, faster-whisper large-v3 실측 CER 1.63%/WER 8.2% + 고유명사 정확, `docs/tech-review.md` v03)** — architect-loop 진입 가능. 단 합성음 기준이라 architect 단계에서 실클립 1~2개 재확인 spike 권고.
+**선행 조건**: v02 Epic 1(자동 영상 파이프라인) 구현·머지 완료 — Remotion 렌더 파이프라인 / ffmpeg 어댑터 / Streamlit 앱 셸 / YouTube 업로드 어댑터 / LLM 연동이 존재. 본 epic 은 그 위에 "세로 쇼츠 + 템플릿" 모드를 얹는다. 한국어 STT 정확도 검증 = GO 완료(faster-whisper large-v3 실측 CER 1.63%/WER 8.2% + 고유명사 정확) — architect-loop 진입 가능. 단 합성음 기준이라 architect 단계에서 실클립 1~2개 재확인 spike 권고.
 
 **완료 기준** (epic 단위 수용 기준):
 1. 자막 없는 클립을 올리면 한국어 STT 가 대사 자막(text + 타임스탬프) 초안을 깔고, 사용자가 교정한 자막이 최종 렌더에 반영된다.

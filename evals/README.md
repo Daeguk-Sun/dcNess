@@ -46,6 +46,9 @@ EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonne
 |---|---|---|
 | `story-slice-partfirst` | (합성) 기능 영역(인테이크/템플릿/오디오/렌더/업로드) 부품 단위로 잘려 마지막 story 까지 동작이 안 나오는 backlog | 분할·순서 결함이 지적돼야 한다 |
 | `story-slice-skeleton` | (합성) 첫 story 가 얇은 end-to-end 골격이고 매 story 가 확인 가능한 증분인 backlog | 분할·순서를 이유로 퇴짜 놓으면 안 된다 |
-| `shorts-real-spec` | (L3 실사고) youTubeGenerator v03 쇼츠 epic 의 실제 stories.md — 핵심 동작 검증이 Story 3 까지 밀려 런타임 gap(youTubeGenerator #214)이 났던 backlog. 합성 케이스보다 미묘함(각 story 가 표면상 멀쩡) | 분할·순서 결함이 지적돼야 한다 (옛 지침은 통과시켰던 입력) |
+| `shorts-real-spec` | (L3 실사고) youTubeGenerator v03 쇼츠 epic 의 실제 stories.md — 완성 쇼츠 동작 검증이 Story 3 까지 밀려 런타임 gap(youTubeGenerator #214)이 났던 backlog. 합성 케이스보다 미묘함(각 story 가 표면상 멀쩡) | 순서 결함(첫 완성 동작이 뒤 story 로 밀림)이 지적돼야 한다 (옛 지침은 통과시켰던 입력) |
 
-> L3 실사고 케이스의 한계: youTubeGenerator v03 쇼츠 사고는 `/spec` story 순서 축(동작 검증이 뒤로 밀림)에서 재현되지만, 설계단 architecture-validator 수직 슬라이스 축에서는 재현되지 않는다 — 그 epic 의 impl 설계는 수직 슬라이스가 완결돼 있었고 실패는 런타임/검수 단계에서 났다. architecture-validator 축의 실데이터 케이스는 그 축에서 실제 사고가 나면 추가한다.
+> L3 실사고 케이스의 축 한계 — 정직하게 기록한다:
+> - **순서 축은 깨끗하게 재현된다**: 핵심 약속(완성 쇼츠) 검증이 뒤 story 로 밀린 것을 지금 지침이 reliable 하게 잡는다(3/3). 이게 youTubeGenerator #214 의 설계단 원인이다.
+> - **행동적 분할 축은 이 실 backlog 에서 경계선이라 MUST 로 두지 않았다**: 각 story 가 app 화면 하위 동작을 일부 내므로 "앞 story 에 동작이 전무"라는 주장이 깔끔하게 참이 아니다. 무리해서 MUST 로 두면 케이스가 1/3 로 흔들린다(실측). 깨끗한 신호만 잠근다.
+> - **설계단 architecture-validator 수직 슬라이스 축에서는 재현되지 않는다**: 그 epic 의 impl 설계(Story 3 완전 세트)는 수직 슬라이스가 완결돼 validator 가 정합 PASS 했고, 실패는 런타임/검수 단계에서 났다. architecture-validator 축의 실데이터 케이스는 그 축에서 실제 사고가 나면 추가한다.
