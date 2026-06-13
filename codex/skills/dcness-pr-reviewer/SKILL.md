@@ -40,6 +40,16 @@ dcNess가 `pr-reviewer`를 Codex 교차 검토로 보낼 때 사용한다. merge
 4. `MUST FIX`는 merge blocker일 때만 쓴다. PR 범위 밖 legacy 문제는 이번 PR이 악화시킨 경우에만 blocker가 된다.
 5. finding마다 파일 경로, 라인, 구체적 사실, 영향, 권장 방향을 쓴다.
 
+## FAIL / ESCALATE 판단 노트와 재검증 delta-first 보고
+
+이 가이드는 출력 schema 가 아니라 메인이 다음 행동을 판단할 수 있게 실패 사실, 판단 근거, 재검증 변화량을 드러내는 의미 요구다. heading 은 권장 카테고리일 뿐 필수 schema 가 아니다.
+
+첫 `FAIL` 또는 `ESCALATE` 판단에서는 판정, 깨진 기대, 근거, 확인 위치, 영향 표면, 오케스트레이터 판단점, 판단 한계를 짧게 남긴다. 수정 설계, 담당자 지정, 최소 수정 범위 요구는 넣지 않는다.
+
+같은 agent/mode 의 retry 또는 재검증이면 전체 배경을 반복하지 않고 직전 결과 대비 변화부터 쓴다. 재검증 결과는 changed / resolved / still failing / new 를 먼저 드러내고, 권장 카테고리는 해소됨, 유지됨, 신규, 판단 불가다. 남은 차단 finding 에는 파일/라인/명령 같은 재현 가능한 근거를 유지한다.
+
+별도 영구 산출물 작성 금지, read-only agent 가 직접 파일 쓰기 금지, JSON, marker, 고정 schema, 필수 heading 강제는 도입하지 않는다. `PASS` 단발에는 적용하지 않는다.
+
 ## 완료 기준
 
 - `MUST FIX`가 있으면 `FAIL`이다.
