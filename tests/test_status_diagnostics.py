@@ -89,6 +89,14 @@ class PluginRootTests(unittest.TestCase):
             # 잘못된 env 는 무시하고 본 파일 기준 폴백 → td 가 아니어야 한다
             self.assertNotEqual(_plugin_root().resolve(), Path(td).resolve())
 
+    def test_other_plugin_env_falls_back(self) -> None:
+        # 다른 plugin 이 CLAUDE_PLUGIN_ROOT 를 set 한 경우 그 version 을 오보하지 않음
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            _write(root / ".claude-plugin" / "plugin.json", '{"name":"some-other-plugin"}')
+            os.environ["CLAUDE_PLUGIN_ROOT"] = str(root)
+            self.assertNotEqual(_plugin_root().resolve(), root.resolve())
+
     def test_valid_env_used(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)

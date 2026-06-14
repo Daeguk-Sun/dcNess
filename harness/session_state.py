@@ -2910,13 +2910,15 @@ def _is_self_repo(project_root: Path) -> bool:
 def _plugin_root() -> Path:
     """설치된 plugin root.
 
-    CLAUDE_PLUGIN_ROOT env 우선 — 단 그 경로가 실제 plugin manifest 를 들고 있을
-    때만 신뢰한다. env 가 비었거나 잘못된 경로면 본 파일 기준(harness 의 부모)으로 폴백.
+    CLAUDE_PLUGIN_ROOT env 우선 — 단 그 경로의 manifest 가 *dcness* 일 때만 신뢰한다.
+    다른 plugin/agent runtime 이 env 를 set 한 경우 그 plugin 의 version 을 dcNess
+    version 으로 오보하지 않도록, env 가 비었거나 dcness 가 아니면 본 파일 기준
+    (harness 의 부모) 으로 폴백.
     """
     env = os.environ.get("CLAUDE_PLUGIN_ROOT")
     if env:
         cand = Path(env)
-        if (cand / ".claude-plugin" / "plugin.json").exists():
+        if _is_self_repo(cand):
             return cand
     return Path(__file__).resolve().parent.parent
 

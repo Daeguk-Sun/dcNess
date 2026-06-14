@@ -51,10 +51,13 @@ claude plugin install dcness@dcness
 /init-dcness        # 현 프로젝트를 활성 whitelist 에 등록 (+ Read 권한 / git hook 자동 셋업)
 ```
 
-**활성화 성공 기준** — 아래처럼 `active: YES` 가 출력되면 정상이다.
+**활성화 성공 기준** — `/init-dcness` 가 출력하는 진단표에서 `whitelist 활성` 이 PASS 이고 FAIL 항목이 0 이면 정상이다 (INFO·선택 WARN 은 정상).
 
 ```
-[dcness] active: YES
+[dcness] === 외부 활성 프로젝트 진단 ===
+  [PASS] whitelist 활성: 활성
+  ...
+[dcness] 요약: N PASS / 0 WARN / 0 FAIL
 ```
 
 > plugin 갱신: `claude plugin update dcness@dcness`
