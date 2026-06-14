@@ -24,6 +24,9 @@ class GithubProjectLifecycleDocsTests(unittest.TestCase):
         self.init_dcness = (
             ROOT / "commands" / "init-dcness.md"
         ).read_text(encoding="utf-8")
+        self.init_reference = (
+            ROOT / "docs" / "plugin" / "init-dcness.md"
+        ).read_text(encoding="utf-8")
         self.setup_labels = (
             ROOT / "scripts" / "setup_labels.sh"
         ).read_text(encoding="utf-8")
@@ -55,7 +58,7 @@ class GithubProjectLifecycleDocsTests(unittest.TestCase):
         self.assertIn("IssueType 축과 같은 의미", self.issue_fields)
 
     def test_init_dcness_checks_project_and_label_bootstrap(self) -> None:
-        text = self.init_dcness
+        text = self.init_dcness + "\n" + self.init_reference
 
         self.assertIn("GitHub Project lifecycle bootstrap", text)
         self.assertIn("scripts/github_project_lifecycle.mjs bootstrap", text)
