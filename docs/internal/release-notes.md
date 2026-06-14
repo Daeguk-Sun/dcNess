@@ -4,6 +4,31 @@
 
 ---
 
+## v0.7.1 (2026-06-14)
+
+**커밋 범위**: `v0.7.0..v0.7.1` (머지 PR 2개)
+**핵심 변경**: 검증/리뷰 계열 agent 의 보고 가이드 보강 + 배포물 정리. 기능 추가 없는 patch.
+
+### 무엇이 바뀌나
+
+1. **검증 보고 가이드 보강** ([#759](https://github.com/alruminum/dcNess/pull/759) [#758](https://github.com/alruminum/dcNess/issues/758)) — `agents/_shared/validation-reporting-guidance.md` 추가. code-validator / architecture-validator / pr-reviewer(Claude) + Codex read-only validator skill 3종이 FAIL/ESCALATE 판단 근거와 재검증 delta 를 run-local prose 로 남기도록 가이드. 새 handoff 산출물·JSON·marker 없이 기존 자유서술 흐름 유지.
+
+2. **배포물에서 `evals/` 제외** ([#760](https://github.com/alruminum/dcNess/pull/760)) — `sync_release.sh` 제외 목록에 `evals` 추가. 행동 eval 하네스는 dcness 자체 QA 도구라 release 브랜치(사용자 배포물)에서 빠진다. plug-in 본체 영향 없음.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — validator/reviewer 보고 가이드(`agents/**`).
+- **Codex opt-in 프로젝트**는 `codex/skills/dcness-{code-validator,architecture-validator,pr-reviewer}` 갱신을 받으려면 plugin update 후 `/init-dcness` 재실행 필요.
+- 배포물에서 `evals/` 가 빠져 설치물이 가벼워진다(기능 영향 없음).
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
+
+---
+
 ## v0.7.0 (2026-06-13)
 
 **커밋 범위**: `v0.6.6..v0.7.0` (머지 PR 13개)
