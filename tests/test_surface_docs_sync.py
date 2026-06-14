@@ -26,6 +26,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.init_doc = (ROOT / "commands" / "init-dcness.md").read_text(
             encoding="utf-8"
         )
+        self.init_reference = (
+            ROOT / "docs" / "plugin" / "init-dcness.md"
+        ).read_text(encoding="utf-8")
         self.efficiency_skill = (ROOT / "commands" / "efficiency.md").read_text(
             encoding="utf-8"
         )
@@ -258,11 +261,12 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertIn(f"### .git/hooks/{hook_name}", self.hooks_doc)
             self.assertIn(f"`scripts/hooks/{hook_name}`", self.hooks_doc)
 
+        workflow_source = self.init_doc + "\n" + self.init_reference
         workflows = set(
             re.findall(
-                r"다음 thin yml 을 `\$PROJECT_ROOT/\.github/workflows/"
-                r"([A-Za-z0-9_.-]+\.yml)`",
-                self.init_doc,
+                r"(?:\$PROJECT_ROOT/)?\.github/workflows/"
+                r"([A-Za-z0-9_.-]+\.yml)",
+                workflow_source,
             )
         )
         self.assertEqual(
@@ -388,6 +392,42 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 self.init_doc,
                 msg=f"init-dcness.md 에 폐기된 TDD flow 참조 '{stale}' 잔존 (#681)",
             )
+
+    def test_init_doc_is_execution_runbook_not_hook_policy_reference(self) -> None:
+        """#690 — /init-dcness 는 실행 절차만 두고 자동 hook 설명은 SSOT 링크로 내린다."""
+        self.assertLess(
+            len(self.init_doc.splitlines()),
+            500,
+            msg="/init-dcness public entrypoint 가 다시 장황한 reference 문서가 됨",
+        )
+        for stale in (
+            "Step 2.9",
+            "발화 흐름:",
+            "자동 skip 룰",
+            "이전 v0.2.10",
+            "commit-msg TDD chain",
+        ):
+            self.assertNotIn(
+                stale,
+                self.init_doc,
+                msg=f"init-dcness.md 에 자동 hook 상세/히스토리 '{stale}' 잔존 (#690)",
+            )
+        self.assertIn("이미 자동 적용되는 것", self.init_doc)
+        self.assertIn("../docs/plugin/hooks.md#tdd-guardsh", self.init_doc)
+        self.assertIn("docs/plugin/init-dcness.md", self.init_doc)
+
+    def test_init_reference_owns_bootstrap_inventory_and_workflow_snippets(self) -> None:
+        """#690 — 긴 bootstrap 상세는 public command 가 아니라 reference 문서에 둔다."""
+        self.assertIn("## Bootstrap Inventory", self.init_reference)
+        self.assertIn("## CI Workflow Snippets", self.init_reference)
+        self.assertIn("## Re-run Matrix", self.init_reference)
+        self.assertIn("hooks.md#tdd-guardsh", self.init_reference)
+        for workflow in (
+            "git-naming-validation.yml",
+            "pr-body-validation.yml",
+            "github-project-lifecycle.yml",
+        ):
+            self.assertIn(workflow, self.init_reference)
 
     def test_hooks_doc_distinguishes_issue_mutation_paths(self) -> None:
         """#681 AC#4 — hooks.md 가 Bash `gh issue` 차단 vs GitHub MCP issue 통과를 구별한다."""

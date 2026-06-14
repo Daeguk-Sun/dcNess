@@ -186,7 +186,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 ## Layer 2 — git hooks
 
-설치 경로: 사용자 repo 의 `.git/hooks/`. `/init-dcness` Step 2.6 이 plug-in 의 `scripts/hooks/*` thin shim 을 복사한다. 본체 검증 로직은 사용자 repo 에 복사하지 않고 plug-in SSOT 를 직접 호출한다.
+설치 경로: 사용자 repo 의 `.git/hooks/`. `/init-dcness` bootstrap 이 plug-in 의 `scripts/hooks/*` thin shim 을 복사한다. 본체 검증 로직은 사용자 repo 에 복사하지 않고 plug-in SSOT 를 직접 호출한다.
 
 | Hook | Source | 언제 | 하는 일 | 차단 |
 |---|---|---|---|---|
@@ -241,7 +241,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 ### .github/workflows/git-naming-validation.yml
 
-**설치**: `/init-dcness` Step 2.6 에서 사용자가 CI git-naming 강제를 선택하면 생성한다.
+**설치**: `/init-dcness` 의 선택형 CI workflow 질문에서 사용자가 CI git-naming 강제를 선택하면 생성한다.
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
@@ -251,7 +251,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 ### .github/workflows/pr-body-validation.yml
 
-**설치**: `/init-dcness` Step 2.6 에서 사용자가 PR body close-keyword gate 를 선택하면 생성한다.
+**설치**: `/init-dcness` 의 선택형 CI workflow 질문에서 사용자가 PR body close-keyword gate 를 선택하면 생성한다.
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
@@ -267,7 +267,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 ### .github/workflows/github-project-lifecycle.yml
 
-**설치**: `/init-dcness` Step 2.10 에서 사용자가 Project lifecycle guard 를 선택하면 생성한다.
+**설치**: `/init-dcness` 의 GitHub Project lifecycle bootstrap 에서 사용자가 Project lifecycle guard 를 선택하면 생성한다.
 
 **시점**:
 
@@ -291,8 +291,8 @@ hook 또는 workflow 를 추가/삭제/이름 변경할 때 이 문서가 빠지
 | Source | 문서에 있어야 하는 것 |
 |---|---|
 | `hooks/hooks.json` | 모든 CC hook script 의 `### <script>.sh` 상세 섹션 |
-| `commands/init-dcness.md` 의 `scripts/hooks/*` copy 목록 | 모든 사용자 repo git hook 의 `### .git/hooks/<name>` 상세 섹션 |
-| `commands/init-dcness.md` 의 선택형 `.github/workflows/*.yml` 목록 | 모든 workflow 의 `### .github/workflows/<name>.yml` 상세 섹션 |
+| `commands/init-dcness.md` / `docs/plugin/init-dcness.md` 의 `scripts/hooks/*` copy 목록 | 모든 사용자 repo git hook 의 `### .git/hooks/<name>` 상세 섹션 |
+| `commands/init-dcness.md` / `docs/plugin/init-dcness.md` 의 선택형 `.github/workflows/*.yml` 목록 | 모든 workflow 의 `### .github/workflows/<name>.yml` 상세 섹션 |
 
 이 테스트는 hook 구현 변경의 의미까지 판정하지 않는다. 하지만 등록 공개 노출 범위가 바뀌었는데 `hooks.md` 요약/상세가 누락되는 회귀는 CI에서 막는다.
 
@@ -300,7 +300,7 @@ hook 또는 workflow 를 추가/삭제/이름 변경할 때 이 문서가 빠지
 
 **CC hooks**: [`hooks/hooks.json`](../../hooks/hooks.json) 이 event, matcher, script command 를 정의한다. Claude Code 가 plug-in 활성 시 표준 경로를 자동 인식한다.
 
-**git hooks**: `/init-dcness` Step 2.6 이 사용자 repo 의 `.git/hooks/` 에 thin shim 을 always-overwrite 한다. hook 본체는 `CLAUDE_PLUGIN_ROOT`, plug-in cache, legacy repo script 순서로 검증 script 를 resolve 한다.
+**git hooks**: `/init-dcness` bootstrap 이 사용자 repo 의 `.git/hooks/` 에 thin shim 을 always-overwrite 한다. hook 본체는 `CLAUDE_PLUGIN_ROOT`, plug-in cache, legacy repo script 순서로 검증 script 를 resolve 한다.
 
 **CI/CD workflows**: `/init-dcness` 가 사용자 선택에 따라 thin workflow 를 `.github/workflows/` 에 always-overwrite 한다. 사용자가 tag pin 을 원하면 `@main` 대신 release tag 로 바꿀 수 있다.
 
