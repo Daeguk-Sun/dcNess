@@ -12,6 +12,7 @@ EXCLUDE_PATHS=(
     "docs/internal"
     "docs/archive"
     "tests"
+    "evals"
     "PROGRESS.md"
     "CLAUDE.md"
     "scripts/sync_release.sh"
