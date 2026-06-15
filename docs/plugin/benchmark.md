@@ -118,8 +118,15 @@ python3 harness/benchmark_aggregate.py <sessions-root> --json
 반려한다"는 뜻이다 — 가드가 동작한다는 신호. waste top 은 어디를 개선하면 비용이
 주는지 가리킨다.
 
-**한계**: 출처가 한 프로젝트(단일 출처)이고, run 마다 작업 성격이 달라 비율은
-절대 기준이 아니라 그 프로젝트의 경향이다.
+**한계**:
+- 출처가 한 프로젝트(단일 출처)이고, run 마다 작업 성격이 달라 비율은 절대 기준이
+  아니라 그 프로젝트의 경향이다.
+- 위 결론 분포 / FAIL 비율 / escalate / blocked / waste top 은 `ledger.jsonl` +
+  `agent-trace.jsonl`(run 디렉토리 안)만으로 산출되어 정확하다. 반면 **비용**과
+  invocation 의존 waste(`END_STEP_SKIP`)는 세션 JSONL 이 *실행 cwd* 로 키잉되는데
+  worktree run 은 ledger 가 main repo 아래 있어 자동 유추가 빗나간다 — 이 두 지표가
+  필요하면 `--repo <cwd>` 로 보정한다. 자동 복구(begin-run cwd 기록)는
+  [`#766`](https://github.com/alruminum/dcNess/issues/766) 잔여.
 
 ### 아직 측정 불가 — PR 머지 성공률 (#766 작업②)
 

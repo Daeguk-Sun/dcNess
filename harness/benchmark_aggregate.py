@@ -46,8 +46,12 @@ if str(_REPO_ROOT) not in sys.path:
 from harness import ledger  # noqa: E402
 from harness import run_review  # noqa: E402
 
-# pr-reviewer FAIL 비율 분모 — 결론으로 인정하는 verdict enum.
-_PR_REVIEWER_VERDICTS = {"PASS", "FAIL", "LGTM"}
+# pr-reviewer FAIL 비율 — 실패로 세는 verdict (FAIL + 옛 CHANGES_REQUESTED).
+# CHANGES_REQUESTED 는 현 파서가 FAIL 로 흡수했으나 legacy .steps.jsonl enum 폴백
+# 경로에서 원형으로 등장할 수 있어 fail 버킷에 포함한다.
+_PR_REVIEWER_FAIL = {"FAIL", "CHANGES_REQUESTED"}
+# FAIL 비율 분모 — 결론으로 인정하는 verdict 전체.
+_PR_REVIEWER_VERDICTS = {"PASS", "LGTM"} | _PR_REVIEWER_FAIL
 
 # verdict 로 세지 않는 sentinel — PROSE_LOGGED(#284 prose-only advance) / AMBIGUOUS
 # (helper 모호 prose 마커). prose 결론(conclusion_enum) 부재 시 stored enum 으로
@@ -109,8 +113,18 @@ def _run_event_counts(run_dir: Path) -> tuple[int, bool]:
     return blocked, pr_merged
 
 
-def aggregate_runs(run_dirs: list, *, top: int = 10) -> FleetReport:
-    """run_dir 목록을 fleet 집계한다."""
+def aggregate_runs(run_dirs: list, *, top: int = 10, repo_override=None) -> FleetReport:
+    """run_dir 목록을 fleet 집계한다.
+
+    repo_override: build_report 의 invocation/cost 산출 기준 repo. 지정 시 모든 run 에
+    적용. **worktree 한계** — run_dir(ledger)은 git-common-dir 때문에 항상 main repo
+    의 .claude/harness-state 아래 있지만, Claude 세션 JSONL 은 *실행 cwd*(worktree
+    경로)로 키잉된다. 따라서 worktree run 은 run_dir 에서 repo 를 유추하면 세션 JSONL
+    을 못 찾아 cost·invocation 의존 waste(END_STEP_SKIP)가 누락된다. prose/agent-trace
+    기반 지표(결론 분포 / FAIL 비율 / escalate / blocked / MUST_FIX·TOOL_REPEAT waste)
+    는 run_dir 만으로 산출되어 영향 없다. cost/invocation 정확도가 필요하면 그 run 이
+    실행된 cwd(worktree 포함)를 --repo 로 지정한다 (run_started 가 cwd 미기록 — #766).
+    """
     by_entry_point: Counter = Counter()
     agent_conclusions: dict = defaultdict(Counter)
     escalate_count = 0
@@ -135,8 +149,8 @@ def aggregate_runs(run_dirs: list, *, top: int = 10) -> FleetReport:
         # build_report 재사용 — parse_steps + invocation 조립(window/repo_path) +
         # detect_wastes 를 per-run review 와 동일하게 수행. 수동 parse_steps +
         # detect_wastes 만 하면 invocation 의존 waste(END_STEP_SKIP 등)가 누락된다.
-        repo_path = _repo_path_for_run(run_dir) or run_dir
-        report = run_review.build_report(run_dir, repo_path)
+        repo_path = repo_override or _repo_path_for_run(run_dir) or run_dir
+        report = run_review.build_report(run_dir, Path(repo_path))
         for s in report.steps:
             verdict = _step_verdict(s)
             if verdict:
@@ -148,10 +162,11 @@ def aggregate_runs(run_dirs: list, *, top: int = 10) -> FleetReport:
         for w in report.wastes:
             waste_counter[w.pattern] += 1
 
-    # pr-reviewer FAIL 비율
+    # pr-reviewer FAIL 비율 (FAIL + 옛 CHANGES_REQUESTED) / (PASS+FAIL+LGTM+CR)
     pr = agent_conclusions.get("pr-reviewer", {})
     denom = sum(c for v, c in pr.items() if v in _PR_REVIEWER_VERDICTS)
-    fail_ratio = (pr.get("FAIL", 0) / denom) if denom else None
+    fail_n = sum(c for v, c in pr.items() if v in _PR_REVIEWER_FAIL)
+    fail_ratio = (fail_n / denom) if denom else None
 
     return FleetReport(
         run_count=run_count,
@@ -167,13 +182,13 @@ def aggregate_runs(run_dirs: list, *, top: int = 10) -> FleetReport:
 
 
 def aggregate_sessions(sessions_root, *, entry_point: Optional[str] = None,
-                       top: int = 10) -> FleetReport:
+                       top: int = 10, repo_override=None) -> FleetReport:
     """sessions-root 아래 모든 run 을 집계한다. entry_point 지정 시 그 진입점만."""
     sessions_root = Path(sessions_root)
     run_dirs = run_review.list_runs(sessions_root)
     if entry_point:
         run_dirs = [r for r in run_dirs if _run_entry_point(r) == entry_point]
-    return aggregate_runs(run_dirs, top=top)
+    return aggregate_runs(run_dirs, top=top, repo_override=repo_override)
 
 
 def _fmt_ratio(r: Optional[float]) -> str:
@@ -230,6 +245,10 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--entry-point", default=None,
                     help="impl / design 등 특정 진입점만 집계")
     ap.add_argument("--top", type=int, default=10, help="waste top-N (기본 10)")
+    ap.add_argument("--repo", default=None,
+                    help="cost/invocation 산출 기준 repo (세션 JSONL 위치). "
+                         "worktree run 의 정확한 cost/END_STEP_SKIP 가 필요할 때 "
+                         "그 run 이 실행된 cwd 지정. 미지정 시 run 경로에서 유추.")
     ap.add_argument("--json", action="store_true", help="JSON 출력")
     args = ap.parse_args(argv)
 
@@ -243,7 +262,8 @@ def main(argv: Optional[list] = None) -> int:
             return 2
 
     report = aggregate_sessions(sessions_root, entry_point=args.entry_point,
-                                top=args.top)
+                                top=args.top,
+                                repo_override=Path(args.repo) if args.repo else None)
 
     if args.json:
         print(json.dumps({

@@ -128,6 +128,17 @@ class TestAggregateBasic(unittest.TestCase):
             self.assertEqual(rep.agent_conclusions["pr-reviewer"]["FAIL"], 1)
             self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
 
+    def test_legacy_changes_requested_counts_as_fail(self):
+        # 옛 pr-reviewer CHANGES_REQUESTED 도 FAIL 버킷 + 분모에 포함 → ratio 1.0.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            r = _make_run_dir_steps(tmp, "s1", "run-cr000001", [
+                {"agent": "pr-reviewer", "mode": None,
+                 "enum": "CHANGES_REQUESTED", "ts": "2026-06-01T00:01:00Z"},
+            ])
+            rep = aggregate_runs([r])
+            self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
+
     def test_prose_logged_sentinel_not_counted_as_verdict(self):
         # PROSE_LOGGED sentinel 은 verdict 로 세지 않는다 (prose 결론도 없을 때).
         with tempfile.TemporaryDirectory() as d:
@@ -302,6 +313,22 @@ class TestRenderAndCli(unittest.TestCase):
             sessions_root = tmp / ".claude" / "harness-state" / ".sessions"
             rc = main([str(sessions_root)])
             self.assertEqual(rc, 0)
+
+    def test_repo_override_accepted(self):
+        # --repo override 가 받아들여지고 정상 종료 (cost/invocation 보정 escape hatch).
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            _make_run_dir_ledger(
+                tmp, "s1", "run-r0000001",
+                _run_events("impl", [_step("pr-reviewer", "pr.md")]),
+                {"pr.md": "리뷰\nPASS\n"},
+            )
+            sessions_root = tmp / ".claude" / "harness-state" / ".sessions"
+            rc = main([str(sessions_root), "--repo", str(tmp)])
+            self.assertEqual(rc, 0)
+            # 함수 레벨 override 도 동작
+            rep = aggregate_sessions(sessions_root, repo_override=tmp)
+            self.assertEqual(rep.run_count, 1)
 
     def test_main_json_output(self):
         with tempfile.TemporaryDirectory() as d:
