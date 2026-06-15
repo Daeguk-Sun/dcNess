@@ -412,14 +412,19 @@ class WasteDetectionTests(unittest.TestCase):
         wastes = detect_wastes(steps)
         self.assertTrue(any(w.pattern == "MUST_FIX_GHOST" for w in wastes))
 
-    def test_ghost_gate_set_covers_ledger_validators(self):
-        # #771 drift 가드 — conveyor 검증 게이트가 늘면 GHOST 게이트도 같이 커져야 함.
+    def test_ghost_gate_set_derived_from_allow_matrix(self):
+        # #771 — 게이트셋은 ALLOW_MATRIX 빈 허용(read-only)에서 파생 — hardcode 누락
+        # whack-a-mole 차단. read-only 게이트 전부 + tech-reviewer 포함.
         from harness.run_review import MUST_FIX_GATE_AGENTS
+        from harness.agent_boundary import ALLOW_MATRIX
         from harness import ledger
-        self.assertTrue(
-            ledger._VALIDATOR_AGENTS <= MUST_FIX_GATE_AGENTS,
-            "ledger._VALIDATOR_AGENTS 의 모든 게이트가 MUST_FIX_GATE_AGENTS 에 있어야 함",
-        )
+        read_only = {a for a, paths in ALLOW_MATRIX.items() if not paths}
+        self.assertTrue(read_only <= MUST_FIX_GATE_AGENTS,
+                        "ALLOW_MATRIX 의 모든 read-only 게이트 포함 필수")
+        self.assertTrue(ledger._VALIDATOR_AGENTS <= MUST_FIX_GATE_AGENTS)
+        # 폐기됐지만 legacy 트레이스용 plan-reviewer 자동 포함 + tech-reviewer 명시
+        self.assertIn("plan-reviewer", MUST_FIX_GATE_AGENTS)
+        self.assertIn("tech-reviewer", MUST_FIX_GATE_AGENTS)
 
     def test_spec_gap_loop(self):
         steps = [

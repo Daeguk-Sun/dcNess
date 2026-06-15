@@ -112,16 +112,25 @@ WINDOW_TS_PADDING = timedelta(seconds=60)
 # issue #770/#771 — MUST_FIX_GHOST 는 *게이트* agent 가 advance 결론을 내면서 미해결
 # MUST FIX 를 남긴 모순만 검출한다 (producer 의 must_fix·reviewer FAIL 은 정상 흐름).
 # 게이트 = PASS/FAIL/(LGTM) 결론으로 진행을 막는 read-only 검증/리뷰/검수 agent.
-#   - conveyor 검증 게이트: code-validator / pr-reviewer / architecture-validator
-#     / product-acceptance  (= ledger._VALIDATOR_AGENTS)
-#   - tech-reviewer: /tech-review preflight 게이트 — PASS/FAIL/ESCALATE 결론
-#     (conveyor validator set 엔 없지만 게이트 성격 동일, agents/tech-reviewer 결론 규약).
-# drift 가드: tests 가 ledger._VALIDATOR_AGENTS ⊆ 본 집합을 강제 (검증 게이트 추가 시
-# 본 집합도 같이 커지도록).
-MUST_FIX_GATE_AGENTS = {
-    "pr-reviewer", "code-validator", "architecture-validator",
-    "product-acceptance", "tech-reviewer",
-}
+# hardcode 대신 권한 metadata 에서 *파생* — agent_boundary.ALLOW_MATRIX 의 *빈 허용*
+# (Write 권한 0 = read-only) agent 가 곧 게이트다 (code/architecture-validator,
+# pr-reviewer, product-acceptance, plan-reviewer 자동 포함). tech-reviewer 는 자기
+# 보고서를 쓰므로 빈 허용은 아니지만 PASS/FAIL/ESCALATE 게이트라 명시 추가.
+# 이렇게 단일 SSOT 에서 파생하면 게이트가 늘어도 본 집합이 자동으로 따라간다 (#771
+# whack-a-mole 종료 — 게이트 하나씩 누락되던 hardcode 회귀 차단).
+def _derive_gate_agents() -> set[str]:
+    try:
+        from harness.agent_boundary import ALLOW_MATRIX
+        read_only = {a for a, paths in ALLOW_MATRIX.items() if not paths}
+    except Exception:
+        read_only = {
+            "code-validator", "architecture-validator", "pr-reviewer",
+            "product-acceptance", "plan-reviewer",
+        }
+    return read_only | {"tech-reviewer"}
+
+
+MUST_FIX_GATE_AGENTS = _derive_gate_agents()
 MUST_FIX_GHOST_PASS_ENUMS = {"PASS", "LGTM"}
 # stored enum 이 실제 verdict 면 그것을 우선 (legacy .steps.jsonl row). PROSE_LOGGED /
 # AMBIGUOUS 같은 sentinel 일 때만 prose 파싱 결론을 쓴다 — prose 오파싱(예 "LGTM 후보 X")
