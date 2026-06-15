@@ -1,3 +1,8 @@
+---
+name: dcness-code-validator
+description: Use when dcNess routes code-validator cross-review work to Codex after implementation to verify that code, tests, and contracts satisfy the provided plan, changed files, and test evidence.
+---
+
 # dcness-code-validator
 
 ## 언제 쓰나
