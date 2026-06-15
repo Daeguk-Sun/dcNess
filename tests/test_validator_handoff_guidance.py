@@ -43,6 +43,16 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
             ).read_text(encoding="utf-8"),
         }
 
+    def test_codex_read_only_validation_skills_have_native_frontmatter(self) -> None:
+        for name, text in self.codex_skills.items():
+            with self.subTest(skill=name):
+                self.assertTrue(text.startswith("---\n"))
+                end = text.find("\n---\n", 4)
+                self.assertNotEqual(end, -1)
+                frontmatter = text[4:end]
+                self.assertIn(f"name: {name}", frontmatter)
+                self.assertIn("description: ", frontmatter)
+
     def test_shared_guidance_defines_fail_escalate_note_and_delta_first(self) -> None:
         for needle in (
             "# 검증 보고 가이드",

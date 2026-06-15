@@ -1,3 +1,8 @@
+---
+name: dcness-architecture-validator
+description: Use when dcNess routes architecture-validator cross-review work to Codex before implementation or architecture PR merge to validate design contracts read-only.
+---
+
 # dcness-architecture-validator
 
 ## 언제 쓰나

@@ -1,3 +1,8 @@
+---
+name: dcness-pr-reviewer
+description: Use when dcNess routes pr-reviewer cross-review work to Codex before merge to review PR diffs for merge risk, maintainability, integration safety, security-sensitive patterns, and credible test evidence.
+---
+
 # dcness-pr-reviewer
 
 ## 언제 쓰나
