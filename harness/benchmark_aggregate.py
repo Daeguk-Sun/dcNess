@@ -49,6 +49,31 @@ from harness import run_review  # noqa: E402
 # pr-reviewer FAIL 비율 분모 — 결론으로 인정하는 verdict enum.
 _PR_REVIEWER_VERDICTS = {"PASS", "FAIL", "LGTM"}
 
+# verdict 로 세지 않는 sentinel — PROSE_LOGGED(#284 prose-only advance) / AMBIGUOUS
+# (helper 모호 prose 마커). prose 결론(conclusion_enum) 부재 시 stored enum 으로
+# 폴백하되 이 값들은 verdict 가 아니므로 제외한다.
+_NON_VERDICT_ENUMS = {"PROSE_LOGGED", "AMBIGUOUS", ""}
+
+
+def _step_verdict(step) -> str:
+    """step 의 진짜 verdict — prose 결론 우선, 없으면 stored enum 폴백.
+
+    run_review 의 `final_enum = conclusion_enum or enum` 정책과 동형. legacy
+    .steps.jsonl row(prose 부재, enum 에 실제 verdict 저장)도 누락 없이 집계.
+    """
+    if step.conclusion_enum:
+        return step.conclusion_enum
+    return step.enum if step.enum not in _NON_VERDICT_ENUMS else ""
+
+
+def _repo_path_for_run(run_dir: Path) -> Optional[Path]:
+    """run_dir(...<repo>/.claude/harness-state/.sessions/<sid>/runs/<rid>)에서
+    repo root 추출 — build_report 의 invocation/cost 산출 입력."""
+    for p in run_dir.parents:
+        if p.name == ".claude":
+            return p.parent
+    return None
+
 
 @dataclass
 class FleetReport:
@@ -107,15 +132,20 @@ def aggregate_runs(run_dirs: list, *, top: int = 10) -> FleetReport:
         if pr_merged:
             success_measurable = True
 
-        steps = run_review.parse_steps(run_dir)
-        for s in steps:
-            verdict = s.conclusion_enum
+        # build_report 재사용 — parse_steps + invocation 조립(window/repo_path) +
+        # detect_wastes 를 per-run review 와 동일하게 수행. 수동 parse_steps +
+        # detect_wastes 만 하면 invocation 의존 waste(END_STEP_SKIP 등)가 누락된다.
+        repo_path = _repo_path_for_run(run_dir) or run_dir
+        report = run_review.build_report(run_dir, repo_path)
+        for s in report.steps:
+            verdict = _step_verdict(s)
             if verdict:
                 agent_conclusions[s.agent][verdict] += 1
-                if verdict == "ESCALATE":
+                # ESCALATE / IMPLEMENTATION_ESCALATE / UX_FLOW_ESCALATE 등 변종 포함.
+                if "ESCALATE" in verdict:
                     escalate_count += 1
 
-        for w in run_review.detect_wastes(steps, run_dir=run_dir):
+        for w in report.wastes:
             waste_counter[w.pattern] += 1
 
     # pr-reviewer FAIL 비율

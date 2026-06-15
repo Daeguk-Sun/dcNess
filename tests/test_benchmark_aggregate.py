@@ -50,6 +50,19 @@ def _make_run_dir_ledger(tmp: Path, sid: str, rid: str, events: list,
     return run_dir
 
 
+def _make_run_dir_steps(tmp: Path, sid: str, rid: str, rows: list) -> Path:
+    """legacy .steps.jsonl 기반 run_dir fixture (receipt 무검증 경로).
+
+    prose 부재 + enum 에 실제 verdict 저장된 옛 row 의 폴백 집계를 검증하기 위함.
+    """
+    run_dir = tmp / ".claude" / "harness-state" / ".sessions" / sid / "runs" / rid
+    run_dir.mkdir(parents=True, exist_ok=True)
+    with open(run_dir / ".steps.jsonl", "w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    return run_dir
+
+
 def _step(agent: str, prose_name: str, *, enum: str = "PROSE_LOGGED",
           mode: Optional[str] = None, ts: str = "2026-06-01T00:01:00Z") -> dict:
     return {
@@ -103,6 +116,29 @@ class TestAggregateBasic(unittest.TestCase):
             self.assertEqual(rep.agent_conclusions["pr-reviewer"]["PASS"], 1)
             self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 0.75)
 
+    def test_legacy_steps_jsonl_enum_fallback(self):
+        # prose 부재 legacy row — conclusion_enum 없어도 stored enum 으로 폴백 집계.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            r = _make_run_dir_steps(tmp, "s1", "run-leg00001", [
+                {"agent": "pr-reviewer", "mode": None, "enum": "FAIL",
+                 "ts": "2026-06-01T00:01:00Z"},
+            ])
+            rep = aggregate_runs([r])
+            self.assertEqual(rep.agent_conclusions["pr-reviewer"]["FAIL"], 1)
+            self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
+
+    def test_prose_logged_sentinel_not_counted_as_verdict(self):
+        # PROSE_LOGGED sentinel 은 verdict 로 세지 않는다 (prose 결론도 없을 때).
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            r = _make_run_dir_steps(tmp, "s1", "run-snt00001", [
+                {"agent": "module-architect", "mode": None,
+                 "enum": "PROSE_LOGGED", "ts": "2026-06-01T00:01:00Z"},
+            ])
+            rep = aggregate_runs([r])
+            self.assertEqual(rep.agent_conclusions.get("module-architect", {}), {})
+
     def test_fail_ratio_none_when_no_pr_reviewer(self):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
@@ -128,6 +164,22 @@ class TestEscalateAndBlocked(unittest.TestCase):
             )
             rep = aggregate_runs([r])
             self.assertEqual(rep.escalate_count, 1)
+
+    def test_specialized_escalate_variant_counted(self):
+        # IMPLEMENTATION_ESCALATE / UX_FLOW_ESCALATE 등 변종도 escalate 로 집계.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            r = _make_run_dir_ledger(
+                tmp, "s1", "run-e1000001",
+                _run_events("impl", [
+                    _step("engineer", "e.md", mode="POLISH"),
+                ]),
+                {"e.md": "구현 보강 중단\n외부 의존 미해결\nIMPLEMENTATION_ESCALATE\n"},
+            )
+            rep = aggregate_runs([r])
+            self.assertEqual(rep.escalate_count, 1)
+            self.assertIn("IMPLEMENTATION_ESCALATE",
+                          rep.agent_conclusions["engineer"])
 
     def test_blocked_event_count(self):
         with tempfile.TemporaryDirectory() as d:
