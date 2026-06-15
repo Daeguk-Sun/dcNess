@@ -36,6 +36,31 @@ risk 가 높을 때만 조건부로 부른다([`docs/plugin/workflow-router.md`]
 scope 가 아니다). Codex 분기는 read-only validator 3종 opt-in 에만 한정된다. 가벼운
 단발 스크립팅만 원하는 경우엔 과할 수 있다.
 
+## 언제 유리하고 언제 과한가
+
+작업 규모로 1분 안에 판단한다. dcNess 는 무거운 절차를 항상 켜지 않고 risk 가 높을 때만
+올린다 — 그래서 작은 작업엔 가볍고, 큰 작업엔 안전하다.
+
+| 작업 | 권장 | dcNess 가 주는 것 |
+|---|---|---|
+| 문서/설정 변경, 한 줄 버그픽스 | `/impl` (Lite) | 검증·리뷰·PR 순서 보존, 최소 마찰 |
+| 일반 버그픽스, 작은 리팩터링 | `/impl` (Lite/Standard 자동 판정) | 파일 경계 + `test -> review -> PR` 순서 보존 |
+| 새 기능 (설계 선행 필요) | `/spec -> /design -> /impl` | 설계도 기반 구현 + 검증 시퀀스 강제 |
+| epic/대형 작업, 여러 task | `/design -> /impl-loop` | task별 1 PR + run 단위 replay·낭비 분석 |
+
+**dcNess 가 과한 경우** — 일회성 스크립팅, 탐색적 prototype, 버리는 코드. 무거운
+설계 절차를 부를 일이 없고 검증 순서 보존이 가치를 못 내는 작업.
+
+**dcNess 가 유리한 경우** — 같은 절차(test -> implement -> review -> PR)와 agent 파일
+경계를 반복적으로 지켜야 하는 실제 제품 작업. run 을 사후에 다시 분석(replayability)해
+낭비를 잡고 절차를 개선하려는 경우.
+
+다른 skill-workflow 하네스(Superpowers, OMC 등)와의 정성 비교: 그쪽은 onboarding 과
+다양한 supported harness 노출이 강점이다. dcNess 는 onboarding 표면은 작은 대신,
+**작업 순서·파일 경계의 governance 와 run 단위 replayability** 가 강하다. 실측 수치와
+재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) 참조 (표본 크기와
+한계를 함께 명시한다).
+
 ## 설치 & 활성화
 
 ```sh
@@ -198,6 +223,7 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 | [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성 SSOT (강제 영역 2 + 안티패턴 4) |
 | [`docs/plugin/terms.md`](docs/plugin/terms.md) | 사용자-facing 용어 사전 — 용어·공개 진입점·분기 표현 수정/리뷰 시 lazy read |
 | [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | 공개 workflow 진입점 계약 — 기본/support/고급/유틸리티/내부 agent 분류 |
+| [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현 가이드(measure_main_turns / run-review) + turn 절감 실측 샘플 + 한계 |
 | 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`design`](skills/design/design-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 분기 규칙 진본 (mermaid + enum 표 + retry + escalate) |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | loop 실행 절차 — Step 0~8 mechanics (각 loop spec = 해당 skill `## Loop`) |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | 순서 차단 훅 + 8 hook SSOT |
@@ -212,7 +238,7 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 
 - [`#520 /init-dcness doctor`](https://github.com/alruminum/dcNess/issues/520) — 활성화 실패를 사용자가 직접 진단할 수 있게 한다.
 - [`#521 agent/skill RED-GREEN 시나리오 테스트`](https://github.com/alruminum/dcNess/issues/521) — guard 동작을 예제 기반으로 검증한다.
-- [`#522 public benchmark`](https://github.com/alruminum/dcNess/issues/522) — public launch 전 성능·효용 근거를 정리한다.
+- [`#522 positioning + 측정 재현`](https://github.com/alruminum/dcNess/issues/522) — "언제 유리하고 언제 과한가" 판단 + 측정 재현 가이드([`benchmark.md`](docs/plugin/benchmark.md)). 정량 표는 [`#766`](https://github.com/alruminum/dcNess/issues/766) 으로 분리.
 - [`#524 runtime non-goal vs interop 포지셔닝`](https://github.com/alruminum/dcNess/issues/524) — provider 분기 시스템이 아니라 PR workflow guard 라는 경계를 명확히 한다.
 
 ### 역사 자료 (archive)
