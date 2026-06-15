@@ -21,8 +21,9 @@ dcNess 는 측정 인프라를 plug-in 본체에 같이 배포한다.
 > `/run-review` 는 skill 이 경로 해석을 대신하므로 prefix 불필요.
 >
 > ```sh
-> DCN="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
+> DCN="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | tail -1)"
 > # dcNess 저장소 체크아웃에서 돌릴 땐: DCN=.
+> # (ls 기본 lexical 정렬 — macOS/BSD 에 없는 GNU 전용 `sort -V` 회피)
 > ```
 
 핵심 가설은 단순하다. dcNess 의 무거운 절차(검증·구현·리뷰 시퀀스)를 sub-agent 가
@@ -113,17 +114,18 @@ python3 "$DCN"/harness/benchmark_aggregate.py <sessions-root> --json
 
 ### fleet 실측 (외부 활성 프로젝트 1곳)
 
-아래는 한 외부 활성 프로젝트의 누적 run 을 위 집계기로 산출한 결과다. `list_runs`
-가 `run_finished` + 유효 receipt 를 가진 run 만 포함하므로(불완전 run 은 정직하게
-제외) 표본 수는 실제 디스크상 run 보다 작을 수 있다.
+아래는 한 외부 활성 프로젝트의 누적 run 을 위 집계기로 산출한 **측정 시점 스냅샷**이다
+(run 이 계속 쌓이므로 재실행하면 값이 조금 다를 수 있다). `list_runs` 가
+`run_finished` + 유효 receipt 를 가진 run 만 포함하므로(불완전 run 은 정직하게 제외)
+표본 수는 실제 디스크상 run 보다 작을 수 있다.
 
 | 지표 | 값 | 비고 |
 |---|---|---|
-| 총 run | 43 | impl 39 / design 3 / architect-loop 1 |
-| pr-reviewer FAIL 비율 | 41.5% | PASS 34 / FAIL 27 / LGTM 4 — 리뷰 게이트가 실제로 반려 |
+| 총 run | 44 | impl 40 / design 3 / architect-loop 1 |
+| pr-reviewer FAIL 비율 | 42.6% | PASS 35 / FAIL 29 / LGTM 4 — 리뷰 게이트가 실제로 반려 |
 | escalate 결론 | 2 | 주로 architecture-validator |
 | blocked 이벤트 | 1 | |
-| waste top | TOOL_REPEAT_HIGH 39 / MUST_FIX_GHOST 39 / MUST_FIX_LEAK 11 | `/run-review` 가 잡는 낭비 패턴 |
+| waste top | MUST_FIX_GHOST 41 / TOOL_REPEAT_HIGH 39 / MUST_FIX_LEAK 11 | `/run-review` 가 잡는 낭비 패턴 |
 
 해석: pr-reviewer 의 ~42% FAIL 은 "리뷰가 형식적으로 통과만 시키지 않고 실제로
 반려한다"는 뜻이다 — 가드가 동작한다는 신호. waste top 은 어디를 개선하면 비용이

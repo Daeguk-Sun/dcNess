@@ -139,6 +139,24 @@ class TestAggregateBasic(unittest.TestCase):
             rep = aggregate_runs([r])
             self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
 
+    def test_stored_verdict_wins_over_misparsed_prose(self):
+        # legacy stored enum(CHANGES_REQUESTED)이 prose 오파싱(LGTM 후보)을 이긴다 —
+        # 거부된 리뷰가 LGTM 으로 둔갑하는 회귀 방지.
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            r = _make_run_dir_ledger(
+                tmp, "s1", "run-pv000001",
+                _run_events("impl", [
+                    _step("pr-reviewer", "pr.md", enum="CHANGES_REQUESTED"),
+                ]),
+                {"pr.md": "MUST FIX: 보강 필요\nLGTM 후보 X\n"},
+            )
+            rep = aggregate_runs([r])
+            dist = rep.agent_conclusions["pr-reviewer"]
+            self.assertEqual(dist.get("LGTM", 0), 0)
+            self.assertEqual(dist.get("CHANGES_REQUESTED"), 1)
+            self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
+
     def test_prose_logged_sentinel_not_counted_as_verdict(self):
         # PROSE_LOGGED sentinel 은 verdict 로 세지 않는다 (prose 결론도 없을 때).
         with tempfile.TemporaryDirectory() as d:

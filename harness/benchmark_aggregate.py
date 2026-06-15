@@ -60,14 +60,18 @@ _NON_VERDICT_ENUMS = {"PROSE_LOGGED", "AMBIGUOUS", ""}
 
 
 def _step_verdict(step) -> str:
-    """step 의 진짜 verdict — prose 결론 우선, 없으면 stored enum 폴백.
+    """step 의 진짜 verdict — stored enum 이 실제 결론이면 그것을 우선한다.
 
-    run_review 의 `final_enum = conclusion_enum or enum` 정책과 동형. legacy
-    .steps.jsonl row(prose 부재, enum 에 실제 verdict 저장)도 누락 없이 집계.
+    신규 ledger 는 enum 이 sentinel(PROSE_LOGGED)이라 prose 결론(conclusion_enum)이
+    유일 신호 → prose 사용. legacy .steps.jsonl row 는 enum 에 실제 verdict
+    (FAIL / CHANGES_REQUESTED 등)가 저장돼 있고, 이쪽이 regex 로 prose 를 재파싱하는
+    conclusion_enum 보다 신뢰도가 높다 (예: "MUST FIX ...\\nLGTM 후보 X" prose 가
+    LGTM 으로 오파싱돼 거부된 리뷰를 LGTM 으로 둔갑시키는 회귀 방지). 따라서 stored
+    enum 이 non-sentinel 이면 그것을, 아니면 prose 결론을 쓴다.
     """
-    if step.conclusion_enum:
-        return step.conclusion_enum
-    return step.enum if step.enum not in _NON_VERDICT_ENUMS else ""
+    if step.enum and step.enum not in _NON_VERDICT_ENUMS:
+        return step.enum
+    return step.conclusion_enum or ""
 
 
 def _repo_path_for_run(run_dir: Path) -> Optional[Path]:
