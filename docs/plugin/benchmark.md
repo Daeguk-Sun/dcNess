@@ -128,7 +128,7 @@ python3 "$DCN"/harness/benchmark_aggregate.py <sessions-root> --json
 | pr-reviewer FAIL 비율 | 42.6% | PASS 35 / FAIL 29 / LGTM 4 — 리뷰 게이트가 실제로 반려 |
 | escalate 결론 | 2 | 주로 architecture-validator |
 | blocked 이벤트 | 1 | |
-| waste top | MUST_FIX_GHOST 41 / TOOL_REPEAT_HIGH 39 / MUST_FIX_LEAK 11 | `/run-review` 가 잡는 낭비 패턴 |
+| waste top | TOOL_REPEAT_HIGH 39 / MUST_FIX_LEAK 11 / MISSING_CONCLUSION_ENUM 2 | `/run-review` 가 잡는 낭비 패턴 |
 
 해석: pr-reviewer 의 ~42% FAIL 은 "리뷰가 형식적으로 통과만 시키지 않고 실제로
 반려한다"는 뜻이다 — 가드가 동작한다는 신호. waste top 은 어디를 개선하면 비용이
