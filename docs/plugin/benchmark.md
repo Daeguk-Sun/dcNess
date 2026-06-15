@@ -2,8 +2,8 @@
 
 > 이 문서는 "화려한 성능 자랑" 이 아니다. dcNess 가 실제로 어디서 비용을 줄이는지,
 > 그 수치를 **누구나 자기 프로젝트에서 직접 재현**할 수 있게 하는 것이 목적이다.
-> 공개된 표본은 작고(아래 한계 참조), 일부 정량 지표는 아직 집계 전이다
-> ([수집 예정](#수집-예정-766) 참조). 과장 없이 있는 그대로 적는다.
+> 공개된 표본은 작고(아래 한계 참조), 일부 정량 지표(PR 머지 성공률)는 아직 측정
+> 불가다([`#766`](https://github.com/alruminum/dcNess/issues/766) 참조). 과장 없이 있는 그대로 적는다.
 
 ## 무엇을 측정하나
 
@@ -84,20 +84,50 @@ notes 기록). 측정 스크립트의 재현 정확성은 알려진 두 세션(t
   위 수치는 절대 보장값이 아니라 같은 조건 재현 시 참고선이다.
 - **측정 != 성공률**: 위 표는 turn 비용만 본다. PR 성공률 / blocked 비율 등은 아래 참조.
 
-## 수집 예정 (#766)
+## 재현 3 — fleet 집계 (여러 run 가로질러)
 
-다음 정량 지표는 체계적 데이터셋이 아직 없어 공개하지 않는다. cross-run 집계기 +
-의미 있는 외부 표본이 쌓인 뒤 [`#766`](https://github.com/alruminum/dcNess/issues/766)
-에서 채운다.
+위 두 도구가 run 1개를 보는 반면, [`harness/benchmark_aggregate.py`](../../harness/benchmark_aggregate.py)
+는 한 프로젝트의 **모든 run 의 `ledger.jsonl` 을 가로질러** 집계한다 — pr-reviewer
+FAIL 비율 / escalate 수 / blocked 수 / waste top-N. `run_review.py` 의 검증된 파서를
+재사용한다.
 
-- PR 생성/머지까지 성공률
-- blocked / escalate 비율
-- pr-reviewer FAIL 비율 (build-worker lint 도입 전후 차이)
-- run-review waste finding top N 집계
+```sh
+# 활성 프로젝트 안에서 (sessions-root 자동 탐색)
+python3 harness/benchmark_aggregate.py
 
-원자 데이터(step별 enum)는 이미 `ledger.jsonl` 에 자동 기록되지만, 여러 run 을
-가로질러 집계하는 도구와 충분한 표본이 트리거 조건이다. **synthetic 추정값으로
-빈칸을 채우지 않는다** — 정직한 빈칸이 가짜 숫자보다 낫다.
+# 경로 명시 + impl run 만 + JSON
+python3 harness/benchmark_aggregate.py <repo>/.claude/harness-state/.sessions --entry-point impl
+python3 harness/benchmark_aggregate.py <sessions-root> --json
+```
+
+### fleet 실측 (외부 활성 프로젝트 1곳)
+
+아래는 한 외부 활성 프로젝트의 누적 run 을 위 집계기로 산출한 결과다. `list_runs`
+가 `run_finished` + 유효 receipt 를 가진 run 만 포함하므로(불완전 run 은 정직하게
+제외) 표본 수는 실제 디스크상 run 보다 작을 수 있다.
+
+| 지표 | 값 | 비고 |
+|---|---|---|
+| 총 run | 43 | impl 39 / design 3 / architect-loop 1 |
+| pr-reviewer FAIL 비율 | 41.5% | PASS 34 / FAIL 27 / LGTM 4 — 리뷰 게이트가 실제로 반려 |
+| escalate 결론 | 2 | 주로 architecture-validator |
+| blocked 이벤트 | 1 | |
+| waste top | TOOL_REPEAT_HIGH 39 / MUST_FIX_GHOST 39 / MUST_FIX_LEAK 11 | `/run-review` 가 잡는 낭비 패턴 |
+
+해석: pr-reviewer 의 ~42% FAIL 은 "리뷰가 형식적으로 통과만 시키지 않고 실제로
+반려한다"는 뜻이다 — 가드가 동작한다는 신호. waste top 은 어디를 개선하면 비용이
+주는지 가리킨다.
+
+**한계**: 출처가 한 프로젝트(단일 출처)이고, run 마다 작업 성격이 달라 비율은
+절대 기준이 아니라 그 프로젝트의 경향이다.
+
+### 아직 측정 불가 — PR 머지 성공률 (#766 작업②)
+
+PR 생성/머지까지의 **성공률**은 ledger 의 `pr_merged` 이벤트가 *선택 기록* 이라
+대부분 비어 있어 산출하지 못한다. 집계기도 이 지표는 "측정 불가"로 출력한다.
+GitHub PR 에서 파생하거나 이벤트 계측을 보강하는 작업은
+[`#766`](https://github.com/alruminum/dcNess/issues/766) 에 남아 있다. **synthetic
+추정값으로 빈칸을 채우지 않는다** — 정직한 빈칸이 가짜 숫자보다 낫다.
 
 ## 언제 유리하고 언제 과한가
 
