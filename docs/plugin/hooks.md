@@ -121,6 +121,7 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 - **`add`**: 코어 `ALLOW_MATRIX` 에 없는 경로를 그 agent 에 허용 (비표준 레이아웃 / 의도적 기본 제외 완화).
 - **`remove`**: 코어 기본 허용 경로를 이 프로젝트에서 제거 (ALLOW 보다 우선하는 DENY 오버레이).
 - **탐색**: `harness/agent_boundary.py` 가 cwd 조상에서 이 파일을 찾는다. worktree·하위 디렉토리에서도 프로젝트 루트 설정이 적용된다.
+- **build-worker 전파**: 코어 `ALLOW_MATRIX["build-worker"]` 가 `engineer ∪ test-engineer` 합집합이듯, `engineer` / `test-engineer` 의 `add`·`remove` 는 `build-worker`(`/impl-loop` 의 실제 mutation agent)에도 합쳐 전파된다. 즉 `"engineer": {"remove": ["^app/"]}` 만 선언해도 build-worker 의 `app/` write 가 함께 막힌다 (별도 `build-worker` 키 불필요).
 - **안전 degrade**: 파일 부재·깨진 JSON·형식 위반·컴파일 불가 정규식은 조용히 무시하고 코어 기본값을 유지한다 (잘못된 설정이 경계를 깨뜨리지 않는다).
 - **배포**: 읽는 로직은 plugin 본체(`harness/`)라 plugin 버전업으로 자동 적용 (cp 0). 설정 파일은 프로젝트가 직접 작성한다.
 

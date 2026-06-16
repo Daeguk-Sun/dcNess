@@ -192,6 +192,12 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
 # 경계가 무력화되던 결함(#597) 수정. (run_dir prose self-write 는 RUN_DIR_PROSE_ALLOW carve-out.)
 ALLOW_MATRIX["build-worker"] = ALLOW_MATRIX["engineer"] + ALLOW_MATRIX["test-engineer"]
 
+# build-worker 의 합집합 구성 역할 — 프로젝트 override(#696) 전파 대상. 코어 ALLOW 가
+# engineer ∪ test-engineer 인 것과 동일 원리로, `.dcness/boundary.json` 의 engineer /
+# test-engineer add·remove 도 build-worker 에 합쳐 전파해야 한다 (안 그러면 /impl-loop 의
+# 실제 mutation agent 인 build-worker 가 engineer.remove 를 우회하고 engineer.add 를 무효화).
+_BUILD_WORKER_UNION_ROLES: tuple[str, ...] = ("engineer", "test-engineer", "build-worker")
+
 
 # ── 코드 agent 전용영역 deny (#694 codex P2) ───────────────────────
 # engineer / test-engineer / build-worker 의 언어 중립 ALLOW 패턴(lib/·internal/·cmd/·
@@ -369,6 +375,28 @@ def load_project_boundary_overrides(
     return result
 
 
+def _effective_overrides(
+    overrides: dict[str, dict[str, tuple[str, ...]]], agent: str
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    """agent 에 적용할 (add, remove) 패턴을 반환한다.
+
+    build-worker 는 코어 ALLOW 가 engineer ∪ test-engineer 합집합이므로(#597), 프로젝트
+    override 도 구성 역할(engineer / test-engineer)의 add·remove 를 합쳐 전파한다 (codex
+    P1 #696). 안 그러면 /impl-loop 의 실제 mutation agent 인 build-worker 가 engineer.remove
+    를 우회하고 engineer.add 를 무효화한다. 그 외 agent 는 자기 키만 본다.
+    """
+    roles = _BUILD_WORKER_UNION_ROLES if agent == "build-worker" else (agent,)
+    add: list[str] = []
+    remove: list[str] = []
+    for role in roles:
+        ov = overrides.get(role)
+        if not ov:
+            continue
+        add.extend(ov.get("add", ()))
+        remove.extend(ov.get("remove", ()))
+    return tuple(add), tuple(remove)
+
+
 # ── path 정규화 ───────────────────────────────────────────────────────
 
 
@@ -521,11 +549,13 @@ def check_write_allowed(
     #    INFRA(1)·코드 agent 전용 deny(2) 를 모두 통과한 뒤이므로, override 는 되돌릴 수
     #    없는 경계를 건드리지 못한다 (가드 = 검사 순서). remove 는 ALLOW 보다 우선하는
     #    DENY 오버레이, add 는 코어 ALLOW 확장.
-    ov = load_project_boundary_overrides(cwd).get(agent)
+    add_patterns, remove_patterns = _effective_overrides(
+        load_project_boundary_overrides(cwd), agent
+    )
 
     # 3a. remove 오버레이 — 코어 기본 허용 경로를 이 프로젝트에서 제거.
-    if ov and ov.get("remove"):
-        matched = _matches_any(norm, ov["remove"])
+    if remove_patterns:
+        matched = _matches_any(norm, remove_patterns)
         if matched:
             return (
                 f"{agent} 프로젝트 boundary remove: `{norm}` matched `{matched}` "
@@ -537,7 +567,7 @@ def check_write_allowed(
     if allowed is None:
         # 미정의 agent — false positive 회피로 통과.
         return None
-    effective = allowed + (ov.get("add", ()) if ov else ())
+    effective = allowed + add_patterns
     if not _matches_any(norm, effective):
         return (
             f"{agent} ALLOW_MATRIX 미매칭: `{norm}` "

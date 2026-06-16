@@ -2056,6 +2056,60 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
                 check_write_allowed("engineer", "custom-pkg/x.go", cwd=sub)
             )
 
+    # ── build-worker 합집합 전파 (codex P1) ──
+    def test_build_worker_inherits_engineer_add(self):
+        # build-worker = engineer ∪ test-engineer — engineer.add 가 build-worker 에 전파.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self.assertIsNotNone(
+                check_write_allowed("build-worker", "custom-pkg/x.go", cwd=cwd)
+            )
+            self._write_boundary(cwd, {"engineer": {"add": [r"(^|/)custom-pkg/"]}})
+            self.assertIsNone(
+                check_write_allowed("build-worker", "custom-pkg/x.go", cwd=cwd)
+            )
+
+    def test_build_worker_inherits_engineer_remove(self):
+        # engineer.remove 가 build-worker 에 전파 — remove 우회 방지.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self.assertIsNone(
+                check_write_allowed("build-worker", "app/models.rb", cwd=cwd)
+            )
+            self._write_boundary(cwd, {"engineer": {"remove": [r"^app/"]}})
+            self.assertIsNotNone(
+                check_write_allowed("build-worker", "app/models.rb", cwd=cwd)
+            )
+
+    def test_build_worker_inherits_test_engineer_add(self):
+        # test-engineer.add 도 build-worker 에 전파 (합집합 구성 역할).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self.assertIsNotNone(
+                check_write_allowed("build-worker", "custom-e2e/run.yml", cwd=cwd)
+            )
+            self._write_boundary(
+                cwd, {"test-engineer": {"add": [r"(^|/)custom-e2e/.*"]}}
+            )
+            self.assertIsNone(
+                check_write_allowed("build-worker", "custom-e2e/run.go", cwd=cwd)
+            )
+
+    def test_build_worker_own_key_still_applies(self):
+        # build-worker 자체 키 override 도 유효 (union 에 build-worker 포함).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self._write_boundary(
+                cwd, {"build-worker": {"add": [r"(^|/)bw-only/"]}}
+            )
+            self.assertIsNone(
+                check_write_allowed("build-worker", "bw-only/x.go", cwd=cwd)
+            )
+            # engineer 단독은 build-worker 키 add 를 받지 않는다 (역방향 전파 없음).
+            self.assertIsNotNone(
+                check_write_allowed("engineer", "bw-only/x.go", cwd=cwd)
+            )
+
     def test_override_ignored_in_infra_project(self):
         # dcness self / infra project 는 어차피 통과 — override 무관, 메인 SSOT 편집 보존.
         with patch.dict(os.environ, {"DCNESS_INFRA": "1"}, clear=False):
