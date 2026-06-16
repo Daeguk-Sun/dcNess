@@ -4,6 +4,40 @@
 
 ---
 
+## v0.8.0 (2026-06-17)
+
+**커밋 범위**: `v0.7.1..v0.8.0` (머지 PR 11개)
+**핵심 변경**: 프로젝트별 sub-agent 파일 경계 override(`.dcness/boundary.json`) 신설 + 설치/실행 진단 강화 + impl-loop chain 진행 뷰 자동 렌더 + cross-run 벤치마크 fleet 집계기 도입. 설계·검증 agent 의 보고/스코프 가이드도 함께 보강한 minor 릴리즈.
+
+### 무엇이 바뀌나
+
+1. **프로젝트별 sub-agent 파일 경계 override** ([#777](https://github.com/alruminum/dcNess/pull/777) [#696](https://github.com/alruminum/dcNess/issues/696)) — 활성 프로젝트가 `.dcness/boundary.json` 으로 sub-agent ALLOW_MATRIX 를 프로젝트별로 확장할 수 있다. engineer/test-engineer override 는 build-worker 합집합에도 전파. 단 write-zero agent 는 add override 로도 write 권한이 열리지 않고, `.dcness/` 디렉토리 전체와 self-disable 마커는 INFRA 로 보호되어 디렉토리 타깃 우회가 차단된다. boundary 탐색 경계는 working tree top-level / active project root 로 교정.
+
+2. **설치·실행 상태 진단 강화** ([#765](https://github.com/alruminum/dcNess/pull/765) [#520](https://github.com/alruminum/dcNess/issues/520)) — `dcness-helper status` 진단표 확장으로 설치 상태를 한눈에 검증. plugin version 오보 차단, git hook 진단을 실제 실행 조건(`core.hooksPath` 정합) 기준으로 강화, README 활성화 확인 절차 동기화.
+
+3. **impl-loop chain 진행 뷰 자동 렌더** ([#762](https://github.com/alruminum/dcNess/pull/762) [#755](https://github.com/alruminum/dcNess/issues/755)) — impl-loop chain 진행 상황을 view↔operations 정합 불변식 하에 자동 렌더. 비인접 transition·누적 in_progress 거부, impl-ui-design-loop 변종 + substeps override 지원.
+
+4. **cross-run 벤치마크 fleet 집계기** ([#769](https://github.com/alruminum/dcNess/pull/769) [#766](https://github.com/alruminum/dcNess/issues/766), [#767](https://github.com/alruminum/dcNess/pull/767) [#522](https://github.com/alruminum/dcNess/issues/522), [#771](https://github.com/alruminum/dcNess/pull/771) [#770](https://github.com/alruminum/dcNess/issues/770)) — 여러 run 을 가로질러 집계하는 fleet 집계기 + 단위 테스트 도입. stored verdict precedence(prose 오파싱 방지), CHANGES_REQUESTED FAIL 집계, MUST_FIX_GHOST 가드를 게이트 PASS/LGTM+must_fix 모순만 검출하도록 정밀화(오탐 제거). dcness 자체 QA 도구로 plug-in 본체 동작에는 영향 없음.
+
+5. **설계·검증 agent 가이드 보강** ([#774](https://github.com/alruminum/dcNess/pull/774) [#768](https://github.com/alruminum/dcNess/issues/768), [#764](https://github.com/alruminum/dcNess/pull/764) [#671](https://github.com/alruminum/dcNess/issues/671) [#674](https://github.com/alruminum/dcNess/issues/674), [#776](https://github.com/alruminum/dcNess/pull/776) [#775](https://github.com/alruminum/dcNess/issues/775)) — design lazy-read 스코프에 프로젝트 SSOT 설계문서 + 메인 전문 흡수 금지 명시, validator grounds + runtime risk upgrade 가이드 흡수, 호출 prompt 슬림 포인터 규약에 권장 3슬롯 템플릿 추가.
+
+6. **Codex validator skill frontmatter + init-dcness 정리** ([#773](https://github.com/alruminum/dcNess/pull/773) [#772](https://github.com/alruminum/dcNess/issues/772), [#763](https://github.com/alruminum/dcNess/pull/763) [#690](https://github.com/alruminum/dcNess/issues/690)) — Codex validator skill frontmatter 추가, init-dcness 실행 절차 정리(diet).
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — sub-agent boundary override(`harness/**`), chain-view 렌더, agent 가이드(`agents/**`).
+- **프로젝트별 경계 확장**을 쓰려면 활성 프로젝트 루트에 `.dcness/boundary.json` 을 추가한다(선택). 없으면 기존 ALLOW_MATRIX 기본값 그대로 동작.
+- **설치 상태 점검**은 `dcness-helper status` 로 한눈에 확인 가능.
+- **Codex opt-in 프로젝트**는 `codex/skills/dcness-*` validator skill frontmatter 갱신을 받으려면 plugin update 후 `/init-dcness` 재실행 필요.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
+
+---
+
 ## v0.7.1 (2026-06-14)
 
 **커밋 범위**: `v0.7.0..v0.7.1` (머지 PR 2개)
