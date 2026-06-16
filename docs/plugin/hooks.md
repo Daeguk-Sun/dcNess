@@ -128,7 +128,8 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 **override 가 뚫지 못하는 가드 (되돌릴 수 없는 경계만)**:
 
 - **INFRA 경로** (`DCNESS_INFRA_PATTERNS` — `hooks/`, `harness/*.py` 등) 는 `add` 로 열 수 없다. INFRA 검사가 ALLOW(코어+add) 검사보다 *먼저* 발화하기 때문.
-- **`.dcness/boundary.json` 자신** 은 sub-agent write 차단 영역 (자기 경계 셀프 확장/축소 금지). INFRA 로 보호되며 `remove` 로도 풀 수 없다.
+- **`.dcness/boundary.json` 자신**(과 `.dcness/` 디렉토리 전체) 은 sub-agent write 차단 영역 (자기 경계 셀프 확장/축소 금지). INFRA 로 보호되며 `remove` 로도 풀 수 없고, 디렉토리 타깃 write 우회도 닫힌다.
+- **판정/검증 전용 agent**(`code-validator` / `pr-reviewer` / `architecture-validator` / `product-acceptance` / `plan-reviewer` — 코어 ALLOW 가 빈 `()`) 는 `add` 로도 write 를 열 수 없다. "검증자는 자기가 검증하는 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는 경계 — `add` 로 mutation agent 로 승격시킬 수 없다.
 - 그 외 기본값(예: engineer 의 `tests/` 제외 = self-grading 방어)은 **강제 가드가 아니라 권고** 다. 프로젝트가 `add` 로 풀 수 있고, 그 경우 self-grading drift(구현자가 자기 코드를 통과시키도록 테스트를 편향) 위험은 프로젝트가 감수한다.
 
 GitHub issue 외부 상태 변경은 경로에 따라 다르게 처리한다 — 같은 "issue 변경"이라도 차단 여부가 갈린다.

@@ -625,6 +625,17 @@ def check_write_allowed(
     if allowed is None:
         # 미정의 agent — false positive 회피로 통과.
         return None
+    # write-zero agent (판정/검증 전용 — code-validator / pr-reviewer /
+    # architecture-validator / product-acceptance / plan-reviewer 의 빈 ALLOW) 는
+    # 프로젝트 add 로도 write 를 열 수 없다 (#696 codex P2). "검증자는 자기가 검증하는
+    # 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는
+    # 경계다 — add 로 mutation agent 로 승격시키면 gate forge 위험. 이슈가 "프로젝트
+    # 감수" 로 연 것은 mutation agent 내부 경계(engineer 의 tests/)이지 검증자 승격이 아니다.
+    if allowed == ():
+        return (
+            f"{agent} 는 write-zero(판정/검증 전용) — 프로젝트 boundary add 로도 "
+            f"write 를 열 수 없다 (`{norm}`): 검증자 역할 격리는 되돌릴 수 없는 경계."
+        )
     effective = allowed + add_patterns
     if not _matches_any(norm, effective):
         return (

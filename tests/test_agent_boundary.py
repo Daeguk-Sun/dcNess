@@ -261,14 +261,15 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
             cwd = Path(td)
             reason = check_write_allowed("code-validator", "src/foo.ts", cwd=cwd)
             self.assertIsNotNone(reason)
-            self.assertIn("ALLOW_MATRIX", reason)
+            # write-zero agent (빈 ALLOW) — #696 이후 전용 차단 reason.
+            self.assertIn("write-zero", reason)
 
     def test_architecture_validator_readonly(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             reason = check_write_allowed("architecture-validator", "docs/architecture.md", cwd=cwd)
             self.assertIsNotNone(reason)
-            self.assertIn("ALLOW_MATRIX", reason)
+            self.assertIn("write-zero", reason)
 
     def test_module_architect_docs_allowed(self):
         with tempfile.TemporaryDirectory() as td:
@@ -2173,6 +2174,23 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
             self.assertIsNotNone(
                 check_write_allowed("engineer", "bw-only/x.go", cwd=cwd)
             )
+
+    def test_add_cannot_grant_write_to_readonly_agent(self):
+        # #696 codex P2 — 판정/검증 전용 agent(빈 ALLOW)는 add 로도 write 못 연다.
+        # 검증자 역할 격리는 catastrophic gate 신뢰의 근간 (되돌릴 수 없는 경계).
+        readonly = (
+            "code-validator", "pr-reviewer", "architecture-validator",
+            "product-acceptance", "plan-reviewer",
+        )
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self._write_boundary(
+                cwd, {a: {"add": [r"(^|/)src/"]} for a in readonly}
+            )
+            for agent in readonly:
+                reason = check_write_allowed(agent, "src/x.ts", cwd=cwd)
+                self.assertIsNotNone(reason, f"{agent} 가 add 로 write 열리면 안 됨")
+                self.assertIn("write-zero", reason)
 
     def test_override_ignored_in_infra_project(self):
         # dcness self / infra project 는 어차피 통과 — override 무관, 메인 SSOT 편집 보존.
