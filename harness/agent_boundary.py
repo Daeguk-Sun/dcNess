@@ -29,6 +29,7 @@ import json
 import os
 import re
 import shlex
+import subprocess
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -314,6 +315,42 @@ def is_opt_out(cwd: Optional[Path] = None) -> bool:
 
 
 # ── 프로젝트별 boundary override (#696) ────────────────────────────────
+_BOUNDARY_ROOT_CACHE: dict[str, Optional[str]] = {}
+
+
+def _git_worktree_toplevel(cwd: Path) -> Optional[Path]:
+    """현재 working tree 의 top-level (`git rev-parse --show-toplevel`) — boundary 탐색 상한.
+
+    `_resolve_project_root` 는 state 공유 목적으로 git common-dir parent(= main repo
+    루트)를 돌려주는데, linked worktree(메인 체크아웃 밖에 둔 worktree)에선 그 루트가
+    worktree cwd 의 조상이 아니라 boundary.json 탐색 경계로 부적합하다 (#696 codex P2).
+    boundary.json 은 worktree-local 체크아웃 파일이므로, 현재 working tree top-level 까지
+    탐색해야 nested·linked worktree 양쪽에서 정확하고, 그 *위* 상위 워크스페이스·home 은
+    무시된다. git 아님·실패 시 None (호출부가 cwd 폴백).
+    """
+    key = str(cwd)
+    if key in _BOUNDARY_ROOT_CACHE:
+        cached = _BOUNDARY_ROOT_CACHE[key]
+        return Path(cached) if cached else None
+    top: Optional[Path] = None
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=str(cwd),
+            timeout=2,
+        )
+        out = result.stdout.strip()
+        if out:
+            top = Path(out).resolve()
+    except (subprocess.SubprocessError, OSError, ValueError):
+        top = None
+    _BOUNDARY_ROOT_CACHE[key] = str(top) if top else None
+    return top
+
+
 def load_project_boundary_overrides(
     cwd: Optional[Path] = None,
 ) -> dict[str, dict[str, tuple[str, ...]]]:
@@ -340,14 +377,14 @@ def load_project_boundary_overrides(
         cur = cwd.resolve()
     except (OSError, RuntimeError):
         return {}
-    # 탐색 범위를 active project root 까지로 제한 (#696 codex P2). 무한정 상위로 올라가면
-    # 현재 프로젝트 밖(상위 워크스페이스 / home)의 boundary.json 이 무관한 하위 프로젝트의
-    # sub-agent write 경계를 silently 확장/축소해 file guard 를 약화한다. project root 는
-    # git common-dir 기준(worktree·하위 디렉토리에서도 main repo 루트로 해소)이라, 그 위
-    # 조상은 검사하지 않는다. root 가 cwd 조상이 아니면(폴백·예외) cwd 자신만 검사한다.
-    try:
-        root = _resolve_project_root(cwd).resolve()
-    except (OSError, RuntimeError, ValueError):
+    # 탐색 범위를 현재 working tree top-level 까지로 제한 (#696 codex P2). 무한정 상위로
+    # 올라가면 현재 프로젝트 밖(상위 워크스페이스 / home)의 boundary.json 이 무관한 하위
+    # 프로젝트의 sub-agent write 경계를 silently 확장/축소해 file guard 를 약화한다.
+    # top-level 은 nested·linked worktree 양쪽에서 worktree-local 루트로 해소되므로, 하위
+    # 디렉토리에서도 worktree 루트 boundary.json 을 찾되 그 위는 무시한다. top-level 이
+    # cwd 조상이 아니면(git 아님·폴백·예외) cwd 자신만 검사한다.
+    root = _git_worktree_toplevel(cur)
+    if root is None:
         root = cur
     search_dirs: list[Path] = []
     for d in (cur, *cur.parents):

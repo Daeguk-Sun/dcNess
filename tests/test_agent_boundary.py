@@ -2081,6 +2081,29 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
                 check_write_allowed("engineer", "custom-pkg/x.go", cwd=sub)
             )
 
+    def test_boundary_in_linked_worktree_from_subdir(self):
+        # #696 codex P2 — 메인 체크아웃 밖에 둔 linked worktree 의 하위 디렉토리에서도
+        # worktree 루트 boundary.json 이 적용된다 (top-level 기준 탐색).
+        import subprocess
+
+        env = dict(os.environ, GIT_AUTHOR_NAME="t", GIT_AUTHOR_EMAIL="t@t",
+                   GIT_COMMITTER_NAME="t", GIT_COMMITTER_EMAIL="t@t")
+        with tempfile.TemporaryDirectory() as ta, tempfile.TemporaryDirectory() as tb:
+            main = Path(ta).resolve()
+            subprocess.run(["git", "init", "-q"], cwd=str(main), check=True,
+                           capture_output=True)
+            subprocess.run(["git", "commit", "--allow-empty", "-q", "-m", "init"],
+                           cwd=str(main), check=True, capture_output=True, env=env)
+            wt = Path(tb).resolve() / "linked-wt"  # 메인 밖 경로
+            subprocess.run(["git", "worktree", "add", "-q", str(wt)],
+                           cwd=str(main), check=True, capture_output=True, env=env)
+            self._write_boundary(wt, {"engineer": {"add": [r"(^|/)custom-pkg/"]}})
+            sub = wt / "services" / "api"
+            sub.mkdir(parents=True)
+            self.assertIsNone(
+                check_write_allowed("engineer", "custom-pkg/x.go", cwd=sub)
+            )
+
     def test_boundary_outside_project_root_ignored(self):
         # #696 codex P2 — 프로젝트 루트 밖(상위 워크스페이스)의 boundary.json 은 무시.
         # 상위 디렉토리의 override 가 무관한 하위 프로젝트의 경계를 약화하면 안 된다.
