@@ -1,21 +1,44 @@
-# 행동 eval 하네스
+# eval 하네스
 
-agent 지침 변경이 기존 보호를 깨먹는지, 실제 agent 실행으로 확인하는 dcness 자체 QA 도구다. 문서 계약 테스트(`tests/` — 문구가 살아있는가)와 달리, 여기서는 "agent 가 그 기준대로 실제 판정하는가"를 확인한다. plug-in 배포물이 아니다.
+dcness 자체 QA 도구다. plug-in 배포물이 아니다.
+
+eval 은 두 종류로 나눈다.
+
+- **결정적 guard-efficacy** — hook/function 진입점을 LLM 없이 호출해 file boundary,
+  Bash/MCP mutation, order gate, TDD guard 의 allow/block 동작을 fixture 로 확인한다.
+- **LLM 행동 eval** — agent 지침 변경이 기존 보호를 깨먹는지, 실제 agent 실행으로
+  "agent 가 그 기준대로 실제 판정하는가"를 확인한다.
+
+문서 계약 테스트(`tests/` — 문구가 살아있는가), 결정적 guard-efficacy, LLM 행동 eval 은
+서로 다른 범위다. guard 성능 주장은 결정적 suite 로 재현하고, agent 지침 회귀는 LLM
+행동 eval 로 본다.
 
 ## 언제 돌리나
 
+- guard/hook 동작, 순서 차단, 외부 상태 변경 차단, TDD guard 를 수정하는 PR 의 머지 전
+  `python3 evals/guard_efficacy.py` 1회
 - `agents/**` 또는 `skills/**` 지침을 변경하는 PR 의 머지 전 1회
 - 플러그인 릴리즈 직전 1회
 
-권고이며 CI 차단 게이트가 아니다 — LLM 판정은 매 실행 조금씩 다르고 비용이 든다. 그래서 측정 + 사용자 개입 영역에 둔다.
+권고이며 CI 차단 게이트가 아니다. 결정적 suite 는 비용 없이 재현 가능하지만 adversarial
+fixture 범위만 보며, LLM 행동 eval 은 매 실행 조금씩 다르고 비용이 든다. 그래서 둘 다
+측정 + 사용자 개입 영역에 둔다.
 
 ## 어떻게 돌리나
 
 ```sh
+python3 evals/guard_efficacy.py        # 결정적 guard-efficacy suite (LLM 호출 없음)
+python3 evals/guard_efficacy.py --json # 범주별 pass/fail JSON
+
 bash evals/run.sh                    # 전 케이스 1회씩
 EVAL_RUNS=3 bash evals/run.sh        # 케이스당 3회 반복 (릴리즈 전 권장)
 EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonnet)
 ```
+
+`guard_efficacy.py` 는 범주별 pass/fail count 를 출력한다. `known-bypass-boundary`
+범주는 "보호됨" 이 아니라 문서화된 한계가 실제로 한계로 남아 있음을 드러내는 항목이다.
+예: TDD guard 는 `Edit`/`Write`/`NotebookEdit` 직접 파일 도구에만 걸리고 Bash 로 만든
+구현 파일에는 매칭 테스트 존재 검사를 하지 않는다.
 
 케이스마다 `정답 k/N` 표가 출력된다. 어떤 케이스든 정답 0회면 exit 1 — 방금 바꾼 지침이 보호를 깨먹었는지 확인한다.
 
