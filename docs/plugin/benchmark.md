@@ -15,6 +15,21 @@ dcNess 는 측정 인프라를 plug-in 본체에 같이 배포한다.
 | [`harness/run_review.py`](../../harness/run_review.py) | run 1개의 step별 비용·토큰 + 낭비(waste) finding | `/run-review` skill |
 | [`harness/benchmark_aggregate.py`](../../harness/benchmark_aggregate.py) | 여러 run 가로질러 fleet 집계 (FAIL 비율 / escalate / blocked / waste top-N) | 직접 실행 |
 
+guard 효능 재현은 별도다. dcNess 소스 checkout 에서만 제공되는
+`evals/guard_efficacy.py` 는 LLM 없이 hook/function 진입점을 직접 호출해 file boundary,
+Bash/MCP mutation, order gate, TDD guard 의 allow/block fixture 를 검증하고 범주별
+pass/fail count 를 출력한다.
+
+```sh
+python3 evals/guard_efficacy.py
+python3 evals/guard_efficacy.py --json
+```
+
+이 결정적 suite 의 PASS 는 "fixture 로 박은 guard 계약이 재현된다"는 뜻이다. 보안 증명이나
+악의적 agent 완전 차단 주장이 아니다. `known-bypass-boundary` 범주는 문서화된 한계
+(예: Bash 경유 구현 파일은 TDD 존재 검사를 받지 않음, command substitution 은 외부 변경
+denylist 의 best-effort 범위 밖)를 숨기지 않고 측정 표면에 올려둔다.
+
 > **스크립트 위치** — `scripts/` · `harness/` 는 plug-in 본체로 배포된다. 외부 활성
 > 프로젝트는 이 파일들이 repo 안이 아니라 **plug-in 캐시**에 있으므로, 아래 명령은
 > 먼저 그 루트를 변수로 잡고 prefix 한다. `/run-review` 는 skill 이 경로 해석을
@@ -31,6 +46,10 @@ dcNess 는 측정 인프라를 plug-in 본체에 같이 배포한다.
 
 핵심 가설은 단순하다. dcNess 의 무거운 절차(검증·구현·리뷰 시퀀스)를 sub-agent 가
 흡수하면 **메인 Claude 의 turn 누적이 줄어든다**. 그게 사실인지 숫자로 본다.
+
+LLM 행동 eval 은 또 다른 범위다. [`evals/run.sh`](../../evals/run.sh) 는 실제 agent 를
+호출해 지침이 story slicing 같은 판단을 계속 하게 만드는지 보는 회귀 도구이며, guard
+hook/function 의 결정적 allow/block 성능을 대신하지 않는다.
 
 ## 재현 1 — 메인 turn 측정
 

@@ -58,8 +58,8 @@ scope 가 아니다). Codex 분기는 read-only validator 3종 opt-in 에만 한
 다른 skill-workflow 하네스(Superpowers, OMC 등)와의 정성 비교: 그쪽은 onboarding 과
 다양한 supported harness 노출이 강점이다. dcNess 는 onboarding 표면은 작은 대신,
 **작업 순서·파일 경계의 governance 와 run 단위 replayability** 가 강하다. 실측 수치와
-재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) 참조 (표본 크기와
-한계를 함께 명시한다).
+재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) 참조. turn/fleet
+측정, 결정적 guard-efficacy fixture, LLM 행동 eval 의 범위와 한계를 구분해 명시한다.
 
 ## 설치 & 활성화
 
@@ -226,7 +226,7 @@ bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 | [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성 SSOT (강제 영역 2 + 안티패턴 4) |
 | [`docs/plugin/terms.md`](docs/plugin/terms.md) | 사용자-facing 용어 사전 — 용어·공개 진입점·분기 표현 수정/리뷰 시 lazy read |
 | [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | 공개 workflow 진입점 계약 — 기본/support/고급/유틸리티/내부 agent 분류 |
-| [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현 가이드(measure_main_turns / run-review) + turn 절감 실측 샘플 + 한계 |
+| [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현 가이드(measure_main_turns / run-review / guard-efficacy) + turn 절감 실측 샘플 + 한계 |
 | 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`design`](skills/design/design-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 분기 규칙 진본 (mermaid + enum 표 + retry + escalate) |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | loop 실행 절차 — Step 0~8 mechanics (각 loop spec = 해당 skill `## Loop`) |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | 순서 차단 훅 + 8 hook SSOT |
