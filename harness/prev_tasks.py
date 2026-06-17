@@ -82,7 +82,10 @@ def append(
 
     entries: list[str] = []
     if p.exists():
-        entries = [l for l in p.read_text(encoding="utf-8").splitlines() if l.startswith("- ")]
+        entries = [
+            line for line in p.read_text(encoding="utf-8").splitlines()
+            if line.startswith("- ")
+        ]
     # 같은 slug 직전 항목 제거 — 재시도/재append 시 최신만
     prefix = f"- {slug}: "
     entries = [e for e in entries if not e.startswith(prefix)]

@@ -10,6 +10,10 @@ import argparse
 import json
 import os
 import sys
+import tempfile
+
+DEFAULT_INPUT = os.path.join(tempfile.gettempdir(), "pattern_analysis.json")
+DEFAULT_OUTPUT = os.path.join(tempfile.gettempdir(), "patterns_report.html")
 
 PATTERN_KO_NAME = {
     "context_bloat": "컨텍스트 부풀림",
@@ -314,8 +318,15 @@ new Chart(document.getElementById('patternBar'), {{
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", default="/tmp/pattern_analysis.json")
-    ap.add_argument("--out", default="/tmp/patterns_report.html")
+    # Local CLI report artifacts; callers can override both paths.
+    ap.add_argument(
+        "--input",
+        default=DEFAULT_INPUT,
+    )
+    ap.add_argument(
+        "--out",
+        default=DEFAULT_OUTPUT,
+    )
     args = ap.parse_args()
 
     if not os.path.exists(args.input):

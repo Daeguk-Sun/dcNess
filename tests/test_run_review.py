@@ -1,7 +1,6 @@
 """tests/test_run_review.py — DCN-CHG-20260430-19 run_review 단위 테스트."""
 
 import json
-import os
 import sys
 import tempfile
 import unittest
@@ -16,7 +15,7 @@ from harness.run_review import (  # noqa: E402
     RunReport, StepRecord, build_report, detect_wastes, detect_notes,
     parse_steps, render_report, list_runs, find_run_dir,
     _normalize_agent_type, assign_invocations_to_steps,
-    EXPECTED_AGENT_BUDGETS, DCNESS_AGENT_NAMES, LEGACY_AGENT_ALIASES,
+    DCNESS_AGENT_NAMES, LEGACY_AGENT_ALIASES,
     WINDOW_TS_PADDING, _extract_conclusion_enum,
 )
 # issue #392 — detect_goods 폐기
@@ -956,7 +955,6 @@ class WindowPaddingTests(unittest.TestCase):
     """
 
     def test_first_step_tur_before_window_first_ts_matches_via_padding(self):
-        from datetime import datetime as dt
         from harness.run_review import build_report
 
         with tempfile.TemporaryDirectory() as td:
@@ -993,7 +991,7 @@ class WindowPaddingTests(unittest.TestCase):
                 }) + "\n",
                 encoding="utf-8",
             )
-            report = build_report(rd, repo_path=tmp / "fakerepo")
+            build_report(rd, repo_path=tmp / "fakerepo")
             # repo_path 가 jsonl 위치와 다르면 find_session_jsonls 가 못 찾을 수도 있음.
             # 본 테스트는 *padding 적용* 자체를 확인 — repo_path 일치 환경 fallback 후 검증.
 
@@ -1283,7 +1281,6 @@ class ToolHistogramTableTests(unittest.TestCase):
             lines = _build_tool_histogram_table(report)
             # 표 lines: header(2) + step0 + step1
             self.assertGreater(len(lines), 2)
-            joined = "\n".join(lines)
             # step 1 (pr-reviewer) 가 표에 포함 — last step 누락 회귀 차단
             pr_line = [ln for ln in lines if "pr-reviewer" in ln]
             self.assertEqual(len(pr_line), 1)

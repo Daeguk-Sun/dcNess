@@ -18,8 +18,6 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from harness.agent_boundary import (  # noqa: E402
     ALLOW_MATRIX,
-    DCNESS_INFRA_PATTERNS,
-    READ_DENY_MATRIX,
     check_bash_mutation,
     check_github_mcp_mutation,
     check_read_allowed,

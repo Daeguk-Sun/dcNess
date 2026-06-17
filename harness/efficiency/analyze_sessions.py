@@ -15,7 +15,10 @@ import glob
 import json
 import os
 import sys
+import tempfile
 from collections import defaultdict
+
+DEFAULT_OUTPUT = os.path.join(tempfile.gettempdir(), "session_analysis.json")
 
 # Anthropic pricing (USD per 1M tokens). Keys match the exact model string the
 # CLI records in `message.model`. Add new rows when new models ship.
@@ -47,6 +50,9 @@ def resolve_sessions_dir(args):
     return os.path.expanduser(f"~/.claude/projects/{encoded}")
 
 
+_WARNED_MODELS: set[str] = set()
+
+
 def price_for(model):
     if model in PRICING:
         return PRICING[model]
@@ -58,11 +64,10 @@ def price_for(model):
         for known in PRICING:
             if base == known or base.startswith(known + "-"):
                 return PRICING[known]
-    if model and model not in price_for._warned:
+    if model and model not in _WARNED_MODELS:
         print(f"[warn] unknown model: {model}, applying Opus default pricing", file=sys.stderr)
-        price_for._warned.add(model)
+        _WARNED_MODELS.add(model)
     return DEFAULT_PRICE
-price_for._warned = set()
 
 
 def analyze_session(path):
@@ -95,7 +100,7 @@ def analyze_session(path):
                     continue
                 try:
                     rec = json.loads(line)
-                except Exception:
+                except json.JSONDecodeError:
                     continue
 
                 ts = rec.get("timestamp")
@@ -191,8 +196,6 @@ def analyze_session(path):
 
 def score_session(s):
     """4-axis 0–100 scoring. Weighted: cache 40 / density 20 / redundancy 20 / tool 20."""
-    tot = s["total_input_tokens"] or 1
-
     # Cache utilization: cache_read / total_input, 85% = full marks.
     cache_score = min(100, s["cache_hit_ratio"] / 0.85 * 100)
 
@@ -255,7 +258,12 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", help="Repository path (default: cwd)")
     ap.add_argument("--sessions-dir", help="Direct path to ~/.claude/projects/<encoded>/")
-    ap.add_argument("--out", default="/tmp/session_analysis.json", help="Output JSON path")
+    # Local CLI report artifact; callers can override with --out.
+    ap.add_argument(
+        "--out",
+        default=DEFAULT_OUTPUT,
+        help="Output JSON path",
+    )
     args = ap.parse_args()
 
     sessions_dir = resolve_sessions_dir(args)

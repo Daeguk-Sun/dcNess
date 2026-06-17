@@ -1035,7 +1035,7 @@ class RidResolutionTests(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class SilentAllowTests(_PreToolBase):
+class SilentAllowWithoutSessionTests(_PreToolBase):
     def test_no_session_id_silent(self) -> None:
         rc = handle_pretooluse_agent(
             stdin_data={"tool_input": {"subagent_type": "engineer", "mode": "IMPL"}},
@@ -1050,7 +1050,7 @@ class SilentAllowTests(_PreToolBase):
 # ---------------------------------------------------------------------------
 
 
-class SilentAllowTests(_PreToolBase):
+class SilentAllowMalformedInputTests(_PreToolBase):
     def test_no_tool_input_silent(self) -> None:
         rc = handle_pretooluse_agent(
             stdin_data={"sessionId": self.sid},

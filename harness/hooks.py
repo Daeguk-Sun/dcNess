@@ -116,7 +116,7 @@ def _append_trace_safe(
     try:
         from harness.agent_trace import append as _trace_append
         _trace_append(sid, rid, entry, base_dir=base_dir)
-    except Exception:  # noqa: BLE001 — silent
+    except Exception:  # noqa: BLE001 # nosec B110
         pass
 
 
@@ -267,10 +267,12 @@ def _strict_conveyor_gate_message(
         last_mode = _mode_or_none(last.get("mode"))
         if last_agent == step_agent and last_mode == step_mode:
             raw_count_at_begin = cur_step.get("steps_count_at_begin")
-            try:
-                count_at_begin = int(raw_count_at_begin)
-            except (TypeError, ValueError):
-                count_at_begin = None
+            count_at_begin = None
+            if raw_count_at_begin is not None:
+                try:
+                    count_at_begin = int(str(raw_count_at_begin))
+                except ValueError:
+                    count_at_begin = None
             current_count = len(records)
             if (
                 count_at_begin is not None
@@ -387,7 +389,7 @@ def handle_session_start(
                 f"run 슬롯 {removed_slots}건, run 디렉토리 {removed_dirs}건 제거",
                 file=sys.stderr,
             )
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return 0
 
@@ -612,7 +614,7 @@ def _warn_concurrent_subagent(
                 f"권한/trace 는 안전하나 순차 전제 위반 여부 점검 권장.",
                 file=sys.stderr,
             )
-    except Exception:  # noqa: BLE001 — 진단 실패는 무시 (Agent 호출 통과)
+    except Exception:  # noqa: BLE001 # nosec B110
         pass
 
 
@@ -823,8 +825,6 @@ def handle_posttooluse_agent(
     if not valid_session_id(sid):
         return 0
 
-    # 직전 sub 식별 — payload agent_id 우선, fallback trace 마지막 entry
-    sub_agent_id = stdin_data.get("agent_id", "") or ""
     sub_type = ""
     tool_input = stdin_data.get("tool_input") or {}
     if isinstance(tool_input, dict):
@@ -954,7 +954,6 @@ def handle_posttooluse_agent(
     # 메인 LLM 이 loop-procedure.md 의 표준 1 step 시퀀스 가이드 보고 자율 판단.
     histogram_str = ""
     input_repeats_str = ""
-    pending_match = ""
     hist: Dict[str, int] = {}
     trace_subset: list = []
     if rid:
@@ -985,9 +984,6 @@ def handle_posttooluse_agent(
                         f"trace 시각 범위 폴백 사용.",
                         file=sys.stderr,
                     )
-                    pending_match = "drift"
-                else:
-                    pending_match = "ok"
 
             # issue #598 finding1 — 시각 범위 + 끝난 sub 의 agent 로 필터해 동시
             # sub-agent 의 행동이 이 histogram 에 섞이지 않게 한다 (trace 가 payload
@@ -1023,7 +1019,7 @@ def handle_posttooluse_agent(
                 histogram_str = format_histogram(hist) if hist else "(none)"
                 # issue #392 — redo_log auto append 폐기. 메커니즘 죽음 (jajang
                 # 실측 "하지 말 것" 0건). 학습 환류는 insight CLI (PR3) 로 대체.
-        except Exception:  # noqa: BLE001 — silent
+        except Exception:  # noqa: BLE001 # nosec B110
             pass
 
     # active_agent 해제 (기존 동작)
@@ -1054,7 +1050,7 @@ def handle_posttooluse_agent(
                 }
             }
             print(json.dumps(output, ensure_ascii=False))
-        except Exception:  # noqa: BLE001 — silent
+        except Exception:  # noqa: BLE001 # nosec B110
             pass
 
     return 0
@@ -1467,7 +1463,7 @@ def _maybe_emit_continuation_signal(
     active[rid] = slot
     try:
         update_live(sid, base_dir=base_dir, active_runs=active)
-    except Exception:
+    except Exception:  # nosec B110
         pass  # persist 실패해도 block 자체는 씀 (다음 호출 시 cur_count 만 미증가)
 
     if acceptance_after_pr:

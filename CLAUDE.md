@@ -92,6 +92,7 @@
 - **pr-body**: `scripts/check_pr_body.mjs` (CI `pr-body-validation.yml`) — PR 본문 템플릿 충족 검증
 - **public-surface**: `scripts/check_public_surface.mjs` (CI `public-surface-validation.yml`) — 공개 workflow/command/agent 진입점 계약 검증
 - **cross-ref**: `scripts/check_cross_refs.mjs` (CI `cross-ref-validation.yml`) — markdown link 파일/anchor 실존 + 옛 명칭 deny-list (외부 배포 영역 한정) 회귀 차단
+- **static-quality**: `pyproject.toml` + `requirements-quality.txt` + `scripts/check_static_quality.sh` (CI `static-quality.yml`) — Python 3.11 기준 ruff lint/complexity, mypy, Bandit baseline 회귀 차단
 - **행동 eval (권고 — CI 차단 아님)**: `bash evals/run.sh` — `agents/**`/`skills/**` 지침 변경 PR 머지 전 + 플러그인 릴리즈 전 1회. agent 가 기준대로 실제 판정하는지 사고 기반 fixture 로 확인. 상세 [`evals/README.md`](evals/README.md)
 
 > ⚠️ **금지**: `--no-verify` 등 hook 우회. main 직접 push.
@@ -136,6 +137,8 @@ cp scripts/hooks/post-checkout .git/hooks/post-checkout && chmod +x .git/hooks/p
 python3.11 -m unittest discover -s tests -v
 python3.11 -m unittest tests.test_signal_io -v   # 단일 모듈
 node scripts/check_public_surface.mjs
+python3.11 -m pip install -r requirements-quality.txt
+bash scripts/check_static_quality.sh
 ```
 
 > 빌드 / 런타임 명령어는 코드 도입 시 본 섹션에 추가 (별도 Task-ID).

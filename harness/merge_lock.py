@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 import os
 import re
-import subprocess
+# Fixed git argv probe; no shell and bounded timeout.
+import subprocess  # nosec B404
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -307,7 +308,7 @@ def external_git_completed(
     root = Path(repo_root)
     slug = Path(impl_path).stem
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607
             ["git", "log", base_ref, "--grep", slug, "--format=%H", "-n", "1"],
             cwd=str(root),
             capture_output=True,

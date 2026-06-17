@@ -33,7 +33,8 @@ import re
 import secrets
 import select
 import shutil
-import subprocess
+# Fixed git/gh/ps argv probes in this module run without shell and with timeouts.
+import subprocess  # nosec B404
 import sys
 import uuid
 from datetime import datetime, timezone
@@ -121,7 +122,7 @@ def _resolve_state_root_for_cwd(cwd_str: str) -> Path:
         return _DEFAULT_BASE_CACHE[cwd_str]
     cwd = Path(cwd_str)
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607
             ["git", "rev-parse", "--git-common-dir"],
             capture_output=True,
             text=True,
@@ -624,7 +625,7 @@ def _ledger_run_started(
         if acceptance_required:
             extra["acceptance_required"] = True
         ledger.append_event(session_id, run_id, "run_started", base_dir=base_dir, **extra)
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
 
@@ -671,7 +672,7 @@ def update_current_step(
                     f"end-step 누락 의심 — ledger.jsonl 에 직전 step 기록 안 됨.",
                     file=sys.stderr,
                 )
-        except Exception:
+        except Exception:  # nosec B110
             # 시간 파싱 등 실패 silent — begin-step 동작 우선
             pass
 
@@ -1092,7 +1093,7 @@ def get_cc_pid_via_ppid_chain() -> Optional[int]:
     """
     try:
         bash_pid = os.getppid()
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607
             ["ps", "-o", "ppid=", "-p", str(bash_pid)],
             capture_output=True,
             text=True,
@@ -1377,14 +1378,14 @@ def _scan_recent_active_run_slot(
     candidates = candidates[:max_sessions]
 
     # 각 live.json 의 미완료 active_run 중 started_at 최신 후보 수집
-    best: Optional[tuple[str, str, str]] = None  # (started_at, sid, rid)
+    best_slot: Optional[tuple[str, str, str]] = None  # (started_at, sid, rid)
     for _, live_file in candidates:
         slot = _scan_live_file_for_active_run(live_file)
-        if slot and (best is None or slot[0] > best[0]):
-            best = slot
-    if best is None:
+        if slot and (best_slot is None or slot[0] > best_slot[0]):
+            best_slot = slot
+    if best_slot is None:
         return None
-    return (best[1], best[2])
+    return (best_slot[1], best_slot[2])
 
 
 # ── 프로젝트 활성화 (whitelist) ─────────────────────────────────────
@@ -1586,7 +1587,7 @@ def _cli_end_run(args: Any) -> int:
     try:
         from harness import ledger
         ledger.append_event(sid, rid, "run_finished")
-    except Exception:
+    except Exception:  # nosec B110
         pass
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
@@ -1896,7 +1897,7 @@ def _cli_begin_step(args: Any) -> int:
     try:
         from harness import ledger
         ledger.append_event(sid, rid, "step_started", agent=agent, mode=mode)
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
     # DCN-CHG-20260430-36: agent="engineer" 시 직전 engineer invocation 의
@@ -1922,7 +1923,7 @@ def _cli_begin_step(args: Any) -> int:
         if _insights:
             label = f"{args.agent}/{mode}" if mode else args.agent
             print(f"\n[INSIGHTS: {label}]\n{_insights}")
-    except Exception:
+    except Exception:  # nosec B110
         pass  # insights 주입 실패는 silent — 본 step 차단 X
 
     # #525: build-worker 진입 시 직전 task 산출 요약 stdout 주입. 메인 Claude 가
@@ -1934,7 +1935,7 @@ def _cli_begin_step(args: Any) -> int:
             _prev = _pt_read()
             if _prev:
                 print(f"\n[PREVIOUS_TASKS]\n{_prev}")
-        except Exception:
+        except Exception:  # nosec B110
             pass  # 주입 실패 silent — 본 step 차단 X
 
     return 0
@@ -2064,7 +2065,7 @@ def _current_merge_lock() -> Any:
 
 def _current_branch_fallback() -> str:
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             cwd=str(Path.cwd()),
             capture_output=True,
@@ -2080,7 +2081,7 @@ def _current_branch_fallback() -> str:
 
 def _merge_order_base_ref(repo_root: Path) -> str:
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607
             ["git", "rev-parse", "--verify", "--quiet", "origin/main"],
             cwd=str(repo_root),
             capture_output=True,
@@ -2423,7 +2424,7 @@ def _find_prose_fallback(sid: str, rid: str, agent: str, mode: Optional[str]) ->
         candidates = sorted(rd.glob(f"{stem}-*.md"), key=lambda p: p.stat().st_mtime)
         if candidates:
             return str(candidates[-1])
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return None
 
@@ -2480,7 +2481,7 @@ def _cli_end_step(args: Any) -> int:
                 f"begin-step 안 호출하고 end-step 호출. ledger.jsonl 에 기록은 됨.",
                 file=sys.stderr,
             )
-    except Exception:
+    except Exception:  # nosec B110
         # drift detector 자체 실패는 silent — end-step 동작 우선
         pass
 
@@ -2582,7 +2583,7 @@ def _has_positive_must_fix(prose: str) -> bool:
         if _MUST_FIX_HEADER_ONLY_RE.match(line):
             # 헤더 단독 줄 — 다음 의미있는 줄 확인
             next_content = next(
-                (l.strip() for l in lines[i + 1:] if l.strip()), ""
+                (line.strip() for line in lines[i + 1:] if line.strip()), ""
             )
             if not next_content or _NEXT_LINE_NEGATION_RE.match(next_content):
                 continue  # 다음 줄이 없거나 부정 → false positive
@@ -2731,7 +2732,7 @@ def _cli_finalize_run(args: Any) -> int:
             _slot["finalized_at"] = _now_iso()
             _active[rid] = _slot
             update_live(sid, active_runs=_active)
-    except Exception:
+    except Exception:  # nosec B110
         pass
 
     # DCN-CHG-20260430-29: --auto-review flag — in-process /run-review chained.
@@ -2762,7 +2763,7 @@ def _cli_finalize_run(args: Any) -> int:
                         f"[REVIEW_READY] {review_path} — 위 리뷰를 세션에 그대로 출력할 것 (loop-procedure.md 의 Step 8 review 결과 인지)",
                         file=sys.stderr,
                     )
-                except Exception:
+                except Exception:  # nosec B110
                     pass
         except Exception as exc:
             print(
@@ -2779,7 +2780,7 @@ def _cli_finalize_run(args: Any) -> int:
 
 
 # yolo 모드 폴백 매트릭스 — agent + ESCALATE/CLARITY 시 권장 행동
-_YOLO_FALLBACKS: Dict[str, Dict[str, str]] = {
+_YOLO_FALLBACKS: Dict[str, Dict[str, Optional[str]]] = {
     "ux-architect:UX_FLOW_ESCALATE": {
         "action": "re-invoke",
         "hint": (
@@ -2962,7 +2963,7 @@ def _resolve_git_hooks_dir(project_root: Path) -> Path:
     git 호출 실패 시 `.git/hooks` 폴백.
     """
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # nosec B603, B607
             [
                 "git", "-C", str(project_root),
                 "rev-parse", "--path-format=absolute", "--git-path", "hooks",
@@ -3018,7 +3019,7 @@ def _check_ci_workflows(project_root: Path) -> Dict[str, bool]:
 def _check_gh_auth() -> bool:
     """gh CLI 인증 여부 (read-only). gh 미설치/미인증 시 False."""
     try:
-        proc = subprocess.run(
+        proc = subprocess.run(  # nosec B603, B607
             ["gh", "auth", "status"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -3144,7 +3145,8 @@ def collect_status_diagnostics(
             None if gh_ok else "gh auth login",
         )
 
-    summary = {"PASS": 0, "WARN": 0, "FAIL": 0}
+    status_labels = ("PASS", "WARN", "FAIL")
+    summary = {status: 0 for status in status_labels}
     for c in checks:
         if c["status"] in summary:
             summary[c["status"]] += 1

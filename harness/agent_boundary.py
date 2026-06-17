@@ -29,7 +29,8 @@ import json
 import os
 import re
 import shlex
-import subprocess
+# Fixed git argv probes in this module run without shell and with timeouts.
+import subprocess  # nosec B404
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -344,7 +345,7 @@ def _git_worktree_toplevel(cwd: Path) -> Optional[Path]:
         return Path(cached) if cached else None
     top: Optional[Path] = None
     try:
-        result = subprocess.run(
+        result = subprocess.run(  # nosec B603, B607
             ["git", "rev-parse", "--show-toplevel"],
             capture_output=True,
             text=True,
@@ -1050,10 +1051,17 @@ def _split_segments_quote_aware(command: str) -> list[str]:
             i += 1
             continue
         if command[i:i + 2] in ("&&", "||"):
-            segments.append("".join(cur)); cur = []; i += 2; continue
+            segments.append("".join(cur))
+            cur = []
+            i += 2
+            continue
         if c in ";|&\n":
-            segments.append("".join(cur)); cur = []; i += 1; continue
-        cur.append(c); i += 1
+            segments.append("".join(cur))
+            cur = []
+            i += 1
+            continue
+        cur.append(c)
+        i += 1
     segments.append("".join(cur))
     return segments
 
@@ -1081,9 +1089,12 @@ def _tokenize_quote_aware(segment: str) -> list[str]:
             in_tok = True
         elif c.isspace():
             if in_tok:
-                tokens.append("".join(cur)); cur = []; in_tok = False
+                tokens.append("".join(cur))
+                cur = []
+                in_tok = False
         else:
-            cur.append(c); in_tok = True
+            cur.append(c)
+            in_tok = True
     if in_tok:
         tokens.append("".join(cur))
     return tokens

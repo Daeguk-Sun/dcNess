@@ -21,13 +21,11 @@ Coverage:
         - redo reason 없는 항목 스킵
         - 빈 redo-log + 빈 steps → 수정 파일 없음
 """
-import json
 import os
 import tempfile
-import time
 import unittest
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from harness.loop_insights import (
     insights_path,
@@ -158,7 +156,7 @@ class TestAppendInsight(unittest.TestCase):
             for i in range(INSIGHT_FIFO_CAP + 3):
                 append_insight("engineer", "IMPL", f"item{i:03d}", cwd=td_path)
             content = insights_path("engineer", "IMPL", cwd=td_path).read_text()
-            entries = [l for l in content.splitlines() if l.startswith("- ")]
+            entries = [line for line in content.splitlines() if line.startswith("- ")]
             self.assertEqual(len(entries), INSIGHT_FIFO_CAP)
             # 가장 오래된 item000/001/002 제거됨 (3자리 zero-padded 정확 매칭)
             self.assertNotIn("item000", content)

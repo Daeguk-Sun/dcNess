@@ -592,7 +592,7 @@ def render_status(
             if isinstance(slot, dict):
                 entry = entry or slot.get("entry_point")
                 issue = issue if issue is not None else slot.get("issue_num")
-        except Exception:
+        except Exception:  # nosec B110
             pass
 
     last_step = steps[-1] if steps else None

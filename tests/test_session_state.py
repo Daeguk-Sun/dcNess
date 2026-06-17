@@ -72,9 +72,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from harness.session_state import (
-    DEFAULT_RUN_TTL_SEC,
     LIVE_JSON_VERSION,
-    SESSION_ID_RE,
     atomic_write,
     cleanup_stale_runs,
     complete_run,
@@ -978,7 +976,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         # init session
         from harness.session_state import (
             write_pid_session, write_pid_current_run,
-            start_run, generate_run_id,
+            start_run,
         )
         self.sid = "test-sid"
         self.rid = "run-12345678"
@@ -2030,8 +2028,6 @@ PASS — 빈 문자열 가드 추가.
     def test_append_step_status_creates_jsonl(self) -> None:
         from harness.session_state import (
             _read_steps_jsonl,
-            _steps_jsonl_path,
-            session_dir,
             run_dir,
             _clear_default_base_cache,
         )

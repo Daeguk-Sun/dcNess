@@ -8,7 +8,11 @@ import argparse
 import json
 import os
 import sys
+import tempfile
 from collections import Counter
+
+DEFAULT_INPUT = os.path.join(tempfile.gettempdir(), "session_analysis.json")
+DEFAULT_OUTPUT = os.path.join(tempfile.gettempdir(), "efficiency_report.html")
 
 # Must mirror analyze_sessions.py. Only used here for dollar-value estimates in
 # the improvement cards (not for primary cost calculation, which already lives
@@ -397,14 +401,21 @@ new Chart(document.getElementById('scatter'), {{
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--input", default="/tmp/session_analysis.json")
-    ap.add_argument("--out", default="/tmp/efficiency_report.html")
+    # Local CLI report artifacts; callers can override both paths.
+    ap.add_argument(
+        "--input",
+        default=DEFAULT_INPUT,
+    )
+    ap.add_argument(
+        "--out",
+        default=DEFAULT_OUTPUT,
+    )
     ap.add_argument("--repo-name", default=None, help="Label shown in report header")
     args = ap.parse_args()
 
     if not os.path.exists(args.input):
         print(f"[error] input not found: {args.input}", file=sys.stderr)
-        print(f"        run analyze_sessions.py first", file=sys.stderr)
+        print("        run analyze_sessions.py first", file=sys.stderr)
         sys.exit(2)
 
     with open(args.input) as f:

@@ -24,7 +24,10 @@ import hashlib
 import json
 import os
 import sys
+import tempfile
 from collections import defaultdict
+
+DEFAULT_OUTPUT = os.path.join(tempfile.gettempdir(), "pattern_analysis.json")
 
 # Pricing (USD per 1M tokens). We price waste at Opus rates; if the actual
 # session was Sonnet, the dollar number is overstated by ~5x — but Sonnet
@@ -100,12 +103,12 @@ def analyze_session(path):
         return None
 
     # Index assistant turns and capture per-turn metrics in order.
-    assistant_turns = []           # list of dicts: {idx, input, cache_read, cache_create, output, tool_uses}
-    pending_tool_uses = {}         # tool_use_id → {name, input, turn_idx}
+    assistant_turns: list[dict] = []  # {idx, input, cache_read, cache_create, output, tool_uses}
+    pending_tool_uses: dict = {}      # tool_use_id → {name, input, turn_idx}
 
     # Map tool_use_id → result content (chars + token estimate). Walk records
     # in order; user records come AFTER the corresponding assistant tool_use.
-    tool_results = {}              # tool_use_id → {chars, tokens, content_kind}
+    tool_results: dict = {}           # tool_use_id → {chars, tokens, content_kind}
 
     for rec in records:
         rtype = rec.get("type")
@@ -209,11 +212,10 @@ def analyze_session(path):
 
 def detect_context_bloat(turns):
     """P1: context > 100k for 20+ consecutive turns, no >50% drop."""
-    n = len(turns)
     # Find longest run of consecutive turns where context_size > CONTEXT_HIGH_TOKENS
     # AND no consecutive turn has a > COMPACT_DROP_RATIO drop within that run.
-    best_run = []
-    current_run = []
+    best_run: list[int] = []
+    current_run: list[int] = []
     for i, t in enumerate(turns):
         if t["context_size"] > CONTEXT_HIGH_TOKENS:
             # Check if previous turn (if any) had a big drop FROM here — actually
@@ -323,8 +325,8 @@ def detect_poor_cache_util(turns):
 
 def detect_duplicate_tools(turns, tool_results):
     """P4: SHA-256 of (tool_name, input). Duplicates → entire result is waste."""
-    seen = {}
-    duplicates = []
+    seen: dict[str, int] = {}
+    duplicates: list[dict] = []
     for turn in turns:
         for tu in turn["tool_uses"]:
             key = sha256_short(stringify((tu["name"], tu["input"])))
@@ -348,7 +350,7 @@ def detect_duplicate_tools(turns, tool_results):
     waste_usd = waste_tokens * OPUS_W1H / 1e6
 
     # Tool breakdown
-    by_tool = defaultdict(int)
+    by_tool: defaultdict[str, int] = defaultdict(int)
     for d in duplicates:
         by_tool[d["tool"]] += 1
 
@@ -400,7 +402,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--repo", help="Repo path (default cwd)")
     ap.add_argument("--sessions-dir")
-    ap.add_argument("--out", default="/tmp/pattern_analysis.json")
+    # Local CLI report artifact; callers can override with --out.
+    ap.add_argument(
+        "--out",
+        default=DEFAULT_OUTPUT,
+    )
     args = ap.parse_args()
 
     if args.sessions_dir:

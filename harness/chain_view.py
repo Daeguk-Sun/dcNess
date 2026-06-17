@@ -173,6 +173,8 @@ def substeps_for(task: ChainTask) -> List[str]:
     if task.substeps is not None:
         steps = list(task.substeps)
     else:
+        if task.engine is None:
+            raise ValueError("engine or substeps is required")
         steps = list(ENGINE_SUBSTEPS[task.engine])
     if task.closes:
         steps.extend(_CLOSE_ACCEPTANCE[task.closes])

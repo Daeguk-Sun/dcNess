@@ -16,7 +16,6 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from harness import ledger  # noqa: E402
 from harness.benchmark_aggregate import (  # noqa: E402
-    FleetReport,
     aggregate_runs,
     aggregate_sessions,
     render_markdown,

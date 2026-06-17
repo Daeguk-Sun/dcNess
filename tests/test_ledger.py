@@ -38,7 +38,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from harness import ledger
-from harness.session_state import run_dir, start_run, update_live
+from harness.session_state import run_dir, start_run
 
 _SID = "test-ledger-sid"
 _RID = "run-deadbeef"

@@ -136,8 +136,8 @@ def append_insight(
     """
     import time
 
-    one_line = (text or "").strip().splitlines()
-    one_line = one_line[0].strip() if one_line else ""
+    text_lines = (text or "").strip().splitlines()
+    one_line = text_lines[0].strip() if text_lines else ""
     if not one_line:
         return insights_path(agent, mode, cwd)
 
@@ -156,8 +156,8 @@ def append_insight(
     lines = existing.splitlines()
 
     # 본문에서 "- " 시작 줄만 entry 로 카운트
-    entries = [l for l in lines if l.startswith("- ")]
-    non_entries = [l for l in lines if not l.startswith("- ")]
+    entries = [line for line in lines if line.startswith("- ")]
+    non_entries = [line for line in lines if not line.startswith("- ")]
 
     entries.append(new_entry)
     # cap 초과 시 FIFO (가장 오래된 = 앞부터 제거)

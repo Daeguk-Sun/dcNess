@@ -21,13 +21,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Optional
+from typing import Optional
 
 # Reuse existing pricing util.
 try:
@@ -337,7 +336,7 @@ def _parse_iso(ts: str) -> Optional[datetime]:
 # agents/code-validator.md 의 결론 + 권장 다음 단계 등: "prose 마지막 단락에 결론 (PASS / FAIL / ESCALATE)".
 # pr-reviewer 는 LGTM 도 사용. 마지막 N줄에서 단어 단위 매칭 — 부정문 (예: "FAIL 없음",
 # "0 FAIL") 회피 위해 같은 줄에 부정 마커 있으면 skip.
-_CONCLUSION_ENUMS: tuple[tuple[str, str], ...] = (
+_CONCLUSION_ENUMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # issue #383 follow-up — agent 별 결론 enum 12개 매트릭스 (agents/*.md 실측):
     #   engineer (IMPL): IMPL_DONE / IMPL_PARTIAL / TESTS_FAIL
     #   engineer (POLISH): POLISH_DONE / IMPLEMENTATION_ESCALATE
@@ -412,7 +411,7 @@ def _prose_final_verdict_is_fail(prose: str) -> bool:
     혼합줄("PASS / FAIL 중 FAIL", "PASS 아님 — FAIL")은 **fail 우선** — fail-class 토큰이
     하나라도 있으면 실패로 본다 (incidental pass 단어보다 fail 이 이김, issue #771).
     """
-    for line in reversed([l for l in prose.splitlines() if l.strip()]):
+    for line in reversed([line for line in prose.splitlines() if line.strip()]):
         matches = list(_ANY_VERDICT_RE.finditer(line))
         if not matches:
             continue  # verdict 없는 줄 — 위로
@@ -576,7 +575,7 @@ def _scan_main_sed_misdiagnosis(
                         break
                 if len(hits) >= 3:
                     return hits
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return hits
 
@@ -1276,7 +1275,10 @@ def render_report(report: RunReport) -> str:
     lines.append("| # | 시작(local) | agent | mode | elapsed(s) | duration(s) | out_tok | total_tok | tool_uses | cost($) | enum | must_fix | prose줄 |")
     lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     for s in report.steps:
-        line_count = len([l for l in (s.prose_full or s.prose_excerpt).splitlines() if l.strip()])
+        line_count = len([
+            line for line in (s.prose_full or s.prose_excerpt).splitlines()
+            if line.strip()
+        ])
         dur_s = f"{s.duration_ms / 1000:.0f}" if s.matched_invocation else "-"
         out_tok = f"{s.output_tokens:,}" if s.matched_invocation else "-"
         tot_tok = f"{s.total_tokens:,}" if s.matched_invocation else "-"
@@ -1402,8 +1404,10 @@ def build_report(run_dir: Path, repo_path: Path) -> RunReport:
         final_enum = steps[-1].conclusion_enum or steps[-1].enum
     has_must_fix = any(s.must_fix for s in steps)
     has_ambiguous = any(s.enum == "AMBIGUOUS" for s in steps)
-    final_clean = (final_enum and not has_must_fix and not has_ambiguous
-                   and len([w for w in wastes if w.severity == "HIGH"]) == 0)
+    final_clean = bool(
+        final_enum and not has_must_fix and not has_ambiguous
+        and len([w for w in wastes if w.severity == "HIGH"]) == 0
+    )
 
     sid = run_dir.parent.parent.name
     return RunReport(
@@ -1429,15 +1433,20 @@ def _detect_sessions_root(cwd: Path) -> Optional[Path]:
         return cur
     # worktree fallback — git common-dir
     try:
-        import subprocess
-        r = subprocess.run(["git", "rev-parse", "--git-common-dir"],
-                            cwd=str(cwd), capture_output=True, text=True, check=False)
+        import subprocess  # nosec B404
+        r = subprocess.run(  # nosec B603, B607
+            ["git", "rev-parse", "--git-common-dir"],
+            cwd=str(cwd),
+            capture_output=True,
+            text=True,
+            check=False,
+        )
         if r.returncode == 0:
             common = Path(r.stdout.strip())
             cand = common.parent / ".claude" / "harness-state" / ".sessions"
             if cand.exists():
                 return cand
-    except Exception:
+    except Exception:  # nosec B110
         pass
     return None
 

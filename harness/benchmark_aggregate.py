@@ -34,7 +34,7 @@ import argparse
 import json
 import sys
 from collections import Counter, defaultdict
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -216,7 +216,7 @@ def render_markdown(report: FleetReport) -> str:
                  f"**{_fmt_ratio(report.pr_reviewer_fail_ratio)}**")
     lines.append(f"- escalate 결론 수: {report.escalate_count}")
     lines.append(f"- blocked 이벤트 수: {report.blocked_event_count}")
-    lines.append(f"- PR 머지 성공률: 측정 불가 (pr_merged 이벤트 미계측 — #766 작업②)")
+    lines.append("- PR 머지 성공률: 측정 불가 (pr_merged 이벤트 미계측 — #766 작업②)")
     lines.append("")
 
     lines.append("## agent 별 결론 분포")
@@ -259,11 +259,12 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--json", action="store_true", help="JSON 출력")
     args = ap.parse_args(argv)
 
+    sessions_root: Optional[Path]
     if args.sessions_root:
         sessions_root = Path(args.sessions_root)
     else:
         sessions_root = run_review._detect_sessions_root(Path.cwd())
-        if not sessions_root:
+        if sessions_root is None:
             print("sessions-root 를 찾지 못했습니다. 경로를 인자로 지정하세요.",
                   file=sys.stderr)
             return 2

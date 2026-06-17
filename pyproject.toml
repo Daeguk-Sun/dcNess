@@ -1,0 +1,26 @@
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "C901"]
+
+[tool.ruff.lint.mccabe]
+# Existing harness orchestration code reaches 30 today. This gate prevents
+# further complexity drift without forcing unrelated refactors into #782.
+max-complexity = 30
+
+[tool.mypy]
+python_version = "3.11"
+files = ["harness", "scripts/measure_main_turns.py"]
+namespace_packages = true
+explicit_package_bases = true
+check_untyped_defs = true
+warn_unused_ignores = true
+show_error_codes = true
+
+[tool.bandit]
+# Workflow/script run Bandit with -l -i: low+ high-confidence findings fail.
+# Existing accepted findings use line-level # nosec Bxxx suppressions.
+targets = ["harness", "scripts"]
+exclude_dirs = ["tests", "docs", ".git", ".venv", "venv"]

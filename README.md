@@ -165,7 +165,7 @@ escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/
 | 결정론 | **자유서술 방식** — agent 가 prose 자유 emit, 메인 Claude 가 prose 를 직접 읽고 분기 판단. 기계 enum 추출·메타 LLM 호출 0 |
 | 형식 강제 | **0** — 형식/flag/schema 모두 agent 자율. harness 강제 = 작업 순서 + 접근 영역만 |
 | 컨텍스트 layer | 2 layer (CLAUDE.md + agents) |
-| 게이트 | 거버넌스 + 7 CI workflow (cross-ref / git-naming / plugin-manifest / pr-body / public-surface / python-tests / release-sync) |
+| 게이트 | 거버넌스 + 8 CI workflow (cross-ref / git-naming / plugin-manifest / pr-body / public-surface / python-tests / static-quality / release-sync) |
 | Codex 분기 | opt-in local provider 분기 — `code-validator` / `architecture-validator` / `pr-reviewer` 만 Codex read-only wrapper 로 실행 가능 |
 
 ## 공개 진입점
@@ -192,7 +192,7 @@ escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/
 
 본 저장소의 모든 변경은 [`CLAUDE.md`](CLAUDE.md)(SSOT) 를 따른다.
 
-- **게이트**: main-block · git-naming · pytest(pre-commit hook) + plugin-manifest · pr-body · public-surface · cross-ref(CI)
+- **게이트**: main-block · git-naming · pytest(pre-commit hook) + plugin-manifest · pr-body · public-surface · cross-ref · static-quality(CI)
 - **branch → PR → merge** 필수, main 직접 push 금지
 - PR 절차: [`CLAUDE.md`](CLAUDE.md#커밋-pr-절차)
 
@@ -211,10 +211,13 @@ python3.11 -m unittest discover -s tests -v # 단위 테스트
 node scripts/check_plugin_manifest.mjs     # manifest 검증
 node scripts/check_public_surface.mjs      # 공개 workflow 진입점 검증
 node scripts/check_cross_refs.mjs          # link/anchor + 옛 명칭 게이트
+python3.11 -m pip install -r requirements-quality.txt
+bash scripts/check_static_quality.sh       # ruff + mypy + bandit static quality
 bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
 ```
 
-- 의존성: Python 3.11+, Node.js 20+, **외부 패키지 0** (표준 라이브러리만)
+- 런타임 의존성: Python 3.11+, Node.js 20+, **외부 패키지 0** (표준 라이브러리만)
+- static quality 도구: `requirements-quality.txt` 에 pin 된 `ruff` / `mypy` / `bandit`
 
 ## 참조 문서
 
