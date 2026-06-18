@@ -422,6 +422,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
     def test_init_reference_owns_bootstrap_inventory_and_workflow_snippets(self) -> None:
         """#690 — 긴 bootstrap 상세는 public command 가 아니라 reference 문서에 둔다."""
         self.assertIn("## Bootstrap Inventory", self.init_reference)
+        self.assertIn("### Core", self.init_reference)
+        self.assertIn("### Optional", self.init_reference)
+        self.assertIn("## Recommended Bundle Defaults", self.init_reference)
+        self.assertIn("root architecture.md 감지로 docs/architecture.md skip", self.init_reference)
         self.assertIn("## CI Workflow Snippets", self.init_reference)
         self.assertIn("## Re-run Matrix", self.init_reference)
         self.assertIn("hooks.md#tdd-guardsh", self.init_reference)
@@ -431,6 +435,42 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "github-project-lifecycle.yml",
         ):
             self.assertIn(workflow, self.init_reference)
+
+    def test_init_dcness_completion_precedes_optional_bundle(self) -> None:
+        """#799 — core 활성화 완료를 먼저 선언하고 선택형 확장은 bundle 1질문으로 둔다."""
+        for needle in (
+            "## Core Activation",
+            "## 선택형 확장",
+            "Y/n/custom",
+            "엔터 = Y",
+            "선택형 확장은 core activation 성공 조건이 아니다",
+            "[dcness] 활성화 완료",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.init_doc)
+
+        complete_at = self.init_doc.index("[dcness] 활성화 완료")
+        optional_at = self.init_doc.index("## 선택형 확장")
+        self.assertLess(complete_at, optional_at)
+        self.assertEqual(1, self.init_doc.count("적용할까요? (Y/n/custom)"))
+        self.assertNotIn("선택형 확장 추천 bundle 을 적용할까요? (Y/n/custom)", self.init_doc)
+        self.assertIn("DCNESS_WORKFLOW_CHANGES", self.init_doc)
+        self.assertIn("Codex validator skills", self.init_doc)
+        self.assertIn("gh auth status", self.init_doc)
+        self.assertIn("ORIGIN_URL", self.init_doc)
+        self.assertIn("GH_AUTH_OK", self.init_doc)
+        self.assertIn("gh auth 미인증/미설치", self.init_doc)
+        self.assertNotIn("git status --short .github/workflows/", self.init_doc)
+
+        for stale_heading in (
+            "### Step 5 -",
+            "### Step 6 -",
+            "### Step 7 -",
+            "### Step 8 -",
+            "### Step 9 -",
+        ):
+            self.assertNotIn(stale_heading, self.init_doc)
+        self.assertNotIn("(Y/n)", self.init_doc)
 
     def test_hooks_doc_distinguishes_issue_mutation_paths(self) -> None:
         """#681 AC#4 — hooks.md 가 Bash `gh issue` 차단 vs GitHub MCP issue 통과를 구별한다."""

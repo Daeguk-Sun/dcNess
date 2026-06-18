@@ -2,7 +2,7 @@
 #
 # 모드/룰 정의: docs/plugin/github-project.md + scripts/github_project_lifecycle.mjs (SSOT)
 # 본 dcness self repo 는 자기 composite action (.github/actions/github-project-lifecycle) 을 dogfooding.
-# 외부 활성화 프로젝트는 init-dcness Step 2.10.5 가 묻고 Y 답변 시 thin yml 을 사용자 repo 에 배포 — 그 yml 은
+# 외부 활성화 프로젝트는 /init-dcness 선택형 확장 custom 에서 Project lifecycle workflow 를 선택할 때 thin yml 을 사용자 repo 에 배포 — 그 yml 은
 # `uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main` 1줄로 동일 검증.
 #
 # Project v2 자동화에는 classic PAT 의 project + read:org scope 둘 다 필요: secrets.DCNESS_PROJECT_TOKEN

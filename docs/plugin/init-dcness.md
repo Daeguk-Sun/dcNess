@@ -8,6 +8,10 @@
 
 ## Bootstrap Inventory
 
+### Core
+
+core activation 완료 기준이다. 아래 항목이 끝나고 `dcness-helper status` 기준 FAIL 이 0 이면 `/init-dcness` 는 즉시 `활성화 완료`를 출력한다. Optional 항목의 INFO/WARN 은 core 성공 조건이 아니다.
+
 | 대상 | 위치 | Source | 언제 | 멱등성 | 자동 PR 대상 |
 |---|---|---|---|---|---|
 | 활성 whitelist | `~/.claude/plugins/data/dcness-dcness/projects.json` | `harness/session_state.py` | 항상 | 중복 제거 | X |
@@ -15,20 +19,41 @@
 | local git hook | `.git/hooks/commit-msg` | `scripts/hooks/commit-msg` | 항상 | always-overwrite | X |
 | local git hook | `.git/hooks/post-checkout` | `scripts/hooks/post-checkout` | 항상 | always-overwrite | X |
 | local git hook | `.git/hooks/pre-push` | `scripts/hooks/pre-push` | 항상 | always-overwrite | X |
-| git naming workflow | `.github/workflows/git-naming-validation.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | 사용자 선택 | always-overwrite | O |
-| PR body workflow | `.github/workflows/pr-body-validation.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | 사용자 선택 | always-overwrite | O |
-| Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | 사용자 선택 | always-overwrite | O |
-| project docs seed | `docs/prd.md`, `docs/architecture.md`, `docs/adr.md` | `templates/project-init/*.md` | 사용자 선택 | 부재 시만 생성 | X |
-| design seed | `docs/design.md` | `docs/plugin/design.md` minimal 예시 | UI 프로젝트 + 사용자 선택 | 부재 시만 생성 | X |
-| design preview seed | `design-variants/**` | `templates/design-variants/**` | UI 프로젝트 + 사용자 선택 | 부재 시만 생성 | X |
-| Codex validator skills | `$CODEX_HOME/skills/dcness-*` | `codex/skills/dcness-*` | 항상 복사 후 opt-in 질문 | always-overwrite | X |
-| Codex provider routing | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing ...` | 사용자 선택 | opt-in 값으로 갱신 | X |
-| Project coordinates | repo variables `DCNESS_PROJECT_NUMBER`, `DCNESS_PROJECT_OWNER` | `gh variable set` | Project bootstrap 선택 | 값 갱신 | X |
+| Codex validator skills | `$CODEX_HOME/skills/dcness-*` | `codex/skills/dcness-*` | 항상 | always-overwrite | X |
+| Codex provider routing 상태 확인 | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing status` | 항상 확인 | read-only | X |
 | CC hooks | Claude Code plugin hook registry | `hooks/hooks.json` | 활성 프로젝트 새 세션 | 사용자 repo 쓰기 없음 | X |
+
+### Optional
+
+core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또는 custom 경로에서만 적용한다. 기본 `n` 또는 skip 은 core guard 를 끄지 않는다.
+
+| 대상 | 위치 | Source | 언제 | 멱등성 | 자동 PR 대상 |
+|---|---|---|---|---|---|
+| git naming workflow | `.github/workflows/git-naming-validation.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
+| PR body workflow | `.github/workflows/pr-body-validation.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
+| Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | custom 선택 | always-overwrite | O |
+| project docs seed | `docs/prd.md`, `docs/architecture.md`, `docs/adr.md` | `templates/project-init/*.md` | 추천 bundle 또는 custom | 부재 시만 생성 | X |
+| design seed | `docs/design.md` | `docs/plugin/design.md` minimal 예시 | custom 선택 | 부재 시만 생성 | X |
+| design preview seed | `design-variants/**` | `templates/design-variants/**` | custom 선택 | 부재 시만 생성 | X |
+| Codex provider routing 변경 | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing ...` | disabled/미설정일 때 추천 bundle 또는 custom | opt-in 값으로 갱신 | X |
+| Project coordinates | repo variables `DCNESS_PROJECT_NUMBER`, `DCNESS_PROJECT_OWNER` | `gh variable set` | Project bootstrap 선택 | 값 갱신 | X |
 
 > 🔴 **진단 동기화 의무**: 위 inventory 에 새 복사/배포 대상(git hook · CI workflow · 권한 등)을 추가하면, `dcness-helper status` 진단표(`harness/session_state.py` 의 `collect_status_diagnostics`)에도 해당 검사 항목을 함께 추가한다. 그렇지 않으면 사용자가 설치 누락을 한눈에 확인할 수 없다.
 
 `dcness-helper status` 는 설치 상태뿐 아니라 최근 hook fail-open 활동도 `hook fail-open 진단` 항목으로 보여준다. 정상 inactive no-op 은 기록하지 않고, 활성 프로젝트에서 enforcement hook 이 검사를 평가하지 못하고 allow 한 경우만 최근 reason category 를 WARN 으로 노출한다. 자세한 정책은 [`hooks.md`](hooks.md) 가 SSOT 다.
+
+## Recommended Bundle Defaults
+
+`/init-dcness` 기본 경로는 core activation 완료 뒤 `Y/n/custom` 1질문만 사용한다. 엔터 = Y 다.
+
+- GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml` 추천 ON.
+- 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
+- `docs/prd.md`, `docs/adr.md` 는 부재 시 추천 ON. 이미 있으면 skip.
+- 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
+- `design-variants/` 는 기본 skip. 단일 `app/page.tsx` 정도의 UI 흔적만으로 design kit 를 설치하지 않는다.
+- GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
+- Codex validation routing 이 이미 enabled 면 skip. disabled/미설정이면 추천 bundle 또는 custom 에서 명시적으로 다룬다.
+- workflow 변경 PR 은 GitHub remote 가 있고, `gh auth status` 가 통과하고, 이번 `/init-dcness` run 이 쓴 `.github/workflows/*.yml` 변경이 있고, 현재 branch 가 `main` 이면 추천 ON. Y 선택 시 별도 질문 없이 해당 파일만 stage 해서 branch/commit/push/PR 을 진행한다. `gh` 미설치/미인증이면 자동 PR 은 skip 하고 custom/manual 안내만 남긴다. 기존 dirty workflow 파일은 자동 포함하지 않는다.
 
 ## Already Automatic
 
@@ -187,6 +212,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 
 - 포함: `git-naming-validation.yml`, `pr-body-validation.yml`, `github-project-lifecycle.yml`
 - 제외: `.git/hooks/*` (git 내부 파일), `~/.claude/**`, `$CODEX_HOME/**`, `docs/*` seed, `design-variants/*` seed, 자동 CC hook 설명
+- 선행 조건: GitHub remote 존재, 현재 branch `main`, `gh auth status` 통과. 조건이 안 맞으면 branch/commit/push 를 시작하지 않고 skip 안내만 출력한다.
 
 seed 문서는 사용자 프로젝트 내용물이므로 사용자가 별도 작업 PR 에 포함할지 직접 판단한다.
 

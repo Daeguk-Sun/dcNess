@@ -6,6 +6,7 @@ Coverage matrix:
     _check_read_permission   : PERM 존재 / 부재 / 파일 없음
     _check_git_hooks         : thin-shim ok / missing / foreign
     _check_ci_workflows      : 존재 / 부재
+    _check_codex_validator_skills: ok / missing / stale
     collect_status_diagnostics:
         self repo  → 외부 활성 항목 전부 NA
         외부 repo  → whitelist 미등록 시 FAIL + fix 명령
@@ -28,6 +29,7 @@ import subprocess
 from harness.session_state import (
     collect_fail_open_summary,
     _check_ci_workflows,
+    _check_codex_validator_skills,
     _check_git_hooks,
     _check_read_permission,
     _installed_plugin_version,
@@ -213,6 +215,52 @@ class CiWorkflowTests(unittest.TestCase):
             self.assertFalse(result["pr-body-validation.yml"])
 
 
+class CodexValidatorSkillsTests(unittest.TestCase):
+    SKILLS = (
+        "dcness-code-validator",
+        "dcness-architecture-validator",
+        "dcness-pr-reviewer",
+    )
+
+    def _skill_path(self, base: Path, name: str) -> Path:
+        return base / "skills" / name / "SKILL.md"
+
+    def _plugin_skill_path(self, plugin_root: Path, name: str) -> Path:
+        return plugin_root / "codex" / "skills" / name / "SKILL.md"
+
+    def test_all_targets_match_plugin_sources(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            plugin_root = root / "plugin"
+            codex_home = root / "codex-home"
+            for name in self.SKILLS:
+                content = f"# {name}\n"
+                _write(self._plugin_skill_path(plugin_root, name), content)
+                _write(self._skill_path(codex_home, name), content)
+
+            result = _check_codex_validator_skills(plugin_root, codex_home)
+            self.assertEqual(set(result.values()), {"ok"})
+
+    def test_missing_and_stale_targets_are_reported(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            plugin_root = root / "plugin"
+            codex_home = root / "codex-home"
+            for name in self.SKILLS:
+                _write(self._plugin_skill_path(plugin_root, name), f"# {name}\n")
+
+            _write(self._skill_path(codex_home, "dcness-code-validator"), "# stale\n")
+            _write(
+                self._skill_path(codex_home, "dcness-architecture-validator"),
+                "# dcness-architecture-validator\n",
+            )
+
+            result = _check_codex_validator_skills(plugin_root, codex_home)
+            self.assertEqual(result["dcness-code-validator"], "stale")
+            self.assertEqual(result["dcness-architecture-validator"], "ok")
+            self.assertEqual(result["dcness-pr-reviewer"], "missing")
+
+
 class CollectSelfRepoTests(unittest.TestCase):
     def test_self_repo_external_items_na(self) -> None:
         with TemporaryDirectory() as td:
@@ -223,7 +271,7 @@ class CollectSelfRepoTests(unittest.TestCase):
             )
             self.assertTrue(diag["self_repo"])
             by_key = {c["key"]: c for c in diag["checks"]}
-            for key in ("whitelist", "read_perm", "git_hooks", "ci_workflows"):
+            for key in ("whitelist", "read_perm", "git_hooks", "codex_skills", "ci_workflows"):
                 self.assertEqual(by_key[key]["status"], "NA", key)
 
 
@@ -246,6 +294,35 @@ class CollectExternalRepoTests(unittest.TestCase):
             by_key = {c["key"]: c for c in diag["checks"]}
             self.assertEqual(by_key["whitelist"]["status"], "FAIL")
             self.assertIn("enable", (by_key["whitelist"]["fix"] or ""))
+
+    def test_codex_skill_mismatch_is_core_fail(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            plugin_root = root / "plugin"
+            codex_home = root / "codex-home"
+            _write(plugin_root / ".claude-plugin" / "plugin.json", '{"name":"dcness"}')
+            for name in CodexValidatorSkillsTests.SKILLS:
+                _write(
+                    plugin_root / "codex" / "skills" / name / "SKILL.md",
+                    f"# {name}\n",
+                )
+            _write(
+                codex_home / "skills" / "dcness-code-validator" / "SKILL.md",
+                "# stale\n",
+            )
+
+            diag = collect_status_diagnostics(
+                cwd=root,
+                plugin_root=plugin_root,
+                codex_home=codex_home,
+                check_gh=False,
+                check_routing=False,
+            )
+            by_key = {c["key"]: c for c in diag["checks"]}
+            self.assertEqual(by_key["codex_skills"]["status"], "FAIL")
+            self.assertIn("stale", by_key["codex_skills"]["detail"])
+            self.assertIn("missing", by_key["codex_skills"]["detail"])
+            self.assertIn("Core Step 5", by_key["codex_skills"]["fix"] or "")
 
 
 class FailOpenDiagnosticsTests(unittest.TestCase):

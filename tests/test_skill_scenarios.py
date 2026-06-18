@@ -167,6 +167,20 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         ):
             self.assertIn(hook, self.init_doc)
 
+    def test_init_dcness_optional_bundle_uses_one_prompt(self) -> None:
+        """#799 — 선택형 확장은 기본 경로에서 bundle 1질문으로만 진입한다."""
+        for needle in (
+            "추천 bundle",
+            "Y/n/custom",
+            "빈 입력은 Y",
+            "선택형 확장",
+            "GitHub Project lifecycle 은 기본 skip",
+            "root architecture.md 감지로 docs/architecture.md skip",
+            "gh auth status",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.init_doc)
+
 
 if __name__ == "__main__":
     unittest.main()

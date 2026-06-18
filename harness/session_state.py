@@ -3163,6 +3163,11 @@ _CI_WORKFLOWS = (
     "pr-body-validation.yml",
     "github-project-lifecycle.yml",
 )
+_CODEX_VALIDATOR_SKILLS = (
+    "dcness-code-validator",
+    "dcness-architecture-validator",
+    "dcness-pr-reviewer",
+)
 
 
 def _is_self_repo(project_root: Path) -> bool:
@@ -3287,6 +3292,30 @@ def _check_ci_workflows(project_root: Path) -> Dict[str, bool]:
     return {name: (wf_dir / name).exists() for name in _CI_WORKFLOWS}
 
 
+def _check_codex_validator_skills(plugin_root: Path, codex_home: Path) -> Dict[str, str]:
+    """Codex validator skill 배포 상태.
+
+    'ok' / 'missing' / 'stale' / 'missing-source'. target 이 plugin source 와
+    byte-for-byte 같아야 core activation 이 실제 배포 완료라고 볼 수 있다.
+    """
+    result: Dict[str, str] = {}
+    for name in _CODEX_VALIDATOR_SKILLS:
+        source = plugin_root / "codex" / "skills" / name / "SKILL.md"
+        target = codex_home / "skills" / name / "SKILL.md"
+        try:
+            source_content = source.read_text(encoding="utf-8")
+        except OSError:
+            result[name] = "missing-source"
+            continue
+        try:
+            target_content = target.read_text(encoding="utf-8")
+        except OSError:
+            result[name] = "missing"
+            continue
+        result[name] = "ok" if target_content == source_content else "stale"
+    return result
+
+
 def _check_gh_auth() -> bool:
     """gh CLI 인증 여부 (read-only). gh 미설치/미인증 시 False."""
     try:
@@ -3306,6 +3335,7 @@ def collect_status_diagnostics(
     *,
     settings_path: Optional[Path] = None,
     plugin_root: Optional[Path] = None,
+    codex_home: Optional[Path] = None,
     check_gh: bool = True,
     check_routing: bool = True,
 ) -> Dict[str, Any]:
@@ -3319,6 +3349,7 @@ def collect_status_diagnostics(
     self_repo = _is_self_repo(project_root)
     settings_path = settings_path or _settings_path()
     plugin_root = plugin_root or _plugin_root()
+    codex_home = codex_home or Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex")))
 
     checks: list = []
 
@@ -3338,6 +3369,7 @@ def collect_status_diagnostics(
             ("whitelist", "whitelist 활성"),
             ("read_perm", "Read 권한 (~/.claude/settings.json)"),
             ("git_hooks", "git hook shim 3종"),
+            ("codex_skills", "Codex validator skills"),
             ("ci_workflows", "선택형 CI workflow"),
         ):
             add(key, label, "NA", na_detail)
@@ -3384,6 +3416,16 @@ def collect_status_diagnostics(
             "PASS" if all_ok else "FAIL",
             hook_detail,
             hook_fix,
+        )
+        # Codex validator skills (core — source 와 target 일치까지 검사)
+        codex_skills = _check_codex_validator_skills(plugin_root, codex_home)
+        codex_all_ok = all(v == "ok" for v in codex_skills.values())
+        add(
+            "codex_skills",
+            "Codex validator skills",
+            "PASS" if codex_all_ok else "FAIL",
+            ", ".join(f"{k}={v}" for k, v in codex_skills.items()),
+            None if codex_all_ok else "init-dcness Core Step 5 로 Codex validator skills 재배포",
         )
         # 선택형 CI workflow (선택 — INFO)
         ci = _check_ci_workflows(project_root)
