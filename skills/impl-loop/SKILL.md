@@ -143,6 +143,14 @@ tail -50 "<task-path>"
 
 retry / POLISH 시 기존 sub-step 재활용 — 신규 TaskCreate X.
 
+### Sub-agent prompt 작성 checkpoint (#780)
+
+`test-engineer` / `engineer` / `build-worker` / `code-validator` / `pr-reviewer` / fallback `module-architect` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
+
+- **대상 + 읽을 진본**: impl 파일 경로, 부모 epic/story 이슈, 검토 대상 diff 같은 SSOT 포인터만 둔다. impl 파일 본문에 이미 있는 Scope·수용 기준·인터페이스를 호출마다 복사하지 않는다.
+- **worktree**: chain 직렬 outer worktree 를 포함해 worktree 활성 시 worktree 절대경로를 넣는다. 상대경로만 넘겨 sub-agent write 가 main repo 로 새는 재발을 막는다.
+- **이 호출 특유**: 재호출 finding 의 근본 원인, wave-plan 신호, 검증 대행 결과처럼 진본에 아직 없는 신호만 둔다. 파서 정규식·구현 단계·테스트 assert 방식 같은 방법 처방은 넣지 않는다.
+
 ### 브랜치명 결정 (loop clean 후 자동 commit/PR)
 
 브랜치·커밋·PR 네이밍은 [`git-spec.md`](../../docs/plugin/git-spec.md#브랜치) 이 **단일 SSOT** — 본 skill 은 자체 네이밍 규칙을 두지 않고 task 성격에 맞는 SSOT 패턴을 고른다. (`feat/`·`chore/` 류 자체 분류 금지 — git-naming 게이트 [`check_git_naming.mjs`](../../scripts/check_git_naming.mjs) 가 거부해 push/pre-push 에서 막힘.)

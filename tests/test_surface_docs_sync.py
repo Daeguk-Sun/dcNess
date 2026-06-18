@@ -80,6 +80,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.loop_procedure = (
             ROOT / "docs" / "plugin" / "loop-procedure.md"
         ).read_text(encoding="utf-8")
+        self.agent_prompt_template = (
+            ROOT / "docs" / "plugin" / "templates" / "agent-prompt-slots.md"
+        ).read_text(encoding="utf-8")
         self.hooks_doc = (ROOT / "docs" / "plugin" / "hooks.md").read_text(
             encoding="utf-8"
         )
@@ -482,6 +485,40 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("`compact-design`", self.positioning)
         self.assertNotIn("| `/compact-design` |", self.positioning)
         self.assertNotIn("/compact-design", self.readme)
+
+    def test_action_loop_prompt_slot_template_is_shared(self) -> None:
+        """#780 — 3-slot prompt form is a template and action loops surface it."""
+        template_path = ROOT / "docs" / "plugin" / "templates" / "agent-prompt-slots.md"
+        self.assertTrue(template_path.exists())
+        for needle in (
+            "**대상 + 읽을 진본:**",
+            "**worktree:**",
+            "**이 호출 특유:**",
+            "방법 처방",
+            "main repo 절대경로",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.agent_prompt_template)
+
+        self.assertIn("agent-prompt-slots.md", self.loop_procedure)
+        self.assertIn("[PROMPT_SLOT_CHECK]", self.loop_procedure)
+        self.assertNotIn(
+            "**대상 + 읽을 진본:** {{",
+            self.loop_procedure,
+            msg="loop-procedure.md should link the shared template, not own a copy",
+        )
+
+        for label, text in (
+            ("impl", self.impl_skill),
+            ("impl-loop", self.impl_loop_skill),
+            ("design", self.design_skill),
+        ):
+            with self.subTest(label=label):
+                self.assertIn("Sub-agent prompt 작성 checkpoint (#780)", text)
+                self.assertIn("agent-prompt-slots.md", text)
+                self.assertIn("[PROMPT_SLOT_CHECK]", text)
+                self.assertIn("worktree 절대경로", text)
+                self.assertIn("방법 처방", text)
 
     def _section(self, text: str, start: str, end: str) -> str:
         match = re.search(start + r"(?P<body>.*?)" + end, text, flags=re.S)

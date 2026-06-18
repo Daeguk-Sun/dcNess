@@ -1016,6 +1016,68 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertEqual(slot["current_step"]["agent"], "code-validator")
         self.assertEqual(slot["current_step"]["mode"], "PLAN_VALIDATION")
 
+    def test_begin_step_action_run_emits_prompt_slot_check(self) -> None:
+        """#780 — action loop Agent prompt 작성 직전에 3-slot self-check 를 노출."""
+        from harness.session_state import (
+            _cli_begin_step,
+            start_run,
+            write_pid_current_run,
+        )
+        from types import SimpleNamespace
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        action_rid = "run-87654321"
+        start_run(self.sid, action_rid, "impl")
+        write_pid_current_run(self.cc_pid, action_rid)
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_begin_step(SimpleNamespace(agent="engineer", mode="IMPL"))
+
+        self.assertEqual(rc, 0)
+        stdout = out.getvalue()
+        self.assertIn("[PROMPT_SLOT_CHECK]", stdout)
+        self.assertIn("docs/plugin/templates/agent-prompt-slots.md", stdout)
+        self.assertIn("대상+읽을 진본", stdout)
+        self.assertIn("worktree", stdout)
+        self.assertIn("방법 처방 금지", stdout)
+
+    def test_prompt_slot_check_includes_active_worktree_absolute_path(self) -> None:
+        """#780 — worktree 활성 시 prompt self-check 가 worktree root 를 직접 제시."""
+        from harness.session_state import (
+            _prompt_slot_check_text,
+            start_run,
+        )
+
+        action_rid = "run-abcdef12"
+        start_run(self.sid, action_rid, "design")
+        worktree_root = self.base / ".claude" / "worktrees" / "design-test"
+        subdir = worktree_root / "src"
+        subdir.mkdir(parents=True)
+        subprocess.run(["git", "init", "-q"], cwd=worktree_root, check=True)
+
+        text = _prompt_slot_check_text(self.sid, action_rid, cwd=subdir)
+
+        self.assertIn("[PROMPT_SLOT_CHECK]", text)
+        self.assertIn("docs/plugin/templates/agent-prompt-slots.md", text)
+        self.assertIn(str(worktree_root.resolve()), text)
+        self.assertIn("main repo 절대경로 금지", text)
+
+    def test_begin_step_non_action_run_omits_prompt_slot_check(self) -> None:
+        """Advisory signal is limited to action loops, not every helper step."""
+        from harness.session_state import _cli_begin_step
+        from types import SimpleNamespace
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_begin_step(SimpleNamespace(agent="validator", mode="PLAN_VALIDATION"))
+
+        self.assertEqual(rc, 0)
+        self.assertNotIn("[PROMPT_SLOT_CHECK]", out.getvalue())
+
     def test_run_dir_cli_outputs_absolute_path(self) -> None:
         # DCN-30-21: run-dir subcommand for prose-staging path 격리.
         from harness.session_state import _cli_run_dir, run_dir

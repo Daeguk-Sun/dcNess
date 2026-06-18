@@ -107,6 +107,8 @@ FAIL_OPEN_EVENTS_NAME = "fail-open-events.jsonl"
 FAIL_OPEN_RECENT_HOURS = 24
 FAIL_OPEN_RECENT_LIMIT = 5
 _FAIL_OPEN_DETAIL_MAX = 500
+_PROMPT_SLOT_CHECK_ENTRY_POINTS = {"impl", "design"}
+_PROMPT_SLOT_TEMPLATE_REL = Path("docs/plugin/templates/agent-prompt-slots.md")
 
 
 # ── 경로 유틸 ───────────────────────────────────────────────────────
@@ -736,6 +738,85 @@ def clear_current_step(
     active[run_id] = slot
     update_live(session_id, base_dir=base_dir, active_runs=active)
     return True
+
+
+def _is_dcness_worktree_path(path: Path) -> bool:
+    parts = path.resolve().parts
+    for idx in range(len(parts) - 1):
+        if parts[idx] == ".claude" and parts[idx + 1] == "worktrees":
+            return True
+    return False
+
+
+def _active_worktree_root_for_prompt(*, cwd: Optional[Path] = None) -> Optional[str]:
+    """Return the git worktree root when cwd is inside `.claude/worktrees/`.
+
+    The value is a prompt-writing hint only. Failure stays silent so begin-step
+    never blocks the loop for an advisory reminder.
+    """
+    probe_cwd = Path(cwd or Path.cwd()).resolve()
+    try:
+        result = subprocess.run(  # nosec B603, B607
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=str(probe_cwd),
+            timeout=_PPID_LOOKUP_TIMEOUT_SEC,
+        )
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+        OSError,
+    ):
+        return None
+    root = result.stdout.strip()
+    if not root:
+        return None
+    root_path = Path(root).resolve()
+    return str(root_path) if _is_dcness_worktree_path(root_path) else None
+
+
+def _prompt_slot_check_text(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+    cwd: Optional[Path] = None,
+) -> str:
+    """Advisory self-check emitted immediately before Agent prompt writing."""
+    try:
+        live = read_live(session_id, base_dir=base_dir) or {}
+        active = live.get("active_runs", {})
+        slot = active.get(run_id, {}) if isinstance(active, dict) else {}
+        entry_point = slot.get("entry_point") if isinstance(slot, dict) else None
+    except Exception:  # nosec B110
+        return ""
+    if entry_point not in _PROMPT_SLOT_CHECK_ENTRY_POINTS:
+        return ""
+
+    template_path = Path(__file__).resolve().parents[1] / _PROMPT_SLOT_TEMPLATE_REL
+    worktree_root = _active_worktree_root_for_prompt(cwd=cwd)
+    if worktree_root:
+        worktree_line = (
+            f"- worktree: 활성 — Agent prompt 에 worktree 절대경로 `{worktree_root}` 포함. "
+            "main repo 절대경로 금지."
+        )
+    else:
+        worktree_line = (
+            "- worktree: 비활성이 확실하면 생략. 활성 여부가 애매하면 "
+            "`pwd` / `git rev-parse --show-toplevel` 확인 후 절대경로 포함."
+        )
+    return "\n".join(
+        [
+            "[PROMPT_SLOT_CHECK]",
+            f"- template: `{template_path}`",
+            "- 대상+읽을 진본: 이번 호출 단위와 agent 가 자체 read 할 SSOT 경로만 둔다.",
+            worktree_line,
+            "- 이 호출 특유: 진본에 없는 제약/신호만 둔다. 정규식·구현 단계·알고리즘·테스트 assert 방식 등 방법 처방 금지.",
+        ]
+    )
 
 
 def set_pending_agent(
@@ -2089,6 +2170,10 @@ def _cli_begin_step(args: Any) -> int:
             )
 
     print("ok")
+
+    prompt_slot_check = _prompt_slot_check_text(sid, rid)
+    if prompt_slot_check:
+        print(f"\n{prompt_slot_check}")
 
     # DCN-CHG-20260502-02: 해당 agent/mode 의 loop insights 있으면 stdout 주입.
     # 메인 Claude 가 Bash 결과로 읽고 Agent prompt 에 포함시킨다.

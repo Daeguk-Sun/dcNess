@@ -100,6 +100,14 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 구현 경로: Standard — 설계도 = <경로>, 엔진 = 풀4(디폴트), 검증 gate = test + code-validator + pr-reviewer
 ```
 
+## Sub-agent prompt 작성 checkpoint (#780)
+
+sub-agent 호출 경로(Lite sub-agent 엔진 / Standard 풀4·build-worker / pr-reviewer review)에 들어가면 `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
+
+- **대상 + 읽을 진본**: 이슈·설계도·task 파일·diff 등 agent 가 자체 read 할 SSOT 포인터만 둔다. 이미 진본에 있는 수용 기준·인터페이스·구현 결정을 prompt 에 재나열하지 않는다.
+- **worktree**: worktree 활성 시 worktree 절대경로를 넣는다. main repo 절대경로를 worktree 경로처럼 넘기지 않는다.
+- **이 호출 특유**: 진본에 없는 제약·신호만 둔다. 정규식·구현 단계·알고리즘·테스트 assert 방식 같은 방법 처방은 넣지 않는다.
+
 ## Lite 구현 경로 — 꼼꼼 직접 구현 (기본)
 
 Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메인이 직접 구현하는 single PR 경로다. 아래는 **메인 직접 구현** 기본 경로이며, sub-agent 엔진을 붙이는 변형은 바로 다음 절에서 다룬다(#714).
