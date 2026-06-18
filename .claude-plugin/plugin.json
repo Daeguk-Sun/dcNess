@@ -1,6 +1,6 @@
 {
   "name": "dcness",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Claude Code PR workflow guard that stops skipped tests, skipped reviews, and out-of-bound agent writes before PRs.",
   "author": {
     "name": "alruminum",

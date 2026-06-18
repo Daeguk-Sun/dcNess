@@ -4,6 +4,41 @@
 
 ---
 
+## v0.9.0 (2026-06-18)
+
+**커밋 범위**: `v0.8.0..v0.9.0` (머지 PR 10개)
+**핵심 변경**: harness guard 의 신뢰성·가시성·커버리지 강화에 집중한 minor 릴리즈. TDD guard 가 Bash write 까지 차단하도록 확장되고, hook 의 의심스러운 fail-open 이 `dcness-helper status` 진단에 노출되며, sub-agent prompt 슬롯 self-check 와 engineer 파일 경계 코어 기본값 정리가 더해졌다. 공급망 보안(zizmor) 하드닝과 dcness 자체 품질 게이트(ruff/mypy/bandit · 결정적 guard 효능 eval)도 함께 들어갔다.
+
+### 무엇이 바뀌나
+
+1. **Bash TDD guard 적용** ([#792](https://github.com/alruminum/dcNess/pull/792) [#786](https://github.com/alruminum/dcNess/issues/786)) — TDD Guard 가 Edit/Write/NotebookEdit 뿐 아니라 **Bash write(redirect·tee·heredoc) 까지** 커버한다. 테스트 없이 소스 파일을 Bash 로 우회 생성하던 경로가 동일 기준으로 차단된다.
+
+2. **hook fail-open 진단 노출** ([#791](https://github.com/alruminum/dcNess/pull/791) [#784](https://github.com/alruminum/dcNess/issues/784)) — `catastrophic-gate` / `file-guard` / `tdd-guard` 가 의심스럽게 fail-open(조용히 통과)되면 `fail-open-events.jsonl` 에 기록되고 `dcness-helper status` 에 진단 항목(PASS/WARN)으로 노출된다. guard 가 조용히 꺼졌는지 사용자가 확인할 수 있다.
+
+3. **sub-agent prompt 슬롯 self-check** ([#795](https://github.com/alruminum/dcNess/pull/795) [#780](https://github.com/alruminum/dcNess/issues/780)) — `dcness-helper begin-step` 이 impl/design active run 에서 `[PROMPT_SLOT_CHECK]` advisory 를 출력하고, worktree 아래면 worktree 절대경로를 직접 포함한다. action loop 진입 시 worktree 슬롯 누락·방법 처방을 줄인다(advisory — 차단 아님).
+
+4. **engineer 파일 경계 코어 기본값 정리** ([#796](https://github.com/alruminum/dcNess/pull/796) [#778](https://github.com/alruminum/dcNess/issues/778)) — engineer ALLOW_MATRIX 코어 기본값에서 프로젝트 고유 디렉토리(`^remotion/`)를 제거했다. 코어는 언어/레이아웃 중립 기본값만 유지하고, 프로젝트 고유 경로는 활성 프로젝트의 `.dcness/boundary.json` 이 SSOT 로 선언한다. ⚠️ `remotion/` 을 쓰던 프로젝트는 boundary override 가 없으면 engineer 가 더 이상 기본 허용받지 못하므로, 필요 시 `.dcness/boundary.json` 에 add override 를 선언해야 한다.
+
+5. **벤치마크 fleet 지표 계측** ([#790](https://github.com/alruminum/dcNess/pull/790) [#785](https://github.com/alruminum/dcNess/issues/785)) — `pr-create` / `pr-finalize` 가 PR lifecycle ledger event 를 기록해, 이전엔 항상 "측정 불가" 였던 cross-run PR merge 성공률·orphan merge·review rejection 이 fleet 집계에 노출된다.
+
+6. **공급망 보안 하드닝** ([#787](https://github.com/alruminum/dcNess/pull/787) [#781](https://github.com/alruminum/dcNess/issues/781)) — composite GitHub Action 의 input injection 제거, third-party action SHA 고정, read-only workflow 에 `persist-credentials: false` 적용. 외부 활성 프로젝트가 호출하는 `.github/actions/*` 에 직접 반영된다.
+
+7. **내부 품질 인프라** (사용자 미도달) — dcness 자체에 ruff/mypy/bandit static gate([#788](https://github.com/alruminum/dcNess/pull/788) [#782](https://github.com/alruminum/dcNess/issues/782)), 결정적 guard 효능 eval([#789](https://github.com/alruminum/dcNess/pull/789)), release 배포물에서 self 전용 QA 파일 제외([#793](https://github.com/alruminum/dcNess/issues/793) [#794](https://github.com/alruminum/dcNess/pull/794)) 가 추가됐다. plug-in 본체 동작에는 영향이 없다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — Bash TDD guard 확장·fail-open 진단(`hooks/**`), prompt 슬롯 advisory·engineer 경계 정리(`harness/**`), fleet 지표(`scripts/**`·`harness/**`), agent/skill 가이드.
+- **⚠️ `remotion/` 디렉토리를 쓰던 프로젝트**는 plugin update 후 engineer 가 `remotion/` 에 쓰려면 활성 프로젝트 루트의 `.dcness/boundary.json` 에 add override 선언이 필요하다.
+- **hook fail-open 점검**은 `dcness-helper status` 진단표에서 확인한다.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
+
+---
+
 ## v0.8.0 (2026-06-17)
 
 **커밋 범위**: `v0.7.1..v0.8.0` (머지 PR 11개)
