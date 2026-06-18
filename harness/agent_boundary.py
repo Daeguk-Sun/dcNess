@@ -105,13 +105,11 @@ RUN_DIR_PROSE_ALLOW: tuple[str, ...] = (
 
 # ── ALLOW_MATRIX (agent 별 Write 허용) ─────────────────────────
 # RWHarness agent-boundary.py:48~84 기반. engineer / test-engineer 는 #694 에서 언어·레이아웃
-# 중립으로 확장 (JS/TS 전용 → Python·Go·Ruby·JVM·C#·PHP·Elixir·remotion 등 비-JS 외부 프로젝트).
+# 중립으로 확장 (JS/TS 전용 → Python·Go·Ruby·JVM·C#·PHP·Elixir 등 비-JS 외부 프로젝트).
 ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
     # engineer — 구현 소스. JS/TS·Python 모노레포(src/·apps/·packages/) + 언어 중립 소스 루트
-    # (lib/·app/·cmd/·internal/·pkg/) + Remotion 비디오 소스(remotion/). docs/ · 루트 비소스
-    # 문서(README 등)는 미매칭으로 차단 — 역할 격리 유지.
-    # ⚠️ remotion/ 같은 프로젝트 고유 디렉토리는 코어 기본값에 둔 임시 — 무한한 비표준 레이아웃은
-    #    프로젝트별 override 로 이관 예정(#696). 그때 코어 기본값 다이어트.
+    # (lib/·app/·cmd/·internal/·pkg/). docs/ · 루트 비소스 문서(README 등)는 미매칭으로
+    # 차단 — 역할 격리 유지. remotion/ 같은 프로젝트 고유 디렉토리는 프로젝트별 override 영역.
     "engineer": (
         # JS/TS·Python 모노레포 관례
         r'(^|/)src/',
@@ -129,7 +127,6 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
         r'^cmd/',          # Go 엔트리포인트
         r'^internal/',     # Go 내부 패키지
         r'^pkg/',          # Go 공개 패키지
-        r'^remotion/',     # Remotion 비디오 소스 (youTubeGenerator 등) — #696 override 이관 후보
         # 루트 직속 단일 파일 엔트리포인트 — Flask/FastAPI `app.py`·`main.py`, Django
         # `manage.py`, Go 루트 `main.go`, Node `server.js`/`index.js` 등 (#705 실측: 디렉토리
         # 패턴만 있으면 worker 가 루트 엔트리 파일을 못 고쳐 "prose 제시 → 메인 대리 적용"

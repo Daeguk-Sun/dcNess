@@ -318,6 +318,14 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
     def tearDown(self):
         self._patcher.stop()
 
+    @staticmethod
+    def _write_boundary(root: Path, mapping: dict) -> None:
+        cfg_dir = root / ".dcness"
+        cfg_dir.mkdir(parents=True, exist_ok=True)
+        (cfg_dir / "boundary.json").write_text(
+            json.dumps(mapping), encoding="utf-8"
+        )
+
     # ── test-engineer: 언어 중립 테스트 경로 허용 ──
     def test_test_engineer_python_tests_allowed(self):
         with tempfile.TemporaryDirectory() as td:
@@ -395,10 +403,15 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 self.assertIn("ALLOW_MATRIX", reason)
 
     # ── engineer: 언어 중립 소스 레이아웃 허용 ──
-    def test_engineer_remotion_allowed(self):
-        # #694 핵심 — src/ 밖 소스 루트(remotion/) 허용 (youTubeGenerator task 04).
+    def test_engineer_remotion_requires_project_override(self):
+        # #778 — 프로젝트 고유 디렉토리(remotion/)는 코어 기본값이 아니라 프로젝트 override.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
+            reason = check_write_allowed("engineer", "remotion/shorts-types.ts", cwd=cwd)
+            self.assertIsNotNone(reason)
+            self.assertIn("ALLOW_MATRIX", reason)
+
+            self._write_boundary(cwd, {"engineer": {"add": [r"^remotion/"]}})
             self.assertIsNone(
                 check_write_allowed("engineer", "remotion/shorts-types.ts", cwd=cwd)
             )
@@ -424,11 +437,14 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             # ./ prefix 소스 — 허용
-            for p in ("./lib/parser.rb", "./remotion/shorts-types.ts", "./cmd/main.go"):
+            for p in ("./lib/parser.rb", "./cmd/main.go"):
                 self.assertIsNone(
                     check_write_allowed("engineer", p, cwd=cwd),
                     f"./ prefix 소스 {p} 허용",
                 )
+            reason = check_write_allowed("engineer", "./remotion/shorts-types.ts", cwd=cwd)
+            self.assertIsNotNone(reason, "프로젝트 override 없는 remotion/ 은 차단되어야 함")
+            self.assertIn("ALLOW_MATRIX", reason)
             # ./ prefix 테스트 — 허용
             self.assertIsNone(
                 check_write_allowed("test-engineer", "./tests/test_x.py", cwd=cwd)
@@ -740,6 +756,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
     def test_build_worker_youtube_generator_scenario(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
+            self._write_boundary(cwd, {"engineer": {"add": [r"^remotion/"]}})
             # 테스트 산출 (test-engineer 영역) — task 01·02·03·07
             self.assertIsNone(
                 check_write_allowed("build-worker", "tests/core/domain/test_shorts.py", cwd=cwd)
