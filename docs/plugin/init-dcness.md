@@ -29,9 +29,9 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 
 | 대상 | 위치 | Source | 언제 | 멱등성 | 자동 PR 대상 |
 |---|---|---|---|---|---|
-| git naming workflow | `.github/workflows/git-naming-validation.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
-| PR body workflow | `.github/workflows/pr-body-validation.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
-| Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | 아래 [CI Workflow Snippets](#ci-workflow-snippets) | custom 선택 | always-overwrite | O |
+| git naming workflow | `.github/workflows/git-naming-validation.yml` | [`templates/github-workflows/git-naming-validation.yml`](../../templates/github-workflows/git-naming-validation.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
+| PR body workflow | `.github/workflows/pr-body-validation.yml` | [`templates/github-workflows/pr-body-validation.yml`](../../templates/github-workflows/pr-body-validation.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
+| Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml) | custom 선택 | always-overwrite | O |
 | project docs seed | `docs/prd.md`, `docs/architecture.md`, `docs/adr.md` | `templates/project-init/*.md` | 추천 bundle 또는 custom | 부재 시만 생성 | X |
 | design seed | `docs/design.md` | `docs/plugin/design.md` minimal 예시 | custom 선택 | 부재 시만 생성 | X |
 | design preview seed | `design-variants/**` | `templates/design-variants/**` | custom 선택 | 부재 시만 생성 | X |
@@ -69,97 +69,25 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 
 ## CI Workflow Snippets
 
-사용자가 `/init-dcness` 에서 선택한 workflow 만 사용자 repo 의 `.github/workflows/` 에 쓴다. 검증 본체는 사용자 repo 에 복사하지 않고 dcNess composite action 을 호출한다.
+기존 `#ci-workflow-snippets` anchor 호환을 위해 heading 은 유지한다. 이 섹션은 더 이상 YAML 전문을 소유하지 않고, `/init-dcness` 가 사용자 repo 의 `.github/workflows/` 로 복사하는 workflow template inventory 만 제공한다. 검증 본체는 사용자 repo 에 복사하지 않고 dcNess composite action 을 호출한다.
 
 ### git-naming-validation.yml
 
-경로: `.github/workflows/git-naming-validation.yml`
-
-```yaml
-name: git-naming-validation
-on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, edited]
-permissions:
-  contents: read
-  pull-requests: read
-jobs:
-  naming:
-    name: git-naming-spec gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: alruminum/dcNess/.github/actions/git-naming@main
-        with:
-          branch: ${{ github.head_ref }}
-          title: ${{ github.event.pull_request.title }}
-```
+- 대상 경로: `.github/workflows/git-naming-validation.yml`
+- 템플릿: [`templates/github-workflows/git-naming-validation.yml`](../../templates/github-workflows/git-naming-validation.yml)
+- 역할: `alruminum/dcNess/.github/actions/git-naming@main` 을 호출해 `github.head_ref` 와 PR title 을 검증한다.
 
 ### pr-body-validation.yml
 
-경로: `.github/workflows/pr-body-validation.yml`
-
-```yaml
-name: pr-body-validation
-on:
-  pull_request:
-    branches: [main]
-    types: [opened, synchronize, reopened, edited]
-permissions:
-  contents: read
-  pull-requests: read
-jobs:
-  pr-body:
-    name: PR body close-keyword gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: alruminum/dcNess/.github/actions/pr-body@main
-        with:
-          body: ${{ github.event.pull_request.body }}
-```
+- 대상 경로: `.github/workflows/pr-body-validation.yml`
+- 템플릿: [`templates/github-workflows/pr-body-validation.yml`](../../templates/github-workflows/pr-body-validation.yml)
+- 역할: `alruminum/dcNess/.github/actions/pr-body@main` 을 호출해 PR body 에 issue trailer 가 있는지 확인한다.
 
 ### github-project-lifecycle.yml
 
-경로: `.github/workflows/github-project-lifecycle.yml`
-
-```yaml
-name: github-project-lifecycle
-on:
-  issues:
-    types: [opened, edited, labeled, unlabeled]
-  pull_request:
-    types: [closed]
-permissions:
-  contents: read
-  issues: read
-  pull-requests: read
-jobs:
-  issue-drift:
-    if: ${{ github.event_name == 'issues' && vars.DCNESS_PROJECT_NUMBER != '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main
-        with:
-          mode: validate-issue
-          repo: ${{ github.repository }}
-          project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
-          project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
-          issue-number: ${{ github.event.issue.number }}
-          gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
-  pr-merged:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && vars.DCNESS_PROJECT_NUMBER != '' }}
-    runs-on: ubuntu-latest
-    steps:
-      - uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main
-        with:
-          mode: pr-merged
-          repo: ${{ github.repository }}
-          project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
-          project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
-          pr-body: ${{ github.event.pull_request.body }}
-          apply: "true"
-          gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
-```
+- 대상 경로: `.github/workflows/github-project-lifecycle.yml`
+- 템플릿: [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml)
+- 역할: `alruminum/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue drift 를 검출하고 merged PR 의 완료 후보 issue 를 Project Status `Done` 으로 보정한다.
 
 Project v2 쓰기에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없으면 drift 검출 중심으로 실패 메시지를 남기며, owner type 판별은 graceful degrade 한다.
 

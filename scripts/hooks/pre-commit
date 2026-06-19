@@ -6,7 +6,7 @@
 #
 # 게이트:
 #   1. main 직접 commit 차단 (모든 commit)
-#   2. python-tests (harness/tests/agents/yml staged 시만)
+#   2. python-tests (관련 staged 파일이 있을 때만)
 
 set -e
 

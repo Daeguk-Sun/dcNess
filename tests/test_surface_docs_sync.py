@@ -419,14 +419,15 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("../docs/plugin/hooks.md#tdd-guardsh", self.init_doc)
         self.assertIn("docs/plugin/init-dcness.md", self.init_doc)
 
-    def test_init_reference_owns_bootstrap_inventory_and_workflow_snippets(self) -> None:
-        """#690 — 긴 bootstrap 상세는 public command 가 아니라 reference 문서에 둔다."""
+    def test_init_reference_owns_bootstrap_inventory_and_workflow_templates(self) -> None:
+        """#690/#800 — reference 는 bootstrap 상세와 workflow template inventory 를 둔다."""
         self.assertIn("## Bootstrap Inventory", self.init_reference)
         self.assertIn("### Core", self.init_reference)
         self.assertIn("### Optional", self.init_reference)
         self.assertIn("## Recommended Bundle Defaults", self.init_reference)
         self.assertIn("root architecture.md 감지로 docs/architecture.md skip", self.init_reference)
         self.assertIn("## CI Workflow Snippets", self.init_reference)
+        self.assertIn("workflow template inventory", self.init_reference)
         self.assertIn("## Re-run Matrix", self.init_reference)
         self.assertIn("hooks.md#tdd-guardsh", self.init_reference)
         for workflow in (
@@ -435,6 +436,18 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "github-project-lifecycle.yml",
         ):
             self.assertIn(workflow, self.init_reference)
+            template = ROOT / "templates" / "github-workflows" / workflow
+            self.assertTrue(template.exists(), template)
+            self.assertIn(f"templates/github-workflows/{workflow}", self.init_doc)
+            self.assertIn(f"templates/github-workflows/{workflow}", self.init_reference)
+
+            workflow_name = workflow.removesuffix(".yml")
+            self.assertIn(
+                f"name: {workflow_name}",
+                template.read_text(encoding="utf-8"),
+            )
+            self.assertNotIn(f"name: {workflow_name}", self.init_doc)
+            self.assertNotIn(f"name: {workflow_name}", self.init_reference)
 
     def test_init_dcness_completion_precedes_optional_bundle(self) -> None:
         """#799 — core 활성화 완료를 먼저 선언하고 선택형 확장은 bundle 1질문으로 둔다."""

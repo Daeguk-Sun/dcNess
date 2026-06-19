@@ -1,0 +1,16 @@
+name: pr-body-validation
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  pr-body:
+    name: PR body close-keyword gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: alruminum/dcNess/.github/actions/pr-body@main
+        with:
+          body: ${{ github.event.pull_request.body }}

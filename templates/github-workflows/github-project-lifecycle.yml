@@ -1,0 +1,36 @@
+name: github-project-lifecycle
+on:
+  issues:
+    types: [opened, edited, labeled, unlabeled]
+  pull_request:
+    types: [closed]
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+jobs:
+  issue-drift:
+    if: ${{ github.event_name == 'issues' && vars.DCNESS_PROJECT_NUMBER != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main
+        with:
+          mode: validate-issue
+          repo: ${{ github.repository }}
+          project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
+          project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
+          issue-number: ${{ github.event.issue.number }}
+          gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
+  pr-merged:
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && vars.DCNESS_PROJECT_NUMBER != '' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main
+        with:
+          mode: pr-merged
+          repo: ${{ github.repository }}
+          project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
+          project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
+          pr-body: ${{ github.event.pull_request.body }}
+          apply: "true"
+          gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
