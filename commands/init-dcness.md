@@ -270,16 +270,23 @@ record_dcness_workflow_change ".github/workflows/pr-body-validation.yml"
 
 #### project docs seed
 
+시드 양식은 `/spec`·system-architect 가 실제로 산출하는 authoring 템플릿을 *단일 원본* 으로 쓴다 (별도 시드 전용 복제본 없음 — 시드와 산출 양식이 같다). 산출물 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md).
+
 ```bash
 mkdir -p "$PROJECT_ROOT/docs"
 for FILE in prd.md architecture.md adr.md; do
+  case "$FILE" in
+    prd.md)          SRC="$PLUGIN_ROOT/skills/spec/templates/prd.md" ;;
+    architecture.md) SRC="$PLUGIN_ROOT/agents/system-architect/templates/root-architecture.md" ;;
+    adr.md)          SRC="$PLUGIN_ROOT/agents/system-architect/templates/root-adr.md" ;;
+  esac
   if [ -f "$PROJECT_ROOT/docs/$FILE" ]; then
     echo "[dcness] docs/$FILE 이미 존재 - skip"
   elif [ "$FILE" = "architecture.md" ] && [ -f "$PROJECT_ROOT/architecture.md" ]; then
     echo "[dcness] root architecture.md 감지로 docs/architecture.md skip"
   else
-    cp "$PLUGIN_ROOT/templates/project-init/$FILE" "$PROJECT_ROOT/docs/$FILE"
-    echo "[dcness] docs/$FILE 시드 완료 - 기획 논의 후 채워넣으세요"
+    cp "$SRC" "$PROJECT_ROOT/docs/$FILE"
+    echo "[dcness] docs/$FILE 시드 완료 (authoring 양식 = 산출 양식) - 기획 논의 후 채워넣으세요"
   fi
 done
 ```

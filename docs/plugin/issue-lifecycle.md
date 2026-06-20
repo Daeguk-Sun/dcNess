@@ -186,6 +186,7 @@ story 이슈 부재 시 동일 패턴:
 
 ## 참조
 
+- 산출물 위치·양식·계층 SSOT (epic 폴더 안에 어떤 docs 가 사는가): [`deliverables-map.md`](deliverables-map.md)
 - 등록·트레일러·완료 *룰* SSOT: [`git-spec.md`](git-spec.md) 의 이슈 등록 양식·PR 트레일러·이슈 완료 규칙
 - 분기 규칙 / 핸드오프: 각 loop skill 의 `<skill>-routing.md` (예: [`../../skills/impl-loop/impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md))
 - loop 진입 spec: 각 skill 본문 `skills/<skill>/SKILL.md` 의 `## Loop` contract. 공통 실행 절차 = [`loop-procedure.md`](loop-procedure.md#진입-모델)

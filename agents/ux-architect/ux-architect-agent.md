@@ -44,7 +44,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 
 ## 권한 경계
 
-- Write 허용: `docs/ux-flow.md`, `docs/design.md`의 system-level token 영역
+- Write 허용: epic 단위 `docs/milestones/.../ux-flow.md` (canonical) 와 root `docs/ux-flow.md` (단일-epic 폴백), `docs/design.md`의 system-level token 영역. 위치·계층 SSOT = [`docs/plugin/deliverables-map.md`](../../docs/plugin/deliverables-map.md).
 - 금지: PRD 수정, DB/API/system architecture 결정, src 수정
 - UX_REFINE에서는 src를 읽지 않는다.
 - Pencil MCP는 UX 분석용으로 읽기만 한다.

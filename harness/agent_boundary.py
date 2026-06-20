@@ -184,8 +184,14 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
         r'(^|/)[^/]+Tests?\.(java|kt|kts|scala|cs|php)$', # JVM·C#·PHP *Test(s).*
         r'(^|/)conftest\.py$',                            # pytest 픽스처 관례 파일 (#705)
     ),
+    # ux-architect — 화면 플로우/와이어프레임 + design system token (agents/ux-architect 권한 경계).
+    # ux-flow 는 epic 단위가 canonical (docs/milestones/.../ux-flow.md — /design 흐름), root
+    # docs/ux-flow.md 는 단일-epic legacy 폴백. design.md 는 system-level token 영역 (/ux 흐름).
+    # 산출물 위치·계층 SSOT = docs/plugin/deliverables-map.md.
     "ux-architect": (
-        r'(^|/)docs/ux-flow\.md$',
+        r'(^|/)docs/ux-flow\.md$',                              # root (단일-epic legacy 폴백)
+        r'(^|/)docs/milestones/[^/]+/epics/[^/]+/ux-flow\.md$',  # epic 폴더 한정 (canonical — /design)
+        r'(^|/)docs/design\.md$',                               # design system token (system-level 영역)
     ),
     # tech-reviewer — PRD 기술 선행 검토 산출물만 (agents/tech-reviewer.md 권한 경계).
     "tech-reviewer": (

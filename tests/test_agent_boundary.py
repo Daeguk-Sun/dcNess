@@ -299,6 +299,56 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
                 check_write_allowed("custom-agent", "anywhere/x.ts", cwd=cwd)
             )
 
+    def test_ux_architect_root_ux_flow_allowed(self):
+        # root docs/ux-flow.md — 단일-epic legacy 폴백.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self.assertIsNone(
+                check_write_allowed("ux-architect", "docs/ux-flow.md", cwd=cwd)
+            )
+
+    def test_ux_architect_epic_scoped_ux_flow_allowed(self):
+        # #804 G1 — epic 단위 ux-flow 가 canonical (/design 흐름). 강제가 skill 지시를
+        # 차단하던 회귀 가드: ALLOW 가 root 만 허용해 design/SKILL.md 의 epic-scoped write 를 막았다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self.assertIsNone(
+                check_write_allowed(
+                    "ux-architect",
+                    "docs/milestones/v01/epics/epic-01-foo/ux-flow.md",
+                    cwd=cwd,
+                )
+            )
+
+    def test_ux_architect_non_canonical_milestones_ux_flow_blocked(self):
+        # #807 codex P2 — epic 폴더 shape 밖 milestones ux-flow 는 차단(오타로 unconsumed
+        # UX doc 생성 방지). canonical = docs/milestones/<v>/epics/<epic>/ux-flow.md 뿐.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for bad in (
+                "docs/milestones/v01/ux-flow.md",                       # epics/<epic> 누락
+                "docs/milestones/v01/epics/epic-01-foo/impl/ux-flow.md",  # 한 단계 더 깊음
+            ):
+                reason = check_write_allowed("ux-architect", bad, cwd=cwd)
+                self.assertIsNotNone(reason, f"{bad} 는 차단돼야 함")
+                self.assertIn("ALLOW_MATRIX", reason)
+
+    def test_ux_architect_design_md_allowed(self):
+        # design system token (system-level 영역) — agents/ux-architect 권한 경계가 문서화한 책무.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            self.assertIsNone(
+                check_write_allowed("ux-architect", "docs/design.md", cwd=cwd)
+            )
+
+    def test_ux_architect_architecture_blocked(self):
+        # 역할 격리 보존 — ux-architect 는 architecture.md 를 쓰지 않는다 (architect 전용).
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            reason = check_write_allowed("ux-architect", "docs/architecture.md", cwd=cwd)
+            self.assertIsNotNone(reason)
+            self.assertIn("ALLOW_MATRIX", reason)
+
 
 class LanguageNeutralAllowMatrixTests(unittest.TestCase):
     """#694 — ALLOW_MATRIX 언어 중립성.
