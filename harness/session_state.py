@@ -465,13 +465,12 @@ def _resolve_run_dir_str(
 
 
 # design_doc 으로 인정하는 설계 산출물 표준 경로 prefix (impl 문서 / compact
-# plan / bugfix plan). 기록 시점에 repo-root 상대 prefix 앵커로 검증해 임의
+# plan). 기록 시점에 repo-root 상대 prefix 앵커로 검증해 임의
 # .md(README 등)·traversal(`..`)·repo 밖 경로가 engineer 게이트 사전 조건
 # 증거가 되지 못하게 한다 (#701).
 _DESIGN_DOC_DIR_MARKERS = (
     "docs/milestones/",
     "docs/compact-plans/",
-    "docs/bugfix/",
 )
 
 

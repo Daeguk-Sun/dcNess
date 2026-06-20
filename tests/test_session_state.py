@@ -494,7 +494,7 @@ class ActiveRunsTests(unittest.TestCase):
             )
 
     def test_start_run_design_doc_non_design_path_raises(self) -> None:
-        # 설계 산출물 경로 규약(docs/milestones|compact-plans|bugfix) 밖 파일은
+        # 설계 산출물 경로 규약(docs/milestones|compact-plans) 밖 파일은
         # 사전 조건 증거가 될 수 없다 — 임의 파일로 게이트 무력화 방지.
         self._chdir_base()
         readme = self.base / "README.md"
@@ -503,6 +503,19 @@ class ActiveRunsTests(unittest.TestCase):
             start_run(
                 self.sid, self.run_id, "impl",
                 base_dir=self.base, design_doc="README.md",
+            )
+
+    def test_start_run_design_doc_bugfix_path_rejected(self) -> None:
+        # #807 — deprecated docs/bugfix 설계 산출물 제거 후 회귀 가드.
+        # docs/bugfix 는 더 이상 design_doc 표준 경로가 아니다.
+        self._chdir_base()
+        doc = self.base / "docs" / "bugfix" / "foo.md"
+        doc.parent.mkdir(parents=True)
+        doc.write_text("x\n", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            start_run(
+                self.sid, self.run_id, "impl",
+                base_dir=self.base, design_doc="docs/bugfix/foo.md",
             )
 
     def test_start_run_design_doc_non_md_raises(self) -> None:

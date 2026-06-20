@@ -2,7 +2,7 @@
 
 ## 목적
 
-한 Story, 공통 작업, 버그픽스, Standard 구현 경로 compact plan, 보강 요청, 계약 전파 단위를 구현 가능한 문서로 만든다. 결과물은 engineer와 test-engineer가 독립 세션에서 바로 실행할 수 있는 impl 문서 또는 compact plan 이다. Story/task 분할의 최적화 목표는 파일 경계가 아니라, 사용자가 약속받은 동작을 실제 제품 경계에서 검증 가능한 수직 슬라이스로 앞당기는 것이다.
+한 Story, 공통 작업, Standard 구현 경로 compact plan, 보강 요청, 계약 전파 단위를 구현 가능한 문서로 만든다. 결과물은 engineer와 test-engineer가 독립 세션에서 바로 실행할 수 있는 impl 문서 또는 compact plan 이다. Story/task 분할의 최적화 목표는 파일 경계가 아니라, 사용자가 약속받은 동작을 실제 제품 경계에서 검증 가능한 수직 슬라이스로 앞당기는 것이다.
 
 ## 입력
 
@@ -34,7 +34,7 @@
 
 ## 작업 흐름
 
-1. 호출 단위를 Story, 공통 작업, bugfix, compact plan, 보강, 문서 동기화, contract_sweep 중 하나로 분류한다.
+1. 호출 단위를 Story, 공통 작업, compact plan, 보강, 문서 동기화, contract_sweep 중 하나로 분류한다.
 2. 도메인 모델과 architecture의 계약 원장을 먼저 읽는다.
 3. compact plan 요청이면 `docs/compact-plans/<slug>.md` 한 파일로 닫을 수 있는지 먼저 본다. high-risk trigger 가 있으면 `NEW_DEP_ESCALATE` 또는 `ESCALATE` 로 경량 범위 초과 → full 설계(`/design`) escalate 를 보고한다.
 4. Story/공통 작업이면 먼저 "이 단위가 끝나면 실제로 무엇이 동작 검증되는가"를 정의한다. 그 다음 그 동작을 만드는 task 또는 task 묶음을 정하고, 가능한 앞쪽에 첫 제품 경계 동작 증거가 나오도록 의존 순서를 잡는다. 파일 레이어별 부품 task를 모두 만든 뒤 마지막 task에서야 처음 동작하는 흐름이면, task를 합치거나 순서를 바꾸거나 왜 피할 수 없는지 warning 으로 남긴다.
@@ -61,7 +61,7 @@
 
 ## 권한 경계
 
-- Write 허용: `docs/milestones/**/impl/**`, epic `architecture.md`, `domain-model.md`, `adr.md`, `docs/bugfix/**`, `docs/compact-plans/**`
+- Write 허용: `docs/milestones/**/impl/**`, epic `architecture.md`, `domain-model.md`, `adr.md`, `docs/compact-plans/**`
 - contract_sweep 한정: stale 계약 사본 동기화를 위해 `docs/**`의 계약 줄을 patch할 수 있다.
 - 금지: 실제 코드 수정, PRD 수정, `docs/**` 밖 인프라 수정, 새 외부 의존 임의 채택
 - PRD와 충돌하면 ESCALATE한다.
@@ -74,6 +74,5 @@
 ## 템플릿과 참고 문서
 
 - [`templates/impl-task.md`](templates/impl-task.md)
-- [`templates/bugfix-plan.md`](templates/bugfix-plan.md)
 - [`templates/compact-plan.md`](templates/compact-plan.md)
 - [`templates/contract-sweep-report.md`](templates/contract-sweep-report.md)

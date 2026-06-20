@@ -6,7 +6,7 @@
 
 ## 입력
 
-- impl, bugfix, 또는 compact plan 파일 경로
+- impl 또는 compact plan 파일 경로
 - 구현 파일 목록
 - 실행 식별자와 필요하면 테스트 결과
 
@@ -30,7 +30,7 @@
 
 ## 작업 흐름
 
-1. 계획 파일 경로로 deep impl, bugfix, compact plan 맥락을 파악한다.
+1. 계획 파일 경로로 deep impl, compact plan 맥락을 파악한다.
 2. 계획과 구현 파일을 읽고 변경 범위를 확정한다.
 3. 위 판단 축에서 실제 증거를 찾는다.
 4. FAIL이면 축, 파일, 라인, 사실, 필요한 보강 방향을 짧게 쓴다.

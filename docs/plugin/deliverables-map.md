@@ -49,9 +49,7 @@ docs/
 
 - `[전역]` = 프로젝트당 1벌 (root `docs/`). `[전역·갱신]` = root 1벌이되 epic/마일스톤 진행에 따라 **갱신**된다 — PRD 는 `/spec` 재진입으로, root `architecture.md`/`adr.md` 는 system-architect 가 매 `/design` epic 에서 기존 root 산출물을 읽고 갱신 여부를 판정한다. `[epic 단위]` = epic 폴더 안, epic 늘수록 증식. `[작업용]` = epic 비종속.
 - 단일-epic 초기 프로젝트는 `milestones/` 없이 root flat 형태(`docs/stories.md`·`docs/ux-flow.md`·`docs/impl/NN-*.md`·`docs/domain-model.md`)로 시작할 수 있다. 이는 legacy 폴백이며 canonical 위치는 위 epic 폴더 안이다 ([공존 vs legacy](#공존-vs-legacy)).
-- **트리에 없는 두 가지 (의도적 제외)**:
-  - `docs/bugfix/**` — **deprecated.** module-architect 에 bugfix 분류·템플릿·write 권한이 남아 있으나 능동 생성 흐름이 없는 죽은 설계 산출물이다. 실제 버그픽스는 `/impl` 경유(compact-plan 또는 Lite 직접 구현)로 흐른다. 완전 제거 진행 중이라 active 트리에서 제외한다.
-  - `docs/db-schema.md` — dcNess 가 **생성하지 않는다**(생성 주체·양식·write 권한 없음). 산출물이 아니라 지도에서 제외한다.
+- **트리에 없는 것 (의도적 제외)**: `docs/db-schema.md` — dcNess 가 **생성하지 않는다**(생성 주체·양식·write 권한 없음). 산출물이 아니라 지도에서 제외한다. (버그픽스는 별도 설계 산출물 없이 `/impl` 경유로 처리한다 — compact-plan 또는 Lite 직접 구현.)
 
 ## 프로젝트 전역 산출물 (root)
 

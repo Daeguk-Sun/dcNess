@@ -48,7 +48,7 @@ echo "[<entry>] run started: $RUN_ID"
 
 `<entry_point>` = 해당 skill 의 `## Loop` 의 `entry_point` 필드 (예: `impl`, `design`, `ux`). begin-run 동작: sid auto-detect + run_id 발급 + `live.json.active_runs` 슬롯 + `.by-pid-current-run/{cc_pid}` 씀.
 
-`--design-doc <path>` — 이 run 이 참조하는 **머지된 설계 문서**(impl task 문서 / compact plan) 경로. 설계가 별도 run 에서 머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서 기록하면, engineer 게이트가 같은-run module-architect PASS 의 등가 사전 조건으로 인정한다 ([`hooks.md` 순서 차단 훅](hooks.md#catastrophic-gatesh)). `entry_point=impl` 전용이며, 설계 산출물 규약 경로(`docs/milestones/**` / `docs/compact-plans/**` / `docs/bugfix/**`)의 실존 `.md` 만 허용 — 아니면 begin-run 이 fail-fast 거부한다. 기록값은 resolve 된 절대경로(hook 프로세스와 cwd 가 달라도 안전). chain 의 다음 task 진입은 `next-task --design-doc <path>` 로 동일 기록.
+`--design-doc <path>` — 이 run 이 참조하는 **머지된 설계 문서**(impl task 문서 / compact plan) 경로. 설계가 별도 run 에서 머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서 기록하면, engineer 게이트가 같은-run module-architect PASS 의 등가 사전 조건으로 인정한다 ([`hooks.md` 순서 차단 훅](hooks.md#catastrophic-gatesh)). `entry_point=impl` 전용이며, 설계 산출물 규약 경로(`docs/milestones/**` / `docs/compact-plans/**`)의 실존 `.md` 만 허용 — 아니면 begin-run 이 fail-fast 거부한다. 기록값은 resolve 된 절대경로(hook 프로세스와 cwd 가 달라도 안전). chain 의 다음 task 진입은 `next-task --design-doc <path>` 로 동일 기록.
 
 `--acceptance-required` — story/epic 마감 task 처럼 `pr-reviewer` 뒤 inline `product-acceptance` 를 거쳐야 run 이 정상 종료되는 경우에만 기록한다. Stop hook 은 이 marker 가 있는 `entry_point=impl` run 에서 `pr-reviewer` 를 종료 agent 로 취급하지 않고 product-acceptance 진입 turn 을 재발화한다. 중간 task / `--no-acceptance` run / verify-only run 은 이 플래그를 주지 않는다. chain 의 다음 task 진입은 `next-task --acceptance-required` 로 동일 기록한다.
 

@@ -15,4 +15,4 @@ model: sonnet
 
 1. [`agents/module-architect/module-architect-agent.md`](module-architect/module-architect-agent.md)를 읽는다.
 2. 그 문서의 목적, 판단 축, 권한 경계, 완료 기준을 기준으로 작업한다.
-3. 구현 계획, compact plan, 버그픽스 계획, 계약 전파 결과는 `agents/module-architect/templates/`의 템플릿을 따른다.
+3. 구현 계획, compact plan, 계약 전파 결과는 `agents/module-architect/templates/`의 템플릿을 따른다.
