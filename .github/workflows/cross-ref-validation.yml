@@ -5,6 +5,7 @@
 # - anchor → target heading slug 매칭 (GitHub-flavored slug 단순 모사)
 # - 옛 명칭 deny-list (외부 배포 영역 한정 — docs/plugin/, commands/, agents/, hooks/, .claude-plugin/)
 # - 위치번호 §N 참조 금지 (doc-conventions.md) — `§3.2` 류 prose. §2.1.N 룰 ID·코드펜스/인라인코드·historical 예외
+# - 고아 문서 탐지 (#805) — docs/plugin/ · docs/internal/ 의 .md 가 어디서도 참조 안 되면 FAIL (link 검증의 역방향)
 #
 # SSOT: docs/internal/doc-conventions.md (참조 표기 규약)
 #
