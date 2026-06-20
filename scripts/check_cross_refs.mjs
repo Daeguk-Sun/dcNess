@@ -18,7 +18,8 @@
  *
  * 검증 C — 고아 문서 탐지 (#805 — link 검증의 역방향)
  *   - docs/plugin/ · docs/internal/ 의 .md 가 어디서도 참조 안 되면 FAIL
- *   - 참조 corpus: 검사 대상 + scripts/ + .github/ 의 basename/경로 인용
+ *   - 참조 판정: (1) markdown 링크를 실제 resolve 한 타겟 집합 + (2) repo-상대 전체 경로 인용
+ *     (정확 매칭 — basename substring 오탐 회피). corpus = 검사 대상 = 모든 .md (워크플로 트리거와 동일 집합)
  *   - 진입점 예외는 ORPHAN_ALLOWLIST (현재 비어 있음 — 추가 시 사유 주석)
  *
  * 사용:
@@ -44,9 +45,10 @@ const SCAN_ROOTS = ['README.md', 'AGENTS.md', 'PROGRESS.md', 'CLAUDE.md', '.gith
 const ORPHAN_TARGET_DIRS = ['docs/plugin', 'docs/internal'];
 // 참조 없이도 정당한 docs (진입점/인덱스). 추가 시 반드시 사유 주석.
 const ORPHAN_ALLOWLIST = new Set([]);
-// 참조 corpus 추가 스캔 — md 외 스크립트/워크플로 안 basename 인용까지 포함해 오탐 방지.
-const ORPHAN_CORPUS_DIRS = ['scripts', '.github'];
-const ORPHAN_CORPUS_EXTS = ['.md', '.mjs', '.js', '.sh', '.py', '.json', '.yml', '.yaml'];
+// 참조 corpus = 검사 대상(collectFiles) 그대로 — 워크플로 트리거(`**/*.md`)와 동일 집합이라
+// corpus 변경이 항상 본 게이트를 발화시킨다. 참조 판정은 (1) markdown 링크를 실제 resolve 한
+// 타겟 집합, (2) repo-상대 전체 경로 인용 — 둘 다 정확 매칭이라 basename substring 오탐
+// (`design.md` ⊂ `conveyor-design.md` / 활성프로젝트 `docs/design.md`) 을 피한다.
 
 // ─── 옛 명칭 deny-list ────────────────────────────────────────
 // historical annotation (navigation hint) 은 통과:
@@ -162,26 +164,38 @@ function getContent(filePath) {
 }
 
 // ─── 고아 탐지 헬퍼 ───────────────────────────────────────────
-function walkExt(dir, exts) {
-  const out = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === 'node_modules' || entry.name === '.git') continue;
-    const p = join(dir, entry.name);
-    if (entry.isDirectory()) {
-      out.push(...walkExt(p, exts));
-    } else if (entry.isFile() && exts.some((e) => entry.name.endsWith(e))) {
-      out.push(p);
+// 모든 markdown 링크를 실제 resolve 한 repo-상대 타겟 경로 집합.
+// 상대 링크(`[x](deliverables-map.md)`)도 source dir 기준으로 정확히 풀린다.
+function collectLinkTargets() {
+  const targets = new Set();
+  for (const f of collectFiles()) {
+    const sourceDir = dirname(f);
+    for (const { url } of extractLinks(f)) {
+      if (isExternalUrl(url)) continue;
+      const hashIdx = url.indexOf('#');
+      const pathPart = hashIdx === -1 ? url : url.slice(0, hashIdx);
+      if (!pathPart) continue; // same-doc anchor
+      targets.add(relative(REPO_ROOT, resolve(sourceDir, pathPart)));
     }
   }
-  return out;
+  return targets;
 }
 
-function buildReferenceCorpus() {
-  const set = new Set(collectFiles());
-  for (const d of ORPHAN_CORPUS_DIRS) {
-    if (existsSync(d)) walkExt(d, ORPHAN_CORPUS_EXTS).forEach((f) => set.add(f));
+// repo-상대 전체 경로 t 가 corpus 어딘가에 *경계 포함* 인용됐나.
+// 전체 경로라 `docs/plugin/design.md` 는 `docs/design.md`·`conveyor-design.md` 에 안 걸린다.
+// 뒤 문자 boundary 로 `design.md` ⊂ `design.markdown` prefix 충돌만 추가 차단.
+function pathReferencedInCorpus(t, corpus) {
+  for (const f of corpus) {
+    if (f === t) continue;
+    const content = getContent(f);
+    let idx = content.indexOf(t);
+    while (idx !== -1) {
+      const after = content[idx + t.length];
+      if (after === undefined || !/[A-Za-z0-9]/.test(after)) return true;
+      idx = content.indexOf(t, idx + 1);
+    }
   }
-  return [...set];
+  return false;
 }
 
 function findOrphans() {
@@ -189,21 +203,14 @@ function findOrphans() {
   for (const d of ORPHAN_TARGET_DIRS) {
     if (existsSync(d)) targets.push(...walkMd(d));
   }
-  const corpus = buildReferenceCorpus();
+  const corpus = collectFiles();
+  const linkTargets = collectLinkTargets();
   const orphans = [];
   for (const t of targets) {
     if (ORPHAN_ALLOWLIST.has(t)) continue;
-    const base = t.split('/').pop();
-    let referenced = false;
-    for (const f of corpus) {
-      if (f === t) continue;
-      const content = getContent(f);
-      if (content.includes(base) || content.includes(t)) {
-        referenced = true;
-        break;
-      }
-    }
-    if (!referenced) orphans.push(t);
+    if (linkTargets.has(t)) continue; // 정확히 resolve 된 markdown 링크 타겟
+    if (pathReferencedInCorpus(t, corpus)) continue; // repo-상대 전체 경로 인용
+    orphans.push(t);
   }
   return orphans;
 }
