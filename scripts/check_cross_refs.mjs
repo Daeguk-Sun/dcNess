@@ -175,7 +175,9 @@ function collectLinkTargets() {
       const hashIdx = url.indexOf('#');
       const pathPart = hashIdx === -1 ? url : url.slice(0, hashIdx);
       if (!pathPart) continue; // same-doc anchor
-      targets.add(relative(REPO_ROOT, resolve(sourceDir, pathPart)));
+      const resolved = relative(REPO_ROOT, resolve(sourceDir, pathPart));
+      if (resolved === f) continue; // 자기 자신 링크는 참조로 치지 않음 (#805 codex P2)
+      targets.add(resolved);
     }
   }
   return targets;
