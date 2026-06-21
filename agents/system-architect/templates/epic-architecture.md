@@ -21,6 +21,8 @@
 
 ## 모듈 목록
 
+<!-- `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 이 표를 파싱한다. 헤더명과 표 형태를 유지한다. -->
+
 | 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |
 |---|---|---|---|---|
 |  |  |  |  |  |
@@ -32,6 +34,8 @@ flowchart LR
 ```
 
 ## Contract Ledger
+
+<!-- `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 공유 계약 인덱스로 수집한다. 헤더명과 표 형태를 유지한다. -->
 
 | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |
 |---|---|---|---|---|---|---|---|---|---|

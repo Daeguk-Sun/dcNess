@@ -271,7 +271,7 @@ record_dcness_workflow_change ".github/workflows/pr-body-validation.yml"
 
 #### project docs seed
 
-시드 양식은 `/spec`·system-architect 가 실제로 산출하는 authoring 템플릿을 *단일 원본* 으로 쓴다 (별도 시드 전용 복제본 없음 — 시드와 산출 양식이 같다). 산출물 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md).
+시드 양식은 `/spec`·system-architect 가 실제로 산출하는 authoring 템플릿을 *단일 원본* 으로 쓴다 (별도 시드 전용 복제본 없음 — 시드와 산출 양식이 같다). 산출물 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md). 전역 `docs/architecture.md` 의 집계 섹션은 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 epic architecture 표에서 재생성한다.
 
 ```bash
 mkdir -p "$PROJECT_ROOT/docs" "$PROJECT_ROOT/docs/decisions"

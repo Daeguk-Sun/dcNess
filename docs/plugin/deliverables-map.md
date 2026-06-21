@@ -61,6 +61,8 @@ docs/
 
 `docs/architecture.md` 는 epic 이 늘 때마다 append-growing map 으로 갱신한다. 상세 설계 본문을 전역에 복제하지 않고, 전역 모듈/의존/결정 anchor 와 epic 문서 링크를 추가한다.
 
+`$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 표와 `## Contract Ledger` 표를 수집해 전역 `docs/architecture.md` 의 `에픽 간 지도`, `전역 모듈 토폴로지`, `공유 계약 인덱스` 섹션을 생성/갱신한다. 이 세 섹션은 파생물이며 수동 편집하지 않는다. epic architecture 템플릿의 표 헤더는 도구의 파싱 계약이므로 변경하려면 도구와 테스트를 함께 갱신한다.
+
 기술 스택, naming, formatter, runtime, package manager, dependency policy 같은 반복 입력은 `docs/conventions.md` 에 둔다. 전역 architecture 는 시스템 topology 와 cross-epic map 에 집중한다.
 
 기술 검토의 본문 결론만 `docs/tech-review.md` 에 남긴다. raw evidence, 통합 HTML report, screenshots, logs 는 `.dcness-work/reviews/` 에 저장하고 git-tracked 산출물로 취급하지 않는다.
@@ -134,6 +136,12 @@ impl task 와 compact plan 은 `## 사전 준비` 아래에 `읽을 문서`와 `
 ## 시드 양식 = 산출 양식
 
 `/init-dcness` 는 `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` 를 만든다. 시드 파일은 실제 authoring 템플릿과 같은 원본을 사용한다. 빈 seed 전용 복제본을 따로 만들지 않는다.
+
+전역 architecture map 이 stale 인지 확인하려면 활성 프로젝트 루트에서 plugin script 를 실행한다.
+
+```sh
+node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --check
+```
 
 ## dcness-self 영역
 
