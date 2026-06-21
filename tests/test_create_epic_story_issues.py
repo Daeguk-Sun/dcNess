@@ -68,7 +68,12 @@ fi
 exit 0
 """
 
-STORIES_NEW = """**Base Branch:** feature/test_epic
+STORIES_NEW = """---
+epic: epic-01-demo
+milestone: v01
+---
+
+**Base Branch:** feature/test_epic
 
 ## Epic — 테스트 에픽
 
@@ -87,7 +92,12 @@ STORIES_NEW = """**Base Branch:** feature/test_epic
 **완료 시 확인 가능한 동작**: Story 1 골격 위에서 둘째 증분 동작 확인.
 """
 
-STORIES_REGISTERED = """**GitHub Epic Issue:** [#100](https://github.com/testowner/testrepo/issues/100)
+STORIES_REGISTERED = """---
+epic: epic-01-demo
+milestone: v01
+---
+
+**GitHub Epic Issue:** [#100](https://github.com/testowner/testrepo/issues/100)
 
 ## Epic — 테스트 에픽
 
@@ -112,7 +122,7 @@ STORIES_REGISTERED = """**GitHub Epic Issue:** [#100](https://github.com/testown
 
 
 class CreateEpicStoryBoardTests(unittest.TestCase):
-    def _run(self, stories_content, env_extra=None):
+    def _run(self, stories_content, env_extra=None, epic_dir_name="epic-01-demo"):
         with tempfile.TemporaryDirectory() as td:
             tdp = Path(td)
             bin_dir = tdp / "bin"
@@ -121,7 +131,8 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
             (bin_dir / "gh").chmod(0o755)
             (bin_dir / "node").write_text(FAKE_NODE)
             (bin_dir / "node").chmod(0o755)
-            stories = tdp / "stories.md"
+            stories = tdp / "docs" / "epics" / epic_dir_name / "stories.md"
+            stories.parent.mkdir(parents=True)
             stories.write_text(stories_content, encoding="utf-8")
             gh_log = tdp / "gh.log"
             node_log = tdp / "node.log"
@@ -194,6 +205,15 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         # 백필 회귀 가드 (#669): 기존 item 의 triage 상태(In progress/Done/priority)를
         # 되돌리지 않도록 백필 경로는 register-issue 에 --preserve-existing 를 넘긴다.
         self.assertEqual(3, node_log.count("--preserve-existing"))
+
+    def test_rejects_non_two_digit_epic_directory(self):
+        result, gh_log, node_log, _ = self._run(
+            STORIES_NEW, {"VARS_PRESENT": "1"}, epic_dir_name="epic-1-demo"
+        )
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("epic-NN-<slug>", result.stderr)
+        self.assertEqual("", gh_log)
+        self.assertEqual("", node_log)
 
 
 if __name__ == "__main__":

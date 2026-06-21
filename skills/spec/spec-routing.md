@@ -77,7 +77,7 @@ escalate 계열 수신 시 **메인이 즉시 사용자 보고 후 대기** (자
 
 ### 단방향 관례 — `/design` 진입 후 `/tech-review` 재호출 비권장
 
-기술 NO_GO (사용 불가 / 비용 초과 / 라이선스 결격) 발견은 PRD 최종화 전에 **`/tech-review` preflight** 로 확정한다. `/design` 진입 후엔 tech-reviewer 재호출이 관례상 비권장 — 코드 강제 아닌 자연어 관례 ([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례). `/design` 도중 미검증 외부 의존이 발견되면 그쪽 `NEW_DEP_ESCALATE` 3안으로 처리 ([`../design/design-routing.md`](../design/design-routing.md#escalate-처리)) — 어느 옵션이든 tech-reviewer 재호출 없음.
+기술 NO_GO (사용 불가 / 비용 초과 / 라이선스 결격) 발견은 PRD 최종화 전에 **`/tech-review` preflight** 로 확정한다. `/design` 진입 후엔 전역 `/tech-review` 재진입이 관례상 비권장 — 코드 강제 아닌 자연어 관례 ([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례). `/design` 도중 미검증 외부 의존이 발견되면 그쪽 `NEW_DEP_ESCALATE` 4안으로 처리한다 ([`../design/design-routing.md`](../design/design-routing.md#escalate-처리)).
 
 ## 비대상 (다른 skill 추천)
 

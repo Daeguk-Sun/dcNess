@@ -6,15 +6,16 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 
 ## 입력
 
-- UX_FLOW: PRD 경로
+- UX_FLOW: 전역 최소: `docs/index.md`, `docs/prd.md`, `docs/conventions.md`; epic 고정: `docs/epics/<epic>/stories.md`, 대상 `docs/epics/<epic>/ux-flow.md`
 - UX_SYNC: src 화면 경로와 기존 문서
-- UX_SYNC_INCREMENTAL: 변경 파일 목록과 기존 `docs/ux-flow.md`
+- UX_SYNC_INCREMENTAL: 변경 파일 목록과 대상 epic `ux-flow.md`
 - UX_REFINE: 기존 Pencil frame 또는 HTML 시안과 사용자 피드백
 
 ## 먼저 읽을 문서
 
-- 필수: 모드별 입력 문서
-- 상황별: `docs/design.md`, PRD, 기존 `docs/ux-flow.md`
+- 필수: UX_FLOW 는 전역 최소 `docs/index.md`, `docs/prd.md`, `docs/conventions.md` 와 epic 고정 `docs/epics/<epic>/stories.md`, 대상 `docs/epics/<epic>/ux-flow.md`
+- 필수: 그 외 모드는 모드별 입력 문서
+- 상황별: `docs/design.md`, 기존 화면 코드
 - 참고: [`templates/ux-flow.md`](templates/ux-flow.md), [`templates/refine-report.md`](templates/refine-report.md)
 
 ## 판단 축
@@ -44,7 +45,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 
 ## 권한 경계
 
-- Write 허용: epic 단위 `docs/milestones/.../ux-flow.md` (canonical) 와 root `docs/ux-flow.md` (단일-epic 폴백), `docs/design.md`의 system-level token 영역. 위치·계층 SSOT = [`docs/plugin/deliverables-map.md`](../../docs/plugin/deliverables-map.md).
+- Write 허용: epic 단위 `docs/epics/.../ux-flow.md`, `docs/design.md`의 system-level token 영역. 위치·계층 SSOT = [`docs/plugin/deliverables-map.md`](../../docs/plugin/deliverables-map.md).
 - 금지: PRD 수정, DB/API/system architecture 결정, src 수정
 - UX_REFINE에서는 src를 읽지 않는다.
 - Pencil MCP는 UX 분석용으로 읽기만 한다.

@@ -339,8 +339,7 @@ class CatastrophicEngineerTests(_PreToolBase):
 
     def _write_design_doc(self) -> Path:
         doc = (
-            self.base / "docs" / "milestones" / "v01" / "epics"
-            / "epic-01-x" / "impl" / "03-foo.md"
+            self.base / "docs" / "epics" / "epic-01-x" / "impl" / "03-foo.md"
         )
         doc.parent.mkdir(parents=True)
         doc.write_text("# impl task\n", encoding="utf-8")

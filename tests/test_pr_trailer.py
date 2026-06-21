@@ -54,7 +54,7 @@ class PrTrailerTests(unittest.TestCase):
     def setUp(self) -> None:
         self._td = tempfile.TemporaryDirectory()
         self.root = Path(self._td.name)
-        self.epic_dir = self.root / "docs/milestones/v01/epics/epic-07-demo"
+        self.epic_dir = self.root / "docs/epics/epic-07-demo"
         (self.epic_dir / "impl").mkdir(parents=True)
         (self.epic_dir / "stories.md").write_text(STORIES_BODY, encoding="utf-8")
         self.bin_dir = self.root / "bin"

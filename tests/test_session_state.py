@@ -494,7 +494,7 @@ class ActiveRunsTests(unittest.TestCase):
             )
 
     def test_start_run_design_doc_non_design_path_raises(self) -> None:
-        # 설계 산출물 경로 규약(docs/milestones|compact-plans) 밖 파일은
+        # 설계 산출물 경로 규약(docs/epics|compact-plans) 밖 파일은
         # 사전 조건 증거가 될 수 없다 — 임의 파일로 게이트 무력화 방지.
         self._chdir_base()
         readme = self.base / "README.md"
@@ -533,12 +533,12 @@ class ActiveRunsTests(unittest.TestCase):
         # 경유만 하고 빠져나가는 우회 차단.
         self._chdir_base()
         (self.base / "README.md").write_text("x\n", encoding="utf-8")
-        (self.base / "docs" / "milestones").mkdir(parents=True)
+        (self.base / "docs" / "epics").mkdir(parents=True)
         with self.assertRaises(ValueError):
             start_run(
                 self.sid, self.run_id, "impl",
                 base_dir=self.base,
-                design_doc="docs/milestones/../../README.md",
+                design_doc="docs/epics/../../README.md",
             )
 
     def test_start_run_design_doc_outside_repo_rejected(self) -> None:
@@ -579,18 +579,30 @@ class ActiveRunsTests(unittest.TestCase):
                 base_dir=self.base, design_doc="docs/compact-plans/foo.md",
             )
 
-    def test_start_run_design_doc_milestones_impl_path_ok(self) -> None:
+    def test_start_run_design_doc_epics_impl_path_ok(self) -> None:
         self._chdir_base()
         doc = self._write_design_doc(
-            "docs/milestones/v01/epics/epic-01-x/impl/03-foo.md"
+            "docs/epics/epic-01-x/impl/03-foo.md"
         )
         start_run(
             self.sid, self.run_id, "impl",
             base_dir=self.base,
-            design_doc="docs/milestones/v01/epics/epic-01-x/impl/03-foo.md",
+            design_doc="docs/epics/epic-01-x/impl/03-foo.md",
         )
         slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
         self.assertEqual(slot["design_doc"], str(doc.resolve()))
+
+    def test_start_run_design_doc_milestones_impl_path_rejected(self) -> None:
+        self._chdir_base()
+        self._write_design_doc(
+            "docs/milestones/v01/epics/epic-01-x/impl/03-foo.md"
+        )
+        with self.assertRaises(ValueError):
+            start_run(
+                self.sid, self.run_id, "impl",
+                base_dir=self.base,
+                design_doc="docs/milestones/v01/epics/epic-01-x/impl/03-foo.md",
+            )
 
     # -- #714 — lane 기록 (engineer 게이트 lane-aware 사전 조건) --
 
@@ -2972,12 +2984,12 @@ class DesignDocArgparseTests(unittest.TestCase):
         from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
             ["next-task", "--design-doc",
-             "docs/milestones/v01/epics/epic-01-x/impl/01-x.md"]
+             "docs/epics/epic-01-x/impl/01-x.md"]
         )
         self.assertEqual(ns.cmd, "next-task")
         self.assertEqual(
             ns.design_doc,
-            "docs/milestones/v01/epics/epic-01-x/impl/01-x.md",
+            "docs/epics/epic-01-x/impl/01-x.md",
         )
 
     def test_next_task_accepts_acceptance_required(self) -> None:

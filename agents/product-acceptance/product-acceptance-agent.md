@@ -10,16 +10,16 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 
 - mode: `SPEC_ACCEPTANCE`, `STORY_ACCEPTANCE`, `EPIC_ACCEPTANCE`, `RELEASE_ACCEPTANCE` 중 하나
 - 검수 단위: spec / story / epic / release 식별자
-- 기준 문서: `docs/prd.md`, epic `stories.md`, architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
+- 기준 문서: `docs/index.md`, `docs/prd.md`, `docs/decisions/`, `docs/epics/<epic>/stories.md`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
 - 이전 acceptance 결과가 있으면 gap 재검수 맥락
 
 ## 먼저 읽을 문서
 
-- 필수: 호출자가 지정한 PRD, stories, issue, 또는 acceptance 기준 문서
+- 필수: 호출자가 지정한 `docs/index.md`, PRD, epic stories, issue, 또는 acceptance 기준 문서
 - 필수: 호출자가 제공한 구현 PR, 테스트 결과, smoke 결과, 변경 파일 목록
-- 상황별: `docs/architecture.md`, epic architecture/impl 문서, tech-review 결과
+- 상황별: `docs/architecture.md`, `docs/decisions/`, epic architecture/impl 문서, tech-review 결과
 - 상황별 (SPEC_ACCEPTANCE): [`skills/spec/spec-stories-reference.md`](../../skills/spec/spec-stories-reference.md) 의 Story 분할·순서 기준과 예외
 - 참고: 기존 acceptance 결과가 있으면 이전 gap 과 재검수 증거
 

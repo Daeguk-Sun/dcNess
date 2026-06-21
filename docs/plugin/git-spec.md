@@ -108,7 +108,7 @@ Part of #N
 
 ```
 1. git checkout -b {브랜치명} {base}
-   # base 분기 — epic 단위 stories.md (impl task 경로의 `epic-NN-<slug>/stories.md`; root docs/stories.md = legacy 폴백)
+   # base 분기 — epic 단위 stories.md (impl task 경로의 `epic-NN-<slug>/stories.md`)
    #            상단 `**Base Branch:**` 매치 → 해당 값 (통합 브랜치 모드면 사전 `git fetch origin <값>` 후 그 ref 기반), 매치 없음 → main
 2. (작업 + 커밋)
 3. git push -u origin {브랜치명}
@@ -145,9 +145,9 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
 
 ### Epic 이슈
 
-- **레이블**: `epic` + `v0N` + `epic-NN-<slug>` (3중)
-  - `v0N` = PRD 마일스톤 버전, 소문자 2자리 (예: `v01`)
-  - `epic-NN-<slug>` = 에픽 풀네임 라벨 (예: `epic-11-monkey-design-review`). 미존재 시 GitHub 자동 생성
+- **레이블**: `epic` + `vNN` + `epic-NN-<slug>` (3중)
+  - `vNN` = stories frontmatter `milestone: vNN` 값 (예: `v01`)
+  - `epic-NN-<slug>` = 에픽 풀네임 라벨 (예: `epic-11-design-review`). 미존재 시 GitHub 자동 생성
 - **마일스톤**: `Epics`
 - **제목**: `[epic] <epic 한 줄 요약>`
 - **본문**: 목표 + 선행조건 + **완료 기준 (epic 단위 수용 기준 — 검증 가능한 조건, 사용자가 GitHub UI 에서 확인)**. 진척 체크리스트 X (stories.md 가 SSOT)
@@ -158,7 +158,7 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
 
 ### Story 이슈
 
-- **레이블**: `story` + `v0N` + `epic-NN-<slug>` (3중, epic 과 `epic-NN-<slug>` 공유)
+- **레이블**: `story` + `vNN` + `epic-NN-<slug>` (3중, epic 과 `epic-NN-<slug>` 공유)
 - **마일스톤**: `Story`
 - **제목**: `[story] <story 한 줄 요약>`
 - **본문**: `As a / I want / So that` + `**완료 시 확인 가능한 동작**:` 한 줄 (user story — 줄이 없는 구양식 stories.md 는 그대로 허용). 수용 기준 (Story 단위) / 대상 화면 / 동작 명세 박지 않음 — architecture.md + impl 파일 영역. 태스크 체크리스트 X (stories.md 가 SSOT)
@@ -235,9 +235,9 @@ stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통
 bash recipe (PR body 작성 직전 — 분기 키는 `STORY_NUM`, task_index 형식만으로 공통 판정 금지. 위 분기표를 그대로 PR_BODY 로 구성):
 
 ```bash
-TASK_FILE="docs/milestones/.../impl/NN-*.md"
-STORIES="$(dirname "$(dirname "$TASK_FILE")")/stories.md"   # epic 단위 (root docs/stories.md = legacy 폴백)
-[ -f "$STORIES" ] || STORIES="docs/stories.md"
+TASK_FILE="docs/epics/.../impl/NN-*.md"
+STORIES="$(dirname "$(dirname "$TASK_FILE")")/stories.md"   # epic 단위
+[ -f "$STORIES" ] || { echo "stories.md missing: $STORIES" >&2; exit 1; }
 STORY_NUM=$(awk '/^story:/ {gsub(/[",]/,""); print $2; exit}' "$TASK_FILE")        # 정식 = 숫자, 공통 = "공통"
 TASK_INDEX=$(awk '/^task_index:/ {gsub(/[",]/,""); print $2; exit}' "$TASK_FILE")  # 정식 = "3/3", 공통 = "—"
 

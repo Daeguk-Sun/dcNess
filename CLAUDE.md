@@ -116,7 +116,7 @@
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop = 8 hook) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
 | [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — [dcness 자체는 init-dcness 미적용](#dcness-자체는-init-dcness-미적용-자기-규격-미얽매임) 참조) |
-| [`docs/plugin/deliverables-map.md`](docs/plugin/deliverables-map.md) | 외부 활성 프로젝트의 docs 산출물 위치·양식·계층 (root 전역 vs epic 단위, flat↔epic legacy 경계, 시드=산출 양식) SSOT — 산출물 경로/템플릿 수정 시 |
+| [`docs/plugin/deliverables-map.md`](docs/plugin/deliverables-map.md) | 외부 활성 프로젝트의 docs 산출물 위치·양식·계층 (`docs/index.md`, 전역 anchors, epic 산출물, `docs/decisions/`, `.dcness-work/`, 시드=산출 양식) SSOT — 산출물 경로/템플릿 수정 시 |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태·TODO·Blockers 확인 시 |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 수정 시 |
 | [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) | PR 체크리스트 확인 시 |

@@ -8,8 +8,8 @@ agent 가 자체 read 할 SSOT 경로를 적는다.
 진본(task 파일 Scope·수용기준·인터페이스 · 이슈)에 이미 있으면 prompt 에 재기입하지 않는다.
 예) Lite=이슈 #NN · impl(test-engineer·engineer)=task 파일
     · code-validator·pr-reviewer=검토 대상(task 파일 + 변경 코드/diff)
-    · system-architect=root·epic SSOT
-    · module-architect=Story N + epic architecture·adr·domain-model·stories(Story 섹션)
+    · system-architect=docs/index.md + 전역/epic SSOT
+    · module-architect=Story N + docs/index.md + 전역 decisions + epic architecture·domain-model·stories(Story 섹션)
     · architecture-validator=검토 대상 산출물}}
 
 **worktree:** {{활성 시 worktree 절대 경로.

@@ -5,7 +5,7 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 
 # UX Stage Skill — 화면 플로우 + 디자인 핸드오프
 
-> design handoff loop. **코드 변경 X (commit 없음)**. ux-architect 가 화면 플로우/와이어프레임 정의 → designer 가 시안 생성 → 사용자 PICK. 산출 = `docs/ux-flow.md` (+ 조건부 `docs/design.md`) + 시안 파일 + DESIGN_HANDOFF 패키지.
+> design handoff loop. **코드 변경 X (commit 없음)**. ux-architect 가 화면 플로우/와이어프레임 정의 → designer 가 시안 생성 → 사용자 PICK. 산출 = epic `ux-flow.md` (+ 조건부 `docs/design.md`) + 시안 파일 + DESIGN_HANDOFF 패키지.
 
 > 🔴 **분기 규칙 SSOT** — agent (ux-architect / designer) 결론 → 다음 호출 / 모드 전환 / cycle 한도 / escalate / 후속은 [`ux-routing.md`](ux-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
@@ -45,7 +45,7 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 ## 절차 — UX_FLOW (ux-design-stage)
 
 1. **Step 0** — `begin-run ux` (entry_point=ux). commit 없음 (design handoff).
-2. **Step 2 — ux-architect:UX_FLOW** (5 카테고리 self-check 의무) → `UX_FLOW_READY`. 산출 = `docs/ux-flow.md` (+ 조건부 `docs/design.md` 시스템 토큰).
+2. **Step 2 — ux-architect:UX_FLOW** (5 카테고리 self-check 의무) → `UX_FLOW_READY`. 산출 = `docs/epics/epic-NN-<slug>/ux-flow.md` (+ 조건부 `docs/design.md` 시스템 토큰).
    - `UX_REFINE_READY` → UX_REFINE 모드로 전환 (아래 절차)
    - `UX_FLOW_ESCALATE` → 사용자 위임
 3. **Step 3 — designer** → `PASS` (시안 생성). 환경 감지 = `docs/design.md` frontmatter `medium: pencil|html`. 부재 시 designer Step 0 에서 detect + 사용자 역질문.
@@ -58,7 +58,7 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 ## 절차 — UX_REFINE (ux-refine-stage)
 
 위 UX_FLOW 와 동일하되:
-- **Step 2 = ux-architect:UX_REFINE** (allowed_enums = `UX_REFINE_READY,UX_FLOW_ESCALATE`). 기존 화면 분석 → 개선 와이어프레임 (모든 기존 요소 보존, 재배치만) → `docs/ux-flow.md` 해당 화면 섹션만 update.
+- **Step 2 = ux-architect:UX_REFINE** (allowed_enums = `UX_REFINE_READY,UX_FLOW_ESCALATE`). 기존 화면 분석 → 개선 와이어프레임 (모든 기존 요소 보존, 재배치만) → 대상 epic `ux-flow.md` 해당 화면 섹션만 update.
 - **Step 2.5 — 사용자 승인** (helper 비대상, 컨벤션 `user-approval-2.5`): ux-architect `UX_REFINE_READY` 후 designer 진입 *전* 메인이 사용자에게 refine 결과 prose 발췌 + 진행 여부 확인. 거절 시 ux-architect 재호출 (cycle ≤ 2).
 - 이후 Step 3 (designer) → Step 3.5 (사용자 PICK) = UX_FLOW 동일.
 

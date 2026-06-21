@@ -32,7 +32,7 @@ flowchart TB
   AV_STORY -->|"FAIL: CONTRACT_PROPAGATION · TASK_LOCAL ≤2"| MA_STORY
   AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤2"| SA
   AV_FINAL -->|"FAIL: CONTRACT_PROPAGATION · TASK_LOCAL ≤2"| MA_STORY
-  SA -->|NEW_DEP_ESCALATE| U((사용자 · 3안))
+  SA -->|NEW_DEP_ESCALATE| U((사용자 · 4안))
   MA_COMMON -->|NEW_DEP_ESCALATE| U
   MA_STORY -->|NEW_DEP_ESCALATE| U
   UX -.->|UX_FLOW_ESCALATE| U
@@ -50,16 +50,16 @@ flowchart TB
 
 > 파랑 = 생산 agent · 초록 = 검증 agent · 회색 = 사용자 위임. 점선 = escalate. 엣지의 `≤N` = retry 한도 ([retry 한도](#retry-한도)).
 >
-> tech-reviewer 는 design 진입 *전* (`/tech-review` skill) 단계라 본 그래프에 없다. design 진입 후 tech-reviewer 재호출은 **하지 않는다** — design 안엔 tech-reviewer 가 없고, `/tech-review` 재진입도 자연어 관례상 비권장 (코드 강제 아님, [escalate 처리](#escalate-처리)).
+> tech-reviewer 는 design 진입 *전* (`/tech-review` skill) 단계가 기본이다. design 중 새 외부 의존이 발견되면 사용자가 option 4 를 명시 선택한 경우에만 대상 epic 범위로 좁혀 호출한다.
 
 ## 결론 → 다음 호출 매핑
 
 | agent | 결론 → 다음 호출 |
 |---|---|
 | **ux-architect** | `UX_FLOW_READY` → system-architect · `UX_REFINE_READY` → designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
-| **system-architect** | `PASS` → architecture-validator(1차) · `ESCALATE` → 사용자(`/spec` 재진입) · `NEW_DEP_ESCALATE` → 3안([escalate 처리](#escalate-처리)) |
+| **system-architect** | `PASS` → architecture-validator(1차) · `ESCALATE` → 사용자(`/spec` 재진입) · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **architecture-validator** | `PASS`(1차) → 공통 task 있으면 module-architect(common), 없으면 Story 1 module-architect · `PASS`(공통/Story 단위) → 해당 단위 freeze + 다음 단위 module-architect / 마지막 Story 면 architecture-validator(cross-story 통합) · `PASS`(cross-story 통합) → SKILL.md Step 6 PR · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
-| **module-architect** | `PASS` → architecture-validator(현재 공통/Story 단위) · `SPEC_GAP_FOUND` → module-architect 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 3안([escalate 처리](#escalate-처리)) |
+| **module-architect** | `PASS` → architecture-validator(현재 공통/Story 단위) · `SPEC_GAP_FOUND` → module-architect 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **designer** | `PASS` → 사용자 PICK · `ESCALATE` → 사용자. (UX_REFINE 분기 진입 시) |
 
 표만으로 안 풀리는 맥락:
@@ -74,7 +74,7 @@ flowchart TB
 
 | finding 분류 | 뜻 | 재진입 대상 | 비고 |
 |---|---|---|---|
-| `SYSTEM_BOUNDARY` | 큰 그림(상위 경계)이 틀림 — 도메인 invariant / port 소비자 / usecase ownership / root ADR / storage policy 잘못 | **system-architect** 재진입 | 비싼 재설계. **system 재진입의 유일한 기본 사유.** |
+| `SYSTEM_BOUNDARY` | 큰 그림(상위 경계)이 틀림 — 도메인 invariant / port 소비자 / usecase ownership / 전역 decision / storage policy 잘못 | **system-architect** 재진입 | 비싼 재설계. **system 재진입의 유일한 기본 사유.** |
 | `CONTRACT_PROPAGATION` | 결정은 맞는데 stale 사본이 문서마다 남음 (전파 누락) | **module-architect `mode=contract_sweep`** | 동기화 sweep. **system 재설계 아님.** canonical 값(진본 = Contract Ledger) + sweep 키워드를 prompt 로 전달 (전파 대상 식별용 — prompt 가 진본이 아니라 Ledger 가 진본) |
 | `TASK_LOCAL` | 특정 impl task 문서만 틀림 — 예시 / depends_on / 수용기준 / requirements / Implementation Detail Leak | **module-architect** 보강 (해당 task) | 그 task 만 |
 
@@ -101,15 +101,16 @@ escalate 계열 결론(`UX_FLOW_ESCALATE` / `ESCALATE` / `NEW_DEP_ESCALATE`) 수
 - **기술 스택 그릴미 미합의** (Step 2.9 — 사용자가 스택 결정 못 냄 / 보류) → loop 진행 보류 + 사용자 위임 (강제 자율 결정 X). system-architect PASS 후 스택 번복 원하면 새 cycle 신설 X — 기존 system-architect 재진입 (또는 `ESCALATE` → `/spec` 재진입) 재활용.
 - **`*_ESCALATE`** → 사용자 위임.
 
-### NEW_DEP_ESCALATE — 3안 (단순 대기 아님)
+### NEW_DEP_ESCALATE — 4안 (단순 대기 아님)
 
-system-architect / module-architect 가 **design 도중 tech-review 미검증 새 외부 의존을 발견** 했을 때. loop 자동 중단 X. 메인이 사용자에게 3안 제시:
+system-architect / module-architect 가 **design 도중 tech-review 미검증 새 외부 의존을 발견** 했을 때. loop 자동 중단 X. 메인이 사용자에게 4안 제시:
 
-1. **채택 + 수동 검증** — 사용자 승인 → 해당 architect 재진입 (architecture.md/adr.md 에 "사용자 승인, tech-review 미경유" 흔적 명시)
+1. **채택 + 수동 검증** — 사용자 승인 → 해당 architect 재진입 (`docs/decisions/` 또는 epic architecture 에 "사용자 승인, tech-review 미경유" 흔적 명시)
 2. **대안 기술 우회** — 이미 tech-review 검증된 대안 지정 → architect 재진입
 3. **전체 원점 회귀** — `/design` 중단 + `/spec` 재진입 + 새 tech-review
+4. **대상 epic 기술 검토** — 현재 `/design` 을 보류하고 tech-reviewer 를 대상 epic 범위로 호출. 산출은 `docs/epics/epic-NN-<slug>/tech-review.md`, evidence/HTML 은 `.dcness-work/reviews/`. PASS + 사용자 OK 후 해당 architect 재진입
 
-(1)·(2) 재진입 cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 없음** — design 안엔 tech-reviewer 가 없어 호출 경로 자체 부재 (재호출 비권장은 코드 강제 아닌 자연어 관례, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례).
+(1)·(2)·(4) 재진입 cycle ≤ 2. (4)는 전역 `/tech-review` 재진입이 아니라 현재 epic 에 한정한 검토다. (3)은 `/spec` 으로 돌아가 전역 PRD와 preflight 를 다시 닫는다.
 
 ## 후속 (loop 종료 후)
 

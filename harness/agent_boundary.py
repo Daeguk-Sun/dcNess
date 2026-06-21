@@ -185,18 +185,18 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
         r'(^|/)conftest\.py$',                            # pytest 픽스처 관례 파일 (#705)
     ),
     # ux-architect — 화면 플로우/와이어프레임 + design system token (agents/ux-architect 권한 경계).
-    # ux-flow 는 epic 단위가 canonical (docs/milestones/.../ux-flow.md — /design 흐름), root
-    # docs/ux-flow.md 는 단일-epic legacy 폴백. design.md 는 system-level token 영역 (/ux 흐름).
+    # ux-flow 는 epic 단위가 canonical (docs/epics/.../ux-flow.md — /design 흐름).
+    # root docs/ux-flow.md legacy 폴백은 #810 에서 폐기. design.md 는 system-level token 영역.
     # 산출물 위치·계층 SSOT = docs/plugin/deliverables-map.md.
     "ux-architect": (
-        r'(^|/)docs/ux-flow\.md$',                              # root (단일-epic legacy 폴백)
-        r'(^|/)docs/milestones/[^/]+/epics/[^/]+/ux-flow\.md$',  # epic 폴더 한정 (canonical — /design)
-        r'(^|/)docs/design\.md$',                               # design system token (system-level 영역)
+        r'(^|/)docs/epics/[^/]+/ux-flow\.md$',  # epic 폴더 한정 (canonical — /design)
+        r'(^|/)docs/design\.md$',               # design system token (system-level 영역)
     ),
-    # tech-reviewer — PRD 기술 선행 검토 산출물만 (agents/tech-reviewer.md 권한 경계).
+    # tech-reviewer — root/epic 기술 검토 결론 + 휘발 evidence/html.
     "tech-reviewer": (
         r'(^|/)docs/tech-review\.md$',
-        r'(^|/)docs/tech-review/',
+        r'(^|/)docs/epics/[^/]+/tech-review\.md$',
+        r'(^|/)\.dcness-work/reviews/',
     ),
     # 판정/검증 전용 agent — Write 0.
     "code-validator": (),
@@ -253,6 +253,24 @@ _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
 )
 
 
+# ── architect 계열 폐기된 docs 산출물 deny (#810) ────────────────
+# architect / module-architect / system-architect 는 새 전역 문서 drift 를 막기 위해
+# docs/ 전체를 broad allow 한다. 대신 root-flat legacy epic 산출물과 폐기된 ADR 위치만
+# ALLOW 검사 전에 좁게 차단한다. root docs/architecture.md·docs/tech-review.md 등 전역
+# 영속 산출물은 계속 허용.
+_ARCHITECT_AGENTS: frozenset = frozenset(
+    {"architect", "module-architect", "system-architect"}
+)
+_ARCHITECT_ROOT_FLAT_DENY: tuple[str, ...] = (
+    r'^docs/stories\.md$',
+    r'^docs/ux-flow\.md$',
+    r'^docs/domain-model\.md$',
+    r'^docs/impl(/|$)',
+    r'^docs/adr\.md$',
+    r'^docs/epics/[^/]+/adr\.md$',
+)
+
+
 # ── READ_DENY_MATRIX (agent 별 Read 금지) ──────────────────────
 READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
     "designer": (
@@ -263,7 +281,7 @@ READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
     ),
     "plan-reviewer": (
         r'(^|/)src/',
-        r'(^|/)docs/impl/',
+        r'(^|/)docs/epics/[^/]+/impl/',
         r'(^|/)trd\.md$',
     ),
 }
@@ -606,7 +624,16 @@ def check_write_allowed(
     if matched:
         return f"인프라 path 보호: matched `{matched}` (DCNESS_INFRA_PATTERNS)"
 
-    # 2. 코드 agent 전용영역 deny → ALLOW 검사보다 먼저 (#694 codex P2).
+    # 2. architect 계열 root-flat legacy deny → ALLOW 검사보다 먼저 (#810).
+    if agent in _ARCHITECT_AGENTS:
+        matched = _matches_any(norm, _ARCHITECT_ROOT_FLAT_DENY)
+        if matched:
+            return (
+                f"{agent} root-flat legacy 산출물 차단: `{norm}` matched `{matched}` — "
+                f"epic 산출물은 docs/epics/<epic>/ 아래에 작성해야 함."
+            )
+
+    # 3. 코드 agent 전용영역 deny → ALLOW 검사보다 먼저 (#694 codex P2).
     #    언어 중립 ALLOW 패턴이 docs/·design-variants/ 하위 동명 디렉토리/파일명을
     #    re.search 로 우회 허용하는 것을 차단 — docs/ 는 architect, design-variants/ 는 designer.
     if agent in _CODE_AGENTS:
@@ -617,7 +644,7 @@ def check_write_allowed(
                 f"docs/ 는 architect, design-variants/ 는 designer 전용 (코드 agent write 금지)."
             )
 
-    # 3. 프로젝트별 boundary override (#696) — 코어 ALLOW 검사 직전에 적용.
+    # 4. 프로젝트별 boundary override (#696) — 코어 ALLOW 검사 직전에 적용.
     #    INFRA(1)·코드 agent 전용 deny(2) 를 모두 통과한 뒤이므로, override 는 되돌릴 수
     #    없는 경계를 건드리지 못한다 (가드 = 검사 순서). remove 는 ALLOW 보다 우선하는
     #    DENY 오버레이, add 는 코어 ALLOW 확장.

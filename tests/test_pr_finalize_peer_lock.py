@@ -34,7 +34,7 @@ class PrFinalizePeerLockWiringTests(unittest.TestCase):
             subprocess.run(["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True)
             subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
             subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
-            impl = root / "docs/milestones/v01/epics/epic-01-demo/impl/01-first.md"
+            impl = root / "docs/epics/epic-01-demo/impl/01-first.md"
             impl.parent.mkdir(parents=True)
             impl.write_text(
                 "---\nstory: 1\ntask_index: 1/1\ndepends_on: []\n---\n",

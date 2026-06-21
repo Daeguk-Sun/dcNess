@@ -588,7 +588,7 @@ def handle_pretooluse_agent(
     # 작업 — 회복 비용 비대칭이 없어 catastrophic 이 아니다. 따라서 "재호출 비권장" 은 자연어
     # 관례 (skill/agent prose) 로 두고 재호출 여부는 메인/사용자 자율 판단 (forcing function 을
     # 코드 강제하지 않는 대원칙 — CLAUDE.md). design 도중 미검증 새 외부 의존 발견 =
-    # NEW_DEP_ESCALATE 3안.
+    # NEW_DEP_ESCALATE 4안.
     #   ※ 자유 재호출은 active run *밖* (메인 루프 / 루프 finalize 후) 에서 일어난다 —
     #   그 경우 rid 부재 또는 finalize 분기로 게이트가 발화하지 않는다. active
     #   run *안* 에서는 위 진행 순서 검사(#604) 가 *모든* off-sequence agent

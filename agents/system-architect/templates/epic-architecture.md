@@ -1,5 +1,24 @@
 # Epic Architecture
 
+## 사전 준비
+
+- 읽을 문서:
+  - `docs/index.md`
+  - `docs/prd.md`
+  - `docs/architecture.md`
+  - `docs/conventions.md`
+  - `docs/decisions/`
+  - `docs/epics/<epic>/stories.md`
+  - `docs/epics/<epic>/domain-model.md`
+- 읽을 코드:
+  -
+
+## 전역 map 반영
+
+- `docs/architecture.md` append 필요 여부:
+- 추가/갱신할 전역 anchor:
+- 연결할 `docs/decisions/NNNN-slug.md`:
+
 ## 모듈 목록
 
 | 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |
@@ -17,6 +36,12 @@ flowchart LR
 | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |
 |---|---|---|---|---|---|---|---|---|---|
 |  |  |  |  |  |  |  |  |  |  |
+
+## Decisions
+
+| Decision | Scope | Reason |
+|---|---|---|
+|  |  |  |
 
 ## 공통 task 후보
 

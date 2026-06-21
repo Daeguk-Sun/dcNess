@@ -41,13 +41,14 @@ if [ ! -f "$TASK_FILE" ]; then
   exit 2
 fi
 
-# stories.md 위치 — epic 단위 (impl/ 의 상위 디렉토리), root docs/stories.md = legacy 폴백
+# stories.md 위치 — epic 단위 (impl/ 의 상위 디렉토리)
 STORIES="$(dirname "$(dirname "$TASK_FILE")")/stories.md"
-if [ ! -f "$STORIES" ]; then
-  STORIES="docs/stories.md"
+if ! printf '%s\n' "$STORIES" | grep -Eq '(^|/)docs/epics/[^/]+/stories\.md$'; then
+  echo "[pr-trailer] ERROR: 비정식 impl task 경로 — docs/epics/epic-NN-<slug>/impl/NN-*.md 필요: $TASK_FILE" >&2
+  exit 1
 fi
 if [ ! -f "$STORIES" ]; then
-  echo "[pr-trailer] ERROR: stories.md 미발견 — $(dirname "$(dirname "$TASK_FILE")")/stories.md 또는 docs/stories.md 필요" >&2
+  echo "[pr-trailer] ERROR: stories.md 미발견 — $(dirname "$(dirname "$TASK_FILE")")/stories.md 필요" >&2
   exit 1
 fi
 

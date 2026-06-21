@@ -172,7 +172,7 @@ function allMdFiles() {
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
   });
-  return out.split('\0').filter(Boolean);
+  return out.split('\0').filter(Boolean).filter((p) => existsSync(p));
 }
 
 // 모든 md 의 markdown 링크를 실제 resolve 한 repo-상대 타겟 경로 집합.

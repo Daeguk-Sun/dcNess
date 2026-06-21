@@ -40,7 +40,7 @@ class WaveBoardClaimTests(unittest.TestCase):
         self.board = WaveBoard(self.root)
         self.impl = _write_impl(
             self.root,
-            "docs/milestones/v01/epics/epic-01-demo/impl/01-first.md",
+            "docs/epics/epic-01-demo/impl/01-first.md",
         )
 
     def tearDown(self) -> None:
@@ -223,7 +223,7 @@ class WaveBoardClaimTests(unittest.TestCase):
     def test_record_files_are_json_per_impl_not_shared_between_runs(self) -> None:
         other = _write_impl(
             self.root,
-            "docs/milestones/v01/epics/epic-01-demo/impl/02-second.md",
+            "docs/epics/epic-01-demo/impl/02-second.md",
             task_index="2/2",
         )
         self.board.register([self.impl, other])
@@ -255,7 +255,7 @@ class WaveBoardCliTests(unittest.TestCase):
         self.root = Path(self._td.name)
         self.impl = _write_impl(
             self.root,
-            "docs/milestones/v01/epics/epic-01-demo/impl/01-first.md",
+            "docs/epics/epic-01-demo/impl/01-first.md",
         )
 
     def tearDown(self) -> None:
@@ -274,7 +274,7 @@ class WaveBoardCliTests(unittest.TestCase):
     def test_wave_plan_register_then_claim_enters_peer_mode(self) -> None:
         other = _write_impl(
             self.root,
-            "docs/milestones/v01/epics/epic-01-demo/impl/02-second.md",
+            "docs/epics/epic-01-demo/impl/02-second.md",
             task_index="2/2",
         )
         plan = self._run_cli(["wave-plan", "--register", str(self.impl), str(other)])
@@ -306,17 +306,17 @@ class WaveBoardCliTests(unittest.TestCase):
     def test_wave_plan_register_only_parallel_step_tasks(self) -> None:
         serial = _write_impl(
             self.root,
-            "docs/milestones/v01/epics/epic-01-demo/impl/00-serial.md",
+            "docs/epics/epic-01-demo/impl/00-serial.md",
             task_index="1/3",
         )
         independent_a = _write_impl(
             self.root,
-            "docs/milestones/v01/epics/epic-01-demo/impl/01-first.md",
+            "docs/epics/epic-01-demo/impl/01-first.md",
             task_index="2/3",
         )
         independent_b = _write_impl(
             self.root,
-            "docs/milestones/v01/epics/epic-01-demo/impl/02-second.md",
+            "docs/epics/epic-01-demo/impl/02-second.md",
             task_index="3/3",
         )
         serial.write_text(

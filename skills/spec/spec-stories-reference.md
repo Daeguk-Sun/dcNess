@@ -4,7 +4,7 @@
 
 ## stories.md 산출물
 
-PRD 작성과 필요한 tech-review preflight 완료 후 메인이 epic 단위 `docs/milestones/vNN/epics/epic-NN-<slug>/stories.md` 를 작성한다. 1개 `stories.md` 는 1개 epic 영역이다.
+PRD 작성과 필요한 tech-review preflight 완료 후 메인이 epic 단위 `docs/epics/epic-NN-<slug>/stories.md` 를 작성한다. 1개 `stories.md` 는 1개 epic 영역이다. `epic-NN` 번호는 프로젝트 전역에서 증가하고, milestone 은 경로가 아니라 frontmatter `milestone: vNN` 로 기록한다.
 
 새 작성 시 본문은 `As a / I want / So that` + `**완료 시 확인 가능한 동작**:` 한 줄만 쓴다. `대상 화면·컴포넌트` / `동작 명세` / `수용 기준 (Story 단위)` 섹션은 쓰지 않는다.
 
@@ -38,6 +38,11 @@ Story 분할의 1차 목표는 기능 영역이나 구현 레이어가 아니라
 ## Template
 
 ```markdown
+---
+epic: epic-NN-<slug>
+milestone: vNN
+---
+
 # Story Backlog
 
 ## Epic — <epic 한 줄 요약>

@@ -10,19 +10,25 @@ description: >
 
 # Tech Review Skill — 선행 기술 검증 + 사용자 2 차 OK 게이트
 
-> 본 스킬 = `/spec` 도중 PRD 최종화 전에 호출되는 기술 검증 게이트. tech-reviewer 가 PRD의 기술 검토 필요 영역을 읽고 `docs/tech-review.md` 본문 + 증거물 + HTML 리포트를 생성/갱신한다. 메인이 cycle 을 관리하고 사용자가 최종 OK 한다.
+> 본 스킬 = `/spec` 도중 PRD 최종화 전에 호출되는 전역 기술 검증 게이트이자, `/design` 중 `NEW_DEP_ESCALATE` option 4 로 호출되는 epic 단위 기술 검증 경로다. tech-reviewer 가 지정된 검토 입력을 읽고 root 또는 epic `tech-review.md` 본문을 생성/갱신하며, 증거물과 HTML 리포트는 `.dcness-work/reviews/` 에 남긴다. 메인이 cycle 을 관리하고 사용자가 최종 OK 한다.
 
 > 🔴 **분기 규칙 SSOT** — tech-reviewer 결론 (PASS / FAIL / ESCALATE) → 다음 호출 / 사용자 2차 OK 분기 / cycle 재진입 / 단방향 관례 / 비대상 / 후속은 [`tech-review-routing.md`](tech-review-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기 판단이 필요하면 그 파일을 읽는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
 ## 전제 조건
 
-본 스킬 진입 *전* 충족 의무:
+본 스킬은 두 모드 중 하나로 진입한다.
 
+**전역 preflight 모드** (`/spec` 내부):
 1. `docs/prd.md` 존재 + PRD 초안 작성 완료 (`/spec` Step 2 결과)
 2. `docs/prd.md` 에 **기술 검토 필요 영역** 존재 + 검토 질문 / PRD 근거 / 성공·실패 시 PRD 영향이 명시됨
 3. 사용자 PRD 초안 OK 완료 (`/spec` Step 3 — PRD 초안 검토 후 진행 결정)
 
-미충족 시 → `/spec` 권고 후 종료.
+**epic option 4 모드** (`/design` 중 `NEW_DEP_ESCALATE` option 4):
+1. `docs/prd.md` 존재
+2. `docs/epics/<epic>/stories.md` 존재
+3. 미검증 외부 의존 질문, 대상 epic 경로, 성공·실패 시 epic 설계 영향이 호출 prompt 에 명시됨
+
+전역 preflight 모드 미충족 시 → `/spec` 권고 후 종료. epic option 4 모드 미충족 시 → `/design` 호출자로 ESCALATE 한다.
 
 ## 작성 절차 (메인 직접)
 
@@ -42,6 +48,7 @@ docs/prd.md 부재.
 
 ### Step 1 — tech-reviewer 호출
 
+전역 preflight 모드:
 ```
 Agent(subagent_type="tech-reviewer", prompt="""
 PRD: docs/prd.md
@@ -52,7 +59,24 @@ PRD: docs/prd.md
 - 이전 cycle 에서 PRD 항목 X 가 Y 로 patch 됨 (이유: ...)
 - 이전 cycle 에서 검토 질문 Z 가 추가됨
 
-docs/tech-review.md + docs/tech-review/evidence/** + docs/tech-review/report.html 을 생성/갱신하세요.
+docs/tech-review.md 를 생성/갱신하고, raw evidence 와 HTML report 는 .dcness-work/reviews/ 에 저장하세요.
+각 정식 항목은 사용 가능성 / 비용 / 라이선스 / 대안 필요 여부 / 목적 적합성 / evidence 를 포함해야 합니다.
+""")
+```
+
+epic option 4 모드:
+```
+Agent(subagent_type="tech-reviewer", prompt="""
+PRD: docs/prd.md
+Epic stories: docs/epics/<epic>/stories.md
+검토 입력: 대상 epic `stories.md` 와 미검증 외부 의존 질문
+
+[design 호출자가 전달한 NEW_DEP_ESCALATE 맥락]
+- 새 외부 의존 / API / SDK / model:
+- 왜 이 epic 범위에서 필요한지:
+- 성공·실패 시 epic architecture / impl task 영향:
+
+docs/epics/<epic>/tech-review.md 를 생성/갱신하고, raw evidence 와 HTML report 는 .dcness-work/reviews/ 에 저장하세요.
 각 정식 항목은 사용 가능성 / 비용 / 라이선스 / 대안 필요 여부 / 목적 적합성 / evidence 를 포함해야 합니다.
 """)
 ```
@@ -61,7 +85,7 @@ docs/tech-review.md + docs/tech-review/evidence/** + docs/tech-review/report.htm
 
 ### Step 2 — return prose 받기 + 산출 경로 echo
 
-tech-reviewer 가 prose 결론 + 산출 3 종 (`docs/tech-review.md` + `docs/tech-review/evidence/**` + `docs/tech-review/report.html`) 완료 후 return.
+tech-reviewer 가 prose 결론 + 모드별 본문(`docs/tech-review.md` 또는 `docs/epics/<epic>/tech-review.md`) + `.dcness-work/reviews/**` evidence/report 완료 후 return.
 
 메인이 사용자에게 echo — **백틱 + 클릭 가능 형태**:
 
@@ -69,9 +93,9 @@ tech-reviewer 가 prose 결론 + 산출 3 종 (`docs/tech-review.md` + `docs/tec
 tech-review 본문 + HTML 리포트 + 증거물 산출 완료.
 
 📄 본문: `docs/tech-review.md` — 항목별 verdict + 4 항목 + 권고
-🌐 통합 HTML: `docs/tech-review/report.html` — 증거 (음성/이미지/로그) 한 페이지 통합
-   → `open docs/tech-review/report.html` 로 직접 확인
-📁 증거 디렉토리: `docs/tech-review/evidence/` — 개별 파일 보존
+🌐 통합 HTML: `.dcness-work/reviews/<report>.html` — 증거 (음성/이미지/로그) 한 페이지 통합
+   → `open .dcness-work/reviews/<report>.html` 로 직접 확인
+📁 증거 디렉토리: `.dcness-work/reviews/` — 개별 파일 보존
 
 요약:
 - 정식 항목 N 개 중 M PASS / K FAIL
@@ -89,7 +113,7 @@ tech-review 본문 + HTML 리포트 + 증거물 산출 완료.
 사용자에게 다음 옵션 제시 (메인이 prose 로):
 
 ```
-PRD 초안(`docs/prd.md`), tech-review 본문(`docs/tech-review.md`), HTML 리포트(`docs/tech-review/report.html`) 확인 후 결정:
+PRD 초안(`docs/prd.md`), tech-review 본문(`docs/tech-review.md` 또는 `docs/epics/<epic>/tech-review.md`), `.dcness-work/reviews/` HTML 리포트 확인 후 결정:
 
 1. **OK** → `/spec` Step 5 로 복귀해 PRD 최종화
 2. **PRD 재기술 필요** → 어떤 항목 어떻게 patch 할지 알려주세요
@@ -130,7 +154,7 @@ tech-review 통과 완료.
 
 ## 단방향 관례 (재진입 비권장)
 
-`/design` 진입 *후* 본 스킬 재호출은 **관례상 비권장** (코드 강제 아닌 자연어 관례 — 메인/사용자 자율 판단). 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례. tech-reviewer 단계 = PRD 최종화 전 기술 검증 기회 — 그래서 증거물 / HTML 리포트 룰의 가치가 가중된다. /design 도중 미검증 새 외부 의존 발견 시 처리 (NEW_DEP_ESCALATE 3안) = [`tech-review-routing.md`](tech-review-routing.md) — 어느 옵션이든 tech-reviewer 재호출 0.
+`/design` 진입 *후* 본 스킬 재호출은 **관례상 비권장** (코드 강제 아닌 자연어 관례 — 메인/사용자 자율 판단). 정합 룰 SSOT = [`docs/plugin/hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례. tech-reviewer 단계 = PRD 최종화 전 기술 검증 기회다. /design 도중 미검증 새 외부 의존 발견 시 처리 = [`../design/design-routing.md`](../design/design-routing.md#escalate-처리) option 4 포함 경로를 따른다.
 
 ## 워크트리 (X)
 

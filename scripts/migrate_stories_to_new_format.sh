@@ -6,12 +6,12 @@
 # 으로 변환 검사·report.
 #
 # 본 스크립트 = *report only* (자동 변환 X). 사용자가 직접 patch 결정.
-# 옛 양식 잔재 = 그대로 허용 (skills/spec/spec-stories-reference.md §구버전 호환성 정합).
+# 옛 양식 잔재 = 그대로 허용 (skills/spec/spec-stories-reference.md 구버전 호환성 정합).
 # 새 양식 변환 원하는 사용자만 본 스크립트로 *변환 대상 line* 식별 후 수동 patch.
 #
 # Usage:
 #   bash scripts/migrate_stories_to_new_format.sh <stories.md 경로>
-#   bash scripts/migrate_stories_to_new_format.sh docs/milestones/v01/epics/epic-01-*/stories.md
+#   bash scripts/migrate_stories_to_new_format.sh docs/epics/epic-01-*/stories.md
 
 set -euo pipefail
 
@@ -70,10 +70,10 @@ echo "변환 가이드:"
 echo "  1. 위 line 번호의 옛 섹션 (\\*\\*대상 화면·컴포넌트\\*\\* / \\*\\*동작 명세\\*\\* / \\*\\*수용 기준\\*\\*) 제거"
 echo "  2. task 체크박스 행 (- [ ] / - [x] NN-*.md) 제거 — 새 양식엔 쓰지 않음"
 echo "  3. Story 본문은 \"As a / I want / So that\" + \"**완료 시 확인 가능한 동작**:\" 한 줄만 남김"
-echo "  4. Epic 헤더에는 \"완료 기준\" (검증 가능한 조건) 추가 — skills/spec/spec-stories-reference.md §stories.md 산출물 참조"
+echo "  4. Epic 헤더에는 \"완료 기준\" (검증 가능한 조건) 추가 — skills/spec/spec-stories-reference.md 의 stories.md 산출물 참조"
 echo
 echo "자동 변환 X — 사용자가 직접 patch (Edit / sed). 변환 후 /tech-review 권고 (기술 의존 검증)."
 echo
-echo "참조: skills/spec/spec-stories-reference.md §stories.md 산출물 (새 양식 정의)"
+echo "참조: skills/spec/spec-stories-reference.md 의 stories.md 산출물 (새 양식 정의)"
 
 exit 0

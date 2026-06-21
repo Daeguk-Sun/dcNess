@@ -92,6 +92,15 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.pr_reviewer = (
             ROOT / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
         ).read_text(encoding="utf-8")
+        self.architecture_validator = (
+            ROOT / "agents" / "architecture-validator" / "architecture-validator-agent.md"
+        ).read_text(encoding="utf-8")
+        self.ux_architect = (
+            ROOT / "agents" / "ux-architect" / "ux-architect-agent.md"
+        ).read_text(encoding="utf-8")
+        self.tech_reviewer = (
+            ROOT / "agents" / "tech-reviewer" / "tech-reviewer-agent.md"
+        ).read_text(encoding="utf-8")
         self.cross_ref_script = (ROOT / "scripts" / "check_cross_refs.mjs").read_text(
             encoding="utf-8"
         )
@@ -146,7 +155,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
 
         for needle in (
             "문서 영향",
-            "PRD / stories / architecture / ADR / Contract Ledger",
+            "PRD / stories / architecture / decisions / Contract Ledger",
             "이번 diff 가 기존 장기 문서를 무효화했는지",
         ):
             with self.subTest(needle=needle):
@@ -340,7 +349,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("stories.md 산출물", self.spec_stories_reference)
         self.assertIn("# Story Backlog", self.spec_stories_reference)
         self.assertIn(
-            "# preflight 를 실행했다면: git add docs/tech-review.md docs/tech-review/",
+            "# preflight 를 실행했다면: git add docs/tech-review.md",
             self.spec_delivery_reference,
         )
 
@@ -382,6 +391,63 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertNotIn("`/product-plan`", text)
             self.assertNotIn("`/architect-loop`", text)
             self.assertNotIn("호환 alias", text)
+
+    def test_issue_810_architecture_validator_checks_root_append_map(self) -> None:
+        """#810 AC5 — validator must check root architecture append reflection."""
+        for needle in (
+            "전역 `docs/architecture.md` append 반영",
+            "대상 epic의 모듈/흐름이 전역 `docs/architecture.md`",
+            "system 단위(1차) 검증이면 전역 architecture append 반영",
+        ):
+            self.assertIn(needle, self.architecture_validator)
+
+    def test_issue_810_tech_review_skill_supports_epic_option4(self) -> None:
+        """#810 AC7 — /tech-review skill must define both root and epic invocation contracts."""
+        for needle in (
+            "전역 preflight 모드",
+            "epic option 4 모드",
+            "`docs/epics/<epic>/stories.md`",
+            "`docs/epics/<epic>/tech-review.md`",
+            "검토 입력: 대상 epic `stories.md` 와 미검증 외부 의존 질문",
+        ):
+            self.assertIn(needle, self.tech_review_skill)
+
+    def test_issue_810_design_producer_inputs_are_global_min_plus_epic_fixed(self) -> None:
+        """#810 AC8 — design producers carry deterministic input sets."""
+        for needle in (
+            "전역 최소: `docs/index.md`, `docs/prd.md`, `docs/conventions.md`",
+            "epic 고정: `docs/epics/<epic>/stories.md`, 대상 `docs/epics/<epic>/ux-flow.md`",
+        ):
+            self.assertIn(needle, self.ux_architect)
+
+        for needle in (
+            "전역 최소: `docs/index.md`, `docs/prd.md`, `docs/conventions.md`",
+            "epic option 4 고정: `docs/epics/<epic>/stories.md`",
+        ):
+            self.assertIn(needle, self.tech_reviewer)
+
+    def test_issue_810_seed_templates_are_korean_and_index_has_overview(self) -> None:
+        """#810 minor — cold-start index overview and seed language consistency."""
+        index = (ROOT / "skills" / "spec" / "templates" / "index.md").read_text(
+            encoding="utf-8"
+        )
+        conventions = (
+            ROOT / "agents" / "system-architect" / "templates" / "conventions.md"
+        ).read_text(encoding="utf-8")
+        decision = (
+            ROOT / "agents" / "system-architect" / "templates" / "decision.md"
+        ).read_text(encoding="utf-8")
+        root_architecture = (
+            ROOT / "agents" / "system-architect" / "templates" / "root-architecture.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("# 프로젝트 문서 인덱스", index)
+        self.assertIn("## 개요", index)
+        self.assertIn("제품 한 줄 요약", index)
+        self.assertIn("# 전역 규약", conventions)
+        self.assertIn("# 전역 아키텍처 지도", root_architecture)
+        self.assertIn("# 결정 NNNN", decision)
+        self.assertIn("scope: global  # global 또는 epic-NN", decision)
 
     def test_init_doc_drops_removed_tdd_gate_references(self) -> None:
         """#681 — /init-dcness 가 폐기된 TDD CI/pre-commit flow 를 더는 언급하지 않는다.

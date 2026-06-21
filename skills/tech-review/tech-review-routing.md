@@ -6,7 +6,7 @@
 
 ## 읽는 법
 
-tech-reviewer 는 stateless — `docs/prd.md` 의 **기술 검토 필요 영역**을 받아 `docs/tech-review.md`, `docs/tech-review/evidence/**`, `docs/tech-review/report.html` 을 생성/갱신하고 prose 결론 (PASS / FAIL / ESCALATE) 을 낸다. 메인 Claude 가 그 결론을 사용자에게 echo 하고, 사용자 2차 OK 응답 (OK / PRD patch / 검토 범위 추가 / polish) 에 따라 다음을 정한다. cycle 컨텍스트는 메인이 재호출 prompt 에 명시한다.
+tech-reviewer 는 stateless — `docs/prd.md` 의 **기술 검토 필요 영역**을 받아 `docs/tech-review.md` 를 생성/갱신하고, evidence/HTML report 는 `.dcness-work/reviews/` 에 저장한 뒤 prose 결론 (PASS / FAIL / ESCALATE) 을 낸다. 메인 Claude 가 그 결론을 사용자에게 echo 하고, 사용자 2차 OK 응답 (OK / PRD patch / 검토 범위 추가 / polish) 에 따라 다음을 정한다. cycle 컨텍스트는 메인이 재호출 prompt 에 명시한다.
 
 ## 분기 그래프
 
@@ -55,12 +55,13 @@ flowchart TB
 - tech-reviewer 단계 = PRD 최종화 전 기술 검증 기회. 검증 충실 의무 가중 (증거물 / HTML 리포트 룰의 가치 근거).
 - /design 진입 후 역방향 회귀 = ping-pong 사고 패턴 (옛 plan-reviewer cycle 한도 룰이 누적된 원인, 이슈 [#515](https://github.com/alruminum/dcNess/issues/515)).
 
-**/design 도중 미검증 새 외부 의존 발견 시 → `NEW_DEP_ESCALATE` 3안** (tech-reviewer 재호출 *없이*):
+**/design 도중 미검증 새 외부 의존 발견 시 → design routing 의 `NEW_DEP_ESCALATE` 4안**:
 1. **채택 + 수동 검증** — 사용자 승인 → 해당 architect 재진입
 2. **대안 기술 우회** — tech-review 기검증 대안 지정 → architect 재진입
 3. **전체 원점 회귀** — `/design` 중단 + `/spec` 재진입 + 새 tech-review
+4. **대상 epic 기술 검토** — 현재 epic `tech-review.md` 작성, evidence/HTML 은 `.dcness-work/reviews/`, 사용자 OK 후 architect 재진입
 
-(1)·(2) cycle ≤ 2. **어느 옵션이든 tech-reviewer 재호출 0** — design 안엔 tech-reviewer 가 없어 NO_GO 판정 자체 불가 — 그래서 "전체 회귀 only" 가 아니라 사용자 선택 3안. 상세 흐름 = [`../design/design-routing.md`](../design/design-routing.md#escalate-처리).
+(1)·(2)·(4) cycle ≤ 2. (4)는 전역 `/tech-review` 재진입이 아니라 design 중 발견된 새 의존을 현재 epic 범위로 좁혀 검토하는 경로다. 상세 흐름 = [`../design/design-routing.md`](../design/design-routing.md#escalate-처리).
 
 ## 비대상 (다른 skill 추천)
 

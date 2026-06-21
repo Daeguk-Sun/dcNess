@@ -6,6 +6,17 @@ issue: <optional>
 
 # Compact Implementation Plan
 
+## 사전 준비
+
+- 읽을 문서:
+  - `docs/index.md`
+  - `docs/prd.md`
+  - `docs/architecture.md`
+  - `docs/conventions.md`
+  - `docs/decisions/`
+- 읽을 코드:
+  -
+
 ## 배경 / 문제
 
 -

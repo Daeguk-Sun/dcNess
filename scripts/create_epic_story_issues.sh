@@ -17,18 +17,17 @@
 # SSOT: docs/plugin/issue-lifecycle.md 의 이슈 계층 + GitHub Project lifecycle
 #
 # 사용:
-#   create_epic_story_issues.sh docs/milestones/vNN/epics/epic-NN-<slug>/stories.md   # epic 단위 (표준)
-#   create_epic_story_issues.sh path/to/stories.md                                    # 명시 경로
+#   create_epic_story_issues.sh docs/epics/epic-NN-<slug>/stories.md   # epic 단위 (표준)
+#   create_epic_story_issues.sh /abs/path/docs/epics/epic-NN-<slug>/stories.md
 #
-# 표준 위치 (이슈 #511): epic 단위 폴더 안 stories.md. 옛 root 단위 docs/stories.md 도
-# 인자로 명시하면 동작 (호환 영역).
+# 표준 위치: epic 단위 폴더 안 stories.md. root docs/stories.md 기본값은 없다.
 #
 # 의존: gh CLI, jq, bash. dcness plug-in 활성 프로젝트 안에서 호출.
 
 set -e
 
 # 인자 파싱 — positional stories.md + 선택 --project/--owner (보드 좌표 명시).
-STORIES="docs/stories.md"
+STORIES=""
 PROJECT_NUMBER=""
 PROJECT_OWNER=""
 while [ $# -gt 0 ]; do
@@ -39,6 +38,19 @@ while [ $# -gt 0 ]; do
   esac
 done
 
+if [ -z "$STORIES" ]; then
+  echo "[issue-create] ERROR: stories.md 경로 인자 필요 — 예: docs/epics/epic-NN-<slug>/stories.md" >&2
+  exit 2
+fi
+if ! printf '%s\n' "$STORIES" | grep -Eq '(^|/)docs/epics/[^/]+/stories\.md$'; then
+  echo "[issue-create] ERROR: 비정식 stories 경로 — docs/epics/epic-NN-<slug>/stories.md 필요: $STORIES" >&2
+  exit 2
+fi
+EPIC_SLUG=$(basename "$(dirname "$STORIES")")
+if ! printf '%s\n' "$EPIC_SLUG" | grep -Eq '^epic-[0-9][0-9]-[a-z0-9-]+$'; then
+  echo "[issue-create] ERROR: epic 디렉토리명은 epic-NN-<slug> 여야 함: $EPIC_SLUG" >&2
+  exit 2
+fi
 if [ ! -f "$STORIES" ]; then
   echo "[issue-create] ERROR: $STORIES 부재. PRD/stories.md 먼저 작성 후 호출하세요." >&2
   exit 1
@@ -165,15 +177,23 @@ if [ -z "$EPIC_TITLE" ]; then
   exit 1
 fi
 
-# epic slug 추정 (kebab-case, 한글 → kebab 어려우니 사용자 직접 박는 거 권장)
-# stories.md frontmatter 또는 별도 marker 에서 epic_slug 추출 시도. 부재면 사용자에게 prose 명시.
-EPIC_SLUG=$(grep -m1 -oE 'epic-NN-[a-z0-9-]+' "$STORIES" 2>/dev/null | head -1 || echo "")
-if [ -z "$EPIC_SLUG" ]; then
-  echo "[issue-create] WARN: stories.md 에 'epic-NN-<slug>' 라벨 마커 부재. 라벨 'epic-NN-...' 자동 생성 skip."
-  echo "  사용자가 GitHub repo 라벨 'epic-NN-<slug>' 수동 생성 후 stories.md 갱신 권장."
+# epic slug / milestone 은 path + frontmatter 가 진본이다. milestone path segment fallback 금지.
+if ! printf '%s\n' "$EPIC_SLUG" | grep -Eq '^epic-[0-9][0-9]-[a-z0-9-]+$'; then
+  echo "[issue-create] ERROR: epic 디렉토리명은 epic-NN-<slug> 여야 함: $EPIC_SLUG" >&2
+  exit 1
 fi
 
-VNN=$(grep -m1 -oE 'v0[0-9]' "$STORIES" 2>/dev/null | head -1 || echo "v01")
+VNN=$(awk '
+  /^milestone:[[:space:]]*v[0-9][0-9][[:space:]]*$/ {
+    sub(/^milestone:[[:space:]]*/, "")
+    print
+    exit
+  }
+' "$STORIES")
+if [ -z "$VNN" ]; then
+  echo "[issue-create] ERROR: stories.md frontmatter milestone: vNN 필요" >&2
+  exit 1
+fi
 
 # epic 이슈 생성
 echo "[issue-create] epic 이슈 생성 — '$EPIC_TITLE'"

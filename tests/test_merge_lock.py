@@ -19,7 +19,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _write_impl(root: Path, name: str, *, story: str = "1", task_index: str = "1/2") -> Path:
-    impl_dir = root / "docs/milestones/v01/epics/epic-01-demo/impl"
+    impl_dir = root / "docs/epics/epic-01-demo/impl"
     impl_dir.mkdir(parents=True, exist_ok=True)
     path = impl_dir / name
     path.write_text(
@@ -301,7 +301,7 @@ class ExternalGitCompletedTests(unittest.TestCase):
         (self.root / "README.md").write_text("base\n", encoding="utf-8")
         subprocess.run(["git", "add", "README.md"], cwd=self.root, check=True)
         subprocess.run(["git", "commit", "-m", "base"], cwd=self.root, check=True, capture_output=True)
-        self.impl = self.root / "docs/milestones/v01/epics/epic-01-demo/impl/01-first.md"
+        self.impl = self.root / "docs/epics/epic-01-demo/impl/01-first.md"
         self.impl.parent.mkdir(parents=True, exist_ok=True)
         self.impl.write_text("---\nstory: 1\ntask_index: 1/2\n---\n", encoding="utf-8")
 

@@ -7,7 +7,7 @@
 ## 입력
 
 - 대상 epic 경로와 Story 또는 공통 작업
-- root/epic architecture, ADR, domain-model
+- 전역 architecture/conventions/decisions 와 epic architecture/domain-model
 - 필요하면 SPEC_GAP, validator finding, bug issue, contract_sweep 요청
 - `/impl` Standard 구현 경로의 compact plan 요청
 - 선택적으로 DESIGN_HANDOFF 또는 UX 관련 문서
@@ -15,7 +15,7 @@
 ## 먼저 읽을 문서
 
 - 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
-- 필수: 대상 epic의 `architecture.md`, `adr.md`, `domain-model.md`
+- 필수: `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/`, 대상 epic의 `stories.md`, `architecture.md`, `domain-model.md`
 - 상황별: `docs/design.md`, 관련 기존 impl 문서
 - 참고: [`references/implementation-boundary.md`](references/implementation-boundary.md), [`references/contract-amendment.md`](references/contract-amendment.md)
 
@@ -61,7 +61,7 @@
 
 ## 권한 경계
 
-- Write 허용: `docs/milestones/**/impl/**`, epic `architecture.md`, `domain-model.md`, `adr.md`, `docs/compact-plans/**`
+- Write 허용: `docs/epics/**/impl/**`, epic `architecture.md`, `domain-model.md`, `docs/decisions/**`, `docs/compact-plans/**`
 - contract_sweep 한정: stale 계약 사본 동기화를 위해 `docs/**`의 계약 줄을 patch할 수 있다.
 - 금지: 실제 코드 수정, PRD 수정, `docs/**` 밖 인프라 수정, 새 외부 의존 임의 채택
 - PRD와 충돌하면 ESCALATE한다.

@@ -269,12 +269,40 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
             self.assertIsNotNone(reason)
             self.assertIn("write-zero", reason)
 
-    def test_module_architect_docs_allowed(self):
+    def test_module_architect_new_docs_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            self.assertIsNone(
-                check_write_allowed("module-architect", "docs/impl/01-foo.md", cwd=cwd)
-            )
+            for path in (
+                "docs/epics/epic-01-foo/impl/01-foo.md",
+                "docs/epics/epic-01-foo/architecture.md",
+                "docs/epics/epic-01-foo/domain-model.md",
+                "docs/decisions/0001-storage.md",
+                "docs/conventions.md",
+            ):
+                self.assertIsNone(
+                    check_write_allowed("module-architect", path, cwd=cwd),
+                    f"{path} should be writable by module-architect",
+                )
+
+    def test_architect_family_root_flat_epic_outputs_blocked(self):
+        # #810 — root-flat epic artifacts are no longer a legacy fallback.
+        # Global docs/architecture.md and docs/tech-review.md remain allowed; only
+        # root-level epic artifacts and removed ADR locations are denied before the broad docs/ allow.
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for agent in ("architect", "module-architect", "system-architect"):
+                for path in (
+                    "docs/stories.md",
+                    "docs/ux-flow.md",
+                    "docs/domain-model.md",
+                    "docs/impl/01-foo.md",
+                    "docs/impl/",
+                    "docs/adr.md",
+                    "docs/epics/epic-01-foo/adr.md",
+                ):
+                    reason = check_write_allowed(agent, path, cwd=cwd)
+                    self.assertIsNotNone(reason, f"{agent} should be blocked on {path}")
+                    self.assertIn("root-flat", reason)
 
     def test_module_architect_random_blocked(self):
         # #463 — module-architect 키 명시 후 ALLOW 외 path 는 차단되어야 (silent pass 회귀 방지).
@@ -299,35 +327,34 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
                 check_write_allowed("custom-agent", "anywhere/x.ts", cwd=cwd)
             )
 
-    def test_ux_architect_root_ux_flow_allowed(self):
-        # root docs/ux-flow.md — 단일-epic legacy 폴백.
+    def test_ux_architect_root_ux_flow_blocked(self):
+        # #810 — root docs/ux-flow.md legacy fallback is removed.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            self.assertIsNone(
-                check_write_allowed("ux-architect", "docs/ux-flow.md", cwd=cwd)
-            )
+            reason = check_write_allowed("ux-architect", "docs/ux-flow.md", cwd=cwd)
+            self.assertIsNotNone(reason)
+            self.assertIn("ALLOW_MATRIX", reason)
 
     def test_ux_architect_epic_scoped_ux_flow_allowed(self):
-        # #804 G1 — epic 단위 ux-flow 가 canonical (/design 흐름). 강제가 skill 지시를
-        # 차단하던 회귀 가드: ALLOW 가 root 만 허용해 design/SKILL.md 의 epic-scoped write 를 막았다.
+        # #810 — epic-scoped ux-flow canonical path no longer includes milestones/.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self.assertIsNone(
                 check_write_allowed(
                     "ux-architect",
-                    "docs/milestones/v01/epics/epic-01-foo/ux-flow.md",
+                    "docs/epics/epic-01-foo/ux-flow.md",
                     cwd=cwd,
                 )
             )
 
-    def test_ux_architect_non_canonical_milestones_ux_flow_blocked(self):
-        # #807 codex P2 — epic 폴더 shape 밖 milestones ux-flow 는 차단(오타로 unconsumed
-        # UX doc 생성 방지). canonical = docs/milestones/<v>/epics/<epic>/ux-flow.md 뿐.
+    def test_ux_architect_non_canonical_ux_flow_blocked(self):
+        # Canonical = docs/epics/<epic>/ux-flow.md only.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for bad in (
                 "docs/milestones/v01/ux-flow.md",                       # epics/<epic> 누락
-                "docs/milestones/v01/epics/epic-01-foo/impl/ux-flow.md",  # 한 단계 더 깊음
+                "docs/epics/epic-01-foo/impl/ux-flow.md",  # 한 단계 더 깊음
+                "docs/epics/epic-01-foo/impl/ux-flow.md",
             ):
                 reason = check_write_allowed("ux-architect", bad, cwd=cwd)
                 self.assertIsNotNone(reason, f"{bad} 는 차단돼야 함")
@@ -1023,9 +1050,27 @@ class RunDirProseCarveOutTests(unittest.TestCase):
             )
             self.assertIsNone(
                 check_write_allowed(
-                    "tech-reviewer", "docs/tech-review/report.html", cwd=cwd
+                    "tech-reviewer",
+                    "docs/epics/epic-01-demo/tech-review.md",
+                    cwd=cwd,
                 )
             )
+            self.assertIsNone(
+                check_write_allowed(
+                    "tech-reviewer",
+                    ".dcness-work/reviews/2026-06-21-demo.html",
+                    cwd=cwd,
+                )
+            )
+
+    def test_tech_reviewer_tracked_evidence_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            reason = check_write_allowed(
+                "tech-reviewer", "docs/tech-review/report.html", cwd=cwd
+            )
+            self.assertIsNotNone(reason)
+            self.assertIn("ALLOW_MATRIX", reason)
 
     def test_tech_reviewer_prd_blocked(self):
         with tempfile.TemporaryDirectory() as td:
@@ -1140,8 +1185,8 @@ class BashHeuristicTests(unittest.TestCase):
             ["src/generated.ts"],
         )
         self.assertEqual(
-            extract_bash_paths("cat docs/prd.md | tee docs/tech-review/evidence/x.json"),
-            ["docs/tech-review/evidence/x.json"],
+            extract_bash_paths("cat docs/prd.md | tee .dcness-work/reviews/x.json"),
+            [".dcness-work/reviews/x.json"],
         )
 
     def test_perl_in_place(self):
@@ -1156,10 +1201,10 @@ class BashHeuristicTests(unittest.TestCase):
         # codex P2 (round9) — `curl URL > local.json` 의 URL 은 로컬 write 대상이 아님 → 후보 제외.
         # `/` 포함이라는 이유로 write path 로 오인돼 정상 명령이 차단되던 false positive 수정 검증.
         paths = extract_bash_paths(
-            "curl -s https://example.com/api/v1 > docs/tech-review/evidence/x.json"
+            "curl -s https://example.com/api/v1 > .dcness-work/reviews/x.json"
         )
         self.assertNotIn("https://example.com/api/v1", paths)
-        self.assertIn("docs/tech-review/evidence/x.json", paths)
+        self.assertIn(".dcness-work/reviews/x.json", paths)
 
     def test_sed_script_not_extracted_as_path(self):
         # codex P2 (round10) — `sed -i 's/foo/bar/' src/main.ts` 의 치환 스크립트는
@@ -1588,13 +1633,13 @@ class BashIntegrationTests(unittest.TestCase):
             self.assertTrue(any("hooks/" in p for p in blocked))
 
     def test_tech_reviewer_curl_evidence_not_blocked(self):
-        # codex P2 (round9) — tech-reviewer 의 `curl URL > docs/tech-review/evidence/…` 가
+        # codex P2 (round9) — tech-reviewer 의 `curl URL > .dcness-work/reviews/…` 가
         # URL 오인으로 차단되지 않아야 한다 (commit4 회귀 수정 검증).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             cmd = (
                 "curl -s https://pypi.org/pypi/foo/json "
-                "> docs/tech-review/evidence/foo.json"
+                "> .dcness-work/reviews/foo.json"
             )
             blocked = [
                 p for p in extract_bash_paths(cmd)

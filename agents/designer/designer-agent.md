@@ -8,7 +8,7 @@
 
 - 대상 화면 또는 컴포넌트
 - UX 목표와 문제점
-- 있으면 `docs/ux-flow.md`, `docs/design.md`, PRD
+- 있으면 대상 epic `ux-flow.md`, `docs/design.md`, PRD
 - medium: Pencil 또는 HTML
 - 있으면 추적 이슈 번호
 

@@ -99,7 +99,11 @@ if [ -n "${EPIC_DIR:-}" ] && [ -n "${TASK_FILE:-}" ]; then
   STORIES="$S_TASK"
 elif [ -n "${EPIC_DIR:-}" ]; then STORIES="$EPIC_DIR/stories.md"
 elif [ -n "${TASK_FILE:-}" ]; then STORIES="$(dirname "$(dirname "$TASK_FILE")")/stories.md"
-else STORIES="docs/stories.md"; fi
+else echo "missing-stories-input" >&2; exit 1; fi
+if ! printf '%s\n' "$STORIES" | grep -Eq '(^|/)docs/epics/[^/]+/stories\.md$'; then
+  echo "non-canonical-stories" >&2
+  exit 1
+fi
 printf %s "$STORIES"
 '''
 
@@ -186,51 +190,55 @@ class TestStoriesPathResolution(unittest.TestCase):
     """F1-b/F1-c: base 분기용 stories.md 는 root 가 아니라 epic 단위 (입력에서 직접 유도) 여야 함."""
 
     def test_epic_level_stories_from_task_path(self):
-        task = "docs/milestones/v0.2/epics/epic-07-foo/impl/03-bar.md"
+        task = "docs/epics/epic-07-foo/impl/03-bar.md"
         self.assertEqual(
             resolve_stories_path(task),
-            "docs/milestones/v0.2/epics/epic-07-foo/stories.md",
+            "docs/epics/epic-07-foo/stories.md",
         )
 
     def test_not_root_docs_stories(self):
         # 회귀 차단: epic 단위 task 인데 root docs/stories.md 로 떨어지면 통합 브랜치 base 누락
-        task = "docs/milestones/v01/epics/epic-11-monkey/impl/01-theme.md"
+        task = "docs/epics/epic-11-monkey/impl/01-theme.md"
         resolved = resolve_stories_path(task)
         self.assertNotEqual(resolved, "docs/stories.md")
         self.assertTrue(resolved.endswith("/epic-11-monkey/stories.md"), resolved)
 
     def test_section_self_contained_from_epic_dir(self):
         # design: EPIC_DIR 입력 → epic 단위 stories.md
-        epic_dir = "docs/milestones/v01/epics/epic-11-monkey"
+        epic_dir = "docs/epics/epic-11-monkey"
         rc, path = resolve_stories_section(epic_dir=epic_dir)
-        self.assertEqual((rc, path), (0, "docs/milestones/v01/epics/epic-11-monkey/stories.md"))
+        self.assertEqual((rc, path), (0, "docs/epics/epic-11-monkey/stories.md"))
 
     def test_section_self_contained_from_task_file(self):
         # impl-loop: TASK_FILE 입력 (EPIC_DIR 없음) → task 경로 조부모 stories.md
-        task = "docs/milestones/v0.2/epics/epic-07-foo/impl/03-bar.md"
+        task = "docs/epics/epic-07-foo/impl/03-bar.md"
         rc, path = resolve_stories_section(task_file=task)
-        self.assertEqual((rc, path), (0, "docs/milestones/v0.2/epics/epic-07-foo/stories.md"))
+        self.assertEqual((rc, path), (0, "docs/epics/epic-07-foo/stories.md"))
 
-    def test_section_fallback_when_no_input(self):
-        # 둘 다 부재 → root docs/stories.md legacy 폴백
-        self.assertEqual(resolve_stories_section(), (0, "docs/stories.md"))
+    def test_section_no_input_aborts(self):
+        # 둘 다 부재 → root docs/stories.md fallback 없이 정지
+        rc, path = resolve_stories_section()
+        self.assertEqual(rc, 1)
+        self.assertEqual(path, "")
 
-    def test_section_docs_impl_fallback_path(self):
-        # 비정식 위치(docs/impl/) task — 조부모 = docs → root stories.md (안전 폴백, 통합 브랜치 비대상)
+    def test_section_docs_impl_path_aborts(self):
+        # 비정식 위치(docs/impl/) task 는 root stories.md 로 흘러가지 않고 정지한다.
         task = "docs/impl/05-foo.md"
-        self.assertEqual(resolve_stories_section(task_file=task), (0, "docs/stories.md"))
+        rc, path = resolve_stories_section(task_file=task)
+        self.assertEqual(rc, 1)
+        self.assertEqual(path, "")
 
     def test_section_both_set_agree(self):
         # F1-d: EPIC_DIR 와 TASK_FILE 가 같은 epic → 정상 (한쪽 사용)
-        epic_dir = "docs/milestones/v01/epics/epic-07-foo"
-        task = "docs/milestones/v01/epics/epic-07-foo/impl/03-bar.md"
+        epic_dir = "docs/epics/epic-07-foo"
+        task = "docs/epics/epic-07-foo/impl/03-bar.md"
         rc, path = resolve_stories_section(epic_dir=epic_dir, task_file=task)
-        self.assertEqual((rc, path), (0, "docs/milestones/v01/epics/epic-07-foo/stories.md"))
+        self.assertEqual((rc, path), (0, "docs/epics/epic-07-foo/stories.md"))
 
     def test_section_both_set_mismatch_aborts(self):
         # F1-d: EPIC_DIR 와 TASK_FILE 가 다른 epic → stale env 의심, 정지 (조용히 택1 금지)
-        epic_dir = "docs/milestones/v01/epics/epic-07-foo"
-        task = "docs/milestones/v01/epics/epic-08-bar/impl/01-x.md"
+        epic_dir = "docs/epics/epic-07-foo"
+        task = "docs/epics/epic-08-bar/impl/01-x.md"
         rc, _ = resolve_stories_section(epic_dir=epic_dir, task_file=task)
         self.assertEqual(rc, 1)
 

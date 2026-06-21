@@ -17,7 +17,16 @@ contract:
 ## 사전 준비
 
 - 읽을 문서:
+  - `docs/index.md`
+  - `docs/prd.md`
+  - `docs/architecture.md`
+  - `docs/conventions.md`
+  - `docs/decisions/`
+  - `docs/epics/<epic>/stories.md`
+  - `docs/epics/<epic>/architecture.md`
+  - `docs/epics/<epic>/domain-model.md`
 - 읽을 코드:
+  -
 
 > 선행 task 는 frontmatter `depends_on` 이 단일 SSOT 다 (병렬 독립성 판정 입력). 본문에 따로 적어 drift 시키지 않는다.
 

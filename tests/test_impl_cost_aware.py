@@ -40,13 +40,13 @@ class TestPreReadCostAware(unittest.TestCase):
         self.assertIn("grep + offset", body)
 
     def test_per_file_read_scope_table_present(self):
-        """파일별 read 범위 표 박힘 — architecture.md / adr.md / prd.md / PR body / 형제 PR / 의존 모듈."""
+        """파일별 read 범위 표 박힘 — architecture.md / decisions / prd.md / PR body / 형제 PR / 의존 모듈."""
         body = read_impl_skill()
         # 표 헤더
         self.assertIn("| 항목 | read 범위 |", body)
         # 핵심 항목 6개 매핑
         self.assertIn("`docs/architecture.md`", body)
-        self.assertIn("`docs/adr.md`", body)
+        self.assertIn("`docs/decisions/`", body)
         self.assertIn("`docs/prd.md`", body)
         self.assertIn("의존 task 머지 PR", body)
         self.assertIn("형제 PR 환기", body)

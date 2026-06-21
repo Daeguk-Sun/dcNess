@@ -218,8 +218,9 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 
 - GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml` 추천 ON.
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
-- `docs/prd.md`, `docs/adr.md` 는 부재 시 추천 ON. 이미 있으면 skip.
+- `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 이미 있으면 skip.
 - 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
+- `.gitignore` 에 `.dcness-work/` 가 없으면 추천 ON.
 - UI 흔적이 있어도 `design-variants/` 는 기본 skip. 특히 단일 `app/page.tsx` 정도만으로 design kit 를 설치하지 않는다.
 - GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
 - Codex validation routing 이 이미 enabled 면 skip. disabled/미설정이면 추천 bundle 에서 enable 대상으로 표시하고, custom 에서는 명시 선택으로 다룬다.
@@ -230,7 +231,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 ```
 [dcness] 추천 적용 예정:
  - CI: git-naming + pr-body 설치
- - docs: prd.md + adr.md 시드
+ - docs: index.md + prd.md + conventions.md + decisions/ 시드
  - docs: root architecture.md 감지로 docs/architecture.md skip
  - design kit: skip
  - Project lifecycle: skip
@@ -273,12 +274,13 @@ record_dcness_workflow_change ".github/workflows/pr-body-validation.yml"
 시드 양식은 `/spec`·system-architect 가 실제로 산출하는 authoring 템플릿을 *단일 원본* 으로 쓴다 (별도 시드 전용 복제본 없음 — 시드와 산출 양식이 같다). 산출물 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md).
 
 ```bash
-mkdir -p "$PROJECT_ROOT/docs"
-for FILE in prd.md architecture.md adr.md; do
+mkdir -p "$PROJECT_ROOT/docs" "$PROJECT_ROOT/docs/decisions"
+for FILE in index.md prd.md architecture.md conventions.md; do
   case "$FILE" in
+    index.md)        SRC="$PLUGIN_ROOT/skills/spec/templates/index.md" ;;
     prd.md)          SRC="$PLUGIN_ROOT/skills/spec/templates/prd.md" ;;
     architecture.md) SRC="$PLUGIN_ROOT/agents/system-architect/templates/root-architecture.md" ;;
-    adr.md)          SRC="$PLUGIN_ROOT/agents/system-architect/templates/root-adr.md" ;;
+    conventions.md)  SRC="$PLUGIN_ROOT/agents/system-architect/templates/conventions.md" ;;
   esac
   if [ -f "$PROJECT_ROOT/docs/$FILE" ]; then
     echo "[dcness] docs/$FILE 이미 존재 - skip"
@@ -289,6 +291,15 @@ for FILE in prd.md architecture.md adr.md; do
     echo "[dcness] docs/$FILE 시드 완료 (authoring 양식 = 산출 양식) - 기획 논의 후 채워넣으세요"
   fi
 done
+if [ ! -f "$PROJECT_ROOT/docs/decisions/README.md" ]; then
+  printf '%s\n' '# Decisions' '' 'Decision records live in `docs/decisions/NNNN-slug.md`.' > "$PROJECT_ROOT/docs/decisions/README.md"
+  echo "[dcness] docs/decisions/README.md 시드 완료"
+fi
+touch "$PROJECT_ROOT/.gitignore"
+if ! grep -qxF '.dcness-work/' "$PROJECT_ROOT/.gitignore"; then
+  printf '%s\n' '.dcness-work/' >> "$PROJECT_ROOT/.gitignore"
+  echo "[dcness] .gitignore 에 .dcness-work/ 추가"
+fi
 ```
 
 #### Codex validation routing

@@ -469,7 +469,7 @@ def _resolve_run_dir_str(
 # .md(README 등)·traversal(`..`)·repo 밖 경로가 engineer 게이트 사전 조건
 # 증거가 되지 못하게 한다 (#701).
 _DESIGN_DOC_DIR_MARKERS = (
-    "docs/milestones/",
+    "docs/epics/",
     "docs/compact-plans/",
 )
 

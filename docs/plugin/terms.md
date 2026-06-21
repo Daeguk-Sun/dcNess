@@ -3,7 +3,7 @@
 > **Status**: ACTIVE
 > **Scope**: dcNess 사용자-facing 문서, hook stderr, README, skill/agent 설명에서 쓰는 용어의 단일 기준.
 
-이 문서는 설계 문서나 작업 메모가 아니라 표현 기준이다. 절차, 분기 표, hook 동작, ADR 결정은 재서술하지 않고 각 소유 SSOT 로 연결한다.
+이 문서는 설계 문서나 작업 메모가 아니라 표현 기준이다. 절차, 분기 표, hook 동작, decision 기록은 재서술하지 않고 각 소유 SSOT 로 연결한다.
 
 ## 배포와 읽기 규칙
 
