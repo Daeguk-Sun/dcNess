@@ -28,3 +28,9 @@
 - 사용자 입력이 query, command, HTML, URL에 검증 없이 들어가는가
 - secret, token, 개인정보가 저장소나 log에 노출되는가
 - postMessage, CORS, deeplink 같은 trust boundary가 열려 있는가
+
+## 흐름 누적
+
+- 이번 diff가 이미 여러 제품 흐름을 떠안은 파일에 또 다른 흐름을 append하는가
+- 새 능력이 별도 모듈이 아니라 기존 대형 파일에 흡수되는가
+- 기준은 [`module-design-principles.md` 단일 파일 다중 흐름 누적](../../_shared/module-design-principles.md#단일-파일-다중-흐름-누적) 절이다. footprint 밖 기존 누적은 MUST FIX가 아니라 후속 권고로 둔다
