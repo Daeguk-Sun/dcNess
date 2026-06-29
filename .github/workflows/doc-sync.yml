@@ -1,0 +1,32 @@
+# GitHub Actions — generated docs freshness validation gate
+#
+# This self repo dogfoods the same composite action exported to active projects.
+
+name: doc-sync
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened, edited]
+    paths:
+      - 'docs/**'
+      - 'scripts/aggregate_index_map.mjs'
+      - 'scripts/aggregate_architecture_map.mjs'
+      - '.github/actions/doc-sync/**'
+      - '.github/workflows/doc-sync.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  doc-sync:
+    name: doc-sync gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Validate generated docs via composite action
+        uses: ./.github/actions/doc-sync

@@ -269,6 +269,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 | `.github/workflows/git-naming-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | 브랜치명 + PR 제목 git-spec 검증 | 선택형 CI gate |
 | `.github/workflows/pr-body-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | PR body issue trailer 검증 | 선택형 CI gate |
 | `.github/workflows/doc-path-integrity.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | repo-relative 경로 참조 실존 검증 | 선택형 CI gate |
+| `.github/workflows/doc-sync.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | index epic 표 + architecture map 파생물 drift 검증 | 선택형 CI gate |
 | `.github/workflows/github-project-lifecycle.yml` | `issues`, `pull_request closed` | issue 변경 또는 PR merge | Project field/label drift 검출, merged PR Done 보정 | 선택형 CI/CD |
 
 ### .github/workflows/git-naming-validation.yml
@@ -304,6 +305,18 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때. 문서가 그대로여도 참조 대상 파일이 삭제·이동되면 stale path 가 생길 수 있으므로 path filter 를 두지 않는다.
 
 **역할**: `alruminum/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/**`) 안 repo-relative path 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다.
+
+**차단**: workflow 실패. hard merge gate 여부는 사용자 repo 의 branch protection/ruleset 설정에 달려 있다.
+
+### .github/workflows/doc-sync.yml
+
+**설치**: `/init-dcness` 의 선택형 CI workflow 질문에서 사용자가 doc-sync 신선도 검증을 선택하면 생성한다.
+
+**시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
+
+**역할**: `alruminum/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` 생성 표와 `docs/architecture.md` generated architecture map 이 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter 에서, architecture map 은 epic `architecture.md` 의 `## 모듈 목록` / `## Contract Ledger` 표에서 파생된다.
+
+**빈 환경**: `docs/index.md`, `docs/architecture.md`, 또는 유효 epic 이 없는 갓 시드된 프로젝트에서는 no-op PASS 한다.
 
 **차단**: workflow 실패. hard merge gate 여부는 사용자 repo 의 branch protection/ruleset 설정에 달려 있다.
 

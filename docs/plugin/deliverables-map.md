@@ -51,7 +51,7 @@ docs/
 
 | 산출물 | 경로 | 생성 주체 | 양식 |
 |---|---|---|---|
-| 문서 entrypoint | `docs/index.md` | `/init-dcness`, `/spec` | `skills/spec/templates/index.md` |
+| 문서 entrypoint | `docs/index.md` | `/init-dcness`, `/spec`, `scripts/aggregate_index_map.mjs` | `skills/spec/templates/index.md` |
 | PRD | `docs/prd.md` | `/spec` | `skills/spec/templates/prd.md` |
 | 전역 architecture map | `docs/architecture.md` | system-architect | `agents/system-architect/templates/root-architecture.md` |
 | convention map | `docs/conventions.md` | `/init-dcness`, system-architect | `agents/system-architect/templates/conventions.md` |
@@ -61,7 +61,9 @@ docs/
 
 `docs/architecture.md` 는 epic 이 늘 때마다 append-growing map 으로 갱신한다. 상세 설계 본문을 전역에 복제하지 않고, 전역 모듈/의존/결정 anchor 와 epic 문서 링크를 추가한다.
 
-`docs/index.md` 는 cold-start agent 의 정적 entrypoint 다. live 진행상태를 문서에 복제하지 않고, 수동 섹션 `## 진행 상태 · 다음 작업` 에서 GitHub Project 보드, epic/story issue, `/next` 를 가리킨다. `/init-dcness` 는 기존 `docs/index.md` 를 overwrite 하지 않지만, 이 섹션이 없으면 `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs` 로 섹션만 append 한다.
+`docs/index.md` 는 cold-start agent 의 정적 entrypoint 다. `## 에픽` 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter `milestone` 값에서 파생되는 생성 섹션이며 수동 편집하지 않는다. live 진행상태를 문서에 복제하지 않고, 수동 섹션 `## 진행 상태 · 다음 작업` 에서 GitHub Project 보드, epic/story issue, `/next` 를 가리킨다. `/init-dcness` 는 기존 `docs/index.md` 를 overwrite 하지 않지만, 이 섹션이 없으면 `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs` 로 섹션만 append 한다.
+
+`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 는 각 epic 폴더를 결정적으로 정렬하고 `docs/index.md` 의 `## 에픽` 표를 생성/갱신한다. 파일이 없는 선택 산출물 셀은 링크가 아닌 `—` 로 남긴다.
 
 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 표와 `## Contract Ledger` 표를 수집해 전역 `docs/architecture.md` 의 `에픽 간 지도`, `전역 모듈 토폴로지`, `공유 계약 인덱스` 섹션을 생성/갱신한다. 이 세 섹션은 파생물이며 수동 편집하지 않는다. epic architecture 템플릿의 표 헤더는 도구의 파싱 계약이므로 변경하려면 도구와 테스트를 함께 갱신한다.
 
@@ -139,9 +141,10 @@ impl task 와 compact plan 은 `## 사전 준비` 아래에 `읽을 문서`와 `
 
 `/init-dcness` 는 `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` 를 만든다. 시드 파일은 실제 authoring 템플릿과 같은 원본을 사용한다. 빈 seed 전용 복제본을 따로 만들지 않는다.
 
-전역 architecture map 이 stale 인지 확인하려면 활성 프로젝트 루트에서 plugin script 를 실행한다.
+index epic 표와 전역 architecture map 이 stale 인지 확인하려면 활성 프로젝트 루트에서 plugin script 를 실행한다.
 
 ```sh
+node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --check
 node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --check
 ```
 

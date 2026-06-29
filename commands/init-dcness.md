@@ -216,7 +216,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 
 ### 추천 bundle 산출 기준
 
-- GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml` 추천 ON.
+- GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml` 추천 ON.
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
 - 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
@@ -231,7 +231,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 
 ```
 [dcness] 추천 적용 예정:
- - CI: git-naming + pr-body + doc-path-integrity 설치
+ - CI: git-naming + pr-body + doc-path-integrity + doc-sync 설치
  - docs: index.md + prd.md + conventions.md + decisions/ 시드 또는 index.md 진행 상태 섹션 보강
  - docs: root architecture.md 감지로 docs/architecture.md skip
  - design kit: skip
@@ -258,21 +258,19 @@ record_dcness_workflow_change() {
 
 mkdir -p "$PROJECT_ROOT/.github/workflows"
 
-cp "$PLUGIN_ROOT/templates/github-workflows/git-naming-validation.yml" "$PROJECT_ROOT/.github/workflows/git-naming-validation.yml"
-record_dcness_workflow_change ".github/workflows/git-naming-validation.yml"
-
-cp "$PLUGIN_ROOT/templates/github-workflows/pr-body-validation.yml" "$PROJECT_ROOT/.github/workflows/pr-body-validation.yml"
-record_dcness_workflow_change ".github/workflows/pr-body-validation.yml"
-
-cp "$PLUGIN_ROOT/templates/github-workflows/doc-path-integrity.yml" "$PROJECT_ROOT/.github/workflows/doc-path-integrity.yml"
-record_dcness_workflow_change ".github/workflows/doc-path-integrity.yml"
+cp "$PLUGIN_ROOT/templates/github-workflows/git-naming-validation.yml" "$PROJECT_ROOT/.github/workflows/git-naming-validation.yml"; record_dcness_workflow_change ".github/workflows/git-naming-validation.yml"
+cp "$PLUGIN_ROOT/templates/github-workflows/pr-body-validation.yml" "$PROJECT_ROOT/.github/workflows/pr-body-validation.yml"; record_dcness_workflow_change ".github/workflows/pr-body-validation.yml"
+cp "$PLUGIN_ROOT/templates/github-workflows/doc-path-integrity.yml" "$PROJECT_ROOT/.github/workflows/doc-path-integrity.yml"; record_dcness_workflow_change ".github/workflows/doc-path-integrity.yml"
+cp "$PLUGIN_ROOT/templates/github-workflows/doc-sync.yml" "$PROJECT_ROOT/.github/workflows/doc-sync.yml"; record_dcness_workflow_change ".github/workflows/doc-sync.yml"
 ```
 
 `record_dcness_workflow_change` 는 실제 overwritten 된 workflow 에만 호출한다. skip 된 workflow 나 기존 dirty workflow 파일은 기록하지 않는다.
 
+기존 epic 이 있는 프로젝트가 `doc-sync.yml` 을 새로 받으면 첫 PR 전에 현재 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 와 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 를 1회 실행해 파생 섹션을 재생성한다. stale 상태면 새 게이트가 의도대로 실패한다.
+
 #### project docs seed
 
-시드 양식은 `/spec`·system-architect 가 실제로 산출하는 authoring 템플릿을 *단일 원본* 으로 쓴다 (별도 시드 전용 복제본 없음 — 시드와 산출 양식이 같다). 산출물 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md). 전역 `docs/architecture.md` 의 집계 섹션은 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 epic architecture 표에서 재생성한다.
+시드 양식은 `/spec`·system-architect 가 실제로 산출하는 authoring 템플릿을 *단일 원본* 으로 쓴다 (별도 시드 전용 복제본 없음 — 시드와 산출 양식이 같다). 산출물 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md). `docs/index.md` 의 epic 표는 `$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 가 epic 디렉토리에서 재생성하고, 전역 `docs/architecture.md` 의 집계 섹션은 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 epic architecture 표에서 재생성한다.
 
 ```bash
 mkdir -p "$PROJECT_ROOT/docs" "$PROJECT_ROOT/docs/decisions"
@@ -387,6 +385,7 @@ $(for f in $CHANGES; do
     *git-naming-validation.yml) echo "- \`git-naming-validation\`" ;;
     *pr-body-validation.yml) echo "- \`pr-body-validation\`" ;;
     *doc-path-integrity.yml) echo "- \`doc-path-integrity\`" ;;
+    *doc-sync.yml) echo "- \`doc-sync\`" ;;
     *github-project-lifecycle.yml) echo "- \`github-project-lifecycle\`" ;;
   esac
 done)
@@ -402,7 +401,7 @@ fi
 
 custom 은 기존 세부 기능을 유지하되 이미 결정 가능한 항목은 질문하지 않는다.
 
-- CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `github-project-lifecycle.yml` 을 각각 선택할 수 있다.
+- CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `github-project-lifecycle.yml` 을 각각 선택할 수 있다.
 - docs seed: 이미 존재하는 파일은 묻지 않는다. 단 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 append 보강한다. 루트 `architecture.md` 가 있으면 `docs/architecture.md` 생성 질문을 생략하고 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - design seed: UI 프로젝트 여부가 불명확할 때만 묻는다. `docs/design.md` 는 부재 시 [`docs/plugin/design.md`](../docs/plugin/design.md) 기준 minimal template 생성 여부를 선택한다. `design-variants/` 는 사용자가 명시 선택한 경우에만 설치한다.
 - Codex validation routing: 현재 enabled 면 묻지 않는다. disabled/미설정이면 enable/disable 중 하나를 명시 선택한다.

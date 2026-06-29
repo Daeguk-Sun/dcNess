@@ -285,6 +285,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             {
                 "git-naming-validation.yml",
                 "doc-path-integrity.yml",
+                "doc-sync.yml",
                 "github-project-lifecycle.yml",
                 "pr-body-validation.yml",
             },
@@ -405,8 +406,12 @@ class SurfaceDocsSyncTests(unittest.TestCase):
     def test_issue_811_architecture_map_aggregation_contract_is_documented(self) -> None:
         """#811 — root architecture map is generated from epic architecture tables."""
         script = (ROOT / "scripts" / "aggregate_architecture_map.mjs")
+        index_script = ROOT / "scripts" / "aggregate_index_map.mjs"
         root_template = (
             ROOT / "agents" / "system-architect" / "templates" / "root-architecture.md"
+        ).read_text(encoding="utf-8")
+        index_template = (
+            ROOT / "skills" / "spec" / "templates" / "index.md"
         ).read_text(encoding="utf-8")
         epic_template = (
             ROOT / "agents" / "system-architect" / "templates" / "epic-architecture.md"
@@ -416,12 +421,18 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertTrue(script.exists())
+        self.assertTrue(index_script.exists())
         self.assertIn("## 공유 계약 인덱스", root_template)
+        self.assertIn("dcness-index-map:generated", index_template)
         self.assertIn("scripts/aggregate_architecture_map.mjs", epic_template)
         self.assertIn("| 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |", epic_template)
         self.assertIn("| contract | owner | producer | consumer | invariant |", epic_template)
+        self.assertIn("scripts/aggregate_index_map.mjs", self.init_doc)
+        self.assertIn("scripts/aggregate_index_map.mjs", self.init_reference)
+        self.assertIn("scripts/aggregate_index_map.mjs", self.spec_skill)
         self.assertIn("scripts/aggregate_architecture_map.mjs", self.init_doc)
         self.assertIn("scripts/aggregate_architecture_map.mjs", self.init_reference)
+        self.assertIn("scripts/aggregate_index_map.mjs", system_architect)
         self.assertIn("scripts/aggregate_architecture_map.mjs", system_architect)
         self.assertIn("aggregate_architecture_map.mjs", self.architecture_validator)
 
@@ -524,6 +535,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "git-naming-validation.yml",
             "pr-body-validation.yml",
             "doc-path-integrity.yml",
+            "doc-sync.yml",
             "github-project-lifecycle.yml",
         ):
             self.assertIn(workflow, self.init_reference)

@@ -311,6 +311,7 @@ function generatedSection(heading, body) {
     '<!-- 수정하지 말고 plugin script `aggregate_architecture_map.mjs` 로 갱신한다. -->',
     body,
     '',
+    '',
   ].join('\n');
 }
 
@@ -339,9 +340,8 @@ function baseRootArchitecture(rootArchitecturePath) {
   return '# 전역 아키텍처 지도\n';
 }
 
-function nextRootArchitecture(root) {
+function nextRootArchitecture(root, epics = collectEpics(root)) {
   const rootArchitecturePath = join(root, 'docs', 'architecture.md');
-  const epics = collectEpics(root);
   const sections = buildSections(rootArchitecturePath, epics);
   let content = baseRootArchitecture(rootArchitecturePath);
 
@@ -360,7 +360,17 @@ function nextRootArchitecture(root) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const next = nextRootArchitecture(args.root);
+  const rootArchitecturePath = join(args.root, 'docs', 'architecture.md');
+  const epics = collectEpics(args.root);
+  if (!existsSync(rootArchitecturePath) || epics.length === 0) {
+    const reason = !existsSync(rootArchitecturePath)
+      ? 'docs/architecture.md missing'
+      : 'no valid docs/epics/*/architecture.md files';
+    console.log(`[architecture-map] no-op PASS — ${reason}`);
+    return;
+  }
+
+  const next = nextRootArchitecture(args.root, epics);
   const current = existsSync(next.path) ? readFileSync(next.path, 'utf8') : null;
 
   if (args.check) {

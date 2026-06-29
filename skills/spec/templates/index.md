@@ -16,9 +16,11 @@
 
 ## 에픽
 
+<!-- dcness-index-map:generated -->
+<!-- 수정하지 말고 plugin script `aggregate_index_map.mjs` 로 갱신한다. -->
 | 에픽 | 마일스톤 | Stories | Architecture | Domain Model | UX Flow | Tech Review |
 |---|---|---|---|---|---|---|
-|  |  |  |  |  |  |  |
+| — | — | — | — | — | — | — |
 
 ## 진행 상태 · 다음 작업
 

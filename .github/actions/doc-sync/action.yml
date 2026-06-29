@@ -1,0 +1,21 @@
+name: 'dcness doc-sync validation'
+description: 'Validate generated docs/index.md epic table and docs/architecture.md map freshness.'
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '20'
+
+    - name: Validate docs/index.md epic table
+      shell: bash
+      run: |
+        set -euo pipefail
+        node "${{ github.action_path }}/../../../scripts/aggregate_index_map.mjs" --check
+
+    - name: Validate docs/architecture.md generated map
+      shell: bash
+      run: |
+        set -euo pipefail
+        node "${{ github.action_path }}/../../../scripts/aggregate_architecture_map.mjs" --check

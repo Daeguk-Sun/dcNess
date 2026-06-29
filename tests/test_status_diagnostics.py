@@ -214,6 +214,7 @@ class CiWorkflowTests(unittest.TestCase):
             self.assertTrue(result["git-naming-validation.yml"])
             self.assertFalse(result["pr-body-validation.yml"])
             self.assertFalse(result["doc-path-integrity.yml"])
+            self.assertFalse(result["doc-sync.yml"])
             self.assertFalse(result["github-project-lifecycle.yml"])
 
 

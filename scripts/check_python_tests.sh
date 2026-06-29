@@ -4,7 +4,7 @@
 #
 # 동작:
 #   1. staged 파일 목록 추출 (git diff --cached --name-only)
-#   2. harness/ | tests/ | agents/ | skills/ | commands/ | templates/github-workflows/ | doc-path action/script | .github/workflows/python-tests.yml 매칭 시만 실행
+#   2. harness/ | tests/ | agents/ | skills/ | commands/ | templates/github-workflows/ | doc-path/doc-sync action/script | .github/workflows/python-tests.yml 매칭 시만 실행
 #   3. python3.11/python3 -m unittest discover -s tests
 #
 # 종료 코드:
@@ -26,7 +26,7 @@ if [ -z "$CHANGED" ]; then
   exit 0
 fi
 
-if ! printf '%s\n' "$CHANGED" | grep -qE '^(harness/|tests/|agents/|skills/|commands/|templates/github-workflows/|evals/|\.github/actions/doc-path-integrity/|scripts/check_git_naming\.mjs$|scripts/check_doc_path_integrity\.mjs$|docs/plugin/git-spec\.md$|docs/plugin/loop-procedure\.md$|\.github/workflows/python-tests\.yml$)'; then
+if ! printf '%s\n' "$CHANGED" | grep -qE '^(harness/|tests/|agents/|skills/|commands/|templates/github-workflows/|evals/|\.github/actions/(doc-path-integrity|doc-sync)/|scripts/check_git_naming\.mjs$|scripts/check_doc_path_integrity\.mjs$|scripts/aggregate_(index|architecture)_map\.mjs$|docs/plugin/git-spec\.md$|docs/plugin/loop-procedure\.md$|\.github/workflows/python-tests\.yml$)'; then
   # 미매칭 — skip
   exit 0
 fi

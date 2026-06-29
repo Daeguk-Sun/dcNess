@@ -169,7 +169,7 @@ escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/
 | 결정론 | **자유서술 방식** — agent 가 prose 자유 emit, 메인 Claude 가 prose 를 직접 읽고 분기 판단. 기계 enum 추출·메타 LLM 호출 0 |
 | 형식 강제 | **0** — 형식/flag/schema 모두 agent 자율. harness 강제 = 작업 순서 + 접근 영역만 |
 | 컨텍스트 layer | 2 layer (CLAUDE.md + agents) |
-| 게이트 | 거버넌스 + 8 CI workflow (cross-ref / git-naming / plugin-manifest / pr-body / public-surface / python-tests / static-quality / release-sync) |
+| 게이트 | 거버넌스 + 9 CI workflow (cross-ref / doc-sync / git-naming / plugin-manifest / pr-body / public-surface / python-tests / static-quality / release-sync) |
 | Codex 분기 | local provider 분기 — validation 3종은 Codex read-only opt-in, implementation 3종은 Codex-first 기본 + Claude-only 변경 가능 |
 
 ## 공개 진입점
@@ -197,7 +197,7 @@ escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/
 
 본 저장소의 모든 변경은 [`CLAUDE.md`](CLAUDE.md)(SSOT) 를 따른다.
 
-- **게이트**: main-block · git-naming · pytest(pre-commit hook) + plugin-manifest · pr-body · public-surface · cross-ref · static-quality(CI)
+- **게이트**: main-block · git-naming · pytest(pre-commit hook) + plugin-manifest · pr-body · public-surface · cross-ref · doc-sync · static-quality(CI)
 - **branch → PR → merge** 필수, main 직접 push 금지
 - PR 절차: [`CLAUDE.md`](CLAUDE.md#커밋-pr-절차)
 

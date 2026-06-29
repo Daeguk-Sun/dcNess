@@ -33,6 +33,7 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
     def test_generates_root_map_from_epic_architecture_tables(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
+            _write(project / "docs/architecture.md", "# 전역 아키텍처 지도\n")
             _write(project / "docs/epics/epic-01-alpha/domain-model.md", "# Domain\n")
             _write(
                 project / "docs/epics/epic-01-alpha/architecture.md",
@@ -85,6 +86,7 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
     def test_check_fails_when_root_map_is_stale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
+            _write(project / "docs/architecture.md", "# 전역 아키텍처 지도\n")
             _write(
                 project / "docs/epics/epic-01-alpha/architecture.md",
                 """
@@ -152,6 +154,29 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             self.assertIn("수동 데이터 흐름.", root_map)
             self.assertIn("| AuthCore | login orchestration | - | `authenticate()` |", root_map)
             self.assertNotIn("old content", root_map)
+
+    def test_no_epic_architecture_or_missing_root_map_is_noop_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(project / "docs/architecture.md", "# 전역 아키텍처 지도\n\nmanual\n")
+
+            check = _run(project, "--check")
+            self.assertEqual(check.returncode, 0, check.stderr)
+            self.assertIn("no-op", check.stdout)
+            self.assertEqual(
+                (project / "docs/architecture.md").read_text(encoding="utf-8"),
+                "# 전역 아키텍처 지도\n\nmanual\n",
+            )
+
+            missing_root_map = project / "missing-root-map"
+            missing_root_map.mkdir()
+            _write(
+                missing_root_map / "docs/epics/epic-01-alpha/architecture.md",
+                "# Epic Architecture\n",
+            )
+            missing_check = _run(missing_root_map, "--check")
+            self.assertEqual(missing_check.returncode, 0, missing_check.stderr)
+            self.assertIn("no-op", missing_check.stdout)
 
 
 if __name__ == "__main__":

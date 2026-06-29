@@ -3161,6 +3161,7 @@ _CI_WORKFLOWS = (
     "git-naming-validation.yml",
     "pr-body-validation.yml",
     "doc-path-integrity.yml",
+    "doc-sync.yml",
     "github-project-lifecycle.yml",
 )
 _CODEX_VALIDATOR_SKILLS = (
