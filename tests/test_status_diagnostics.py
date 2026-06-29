@@ -213,6 +213,8 @@ class CiWorkflowTests(unittest.TestCase):
             result = _check_ci_workflows(root)
             self.assertTrue(result["git-naming-validation.yml"])
             self.assertFalse(result["pr-body-validation.yml"])
+            self.assertFalse(result["doc-path-integrity.yml"])
+            self.assertFalse(result["github-project-lifecycle.yml"])
 
 
 class CodexValidatorSkillsTests(unittest.TestCase):

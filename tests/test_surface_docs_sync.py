@@ -284,6 +284,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertEqual(
             {
                 "git-naming-validation.yml",
+                "doc-path-integrity.yml",
                 "github-project-lifecycle.yml",
                 "pr-body-validation.yml",
             },
@@ -522,6 +523,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         for workflow in (
             "git-naming-validation.yml",
             "pr-body-validation.yml",
+            "doc-path-integrity.yml",
             "github-project-lifecycle.yml",
         ):
             self.assertIn(workflow, self.init_reference)

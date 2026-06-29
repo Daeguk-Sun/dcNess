@@ -3160,6 +3160,7 @@ _SHIM_MARKERS = ("plugins/cache/dcness", "CLAUDE_PLUGIN_ROOT")
 _CI_WORKFLOWS = (
     "git-naming-validation.yml",
     "pr-body-validation.yml",
+    "doc-path-integrity.yml",
     "github-project-lifecycle.yml",
 )
 _CODEX_VALIDATOR_SKILLS = (

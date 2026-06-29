@@ -1,0 +1,26 @@
+name: 'dcness doc-path integrity validation'
+description: 'Validate context/SSOT docs do not reference missing repo-relative paths.'
+inputs:
+  docs:
+    description: 'Comma or newline separated docs/globs to scan. Defaults to active-project context docs.'
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+      with:
+        node-version: '20'
+
+    - name: Validate doc path references
+      shell: bash
+      env:
+        INPUT_DOCS: ${{ inputs.docs }}
+      run: |
+        set -euo pipefail
+        ARGS=()
+        if [ -n "$INPUT_DOCS" ]; then
+          ARGS+=(--docs "$INPUT_DOCS")
+        fi
+        node "${{ github.action_path }}/../../../scripts/check_doc_path_integrity.mjs" "${ARGS[@]}"
