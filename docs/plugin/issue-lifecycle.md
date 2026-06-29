@@ -80,7 +80,7 @@ node scripts/github_project_lifecycle.mjs next \
   --project PROJECT_NUMBER
 ```
 
-Project 좌표가 저장되지 않은 환경에서는 크래시하지 않고 `/init-dcness` bootstrap 으로 보드 좌표를 저장하라는 안내를 출력한 뒤 정상 종료한다. `docs/index.md` 는 live 상태를 복제하지 않고 GitHub Project 보드, epic/story issue, `/next` 를 가리키는 정적 포인터만 둔다.
+Project 좌표가 저장되지 않은 환경에서는 크래시하지 않고 `/init-dcness` bootstrap 으로 보드 좌표를 저장하라는 안내를 출력한 뒤 정상 종료한다. `docs/index.md` 는 live 상태를 복제하지 않고 GitHub Project 보드, epic/story issue, `/next` 를 가리키는 정적 포인터만 둔다. 기존 `docs/index.md` 에 해당 포인터 섹션이 없으면 `/init-dcness` 가 파일을 덮지 않고 섹션만 append 한다.
 
 ### 작업 시작 — Status=In progress
 

@@ -174,6 +174,8 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("tdd-guard", ctx)
         self.assertIn("stop-end-run", ctx)
         self.assertIn("docs/index.md", ctx)
+        self.assertIn("docs/index.md` 가 없으므로", ctx)
+        self.assertNotIn("의 `## 진행 상태 · 다음 작업` 포인터", ctx)
         self.assertIn("/next", ctx)
 
         # 제거: 문서 진입 매트릭스 / docs preload 지시 / soft 필수·안티패턴 본문
@@ -191,6 +193,43 @@ class BashPipelineSmokeTests(unittest.TestCase):
                 forbidden, ctx,
                 f"slim inject 에 '{forbidden}' 잔존 — 문서 선독 지시 회귀 (#596)",
             )
+
+    def test_session_start_uses_index_pointer_when_section_exists(self) -> None:
+        docs = self.cwd / "docs"
+        docs.mkdir()
+        (docs / "index.md").write_text(
+            "# 프로젝트 문서 인덱스\n\n## 진행 상태 · 다음 작업\n",
+            encoding="utf-8",
+        )
+
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-index-section"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+        self.assertIn("docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터", ctx)
+        self.assertIn("/next", ctx)
+        self.assertNotIn("섹션이 없으므로", ctx)
+
+    def test_session_start_falls_back_when_index_section_missing(self) -> None:
+        docs = self.cwd / "docs"
+        docs.mkdir()
+        (docs / "index.md").write_text("# 기존 인덱스\n", encoding="utf-8")
+
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-index-no-section"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+        self.assertIn("현재 `docs/index.md` 에 `## 진행 상태 · 다음 작업` 섹션이 없으므로", ctx)
+        self.assertIn("/init-dcness` 재실행으로 섹션을 보강", ctx)
+        self.assertNotIn("docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터", ctx)
 
     def test_invalid_sid_silent_no_artifacts(self) -> None:
         result = _run_bash_hook(

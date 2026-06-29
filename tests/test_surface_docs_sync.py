@@ -540,6 +540,15 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertNotIn(f"name: {workflow_name}", self.init_doc)
             self.assertNotIn(f"name: {workflow_name}", self.init_reference)
 
+    def test_issue_825_init_backfills_existing_index_next_section(self) -> None:
+        """#825 follow-up — existing docs/index.md gets the next-work section without overwrite."""
+        helper = "scripts/ensure_docs_index_next_section.mjs"
+        self.assertTrue((ROOT / helper).exists())
+        self.assertIn(helper, self.init_doc)
+        self.assertIn(helper, self.init_reference)
+        self.assertIn("진행 상태 섹션", self.init_doc)
+        self.assertIn("진행 상태 섹션", self.init_reference)
+
     def test_init_dcness_completion_precedes_optional_bundle(self) -> None:
         """#799 — core 활성화 완료를 먼저 선언하고 선택형 확장은 bundle 1질문으로 둔다."""
         for needle in (

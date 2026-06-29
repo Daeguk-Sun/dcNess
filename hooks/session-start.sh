@@ -67,6 +67,19 @@ if [[ -n "$INSTALLED_VERSION" && "$INSTALLED_VERSION" != "null" ]]; then
 fi
 export DCNESS_UPDATE_MSG
 
+PROJECT_ROOT_FOR_DOCS=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+DOCS_INDEX="$PROJECT_ROOT_FOR_DOCS/docs/index.md"
+if [[ -f "$DOCS_INDEX" ]]; then
+  if grep -Eq '^## 진행 상태 · 다음 작업[[:space:]]*$' "$DOCS_INDEX" 2>/dev/null; then
+    DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터를 확인하고, live 보드 상태는 `/next` 로 조회한다.'
+  else
+    DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 현재 `docs/index.md` 에 `## 진행 상태 · 다음 작업` 섹션이 없으므로 live 보드 상태는 `/next` 로 조회한다. 필요하면 `/init-dcness` 재실행으로 섹션을 보강한다.'
+  fi
+else
+  DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 `docs/index.md` 가 없으므로 live 보드 상태는 `/next` 로 조회한다. 필요하면 `/init-dcness` 로 project docs seed 를 설치한다.'
+fi
+export DCNESS_NEXT_POINTER_MSG
+
 # 슬림 inject (#596) — SessionStart 는 *초기화 + 최소 활성 안내* 만 담당.
 # 문서 진입 매트릭스 / 안티패턴 / soft 필수 / cost-aware 항목은 제거: 하네스 모델은
 # "문서 선독 기반 compliance" 가 아니라 "hook 이 차단하고 그 자리에서 복구". 절차·분기는
@@ -74,8 +87,9 @@ export DCNESS_UPDATE_MSG
 python3 -c "
 import json, os
 update_msg = os.environ.get('DCNESS_UPDATE_MSG', '').strip()
+next_pointer_msg = os.environ.get('DCNESS_NEXT_POINTER_MSG', '').strip()
 header = (update_msg + '\n\n---\n\n') if update_msg else ''
-msg = header + '''## [dcness 활성 환경]
+msg = header + f'''## [dcness 활성 환경]
 
 첫 응답 첫 줄에 \`[dcness 활성 확인]\` 토큰 출력 (활성 신호 — 부재 시 사용자가 룰 미적용을 즉시 인지).
 
@@ -85,7 +99,7 @@ msg = header + '''## [dcness 활성 환경]
 - 테스트 선행 (구현 전 테스트 먼저): tdd-guard
 - run 종료 자동화: stop-end-run
 
-프로젝트 상태나 다음 작업을 물으면 \`docs/index.md\` 의 \`## 진행 상태 · 다음 작업\` 포인터를 확인하고, live 보드 상태는 \`/next\` 로 조회한다.
+{next_pointer_msg}
 
 hook 이 차단할 때만 그 메시지가 가리키는 doc/path 를 읽어 복구한다. SessionStart 에서 dcness 문서를 미리 통독하지 말 것 — 절차·분기는 skill 진입 시 해당 skill 이 안내한다.
 '''
