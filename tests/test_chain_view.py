@@ -92,12 +92,12 @@ class TestSubsteps(unittest.TestCase):
         self.assertEqual(normalize_engine("  Build-Worker "), "build-worker")
 
     def test_ui_loop_substeps(self):
-        # impl-ui-design-loop — canvas-design + 사용자 PICK 선두 + full-4.
+        # impl-ui-design-loop — canvas-design 선두 + full-4.
+        # 사용자 PICK 은 draft 생성 시 canvas-design 내부 조건부 절차다.
         self.assertEqual(
             substeps_for(_task("m", "ui")),
             [
                 "canvas-design",
-                "사용자 PICK",
                 "test-engineer",
                 "engineer:IMPL",
                 "code-validator",
@@ -111,7 +111,6 @@ class TestSubsteps(unittest.TestCase):
             substeps_for(_task("m", "ui-build-worker")),
             [
                 "canvas-design",
-                "사용자 PICK",
                 "build-worker",
                 "pr-reviewer",
             ],
@@ -124,7 +123,6 @@ class TestSubsteps(unittest.TestCase):
             [
                 "module-architect",
                 "canvas-design",
-                "사용자 PICK",
                 "test-engineer",
                 "engineer:IMPL",
                 "code-validator",
@@ -480,7 +478,7 @@ class TestBuildChainViewAndParse(unittest.TestCase):
         tasks = parse_tasks([{"name": "screen", "engine": "impl-ui-design-loop"}])
         self.assertEqual(tasks[0].engine, "ui")
         self.assertIn("canvas-design", substeps_for(tasks[0]))
-        self.assertIn("사용자 PICK", substeps_for(tasks[0]))
+        self.assertNotIn("사용자 PICK", substeps_for(tasks[0]))
 
     def test_parse_substeps_override_without_engine(self):
         tasks = parse_tasks(
@@ -506,7 +504,7 @@ class TestBuildChainViewAndParse(unittest.TestCase):
         )
         payload = build_chain_view(tasks, current=1, prev=0)
         self.assertIn("   ㄴ canvas-design", payload["view"])
-        self.assertIn("   ㄴ 사용자 PICK", payload["view"])
+        self.assertNotIn("   ㄴ 사용자 PICK", payload["view"])
         self.assertIn("canvas-design", payload["current_substeps"])
 
 

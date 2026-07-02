@@ -52,7 +52,7 @@ __all__ = [
 # ── 엔진별 base sub-step (SKILL line 435 + impl-ui-design-loop 진본) ──
 #
 # impl-task-loop 엔진(build-worker/deep/full-4/advanced)은 SKILL line 435,
-# impl-ui-design-loop(UI 감지 → canvas-design + 사용자 PICK 선두)는 SKILL line 16-18
+# impl-ui-design-loop(UI 감지 → canvas-design 선두)는 SKILL line 16-18
 # `expected_steps` 가 진본. 모두 그대로 옮긴다(새 라벨 발명 X). 여기에 없는
 # 변종은 task 입력의 `substeps` 명시 override 로 표현한다([`substeps_for`]).
 ENGINE_SUBSTEPS: Dict[str, List[str]] = {
@@ -66,27 +66,26 @@ ENGINE_SUBSTEPS: Dict[str, List[str]] = {
         "code-validator",
         "pr-reviewer",
     ],
-    # impl-ui-design-loop (UI + full-4, 선두 canvas-design + 사용자 PICK) — 6 step.
+    # impl-ui-design-loop (UI + full-4, 선두 canvas-design) — 5 step.
+    # 사용자 PICK 은 canvas-design 내부 조건부 절차다. 기존 확정본/목업 없이 분기에는
+    # draft 가 없으므로 독립 sub-step 으로 세지 않는다.
     "ui": [
         "canvas-design",
-        "사용자 PICK",
         "test-engineer",
         "engineer:IMPL",
         "code-validator",
         "pr-reviewer",
     ],
-    # UI + build-worker, engine 무관 canvas-design 선두 — 4 step.
+    # UI + build-worker, engine 무관 canvas-design 선두 — 3 step.
     "ui-build-worker": [
         "canvas-design",
-        "사용자 PICK",
         "build-worker",
         "pr-reviewer",
     ],
-    # UI + deep task 보강 (canvas-design 앞 module-architect) — 7 step.
+    # UI + deep task 보강 (canvas-design 앞 module-architect) — 6 step.
     "ui-advanced": [
         "module-architect",
         "canvas-design",
-        "사용자 PICK",
         "test-engineer",
         "engineer:IMPL",
         "code-validator",
