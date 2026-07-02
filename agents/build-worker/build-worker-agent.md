@@ -15,7 +15,7 @@
 ## 먼저 읽을 문서
 
 - 필수: impl 계획 파일
-- 필수: epic `domain-model.md`와 architecture
+- 필수: epic architecture와 대상 impl 문서. `domain-model.md` 는 산출물이 있을 때 읽는다.
 - 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
 - 상황별: 기존 테스트 설정, design 문서, 의존 모듈 source
 

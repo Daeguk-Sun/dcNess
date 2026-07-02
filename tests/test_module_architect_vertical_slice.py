@@ -88,8 +88,8 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             "제품 동작 슬라이스",
             "Story 완료 시 실제로 검증되는 동작",
             "섹션명만 보지 말고",
-            "cross-story 통합 검증에서는 Story별 첫 제품 경계 동작 증거",
-            "공통/Story 단위 검증이면 대상 impl 문서의 제품 동작 수직 슬라이스 증거",
+            "final epic 검증에서는 Story별 첫 제품 경계 동작 증거",
+            "final epic 검증이면 대상 impl 문서의 제품 동작 수직 슬라이스 증거",
             "첫 동작 증거 지점",
             "레이어별 부품 task",
             "마지막 task까지 첫 제품 동작이 밀린 상태",
@@ -101,7 +101,7 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
         self.assertIn("## Story 동작 수직 슬라이스 검토", self.arch_validator_template)
         self.assertIn("마지막 task까지 동작이 밀리는 분할 여부", self.arch_validator_template)
         self.assertIn("## 제품 동작 슬라이스", self.arch_validator_examples)
-        self.assertIn("cross-story 통합 검증", self.arch_validator_examples)
+        self.assertIn("final epic 검증", self.arch_validator_examples)
 
     def test_codex_architecture_validator_checks_same_vertical_slice_axis(
         self,
@@ -111,7 +111,7 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             "Story 완료 시 실제로 검증되는 동작",
             "제품 경계(UI/API/CLI/worker entrypoint/통합 wiring)",
             "섹션명만 보지 말고",
-            "cross-story 통합 검증에서는 Story별 첫 제품 경계 동작 증거",
+            "final epic 검증에서는 Story별 첫 제품 경계 동작 증거",
             "마지막 task까지 첫 제품 동작이 밀린 상태",
             "`TASK_LOCAL`",
         ):

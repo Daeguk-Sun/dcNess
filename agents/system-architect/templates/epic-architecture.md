@@ -9,7 +9,7 @@
   - `docs/conventions.md`
   - `docs/decisions/`
   - `docs/epics/<epic>/stories.md`
-  - `docs/epics/<epic>/domain-model.md`
+  - `docs/epics/<epic>/domain-model.md` (있으면)
 - 읽을 코드:
   -
 
