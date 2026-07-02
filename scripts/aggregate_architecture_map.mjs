@@ -226,6 +226,13 @@ function collectEpics(root) {
 }
 
 function table(header, rows) {
+  const mismatchedRow = rows.find((row) => row.length !== header.length);
+  if (mismatchedRow) {
+    throw new Error(
+      `table row width mismatch: header has ${header.length} cells but row has ${mismatchedRow.length} cells`
+    );
+  }
+
   const lines = [
     `| ${header.join(' | ')} |`,
     `| ${header.map(() => '---').join(' | ')} |`,
@@ -240,7 +247,8 @@ function placeholderRow(width) {
 
 function buildSections(rootArchitecturePath, epics) {
   const epicMapRows = epics.map((epic) => [
-    mdLink(epic.name, rootArchitecturePath, epic.architecturePath),
+    mdLink(epic.name, rootArchitecturePath, dirname(epic.architecturePath)),
+    mdLink('architecture.md', rootArchitecturePath, epic.architecturePath),
     existsSync(epic.domainModelPath)
       ? mdLink('domain-model.md', rootArchitecturePath, epic.domainModelPath)
       : '-',
