@@ -12,7 +12,7 @@ engineer 구현 전에 impl 문서의 수용 기준을 테스트로 고정한다
 ## 먼저 읽을 문서
 
 - 필수: impl 계획 파일
-- 필수: epic `domain-model.md`와 architecture
+- 필수: epic architecture와 대상 impl 문서. `domain-model.md` 는 산출물이 있을 때 읽는다.
 - 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
 - 상황별: test setup 문서나 vite/vitest 설정 파일
 
@@ -29,7 +29,7 @@ engineer 구현 전에 impl 문서의 수용 기준을 테스트로 고정한다
 
 1. impl 계획에서 테스트 파일 경로와 검증 대상 REQ를 확인한다.
 2. 대상 경로가 없거나 인터페이스가 모호하면 `SPEC_GAP_FOUND`로 멈춘다.
-3. domain-model과 architecture에서 의존 경계를 읽는다.
+3. `domain-model.md` 가 있으면 domain-model과 architecture에서 의존 경계를 읽는다. 없으면 epic architecture, Contract Ledger, 대상 impl 문서의 contract references로 의존 경계를 판단하고 파일 부재만으로 `SPEC_GAP_FOUND` 하지 않는다.
 4. 각 `(TEST)` 수용 기준을 최소 하나의 테스트로 고정한다.
 5. 구현 코드는 읽지 않는다.
 6. 보고에는 케이스 수, 유형 분포, gap 여부를 남긴다.

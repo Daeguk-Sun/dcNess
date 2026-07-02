@@ -14,7 +14,7 @@ PRD 작성과 필요한 tech-review preflight 완료 후 메인이 epic 단위 `
 
 ## Story 크기 가이드
 
-module-architect 한 호출은 한 Story 단위이고, 보통 N개 impl 파일을 산출한다.
+module-architect 의 `/design` epic-batch 호출은 전체 Story 를 한 컨텍스트에서 읽고, 각 Story 를 구현 가능한 impl 파일 묶음으로 산출한다.
 
 - Story 1개당 예상 task 는 5개 이하 권장
 - 큰 Story 는 결제 / 환불 / 정산처럼 분할 권고
