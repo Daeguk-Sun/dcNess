@@ -19,6 +19,14 @@
 - 생략 판단 근거 (생략 시 필수):
 - 작성 필요 신호 (invariant / entity / value object / aggregate / domain service):
 
+## 계약 표면 코드 SSOT 대조
+
+- 확인한 기존 포트:
+- 확인한 기존 도메인 타입:
+- 확인한 기존 공개 entrypoint:
+- 설계와 기존 코드 계약 충돌 여부:
+- 충돌 시 결정 근거 / Contract Ledger 반영:
+
 ## 전역 map 반영
 
 - `docs/architecture.md` append 필요 여부:

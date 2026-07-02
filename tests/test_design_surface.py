@@ -160,6 +160,10 @@ class DesignSurfaceContractTests(unittest.TestCase):
 
         self.assertIn("## Domain Model Decision", system_template)
         self.assertIn("생략 판단 근거 (생략 시 필수)", system_template)
+        self.assertIn("## 계약 표면 코드 SSOT 대조", system_template)
+        self.assertIn("확인한 기존 포트", system_template)
+        self.assertIn("확인한 기존 도메인 타입", system_template)
+        self.assertIn("확인한 기존 공개 entrypoint", system_template)
 
         self.assertIn(
             "`domain-model.md` 가 있으면 함께 읽고, 없으면 epic `architecture.md` 의 생략 판단 근거",
