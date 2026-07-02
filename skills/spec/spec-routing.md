@@ -83,7 +83,7 @@ escalate 계열 수신 시 **메인이 즉시 사용자 보고 후 대기** (자
 
 - 버그 수정 / 한 줄 수정 → `/impl`
 - GitHub issue 초안/등록 → `/to-issue`
-- 디자인만 → designer 직접 (`docs/design-variants/drafts/*.html` static HTML draft)
+- 디자인만 → `docs/design-variants/` seed 보장 후 designer 직접 (`docs/design-variants/drafts/*.html` static HTML draft)
 - 이미 PRD/stories.md 머지 완료 → PRD 의 **기술 검토 필요 영역**과 `docs/tech-review.md` 존재 여부를 먼저 확인. 미검증 검토 항목이 남았으면 `/design` 으로 가지 말고 `/spec` 재진입 또는 `/tech-review` preflight 로 회수한다.
 
 ## 후속 (skill 종료 후)

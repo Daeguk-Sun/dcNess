@@ -47,12 +47,13 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 2. **Step 2 — ux-architect:UX_FLOW** (5 카테고리 self-check 의무) → `UX_FLOW_READY`. 산출 = `docs/epics/epic-NN-<slug>/ux-flow.md` (+ 조건부 `docs/design.md` 시스템 토큰).
    - `UX_REFINE_READY` → UX_REFINE 모드로 전환 (아래 절차)
    - `UX_FLOW_ESCALATE` → 사용자 위임
-3. **Step 3 — designer** → `PASS` (static HTML draft 생성). 산출물은 single-file, no-build HTML 이며 `docs/design-variants/drafts/<screen-id>-draft<N>.html`, `data-node-id`, `:root` CSS custom property 토큰을 포함한다.
+3. **Step 2.5 — design-variants seed 보장** — `/init-dcness` 기본 경로는 UI seed 를 설치하지 않을 수 있으므로 designer 호출 전 메인이 `docs/design-variants/` kit 를 부재 시만 만든다. `templates/design-variants/.gitignore`, `templates/design-variants/canvas.html`, `templates/design-variants/_lib/show-ids.js`, `templates/design-variants/_lib/canvas.js` 를 각각 대응 경로로 복사하고 기존 파일은 덮어쓰지 않는다.
+4. **Step 3 — designer** → `PASS` (static HTML draft 생성). 산출물은 single-file, no-build HTML 이며 `docs/design-variants/drafts/<screen-id>-draft<N>.html`, `data-node-id`, `:root` CSS custom property 토큰을 포함한다.
    - `ESCALATE` → 사용자 위임
-4. **Step 3.5 — 사용자 PICK** (helper begin/end-step 비대상, 컨벤션 `user-pick-3.5`): 메인이 HTML draft 경로 (`docs/design-variants/drafts/<screen-id>-draft<N>.html`) + node-id 안내 + OK/NG. 구현 기준으로 쓰려면 후속 `/impl` 또는 `/impl-loop` 에서 내부 `canvas-design` 이 확정본으로 승격한다.
+5. **Step 3.5 — 사용자 PICK** (helper begin/end-step 비대상, 컨벤션 `user-pick-3.5`): 메인이 HTML draft 경로 (`docs/design-variants/drafts/<screen-id>-draft<N>.html`) + node-id 안내 + OK/NG. 구현 기준으로 쓰려면 후속 `/impl` 또는 `/impl-loop` 에서 내부 `canvas-design` 이 확정본으로 승격한다.
    - OK → **DESIGN_HANDOFF 패키지** (이슈 코멘트 + `docs/design.md` + 시안 파일) → 종료
    - NG → designer 재호출 (round 한도 X, sub_cycle `designer-ROUND-<n>`)
-5. **Step 종료** — `end-run`.
+6. **Step 종료** — `end-run`.
 
 ## 절차 — UX_REFINE (ux-refine-stage)
 

@@ -20,6 +20,10 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.impl_loop = (
             ROOT / "skills" / "impl-loop" / "SKILL.md"
         ).read_text(encoding="utf-8")
+        self.ux = (ROOT / "skills" / "ux" / "SKILL.md").read_text(encoding="utf-8")
+        self.spec_routing = (
+            ROOT / "skills" / "spec" / "spec-routing.md"
+        ).read_text(encoding="utf-8")
         self.designer = (
             ROOT / "agents" / "designer" / "designer-agent.md"
         ).read_text(encoding="utf-8")
@@ -172,10 +176,26 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
 
     def test_support_gates_treat_docs_design_variants_as_canonical_path(self) -> None:
         self.assertIn("'docs/design-variants/'", self.doc_path_integrity)
-        self.assertNotIn("'design-variants/'", self.doc_path_integrity)
+        self.assertIn("LEGACY_PATH_PREFIXES", self.doc_path_integrity)
+        self.assertIn("'design-variants/'", self.doc_path_integrity)
 
         self.assertIn("*/docs/design-variants/*", self.tdd_guard)
         self.assertNotIn("*/design-variants/*) allow", self.tdd_guard)
+
+    def test_ux_and_design_only_drafts_seed_design_variants_first(self) -> None:
+        for needle in (
+            "design-variants seed 보장",
+            "templates/design-variants/.gitignore",
+            "templates/design-variants/canvas.html",
+            "templates/design-variants/_lib/show-ids.js",
+            "templates/design-variants/_lib/canvas.js",
+            "덮어쓰지 않는다",
+            "docs/design-variants/drafts/<screen-id>-draft<N>.html",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.ux)
+
+        self.assertIn("docs/design-variants/` seed 보장 후 designer", self.spec_routing)
 
     def test_canvas_seed_uses_confirmed_screen_paths_without_version_suffix(self) -> None:
         canvas = (ROOT / "templates" / "design-variants" / "canvas.html").read_text(
