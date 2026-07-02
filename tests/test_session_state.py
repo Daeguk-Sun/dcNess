@@ -3013,6 +3013,23 @@ class DesignDocArgparseTests(unittest.TestCase):
         ns = _build_arg_parser().parse_args(["begin-run", "impl"])
         self.assertIsNone(ns.lane)
 
+    def test_design_records_subcommand_accepts_json_and_limit(self) -> None:
+        from harness.session_state import _build_arg_parser
+        ns = _build_arg_parser().parse_args(
+            ["design-records", "--json", "--limit", "5"]
+        )
+        self.assertEqual(ns.cmd, "design-records")
+        self.assertTrue(ns.json)
+        self.assertEqual(ns.limit, 5)
+
+    def test_normalize_scope_subcommand_accepts_paths(self) -> None:
+        from harness.session_state import _build_arg_parser
+        ns = _build_arg_parser().parse_args(
+            ["normalize-scope", "docs/epics/epic-01-x/impl"]
+        )
+        self.assertEqual(ns.cmd, "normalize-scope")
+        self.assertEqual(ns.paths, ["docs/epics/epic-01-x/impl"])
+
 
 # ---------------------------------------------------------------------------
 # _cli_post_task_begin — issue #472

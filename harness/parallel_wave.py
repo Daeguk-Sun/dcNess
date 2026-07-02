@@ -41,6 +41,9 @@ __all__ = [
     "compute_waves",
     "fan_in_check",
     "scopes_disjoint",
+    "normalize_scope_text",
+    "normalize_scope_file",
+    "normalize_scope_paths",
 ]
 
 # 정책 §7 — 첫 버전 동시성 상한. 상향은 실측 후 별도 이슈.
@@ -406,6 +409,110 @@ def _parse_scope(text: str) -> tuple[frozenset[str], bool]:
     if not paths:
         return frozenset(), True
     return frozenset(paths), has_nonpath
+
+
+def _clean_scope_bullet_path(stripped_line: str) -> Optional[str]:
+    """Return path when one bullet already satisfies the parser contract."""
+    if not stripped_line.startswith("-"):
+        return None
+    token = _strip_inline_comment(stripped_line[1:]).strip()
+    if token.startswith("`") and token.endswith("`") and len(token) >= 2:
+        token = token[1:-1].strip()
+    parts = token.split()
+    if len(parts) == 1 and _is_path_like(parts[0]):
+        return _normalize_path(parts[0])
+    return None
+
+
+def _single_path_candidate(raw_bullet: str) -> Optional[str]:
+    """Extract exactly one path-like token from a mechanically fixable bullet.
+
+    Handles labels/bold/backticks/parenthetical descriptions such as:
+    `**합성**: src/synth.py` or `src/synth.py (TTS)`.
+    Bullets with zero or multiple path candidates stay unresolved.
+    """
+    token = _strip_inline_comment(raw_bullet).strip()
+    if not token or token == "-":  # nosec B105
+        return None
+    token = token.replace("**", "").replace("__", "").replace("`", "")
+    token = re.sub(r"\([^)]*\)", " ", token)
+    token = token.replace(",", " ")
+    candidates: list[str] = []
+    for part in token.split():
+        cand = part.strip().strip(":;,.[]{}")
+        if _is_path_like(cand):
+            candidates.append(_normalize_path(cand))
+    unique = list(dict.fromkeys(candidates))
+    return unique[0] if len(unique) == 1 else None
+
+
+def normalize_scope_text(text: str) -> tuple[str, list[dict]]:
+    """Normalize mechanical `### 수정 허용` bullet format violations.
+
+    Scope is intentionally narrow: labels, markdown bold/backticks, and short
+    parenthetical descriptions are removed only when a bullet contains exactly
+    one path-like candidate. Semantic ambiguity remains for validator review.
+    """
+    lines = text.splitlines()
+    out = list(lines)
+    changes: list[dict] = []
+    in_scope = False
+    for idx, raw in enumerate(lines):
+        stripped = raw.strip()
+        if re.match(r"^###\s+수정\s*허용\s*$", stripped):
+            in_scope = True
+            continue
+        if in_scope and re.match(r"^#{2,4}\s", stripped):
+            in_scope = False
+        if not in_scope or not stripped or stripped.startswith(">"):
+            continue
+        if not stripped.startswith("-"):
+            continue
+        if _clean_scope_bullet_path(stripped) is not None:
+            continue
+        candidate = _single_path_candidate(stripped[1:])
+        if not candidate:
+            continue
+        indent = raw[: len(raw) - len(raw.lstrip())]
+        replacement = f"{indent}- {candidate}"
+        if replacement != raw:
+            out[idx] = replacement
+            changes.append(
+                {"line": idx + 1, "before": raw.rstrip(), "after": replacement}
+            )
+    suffix = "\n" if text.endswith("\n") else ""
+    return "\n".join(out) + suffix, changes
+
+
+def normalize_scope_file(path: str | Path) -> dict:
+    """Normalize one impl task file in place and return a small receipt."""
+    p = Path(path)
+    before = p.read_text(encoding="utf-8")
+    after, changes = normalize_scope_text(before)
+    changed = after != before
+    if changed:
+        p.write_text(after, encoding="utf-8")
+    parsed = parse_impl_task(p)
+    return {
+        "path": str(p),
+        "slug": p.stem,
+        "changed": changed,
+        "change_count": len(changes),
+        "changes": changes,
+        "unresolved": parsed.scope_ambiguous,
+        "scope_paths": sorted(parsed.scope_paths),
+    }
+
+
+def normalize_scope_paths(raw_paths: list[str]) -> dict:
+    """Normalize all impl task files resolved from CLI-style path arguments."""
+    receipts = [normalize_scope_file(p) for p in _resolve_impl_paths(raw_paths)]
+    return {
+        "files": receipts,
+        "changed_files": [r["path"] for r in receipts if r["changed"]],
+        "changed_slugs": [r["slug"] for r in receipts if r["changed"]],
+        "unresolved_slugs": [r["slug"] for r in receipts if r["unresolved"]],
+    }
 
 
 def parse_impl_task(path: str | Path) -> ImplTask:

@@ -13,6 +13,9 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
         self.shared = (
             ROOT / "agents" / "_shared" / "validation-reporting-guidance.md"
         ).read_text(encoding="utf-8")
+        self.init_reference = (
+            ROOT / "docs" / "plugin" / "init-dcness.md"
+        ).read_text(encoding="utf-8")
         self.claude_agents = {
             "code-validator": (
                 ROOT / "agents" / "code-validator" / "code-validator-agent.md"
@@ -107,6 +110,32 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
                     "JSON, marker, 고정 schema, 필수 heading 강제는 도입하지 않는다",
                     "수정 설계, 담당자 지정, 최소 수정 범위 요구는 넣지 않는다",
                 ):
+                    self.assertIn(needle, text)
+
+    def test_provider_mirror_sync_contract_is_documented(self) -> None:
+        for needle in (
+            "## Provider Mirror Sync",
+            "같은 PR 안에서 함께 갱신",
+            "agents/architecture-validator/architecture-validator-agent.md",
+            "codex/skills/dcness-architecture-validator/SKILL.md",
+            "native Codex frontmatter",
+            "tests/test_validator_handoff_guidance.py",
+        ):
+            self.assertIn(needle, self.init_reference)
+
+    def test_architecture_validator_scope_normalizer_axis_is_mirrored(self) -> None:
+        claude = self.claude_agents["architecture-validator"]
+        codex = self.codex_skills["dcness-architecture-validator"]
+        for text_name, text in (("claude", claude), ("codex", codex)):
+            for needle in (
+                "normalize-scope",
+                "wave-plan",
+                "unresolved_slugs",
+                "format_unnormalized_slugs",
+                "기계 교정",
+                "TASK_LOCAL",
+            ):
+                with self.subTest(text=text_name, needle=needle):
                     self.assertIn(needle, text)
 
 

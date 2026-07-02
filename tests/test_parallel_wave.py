@@ -34,6 +34,8 @@ from harness.parallel_wave import (
     WorkerResult,
     compute_waves,
     fan_in_check,
+    normalize_scope_file,
+    normalize_scope_text,
     parse_impl_task,
     scopes_disjoint,
 )
@@ -235,6 +237,58 @@ class TestParseParallelMarker(unittest.TestCase):
             t = parse_impl_task(p)
         self.assertTrue(t.force_serial)
         self.assertTrue(t.serial_only)
+
+
+class TestNormalizeScope(unittest.TestCase):
+    def test_normalizes_bold_label_and_parenthetical_bullets(self):
+        text = (
+            "## Scope\n\n"
+            "### 수정 허용\n\n"
+            "- **합성**: src/synth.py\n"
+            "- `src/audio.py` (TTS adapter)\n"
+            "- docs/guide.md\n"
+            "### 수정 금지\n\n"
+            "-\n"
+        )
+        normalized, changes = normalize_scope_text(text)
+
+        self.assertIn("- src/synth.py", normalized)
+        self.assertIn("- src/audio.py", normalized)
+        self.assertIn("- docs/guide.md", normalized)
+        self.assertEqual(len(changes), 2)
+
+    def test_normalize_file_converges_to_parseable_scope(self):
+        body = (
+            "---\ndepends_on: []\n---\n\n"
+            "## Scope\n\n"
+            "### 수정 허용\n\n"
+            "- **API**: src/api.py\n"
+            "- src/model.py (domain model)\n"
+            "### 수정 금지\n\n"
+            "-\n"
+        )
+        with tempfile.TemporaryDirectory() as d:
+            p = _write_impl(d, "01-foo.md", body)
+            before = parse_impl_task(p)
+            receipt = normalize_scope_file(p)
+            after = parse_impl_task(p)
+
+        self.assertTrue(before.scope_ambiguous)
+        self.assertTrue(receipt["changed"])
+        self.assertFalse(receipt["unresolved"])
+        self.assertEqual(after.scope_paths, frozenset({"src/api.py", "src/model.py"}))
+        self.assertFalse(after.scope_ambiguous)
+
+    def test_ambiguous_multi_path_bullet_is_not_rewritten(self):
+        text = (
+            "## Scope\n\n"
+            "### 수정 허용\n\n"
+            "- src/a.py src/b.py\n"
+            "- 사용자 입력 파서 전반\n"
+        )
+        normalized, changes = normalize_scope_text(text)
+        self.assertEqual(normalized, text)
+        self.assertEqual(changes, [])
 
 
 class TestHighRisk(unittest.TestCase):
