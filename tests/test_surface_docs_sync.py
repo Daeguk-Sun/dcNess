@@ -451,6 +451,24 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 self.assertIn(needle, self.design_skill)
         self.assertIn("end-run/metrics freeze 후 Step 7 PR", self.design_routing)
 
+    def test_issue_832_design_runs_mechanical_artifact_audit(self) -> None:
+        """#832 — design loop runs the artifact audit before final validator/PR."""
+        for needle in (
+            "check_design_artifact_structure.mjs",
+            "contract-ledger-missing-contract-column",
+            "contract-references-shape",
+            "module-architect `mode=contract_sweep`",
+        ):
+            self.assertIn(needle, self.design_skill)
+
+        for needle in (
+            "canonical `contract` 열",
+            "`Key` 같은 별칭",
+            "level-2 `## Contract References` 섹션",
+            "인라인 prose",
+        ):
+            self.assertIn(needle, self.architecture_validator)
+
     def test_issue_810_tech_review_skill_supports_epic_option4(self) -> None:
         """#810 AC7 — /tech-review skill must define both root and epic invocation contracts."""
         for needle in (

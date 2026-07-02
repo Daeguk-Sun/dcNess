@@ -108,8 +108,11 @@ function extractSection(content, heading) {
 }
 
 function parseMarkdownTable(section) {
-  const tables = parseMarkdownTables(section);
-  return tables[0]?.rows ?? [];
+  return parseFirstMarkdownTable(section).rows;
+}
+
+function parseFirstMarkdownTable(section) {
+  return parseMarkdownTables(section)[0] ?? { header: [], rows: [] };
 }
 
 function parseMarkdownTables(content) {
@@ -165,6 +168,11 @@ function pick(row, names) {
   return '';
 }
 
+function hasCanonicalHeader(table, names) {
+  const normalizedNames = new Set(names.map((name) => normalizeHeader(name)));
+  return table.header.some((header) => normalizedNames.has(normalizeHeader(header)));
+}
+
 function isContractDetailTable(table) {
   const headers = new Set(table.header.map(normalizeHeader));
   if (!headers.has('contract')) return false;
@@ -180,6 +188,10 @@ function containsContractDetailTable(content) {
 
 function hasContractReferencesSection(content) {
   return /^##\s+Contract References\s*$/m.test(content);
+}
+
+function hasContractReferencesMention(content) {
+  return /\bContract References\b/i.test(content);
 }
 
 function extractFrontmatter(content) {
@@ -256,10 +268,17 @@ function extractContractKeysFromFrontmatter(content) {
 }
 
 function extractContractKeysFromReferences(content) {
-  const section = extractSection(content, 'Contract References');
-  if (!section) return [];
-
   const keys = new Set();
+  for (const line of content.split(/\r?\n/)) {
+    const normalized = line.replace(/\*\*/g, '').trim();
+    const inline = normalized.match(/^Contract References\s*:\s*(.+)$/i);
+    if (!inline) continue;
+    for (const key of parseScalarList(inline[1])) keys.add(key);
+  }
+
+  const section = extractSection(content, 'Contract References');
+  if (!section) return Array.from(keys);
+
   for (const row of parseMarkdownTable(section)) {
     const key = pick(row, [
       'Ledger row key',
@@ -301,7 +320,9 @@ function parseEpic(root, epicDirName) {
   const epicDir = join(root, 'docs', 'epics', epicDirName);
   const architecturePath = join(epicDir, 'architecture.md');
   const content = readText(architecturePath);
-  const contractRows = parseMarkdownTable(extractSection(content, 'Contract Ledger'))
+  const contractLedgerTable = parseFirstMarkdownTable(extractSection(content, 'Contract Ledger'));
+  const hasContractColumn = hasCanonicalHeader(contractLedgerTable, ['contract']);
+  const contractRows = (hasContractColumn ? contractLedgerTable.rows : [])
     .map((row) => ({
       contract: pick(row, ['contract', 'Contract']),
       owner: pick(row, ['owner', 'Owner']),
@@ -330,6 +351,9 @@ function parseEpic(root, epicDirName) {
     name: epicDirName,
     dir: epicDir,
     architecturePath,
+    contractLedgerHeader: contractLedgerTable.header,
+    contractLedgerRowCount: contractLedgerTable.rows.length,
+    contractLedgerHasContractColumn: hasContractColumn,
     contractRows,
     implPaths,
     designPackLineCount,
@@ -372,9 +396,22 @@ function auditArtifact({ root, path, epicName, ledgerKeys, globalLedgerKeys, vio
   const frontmatterKeys = extractContractKeysFromFrontmatter(content);
   const referenceKeys = extractContractKeysFromReferences(content);
   const referencedKeys = Array.from(new Set([...frontmatterKeys, ...referenceKeys])).sort();
-  const hasPointerMetadata = hasContractReferencesSection(content) || frontmatterKeys.length > 0;
+  const hasCanonicalReferences = hasContractReferencesSection(content);
+  const hasReferencesMention = hasContractReferencesMention(content);
+  const hasPointerMetadata = hasCanonicalReferences || frontmatterKeys.length > 0 || referenceKeys.length > 0;
   const hasDetailTable = containsContractDetailTable(content);
   const relativePath = rel(root, path);
+
+  if (hasReferencesMention && !hasCanonicalReferences) {
+    violations.push(
+      makeProblem(
+        'contract-references-shape',
+        relativePath,
+        `Contract References must be a level-2 section with Ledger row-key references, not inline prose; found inline keys: ${referencedKeys.join(', ') || '-'}`,
+        { epic: epicName, contracts: referencedKeys }
+      )
+    );
+  }
 
   if (hasPointerMetadata && hasDetailTable) {
     violations.push(
@@ -426,6 +463,20 @@ function buildLedger(root, epics, violations) {
   const byKey = new Map();
 
   for (const epic of epics) {
+    if (epic.contractLedgerRowCount > 0 && !epic.contractLedgerHasContractColumn) {
+      violations.push(
+        makeProblem(
+          'contract-ledger-missing-contract-column',
+          rel(root, epic.architecturePath),
+          `Contract Ledger table must use canonical \`contract\` column as the stable row key; found columns: ${epic.contractLedgerHeader.join(', ') || '-'}`,
+          {
+            epic: epic.name,
+            headers: epic.contractLedgerHeader,
+          }
+        )
+      );
+    }
+
     for (const row of epic.contractRows) {
       const key = row.contract.trim();
       const entry = {

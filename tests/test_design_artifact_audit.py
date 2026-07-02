@@ -163,6 +163,52 @@ class DesignArtifactAuditTests(unittest.TestCase):
         self.assertIn("unknown-ledger-row-key", proc.stderr)
         self.assertIn("MissingContract", proc.stderr)
 
+    def test_contract_ledger_requires_canonical_contract_column(self) -> None:
+        """Replay regression: `/design` used `Key`, so the audit parsed 0 rows."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _seed_project(
+                root,
+                impl_body="# Auth task\n\n## Contract References\n\n- none\n",
+            )
+            _write(
+                root / "docs/epics/epic-01-alpha/architecture.md",
+                """
+                # Epic Architecture
+
+                ## Contract Ledger
+
+                | Key | Owner | Producer | Consumer | Invariant | Ordering | Error Mode | Config | Forbidden Alternative |
+                |---|---|---|---|---|---|---|---|---|
+                | AuthSession | AuthCore | LoginForm | AuthCore | stable | login before refresh | reject | env | global mutable session |
+                """,
+            )
+
+            proc = _run(root)
+
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("contract-ledger-missing-contract-column", proc.stderr)
+        self.assertIn("Key", proc.stderr)
+
+    def test_inline_contract_references_fail_shape(self) -> None:
+        """Replay regression: `/design` emitted bold inline references, not the section/table."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _seed_project(
+                root,
+                impl_body="""
+                # Auth task
+
+                **Contract References**: `AuthSession`
+                """,
+            )
+
+            proc = _run(root)
+
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("contract-references-shape", proc.stderr)
+        self.assertIn("AuthSession", proc.stderr)
+
     def test_legacy_contract_table_warns_but_passes(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
