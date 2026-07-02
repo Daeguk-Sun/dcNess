@@ -265,7 +265,7 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 
 자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이 필요한 영역은 finding 이 아니라 수동 review 권고로 분리해 사용자에게 보여준다.
 
-**Contract Ledger (계약 원장) 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 이 계약들은 `/design` 에서 epic architecture.md 의 `## Contract Ledger` 에 1급 산출물로 모인다. system-architect 가 작성하고, module-architect 가 public contract 변경 시 갱신하며, architecture-validator 가 stale 사본과 shallow contract 를 검토한다. 분류·분기 상세 = [`design-routing.md`](../../skills/design/design-routing.md#finding-분류-분기).
+**Contract Ledger (계약 원장) 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 이 계약들은 `/design` 에서 epic architecture.md 의 `## Contract Ledger` 에 1급 산출물로 모인다. `contract` 열은 stable 행 키이며, impl/compact plan 은 그 행 키만 참조한다. system-architect 가 작성하고, module-architect 가 public contract 변경 시 Ledger 를 갱신하며, architecture-validator 가 stale 사본, 신규 전문 사본, shallow contract 를 검토한다. 분류·분기 상세 = [`design-routing.md`](../../skills/design/design-routing.md#finding-분류-분기).
 
 ## 참조
 

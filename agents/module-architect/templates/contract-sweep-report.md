@@ -1,16 +1,10 @@
 # Contract Sweep Report
 
-## Canonical Contract
+## Canonical Ledger Row
 
-- contract:
-- owner:
-- producer:
-- consumer:
-- invariant:
-- ordering:
-- error mode:
-- config:
-- forbidden alternative:
+- Ledger row key:
+- Ledger path:
+- 변경 여부:
 
 ## Sweep Keywords
 
@@ -20,7 +14,7 @@
 
 | 파일 | 위치 | 변경 |
 |---|---|---|
-|  |  |  |
+|  |  | 전문 사본을 Ledger 행 키 참조로 변경 |
 
 ## 경계 밖 stale
 

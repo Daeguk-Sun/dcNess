@@ -75,10 +75,10 @@ flowchart TB
 | finding 분류 | 뜻 | 재진입 대상 | 비고 |
 |---|---|---|---|
 | `SYSTEM_BOUNDARY` | 큰 그림(상위 경계)이 틀림 — 도메인 invariant / port 소비자 / usecase ownership / 전역 decision / storage policy 잘못 | **system-architect** 재진입 | 비싼 재설계. **system 재진입의 유일한 기본 사유.** |
-| `CONTRACT_PROPAGATION` | 결정은 맞는데 stale 사본이 문서마다 남음 (전파 누락) | **module-architect `mode=contract_sweep`** | 동기화 sweep. **system 재설계 아님.** canonical 값(진본 = Contract Ledger) + sweep 키워드를 prompt 로 전달 (전파 대상 식별용 — prompt 가 진본이 아니라 Ledger 가 진본) |
+| `CONTRACT_PROPAGATION` | 결정은 맞는데 stale 사본이 남았거나 신규 산출물에 Contract Ledger 전문 사본이 생김 | **module-architect `mode=contract_sweep`** | 포인터화 sweep. **system 재설계 아님.** canonical 행 키(진본 = Contract Ledger) + sweep 키워드를 prompt 로 전달 (전파 대상 식별용 — prompt 가 진본이 아니라 Ledger 가 진본) |
 | `TASK_LOCAL` | 특정 impl task 문서만 틀림 — 예시 / depends_on / 수용기준 / requirements / Implementation Detail Leak | **module-architect** 보강 (해당 task) | 그 task 만 |
 
-- **"system-architect 재진입은 `SYSTEM_BOUNDARY` 일 때만 기본값"** — stale 문구 전파 누락은 `CONTRACT_PROPAGATION` 으로 처리(sweep), system 재설계로 끌어올리지 않는다. system 문서는 1차 PASS 후 freeze ([`SKILL.md`](SKILL.md) system freeze).
+- **"system-architect 재진입은 `SYSTEM_BOUNDARY` 일 때만 기본값"** — stale 문구 전파 누락 또는 전문 사본 제거는 `CONTRACT_PROPAGATION` 으로 처리(sweep), system 재설계로 끌어올리지 않는다. system 문서는 1차 PASS 후 freeze ([`SKILL.md`](SKILL.md) system freeze).
 - **`CONTRACT_AMENDMENT` 은 분기 enum 이 아니다** — module-architect 가 Step 4 에서 public contract 를 바꿀 때 취하는 자연어 행동 의무 (Contract Ledger 갱신 / "변경 없음" 명시). 분기 결정은 위 3 분류로만.
 
 ## retry 한도

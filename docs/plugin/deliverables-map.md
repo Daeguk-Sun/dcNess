@@ -10,6 +10,18 @@
 - downstream agent 가 읽어야 하는 산출물은 git-tracked 문서다. 실측 evidence, HTML report, handoff scratch 처럼 재현 가능한 임시물은 `.dcness-work/` 에 둔다.
 - 새 프로젝트 산출물은 `docs/epics/`, `docs/decisions/`, `docs/compact-plans/`, `docs/metrics/` 아래로만 증식한다. milestone 은 경로가 아니라 epic frontmatter 의 `milestone: vNN` 값이다.
 
+## 문서 총량 예산
+
+목표는 모든 문서를 항상 prompt 에 넣는 것이 아니라, cold session 이 진입점부터 필요한 진본을 짧은 탐색으로 복구하고 필요 시 핵심 설계 pack 을 전문 주입할 수 있게 유지하는 것이다.
+
+| 범위 | 예산 | 근거 | 초과 시 조치 |
+|---|---|---|---|
+| normal epic full design pack (`stories.md` + `architecture.md` + `domain-model.md` + 선택 `ux-flow.md` + `impl/NN-*.md`) | target 1,500 lines | finsight 경량 하네스 실측 759줄이 단일 컨텍스트 설계에 충분했고, dcNess impl task 평균 40-60줄 기준 15-20 task까지 전문 주입 가능 | 중복 계약/결정 사본 제거, impl task 병합/분리 재검토, detail 을 `.dcness-work/` 로 내림 |
+| hard warning full design pack | 2,000 lines | 2,000줄을 넘으면 cold session 전문 흡수보다 포인터 탐색 비용이 커지기 시작한다 | module-architect 보고에 warning, PR body 에 초과 사유와 후속 축소 계획 기록 |
+| single task implementation pack (`docs/index.md` + 전역 최소 입력 + epic 고정 입력 + 대상 impl 1개) | target 900 lines | `/impl-loop` task 단위 cold-start 가 읽는 실제 입력 세트 | 대상 task 에 필요 없는 전문 사본 제거 |
+
+예산은 신규 산출물의 작성 압력이다. 기존 활성 프로젝트의 구양식 산출물은 계속 유효하지만, 수정하는 순간 신규 규칙에 맞춰 전문 사본을 줄인다.
+
 ## 적용 범위
 
 - 본 지도는 `/init-dcness` 로 활성화한 외부 프로젝트의 산출물 구조에 적용된다.
@@ -69,6 +81,8 @@ docs/
 `$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 는 각 epic 폴더를 결정적으로 정렬하고 `docs/index.md` 의 `## 에픽` 표를 생성/갱신한다. 파일이 없는 선택 산출물 셀은 링크가 아닌 `—` 로 남긴다.
 
 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 표와 `## Contract Ledger` 표를 수집해 전역 `docs/architecture.md` 의 `에픽 간 지도`, `전역 모듈 토폴로지`, `공유 계약 인덱스` 섹션을 생성/갱신한다. 이 세 섹션은 파생물이며 수동 편집하지 않는다. epic architecture 템플릿의 표 헤더는 도구의 파싱 계약이므로 변경하려면 도구와 테스트를 함께 갱신한다.
+
+Contract Ledger 는 cross-task 계약 전문의 단일 진본이다. `contract` 열은 stable row key 이며 발급 후 재사용하거나 의미를 바꾸지 않는다. impl/compact 산출물은 `contract.produces` / `contract.consumes` 와 `## Contract References` 에 row-key references 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 나 compact plan 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다.
 
 기술 스택, naming, formatter, runtime, package manager, dependency policy 같은 반복 입력은 `docs/conventions.md` 에 둔다. 전역 architecture 는 시스템 topology 와 cross-epic map 에 집중한다.
 
