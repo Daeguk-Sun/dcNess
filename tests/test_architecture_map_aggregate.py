@@ -28,6 +28,27 @@ def _run(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _section(content: str, heading: str) -> str:
+    marker = f"## {heading}"
+    start = content.index(marker) + len(marker)
+    rest = content[start:]
+    next_heading = rest.find("\n## ")
+    return rest if next_heading == -1 else rest[:next_heading]
+
+
+def _table_cell_counts(section: str) -> list[int]:
+    counts: list[int] = []
+    for line in section.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = stripped.strip("|").split("|")
+        if all(set(cell.strip()) <= {"-", ":"} for cell in cells):
+            continue
+        counts.append(len(cells))
+    return counts
+
+
 @unittest.skipUnless(NODE, "node not installed — architecture map tool is a node script")
 class ArchitectureMapAggregateTests(unittest.TestCase):
     def test_generates_root_map_from_epic_architecture_tables(self) -> None:
@@ -66,8 +87,14 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
 
             root_map = (project / "docs/architecture.md").read_text(encoding="utf-8")
             self.assertIn("## 에픽 간 지도", root_map)
+            epic_map_counts = _table_cell_counts(_section(root_map, "에픽 간 지도"))
+            self.assertGreaterEqual(len(epic_map_counts), 2)
+            self.assertTrue(
+                all(count == epic_map_counts[0] for count in epic_map_counts[1:]),
+                f"generated epic map row widths differ from header: {epic_map_counts}",
+            )
             self.assertIn(
-                "| [epic-01-alpha](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | AuthCore, TokenStore | [ADR-0001](decisions/0001-auth.md) |",
+                "| [epic-01-alpha](epics/epic-01-alpha) | [architecture.md](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | AuthCore, TokenStore | [ADR-0001](decisions/0001-auth.md) |",
                 root_map,
             )
             self.assertIn(
@@ -112,6 +139,51 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             check = _run(project, "--check")
             self.assertEqual(check.returncode, 1)
             self.assertIn("stale", check.stderr)
+
+    def test_rerun_corrects_legacy_four_cell_epic_map_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(
+                project / "docs/architecture.md",
+                """
+                # 전역 아키텍처 지도
+
+                ## 에픽 간 지도
+
+                <!-- dcness-architecture-map:generated -->
+                <!-- 수정하지 말고 plugin script `aggregate_architecture_map.mjs` 로 갱신한다. -->
+                | 에픽 | Architecture | Domain Model | 핵심 모듈 | 결정 |
+                |---|---|---|---|---|
+                | [epic-01-alpha](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | AuthCore | - |
+                """,
+            )
+            _write(project / "docs/epics/epic-01-alpha/domain-model.md", "# Domain\n")
+            _write(
+                project / "docs/epics/epic-01-alpha/architecture.md",
+                """
+                # Epic Architecture
+
+                ## 모듈 목록
+
+                | 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |
+                |---|---|---|---|---|
+                | AuthCore | login orchestration | - | `authenticate()` | auth contract |
+                """,
+            )
+
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+            root_map = (project / "docs/architecture.md").read_text(encoding="utf-8")
+            epic_map_counts = _table_cell_counts(_section(root_map, "에픽 간 지도"))
+            self.assertTrue(
+                all(count == epic_map_counts[0] for count in epic_map_counts[1:]),
+                f"generated epic map row widths differ from header: {epic_map_counts}",
+            )
+            self.assertIn(
+                "| [epic-01-alpha](epics/epic-01-alpha) | [architecture.md](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | AuthCore | - |",
+                root_map,
+            )
 
     def test_preserves_manual_root_sections_while_updating_generated_sections(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
