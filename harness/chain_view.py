@@ -18,6 +18,8 @@
 
 - sub-step 수 = 엔진별 (SKILL line 435):
     build-worker 2 / build-worker-deep 3 / full-4 4 / advanced 5.
+    UI 감지 시 canvas-design progress checkpoint 선두:
+    ui-build-worker 3 / ui-build-worker-deep 4 / ui full-4 5 / ui-advanced 6.
     story 마감 task +1 (`product-acceptance`),
     epic 마감 task +2 (`product-acceptance:STORY` / `product-acceptance:EPIC`).
 - task 완료 → 다음 다시그리기 (SKILL 비용 분기): ≤10 full / 11~20 partial /
@@ -39,6 +41,7 @@ from typing import Any, Dict, List, Optional, Sequence
 __all__ = [
     "ChainTask",
     "ENGINE_SUBSTEPS",
+    "MAIN_OWNED_SUBSTEPS",
     "normalize_engine",
     "substeps_for",
     "redraw_strategy",
@@ -82,6 +85,13 @@ ENGINE_SUBSTEPS: Dict[str, List[str]] = {
         "build-worker",
         "pr-reviewer",
     ],
+    # UI + build-worker deep task 보강 — module-architect 후 같은 canvas baseline.
+    "ui-build-worker-deep": [
+        "module-architect",
+        "canvas-design",
+        "build-worker",
+        "pr-reviewer",
+    ],
     # UI + deep task 보강 (canvas-design 앞 module-architect) — 6 step.
     "ui-advanced": [
         "module-architect",
@@ -113,9 +123,18 @@ _ENGINE_ALIASES: Dict[str, str] = {
     "ui-build-worker": "ui-build-worker",
     "ui-worker": "ui-build-worker",
     "impl-ui-build-worker-loop": "ui-build-worker",
+    "ui-build-worker-deep": "ui-build-worker-deep",
+    "ui-worker-deep": "ui-build-worker-deep",
+    "ui-3agent": "ui-build-worker-deep",
+    "impl-ui-build-worker-deep-loop": "ui-build-worker-deep",
+    "impl-ui-3agent-loop": "ui-build-worker-deep",
     "ui-advanced": "ui-advanced",
     "ui-design-loop-advanced": "ui-advanced",
 }
+
+# 진행 뷰에는 보이지만 strict conveyor 의 begin-step/Agent 쌍이 아닌 메인 체크포인트.
+# canvas-design 이 draft 를 필요로 하면 실제 Agent 호출은 begin-step designer 로 연다.
+MAIN_OWNED_SUBSTEPS = frozenset({"canvas-design"})
 
 # 마감 task 의 추가 sub-step (SKILL line 435 + 마감 acceptance 절).
 _CLOSE_ACCEPTANCE: Dict[str, List[str]] = {

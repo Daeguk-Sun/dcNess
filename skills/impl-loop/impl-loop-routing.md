@@ -47,7 +47,7 @@ flowchart TB
   class U user
 ```
 
-> advanced fallback (deep task 보강 필요) → MA 선두 1 step 추가. 이것은 Lite direct 구현이 아니라 deep task 보강 경로다. UI 감지 → engine 무관 canvas-design 선두. 사용자 PICK 은 draft 가 실제 생성된 경우 canvas-design 내부에서만 수행하며, canvas-design `PASS` → 선택 엔진 구현 step.
+> advanced fallback (deep task 보강 필요) → MA 선두 1 step 추가. 이것은 Lite direct 구현이 아니라 deep task 보강 경로다. UI 감지 → engine 무관 canvas-design 선두. canvas-design 은 main-owned checkpoint 이며 helper begin/end-step 비대상이다. draft 가 필요할 때 실제 Agent 호출은 별도 `begin-step designer` 로 연다. 사용자 PICK 은 draft 가 실제 생성된 경우 canvas-design 내부에서만 수행하며, canvas-design `PASS` → 선택 엔진 구현 step.
 
 ### 엔진 B — build-worker (default = chain)
 
@@ -95,7 +95,7 @@ flowchart TB
 | **pr-reviewer** | `PASS`(LGTM) → (CI PASS 후) 메인 즉시 regular merge — **단 story/epic 마감 task 는 merge 전 product-acceptance 선행** ([마감 acceptance 분기](#마감-acceptance-분기)) · 변경 요청 → engineer POLISH → **메인 commit/push to PR branch** (엔진 B 는 PR 이 이미 생성됨 — POLISH 변경 반영 필수) → pr-reviewer 재리뷰(≤2) |
 | **build-worker** | `PASS` → 메인 git/PR → pr-reviewer · `SPEC_GAP_FOUND` → 분량 메타 분기(아래) · `TESTS_FAIL` → engineer(마저 구현) → **`IMPL_DONE` → code-validator → `PASS` 후 메인 git/PR** (self-validate 미통과분을 code-validator 가 복원 — 검증 없이 PR 금지) 또는 attempt 한도 초과 시 사용자 · `VALIDATION_BLOCKED` → **메인이 worker 가 남긴 검증 명령을 직접 실행(게이트 대행)** — exit 0 → 메인 git/PR → pr-reviewer · 게이트 FAIL → engineer 재시도(TESTS_FAIL 경로 합류, ≤3) · 메인도 실행 불가 → 사용자 · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | **module-architect** | `PASS` → (impl 파일 생성·보강 후) build-worker 또는 test-engineer · `ESCALATE` → 사용자 |
-| **canvas-design** | `PASS` → 선택 엔진 구현 step(build-worker 또는 test-engineer) · `ESCALATE` → 사용자. draft 생성 시 사용자 PICK 은 canvas-design 내부 조건부 절차로 처리한다. 산출물은 `docs/design-variants/<screen-id>.html` 확정본 + `canvas.html` frame 등록 + node-id 매핑. draft 재생성 한도 X |
+| **canvas-design** | `PASS` → 선택 엔진 구현 step(build-worker 또는 test-engineer) · `ESCALATE` → 사용자. main-owned checkpoint 라 helper begin/end-step 비대상이며, draft 생성 시 실제 designer Agent 는 별도 `begin-step designer` 로 호출한다. 사용자 PICK 은 canvas-design 내부 조건부 절차로 처리한다. 산출물은 `docs/design-variants/<screen-id>.html` 확정본 + `canvas.html` frame 등록 + node-id 매핑. draft 재생성 한도 X |
 | **product-acceptance** | 마감 task 한정 (pr-reviewer PASS 후 · pr-finalize 전, [마감 acceptance 분기](#마감-acceptance-분기)). `PASS` → 메인 pr-finalize 머지 (epic 마감은 STORY → EPIC 2회 모두 PASS 후) · `FAIL` (auto-fixable gap: PRD/AC 미충족, 검수 증거 부족, 스모크 실패, mock-only green / 동작 증거 부족, 명확한 구현 보강으로 닫히는 사용자 동선 부적합) → engineer:IMPL 재진입(gap 수정 — POLISH 아님, run 의 `--design-doc` 사전 조건 사용) → code-validator → 메인 commit/push to PR branch → pr-reviewer 재리뷰 → product-acceptance 재검수 (round ≤3) · `FAIL` (설계 결함·범위 재정의·사용자/UX 선택 필요·보안/권한/데이터 gap) 또는 round 초과 → 정지 + 사용자 위임 · `ESCALATE` → 정지 + 사용자 위임 |
 
 **build-worker `SPEC_GAP_FOUND` 분량 메타 분기** (외부 사용자 [F4 실측](https://github.com/alruminum/dcNess/issues/506)):

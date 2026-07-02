@@ -20,6 +20,9 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.impl_loop = (
             ROOT / "skills" / "impl-loop" / "SKILL.md"
         ).read_text(encoding="utf-8")
+        self.impl_loop_routing = (
+            ROOT / "skills" / "impl-loop" / "impl-loop-routing.md"
+        ).read_text(encoding="utf-8")
         self.ux = (ROOT / "skills" / "ux" / "SKILL.md").read_text(encoding="utf-8")
         self.ux_routing = (
             ROOT / "skills" / "ux" / "ux-routing.md"
@@ -86,6 +89,8 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "canvas frame 등록",
             "PASS",
             "ESCALATE",
+            "helper begin/end-step 비대상",
+            "begin-step designer",
             "designer 는 drafts",
             "메인",
         ):
@@ -132,6 +137,14 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertNotIn("사용자 PICK 대기", escalate_line)
         self.assertIn("사용자 PICK 대기 중에는 routed conclusion", skill)
 
+    def test_canvas_design_is_main_owned_not_strict_agent_step(self) -> None:
+        for text in (self.impl_loop, self.impl_loop_routing):
+            with self.subTest(doc=text[:30]):
+                self.assertIn("main-owned", text)
+                self.assertIn("helper begin/end-step 비대상", text)
+                self.assertIn("begin-step designer", text)
+                self.assertNotIn("begin-step canvas-design", text)
+
     def test_impl_has_three_way_visual_baseline_branch_and_echo(self) -> None:
         for text in (self.impl, self.impl_routing):
             with self.subTest(file=text[:20]):
@@ -148,6 +161,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         for needle in (
             "engine 무관",
             "canvas-design",
+            "build-worker-deep",
             "docs/design-variants/<screen-id>.html",
             "build-worker",
             "풀 4-agent",

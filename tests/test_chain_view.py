@@ -32,6 +32,7 @@ import unittest
 
 from harness.chain_view import (
     ChainTask,
+    MAIN_OWNED_SUBSTEPS,
     build_chain_view,
     initial_operations,
     normalize_engine,
@@ -87,6 +88,7 @@ class TestSubsteps(unittest.TestCase):
         self.assertEqual(normalize_engine("advanced-fallback"), "advanced")
         self.assertEqual(normalize_engine("impl-ui-design-loop"), "ui")
         self.assertEqual(normalize_engine("ui-build-worker"), "ui-build-worker")
+        self.assertEqual(normalize_engine("ui-3agent"), "ui-build-worker-deep")
         self.assertEqual(normalize_engine("ui-advanced"), "ui-advanced")
         # case-insensitive + whitespace
         self.assertEqual(normalize_engine("  Build-Worker "), "build-worker")
@@ -116,6 +118,17 @@ class TestSubsteps(unittest.TestCase):
             ],
         )
 
+    def test_ui_build_worker_deep_substeps(self):
+        self.assertEqual(
+            substeps_for(_task("m", "ui-build-worker-deep")),
+            [
+                "module-architect",
+                "canvas-design",
+                "build-worker",
+                "pr-reviewer",
+            ],
+        )
+
     def test_ui_advanced_substeps(self):
         # UI + deep 보강 — canvas-design 앞 module-architect.
         self.assertEqual(
@@ -129,6 +142,10 @@ class TestSubsteps(unittest.TestCase):
                 "pr-reviewer",
             ],
         )
+
+    def test_canvas_design_is_main_owned_progress_checkpoint(self):
+        self.assertIn("canvas-design", MAIN_OWNED_SUBSTEPS)
+        self.assertNotIn("designer", MAIN_OWNED_SUBSTEPS)
 
     def test_explicit_substeps_override(self):
         # engine preset 이 enum 하지 않은 변종을 명시 라벨로 표현 (escape hatch).
