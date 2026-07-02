@@ -71,7 +71,7 @@ docs/
 | convention map | `docs/conventions.md` | `/init-dcness`, system-architect | `agents/system-architect/templates/conventions.md` |
 | 기술 검토 결론 | `docs/tech-review.md` | tech-reviewer | `agents/tech-reviewer/templates/tech-review.md` |
 | 전역 design token | `docs/design.md` | ux-architect | `docs/plugin/design.md` |
-| design run 기록 | `docs/metrics/design-runs.jsonl` | `dcness-helper finalize-run` / `end-run` | JSONL schema v1 (`harness/design_run_records.py`) |
+| design run 기록 | `docs/metrics/design-runs.jsonl` | `dcness-helper end-run` before design PR | JSONL schema v1 (`harness/design_run_records.py`) |
 | 결정 기록 | `docs/decisions/NNNN-slug.md` | system-architect / module-architect | `agents/system-architect/templates/decision.md` |
 
 `docs/architecture.md` 는 epic 이 늘 때마다 append-growing map 으로 갱신한다. 상세 설계 본문을 전역에 복제하지 않고, 전역 모듈/의존/결정 anchor 와 epic 문서 링크를 추가한다.
@@ -88,7 +88,7 @@ Contract Ledger 는 cross-task 계약 전문의 단일 진본이다. `contract` 
 
 기술 검토의 본문 결론만 `docs/tech-review.md` 에 남긴다. raw evidence, 통합 HTML report, screenshots, logs 는 `.dcness-work/reviews/` 에 저장하고 git-tracked 산출물로 취급하지 않는다.
 
-`docs/metrics/design-runs.jsonl` 은 `/design` 종료 시 helper 가 쓰는 영속 측정 인덱스다. run-local `ledger.jsonl` 이 TTL 정리되어도 후속 검증 세션은 이 파일만으로 run 단위 판정, finding 분류 분포, 재검증 cycle, 시간, 가능한 토큰량을 조회한다. 조회 계약은 `dcness-helper design-records [--json] [--limit N]` 이다. 사람이 산출물 본문을 손으로 편집하지 않는다.
+`docs/metrics/design-runs.jsonl` 은 `/design` final validator `PASS` 직후 PR 생성 전에 helper 가 쓰는 영속 측정 인덱스다. worktree 진입 상태에서는 현재 design worktree 의 `docs/metrics/` 에 기록되고, design 산출물 PR 에 함께 커밋된다. PR/merge 뒤 `end-run` 을 미루면 기록이 worktree 또는 main working tree 에 uncommitted 상태로 고립되므로 `/design` 은 `end-run` 후 PR 을 만든다. run-local `ledger.jsonl` 이 TTL 정리되어도 후속 검증 세션은 이 파일만으로 run 단위 판정, finding 분류 분포(FAIL/ESCALATE prose token 언급 수), 재검증 cycle, 시간, 가능한 토큰량을 조회한다. 조회 계약은 `dcness-helper design-records [--json] [--limit N]` 이다. 사람이 산출물 본문을 손으로 편집하지 않는다.
 
 ## epic 산출물
 

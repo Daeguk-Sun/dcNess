@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,7 @@ from harness.design_run_records import (
     build_design_record,
     load_records,
     render_records,
+    design_record_path,
     write_design_record,
 )
 
@@ -49,6 +51,16 @@ def _step(agent: str, filename: str, ts: str) -> dict:
 
 
 class DesignRunRecordTests(unittest.TestCase):
+    def _init_git_repo(self, path: Path) -> None:
+        path.mkdir(parents=True, exist_ok=True)
+        for cmd in (
+            ["git", "init", "-q"],
+            ["git", "config", "user.email", "test@example.com"],
+            ["git", "config", "user.name", "test"],
+            ["git", "commit", "-q", "--allow-empty", "-m", "init"],
+        ):
+            subprocess.run(cmd, cwd=path, check=True, capture_output=True)
+
     def test_builds_design_record_with_units_findings_and_cycles(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
@@ -159,6 +171,67 @@ class DesignRunRecordTests(unittest.TestCase):
         self.assertTrue(record_path_exists)
         self.assertIn("run-design02", rendered)
         self.assertIn("| run_id | started_at | verdict |", rendered)
+
+    def test_worktree_record_path_is_design_artifact_root(self) -> None:
+        """Worktree `/design` writes the PR artifact, not main checkout state.
+
+        The commit owner is the design branch PR: `/design` must run `end-run`
+        before PR creation so this worktree-local docs file is staged with the
+        rest of the design artifacts.
+        """
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            main_repo = tmp / "main"
+            self._init_git_repo(main_repo)
+            worktree = tmp / "wt-design"
+            subprocess.run(
+                ["git", "worktree", "add", "-q", str(worktree), "-b", "docs-design"],
+                cwd=main_repo,
+                check=True,
+                capture_output=True,
+            )
+            try:
+                run_dir = _make_run_dir(
+                    main_repo,
+                    "sid1",
+                    "run-design03",
+                    [
+                        {
+                            "event": "run_started",
+                            "entry_point": "design",
+                            "ts": "2026-07-01T00:00:00+00:00",
+                        },
+                        _step(
+                            "architecture-validator",
+                            "av.md",
+                            "2026-07-01T00:01:00+00:00",
+                        ),
+                        {
+                            "event": "run_finished",
+                            "ts": "2026-07-01T00:02:00+00:00",
+                        },
+                    ],
+                    {"av.md": "문제 없음\nPASS\n"},
+                )
+
+                record = write_design_record(run_dir, repo_path=worktree)
+                wt_record_path = design_record_path(worktree)
+                main_record_path = main_repo / DESIGN_RUN_RECORD_REL
+
+                self.assertIsNotNone(record)
+                self.assertEqual(
+                    wt_record_path.resolve(),
+                    (worktree / DESIGN_RUN_RECORD_REL).resolve(),
+                )
+                self.assertTrue(wt_record_path.is_file())
+                self.assertFalse(main_record_path.exists())
+            finally:
+                subprocess.run(
+                    ["git", "worktree", "remove", str(worktree), "--force"],
+                    cwd=main_repo,
+                    check=False,
+                    capture_output=True,
+                )
 
 
 if __name__ == "__main__":
