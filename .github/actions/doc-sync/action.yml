@@ -1,5 +1,5 @@
 name: 'dcness doc-sync validation'
-description: 'Validate generated docs/index.md epic table and docs/architecture.md map freshness.'
+description: 'Validate generated docs/index.md, docs/architecture.md, and /design artifact structure.'
 runs:
   using: composite
   steps:
@@ -19,3 +19,9 @@ runs:
       run: |
         set -euo pipefail
         node "${{ github.action_path }}/../../../scripts/aggregate_architecture_map.mjs" --check
+
+    - name: Validate /design artifact structure
+      shell: bash
+      run: |
+        set -euo pipefail
+        node "${{ github.action_path }}/../../../scripts/check_design_artifact_structure.mjs"

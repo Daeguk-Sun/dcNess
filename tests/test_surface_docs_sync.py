@@ -104,6 +104,12 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.cross_ref_script = (ROOT / "scripts" / "check_cross_refs.mjs").read_text(
             encoding="utf-8"
         )
+        self.doc_sync_action = (
+            ROOT / ".github" / "actions" / "doc-sync" / "action.yml"
+        ).read_text(encoding="utf-8")
+        self.deliverables_map = (
+            ROOT / "docs" / "plugin" / "deliverables-map.md"
+        ).read_text(encoding="utf-8")
 
     def test_removed_alias_skill_directories_do_not_exist(self) -> None:
         self.assertFalse((ROOT / "skills" / "product-plan").exists())
@@ -468,6 +474,23 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "인라인 prose",
         ):
             self.assertIn(needle, self.architecture_validator)
+
+    def test_issue_832_design_artifact_audit_is_wired_to_external_doc_sync_gate(self) -> None:
+        """#832 follow-up — installed doc-sync workflow runs the design audit."""
+        for needle in (
+            "scripts/check_design_artifact_structure.mjs",
+            "Validate /design artifact structure",
+        ):
+            self.assertIn(needle, self.doc_sync_action)
+
+        for text in (
+            self.init_doc,
+            self.init_reference,
+            self.hooks_doc,
+            self.deliverables_map,
+        ):
+            with self.subTest(source=text[:30]):
+                self.assertIn("check_design_artifact_structure.mjs", text)
 
     def test_issue_810_tech_review_skill_supports_epic_option4(self) -> None:
         """#810 AC7 — /tech-review skill must define both root and epic invocation contracts."""

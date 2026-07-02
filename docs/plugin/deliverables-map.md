@@ -165,6 +165,7 @@ index epic 표와 전역 architecture map 이 stale 인지 확인하려면 활�
 ```sh
 node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --check
 node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --check
+node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs"
 ```
 
 ## dcness-self 영역

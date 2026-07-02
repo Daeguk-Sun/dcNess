@@ -269,7 +269,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 | `.github/workflows/git-naming-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | 브랜치명 + PR 제목 git-spec 검증 | 선택형 CI gate |
 | `.github/workflows/pr-body-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | PR body issue trailer 검증 | 선택형 CI gate |
 | `.github/workflows/doc-path-integrity.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | repo-relative 경로 참조 실존 검증 | 선택형 CI gate |
-| `.github/workflows/doc-sync.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | index epic 표 + architecture map 파생물 drift 검증 | 선택형 CI gate |
+| `.github/workflows/doc-sync.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | index epic 표 + architecture map 파생물 drift 검증 + `/design` 산출물 구조 감사 | 선택형 CI gate |
 | `.github/workflows/github-project-lifecycle.yml` | `issues`, `pull_request closed` | issue 변경 또는 PR merge | Project field/label drift 검출, merged PR Done 보정 | 선택형 CI/CD |
 
 ### .github/workflows/git-naming-validation.yml
@@ -314,7 +314,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `alruminum/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` 생성 표와 `docs/architecture.md` generated architecture map 이 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter 에서, architecture map 은 epic `architecture.md` 의 `## 모듈 목록` / `## Contract Ledger` 표에서 파생된다.
+**역할**: `alruminum/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` 생성 표와 `docs/architecture.md` generated architecture map 이 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter 에서, architecture map 은 epic `architecture.md` 의 `## 모듈 목록` / `## Contract Ledger` 표에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물이 canonical Contract Ledger `contract` 열과 level-2 `## Contract References` row-key 포인터 구조를 지키는지 감사한다.
 
 **빈 환경**: `docs/index.md`, `docs/architecture.md`, 또는 유효 epic 이 없는 갓 시드된 프로젝트에서는 no-op PASS 한다.
 
