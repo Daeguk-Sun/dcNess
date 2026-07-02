@@ -2,6 +2,9 @@
 depth: standard
 story: compact
 issue: <optional>
+contract:
+  produces:             # Ledger row keys only when this plan changes a cross-task/public contract
+  consumes:             # Ledger row keys only
 ---
 
 # Compact Implementation Plan
@@ -34,6 +37,16 @@ issue: <optional>
 ## 변경 방향
 
 -
+
+## Contract References
+
+> Cross-task/public contract details live only in the relevant epic `architecture.md` `## Contract Ledger` or root architecture decision link.
+> Use Ledger row keys only here; do not copy invariant, ordering, error mode, config, or forbidden alternative.
+
+| kind | Ledger row key | action | note |
+|---|---|---|---|
+| produces |  | new/update/existing | Ledger updated or not applicable |
+| consumes |  | existing |  |
 
 ## 테스트 기준
 

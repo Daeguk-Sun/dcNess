@@ -36,6 +36,7 @@ flowchart LR
 ## Contract Ledger
 
 <!-- `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 공유 계약 인덱스로 수집한다. 헤더명과 표 형태를 유지한다. -->
+<!-- `contract` 열은 stable row key 다. 발급 후 재사용·의미 변경 금지. cross-task 계약 전문은 이 표에만 쓴다. -->
 
 | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |
 |---|---|---|---|---|---|---|---|---|---|

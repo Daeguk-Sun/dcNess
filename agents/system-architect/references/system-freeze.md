@@ -15,7 +15,7 @@ system-architect 산출물은 1차 validation PASS 뒤 기본적으로 freeze된
 
 ## system 재진입이 아닌 것
 
-`CONTRACT_PROPAGATION`은 결정 자체가 아니라 사본 전파가 틀린 경우다. 이 경우 module-architect의 `mode=contract_sweep`이 canonical 값을 stale 문서에 전파한다.
+`CONTRACT_PROPAGATION`은 결정 자체가 아니라 사본 전파가 틀렸거나 신규 산출물에 Contract Ledger 전문 사본이 생긴 경우다. 이 경우 module-architect의 `mode=contract_sweep`이 canonical 행 키를 남기고 stale 전문 사본을 제거한다.
 
 ## freeze 이후 허용되는 append
 

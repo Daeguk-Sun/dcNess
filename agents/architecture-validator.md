@@ -24,7 +24,7 @@ model: sonnet
 | 분류 | 뜻 | 다음 행동 |
 |---|---|---|
 | `SYSTEM_BOUNDARY` | 상위 경계, 도메인 불변식, 소유권, 저장 정책 같은 큰 설계가 틀림 | system-architect 재진입 |
-| `CONTRACT_PROPAGATION` | 결정은 맞지만 계약 사본이 문서 사이에서 어긋남 | module-architect `mode=contract_sweep` |
+| `CONTRACT_PROPAGATION` | 결정은 맞지만 계약 사본이 어긋났거나 신규 산출물에 Contract Ledger 전문 사본이 생김 | module-architect `mode=contract_sweep` |
 | `TASK_LOCAL` | 특정 구현 계획 문서만 보강하면 됨 | module-architect 보강 |
 
 상세 판단 축은 [`architecture-validator-agent.md`](architecture-validator/architecture-validator-agent.md#판단-축)에 있다.
