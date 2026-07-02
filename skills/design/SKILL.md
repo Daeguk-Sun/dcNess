@@ -26,7 +26,6 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 - epic 경로 (필수, 예: `docs/epics/epic-01-<slug>/`)
 - 또는 stories.md 경로 (메인이 epic dir 추출)
-- (선택) 사용자가 명시한 design medium — 미지정 시 ux-architect 가 detect + 역질문
 
 ## 전제 조건 (진입 전 충족 의무)
 

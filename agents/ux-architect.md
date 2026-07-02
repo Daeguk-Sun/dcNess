@@ -3,7 +3,7 @@ name: ux-architect
 description: >
   화면 흐름, 와이어프레임, 인터랙션을 정의하는 에이전트. 실제 지침은
   agents/ux-architect/ux-architect-agent.md 에 있다.
-tools: Read, Write, Glob, Grep, mcp__pencil__get_editor_state, mcp__pencil__batch_get, mcp__pencil__get_screenshot, mcp__pencil__get_variables
+tools: Read, Write, Glob, Grep
 model: sonnet
 ---
 

@@ -1394,7 +1394,7 @@ class FileOpHookTests(_PreToolBase):
         rc = handle_pretooluse_file_op(
             stdin_data={
                 "sessionId": self.sid,
-                "tool_name": "mcp__pencil__batch_design",
+                "tool_name": "mcp__design_canvas__batch_design",
                 "tool_input": {"operations": "..."},
             },
             cc_pid=self.cc_pid,
@@ -1403,7 +1403,7 @@ class FileOpHookTests(_PreToolBase):
         self.assertEqual(rc, 0, "mcp__* 도구는 boundary 차단 X — trace 만 기록")
         hist = _hist(self.sid, rid, base_dir=self.base)
         self.assertEqual(
-            hist.get("mcp__pencil__batch_design", 0), 1,
+            hist.get("mcp__design_canvas__batch_design", 0), 1,
             "mcp__* 도구가 histogram 에 1 카운트되어야 함",
         )
 

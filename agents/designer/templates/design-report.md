@@ -2,9 +2,9 @@
 
 ## 시안
 
-- medium:
-- 경로 또는 frame ID:
-- screenshot:
+- HTML 경로:
+- 주요 `data-node-id`:
+- 확인 메모:
 
 ## 컨셉
 

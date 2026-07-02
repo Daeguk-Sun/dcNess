@@ -458,7 +458,7 @@
   - `agents/product-planner.md` (PRODUCT_PLAN_READY / CLARITY_INSUFFICIENT / PRODUCT_PLAN_CHANGE_DIFF / PRODUCT_PLAN_UPDATED / ISSUES_SYNCED) — Phase 1 (요구사항) + Phase 2 (기능 스펙) + Phase 3 (4 옵션 스코프) + Diff-First 변경 처리 + ISSUE_SYNC
   - **Phase 2 종결**: legacy full agent docs prose-only 변환 완료 (validator iter 0 + 4 read-only iter 1 + 8 architect iter 2 + 2 engineer/test-engineer iter 3 + 2 designer/critic iter 4 + 2 ux/planner iter 5)
 - **🚀 Phase 2 iter 4 — designer + design-critic prose-only** (`DCN-CHG-20260429-18`):
-  - `agents/designer.md` (DESIGN_READY_FOR_REVIEW / DESIGN_LOOP_ESCALATE) — 2×2 매트릭스 (SCREEN/COMPONENT × ONE_WAY/THREE_WAY) 4 모드 + Phase 0 (이슈 생성, Pencil 캔버스) + Phase 1 (variant 생성) + Phase 4 (DESIGN_HANDOFF, outline-first) + 차별화 의무 + View 전용 원칙
+  - `agents/designer.md` (DESIGN_READY_FOR_REVIEW / DESIGN_LOOP_ESCALATE) — 2×2 매트릭스 (SCREEN/COMPONENT × ONE_WAY/THREE_WAY) 4 모드 + Phase 0 (이슈 생성, HTML 시안) + Phase 1 (variant 생성) + Phase 4 (DESIGN_HANDOFF, outline-first) + 차별화 의무 + View 전용 원칙
   - `agents/design-critic.md` (VARIANTS_APPROVED / VARIANTS_ALL_REJECTED / UX_REDESIGN_SHORTLIST) — 4 기준 (UX 명료성·미적 독창성·컨텍스트 적합성·구현 실현성) 각 10점, 총 40점, PASS 28+ 기준
 - **🚀 Phase 2 iter 3 — engineer + test-engineer prose-only** (`DCN-CHG-20260429-17`):
   - `agents/engineer.md` (IMPL_DONE / SPEC_GAP_FOUND / IMPLEMENTATION_ESCALATE / TESTS_FAIL / POLISH_DONE) — Phase 1 스펙 검토 + Phase 2 구현 + 듀얼 모드 + DESIGN_HANDOFF + 재시도 한도 + 커밋 단위 룰
