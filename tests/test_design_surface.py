@@ -116,6 +116,12 @@ class DesignSurfaceContractTests(unittest.TestCase):
             / "architecture-validator"
             / "architecture-validator-agent.md"
         ).read_text(encoding="utf-8")
+        codex_validator = (
+            ROOT / "codex" / "skills" / "dcness-architecture-validator" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        test_engineer = (
+            ROOT / "agents" / "test-engineer" / "test-engineer-agent.md"
+        ).read_text(encoding="utf-8")
 
         for needle in (
             "기록된 스택 결정",
@@ -127,6 +133,9 @@ class DesignSurfaceContractTests(unittest.TestCase):
             "포트, 도메인 타입, 공개 entrypoint",
             "risk / engine / depends_on",
             "수정 허용",
+            "규모 preflight",
+            "target 1,500줄 / hard warning 2,000줄",
+            "epic 분할 또는 예외적 batch 2분할",
         ):
             self.assertIn(needle, design)
 
@@ -141,6 +150,18 @@ class DesignSurfaceContractTests(unittest.TestCase):
             with self.subTest(text=text[:60]):
                 self.assertIn("계약 표면 코드 SSOT 대조", text)
                 self.assertIn("포트, 도메인 타입, 공개 entrypoint", text)
+
+        self.assertIn(
+            "`domain-model.md` 가 있으면 함께 읽고, 없으면 epic `architecture.md` 의 생략 판단 근거",
+            module_architect,
+        )
+        self.assertIn("파일 부재만으로 도메인 모델을 새로 만들거나 ESCALATE 하지 않는다", module_architect)
+        self.assertIn("파일 부재만으로 `SPEC_GAP_FOUND` 하지 않는다", test_engineer)
+
+        for text in (validator, codex_validator):
+            with self.subTest(domain_validator=text[:60]):
+                self.assertIn("domain-model.md` 작성 또는 생략 판단 근거", text)
+                self.assertIn("domain-model 작성/생략 근거 누락", text)
 
 
 if __name__ == "__main__":

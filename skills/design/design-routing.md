@@ -56,6 +56,7 @@ flowchart TB
 
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.
 - **architecture-validator 시점** — 1차 = system 산출물 기준으로 요구사항 출처, 설계 표준, Contract Ledger 충분성, 구현 순서(첫 제품 경계 동작 앞당김), Flow Ownership Map, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 검토한다. final epic 검증 = 모든 impl 산출물을 한 번에 읽고 Story 간 compose/wiring, forward-ref 회수, Contract Ledger sweep, Story별 첫 제품 경계 동작 증거, cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `CONTRACT_PROPAGATION` / `TASK_LOCAL`) 동반.
+- **규모 초과 사전 가드** — Step 4 전 Story 수와 예상 full design pack 규모가 target 1,500줄 / hard warning 2,000줄 예산을 넘을 전망이면, 메인은 자동 진행 대신 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. 이는 대형 epic 출력 한계 방지용 escape 이며 per-Story 검증 기본값 복원이 아니다.
 - **고위험 추가 검증** — 보안·migration·public API breakage 같은 신호가 batch 작성 중 뒤늦게 드러나면 메인은 final epic 검증 전 추가 검토를 선택할 수 있다. 단 이것은 예외적 보강이지 옛 per-Story 검증 기본값의 복원이 아니다.
 
 ## finding 분류 분기
