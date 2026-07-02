@@ -72,7 +72,9 @@ description: 내부 전용 UI 기준 확보 wrapper. 신규 시각 구조 구현
 `/impl-loop` 이 이 스킬을 routed step 으로 호출하므로 마지막 단락은 반드시 아래 중 하나로 끝난다.
 
 - `PASS` — seed 보장, 3-way 판정, 필요한 draft/PICK/승격/canvas 등록, 반환값 정리가 끝났고 구현 step 으로 진행 가능하다.
-- `ESCALATE` — 사용자 PICK 대기, 기준 소스 불명확, seed 복사 실패, 화면 id 충돌처럼 메인이 임의로 진행하면 안 되는 조건이다. 사유와 필요한 사용자 입력을 함께 적는다.
+- `ESCALATE` — 기준 소스 불명확, seed 복사 실패, 화면 id 충돌, 사용자의 draft 진행 중단처럼 메인이 임의로 진행하면 안 되는 조건이다. 사유와 필요한 사용자 입력을 함께 적는다.
+
+사용자 PICK 대기 중에는 routed conclusion 을 작성하지 않는다. 메인은 이 스킬 내부 상호작용으로 OK/NG 를 받은 뒤, OK 면 승격·canvas 등록까지 끝내고 `PASS` 로 종료한다. NG 면 designer 재생성으로 돌아가며, 사용자가 draft 진행 자체를 중단한 경우에만 `ESCALATE` 로 종료한다.
 
 ## 권한 경계
 

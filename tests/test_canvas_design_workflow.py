@@ -126,6 +126,12 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, skill)
 
+        escalate_line = next(
+            line for line in skill.splitlines() if line.startswith("- `ESCALATE`")
+        )
+        self.assertNotIn("사용자 PICK 대기", escalate_line)
+        self.assertIn("사용자 PICK 대기 중에는 routed conclusion", skill)
+
     def test_impl_has_three_way_visual_baseline_branch_and_echo(self) -> None:
         for text in (self.impl, self.impl_routing):
             with self.subTest(file=text[:20]):

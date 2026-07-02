@@ -236,6 +236,17 @@ class TestRegressionPreserved(unittest.TestCase):
         path = str(Path(self._tmp) / "src/biz.ts")
         self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
 
+    def test_repo_relative_docs_design_variants_skipped(self):
+        """repo-relative docs/design-variants seed/helper files are prototype artifacts."""
+        self._touch(
+            "docs/design-variants/_lib/show-ids.js",
+            "export function showIds() { return true; }\n",
+        )
+        self.assertEqual(
+            decision(run_hook("docs/design-variants/_lib/show-ids.js", self._tmp)),
+            "allow",
+        )
+
 
 class TestBashWriteTargets(unittest.TestCase):
     """issue #786 — Bash write target 도 직접 파일 tool 과 같은 TDD 정책을 탄다."""
