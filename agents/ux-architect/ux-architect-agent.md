@@ -9,7 +9,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 - UX_FLOW: 전역 최소: `docs/index.md`, `docs/prd.md`, `docs/conventions.md`; epic 고정: `docs/epics/<epic>/stories.md`, 대상 `docs/epics/<epic>/ux-flow.md`
 - UX_SYNC: src 화면 경로와 기존 문서
 - UX_SYNC_INCREMENTAL: 변경 파일 목록과 대상 epic `ux-flow.md`
-- UX_REFINE: 기존 Pencil frame 또는 HTML 시안과 사용자 피드백
+- UX_REFINE: 기존 HTML 시안과 사용자 피드백
 
 ## 먼저 읽을 문서
 
@@ -48,12 +48,11 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 - Write 허용: epic 단위 `docs/epics/.../ux-flow.md`, `docs/design.md`의 system-level token 영역. 위치·계층 SSOT = [`docs/plugin/deliverables-map.md`](../../docs/plugin/deliverables-map.md).
 - 금지: PRD 수정, DB/API/system architecture 결정, src 수정
 - UX_REFINE에서는 src를 읽지 않는다.
-- Pencil MCP는 UX 분석용으로 읽기만 한다.
 - components token은 designer 권한이다.
 
 ## 결론과 보고
 
-마지막 단락에 `UX_FLOW_READY`, `UX_FLOW_PATCHED`, `UX_REFINE_READY`, `UX_FLOW_ESCALATE` 중 하나를 쓴다. 보고에는 갱신 문서, 화면 범위, self-check 결과, 다음 designer medium을 포함한다.
+마지막 단락에 `UX_FLOW_READY`, `UX_FLOW_PATCHED`, `UX_REFINE_READY`, `UX_FLOW_ESCALATE` 중 하나를 쓴다. 보고에는 갱신 문서, 화면 범위, self-check 결과, 다음 designer가 만들 HTML 시안 범위를 포함한다.
 
 ## 템플릿과 참고 문서
 

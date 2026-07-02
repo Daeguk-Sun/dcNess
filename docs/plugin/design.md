@@ -81,6 +81,18 @@ components:
 UI 없는 프로젝트 (dcness self 포함) 에서 `design.md` 미존재 시 silent skip.
 agent 는 파일 부재를 오류로 처리하지 않는다.
 
+### Static HTML 시안 규약
+
+designer 산출물은 `design-variants/<screen>-v<N>.html` 형태의 static HTML 단일 파일이다. 별도 build, dev server, 프레임워크 런타임을 요구하지 않는다.
+
+HTML 시안은 다음을 포함한다:
+
+- `:root` CSS custom property 토큰
+- 주요 화면/컴포넌트의 `data-node-id`
+- 기본/hover/focus/disabled/empty/error 등 필요한 상태 표현
+
+engineer 는 제품 코드를 구현할 때 HTML 시안 경로, `data-node-id`, 토큰 이름을 handoff 기준으로 삼는다.
+
 ### 토큰 참조 무결성 검증
 
 `{colors.X}` 등 참조가 프론트매터에 실재해야 함.

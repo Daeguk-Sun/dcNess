@@ -33,7 +33,6 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 
 - 대상 화면/플로우 (PRD 화면 인벤토리 또는 사용자 지정)
 - (UX_REFINE) 개선 대상 기존 화면 경로 (routes/screens 등)
-- (선택) design medium — 미지정 시 designer 가 `docs/design.md` frontmatter `medium` detect + 역질문
 - (선택) GitHub issue 번호 — 대상이 있으면 시작 전 [`../../docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle)에 따라 Project `Status=In progress` 로 이동한다.
 
 ## 비대상 (다른 skill 추천)
@@ -48,9 +47,9 @@ description: 화면 UX 플로우 정의 + 디자인 시안 핸드오프를 ux-ar
 2. **Step 2 — ux-architect:UX_FLOW** (5 카테고리 self-check 의무) → `UX_FLOW_READY`. 산출 = `docs/epics/epic-NN-<slug>/ux-flow.md` (+ 조건부 `docs/design.md` 시스템 토큰).
    - `UX_REFINE_READY` → UX_REFINE 모드로 전환 (아래 절차)
    - `UX_FLOW_ESCALATE` → 사용자 위임
-3. **Step 3 — designer** → `PASS` (시안 생성). 환경 감지 = `docs/design.md` frontmatter `medium: pencil|html`. 부재 시 designer Step 0 에서 detect + 사용자 역질문.
+3. **Step 3 — designer** → `PASS` (static HTML 시안 생성). 산출물은 single-file, no-build HTML 이며 `design-variants/<screen>-v<N>.html`, `data-node-id`, `:root` CSS custom property 토큰을 포함한다.
    - `ESCALATE` → 사용자 위임
-4. **Step 3.5 — 사용자 PICK** (helper begin/end-step 비대상, 컨벤션 `user-pick-3.5`): 메인이 시안 경로 (Pencil 캔버스 또는 `design-variants/<screen>-v<N>.html`) + node-id 안내 + OK/NG.
+4. **Step 3.5 — 사용자 PICK** (helper begin/end-step 비대상, 컨벤션 `user-pick-3.5`): 메인이 HTML 시안 경로 (`design-variants/<screen>-v<N>.html`) + node-id 안내 + OK/NG.
    - OK → **DESIGN_HANDOFF 패키지** (이슈 코멘트 + `docs/design.md` + 시안 파일) → 종료
    - NG → designer 재호출 (round 한도 X, sub_cycle `designer-ROUND-<n>`)
 5. **Step 종료** — `end-run`.

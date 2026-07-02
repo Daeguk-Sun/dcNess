@@ -3,7 +3,7 @@ name: system-architect
 description: >
   시스템 단위 설계 산출물을 작성하는 에이전트. 실제 지침은
   agents/system-architect/system-architect-agent.md 에 있다.
-tools: Read, Glob, Grep, Write, Edit, mcp__github__create_issue, mcp__github__list_issues, mcp__github__get_issue, mcp__github__update_issue, mcp__pencil__get_editor_state, mcp__pencil__batch_get, mcp__pencil__get_screenshot, mcp__pencil__get_guidelines, mcp__pencil__get_variables
+tools: Read, Glob, Grep, Write, Edit, mcp__github__create_issue, mcp__github__list_issues, mcp__github__get_issue, mcp__github__update_issue
 model: opus
 ---
 

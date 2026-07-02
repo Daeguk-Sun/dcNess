@@ -163,7 +163,7 @@ EOF
 
 # 다음 단계 후보 (사용자 결정 대기)
 - /init-dcness skill (enable/disable)
-- /ux skill (Pencil MCP 의존)
+- /ux skill (static HTML 시안 흐름)
 - commands/ 카테고리 추가
 - ~~worktree 도입~~ → 옵션 D 채택 완료 — 행동형 skill 진입 시 EnterWorktree 기본 켜짐, 거부 표현 시에만 건너뜀 (loop-procedure §1.1)
 - manual smoke (실 claude 에서 /spec → /design → /impl 흐름 검증)

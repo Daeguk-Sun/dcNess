@@ -1560,7 +1560,7 @@ class GithubMcpMutationTests(unittest.TestCase):
             self.assertIsNone(check_github_mcp_mutation(t), f"{t} 는 통과해야 함")
 
     def test_non_github_mcp_passes(self):
-        self.assertIsNone(check_github_mcp_mutation("mcp__pencil__batch_design"))
+        self.assertIsNone(check_github_mcp_mutation("mcp__design_canvas__batch_design"))
         self.assertIsNone(check_github_mcp_mutation("Edit"))
 
 
