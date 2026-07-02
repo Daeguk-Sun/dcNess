@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{screen-id} - v{N}</title>
+  <title>{screen-id} draft {N}</title>
   <style>
     :root {
       --color-surface: #ffffff;
@@ -20,6 +20,6 @@
       <h1 data-node-id="{screen-id}.title">화면 제목</h1>
     </section>
   </main>
-  <script defer src="_lib/show-ids.js"></script>
+  <script defer src="../_lib/show-ids.js"></script>
 </body>
 </html>

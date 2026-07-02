@@ -17,7 +17,7 @@
 - 필수: impl 계획 파일
 - 필수: epic architecture와 대상 impl 문서. `domain-model.md` 는 산출물이 있을 때 읽는다.
 - 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
-- 상황별: 기존 테스트 설정, design 문서, 의존 모듈 source
+- 상황별: 기존 테스트 설정, design 문서, impl 문서의 `## 디자인 참조` 가 가리키는 `docs/design-variants/<screen-id>.html`, 의존 모듈 source
 
 ## 판단 축
 
@@ -26,6 +26,7 @@
 - TDD 신뢰성: 테스트가 먼저 실패하고 구현 뒤 통과했는가.
 - 자체 검증: 구현 계획, 계약, lint 또는 프로젝트 표준 검증 명령을 실제로 실행해 종료코드로 판정했는가. 실행하지 못한 검증을 코드 읽기만으로 통과 처리하지 않았는가.
 - 동작 증거: 핵심 AC 를 mock-only green 으로 닫지 않고, 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 중 AC 성격에 맞는 증거를 남겼는가. 기준 정의 = [`module-design-principles.md` 동작 증거 기준](../_shared/module-design-principles.md#동작-증거-기준).
+- 디자인 정합: 확정 목업이 있으면 레이아웃 계층, 상태, 토큰 대응이 `docs/design-variants/<screen-id>.html` 의 `data-node-id` 의도와 맞는가.
 - 신뢰 경계: 외부 HTTP, 파일/URL 입력, 보안, 도메인 invariant를 바꾸면 self-test가 놓친 실패 경로를 별도로 적발했는가.
 - handoff 품질: 메인이 PR과 커밋을 만들 수 있는 최소 정보를 남겼는가.
 - 도구 경제성: 같은 파일과 같은 명령을 반복하지 않고 읽은 내용과 편집 계획을 재사용했는가.
@@ -34,7 +35,7 @@
 
 1. build-test: 계획과 설계만 읽고 테스트를 작성한 뒤 RED를 확인한다.
 2. build-impl: 허용된 코드 경로만 수정하고 GREEN을 확인한다.
-3. build-validate: 계획, 코드, 계약, lint 또는 프로젝트 표준 검증을 확인한다. 테스트/lint/build/typecheck/compile 게이트는 명령을 실제로 실행해 종료코드 기반으로 판정한다. 핵심 AC가 mock-only green이면 가능한 자동 동작 증거를 보강하고, 보강 불가 시 gap 으로 보고한다.
+3. build-validate: 계획, 코드, 계약, lint 또는 프로젝트 표준 검증을 확인한다. 테스트/lint/build/typecheck/compile 게이트는 명령을 실제로 실행해 종료코드 기반으로 판정한다. 핵심 AC가 mock-only green이면 가능한 자동 동작 증거를 보강하고, 보강 불가 시 gap 으로 보고한다. 확정 목업이 있는 UI 작업은 구현 컴포넌트와 핵심 `data-node-id` 매핑을 대조하고, 목업 대비 의도적 차이가 있으면 이유와 영향을 보고한다.
 4. 각 phase 결과를 phase prose 파일로 남긴다.
 5. PASS일 때만 다음 task를 위한 한 줄 요약을 남긴다.
 
@@ -77,6 +78,7 @@
 - 변경 파일이 impl Scope와 권한 경계 안에 있다.
 - 자체 검증 결과가 실제 실행 증거(명령 + 종료코드)와 함께 `PASS` 또는 finding으로 남는다. 실행 불가였다면 `VALIDATION_BLOCKED` 로 보고했다.
 - 핵심 AC별 동작 증거와 mock/stub/fake 사용 경계가 보고된다. TypeScript 등 정적 타입검사가 의미 있는 stack 에서 typecheck/compile 이 빠졌다면 품질 게이트 warning 또는 보강 필요성을 쓴다.
+- 확정 목업이 있는 UI 작업에서는 디자인 정합(레이아웃 계층·상태·토큰 대응)과 의도적 차이가 보고된다.
 - PR 본문 초안에 close keyword가 불확실하면 메인 검토 요청을 남긴다.
 
 ## 권한 경계

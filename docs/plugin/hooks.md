@@ -162,7 +162,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 - 설정, markdown, yaml, env, css, 타입 선언
 - Next.js 특수 파일 (`layout`, `page`, `loading`, `error`, `not-found`, `globals.css`)
 - entry-file 예외 — path heuristic (`*/App.{ts,tsx,js,jsx}`, `*/_layout.*`, `*/apps/*/index.*`, `*/src/main.*`) + 내용 시그니처 (`registerRootComponent(`, `AppRegistry.registerComponent(`)
-- `templates/`, `design-variants/`
+- `templates/`, `docs/design-variants/`
 - TS/JS 외 언어
 
 > basename 에 우연히 `test`/`spec` 이 든 **구현 파일** (`contest.ts`, `spectrum.ts`, `latest.ts`) 은 skip 하지 않는다 — TDD 강제 대상이다 (#681). skip 은 `.test.`/`.spec.` 접미와 슬래시로 구분된 표준 test 디렉터리 마디에만 적용된다.

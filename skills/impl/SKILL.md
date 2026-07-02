@@ -68,6 +68,28 @@ GitHub issue 등록이 목표인 요청이면 `/to-issue` 로 보내고, 수정/
 
 GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle)에 따라 Project `Status=In progress` 로 이동한다. Project bootstrap 이 안 되어 있으면 `/init-dcness` 의 GitHub Project lifecycle bootstrap 을 먼저 수행한다.
 
+## Step 0.4 — UI 기준 확보 분기
+
+UI 작업이면 구현 경로(Lite/Standard) 판정과 별도로 **UI 기준 확보 분기**를 먼저 판정한다. 목업은 무조건 만들지 않는다. 강제되는 불변식은 "신규 시각 구조 작업은 기대 고정 기준을 확보하고, 기준이 존재하면 구현까지 배선된다" 이다.
+
+사용자의 "목업 없이" 지시는 항상 우선한다.
+
+| 분기 | 조건 | 행동 |
+|---|---|---|
+| 기준 있음 | 사용자 제공 이미지·스케치·HTML, 기존 확정본 `docs/design-variants/<screen-id>.html`, 이전에 PICK 된 화면 기준이 있음 | 내부 [`canvas-design`](../canvas-design/SKILL.md) 을 호출해 승격·참조 상태를 확인하고 확정 목업 경로 + 핵심 node-id 매핑을 구현 입력에 싣는다 |
+| 신규 시각 구조 + 기준 없음 | 새 화면/큰 레이아웃 변경/상태 구조 변경인데 기준이 없음 | 내부 [`canvas-design`](../canvas-design/SKILL.md) 이 designer draft 생성 → 사용자 PICK → 확정본 승격 → `canvas.html` frame 등록을 수행한다 |
+| 시각 구조 불변 | 문구, 데이터 wiring, 접근성 속성, 작은 스타일 조정처럼 기존 시각 구조가 그대로거나 사용자가 "목업 없이" 지시 | 목업 없이 구현한다. 기존 디자인 참조가 있으면 읽되 새 draft/승격은 하지 않는다 |
+
+메인은 판정 결과를 한 줄로 echo 한다.
+
+```text
+UI 기준: 기준 있음 — <사용자 제공 이미지|스케치|기존 확정본> → docs/design-variants/<screen-id>.html, 구현 입력에 node-id 매핑 포함
+UI 기준: 신규 시각 구조 + 기준 없음 — canvas-design 으로 draft/PICK/확정본 승격 후 구현
+UI 기준: 시각 구조 불변 — 목업 없이 구현
+```
+
+`canvas-design` 이 반환한 확정 목업 경로는 impl task 또는 compact plan 의 `## 디자인 참조` 섹션에 기록한다. `design: required` 는 UI 감지 신호이며, `design: optional` 이라도 신규 시각 구조면 이 분기를 탄다. 단, 시각 구조 불변이면 `design: optional` + `해당 없음` 으로 남길 수 있다.
+
 ## Step 0.5 — 설계 산출물 유무 분기 (되돌림 1차 기준)
 
 > impl 이 보는 **1차 분기는 "설계 문서 유무"** 다. 설계 깊이(경량/full) 판단은 impl 이 직접 하지 않고 설계 레이어로 내려보낸다. 원리 SSOT = [`workflow-router.md` 되돌림 원리](../../docs/plugin/workflow-router.md#되돌림backpressure-원리).
@@ -87,11 +109,12 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 판정 순서:
 
 1. GitHub issue 초안/등록 요청인가? → `/to-issue`
-2. 설계 문서(경로)가 들어왔는가? → **Standard** (받은 설계도로 구현, 엔진 직교 판정)
-3. high-risk trigger 가 있는가? → impl *밖* — `/design`(또는 `/spec`) 선행으로 설계도 확보 후 Standard 재진입 (impl 진입 전 분기 규칙은 [`workflow-router`](../../docs/plugin/workflow-router.md))
-4. 목표/범위/성공 기준이 모호한가? → 사용자에게 명확화 또는 `/spec`
-5. concrete signal 이 있고 즉시 구현 경계가 명확한가? → **Lite**
-6. 경량 설계 필요(구현 경계·테스트 기준 애매)? → `compact-design` 으로 되돌려 설계도 산출 후 **Standard**
+2. UI 작업인가? → **UI 기준 확보 분기** echo. 기준이 필요하면 `canvas-design` 으로 확정 목업 경로를 확보한다. 사용자의 "목업 없이" 는 우선한다.
+3. 설계 문서(경로)가 들어왔는가? → **Standard** (받은 설계도로 구현, 엔진 직교 판정)
+4. high-risk trigger 가 있는가? → impl *밖* — `/design`(또는 `/spec`) 선행으로 설계도 확보 후 Standard 재진입 (impl 진입 전 분기 규칙은 [`workflow-router`](../../docs/plugin/workflow-router.md))
+5. 목표/범위/성공 기준이 모호한가? → 사용자에게 명확화 또는 `/spec`
+6. concrete signal 이 있고 즉시 구현 경계가 명확한가? → **Lite**
+7. 경량 설계 필요(구현 경계·테스트 기준 애매)? → `compact-design` 으로 되돌려 설계도 산출 후 **Standard**
 
 메인은 사용자에게 한 줄로 echo 한다.
 

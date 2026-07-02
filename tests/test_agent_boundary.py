@@ -821,13 +821,36 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 self.assertIsNotNone(reason, f"{agent} 가 docs 하위 {p} 를 쓰면 안 됨")
                 self.assertIn("docs", reason)
 
-    def test_code_agents_cannot_write_design_variants(self):
-        # design-variants/ 는 designer 전용 — 코드 agent 차단.
+    def test_design_variants_write_boundary_is_drafts_only(self):
+        # docs/design-variants/ 확정본과 canvas 는 메인 전용이고, designer 는 drafts 만 쓴다.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent in ("engineer", "test-engineer", "build-worker"):
-                reason = check_write_allowed(agent, "design-variants/v1/index.html", cwd=cwd)
-                self.assertIsNotNone(reason, f"{agent} 가 design-variants 를 쓰면 안 됨")
+                reason = check_write_allowed(
+                    agent, "docs/design-variants/drafts/home-draft1.html", cwd=cwd
+                )
+                self.assertIsNotNone(
+                    reason, f"{agent} 가 docs/design-variants drafts 를 쓰면 안 됨"
+                )
+
+            self.assertIsNone(
+                check_write_allowed(
+                    "designer", "docs/design-variants/drafts/home-draft1.html", cwd=cwd
+                )
+            )
+            for p in (
+                "docs/design-variants/home.html",
+                "docs/design-variants/canvas.html",
+                "docs/design-variants/_lib/show-ids.js",
+                "design-variants/home.html",
+            ):
+                reason = check_write_allowed("designer", p, cwd=cwd)
+                self.assertIsNotNone(reason, f"designer 가 확정/canvas 경로 {p} 를 쓰면 안 됨")
+            for agent in ("architect", "module-architect", "system-architect"):
+                reason = check_write_allowed(
+                    agent, "docs/design-variants/canvas.html", cwd=cwd
+                )
+                self.assertIsNotNone(reason, f"{agent} 가 canvas 확정본을 쓰면 안 됨")
 
     # ── build-worker: 합집합으로 둘 다 허용 (youTubeGenerator 통합 시나리오) ──
     def test_build_worker_youtube_generator_scenario(self):

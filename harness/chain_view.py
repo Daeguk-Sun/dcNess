@@ -18,6 +18,8 @@
 
 - sub-step 수 = 엔진별 (SKILL line 435):
     build-worker 2 / build-worker-deep 3 / full-4 4 / advanced 5.
+    UI 감지 시 canvas-design progress checkpoint 선두:
+    ui-build-worker 3 / ui-build-worker-deep 4 / ui full-4 5 / ui-advanced 6.
     story 마감 task +1 (`product-acceptance`),
     epic 마감 task +2 (`product-acceptance:STORY` / `product-acceptance:EPIC`).
 - task 완료 → 다음 다시그리기 (SKILL 비용 분기): ≤10 full / 11~20 partial /
@@ -39,6 +41,7 @@ from typing import Any, Dict, List, Optional, Sequence
 __all__ = [
     "ChainTask",
     "ENGINE_SUBSTEPS",
+    "MAIN_OWNED_SUBSTEPS",
     "normalize_engine",
     "substeps_for",
     "redraw_strategy",
@@ -52,7 +55,7 @@ __all__ = [
 # ── 엔진별 base sub-step (SKILL line 435 + impl-ui-design-loop 진본) ──
 #
 # impl-task-loop 엔진(build-worker/deep/full-4/advanced)은 SKILL line 435,
-# impl-ui-design-loop(UI 감지 → designer + 사용자 PICK 선두)는 SKILL line 16-18
+# impl-ui-design-loop(UI 감지 → canvas-design 선두)는 SKILL line 16-18
 # `expected_steps` 가 진본. 모두 그대로 옮긴다(새 라벨 발명 X). 여기에 없는
 # 변종은 task 입력의 `substeps` 명시 override 로 표현한다([`substeps_for`]).
 ENGINE_SUBSTEPS: Dict[str, List[str]] = {
@@ -66,20 +69,33 @@ ENGINE_SUBSTEPS: Dict[str, List[str]] = {
         "code-validator",
         "pr-reviewer",
     ],
-    # impl-ui-design-loop (풀 4-agent 한정, 선두 designer + 사용자 PICK) — 6 step.
+    # impl-ui-design-loop (UI + full-4, 선두 canvas-design) — 5 step.
+    # 사용자 PICK 은 canvas-design 내부 조건부 절차다. 기존 확정본/목업 없이 분기에는
+    # draft 가 없으므로 독립 sub-step 으로 세지 않는다.
     "ui": [
-        "designer",
-        "사용자 PICK",
+        "canvas-design",
         "test-engineer",
         "engineer:IMPL",
         "code-validator",
         "pr-reviewer",
     ],
-    # UI + deep task 보강 (designer 앞 module-architect) — 7 step.
+    # UI + build-worker, engine 무관 canvas-design 선두 — 3 step.
+    "ui-build-worker": [
+        "canvas-design",
+        "build-worker",
+        "pr-reviewer",
+    ],
+    # UI + build-worker deep task 보강 — module-architect 후 같은 canvas baseline.
+    "ui-build-worker-deep": [
+        "module-architect",
+        "canvas-design",
+        "build-worker",
+        "pr-reviewer",
+    ],
+    # UI + deep task 보강 (canvas-design 앞 module-architect) — 6 step.
     "ui-advanced": [
         "module-architect",
-        "designer",
-        "사용자 PICK",
+        "canvas-design",
         "test-engineer",
         "engineer:IMPL",
         "code-validator",
@@ -104,9 +120,21 @@ _ENGINE_ALIASES: Dict[str, str] = {
     "ui": "ui",
     "ui-design-loop": "ui",
     "impl-ui-design-loop": "ui",
+    "ui-build-worker": "ui-build-worker",
+    "ui-worker": "ui-build-worker",
+    "impl-ui-build-worker-loop": "ui-build-worker",
+    "ui-build-worker-deep": "ui-build-worker-deep",
+    "ui-worker-deep": "ui-build-worker-deep",
+    "ui-3agent": "ui-build-worker-deep",
+    "impl-ui-build-worker-deep-loop": "ui-build-worker-deep",
+    "impl-ui-3agent-loop": "ui-build-worker-deep",
     "ui-advanced": "ui-advanced",
     "ui-design-loop-advanced": "ui-advanced",
 }
+
+# 진행 뷰에는 보이지만 strict conveyor 의 begin-step/Agent 쌍이 아닌 메인 체크포인트.
+# canvas-design 이 draft 를 필요로 하면 실제 Agent 호출은 begin-step designer 로 연다.
+MAIN_OWNED_SUBSTEPS = frozenset({"canvas-design"})
 
 # 마감 task 의 추가 sub-step (SKILL line 435 + 마감 acceptance 절).
 _CLOSE_ACCEPTANCE: Dict[str, List[str]] = {

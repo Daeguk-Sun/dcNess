@@ -162,8 +162,7 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
         r'(^|/)trd\.md$',
     ),
     "designer": (
-        r'(^|/)design-variants/',
-        r'(^|/)docs/ui-spec',
+        r'^docs/design-variants/drafts/',
     ),
     # test-engineer — 테스트만 (역할 격리: 구현 소스 write 금지). 언어 중립 테스트 컨벤션을
     # 디렉토리(tests/·test/·spec/·__tests__/)와 파일명(test_*.py·*_test.{go,rb,..}·
@@ -223,8 +222,9 @@ _BUILD_WORKER_UNION_ROLES: tuple[str, ...] = ("engineer", "test-engineer", "buil
 # engineer / test-engineer / build-worker 의 언어 중립 ALLOW 패턴(lib/·internal/·cmd/·
 # tests?/·spec/·test_*.py 등)은 re.search 라 docs/ 하위 동명 디렉토리(docs/internal/·
 # docs/spec/·docs/tests/)나 docs 안 테스트 파일명을 *우회 허용* 한다. docs/ 는 architect,
-# design-variants/ 는 designer 전용이므로, 코드 agent 의 write 를 ALLOW 검사보다 *먼저*
-# 차단해 역할 경계를 지킨다. (기존 src/ 패턴의 docs/src/ 우회도 함께 닫힌다.)
+# docs/design-variants/ 는 canvas-design/main 전용이고, drafts 만 designer 전용이므로
+# 코드 agent 의 write 를 ALLOW 검사보다 *먼저* 차단해 역할 경계를 지킨다.
+# (기존 src/ 패턴의 docs/src/ 우회도 함께 닫힌다.)
 _CODE_AGENTS: frozenset = frozenset({"engineer", "test-engineer", "build-worker"})
 # 루트(^) 앵커 — monorepo 의 동명 app/package(apps/docs/src·packages/docs/src)를 문서로
 # 오인해 정상 소스를 막지 않도록 루트 docs 트리만 deny (#694 codex P2). _normalize 가
@@ -232,7 +232,7 @@ _CODE_AGENTS: frozenset = frozenset({"engineer", "test-engineer", "build-worker"
 _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
     # 다른 역할 전용 산출 영역 — 루트(^) 앵커 (monorepo 동명 패키지 apps/docs/src 는 소스라 허용).
     r'^docs/',            # architect / ux-architect / tech-reviewer 전용
-    r'^design-variants/', # designer 전용
+    r'^design-variants/', # legacy root design variants — 사용 금지
     # 의존성 / 빌드 산출 트리 — 누구도 직접 write 하지 않는다. engineer 의 (^|/)src/ 와
     # test-engineer 의 (^|/)tests?/·spec/ 가 이 트리 안 src/tests 를 *중첩* 매칭하던 우회를
     # 차단 (codex P1/P2). 언어 전반의 보편 집합 — 프로젝트 고유 추가는 #696 override.
@@ -255,7 +255,8 @@ _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
 
 # ── architect 계열 폐기된 docs 산출물 deny (#810) ────────────────
 # architect / module-architect / system-architect 는 새 전역 문서 drift 를 막기 위해
-# docs/ 전체를 broad allow 한다. 대신 root-flat legacy epic 산출물과 폐기된 ADR 위치만
+# docs/ 전체를 broad allow 한다. 대신 root-flat legacy epic 산출물, 폐기된 ADR 위치,
+# canvas-design 확정본 영역만 ALLOW 검사 전에 좁게 차단한다.
 # ALLOW 검사 전에 좁게 차단한다. root docs/architecture.md·docs/tech-review.md 등 전역
 # 영속 산출물은 계속 허용.
 _ARCHITECT_AGENTS: frozenset = frozenset(
@@ -268,6 +269,7 @@ _ARCHITECT_ROOT_FLAT_DENY: tuple[str, ...] = (
     r'^docs/impl(/|$)',
     r'^docs/adr\.md$',
     r'^docs/epics/[^/]+/adr\.md$',
+    r'^docs/design-variants/',
 )
 
 
@@ -635,13 +637,13 @@ def check_write_allowed(
 
     # 3. 코드 agent 전용영역 deny → ALLOW 검사보다 먼저 (#694 codex P2).
     #    언어 중립 ALLOW 패턴이 docs/·design-variants/ 하위 동명 디렉토리/파일명을
-    #    re.search 로 우회 허용하는 것을 차단 — docs/ 는 architect, design-variants/ 는 designer.
+    #    re.search 로 우회 허용하는 것을 차단 — docs/ 와 canvas 확정본은 코드 agent 영역이 아니다.
     if agent in _CODE_AGENTS:
         matched = _matches_any(norm, _CODE_AGENT_EXCLUSIVE_DENY)
         if matched:
             return (
                 f"{agent} 전용영역 침범 차단: `{norm}` matched `{matched}` — "
-                f"docs/ 는 architect, design-variants/ 는 designer 전용 (코드 agent write 금지)."
+                f"docs/ 와 docs/design-variants/ 확정본은 코드 agent write 금지."
             )
 
     # 4. 프로젝트별 boundary override (#696) — 코어 ALLOW 검사 직전에 적용.

@@ -43,7 +43,7 @@ class PublicSurfaceGateTests(unittest.TestCase):
         self.assertEqual(["spec", "design", "impl", "acceptance"], defaults)
         self.assertEqual(["impl-loop", "tech-review", "ux"], advanced)
         self.assertEqual(["to-issue"], support)
-        self.assertEqual(["compact-design"], internal_skills)
+        self.assertEqual(["canvas-design", "compact-design"], internal_skills)
         self.assertNotIn("qa", internal_agents)
 
         for name in defaults:

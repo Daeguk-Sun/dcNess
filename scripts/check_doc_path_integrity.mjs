@@ -38,7 +38,7 @@ const PATH_PREFIXES = [
   'app/',
   'codex/',
   'commands/',
-  'design-variants/',
+  'docs/design-variants/',
   'docs/',
   'harness/',
   'hooks/',
@@ -48,6 +48,13 @@ const PATH_PREFIXES = [
   'src/',
   'templates/',
   'tests/',
+];
+
+// Canonical canvas SSOT moved to docs/design-variants/. Keep the legacy root
+// prefix as a validation-only path so stale docs fail instead of becoming
+// invisible to this checker.
+const LEGACY_PATH_PREFIXES = [
+  'design-variants/',
 ];
 
 const OPTIONAL_SEED_PATHS = new Set([
@@ -183,7 +190,9 @@ function shouldIgnoreCandidate(value) {
 
 function looksLikeRepoPath(value) {
   if (ROOT_FILES.has(value)) return true;
-  return PATH_PREFIXES.some((prefix) => value.startsWith(prefix));
+  return [...PATH_PREFIXES, ...LEGACY_PATH_PREFIXES].some((prefix) =>
+    value.startsWith(prefix),
+  );
 }
 
 function isSeedPlaceholderPath(value) {

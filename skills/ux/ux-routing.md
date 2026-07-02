@@ -15,18 +15,21 @@ agent 는 일을 마치면 prose 마지막 단락에 *어떤 결과로 끝났는
 ```mermaid
 flowchart TB
   subgraph FLOW[UX_FLOW · ux-design-stage]
-    UXF[ux-architect:UX_FLOW] -->|UX_FLOW_READY| DS1[designer]
+    UXF[ux-architect:UX_FLOW] -->|UX_FLOW_READY| SEED1[design-variants seed 보장]
+    SEED1 --> DS1[designer]
   end
   subgraph REFINE[UX_REFINE · ux-refine-stage]
     UXR[ux-architect:UX_REFINE] -->|UX_REFINE_READY| AP{사용자 승인 2.5}
-    AP -->|승인| DS2[designer]
+    AP -->|승인| SEED2[design-variants seed 보장]
+    SEED2 --> DS2[designer]
     AP -->|거절 ≤2| UXR
   end
   UXF -->|UX_REFINE_READY| UXR
   DS1 -->|PASS| PICK{사용자 PICK 3.5}
   DS2 -->|PASS| PICK
   PICK -->|OK| H([DESIGN_HANDOFF · 종료 → /impl])
-  PICK -->|NG| RD[designer-ROUND-n 재생성]
+  PICK -->|NG| SEED3[design-variants seed 보장]
+  SEED3 --> RD[designer-ROUND-n 재생성]
   RD --> PICK
   UXF -.->|UX_FLOW_ESCALATE| U((사용자 위임))
   UXR -.->|UX_FLOW_ESCALATE| U
@@ -35,7 +38,7 @@ flowchart TB
 
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class UXF,UXR,DS1,DS2,RD produce
+  class UXF,UXR,DS1,DS2,RD,SEED1,SEED2,SEED3 produce
   class U,AP,PICK user
 ```
 
@@ -47,14 +50,14 @@ flowchart TB
 
 | agent | 결론 → 다음 호출 |
 |---|---|
-| **ux-architect:UX_FLOW** | `UX_FLOW_READY` → designer · `UX_REFINE_READY` → UX_REFINE 모드 전환 (ux-architect:UX_REFINE 재진입) · `UX_FLOW_ESCALATE` → 사용자 |
-| **ux-architect:UX_REFINE** | `UX_REFINE_READY` → 사용자 승인(Step 2.5) → designer · `UX_FLOW_ESCALATE` → 사용자. (allowed_enums = `UX_REFINE_READY,UX_FLOW_ESCALATE`) |
+| **ux-architect:UX_FLOW** | `UX_FLOW_READY` → design-variants seed 보장 후 designer · `UX_REFINE_READY` → UX_REFINE 모드 전환 (ux-architect:UX_REFINE 재진입) · `UX_FLOW_ESCALATE` → 사용자 |
+| **ux-architect:UX_REFINE** | `UX_REFINE_READY` → 사용자 승인(Step 2.5) → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (allowed_enums = `UX_REFINE_READY,UX_FLOW_ESCALATE`) |
 | **designer** | `PASS` → 사용자 PICK(Step 3.5) · `ESCALATE` → 사용자 |
 
 표만으로 안 풀리는 맥락:
 
 - **모드 전환** — UX_FLOW 진행 중 ux-architect 가 "기존 화면 개선이 맞다" 판단해 `UX_REFINE_READY` 로 끝나면 UX_REFINE 절차로 전환 (ux-architect:UX_REFINE 재진입).
-- **designer 재생성** — 사용자 PICK NG 는 round 한도가 **없다** (사용자 자유 결정, sub_cycle `designer-ROUND-<n>`). cycle 한도([cycle 한도](#cycle-한도))는 *self-check FAIL / 승인 거절* 경로에만 적용.
+- **designer 재생성** — 사용자 PICK NG 는 round 한도가 **없다** (사용자 자유 결정, sub_cycle `designer-ROUND-<n>`). 재생성 전에도 design-variants seed 보장을 다시 확인한다. cycle 한도([cycle 한도](#cycle-한도))는 *self-check FAIL / 승인 거절* 경로에만 적용.
 
 ## cycle 한도
 
