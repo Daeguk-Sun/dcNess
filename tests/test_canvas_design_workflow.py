@@ -63,11 +63,16 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "공개 진입점이 아니다",
             "docs/design-variants/",
             "docs/design-variants/drafts/",
+            "seed 보장",
+            "templates/design-variants/",
+            "부재 시만",
             "canvas.html",
             "<screen-id>.html",
             "사용자 PICK",
             "확정본 승격",
             "canvas frame 등록",
+            "PASS",
+            "ESCALATE",
             "designer 는 drafts",
             "메인",
         ):
@@ -84,6 +89,27 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertEqual(["spec", "design", "impl", "acceptance"], defaults)
         self.assertEqual(["impl-loop", "tech-review", "ux"], advanced)
         self.assertEqual(["canvas-design", "compact-design"], sorted(internal))
+
+    def test_canvas_design_bootstraps_seed_and_requires_routing_enum(self) -> None:
+        skill = (ROOT / "skills" / "canvas-design" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        for needle in (
+            "docs/design-variants/_lib/show-ids.js",
+            "docs/design-variants/_lib/canvas.js",
+            "docs/design-variants/canvas.html",
+            "templates/design-variants/.gitignore",
+            "templates/design-variants/_lib/show-ids.js",
+            "templates/design-variants/_lib/canvas.js",
+            "templates/design-variants/canvas.html",
+            "덮어쓰지 않는다",
+            "마지막 단락",
+            "PASS",
+            "ESCALATE",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, skill)
 
     def test_impl_has_three_way_visual_baseline_branch_and_echo(self) -> None:
         for text in (self.impl, self.impl_routing):

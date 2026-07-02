@@ -32,31 +32,45 @@ description: 내부 전용 UI 기준 확보 wrapper. 신규 시각 구조 구현
 
 ## 절차
 
-1. **3-way 기준 판정 확인**
+1. **seed 보장**
+   - `/init-dcness` 기본 경로는 UI seed 를 설치하지 않을 수 있다. draft 생성이나 canvas frame 등록 전 메인이 `docs/design-variants/` seed 를 부재 시만 만든다.
+   - `docs/design-variants/_lib/show-ids.js` 가 없으면 `templates/design-variants/_lib/show-ids.js` 를 복사한다.
+   - `docs/design-variants/_lib/canvas.js` 가 없으면 `templates/design-variants/_lib/canvas.js` 를 복사한다.
+   - `docs/design-variants/canvas.html` 이 없으면 `templates/design-variants/canvas.html` 을 복사한다.
+   - `docs/design-variants/.gitignore` 이 없으면 `templates/design-variants/.gitignore` 를 복사한다.
+   - 이미 있는 파일은 덮어쓰지 않는다. 확정본과 기존 canvas frame 은 유지한다.
+2. **3-way 기준 판정 확인**
    - 기준 있음: 사용자 제공 이미지·스케치·HTML 또는 기존 확정본을 기준으로 인정한다. 기존 확정본이면 그대로 반환한다. 사용자 제공 HTML 이면 메인이 확정본으로 승격하고 canvas 에 등록한다. 이미지·스케치처럼 node-id 가 없는 기준은 필요 시 designer 가 drafts 에 HTML draft 를 만들고 사용자 PICK 을 거쳐 확정한다.
    - 신규 시각 구조 + 기준 없음: designer 를 호출해 `docs/design-variants/drafts/<screen-id>-draft<N>.html` 을 만든다.
    - 시각 구조 불변 또는 사용자의 "목업 없이" 지시: mockup 생성을 생략하고 `skip` 으로 반환한다. 사용자의 "목업 없이" 지시는 항상 우선한다.
-2. **designer draft 생성** (`new-draft` 또는 이미지·스케치의 HTML 변환 필요 시)
+3. **designer draft 생성** (`new-draft` 또는 이미지·스케치의 HTML 변환 필요 시)
    - designer 는 `docs/design-variants/drafts/` 아래에만 write 한다.
    - draft HTML 은 single-file, no-build, `:root` CSS custom property 토큰, 주요 `data-node-id`, 필요한 상태(default/hover/focus/disabled/empty/error)를 포함한다.
    - draft 에서 helper script 는 `../_lib/show-ids.js` 를 참조한다.
-3. **사용자 PICK**
+4. **사용자 PICK**
    - 메인이 draft 경로와 핵심 node-id 를 사용자에게 제시한다.
    - NG 면 designer 를 재호출한다. round 한도는 두지 않는다.
    - OK 면 다음 단계로 진행한다.
-4. **확정본 승격**
+5. **확정본 승격**
    - 메인이 선택된 draft 또는 사용자 제공 HTML 을 `docs/design-variants/<screen-id>.html` 로 승격한다.
    - 승격 시 `../_lib/show-ids.js` 참조를 `_lib/show-ids.js` 로 정규화한다.
    - 확정본은 v 접미사를 쓰지 않는다.
-5. **canvas frame 등록**
+6. **canvas frame 등록**
    - 메인이 `docs/design-variants/canvas.html` 에 `<iframe data-frame-id="<screen-id>" src="<screen-id>.html"></iframe>` 를 등록한다.
    - 이미 같은 `data-frame-id` 가 있으면 중복 등록하지 않고 기존 frame 을 갱신한다.
    - 화면 간 흐름이 확정돼 있으면 `svg.flow-arrows` 의 `path[data-from][data-to]` 로 연결한다. 클릭 프로토타이핑은 후속 범위다.
-6. **반환**
+7. **반환**
    - 확정 목업 경로: `docs/design-variants/<screen-id>.html`
    - canvas 경로: `docs/design-variants/canvas.html`
    - 핵심 node-id 매핑: `<data-node-id> -> 구현 컴포넌트/상태`
    - 의도적 차이가 이미 합의된 경우 그 이유
+
+## 결론 enum
+
+`/impl-loop` 이 이 스킬을 routed step 으로 호출하므로 마지막 단락은 반드시 아래 중 하나로 끝난다.
+
+- `PASS` — seed 보장, 3-way 판정, 필요한 draft/PICK/승격/canvas 등록, 반환값 정리가 끝났고 구현 step 으로 진행 가능하다.
+- `ESCALATE` — 사용자 PICK 대기, 기준 소스 불명확, seed 복사 실패, 화면 id 충돌처럼 메인이 임의로 진행하면 안 되는 조건이다. 사유와 필요한 사용자 입력을 함께 적는다.
 
 ## 권한 경계
 
