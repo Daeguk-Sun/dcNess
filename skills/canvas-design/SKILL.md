@@ -34,10 +34,12 @@ description: 내부 전용 UI 기준 확보 wrapper. 신규 시각 구조 구현
 
 1. **seed 보장**
    - `/init-dcness` 기본 경로는 UI seed 를 설치하지 않을 수 있다. draft 생성이나 canvas frame 등록 전 메인이 `docs/design-variants/` seed 를 부재 시만 만든다.
+   - 먼저 `docs/design-variants/_lib/` 와 `docs/design-variants/drafts/` 디렉터리를 만든다.
    - `docs/design-variants/_lib/show-ids.js` 가 없으면 `templates/design-variants/_lib/show-ids.js` 를 복사한다.
    - `docs/design-variants/_lib/canvas.js` 가 없으면 `templates/design-variants/_lib/canvas.js` 를 복사한다.
    - `docs/design-variants/canvas.html` 이 없으면 `templates/design-variants/canvas.html` 을 복사한다.
    - `docs/design-variants/.gitignore` 이 없으면 `templates/design-variants/.gitignore` 를 복사한다.
+   - `docs/design-variants/drafts/.gitkeep` 이 없으면 `templates/design-variants/drafts/.gitkeep` 을 복사한다.
    - 이미 있는 파일은 덮어쓰지 않는다. 확정본과 기존 canvas frame 은 유지한다.
 2. **3-way 기준 판정 확인**
    - 기준 있음: 사용자 제공 이미지·스케치·HTML 또는 기존 확정본을 기준으로 인정한다. 기존 확정본이면 그대로 반환한다. 사용자 제공 HTML 이면 메인이 확정본으로 승격하고 canvas 에 등록한다. 이미지·스케치처럼 node-id 가 없는 기준은 필요 시 designer 가 drafts 에 HTML draft 를 만들고 사용자 PICK 을 거쳐 확정한다.

@@ -413,7 +413,7 @@ design seed 를 명시 선택한 경우:
 
 ```bash
 mkdir -p "$PROJECT_ROOT/docs/design-variants/_lib" "$PROJECT_ROOT/docs/design-variants/drafts"
-for FILE in .gitignore _lib/show-ids.js _lib/canvas.js canvas.html; do
+for FILE in .gitignore _lib/show-ids.js _lib/canvas.js canvas.html drafts/.gitkeep; do
   TARGET="$PROJECT_ROOT/docs/design-variants/$FILE"
   SOURCE="$PLUGIN_ROOT/templates/design-variants/$FILE"
   if [ -f "$TARGET" ]; then

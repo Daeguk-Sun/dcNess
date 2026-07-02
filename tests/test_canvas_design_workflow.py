@@ -21,6 +21,15 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             ROOT / "skills" / "impl-loop" / "SKILL.md"
         ).read_text(encoding="utf-8")
         self.ux = (ROOT / "skills" / "ux" / "SKILL.md").read_text(encoding="utf-8")
+        self.ux_routing = (
+            ROOT / "skills" / "ux" / "ux-routing.md"
+        ).read_text(encoding="utf-8")
+        self.design = (
+            ROOT / "skills" / "design" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+        self.design_routing = (
+            ROOT / "skills" / "design" / "design-routing.md"
+        ).read_text(encoding="utf-8")
         self.spec_routing = (
             ROOT / "skills" / "spec" / "spec-routing.md"
         ).read_text(encoding="utf-8")
@@ -103,10 +112,12 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "docs/design-variants/_lib/show-ids.js",
             "docs/design-variants/_lib/canvas.js",
             "docs/design-variants/canvas.html",
+            "docs/design-variants/drafts/.gitkeep",
             "templates/design-variants/.gitignore",
             "templates/design-variants/_lib/show-ids.js",
             "templates/design-variants/_lib/canvas.js",
             "templates/design-variants/canvas.html",
+            "templates/design-variants/drafts/.gitkeep",
             "덮어쓰지 않는다",
             "마지막 단락",
             "PASS",
@@ -173,6 +184,9 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
                 self.assertIn("기존 활성 프로젝트", text)
         self.assertNotIn('TARGET="$PROJECT_ROOT/design-variants/$FILE"', self.init_skill)
         self.assertTrue((ROOT / "templates" / "design-variants" / ".gitignore").is_file())
+        self.assertTrue(
+            (ROOT / "templates" / "design-variants" / "drafts" / ".gitkeep").is_file()
+        )
 
     def test_support_gates_treat_docs_design_variants_as_canonical_path(self) -> None:
         self.assertIn("'docs/design-variants/'", self.doc_path_integrity)
@@ -182,20 +196,38 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertIn("*/docs/design-variants/*", self.tdd_guard)
         self.assertNotIn("*/design-variants/*) allow", self.tdd_guard)
 
-    def test_ux_and_design_only_drafts_seed_design_variants_first(self) -> None:
+    def test_every_designer_entry_seeds_design_variants_first(self) -> None:
         for needle in (
-            "design-variants seed 보장",
+            "designer 진입 공통 preflight",
             "templates/design-variants/.gitignore",
             "templates/design-variants/canvas.html",
             "templates/design-variants/_lib/show-ids.js",
             "templates/design-variants/_lib/canvas.js",
+            "templates/design-variants/drafts/.gitkeep",
             "덮어쓰지 않는다",
+            "designer-ROUND",
+            "UX_REFINE",
             "docs/design-variants/drafts/<screen-id>-draft<N>.html",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.ux)
 
+        self.assertIn("design-variants seed 보장", self.ux_routing)
+        self.assertIn("designer-ROUND", self.ux_routing)
+        self.assertIn("UX_REFINE_READY` → design-variants seed 보장 후 designer", self.design_routing)
+        self.assertIn("`docs/design-variants/` seed 보장 후 designer", self.design)
         self.assertIn("docs/design-variants/` seed 보장 후 designer", self.spec_routing)
+
+    def test_design_seed_template_keeps_drafts_directory_materialized(self) -> None:
+        gitignore = (ROOT / "templates" / "design-variants" / ".gitignore").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("drafts/*", gitignore)
+        self.assertIn("!drafts/.gitkeep", gitignore)
+        self.assertTrue(
+            (ROOT / "templates" / "design-variants" / "drafts" / ".gitkeep").is_file()
+        )
 
     def test_canvas_seed_uses_confirmed_screen_paths_without_version_suffix(self) -> None:
         canvas = (ROOT / "templates" / "design-variants" / "canvas.html").read_text(
