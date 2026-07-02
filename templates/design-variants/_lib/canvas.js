@@ -1,9 +1,9 @@
-/* design-variants/_lib/canvas.js
+/* docs/design-variants/_lib/canvas.js
  * dcness plug-in 시드 — canvas.html 의 pan/zoom + iframe auto-layout + 직선 화살표.
  * canvas.html 가 <script defer src="_lib/canvas.js"> 로 import.
  *
- * designer 책임:
- *   <iframe data-frame-id="..." src="..."></iframe>  (좌표 X — auto-layout)
+ * canvas-design 승격 단계 책임:
+ *   <iframe data-frame-id="..." src="<screen-id>.html"></iframe>  (좌표 X — auto-layout)
  *   <iframe data-frame-id="..." data-pos="<col>,<row>" src="..."></iframe>  (override 시만)
  *   <svg class="flow-arrows">
  *     <path data-from="A" data-to="B" data-label="..."/>

@@ -1,6 +1,8 @@
-/* design-variants/_lib/show-ids.js
+/* docs/design-variants/_lib/show-ids.js
  * dcness plug-in 시드 — Show IDs 토글 + URL hash highlight.
- * 각 design-variants/<screen>-v<N>.html 가 <script defer src="_lib/show-ids.js"> 로 import.
+ * 각 docs/design-variants/<screen-id>.html 가 <script defer src="_lib/show-ids.js"> 로 import.
+ * draft HTML(docs/design-variants/drafts/) 은 ../_lib/show-ids.js 로 import 하고,
+ * canvas-design 승격 단계에서 _lib/show-ids.js 로 정규화한다.
  *
  * 사용:
  *   1) 우상단 "Show IDs" 토글 → 모든 [data-node-id] 에 floating label overlay

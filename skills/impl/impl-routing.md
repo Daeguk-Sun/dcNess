@@ -13,7 +13,12 @@
 flowchart TB
   REQ["/impl 요청"] --> MAKE{"GitHub issue 초안/등록 요청?"}
   MAKE -->|예| TI["/to-issue"]
-  MAKE -->|아니오| DOC{"설계 산출물 있음?<br/>(머지된 impl 문서 / compact plan)"}
+  MAKE -->|아니오| UI{"UI 기준 확보 분기 필요?"}
+  UI -->|기준 있음| CDES1["canvas-design: 승격·참조<br/>확정 목업 + node-id 반환"]
+  UI -->|신규 시각 구조 + 기준 없음| CDES2["canvas-design: draft → PICK → 확정본 승격"]
+  UI -->|시각 구조 불변 / 목업 없이| DOC
+  CDES1 --> DOC{"설계 산출물 있음?<br/>(머지된 impl 문서 / compact plan)"}
+  CDES2 --> DOC
   DOC -->|예| ST["Standard: 설계도 기반 구현<br/>--design-doc 기록 · 엔진 풀4/경량 직교"]
   DOC -->|아니오| HR{"high-risk trigger?"}
   HR -->|예| OUT["impl 밖 — 설계 선행: /spec 또는 /design"]
@@ -30,6 +35,16 @@ flowchart TB
 ```
 
 > 그래프 최상단 `DOC{설계 산출물 있음?}` 가 impl 의 **1차 분기**다 — 있으면 Standard, 없으면 그 아래(`HR`/`CS`)로 내려 Lite 직접 구현인지 설계 선행인지를 가른다. 설계 깊이(경량/full) 판단은 impl 이 직접 하지 않고 설계 레이어로 내려보낸다. high-risk 는 impl *내부 구현 경로가 아니라* impl 밖 설계 선행이다. 아래 `## 설계 산출물 유무` 절은 이 노드의 prose 진술이다.
+
+UI 작업이면 `DOC` 앞에서 **UI 기준 확보 분기**를 먼저 본다. 이는 설계 깊이 분기가 아니라 시각 기대 고정 기준 배선이다. 사용자 제공 이미지·스케치·HTML 또는 기존 확정본이 있으면 "기준 있음" 으로 인정하고, 신규 시각 구조 + 기준 없음이면 내부 [`canvas-design`](../canvas-design/SKILL.md) 으로 draft/PICK/확정본 승격을 수행한다. 시각 구조 불변이거나 사용자가 "목업 없이" 라고 지시하면 mockup 생성을 생략한다.
+
+메인 echo:
+
+```text
+UI 기준: 기준 있음 — <사용자 제공 이미지|스케치|기존 확정본> → docs/design-variants/<screen-id>.html, 구현 입력에 node-id 매핑 포함
+UI 기준: 신규 시각 구조 + 기준 없음 — canvas-design 으로 draft/PICK/확정본 승격 후 구현
+UI 기준: 시각 구조 불변 — 목업 없이 구현
+```
 
 ## 설계 산출물 유무 — 구현 경로 판정 1차 기준 (되돌림)
 
