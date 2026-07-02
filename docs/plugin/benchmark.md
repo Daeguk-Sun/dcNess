@@ -236,8 +236,9 @@ done
 
 ## 재현 4 — design run 영속 기록
 
-`/design` run 은 `finalize-run` 또는 `end-run` 시점에 `docs/metrics/design-runs.jsonl`
-에도 compact record 를 남긴다. 이 파일은 git-tracked docs 산출물이라
+`/design` run 은 final validator `PASS` 직후 PR 생성 전에 실행하는 `end-run` 시점에
+`docs/metrics/design-runs.jsonl` 에도 compact record 를 남긴다. 이 파일은
+git-tracked design 산출물이므로 design worktree 의 같은 PR 에 포함되어야 한다.
 `.claude/harness-state` TTL 정리나 Claude transcript 삭제 뒤에도 후속 세션이 읽을 수
 있다. run-local prose/ledger 가 원본이고, 이 파일은 baseline 비교용 인덱스다.
 
@@ -248,8 +249,10 @@ done
 
 record v1 필드: `run_id`, `started_at`, `finished_at`, `duration_s`, `step_count`,
 `final_verdict`, `clean`, `finding_classes`, `revalidation_cycles`, `units[]`,
-`total_input_tokens`, `total_output_tokens`, `total_cost_usd`. 토큰/비용은 세션 JSONL
-매칭이 가능할 때만 채워지고, 불가능하면 0으로 남는다.
+`total_input_tokens`, `total_output_tokens`, `total_cost_usd`. `finding_classes` 는
+FAIL/ESCALATE prose 안의 class token 언급 수라 finding 건수의 근사치다.
+`units[].revalidation_cycle` 은 현 schema 에서 `units[].cycle` alias 로 남긴다.
+토큰/비용은 세션 JSONL 매칭이 가능할 때만 채워지고, 불가능하면 0으로 남는다.
 
 ## 언제 유리하고 언제 과한가
 

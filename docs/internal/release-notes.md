@@ -4,6 +4,12 @@
 
 ---
 
+## Unreleased
+
+- **design run 기록 follow-up** — `docs/metrics/design-runs.jsonl` 은 `/design` final validator `PASS` 뒤, PR 생성 전 `end-run` 으로 worktree 산출물에 기록되어 같은 design PR 에 포함된다. #833 의 Codex architecture-validator mirror 갱신은 다음 plug-in release 후 기존 활성 프로젝트에서 `/init-dcness` 재실행 시 `$CODEX_HOME/skills/dcness-*` 로 도달한다.
+
+---
+
 ## v0.10.0 (2026-06-30)
 
 **커밋 범위**: `v0.9.0..v0.10.0` (머지 PR 16개)

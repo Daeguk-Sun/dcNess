@@ -436,6 +436,21 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("scripts/aggregate_architecture_map.mjs", system_architect)
         self.assertIn("aggregate_architecture_map.mjs", self.architecture_validator)
 
+    def test_design_records_are_frozen_before_design_pr(self) -> None:
+        """#833 follow-up — design metrics are committed with the design PR."""
+        end_run_at = self.design_skill.index("end-run + design run 기록 freeze")
+        pr_at = self.design_skill.index("PR + 머지 + ExitWorktree")
+        self.assertLess(end_run_at, pr_at)
+        for needle in (
+            "PR 생성 전에",
+            "docs/metrics/design-runs.jsonl",
+            "같은 PR 에 포함",
+            "PR/merge 뒤에 end-run 을 미루면",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.design_skill)
+        self.assertIn("end-run/metrics freeze 후 Step 7 PR", self.design_routing)
+
     def test_issue_810_tech_review_skill_supports_epic_option4(self) -> None:
         """#810 AC7 — /tech-review skill must define both root and epic invocation contracts."""
         for needle in (

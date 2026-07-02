@@ -2,9 +2,9 @@
 
 `ledger.jsonl` remains the run-local source of truth, but it lives under
 `.claude/harness-state/` and can be removed by local cleanup. This module writes
-a compact design-run index into `docs/metrics/design-runs.jsonl` so a later
-session can compare design baselines without the original session transcript or
-run directory.
+a compact design-run index into the active design branch's
+`docs/metrics/design-runs.jsonl` so the design PR can carry baseline data after
+the original session transcript or run directory is gone.
 """
 from __future__ import annotations
 
@@ -45,6 +45,14 @@ def _duration_s(start: str, end: str) -> int:
 
 
 def _repo_root_from_cwd(cwd: Optional[Path] = None) -> Path:
+    """Return the active working-tree top-level for design artifact writes.
+
+    This intentionally uses `--show-toplevel`, not `--git-common-dir`. A design
+    run record is a git-tracked design artifact, so when `/design` is running in
+    `.claude/worktrees/<name>/`, the record must be written into that worktree
+    before the design PR is created. Main-repo state such as `.by-pid` still uses
+    the git-common-dir path in `session_state`.
+    """
     probe = Path(cwd or Path.cwd()).resolve()
     try:
         result = subprocess.run(  # nosec B603, B607
@@ -63,6 +71,7 @@ def _repo_root_from_cwd(cwd: Optional[Path] = None) -> Path:
 
 
 def resolve_repo_root(path: Optional[Path] = None) -> Path:
+    """Resolve the git working-tree root that owns `docs/metrics/design-runs.jsonl`."""
     return _repo_root_from_cwd(path)
 
 

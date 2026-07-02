@@ -58,7 +58,7 @@ flowchart TB
 |---|---|
 | **ux-architect** | `UX_FLOW_READY` → system-architect · `UX_REFINE_READY` → designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
 | **system-architect** | `PASS` → architecture-validator(1차) · `ESCALATE` → 사용자(`/spec` 재진입) · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
-| **architecture-validator** | `PASS`(1차) → 공통 task 있으면 module-architect(common), 없으면 Story 1 module-architect · `PASS`(공통/Story 단위) → 해당 단위 freeze + 다음 단위 module-architect / 마지막 Story 면 architecture-validator(cross-story 통합) · `PASS`(cross-story 통합) → SKILL.md Step 6 PR · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
+| **architecture-validator** | `PASS`(1차) → 공통 task 있으면 module-architect(common), 없으면 Story 1 module-architect · `PASS`(공통/Story 단위) → 해당 단위 freeze + 다음 단위 module-architect / 마지막 Story 면 architecture-validator(cross-story 통합) · `PASS`(cross-story 통합) → SKILL.md Step 6 end-run/metrics freeze 후 Step 7 PR · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
 | **module-architect** | `PASS` → architecture-validator(현재 공통/Story 단위) · `SPEC_GAP_FOUND` → module-architect 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **designer** | `PASS` → 사용자 PICK · `ESCALATE` → 사용자. (UX_REFINE 분기 진입 시) |
 
