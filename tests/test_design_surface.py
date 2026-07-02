@@ -91,6 +91,9 @@ class DesignSurfaceContractTests(unittest.TestCase):
         ):
             self.assertIn(expected, design)
 
+        self.assertIn("선택 `docs/epics/.../ux-flow.md`", design)
+        self.assertIn("UI epic 이면 `ux-flow.md`", design)
+
         for expected in (
             "AV1 -->|PASS| MA_BATCH",
             "MA_BATCH -->|PASS| AV_FINAL",
