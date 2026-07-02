@@ -66,6 +66,21 @@ class AcceptanceSkillContractTests(unittest.TestCase):
             self.assertIn("사람 E2E", text)
             self.assertIn("mock-only green", text)
 
+    def test_acceptance_accepts_ui_mock_and_screen_evidence_inputs(self) -> None:
+        text = self.skill.read_text(encoding="utf-8")
+        for needle in (
+            "확정 목업 경로",
+            "구현 화면 스크린샷",
+            "화면 증거",
+            "UI 목업 정합",
+            "레이아웃 계층",
+            "상태(default/empty/error",
+            "토큰",
+            "화면 증거 부재",
+            "목업 불일치",
+        ):
+            self.assertIn(needle, text)
+
     def test_acceptance_recognizes_user_flow_fit_as_separate_axis(self) -> None:
         skill = self.skill.read_text(encoding="utf-8")
         routing = self.routing.read_text(encoding="utf-8")
@@ -85,6 +100,19 @@ class AcceptanceSkillContractTests(unittest.TestCase):
         self.assertIn("product-acceptance 가 맡는다", text)
         self.assertIn("mock-only green / 동작 증거 부족", text)
         self.assertIn("사용자 동선 부적합 / 내부 계약 노출", text)
+
+    def test_inline_acceptance_injects_ui_mock_and_screen_evidence(self) -> None:
+        text = (ROOT / "skills" / "impl-loop" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        for needle in (
+            "확정 목업 경로",
+            "구현 화면 스크린샷",
+            "화면 증거",
+            "화면 증거 부재",
+            "목업 불일치",
+        ):
+            self.assertIn(needle, text)
 
     def test_lite_impl_is_not_forced_into_acceptance(self) -> None:
         text = self.skill.read_text(encoding="utf-8")

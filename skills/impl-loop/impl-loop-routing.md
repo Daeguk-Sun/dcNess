@@ -126,7 +126,7 @@ flowchart TB
 
 story/epic 마감 task (PR 트레일러 `Closes #story` / `Closes #epic` 대상) 의 pr-reviewer `PASS` 후 · pr-finalize(머지) *전* 에 product-acceptance 검수를 끼운다 (절차·경계 판정·시점 전제조건 = [`SKILL.md` 마감 acceptance](SKILL.md#마감-acceptance) — 병렬 peer 는 같은 story sibling 완료 확인 후, 통합 브랜치 모드는 sub-PR 이 아니라 마지막 main 머지 PR 전). 기본 ON, `--no-acceptance` 명시 run 만 비대상. epic 마감 task 는 `STORY_ACCEPTANCE` → `EPIC_ACCEPTANCE` 직렬 2회 — 앞이 PASS 못 닫으면 뒤로 진행하지 않는다.
 
-책임 소재: code-validator 는 계획 대비 구현 정합, pr-reviewer 는 이번 PR diff 위험을 본다. 여러 PR 이 합쳐진 story 동작과 여러 story 가 합쳐진 epic 동작·사용자 동선은 마감 product-acceptance 가 맡는다. 핵심 AC 가 mock-only green 으로만 뒷받침되고 실제 제품 경계(API/CLI/UI/통합 wiring/compile-time contract)가 확인되지 않았으면 gap 이다. 핵심 AC 가 실행되더라도 non-developer 대상 사용자가 내부 schema/payload/config shape 를 조립해야만 수행할 수 있으면 사용자 동선 부적합 gap 이다.
+책임 소재: code-validator 는 계획 대비 구현 정합, pr-reviewer 는 이번 PR diff 위험을 본다. 여러 PR 이 합쳐진 story 동작과 여러 story 가 합쳐진 epic 동작·사용자 동선은 마감 product-acceptance 가 맡는다. 핵심 AC 가 mock-only green 으로만 뒷받침되고 실제 제품 경계(API/CLI/UI/통합 wiring/compile-time contract)가 확인되지 않았으면 gap 이다. UI story/epic 은 확정 목업 경로와 구현 화면 스크린샷 또는 동등한 화면 증거 경로를 prompt 에 담아 product-acceptance 가 Read 로 양쪽을 열고 레이아웃 계층·상태(default/empty/error 등)·토큰 대응을 판정하게 한다. 화면 증거가 없으면 `화면 증거 부재`, 확정 목업과 구조적으로 어긋나면 `목업 불일치` gap 이다. 핵심 AC 가 실행되더라도 non-developer 대상 사용자가 내부 schema/payload/config shape 를 조립해야만 수행할 수 있으면 사용자 동선 부적합 gap 이다.
 
 마감 acceptance 대상 run 은 `begin-run impl --acceptance-required` 또는 `next-task --acceptance-required` marker 를 기록한다. 이 marker 가 있어야 Stop hook 이 pr-reviewer 를 종료 agent 로 보지 않고 product-acceptance 분기 turn 을 재발화한다. 비대상 run / `--no-acceptance` / verify-only 는 marker 를 기록하지 않아 기존 종료 동작을 유지한다.
 
@@ -138,6 +138,9 @@ standalone `/acceptance` 의 분기 규칙([`acceptance-routing.md`](../acceptan
 |---|---|
 | PRD / AC 미충족 · 검수 증거 부족 · 스모크 실패 (auto-fixable) | engineer:IMPL 재진입(gap 수정 — POLISH 아님: POLISH 는 pr-reviewer finding 전용·로직 변경 금지 모드, [`engineer-agent.md`](../../agents/engineer/engineer-agent.md) 정합). build-worker 엔진도 run 시작 시 `--design-doc <task impl 문서>` 를 기록하므로 engineer gate 를 통과한다. → `IMPL_DONE` → code-validator `PASS` → lint/build/test green → 메인 commit/push to PR branch → pr-reviewer 재리뷰 → product-acceptance 재검수 (round ≤3) |
 | mock-only green / 동작 증거 부족 (auto-fixable) | engineer:IMPL 재진입. 핵심 AC 를 닫을 수 있는 자동 동작 증거를 추가한다. 사람 E2E 만 요구하지 않고 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke 중 AC 성격에 맞는 증거를 보강한다. |
+| 화면 증거 부재 (auto-fixable) | engineer:IMPL 재진입. 프로젝트가 선택한 UI 자동화, visual smoke, 스크린샷 산출물 등 실제 구현 화면 증거를 추가한다. dcNess 는 스크린샷 생성 도구를 배포하지 않고, 증거 요구와 판정만 담당한다. |
+| 목업 불일치 (구현 보강으로 닫힘) | engineer:IMPL 재진입. 확정 목업 대비 레이아웃 계층, 상태(default/empty/error 등), 토큰 대응을 맞추거나 의도적 차이를 구현/검수 증거에 명시한다. |
+| 목업 불일치 (사용자/UX 선택 필요) | 정지 + 사용자 위임 (`/ux` 후보 제시) |
 | 사용자 동선 부적합 / 내부 계약 노출 (명확한 구현 보강) | engineer:IMPL 재진입. 대상 사용자에게 맞는 제품 언어의 입력/진행 동선을 추가하고, 내부 schema/payload/config shape 조립을 사용자 흐름 밖으로 숨기거나 공개 계약으로 정리한다. |
 | 사용자 동선 부적합 / 내부 계약 노출 (사용자/UX 선택 필요) | 정지 + 사용자 위임 (`/ux`·`/design`·`/spec` 회수 후보 제시) |
 | 설계 결함 / 범위 재정의 필요 | 정지 + 사용자 위임 (`/design`·`compact-design` 회수 후보 제시) |

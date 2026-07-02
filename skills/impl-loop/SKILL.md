@@ -303,7 +303,15 @@ story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후
 
 **시점 — pr-reviewer PASS 후 · `pr-finalize.sh`(머지) *전*, 단 story 구현 증거가 모두 모인 뒤**. `Closes #story` auto-close 는 머지 시 발동하므로, 머지 전에 검수해야 (1) story/epic issue close = 검수 통과와 동기화되고 (2) gap 수정이 *열려 있는 같은 PR* 에 commit 추가로 들어간다 (gap fix PR 난립 X). 엔진별 삽입점: 엔진 A 는 `pr-create.sh` 로 PR 생성까지 마친 뒤 pr-finalize 전, 엔진 B 는 pr-reviewer PASS 후 pr-finalize 전 — 두 경우 모두 open PR 번호가 검수 증거에 들어간다. **병렬 peer 세션의 마감 task 는 같은 story 의 prior sibling task 가 *모두 완료(머지)* 됐음을 `wave-status` 로 먼저 확인한 후** acceptance 를 수행하고, 그 다음 `pr-finalize.sh`(merge lock + order gate) 를 호출한다 — sibling 미완료 상태의 검수는 불완전 증거 검수라 금지. sibling 이 아직 진행 중이면 완료를 기다렸다가 검수한다 (직렬 chain 은 순서상 자동 충족).
 
-**책임 소재**: code-validator 는 계획 대비 구현 정합, pr-reviewer 는 이번 PR diff 위험을 본다. 여러 PR 이 모인 story 동작과 여러 story 가 모인 epic 동작은 이 마감 product-acceptance 가 맡는다. product-acceptance prompt 에는 핵심 AC별 동작 증거(정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등)와 mock/stub/fake 경계를 메인이 직접 넣는다.
+**책임 소재**: code-validator 는 계획 대비 구현 정합, pr-reviewer 는 이번 PR diff 위험을 본다. 여러 PR 이 모인 story 동작과 여러 story 가 모인 epic 동작은 이 마감 product-acceptance 가 맡는다. product-acceptance prompt 에는 핵심 AC별 동작 증거(정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등)와 mock/stub/fake 경계를 메인이 직접 넣는다. UI story/epic 이면 메인은 impl 문서의 `## 디자인 참조` 에서 확정 목업 경로와 핵심 `data-node-id` 매핑을 수집하고, 실제 구현 화면 스크린샷 또는 동등한 화면 증거 경로를 함께 넣는다. 증거 생성 수단은 각 프로젝트 몫이며 dcNess 는 자동 스크린샷 생성 도구를 배포하지 않는다.
+
+**UI 화면 증거 수집**: 마감 acceptance 호출 직전에 메인은 UI task 여부를 확인한다. `design: required`, `## 디자인 참조` 의 확정 목업 경로, 또는 `docs/design-variants/<screen-id>.html` 참조가 있으면 UI 검수 대상으로 본다. 이때 product-acceptance prompt 에 아래를 명시한다.
+
+- 확정 목업 경로: `docs/design-variants/<screen-id>.html`
+- 구현 화면 스크린샷 또는 화면 증거 경로: `<프로젝트가 생성한 screenshot/visual smoke artifact>`
+- 핵심 `data-node-id` → 구현 컴포넌트/상태 매핑
+- 화면 증거가 없으면 `화면 증거 부재` gap 후보라고 명시
+- 확정 목업과 화면 증거가 레이아웃 계층·상태(default/empty/error 등)·토큰 대응에서 어긋나면 `목업 불일치` gap 후보라고 명시
 
 **호출** (conveyor step 기록 — harness 는 `product-acceptance` 를 read-only validator 로 이미 인지. mode 를 positional 로 기록해 STORY/EPIC step 을 분리한다). `current_step` 은 1개뿐이므로 **직전 step(pr-reviewer)을 `end-step` 으로 닫은 뒤에** `begin-step product-acceptance` 를 연다 — 안 닫으면 pr-reviewer step 기록이 덮여 clean 게이트의 pr-reviewer PASS 흔적이 깨진다:
 
@@ -315,18 +323,19 @@ mode: STORY_ACCEPTANCE
 기준 문서: <epic stories.md> + <story 의 impl 파일들>   # EPIC 은 docs/prd.md + architecture 추가
 구현 증거: <story 의 머지된 PR 목록(번호+제목)> + <현재 open 마감 PR 번호 + 변경 파일 목록> + <lint/build/test 결과>
 동작 증거: <핵심 AC별 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등> + <mock/stub/fake 사용 범위>
+UI 목업 정합 증거: <UI story 이면 확정 목업 경로 + 구현 화면 스크린샷 또는 화면 증거 경로 + 핵심 data-node-id 매핑. 비 UI 이면 해당 없음>
 """)
 end-step product-acceptance STORY_ACCEPTANCE --prose-file <file>
 ```
 
 end-step 의 positional 인자는 **mode** 다 — 결론(`PASS`/`FAIL`/`ESCALATE`)은 end-step 인자가 아니라 **agent prose 마지막 단락**에 적힌다 (본 skill 의 다른 step 과 동일 규약). epic 마감은 `STORY_ACCEPTANCE` step 을 닫은 뒤 `begin-step product-acceptance EPIC_ACCEPTANCE` 로 두 번째 step 을 따로 기록한다 — mode 별 step 분리가 있어야 clean 게이트가 STORY/EPIC 각각의 PASS prose 를 확인할 수 있다.
 
-product-acceptance 는 read-only(Read/Glob/Grep) 라 `gh` 호출 불가 — PR 목록·검증 결과·동작 증거는 **메인이 prompt 에 직접 담는다**. chain 진행 중 메인이 이미 갖고 있는 정보(각 task 의 PR URL·5줄 요약·검증 결과)와 CI/test 결과를 사용한다. 핵심 AC 증거가 mock-only 인지 판단하려면 mock/stub/fake 경계도 같이 담는다.
+product-acceptance 는 read-only(Read/Glob/Grep) 라 `gh` 호출 불가 — PR 목록·검증 결과·동작 증거·UI 목업 정합 증거는 **메인이 prompt 에 직접 담는다**. chain 진행 중 메인이 이미 갖고 있는 정보(각 task 의 PR URL·5줄 요약·검증 결과)와 CI/test 결과를 사용한다. 핵심 AC 증거가 mock-only 인지 판단하려면 mock/stub/fake 경계도 같이 담는다. UI story 에서 화면 증거가 없으면 비워 두지 말고 "화면 증거 없음" 으로 적어 product-acceptance 가 `화면 증거 부재` gap 으로 판정할 수 있게 한다.
 
 **결론 분기** (상세 = 분기 규칙 SSOT):
 
 - `PASS` → `pr-finalize.sh` 머지 진행 (epic 마감은 STORY → EPIC 2회 모두 PASS 후).
-- `FAIL` → **gap 수정 루프** (자동, round ≤ 3): auto-fixable gap(PRD/AC 미충족 · 검수 증거 부족 · 스모크 실패 · mock-only green / 동작 증거 부족 · 명확한 구현 보강으로 닫히는 사용자 동선 부적합)을 **`engineer:IMPL` 재진입**으로 수정한다 — POLISH 가 아니다 (POLISH 는 pr-reviewer finding 전용·로직 변경 금지 모드라 AC gap 수정에 부적합). engineer 입력 = story 의 impl 문서 + acceptance prose 의 gap 목록. 엔진 B 도 run 시작 때 `--design-doc <task 의 impl 문서 경로>` 를 기록하므로 이 `engineer:IMPL` 재진입은 engineer gate 를 통과한다. `IMPL_DONE` → code-validator `PASS` → lint/build/test green → 메인이 변경을 PR 브랜치에 commit/push → pr-reviewer 재리뷰 → product-acceptance 재검수. **gap 수정 commit 이 생겼으면 재검수는 마감 시퀀스 처음부터** — epic 마감에서 EPIC FAIL 수정 후엔 이전 STORY PASS 가 stale 이므로 `STORY_ACCEPTANCE` 부터 다시 돌린다. round 초과, 또는 설계 결함·범위 재정의·사용자/UX 선택 필요·보안/권한/데이터 리스크 gap → 정지 + 사용자 위임 (gap 분류 기준 = [`acceptance-routing.md`](../acceptance/acceptance-routing.md) gap taxonomy).
+- `FAIL` → **gap 수정 루프** (자동, round ≤ 3): auto-fixable gap(PRD/AC 미충족 · 검수 증거 부족 · 스모크 실패 · mock-only green / 동작 증거 부족 · 화면 증거 부재 · 구현 누락이 명확한 목업 불일치 · 명확한 구현 보강으로 닫히는 사용자 동선 부적합)을 **`engineer:IMPL` 재진입**으로 수정한다 — POLISH 가 아니다 (POLISH 는 pr-reviewer finding 전용·로직 변경 금지 모드라 AC gap 수정에 부적합). engineer 입력 = story 의 impl 문서 + acceptance prose 의 gap 목록. 엔진 B 도 run 시작 때 `--design-doc <task 의 impl 문서 경로>` 를 기록하므로 이 `engineer:IMPL` 재진입은 engineer gate 를 통과한다. `IMPL_DONE` → code-validator `PASS` → lint/build/test green → 메인이 변경을 PR 브랜치에 commit/push → pr-reviewer 재리뷰 → product-acceptance 재검수. **gap 수정 commit 이 생겼으면 재검수는 마감 시퀀스 처음부터** — epic 마감에서 EPIC FAIL 수정 후엔 이전 STORY PASS 가 stale 이므로 `STORY_ACCEPTANCE` 부터 다시 돌린다. round 초과, 또는 설계 결함·범위 재정의·사용자/UX 선택 필요·보안/권한/데이터 리스크 gap → 정지 + 사용자 위임 (gap 분류 기준 = [`acceptance-routing.md`](../acceptance/acceptance-routing.md) gap taxonomy).
 - `ESCALATE` (기준 문서·구현 증거·사용자 결정 부족) → 정지 + 사용자 위임.
 
 acceptance FAIL 미해소 상태로 pr-finalize 강행 금지 — 마감 task 의 `clean` 판정 게이트에 product-acceptance PASS 흔적이 포함된다 ([chain 모드 task 경계 분기](impl-loop-routing.md#chain-모드-task-경계-분기)). 진행 뷰에는 마감 task 의 sub-step 으로 `product-acceptance` 를 추가한다 (epic 마감은 `product-acceptance:STORY` / `product-acceptance:EPIC` 2개).

@@ -12,6 +12,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 검수 단위: spec / story / epic / release 식별자
 - 기준 문서: `docs/index.md`, `docs/prd.md`, `docs/decisions/`, `docs/epics/<epic>/stories.md`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
+- UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
 - 이전 acceptance 결과가 있으면 gap 재검수 맥락
 
@@ -35,6 +36,17 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - UI 자동화는 브라우저/앱 자동화, component interaction, screenshot/assertion, visual smoke 같은 증거를 포함한다. 사람의 수동 E2E만 요구하지 않는다.
 - mock/stub/fake 기반 unit test 는 보조 증거다. 핵심 AC가 mock-only green으로만 뒷받침되고 API/CLI/UI/통합 wiring/compile-time contract 중 어떤 실제 경계도 확인되지 않았으면 gap 이다.
 - TypeScript, typed Python, Rust, Go 처럼 정적 타입검사나 compile gate 가 의미 있는 stack 에서 typecheck/compile 증거가 전혀 없으면 품질 게이트 warning 으로 보고한다. warning 자체만으로 FAIL 을 만들지는 않지만, 그 부재 때문에 핵심 AC의 wiring/contract 동작을 증명할 수 없으면 FAIL gap 이다.
+
+### UI 목업 정합 판정 (STORY / EPIC 공통)
+
+UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제공하면, 양쪽을 Read 로 열어 구조적으로 대조한다. 이 축은 pixel-diff 하드 게이트가 아니라 제품 검수 판단 축이다.
+
+- 확정 목업은 `docs/design-variants/<screen-id>.html` 또는 호출자가 제공한 동등한 기준이다. 구현 화면 증거는 스크린샷, 브라우저/앱 자동화 결과 이미지, visual smoke 산출물처럼 실제 실행 화면을 볼 수 있는 경로다.
+- 확정 목업과 화면 증거를 함께 받은 경우 레이아웃 계층, 주요 상태(default/empty/error/loading 등), 핵심 `data-node-id` 의도, 디자인 토큰·색·간격·타이포 수준 대응이 구조적으로 일치하는지 본다.
+- pixel-diff 수치가 없다는 이유만으로 FAIL 하지 않는다. 반대로 자동 테스트가 green 이어도 확정 목업과 화면 증거의 구조가 명확히 어긋나면 `목업 불일치` gap 으로 분리한다.
+- UI story 인데 실제 실행 화면을 볼 수 있는 화면 증거가 없으면 `화면 증거 부재` gap 으로 분리한다. 이는 mock-only green 과 동급의 검수 gap 이며, 확정 목업만 있거나 구현자가 "맞췄다"고 설명한 것만으로 PASS 하지 않는다.
+- 목업 불일치의 원인이 구현 누락이면 `/impl`, 사용자 흐름·시각 선택 재정의가 필요하면 `/ux` 후속 후보로 쓴다.
+- 확정 목업이 없는 UI story 는 그 부재 자체를 기준 문서/설계 증거 부족으로 보고한다. 단, 호출자가 시각 구조 불변 또는 목업 없이 진행하는 결정 근거를 제공했으면 그 범위 안에서 동작 증거와 사용자 동선만 판정한다.
 
 ### 사용자 동선 적합성 판정 (STORY / EPIC 공통)
 
@@ -68,6 +80,7 @@ story 구현 완료 직후 호출된다. 해당 story 의 수용 기준이 구�
 - 핵심 AC 의 입력/진행 동선이 대상 사용자에게 적합한 제품 언어로 닫힌다.
 - 테스트나 smoke 증거가 실제 실행 결과로 남아 있다.
 - mock-only green 으로만 닫힌 핵심 AC 를 gap 으로 분리한다.
+- UI story 이면 확정 목업과 구현 화면 증거를 Read 로 열어 대조하고, 화면 증거 부재와 목업 불일치를 gap 으로 분리한다.
 - 내부 계약을 사용자가 직접 조립해야만 수행되는 핵심 흐름을 gap 으로 분리한다.
 - 설명만 있고 검수 가능한 증거가 없는 항목을 gap 으로 분리한다.
 - 정적 타입검사/compile gate 부재가 무음 통과하지 않고 warning 또는 gap 으로 드러난다.
@@ -80,6 +93,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 PRD Must,
 - PRD Must AC 가 하나 이상의 story/PR/test evidence 로 닫혔다.
 - story 사이의 흐름, 상태, 권한, 데이터 ownership 이 서로 어긋나지 않는다.
 - 여러 PR/story 경계를 넘는 통합 동작이 동작 증거로 닫혔다. 각 PR 의 mock-only green 이 모여 있어도 실제 사용자 흐름이 한 번도 검증되지 않았으면 cross-story gap 이다.
+- UI epic 이면 story 별 확정 목업과 최종 구현 화면 증거가 서로 이어지는지 보고, 화면 증거 부재나 cross-story 목업 불일치를 gap 으로 분리한다.
 - 여러 story 가 합쳐진 사용자 흐름이 내부 schema/payload 조립이 아니라 대상 사용자의 자연스러운 입력/진행 동선으로 이어진다.
 - 보안/권한/데이터 리스크가 새로 생겼는데 별도 후속 없이 묻히지 않았다.
 - 비용, 성능, migration, 배포 설정 같은 운영 리스크가 출시 판단을 막지 않는지 확인한다.
@@ -101,7 +115,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 PRD Must,
 2. 기준 문서에서 Must AC, 완료 기준, story 목적, release readiness 기준을 추출한다.
 3. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다.
 4. 대상 사용자를 식별하고 핵심 입력/진행 동선이 제품 언어인지, 내부 구현 계약을 사용자에게 떠넘기는지 대조한다.
-5. 충족된 기준, mock-only green 인 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.
+5. 충족된 기준, mock-only green 인 기준, 화면 증거 부재 기준, 목업 불일치 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.
 6. gap 이 있으면 기준 문서, 증거, 누락 사실, 후속 분기를 함께 쓴다.
 7. 판단에 필요한 문서나 권한이 없으면 추측하지 않고 ESCALATE한다.
 
@@ -110,6 +124,8 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 PRD Must,
 - 증거 없이 PASS 하지 않는다.
 - 구현했다는 주장보다 문서 경로, PR, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명을 우선한다.
 - 핵심 AC가 mock-only green으로만 닫혔으면 PASS 하지 않는다.
+- UI story 에서 화면 증거 부재가 있으면 PASS 하지 않는다.
+- 확정 목업과 구현 화면 증거의 레이아웃 계층·상태(default/empty/error 등)·토큰 대응이 구조적으로 어긋나면 `목업 불일치` gap 으로 보고한다.
 - 핵심 AC가 대상 사용자에게 부적합한 입력/진행 동선으로만 수행되면 PASS 하지 않는다.
 - 내부 schema/payload/config shape 노출은 대상 사용자와 공개 계약에 비추어 gap, warning, 정당한 개발자 계약 중 하나로 명시한다.
 - gap 은 제품 기준에서 Must 인지, 후속으로 분리 가능한지 구분한다.
@@ -133,6 +149,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 PRD Must,
 - 충족된 핵심 AC 또는 완료 기준
 - 미충족 gap 과 근거
 - gap 별 후속 분기
+- UI story/epic 이면 확정 목업 경로, 구현 화면 스크린샷 또는 화면 증거 경로, UI 목업 정합 판정 결과
 - STORY / EPIC 검수 보고에는 사용자가 지금 직접 확인할 수 있는 실행 동선(실행 명령, 화면 진입 경로 등) 안내. 호출자 제공 증거에서 확인된 동선만 쓰고, 불명이면 불명이라고 쓴다. 확인 가능한 동작이 아직 없으면 그 사실을 쓴다.
 
 마지막 단락에는 `PASS`, `FAIL`, `ESCALATE` 중 하나를 쓴다.
