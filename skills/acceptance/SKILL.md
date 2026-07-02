@@ -21,6 +21,7 @@ description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행�
 - 필요한 `docs/decisions/` decision, 전역/epic architecture, impl 문서 경로
 - 구현 PR 목록
 - 핵심 AC별 동작 증거: 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 화면/API/CLI 동작 기록 중 해당하는 것
+- UI story/epic 이면 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - 대상 사용자와 핵심 입력/진행 동선
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제로 실행된 제품 경계
 - 이전 acceptance gap 이 있으면 그 결과와 재검수 대상
@@ -44,6 +45,16 @@ Lite `/impl` 단발 작업은 불필요하게 `/acceptance` 로 강제하지 않
 - 동작 증거는 사람 E2E만 뜻하지 않는다. AC 성격에 맞으면 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 기록도 동작 증거로 인정한다.
 - mock/stub/fake 기반 unit test 는 보조 증거가 될 수 있다. 그러나 핵심 AC가 mock-only green으로만 뒷받침되고 실제 제품 경계(API/CLI/UI/통합 wiring/compile-time contract)가 한 번도 확인되지 않았으면 gap이다.
 - 정적 타입검사나 compile gate 가 의미 있는 stack(TypeScript, typed Python, Rust, Go 등)인데 증거에 없으면 품질 게이트 warning 으로 보고한다. 이 warning 자체만으로 FAIL 로 만들지는 않지만, 그 부재 때문에 핵심 AC의 wiring/contract 동작을 증명할 수 없으면 검수 증거 gap 이다.
+
+## UI 목업 정합 원칙
+
+UI story/epic 검수에서 확정 목업과 구현 화면 증거가 주입되면 product-acceptance 는 양쪽을 Read 로 열어 구조적 일치를 판정한다. pixel-diff 자동화는 MVP 범위 밖이며 하드 게이트가 아니다.
+
+- 확정 목업 경로는 `docs/design-variants/<screen-id>.html` 또는 호출자가 제공한 동등한 기준이다.
+- 구현 화면 증거는 구현 화면 스크린샷, UI 자동화 산출 이미지, visual smoke 결과처럼 실제 실행 화면을 확인할 수 있는 경로다.
+- 판정 축은 UI 목업 정합: 레이아웃 계층, 상태(default/empty/error/loading 등), 핵심 `data-node-id`, 토큰·간격·타이포 대응이 구조적으로 맞는가다.
+- UI story 인데 구현 화면 스크린샷 또는 동등한 화면 증거가 없으면 `화면 증거 부재` gap 이다. 확정 목업만 있거나 mock-only/component-only green 만 있으면 PASS 하지 않는다.
+- 확정 목업과 화면 증거가 구조적으로 어긋나면 `목업 불일치` gap 이며, 후속은 원인에 따라 `/ux` 또는 `/impl` 로 제안한다.
 
 ## 사용자 동선 적합성 원칙
 
@@ -71,6 +82,7 @@ mode: STORY_ACCEPTANCE
 구현 증거:
 - <구현 PR 목록>
 - <테스트/smoke/동작 증거: 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등>
+- <UI story 인 경우: 확정 목업 경로 + 구현 화면 스크린샷 또는 화면 증거 경로 + 핵심 data-node-id 매핑>
 - <mock/stub/fake 사용 범위와 실제 제품 경계 실행 여부>
 - <대상 사용자와 핵심 입력/진행 동선: 제품 언어인지, 내부 계약 조립을 요구하는지>
 """)
@@ -81,6 +93,8 @@ mode: STORY_ACCEPTANCE
 - story 목적과 구현 PR 이 연결됐는가.
 - story AC / REQ 가 구현 파일, 테스트, smoke 증거 중 하나 이상과 연결됐는가.
 - 핵심 AC 가 동작 증거와 연결됐는가, 아니면 mock-only green 인가.
+- UI story 이면 확정 목업과 구현 화면 증거가 주입됐는가, 그리고 레이아웃 계층·상태(default/empty/error 등)·토큰 수준의 UI 목업 정합이 맞는가.
+- UI story 인데 화면 증거가 없으면 화면 증거 부재 gap 으로, 확정 목업과 화면 증거가 어긋나면 목업 불일치 gap 으로 드러나는가.
 - 핵심 AC 가 대상 사용자에게 적합한 입력/진행 동선으로 닫혔는가, 아니면 내부 계약 조립을 요구하는가.
 - 설명만 있고 검수 가능한 증거가 없는 항목과 mock-only 증거만 있는 항목이 gap 으로 드러나는가.
 - 정적 타입검사/compile gate 부재가 무음 통과하지 않고 warning 또는 gap 으로 보고되는가.
@@ -102,6 +116,7 @@ mode: EPIC_ACCEPTANCE
 구현 증거:
 - <story별 구현 PR 목록>
 - <story별 테스트/smoke/동작 증거>
+- <UI epic 인 경우: story별 확정 목업 경로 + 최종 구현 화면 스크린샷 또는 화면 증거 경로>
 - <cross-story 통합 동작 증거: 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등>
 - <cross-story 사용자 입력/진행 동선: 대상 사용자에게 자연스러운 흐름인지>
 """)
@@ -112,6 +127,7 @@ mode: EPIC_ACCEPTANCE
 - PRD Must 가 story/PR/test evidence 로 닫혔는가.
 - story 사이 상태, 권한, 데이터 흐름이 어긋나 cross-story gap 을 만들지 않는가.
 - 여러 PR/story 를 합쳤을 때 핵심 사용자 흐름이 동작 증거로 닫혔는가, 아니면 각 PR의 mock-only green만 남았는가.
+- UI epic 이면 story별 확정 목업과 최종 구현 화면 증거의 구조적 흐름이 이어지는가, 아니면 화면 증거 부재나 목업 불일치가 남았는가.
 - 여러 PR/story 를 합친 핵심 사용자 흐름이 내부 schema/payload 조립이 아니라 대상 사용자의 작업 언어로 진행되는가.
 - security/ops risk 가 새로 생겼는데 후속 없이 묻히지 않았는가.
 

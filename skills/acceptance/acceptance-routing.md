@@ -37,9 +37,9 @@ flowchart TB
 | 입력 | 다음 |
 |---|---|
 | `product-acceptance:STORY_ACCEPTANCE` `PASS` | story 완료 후보로 보고. 자동 close 는 하지 않는다. |
-| `product-acceptance:STORY_ACCEPTANCE` `FAIL` | AC / PR / test evidence gap, 동작 증거 부족, mock-only green, 사용자 동선 부적합을 보고하고 `/impl`, `/design`, `/ux` 회수 후보를 제안한다. |
+| `product-acceptance:STORY_ACCEPTANCE` `FAIL` | AC / PR / test evidence gap, 동작 증거 부족, mock-only green, 화면 증거 부재, 목업 불일치, 사용자 동선 부적합을 보고하고 `/impl`, `/design`, `/ux` 회수 후보를 제안한다. |
 | `product-acceptance:EPIC_ACCEPTANCE` `PASS` | epic 완료 후보로 보고. 자동 close 는 하지 않는다. |
-| `product-acceptance:EPIC_ACCEPTANCE` `FAIL` | PRD Must, cross-story 동작 gap, mock-only green, cross-story 사용자 동선 부적합, security/ops risk 를 보고하고 후속 분기를 제안한다. |
+| `product-acceptance:EPIC_ACCEPTANCE` `FAIL` | PRD Must, cross-story 동작 gap, mock-only green, 화면 증거 부재, 목업 불일치, cross-story 사용자 동선 부적합, security/ops risk 를 보고하고 후속 분기를 제안한다. |
 | `ESCALATE` | 기준 문서, 구현 PR 목록, 권한, 사용자 결정 부족을 보고하고 대기한다. |
 
 ## 깊이 차이
@@ -55,6 +55,12 @@ Epic acceptance 는 PRD Must, cross-story gap, security/ops risk 를 포함한�
 mock/stub/fake 기반 unit test 는 보조 증거다. 핵심 AC가 mock-only green으로만 닫히고 실제 제품 경계(API/CLI/UI/통합 wiring/compile-time contract)가 확인되지 않았으면 `검수 증거 부족 / 스모크 실패` 계열 gap 으로 보고한다.
 
 정적 타입검사나 compile gate 가 의미 있는 stack 인데 증거에 없으면 품질 게이트 warning 으로 보고한다. warning 자체는 자동 FAIL 이 아니지만, 그 부재 때문에 핵심 AC의 wiring/contract 동작을 증명할 수 없으면 FAIL gap 이다.
+
+## UI 목업 정합 판정
+
+UI story/epic 에서 호출자가 확정 목업 경로와 구현 화면 스크린샷 또는 동등한 화면 증거 경로를 제공하면, product-acceptance 는 양쪽을 Read 로 열어 레이아웃 계층, 상태(default/empty/error 등), 핵심 `data-node-id`, 토큰 대응의 구조적 일치를 본다. pixel-diff 자동화는 하드 게이트가 아니다.
+
+UI story 인데 실제 실행 화면을 확인할 화면 증거가 없으면 `화면 증거 부재` gap 으로 보고한다. 확정 목업과 화면 증거가 구조적으로 어긋나면 `목업 불일치` gap 으로 보고한다.
 
 ## 사용자 동선 적합성 판정
 
@@ -72,12 +78,14 @@ mock/stub/fake 기반 unit test 는 보조 증거다. 핵심 AC가 mock-only gre
 | 설계 결함 / 범위 재정의 필요 | `/design` 또는 `/spec` |
 | 검수 증거 부족 / 스모크 실패 | gap 또는 bug `/to-issue` 후보 + `/impl` |
 | mock-only green / 동작 증거 부족 | gap 또는 bug `/to-issue` 후보 + `/impl` |
+| 화면 증거 부재 | gap 또는 bug `/to-issue` 후보 + `/impl` |
+| 목업 불일치 | gap 또는 bug `/to-issue` 후보 + `/ux` 또는 `/impl` |
 | 사용자 동선 부적합 / 내부 계약 노출 | gap 또는 bug `/to-issue` 후보 + `/ux` 또는 `/impl` 또는 `/design` |
 | UX 미완성 | `/ux` |
 | 성능 병목 / 리팩토링 필요 | `/to-issue` 후보 + `/impl` 또는 `/design` |
 | 보안 / 권한 / 데이터 리스크 | `/to-issue` 후보 + `/design` 또는 사용자 위임 |
 
-story acceptance 는 주로 PRD / AC 미충족, 검수 증거 부족 / 스모크 실패, mock-only green / 동작 증거 부족, 사용자 동선 부적합 / 내부 계약 노출을 만든다. epic acceptance 는 cross-story gap, cross-story 사용자 동선 부적합, 성능 병목 / 리팩토링 필요, 보안 / 권한 / 데이터 리스크까지 같이 본다.
+story acceptance 는 주로 PRD / AC 미충족, 검수 증거 부족 / 스모크 실패, mock-only green / 동작 증거 부족, 화면 증거 부재, 목업 불일치, 사용자 동선 부적합 / 내부 계약 노출을 만든다. epic acceptance 는 cross-story gap, 화면 증거 부재, cross-story 목업 불일치, cross-story 사용자 동선 부적합, 성능 병목 / 리팩토링 필요, 보안 / 권한 / 데이터 리스크까지 같이 본다.
 
 품질 게이트 warning 은 gap 과 별개로 남길 수 있다. 예를 들어 TypeScript 프로젝트에 `tsc --noEmit` 또는 그에 준하는 compile/typecheck 증거가 전혀 없으면 warning 으로 보고하고, 핵심 AC 검증에도 영향을 주는 경우에만 위 gap taxonomy 로 승격한다.
 

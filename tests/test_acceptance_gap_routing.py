@@ -22,6 +22,8 @@ class AcceptanceGapRoutingContractTests(unittest.TestCase):
             "설계 결함 / 범위 재정의 필요": "`/design` 또는 `/spec`",
             "검수 증거 부족 / 스모크 실패": "gap 또는 bug `/to-issue` 후보 + `/impl`",
             "mock-only green / 동작 증거 부족": "gap 또는 bug `/to-issue` 후보 + `/impl`",
+            "화면 증거 부재": "gap 또는 bug `/to-issue` 후보 + `/impl`",
+            "목업 불일치": "gap 또는 bug `/to-issue` 후보 + `/ux` 또는 `/impl`",
             "사용자 동선 부적합 / 내부 계약 노출": "gap 또는 bug `/to-issue` 후보 + `/ux` 또는 `/impl` 또는 `/design`",
             "UX 미완성": "`/ux`",
             "성능 병목 / 리팩토링 필요": "`/to-issue` 후보 + `/impl` 또는 `/design`",
@@ -54,6 +56,8 @@ class AcceptanceGapRoutingContractTests(unittest.TestCase):
             "UI 자동화",
             "API/CLI smoke",
             "mock-only green",
+            "화면 증거 부재",
+            "목업 불일치",
             "품질 게이트 warning",
         ):
             self.assertIn(needle, text)

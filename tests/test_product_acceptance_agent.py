@@ -101,6 +101,23 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.assertIn("warning 자체만으로 FAIL", text)
         self.assertIn("핵심 AC의 wiring/contract 동작을 증명할 수 없으면 FAIL gap", text)
 
+    def test_prompt_classifies_ui_mock_alignment_and_screen_evidence_gap(self) -> None:
+        text = self.prompt.read_text(encoding="utf-8")
+        for needle in (
+            "UI 목업 정합 판정",
+            "확정 목업",
+            "화면 증거",
+            "스크린샷",
+            "Read 로 열어",
+            "레이아웃 계층",
+            "상태(default/empty/error",
+            "토큰",
+            "pixel-diff",
+            "화면 증거 부재",
+            "목업 불일치",
+        ):
+            self.assertIn(needle, text)
+
     def test_prompt_classifies_user_flow_fit_and_internal_contract_exposure(self) -> None:
         text = self.prompt.read_text(encoding="utf-8")
         for needle in (
