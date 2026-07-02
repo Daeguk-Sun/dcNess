@@ -266,11 +266,11 @@ cp "$PLUGIN_ROOT/templates/github-workflows/doc-sync.yml" "$PROJECT_ROOT/.github
 
 `record_dcness_workflow_change` 는 실제 overwritten 된 workflow 에만 호출한다. skip 된 workflow 나 기존 dirty workflow 파일은 기록하지 않는다.
 
-기존 epic 이 있는 프로젝트가 `doc-sync.yml` 을 새로 받으면 첫 PR 전에 현재 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 와 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 를 1회 실행해 파생 섹션을 재생성한다. stale 상태면 새 게이트가 의도대로 실패한다.
+기존 epic 이 있는 프로젝트가 `doc-sync.yml` 을 새로 받으면 첫 PR 전에 현재 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 와 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 를 1회 실행해 파생 섹션을 재생성한다. stale 상태면 새 게이트가 의도대로 실패한다. 같은 doc-sync composite action 이 `node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs"` 도 실행하므로 신규 `/design` 산출물의 Contract Ledger row-key 포인터 구조 위반은 외부 프로젝트 PR CI 에서도 검출된다.
 
 #### project docs seed
 
-시드 양식은 `/spec`·system-architect 가 실제로 산출하는 authoring 템플릿을 *단일 원본* 으로 쓴다 (별도 시드 전용 복제본 없음 — 시드와 산출 양식이 같다). 산출물 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md). `docs/index.md` 의 epic 표는 `$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 가 epic 디렉토리에서 재생성하고, 전역 `docs/architecture.md` 의 집계 섹션은 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 epic architecture 표에서 재생성한다.
+시드 양식은 `/spec`·system-architect 가 실제로 산출하는 authoring 템플릿을 *단일 원본* 으로 쓴다 (별도 시드 전용 복제본 없음 — 시드와 산출 양식이 같다). 산출물 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md). `docs/index.md` 의 epic 표는 `$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 가 epic 디렉토리에서 재생성하고, 전역 `docs/architecture.md` 의 집계 섹션은 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 epic architecture 표에서 재생성한다. `/design` 산출물의 Contract Ledger 포인터 구조는 `$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs` 가 감사하며, `doc-sync.yml` 설치 시 외부 PR CI 경로에도 포함된다.
 
 ```bash
 mkdir -p "$PROJECT_ROOT/docs" "$PROJECT_ROOT/docs/decisions"

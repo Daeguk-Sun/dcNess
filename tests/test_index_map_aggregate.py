@@ -44,6 +44,7 @@ class IndexMapAggregateTests(unittest.TestCase):
         self.assertNotIn("paths:", workflow)
         self.assertIn("scripts/aggregate_index_map.mjs", action)
         self.assertIn("scripts/aggregate_architecture_map.mjs", action)
+        self.assertIn("scripts/check_design_artifact_structure.mjs", action)
         self.assertIn("--check", action)
 
     def test_generates_epic_table_from_epic_directories(self) -> None:
