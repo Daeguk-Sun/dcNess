@@ -8,7 +8,7 @@
 - 전역 사실은 전역 anchor 한 곳에 둔다. 같은 결정이 여러 epic 문서에 복제되어 drift 되는 구조를 만들지 않는다.
 - role 입력은 결정론적인 최소 세트다. 각 agent 는 자기 역할에 필요한 전역 최소 문서와 대상 epic 고정 문서만 읽는다.
 - downstream agent 가 읽어야 하는 산출물은 git-tracked 문서다. 실측 evidence, HTML report, handoff scratch 처럼 재현 가능한 임시물은 `.dcness-work/` 에 둔다.
-- 새 프로젝트 산출물은 `docs/epics/`, `docs/decisions/`, `docs/compact-plans/` 아래로만 증식한다. milestone 은 경로가 아니라 epic frontmatter 의 `milestone: vNN` 값이다.
+- 새 프로젝트 산출물은 `docs/epics/`, `docs/decisions/`, `docs/compact-plans/`, `docs/metrics/` 아래로만 증식한다. milestone 은 경로가 아니라 epic frontmatter 의 `milestone: vNN` 값이다.
 
 ## 적용 범위
 
@@ -25,6 +25,8 @@ docs/
 ├── conventions.md                   # 기술 스택, naming, tooling, style 결정
 ├── tech-review.md                   # 전역 기술 검토 결론
 ├── design.md                        # 선택: 전역 design token / system-level UX 결정
+├── metrics/
+│   └── design-runs.jsonl            # design run durable record index
 ├── decisions/
 │   └── NNNN-slug.md                 # 전역 결정 기록
 ├── compact-plans/
@@ -57,6 +59,7 @@ docs/
 | convention map | `docs/conventions.md` | `/init-dcness`, system-architect | `agents/system-architect/templates/conventions.md` |
 | 기술 검토 결론 | `docs/tech-review.md` | tech-reviewer | `agents/tech-reviewer/templates/tech-review.md` |
 | 전역 design token | `docs/design.md` | ux-architect | `docs/plugin/design.md` |
+| design run 기록 | `docs/metrics/design-runs.jsonl` | `dcness-helper finalize-run` / `end-run` | JSONL schema v1 (`harness/design_run_records.py`) |
 | 결정 기록 | `docs/decisions/NNNN-slug.md` | system-architect / module-architect | `agents/system-architect/templates/decision.md` |
 
 `docs/architecture.md` 는 epic 이 늘 때마다 append-growing map 으로 갱신한다. 상세 설계 본문을 전역에 복제하지 않고, 전역 모듈/의존/결정 anchor 와 epic 문서 링크를 추가한다.
@@ -70,6 +73,8 @@ docs/
 기술 스택, naming, formatter, runtime, package manager, dependency policy 같은 반복 입력은 `docs/conventions.md` 에 둔다. 전역 architecture 는 시스템 topology 와 cross-epic map 에 집중한다.
 
 기술 검토의 본문 결론만 `docs/tech-review.md` 에 남긴다. raw evidence, 통합 HTML report, screenshots, logs 는 `.dcness-work/reviews/` 에 저장하고 git-tracked 산출물로 취급하지 않는다.
+
+`docs/metrics/design-runs.jsonl` 은 `/design` 종료 시 helper 가 쓰는 영속 측정 인덱스다. run-local `ledger.jsonl` 이 TTL 정리되어도 후속 검증 세션은 이 파일만으로 run 단위 판정, finding 분류 분포, 재검증 cycle, 시간, 가능한 토큰량을 조회한다. 조회 계약은 `dcness-helper design-records [--json] [--limit N]` 이다. 사람이 산출물 본문을 손으로 편집하지 않는다.
 
 ## epic 산출물
 

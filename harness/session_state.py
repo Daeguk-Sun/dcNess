@@ -1844,6 +1844,7 @@ def _cli_end_run(args: Any) -> int:
         ledger.append_event(sid, rid, "run_finished")
     except Exception:  # nosec B110
         pass
+    _record_design_run_if_applicable(sid, rid)
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
         clear_pid_current_run(cc_pid)
@@ -2233,6 +2234,18 @@ def _cli_run_status(args: Any) -> int:
     return 0
 
 
+def _cli_design_records(args: Any) -> int:
+    """Durable `docs/metrics/design-runs.jsonl` 조회 (#833)."""
+    from harness import design_run_records
+
+    argv: list[str] = ["--repo", args.repo]
+    if getattr(args, "json", False):
+        argv.append("--json")
+    if getattr(args, "limit", None) is not None:
+        argv.extend(["--limit", str(args.limit)])
+    return design_run_records.main(argv)
+
+
 def _cli_chain_view(args: Any) -> int:
     """impl-loop chain 진행 뷰 자동 렌더 → JSON stdout (#755).
 
@@ -2296,6 +2309,15 @@ def _cli_wave_plan(args: Any) -> int:
             for r in records
         ]
     print(_json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0
+
+
+def _cli_normalize_scope(args: Any) -> int:
+    """Mechanically normalize impl `### 수정 허용` bullets (#833)."""
+    from harness import parallel_wave
+
+    payload = parallel_wave.normalize_scope_paths(args.paths)
+    _json_stdout(payload)
     return 0
 
 
@@ -2898,6 +2920,30 @@ def _append_step_status(
     ledger.append_step_completed(sid, rid, agent, mode, enum, prose, prose_path)
 
 
+def _record_design_run_if_applicable(sid: str, rid: str) -> None:
+    """Write durable design-run index when the active run is entry_point=design."""
+    try:
+        from harness import design_run_records
+
+        record = design_run_records.write_design_record(
+            run_dir(sid, rid), repo_path=Path.cwd()
+        )
+        if record is not None:
+            path = design_run_records.design_record_path(
+                design_run_records.resolve_repo_root(Path.cwd())
+            )
+            print(
+                f"[design-record] {path} updated for {rid}",
+                file=sys.stderr,
+            )
+    except Exception as exc:  # nosec B110
+        print(
+            f"[design-record] WARN — durable design run record skipped: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+
+
 def _latest_step_per_role(steps: list) -> list:
     """`steps` 의 같은 (agent, mode) 쌍 중 *마지막* entry 만 골라 반환 (#272 W4).
 
@@ -3034,6 +3080,8 @@ def _cli_finalize_run(args: Any) -> int:
     # issue #392 — auto accumulate 매커니즘 폐기. 자동 redo/wastes/goods 누적이
     # jajang 실측 100% baseline 노이즈 (PROSE_ECHO_OK) 만 만들어냄. 메인 자율
     # 평가는 PR3 의 `insight` CLI 로 대체.
+
+    _record_design_run_if_applicable(sid, rid)
 
     return 0
 
@@ -3713,6 +3761,15 @@ def _build_arg_parser() -> Any:
     p_rs.add_argument("--run-id", default=None, dest="run_id")
     p_rs.set_defaults(func=_cli_run_status)
 
+    p_dr = sub.add_parser(
+        "design-records",
+        help="docs/metrics/design-runs.jsonl durable design run records 조회 (#833)",
+    )
+    p_dr.add_argument("--repo", default=".", help="활성 프로젝트 root (기본 cwd)")
+    p_dr.add_argument("--json", action="store_true")
+    p_dr.add_argument("--limit", type=int, default=None)
+    p_dr.set_defaults(func=_cli_design_records)
+
     p_cv = sub.add_parser(
         "chain-view",
         help="impl-loop chain 진행 뷰 자동 렌더 JSON (task list + current → view/operations/strategy — #755)",
@@ -3771,6 +3828,13 @@ def _build_arg_parser() -> Any:
         help="claim board 등록 묶음 식별자 (선택)",
     )
     p_wp.set_defaults(func=_cli_wave_plan)
+
+    p_ns = sub.add_parser(
+        "normalize-scope",
+        help="impl 문서 `### 수정 허용` bullet 형식 기계 교정 (#833)",
+    )
+    p_ns.add_argument("paths", nargs="+", help="impl 파일 / 디렉토리 / glob")
+    p_ns.set_defaults(func=_cli_normalize_scope)
 
     p_wc = sub.add_parser(
         "wave-claim",

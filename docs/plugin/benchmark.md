@@ -234,6 +234,23 @@ done
 기존 run 처럼 `pr_created` 가 없으면 PR 성공률은 측정 불가다. `pr_merged` 만 남은
 수동/legacy event 는 orphan 으로 표시하고 성공률 분자에 넣지 않는다.
 
+## 재현 4 — design run 영속 기록
+
+`/design` run 은 `finalize-run` 또는 `end-run` 시점에 `docs/metrics/design-runs.jsonl`
+에도 compact record 를 남긴다. 이 파일은 git-tracked docs 산출물이라
+`.claude/harness-state` TTL 정리나 Claude transcript 삭제 뒤에도 후속 세션이 읽을 수
+있다. run-local prose/ledger 가 원본이고, 이 파일은 baseline 비교용 인덱스다.
+
+```sh
+"$PLUGIN_ROOT/scripts/dcness-helper" design-records
+"$PLUGIN_ROOT/scripts/dcness-helper" design-records --json --limit 5
+```
+
+record v1 필드: `run_id`, `started_at`, `finished_at`, `duration_s`, `step_count`,
+`final_verdict`, `clean`, `finding_classes`, `revalidation_cycles`, `units[]`,
+`total_input_tokens`, `total_output_tokens`, `total_cost_usd`. 토큰/비용은 세션 JSONL
+매칭이 가능할 때만 채워지고, 불가능하면 0으로 남는다.
+
 ## 언제 유리하고 언제 과한가
 
 route 별 권장은 README "[언제 유리하고 언제 과한가](../../README.md#언제-유리하고-언제-과한가)"
