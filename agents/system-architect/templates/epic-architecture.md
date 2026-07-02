@@ -13,6 +13,12 @@
 - 읽을 코드:
   -
 
+## Domain Model Decision
+
+- `domain-model.md` 작성 여부:
+- 생략 판단 근거 (생략 시 필수):
+- 작성 필요 신호 (invariant / entity / value object / aggregate / domain service):
+
 ## 전역 map 반영
 
 - `docs/architecture.md` append 필요 여부:

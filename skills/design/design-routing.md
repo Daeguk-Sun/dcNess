@@ -81,7 +81,7 @@ flowchart TB
 | final epic 검증 FAIL → 산출 주체 재진입 | 3 cycle | 사용자 위임 |
 | module-architect `SPEC_GAP_FOUND` → 보강 → 신규 케이스 재진입 | 3 cycle | 사용자 위임 |
 
-> retry 한도는 문서상 장식이 아니라 실행 판단이다. 같은 경로가 3 cycle 을 초과하면 자동 복구하지 않고, 남은 finding·영향·선택지를 사용자에게 보고한다.
+> retry 한도는 문서상 장식이 아니라 실행 판단이다. 같은 경로가 표의 각 행에 적힌 한도를 초과하면 자동 복구하지 않고, 남은 finding·영향·선택지를 사용자에게 보고한다.
 > 한도 초과 시 사용자 위임이 실제 다음 행동이다.
 >
 > **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 분기](#finding-분류-분기)) — 1차는 검증 대상이 system-architect 산출물이라 기본적으로 system-architect 재진입이다. final epic 검증은 `SYSTEM_BOUNDARY` → system-architect, `CONTRACT_PROPAGATION` → module-architect `mode=contract_sweep`, `TASK_LOCAL` → module-architect(epic-batch) 보강.

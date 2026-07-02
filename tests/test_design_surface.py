@@ -107,6 +107,9 @@ class DesignSurfaceContractTests(unittest.TestCase):
         system_architect = (
             ROOT / "agents" / "system-architect" / "system-architect-agent.md"
         ).read_text(encoding="utf-8")
+        system_template = (
+            ROOT / "agents" / "system-architect" / "templates" / "epic-architecture.md"
+        ).read_text(encoding="utf-8")
         module_architect = (
             ROOT / "agents" / "module-architect" / "module-architect-agent.md"
         ).read_text(encoding="utf-8")
@@ -142,6 +145,7 @@ class DesignSurfaceContractTests(unittest.TestCase):
         for needle in (
             "final epic 검증 FAIL → 산출 주체 재진입",
             "3 cycle",
+            "표의 각 행에 적힌 한도",
             "초과 시 사용자 위임",
         ):
             self.assertIn(needle, routing)
@@ -150,6 +154,9 @@ class DesignSurfaceContractTests(unittest.TestCase):
             with self.subTest(text=text[:60]):
                 self.assertIn("계약 표면 코드 SSOT 대조", text)
                 self.assertIn("포트, 도메인 타입, 공개 entrypoint", text)
+
+        self.assertIn("## Domain Model Decision", system_template)
+        self.assertIn("생략 판단 근거 (생략 시 필수)", system_template)
 
         self.assertIn(
             "`domain-model.md` 가 있으면 함께 읽고, 없으면 epic `architecture.md` 의 생략 판단 근거",
