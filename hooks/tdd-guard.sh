@@ -175,9 +175,9 @@ esac
 
 # 자동 skip — plug-in 시드 boilerplate / 디자인 시안 폴더
 # templates/ = dcness self repo 의 사용자 프로젝트 배포용 시드 (cp 후 활성화)
-# design-variants/ = 활성화 프로젝트의 디자인 시안 폴더 (UI prototype, production 테스트 의무 X)
+# docs/design-variants/ = 활성화 프로젝트의 디자인 시안 폴더 (UI prototype, production 테스트 의무 X)
 case "$FILE_PATH" in
-  */templates/*|*/design-variants/*) allow ;;
+  */templates/*|*/docs/design-variants/*) allow ;;
 esac
 
 # 자동 skip — entry-file path heuristic (#423)

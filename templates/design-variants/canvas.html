@@ -11,9 +11,9 @@
 </head>
 <body>
   <!--
-    designer 책임:
-    1. 신규 화면 시안 추가 시 이 파일에 한 줄만 박는다 — 좌표 X (canvas.js auto-layout):
-         <iframe data-frame-id="<screen-id>" src="<screen-id>-v<N>.html"></iframe>
+    canvas-design 책임:
+    1. PICK 확정 후 메인이 이 파일에 한 줄을 등록한다 — 좌표 X (canvas.js auto-layout):
+         <iframe data-frame-id="<screen-id>" src="<screen-id>.html"></iframe>
        사용자가 위치 명시 요청 시만 data-pos="<col>,<row>" 박음.
     2. viewport 다른 frame:
          <iframe data-frame-id="..." data-viewport="desktop" src="..."></iframe>
@@ -23,7 +23,7 @@
          </svg>
   -->
   <div class="canvas">
-    <!-- 시안 iframe 들 — designer 가 추가 -->
+    <!-- 확정 화면 iframe 들 — canvas-design 승격 단계에서 메인이 추가 -->
 
     <!-- 화살표 (optional) -->
     <!--

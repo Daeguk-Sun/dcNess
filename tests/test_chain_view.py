@@ -86,16 +86,17 @@ class TestSubsteps(unittest.TestCase):
         self.assertEqual(normalize_engine("3agent"), "build-worker-deep")
         self.assertEqual(normalize_engine("advanced-fallback"), "advanced")
         self.assertEqual(normalize_engine("impl-ui-design-loop"), "ui")
+        self.assertEqual(normalize_engine("ui-build-worker"), "ui-build-worker")
         self.assertEqual(normalize_engine("ui-advanced"), "ui-advanced")
         # case-insensitive + whitespace
         self.assertEqual(normalize_engine("  Build-Worker "), "build-worker")
 
     def test_ui_loop_substeps(self):
-        # impl-ui-design-loop — designer + 사용자 PICK 선두 + full-4 (SKILL line 16-18).
+        # impl-ui-design-loop — canvas-design + 사용자 PICK 선두 + full-4.
         self.assertEqual(
             substeps_for(_task("m", "ui")),
             [
-                "designer",
+                "canvas-design",
                 "사용자 PICK",
                 "test-engineer",
                 "engineer:IMPL",
@@ -104,13 +105,25 @@ class TestSubsteps(unittest.TestCase):
             ],
         )
 
+    def test_ui_build_worker_substeps(self):
+        # UI 기준 확보는 engine 무관 — build-worker 앞에도 같은 canvas-design 절차가 붙는다.
+        self.assertEqual(
+            substeps_for(_task("m", "ui-build-worker")),
+            [
+                "canvas-design",
+                "사용자 PICK",
+                "build-worker",
+                "pr-reviewer",
+            ],
+        )
+
     def test_ui_advanced_substeps(self):
-        # UI + deep 보강 — designer 앞 module-architect (7 step).
+        # UI + deep 보강 — canvas-design 앞 module-architect.
         self.assertEqual(
             substeps_for(_task("m", "ui-advanced")),
             [
                 "module-architect",
-                "designer",
+                "canvas-design",
                 "사용자 PICK",
                 "test-engineer",
                 "engineer:IMPL",
@@ -466,7 +479,7 @@ class TestBuildChainViewAndParse(unittest.TestCase):
     def test_parse_ui_engine(self):
         tasks = parse_tasks([{"name": "screen", "engine": "impl-ui-design-loop"}])
         self.assertEqual(tasks[0].engine, "ui")
-        self.assertIn("designer", substeps_for(tasks[0]))
+        self.assertIn("canvas-design", substeps_for(tasks[0]))
         self.assertIn("사용자 PICK", substeps_for(tasks[0]))
 
     def test_parse_substeps_override_without_engine(self):
@@ -492,9 +505,9 @@ class TestBuildChainViewAndParse(unittest.TestCase):
             ]
         )
         payload = build_chain_view(tasks, current=1, prev=0)
-        self.assertIn("   ㄴ designer", payload["view"])
+        self.assertIn("   ㄴ canvas-design", payload["view"])
         self.assertIn("   ㄴ 사용자 PICK", payload["view"])
-        self.assertIn("designer", payload["current_substeps"])
+        self.assertIn("canvas-design", payload["current_substeps"])
 
 
 class TestViewOperationsConsistency(unittest.TestCase):

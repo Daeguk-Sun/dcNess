@@ -38,7 +38,7 @@ const PATH_PREFIXES = [
   'app/',
   'codex/',
   'commands/',
-  'design-variants/',
+  'docs/design-variants/',
   'docs/',
   'harness/',
   'hooks/',

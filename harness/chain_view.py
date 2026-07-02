@@ -52,7 +52,7 @@ __all__ = [
 # ── 엔진별 base sub-step (SKILL line 435 + impl-ui-design-loop 진본) ──
 #
 # impl-task-loop 엔진(build-worker/deep/full-4/advanced)은 SKILL line 435,
-# impl-ui-design-loop(UI 감지 → designer + 사용자 PICK 선두)는 SKILL line 16-18
+# impl-ui-design-loop(UI 감지 → canvas-design + 사용자 PICK 선두)는 SKILL line 16-18
 # `expected_steps` 가 진본. 모두 그대로 옮긴다(새 라벨 발명 X). 여기에 없는
 # 변종은 task 입력의 `substeps` 명시 override 로 표현한다([`substeps_for`]).
 ENGINE_SUBSTEPS: Dict[str, List[str]] = {
@@ -66,19 +66,26 @@ ENGINE_SUBSTEPS: Dict[str, List[str]] = {
         "code-validator",
         "pr-reviewer",
     ],
-    # impl-ui-design-loop (풀 4-agent 한정, 선두 designer + 사용자 PICK) — 6 step.
+    # impl-ui-design-loop (UI + full-4, 선두 canvas-design + 사용자 PICK) — 6 step.
     "ui": [
-        "designer",
+        "canvas-design",
         "사용자 PICK",
         "test-engineer",
         "engineer:IMPL",
         "code-validator",
         "pr-reviewer",
     ],
-    # UI + deep task 보강 (designer 앞 module-architect) — 7 step.
+    # UI + build-worker, engine 무관 canvas-design 선두 — 4 step.
+    "ui-build-worker": [
+        "canvas-design",
+        "사용자 PICK",
+        "build-worker",
+        "pr-reviewer",
+    ],
+    # UI + deep task 보강 (canvas-design 앞 module-architect) — 7 step.
     "ui-advanced": [
         "module-architect",
-        "designer",
+        "canvas-design",
         "사용자 PICK",
         "test-engineer",
         "engineer:IMPL",
@@ -104,6 +111,9 @@ _ENGINE_ALIASES: Dict[str, str] = {
     "ui": "ui",
     "ui-design-loop": "ui",
     "impl-ui-design-loop": "ui",
+    "ui-build-worker": "ui-build-worker",
+    "ui-worker": "ui-build-worker",
+    "impl-ui-build-worker-loop": "ui-build-worker",
     "ui-advanced": "ui-advanced",
     "ui-design-loop-advanced": "ui-advanced",
 }
