@@ -57,19 +57,21 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 
 ## 구현 경로 × 엔진 실행 매핑
 
-구현 경로(설계도 유무)와 엔진(풀4/경량)은 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다(#714). 구현 경로별 engineer 게이트 사전 조건 충족 메커니즘만 다르다: Standard 는 `--design-doc`, Lite 는 `--lane lite`(설계도 면제).
+구현 경로(설계도 유무)와 엔진(풀4/경량)은 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다(#714). sub-agent 엔진 미지정 시 기본은 build-worker 이고, 풀 4-agent 승격은 `risk: high` 또는 `engine: 4agent` frontmatter, 고위험 trigger 자동 승격, 사용자 엄정 발화 override 때만 수행한다. 구현 경로별 engineer 게이트 사전 조건 충족 메커니즘만 다르다: Standard 는 `--design-doc`, Lite 는 `--lane lite`(설계도 면제).
 
 | 경로 | 다음 |
 |---|---|
 | Lite · 메인 직접 (기본) | 메인 직접 `test -> impl -> test pass` 후 `begin-run impl` → `pr-reviewer` local diff. `code-validator` 없음 |
-| Lite · 풀 4-agent | `begin-run impl --lane lite` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
-| Lite · 경량 build-worker | `begin-run impl --lane lite` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) → `pr-reviewer` |
-| Standard · 풀 4-agent (디폴트) | `begin-run impl --design-doc <경로>` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
-| Standard · 경량 build-worker | `begin-run impl --design-doc <경로>` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) → `pr-reviewer` |
+| Lite · 경량 build-worker (sub-agent 디폴트) | `begin-run impl --lane lite` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) → `pr-reviewer` |
+| Lite · 풀 4-agent 승격 | `begin-run impl --lane lite` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
+| Standard · 경량 build-worker (디폴트) | `begin-run impl --design-doc <경로>` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) → `pr-reviewer` |
+| Standard · 풀 4-agent 승격 | `begin-run impl --design-doc <경로>` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
 
 Standard 의 설계도는 (a) 이미 머지된 설계 문서이거나 (b) `compact-design` 이 방금 산출한 compact plan 이다. 두 경우 모두 메인이 `begin-run impl --design-doc <경로>` 로 같은 경로를 기록하며, Standard 는 same-run module-architect step 없이 받은 설계도로 구현만 한다 — `--design-doc` 이 Standard engineer 게이트 사전 조건의 단일 메커니즘이다.
 
 Standard 경량 build-worker 경로도 build-worker self-validate 뒤 `pr-reviewer` 를 거친다. 경량은 구현 step 수를 줄이는 선택이지 review gate 를 생략하는 선택이 아니다.
+
+풀 4-agent 승격 사유는 판정 echo 에 남긴다: frontmatter `risk: high`, frontmatter `engine: 4agent`, 고위험 trigger, 사용자 엄정 발화. build-worker 디폴트 근거도 echo 에 남긴다: engine 미지정 + 고위험 trigger 없음.
 
 Lite 에 sub-agent 엔진을 붙일 때는 설계도가 없으므로 `begin-run impl --lane lite` 로 구현 경로를 기록해 engineer 게이트의 설계 산출물 사전 조건을 면제한다(#714). 면제는 *명시적으로 기록된* `lane=lite` 한정이며 engineer 게이트 *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 불변(풀4 경로). 구현 경로 값은 `entry_point=impl` 에서만 기록되므로 design/architect-loop 의 module-architect PASS 강제는 영향받지 않는다.
 

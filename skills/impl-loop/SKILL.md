@@ -1,6 +1,6 @@
 ---
 name: impl-loop
-description: deep impl task 파일(design 의 Story/공통 module-architect 단위 산출물)을 받아 정식 impl 루프로 구현하는 legacy/advanced runner. task 1개(single) 또는 여러 개(chain) 를 처리 — 기본은 한 세션 직렬, opt-in 병렬은 별도 interactive 세션들이 각자 single task 를 수행. 각 task = 1 PR + 1 이슈 close. 엔진은 풀 4-agent (test-engineer → engineer → code-validator → pr-reviewer, 엄정) 또는 build-worker (2/3-step, 경량) 를 개수·발화로 선택. story/epic 마감 task 는 머지 전 product-acceptance 검수가 기본으로 끼며 PASS 후에만 마감 PR 을 머지한다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
+description: deep impl task 파일(design 의 Story/공통 module-architect 단위 산출물)을 받아 정식 impl 루프로 구현하는 legacy/advanced runner. task 1개(single) 또는 여러 개(chain) 를 처리 — 기본은 한 세션 직렬, opt-in 병렬은 별도 interactive 세션들이 각자 single task 를 수행. 각 task = 1 PR + 1 이슈 close. 엔진 미지정 시 기본은 build-worker (2/3-step, 경량) 이고, 풀 4-agent (test-engineer → engineer → code-validator → pr-reviewer, 엄정)는 frontmatter/고위험/사용자 엄정 승격 전용이다. story/epic 마감 task 는 머지 전 product-acceptance 검수가 기본으로 끼며 PASS 후에만 마감 PR 을 머지한다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
 ---
 
 # Impl Loop Skill — deep impl task 구현 루프 (single / chain × 풀 / build-worker)
@@ -13,7 +13,7 @@ description: deep impl task 파일(design 의 Story/공통 module-architect 단�
 
 - **loop**: `impl-task-loop` (UI 감지 시 `impl-ui-design-loop` — engine 무관 `canvas-design` 선두 추가, 아래 `## UI 작업 시 canvas-design 선두`)
 - **entry_point**: `impl`
-- **task_list** (Step 1): (풀 4-agent, default=single) test-engineer → engineer:IMPL → code-validator → pr-reviewer · (build-worker, default=chain) build-worker → pr-reviewer · (advanced fallback: deep task 보강 필요 시 module-architect 선두 추가) · (impl-ui-design-loop) canvas-design 선두
+- **task_list** (Step 1): (build-worker, 기본) build-worker → pr-reviewer · (풀 4-agent, 승격 전용) test-engineer → engineer:IMPL → code-validator → pr-reviewer · (advanced fallback: deep task 보강 필요 시 module-architect 선두 추가) · (impl-ui-design-loop) canvas-design 선두
 - **advance**: `PASS` → `IMPL_DONE` → `PASS` → `PASS` (풀 4-agent) · `PASS` → `PASS` (build-worker) · `PASS`(canvas-design) → 각 엔진 구현 step (impl-ui-design-loop)
 - **expected_steps**: 4 (풀) / 5 (advanced fallback) / 2 (build-worker) · UI 풀 4-agent = 5 / UI build-worker = 3 / UI build-worker-deep = 4 / UI advanced fallback = 6 · story 마감 task +1 / epic 마감 task +2 (`product-acceptance`, 아래 `## 마감 acceptance`)
 - **분기 규칙**: [`impl-loop-routing.md`](impl-loop-routing.md)
@@ -45,17 +45,17 @@ UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint �
 - **glob / 복수 / epic 경로** → `chain` (impl-task-loop × N run)
 
 **엔진 축** — 각 run 안의 시퀀스를 정한다.
-- **frontmatter 우선 (진본, #703)**: impl 문서 frontmatter 의 `risk` / `engine` 이 **유효한 단일 값일 때만** 추론하지 말고 그 값을 쓴다 — `engine: 4agent` → 풀 4-agent · `engine: 2agent` → build-worker, `risk: high` → 풀 4-agent 승격(아래 자동 승격과 동치). 🔴 **placeholder 가드 (MUST)**: 유효한 단일 값 = `risk` ∈ {`normal`,`high`,`low`} / `engine` ∈ {`2agent`,`4agent`} 정확히 하나. 템플릿 미작성 잔재(`risk: normal|high|low`·`engine: 2agent|4agent` 처럼 `|` 포함)·빈 값·`<…>`·미해석 토큰은 **값이 아니라 부재로 간주**해 아래 추론 fallback 으로 떨어진다. 안 그러면 안 채운 고위험 task 가 placeholder 때문에 `normal`/경량/병렬로 새어 `_parse_risk_marker` 직렬 강등도 우회한다. 유효 값이 박혔으면 설계자(module-architect)가 이미 판정한 진본이라 진입마다 재추론하지 않는다. frontmatter 필드가 **없거나 placeholder 일 때만** 아래 디폴트·추론 fallback(하위호환).
-- **디폴트** (frontmatter 부재 시): `single` → 풀 4-agent (엄정) · `chain` → build-worker (경량). 개수가 적으면 컨텍스트 여유 → 엄정, 많으면 누적 절감 → 경량 (#446 의도된 티어링을 디폴트로 보존).
-- **고위험 task 자동 승격** (frontmatter `risk` 부재 시 추론 fallback): chain 기본이 build-worker 여도 task 가 고위험 trigger — [`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표(auth·PII / migration·destructive / public API breakage / cross-module·cross-story interface / 외부 dependency) + impl-loop 런타임 고위험(외부 HTTP·네트워크 어댑터 / URL·파일·사용자 입력 파싱 / 도메인 invariant 변경) — 를 포함하면 그 task만 풀 4-agent로 올린다 — frontmatter `risk: high` 가 명시돼 있으면 추론 없이 그 값으로 승격한다. self-grading drift 비용이 과승격 비용보다 크다. 단순 UI/문구/순수 내부 도메인 task는 경량 유지한다.
-- **override (사용자 발화)**: `엄정|꼼꼼|제대로|풀|rigor` 매치 → **풀 4-agent 강제** · `빠르게|경량|worker|가볍게` 매치 → **build-worker 선호**. 개수와 무관하게 적용 (1개를 worker 로 빠르게, N개를 풀로 엄정하게도 가능). 단, 고위험 trigger 는 build-worker 선호보다 우선한다. 사용자가 고위험 사유를 인지하고도 경량 강행을 명시한 경우에만 `reason` 에 그 결정을 남긴다.
+- **frontmatter 우선 (진본, #703)**: impl 문서 frontmatter 의 `risk` / `engine` 이 **유효한 단일 값일 때만** 추론하지 말고 그 값을 쓴다 — frontmatter `engine: 4agent` → 풀 4-agent · `engine: 2agent` → build-worker, frontmatter `risk: high` → 풀 4-agent 승격(아래 자동 승격과 동치). 🔴 **placeholder 가드 (MUST)**: 유효한 단일 값 = `risk` ∈ {`normal`,`high`,`low`} / `engine` ∈ {`2agent`,`4agent`} 정확히 하나. 템플릿 미작성 잔재(`risk: normal|high|low`·`engine: 2agent|4agent` 처럼 `|` 포함)·빈 값·`<…>`·미해석 토큰은 **값이 아니라 부재로 간주**해 아래 추론 fallback 으로 떨어진다. 안 그러면 안 채운 고위험 task 가 placeholder 때문에 `normal`/경량/병렬로 새어 `_parse_risk_marker` 직렬 강등도 우회한다. 유효 값이 박혔으면 설계자(module-architect)가 이미 판정한 진본이라 진입마다 재추론하지 않는다. frontmatter 필드가 **없거나 placeholder 일 때만** 아래 디폴트·추론 fallback(하위호환).
+- **디폴트**: frontmatter 부재 시 기본 엔진 = build-worker, 개수와 무관. single 도 chain 도 engine 미지정이면 build-worker 로 시작하고, dry preview 의 `reason` 에 디폴트 근거(`engine 미지정 + 고위험 trigger 없음`)를 남긴다.
+- **고위험 task 자동 승격** (frontmatter `risk` 부재 시 추론 fallback): 기본이 build-worker 여도 task 가 고위험 trigger — [`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표(auth·PII / migration·destructive / public API breakage / cross-module·cross-story interface / 외부 dependency) + impl-loop 런타임 고위험(외부 HTTP·네트워크 어댑터 / URL·파일·사용자 입력 파싱 / 도메인 invariant 변경) — 를 포함하면 그 task만 풀 4-agent로 올린다 — frontmatter `risk: high` 가 명시돼 있으면 추론 없이 그 값으로 승격한다. self-grading drift 비용이 과승격 비용보다 크다. 단순 UI/문구/순수 내부 도메인 task는 경량 유지한다.
+- **override (사용자 발화)**: 사용자 엄정 발화(`엄정|꼼꼼|제대로|풀|rigor`) 매치 → **풀 4-agent 강제** · `빠르게|경량|worker|가볍게` 매치 → **build-worker 선호**. 개수와 무관하게 적용 (1개를 worker 로 빠르게, N개를 풀로 엄정하게도 가능). 단, 고위험 trigger 는 build-worker 선호보다 우선한다. 사용자가 고위험 사유를 인지하고도 경량 강행을 명시한 경우에만 `reason` 에 그 결정을 남긴다.
 
 | 개수 \ 엔진 | 풀 4-agent | build-worker |
 |---|---|---|
-| **single (1 task)** | 디폴트 | override (`빠르게`) |
-| **chain (N task)** | override (`엄정하게`) 또는 고위험 task 자동 승격 | 디폴트 |
+| **single (1 task)** | frontmatter `risk: high`/`engine: 4agent`, 고위험 trigger, 사용자 엄정 override | 디폴트 |
+| **chain (N task)** | frontmatter `risk: high`/`engine: 4agent`, 고위험 trigger, 사용자 엄정 override | 디폴트 |
 
-판정 결과를 진입 시 사용자에게 1줄 echo (예: `single · 풀 4-agent (엄정)` / `chain 7 task · build-worker (경량)` / `chain 7 task · 일부 task 풀 4-agent 승격 (외부 HTTP)`). chain 은 아래 dry preview 표에도 task 별 `risk / engine / reason` 을 남긴다.
+판정 결과를 진입 시 사용자에게 1줄 echo (예: `single · build-worker (디폴트 — engine 미지정 + 고위험 trigger 없음)` / `chain 7 task · build-worker (디폴트)` / `chain 7 task · 일부 task 풀 4-agent 승격 (외부 HTTP)`). chain 은 아래 dry preview 표에도 task 별 `risk / engine / reason` 을 남긴다. 풀 4-agent 승격 세 경로(frontmatter `risk: high`/`engine: 4agent`, 고위험 trigger, 사용자 엄정 override)는 모두 echo 와 dry preview `reason` 에 남긴다.
 
 ### verify-only task
 
@@ -236,9 +236,9 @@ fi
 
 ---
 
-## 엔진 A — 풀 4-agent (default = single)
+## 엔진 A — 풀 4-agent (승격 전용)
 
-default 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → pr-reviewer**. 4 단계 *모두 호출* 의무 (MUST — false-clean 차단, #431).
+승격 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → pr-reviewer**. 4 단계 *모두 호출* 의무 (MUST — false-clean 차단, #431).
 
 🔴 **begin-run 에 `--design-doc` 필수**: 엔진 A 는 설계(impl 문서)가 별도 run 에서 머지된 *뒤* 진입하므로 같은 run 안에 module-architect prose 가 없다 — `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 머지된 설계 문서를 run 에 기록해야 engineer 게이트(순서 차단 훅)가 IMPL 진입을 허용한다 ([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). story/epic 마감 task 이고 acceptance 기본 ON 이면 같은 begin-run 에 `--acceptance-required` 도 붙인다. 이 marker 는 Stop hook 이 pr-reviewer 직후 run 을 자동 종료하지 않고 product-acceptance 진입 turn 을 재발화하게 하는 신호다. chain 에서 다음 task 도 풀 4-agent 면 `next-task --design-doc <다음 task 의 impl 문서 경로>` 로 동일 기록하고, 다음 task 가 마감 acceptance 대상이면 `--acceptance-required` 도 함께 기록한다. advanced fallback 으로 module-architect 를 선두 추가한 run 은 같은-run PASS prose 가 생기므로 생략 가능하나, task 의 impl 문서가 이미 있으면 기록을 권장한다.
 
@@ -350,13 +350,13 @@ chain = 위 공통 골격 + 엔진을 **task 한 개씩** 반복. task N 이 완
 
 `impl/NN-*.md` prefix 기준 직렬 순서 확정 후, **task1 진입 *전* 실행 계획을 1회 표로 echo** (사용자 가시성 + 잘못된 순서·범위 사전 포착, #526). 각 task frontmatter (`story:` / `task_index:` / `risk:` / `engine:` / `risk_reason:`) awk 추출 + PR 트레일러 판정 = [`git-spec.md`](../../docs/plugin/git-spec.md#적용-절차-pr-생성-직전-사전-체크-impl-파일-frontmatter-기반) + [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#impl-task-loop-commit-구조) 재사용.
 
-각 task 는 dry preview 단계에서 `risk` / `engine` / `reason` 을 남긴다. **frontmatter 에 `risk`/`engine`/`risk_reason` 이 유효한 단일 값으로 채워져 있으면 추론하지 말고 그 값을 그대로 옮긴다 (#703)**: `risk` ∈ `normal`/`high`/`low`, `engine` = `2agent`(build-worker) / `4agent`(풀 4-agent), `reason` = frontmatter `risk_reason`. **placeholder 가드 (위 진입 분기와 동일, MUST)**: 템플릿 미작성 잔재(`|` 포함된 `normal|high|low`)·빈 값·`<…>` 는 부재로 간주해 추론으로 떨어진다. frontmatter risk 가 **없거나 placeholder 인 task 만** 메인이 본문에서 추론한다 — 그 경우 `risk` 는 `normal`/`high`, `reason` 은 고위험 trigger 가 없으면 `고위험 trigger 없음`, 고위험이면 `외부 HTTP`/`URL 파싱`/`auth`/`PII`/`도메인 invariant` 처럼 task 본문에서 확인한 근거를 적는다. 어느 경로든 `reason` 은 비워 두지 않는다 (frontmatter `risk_reason` 또는 추론 근거 중 하나는 항상 채운다). `risk: high` row 의 기본 `engine` 은 `4agent`(풀 4-agent) 이며, chain 전체 기본이 build-worker 여도 해당 row 만 승격한다. (verify-only task 는 risk 와 별개로 `task_type` 으로 판정 — 위 `### verify-only task`.)
+각 task 는 dry preview 단계에서 `risk` / `engine` / `reason` 을 남긴다. **frontmatter 에 `risk`/`engine`/`risk_reason` 이 유효한 단일 값으로 채워져 있으면 추론하지 말고 그 값을 그대로 옮긴다 (#703)**: `risk` ∈ `normal`/`high`/`low`, `engine` = `2agent`(build-worker) / `4agent`(풀 4-agent), `reason` = frontmatter `risk_reason`. **placeholder 가드 (위 진입 분기와 동일, MUST)**: 템플릿 미작성 잔재(`|` 포함된 `normal|high|low`)·빈 값·`<…>` 는 부재로 간주해 추론으로 떨어진다. frontmatter risk 가 **없거나 placeholder 인 task 만** 메인이 본문에서 추론한다 — 그 경우 `risk` 는 `normal`/`high`, 고위험 trigger 가 없으면 `engine=build-worker`, `reason=engine 미지정 + 고위험 trigger 없음`, 고위험이면 `engine=4agent`, `reason=외부 HTTP`/`URL 파싱`/`auth`/`PII`/`도메인 invariant` 처럼 task 본문에서 확인한 승격 근거를 적는다. 어느 경로든 `reason` 은 비워 두지 않는다 (frontmatter `risk_reason` 또는 추론 근거 중 하나는 항상 채운다). `risk: high` row 의 기본 `engine` 은 `4agent`(풀 4-agent) 이며, chain 전체 기본이 build-worker 여도 해당 row 만 승격한다. (verify-only task 는 risk 와 별개로 `task_type` 으로 판정 — 위 `### verify-only task`.)
 
 ```
 📋 실행 계획 (K task · 엔진 <풀 4-agent | build-worker | mixed>)
 | # | 모듈 | impl 파일 | task_index | PR 트레일러 | risk | engine | reason | sub-step |
 |---|------|----------|-----------|-----------|------|--------|--------|----------|
-| 1 | <slug> | `NN-<slug>.md` | <i/total 또는 —> | Part of #<story> | normal | build-worker | 고위험 trigger 없음 | <sub-step> |
+| 1 | <slug> | `NN-<slug>.md` | <i/total 또는 —> | Part of #<story> | normal | build-worker | engine 미지정 + 고위험 trigger 없음 | <sub-step> |
 전체: K task · 예상 PR K개
 acceptance 경계: task<i> (story #<M>) · task<K> (story #<M'> + epic #<E>)   ← 머지 전 검수 대상 (기본 ON, --no-acceptance 시 생략)
 ```

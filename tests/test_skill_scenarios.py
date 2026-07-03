@@ -49,9 +49,32 @@ class SkillScenarioRegressionTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-    # ----- 시나리오 1 — /impl default 4-agent 시퀀스 -----
-    def test_impl_default_sequence_keeps_four_agent_order(self) -> None:
-        """/impl Standard happy path = test-engineer → engineer → code-validator → pr-reviewer 순서 보존.
+    # ----- 시나리오 1 — /impl 기본 build-worker + 풀4 승격 시퀀스 -----
+    def test_impl_default_engine_is_build_worker(self) -> None:
+        """/impl Standard engine unspecified path defaults to build-worker, not 풀 4-agent."""
+        for needle in (
+            "엔진 = build-worker(디폴트)",
+            "디폴트 근거",
+            "풀 4-agent 는 승격 전용",
+            "risk: high",
+            "engine: 4agent",
+            "고위험 trigger",
+            "사용자 엄정",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.impl_skill)
+
+        for needle in (
+            "Standard · 경량 build-worker (디폴트)",
+            "풀 4-agent 승격",
+            "고위험 trigger",
+            "사용자 엄정",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.impl_routing)
+
+    def test_escalated_four_agent_sequence_keeps_order(self) -> None:
+        """/impl 풀 4-agent escalation path preserves test → impl → validate → review.
 
         4 단계 중 하나라도 빠지거나 순서가 바뀌면 false-clean 회귀(#431)로 직결된다.
         """

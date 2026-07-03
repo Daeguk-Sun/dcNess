@@ -12,13 +12,13 @@ agent 는 일을 마치면 prose 마지막 단락에 *어떤 결과로 끝났는
 
 **개수 vs 엔진** — 개수(single/chain)는 절차 골격(1 run vs N run), 엔진(풀 4-agent / build-worker)은 각 run 안의 시퀀스를 정한다 ([진입 분기](SKILL.md#진입-분기-개수-엔진-직교)). 본 분기 규칙은 *엔진별* 시퀀스 안의 결론→다음을 다룬다. chain 의 task 경계 분기(`clean`/`error`/`blocked`)는 [chain 모드 task 경계 분기](#chain-모드-task-경계-분기).
 
-**고위험 task 승격** — build-worker 는 비용 절감 엔진이지 보안 경계가 아니다. 고위험 trigger([`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표 — auth·PII / migration·destructive / public API breakage / cross-module·cross-story interface / 외부 dependency — 에 impl-loop 런타임 고위험인 외부 HTTP·네트워크 어댑터 / URL·파일·사용자 입력 파싱 / 도메인 invariant 변경을 더한 집합) task 는 chain 안에서도 해당 task만 풀 4-agent 경로로 분기한다. 일반 UI/문구/순수 내부 도메인 task 는 build-worker 경량 경로를 유지한다. **이 판정의 진본 = impl 문서 frontmatter 의 `risk`/`engine` (#703)**: `risk: high` → 풀 4-agent 승격, `engine: 4agent` → 풀 4-agent · `engine: 2agent` → build-worker. 설계자(module-architect)가 task 를 자르는 시점에 박은 값이라 진입마다 재추론하지 않는다. 단 **유효한 단일 값일 때만** 신뢰한다 — 템플릿 placeholder(`risk: normal|high|low` 처럼 `|` 포함)·빈 값은 부재로 간주해 추론으로 떨어진다([`SKILL.md`](SKILL.md) placeholder 가드). frontmatter 에 risk 필드가 **없거나 placeholder 일 때만** 메인이 위 고위험 trigger 기준으로 추론한다(하위호환). 어느 경로든 결과를 task1 진입 전 dry preview 표의 `risk / engine / reason` 열에 남기고, `risk: high` slug 를 `wave-plan --high-risk` 입력으로 도출한다([병렬 wave](SKILL.md#병렬-wave-opt-in-chain-한정)). 고위험 trigger 는 build-worker 선호보다 우선하며, 사용자가 고위험 사유를 인지하고도 경량 강행을 명시한 경우에만 그 결정을 `reason` 에 기록한다.
+**엔진 디폴트와 고위험 task 승격** — frontmatter 부재 시 기본 엔진 = build-worker 이며 개수와 무관하다. build-worker 는 비용 절감 엔진이지 보안 경계가 아니다. 고위험 trigger([`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표 — auth·PII / migration·destructive / public API breakage / cross-module·cross-story interface / 외부 dependency — 에 impl-loop 런타임 고위험인 외부 HTTP·네트워크 어댑터 / URL·파일·사용자 입력 파싱 / 도메인 invariant 변경을 더한 집합) task 는 single/chain 어디서든 해당 task만 풀 4-agent 경로로 분기한다. 일반 UI/문구/순수 내부 도메인 task 는 build-worker 경량 경로를 유지한다. **이 판정의 진본 = impl 문서 frontmatter 의 `risk`/`engine` (#703)**: frontmatter `risk: high` → 풀 4-agent 승격, frontmatter `engine: 4agent` → 풀 4-agent · `engine: 2agent` → build-worker. 설계자(module-architect)가 task 를 자르는 시점에 박은 값이라 진입마다 재추론하지 않는다. 단 **유효한 단일 값일 때만** 신뢰한다 — 템플릿 placeholder(`risk: normal|high|low` 처럼 `|` 포함)·빈 값은 부재로 간주해 추론으로 떨어진다([`SKILL.md`](SKILL.md) placeholder 가드). frontmatter 에 risk 필드가 **없거나 placeholder 일 때만** 메인이 위 고위험 trigger 기준으로 추론한다(하위호환). 어느 경로든 결과를 task1 진입 전 dry preview 표의 `risk / engine / reason` 열에 남기고, `risk: high` slug 를 `wave-plan --high-risk` 입력으로 도출한다([병렬 wave](SKILL.md#병렬-wave-opt-in-chain-한정)). 고위험 trigger 는 build-worker 선호보다 우선하며, 사용자 엄정 발화 override(`엄정|꼼꼼|제대로|풀|rigor`)도 풀 4-agent 승격 사유다. build-worker 디폴트는 디폴트 근거(`reason=engine 미지정 + 고위험 trigger 없음`)를, 풀 4-agent 승격은 `reason` 에 승격 근거를 기록한다.
 
 **verify-only 예외** — task 산출물이 코드 변경이 아니라 검증 결과이고 검증 exit 0 + 변경 0 이면 PR 생성이 정상적으로 생략된다. 이때 `code-validator:VERIFY_ONLY` prose `PASS` 기록을 clean 증거로 삼고 `pr-create.sh` 를 호출하지 않는다. 검증 실패나 BROKEN 확인 시 일반 impl 수정 경로로 전환한다.
 
 ## 분기 그래프
 
-### 엔진 A — 풀 4-agent (default = single)
+### 엔진 A — 풀 4-agent (승격 전용)
 
 ```mermaid
 flowchart TB
@@ -49,7 +49,7 @@ flowchart TB
 
 > advanced fallback (deep task 보강 필요) → MA 선두 1 step 추가. 이것은 Lite direct 구현이 아니라 deep task 보강 경로다. UI 감지 → engine 무관 canvas-design 선두. canvas-design 은 main-owned checkpoint 이며 helper begin/end-step 비대상이다. draft 가 필요할 때 실제 Agent 호출은 별도 `begin-step designer` 로 연다. 사용자 PICK 은 draft 가 실제 생성된 경우 canvas-design 내부에서만 수행하며, canvas-design `PASS` → 선택 엔진 구현 step.
 
-### 엔진 B — build-worker (default = chain)
+### 엔진 B — build-worker (디폴트)
 
 ```mermaid
 flowchart TB

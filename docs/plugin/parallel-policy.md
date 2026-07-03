@@ -39,7 +39,7 @@ dcness-helper wave-plan --register <impl-glob-or-dir> \
 - `wave-plan` 은 `depends_on` + Scope 파일집합 disjoint 로 후보 wave 를 계산한다.
 - `--register` 를 붙인 경우 computed `parallel` step 에 속한 impl 파일의 **canonical impl path** 만 claim board 에 등록한다. serial / high-risk / 의존 대기 task 는 등록하지 않는다. 이 등록이 peer mode activation 신호다.
 - 사용자에게 peer 세션 입력은 `wave-id` 가 아니라 `/impl-loop <canonical-impl-path>` 로 안내한다.
-- 안내에는 각 task 의 엔진을 명시한다: single 기본은 풀 4-agent, chain 기본은 build-worker, high-risk task 는 풀 4-agent 승격.
+- 안내에는 각 task 의 엔진을 명시한다: engine 미지정 기본은 single/chain 모두 build-worker, high-risk task 와 사용자 엄정 override 는 풀 4-agent 승격.
 
 ## 4. task claim board
 

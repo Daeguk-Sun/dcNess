@@ -117,11 +117,26 @@ class TestImplLoopRiskPreview(unittest.TestCase):
         self.assertGreaterEqual(skill.count("placeholder"), 2)
         self.assertIn("placeholder", routing)
 
-    def test_high_risk_routes_to_full_agent_even_when_chain_defaults_worker(self):
+    def test_unspecified_engine_defaults_to_build_worker_for_single_and_chain(self):
+        # #861 — 개수(single/chain)와 무관하게 engine 미지정 기본값은 build-worker.
+        skill = read_impl_skill()
+        routing = read_impl_routing()
+        for body in (skill, routing):
+            self.assertIn("frontmatter 부재 시 기본 엔진 = build-worker", body)
+            self.assertIn("개수와 무관", body)
+            self.assertIn("디폴트 근거", body)
+            self.assertIn("engine 미지정 + 고위험 trigger 없음", body)
+        self.assertNotIn("`single` → 풀 4-agent", skill)
+        self.assertNotIn("default = single", routing)
+
+    def test_high_risk_routes_to_full_agent_from_build_worker_default(self):
         skill = read_impl_skill()
         routing = read_impl_routing()
         for body in (skill, routing):
             self.assertIn("고위험 trigger 는 build-worker 선호보다 우선", body)
+            self.assertIn("frontmatter `risk: high`", body)
+            self.assertIn("frontmatter `engine: 4agent`", body)
+            self.assertIn("사용자 엄정", body)
             self.assertIn("풀 4-agent", body)
             self.assertIn("reason", body)
 

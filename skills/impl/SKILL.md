@@ -26,10 +26,10 @@ description: 구현 요청을 받아 가장 작은 안전 workflow 로 PR 까지
 
 | 엔진 | 시퀀스 | 언제 |
 |---|---|---|
-| 풀 4-agent | `test-engineer → engineer:IMPL → code-validator → pr-reviewer` | 디폴트 (엄정) |
-| 경량 build-worker | build-worker 1 step (테스트·구현·자체검증) | 사용자 "빠르게/경량" 발화 또는 메인 추천 |
+| 경량 build-worker | build-worker 1 step (테스트·구현·자체검증) → `pr-reviewer` | sub-agent 엔진 미지정 시 디폴트 |
+| 풀 4-agent | `test-engineer → engineer:IMPL → code-validator → pr-reviewer` | 승격 전용 |
 
-엔진 선택은 **사용자 우선, 미지정 시 메인 추천**이고 구현 경로와 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다. 구현 경로별로 engineer 게이트 사전 조건 충족 메커니즘이 다르다:
+엔진 선택은 **사용자 우선, 미지정 시 build-worker 기본**이고 구현 경로와 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다. 풀 4-agent 는 승격 전용이며 다음 세 경우에만 들어간다: `risk: high` 또는 `engine: 4agent` frontmatter, 고위험 trigger 자동 승격, 사용자 엄정 발화 override(`엄정|꼼꼼|제대로|풀|rigor`). 경량 발화(`빠르게|경량|worker|가볍게`)는 build-worker 선호지만 고위험 trigger 가 우선한다. 메인은 판정 echo 에 엔진과 디폴트 근거 또는 승격 근거 1줄을 남긴다. 구현 경로별로 engineer 게이트 사전 조건 충족 메커니즘이 다르다:
 
 - **Standard + sub-agent 엔진**: 설계도(`begin-run impl --design-doc <경로>`)가 engineer 게이트 사전 조건이다.
 - **Lite + sub-agent 엔진**: Lite 는 정의상 설계도가 없으므로 `begin-run impl --lane lite` 로 구현 경로를 기록해 engineer 게이트의 설계 산출물 사전 조건을 면제한다(#714). 면제 경계는 *명시적으로 기록된* `lane=lite` 한정이며, 뒤따르는 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 그대로 강제된다([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)).
@@ -43,8 +43,16 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
 ## Loop
 
 - **Lite 구현 경로 — 메인 직접 (기본)**: 코드/문서 변경은 메인이 수행하고, review step 만 `begin-run impl` 안에서 `pr-reviewer` 로 기록한다. `code-validator` 는 호출하지 않는다.
-- **Lite 구현 경로 — sub-agent 엔진 (#714)**: 사용자/메인이 풀4·경량 엔진을 명시 선택하면 `begin-run impl --lane lite` 로 진입한다. `lane=lite` 기록이 engineer 게이트 설계 산출물 사전 조건을 면제한다. 엔진 시퀀스는 Standard 와 동일(풀4: test-engineer → engineer:IMPL → code-validator → pr-reviewer / 경량: build-worker 1 step). 잔존 보호(`pr-reviewer ← code-validator PASS`)는 그대로 강제된다.
-- **Standard 구현 경로 — 풀 4-agent 엔진 (디폴트)**
+- **Lite 구현 경로 — sub-agent 엔진 (#714)**: 사용자/메인이 sub-agent 엔진을 명시 선택하거나 메인이 추천하면 `begin-run impl --lane lite` 로 진입한다. 미지정 기본은 build-worker 이고, 풀4는 `risk: high` / `engine: 4agent` / 고위험 trigger / 사용자 엄정 override 때만 승격한다. `lane=lite` 기록이 engineer 게이트 설계 산출물 사전 조건을 면제한다. 엔진 시퀀스는 Standard 와 동일(풀4: test-engineer → engineer:IMPL → code-validator → pr-reviewer / 경량: build-worker 1 step → pr-reviewer). 잔존 보호(`pr-reviewer ← code-validator PASS`)는 그대로 강제된다.
+- **Standard 구현 경로 — 경량 build-worker 엔진 (디폴트)**
+  - **loop**: `impl-standard`
+  - **entry_point**: `impl`
+  - **사전 조건**: 설계 문서 경로 — `begin-run impl --design-doc <경로>` 로 기록 (engineer 게이트 사전 조건, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh))
+  - **task_list**: build-worker → pr-reviewer
+  - **advance**: `PASS` → `PASS`
+  - **expected_steps**: 2
+  - **분기 규칙**: [`impl-routing.md`](impl-routing.md)
+- **Standard 구현 경로 — 풀 4-agent 엔진 (승격 전용)**
   - **loop**: `impl-standard`
   - **entry_point**: `impl`
   - **사전 조건**: 설계 문서 경로 — `begin-run impl --design-doc <경로>` 로 기록 (engineer 게이트 사전 조건, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh))
@@ -52,7 +60,8 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
   - **advance**: `TESTS_WRITTEN` → `IMPL_DONE` → `PASS` → `PASS`
   - **expected_steps**: 4
   - **분기 규칙**: [`impl-routing.md`](impl-routing.md)
-- **Standard 구현 경로 — 경량 build-worker 엔진**: 사용자 "빠르게/경량" 발화 또는 메인 추천 시. 동일하게 `begin-run impl --design-doc <경로>` 로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행한다. 경량 build-worker 엔진도 `build-worker → pr-reviewer` 순서이며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다. 엔진은 구현 경로와 직교다.
+- **풀 4-agent 승격 사유**: `risk: high` 또는 `engine: 4agent` frontmatter, 고위험 trigger 자동 승격, 사용자 엄정 발화 override. 세 경로 모두 판정 echo 에 사유를 남긴다.
+- **경량 build-worker 엔진도 `build-worker → pr-reviewer`** 순서이며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다.
 - **high-risk → impl 밖**: high-risk trigger 가 있으면 impl 이 직접 처리하지 않는다. impl 진입 *전* 분기 규칙([`workflow-router`](../../docs/plugin/workflow-router.md))이 설계 선행(`/spec`·`/design`)으로 보내고, deep impl task 파일이 이미 있으면 `/impl-loop <task>` 로 위임한다.
 
 ## Step 0 — 실존 검증
@@ -120,8 +129,8 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 
 ```
 구현 경로: Lite — 설계도 없음, concrete signal = <파일/이슈/테스트>, 엔진 = 메인 직접, 검증 gate = test + pr-reviewer
-구현 경로: Standard — 설계도 = <경로>, 엔진 = 풀4(디폴트), 검증 gate = test + code-validator + pr-reviewer
-구현 경로: Standard — 설계도 = <경로>, 엔진 = 경량 build-worker, 검증 gate = test + build-worker self-validate + pr-reviewer
+구현 경로: Standard — 설계도 = <경로>, 엔진 = build-worker(디폴트), 근거 = engine 미지정 + 고위험 trigger 없음, 검증 gate = test + build-worker self-validate + pr-reviewer
+구현 경로: Standard — 설계도 = <경로>, 엔진 = 풀4(승격), 근거 = <risk: high|engine: 4agent|고위험 trigger|사용자 엄정>, 검증 gate = test + code-validator + pr-reviewer
 ```
 
 ## Sub-agent prompt 작성 checkpoint (#780)
@@ -178,7 +187,7 @@ Codex implementation routing 이 `codex-first` 이면 Lite 기본 구현도 메�
 
 ## Lite 구현 경로 — sub-agent 엔진 (#714)
 
-메인 직접 구현 대신 sub-agent 엔진(풀4 / 경량 build-worker)으로 Lite 를 돌리는 변형이다. 사용자가 "에이전트로/풀4로/경량 엔진으로" 류로 명시 선택하거나 메인이 추천할 때 쓴다. Lite 는 정의상 설계도가 없으므로 Standard 의 `--design-doc` 대신 **구현 경로 기록**으로 engineer 게이트를 충족한다.
+메인 직접 구현 대신 sub-agent 엔진(풀4 / 경량 build-worker)으로 Lite 를 돌리는 변형이다. 사용자가 "에이전트로/풀4로/경량 엔진으로" 류로 명시 선택하거나 메인이 추천할 때 쓴다. sub-agent 엔진 미지정 시 기본은 build-worker 이고, 풀 4-agent 는 승격 전용이다. Lite 는 정의상 설계도가 없으므로 Standard 의 `--design-doc` 대신 **구현 경로 기록**으로 engineer 게이트를 충족한다.
 
 진입 시 `begin-run impl --lane lite` 로 구현 경로를 기록한다 — 이 기록이 engineer 게이트의 설계 산출물 사전 조건 면제 신호다([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). 면제 경계는 *명시적으로 기록된* `lane=lite` 한정이고, 구현 경로 값은 `entry_point=impl` 에서만 기록되므로 design/architect-loop 의 module-architect PASS 강제는 영향받지 않는다.
 
@@ -193,9 +202,11 @@ Standard 는 **설계 문서(경로)가 들어온** 구현 경로다. impl 은 �
 
 진입 시 `begin-run impl --design-doc <설계 문서 경로>` 로 설계도를 기록한다 — 이것이 engineer 게이트의 설계 산출물 사전 조건 증거다([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh)). 설계도가 (a) 이전에 머지된 설계 문서든 (b) `compact-design` 이 방금 산출한 compact plan 이든, impl 은 같은 run 에서 설계를 생성하지 않으므로 Standard 는 **항상 `--design-doc` 기록 하나로** 진입한다 (same-run module-architect step 없음).
 
-엔진(풀4/경량)은 구현 경로와 직교로 별도 판정한다 — 사용자 우선, 미지정 시 메인 추천.
+엔진(풀4/경량)은 구현 경로와 직교로 별도 판정한다 — 사용자 우선, 미지정 시 build-worker 기본이다.
 
-**풀 4-agent 엔진 (디폴트) 실행:**
+**경량 build-worker 엔진 (디폴트) 실행:** 동일하게 `--design-doc` 으로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행한다. 그 다음 `pr-reviewer` 가 local diff 를 읽기 전용으로 리뷰하며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다. worker 가 commit message·PR body 초안을 남겨도 실제 commit/PR/merge 는 메인이 pr-reviewer PASS 뒤 수행한다.
+
+**풀 4-agent 엔진 (승격 전용) 실행:** `risk: high` 또는 `engine: 4agent` frontmatter, 고위험 trigger 자동 승격, 사용자 엄정 발화 override 일 때만 사용한다. 메인은 판정 echo 에 승격 사유를 남긴다.
 
 1. `test-engineer`
    - 설계도의 테스트 기준을 실패 테스트로 만든다.
@@ -207,8 +218,6 @@ Standard 는 **설계 문서(경로)가 들어온** 구현 경로다. impl 은 �
    - local diff 를 리뷰한다.
 5. 단위 commit + PR 생성
 6. CI / merge policy
-
-**경량 build-worker 엔진:** 사용자 "빠르게/경량" 발화 또는 메인 추천 시. 동일하게 `--design-doc` 으로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행한다. 그 다음 `pr-reviewer` 가 local diff 를 읽기 전용으로 리뷰하며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다. worker 가 commit message·PR body 초안을 남겨도 실제 commit/PR/merge 는 메인이 pr-reviewer PASS 뒤 수행한다.
 
 구현 중 설계가 또 부족하면 `compact-design`/`/design` 으로 되돌려 설계도를 보강한다 — 되돌림은 정상 루프다. 새 외부 의존·high-risk 가 드러나면 impl *밖* 설계 선행으로 escalate 한다(경량 범위를 넘어섰다는 신호).
 

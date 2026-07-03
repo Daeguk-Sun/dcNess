@@ -76,16 +76,18 @@ claude plugin install dcness@dcness
 
 ## 작업 흐름
 
-기본으로 기억할 흐름은 `/spec → /design → /impl → /acceptance` 넷이면 된다.
+기본으로 기억할 흐름은 `/spec → /design → /impl → /acceptance` 넷이면 된다. 공개 lifecycle 표기 기준은 `/spec -> /design -> /impl -> /acceptance` 다.
 
-| 진입점 | 언제 쓰나 |
+| 기본 진입점 | 언제 쓰나 |
 |---|---|
 | `/spec` | 새 기능·큰 기획·PRD 변경처럼 무엇을 만들지 먼저 합의해야 할 때 |
-| `/design` | 구현 전에 화면 흐름·시스템·모듈 설계가 필요할 때 (구현 없이 시안만 먼저 보려면 `/ux`) |
+| `/design` | PRD 이후 구현 전 product/technical design, 즉 화면 흐름·시스템·모듈 설계가 필요할 때 (구현 없이 visual design 만 먼저 보려면 `/ux`) |
 | `/impl` | 구현·수정·버그픽스를 실제 PR 로 끝낼 때 |
 | `/acceptance` | PRD / Epic / Story 기준으로 "정말 다 됐는지" 제품 검수할 때 |
 
-`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 설계 문서가 없고 파일·이슈 같은 구체적 단서가 명확하면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(Lite), 설계도가 있으면 그 설계도대로 구현한다(Standard). 새 기능이나 위험이 큰 작업은 `/impl` 안에서 처리하지 않고 `/spec`·`/design` 으로 먼저 돌린 뒤, 나온 설계도를 들고 다시 들어온다.
+`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 설계 문서가 없고 파일·이슈 같은 구체적 단서가 명확하면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(Lite), 설계도가 있으면 그 설계도대로 구현한다(Standard). Standard 의 sub-agent 엔진 미지정 기본은 `build-worker → pr-reviewer` 이고, 풀 4-agent 는 고위험 trigger 나 사용자 엄정 override 때만 승격한다. 새 기능이나 위험이 큰 작업은 `/impl` 안에서 처리하지 않고 `/spec`·`/design` 으로 먼저 돌린 뒤, 나온 설계도를 들고 다시 들어온다.
+
+`/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)와 엔진(build-worker 기본 / 풀 4-agent 승격)을 직교로 고른다.
 
 보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next`(보드에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름 먼저).
 
@@ -101,12 +103,13 @@ claude plugin install dcness@dcness
 
 **엔진 무관 게이트** — 순서·TDD 강제가 Claude 서브에이전트뿐 아니라 headless(Codex 등) 경로에서도 똑같이 걸리도록 강제 지점을 재배치했다. 예전에는 순서·TDD 게이트가 Claude 서브에이전트 경로에서만 발화하고, 자기 프로세스 안에서 직접 파일을 쓰는 headless 경로는 게이트 밖이었다. 이제 어느 엔진으로 구현·검증을 돌려도 같은 규칙이 적용된다. ([#859](https://github.com/alruminum/dcNess/issues/859))
 
+**구현 엔진 기본값 전환** — `/impl`·`/impl-loop` 의 sub-agent 엔진 미지정 기본을 build-worker 로 통일했다. 풀 4-agent 는 frontmatter, 고위험 trigger, 사용자 엄정 override 승격 전용으로 남는다. ([#861](https://github.com/alruminum/dcNess/issues/861))
+
 ## 진행 중 (로드맵)
 
 게이트를 엔진 무관하게 만든 작업([#859](https://github.com/alruminum/dcNess/issues/859))에 이어, 그 위에서 실행 엔진의 선택폭을 넓히는 단계다.
 
 - **구현 엔진 3단 폴백** ([#860](https://github.com/alruminum/dcNess/issues/860)) — codex headless → claude headless → claude 메인. Codex 가 안 깔린 사람도 격리 실행 혜택을 받게 한다.
-- **기본 엔진을 경량 build-worker 로** ([#861](https://github.com/alruminum/dcNess/issues/861)) — 풀 4-agent 는 위험이 큰 작업 승격 전용으로 남긴다.
 
 ## 핵심 특징
 
@@ -120,13 +123,15 @@ claude plugin install dcness@dcness
 
 ## 공개 진입점
 
+기본/support/고급/유틸리티/내부 agent 분류는 public surface gate 의 계약이다.
+
 | 분류 | 발화 | 역할 |
 |---|---|---|
-| 기본 | `/spec` | 새 기능 spec + 검수 체크포인트 |
-| 기본 | `/design` | 화면·시스템·모듈 설계 |
-| 기본 | `/impl` | 구현 진입 — 경로(Lite/Standard)와 엔진을 내부 판정 |
-| 기본 | `/acceptance` | story/epic 제품 검수 |
-| 보조 | `/to-issue` | 자연어 → Issue Brief 초안 → 승인 후 GitHub 등록 |
+| 기본 workflow | `/spec` | 새 기능 spec + 검수 체크포인트 |
+| 기본 workflow | `/design` | 화면·시스템·모듈 설계 |
+| 기본 workflow | `/impl` | 구현 진입 — 경로(Lite/Standard)와 엔진을 내부 판정 |
+| 기본 workflow | `/acceptance` | story/epic 제품 검수 |
+| support | `/to-issue` | 자연어 → Issue Brief 초안 → 승인 후 GitHub 등록 |
 | 고급 | `/tech-review` | 위험한 설계의 사전 기술 검증 |
 | 고급 | `/impl-loop` | deep impl task 파일 단위 구현 러너 |
 | 유틸 | `/ux` | 구현 없이 목업·흐름 먼저 탐색, PICK 확정본은 canvas 에 등록 |
