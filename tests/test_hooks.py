@@ -566,6 +566,22 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         )
         self.assertIsNone(message)
 
+    def test_begin_step_allows_pr_reviewer_after_mode_suffixed_code_validator_pass(self) -> None:
+        (self.run_path / "engineer.md").write_text(
+            "구현 완료\n\nPASS\n", encoding="utf-8",
+        )
+        (self.run_path / "code-validator-CODE_VALIDATION.md").write_text(
+            "검증 완료\n\nPASS\n", encoding="utf-8",
+        )
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "pr-reviewer",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNone(message)
+
 
 # ---------------------------------------------------------------------------
 # #714 — engineer 게이트 lane-aware 면제 (Lite lane + sub-agent 엔진)
@@ -770,6 +786,14 @@ class HasPassOccurrenceTests(unittest.TestCase):
     def test_pass_in_later_occurrence_md(self) -> None:
         # `-2.md` 등 후속 occurrence 도 그대로 인정 — 공유 헬퍼 회귀 방지.
         (self.rd / "code-validator-2.md").write_text("PASS", encoding="utf-8")
+        self.assertTrue(_has_pass(self.rd, "code-validator"))
+
+    def test_pass_in_mode_suffix_md(self) -> None:
+        # end-step mode 저장 규칙: `<agent>-<MODE>.md`.
+        # occurrence 와 같은 공통 PASS 판정 함수가 이 파일명도 인정해야 한다.
+        (self.rd / "code-validator-CODE_VALIDATION.md").write_text(
+            "PASS", encoding="utf-8",
+        )
         self.assertTrue(_has_pass(self.rd, "code-validator"))
 
     def test_no_pass_when_all_occurrences_fail(self) -> None:

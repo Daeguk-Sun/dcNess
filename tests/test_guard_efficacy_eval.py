@@ -56,6 +56,7 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "begin_step_blocks_engineer_without_design_artifact",
             "begin_step_blocks_build_worker_without_design_artifact",
             "begin_step_blocks_pr_reviewer_without_code_validator_pass",
+            "begin_step_allows_pr_reviewer_after_code_validator_mode_pass",
             "tdd_guard_blocks_impl_without_test",
             "tdd_guard_blocks_bash_write_without_test",
             "headless_tdd_blocks_worker_success_without_test",

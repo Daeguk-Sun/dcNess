@@ -122,7 +122,7 @@ else
 fi
 ```
 
-`dcness-implementation-chain` 은 `headless-chain`(Codex headless → Claude headless → Claude main), `codex-first`(legacy), `claude-headless`, `claude` 를 같은 routing config 로 실행한다. Headless wrapper 가 성공하면 마지막 응답을 저장하고 `end-step` 까지 수행한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 다음 provider 로 넘어간다. Headless provider 가 파일을 변경한 뒤 실패하거나 boundary 밖 파일을 변경하면 자동 폴백하지 않는다. chain 이 Claude main 에 도달하면 `FALLBACK_TO_CLAUDE_MAIN` 과 exit 75 를 반환하므로 메인이 기존 Agent 경로를 실행한 뒤 `--provider claude-main` 으로 `end-step` 을 기록한다. raw headless session log 는 run 디렉터리의 `headless-logs/` 파일로 보존한다.
+`dcness-implementation-chain` 은 `headless-chain`(Codex headless → Claude headless → Claude main), `codex-first`(legacy), `claude-headless`, `claude` 를 같은 routing config 로 실행한다. Headless wrapper 가 성공하면 마지막 응답을 저장하고 `end-step` 까지 수행한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 다음 provider 로 넘어간다. Headless provider 가 파일을 변경한 뒤 실패하거나 boundary 밖 파일을 변경하면 자동 폴백하지 않는다. chain 이 Claude main 에 도달하면 `FALLBACK_TO_CLAUDE_MAIN` 과 exit 75 를 반환하므로 메인이 기존 Agent 경로를 실행한 뒤 `--provider claude-main` 으로 `end-step` 을 기록한다. raw headless session log 는 run 디렉터리의 `headless-logs/` 파일로 보존한다. Claude headless wrapper 는 자식 `claude -p` 실행 전 부모 세션 식별 env 를 제거하되, `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 는 유지해 run 기록을 이어간다. Headless build-worker 가 `VALIDATION_BLOCKED` 를 보고하면 `ledger.jsonl` 에 `blocked` event 와 `category=headless_validation_blocked` 가 추가로 남으므로, 검증 명령 권한 문제 빈도는 `run-review` 또는 ledger 조회로 확인한다.
 
 #### 호출 prompt 슬림 포인터 규약
 

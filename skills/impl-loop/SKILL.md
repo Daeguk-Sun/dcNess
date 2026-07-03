@@ -241,7 +241,7 @@ else
 fi
 ```
 
-`dcness-implementation-chain` 성공 경로는 마지막 응답 저장과 `end-step` 까지 수행한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 다음 provider 로 폴백할 수 있다. Headless provider 가 파일을 변경한 뒤 실패하거나 agent boundary 밖 파일을 변경하면 자동 폴백·자동 revert 없이 정지한다. Claude main handoff 는 `FALLBACK_TO_CLAUDE_MAIN`/exit 75 이므로 메인이 기존 Agent 경로를 실행한 뒤 `--provider claude-main` 으로 기록한다.
+`dcness-implementation-chain` 성공 경로는 마지막 응답 저장과 `end-step` 까지 수행한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 다음 provider 로 폴백할 수 있다. Headless provider 가 파일을 변경한 뒤 실패하거나 agent boundary 밖 파일을 변경하면 자동 폴백·자동 revert 없이 정지한다. Claude main handoff 는 `FALLBACK_TO_CLAUDE_MAIN`/exit 75 이므로 메인이 기존 Agent 경로를 실행한 뒤 `--provider claude-main` 으로 기록한다. Claude headless wrapper 는 부모 세션 식별 env 를 자식 `claude -p` 에 넘기지 않는다. build-worker 가 검증 실행 불가를 `VALIDATION_BLOCKED` 로 보고하면 `ledger.jsonl` 에 `blocked/category=headless_validation_blocked` 이벤트가 남는다.
 
 ---
 

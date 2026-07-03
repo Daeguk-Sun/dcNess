@@ -248,13 +248,51 @@ prompt = sys.argv[2]
 output = sys.argv[3]
 log = sys.argv[4]
 cmd = sys.argv[5:]
+
+def child_env_without_nested_session_markers():
+    env = os.environ.copy()
+    exact = {
+        "CLAUDECODE",
+        "CLAUDE_CODE",
+        "CLAUDE_CODE_ENTRYPOINT",
+        "CLAUDE_CODE_SESSION_ID",
+        "CLAUDE_CODE_PARENT_SESSION_ID",
+        "CLAUDE_SESSION_ID",
+        "CLAUDE_PARENT_SESSION_ID",
+        "CLAUDE_CONVERSATION_ID",
+        "CLAUDE_CODE_CONVERSATION_ID",
+        "CLAUDE_TRANSCRIPT_PATH",
+        "CLAUDE_CODE_TRANSCRIPT_PATH",
+        "CLAUDE_CODE_SSE_PORT",
+        "CLAUDE_CODE_SSE_TOKEN",
+        "CLAUDE_CODE_IPC_PORT",
+        "CLAUDE_CODE_IPC_TOKEN",
+    }
+    prefixes = ("CLAUDE_CODE_", "CLAUDECODE_", "CLAUDE_")
+    markers = ("SESSION", "CONVERSATION", "THREAD", "TRANSCRIPT", "SSE", "IPC")
+    removed = []
+    for key in tuple(env):
+        upper = key.upper()
+        if upper.startswith("DCNESS_"):
+            continue
+        if upper in exact or (
+            upper.startswith(prefixes) and any(marker in upper for marker in markers)
+        ):
+            removed.append(key)
+            env.pop(key, None)
+    return env, sorted(removed)
+
 with open(prompt, "rb") as stdin, open(output, "wb") as stdout, open(log, "ab") as raw:
     raw.write(("COMMAND: " + " ".join(cmd) + "\n").encode("utf-8", "replace"))
+    child_env, removed_env = child_env_without_nested_session_markers()
+    if removed_env:
+        raw.write(("ENV_CLEARED: " + ",".join(removed_env) + "\n").encode("utf-8", "replace"))
     proc = subprocess.Popen(
         cmd,
         stdin=stdin,
         stdout=stdout,
         stderr=raw,
+        env=child_env,
         start_new_session=True,
     )
     try:

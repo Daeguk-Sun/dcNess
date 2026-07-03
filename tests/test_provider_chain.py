@@ -8,6 +8,9 @@ import textwrap
 import unittest
 from pathlib import Path
 
+from harness import ledger
+from harness.session_state import start_run, update_current_step
+
 
 ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_VALIDATOR = ROOT / "scripts" / "dcness-claude-validator"
@@ -135,6 +138,217 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             )
             self.assertEqual(len(logs), 1)
             self.assertIn("Claude worker prose", logs[0].read_text(encoding="utf-8"))
+
+    def test_worker_cleans_nested_claude_session_env_but_keeps_dcness_context(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement this task.\n", encoding="utf-8")
+            env_capture = tmp / "claude-env.txt"
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                cat >/dev/null
+                {
+                  printf 'CLAUDE_CODE_SESSION_ID=%s\\n' "${CLAUDE_CODE_SESSION_ID-}"
+                  printf 'CLAUDE_CODE_ENTRYPOINT=%s\\n' "${CLAUDE_CODE_ENTRYPOINT-}"
+                  printf 'CLAUDECODE=%s\\n' "${CLAUDECODE-}"
+                  printf 'CLAUDE_PLUGIN_ROOT=%s\\n' "${CLAUDE_PLUGIN_ROOT-}"
+                  printf 'DCNESS_SESSION_ID=%s\\n' "${DCNESS_SESSION_ID-}"
+                  printf 'DCNESS_RUN_ID=%s\\n' "${DCNESS_RUN_ID-}"
+                } > "$ENV_CAPTURE"
+                printf 'Claude worker prose\\n\\nPASS\\n'
+                """,
+            )
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "CLAUDE_CODE_ENTRYPOINT": "parent-cli",
+                    "CLAUDE_CODE_SESSION_ID": "parent-session",
+                    "CLAUDE_PLUGIN_ROOT": "/tmp/plugin-root",
+                    "CLAUDECODE": "1",
+                    "DCNESS_RUN_ID": "run-0badcafe",
+                    "DCNESS_SESSION_ID": "sid-claude-worker",
+                    "ENV_CAPTURE": str(env_capture),
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            captured = env_capture.read_text(encoding="utf-8")
+            self.assertIn("CLAUDE_CODE_SESSION_ID=\n", captured)
+            self.assertIn("CLAUDE_CODE_ENTRYPOINT=\n", captured)
+            self.assertIn("CLAUDECODE=\n", captured)
+            self.assertIn("CLAUDE_PLUGIN_ROOT=/tmp/plugin-root\n", captured)
+            self.assertIn("DCNESS_SESSION_ID=sid-claude-worker\n", captured)
+            self.assertIn("DCNESS_RUN_ID=run-0badcafe\n", captured)
+
+    def test_validator_cleans_nested_claude_session_env_but_keeps_dcness_context(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Review this task.\n", encoding="utf-8")
+            env_capture = tmp / "claude-env.txt"
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                cat >/dev/null
+                {
+                  printf 'CLAUDE_CODE_SESSION_ID=%s\\n' "${CLAUDE_CODE_SESSION_ID-}"
+                  printf 'CLAUDE_CODE_ENTRYPOINT=%s\\n' "${CLAUDE_CODE_ENTRYPOINT-}"
+                  printf 'CLAUDECODE=%s\\n' "${CLAUDECODE-}"
+                  printf 'DCNESS_SESSION_ID=%s\\n' "${DCNESS_SESSION_ID-}"
+                  printf 'DCNESS_RUN_ID=%s\\n' "${DCNESS_RUN_ID-}"
+                } > "$ENV_CAPTURE"
+                printf 'Claude validator prose\\n\\nPASS\\n'
+                """,
+            )
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "CLAUDE_CODE_ENTRYPOINT": "parent-cli",
+                    "CLAUDE_CODE_SESSION_ID": "parent-session",
+                    "CLAUDECODE": "1",
+                    "DCNESS_RUN_ID": "run-f00dcafe",
+                    "DCNESS_SESSION_ID": "sid-claude-validator",
+                    "ENV_CAPTURE": str(env_capture),
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_VALIDATOR),
+                    "code-validator",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            captured = env_capture.read_text(encoding="utf-8")
+            self.assertIn("CLAUDE_CODE_SESSION_ID=\n", captured)
+            self.assertIn("CLAUDE_CODE_ENTRYPOINT=\n", captured)
+            self.assertIn("CLAUDECODE=\n", captured)
+            self.assertIn("DCNESS_SESSION_ID=sid-claude-validator\n", captured)
+            self.assertIn("DCNESS_RUN_ID=run-f00dcafe\n", captured)
+
+    def test_worker_records_headless_validation_blocked_in_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            sid = "sid-validation-blocked"
+            rid = "run-00c0ffee"
+            state_base = project / ".claude" / "harness-state"
+            start_run(sid, rid, "impl", base_dir=state_base, lane="lite")
+            update_current_step(sid, rid, "build-worker", None, base_dir=state_base)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement and validate this task.\n", encoding="utf-8")
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                cat >/dev/null
+                printf '검증 명령을 권한 때문에 실행하지 못했습니다.\\n\\nVALIDATION_BLOCKED\\n'
+                """,
+            )
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_RUN_ID": rid,
+                    "DCNESS_SESSION_ID": sid,
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(ROOT / "scripts" / "dcness-helper"),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            events = ledger.read_events(sid, rid, base_dir=state_base)
+            blocked_events = [
+                event for event in events
+                if event.get("event") == "blocked"
+                and event.get("category") == "headless_validation_blocked"
+            ]
+            self.assertEqual(len(blocked_events), 1)
+            self.assertEqual(blocked_events[0].get("agent"), "build-worker")
+            self.assertEqual(blocked_events[0].get("provider"), "claude-headless")
+            self.assertIn("build-worker.md", blocked_events[0].get("prose_file", ""))
 
     def test_validator_blocks_workspace_mutation_without_end_step(self) -> None:
         with tempfile.TemporaryDirectory() as td:
