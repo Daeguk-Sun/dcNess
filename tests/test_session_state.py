@@ -1031,6 +1031,14 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         else:
             os.environ["DCNESS_LLM_TELEMETRY"] = self._prev_telemetry
 
+    def _write_module_architect_pass(self) -> None:
+        from harness.session_state import run_dir
+        rd = run_dir(self.sid, self.rid)
+        rd.mkdir(parents=True, exist_ok=True)
+        (rd / "module-architect.md").write_text(
+            "설계 완료\n\nPASS\n", encoding="utf-8",
+        )
+
     def test_begin_step_updates_current_step(self) -> None:
         from harness.session_state import _cli_begin_step, read_live
         from types import SimpleNamespace
@@ -1053,7 +1061,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from contextlib import redirect_stdout
 
         action_rid = "run-87654321"
-        start_run(self.sid, action_rid, "impl")
+        start_run(self.sid, action_rid, "impl", lane="lite")
         write_pid_current_run(self.cc_pid, action_rid)
 
         out = StringIO()
@@ -1184,6 +1192,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from contextlib import redirect_stdout, redirect_stderr
 
         clear_pid_current_run(self.cc_pid)
+        self._write_module_architect_pass()
 
         out = StringIO()
         with redirect_stdout(out):
@@ -1249,6 +1258,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
         clear_pid_current_run(self.cc_pid)
         pid_session_path(self.cc_pid).unlink()
+        self._write_module_architect_pass()
 
         with redirect_stdout(StringIO()):
             rc = _cli_begin_step(SimpleNamespace(agent="build-worker", mode=None))
@@ -1490,6 +1500,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
         jsonl = self._setup_fake_cc_jsonl(self.sid, [50, 87])  # 직전 = 87
         try:
+            self._write_module_architect_pass()
             err = StringIO()
             with redirect_stderr(err):
                 rc = _cli_begin_step(SimpleNamespace(agent="engineer", mode="IMPL"))
@@ -1509,6 +1520,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from contextlib import redirect_stderr
 
         err = StringIO()
+        self._write_module_architect_pass()
         with redirect_stderr(err):
             rc = _cli_begin_step(SimpleNamespace(agent="engineer", mode="IMPL"))
         self.assertEqual(rc, 0)

@@ -445,7 +445,7 @@ dcNess run 밖에서 호출되면 ledger 기록은 경고만 내고 PR 작업 �
 
 ## 순서 차단 훅 정합
 
-각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer 직전 module-architect `PASS` enum / `/design` 첫 module-architect 단위 진입 직전 architecture-validator 1차 PASS. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) 8 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer·build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물 / `/design` 첫 module-architect 단위 진입 직전 architecture-validator 1차 PASS. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) 8 hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 ---
 

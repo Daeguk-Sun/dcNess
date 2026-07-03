@@ -26,7 +26,8 @@ Environment:
 The wrapper runs Codex in workspace-write mode:
   codex exec -C "$PROJECT_ROOT" -s workspace-write --output-last-message "$TMP_PROSE"
 
-On success it validates changed paths against dcNess agent_boundary and stores:
+On success it validates changed paths against dcNess agent_boundary, reuses
+tdd-guard matching-test enforcement for Codex-changed implementation files, and stores:
   dcness-helper end-step <agent> [MODE] --prose-file "$TMP_PROSE"
 
 On Codex infrastructure failure with no workspace mutation, callers may fall
@@ -312,6 +313,59 @@ PY
 if [ -n "$BOUNDARY_PROBLEMS" ]; then
   echo "[dcness-codex-worker] BLOCKED: Codex changed files outside ${AGENT} boundary." >&2
   printf '%s\n' "$BOUNDARY_PROBLEMS" >&2
+  exit 1
+fi
+
+TDD_CHANGED_PATHS="$(
+  {
+    git -C "$PROJECT_ROOT" diff --name-only --diff-filter=ACMRT 2>/dev/null || true
+    git -C "$PROJECT_ROOT" diff --cached --name-only --diff-filter=ACMRT 2>/dev/null || true
+    git -C "$PROJECT_ROOT" ls-files --others --exclude-standard 2>/dev/null || true
+  } | sort -u
+)"
+TDD_PROBLEMS="$(
+  _tdd_found=0
+  while IFS= read -r _tdd_path; do
+    [ -n "$_tdd_path" ] || continue
+    [ -e "$PROJECT_ROOT/$_tdd_path" ] || continue
+    _tdd_payload="$(
+      python3 - "$PROJECT_ROOT/$_tdd_path" <<'PY'
+import json
+import sys
+
+print(json.dumps({
+    "tool_name": "Edit",
+    "tool_input": {"file_path": sys.argv[1]},
+}))
+PY
+    )"
+    _tdd_err="$(
+      printf '%s' "$_tdd_payload" \
+        | CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." \
+          PYTHONPATH="$SCRIPT_DIR/..:${PYTHONPATH:-}" \
+          DCNESS_FORCE_ENABLE=1 \
+          bash "$SCRIPT_DIR/../hooks/tdd-guard.sh" 2>&1 >/dev/null
+    )"
+    _tdd_rc=$?
+    if [ "$_tdd_rc" -eq 2 ]; then
+      _tdd_found=1
+      printf '  - %s\n' "$_tdd_path"
+      printf '%s\n' "$_tdd_err" | sed 's/^/    /'
+    elif [ "$_tdd_rc" -ne 0 ]; then
+      PYTHONPATH="$SCRIPT_DIR/.." python3 -m harness.session_state hook-fail-open \
+        --hook headless-tdd-guard \
+        --category tdd_check_error \
+        --detail "tdd-guard exited ${_tdd_rc} for ${_tdd_path}; allowed" >/dev/null 2>&1 || true
+    fi
+  done <<EOF
+$TDD_CHANGED_PATHS
+EOF
+  exit "$_tdd_found"
+)"
+TDD_RC=$?
+if [ "$TDD_RC" -eq 1 ]; then
+  echo "[dcness-codex-worker] BLOCKED: TDD GUARD failed for Codex-changed implementation files." >&2
+  printf '%s\n' "$TDD_PROBLEMS" >&2
   exit 1
 fi
 

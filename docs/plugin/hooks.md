@@ -15,7 +15,7 @@ dcNess 의 강제 영역은 두 가지뿐이다.
 
 | Layer | 실행 주체 | 발화 시점 | 주 역할 | 대표 차단 |
 |---|---|---|---|---|
-| **1. CC hooks** | Claude Code plug-in hook | Claude 가 tool 을 쓰기 전/후, sub-agent 종료, 메인 응답 종료 | 작업 순서, 파일 경계, TDD, run state 보존 | 잘못된 agent 순서, out-of-bound file write, test 없는 TS/JS 구현 |
+| **1. runtime hooks/helpers** | Claude Code plug-in hook + dcness helper/wrapper | Claude 가 tool 을 쓰기 전/후, helper step 시작, headless worker 종료, sub-agent 종료, 메인 응답 종료 | 작업 순서, 파일 경계, TDD, run state 보존 | 잘못된 agent 순서, out-of-bound file write, test 없는 TS/JS 구현 |
 | **2. git hooks** | local git | commit / checkout / push lifecycle | 로컬 git 조작 조기 차단 | 커밋 제목 위반, main 직접 push, 브랜치명 위반 |
 | **3. CI/CD workflows** | GitHub Actions | PR / issue / merge event | 로컬 우회와 원격 상태 drift 검증 | PR 제목/body 위반, 문서 경로 위반, Project lifecycle drift |
 
@@ -71,14 +71,14 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 
 사용자-facing 용어: **순서 차단 훅**. 파일명과 hook command 는 호환성을 위해 `catastrophic-gate.sh` 를 유지한다.
 
-**시점**: 메인 Claude 가 `Agent` tool 로 sub-agent 를 호출하기 직전.
+**시점**: 메인 Claude 가 `Agent` tool 로 sub-agent 를 호출하기 직전, 그리고 `dcness-helper begin-step` 이 step 시작을 기록하기 직전. Claude Agent provider 는 전자를 타고, Codex/headless provider 는 후자를 탄다.
 
-**역할**: 작업 순서 보호와 active run 의 `begin-step -> Agent -> end-step` 물리 순서를 강제한다.
+**역할**: 작업 순서 보호와 active run 의 `begin-step -> Agent/headless worker -> end-step` 물리 순서를 강제한다. engineer/build-worker / pr-reviewer / module-architect 순서 불변식은 provider 와 무관하게 같은 판정 함수를 쓴다.
 
 | Gate | 차단 조건 |
 |---|---|
 | pr-reviewer gate | engineer 산출물이 있는데 code-validator PASS 없이 pr-reviewer 호출 |
-| engineer gate | 설계 산출물 없이 engineer 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* `begin-run --lane lite` 로 기록된 Lite 구현 경로(#714), 셋 중 하나로 충족 |
+| engineer gate | 설계 산출물 없이 engineer/build-worker 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* `begin-run --lane lite` 로 기록된 Lite 구현 경로(#714), 셋 중 하나로 충족 |
 | module-architect gate | architecture-validator 1차 PASS 없이 design 의 module-architect 반복 진입 |
 | 진행 순서 검사 | active run 안에서 직전 `begin-step` 과 다른 agent/mode 호출, `current_step` 부재, 이미 staged 된 stale step |
 
@@ -86,11 +86,11 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 
 **engineer gate 의 design_doc 경로**: 설계(impl 문서 / compact plan)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 engineer gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**` / `docs/compact-plans/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
 
-**engineer gate 의 구현 경로 면제 (#714)**: `/impl` 2축 모델의 Lite 구현 경로(설계도 없음)에 sub-agent 엔진(풀4 / 경량 build-worker)을 붙이는 4번째 조합용 면제 경로다. Lite 는 정의상 설계도가 없어 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 engineer gate 가 그 기록을 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(impl-loop 풀4 / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구(면제 누수 차단), (4) 면제는 engineer gate *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 그대로 강제된다(풀4 경로의 중대 차단 보호 불변).
+**engineer gate 의 구현 경로 면제 (#714)**: `/impl` 2축 모델의 Lite 구현 경로(설계도 없음)에 sub-agent 엔진(풀4 / 경량 build-worker)을 붙이는 4번째 조합용 면제 경로다. Lite 는 정의상 설계도가 없어 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 engineer gate 가 그 기록을 engineer/build-worker 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(impl-loop 풀4 / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구(면제 누수 차단), (4) 면제는 engineer gate *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 그대로 강제된다(풀4 경로의 중대 차단 보호 불변).
 
 **tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. /design 도중 미검증 새 외부 의존이 발견되면 design 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
 
-**차단**: 위반 시 `exit 2` + stderr. engineer / pr-reviewer / module-architect 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다.
+**차단**: Claude Code PreToolUse 에서는 위반 시 `exit 2` + stderr, helper `begin-step` 에서는 비-0 종료 + stderr. engineer / pr-reviewer / module-architect 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다. 게이트 자체 예외는 fail-open 계측으로 남기고 과차단하지 않는다.
 
 ### file-guard.sh
 
@@ -149,7 +149,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 ### tdd-guard.sh
 
-**시점**: `Edit`, `Write`, `NotebookEdit` 로 파일을 수정하기 직전. `Bash` 는 명시적 write target 추출 직후, 각 target 에 같은 검사를 적용한다.
+**시점**: `Edit`, `Write`, `NotebookEdit` 로 파일을 수정하기 직전. `Bash` 는 명시적 write target 추출 직후, 각 target 에 같은 검사를 적용한다. Codex/headless 구현 worker 는 Codex 성공 종료 후 `end-step` 저장 전에 변경 파일 목록에 같은 검사를 적용한다.
 
 **지원 언어**: TS/JS 만 (`*.ts`, `*.tsx`, `*.js`, `*.jsx`). 그 외 확장자는 silent skip — Python·Rust·Go 등 다른 ecosystem 의 TDD 강제는 현재 범위 밖이다.
 
@@ -171,7 +171,9 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **Bash write target 정책**: `Bash` payload 는 [`harness.agent_boundary.extract_bash_paths`](../../harness/agent_boundary.py) 가 추출하는 명시적 write target 에 한해 검사한다. 예: redirect(`>`, `>>`), `tee`, in-place edit(`sed/perl/awk -i`), `cp`/`mv`/`rm` target. 추출된 target 이 TS/JS 구현 파일이면 직접 `Edit`/`Write`/`NotebookEdit` 와 동일한 skip 규칙 및 6-tier matching-test 존재 검사를 탄다. write target 이 없거나 TS/JS 구현 파일이 아니면 silent skip 한다.
 
-**차단**: test 부재 시 `exit 2` + 한국어 안내. Bash write target 차단 메시지는 `TDD GUARD[Bash]` 로 시작해 어떤 target 이 matching-test enforcement 에 실패했는지 함께 표시한다.
+**Headless worker 정책**: [`scripts/dcness-codex-worker`](../../scripts/dcness-codex-worker) 는 성공 prose 생성 후 file-boundary 검사를 먼저 수행하고, 그 다음 changed path(`git diff`/staged diff/untracked) 중 삭제가 아닌 파일을 synthetic `Edit` payload 로 `tdd-guard.sh` 에 다시 넣는다. `exit 2` 는 step 성공 종료를 차단하고 위반 파일 목록을 출력한다. guard 자체 오류는 `headless-tdd-guard` fail-open event 로 기록하고 작업을 과차단하지 않는다.
+
+**차단**: test 부재 시 `exit 2` + 한국어 안내. Bash write target 차단 메시지는 `TDD GUARD[Bash]` 로 시작해 어떤 target 이 matching-test enforcement 에 실패했는지 함께 표시한다. Headless worker 차단 메시지는 `[dcness-codex-worker] BLOCKED: TDD GUARD ...` 로 시작하고 위반 파일 목록을 포함한다.
 
 ### post-agent-clear.sh
 

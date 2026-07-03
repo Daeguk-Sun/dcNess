@@ -580,6 +580,185 @@ class CodexWorkerWrapperTests(unittest.TestCase):
             self.assertIn("outside build-worker boundary", result.stderr)
             self.assertFalse(helper_args.exists())
 
+    def test_worker_success_blocks_ts_impl_without_matching_test(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement the task.\n", encoding="utf-8")
+            helper_args = tmp / "helper-args.txt"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    if [ "$1" = "--help" ]; then
+                      echo "Usage: codex"
+                      exit 0
+                    fi
+                    out=""
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --output-last-message)
+                          out="$2"
+                          shift 2
+                          ;;
+                        *)
+                          shift
+                          ;;
+                      esac
+                    done
+                    cat >/dev/null
+                    mkdir -p src
+                    printf 'export const price = 1;\\n' > src/price.ts
+                    printf 'Worker prose\\n\\nPASS\\n' > "$out"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            helper = tmp / "dcness-helper"
+            helper.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    printf '%s\\n' "$*" > "$HELPER_ARGS"
+                    exit 0
+                    """
+                ),
+                encoding="utf-8",
+            )
+            helper.chmod(0o755)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_RUN_ID": "run-tddblock",
+                    "DCNESS_SESSION_ID": "sid-worker",
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("TDD GUARD", result.stderr)
+            self.assertIn("src/price.ts", result.stderr)
+            self.assertFalse(helper_args.exists())
+
+    def test_worker_success_allows_ts_impl_with_matching_test(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement the task.\n", encoding="utf-8")
+            helper_args = tmp / "helper-args.txt"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    if [ "$1" = "--help" ]; then
+                      echo "Usage: codex"
+                      exit 0
+                    fi
+                    out=""
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --output-last-message)
+                          out="$2"
+                          shift 2
+                          ;;
+                        *)
+                          shift
+                          ;;
+                      esac
+                    done
+                    cat >/dev/null
+                    mkdir -p src
+                    printf 'export const price = 1;\\n' > src/price.ts
+                    printf 'test("price", () => {});\\n' > src/price.test.ts
+                    printf 'Worker prose\\n\\nPASS\\n' > "$out"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            helper = tmp / "dcness-helper"
+            helper.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    printf '%s\\n' "$*" > "$HELPER_ARGS"
+                    exit 0
+                    """
+                ),
+                encoding="utf-8",
+            )
+            helper.chmod(0o755)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_RUN_ID": "run-tddallow",
+                    "DCNESS_SESSION_ID": "sid-worker",
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(
+                helper_args.read_text(encoding="utf-8")
+                .strip()
+                .startswith("end-step build-worker --prose-file "),
+            )
+
     def test_worker_failure_after_mutation_does_not_fallback_or_end_step(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)

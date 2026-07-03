@@ -39,6 +39,8 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "mcp-mutation",
             "order-gate",
             "tdd-guard",
+            "provider-agnostic-order-gate",
+            "provider-agnostic-tdd",
             "known-bypass-boundary",
         ):
             with self.subTest(category=category):
@@ -51,8 +53,12 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "bash_mutation_blocks_git_push",
             "mcp_mutation_blocks_pr_merge",
             "order_gate_blocks_missing_begin_step",
+            "begin_step_blocks_engineer_without_design_artifact",
+            "begin_step_blocks_build_worker_without_design_artifact",
+            "begin_step_blocks_pr_reviewer_without_code_validator_pass",
             "tdd_guard_blocks_impl_without_test",
             "tdd_guard_blocks_bash_write_without_test",
+            "headless_tdd_blocks_worker_success_without_test",
         ):
             with self.subTest(case_id=case_id):
                 self.assertIn(case_id, case_ids)

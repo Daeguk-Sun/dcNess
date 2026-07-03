@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -51,6 +52,7 @@ from harness.agent_trace import append as trace_append
 from harness.agent_trace import read_all as read_trace
 # issue #392 — redo_log 폐기
 from harness.session_state import (
+    evaluate_order_gate_for_step,
     read_live,
     read_fail_open_events,
     read_pid_session,
@@ -417,6 +419,152 @@ class CatastrophicEngineerTests(_PreToolBase):
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
+
+
+class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
+    """#859 — begin-step itself blocks provider-independent order violations."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self._set_slot(entry_point="impl")
+
+    def _set_slot(
+        self,
+        *,
+        entry_point: str = "impl",
+        lane: Optional[str] = None,
+        design_doc: Optional[str] = None,
+    ) -> None:
+        live = read_live(self.sid, base_dir=self.base)
+        active = live.get("active_runs", {})
+        slot = dict(active[self.rid])
+        slot["entry_point"] = entry_point
+        slot["lane"] = lane
+        slot["design_doc"] = design_doc
+        active[self.rid] = slot
+        update_live(self.sid, base_dir=self.base, active_runs=active)
+
+    def test_begin_step_blocks_engineer_without_design_artifact(self) -> None:
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "engineer",
+            "IMPL",
+            base_dir=self.base,
+        )
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: engineer 게이트]", message or "")
+        self.assertIn("begin-run --design-doc", message or "")
+
+    def test_begin_step_blocks_build_worker_without_design_artifact(self) -> None:
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: engineer 게이트]", message or "")
+        self.assertIn("engineer/build-worker", message or "")
+
+    def test_begin_step_cli_exits_nonzero_on_order_violation(self) -> None:
+        project = self.base / "project"
+        project.mkdir()
+        state_base = project / ".claude" / "harness-state"
+        update_live(self.sid, base_dir=state_base)
+        start_run(self.sid, "run-99999999", "impl", base_dir=state_base)
+
+        root = Path(__file__).resolve().parents[1]
+        result = subprocess.run(
+            [
+                "python3.11",
+                "-m",
+                "harness.session_state",
+                "begin-step",
+                "engineer",
+                "IMPL",
+            ],
+            cwd=project,
+            capture_output=True,
+            env={
+                **os.environ,
+                "DCNESS_RUN_ID": "run-99999999",
+                "DCNESS_SESSION_ID": self.sid,
+                "PYTHONPATH": str(root),
+            },
+            text=True,
+            timeout=10,
+        )
+
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("[순서 차단 훅: engineer 게이트]", result.stderr)
+        live = read_live(self.sid, base_dir=state_base)
+        slot = live["active_runs"]["run-99999999"]
+        self.assertIsNone(slot["current_step"])
+
+    def test_begin_step_allows_engineer_lite_lane(self) -> None:
+        self._set_slot(lane="lite")
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "engineer",
+            "IMPL",
+            base_dir=self.base,
+        )
+        self.assertIsNone(message)
+
+    def test_begin_step_allows_build_worker_lite_lane(self) -> None:
+        self._set_slot(lane="lite")
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNone(message)
+
+    def test_begin_step_allows_engineer_polish_without_design_artifact(self) -> None:
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "engineer",
+            "POLISH",
+            base_dir=self.base,
+        )
+        self.assertIsNone(message)
+
+    def test_begin_step_blocks_pr_reviewer_without_code_validator_pass(self) -> None:
+        (self.run_path / "engineer.md").write_text(
+            "구현 완료\n\nPASS\n", encoding="utf-8",
+        )
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "pr-reviewer",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: pr-reviewer 게이트]", message or "")
+        self.assertIn("code-validator PASS", message or "")
+
+    def test_begin_step_allows_pr_reviewer_after_code_validator_pass(self) -> None:
+        (self.run_path / "engineer.md").write_text(
+            "구현 완료\n\nPASS\n", encoding="utf-8",
+        )
+        (self.run_path / "code-validator.md").write_text(
+            "검증 완료\n\nPASS\n", encoding="utf-8",
+        )
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "pr-reviewer",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNone(message)
 
 
 # ---------------------------------------------------------------------------

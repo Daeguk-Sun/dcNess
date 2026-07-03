@@ -33,6 +33,7 @@ from harness.hooks import handle_pretooluse_agent  # noqa: E402
 from harness.session_state import (  # noqa: E402
     start_run,
     update_current_step,
+    evaluate_order_gate_for_step,
     update_live,
     write_pid_current_run,
     write_pid_session,
@@ -128,11 +129,122 @@ def _order_gate(subagent: str, *, current_step: str | None = None) -> Probe:
     return probe
 
 
+def _begin_step_order_gate(
+    agent: str,
+    *,
+    mode: str | None = None,
+    lane: str | None = None,
+    engineer_output: bool = False,
+    code_validator_pass: bool = False,
+) -> Probe:
+    def probe() -> tuple[Decision, str]:
+        sid = "eval-sid"
+        rid = "run-22222222"
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            update_live(sid, base_dir=base)
+            start_run(sid, rid, "impl", base_dir=base, lane=lane)
+            rd = base / ".sessions" / sid / "runs" / rid
+            if engineer_output:
+                _write_file(rd, "engineer.md", "implementation\n\nPASS\n")
+            if code_validator_pass:
+                _write_file(rd, "code-validator.md", "validated\n\nPASS\n")
+            message = evaluate_order_gate_for_step(
+                sid, rid, agent, mode, base_dir=base,
+            )
+            return ("block", message or "") if message else ("allow", "")
+
+    return probe
+
+
 def _write_file(root: Path, rel: str, content: str = "// fixture\n") -> Path:
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(content, encoding="utf-8")
     return path
+
+
+def _headless_worker_tdd(changed_files: dict[str, str]) -> Probe:
+    def probe() -> tuple[Decision, str]:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(
+                ["git", "init", "-q"],
+                cwd=project,
+                capture_output=True,
+                text=True,
+                timeout=10,
+                check=False,
+            )
+            prompt = tmp / "prompt.md"
+            prompt.write_text("Implement the fixture task.\n", encoding="utf-8")
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                """#!/usr/bin/env python3
+import json
+import os
+import pathlib
+import sys
+
+if len(sys.argv) > 1 and sys.argv[1] == "--help":
+    print("Usage: codex")
+    raise SystemExit(0)
+
+out = ""
+for idx, arg in enumerate(sys.argv[1:], start=1):
+    if arg == "--output-last-message" and idx + 1 < len(sys.argv):
+        out = sys.argv[idx + 1]
+sys.stdin.read()
+root = pathlib.Path.cwd()
+for rel, content in json.loads(os.environ["CODEX_WRITE_SPEC"]).items():
+    path = root / rel
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding="utf-8")
+pathlib.Path(out).write_text("Worker prose\\n\\nPASS\\n", encoding="utf-8")
+""",
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            helper = tmp / "dcness-helper"
+            helper.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+            helper.chmod(0o755)
+
+            env = {
+                **os.environ,
+                "CODEX_WRITE_SPEC": json.dumps(changed_files),
+                "DCNESS_RUN_ID": "run-33333333",
+                "DCNESS_SESSION_ID": "eval-sid",
+                "PATH": f"{bin_dir}{os.pathsep}{os.environ.get('PATH', '')}",
+            }
+            result = subprocess.run(
+                [
+                    str(ROOT / "scripts" / "dcness-codex-worker"),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+                timeout=20,
+            )
+            if result.returncode == 0:
+                return ("allow", result.stdout.strip())
+            if result.returncode == 1 and "TDD GUARD" in result.stderr:
+                return ("block", result.stderr.strip())
+            return ("block", f"unexpected exit {result.returncode}: {result.stderr}")
+
+    return probe
 
 
 def _tdd_guard(rel_path: str, *, matching_test: bool = False) -> Probe:
@@ -317,6 +429,59 @@ def build_cases() -> list[GuardCase]:
             _order_gate("pr-reviewer", current_step="code-validator"),
         ),
         GuardCase(
+            "begin_step_blocks_engineer_without_design_artifact",
+            "provider-agnostic-order-gate",
+            "block",
+            "headless begin-step blocks engineer without design artifact or Lite lane.",
+            _begin_step_order_gate("engineer", mode="IMPL"),
+        ),
+        GuardCase(
+            "begin_step_blocks_build_worker_without_design_artifact",
+            "provider-agnostic-order-gate",
+            "block",
+            "headless begin-step blocks build-worker without design artifact or Lite lane.",
+            _begin_step_order_gate("build-worker"),
+        ),
+        GuardCase(
+            "begin_step_blocks_pr_reviewer_without_code_validator_pass",
+            "provider-agnostic-order-gate",
+            "block",
+            "headless begin-step blocks pr-reviewer after engineer output without code-validator PASS.",
+            _begin_step_order_gate("pr-reviewer", engineer_output=True),
+        ),
+        GuardCase(
+            "begin_step_allows_engineer_lite_lane",
+            "provider-agnostic-order-gate",
+            "allow",
+            "Lite lane exemption is preserved in headless begin-step.",
+            _begin_step_order_gate("engineer", mode="IMPL", lane="lite"),
+        ),
+        GuardCase(
+            "begin_step_allows_build_worker_lite_lane",
+            "provider-agnostic-order-gate",
+            "allow",
+            "Lite lane exemption is preserved for build-worker headless begin-step.",
+            _begin_step_order_gate("build-worker", lane="lite"),
+        ),
+        GuardCase(
+            "begin_step_allows_engineer_polish",
+            "provider-agnostic-order-gate",
+            "allow",
+            "POLISH mode remains exempt from engineer design precondition.",
+            _begin_step_order_gate("engineer", mode="POLISH"),
+        ),
+        GuardCase(
+            "begin_step_allows_pr_reviewer_after_code_validator_pass",
+            "provider-agnostic-order-gate",
+            "allow",
+            "pr-reviewer starts after code-validator PASS in headless path.",
+            _begin_step_order_gate(
+                "pr-reviewer",
+                engineer_output=True,
+                code_validator_pass=True,
+            ),
+        ),
+        GuardCase(
             "tdd_guard_blocks_impl_without_test",
             "tdd-guard",
             "block",
@@ -343,6 +508,53 @@ def build_cases() -> list[GuardCase]:
             "block",
             "Bash write target for a TS/JS implementation file is TDD checked.",
             _tdd_guard_bash_write_without_test,
+        ),
+        GuardCase(
+            "headless_tdd_blocks_worker_success_without_test",
+            "provider-agnostic-tdd",
+            "block",
+            "Codex worker cannot successfully end a step after TS implementation change without matching test.",
+            _headless_worker_tdd({"src/price.ts": "export const price = 1;\n"}),
+        ),
+        GuardCase(
+            "headless_tdd_allows_worker_success_with_matching_test",
+            "provider-agnostic-tdd",
+            "allow",
+            "Codex worker succeeds when the matching test exists.",
+            _headless_worker_tdd(
+                {
+                    "src/price.ts": "export const price = 1;\n",
+                    "src/price.test.ts": "test('price', () => {});\n",
+                }
+            ),
+        ),
+        GuardCase(
+            "headless_tdd_allows_test_file_self",
+            "provider-agnostic-tdd",
+            "allow",
+            "Test/spec files themselves remain TDD-skip in headless worker post-check.",
+            _headless_worker_tdd({"src/price.test.ts": "test('price', () => {});\n"}),
+        ),
+        GuardCase(
+            "headless_tdd_allows_standard_test_dir",
+            "provider-agnostic-tdd",
+            "allow",
+            "Standard test directories remain TDD-skip in headless worker post-check.",
+            _headless_worker_tdd({"tests/price.ts": "test('price', () => {});\n"}),
+        ),
+        GuardCase(
+            "headless_tdd_allows_type_file",
+            "provider-agnostic-tdd",
+            "allow",
+            "Type-only files remain TDD-skip in headless worker post-check.",
+            _headless_worker_tdd({"src/types.ts": "export type Price = number;\n"}),
+        ),
+        GuardCase(
+            "headless_tdd_allows_entry_boilerplate",
+            "provider-agnostic-tdd",
+            "allow",
+            "Entry boilerplate remains TDD-skip in headless worker post-check.",
+            _headless_worker_tdd({"src/main.ts": "console.log('boot');\n"}),
         ),
         GuardCase(
             "known_boundary_command_substitution_not_scanned",
