@@ -143,7 +143,7 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
    - git-spec 이 있으면 [`git-spec.md`](../../docs/plugin/git-spec.md) 패턴을 따른다.
    - 사용자가 "워크트리 없이"라고 하지 않으면 worktree 격리를 기본으로 한다.
    - worktree 진입 후 Read/Edit/Write 대상은 worktree 절대경로 또는 worktree cwd 상대경로로 다시 잡는다. 진입 전에 읽은 main repo 절대경로를 그대로 Edit 하지 않는다.
-   - 종료 정리 규칙은 [`loop-procedure` worktree 분기](../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정) 를 따른다. `ExitWorktree(action="remove", discard_changes=true)` 는 커밋 diff 흡수 확인 + working tree clean 둘 다 만족할 때만 호출하고, uncommitted/untracked 파일이 있으면 keep 으로 강등한다.
+   - 종료 시 `ExitWorktree` 정리 판단은 [`loop-procedure` worktree 분기](../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정) 를 따른다.
 2. 테스트 선작성
    - 테스트 가능한 코드 변경은 구현 전에 실패 테스트를 먼저 쓴다.
    - docs-only / 단순 설정 변경은 TDD skip 사유를 명시한다.
