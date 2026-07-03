@@ -361,10 +361,11 @@ chain = 위 공통 골격 + 엔진을 **task 한 개씩** 반복. task N 이 완
 acceptance 경계: task<i> (story #<M>) · task<K> (story #<M'> + epic #<E>)   ← 머지 전 검수 대상 (기본 ON, --no-acceptance 시 생략)
 ```
 
-**확인 강도 (task 수 임계값)**:
-- task **< 10** → 계획 표만 echo 후 **자동 task1 진입**.
-- task **≥ 10** → 계획 표 echo + `진행할까요? (Y/n)` 1회 확인 후 진입.
-- **yolo 모드** (`yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서`, [`loop-procedure.md`](../../docs/plugin/loop-procedure.md) yolo 키워드) → task 수 무관 자동 진입.
+**확인 강도 (issue close 발동 기준)**:
+- issue close 가 실제 발동되는 task 를 포함한 chain 은 task 수와 무관하게 계획 표 echo + `진행할까요? (Y/n)` 1회 확인 후 진입한다. 확인 응답 전에는 task1 또는 마감 PR 머지로 진입하지 않는다.
+- issue close 가 실제 발동되는 task = PR 트레일러가 `Closes`/`Fixes`/`Resolves` 이고, 그 PR 머지가 default branch 에 들어가 GitHub issue close 를 실제로 발동하는 task 다. 통합 브랜치 sub-PR(base ≠ default) 의 `Closes` 는 그 시점에 실제 close 를 발동하지 않으므로 sub-PR chain 진입 확인 기준에서는 제외하고, 마지막 main 머지 PR 직전에 1회 확인한다.
+- issue close 발동이 없는 chain 은 계획 표만 echo 후 자동 task1 진입한다. 예전 task 수 임계값은 사용하지 않는다.
+- **yolo 모드에서는 생략** (`yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서`, [`loop-procedure.md`](../../docs/plugin/loop-procedure.md) yolo 키워드) — task 수와 close 발동 여부와 무관하게 자동 진입한다.
 
 ### 병렬 wave (opt-in, chain 한정)
 

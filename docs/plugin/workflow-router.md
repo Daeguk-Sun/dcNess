@@ -17,10 +17,10 @@
 구현 경로는 작업 크기보다 **되돌리기 비용과 불확실성**으로 나눈다.
 
 - **Lite** (`/impl` 내부): high-risk 가 없고, 구현 경계와 테스트 기준이 이미 충분히 concrete 하다. 설계 문서·계획 파일 없이 메인이 직접 구현한다.
-- **Standard** (`/impl` 내부): 설계 문서(경로)가 들어온 구현 경로다. impl 은 설계를 만들지 않고 받은 설계도로 구현만 한다 — 경량 설계 산출은 impl 밖 [`compact-design`](../../skills/compact-design/SKILL.md)(`module-architect` 1-pass) 또는 full `/design` 이 담당하고, 그 산출물 경로가 진입 사전 조건이다. 엔진(풀4/경량 build-worker)은 구현 경로와 직교다.
+- **Standard** (`/impl` 내부): 설계 문서(경로)가 들어온 구현 경로다. impl 은 설계를 만들지 않고 받은 설계도로 구현만 한다 — 경량 설계 산출은 impl 밖 [`compact-design`](../../skills/compact-design/SKILL.md)(`module-architect` 1-pass) 또는 full `/design` 이 담당하고, 그 산출물 경로가 진입 사전 조건이다. 엔진(풀4/경량 build-worker)은 구현 경로와 직교이며, 경량 build-worker 엔진도 `pr-reviewer` gate 를 생략하지 않는다.
 - **high-risk → 설계 선행** (`/impl` 내부 구현 경로 아님): high-risk trigger 가 있거나 새 epic/product feature 처럼 사전 설계 합의가 필요하다. impl 진입 *전* `/spec` 내부 tech-review preflight 필요 시 / `/design` / `/impl` / `/acceptance` 흐름으로 설계를 선행하고, 산출된 설계도를 들고 `/impl` Standard 로 진입한다.
 
-경량화 대상은 사전 ceremony 다. branch / PR / test / review / CI / false-clean 방지 같은 safety gate 는 약화하지 않는다.
+경량화 대상은 사전 ceremony 와 구현 step 수다. branch / PR / test / review / CI / false-clean 방지 같은 safety gate 는 약화하지 않는다.
 
 **gate 축** (먼저 — 어떤 구현 경로/진입점으로 진입할지):
 
@@ -75,7 +75,7 @@ flowchart TB
 | 구현 경로 | 트리거 | 진입점 | 왜 이 경로 |
 |---|---|---|---|
 | **Lite** | concrete signal(파일 path · 함수/클래스/symbol · 이미 분류·승인된 issue/PR 번호 · 명시 테스트 명령 · 작은 docs-only · 작은 refactor) 1개 이상 AND high-risk trigger 0개 AND 구현 경계/테스트 기준 명확 | `/impl` — 메인 직접 `test -> impl -> test pass -> pr-reviewer -> PR` | 의도·범위·수용 기준이 신호로 이미 명확 → 사전 계획 gate 만 비용. `code-validator` 는 계획 파일이 없어서 호출하지 않음 |
-| **Standard** | 설계 문서(경로)가 들어옴, 또는 경량 설계 필요 → `compact-design` 산출 후 진입 | `/impl` — `--design-doc` 기록 후 받은 설계도로 구현 (엔진 풀4/경량 직교) | impl 은 설계 생성 X — 설계도 충실 구현 |
+| **Standard** | 설계 문서(경로)가 들어옴, 또는 경량 설계 필요 → `compact-design` 산출 후 진입 | `/impl` — `--design-doc` 기록 후 받은 설계도로 구현 (풀4 또는 build-worker → pr-reviewer) | impl 은 설계 생성 X — 설계도 충실 구현. 경량 엔진도 review gate 는 유지 |
 | **high-risk → 설계 선행** (impl 내부 구현 경로 아님) | high-risk trigger 1개 이상 또는 새 epic/product feature | impl 진입 *전* `/spec` 내부 tech-review preflight 필요 시 → `/design` → `/impl` → `/acceptance` (deep task 파일이 있으면 `/impl-loop` advanced 위임) | 되돌리기 비싼 결정 → 설계·검증 consensus 필요 |
 | **shape: chain** | 구현 경로 판정 후 여러 task/PR 로 분할 · resume/handoff/audit · long-running | deep task list 는 `/impl-loop` chain, Standard 는 compact plan 분할 후 순차 PR | 실행 형태. risk 구현 경로가 아님 |
 

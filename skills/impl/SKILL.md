@@ -52,7 +52,7 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
   - **advance**: `TESTS_WRITTEN` → `IMPL_DONE` → `PASS` → `PASS`
   - **expected_steps**: 4
   - **분기 규칙**: [`impl-routing.md`](impl-routing.md)
-- **Standard 구현 경로 — 경량 build-worker 엔진**: 사용자 "빠르게/경량" 발화 또는 메인 추천 시. 동일하게 `begin-run impl --design-doc <경로>` 로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행한다. 엔진은 구현 경로와 직교다.
+- **Standard 구현 경로 — 경량 build-worker 엔진**: 사용자 "빠르게/경량" 발화 또는 메인 추천 시. 동일하게 `begin-run impl --design-doc <경로>` 로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행한다. 경량 build-worker 엔진도 `build-worker → pr-reviewer` 순서이며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다. 엔진은 구현 경로와 직교다.
 - **high-risk → impl 밖**: high-risk trigger 가 있으면 impl 이 직접 처리하지 않는다. impl 진입 *전* 분기 규칙([`workflow-router`](../../docs/plugin/workflow-router.md))이 설계 선행(`/spec`·`/design`)으로 보내고, deep impl task 파일이 이미 있으면 `/impl-loop <task>` 로 위임한다.
 
 ## Step 0 — 실존 검증
@@ -121,6 +121,7 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 ```
 구현 경로: Lite — 설계도 없음, concrete signal = <파일/이슈/테스트>, 엔진 = 메인 직접, 검증 gate = test + pr-reviewer
 구현 경로: Standard — 설계도 = <경로>, 엔진 = 풀4(디폴트), 검증 gate = test + code-validator + pr-reviewer
+구현 경로: Standard — 설계도 = <경로>, 엔진 = 경량 build-worker, 검증 gate = test + build-worker self-validate + pr-reviewer
 ```
 
 ## Sub-agent prompt 작성 checkpoint (#780)
@@ -206,7 +207,7 @@ Standard 는 **설계 문서(경로)가 들어온** 구현 경로다. impl 은 �
 5. 단위 commit + PR 생성
 6. CI / merge policy
 
-**경량 build-worker 엔진:** 사용자 "빠르게/경량" 발화 또는 메인 추천 시. 동일하게 `--design-doc` 으로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행하고 commit + PR 로 간다.
+**경량 build-worker 엔진:** 사용자 "빠르게/경량" 발화 또는 메인 추천 시. 동일하게 `--design-doc` 으로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행한다. 그 다음 `pr-reviewer` 가 local diff 를 읽기 전용으로 리뷰하며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다. worker 가 commit message·PR body 초안을 남겨도 실제 commit/PR/merge 는 메인이 pr-reviewer PASS 뒤 수행한다.
 
 구현 중 설계가 또 부족하면 `compact-design`/`/design` 으로 되돌려 설계도를 보강한다 — 되돌림은 정상 루프다. 새 외부 의존·high-risk 가 드러나면 impl *밖* 설계 선행으로 escalate 한다(경량 범위를 넘어섰다는 신호).
 

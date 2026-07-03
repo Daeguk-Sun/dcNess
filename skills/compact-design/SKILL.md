@@ -47,7 +47,7 @@ compact plan 이 같은 세션에서 막 산출됐든, 이전에 머지된 뒤 �
 
 ## 산출 후
 
-호출 측 `/impl` 은 반환된 compact plan(설계도)을 받아 Standard 구현 경로에서 구현(엔진 풀4: test-engineer → engineer:IMPL → code-validator → pr-reviewer · 또는 경량 build-worker)으로 진행한다. 구현 중 설계가 또 부족하면 다시 본 스킬로 되돌릴 수 있다 — 되돌림은 예외가 아니라 완성도를 만드는 정상 루프다.
+호출 측 `/impl` 은 반환된 compact plan(설계도)을 받아 Standard 구현 경로에서 구현(엔진 풀4: test-engineer → engineer:IMPL → code-validator → pr-reviewer · 또는 경량 build-worker → pr-reviewer)으로 진행한다. 구현 중 설계가 또 부족하면 다시 본 스킬로 되돌릴 수 있다 — 되돌림은 예외가 아니라 완성도를 만드는 정상 루프다.
 
 ## 참조
 

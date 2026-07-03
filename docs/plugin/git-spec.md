@@ -120,6 +120,7 @@ Part of #N
 > 통합 브랜치 케이스 — stories.md 상단에 `**Base Branch:** feature/{slug}` 마커가 박혀있으면 모든 sub-PR 의 base = 그 통합 브랜치. 마지막 통합 → main 머지 PR 만 base = main + body 에 `Closes #{epic}` + `Closes #{story1...N}` 일괄 박음 ([통합 브랜치 케이스](#통합-브랜치-케이스-base-main-sub-pr-의-auto-close-한계-must)).
 
 `pr-finalize.sh` 내부:
+- **pr-finalize 호출 = 머지 확정** — 별도 최종 승인 UI 없이 아래 merge 절차를 수행한다. 호출 전 PR diff/CI/마감 acceptance/사용자 확인이 필요한 흐름은 먼저 끝낸다.
 - peer claim guard 확인 (`merge-lock acquire`) — claim 없는 일반 PR 은 `mode=serial` 로 기존 흐름 유지. claim 이 있으면 repo-level mutex + 같은 story prior `task_index` 완료 evidence 를 확인한 뒤 merge 진입 ([`parallel-policy.md`](parallel-policy.md)).
 - `gh pr merge --auto --merge` (auto-merge 토글)
 - `gh pr checks --watch` (CI 결과 대기)
@@ -201,7 +202,7 @@ stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통
 흐름:
 
 1. **각 sub-PR (base = `feature/<slug>`)** — PR body 에 평소대로 `Part of #<story>` / `Closes #<story>` 박되 머지 시 *발동 안 됨* 전제. `Document-Exception-PR-Close: 통합 브랜치 sub-PR — main 머지 시 일괄 close` 박아 `check_pr_body.mjs` 게이트 우회 가능 (자유 선택).
-   - **close 보정 자동화**: sub-PR 머지를 [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh) 로 하면 base ≠ default branch 를 감지해 (a) CI 체크 0개를 정상으로 처리하고 (b) PR body 의 `Closes`/`Fixes`/`Resolves` 선언이 가리키는 OPEN issue 를 PR 링크 코멘트와 함께 close 보정한다. 수동 CLOSE 불필요. 이미 close 된 issue 에 대한 마지막 →main 일괄 `Closes` 는 무해 (GitHub 이 무시).
+   - **close 보정 자동화**: sub-PR 머지를 [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh) 로 하면 base ≠ default branch 를 감지해 (a) CI 체크 0개를 정상으로 처리하고 (b) PR body 의 독립 trailer 줄에 있는 `Closes`/`Fixes`/`Resolves` 선언이 가리키는 OPEN issue 목록을 출력한 뒤 PR 링크 코멘트와 함께 close 보정한다. 산문 인용·blockquote·list 예시는 close 대상으로 보지 않는다. 수동 CLOSE 불필요. 이미 close 된 issue 에 대한 마지막 →main 일괄 `Closes` 는 무해 (GitHub 이 무시).
 2. **마지막 통합 → main 머지 PR (base = main)** — PR body 에 **모든 story + epic 을 일괄 close**:
    ```
    Closes #<story1>
