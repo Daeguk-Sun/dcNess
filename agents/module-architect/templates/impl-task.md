@@ -22,6 +22,8 @@ contract:
   - `docs/architecture.md`
   - `docs/conventions.md`
   - `docs/decisions/`
+  - `docs/modules/<module-id>/architecture.md` (affected module 이 있으면)
+  - `docs/modules/<module-id>/conventions.md` (affected module 이 있으면)
   - `docs/epics/<epic>/stories.md`
   - `docs/epics/<epic>/architecture.md`
   - `docs/epics/<epic>/domain-model.md` (있으면)

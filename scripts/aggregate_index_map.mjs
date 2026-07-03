@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 /**
- * Generate/update docs/index.md epic table from docs/epics/*.
+ * Generate/update docs/index.md generated tables from docs/epics/* and docs/modules/*.
  *
  * Source of truth:
  * - docs/epics/epic-NN-<slug>/
  * - optional stories.md frontmatter milestone
+ * - docs/modules/<module-id>/
  *
  * Usage:
  *   node scripts/aggregate_index_map.mjs
@@ -20,13 +21,16 @@ import {
 import { dirname, join, relative, resolve, sep } from 'node:path';
 
 const SECTION_EPICS = '에픽';
+const SECTION_MODULES = '모듈';
+const MARKER_EPICS = 'dcness-index-map:generated';
+const MARKER_MODULES = 'dcness-module-map:generated';
 const PLACEHOLDER = '—';
 
 function usage() {
   return [
     'Usage: node scripts/aggregate_index_map.mjs [--root <path>] [--check]',
     '',
-    'Updates docs/index.md ## 에픽 generated table from docs/epics/*.',
+    'Updates docs/index.md generated tables from docs/epics/* and docs/modules/*.',
   ].join('\n');
 }
 
@@ -114,6 +118,27 @@ function collectEpics(root) {
     });
 }
 
+function collectModules(root) {
+  const modulesRoot = join(root, 'docs', 'modules');
+  if (!existsSync(modulesRoot)) return [];
+
+  return readdirSync(modulesRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((name) => /^[a-z0-9][a-z0-9_-]*$/.test(name))
+    .sort()
+    .map((name) => {
+      const moduleDir = join(modulesRoot, name);
+      return {
+        name,
+        moduleDir,
+        architecturePath: join(moduleDir, 'architecture.md'),
+        conventionsPath: join(moduleDir, 'conventions.md'),
+        techReviewPath: join(moduleDir, 'tech-review.md'),
+      };
+    });
+}
+
 function optionalFileLink(label, fromFile, toFile) {
   return existsSync(toFile) ? mdLink(label, fromFile, toFile) : PLACEHOLDER;
 }
@@ -140,15 +165,33 @@ function buildEpicTable(indexPath, epics) {
 
   return table(
     ['에픽', '마일스톤', 'Stories', 'Architecture', 'Domain Model', 'UX Flow', 'Tech Review'],
-    rows
+    rows.length > 0
+      ? rows
+      : [[PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER]]
   );
 }
 
-function generatedSection(body) {
+function buildModuleTable(indexPath, modules) {
+  const rows = modules.map((module) => [
+    mdLinkDir(module.name, indexPath, module.moduleDir),
+    optionalFileLink('architecture.md', indexPath, module.architecturePath),
+    optionalFileLink('conventions.md', indexPath, module.conventionsPath),
+    optionalFileLink('tech-review.md', indexPath, module.techReviewPath),
+  ]);
+
+  return table(
+    ['모듈', 'Architecture', 'Conventions', 'Tech Review'],
+    rows.length > 0
+      ? rows
+      : [[PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER]]
+  );
+}
+
+function generatedSection(heading, marker, body) {
   return [
-    `## ${SECTION_EPICS}`,
+    `## ${heading}`,
     '',
-    '<!-- dcness-index-map:generated -->',
+    `<!-- ${marker} -->`,
     '<!-- 수정하지 말고 plugin script `aggregate_index_map.mjs` 로 갱신한다. -->',
     body,
     '',
@@ -171,25 +214,55 @@ function replaceSection(content, heading, replacement) {
   return `${content.slice(0, start)}${replacement}${content.slice(end)}`;
 }
 
-function noOpReason({ indexPath, epics }) {
+function noOpReason({ indexPath, epics, modules }) {
   if (!existsSync(indexPath)) return 'docs/index.md missing';
-  if (epics.length === 0) return 'no valid docs/epics/epic-NN-* directories';
+  const content = readFileSync(indexPath, 'utf8');
+  const hasGeneratedEpicSection = content.includes(`<!-- ${MARKER_EPICS} -->`);
+  const hasGeneratedModuleSection = content.includes(`<!-- ${MARKER_MODULES} -->`);
+  if (
+    epics.length === 0
+    && modules.length === 0
+    && !hasGeneratedEpicSection
+    && !hasGeneratedModuleSection
+  ) {
+    return 'no valid docs/epics/epic-NN-* or docs/modules/* directories';
+  }
   return '';
 }
 
-function nextIndex(root, epics) {
+function nextIndex(root, epics, modules) {
   const indexPath = join(root, 'docs', 'index.md');
-  const content = readFileSync(indexPath, 'utf8');
-  const nextContent = replaceSection(
-    content,
-    SECTION_EPICS,
-    generatedSection(buildEpicTable(indexPath, epics))
-  );
+  let nextContent = readFileSync(indexPath, 'utf8');
+
+  if (epics.length > 0 || nextContent.includes(`<!-- ${MARKER_EPICS} -->`)) {
+    nextContent = replaceSection(
+      nextContent,
+      SECTION_EPICS,
+      generatedSection(
+        SECTION_EPICS,
+        MARKER_EPICS,
+        buildEpicTable(indexPath, epics)
+      )
+    );
+  }
+
+  if (modules.length > 0 || nextContent.includes(`<!-- ${MARKER_MODULES} -->`)) {
+    nextContent = replaceSection(
+      nextContent,
+      SECTION_MODULES,
+      generatedSection(
+        SECTION_MODULES,
+        MARKER_MODULES,
+        buildModuleTable(indexPath, modules)
+      )
+    );
+  }
 
   return {
     path: indexPath,
     content: `${nextContent.trimEnd()}\n`,
     epicCount: epics.length,
+    moduleCount: modules.length,
   };
 }
 
@@ -197,19 +270,20 @@ function main() {
   const args = parseArgs(process.argv.slice(2));
   const indexPath = join(args.root, 'docs', 'index.md');
   const epics = collectEpics(args.root);
-  const reason = noOpReason({ indexPath, epics });
+  const modules = collectModules(args.root);
+  const reason = noOpReason({ indexPath, epics, modules });
 
   if (reason) {
     console.log(`[index-map] no-op PASS — ${reason}`);
     return;
   }
 
-  const next = nextIndex(args.root, epics);
+  const next = nextIndex(args.root, epics, modules);
   const current = readFileSync(next.path, 'utf8');
 
   if (args.check) {
     if (current === next.content) {
-      console.log(`[index-map] PASS — ${next.epicCount} epic`);
+      console.log(`[index-map] PASS — ${next.epicCount} epic, ${next.moduleCount} module`);
       return;
     }
     console.error(
@@ -221,7 +295,9 @@ function main() {
   if (current !== next.content) {
     writeFileSync(next.path, next.content, 'utf8');
   }
-  console.log(`[index-map] updated ${slash(relative(args.root, next.path))} — ${next.epicCount} epic`);
+  console.log(
+    `[index-map] updated ${slash(relative(args.root, next.path))} — ${next.epicCount} epic, ${next.moduleCount} module`
+  );
 }
 
 try {

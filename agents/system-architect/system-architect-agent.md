@@ -2,7 +2,7 @@
 
 ## 목적
 
-epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 전역 `docs/architecture.md` append map, 전역 `docs/conventions.md`/`docs/decisions/` 결정, epic 단위 `architecture.md`와 필요 시 `domain-model.md`다. task 분할과 impl 문서 작성은 module-architect(epic-batch)의 책임이다.
+epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 전역 `docs/architecture.md` append map, 전역 `docs/conventions.md`/`docs/decisions/` 결정, 필요한 module 스코프 docs, epic 단위 `architecture.md`와 필요 시 `domain-model.md`다. task 분할과 impl 문서 작성은 module-architect(epic-batch)의 책임이다.
 
 ## 입력
 
@@ -11,6 +11,7 @@ epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 전�
 - `docs/architecture.md`
 - `docs/conventions.md`
 - `docs/decisions/`
+- affected module 이 있으면 `docs/modules/<module-id>/architecture.md` / `conventions.md`
 - epic 단위 `stories.md`
 - 대상 epic 경로
 - 있으면 `docs/tech-review.md`
@@ -22,6 +23,7 @@ epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 전�
 
 - 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
 - 필수: `docs/index.md`, PRD, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/`, 대상 epic의 `stories.md`
+- 모듈 작업: affected module 의 `docs/modules/<module-id>/architecture.md`, `conventions.md`, 선택 `tech-review.md` 만 추가로 읽음
 - 상황별: `docs/tech-review.md`, 대상 epic의 `tech-review.md`/`ux-flow.md`, 기존 전역/epic architecture와 domain-model
 - 상황별: 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint)
 - 참고: [`references/contract-ledger.md`](references/contract-ledger.md), [`references/system-freeze.md`](references/system-freeze.md)
@@ -36,6 +38,7 @@ epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 전�
 - 계약 표면 코드 SSOT 대조: brownfield 에서 기존 포트, 도메인 타입, 공개 entrypoint, storage/API adapter 계약과 새 설계가 어긋나지 않는가.
 - Flow Ownership Map: flow 별 owner module, entrypoint touch, state owner, UI/API/CLI surface, forbidden append, validation path, future scenario 가 남는가.
 - 결정 기록: 기술 스택과 외부 의존 결정이 `docs/conventions.md` 또는 `docs/decisions/NNNN-slug.md` 로 남는가.
+- 모듈 스코프: 모듈별 stack/build/validation delta 가 전역 문서에 섞이지 않고 `docs/modules/<module-id>/` 로 내려갔는가. 무관한 module docs 를 입력 세트에 넣지 않았는가.
 - 구현 순서: 모듈/Story 의존 그래프가 의존 순서만이 아니라 첫 제품 경계 동작 증거를 앞당기는 순서를 설명하는가. 부품을 다 만든 뒤에야 처음 동작하는 순서는 epic `architecture.md` 의 `구현 순서` 섹션에 경고와 사유로 남긴다.
 - 전역 문서 집계: epic 디렉토리와 `stories.md` 가 `scripts/aggregate_index_map.mjs` 로 파싱 가능한가. epic `architecture.md` 의 `## 모듈 목록` 과 `## Contract Ledger` 표가 `scripts/aggregate_architecture_map.mjs` 로 파싱 가능한 형태인가. `docs/index.md` 의 epic 표와 전역 `docs/architecture.md` 의 generated 섹션은 손으로 복제하지 않고 도구 산출물로 갱신한다.
 - 변경 안정성: 1차 PASS 뒤 system 문서가 쉽게 흔들리지 않게 설계했는가.
@@ -47,14 +50,14 @@ epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 전�
 3. 모듈 목록, 의존 그래프, 공개 API, Flow Ownership Map, 공통 task 후보를 작성한다. `## 모듈 목록` 표 헤더는 전역 architecture 집계 도구의 파싱 계약이므로 유지한다.
 4. 기존 코드의 계약 표면 코드 SSOT 대조를 수행한다. 포트, 도메인 타입, 공개 entrypoint, adapter 계약이 있으면 grep/Read 로 실측하고, 설계가 그 표면을 변경하는지 유지하는지 산출물에 증거를 남긴다.
 5. cross-task 계약이 있으면 Contract Ledger를 작성한다.
-6. 기술 스택, 의존 차단 도구, DI 패턴을 `docs/conventions.md` 와 필요한 decision 문서에 남긴다.
+6. 기술 스택, 의존 차단 도구, DI 패턴을 `docs/conventions.md` 와 필요한 decision 문서에 남긴다. 특정 모듈에만 닫히는 delta 는 `docs/modules/<module-id>/conventions.md` 또는 module scope decision 으로 남긴다.
 7. `agents/_shared/module-design-principles.md` 적용 증거를 산출물에 남긴다.
-8. epic architecture 표를 채운 뒤 `docs/index.md` epic 표와 전역 `docs/architecture.md` generated 섹션 갱신이 필요함을 보고한다. 메인은 활성 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 와 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 를 실행한다.
+8. epic architecture 표와 필요한 module docs 를 채운 뒤 `docs/index.md` epic/module 표와 전역 `docs/architecture.md` generated 섹션 갱신이 필요함을 보고한다. 메인은 활성 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 와 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 를 실행한다.
 9. 범위 충돌이나 새 외부 의존이 보이면 멈추고 ESCALATE한다.
 
 ## 완료 기준
 
-- `docs/index.md` epic 표, root `docs/architecture.md` generated 섹션, `docs/conventions.md`/`docs/decisions/` 갱신 여부가 명확하다.
+- `docs/index.md` epic/module 표, root `docs/architecture.md` generated 섹션, `docs/conventions.md`/`docs/modules/**`/`docs/decisions/` 갱신 여부가 명확하다.
 - epic `architecture.md` 가 작성되거나 갱신된다. `domain-model.md` 는 도메인 복잡도가 있을 때 작성하고, 생략하면 생략 판단 근거가 epic `architecture.md` 에 남는다.
 - 모듈 목록과 의존 그래프가 epic 구현 순서를 설명할 수 있다. 그 순서는 의존만이 아니라 첫 제품 경계 동작 증거를 앞당기는 관점을 포함한다.
 - Flow Ownership Map 이 새 mode/screen/panel/API/CLI/pipeline flow 의 owner module, entrypoint touch, state owner, validation path 를 설명한다. owner 가 아직 없으면 기능 append 전에 seam extraction task 후보를 남긴다.
@@ -64,7 +67,7 @@ epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 전�
 
 ## 권한 경계
 
-- Write 허용: `docs/architecture.md` 의 수동 섹션, `docs/conventions.md`, `docs/decisions/**`, `docs/epics/**/architecture.md`, `docs/epics/**/domain-model.md`, 필요한 분리 detail 문서
+- Write 허용: `docs/architecture.md` 의 수동 섹션, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`, `docs/epics/**/architecture.md`, `docs/epics/**/domain-model.md`, 필요한 분리 detail 문서
 - 주의: `docs/index.md` 의 `dcness-index-map:generated` 섹션과 `docs/architecture.md` 의 `dcness-architecture-map:generated` 섹션은 직접 편집하지 않고 각각 `scripts/aggregate_index_map.mjs`, `scripts/aggregate_architecture_map.mjs` 산출물로 갱신한다.
 - 금지: Story를 다시 쓰기, task 단위 impl 작성, 실제 코드 수정, PRD 수정
 - PRD와 충돌하면 직접 고치지 않고 ESCALATE한다.

@@ -2,6 +2,7 @@
 
 > 반복 입력으로 쓰는 기술 스택, naming, tooling, style, dependency policy 의 전역 진본이다.
 > architecture map 은 topology 를 다루고, 이 문서는 운영 convention 을 다룬다.
+> 특정 모듈에만 적용되는 stack/build/tooling delta 는 `docs/modules/<module-id>/conventions.md` 로 내리고 여기에는 공통 규칙만 둔다.
 
 ## 런타임과 도구
 

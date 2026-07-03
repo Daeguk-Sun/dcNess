@@ -49,7 +49,7 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 
 `CLAUDE.md` seed/migration 은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/dcness-context-docs`) 로 처리한다. 부재 시 Anthropic 공식 구조 기반 템플릿을 만들고, 기존 파일은 cold-start 앵커만 additive append 한다. 6축 quality audit 결과는 출력하지만 구조 개선·삭제·재배치는 후보만 제안한다.
 
-`docs/index.md` 의 epic 표, 전역 `docs/architecture.md` 의 집계 섹션, 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. `/design` 산출물 구조 감사도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
+`docs/index.md` 의 epic/module 표, 전역 `docs/architecture.md` 의 집계 섹션, 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. `/design` 산출물 구조 감사도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
 
 ## Provider Mirror Sync
 
@@ -110,13 +110,13 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 
 - 대상 경로: `.github/workflows/doc-path-integrity.yml`
 - 템플릿: [`templates/github-workflows/doc-path-integrity.yml`](../../templates/github-workflows/doc-path-integrity.yml)
-- 역할: `alruminum/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/**`) 안 repo-relative 경로 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다. 문서가 그대로여도 참조 대상 파일 삭제·이동으로 stale path 가 생길 수 있어 PR마다 실행한다.
+- 역할: `alruminum/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative 경로 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다. 문서가 그대로여도 참조 대상 파일 삭제·이동으로 stale path 가 생길 수 있어 PR마다 실행한다.
 
 ### doc-sync.yml
 
 - 대상 경로: `.github/workflows/doc-sync.yml`
 - 템플릿: [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml)
-- 역할: `alruminum/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic 표와 `docs/architecture.md` 의 전역 architecture map 이 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 Contract Ledger row-key 포인터 구조를 감사한다. `docs/index.md`, `docs/architecture.md`, 또는 유효 epic 이 없는 빈 환경은 no-op PASS 한다.
+- 역할: `alruminum/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표와 `docs/architecture.md` 의 전역 architecture map 이 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 Contract Ledger row-key 포인터 구조를 감사한다. `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다.
 
 ### github-project-lifecycle.yml
 
@@ -164,7 +164,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | plugin uninstall/reinstall | 예 | plugin data 디렉토리가 정리되어 whitelist 가 사라진다. |
 | `.git/hooks/*` thin shim 갱신 | 예 | 사용자 repo `.git/hooks/` 파일은 plugin update 만으로 바뀌지 않는다. |
 | `CLAUDE.md` seed/migration 로직 갱신 | 예 | 기존 활성 프로젝트의 root `CLAUDE.md` 생성·cold-start 앵커 append 는 `/init-dcness` 재실행 때 적용된다. |
-| 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 이 있는 프로젝트는 doc-sync 채택 직후 index/architecture 집계기를 1회 실행해야 한다. |
+| 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index/architecture 집계기를 1회 실행해야 한다. |
 | Codex validation routing opt-in 변경 | 예 | local plugin data 와 `$CODEX_HOME/skills` 를 갱신해야 한다. |
 | Implementation routing 변경 | 예 | local plugin data 를 갱신해야 한다. |
 | Project lifecycle 좌표 저장/변경 | 예 | repo variables 와 선택형 workflow 를 갱신해야 한다. |

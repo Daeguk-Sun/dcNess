@@ -1,4 +1,4 @@
-"""Regression tests for the docs/index.md epic table aggregation tool (#823)."""
+"""Regression tests for the docs/index.md generated table aggregation tool."""
 from __future__ import annotations
 
 import shutil
@@ -116,6 +116,59 @@ class IndexMapAggregateTests(unittest.TestCase):
             check = _run(project, "--check")
             self.assertEqual(check.returncode, 1)
             self.assertIn("stale", check.stderr)
+
+    def test_generates_module_table_from_module_directories(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(
+                project / "docs/index.md",
+                """
+                # 프로젝트 문서 인덱스
+
+                ## 개요
+
+                수동 개요.
+                """,
+            )
+            _write(project / "docs/modules/android/architecture.md", "# Android Architecture\n")
+            _write(project / "docs/modules/android/conventions.md", "# Android Conventions\n")
+            _write(project / "docs/modules/backend/conventions.md", "# Backend Conventions\n")
+
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+            index = (project / "docs/index.md").read_text(encoding="utf-8")
+            self.assertIn("수동 개요.", index)
+            self.assertIn("## 모듈", index)
+            self.assertIn("<!-- dcness-module-map:generated -->", index)
+            self.assertIn(
+                "| [android](modules/android/) | [architecture.md](modules/android/architecture.md) | [conventions.md](modules/android/conventions.md) | — |",
+                index,
+            )
+            self.assertIn(
+                "| [backend](modules/backend/) | — | [conventions.md](modules/backend/conventions.md) | — |",
+                index,
+            )
+
+            check = _run(project, "--check")
+            self.assertEqual(check.returncode, 0, check.stderr)
+
+    def test_generated_module_table_becomes_stale_when_module_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(project / "docs/index.md", "# Index\n")
+            _write(project / "docs/modules/android/architecture.md", "# Android\n")
+            self.assertEqual(_run(project).returncode, 0)
+
+            shutil.rmtree(project / "docs/modules/android")
+
+            check = _run(project, "--check")
+            self.assertEqual(check.returncode, 1)
+            self.assertIn("stale", check.stderr)
+
+            self.assertEqual(_run(project).returncode, 0)
+            index = (project / "docs/index.md").read_text(encoding="utf-8")
+            self.assertIn("| — | — | — | — |", index)
 
     def test_no_epics_or_missing_index_is_noop_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

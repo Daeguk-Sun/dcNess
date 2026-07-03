@@ -649,7 +649,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("# 전역 규약", conventions)
         self.assertIn("# 전역 아키텍처 지도", root_architecture)
         self.assertIn("# 결정 NNNN", decision)
-        self.assertIn("scope: global  # global 또는 epic-NN", decision)
+        self.assertIn(
+            "scope: global  # global | epic-NN | module:<module-id> | module:<module-id>/epic-NN",
+            decision,
+        )
 
     def test_init_doc_drops_removed_tdd_gate_references(self) -> None:
         """#681 — /init-dcness 가 폐기된 TDD CI/pre-commit flow 를 더는 언급하지 않는다.

@@ -2,7 +2,7 @@
 id: NNNN
 status: proposed|accepted|superseded
 date: YYYY-MM-DD
-scope: global  # global 또는 epic-NN (예: epic-01)
+scope: global  # global | epic-NN | module:<module-id> | module:<module-id>/epic-NN
 supersedes:
 ---
 
@@ -25,3 +25,4 @@ supersedes:
 - PRD:
 - 전역 Architecture:
 - Epic: epic 결정이면 `docs/epics/epic-NN-<slug>/...`
+- Module: module 결정이면 `docs/modules/<module-id>/...`

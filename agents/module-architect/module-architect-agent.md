@@ -8,6 +8,7 @@ epic-batch, Standard 구현 경로 compact plan, 보강 요청, 계약 전파 �
 
 - 대상 epic 경로와 전체 stories 또는 compact plan 대상
 - 전역 architecture/conventions/decisions 와 epic architecture, 선택 domain-model
+- affected module 이 있으면 해당 `docs/modules/<module-id>/architecture.md` / `conventions.md`
 - 필요하면 SPEC_GAP, validator finding, bug issue, contract_sweep 요청
 - `/impl` Standard 구현 경로의 compact plan 요청
 - 선택적으로 확정 목업 `docs/design-variants/<screen-id>.html`, canvas 경로, UX 관련 문서
@@ -16,6 +17,7 @@ epic-batch, Standard 구현 경로 compact plan, 보강 요청, 계약 전파 �
 
 - 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
 - 필수: `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/`, 대상 epic의 `stories.md`, `architecture.md`
+- 모듈 작업: affected module 의 `docs/modules/<module-id>/architecture.md`, `conventions.md` 만 추가로 읽음. 같은 repo 의 다른 module docs 는 입력 세트에 넣지 않음
 - 상황별: 대상 epic의 `domain-model.md`, 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint)
 - 상황별: `docs/design.md`, 관련 기존 impl 문서
 - 참고: [`references/implementation-boundary.md`](references/implementation-boundary.md), [`references/contract-amendment.md`](references/contract-amendment.md)
@@ -32,6 +34,7 @@ epic-batch, Standard 구현 경로 compact plan, 보강 요청, 계약 전파 �
 - 구현 여지: 내부 구현을 선점하지 않고 public behavior와 invariant만 고정하는가.
 - 테스트 가능성: 수용 기준이 실제 명령이나 명확한 검증 방법으로 닫히는가.
 - 모듈 설계 원칙: 작은 공개 노출 범위, 의존 주입, 의존 차단 증거가 보이는가.
+- 모듈 스코프 입력: impl task 의 `## 사전 준비` 가 affected module 문서만 포함하고, 전역 규칙과 module-local delta 를 중복시키지 않는가.
 - 흐름 누적 분해: 기존 대형 파일을 건드리는 task 에서 append 대신 흐름 / 섹션 모듈 신설을 선호하고, 이번 task 가 손대는 seam 까지만 분해하는가. 기준 = [`module-design-principles.md` 단일 파일 다중 흐름 누적](../_shared/module-design-principles.md#단일-파일-다중-흐름-누적).
 - Agent Operability: 다음 agent 가 edit target, state owner, validation path 를 cold-start 로 찾을 수 있게 Flow Ownership Map 과 task-local Agent Workability 가 연결되는가.
 - drift 통제: 기존 결정의 stale 사본을 새 설계로 착각하지 않는가.
@@ -44,7 +47,7 @@ epic-batch, Standard 구현 경로 compact plan, 보강 요청, 계약 전파 �
 4. epic-batch 요청이면 전체 `stories.md` 를 한 컨텍스트에서 읽고 공통 task와 모든 Story task를 함께 설계한다. Story 단위 작성 주체로 쪼개지지 않는다. 먼저 "각 Story가 끝나면 실제로 무엇이 동작 검증되는가"와 "epic 전체에서 첫 제품 경계 동작이 어디서 열리는가"를 정의한다. 그 다음 그 동작을 만드는 task 또는 task 묶음을 정하고, 가능한 앞쪽에 첫 제품 경계 동작 증거가 나오도록 의존 순서를 잡는다. 파일 레이어별 부품 task를 모두 만든 뒤 마지막 task에서야 처음 동작하는 흐름이면, task를 합치거나 순서를 바꾸거나 왜 피할 수 없는지 warning 으로 남긴다. 대상이 이미 여러 제품 흐름을 떠안은 대형 파일이면, 새 능력을 그 파일에 append 하지 말고 흐름 모듈 신설로 배치한다 — 이번 task 가 손대는 seam 까지만 분해하고 무관한 기존 흐름은 후속으로 남긴다([`module-design-principles.md` 단일 파일 다중 흐름 누적](../_shared/module-design-principles.md#단일-파일-다중-흐름-누적)).
 5. UI/API/CLI entrypoint 를 건드리는 Story/공통 task 는 Flow Ownership Map 또는 기존 architecture 에서 flow owner, entrypoint 역할, state owner, validation path 를 먼저 확정한다. flow owner 가 없으면 기능 append task 가 아니라 seam extraction task 를 선행으로 만든다. entrypoint 는 mode dispatch 또는 composition wiring 만 담당하게 하고, 새 state/event/render/usecase 호출은 owner flow/module 로 보낸다.
 6. 기존 코드의 계약 표면 코드 SSOT 대조를 수행한다. 포트, 도메인 타입, 공개 entrypoint, adapter 계약이 있으면 실측하고, impl task 가 기존 계약을 유지하는지 변경하는지 Contract Ledger / 결정 문서와 연결한다.
-7. task로 나눌 때 의존은 `depends_on` 한 곳에 적고(contract produces/consumes·ordering 을 그리로 흡수), `수정 허용` 은 **한 bullet 당 정확히 하나의 repo-relative 파일 경로**(또는 끝 `/` 디렉토리)로 적는다 — 이 둘이 병렬 wave 독립성 판정 입력이다([`parallel-policy.md`](../../docs/plugin/parallel-policy.md)). 단, 병렬 wave 는 실행 최적화일 뿐 task 분할의 목표가 아니다. 병렬 독립성과 동작 슬라이스가 충돌하면 동작 슬라이스가 우선이고, 병렬성 손실은 직렬 실행으로 받아들인다. 단일 경로 후보가 분명한 형식 잡음은 `normalize-scope` 가 교정하지만, 처음부터 템플릿 규격으로 쓰는 것이 기본이다.
+7. task로 나눌 때 의존은 `depends_on` 한 곳에 적고(contract produces/consumes·ordering 을 그리로 흡수), `수정 허용` 은 **한 bullet 당 정확히 하나의 repo-relative 파일 경로**(또는 끝 `/` 디렉토리)로 적는다 — 이 둘이 병렬 wave 독립성 판정 입력이다([`parallel-policy.md`](../../docs/plugin/parallel-policy.md)). 단, 병렬 wave 는 실행 최적화일 뿐 task 분할의 목표가 아니다. 병렬 독립성과 동작 슬라이스가 충돌하면 동작 슬라이스가 우선이고, 병렬성 손실은 직렬 실행으로 받아들인다. 단일 경로 후보가 분명한 형식 잡음은 `normalize-scope` 가 교정하지만, 처음부터 템플릿 규격으로 쓰는 것이 기본이다. 모듈 작업이면 impl 문서의 `읽을 문서` 에 affected module docs 만 추가한다.
 8. 각 task 또는 compact plan 에 대해 템플릿으로 구현 문서를 작성한다. Story/공통 impl-task 산출물에는 `Story 동작 슬라이스` 섹션을 채워 Story 완료 시 실제 검증되는 동작, 이 task가 연결하는 제품 경계, 첫 동작 증거 지점, 병렬성보다 동작 슬라이스를 우선한 결정을 남긴다. entrypoint 를 만지는 task 는 `Agent Workability` 섹션에 owner flow/module, entrypoint role, state owner, allowed touch, forbidden touch, validation path, future change scenario 를 채운다.
 9. **impl-task (Story/공통 task 분할 산출물) 한정으로** frontmatter 의 risk 메타(`risk` / `engine` / `risk_reason`)를 **task 를 자르는 시점에 함께 판정해 적는다** (compact plan 은 `/impl` Standard 구현 경로 산출물 — impl-loop dry preview 비대상이라 risk 메타 비적용). 고위험 trigger 판정 기준은 [`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표가 SSOT 다 — auth·security·PII / migration·destructive change / public API breakage / cross-module·cross-story interface / 외부 dependency·API. 여기에 impl-loop 런타임 고위험(외부 HTTP·네트워크 어댑터 / URL·파일·사용자 입력 파싱 / 도메인 invariant 변경)을 더한다. 이 중 하나라도 있으면 `risk: high` + `engine: 4agent` (풀 4-agent) + `risk_reason` 에 그 근거. 없으면 `risk: normal`(순수 내부 로직·문구·UI 변경은 `low`) + `engine: 2agent` (build-worker) + `risk_reason: 고위험 trigger 없음`. 이 메타가 impl-loop 진입의 엔진 선택·병렬 직렬 강등 입력이다 — 고위험 지식은 설계 시점에 이미 알 수 있으므로 진입까지 미루지 않는다. 비우면 메인이 진입 시 재추론하지만(하위호환), 채우는 것이 결정론적 기본이다.
 10. public contract를 만들거나 바꾸면 Contract Ledger를 갱신하고 impl/compact plan 은 Ledger 행 키와 갱신 사실만 남긴다. impl/compact plan 은 Ledger 행 키 포인터 문서이며, invariant/ordering/error mode/config/forbidden alternative 전문을 복제하지 않는다. task 내부 한정 private interface 는 사본 문제가 없으므로 `## 인터페이스` 에 남긴다.

@@ -1,6 +1,6 @@
 ---
 name: design
-description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단위로 ux-architect / system-architect / module-architect / architecture-validator 를 호출하여 설계 산출물 (선택 `docs/epics/.../ux-flow.md` + `docs/architecture.md` + `docs/conventions.md` + `docs/decisions/*.md` + `docs/epics/.../architecture.md` + 선택 `docs/epics/.../domain-model.md` + `docs/epics/.../impl/*.md`) 을 작성하고 1 PR 로 머지하는 설계 루프 스킬. system freeze 뒤에는 module-architect(epic-batch)가 epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성하고, architecture-validator(final epic 검증)가 최종 검증으로 수렴한다. 사용자가 "설계해줘", "design", "epic 설계", "/design <epic-path>", "ux-flow 부터", "impl 다 만들어줘" 등을 말할 때 반드시 이 스킬을 사용한다. `/spec` 의 후속. 구현 진입은 `/impl`, story/epic 제품 검수는 `/acceptance`.
+description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단위로 ux-architect / system-architect / module-architect / architecture-validator 를 호출하여 설계 산출물 (선택 `docs/epics/.../ux-flow.md` + `docs/architecture.md` + `docs/conventions.md` + 선택 `docs/modules/...` + `docs/decisions/*.md` + `docs/epics/.../architecture.md` + 선택 `docs/epics/.../domain-model.md` + `docs/epics/.../impl/*.md`) 을 작성하고 1 PR 로 머지하는 설계 루프 스킬. system freeze 뒤에는 module-architect(epic-batch)가 epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성하고, architecture-validator(final epic 검증)가 최종 검증으로 수렴한다. 사용자가 "설계해줘", "design", "epic 설계", "/design <epic-path>", "ux-flow 부터", "impl 다 만들어줘" 등을 말할 때 반드시 이 스킬을 사용한다. `/spec` 의 후속. 구현 진입은 `/impl`, story/epic 제품 검수는 `/acceptance`.
 ---
 
 # Design Skill — 1 epic 단위 설계 루프
@@ -47,7 +47,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 정상 흐름은 본 skill 본문 + 인용된 docs 섹션 링크 만으로 진행. 본문에 있는 순서 차단 훅 / Pre-flight gate / agent boundary 룰이 1차. *룰 모호 / 분기 발생* 시에만 [`design-routing.md`](design-routing.md) (분기 규칙) / `docs/plugin/loop-procedure.md` (절차 mechanics) / `issue-lifecycle.md` / `git-spec.md` 부분 read (grep + offset/limit). 용어·공개 진입점·분기 표현 수정/리뷰 시에만 `docs/plugin/terms.md` 를 확인한다. 통째 read 폐기 — 메인 cache_read 기준치 감축.
 
-**프로젝트 SSOT 설계문서도 lazy-read 대상 — 메인은 전문 흡수 금지 (#768).** 위 플러그인 절차 문서뿐 아니라 프로젝트 SSOT 설계문서 — `docs/index.md`, 전역 `architecture.md` / `conventions.md` / `decisions/`, epic 단위 `architecture.md` / 선택 `domain-model.md` 와 `impl-*.md` — 도 동일하게 lazy 다. 전문(full) read 는 module-architect / architecture-validator 의 책임이며, 메인은 슬림 포인터 작성·산출 적용에 필요한 포인터 식별 수준(grep + 해당 섹션 offset/limit) 만 확보한다.
+**프로젝트 SSOT 설계문서도 lazy-read 대상 — 메인은 전문 흡수 금지 (#768).** 위 플러그인 절차 문서뿐 아니라 프로젝트 SSOT 설계문서 — `docs/index.md`, 전역 `architecture.md` / `conventions.md` / `decisions/`, affected module 의 `docs/modules/<module-id>/`, epic 단위 `architecture.md` / 선택 `domain-model.md` 와 `impl-*.md` — 도 동일하게 lazy 다. 전문(full) read 는 module-architect / architecture-validator 의 책임이며, 메인은 슬림 포인터 작성·산출 적용에 필요한 포인터 식별 수준(grep + 해당 섹션 offset/limit) 만 확보한다.
 
 메인이 정당하게 read 하는 최소 범위 예시:
 
@@ -70,7 +70,7 @@ Step 0 진입 시 자동 `EnterWorktree(name="design-{ts_short}")`. 사용자 �
 
 `ux-architect` / `system-architect` / `module-architect` / `architecture-validator` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
-- **대상 + 읽을 진본**: `docs/index.md`, epic `stories.md`, 전역/epic `architecture.md`, `docs/conventions.md`, `docs/decisions/`, 선택 epic `domain-model.md`, 검토 대상 산출물, 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint) 포인터만 둔다. 요구사항·계약·설계 결정을 prompt 에 전문 재기입하지 않는다.
+- **대상 + 읽을 진본**: `docs/index.md`, epic `stories.md`, 전역/epic `architecture.md`, `docs/conventions.md`, affected module 의 `docs/modules/<module-id>/architecture.md` / `conventions.md`, `docs/decisions/`, 선택 epic `domain-model.md`, 검토 대상 산출물, 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint) 포인터만 둔다. 요구사항·계약·설계 결정을 prompt 에 전문 재기입하지 않는다. 모듈 docs 는 affected module 에 한정하고 무관한 모듈은 넣지 않는다.
 - **worktree**: design worktree 활성 시 worktree 절대경로를 넣는다. main repo 절대경로를 worktree 경로처럼 넘기지 않는다.
 - **이 호출 특유**: Step 2.9 그릴미 합의 또는 기록된 스택 결정 확인-후-skip 사실, artifact audit 결과, wave-plan 신호처럼 아직 진본에 없는 신호만 둔다. 모듈 분할 방식·알고리즘·검증 assert 방식 같은 방법 처방은 넣지 않는다.
 
@@ -106,9 +106,9 @@ TaskCreate 직전 메인이 `docs/prd.md` 의 "화면 인벤토리 + 대략적 �
 3. **Step 2 — ux-architect:UX_FLOW** (UI epic 한정) → `UX_FLOW_READY` → commit 1 (epic 단위 `docs/epics/epic-NN-*/ux-flow.md`)
    - `UX_REFINE_READY` 로 `/design` 안에서 designer 후속이 필요하면, designer 호출 전 `/ux` 의 "designer 진입 공통 preflight" 와 동일하게 `docs/design-variants/` seed 보장 후 designer 로 진행한다.
 4. **Step 2.9 — 기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip** — 메인 직접, helper begin/end-step 비대상. 미기록 합의 또는 skip 사실만 Step 3 prompt 로 전달한다.
-5. **Step 3 — system-architect** — 전역 append map, `docs/conventions.md`/`docs/decisions/**`, epic `architecture.md` 를 작성한다. domain 복잡도가 낮으면 `domain-model.md 생략 가능` 이며, 생략 판단 근거를 epic `architecture.md` 에 남긴다. 도메인 invariant / entity / value object / aggregate / domain service 가 구현 판단에 필요하면 `domain-model.md` 를 작성한다. system-architect 는 계약 표면 코드 SSOT 대조를 수행해 기존 포트, 도메인 타입, 공개 entrypoint 와 설계가 어긋나지 않는지 확인하고 그 증거를 산출물에 남긴다. → `PASS`
+5. **Step 3 — system-architect** — 전역 append map, `docs/conventions.md`/`docs/decisions/**`, 필요한 module scope docs, epic `architecture.md` 를 작성한다. domain 복잡도가 낮으면 `domain-model.md 생략 가능` 이며, 생략 판단 근거를 epic `architecture.md` 에 남긴다. 도메인 invariant / entity / value object / aggregate / domain service 가 구현 판단에 필요하면 `domain-model.md` 를 작성한다. system-architect 는 계약 표면 코드 SSOT 대조를 수행해 기존 포트, 도메인 타입, 공개 entrypoint 와 설계가 어긋나지 않는지 확인하고 그 증거를 산출물에 남긴다. → `PASS`
 6. **Step 3.5 — architecture-validator 1차/system freeze** — system 산출물 기준으로 요구사항 출처, 설계 표준, Contract Ledger 충분성, 구현 순서(첫 제품 경계 동작 앞당김), Flow Ownership Map, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 검토한다. → `PASS` → commit 2. 이후 system 문서 freeze — final epic 검증 FAIL 이 와도 finding 분류가 `SYSTEM_BOUNDARY` 가 아니면 system-architect 재진입 X.
-7. **Step 4 — module-architect(epic-batch)** — epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지 않는다. 입력은 전체 `stories.md`, frozen epic `architecture.md`, 선택 `domain-model.md`, UI epic 이면 `ux-flow.md`, `docs/conventions.md`, `docs/decisions/**`, 계약 표면 코드 SSOT 포인터다. 산출물은 공통 task 와 모든 Story 의 `impl/NN-*.md` 전체이며, 각 impl task 는 `risk / engine / depends_on`, `수정 허용`, Contract Ledger row-key references, Story 동작 수직 슬라이스, 각 Story 완료 시 실제로 검증되는 동작, 첫 제품 경계 동작 증거 지점, Agent Workability 를 계속 충족해야 한다. 공통 task 가 있으면 같은 batch 안에서 먼저 필요한 기반 task 로 배치한다.
+7. **Step 4 — module-architect(epic-batch)** — epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지 않는다. 입력은 전체 `stories.md`, frozen epic `architecture.md`, 선택 `domain-model.md`, UI epic 이면 `ux-flow.md`, `docs/conventions.md`, affected module docs, `docs/decisions/**`, 계약 표면 코드 SSOT 포인터다. 산출물은 공통 task 와 모든 Story 의 `impl/NN-*.md` 전체이며, 각 impl task 는 `risk / engine / depends_on`, `수정 허용`, Contract Ledger row-key references, Story 동작 수직 슬라이스, 각 Story 완료 시 실제로 검증되는 동작, 첫 제품 경계 동작 증거 지점, Agent Workability 를 계속 충족해야 한다. 공통 task 가 있으면 같은 batch 안에서 먼저 필요한 기반 task 로 배치한다.
    - **규모 preflight**: Step 4 진입 전 메인이 Story 수와 예상 full design pack 규모를 [`deliverables-map.md`](../../docs/plugin/deliverables-map.md) 의 target 1,500줄 / hard warning 2,000줄 예산에 맞춰 빠르게 추정한다. 2,000줄 초과가 예상되거나 impl task 수가 한 sub-agent 출력 한계에 몰릴 정도로 크면 자동으로 얇은 batch 를 진행하지 말고 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. batch 2분할을 선택해도 Story 단위 작성/검증 기본값 복원이 아니며, 분할 경계·공유 계약을 epic architecture/Contract Ledger 에 먼저 남기고 final epic 검증은 전체 산출물 기준으로 한 번 더 수행한다.
    - **기본값 금지**: 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다. 고위험 신호가 뒤늦게 드러나면 메인 판단으로 추가 검증 또는 사용자 위임을 선택할 수 있지만, 기본 루프는 epic-batch 생산 + final epic 검증이다.
    - **계약 변경**: public contract 를 만들거나 바꾸면 Contract Ledger 를 갱신하고 impl 문서는 row key 만 가리킨다.
