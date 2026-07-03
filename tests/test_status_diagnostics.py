@@ -348,7 +348,7 @@ class CollectExternalRepoTests(unittest.TestCase):
                     "- Known issue records stay concise.",
                     "",
                     "## dcNess Cold Start",
-                    "- 다음 작업 후보 확인: `/next`",
+                    "- 다음 작업 후보 확인: `/next-work`",
                     "- `docs/index.md`",
                     "",
                 ]),

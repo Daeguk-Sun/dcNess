@@ -101,7 +101,7 @@ claude plugin install dcness@dcness
 
 `/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)와 엔진(build-worker 기본 / 풀 4-agent 승격)을 직교로 고른다.
 
-보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next`(보드에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름 먼저).
+보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next-work`(issue/label 에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름 먼저).
 
 각 단계에서 agent 가 낸 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등)이 다음 어느 단계로 이어지는지는 skill 별 `<skill>-routing.md`(mermaid 분기도 + 표 + retry + escalate)가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/impl-routing.md).
 
@@ -148,7 +148,7 @@ claude plugin install dcness@dcness
 | 고급 | `/impl-loop` | deep impl task 파일 단위 구현 러너 |
 | 유틸 | `/ux` | 구현 없이 목업·흐름 먼저 탐색, PICK 확정본은 canvas 에 등록 |
 | 유틸 | `/init-dcness` | 현 프로젝트를 활성 대상에 등록 |
-| 유틸 | `/next` | 보드의 진행 중 / 다음 할 일 조회 |
+| 유틸 | `/next-work` | issue/label 기반 진행 중 / 다음 할 일 조회 |
 | 유틸 | `/run-review` | 끝난 run 을 되짚어 단계별 비용·차단 분석 |
 | 유틸 | `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 생성 |
 | 유틸 | `/efficiency` | 세션 토큰·비용 분석 + HTML 대시보드 |

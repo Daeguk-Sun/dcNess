@@ -1,6 +1,6 @@
 ---
 name: to-issue
-description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 만들기 위한 공개 진입점. 사용자가 "/to-issue", "이슈로 만들어줘", "티켓 만들어줘", "GitHub issue 등록", "issue 초안", "작업 후보를 issue 로 쪼개줘"처럼 issue draft/publish 를 원할 때 사용한다. 메인 Claude 가 직접 질문하고 dcNess 표준 Issue Brief 초안을 보여준 뒤 사용자 승인 후에만 GitHub issue 와 Project item 을 만든다.
+description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 만들기 위한 공개 진입점. 사용자가 "/to-issue", "이슈로 만들어줘", "티켓 만들어줘", "GitHub issue 등록", "issue 초안", "작업 후보를 issue 로 쪼개줘"처럼 issue draft/publish 를 원할 때 사용한다. 메인 Claude 가 직접 질문하고 dcNess 표준 Issue Brief 초안을 보여준 뒤 사용자 승인 후에만 GitHub issue 를 만들고 선택적으로 Project backfill 을 수행한다.
 ---
 
 # To Issue Skill
@@ -28,7 +28,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 ## 기준 파일
 
 - IssueType, Priority, repo label 매핑은 [`issue-fields.md`](issue-fields.md)를 SSOT 로 사용한다.
-- Project lifecycle 전체 축과 status 전이는 [`../../docs/plugin/github-project.md`](../../docs/plugin/github-project.md)를 SSOT 로 사용한다.
+- Issue/label lifecycle 전체 축과 optional Project backfill 은 [`../../docs/plugin/github-project.md`](../../docs/plugin/github-project.md)를 SSOT 로 사용한다.
 - Issue Brief 본문 구조는 [`templates/issue-brief.md`](templates/issue-brief.md)를 템플릿으로 사용한다.
 - Issue Brief 생성 직전 형식 검증은 [`../../scripts/check_issue_body.mjs`](../../scripts/check_issue_body.mjs)를 사용한다.
 - 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`../../docs/plugin/terms.md`](../../docs/plugin/terms.md)를 확인한다.
@@ -48,7 +48,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 - Blocked by: 없음 또는 blocking issue 링크
 - Out of scope
 - parent issue 여부
-- Project target 과 필드 옵션. Project `Status`, Project `IssueType`, Project `Priority` 를 확인할 수 없으면 추측하지 않는다.
+- 선택적 Project target 과 field option. Project 는 사람용 파생 뷰이므로 확인할 수 없으면 추측하지 않고 issue/label 등록만 진행한다.
 
 ## 절차
 
@@ -71,7 +71,7 @@ gh issue list --state open --search "<핵심 키워드>" --json number,title,lab
 - granularity 가 너무 크거나 작지 않은가?
 - dependency 관계가 맞는가?
 - HITL/AFK 분류가 맞는가?
-- Project `IssueType` 값이 맞는가?
+- IssueType label 값이 맞는가?
 - Priority 는 맥락에서 추론한다 — 매번 되묻지 않는다. 추론 신호가 상충하거나 사용자가 특정 우선순위를 의도한 정황이 있을 때만 확인한다.
 
 여러 issue 로 나눠야 하면 numbered list 로 vertical slice 초안을 먼저 보여주고, 사용자가 breakdown 을 승인한 뒤 각 slice 의 Issue Brief 를 작성한다.
@@ -90,15 +90,16 @@ issue 생성 전 [`templates/issue-brief.md`](templates/issue-brief.md)를 읽�
 
 - title
 - IssueType / Priority (Priority 는 추론값과 추론 근거를 함께 표기. 사용자가 교정하면 그 값을 반영)
-- repo label: Project `IssueType`과 같은 repo label
-- Project field update: `Status=Todo`, Project `IssueType`, Project `Priority`
+- repo label: IssueType 과 같은 repo label
+- lifecycle state: open issue + `in-progress` label 없음 (`Todo`)
+- optional Project backfill: Project 좌표가 있으면 `Status=Todo`, Project `IssueType`, Project `Priority`
 - parent issue: 있으면 참조만 하고 닫거나 임의 수정하지 않는다
 
 사용자가 명시적으로 승인하기 전에는 GitHub issue 를 만들지 않는다. 승인 전에는 GitHub issue 를 만들지 않는다. 승인을 거절하면 초안을 수정하고 다시 보여준다.
 
 ### Step 5 — 등록과 검증
 
-등록 전 preflight 로 Issue Brief 본문, repo label, Project field/option 이 실제 존재하는지 확인한다. 보드(Project)나 field/option 이 없거나 불완전하면 issue 생성을 멈추지 말고, 사용자에게 보드를 지금 만들거나 채울지 물어본다. 동의하면 `node scripts/github_project_lifecycle.mjs bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 를 먼저) 로 셋업하고, 좌표를 `gh variable set DCNESS_PROJECT_NUMBER --body <number>` / `gh variable set DCNESS_PROJECT_OWNER --body <owner>` 로 저장한 뒤 등록한다. 거부하면 보드 없이 issue 만 생성한다. 어떤 경우에도 issue 생성 자체는 막지 않는다.
+등록 전 preflight 로 Issue Brief 본문과 repo label 이 실제 계약에 맞는지 확인한다. Project field/option 은 선택적 backfill 대상이다. 보드(Project)나 field/option 이 없거나 불완전하면 issue 생성을 멈추지 말고, 사용자가 원할 때만 `node scripts/github_project_lifecycle.mjs bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 를 먼저) 로 셋업하고, 좌표를 `gh variable set DCNESS_PROJECT_NUMBER --body <number>` / `gh variable set DCNESS_PROJECT_OWNER --body <owner>` 로 저장한 뒤 Project 등록을 backfill 한다. 거부하면 보드 없이 issue 만 생성한다. 어떤 경우에도 Project 상태는 issue 생성 자체를 막지 않는다.
 
 승인 후에만 생성한다.
 
@@ -112,7 +113,7 @@ gh issue create --title "<title>" --body-file <brief.md> --label "<IssueType>"
 
 validator 실패 시 `gh issue create` 를 실행하지 않는다. 실제 issue 생성 preflight 는 `--labels` 를 함께 넘겨 label 계약까지 검증하고, 본문 초안만 점검할 때만 `--body-only` 를 명시한다. 실패 메시지가 지적한 section, IssueType/Priority 값, repo label 매핑을 고친 뒤 다시 검증한다.
 
-보드 좌표가 있으면(또는 위에서 셋업했으면) 생성된 issue 를 Project 보드에 등록한다. `register-issue` 가 item 추가(없으면 add, 멱등) + `Status=Todo` + 선택한 `IssueType` + 추론·확정한 `Priority` 설정 + drift 사후검증을 한 번에 처리한다. Project field 와 option id 는 스크립트가 `gh project field-list` 로 조회한 실제 값만 사용한다. `--priority` 에는 추론·확정한 Priority 를 항상 명시한다 — 생략하면 `register-issue` 가 스크립트 기본값(major)으로 fallback 하므로, 단발 등록에서는 생략하지 않는다 (epic/story 일괄 생성만 그 fallback 에 의존한다).
+보드 좌표가 있으면(또는 위에서 셋업했으면) 생성된 issue 를 Project 보드에 선택 등록한다. `register-issue` 가 item 추가(없으면 add, 멱등) + `Status=Todo` + 선택한 `IssueType` + 추론·확정한 `Priority` 설정 + drift 사후검증을 한 번에 처리한다. Project field 와 option id 는 스크립트가 `gh project field-list` 로 조회한 실제 값만 사용한다. `--priority` 에는 추론·확정한 Priority 를 항상 명시한다 — 생략하면 `register-issue` 가 스크립트 기본값(major)으로 fallback 하므로, 단발 등록에서는 생략하지 않는다 (epic/story 일괄 생성만 그 fallback 에 의존한다).
 
 ```bash
 node scripts/github_project_lifecycle.mjs register-issue \
@@ -131,6 +132,14 @@ node scripts/github_project_lifecycle.mjs register-issue \
 gh issue view <number> --json number,title,labels,url
 node scripts/github_project_lifecycle.mjs validate-issue \
   --repo <owner/repo> \
+  --issue <number>
+```
+
+Project backfill 을 수행한 경우에만 Project 기대값도 함께 검증한다.
+
+```bash
+node scripts/github_project_lifecycle.mjs validate-issue \
+  --repo <owner/repo> \
   --owner <owner> \
   --project <project-number> \
   --issue <number> \
@@ -139,4 +148,4 @@ node scripts/github_project_lifecycle.mjs validate-issue \
   --expected-priority "<Priority>"
 ```
 
-등록된 issue 는 Project 에 추가되고 `Status=Todo`, 선택한 `IssueType`, 선택한 `Priority` 를 가져야 한다. 등록된 issue 는 Project `IssueType`과 같은 repo label 을 가져야 한다. 저장 실패나 Project field 반영 실패 상황에서 성공 안내를 하지 않는다. 보드 미연결로 등록을 건너뛰었거나, issue 는 생성됐지만 Project 반영이 실패했다면 partial state 를 명확히 말하고 필요한 후속 조치만 제안한다.
+등록된 issue 는 선택한 IssueType repo label 을 정확히 하나 가져야 하며, Priority 는 Issue Brief 본문에 남아야 한다. Project backfill 을 수행한 경우에만 Project `Status=Todo`, 선택한 `IssueType`, 선택한 `Priority` 반영까지 확인한다. 저장 실패나 Project field 반영 실패 상황에서 Project까지 성공했다고 안내하지 않는다. 보드 미연결로 등록을 건너뛰었거나, issue 는 생성됐지만 Project 반영이 실패했다면 partial state 를 명확히 말하고 필요한 후속 조치만 제안한다.

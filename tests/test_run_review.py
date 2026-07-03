@@ -721,8 +721,8 @@ class ContextAuditTests(unittest.TestCase):
                 "## Environment\n- Record required runtime versions.\n\n"
                 "## Testing\n- Keep test commands copy-pasteable.\n\n"
                 "## Gotchas\n- Capture repeated mistakes and known issues.\n\n"
-                "## Workflow\n- Use `/next` before choosing follow-up work.\n\n"
-                "## dcNess Cold Start\n- 다음 작업 후보 확인: `/next`\n",
+                "## Workflow\n- Use `/next-work` before choosing follow-up work.\n\n"
+                "## dcNess Cold Start\n- 다음 작업 후보 확인: `/next-work`\n",
                 encoding="utf-8",
             )
             (tmp / "AGENTS.md").write_text(

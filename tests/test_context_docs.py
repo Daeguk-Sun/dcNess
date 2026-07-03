@@ -34,8 +34,8 @@ class ContextDocsTests(unittest.TestCase):
             self.assertIn("## Gotchas", text)
             self.assertIn("## Workflow", text)
             self.assertIn(COLD_START_TITLE, text)
-            self.assertIn("`/next`", text)
-            self.assertIn("gh variable get DCNESS_PROJECT_NUMBER", text)
+            self.assertIn("`/next-work`", text)
+            self.assertIn("GitHub issue open/closed 상태", text)
             self.assertLess(len(text.splitlines()), 200)
             self.assertNotRegex(text, r"TODO|TBD|<TODO>|<TBD>")
             self.assertIn("created", result.actions)
@@ -98,7 +98,7 @@ class ContextDocsTests(unittest.TestCase):
                     "- Keep generated files out of source.",
                     "",
                     COLD_START_TITLE,
-                    "- 다음 작업 후보 확인: `/next`",
+                    "- 다음 작업 후보 확인: `/next-work`",
                     "",
                 ]),
                 encoding="utf-8",

@@ -7,14 +7,14 @@
 #   3. epic 이슈 1 생성 → stories.md 에 번호 씀
 #   4. story 이슈 N 순차 생성 → stories.md 에 번호 + 하단 표 씀
 #   5. sub-issue API 호출 (epic ↔ story N 연결, GitHub native sub-issue API)
-#   6. GitHub Project 보드 등록 (Status=Todo, IssueType=epic/story, Priority=major) — 좌표 있을 때
+#   6. 선택적 GitHub Project backfill (Status=Todo, IssueType=epic/story, Priority=major) — 좌표 있을 때
 #   7. 결과 prose 출력
 #
-# 보드 등록은 비대화형 best-effort: 좌표(--project/--owner, DCNESS_PROJECT_* env,
-# gh variable) 를 못 구하면 보드 등록만 skip 하고 이슈는 항상 생성한다. 대화형 보드
+# Project backfill 은 비대화형 best-effort: 좌표(--project/--owner, DCNESS_PROJECT_* env,
+# gh variable) 를 못 구하면 backfill 만 skip 하고 이슈는 항상 생성한다. 대화형 보드
 # 셋업(없으면 만들지 물어보기)은 메인 Claude 가 이 스크립트 호출 전에 담당한다.
 #
-# SSOT: docs/plugin/issue-lifecycle.md 의 이슈 계층 + GitHub Project lifecycle
+# SSOT: docs/plugin/issue-lifecycle.md 의 이슈 계층 + issue/label lifecycle
 #
 # 사용:
 #   create_epic_story_issues.sh docs/epics/epic-NN-<slug>/stories.md   # epic 단위 (표준)
@@ -72,7 +72,7 @@ if [ -z "$PROJECT_OWNER" ]; then PROJECT_OWNER="${REPO%%/*}"; fi
 
 LIFECYCLE_MJS="$(dirname "$0")/github_project_lifecycle.mjs"
 
-# register_board [mode] — 생성/backfill 한 epic+story 이슈를 GitHub Project 보드에 등록.
+# register_board [mode] — 생성/backfill 한 epic+story 이슈를 선택적 GitHub Project 보드에 등록.
 # epic → IssueType=epic / story → IssueType=story. 신규 등록 시 Status=Todo, Priority=major.
 # mode="backfill" (멱등 재실행) → --preserve-existing: 이미 보드에 있는 item 의 triage 상태
 #   (In progress/Done/바뀐 priority)를 Todo/major 로 되돌리지 않고 보존, 비어있는 필드만 채움 (#669).
@@ -332,7 +332,7 @@ for SID in "${STORY_IDS[@]}"; do
 done
 echo "[issue-create] sub-issue 연결 완료 — $LINKED / ${#STORY_IDS[@]}"
 
-# 보드 등록 — 생성한 epic+story 이슈를 GitHub Project 보드에 등록 (좌표 있을 때)
+# 선택적 보드 등록 — 생성한 epic+story 이슈를 GitHub Project 보드에 등록 (좌표 있을 때)
 register_board
 
 # 결과 prose

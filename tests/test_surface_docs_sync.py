@@ -187,21 +187,21 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.issue_lifecycle,
         )
         self.assertIn(
-            "조회 우선순위: `--project`/`--owner` 플래그",
+            "GitHub Project v2 보드는 선택적 사람용 파생 뷰",
             self.issue_lifecycle,
+        )
+        self.assertNotIn(
+            "issue-lifecycle.md#github-project-status-lifecycle",
+            self.github_project,
         )
         self.assertNotIn(
             "node scripts/github_project_lifecycle.mjs register-issue",
             self.github_project,
         )
-        self.assertNotIn(
-            "조회 우선순위: `--project`/`--owner` 플래그",
-            self.github_project,
-        )
-        self.assertIn("issue-lifecycle.md#github-project-status-lifecycle", self.github_project)
+        self.assertIn("issue-lifecycle.md#issuelabel-status-lifecycle", self.github_project)
         self.assertNotIn("좌표(owner/number)", self.spec_delivery_reference)
         self.assertIn(
-            "issue-lifecycle.md#github-project-status-lifecycle",
+            "issue-lifecycle.md#issuelabel-status-lifecycle",
             self.spec_delivery_reference,
         )
 

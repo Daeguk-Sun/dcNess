@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# setup_labels.sh — dcNess IssueType 동기 GitHub label 생성
-# Project IssueType 과 repo label 이 같은 분류 체계를 쓰도록 표준 6종을 생성/갱신한다.
+# setup_labels.sh — dcNess lifecycle GitHub label 생성
+# IssueType repo label 6종과 작업 중 상태 label in-progress 를 생성/갱신한다.
 #
 # 사용:
 #   bash scripts/setup_labels.sh [<owner/repo>]
@@ -34,5 +34,6 @@ _upsert_label "story"   "0e8a16" "story-level GitHub issue"
 _upsert_label "task"    "c5def5" "task-level GitHub issue"
 _upsert_label "subTask" "bfdadc" "subTask-level GitHub issue"
 _upsert_label "bug"     "d73a4a" "bug-level GitHub issue"
+_upsert_label "in-progress" "fbca04" "dcNess lifecycle status: work is currently in progress"
 
-echo "[setup_labels] 완료 — IssueType label 6종"
+echo "[setup_labels] 완료 — lifecycle label 7종"

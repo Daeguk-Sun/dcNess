@@ -6,9 +6,9 @@ const SECTION_TITLE = '## 진행 상태 · 다음 작업';
 const SECTION_BODY = [
   SECTION_TITLE,
   '',
-  '- 진행 상태 진본: GitHub Project 보드의 Status(Todo / In progress / Done)',
+  '- 진행 상태 진본: GitHub issue open/closed 상태 + `in-progress` label',
   '- 작업 단위: GitHub epic/story issue 와 PR',
-  '- 콜드스타트 다음 작업 확인: `/next`',
+  '- 콜드스타트 다음 작업 확인: `/next-work`',
 ].join('\n');
 
 const root = process.argv[2] ? path.resolve(process.argv[2]) : process.cwd();

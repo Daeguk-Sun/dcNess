@@ -53,9 +53,10 @@ class GithubProjectLifecycleDocsTests(unittest.TestCase):
         for value in ("epic", "feature", "story", "task", "subTask", "bug"):
             self.assertIn(f"`{value}`", self.issue_fields)
             self.assertIn(f"_upsert_label \"{value}\"", self.setup_labels)
+        self.assertIn("_upsert_label \"in-progress\"", self.setup_labels)
 
-        self.assertIn("repo label 6종", self.project_doc.read_text(encoding="utf-8"))
-        self.assertIn("IssueType 축과 같은 의미", self.issue_fields)
+        self.assertIn("lifecycle repo label 7종", self.project_doc.read_text(encoding="utf-8"))
+        self.assertIn("IssueType repo label 6종", self.issue_fields)
 
     def test_init_dcness_checks_project_and_label_bootstrap(self) -> None:
         text = self.init_dcness + "\n" + self.init_reference
@@ -63,35 +64,35 @@ class GithubProjectLifecycleDocsTests(unittest.TestCase):
         self.assertIn("GitHub Project lifecycle bootstrap", text)
         self.assertIn("scripts/github_project_lifecycle.mjs bootstrap", text)
         self.assertIn("Status / IssueType / Priority", text)
-        self.assertIn("repo label 6종", text)
+        self.assertIn("lifecycle repo label 7종", text)
         self.assertIn("Project가 없거나 필드가 부족", text)
-        self.assertIn("repo label이 부족", text)
+        self.assertIn("label 이 부족", text)
         self.assertIn("--apply", text)
         self.assertIn("다른 repo", text)
 
     def test_to_issue_contract_references_project_lifecycle_ssot(self) -> None:
         self.assertIn("[`../../docs/plugin/github-project.md`]", self.issue_fields)
-        self.assertIn("Status=Todo", self.to_issue)
+        self.assertIn("open issue + `in-progress` label 없음", self.to_issue)
         self.assertIn("scripts/github_project_lifecycle.mjs validate-issue", self.to_issue)
-        self.assertIn("--expected-status Todo", self.to_issue)
+        self.assertIn("Project backfill 을 수행한 경우", self.to_issue)
         self.assertIn("--expected-issue-type", self.to_issue)
         self.assertIn("--expected-priority", self.to_issue)
-        self.assertIn("Project `IssueType`과 같은 repo label", self.to_issue)
+        self.assertIn("IssueType repo label", self.to_issue)
 
     def test_work_start_and_pr_merge_lifecycle_are_documented(self) -> None:
         text = self.issue_lifecycle
 
-        self.assertIn("Status=In progress", text)
+        self.assertIn("in-progress` label", text)
         self.assertIn("scripts/github_project_lifecycle.mjs start-work", text)
         self.assertIn("/spec", text)
         self.assertIn("/design", text)
         self.assertIn("/impl", text)
-        self.assertIn("Status=Done", text)
+        self.assertIn("close 를 발동", text)
         self.assertIn("scripts/github_project_lifecycle.mjs pr-merged", text)
         self.assertIn("Part of #N", text)
         self.assertIn("완료 신호가 아니다", text)
-        self.assertRegex(text, r"(?s)status drift.+어떤 issue.+어떤 field")
-        self.assertRegex(text, r"(?s)IssueType.+repo label.+어떤 issue.+어떤 값")
+        self.assertRegex(text, r"(?s)closed issue.+in-progress")
+        self.assertIn("IssueType repo label 을 정확히 하나", text)
 
     def test_priority_inference_policy_differs_single_vs_bulk(self) -> None:
         """Project SSOT must distinguish single /to-issue inference from bulk major-pin (#676)."""

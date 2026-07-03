@@ -198,7 +198,7 @@ support:
 
 유틸리티:
 - /ux — 구현 없이 목업과 흐름을 먼저 탐색
-- /next — GitHub Project 보드에서 In progress 와 다음 Todo 후보 조회
+- /next-work — GitHub issue/label 에서 진행 중 작업과 다음 후보 조회
 - /smart-compact — 컨텍스트 압축 + resume prompt
 - /run-review — run 사후 분석
 - /efficiency — 세션 토큰/비용 분석
@@ -432,7 +432,7 @@ for FILE in .gitignore _lib/show-ids.js _lib/canvas.js canvas.html drafts/.gitke
 done
 ```
 
-GitHub Project lifecycle bootstrap 을 명시 선택한 경우 `Status / IssueType / Priority` 축과 repo label 6종을 점검한다.
+GitHub Project lifecycle bootstrap 을 명시 선택한 경우 `Status / IssueType / Priority` 축과 lifecycle repo label 7종(`IssueType` 6종 + `in-progress`)을 점검한다.
 
 ```bash
 REPO="$(gh repo view --json nameWithOwner -q .nameWithOwner)"
@@ -448,7 +448,7 @@ gh variable set DCNESS_PROJECT_NUMBER --body "$PROJECT_NUMBER"
 gh variable set DCNESS_PROJECT_OWNER --body "$OWNER"
 ```
 
-필드나 label 이 부족하면 사용자의 명시 동의를 받은 뒤 `--apply` 로 생성/갱신한다.
+필드나 label 이 부족하면 사용자의 명시 동의를 받은 뒤 `--apply` 로 생성/갱신한다. `in-progress` label 은 보드 없이도 작업 시작/종료 전이에 쓰이는 기계 SSOT 다.
 
 ```bash
 node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \

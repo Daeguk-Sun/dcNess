@@ -1464,7 +1464,7 @@ def check_bash_mutation(command: str) -> Optional[str]:
 
     차단: `git push`, `gh pr (create|merge|...)`, `gh issue (create|edit|close|comment|...)`,
           `gh api` (mutating method / field flag), main-owned `dcness-helper`
-          서브커맨드 (begin-run/end-run/next-task/post-task-begin/finalize-run/ledger-event/
+          서브커맨드 (begin-run, end-run, next-task, post-task-begin, finalize-run, ledger-event,
           init-session/prev-tasks-reset/wave-claim/merge-lock 등), main-owned wrapper
           scripts (`pr-create.sh` / `pr-finalize.sh`).
     통과: read-only (`gh pr view`, `gh issue list`, `gh api` GET, `dcness-helper run-dir`,

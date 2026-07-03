@@ -12,7 +12,7 @@ skill 트리거 또는 직접 발화 → 메인 Claude 가 **해당 skill 의 `#
 
 - **skill 경유**: skill 본문이 loop spec 진본 (예: impl-task-loop = [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)). skill 은 input 정형화 + 분기 추천. 절차는 본 SSOT.
 - **직접 발화** ("이거 impl 로 가자"): 각 loop skill 의 `## Loop` + `<skill>-routing.md` 보고 메인이 자율 구성. 단 `begin-run` 이후 active run 안의 `Agent` 호출은 아래 표준 1 step 시퀀스가 PreToolUse hook 으로 강제된다.
-- **SessionStart inject** (#596): *최소 활성 안내만* 매 세션 노출 — dcness 활성 사실 + 코드 강제 gate 가 켜져 있다는 안내 + hook-first recovery 원칙. 문서 진입 매트릭스·절차·분기 규칙은 **미주입** (skill 진입 시 해당 skill 이 안내, 위반 복구는 각 blocking hook 메시지가 그 자리에서 제공). 예외적으로 프로젝트 상태나 다음 작업 질문에는 `docs/index.md` 와 `## 진행 상태 · 다음 작업` 섹션이 실제로 있을 때만 해당 포인터를 안내하고, 없으면 `/next` 우선 조회와 `/init-dcness` 보강 경로를 안내한다. 첫 응답 첫 줄 `[dcness 활성 확인]` 토큰.
+- **SessionStart inject** (#596): *최소 활성 안내만* 매 세션 노출 — dcness 활성 사실 + 코드 강제 gate 가 켜져 있다는 안내 + hook-first recovery 원칙. 문서 진입 매트릭스·절차·분기 규칙은 **미주입** (skill 진입 시 해당 skill 이 안내, 위반 복구는 각 blocking hook 메시지가 그 자리에서 제공). 예외적으로 프로젝트 상태나 다음 작업 질문에는 `docs/index.md` 와 `## 진행 상태 · 다음 작업` 섹션이 실제로 있을 때만 해당 포인터를 안내하고, 없으면 `/next-work` issue/label 조회와 `/init-dcness` 보강 경로를 안내한다. 첫 응답 첫 줄 `[dcness 활성 확인]` 토큰.
 
 ---
 
@@ -283,7 +283,7 @@ validator (`code-validator` / `architecture-validator` / `pr-reviewer`) 의 FAIL
 | Step 7 주의사항 (NICE TO HAVE only, MUST FIX 0) | 사용자 위임 | 7a 자동 |
 | 중대 차단 룰 | hard safety | hard safety (yolo 우회 X) |
 
-auto-resolve 의 실제 action/hint/next_enum 매핑 진본 = helper 코드 `session_state.py`:
+auto-resolve 의 실제 action, hint, next_enum 매핑 진본 = helper 코드 `session_state.py`:
 
 ```bash
 RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")

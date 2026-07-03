@@ -41,7 +41,7 @@ PR merge 와 main sync 를 확인한 뒤에만 완료를 보고한다. 후속 `/
 
 - 대상 화면/플로우 (PRD 화면 인벤토리, epic `ux-flow.md`, 또는 사용자 지정)
 - (UX_REFINE) 개선 대상 기존 화면이나 확정 목업 경로
-- (선택) GitHub issue 번호 — 대상이 있으면 시작 전 [`../../docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle)에 따라 Project `Status=In progress` 로 이동한다.
+- (선택) GitHub issue 번호 — 대상이 있으면 시작 전 [`../../docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#issuelabel-status-lifecycle)에 따라 `in-progress` label 을 붙인다.
 
 ## 비대상
 

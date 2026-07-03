@@ -342,7 +342,7 @@ def audit_context_docs(
                 pattern="CLAUDE_COLD_START_ANCHOR_MISSING",
                 severity="CANDIDATE",
                 source="CLAUDE.md",
-                detail="dcNess Cold Start 앵커가 없어 다음 작업과 live 보드 조회 경로가 세션 시작 문서에 없습니다.",
+                detail="dcNess Cold Start 앵커가 없어 다음 작업과 live issue/label 조회 경로가 세션 시작 문서에 없습니다.",
                 suggestion="/init-dcness 는 기존 내용을 변경하지 않고 앵커만 append 할 수 있습니다.",
             ))
         if claude_audit.total_score < 90:

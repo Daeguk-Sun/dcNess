@@ -1,5 +1,5 @@
 name: 'dcness GitHub Project lifecycle'
-description: 'Validate or update dcNess GitHub Project v2 Status, IssueType, Priority lifecycle.'
+description: 'Validate or update dcNess issue/label lifecycle with optional GitHub Project v2 compatibility.'
 inputs:
   mode:
     description: 'bootstrap, validate-issue, start-work, or pr-merged'
@@ -8,11 +8,13 @@ inputs:
     description: 'OWNER/REPO'
     required: true
   project-owner:
-    description: 'GitHub Project owner'
-    required: true
+    description: 'Optional GitHub Project owner'
+    required: false
+    default: ''
   project-number:
-    description: 'GitHub Project number'
-    required: true
+    description: 'Optional GitHub Project number'
+    required: false
+    default: ''
   issue-number:
     description: 'Issue number for validate-issue or start-work'
     required: false
@@ -38,7 +40,7 @@ inputs:
     required: false
     default: 'false'
   gh-token:
-    description: 'GitHub token with project scope (gh project read/write). 호출 워크플로에서 secrets.DCNESS_PROJECT_TOKEN || github.token 전달.'
+    description: 'GitHub token with issues write; project scope is only needed for optional Project v2 compatibility.'
     required: false
     default: ''
 runs:
@@ -69,9 +71,13 @@ runs:
         ARGS=(
           "$INPUT_MODE"
           --repo "$INPUT_REPO"
-          --owner "$INPUT_PROJECT_OWNER"
-          --project "$INPUT_PROJECT_NUMBER"
         )
+        if [ -n "$INPUT_PROJECT_OWNER" ]; then
+          ARGS+=(--owner "$INPUT_PROJECT_OWNER")
+        fi
+        if [ -n "$INPUT_PROJECT_NUMBER" ]; then
+          ARGS+=(--project "$INPUT_PROJECT_NUMBER")
+        fi
         if [ -n "$INPUT_ISSUE_NUMBER" ]; then
           ARGS+=(--issue "$INPUT_ISSUE_NUMBER")
         fi

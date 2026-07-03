@@ -96,11 +96,10 @@ def has_cold_start_anchor(text: str) -> bool:
 def build_cold_start_anchor() -> str:
     return "\n".join([
         COLD_START_SECTION_TITLE,
-        "- 다음 작업 후보 확인: `/next`",
+        "- 다음 작업 후보 확인: `/next-work`",
         "- 진행 상태 문서: docs/index.md 의 진행 상태 섹션을 사용합니다.",
-        "- live 보드 좌표 확인: `gh variable get DCNESS_PROJECT_OWNER`",
-        "- live 보드 번호 확인: `gh variable get DCNESS_PROJECT_NUMBER`",
-        "- 보드 좌표가 없으면 `/init-dcness` custom Project bootstrap 을 실행합니다.",
+        "- live 상태 진본: GitHub issue open/closed 상태 + `in-progress` label",
+        "- 보드는 선택적 파생 뷰입니다. 필요할 때만 `/init-dcness` custom Project bootstrap 을 실행합니다.",
     ])
 
 
@@ -184,7 +183,7 @@ def build_claude_seed(repo_path: Path) -> str:
         "",
         "## Workflow",
         "- dcNess 시작: `/spec`, `/design`, `/impl`, `/acceptance` 중 작업 성격에 맞게 진입합니다.",
-        "- 다음 작업 확인은 `/next` 를 우선 사용합니다.",
+        "- 다음 작업 확인은 `/next-work` 를 우선 사용합니다.",
         "",
         build_cold_start_anchor(),
         "",

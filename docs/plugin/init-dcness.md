@@ -122,9 +122,9 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 
 - 대상 경로: `.github/workflows/github-project-lifecycle.yml`
 - 템플릿: [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml)
-- 역할: `alruminum/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue drift 를 검출하고 merged PR 의 완료 후보 issue 를 Project Status `Done` 으로 보정한다.
+- 역할: `alruminum/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue drift 를 검출하고 merged PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 전환기 호환으로 Project Status `Done` 보정도 함께 수행한다.
 
-Project v2 쓰기에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없으면 drift 검출 중심으로 실패 메시지를 남기며, owner type 판별은 graceful degrade 한다.
+`in-progress` label 제거에는 `issues: write` 권한이 필요하다. Project v2 쓰기에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없으면 Project 보정은 graceful degrade 하되 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
 
 ## Project Bootstrap Commands
 
@@ -146,7 +146,7 @@ gh variable set DCNESS_PROJECT_NUMBER --body "$PROJECT_NUMBER"
 gh variable set DCNESS_PROJECT_OWNER --body "$OWNER"
 ```
 
-Project가 없거나 필드가 부족하면 생성 또는 복구 안내를 제공한다. repo label이 부족하면 `--apply` 로 생성/갱신할 수 있다. 기존 Project field 의 option 이 부족한 경우는 GitHub CLI 제한 때문에 script 가 복구 안내를 내고 멈춘다. 다른 repo 에 적용할 때도 `--repo`, `--owner`, `--project` 값을 바꿔 같은 bootstrap 경로를 사용한다.
+Project가 없거나 필드가 부족하면 생성 또는 복구 안내를 제공한다. lifecycle repo label 7종(`IssueType` 6종 + `in-progress`)이 부족하면 `--apply` 로 생성/갱신할 수 있다. 기존 Project field 의 option 이 부족한 경우는 GitHub CLI 제한 때문에 script 가 복구 안내를 내고 멈춘다. 다른 repo 에 적용할 때도 `--repo`, `--owner`, `--project` 값을 바꿔 같은 bootstrap 경로를 사용한다.
 
 ```bash
 node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
