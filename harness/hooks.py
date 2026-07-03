@@ -41,6 +41,7 @@ from harness.session_state import (
     read_live,
     read_pid_current_run,
     record_fail_open_event,
+    run_prose_has_pass,
     session_dir,
     update_live,
     valid_cc_pid,
@@ -1157,20 +1158,13 @@ def _read_or_empty(path: Path) -> str:
 
 
 def _has_pass(rd: Path, agent: str) -> bool:
-    """`<agent>.md` 또는 `<agent>-N.md` (occurrence) 안 PASS 마커 확인.
+    """end-step 이 만들 수 있는 agent prose 파일 전체에서 PASS 마커 확인.
 
     8 agent enum 통일 (PR B-3) 후 모든 catastrophic 검사가 PASS 단일 마커.
-    occurrence 명명 규약(signal_io.signal_path): 첫 호출 = `<agent>.md`,
-    2번째 호출(첫 재호출) = `<agent>-1.md`, 3번째 = `-2.md` ... 이므로 재호출
-    PASS 탐색은 `-1.md` 부터 빠짐없이 봐야 한다. 첫 재호출(`-1.md`)을 건너뛰면
-    "1차 FAIL → 재검증 PASS" 흐름의 게이트가 오차단된다(#797 off-by-one).
+    판정 구현은 provider-agnostic begin-step 게이트와 같은
+    `session_state.run_prose_has_pass` 를 사용한다.
     """
-    if "PASS" in _read_or_empty(rd / f"{agent}.md"):
-        return True
-    for n in range(1, 10):
-        if "PASS" in _read_or_empty(rd / f"{agent}-{n}.md"):
-            return True
-    return False
+    return run_prose_has_pass(rd, agent)
 
 
 def _has_engineer_write(rd: Path) -> bool:
@@ -1178,27 +1172,8 @@ def _has_engineer_write(rd: Path) -> bool:
 
 
 def _has_module_architect_pass(rd: Path) -> bool:
-    """module-architect prose PASS — 무모드 / occurrence / mode-suffixed 모두 인정 (#701).
-
-    moded step 의 prose 파일명은 `<agent>-<MODE>.md` 라서, `/impl` Standard 의
-    `module-architect:COMPACT_PLAN` PASS 는 `module-architect-COMPACT_PLAN.md`
-    에 기록된다 — `_has_pass` 의 occurrence 카운터(-2..-9)만으로는 못 읽어
-    engineer 게이트가 false-block 했다(#700 에서 #701 로 이연된 Finding C).
-
-    engineer 게이트 전용 helper — pr-reviewer 게이트의 code-validator 는 mode
-    별 의미가 달라(PLAN_VALIDATION ≠ CODE_VALIDATION) 일괄 glob 을 적용하면
-    plan 단계 PASS 가 code 검증을 대신하는 새 구멍이 생긴다. `_has_pass` 는
-    그대로 둔다.
-    """
-    if "PASS" in _read_or_empty(rd / "module-architect.md"):
-        return True
-    try:
-        for prose in rd.glob("module-architect-*.md"):
-            if "PASS" in _read_or_empty(prose):
-                return True
-    except OSError:
-        pass
-    return False
+    """module-architect prose PASS — end-step 파일명 표기 전체 인정 (#701/#870)."""
+    return run_prose_has_pass(rd, "module-architect")
 
 
 def _run_design_doc_exists(

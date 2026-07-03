@@ -75,6 +75,8 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 
 **역할**: 작업 순서 보호와 active run 의 `begin-step -> Agent/headless worker -> end-step` 물리 순서를 강제한다. engineer/build-worker / pr-reviewer / module-architect 순서 불변식은 provider 와 무관하게 같은 판정 함수를 쓴다.
 
+PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉 `<agent>.md`, 재호출 occurrence 인 `<agent>-1.md`, mode-suffix 인 `<agent>-MODE.md`, mode 재호출인 `<agent>-MODE-1.md` 안의 `PASS` 모두 같은 agent 의 완료 증거로 인정한다.
+
 | Gate | 차단 조건 |
 |---|---|
 | pr-reviewer gate | engineer 산출물이 있는데 code-validator PASS 없이 pr-reviewer 호출 |

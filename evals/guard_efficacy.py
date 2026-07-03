@@ -136,6 +136,7 @@ def _begin_step_order_gate(
     lane: str | None = None,
     engineer_output: bool = False,
     code_validator_pass: bool = False,
+    code_validator_mode_pass: bool = False,
 ) -> Probe:
     def probe() -> tuple[Decision, str]:
         sid = "eval-sid"
@@ -149,6 +150,12 @@ def _begin_step_order_gate(
                 _write_file(rd, "engineer.md", "implementation\n\nPASS\n")
             if code_validator_pass:
                 _write_file(rd, "code-validator.md", "validated\n\nPASS\n")
+            if code_validator_mode_pass:
+                _write_file(
+                    rd,
+                    "code-validator-CODE_VALIDATION.md",
+                    "validated\n\nPASS\n",
+                )
             message = evaluate_order_gate_for_step(
                 sid, rid, agent, mode, base_dir=base,
             )
@@ -479,6 +486,17 @@ def build_cases() -> list[GuardCase]:
                 "pr-reviewer",
                 engineer_output=True,
                 code_validator_pass=True,
+            ),
+        ),
+        GuardCase(
+            "begin_step_allows_pr_reviewer_after_code_validator_mode_pass",
+            "provider-agnostic-order-gate",
+            "allow",
+            "pr-reviewer starts after mode-suffixed code-validator PASS in headless path.",
+            _begin_step_order_gate(
+                "pr-reviewer",
+                engineer_output=True,
+                code_validator_mode_pass=True,
             ),
         ),
         GuardCase(

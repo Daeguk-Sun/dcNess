@@ -76,6 +76,7 @@ __all__ = [
     "update_current_step",
     "clear_current_step",
     "evaluate_order_gate_for_step",
+    "run_prose_has_pass",
     "set_pending_agent",
     "clear_pending_agent",
     "complete_run",
@@ -747,14 +748,42 @@ def _read_or_empty(path: Path) -> str:
         return ""
 
 
-def _run_prose_has_pass(rd: Path, agent: str) -> bool:
-    """`<agent>.md` 또는 occurrence prose 안 PASS 마커 확인."""
-    if "PASS" in _read_or_empty(rd / f"{agent}.md"):
-        return True
-    for n in range(1, 10):
-        if "PASS" in _read_or_empty(rd / f"{agent}-{n}.md"):
+_PROSE_OCCURRENCE_SUFFIX_RE = re.compile(r"^[1-9][0-9]*$")
+_PROSE_MODE_SUFFIX_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}(?:-[1-9][0-9]*)?$")
+
+
+def _run_prose_paths_for_agent(rd: Path, agent: str) -> list[Path]:
+    """Return prose paths that `signal_io.signal_path` can create for an agent."""
+    paths = [rd / f"{agent}.md"]
+    try:
+        for prose in sorted(rd.glob(f"{agent}-*.md")):
+            name = prose.name
+            suffix = name[len(agent) + 1:-3]
+            if (
+                _PROSE_OCCURRENCE_SUFFIX_RE.match(suffix)
+                or _PROSE_MODE_SUFFIX_RE.match(suffix)
+            ):
+                paths.append(prose)
+    except OSError:
+        pass
+    return paths
+
+
+def run_prose_has_pass(rd: Path, agent: str) -> bool:
+    """PASS marker lookup aligned with end-step prose filenames.
+
+    Accepted names are `<agent>.md`, numeric occurrence files such as
+    `<agent>-1.md`, mode-suffixed files such as `<agent>-CODE_VALIDATION.md`,
+    and mode occurrence files such as `<agent>-CODE_VALIDATION-1.md`.
+    """
+    for prose in _run_prose_paths_for_agent(rd, agent):
+        if "PASS" in _read_or_empty(prose):
             return True
     return False
+
+
+def _run_prose_has_pass(rd: Path, agent: str) -> bool:
+    return run_prose_has_pass(rd, agent)
 
 
 def _run_has_engineer_output(rd: Path) -> bool:
@@ -768,16 +797,8 @@ def _run_has_engineer_output(rd: Path) -> bool:
 
 
 def _run_has_module_architect_pass(rd: Path) -> bool:
-    """module-architect prose PASS — 무모드 / occurrence / mode-suffixed 모두 인정."""
-    if "PASS" in _read_or_empty(rd / "module-architect.md"):
-        return True
-    try:
-        for prose in rd.glob("module-architect-*.md"):
-            if "PASS" in _read_or_empty(prose):
-                return True
-    except OSError:
-        pass
-    return False
+    """module-architect prose PASS — end-step 파일명 표기 전체 인정."""
+    return run_prose_has_pass(rd, "module-architect")
 
 
 def _slot_for_run(
@@ -837,7 +858,7 @@ def _run_entry_point(
 
 def _module_architect_first_call(rd: Path) -> bool:
     """module-architect 첫 호출인지 — 기존 prose 파일 부재 검사."""
-    return not (rd / "module-architect.md").exists()
+    return not any(path.exists() for path in _run_prose_paths_for_agent(rd, "module-architect"))
 
 
 _IMPLEMENTATION_ORDER_GATE_AGENTS = frozenset({"engineer", "build-worker"})
@@ -3106,6 +3127,31 @@ def _append_step_status(
     ledger.append_step_completed(
         sid, rid, agent, mode, enum, prose, prose_path, provider=provider
     )
+    try:
+        if agent == "build-worker" and provider in {"codex-headless", "claude-headless"}:
+            from harness.run_review import _extract_conclusion_enum
+
+            if _extract_conclusion_enum(prose) == "VALIDATION_BLOCKED":
+                ledger.append_event(
+                    sid,
+                    rid,
+                    "blocked",
+                    agent=agent,
+                    mode=mode,
+                    provider=provider,
+                    category="headless_validation_blocked",
+                    prose_file=str(prose_path),
+                    detail=(
+                        "headless build-worker reported VALIDATION_BLOCKED; "
+                        "main must run the validation command fallback"
+                    ),
+                )
+    except Exception as exc:  # noqa: BLE001
+        record_fail_open_event(
+            hook="headless-validation-blocked-ledger",
+            category="metric_write_error",
+            detail=f"{type(exc).__name__}: {exc}",
+        )
 
 
 def _record_design_run_if_applicable(sid: str, rid: str) -> None:
