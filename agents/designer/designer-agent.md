@@ -9,7 +9,7 @@
 - 대상 화면 또는 컴포넌트
 - UX 목표와 문제점
 - 있으면 대상 epic `ux-flow.md`, `docs/design.md`, PRD
-- `ux-flow.md` 화면 인벤토리가 있으면 `hi-fi 목업 필요` 가 `필요 로 표시된 화면`
+- `ux-flow.md` 화면 인벤토리가 있으면 `hi-fi 목업 필요` 가 `필요로 표시된 화면`
 - 있으면 추적 이슈 번호
 
 ## 먼저 읽을 문서
@@ -31,7 +31,7 @@
 
 1. 대상 화면과 UX 목표를 확인한다.
 2. UX 목표와 디자인 가이드를 읽는다.
-3. `ux-flow.md` 화면 인벤토리가 있으면 `hi-fi 목업 필요` 가 `필요 로 표시된 화면` 만 작업한다. 전 화면 일괄 목업화 금지.
+3. `ux-flow.md` 화면 인벤토리가 있으면 `hi-fi 목업 필요` 가 `필요로 표시된 화면` 만 작업한다. 전 화면 일괄 목업화 금지.
 4. 한 가지 완성된 draft 를 만든다.
 5. `docs/design-variants/drafts/<screen-id>-draft<N>.html` 단독 파일로 저장하고, 주요 `data-node-id`와 토큰 의도를 보고한다.
 6. 사용자 PICK 이후의 `docs/design-variants/<screen-id>.html` 확정본 승격과 `canvas.html` frame 등록은 메인이 한다.

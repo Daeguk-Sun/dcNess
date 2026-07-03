@@ -53,7 +53,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 
 ## 결론과 보고
 
-마지막 단락에 `UX_FLOW_READY`, `UX_FLOW_PATCHED`, `UX_REFINE_READY`, `UX_FLOW_ESCALATE` 중 하나를 쓴다. 보고에는 갱신 문서, 화면 범위, self-check 결과, 다음 designer가 만들 HTML 시안 범위를 포함한다. designer 범위에는 `hi-fi 목업 필요` 가 `필요 로 표시된 화면` 만 적고, 전 화면 일괄 목업화 금지 원칙을 어기지 않는다.
+마지막 단락에 `UX_FLOW_READY`, `UX_FLOW_PATCHED`, `UX_REFINE_READY`, `UX_FLOW_ESCALATE` 중 하나를 쓴다. 보고에는 갱신 문서, 화면 범위, self-check 결과, 다음 designer가 만들 HTML 시안 범위를 포함한다. designer 범위에는 `hi-fi 목업 필요` 가 `필요로 표시된 화면` 만 적고, 전 화면 일괄 목업화 금지 원칙을 어기지 않는다.
 
 ## 템플릿과 참고 문서
 
