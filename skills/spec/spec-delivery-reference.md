@@ -6,7 +6,7 @@
 
 ```bash
 git checkout -b docs/<slug> main
-git add docs/prd.md docs/epics/epic-NN-<slug>/stories.md
+git add docs/prd.md docs/index.md docs/epics/epic-NN-<slug>/stories.md
 # preflight 를 실행했다면: git add docs/tech-review.md
 git commit -m "[docs] PRD 신규 / 변경 요약"
 git push -u origin docs/<slug>
@@ -20,7 +20,7 @@ bash "$PLUGIN_ROOT/scripts/pr-finalize.sh" <PR_NUMBER>
 git checkout -b feature/<slug> main
 git push -u origin feature/<slug>
 git checkout -b docs/<slug>_prd feature/<slug>
-git add docs/prd.md docs/epics/epic-NN-<slug>/stories.md
+git add docs/prd.md docs/index.md docs/epics/epic-NN-<slug>/stories.md
 # preflight 를 실행했다면: git add docs/tech-review.md
 git commit -m "[docs] PRD 신규 / 변경 요약"
 git push -u origin docs/<slug>_prd

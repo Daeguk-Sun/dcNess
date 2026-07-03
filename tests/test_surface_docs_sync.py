@@ -353,7 +353,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.spec_routing,
         )
         self.assertIn("PR 머지 → 이슈 등록 여부 확인 → `/design`", self.spec_routing)
-        self.assertIn("이슈 등록 보류 marker 기록/머지 후 Step 12", self.spec_routing)
+        self.assertIn("진행 절차와 체크포인트 응답 분기는 [`SKILL.md`](SKILL.md)", self.spec_routing)
+        self.assertIn("이슈 등록 보류 marker", self.spec_routing)
+        self.assertNotIn("## skill 시퀀스 그래프", self.spec_routing)
+        self.assertNotIn("## 체크포인트 → 다음 단계 매핑", self.spec_routing)
         self.assertNotIn("PR 머지 + 이슈 등록", self.spec_routing)
         self.assertIn("spec-prd-reference.md", self.spec_skill)
         self.assertIn("spec-stories-reference.md", self.spec_skill)
@@ -363,6 +366,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("# Story Backlog", self.spec_stories_reference)
         self.assertIn(
             "# preflight 를 실행했다면: git add docs/tech-review.md",
+            self.spec_delivery_reference,
+        )
+        self.assertIn(
+            "git add docs/prd.md docs/index.md docs/epics/epic-NN-<slug>/stories.md",
             self.spec_delivery_reference,
         )
 

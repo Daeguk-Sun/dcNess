@@ -50,9 +50,9 @@ class SpecSurfaceContractTests(unittest.TestCase):
 
         self.assertIn("PR 머지 → 이슈 등록 여부 확인 → `/design`", self.skill)
         self.assertIn("이슈 등록 완료 또는 보류 marker 확인 후", self.skill)
-        self.assertIn("MERGE[PR 머지]", self.routing)
-        self.assertIn("ISSUE{이슈 등록?}", self.routing)
-        self.assertIn("이슈 등록 보류 marker 기록/머지 후 Step 12", self.routing)
+        self.assertIn("PR 머지 → 이슈 등록 여부 확인 → `/design`", self.routing)
+        self.assertIn("이슈 등록 보류 시", self.routing)
+        self.assertIn("`미등록 (사유: …)` marker", self.routing)
         self.assertNotIn("PR 머지 + 이슈 등록", self.routing)
 
     def test_spec_flow_keeps_prd_draft_review_before_tech_review(self) -> None:
@@ -147,6 +147,52 @@ class SpecSurfaceContractTests(unittest.TestCase):
         self.assertIn("검토 항목 1 개 이상", step4_body)
         self.assertNotIn("trigger 기준은", step4_body)
 
+    def test_grillme_reference_defines_required_axes_exit_and_scaling(self) -> None:
+        for phrase in (
+            "유저 저니·유즈케이스",
+            "아키텍처 결정 지점",
+            "엣지케이스·실패 flow",
+            "보안·법적",
+        ):
+            self.assertIn(phrase, self.prd_ref)
+
+        for phrase in (
+            "질문으로 다루거나",
+            "해당 없음",
+            "판정 근거",
+            "PRD 기록 위치",
+            "핵심 분기 목록",
+            "전 축 커버",
+            "분기 해소",
+            "신규 PRD",
+            "기존 PRD 변경",
+            "영향 축 한정",
+            "구체 구조 설계는 `/design`",
+        ):
+            self.assertIn(phrase, self.prd_ref)
+
+        self.assertIn("## 보안 · 법적 고려", self.prd_template)
+        self.assertIn("검토 항목 0 개면", self.prd_template)
+        self.assertIn("해당 없음", self.prd_template)
+
+    def test_spec_routing_does_not_restate_step_checkpoint_branches(self) -> None:
+        self.assertIn("Step 내부 분기", self.routing)
+        self.assertIn("skill 간 이동", self.routing)
+        self.assertIn("진행 절차와 체크포인트 응답 분기는 [`SKILL.md`](SKILL.md)", self.routing)
+        self.assertIn("`/tech-review` preflight", self.routing)
+        self.assertIn("`/design`", self.routing)
+
+        for duplicate_layer in (
+            "```mermaid",
+            "## skill 시퀀스 그래프",
+            "## 체크포인트 → 다음 단계 매핑",
+            "| 체크포인트 (SKILL.md Step) | 응답 → 다음 |",
+            "`OK` → Step 4",
+            "`FAIL` → gap patch",
+            "SA -->|FAIL|",
+        ):
+            self.assertNotIn(duplicate_layer, self.routing)
+
     def test_spec_skill_is_step_focused_with_split_references(self) -> None:
         self.assertLessEqual(
             len(self.skill.splitlines()),
@@ -181,17 +227,23 @@ class SpecSurfaceContractTests(unittest.TestCase):
             "## 화면 인벤토리 + 대략적 플로우",
             "## 비즈니스 모델",
             "## 외부 의존 보호",
+            "## 보안 · 법적 고려",
             "## 기술 검토 필요 영역",
             "## 스코프 결정",
         ):
             self.assertIn(section, self.prd_template)
 
+        self.assertEqual(9, len(re.findall(r"(?m)^## ", self.prd_template)))
         self.assertIn("AC-001", self.prd_template)
         self.assertIn('검토 항목 0 개면 "해당 없음"', self.prd_template)
         self.assertIn("stories.md 산출물", self.stories_ref)
         self.assertIn("Story 크기 가이드", self.stories_ref)
         self.assertIn("# Story Backlog", self.stories_ref)
         self.assertIn("git checkout -b docs/<slug> main", self.delivery_ref)
+        self.assertIn(
+            "git add docs/prd.md docs/index.md docs/epics/epic-NN-<slug>/stories.md",
+            self.delivery_ref,
+        )
         self.assertIn("create_epic_story_issues.sh", self.delivery_ref)
 
         self.assertNotIn("Interview me relentlessly", self.skill)
