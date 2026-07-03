@@ -331,6 +331,7 @@ PR 이미 생성된 상태 — merge only. [`scripts/pr-finalize.sh`](../../scri
 end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-review` 발사 → in-process `harness.run_review` → STATUS JSON + review.md.
 
 - review 결과는 `<run_dir>/review.md` 에 저장 + stderr `[REVIEW_READY] <path>` 신호 출력. 메인 Claude 가 [Step 8 — review 결과 인지](#step-8-review-결과-인지) 따라 세션에 그대로 출력 의무.
+- review.md 에는 `CLAUDE.md/AGENTS.md 현행화 후보` read-only 섹션이 포함된다. 이는 대표 workflow 종료 시 세션 학습 환류 후보를 보여주는 권고이며, CLAUDE.md/AGENTS.md 를 자동 수정하지 않는다.
 - (예전 2개 명령 — `finalize-run --expected-steps <N> --auto-review` + `end-run` — 폐기. end-run 1개로 단순화. issue #396)
 - (issue #392 — `loop-insights` 자동 누적 매커니즘 폐기. 메인 자율 평가는 `$HELPER insight <agent>[-<mode>] "<한 줄>"` CLI 로 대체. review.md 끝 prompt 안내)
 

@@ -138,6 +138,14 @@ mode: EPIC_ACCEPTANCE
 3. `PASS`면 완료 후보로 보고한다.
 4. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다.
 5. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
+6. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
+
+```bash
+"$PLUGIN_ROOT/scripts/dcness-review" --context-audit --repo "$PROJECT_ROOT"
+```
+
+- 출력은 제안만 한다. CLAUDE.md/AGENTS.md 자동 수정·자동 issue/PR 생성 금지.
+- 후보를 반영하려면 사용자 승인 후 `/to-issue` 또는 별도 docs PR 로 분리한다.
 
 ## 워크트리
 

@@ -274,6 +274,8 @@ Headless wrapper 가 성공하면 마지막 응답을 `end-step` 으로 저장�
 
 최종 보고에는 구현 경로, 엔진, 변경 요약, 검증 명령 결과, review round 수, PR URL 을 포함한다. 실패 시에는 남은 finding 과 다음 판단 지점을 명확히 쓴다.
 
+helper 기반 `begin-run impl` 이 열린 경로에서는 대표 workflow 종료 시 `"$HELPER" end-run` 으로 review.md 를 만들며, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션이 포함된다. 이 섹션은 제안만 출력하고 CLAUDE.md/AGENTS.md 를 자동 수정하지 않는다.
+
 ## 참조
 
 - 용어 사전: [`docs/plugin/terms.md`](../../docs/plugin/terms.md)

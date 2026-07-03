@@ -11,6 +11,7 @@ description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스�
 
 - 사용자 발화: "/run-review", "리뷰", "이번 run 어땠어", "낭비 분석", "잘못한 점 찾아", "사후 분석", "복기"
 - impl-loop / spec 등 큰 사이클 종료 후 자동 회고
+- 대표 workflow 종료 시 CLAUDE.md/AGENTS.md 현행화 후보를 read-only 로 확인
 - 30일 누적 위반 사례 수집 (별도 후속 — 본 skill 은 단일 run)
 
 ## 언제 사용하지 않음
@@ -26,6 +27,7 @@ description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스�
 1. **단계별 비용** — run 시작/종료 timestamp 내 assistant turn cost 합산 (price_for util 재사용)
 2. **잘한 점** (GOOD findings) — ENUM_CLEAN / PROSE_ECHO_OK / DDD_PHASE_A / DEPENDENCY_CAUSAL / EXTERNAL_VERIFIED_PRESENT
 3. **잘못한 점** (WASTE findings) — RETRY_SAME_FAIL / ECHO_VIOLATION / PLACEHOLDER_LEAK / MUST_FIX_GHOST / SPEC_GAP_LOOP / INFRA_READ / READONLY_BASH / EXTERNAL_VERIFIED_MISSING
+4. **CLAUDE.md/AGENTS.md 현행화 후보** — context 문서 존재, AGENTS.md 의 CLAUDE.md SSOT 참조, run-review finding 기반 세션 학습 환류 후보. 자동 수정하지 않고 제안만 출력한다.
 
 ## 절차
 
@@ -42,6 +44,9 @@ HELPER="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/
 
 # (c) 인자 = "list" → run 목록만
 "$HELPER" --list --limit 20
+
+# (d) run 없이 context 문서 audit 만
+"$HELPER" --context-audit --repo "$PROJECT_ROOT"
 ```
 
 사용자 발화에 run_id 가 명시되면 (b), 없으면 (a) 실행. 사용자가 "어떤 run?" 식 모호 질문이면 (c) 로 list 출력 후 선택 받음.
@@ -60,6 +65,7 @@ Bash stdout 의 마크다운 리포트를 **한 글자도 바꾸지 않고 그�
 - HIGH waste 1+ → 해당 agent prompt 고치는 PR 권유
 - HIGH waste 0 + GOOD 다수 → "이번 run clean 정합. 다음 task 진행 가능"
 - MUST_FIX_GHOST 발견 → 주의사항 멈춤 룰 강화 검토
+- context audit 후보 있음 → 사용자 승인 후 CLAUDE.md/AGENTS.md docs PR 또는 loop insight / agent prompt 수정으로 분리
 
 ## 잘한 점 / 잘못한 점 패턴 매트릭스
 
@@ -102,7 +108,7 @@ Bash stdout 의 마크다운 리포트를 **한 글자도 바꾸지 않고 그�
 - **per-Agent 정확 cost X (Phase 1)** — 현재는 run timeframe 합산 (coarse). Phase 2 = `toolUseResult.totalCost` 매칭 (Agent tool call 별).
 - **prose 텍스트 분석 한계** — 한국어/영어 mixed regex 기반. semantic 분석 안 함.
 - **한 run 만** — 30일 누적 / 다른 run 비교는 별도 skill 후속.
-- **자동 트리거 X** — 현재는 사용자 명시 호출. 후속: finalize-run 직후 자동 trigger 옵션.
+- **자동 트리거 범위 제한** — helper 기반 `/design`·`/impl` run 은 `end-run` 의 review.md 안에 context audit 섹션이 자동 포함된다. helper run 이 없는 `/spec`·standalone `/acceptance` 는 skill 종료 절차에서 `dcness-review --context-audit` 를 명시 호출한다.
 
 ## 참조
 
