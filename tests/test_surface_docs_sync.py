@@ -205,6 +205,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         advanced_block = self._section(
             self.init_doc, r"고급 workflow:\n", r"\n\n유틸리티:"
         )
+        utility_block = self._section(
+            self.init_doc, r"유틸리티:\n", r"\n\n비활성화:"
+        )
 
         for name in LIFECYCLE:
             self.assertIn(f"- {name} ", default_block)
@@ -214,8 +217,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
 
         for name in SUPPORT:
             self.assertIn(f"- {name} ", support_block)
-        for name in ("/tech-review", "/impl-loop", "/ux"):
+        for name in ("/tech-review", "/impl-loop"):
             self.assertIn(f"- {name} ", advanced_block)
+        self.assertNotIn("- /ux ", advanced_block)
+        self.assertIn("- /ux ", utility_block)
         for name in REMOVED_WORKFLOW + REMOVED:
             self.assertNotIn(f"- {name} ", self.init_doc)
         self.assertNotIn("호환 workflow", self.init_doc)

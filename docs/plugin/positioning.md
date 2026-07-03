@@ -7,7 +7,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 | 기본 진입점 | 언제 쓰나 | 내부 처리 |
 |---|---|---|
 | `/spec` | 새 제품 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 | PRD 초안/최종화 / stories / 필요한 tech-review preflight + `SPEC_ACCEPTANCE` |
-| `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때 | UX / 시스템 / 모듈 / 기술 선택 설계. visual design 단독 요청은 `/ux` |
+| `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때 | UX / 시스템 / 모듈 / 기술 선택 설계. 구현 없이 visual design 만 먼저 탐색하려면 `/ux` |
 | `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | 구현 경로(설계도 유무 — Lite / Standard) + 엔진(풀4/경량)을 내부 판정 |
 | `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 | story/epic acceptance. 핵심 AC별 동작 증거와 mock-only gap 을 구분한다. 사람 full E2E 는 MVP 범위 밖 |
 
@@ -36,14 +36,14 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 |---|---|
 | `/tech-review` | high-risk 설계 선행에서 `/spec` 내부 preflight 로 쓰는 선행 기술 검증 |
 | `/impl-loop` | deep impl task 파일용 legacy/advanced runner |
-| `/ux` | 화면 UX / 디자인 핸드오프 전문 흐름 |
 
 ## Utility 공개 노출 범위
 
-운영 보조 command 는 workflow 진입점과 분리한다.
+운영 보조 command 와 구현 전 선행 탐색 utility 는 workflow 진입점과 분리한다.
 
 | 유틸리티 | 역할 |
 |---|---|
+| `/ux` | 구현 없이 목업과 흐름을 먼저 탐색한다. 내부 `canvas-design` wrapper 를 통해 drafts 반복 → 사용자 PICK → 확정본 승격 + canvas 등록 규약을 따른다 |
 | `/init-dcness` | 프로젝트 활성화 |
 | `/next` | GitHub Project 보드에서 In progress 와 다음 Todo 후보를 read-only 조회 |
 | `/run-review` | 끝난 run 사후 분석 |
@@ -56,10 +56,10 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 | 내부 skill | 역할 |
 |---|---|
-| `canvas-design` | `/impl` 과 `/impl-loop` 이 UI 기준 확보가 필요하다고 판정했을 때 호출하는 내부 wrapper. designer draft 생성, 사용자 PICK, 확정본 승격, `docs/design-variants/canvas.html` frame 등록을 한 경로로 수행하며 공개 진입점으로 노출하지 않음 |
+| `canvas-design` | `/ux`, `/impl`, `/impl-loop` 이 UI 기준 확보나 선행 목업 탐색이 필요하다고 판정했을 때 호출하는 내부 wrapper. designer draft 생성, 사용자 PICK, 확정본 승격, `docs/design-variants/canvas.html` frame 등록을 한 경로로 수행하며 공개 진입점으로 노출하지 않음 |
 | `compact-design` | `/impl` 이 "구현 전 경량 설계가 필요하다" 고 판단했을 때 되돌아오는 경량 모듈 설계 목적지. 새 agent 를 만들지 않고 `module-architect` 를 COMPACT_PLAN 모드로 호출하는 wrapper. full 설계 public 진입점은 `/design` 으로 유지 |
 
-`canvas-design` 은 시각 기준 확보를 구현 workflow 안에 중복 기술하지 않기 위한 내부 wrapper 다. 확정본 SSOT 는 `docs/design-variants/` 이며, designer 는 `drafts/` 만 쓰고 메인이 확정본과 canvas 를 갱신한다. `/impl` 과 `/impl-loop` 은 이 경로를 호출해 확정 목업 경로와 node-id 매핑을 구현자에게 전달한다.
+`canvas-design` 은 시각 기준 확보를 각 workflow 안에 중복 기술하지 않기 위한 내부 wrapper 다. 확정본 SSOT 는 `docs/design-variants/` 이며, designer 는 `drafts/` 만 쓰고 메인이 확정본과 canvas 를 갱신한다. `/ux` 는 이 경로를 얇게 감싸 선행 탐색 결과를 확정본으로 남기고, `/impl` 과 `/impl-loop` 은 이 경로를 호출해 확정 목업 경로와 node-id 매핑을 구현자에게 전달한다.
 
 `compact-design` 은 경량 설계를 impl 레이어 *안* 에서 직접 생성·소비하던 구조를 impl 밖 독립 skill 로 옮긴 것이다. 설계 산출 주체는 종전과 같은 `module-architect` 이고, 산출물은 `docs/compact-plans/<slug>.md` 한 파일이다. 되돌림 원리 SSOT 는 [`workflow-router.md` 되돌림 원리](workflow-router.md#되돌림backpressure-원리)다.
 

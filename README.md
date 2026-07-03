@@ -106,7 +106,7 @@ dcness-helper routing enable-codex-implementation   # Codex-first 구현
 | 기본 진입점 | 언제 쓰나 |
 |---|---|
 | `/spec` | 새 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 |
-| `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때. visual design 단독 요청은 `/ux` |
+| `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때. 구현 없이 visual design 만 먼저 탐색하려면 `/ux` |
 | `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 |
 | `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 |
 
@@ -140,13 +140,13 @@ high-risk trigger 나 새 epic/product feature 는 impl *내부 구현 경로가
 /to-issue           # 문제/작업 후보를 Issue Brief 초안으로 만들고 승인 후 등록
 ```
 
-support/advanced 진입점은 기본 생명주기 공개 진입점 밖의 보조 흐름이다.
+support/advanced/utility 진입점은 기본 생명주기 공개 진입점 밖의 보조 흐름이다.
 
 - `/to-issue` — 메인 주도 Issue Brief 초안 + 승인 후 GitHub issue/Project 등록
 - `/next` — GitHub Project 보드의 In progress 와 다음 Todo 후보를 read-only 조회
 - `/tech-review` — high-risk 설계 선행에서 `/spec` 내부 preflight 로 쓰는 선행 기술 검증
 - `/impl-loop` — deep impl task 파일용 legacy/advanced runner
-- `/ux` — 화면 UX / 디자인 핸드오프 전문 흐름
+- `/ux` — 구현 없이 목업과 흐름을 먼저 탐색하는 선행 디자인 utility
 
 검증·리뷰를 건너뛴 채 PR 머지로 못 가는 것이 dcNess 의 핵심이다. `pr-reviewer` 는 read-only
 provider 분기 대상이라 Codex 로 보낼 수 있고, `build-worker` / `engineer` 같은 구현 agent 는
@@ -183,7 +183,7 @@ escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/
 | support | `/to-issue` | Issue Brief 초안 작성 + 승인 후 GitHub issue/Project 등록 |
 | 고급 workflow | `/tech-review` | high-risk 설계 선행의 `/spec` 내부 선행 기술 검증 |
 | 고급 workflow | `/impl-loop` | deep impl task 파일용 legacy/advanced runner |
-| 고급 workflow | `/ux` | 화면 UX 플로우 + 디자인 시안 핸드오프 |
+| 유틸리티 | `/ux` | 구현 없이 목업과 흐름을 먼저 탐색 — drafts 반복 후 PICK 된 확정본은 canvas SSOT 에 등록 |
 | 유틸리티 | `/init-dcness` | 현 프로젝트를 plugin 활성 whitelist 에 등록 |
 | 유틸리티 | `/next` | GitHub Project 보드에서 In progress 와 다음 Todo 후보를 read-only 조회 |
 | 유틸리티 | `/run-review` | run 사후 분석 — step별 비용·차단 검출 |
