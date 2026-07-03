@@ -75,6 +75,7 @@ __all__ = [
     "start_run",
     "update_current_step",
     "clear_current_step",
+    "evaluate_order_gate_for_step",
     "set_pending_agent",
     "clear_pending_agent",
     "complete_run",
@@ -737,6 +738,170 @@ def clear_current_step(
     active[run_id] = slot
     update_live(session_id, base_dir=base_dir, active_runs=active)
     return True
+
+
+def _read_or_empty(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8") if path.exists() else ""
+    except OSError:
+        return ""
+
+
+def _run_prose_has_pass(rd: Path, agent: str) -> bool:
+    """`<agent>.md` 또는 occurrence prose 안 PASS 마커 확인."""
+    if "PASS" in _read_or_empty(rd / f"{agent}.md"):
+        return True
+    for n in range(1, 10):
+        if "PASS" in _read_or_empty(rd / f"{agent}-{n}.md"):
+            return True
+    return False
+
+
+def _run_has_engineer_output(rd: Path) -> bool:
+    """engineer 계열 prose 산출물 실존 여부."""
+    if (rd / "engineer.md").exists():
+        return True
+    try:
+        return any(rd.glob("engineer-*.md"))
+    except OSError:
+        return False
+
+
+def _run_has_module_architect_pass(rd: Path) -> bool:
+    """module-architect prose PASS — 무모드 / occurrence / mode-suffixed 모두 인정."""
+    if "PASS" in _read_or_empty(rd / "module-architect.md"):
+        return True
+    try:
+        for prose in rd.glob("module-architect-*.md"):
+            if "PASS" in _read_or_empty(prose):
+                return True
+    except OSError:
+        pass
+    return False
+
+
+def _slot_for_run(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> dict:
+    live = read_live(session_id, base_dir=base_dir) or {}
+    active = live.get("active_runs", {}) if isinstance(live, dict) else {}
+    slot = active.get(run_id, {}) if isinstance(active, dict) else {}
+    return slot if isinstance(slot, dict) else {}
+
+
+def _run_design_doc_exists(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> bool:
+    """현재 run 슬롯에 기록된 design_doc 이 디스크에 실존하는지."""
+    try:
+        doc = _slot_for_run(session_id, run_id, base_dir=base_dir).get("design_doc")
+        if not isinstance(doc, str) or not doc:
+            return False
+        return Path(doc).is_file()
+    except (OSError, ValueError):
+        return False
+
+
+def _run_lane(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Optional[str]:
+    """현재 run 슬롯에 기록된 lane(설계도 유무) 반환."""
+    try:
+        lane = _slot_for_run(session_id, run_id, base_dir=base_dir).get("lane")
+        return lane if isinstance(lane, str) else None
+    except (OSError, ValueError):
+        return None
+
+
+def _run_entry_point(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> str:
+    try:
+        entry = _slot_for_run(session_id, run_id, base_dir=base_dir).get("entry_point")
+        return entry if isinstance(entry, str) else ""
+    except (OSError, ValueError):
+        return ""
+
+
+def _module_architect_first_call(rd: Path) -> bool:
+    """module-architect 첫 호출인지 — 기존 prose 파일 부재 검사."""
+    return not (rd / "module-architect.md").exists()
+
+
+_IMPLEMENTATION_ORDER_GATE_AGENTS = frozenset({"engineer", "build-worker"})
+
+
+def evaluate_order_gate_for_step(
+    session_id: str,
+    run_id: str,
+    agent: str,
+    mode: Optional[str] = None,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Optional[str]:
+    """provider-independent step start order gate.
+
+    Claude Agent 경로는 PreToolUse hook 에서, Codex/headless 경로는 helper
+    `begin-step` 에서 같은 불변식을 평가한다. 반환값이 있으면 차단 메시지다.
+    """
+    from harness.agent_names import normalize_agent_type
+
+    norm_agent = normalize_agent_type(agent) or agent
+    effective_mode = mode if isinstance(mode, str) and mode else None
+    rd = run_dir(session_id, run_id, base_dir=base_dir)
+
+    if norm_agent in _IMPLEMENTATION_ORDER_GATE_AGENTS and effective_mode != "POLISH":
+        lane_lite = _run_lane(session_id, run_id, base_dir=base_dir) == "lite"
+        if (
+            not lane_lite
+            and not _run_has_module_architect_pass(rd)
+            and not _run_design_doc_exists(session_id, run_id, base_dir=base_dir)
+        ):
+            return (
+                "[순서 차단 훅: engineer 게이트] engineer/build-worker 호출은 "
+                "설계 산출물 확보 후만 — "
+                "같은 run 의 module-architect PASS prose (module-architect*.md 안 "
+                "PASS 마커) 또는 begin-run --design-doc 으로 기록된 설계 문서 실존. "
+                "충족 방법: module-architect step 을 PASS 로 완료하거나, 구현 run 을 "
+                "시작할 때 `begin-run impl --design-doc <설계문서>` 를 기록하세요. "
+                "명시적 Lite 구현 경로라면 `begin-run impl --lane lite` 로 시작하세요."
+            )
+
+    if norm_agent == "pr-reviewer":
+        if _run_has_engineer_output(rd) and not _run_prose_has_pass(rd, "code-validator"):
+            return (
+                "[순서 차단 훅: pr-reviewer 게이트] engineer 산출물 이후 "
+                "pr-reviewer 호출은 code-validator PASS 후만. 충족 방법: "
+                "`begin-step code-validator` → code-validator PASS → "
+                "`end-step code-validator` 를 먼저 완료하세요."
+            )
+
+    if (
+        norm_agent == "module-architect"
+        and _run_entry_point(session_id, run_id, base_dir=base_dir) == "design"
+        and _module_architect_first_call(rd)
+    ):
+        if not _run_prose_has_pass(rd, "architecture-validator"):
+            return (
+                "[순서 차단 훅: module-architect 게이트] 첫 module-architect 단위 호출은 "
+                "architecture-validator 1차 PASS 후만 (architecture-validator.md 안 "
+                "PASS 마커). 충족 방법: architecture-validator step 을 PASS 로 "
+                "완료한 뒤 module-architect 를 시작하세요."
+            )
+
+    return None
 
 
 def _is_dcness_worktree_path(path: Path) -> bool:
@@ -2148,6 +2313,18 @@ def _cli_begin_step(args: Any) -> int:
     # ledger checkpoint / engineer hint 까지 같은 표기로 일관시킨다.
     from harness.agent_names import normalize_agent_type
     agent = normalize_agent_type(args.agent) or args.agent
+    try:
+        gate_message = evaluate_order_gate_for_step(sid, rid, agent, mode)
+    except Exception as exc:  # noqa: BLE001
+        record_fail_open_event(
+            hook="begin-step-order-gate",
+            category="gate_exception",
+            detail=f"{type(exc).__name__}: {exc}",
+        )
+        gate_message = None
+    if gate_message:
+        print(gate_message, file=sys.stderr)
+        return 1
     update_current_step(sid, rid, agent, mode)
     # 이슈 #587 — ledger step_started checkpoint. 기록 실패가 begin-step 막지 않게 silent.
     try:

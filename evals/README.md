@@ -4,8 +4,9 @@ dcness 자체 QA 도구다. plug-in 배포물이 아니다.
 
 eval 은 두 종류로 나눈다.
 
-- **결정적 guard-efficacy** — hook/function 진입점을 LLM 없이 호출해 file boundary,
-  Bash/MCP mutation, order gate, TDD guard 의 allow/block 동작을 fixture 로 확인한다.
+- **결정적 guard-efficacy** — hook/function/wrapper 진입점을 LLM 없이 호출해 file boundary,
+  Bash/MCP mutation, order gate, TDD guard, headless provider 경로의 allow/block 동작을
+  fixture 로 확인한다.
 - **LLM 행동 eval** — agent 지침 변경이 기존 보호를 깨먹는지, 실제 agent 실행으로
   "agent 가 그 기준대로 실제 판정하는가"를 확인한다.
 
@@ -35,10 +36,10 @@ EVAL_RUNS=3 bash evals/run.sh        # 케이스당 3회 반복 (릴리즈 전 �
 EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonnet)
 ```
 
-`guard_efficacy.py` 는 범주별 pass/fail count 를 출력한다. `known-bypass-boundary`
-범주는 "보호됨" 이 아니라 문서화된 한계가 실제로 한계로 남아 있음을 드러내는 항목이다.
-예: TDD guard 는 `Edit`/`Write`/`NotebookEdit` 직접 파일 도구에만 걸리고 Bash 로 만든
-구현 파일에는 매칭 테스트 존재 검사를 하지 않는다.
+`guard_efficacy.py` 는 범주별 pass/fail count 를 출력한다. `provider-agnostic-order-gate`
+와 `provider-agnostic-tdd` 범주는 Claude Agent hook 이 아닌 `begin-step`/headless worker
+경로에서도 같은 불변식이 발화하는지 재현한다. `known-bypass-boundary` 범주는 "보호됨" 이
+아니라 문서화된 한계가 실제로 한계로 남아 있음을 드러내는 항목이다.
 
 케이스마다 `정답 k/N` 표가 출력된다. 어떤 케이스든 정답 0회면 exit 1 — 방금 바꾼 지침이 보호를 깨먹었는지 확인한다.
 

@@ -36,11 +36,11 @@ from harness.session_state import (
     cleanup_stale_pid_files,
     cleanup_stale_run_dirs,
     cleanup_stale_runs,
+    evaluate_order_gate_for_step,
     is_project_active,
     read_live,
     read_pid_current_run,
     record_fail_open_event,
-    run_dir,
     session_dir,
     update_live,
     valid_cc_pid,
@@ -480,8 +480,6 @@ def handle_pretooluse_agent(
     if not rid:
         return 0  # active run 외부 — 그 외 agent 는 통과
 
-    rd = run_dir(sid, rid, base_dir=base_dir)
-
     # issue #604 — active run 안에서는 begin-step 없이 Agent 직접 호출 금지.
     # PostToolUse staging 이후 같은 step 재호출, end-step 완료 후 stale current_step 도
     # PreToolUse 시점에서 차단해 `.steps.jsonl` 누락을 실행 전에 막는다.
@@ -520,67 +518,27 @@ def handle_pretooluse_agent(
         )
         pass  # state 읽기 실패는 fail-open — hook 버그발 과차단 회피.
 
-    # engineer 게이트 — engineer 직전 설계 산출물 필수 (effective mode != POLISH).
-    # #700 — namespaced 우회 차단을 위해 norm_subagent 비교(codex P1).
-    # #701 — 사전 조건 = 같은-run module-architect PASS ∪ begin-run 에 기록된
-    # 머지된 설계 문서(design_doc) 실존. impl-loop 풀 4-agent 는 설계가 별도 run
-    # 에서 머지된 뒤 진입하므로 같은-run prose 단일 기준이면 구조적으로 차단된다.
-    # #714 — /impl 2축 모델의 Lite lane(설계도 없음)에 sub-agent 엔진을 붙이는
-    # 4번째 조합. lane="lite"(begin-run --lane lite 로 start_run 에 기록)는 정의상
-    # 설계도가 없으므로 module-architect PASS / design_doc 둘 다 없다. 면제 경계는
-    # *명시적으로 기록된* lane="lite" 한정 — lane 미기록(impl-loop 풀4 / 기본)과
-    # lane="standard" 는 종전대로 설계 산출물을 요구한다(면제 누수 차단). lane 은
-    # entry_point=impl 에서만 기록 가능(start_run 강제)하므로 design/architect-loop
-    # run 의 module-architect PASS 강제는 영향받지 않는다. 이 면제는 engineer 게이트
-    # *만* 푼다 — 뒤따르는 pr-reviewer←code-validator 잔존 보호는 lane 무관 불변.
+    # provider-agnostic 순서 게이트 (#859) — Claude Agent 경로는 여기서, headless
+    # provider 는 `dcness-helper begin-step` 에서 같은 함수를 호출한다.
     # #709 — effective mode = tool_input.mode ∪ current_step.mode. Agent 도구 스키마에
-    # mode 파라미터가 없는 CC 빌드에선 tool_input.mode 가 안 실려, POLISH 면제가
-    # tool_input.mode 단독이면 죽는다(impl-loop engine B 의 pr-reviewer→engineer:POLISH 가
-    # design_doc·MA PASS 둘 다 없어 구조적 차단). begin-step 이 CLI 로 확실히 기록한
-    # current_step.mode 를 fallback 으로 봐 환경 무관하게 면제를 복원한다. 진행 순서 검사가
-    # begin-step↔Agent(agent) 정합을 이미 보장하므로 current_step.mode=POLISH 는 신뢰 신호.
+    # mode 파라미터가 없는 CC 빌드에선 tool_input.mode 가 안 실리므로 begin-step 이
+    # 기록한 current_step.mode 를 fallback 으로 본다.
     effective_mode = _mode_or_none(mode) or step_mode
-    if norm_subagent == "engineer" and effective_mode != "POLISH":
-        lane_lite = _run_lane(sid, rid, base_dir=base_dir) == "lite"
-        if (
-            not lane_lite
-            and not _has_module_architect_pass(rd)
-            and not _run_design_doc_exists(sid, rid, base_dir=base_dir)
-        ):
-            print(
-                "[순서 차단 훅: engineer 게이트] engineer 호출은 설계 산출물 확보 후만 — "
-                "같은 run 의 module-architect PASS prose (module-architect*.md 안 "
-                "PASS 마커) 또는 begin-run --design-doc 으로 기록된 설계 문서 실존",
-                file=sys.stderr,
-            )
-            return 1
-
-    # pr-reviewer 게이트 — engineer sub-agent 산출물 이후 code-validator PASS 필수.
-    # Lite lane 은 메인 직접 구현 경로라 engineer prose 가 없고, pr-reviewer 단독 허용.
-    if norm_subagent == "pr-reviewer":
-        if _has_engineer_write(rd) and not _has_pass(rd, "code-validator"):
-            print(
-                "[순서 차단 훅: pr-reviewer 게이트] engineer 산출물 이후 "
-                "pr-reviewer 호출은 code-validator PASS 후만",
-                file=sys.stderr,
-            )
-            return 1
-
-    # module-architect 게이트 — design 안 첫 module-architect 단위 호출 직전
-    # architecture-validator PASS 필수. jajang Spike Gate 사단 회피.
-    if (
-        norm_subagent == "module-architect"
-        and _is_design_loop(sid, rid, base_dir=base_dir)
-        and _module_architect_first_call(rd)
-    ):
-        if not _has_pass(rd, "architecture-validator"):
-            print(
-                "[순서 차단 훅: module-architect 게이트] 첫 module-architect 단위 호출은 "
-                "architecture-validator 1차 PASS 후만 "
-                "(architecture-validator.md 안 PASS 마커)",
-                file=sys.stderr,
-            )
-            return 1
+    try:
+        order_gate_msg = evaluate_order_gate_for_step(
+            sid, rid, norm_subagent, effective_mode, base_dir=base_dir,
+        )
+    except Exception as exc:  # noqa: BLE001
+        _record_fail_open_safe(
+            "catastrophic-gate",
+            "order_gate_exception",
+            f"{type(exc).__name__}: {exc}",
+            base_dir=base_dir,
+        )
+        order_gate_msg = None
+    if order_gate_msg:
+        print(order_gate_msg, file=sys.stderr)
+        return 1
 
     # tech-reviewer 재호출 (design 진입 후) 은 *tech-reviewer 전용* 코드 강제로
     # 차단하지 않는다 (#609). tech-review 는 design 진입 *전* 단방향 선행 단계라
