@@ -246,6 +246,15 @@ class NoteFinding:
     detail: str
 
 
+@dataclass
+class ContextAuditFinding:
+    pattern: str
+    severity: str  # WARN / CANDIDATE / INFO
+    source: str
+    detail: str
+    suggestion: str
+
+
 # issue #392 — `GoodFinding` dataclass 폐기. `detect_goods` 폐기와 정합.
 
 
@@ -254,6 +263,7 @@ class RunReport:
     run_id: str
     session_id: str
     run_dir: Path
+    repo_path: Path = Path(".")
     steps: list[StepRecord] = field(default_factory=list)
     wastes: list[WasteFinding] = field(default_factory=list)
     # issue #394 — notes: raw 측정 알림 (severity 없음).
@@ -265,6 +275,147 @@ class RunReport:
     elapsed_s: int = 0
     final_enum: str = ""
     final_clean: bool = False
+
+
+def _read_context_doc(repo_path: Path, name: str) -> tuple[Path, str, bool]:
+    path = repo_path / name
+    try:
+        return path, path.read_text(encoding="utf-8", errors="ignore"), path.is_file()
+    except Exception:
+        return path, "", False
+
+
+def _doc_has_placeholder(text: str) -> bool:
+    return bool(re.search(
+        r"(?im)^\s*(?:[-*]\s*)?(?:TODO|TBD)\b|"
+        r"\[(?:TODO|TBD|미기록|미결)\]|<TODO>|<TBD>|NotImplementedError",
+        text,
+    ))
+
+
+def audit_context_docs(
+    repo_path: Path,
+    *,
+    report: Optional["RunReport"] = None,
+) -> list[ContextAuditFinding]:
+    """Return read-only CLAUDE.md/AGENTS.md freshness candidates.
+
+    This intentionally reports candidates only. It never edits project-owned
+    context docs because CLAUDE.md/AGENTS.md are user-owned SSOT files.
+    """
+    repo_path = repo_path.resolve()
+    findings: list[ContextAuditFinding] = []
+
+    claude_path, claude_text, has_claude = _read_context_doc(repo_path, "CLAUDE.md")
+    agents_path, agents_text, has_agents = _read_context_doc(repo_path, "AGENTS.md")
+
+    if not has_claude:
+        findings.append(ContextAuditFinding(
+            pattern="CLAUDE_MISSING",
+            severity="WARN",
+            source=str(claude_path.relative_to(repo_path)),
+            detail="프로젝트 루트에 CLAUDE.md 가 없어 세션 규칙 SSOT 를 찾을 수 없습니다.",
+            suggestion="/init-dcness 보강 또는 사용자 승인 기반 docs PR 로 CLAUDE.md 생성 후보를 검토합니다.",
+        ))
+    elif _doc_has_placeholder(claude_text):
+        findings.append(ContextAuditFinding(
+            pattern="CLAUDE_PLACEHOLDER_PRESENT",
+            severity="CANDIDATE",
+            source="CLAUDE.md",
+            detail="CLAUDE.md 안에 TODO/TBD/미기록 계열 placeholder 가 남아 있습니다.",
+            suggestion="placeholder 가 현재 프로젝트 규칙 공백이면 사용자 승인 후 구체 규칙으로 바꾸는 docs PR 후보입니다.",
+        ))
+
+    if not has_agents:
+        findings.append(ContextAuditFinding(
+            pattern="AGENTS_MISSING",
+            severity="INFO",
+            source=str(agents_path.relative_to(repo_path)),
+            detail="AGENTS.md 가 없어 외부 에이전트용 CLAUDE.md 참조 안내 경로가 없습니다.",
+            suggestion="외부 에이전트 협업이 필요한 프로젝트라면 CLAUDE.md 를 참조하는 얇은 AGENTS.md 생성 후보입니다.",
+        ))
+    elif "CLAUDE.md" not in agents_text:
+        findings.append(ContextAuditFinding(
+            pattern="AGENTS_REFERENCES_CLAUDE_MISSING",
+            severity="CANDIDATE",
+            source="AGENTS.md",
+            detail="AGENTS.md 가 CLAUDE.md 를 참조하지 않아 작업 규칙이 중복·분기될 수 있습니다.",
+            suggestion="AGENTS.md 는 규칙 재기술 대신 CLAUDE.md 를 SSOT 로 가리키는 얇은 안내로 정리할지 검토합니다.",
+        ))
+
+    if report is not None:
+        waste_count = 0
+        for waste in report.wastes:
+            if waste.severity not in {"HIGH", "MEDIUM"}:
+                continue
+            findings.append(ContextAuditFinding(
+                pattern="RUN_REVIEW_WASTE_FEEDBACK",
+                severity="CANDIDATE",
+                source=f"run-review:{waste.agent}",
+                detail=(
+                    f"{waste.severity} {waste.pattern} at step {waste.step_idx}: "
+                    f"{waste.detail}"
+                ),
+                suggestion=(
+                    "반복될 운영 학습이면 CLAUDE.md/AGENTS.md 반영 후보입니다. "
+                    "특정 agent 습관이면 loop insight 또는 agent prompt 수정이 우선입니다."
+                ),
+            ))
+            waste_count += 1
+            if waste_count >= 5:
+                break
+        note_count = 0
+        for note in report.notes:
+            if note.pattern not in {"THINKING_LOOP", "TOOL_USE_OVERFLOW"}:
+                continue
+            findings.append(ContextAuditFinding(
+                pattern="RUN_REVIEW_NOTE_FEEDBACK",
+                severity="INFO",
+                source=f"run-review:{note.agent}",
+                detail=f"{note.pattern} at step {note.step_idx}: {note.detail}",
+                suggestion="비용·도구 사용 문제가 반복되면 CLAUDE.md 의 cost-aware 운영 규칙 후보로 검토합니다.",
+            ))
+            note_count += 1
+            if note_count >= 5:
+                break
+
+    return findings
+
+
+def _md_cell(text: str) -> str:
+    return text.replace("|", "\\|").replace("\n", " ")
+
+
+def render_context_audit_section(
+    repo_path: Path,
+    *,
+    report: Optional["RunReport"] = None,
+) -> str:
+    findings = audit_context_docs(repo_path, report=report)
+    lines = [
+        "## CLAUDE.md/AGENTS.md 현행화 후보",
+        "",
+        "이 섹션은 read-only context audit 입니다. CLAUDE.md/AGENTS.md 를 자동 수정하지 않습니다.",
+        "",
+    ]
+    if not findings:
+        lines.append("- 후보 없음 — 이번 run 에서 CLAUDE.md/AGENTS.md 반영 신호가 없습니다.")
+        lines.append("- 세션 학습이 필요하면 review.md 끝의 `HELPER insight` 안내를 사용합니다.")
+        lines.append("")
+        return "\n".join(lines)
+
+    lines.append("| severity | pattern | source | detail | suggestion |")
+    lines.append("|---|---|---|---|---|")
+    for finding in findings:
+        lines.append(
+            f"| {finding.severity} | `{finding.pattern}` | {_md_cell(finding.source)} | "
+            f"{_md_cell(finding.detail)} | {_md_cell(finding.suggestion)} |"
+        )
+    lines.append("")
+    lines.append("- 반영은 사용자 승인 후 별도 docs PR 로 진행합니다.")
+    lines.append("- 프로젝트 공통 규칙이 아니면 CLAUDE.md/AGENTS.md 대신 loop insight 또는 agent prompt 수정을 우선합니다.")
+    lines.append("")
+    return "\n".join(lines)
 
 
 # ── Run discovery ─────────────────────────────────────────────────────
@@ -1338,6 +1489,8 @@ def render_report(report: RunReport) -> str:
         lines.append("## 잘못한 점 — 없음 ✅")
         lines.append("")
 
+    lines.append(render_context_audit_section(report.repo_path, report=report))
+
     # issue #396 — 메인 인사이트 prompt (review.md 끝 임베드)
     # 메인 Claude 가 보고 자율 평가 씀. agent+mode 선택 자율.
     lines.append("## 📝 메인 인사이트 (1줄 자율 평가)")
@@ -1414,6 +1567,7 @@ def build_report(run_dir: Path, repo_path: Path) -> RunReport:
         run_id=run_dir.name,
         session_id=sid,
         run_dir=run_dir,
+        repo_path=repo_path,
         steps=steps,
         wastes=wastes,
         notes=notes,
@@ -1458,9 +1612,18 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--list", action="store_true", help="run list 만 출력")
     p.add_argument("--repo", default=".", help="저장소 cwd (default: cwd)")
     p.add_argument("--limit", type=int, default=10, help="--list 시 최대 개수")
+    p.add_argument(
+        "--context-audit",
+        action="store_true",
+        help="run 없이 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 출력",
+    )
     args = p.parse_args(argv)
 
     repo_path = Path(args.repo).resolve()
+    if args.context_audit:
+        print(render_context_audit_section(repo_path))
+        return 0
+
     sessions_root = _detect_sessions_root(repo_path)
     if not sessions_root:
         print("[run-review] sessions root 미탐지 — `.claude/harness-state/.sessions/` 부재", file=sys.stderr)

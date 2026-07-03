@@ -183,6 +183,17 @@ PRD + stories.md + tech-review 상태 확인 완료.
 
 사용자 Y → `/design` 진입. 사용자 n → 사용자가 나중에 직접 호출한다.
 
+### 대표 종료 audit trigger — CLAUDE.md/AGENTS.md 후보
+
+`/spec` 은 helper 기반 run 이 아니므로 `end-run` 자동 review 가 없다. Step 12 안내를 끝낸 직후 메인이 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
+
+```bash
+"$PLUGIN_ROOT/scripts/dcness-review" --context-audit --repo "$PROJECT_ROOT"
+```
+
+- 출력은 제안만 한다. CLAUDE.md/AGENTS.md 자동 수정·자동 commit 금지.
+- 후보를 반영하려면 사용자 승인 후 별도 docs PR 또는 후속 `/impl` 로 처리한다.
+
 ## 워크트리
 
 `/spec` 은 워크트리 자동 진입 안 함. 기획·설계는 동시 다중 batch 충돌 회피 목적 부재. 메인 working tree 에서 별도 branch 를 따고 직접 진행한다.

@@ -12,11 +12,12 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from harness import ledger  # noqa: E402
 from harness.run_review import (  # noqa: E402
-    RunReport, StepRecord, build_report, detect_wastes, detect_notes,
+    RunReport, StepRecord, WasteFinding, build_report, detect_wastes, detect_notes,
     parse_steps, render_report, list_runs, find_run_dir,
     _normalize_agent_type, assign_invocations_to_steps,
     DCNESS_AGENT_NAMES, LEGACY_AGENT_ALIASES,
     WINDOW_TS_PADDING, _extract_conclusion_enum,
+    audit_context_docs,
 )
 # issue #392 — detect_goods 폐기
 # issue #394 — detect_notes 신규 (TOOL_USE_OVERFLOW / THINKING_LOOP)
@@ -705,6 +706,126 @@ class ReportRenderTests(unittest.TestCase):
             self.assertTrue(report.final_clean)
             self.assertIn("code-validator [VERIFY_ONLY]", text)
             self.assertIn("| clean 판정 | ✅ |", text)
+
+
+class ContextAuditTests(unittest.TestCase):
+    def test_render_report_includes_context_audit_section(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            (tmp / "CLAUDE.md").write_text("# Rules\n", encoding="utf-8")
+            (tmp / "AGENTS.md").write_text(
+                "작업 규칙 SSOT: [`CLAUDE.md`](CLAUDE.md)\n",
+                encoding="utf-8",
+            )
+            rd = _make_run_dir(tmp, "sid1", "rid1", [
+                {"ts": "2026-04-30T10:00:00", "agent": "pr-reviewer", "mode": None,
+                 "enum": "PASS", "must_fix": False, "prose_excerpt": "PASS"},
+            ])
+
+            report = build_report(rd, repo_path=tmp)
+            text = render_report(report)
+
+            self.assertIn("## CLAUDE.md/AGENTS.md 현행화 후보", text)
+            self.assertIn("자동 수정하지 않습니다", text)
+            self.assertIn("후보 없음", text)
+
+    def test_context_audit_flags_agents_without_claude_reference(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            claude = tmp / "CLAUDE.md"
+            agents = tmp / "AGENTS.md"
+            claude.write_text("# Project Rules\n", encoding="utf-8")
+            agents.write_text("# Agent Rules\n별도 규칙을 여기에 적음\n", encoding="utf-8")
+
+            findings = audit_context_docs(tmp)
+
+            self.assertTrue(
+                any(f.pattern == "AGENTS_REFERENCES_CLAUDE_MISSING" for f in findings)
+            )
+            self.assertEqual(claude.read_text(encoding="utf-8"), "# Project Rules\n")
+            self.assertEqual(
+                agents.read_text(encoding="utf-8"),
+                "# Agent Rules\n별도 규칙을 여기에 적음\n",
+            )
+
+    def test_context_audit_surfaces_run_waste_as_feedback_candidate(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            (tmp / "CLAUDE.md").write_text("# Rules\n", encoding="utf-8")
+            (tmp / "AGENTS.md").write_text(
+                "SSOT: [`CLAUDE.md`](CLAUDE.md)\n",
+                encoding="utf-8",
+            )
+            report = RunReport(
+                run_id="rid",
+                session_id="sid",
+                run_dir=tmp,
+                repo_path=tmp,
+                wastes=[
+                    WasteFinding(
+                        pattern="PLACEHOLDER_LEAK",
+                        severity="HIGH",
+                        step_idx=1,
+                        agent="system-architect",
+                        detail="placeholder remained",
+                        fix="tighten prompt",
+                    )
+                ],
+            )
+
+            findings = audit_context_docs(tmp, report=report)
+
+            self.assertTrue(
+                any(f.pattern == "RUN_REVIEW_WASTE_FEEDBACK" for f in findings)
+            )
+            self.assertTrue(
+                any("PLACEHOLDER_LEAK" in f.detail for f in findings)
+            )
+
+    def test_context_audit_limits_after_relevant_run_wastes(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            (tmp / "CLAUDE.md").write_text("# Rules\n", encoding="utf-8")
+            (tmp / "AGENTS.md").write_text(
+                "SSOT: [`CLAUDE.md`](CLAUDE.md)\n",
+                encoding="utf-8",
+            )
+            report = RunReport(
+                run_id="rid",
+                session_id="sid",
+                run_dir=tmp,
+                repo_path=tmp,
+                wastes=[
+                    WasteFinding(
+                        pattern=f"LOW_{i}",
+                        severity="LOW",
+                        step_idx=i,
+                        agent="engineer",
+                        detail="low signal",
+                        fix="-",
+                    )
+                    for i in range(10)
+                ] + [
+                    WasteFinding(
+                        pattern="MUST_FIX_GHOST",
+                        severity="HIGH",
+                        step_idx=11,
+                        agent="pr-reviewer",
+                        detail="must fix leaked",
+                        fix="fix gate",
+                    )
+                ],
+            )
+
+            findings = audit_context_docs(tmp, report=report)
+
+            self.assertTrue(
+                any(
+                    f.pattern == "RUN_REVIEW_WASTE_FEEDBACK"
+                    and "MUST_FIX_GHOST" in f.detail
+                    for f in findings
+                )
+            )
 
 
 class RunListTests(unittest.TestCase):
