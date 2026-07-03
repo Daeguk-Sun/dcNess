@@ -1,6 +1,8 @@
 #!/bin/bash
 # dcness pr-finalize — PR 머지 + CI 대기 + origin/main ref 동기화 자동
 #
+# pr-finalize 호출 = 머지 확정. 이 스크립트는 별도 최종 승인 UI 없이 merge 를 시도한다.
+#
 # 한 명령으로 머지 절차 끝:
 #   1. gh pr merge --auto --merge (auto-merge 토글 ON)
 #   2. gh pr checks --watch (CI 결과 대기)
@@ -52,6 +54,21 @@ record_pr_merged() {
   if ! "$HELPER" ledger-event pr_merged --pr "$pr_number" --url "$pr_url" >/dev/null 2>&1; then
     echo "[pr-finalize] WARN: ledger pr_merged 기록 실패 — active dcNess run 밖이면 정상" >&2
   fi
+}
+
+extract_close_issue_numbers() {
+  awk '
+    {
+      line = $0
+      lower = tolower(line)
+      if (lower ~ /^[[:space:]]*(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+([,[:space:]]+#?[0-9]+)*[[:space:]]*$/) {
+        while (match(line, /#[0-9]+/)) {
+          print substr(line, RSTART + 1, RLENGTH - 1)
+          line = substr(line, RSTART + RLENGTH)
+        }
+      }
+    }
+  ' | sort -un
 }
 
 cleanup_merge_lock() {
@@ -214,12 +231,17 @@ fi
 # Step 5: 통합 브랜치 sub-PR issue close 보정
 # GitHub auto-close 는 base = default branch 인 PR 머지만 인식 — base ≠ default 인
 # sub-PR 의 PR body close 선언(Closes/Fixes/Resolves #N)은 머지돼도 발동하지 않는다.
-# 선언이 있는 OPEN issue 를 PR 링크 코멘트와 함께 close 보정한다 (선언 없는 issue 는
-# 건드리지 않음). epic→main 일괄 머지 PR 의 중복 Closes 는 이미 closed issue 에 무해.
+# PR body 의 독립 trailer 줄에 선언이 있는 OPEN issue 를 PR 링크 코멘트와 함께 close 보정한다
+# (선언 없는 issue, 산문 인용, blockquote/list 예시는 건드리지 않음). epic→main 일괄 머지 PR 의
+# 중복 Closes 는 이미 closed issue 에 무해.
 if [ "$INTEGRATION" = "true" ]; then
   CLOSE_NUMS=$(gh pr view "$PR" --json body -q .body 2>/dev/null \
-    | grep -ioE '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+' \
-    | grep -oE '[0-9]+' | sort -un || true)
+    | extract_close_issue_numbers || true)
+  if [ -n "$CLOSE_NUMS" ]; then
+    echo "[pr-finalize] issue close 보정 대상: $(printf '%s' "$CLOSE_NUMS" | tr '\n' ' ')" >&2
+  else
+    echo "[pr-finalize] issue close 보정 대상 없음" >&2
+  fi
   for N in $CLOSE_NUMS; do
     ISSUE_STATE=$(gh issue view "$N" --json state -q .state 2>/dev/null || true)
     if [ "$ISSUE_STATE" = "OPEN" ]; then

@@ -63,11 +63,13 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 |---|---|
 | Lite · 메인 직접 (기본) | 메인 직접 `test -> impl -> test pass` 후 `begin-run impl` → `pr-reviewer` local diff. `code-validator` 없음 |
 | Lite · 풀 4-agent | `begin-run impl --lane lite` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
-| Lite · 경량 build-worker | `begin-run impl --lane lite` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) |
+| Lite · 경량 build-worker | `begin-run impl --lane lite` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) → `pr-reviewer` |
 | Standard · 풀 4-agent (디폴트) | `begin-run impl --design-doc <경로>` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
-| Standard · 경량 build-worker | `begin-run impl --design-doc <경로>` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) |
+| Standard · 경량 build-worker | `begin-run impl --design-doc <경로>` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) → `pr-reviewer` |
 
 Standard 의 설계도는 (a) 이미 머지된 설계 문서이거나 (b) `compact-design` 이 방금 산출한 compact plan 이다. 두 경우 모두 메인이 `begin-run impl --design-doc <경로>` 로 같은 경로를 기록하며, Standard 는 same-run module-architect step 없이 받은 설계도로 구현만 한다 — `--design-doc` 이 Standard engineer 게이트 사전 조건의 단일 메커니즘이다.
+
+Standard 경량 build-worker 경로도 build-worker self-validate 뒤 `pr-reviewer` 를 거친다. 경량은 구현 step 수를 줄이는 선택이지 review gate 를 생략하는 선택이 아니다.
 
 Lite 에 sub-agent 엔진을 붙일 때는 설계도가 없으므로 `begin-run impl --lane lite` 로 구현 경로를 기록해 engineer 게이트의 설계 산출물 사전 조건을 면제한다(#714). 면제는 *명시적으로 기록된* `lane=lite` 한정이며 engineer 게이트 *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 불변(풀4 경로). 구현 경로 값은 `entry_point=impl` 에서만 기록되므로 design/architect-loop 의 module-architect PASS 강제는 영향받지 않는다.
 
@@ -82,7 +84,7 @@ high-risk 는 impl 밖 — deep impl task 있으면 `/impl-loop`, 없으면 `/sp
 | Standard `engineer` | `IMPL_DONE` → code-validator · `TESTS_FAIL` → engineer 재시도(≤3) · `SPEC_GAP_FOUND` → `compact-design` 설계 되돌림(≤2) · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | Standard `code-validator` | `PASS` → pr-reviewer · `FAIL` → engineer 재진입(≤3) · `ESCALATE` → `compact-design` 설계 되돌림 또는 사용자 |
 | Standard `pr-reviewer` | `PASS` → commit/PR/CI/merge · `FAIL` → engineer:POLISH + test 재통과 + pr-reviewer 재호출(≤3) |
-| Standard `build-worker` (경량) | `PASS` → commit/PR/CI · `FAIL`/`BLOCKED` → 메인 root-cause 수정 또는 풀 4-agent 승격 |
+| Standard `build-worker` (경량) | `PASS` → pr-reviewer · `FAIL`/`BLOCKED` → 메인 root-cause 수정 또는 풀 4-agent 승격 |
 
 엔진 step(test-engineer / engineer / code-validator / build-worker)의 결론 → 다음 매핑은 엔진 레벨이라 **Lite · sub-agent 엔진에도 동일하게 적용**된다 — 위 표의 `Standard <agent>` 행을 그대로 따른다(구현 경로 차이는 진입 시 `--lane lite` ↔ `--design-doc` 기록 메커니즘뿐). Lite · 메인 직접은 엔진 step 없이 `pr-reviewer` 만 기록한다.
 

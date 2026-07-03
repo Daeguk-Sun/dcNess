@@ -126,6 +126,43 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         # impl Lite 최소 gate 에도 false-clean 방지 명시.
         self.assertIn("false-clean", self.impl_skill)
 
+    def test_impl_standard_lightweight_path_keeps_pr_reviewer_gate(self) -> None:
+        """#851 — Standard 경량 build-worker 경로도 pr-reviewer 게이트를 명시한다."""
+        for needle in (
+            "경량 build-worker 엔진도 `build-worker → pr-reviewer`",
+            "Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다",
+            "검증 gate = test + build-worker self-validate + pr-reviewer",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.impl_skill)
+
+        self.assertIn(
+            "Standard 경량 build-worker",
+            (ROOT / "skills" / "impl" / "impl-routing.md").read_text(encoding="utf-8"),
+        )
+        for relpath in (
+            "docs/plugin/workflow-router.md",
+            "docs/plugin/positioning.md",
+            "skills/compact-design/SKILL.md",
+        ):
+            with self.subTest(relpath=relpath):
+                text = (ROOT / relpath).read_text(encoding="utf-8")
+                self.assertIn("경량 build-worker", text)
+                self.assertIn("pr-reviewer", text)
+
+    def test_impl_loop_chain_confirms_when_issue_close_will_fire(self) -> None:
+        """#851 — task 수와 무관하게 issue close 발동 chain 은 1회 확인한다."""
+        for needle in (
+            "issue close 가 실제 발동되는 task",
+            "task 수와 무관하게",
+            "1회 확인",
+            "yolo 모드에서는 생략",
+            "확인 응답 전에는 task1 또는 마감 PR 머지로 진입하지 않는다",
+            "마지막 main 머지 PR 직전에 1회 확인한다",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.impl_loop_skill)
+
     # ----- 시나리오 4 — TaskCreate / TaskUpdate 의무 -----
     def test_task_create_update_is_mandatory(self) -> None:
         """impl-loop 모든 step 은 TaskCreate / TaskUpdate 와 한 묶음 — 자율 skip 금지 (사용자 가시성)."""

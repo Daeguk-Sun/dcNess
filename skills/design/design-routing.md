@@ -20,7 +20,7 @@ flowchart TB
   SA -->|PASS| AV1[architecture-validator 1차]
   AV1 -->|PASS| MA_BATCH[module-architect epic-batch]
   MA_BATCH -->|PASS| AV_FINAL[architecture-validator final epic 검증]
-  AV_FINAL -->|PASS| M([end-run/metrics freeze 후 Step 7 PR · 머지 → /impl 안내])
+  AV_FINAL -->|PASS| M([end-run/metrics freeze 후 Step 7 PR · 사용자 확인 checkpoint · 머지 → /impl 안내])
   AV1 -->|FAIL ≤3| SA
   AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤3"| SA
   AV_FINAL -->|"FAIL: CONTRACT_PROPAGATION · TASK_LOCAL ≤3"| MA_BATCH
@@ -49,7 +49,7 @@ flowchart TB
 |---|---|
 | **ux-architect** | `UX_FLOW_READY` → system-architect · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
 | **system-architect** | `PASS` → architecture-validator(1차) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
-| **architecture-validator** | `PASS`(1차) → module-architect(epic-batch) · `PASS`(final epic 검증) → SKILL.md Step 6 end-run/metrics freeze 후 Step 7 PR · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
+| **architecture-validator** | `PASS`(1차) → module-architect(epic-batch) · `PASS`(final epic 검증) → SKILL.md Step 6 end-run/metrics freeze 후 Step 7 PR + 사용자 확인 checkpoint · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
 | **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **designer** | `PASS` → 사용자 PICK · `ESCALATE` → 사용자. (UX_REFINE 분기 진입 시) |
 

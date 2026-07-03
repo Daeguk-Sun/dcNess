@@ -177,6 +177,24 @@ class DesignSurfaceContractTests(unittest.TestCase):
                 self.assertIn("domain-model.md` 작성 또는 생략 판단 근거", text)
                 self.assertIn("domain-model 작성/생략 근거 누락", text)
 
+    def test_design_clean_path_requires_pre_merge_confirmation_unless_yolo(self) -> None:
+        """#851 — final PASS 뒤 설계 pack main 머지 전 사용자 확인 checkpoint 보존."""
+        design_dir = ROOT / "skills" / "design"
+        design = (design_dir / "SKILL.md").read_text(encoding="utf-8")
+        routing = (design_dir / "design-routing.md").read_text(encoding="utf-8")
+
+        for needle in (
+            "main 머지 직전 사용자 확인",
+            "산출물 요약",
+            "diff 규모",
+            "yolo",
+            "확인 응답 전에는 `scripts/pr-finalize.sh` 를 호출하지 않는다",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design)
+
+        self.assertIn("사용자 확인 checkpoint", routing)
+
 
 if __name__ == "__main__":
     unittest.main()

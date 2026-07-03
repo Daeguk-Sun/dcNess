@@ -537,7 +537,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
     def test_design_records_are_frozen_before_design_pr(self) -> None:
         """#833 follow-up — design metrics are committed with the design PR."""
         end_run_at = self.design_skill.index("end-run + design run 기록 freeze")
-        pr_at = self.design_skill.index("PR + 머지 + ExitWorktree")
+        pr_at = self.design_skill.index("PR + main 머지 직전 사용자 확인 + ExitWorktree")
         self.assertLess(end_run_at, pr_at)
         for needle in (
             "PR 생성 전에",

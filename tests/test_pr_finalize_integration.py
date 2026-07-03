@@ -40,23 +40,43 @@ class PrFinalizeIntegrationBranchTests(unittest.TestCase):
     def test_close_compensation_uses_pr_body_declarations(self) -> None:
         # close 보정은 PR body 의 Closes/Fixes/Resolves 선언만 근거로 한다 —
         # Part of 는 매치되지 않아야 한다 (선언 없는 issue 임의 close 금지).
+        self.assertIn("extract_close_issue_numbers", self.script)
         self.assertIn("gh issue close", self.script)
         self.assertIn("close[sd]?", self.script)
         self.assertIn("resolve[sd]?", self.script)
         self.assertNotIn("Part of", self.script.split("gh issue close")[0].split("CLOSE_NUMS=")[-1])
+        self.assertIn("issue close 보정 대상", self.script)
 
     def test_close_keyword_extraction_ignores_part_of(self) -> None:
-        body = "Closes #219\ntask-index: 3/3\nPart of #220\nFixes #11\n"
+        body = (
+            "본문에서 `Closes #333` 라고 예시를 들었다.\n"
+            "> Closes #444\n"
+            "- Closes #555\n"
+            "Closes #219\n"
+            "task-index: 3/3\n"
+            "Part of #220\n"
+            "Fixes #11, #12\n"
+            "Resolved #13\n"
+        )
         pipeline = (
-            "grep -ioE '(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+'"
-            " | grep -oE '[0-9]+' | sort -un"
+            "awk '{ line = $0; lower = tolower(line); "
+            "if (lower ~ /^[[:space:]]*(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+([,[:space:]]+#?[0-9]+)*[[:space:]]*$/) "
+            "{ while (match(line, /#[0-9]+/)) { print substr(line, RSTART + 1, RLENGTH - 1); line = substr(line, RSTART + RLENGTH) } } }'"
+            " | sort -un"
         )
         result = subprocess.run(
             ["bash", "-c", f"printf '%s' \"$1\" | {pipeline}", "_", body],
             capture_output=True,
             text=True,
         )
-        self.assertEqual(result.stdout.split(), ["11", "219"])
+        self.assertEqual(result.stdout.split(), ["11", "12", "13", "219"])
+
+    def test_pr_finalize_documents_invocation_as_merge_commitment(self) -> None:
+        self.assertIn("pr-finalize 호출 = 머지 확정", self.script)
+        git_spec = (REPO_ROOT / "docs" / "plugin" / "git-spec.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("pr-finalize 호출 = 머지 확정", git_spec)
 
     def test_close_only_when_issue_open(self) -> None:
         self.assertIn('ISSUE_STATE" = "OPEN"', self.script)
