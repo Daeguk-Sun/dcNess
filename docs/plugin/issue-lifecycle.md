@@ -57,6 +57,8 @@ Project 축 정의의 SSOT 는 [`github-project.md`](github-project.md) 이다. 
 
 issue 등록 직후 Project item 으로 추가하고 `Status=Todo` + `IssueType` + `Priority` 를 설정한다. 단발 등록 (`/to-issue`) 과 epic/story 일괄 생성 ([`scripts/create_epic_story_issues.sh`](../../scripts/create_epic_story_issues.sh)) 이 같은 경로 `register-issue` 를 쓴다. epic → `IssueType=epic`, story → `IssueType=story`, 둘 다 `Priority=major` (일괄 기본).
 
+Priority 값과 단발/일괄 정책은 [`github-project.md#priority`](github-project.md#priority) 가 소유한다. 실행 경로에서는 단발 `/to-issue` 가 추론한 Priority 를 `--priority` 로 넘기고, epic/story 일괄 생성은 `major` 를 적용한다.
+
 ```bash
 node scripts/github_project_lifecycle.mjs register-issue \
   --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER \

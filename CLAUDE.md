@@ -101,9 +101,6 @@
 
 ## 문서 지도
 
-
-
-
 ### 작업 시 읽기 (lazy — 해당 작업 직전에만)
 
 | 파일 | 언제 읽나 |
@@ -111,13 +108,19 @@
 | [`docs/plugin/terms.md`](docs/plugin/terms.md) | 용어·공개 진입점·분기 표현·사용자 표시 메시지 수정/리뷰 시 |
 | [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | 공개 workflow 진입점의 기본/고급/유틸리티/내부 agent 분류 수정 시 |
 | [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 작업 요청을 어떤 workflow 로 보낼지 (구현 경로 — gate 축 × shape 축) 판단 시 |
+| [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현·효율 benchmark 문구 수정 시 |
+| [`docs/plugin/design.md`](docs/plugin/design.md) | `design.md` 토큰 규격·Static HTML 시안 규약 수정 시 |
 | [`docs/plugin/git-spec.md`](docs/plugin/git-spec.md) | 브랜치·커밋·PR 네이밍 규칙 SSOT — 모든 커밋 작업에 적용 |
+| [`docs/plugin/github-project.md`](docs/plugin/github-project.md) | GitHub Project `Status` / `IssueType` / `Priority` 축과 repo label 의미 수정 시 |
+| [`docs/plugin/init-dcness.md`](docs/plugin/init-dcness.md) | `/init-dcness` 배포 inventory·activation seed·선택형 확장 설명 수정 시 |
 | 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`design`](skills/design/design-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 분기 규칙 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
 | [`scripts/check_public_surface.mjs`](scripts/check_public_surface.mjs) | 공개 workflow 진입점 gate 기대값 수정 시 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop = 8 hook) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
 | [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — [dcness 자체는 init-dcness 미적용](#dcness-자체는-init-dcness-미적용-자기-규격-미얽매임) 참조) |
 | [`docs/plugin/deliverables-map.md`](docs/plugin/deliverables-map.md) | 외부 활성 프로젝트의 docs 산출물 위치·양식·계층 (`docs/index.md`, 전역 anchors, epic 산출물, `docs/decisions/`, `.dcness-work/`, 시드=산출 양식) SSOT — 산출물 경로/템플릿 수정 시 |
+| [`docs/plugin/parallel-policy.md`](docs/plugin/parallel-policy.md) | 병렬 peer 세션·claim board·merge lock 정책 수정 시 |
+| [`docs/plugin/templates/agent-prompt-slots.md`](docs/plugin/templates/agent-prompt-slots.md) | Agent prompt 3-slot 템플릿과 prompt 작성 checkpoint 수정 시 |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태·TODO·Blockers 확인 시 |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 수정 시 |
 | [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md) | PR 체크리스트 확인 시 |

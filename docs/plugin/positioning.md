@@ -11,14 +11,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 | `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | 구현 경로(설계도 유무 — Lite / Standard) + 엔진(풀4/경량)을 내부 판정 |
 | `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 | story/epic acceptance. 핵심 AC별 동작 증거와 mock-only gap 을 구분한다. 사람 full E2E 는 MVP 범위 밖 |
 
-사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 **설계도를 보고 구현만** 하며, 구현 경로(설계도 유무)와 엔진(풀4/경량)을 직교로 고른다.
-
-| 내부 구현 경로 | 조건 | 실행 |
-|---|---|---|
-| Lite | 설계 문서가 없고 파일, symbol, 승인된 issue, 테스트 명령처럼 구현 경계가 이미 concrete (high-risk 0개) | 메인 직접 `test -> impl -> test pass -> pr-reviewer -> PR` |
-| Standard | 설계 문서(경로)가 들어옴 | `--design-doc` 기록 후 받은 설계도로 구현 — 엔진 풀4(디폴트) / 경량 build-worker |
-
-엔진(풀4/경량 build-worker)은 구현 경로와 직교 축이고 사용자 우선·미지정 시 메인 추천이다. 이번 범위에서 엔진 선택은 Standard 에 적용한다(Lite 는 메인 직접 구현). high-risk trigger 나 새 epic/product feature 는 impl *내부 구현 경로가 아니라* impl 진입 *전* 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기되고, 산출된 설계도를 들고 Standard 로 진입한다.
+사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 **설계도를 보고 구현만** 하며, 구현 경로(설계도 유무)와 엔진(풀4/경량)을 직교로 고른다. high-risk trigger 나 새 epic/product feature 는 impl 내부 구현 경로가 아니라 impl 진입 전 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기된다. Lite / Standard 조건, high-risk 선행, 되돌림 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
 
 ## Support Entrypoints
 

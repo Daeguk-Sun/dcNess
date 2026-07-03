@@ -1,6 +1,7 @@
 # design.md 규격
 
-> dcness 디자인 시스템 SSOT.
+> **Status**: ACTIVE
+> **Scope**: dcness 디자인 시스템 토큰과 `design.md` 파일 규격의 SSOT. 본 문서는 `/design` workflow skill 이 아니라 프로젝트 디자인 토큰 문서의 작성·검증 기준이다. 설계 루프 절차는 [`../../skills/design/SKILL.md`](../../skills/design/SKILL.md)가 소유한다.
 > Google `design.md` 공식 spec 채택 + dcness 적용 룰 추가.
 > 원본: https://github.com/google-labs-code/design.md `docs/spec.md`
 
