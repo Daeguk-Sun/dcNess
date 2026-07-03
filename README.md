@@ -1,65 +1,51 @@
 # dcNess
 
-> Stop Claude Code from skipping tests, reviews, and file boundaries before PRs.
-> A Claude Code PR workflow guard that preserves test/review order and agent file boundaries.
+> 시니어 팀이 오래 다듬어 온 개발 워크플로우를, AI 코딩 에이전트가 그대로 따르게 만드는 Claude Code 플러그인.
 
 > **Origin**: [`alruminum/realworld-harness`](https://github.com/alruminum/realworld-harness) fork-and-refactor
 > **Spec(SSOT)**: [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)
 
-**dcNess 는 Claude Code 용 PR workflow guard plugin 이다.**
+Claude Code 는 일 잘하는 동료다. 맥락만 제대로 주면 웬만한 작업은 알아서 끝까지 해낸다. 문제는 실력이 아니다.
 
-Claude Code 가 혼자 달릴 때 가장 비싼 실수 — 테스트 생략, 리뷰 순서 뒤집기,
-권한 밖 파일 수정, PR 조기 생성 — 를 PR 전에 hook 으로 막고 복구 경로를 안내한다.
-Claude Code 기본 기능이 실행 능력을 준다면, dcNess 는 사용자가 정한 작업 순서와
-agent 파일 경계를 보존하는 얇은 안전장치다.
+아무리 잘하는 친구라도 혼자 오래 달리다 보면 팀의 순서에서 벗어날 때가 있다 — 테스트를 뒤로 미루고 구현부터, 검증을 건너뛰고 PR 부터, 맡은 범위 밖 파일까지. 사람이라면 코드 리뷰나 PR 규칙에서 잡히지만, 혼자 달리는 AI 옆에는 그걸 잡아 줄 사람이 없다.
 
-dcNess 는 *모델을 불신해서 모든 사고를 대신하는* 하네스가 아니다. 모델이 좋아질수록
-절차를 없애는 게 아니라 **절차의 목적을 이해하고 더 적은 마찰로 지키게** 하는, 사용자의
-working-style 을 보존하는 얇은 거버넌스 하네스다. 그래서 기본 경로는 가볍고, 무거운 절차는
-risk 가 높을 때만 조건부로 부른다([`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md)).
+시니어 팀은 이런 걸 오래 쌓인 순서로 거른다. 테스트 먼저, 리뷰를 통과해야 머지, 각자 맡은 영역만. 시니어일수록 이 순서가 몸에 배어 있다.
 
-강제하는 것은 단 두 가지뿐이다.
+dcNess 는 그 순서를 유능한 AI 동료에게 입힌다. 업무 방식은 잘 굴러가는 시니어 팀을 따르게 하되, 실제 코딩은 AI 가 가장 안전하고 빠르게 할 수 있는 방향으로 잡아 준다. 어떻게 짤지는 AI 가 정하고, 어떤 순서로 어디까지 손댈지는 팀 규칙이 정한다.
 
-- **작업 순서** — 검증·구현·리뷰 시퀀스 보존
-- **접근 영역** — agent 별 파일 경계 + 외부 상태 변경 차단
+## 어떤 순서를 지키나
 
-출력 형식·flag·schema 는 강제하지 않는다(agent 자율). 에이전트는 prose 를 자유롭게
-쓰고, 메인 Claude 가 그 prose 를 직접 읽어 다음 단계를 정한다. 형식 강제 사다리도,
-메타 LLM 호출도 없는 **자유서술 방식** 이다.
+AI 가 이 순서를 벗어나려 하면, dcNess 가 그 자리에서 붙잡고 빠뜨린 단계를 먼저 하게 한다.
+
+| Claude Code 가 하려는 것 | dcNess 의 반응 |
+|---|---|
+| 테스트 없이 구현 코드부터 작성 | 매칭되는 테스트가 없으면 그 파일 쓰기를 막는다 |
+| 코드 검증을 건너뛰고 리뷰/PR 로 | 앞 단계 통과 기록이 없으면 다음 단계로 못 넘어간다 |
+| 맡은 범위 밖 파일 수정 | 그 agent 에게 허용된 파일 경계 밖이면 차단 |
+| `main` 에 바로 커밋·push | `branch → PR` 경로로만 통과 |
+
+## 어디까지 개입하나
+
+dcNess 가 개입하는 지점은 좁다. 코드를 어떻게 짤지, 어떤 도구를 쓸지, 어떤 접근을 택할지는 AI 의 판단에 맡긴다. 지금 대충 넘어가면 나중에 수정 비용이 몇 배로 불어나는 자리만 잡는다.
+
+- **작업 순서** — 검증 → 구현 → 리뷰 → PR 시퀀스를 건너뛰지 못하게
+- **접근 영역** — agent 마다 손댈 수 있는 파일 범위 + 외부 상태 변경(push, 이슈 생성 등) 차단
+
+출력 형식이나 flag, 내부 상태 JSON 같은 건 강제하지 않는다. agent 는 자연어로 자유롭게 결과를 쓰고, 메인 Claude 가 그 글을 직접 읽어 다음 단계를 정한다. 정해진 양식에 값을 채우게 하거나, 판단을 위해 별도 LLM 을 한 번 더 부르는 구조가 없다.
+
+## 코드만 남기지 않는다
+
+잘 굴러가는 팀은 결과물만 남기지 않는다. 왜 그렇게 정했는지는 이슈에, 무엇을 어떻게 바꿨는지는 PR 에 남긴다. dcNess 의 작업 흐름도 그대로다. 모든 작업이 이슈 하나와 PR 하나로 묶여서, 결정의 근거와 변경 내용이 저장소 히스토리에 함께 쌓인다. 나중에 "이 코드가 왜 이렇게 됐지" 를 물으면, 따로 관리하는 ADR 문서가 아니라 실제 이슈와 PR 이 답이 된다.
 
 ## 누구에게 맞나
 
-**맞다** — Claude Code 로 실제 제품을 만들면서 `test → implement → review → PR`
-순서와 agent 파일 경계를 반복적으로 지키고 싶은 사람.
+**맞다** — Claude Code 로 실제 제품을 만들면서, `테스트 → 구현 → 리뷰 → PR` 순서와 파일 경계를 매번 지키고 싶은 사람. 끝난 작업을 나중에 다시 들여다보며 어디서 낭비가 났는지 잡아 절차를 다듬으려는 사람.
 
-**안 맞다** — 범용 model/provider 분기나 MCP 런타임 확장이 목적인 경우(그건 dcNess 의
-scope 가 아니다). Codex 분기는 dcNess loop 내부의 validation/implementation provider
-선택에 한정된다. 가벼운 단발 스크립팅만 원하는 경우엔 과할 수 있다.
+**안 맞다** — 여러 모델·provider 를 갈아 끼우는 범용 런타임이 필요한 경우(그건 dcNess 의 목적이 아니다). 한 번 쓰고 버릴 스크립트나 탐색용 프로토타입만 만드는 경우엔 오히려 거추장스럽다.
 
-## 언제 유리하고 언제 과한가
+dcNess 는 무거운 절차를 항상 켜 두지 않는다. 문서 수정이나 한 줄 버그픽스는 가볍게 지나가고, 새 기능이나 위험이 큰 작업일 때만 설계·검토 절차를 끌어올린다. 그래서 작은 작업에는 부담이 적고, 큰 작업에는 안전하다.
 
-작업 규모로 1분 안에 판단한다. dcNess 는 무거운 절차를 항상 켜지 않고 risk 가 높을 때만
-올린다 — 그래서 작은 작업엔 가볍고, 큰 작업엔 안전하다.
-
-| 작업 | 권장 | dcNess 가 주는 것 |
-|---|---|---|
-| 문서/설정 변경, 한 줄 버그픽스 | `/impl` (Lite) | 검증·리뷰·PR 순서 보존, 최소 마찰 |
-| 일반 버그픽스, 작은 리팩터링 | `/impl` (Lite/Standard 자동 판정) | 파일 경계 + `test -> review -> PR` 순서 보존 |
-| 새 기능 (설계 선행 필요) | `/spec -> /design -> /impl` | 설계도 기반 구현 + 검증 시퀀스 강제 |
-| epic/대형 작업, 여러 task | `/design -> /impl-loop` | task별 1 PR + run 단위 replay·낭비 분석 |
-
-**dcNess 가 과한 경우** — 일회성 스크립팅, 탐색적 prototype, 버리는 코드. 무거운
-설계 절차를 부를 일이 없고 검증 순서 보존이 가치를 못 내는 작업.
-
-**dcNess 가 유리한 경우** — 같은 절차(test -> implement -> review -> PR)와 agent 파일
-경계를 반복적으로 지켜야 하는 실제 제품 작업. run 을 사후에 다시 분석(replayability)해
-낭비를 잡고 절차를 개선하려는 경우.
-
-다른 skill-workflow 하네스(Superpowers, OMC 등)와의 정성 비교: 그쪽은 onboarding 과
-다양한 supported harness 노출이 강점이다. dcNess 는 onboarding 표면은 작은 대신,
-**작업 순서·파일 경계의 governance 와 run 단위 replayability** 가 강하다. 실측 수치와
-재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) 참조. turn/fleet
-측정, 결정적 guard-efficacy fixture, LLM 행동 eval 의 범위와 한계를 구분해 명시한다.
+다른 스킬 기반 하네스([Superpowers](https://github.com/obra/superpowers), [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) 등)와 결이 다르다. 그쪽은 방법론과 다양한 도구 연동이 강점이다. dcNess 는 노출하는 표면을 작게 유지하는 대신, 작업 순서·파일 경계를 코드로 지키는 거버넌스와 run 단위로 되짚어 보는 replay 에 집중한다. 실측 수치와 재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) 에 있다.
 
 ## 설치 & 활성화
 
@@ -69,14 +55,13 @@ claude plugin marketplace add alruminum/dcNess
 claude plugin install dcness@dcness
 ```
 
-설치만으로는 아무 hook 도 발화하지 않는다(디폴트 비활성 = pass-through).
-적용할 프로젝트에서 Claude Code 세션을 열고 활성화한다.
+설치만으로는 아무것도 걸리지 않는다. 기본값은 **비활성**(그냥 통과)이다. 적용할 프로젝트에서 Claude Code 세션을 열고 활성화해야 한다.
 
 ```
-/init-dcness        # 현 프로젝트를 활성 whitelist 에 등록 (+ Read 권한 / git hook 자동 셋업)
+/init-dcness        # 현 프로젝트를 활성 대상에 등록 (+ 파일 읽기 권한 / git hook 자동 셋업)
 ```
 
-**활성화 성공 기준** — `/init-dcness` 가 출력하는 진단표에서 `whitelist 활성` 이 PASS 이고 FAIL 항목이 0 이면 정상이다 (INFO·선택 WARN 은 정상).
+`/init-dcness` 가 출력하는 진단표에서 `whitelist 활성` 이 PASS 이고 FAIL 이 0 이면 정상이다(INFO·선택 WARN 은 정상).
 
 ```
 [dcness] === 외부 활성 프로젝트 진단 ===
@@ -85,176 +70,113 @@ claude plugin install dcness@dcness
 [dcness] 요약: N PASS / 0 WARN / 0 FAIL
 ```
 
-> plugin 갱신: `claude plugin update dcness@dcness`
-> (문제 시 `claude plugin uninstall dcness@dcness && claude plugin install dcness@dcness`)
+> 갱신: `claude plugin update dcness@dcness` (문서·skill·hook 만 받는 경우 `/init-dcness` 재실행 불필요)
 
-기존 프로젝트에서 terms.md 같은 plug-in 본체 문서/skill/hook 갱신만 받으려면 `claude plugin update dcness@dcness` 만 실행한다. `/init-dcness` 재실행은 필요 없다.
-Codex validation 분기를 새로 opt-in 하거나 implementation provider 를 Claude-only/Codex-first 로 바꾸거나 project-local bootstrap 파일을 새로 설치·갱신할 때만 `/init-dcness` 를 다시 실행한다. 설치/갱신되는 Codex validation skills 는 `$CODEX_HOME/skills/dcness-*` 3개이며, implementation wrapper 는 plug-in 의 agent 지침을 prompt 에 직접 포함한다. provider 분기 config 는 `~/.claude/plugins/data/dcness-dcness/routing.json` 에만 저장된다. 중간 변경:
-
-```sh
-dcness-helper routing disable-codex-validation
-dcness-helper routing disable-codex-implementation  # Claude-only 구현
-dcness-helper routing enable-codex-implementation   # Codex-first 구현
-```
+검증·구현·리뷰 단계를 어느 엔진으로 돌릴지는 프로젝트별로 고를 수 있다(Claude 서브에이전트 / Codex). 엔진을 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. 엔진 구성을 새로 켜거나 바꿀 때만 `/init-dcness` 를 다시 실행한다.
 
 ## 작업 흐름
 
-**기본 공개 workflow 는 제품 생명주기 기준으로 작게 유지한다.** 사용자가 기본으로 기억할 흐름은 `/spec -> /design -> /impl -> /acceptance` 다.
-상세 공개 진입점 계약은 [`docs/plugin/positioning.md`](docs/plugin/positioning.md), 구현 경로 판정은
-[`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md).
+기본으로 기억할 흐름은 `/spec → /design → /impl → /acceptance` 넷이면 된다.
 
-| 기본 진입점 | 언제 쓰나 |
+| 진입점 | 언제 쓰나 |
 |---|---|
-| `/spec` | 새 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 |
-| `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때. 구현 없이 visual design 만 먼저 탐색하려면 `/ux` |
-| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 |
-| `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 |
+| `/spec` | 새 기능·큰 기획·PRD 변경처럼 무엇을 만들지 먼저 합의해야 할 때 |
+| `/design` | 구현 전에 화면 흐름·시스템·모듈 설계가 필요할 때 (구현 없이 시안만 먼저 보려면 `/ux`) |
+| `/impl` | 구현·수정·버그픽스를 실제 PR 로 끝낼 때 |
+| `/acceptance` | PRD / Epic / Story 기준으로 "정말 다 됐는지" 제품 검수할 때 |
 
-`/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)와 엔진(풀4/경량)을 직교로 고른다. impl 은 설계를 하지 않고 설계도를 보고 구현만 한다.
+`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 설계 문서가 없고 파일·이슈 같은 구체적 단서가 명확하면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(Lite), 설계도가 있으면 그 설계도대로 구현한다(Standard). 새 기능이나 위험이 큰 작업은 `/impl` 안에서 처리하지 않고 `/spec`·`/design` 으로 먼저 돌린 뒤, 나온 설계도를 들고 다시 들어온다.
 
-| 구현 경로 | 조건 | 실행 |
-|---|---|---|
-| Lite | 설계 문서 없음 + 파일/symbol/승인된 issue 같은 concrete signal + high-risk 0개 + 테스트 기준 명확 | 메인 직접 `test -> impl -> test pass -> pr-reviewer -> PR` |
-| Standard | 설계 문서(경로)가 들어옴 | `--design-doc` 기록 후 받은 설계도로 구현 (엔진: 풀4 디폴트 / 경량 build-worker) |
+보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next`(보드에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름 먼저).
 
-high-risk trigger 나 새 epic/product feature 는 impl *내부 구현 경로가 아니라* impl 진입 *전* 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기되고, 산출된 설계도를 들고 Standard 로 진입한다.
+각 단계에서 agent 가 낸 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등)이 다음 어느 단계로 이어지는지는 skill 별 `<skill>-routing.md`(mermaid 분기도 + 표 + retry + escalate)가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/impl-routing.md).
 
-**새 기능**
+## 최근 정비 (2026-07)
 
-```
-/spec               # PRD 초안/최종화 + 필요 시 tech-review preflight + stories
-/design             # 필요 시 deep 설계 — ux/system/module architect + validator
-/impl               # 생성된 deep task 파일이 있으면 내부적으로 /impl-loop 위임
-/acceptance         # story/epic 제품 검수와 gap 후속 분기
-```
+**설계 루프 개편** — `/design` 을 epic 단위 배치 흐름으로 다시 짰다. 설계 산출물을 계약 기반으로 감사해서, 설계가 실제로 끝났는지를 사람 눈이 아니라 게이트가 확인한다(빠진 산출물, 형식만 맞고 내용이 빈 "false-clean" 차단). ([#831](https://github.com/alruminum/dcNess/issues/831) · [#832](https://github.com/alruminum/dcNess/issues/832) · [#833](https://github.com/alruminum/dcNess/issues/833) · [#834](https://github.com/alruminum/dcNess/issues/834) · [#847](https://github.com/alruminum/dcNess/issues/847))
 
-**버그 수정**
+**디자인 매체 교체** — 외부 pencil 의존을 걷어내고, 확정된 UI 시안을 저장소 안 canvas 로 관리한다. `/ux` 는 구현 없이 목업과 흐름만 먼저 탐색하는 유틸리티로 재정의했다. ([#842](https://github.com/alruminum/dcNess/issues/842) · [#843](https://github.com/alruminum/dcNess/issues/843) · [#845](https://github.com/alruminum/dcNess/issues/845))
 
-```
-/impl               # 구현 경로 자동 판정 + PR/review/CI
-```
+**머지·종료 가드 보강** — 자동 머지 직전 확인 창([#851](https://github.com/alruminum/dcNess/issues/851)), worktree 종료 시 변경이 main 에 흡수됐는지 확인한 뒤 정리([#852](https://github.com/alruminum/dcNess/issues/852)), UI 작업은 목업과 실제 화면 정합까지 검수([#844](https://github.com/alruminum/dcNess/issues/844)).
 
-**이슈 등록**
+**엔진 무관 게이트** — 순서·TDD 강제가 Claude 서브에이전트뿐 아니라 headless(Codex 등) 경로에서도 똑같이 걸리도록 강제 지점을 재배치했다. 예전에는 순서·TDD 게이트가 Claude 서브에이전트 경로에서만 발화하고, 자기 프로세스 안에서 직접 파일을 쓰는 headless 경로는 게이트 밖이었다. 이제 어느 엔진으로 구현·검증을 돌려도 같은 규칙이 적용된다. ([#859](https://github.com/alruminum/dcNess/issues/859))
 
-```
-/to-issue           # 문제/작업 후보를 Issue Brief 초안으로 만들고 승인 후 등록
-```
+## 진행 중 (로드맵)
 
-support/advanced/utility 진입점은 기본 생명주기 공개 진입점 밖의 보조 흐름이다.
+게이트를 엔진 무관하게 만든 작업([#859](https://github.com/alruminum/dcNess/issues/859))에 이어, 그 위에서 실행 엔진의 선택폭을 넓히는 단계다.
 
-- `/to-issue` — 메인 주도 Issue Brief 초안 + 승인 후 GitHub issue/Project 등록
-- `/next` — GitHub Project 보드의 In progress 와 다음 Todo 후보를 read-only 조회
-- `/tech-review` — high-risk 설계 선행에서 `/spec` 내부 preflight 로 쓰는 선행 기술 검증
-- `/impl-loop` — deep impl task 파일용 legacy/advanced runner
-- `/ux` — 구현 없이 목업과 흐름을 먼저 탐색하는 선행 디자인 utility
-
-검증·리뷰를 건너뛴 채 PR 머지로 못 가는 것이 dcNess 의 핵심이다. `pr-reviewer` 는 read-only
-provider 분기 대상이라 Codex 로 보낼 수 있고, `build-worker` / `engineer` 같은 구현 agent 는
-Codex-first implementation provider 대상이다. provider 가 바뀌어도 사용자-facing 단계 이름은
-`pr-reviewer` / `build-worker` 처럼 agent 이름으로 유지한다.
-
-agent 의 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등) → 다음 호출 매핑은
-각 loop skill 의 `<skill>-routing.md` (**mermaid 분기 그래프** + enum 표 + retry +
-escalate) 가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/impl-routing.md)
-(구현 진입), [`skills/design/design-routing.md`](skills/design/design-routing.md)
-(설계), [`skills/impl-loop/impl-loop-routing.md`](skills/impl-loop/impl-loop-routing.md)
-(deep task 구현). loop 별 진입 spec(entry_point / task_list / advance / expected_steps)은
-각 skill 본문(`skills/<skill>/SKILL.md`)의 `## Loop` contract 가 진본이고, 공통 실행 절차(Step 0~8 mechanics)는
-[`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델)다.
+- **구현 엔진 3단 폴백** ([#860](https://github.com/alruminum/dcNess/issues/860)) — codex headless → claude headless → claude 메인. Codex 가 안 깔린 사람도 격리 실행 혜택을 받게 한다.
+- **기본 엔진을 경량 build-worker 로** ([#861](https://github.com/alruminum/dcNess/issues/861)) — 풀 4-agent 는 위험이 큰 작업 승격 전용으로 남긴다.
 
 ## 핵심 특징
 
 | 항목 | 내용 |
 |---|---|
-| 결정론 | **자유서술 방식** — agent 가 prose 자유 emit, 메인 Claude 가 prose 를 직접 읽고 분기 판단. 기계 enum 추출·메타 LLM 호출 0 |
-| 형식 강제 | **0** — 형식/flag/schema 모두 agent 자율. harness 강제 = 작업 순서 + 접근 영역만 |
-| 컨텍스트 layer | 2 layer (CLAUDE.md + agents) |
-| 게이트 | 거버넌스 + 9 CI workflow (cross-ref / doc-sync / git-naming / plugin-manifest / pr-body / public-surface / python-tests / static-quality / release-sync) |
-| Codex 분기 | local provider 분기 — validation 3종은 Codex read-only opt-in, implementation 3종은 Codex-first 기본 + Claude-only 변경 가능 |
+| 판단 방식 | agent 가 자연어로 결과를 쓰고, 메인 Claude 가 그 글을 직접 읽어 분기한다. 기계적 값 추출·별도 LLM 호출 없음 |
+| 형식 강제 | 없음 — 형식·flag·schema 는 agent 자율. 강제는 작업 순서 + 접근 영역 |
+| 컨텍스트 구조 | 2 layer (`CLAUDE.md` + agent 지침) |
+| 게이트 | 거버넌스 + 10개 CI (cross-ref · doc-sync · git-naming · plugin-manifest · pr-body · public-surface · python-tests · static-quality · release-sync · github-project-lifecycle) |
+| 엔진 선택 | 검증·구현·리뷰 단계를 Claude 서브에이전트 또는 Codex 로 돌릴 수 있고, 엔진이 바뀌어도 규칙은 동일 |
 
 ## 공개 진입점
 
 | 분류 | 발화 | 역할 |
 |---|---|---|
-| 기본 workflow | `/spec` | 새 기능 spec + SPEC_ACCEPTANCE 체크포인트 |
-| 기본 workflow | `/design` | product/technical design |
-| 기본 workflow | `/impl` | 구현 진입 통합 — 구현 경로(설계도 유무 — Lite / Standard) + 엔진(풀4/경량) 내부 판정 |
-| 기본 workflow | `/acceptance` | story/epic 제품 검수 MVP |
-| support | `/to-issue` | Issue Brief 초안 작성 + 승인 후 GitHub issue/Project 등록 |
-| 고급 workflow | `/tech-review` | high-risk 설계 선행의 `/spec` 내부 선행 기술 검증 |
-| 고급 workflow | `/impl-loop` | deep impl task 파일용 legacy/advanced runner |
-| 유틸리티 | `/ux` | 구현 없이 목업과 흐름을 먼저 탐색 — drafts 반복 후 PICK 된 확정본은 canvas SSOT 에 등록 |
-| 유틸리티 | `/init-dcness` | 현 프로젝트를 plugin 활성 whitelist 에 등록 |
-| 유틸리티 | `/next` | GitHub Project 보드에서 In progress 와 다음 Todo 후보를 read-only 조회 |
-| 유틸리티 | `/run-review` | run 사후 분석 — step별 비용·차단 검출 |
-| 유틸리티 | `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 자동 생성 |
-| 유틸리티 | `/efficiency` | 세션 토큰/캐시/비용 분석 + HTML 대시보드 |
+| 기본 | `/spec` | 새 기능 spec + 검수 체크포인트 |
+| 기본 | `/design` | 화면·시스템·모듈 설계 |
+| 기본 | `/impl` | 구현 진입 — 경로(Lite/Standard)와 엔진을 내부 판정 |
+| 기본 | `/acceptance` | story/epic 제품 검수 |
+| 보조 | `/to-issue` | 자연어 → Issue Brief 초안 → 승인 후 GitHub 등록 |
+| 고급 | `/tech-review` | 위험한 설계의 사전 기술 검증 |
+| 고급 | `/impl-loop` | deep impl task 파일 단위 구현 러너 |
+| 유틸 | `/ux` | 구현 없이 목업·흐름 먼저 탐색, PICK 확정본은 canvas 에 등록 |
+| 유틸 | `/init-dcness` | 현 프로젝트를 활성 대상에 등록 |
+| 유틸 | `/next` | 보드의 진행 중 / 다음 할 일 조회 |
+| 유틸 | `/run-review` | 끝난 run 을 되짚어 단계별 비용·차단 분석 |
+| 유틸 | `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 생성 |
+| 유틸 | `/efficiency` | 세션 토큰·비용 분석 + HTML 대시보드 |
 
-12개 sub-agent(`agents/`) — architect / validator / engineer / reviewer / acceptance 계열 — 는 사용자-facing
-진입점이 아니라 workflow 내부 gate/worker/reviewer 로 호출된다.
+12개 sub-agent(`agents/`, architect / validator / engineer / reviewer / acceptance 계열)는 사용자가 직접 부르는 게 아니라 workflow 안에서 gate·worker·reviewer 로 호출된다.
 
-## 거버넌스 (dcNess 자체 저장소 작업 기준)
+## 거버넌스 (dcNess 저장소 자체 작업 기준)
 
-본 저장소의 모든 변경은 [`CLAUDE.md`](CLAUDE.md)(SSOT) 를 따른다.
+이 저장소의 모든 변경은 [`CLAUDE.md`](CLAUDE.md)(SSOT)를 따른다.
 
-- **게이트**: main-block · git-naming · pytest(pre-commit hook) + plugin-manifest · pr-body · public-surface · cross-ref · doc-sync · static-quality(CI)
-- **branch → PR → merge** 필수, main 직접 push 금지
+- **게이트**: main-block · git-naming · pytest(pre-commit hook) + 위 10개 CI
+- **branch → PR → merge** 필수, `main` 직접 push 금지
 - PR 절차: [`CLAUDE.md`](CLAUDE.md#커밋-pr-절차)
 
 ## 개발자 셋업 (dcNess 에 기여)
 
-검증 기준은 Python 3.11 이다. macOS 기본 `python3` 는 Python 3.9 일 수 있으므로
-로컬에서는 `python3.11` 을 명시한다. pre-commit hook 은 `python3.11` 을 우선 탐색하고,
-CI 는 GitHub Actions `setup-python` 으로 Python 3.11 을 고정한다.
+검증 기준은 Python 3.11 이다. macOS 기본 `python3` 는 3.9 일 수 있으니 로컬에서는 `python3.11` 을 명시한다.
 
 ```sh
 git clone https://github.com/alruminum/dcNess.git
 cd dcNess
 cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 
-python3.11 -m unittest discover -s tests -v # 단위 테스트
-node scripts/check_plugin_manifest.mjs     # manifest 검증
-node scripts/check_public_surface.mjs      # 공개 workflow 진입점 검증
-node scripts/check_cross_refs.mjs          # link/anchor + 옛 명칭 게이트
+python3.11 -m unittest discover -s tests -v   # 단위 테스트
+node scripts/check_public_surface.mjs         # 공개 진입점 계약 검증
+node scripts/check_cross_refs.mjs             # link/anchor + 옛 명칭 게이트
 python3.11 -m pip install -r requirements-quality.txt
-bash scripts/check_static_quality.sh       # ruff + mypy + bandit static quality
-bash scripts/dcness-codex-validator --help # Codex validator wrapper smoke
-bash scripts/dcness-codex-worker --help    # Codex implementation wrapper smoke
+bash scripts/check_static_quality.sh          # ruff + mypy + bandit
 ```
 
-- 런타임 의존성: Python 3.11+, Node.js 20+, **외부 패키지 0** (표준 라이브러리만)
-- static quality 도구: `requirements-quality.txt` 에 pin 된 `ruff` / `mypy` / `bandit`
+- 런타임 의존성: Python 3.11+, Node.js 20+, **외부 패키지 0**(표준 라이브러리만)
 
 ## 참조 문서
 
 | 문서 | 역할 |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성 SSOT (강제 영역 2 + 안티패턴 4) |
-| [`docs/plugin/terms.md`](docs/plugin/terms.md) | 사용자-facing 용어 사전 — 용어·공개 진입점·분기 표현 수정/리뷰 시 lazy read |
-| [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | 공개 workflow 진입점 계약 — 기본/support/고급/유틸리티/내부 agent 분류 |
-| [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현 가이드(measure_main_turns / run-review / fleet aggregate / guard-efficacy) + PR 성공률·review rejection·waste 구분 + 표본 한계 |
-| 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`design`](skills/design/design-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 분기 규칙 진본 (mermaid + enum 표 + retry + escalate) |
-| [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | loop 실행 절차 — Step 0~8 mechanics (각 loop spec = 해당 skill `## Loop`) |
+| [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성·강제 원칙 SSOT |
+| [`docs/plugin/terms.md`](docs/plugin/terms.md) | 사용자-facing 용어 사전 |
+| [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | 공개 진입점 계약 (기본/보조/고급/유틸/내부 분류) |
+| [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 요청을 어떤 workflow 로 보낼지 판정 |
+| [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현 가이드 + 표본 한계 |
+| [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | loop 실행 절차 (Step 0~8) |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | 순서 차단 훅 + 8 hook SSOT |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |
-| [`CLAUDE.md`](CLAUDE.md) | 메인 Claude 작업 지침 |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 |
-
-## Public Launch Tracker
-
-현재 public launch 공개 노출 범위는 README / plugin manifest / GitHub About description 을 같은
-포지셔닝으로 맞추는 것이 기준이다. 후속 readiness 항목은 아래 이슈가 맡는다.
-
-- [`#520 /init-dcness doctor`](https://github.com/alruminum/dcNess/issues/520) — 활성화 실패를 사용자가 직접 진단할 수 있게 한다.
-- [`#521 agent/skill RED-GREEN 시나리오 테스트`](https://github.com/alruminum/dcNess/issues/521) — guard 동작을 예제 기반으로 검증한다.
-- [`#522 positioning + 측정 재현`](https://github.com/alruminum/dcNess/issues/522) — "언제 유리하고 언제 과한가" 판단 + 측정 재현 가이드([`benchmark.md`](docs/plugin/benchmark.md)). 정량 표는 [`#766`](https://github.com/alruminum/dcNess/issues/766) 으로 분리.
-- [`#524 runtime non-goal vs interop 포지셔닝`](https://github.com/alruminum/dcNess/issues/524) — provider 분기 시스템이 아니라 PR workflow guard 라는 경계를 명확히 한다.
-
-### 역사 자료 (archive)
-
-[`docs/archive/status-json-mutate-pattern.md`](docs/archive/status-json-mutate-pattern.md)
-(자유서술 방식 원전 proposal) · [`migration-decisions.md`](docs/archive/migration-decisions.md)
-· [`conveyor-design.md`](docs/archive/conveyor-design.md) (Python loop 실행기 v1 폐기 설계).
 
 ## License
 
