@@ -28,7 +28,7 @@ EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / d
 
 - **거부 표현 시에만 건너뜀** — 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시 EnterWorktree 호출 0, 일반 cwd 그대로 진행.
 - 수동 `git worktree add` 우회 금지 — CC permission 시스템이 EnterWorktree 만 자동 권한 처리. 수동 워크트리는 sub-agent Write 거부 회귀 (#255 W1). **예외 = 통합 브랜치 모드** ([base-ref 분기](#base-ref-분기-통합-브랜치-모드-424) — 사전 `git worktree add` 후 `EnterWorktree(path=)` 진입, CC 가 path= 도 권한 처리).
-- **종료 시 ExitWorktree (squash 흡수 자동 분기)** — `main..<worktree-branch>` diff (`.claude` 제외) 가 비면 이미 머지 흡수된 것 → `ExitWorktree(action="remove", discard_changes=true)`, 남아있으면 `ExitWorktree(action="keep")`.
+- **종료 시 ExitWorktree (커밋 diff 흡수 + clean worktree 자동 분기)** — 자동 remove/discard 조건은 **커밋 diff 흡수 확인 + working tree clean** 둘 다다. 먼저 `main..<worktree-branch>` diff (`.claude` 제외) 가 비어 이미 머지 흡수됐는지 확인하고, 이어서 worktree cwd 에서 `git status --porcelain --untracked-files=all` 이 빈 값인지 확인한다. 두 조건을 모두 만족할 때만 `ExitWorktree(action="remove", discard_changes=true)` 를 호출한다. 커밋 diff 가 남아 있거나 `uncommitted/untracked` 파일이 하나라도 있으면 `ExitWorktree(action="keep")` 으로 강등하며, dirty 상태 자동 discard 금지.
 
 ### base-ref 분기 (통합 브랜치 모드, #424)
 
@@ -352,7 +352,7 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 
 clean 판정 통과 시 사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프): branch (`<prefix>/<short-slug>`, prefix = 해당 loop 의 branch_prefix — [`git-spec.md` 브랜치](git-spec.md#브랜치) valid 패턴) → **변경 파일 commit** → push → PR create → merge → main sync. **commit 대상 = 해당 loop 가 실제 변경한 파일** — design = `docs/**` 설계 산출물, ux = epic `ux-flow.md`, `docs/design.md`, `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, 필요 시 `docs/design-variants/_lib/**` seed 라 src-only 아님 (src-only 제한은 impl-task-loop 전용, [impl-task-loop commit 구조](#impl-task-loop-commit-구조)). **stray untracked 휩쓸기 주의**: impl 루프와 달리 비-impl loop 은 worktree 권한 경계가 src-only 가 아니고 clean 매트릭스가 untracked ≤ 10 을 허용하므로, `pr-create.sh` 의 `git add -A` 는 무관한 로컬 아티팩트까지 stage 한다 → 호출 *전* 산출물 외 파일을 정리하거나, 해당 loop 산출물만 명시 pathspec 으로 직접 stage 후 commit. 네이밍·본문·트레일러 = [`git-spec.md`](git-spec.md), 커밋 trailer 의 모델 표기는 글로벌 `~/.claude/CLAUDE.md` 기준. 실행 = [`scripts/pr-create.sh`](../../scripts/pr-create.sh) + [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh).
 
-worktree 진입 시 squash 흡수 검사 후 `ExitWorktree(action="<keep|remove>")` ([worktree 분기](#worktree-분기-action-루프-한정)).
+worktree 진입 시 [worktree 분기](#worktree-분기-action-루프-한정) 의 커밋 diff 흡수 + working tree clean 검사를 완료한 뒤 `ExitWorktree(action="<keep|remove>")` 를 호출한다.
 
 ### 7b — 주의사항 확인
 
