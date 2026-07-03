@@ -110,6 +110,19 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.deliverables_map = (
             ROOT / "docs" / "plugin" / "deliverables-map.md"
         ).read_text(encoding="utf-8")
+        self.claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        self.github_project = (
+            ROOT / "docs" / "plugin" / "github-project.md"
+        ).read_text(encoding="utf-8")
+        self.design_tokens_doc = (
+            ROOT / "docs" / "plugin" / "design.md"
+        ).read_text(encoding="utf-8")
+        self.smart_compact = (
+            ROOT / "commands" / "smart-compact.md"
+        ).read_text(encoding="utf-8")
+        self.branch_protection_script = (
+            ROOT / "scripts" / "setup_branch_protection.mjs"
+        ).read_text(encoding="utf-8")
 
     def test_removed_alias_skill_directories_do_not_exist(self) -> None:
         self.assertFalse((ROOT / "skills" / "product-plan").exists())
@@ -166,6 +179,73 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.pr_reviewer)
+
+    def test_project_registration_mechanics_have_single_owner(self) -> None:
+        """#853 — GitHub Project axis doc points to lifecycle mechanics instead of restating them."""
+        self.assertIn(
+            "node scripts/github_project_lifecycle.mjs register-issue",
+            self.issue_lifecycle,
+        )
+        self.assertIn(
+            "조회 우선순위: `--project`/`--owner` 플래그",
+            self.issue_lifecycle,
+        )
+        self.assertNotIn(
+            "node scripts/github_project_lifecycle.mjs register-issue",
+            self.github_project,
+        )
+        self.assertNotIn(
+            "조회 우선순위: `--project`/`--owner` 플래그",
+            self.github_project,
+        )
+        self.assertIn("issue-lifecycle.md#github-project-status-lifecycle", self.github_project)
+        self.assertNotIn("좌표(owner/number)", self.spec_delivery_reference)
+        self.assertIn(
+            "issue-lifecycle.md#github-project-status-lifecycle",
+            self.spec_delivery_reference,
+        )
+
+    def test_workflow_router_owns_impl_lane_conditions(self) -> None:
+        """#853 — positioning owns public surface; workflow-router owns Lite/Standard conditions."""
+        self.assertIn("## 구현 경로 표", self.router)
+        self.assertIn("concrete signal", self.router)
+        self.assertNotIn("| 내부 구현 경로 | 조건 | 실행 |", self.positioning)
+        self.assertIn("workflow-router.md#구현-경로-표", self.positioning)
+
+    def test_claude_doc_map_reaches_current_plugin_docs(self) -> None:
+        """#853 — CLAUDE.md doc map reaches every current docs/plugin markdown file."""
+        plugin_docs = sorted(
+            path.relative_to(ROOT).as_posix()
+            for path in (ROOT / "docs" / "plugin").rglob("*.md")
+        )
+        missing = [path for path in plugin_docs if path not in self.claude]
+        self.assertEqual([], missing)
+        self.assertNotIn("## 문서 지도\n\n\n\n", self.claude)
+
+    def test_design_token_doc_is_disambiguated_from_design_workflow(self) -> None:
+        """#853 — docs/plugin/design.md is token/spec guidance, not the /design workflow."""
+        self.assertIn("본 문서는 `/design` workflow skill 이 아니라", self.design_tokens_doc)
+        self.assertIn("skills/design/SKILL.md", self.design_tokens_doc)
+
+    def test_external_runtime_docs_do_not_point_at_archive_paths(self) -> None:
+        """#853 — deployed command/script guidance should not require release-pruned archive docs."""
+        self.assertNotIn("docs/archive/", self.smart_compact)
+        self.assertNotIn("docs/archive/branch-protection-setup.md", self.branch_protection_script)
+        self.assertNotIn("docs/internal/branch-protection-setup.md", self.branch_protection_script)
+        self.assertIn("docs/plugin/hooks.md", self.branch_protection_script)
+
+    def test_spec_skill_wording_matches_step_ownership_split(self) -> None:
+        """#857 follow-up — SKILL owns Step-internal branches; routing owns inter-skill movement."""
+        self.assertIn("Step 내부 분기는 본 파일이 소유", self.spec_skill)
+        self.assertIn("skill 간 이동·재진입은 [`spec-routing.md`](spec-routing.md)", self.spec_skill)
+        self.assertNotIn(
+            "분기 규칙 SSOT 는 [`spec-routing.md`](spec-routing.md) 다.",
+            self.spec_skill,
+        )
+        self.assertNotIn(
+            "분기 판단이 필요하면 [`spec-routing.md`](spec-routing.md)를 확인한다.",
+            self.spec_skill,
+        )
 
     def test_readme_uses_lifecycle_defaults_without_compat_aliases(self) -> None:
         basic_table = self._section(self.readme, r"\| 기본 진입점 \|", r"\n`/impl`")

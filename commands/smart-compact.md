@@ -174,7 +174,7 @@ EOF
 
 # 컨텍스트
 - 핵심: harness/session_state.py, harness/hooks.py, hooks/*.sh, commands/*.md
-- spec: docs/archive/conveyor-design.md (v2 Task tool 패턴, 역사 자료), docs/plugin/loop-procedure.md
+- spec: docs/plugin/loop-procedure.md (Task/Agent/helper/hook loop mechanics)
 - agents/*.md 12개 모두 자유서술 방식 (DCN-CHG-27)
 - 기준: CLAUDE.md 강제 원칙 + docs/plugin/workflow-router.md
 

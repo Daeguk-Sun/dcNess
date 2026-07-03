@@ -35,7 +35,7 @@ bash "$PLUGIN_ROOT/scripts/pr-finalize.sh" <PR_NUMBER>
 
 PR 머지 완료 후 사용자가 Y 를 선택하면 메인이 자동화 스크립트를 호출한다.
 
-이슈 생성 전에 보드(Project) 상태를 점검한다. 좌표(owner/number)는 `gh variable get DCNESS_PROJECT_NUMBER` 로 조회하거나 `--project`/`--owner` 로 넘긴다. 보드나 field/option 이 없거나 불완전하면 사용자에게 "지금 보드를 만들/채울까요?" 를 물어보고, 동의하면 `github_project_lifecycle.mjs bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 를 먼저) 로 셋업한 뒤 좌표를 `gh variable set` 으로 저장한다. 거부하면 보드 없이 진행한다. 어떤 경우에도 이슈 생성은 막지 않는다.
+이슈 생성 전에 보드(Project) 상태를 점검한다. Project 좌표 해석, field/option bootstrap, 등록 skip/backfill 정책은 [`docs/plugin/issue-lifecycle.md#github-project-status-lifecycle`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle) 를 따른다. 어떤 경우에도 이슈 생성은 막지 않는다.
 
 ```bash
 bash "$PLUGIN_ROOT/scripts/create_epic_story_issues.sh" docs/epics/epic-NN-<slug>/stories.md --project <number> --owner <owner>
@@ -48,7 +48,7 @@ bash "$PLUGIN_ROOT/scripts/create_epic_story_issues.sh" docs/epics/epic-NN-<slug
 3. epic issue 생성 → stories.md 에 번호 기록
 4. story issue N개 생성 → stories.md 에 번호와 하단 표 기록
 5. sub-issue API 호출
-6. GitHub Project 보드 등록 — epic(`Status=Todo`, `IssueType=epic`, `Priority=major`) / story(`Status=Todo`, `IssueType=story`, `Priority=major`). 좌표 없으면 등록 skip + 경고(이슈는 생성됨). 멱등 재실행 시 이슈 생성은 skip 하고 보드 등록만 backfill
+6. GitHub Project 보드 등록 — epic(`Status=Todo`, `IssueType=epic`, `Priority=major`) / story(`Status=Todo`, `IssueType=story`, `Priority=major`). 좌표·backfill 정책은 [`docs/plugin/issue-lifecycle.md#github-project-status-lifecycle`](../../docs/plugin/issue-lifecycle.md#github-project-status-lifecycle) 포인터를 따른다
 7. 결과 prose 출력
 
 스크립트 실패 시 메인이 사용자에게 보고하고 [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#sub-issue-연결-epic-story-gh-api-메커니즘)에 따라 수동 처리한다. 보드 등록이 partial 이면 어떤 issue 가 미반영인지 보고하고 보드/field 셋업 후 재실행으로 backfill 한다. 이슈 등록 후 stories.md 변경분은 별도 commit + PR 또는 사용자 자율이다.

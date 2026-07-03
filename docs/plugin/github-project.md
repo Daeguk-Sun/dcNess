@@ -36,11 +36,15 @@ repo label 6종은 `epic`, `feature`, `story`, `task`, `subTask`, `bug` 이며 I
 | `minor` | 유용하지만 낮은 긴급도의 작업. | 작은 UX polish, 낮은 영향의 개선. |
 | `trivial` | 영향이 제한적인 작은 정리. | 문구, 소규모 cleanup. |
 
+Priority 처리는 경로별로 다르다. 단발 `/to-issue` 는 Priority 를 맥락에서 추론해 명시한다 (기본값 없음 — [`../../skills/to-issue/issue-fields.md`](../../skills/to-issue/issue-fields.md) 의 Priority 추론 가이드). epic/story 일괄 생성은 전부 `major` 고정이다. `register-issue` 의 `--priority` 생략 시 `major` fallback 은 일괄 경로를 위한 동작이며, 단발 등록은 추론값을 항상 명시해 그 fallback 에 의존하지 않는다.
+
 ## Lifecycle
 
 이슈 등록 직후 Project `Status=Todo` 이다. 특정 issue 를 대상으로 설계나 구현 흐름을 실제 시작하면 `Status=In progress` 로 이동한다. default branch 에 merge 된 PR 이 `Closes #N`, `Fixes #N`, `Resolves #N` 또는 GitHub 의 실제 closing issue reference 로 issue 를 완료하면 `Status=Done` 으로 이동한다.
 
 `Part of #N` 은 중간 연결일 뿐 완료 신호가 아니다. `Part of #N` 만 있는 PR 은 issue 를 `Done` 으로 옮기지 않는다.
+
+등록 명령, 보드 좌표 해석, 멱등 backfill, PR merge 후처리 같은 실행 메커니즘은 [`issue-lifecycle.md#github-project-status-lifecycle`](issue-lifecycle.md#github-project-status-lifecycle) 가 소유한다. 본 문서는 Project 축과 drift 메시지의 의미만 정의한다.
 
 ## Drift Messages
 
@@ -76,19 +80,3 @@ gh project create --owner OWNER --title "dcNess" --format json
 gh project link PROJECT_NUMBER --owner OWNER --repo REPO
 node scripts/github_project_lifecycle.mjs bootstrap --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER --apply
 ```
-
-## Issue 등록 (register-issue) + 좌표 저장
-
-issue 를 Project item 으로 추가하고 `Status=Todo` + `IssueType` + `Priority` 를 설정하는 경로는 `register-issue` 다. 단발 (`/to-issue`) 과 epic/story 일괄 생성이 같이 쓴다.
-
-Priority 처리는 두 경로가 다르다. 단발 `/to-issue` 는 Priority 를 맥락에서 추론해 `--priority` 로 명시한다 (기본값 없음 — [`../../skills/to-issue/issue-fields.md`](../../skills/to-issue/issue-fields.md) 의 Priority 추론 가이드). epic/story 일괄 생성은 전부 `major` 고정이다 (의도된 결정, 유지). `register-issue` 의 `--priority` 생략 시 `major` fallback 은 후자의 일괄 경로를 위한 동작이며, 단발 등록은 추론값을 항상 명시해 그 fallback 에 의존하지 않는다.
-
-```bash
-node scripts/github_project_lifecycle.mjs register-issue \
-  --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER \
-  --issue ISSUE_NUMBER --issue-type epic|story [--priority major] --apply
-```
-
-item 이 없으면 추가 (멱등), 있으면 field 만 set 후 drift 검증. 보드/field 가 없거나 불완전해도 issue 생성은 막지 않는다 — 메인이 셋업을 물어보고 거부 시 보드 없이 진행하며, 일괄 스크립트는 좌표가 없으면 등록만 skip 한다.
-
-보드 좌표 (owner/number) 는 repo 변수 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` 에 저장한다 (GitHub Actions `vars.*` 와 동일 저장소 = 단일 SSOT). `/init-dcness` 가 `gh variable set` 으로 저장하고, 등록 경로는 `gh variable get` 으로 읽는다. 조회 우선순위: `--project`/`--owner` 플래그 → `DCNESS_PROJECT_*` env → `gh variable get` → owner 는 repo owner fallback.

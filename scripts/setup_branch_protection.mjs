@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * dcNess main branch protection 적용 스크립트 (현재 비활성 — 옵션 도구)
- * 규칙 정의: docs/internal/governance.md §2.8 (SSOT)
+ * 참고: docs/plugin/hooks.md 의 CI workflow / branch protection 관계.
  *
  * ⚠️ 현재 상태 (DCN-CHG-20260501-06 이후): main protection OFF.
  *   doc-sync 만 실질 강제하면 충분 + paths 필터 폐기 트레이드오프 회피.
@@ -20,7 +20,7 @@
  *
  * 의존: gh CLI 인증 + 본 저장소 admin 권한.
  *   - 비-admin 실행 시: HTTP 403 / "Resource not accessible by integration".
- *   - 그 경우 GitHub UI 에서 동일 설정 수동 적용 (docs/internal/branch-protection-setup.md 참조).
+ *   - 그 경우 GitHub Settings > Branches/Rulesets 에서 required check 를 수동 설정한다 (docs/plugin/hooks.md 참조).
  */
 import { execSync } from 'node:child_process';
 
@@ -96,7 +96,7 @@ try {
   console.error(`  ${e.stderr?.toString() || e.message}`);
   console.error('');
   console.error('가능한 원인:');
-  console.error('  1. admin 권한 부족 → GitHub UI 에서 수동 적용 (docs/archive/branch-protection-setup.md)');
+  console.error('  1. admin 권한 부족 → GitHub Settings > Branches/Rulesets 에서 수동 적용 (docs/plugin/hooks.md)');
   console.error('  2. 필수 check 이름 mismatch → 실제 워크플로우 jobs.<id>.name 확인');
   console.error('  3. branch protection plan 제한 (private repo + free plan 일부 기능 제한)');
   process.exit(1);

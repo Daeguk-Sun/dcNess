@@ -9,7 +9,7 @@ description: 새 기능 / PRD 변경 / 큰 기획을 받아 메인 Claude 가 �
 
 흐름 요약: PRD 초안 → 사용자 초안 확인 → 기술 검토 필요 영역에 항목이 있으면 `/tech-review` preflight → PRD 최종화 → stories.md → `product-acceptance:SPEC_ACCEPTANCE` → PR 머지 → 이슈 등록 여부 확인 → `/design`.
 
-분기 규칙 SSOT 는 [`spec-routing.md`](spec-routing.md) 다. 본 파일은 Step 운전 절차만 담는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
+Step 내부 분기는 본 파일이 소유한다. skill 간 이동·재진입은 [`spec-routing.md`](spec-routing.md)가 소유한다. 본 파일은 Step 운전 절차와 체크포인트 응답을 담는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
 ## References
 
@@ -24,7 +24,7 @@ description: 새 기능 / PRD 변경 / 큰 기획을 받아 메인 Claude 가 �
 
 ### Step 0 — 사전 read
 
-정상 흐름은 본 파일과 필요한 reference 만 읽고 진행한다. 분기 판단이 필요하면 [`spec-routing.md`](spec-routing.md)를 확인한다.
+정상 흐름은 본 파일과 필요한 reference 만 읽고 진행한다. Step 내부 체크포인트는 아래 절차를 따르고, skill 간 이동·재진입 경계가 필요할 때만 [`spec-routing.md`](spec-routing.md)를 확인한다.
 
 ### Step 1 — 사용자와 그릴 대화
 
