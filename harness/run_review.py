@@ -344,7 +344,8 @@ def audit_context_docs(
         ))
 
     if report is not None:
-        for waste in report.wastes[:5]:
+        waste_count = 0
+        for waste in report.wastes:
             if waste.severity not in {"HIGH", "MEDIUM"}:
                 continue
             findings.append(ContextAuditFinding(
@@ -360,7 +361,11 @@ def audit_context_docs(
                     "특정 agent 습관이면 loop insight 또는 agent prompt 수정이 우선입니다."
                 ),
             ))
-        for note in report.notes[:5]:
+            waste_count += 1
+            if waste_count >= 5:
+                break
+        note_count = 0
+        for note in report.notes:
             if note.pattern not in {"THINKING_LOOP", "TOOL_USE_OVERFLOW"}:
                 continue
             findings.append(ContextAuditFinding(
@@ -370,6 +375,9 @@ def audit_context_docs(
                 detail=f"{note.pattern} at step {note.step_idx}: {note.detail}",
                 suggestion="비용·도구 사용 문제가 반복되면 CLAUDE.md 의 cost-aware 운영 규칙 후보로 검토합니다.",
             ))
+            note_count += 1
+            if note_count >= 5:
+                break
 
     return findings
 

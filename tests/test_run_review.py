@@ -782,6 +782,51 @@ class ContextAuditTests(unittest.TestCase):
                 any("PLACEHOLDER_LEAK" in f.detail for f in findings)
             )
 
+    def test_context_audit_limits_after_relevant_run_wastes(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            (tmp / "CLAUDE.md").write_text("# Rules\n", encoding="utf-8")
+            (tmp / "AGENTS.md").write_text(
+                "SSOT: [`CLAUDE.md`](CLAUDE.md)\n",
+                encoding="utf-8",
+            )
+            report = RunReport(
+                run_id="rid",
+                session_id="sid",
+                run_dir=tmp,
+                repo_path=tmp,
+                wastes=[
+                    WasteFinding(
+                        pattern=f"LOW_{i}",
+                        severity="LOW",
+                        step_idx=i,
+                        agent="engineer",
+                        detail="low signal",
+                        fix="-",
+                    )
+                    for i in range(10)
+                ] + [
+                    WasteFinding(
+                        pattern="MUST_FIX_GHOST",
+                        severity="HIGH",
+                        step_idx=11,
+                        agent="pr-reviewer",
+                        detail="must fix leaked",
+                        fix="fix gate",
+                    )
+                ],
+            )
+
+            findings = audit_context_docs(tmp, report=report)
+
+            self.assertTrue(
+                any(
+                    f.pattern == "RUN_REVIEW_WASTE_FEEDBACK"
+                    and "MUST_FIX_GHOST" in f.detail
+                    for f in findings
+                )
+            )
+
 
 class RunListTests(unittest.TestCase):
     def test_list_and_find(self):
