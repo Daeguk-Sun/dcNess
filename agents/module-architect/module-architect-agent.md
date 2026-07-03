@@ -10,7 +10,7 @@ epic-batch, Standard 구현 경로 compact plan, 보강 요청, 계약 전파 �
 - 전역 architecture/conventions/decisions 와 epic architecture, 선택 domain-model
 - 필요하면 SPEC_GAP, validator finding, bug issue, contract_sweep 요청
 - `/impl` Standard 구현 경로의 compact plan 요청
-- 선택적으로 DESIGN_HANDOFF 또는 UX 관련 문서
+- 선택적으로 확정 목업 `docs/design-variants/<screen-id>.html`, canvas 경로, UX 관련 문서
 
 ## 먼저 읽을 문서
 

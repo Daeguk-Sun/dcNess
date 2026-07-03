@@ -92,6 +92,8 @@ agent 는 파일 부재를 오류로 처리하지 않는다.
 
 designer 산출물은 `docs/design-variants/drafts/<screen-id>-draft<N>.html` 형태의 static HTML 단일 파일이다. 별도 build, dev server, 프레임워크 런타임을 요구하지 않는다. 사용자 PICK 후 내부 `canvas-design` 절차에서 메인이 `docs/design-variants/<screen-id>.html` 로 확정본 승격하고 `canvas.html` 에 frame 을 등록한다.
 
+`/ux` 는 구현 없이 목업과 흐름을 먼저 탐색하는 utility 이며, 같은 `canvas-design` 절차를 따른다. `ux-flow.md` 화면 인벤토리는 `hi-fi 목업 필요` 열에 `필요/불필요` 를 표시하고, designer 는 `필요` 화면만 draft 로 만든다. 부수 화면은 text wireframe 으로 충분하며 전 화면 일괄 목업화하지 않는다.
+
 HTML 시안은 다음을 포함한다:
 
 - `:root` CSS custom property 토큰

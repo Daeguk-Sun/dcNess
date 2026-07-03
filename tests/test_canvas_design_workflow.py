@@ -39,6 +39,12 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.designer = (
             ROOT / "agents" / "designer" / "designer-agent.md"
         ).read_text(encoding="utf-8")
+        self.ux_architect = (
+            ROOT / "agents" / "ux-architect" / "ux-architect-agent.md"
+        ).read_text(encoding="utf-8")
+        self.ux_flow_template = (
+            ROOT / "agents" / "ux-architect" / "templates" / "ux-flow.md"
+        ).read_text(encoding="utf-8")
         self.engineer = (
             ROOT / "agents" / "engineer" / "engineer-agent.md"
         ).read_text(encoding="utf-8")
@@ -103,10 +109,49 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
 
         defaults = self._array(self.public_surface, "defaultSkills")
         advanced = self._array(self.public_surface, "advancedSkills")
+        utility_skills = self._array(self.public_surface, "utilitySkills")
         internal = self._array(self.public_surface, "internalSkills")
         self.assertEqual(["spec", "design", "impl", "acceptance"], defaults)
-        self.assertEqual(["impl-loop", "tech-review", "ux"], advanced)
+        self.assertEqual(["impl-loop", "tech-review"], advanced)
+        self.assertEqual(["ux"], utility_skills)
         self.assertEqual(["canvas-design", "compact-design"], sorted(internal))
+
+    def test_ux_is_thin_canvas_design_wrapper_with_confirmed_outputs(self) -> None:
+        for needle in (
+            "얇은 wrapper",
+            "canvas-design",
+            "구현 없이 디자인만",
+            "drafts 반복",
+            "사용자 PICK",
+            "확정본 승격",
+            "canvas 등록",
+            "docs/design-variants/<screen-id>.html",
+            "docs/design-variants/canvas.html",
+            "`/impl` 은 그 확정본을 기준 있음",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.ux)
+
+        for stale in ("DESIGN_HANDOFF", "이슈 코멘트", "독자 handoff", "자체 승격 절차"):
+            with self.subTest(stale=stale):
+                self.assertNotIn(stale, self.ux)
+
+    def test_ux_flow_inventory_marks_hi_fi_mockup_need_only(self) -> None:
+        for text in (self.ux_architect, self.ux_flow_template):
+            with self.subTest(text=text[:30]):
+                self.assertIn("hi-fi 목업 필요", text)
+                self.assertIn("필요/불필요", text)
+
+        self.assertIn(
+            "| 화면 ID | 화면명 | 역할 | PRD 근거 | hi-fi 목업 필요 | 우선순위 |",
+            self.ux_flow_template,
+        )
+
+        for text in (self.ux, self.designer):
+            with self.subTest(text=text[:30]):
+                self.assertIn("hi-fi 목업 필요", text)
+                self.assertIn("필요 로 표시된 화면", text)
+                self.assertIn("전 화면 일괄 목업화 금지", text)
 
     def test_canvas_design_bootstraps_seed_and_requires_routing_enum(self) -> None:
         skill = (ROOT / "skills" / "canvas-design" / "SKILL.md").read_text(

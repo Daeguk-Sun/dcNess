@@ -189,9 +189,9 @@ support:
 고급 workflow:
 - /tech-review — high-risk 설계 선행 기술 검증
 - /impl-loop — deep impl task 파일용 advanced runner
-- /ux — 화면 UX / 디자인 핸드오프
 
 유틸리티:
+- /ux — 구현 없이 목업과 흐름을 먼저 탐색
 - /next — GitHub Project 보드에서 In progress 와 다음 Todo 후보 조회
 - /smart-compact — 컨텍스트 압축 + resume prompt
 - /run-review — run 사후 분석

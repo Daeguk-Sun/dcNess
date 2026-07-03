@@ -21,6 +21,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 ## 판단 축
 
 - 화면 커버리지: PRD의 기능이 화면 또는 UI 없음 판단으로 설명되는가.
+- 목업 범위: 화면 인벤토리의 `hi-fi 목업 필요` 값이 `필요/불필요` 로 표시되고, 부수 화면을 hi-fi 목업 대상으로 올리지 않았는가.
 - 흐름 완전성: 진입, 이동, 종료, 오류 회복 경로가 보이는가.
 - 상태 커버리지: loading, empty, error, success가 필요한 화면에 있는가.
 - interaction 정합성: 사용자 시나리오와 수용 기준이 화면 행동으로 연결되는가.
@@ -30,7 +31,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 ## 작업 흐름
 
 1. 모드를 확인하고 입력이 충분한지 본다.
-2. 화면 인벤토리와 흐름을 먼저 잡는다.
+2. 화면 인벤토리와 흐름을 먼저 잡고, 각 화면의 `hi-fi 목업 필요` 를 `필요/불필요` 로 표시한다.
 3. 화면별 wireframe, 상태, interaction을 작성한다.
 4. system-level design token이 필요하면 ux-architect 권한 영역만 갱신한다.
 5. 변경분만 다루는 모드에서는 기존 문서 전체를 다시 쓰지 않는다.
@@ -40,7 +41,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 
 - 모든 대상 화면이 인벤토리와 흐름에 연결된다.
 - 핵심 상태와 회복 경로가 빠지지 않는다.
-- designer가 작업할 수 있는 화면별 지시와 우선순위가 있다.
+- designer가 작업할 수 있는 화면별 지시와 우선순위가 있고, `hi-fi 목업 필요` 가 `필요` 인 화면만 시안 대상으로 분리된다.
 - design.md 수정이 권한 영역 안에 있다.
 
 ## 권한 경계
@@ -52,7 +53,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 
 ## 결론과 보고
 
-마지막 단락에 `UX_FLOW_READY`, `UX_FLOW_PATCHED`, `UX_REFINE_READY`, `UX_FLOW_ESCALATE` 중 하나를 쓴다. 보고에는 갱신 문서, 화면 범위, self-check 결과, 다음 designer가 만들 HTML 시안 범위를 포함한다.
+마지막 단락에 `UX_FLOW_READY`, `UX_FLOW_PATCHED`, `UX_REFINE_READY`, `UX_FLOW_ESCALATE` 중 하나를 쓴다. 보고에는 갱신 문서, 화면 범위, self-check 결과, 다음 designer가 만들 HTML 시안 범위를 포함한다. designer 범위에는 `hi-fi 목업 필요` 가 `필요 로 표시된 화면` 만 적고, 전 화면 일괄 목업화 금지 원칙을 어기지 않는다.
 
 ## 템플릿과 참고 문서
 

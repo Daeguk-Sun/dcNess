@@ -13,7 +13,8 @@ const POSITIONING = 'docs/plugin/positioning.md';
 const EXPECTED = {
   defaultSkills: ['spec', 'design', 'impl', 'acceptance'],
   supportSkills: ['to-issue'],
-  advancedSkills: ['impl-loop', 'tech-review', 'ux'],
+  advancedSkills: ['impl-loop', 'tech-review'],
+  utilitySkills: ['ux'],
   internalSkills: ['canvas-design', 'compact-design'],
   utilityCommands: ['efficiency', 'init-dcness', 'next', 'run-review', 'smart-compact'],
   internalAgents: [
@@ -127,6 +128,7 @@ const expectedSkills = [
   ...EXPECTED.defaultSkills,
   ...EXPECTED.supportSkills,
   ...EXPECTED.advancedSkills,
+  ...EXPECTED.utilitySkills,
   ...EXPECTED.internalSkills,
 ];
 assertSet('skills', skills.map((item) => item.name), expectedSkills);
@@ -136,6 +138,7 @@ assertSet('agents', agents.map((item) => item.name), EXPECTED.internalAgents);
 assertDocsMention('default skill', EXPECTED.defaultSkills, '/');
 assertDocsMention('support skill', EXPECTED.supportSkills, '/');
 assertDocsMention('advanced skill', EXPECTED.advancedSkills, '/');
+assertDocsMention('utility skill', EXPECTED.utilitySkills, '/');
 assertDocsMention('utility command', EXPECTED.utilityCommands, '/');
 // internal skill 은 public command 노출 범위가 아니다 — `/` 진입점이 아닌 내부 skill 로만 명시.
 assertDocsMention('internal skill', EXPECTED.internalSkills);

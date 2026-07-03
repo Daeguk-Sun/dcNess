@@ -1,15 +1,15 @@
 ---
 name: canvas-design
-description: 내부 전용 UI 기준 확보 wrapper. 신규 시각 구조 구현 전에 designer draft 생성, 사용자 PICK, 확정본 승격, docs/design-variants/canvas.html frame 등록을 한 경로로 수행한다. 공개 진입점이 아니며 /impl 과 /impl-loop 내부에서만 호출된다.
+description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사용자 PICK, 확정본 승격, docs/design-variants/canvas.html frame 등록을 한 경로로 수행한다. 공개 진입점이 아니며 /ux, /impl, /impl-loop 내부에서 호출된다.
 ---
 
 # canvas-design — 내부 UI 기준 확보 스킬
 
-> 이 스킬은 **공개 진입점이 아니다**. 사용자가 외우는 workflow 는 `/spec -> /design -> /impl -> /acceptance` 그대로이며, canvas-design 은 `/impl` 과 `/impl-loop` 이 UI 기준 확보가 필요하다고 판정했을 때만 호출하는 내부 wrapper 다. `compact-design` 과 같은 내부 skill 지위이며 `/canvas-design` 으로 노출하지 않는다.
+> 이 스킬은 **공개 진입점이 아니다**. 사용자가 외우는 workflow 는 `/spec -> /design -> /impl -> /acceptance` 그대로이며, canvas-design 은 `/ux`, `/impl`, `/impl-loop` 이 UI 기준 확보나 선행 목업 탐색이 필요하다고 판정했을 때 호출하는 내부 wrapper 다. `compact-design` 과 같은 내부 skill 지위이며 `/canvas-design` 으로 노출하지 않는다.
 
 ## 목적
 
-신규 시각 구조 작업에서 구현자가 대조할 기준을 확보하고, 기준이 확정되면 그 기준을 `docs/design-variants/` canvas SSOT 에 반영한다. canvas SSOT 변경은 이 스킬 경유가 단일 경로다. `/impl` 과 `/impl-loop` 는 승격·canvas 등록 절차를 각자 복제하지 않고 이 스킬을 호출한다.
+신규 시각 구조 작업에서 구현자가 대조할 기준을 확보하고, 기준이 확정되면 그 기준을 `docs/design-variants/` canvas SSOT 에 반영한다. canvas SSOT 변경은 이 스킬 경유가 단일 경로다. `/ux`, `/impl`, `/impl-loop` 는 승격·canvas 등록 절차를 각자 복제하지 않고 이 스킬을 호출한다.
 
 ## 입력
 
@@ -89,6 +89,7 @@ description: 내부 전용 UI 기준 확보 wrapper. 신규 시각 구조 구현
 
 - `/impl` 은 진입 시 UI 기준 확보 분기를 한 줄로 echo 한 뒤 필요한 경우 이 스킬을 호출한다.
 - `/impl-loop` 은 UI task 에서 engine 무관하게 구현 step 앞에 이 스킬을 호출한다. build-worker 와 풀 4-agent 모두 같은 확정 목업 경로를 읽는다.
+- `/ux` 는 구현 없이 디자인만 먼저 탐색할 때 이 스킬을 얇게 감싼다. draft 반복, 사용자 PICK, 확정본 승격, canvas frame 등록 결과는 `/impl` 이 `기준 있음` 으로 이어받는다.
 - impl task 또는 compact plan 에 `design: required` 가 있으면 `## 디자인 참조` 섹션에 이 스킬이 반환한 확정 목업 경로와 핵심 node-id 매핑을 적는다.
 
 ## 참조
@@ -97,3 +98,4 @@ description: 내부 전용 UI 기준 확보 wrapper. 신규 시각 구조 구현
 - public surface 계약: [`docs/plugin/positioning.md`](../../docs/plugin/positioning.md)
 - `/impl`: [`skills/impl/SKILL.md`](../impl/SKILL.md)
 - `/impl-loop`: [`skills/impl-loop/SKILL.md`](../impl-loop/SKILL.md)
+- `/ux`: [`skills/ux/SKILL.md`](../ux/SKILL.md)
