@@ -6,7 +6,39 @@
 
 ## Unreleased
 
-- **design run 기록 follow-up** — `docs/metrics/design-runs.jsonl` 은 `/design` final validator `PASS` 뒤, PR 생성 전 `end-run` 으로 worktree 산출물에 기록되어 같은 design PR 에 포함된다. #833 의 Codex architecture-validator mirror 갱신은 다음 plug-in release 후 기존 활성 프로젝트에서 `/init-dcness` 재실행 시 `$CODEX_HOME/skills/dcness-*` 로 도달한다.
+- (없음)
+
+---
+
+## v0.11.0 (2026-07-03)
+
+**커밋 범위**: `v0.10.0..v0.11.0` (머지 PR 24개)
+**핵심 변경**: 설계 · 디자인 · 구현 세 파이프라인을 한꺼번에 재정비한 minor 릴리즈. (1) `/design` 을 **epic-batch 단일 워크플로우로 전면 재설계**하고 설계 산출물 계약을 감사(false-clean 차단)하는 품질 인프라를 깔았고, (2) 디자인 매체를 **pencil 에서 canvas 로 전환**해 `/ux` 를 canvas 선행-탐색 utility 로 재정의했으며, (3) 구현 게이트를 **provider-agnostic** 으로 복원하고 headless provider 3단 체인 + `/impl` 엔진 기본값을 **build-worker** 로 바꿨다. 부수 — 자동 머지 확인 창 · worktree 종료 clean 가드, README 2축 컨셉 현행화, `/spec` 그릴 규율 보강.
+
+### 무엇이 바뀌나
+
+1. **/design epic-batch 전면 재설계 + 설계 산출물 계약 감사** ([#834](https://github.com/alruminum/dcNess/pull/834), [#835](https://github.com/alruminum/dcNess/pull/835) [#836](https://github.com/alruminum/dcNess/pull/836) [#838](https://github.com/alruminum/dcNess/pull/838) [#839](https://github.com/alruminum/dcNess/pull/839) [#832](https://github.com/alruminum/dcNess/issues/832), [#840](https://github.com/alruminum/dcNess/pull/840) [#831](https://github.com/alruminum/dcNess/issues/831), [#837](https://github.com/alruminum/dcNess/pull/837) [#833](https://github.com/alruminum/dcNess/issues/833), [#849](https://github.com/alruminum/dcNess/pull/849) [#847](https://github.com/alruminum/dcNess/issues/847)) — `/design` 을 epic 단위 batch 워크플로우로 재구성. 설계 산출물(ux-flow / architecture / conventions / decisions / impl)의 계약 준수를 감사해 산출물이 비어도 PASS 로 통과하던 false-clean 을 doc-sync 배선으로 차단. design 측정 품질 인프라(`docs/metrics/design-runs.jsonl` 기록)를 final validator PASS 뒤 · PR 생성 전 worktree 커밋 순서까지 정합. architecture map 자동집계 열 정렬 결함 수정.
+
+2. **디자인 매체 pencil → canvas 전환** ([#846](https://github.com/alruminum/dcNess/pull/846) [#842](https://github.com/alruminum/dcNess/issues/842), [#854](https://github.com/alruminum/dcNess/pull/854) [#843](https://github.com/alruminum/dcNess/issues/843), [#855](https://github.com/alruminum/dcNess/pull/855) [#844](https://github.com/alruminum/dcNess/issues/844), [#856](https://github.com/alruminum/dcNess/pull/856) [#858](https://github.com/alruminum/dcNess/pull/858) [#845](https://github.com/alruminum/dcNess/issues/845)) — pencil MCP 매체를 폐기하고 canvas 기반 `canvas-design` 워크플로우 신설. `/ux` 를 "구현 없이 목업 · 흐름을 먼저 굴리는 canvas 선행-탐색 utility" 로 재정의(내부 canvas-design 을 얇게 감싼 wrapper — drafts → 사용자 PICK → 확정본 승격 + canvas 등록). `/acceptance` 가 UI 목업 정합을 검수하도록 보강, `/ux` commit 경로 정리.
+
+3. **구현 provider-agnostic 게이트 + headless provider 체인 + 엔진 기본값 build-worker** ([#865](https://github.com/alruminum/dcNess/pull/865) [#859](https://github.com/alruminum/dcNess/issues/859), [#869](https://github.com/alruminum/dcNess/pull/869) [#860](https://github.com/alruminum/dcNess/issues/860), [#867](https://github.com/alruminum/dcNess/pull/867) [#861](https://github.com/alruminum/dcNess/issues/861), [#872](https://github.com/alruminum/dcNess/pull/872) [#870](https://github.com/alruminum/dcNess/issues/870)) — 게이트가 특정 provider 전제를 벗지 못하던 문제를 provider-agnostic 으로 복원(결정적 guard eval 33/33). implementation provider 를 headless 3단 체인으로 구성하고, `/impl` 엔진 기본값을 풀 4-agent 에서 경량 build-worker 로 전환. headless 후속 정비.
+
+4. **워크플로우 가드 보강** ([#863](https://github.com/alruminum/dcNess/pull/863) [#851](https://github.com/alruminum/dcNess/issues/851), [#864](https://github.com/alruminum/dcNess/pull/864) [#852](https://github.com/alruminum/dcNess/issues/852)) — 자동 머지 직전 확인 창 보강(merge guard), impl worktree 종료 시 clean 여부 판정 가드 + discard 조건 · 종료 링크 정리.
+
+5. **문서 현행화 + /spec 그릴 규율** ([#866](https://github.com/alruminum/dcNess/pull/866), [#868](https://github.com/alruminum/dcNess/pull/868), [#862](https://github.com/alruminum/dcNess/pull/862) [#853](https://github.com/alruminum/dcNess/issues/853), [#857](https://github.com/alruminum/dcNess/pull/857) [#850](https://github.com/alruminum/dcNess/issues/850), [#873](https://github.com/alruminum/dcNess/pull/873) [#871](https://github.com/alruminum/dcNess/issues/871)) — README 를 2축 컨셉(워크플로우 · 모델 자율성)으로 재작성 · 현행화, 문서 중복 참조 정비(doc drift), `/spec` 그릴미 라우팅 · 그릴 규율 기준 보강.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — /design epic-batch · canvas-design · `/ux` 재정의(`skills/**`), provider-agnostic 게이트 · 엔진 기본값(`hooks/**` · `harness/**` · `skills/impl/**`), 머지 · worktree 가드, agent 가이드.
+- **디자인 흐름 변경** — 디자인 매체가 pencil → canvas 로 바뀌어 `/ux` · `/design` 산출 경로가 canvas 기준으로 정렬된다. pencil MCP 를 쓰던 흐름은 더 이상 사용되지 않는다.
+- **구현 엔진 기본값 변경** — `/impl` 기본 엔진이 build-worker(경량)로 바뀐다. 풀 4-agent(test-engineer → engineer → code-validator → pr-reviewer)는 발화 · 조건으로 선택.
+- **Codex opt-in 프로젝트**는 provider routing · validator 미러 갱신(`codex/skills/dcness-*`)을 받으려면 plugin update 후 `/init-dcness` 재실행이 필요하다.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
 
 ---
 
