@@ -75,6 +75,40 @@ class ContextDocsTests(unittest.TestCase):
             self.assertFalse(audit.has_cold_start_anchor)
             self.assertEqual(claude.read_text(encoding="utf-8"), original)
 
+    def test_audit_detects_common_monorepo_broken_paths(self) -> None:
+        from harness.context_docs import audit_claude_md_file
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            existing = root / "packages" / "core" / "existing.ts"
+            existing.parent.mkdir(parents=True)
+            existing.write_text("export const ok = true;\n", encoding="utf-8")
+            (root / "CLAUDE.md").write_text(
+                "\n".join([
+                    "# Project Instructions",
+                    "",
+                    "## Commands",
+                    "- `npm run test`",
+                    "",
+                    "## Architecture",
+                    "- packages/core/existing.ts is the module boundary.",
+                    "- packages/core/missing.ts is stale.",
+                    "",
+                    "## Gotchas",
+                    "- Keep generated files out of source.",
+                    "",
+                    COLD_START_TITLE,
+                    "- 다음 작업 후보 확인: `/next`",
+                    "",
+                ]),
+                encoding="utf-8",
+            )
+
+            audit = audit_claude_md_file(root)
+
+            self.assertIn("packages/core/missing.ts", audit.broken_references)
+            self.assertNotIn("packages/core/existing.ts", audit.broken_references)
+
     def test_cli_ensure_prints_quality_report(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)

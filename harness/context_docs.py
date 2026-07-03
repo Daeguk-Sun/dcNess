@@ -6,7 +6,7 @@ import json
 import re
 import sys
 from dataclasses import dataclass, field
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Optional
 
 
@@ -22,6 +22,42 @@ RECOMMENDED_SECTIONS = (
 )
 
 COLD_START_SECTION_TITLE = "## dcNess Cold Start"
+
+_PLAIN_PATH_RE = re.compile(
+    r"(?<![A-Za-z0-9_./:-])"
+    r"((?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\.[A-Za-z0-9][A-Za-z0-9_.-]*)"
+    r"(?![A-Za-z0-9_./-])"
+)
+
+_REPO_PATH_PREFIXES = (
+    ".github",
+    "agents",
+    "app",
+    "apps",
+    "cmd",
+    "commands",
+    "config",
+    "configs",
+    "docs",
+    "harness",
+    "hooks",
+    "infra",
+    "internal",
+    "lib",
+    "packages",
+    "pkg",
+    "scripts",
+    "services",
+    "skills",
+    "src",
+    "templates",
+    "tests",
+    "tools",
+    "web",
+)
+_REPO_PATH_PREFIX_RE = re.compile(
+    rf"^(?:{'|'.join(re.escape(prefix) for prefix in _REPO_PATH_PREFIXES)})/"
+)
 
 
 @dataclass(frozen=True)
@@ -232,6 +268,8 @@ def _should_ignore_candidate(value: str) -> bool:
         return True
     if re.match(r"(?i)^(https?:|mailto:|tel:|ftp:)", value):
         return True
+    if re.match(r"(?i)^[a-z0-9.-]+\.[a-z]{2,}/", value):
+        return True
     if re.search(r"[\s<>{}*]", value):
         return True
     return False
@@ -240,8 +278,9 @@ def _should_ignore_candidate(value: str) -> bool:
 def _looks_like_repo_path(value: str) -> bool:
     if value in {"CLAUDE.md", "AGENTS.md", "README.md", "PROGRESS.md"}:
         return True
-    return bool(re.match(r"^(?:\.github|agents|app|commands|docs|harness|hooks|lib|"
-                         r"scripts|skills|src|templates|tests)/", value))
+    if _REPO_PATH_PREFIX_RE.match(value):
+        return True
+    return "/" in value and bool(PurePosixPath(value).suffix)
 
 
 def _candidate_paths(text: str) -> list[str]:
@@ -249,6 +288,8 @@ def _candidate_paths(text: str) -> list[str]:
     for match in re.finditer(r"!?\[[^\]]*\]\(([^)\n]+)\)", text):
         candidates.append(match.group(1).split()[0])
     for match in re.finditer(r"`([^`\n]+)`", text):
+        candidates.append(match.group(1))
+    for match in _PLAIN_PATH_RE.finditer(text):
         candidates.append(match.group(1))
     cleaned: list[str] = []
     for value in candidates:

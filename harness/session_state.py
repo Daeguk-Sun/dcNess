@@ -3731,6 +3731,15 @@ def collect_status_diagnostics(
                     f"dcNess Cold Start 앵커 없음; score={claude_audit.total_score}/100",
                     "init-dcness Core Step 6 로 기존 파일에 앵커만 append",
                 )
+            elif claude_audit.missing_sections:
+                missing = ", ".join(claude_audit.missing_sections)
+                add(
+                    "claude_context",
+                    "CLAUDE.md context",
+                    "INFO",
+                    f"권장 섹션 누락: {missing}; "
+                    f"score={claude_audit.total_score}/100 ({claude_audit.grade})",
+                )
             elif claude_audit.total_score < 90:
                 add(
                     "claude_context",
