@@ -1730,6 +1730,24 @@ class CliBeginStepEndStepTests(unittest.TestCase):
                 ["end-step", "code-validator", "--allowed-enums", "PASS,FAIL"]
             )
 
+    def test_end_step_argparse_accepts_provider_receipt_hint(self) -> None:
+        from harness.session_state import _build_arg_parser
+
+        parser = _build_arg_parser()
+        ns = parser.parse_args(
+            [
+                "end-step",
+                "build-worker",
+                "--provider",
+                "claude-headless",
+                "--prose-file",
+                "/tmp/prose.md",
+            ]
+        )
+
+        self.assertEqual(ns.provider, "claude-headless")
+        self.assertEqual(ns.prose_file, "/tmp/prose.md")
+
 
 class DefaultBaseWorktreeTests(unittest.TestCase):
     """`_default_base()` γ 설계 — main repo `.claude/harness-state/` 단일 source 검증.

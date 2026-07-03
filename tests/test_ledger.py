@@ -453,7 +453,9 @@ class BuildReceiptTests(unittest.TestCase):
     def test_receipt_fields(self) -> None:
         prose = "## 결론\ncode-validator PASS. MUST FIX 없음.\n수용 기준 충족."
         prose_path = "/tmp/code-validator.md"
-        r = ledger.build_receipt("code-validator", None, "PROSE_LOGGED", prose, prose_path)
+        r = ledger.build_receipt(
+            "code-validator", None, "PROSE_LOGGED", prose, prose_path
+        )
         self.assertEqual(r["agent"], "code-validator")
         self.assertEqual(r["prose_file"], prose_path)
         self.assertEqual(r["sha256"], ledger.sha256_text(prose))
@@ -464,9 +466,28 @@ class BuildReceiptTests(unittest.TestCase):
 
     def test_no_format_enforcement(self) -> None:
         """agent prose 형식 강제 안 함 — 임의 텍스트도 receipt 생성."""
-        r = ledger.build_receipt("engineer", "IMPL", "PROSE_LOGGED", "아무 자유 텍스트", "/tmp/x.md")
+        r = ledger.build_receipt(
+            "engineer", "IMPL", "PROSE_LOGGED", "아무 자유 텍스트", "/tmp/x.md"
+        )
         self.assertEqual(r["sha256"], ledger.sha256_text("아무 자유 텍스트"))
         self.assertIsInstance(r["evidence_paths"], list)
+
+    def test_provider_field_is_optional(self) -> None:
+        prose = "## 결론\n구현 완료."
+        r = ledger.build_receipt(
+            "engineer",
+            "IMPL",
+            "PROSE_LOGGED",
+            prose,
+            "/tmp/engineer.md",
+            provider="claude-headless",
+        )
+        self.assertEqual(r["provider"], "claude-headless")
+
+        legacy = ledger.build_receipt(
+            "engineer", "IMPL", "PROSE_LOGGED", prose, "/tmp/engineer.md"
+        )
+        self.assertNotIn("provider", legacy)
 
 
 class AppendStepCompletedTests(unittest.TestCase):
@@ -478,7 +499,7 @@ class AppendStepCompletedTests(unittest.TestCase):
             prose_path = _write_prose_file(base, "engineer-IMPL.md", prose)
             rec = ledger.append_step_completed(
                 _SID, _RID, "engineer", "IMPL", "PROSE_LOGGED",
-                prose, prose_path, base_dir=base,
+                prose, prose_path, base_dir=base, provider="codex-headless",
             )
             # 옛 .steps.jsonl row 필드명 호환
             for k in ("ts", "agent", "mode", "enum", "prose_excerpt", "must_fix", "prose_file"):
@@ -488,6 +509,7 @@ class AppendStepCompletedTests(unittest.TestCase):
                 self.assertIn(k, rec, f"receipt 필드 누락: {k}")
             self.assertEqual(rec["event"], "step_completed")
             self.assertEqual(rec["sha256"], ledger.sha256_text(prose))
+            self.assertEqual(rec["provider"], "codex-headless")
 
     def test_product_acceptance_prose_only_fail_sets_next_action(self) -> None:
         with TemporaryDirectory() as d:

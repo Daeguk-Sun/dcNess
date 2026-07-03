@@ -1,0 +1,307 @@
+#!/usr/bin/env bash
+# Run a dcNess implementation step through the configured provider chain.
+#
+# Headless fallback is only allowed when a provider fails before workspace
+# mutation. If a provider changes the workspace and then fails, this script
+# stops without revert or fallback so the caller can inspect the diff.
+
+set -uo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  dcness-implementation-chain <agent> [MODE] --prompt-file <file> [--provider <provider>] [--project-root <dir>]
+
+Agents:
+  test-engineer
+  engineer
+  build-worker
+
+Providers:
+  headless-chain    Codex headless -> Claude headless -> Claude main fallback
+  codex-first       Codex headless -> Claude main fallback (legacy)
+  claude-headless   Claude headless -> Claude main fallback
+  claude            Claude main fallback only
+
+Options:
+  --prompt-file, -p   File containing the caller prompt.
+  --provider          Override local implementation routing.
+  --project-root, -C  Repository root. Default: git rev-parse --show-toplevel.
+  --helper            dcness-helper path. Default: sibling script.
+  --help, -h          Show this help.
+
+Exit codes:
+  0   Headless provider completed and recorded end-step.
+  75  Chain reached Claude main. Caller must run the main Agent path and record
+      end-step with --provider claude-main.
+
+Raw provider logs are preserved under the active run directory in headless-logs/.
+USAGE
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  usage
+  exit 0
+fi
+
+if [ $# -lt 1 ]; then
+  usage >&2
+  exit 2
+fi
+
+AGENT="$1"
+shift
+
+case "$AGENT" in
+  test-engineer|engineer|build-worker) ;;
+  *)
+    echo "[dcness-implementation-chain] unsupported agent: $AGENT" >&2
+    exit 2
+    ;;
+esac
+
+MODE=""
+if [ $# -gt 0 ] && [[ "${1:-}" != -* ]]; then
+  MODE="$1"
+  shift
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT=""
+PROMPT_FILE=""
+HELPER="$SCRIPT_DIR/dcness-helper"
+PROVIDER=""
+
+abs_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "$(pwd)" "$1" ;;
+  esac
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --prompt-file|-p)
+      PROMPT_FILE="${2:-}"
+      shift 2
+      ;;
+    --provider)
+      PROVIDER="${2:-}"
+      shift 2
+      ;;
+    --project-root|-C)
+      PROJECT_ROOT="${2:-}"
+      shift 2
+      ;;
+    --helper)
+      HELPER="${2:-}"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "[dcness-implementation-chain] unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ -z "$PROMPT_FILE" ] || [ ! -f "$PROMPT_FILE" ]; then
+  echo "[dcness-implementation-chain] --prompt-file is required and must exist" >&2
+  exit 2
+fi
+PROMPT_FILE="$(abs_path "$PROMPT_FILE")"
+
+if [ -z "$PROJECT_ROOT" ]; then
+  PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
+if [ ! -d "$PROJECT_ROOT" ]; then
+  echo "[dcness-implementation-chain] project root not found: $PROJECT_ROOT" >&2
+  exit 2
+fi
+PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
+HELPER="$(abs_path "$HELPER")"
+
+if [ ! -x "$HELPER" ]; then
+  echo "[dcness-implementation-chain] helper not executable: $HELPER" >&2
+  exit 2
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[dcness-implementation-chain] python3 not found; required for routing and context resolution" >&2
+  exit 127
+fi
+
+cd "$PROJECT_ROOT"
+
+CONTEXT="$(
+  PYTHONPATH="$SCRIPT_DIR/.." python3 -c '
+import sys
+from harness.session_state import (
+    auto_detect_run_id,
+    auto_detect_session_id,
+    diagnose_sid_rid_resolution,
+)
+
+sid = auto_detect_session_id()
+rid = auto_detect_run_id()
+if not sid or not rid:
+    print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
+    sys.exit(1)
+print(f"{sid}\t{rid}")
+'
+)"
+if [ $? -ne 0 ]; then
+  echo "[dcness-implementation-chain] sid/rid resolve failed before provider launch" >&2
+  exit 1
+fi
+IFS="$(printf '\t')" read -r RESOLVED_SID RESOLVED_RID <<EOF
+$CONTEXT
+EOF
+export DCNESS_SESSION_ID="$RESOLVED_SID"
+export DCNESS_RUN_ID="$RESOLVED_RID"
+
+RAW_LOG_DIR="$(
+  PYTHONPATH="$SCRIPT_DIR/.." python3 - "$RESOLVED_SID" "$RESOLVED_RID" <<'PY'
+import sys
+from harness.session_state import run_dir
+
+print(run_dir(sys.argv[1], sys.argv[2]) / "headless-logs")
+PY
+)"
+mkdir -p "$RAW_LOG_DIR"
+
+git_status_without_harness_state() {
+  git -C "$PROJECT_ROOT" status --porcelain=v1 -uall 2>/dev/null \
+    | sed '/^.. \.claude\/harness-state\//d' || true
+}
+
+ROUTING_INFO="$(
+  PYTHONPATH="$SCRIPT_DIR/.." python3 - "$AGENT" "$PROVIDER" <<'PY'
+import sys
+
+from harness.agent_routing import (
+    VALID_IMPLEMENTATION_PROVIDERS,
+    implementation_provider_chain,
+    resolve_provider,
+)
+
+agent = sys.argv[1]
+requested = sys.argv[2]
+provider = requested or resolve_provider(agent)
+if provider not in VALID_IMPLEMENTATION_PROVIDERS:
+    allowed = "|".join(VALID_IMPLEMENTATION_PROVIDERS)
+    print(
+        f"[dcness-implementation-chain] unsupported implementation provider: "
+        f"{provider} (allowed: {allowed})",
+        file=sys.stderr,
+    )
+    sys.exit(2)
+print(provider)
+for stage in implementation_provider_chain(provider):
+    print(stage)
+PY
+)"
+ROUTING_RC=$?
+if [ "$ROUTING_RC" -ne 0 ]; then
+  exit "$ROUTING_RC"
+fi
+
+PROVIDER="$(printf '%s\n' "$ROUTING_INFO" | sed -n '1p')"
+STAGES_RAW="$(printf '%s\n' "$ROUTING_INFO" | sed '1d')"
+STAGES=()
+while IFS= read -r STAGE_LINE; do
+  [ -n "$STAGE_LINE" ] || continue
+  STAGES+=("$STAGE_LINE")
+done <<EOF
+$STAGES_RAW
+EOF
+
+if [ "${#STAGES[@]}" -eq 0 ]; then
+  echo "[dcness-implementation-chain] provider resolved to empty chain: $PROVIDER" >&2
+  exit 2
+fi
+
+run_headless_stage() {
+  local stage="$1"
+  local wrapper=""
+  local before_status=""
+  local after_status=""
+  local log=""
+  local rc=0
+  local cmd=()
+
+  case "$stage" in
+    codex-headless)
+      wrapper="$SCRIPT_DIR/dcness-codex-worker"
+      ;;
+    claude-headless)
+      wrapper="$SCRIPT_DIR/dcness-claude-worker"
+      ;;
+    *)
+      echo "[dcness-implementation-chain] unsupported headless stage: $stage" >&2
+      return 2
+      ;;
+  esac
+
+  log="$RAW_LOG_DIR/chain-${stage}-${AGENT}${MODE:+-$MODE}-$$.log"
+  before_status="$(git_status_without_harness_state)"
+
+  cmd=("$wrapper" "$AGENT")
+  if [ -n "$MODE" ]; then
+    cmd+=("$MODE")
+  fi
+  cmd+=(--prompt-file "$PROMPT_FILE" --project-root "$PROJECT_ROOT" --helper "$HELPER")
+
+  {
+    printf 'PROVIDER: %s\n' "$stage"
+    printf 'COMMAND:'
+    printf ' %s' "${cmd[@]}"
+    printf '\n'
+  } >> "$log"
+
+  "${cmd[@]}" >> "$log" 2>&1
+  rc=$?
+
+  after_status="$(git_status_without_harness_state)"
+  if [ "$rc" -eq 0 ]; then
+    return 0
+  fi
+
+  if [ "$before_status" != "$after_status" ]; then
+    echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and failed; no fallback." >&2
+    echo "[dcness-implementation-chain] raw log: $log" >&2
+    git -C "$PROJECT_ROOT" status --short >&2 || true
+    exit 1
+  fi
+
+  echo "[dcness-implementation-chain] provider $stage failed before workspace mutation (exit $rc); continuing. raw log: $log" >&2
+  return "$rc"
+}
+
+for STAGE in "${STAGES[@]}"; do
+  case "$STAGE" in
+    codex-headless|claude-headless)
+      run_headless_stage "$STAGE"
+      STAGE_RC=$?
+      if [ "$STAGE_RC" -eq 0 ]; then
+        exit 0
+      fi
+      ;;
+    claude-main)
+      echo "[dcness-implementation-chain] FALLBACK_TO_CLAUDE_MAIN: provider $PROVIDER reached Claude main for ${AGENT}${MODE:+ $MODE}." >&2
+      echo "[dcness-implementation-chain] Run the normal Claude Agent path, then record end-step with --provider claude-main." >&2
+      exit 75
+      ;;
+    *)
+      echo "[dcness-implementation-chain] unknown provider chain stage: $STAGE" >&2
+      exit 2
+      ;;
+  esac
+done
+
+echo "[dcness-implementation-chain] provider chain exhausted without success: $PROVIDER" >&2
+exit 1

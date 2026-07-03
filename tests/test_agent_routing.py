@@ -29,7 +29,7 @@ class AgentRoutingTests(unittest.TestCase):
 
     def test_missing_config_defaults_to_claude(self) -> None:
         self.assertEqual(agent_routing.resolve_provider("code-validator"), "claude")
-        self.assertEqual(agent_routing.resolve_provider("engineer"), "codex-first")
+        self.assertEqual(agent_routing.resolve_provider("engineer"), "headless-chain")
         self.assertEqual(agent_routing.resolve_provider("unknown-agent"), "claude")
         self.assertFalse(self.path.exists())
 
@@ -37,7 +37,7 @@ class AgentRoutingTests(unittest.TestCase):
         agent_routing.enable_codex_validation()
         for agent in agent_routing.ROUTABLE_VALIDATION_AGENTS:
             self.assertEqual(agent_routing.resolve_provider(agent), "codex")
-        self.assertEqual(agent_routing.resolve_provider("engineer"), "codex-first")
+        self.assertEqual(agent_routing.resolve_provider("engineer"), "headless-chain")
 
     def test_disable_codex_validation_returns_validators_to_claude(self) -> None:
         agent_routing.enable_codex_validation()
@@ -53,11 +53,16 @@ class AgentRoutingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             agent_routing.set_provider("pr-reviewer", "openai")
 
-    def test_implementation_routes_can_disable_and_enable_codex_first(self) -> None:
+    def test_implementation_routes_can_disable_and_enable_headless_chain(self) -> None:
         agent_routing.disable_codex_implementation()
         for agent in agent_routing.ROUTABLE_IMPLEMENTATION_AGENTS:
             self.assertEqual(agent_routing.resolve_provider(agent), "claude")
 
+        agent_routing.enable_headless_implementation()
+        for agent in agent_routing.ROUTABLE_IMPLEMENTATION_AGENTS:
+            self.assertEqual(agent_routing.resolve_provider(agent), "headless-chain")
+
+    def test_legacy_enable_codex_implementation_keeps_codex_first_semantics(self) -> None:
         agent_routing.enable_codex_implementation()
         for agent in agent_routing.ROUTABLE_IMPLEMENTATION_AGENTS:
             self.assertEqual(agent_routing.resolve_provider(agent), "codex-first")
@@ -65,6 +70,10 @@ class AgentRoutingTests(unittest.TestCase):
     def test_set_implementation_provider_validates_agent_and_provider(self) -> None:
         agent_routing.set_implementation_provider("build-worker", "claude")
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
+        agent_routing.set_implementation_provider("build-worker", "claude-headless")
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude-headless")
+        agent_routing.set_implementation_provider("build-worker", "headless-chain")
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
         with self.assertRaises(ValueError):
             agent_routing.set_implementation_provider("pr-reviewer", "claude")
         with self.assertRaises(ValueError):
@@ -83,6 +92,7 @@ class AgentRoutingTests(unittest.TestCase):
                     },
                     "implementation_routes": {
                         "build-worker": "codex",
+                        "engineer": "unknown-chain",
                         "designer": "codex-first",
                     },
                 }
@@ -101,6 +111,9 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertTrue(
             any("unknown implementation agent route: designer" in p for p in problems)
         )
+        self.assertTrue(
+            any("invalid implementation provider for engineer" in p for p in problems)
+        )
 
     def test_status_includes_effective_routes(self) -> None:
         agent_routing.set_provider("architecture-validator", "codex")
@@ -112,9 +125,9 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("architecture-validator: codex", text)
         self.assertIn("code-validator: claude", text)
         self.assertIn("build-worker: claude", text)
-        self.assertIn("engineer: codex-first", text)
+        self.assertIn("engineer: headless-chain", text)
 
-    def test_v1_config_is_supported_and_defaults_implementation_to_codex_first(self) -> None:
+    def test_v1_config_is_supported_and_defaults_implementation_to_headless_chain(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(
             json.dumps(
@@ -129,6 +142,21 @@ class AgentRoutingTests(unittest.TestCase):
         )
         self.assertEqual(agent_routing.doctor(), [])
         self.assertEqual(agent_routing.resolve_provider("code-validator"), "codex")
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
+
+    def test_v2_explicit_codex_first_keeps_legacy_chain(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(
+            json.dumps(
+                {
+                    "version": 2,
+                    "routes": {},
+                    "implementation_routes": {"build-worker": "codex-first"},
+                }
+            ),
+            encoding="utf-8",
+        )
+        self.assertEqual(agent_routing.doctor(), [])
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "codex-first")
 
 
@@ -156,11 +184,11 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(ns.agent, "code-validator")
 
         ns = parser.parse_args(
-            ["routing", "set-implementation", "build-worker", "claude"]
+            ["routing", "set-implementation", "build-worker", "claude-headless"]
         )
         self.assertEqual(ns.routing_cmd, "set-implementation")
         self.assertEqual(ns.agent, "build-worker")
-        self.assertEqual(ns.provider, "claude")
+        self.assertEqual(ns.provider, "claude-headless")
 
     def test_cli_enable_and_resolve(self) -> None:
         from harness.session_state import _cli_routing
@@ -179,7 +207,7 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "codex")
 
-    def test_cli_disable_implementation_and_resolve(self) -> None:
+    def test_cli_implementation_modes_and_resolve(self) -> None:
         from harness.session_state import _cli_routing
 
         out = StringIO()
@@ -195,6 +223,36 @@ class AgentRoutingCliTests(unittest.TestCase):
             )
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "claude")
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(SimpleNamespace(routing_cmd="enable-headless-implementation"))
+        self.assertEqual(rc, 0)
+        self.assertIn("enabled headless implementation chain", out.getvalue())
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(
+                SimpleNamespace(routing_cmd="resolve", agent="build-worker")
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().strip(), "headless-chain")
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(
+                SimpleNamespace(routing_cmd="enable-claude-headless-implementation")
+            )
+        self.assertEqual(rc, 0)
+        self.assertIn("enabled Claude headless implementation", out.getvalue())
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(
+                SimpleNamespace(routing_cmd="resolve", agent="build-worker")
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().strip(), "claude-headless")
 
         out = StringIO()
         with redirect_stdout(out):

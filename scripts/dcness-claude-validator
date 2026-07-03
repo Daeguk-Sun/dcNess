@@ -1,0 +1,337 @@
+#!/usr/bin/env bash
+# Run a dcNess read-only validation agent through Claude headless and store
+# prose via dcness-helper end-step. Hooks/plugins stay enabled; read-only is
+# enforced by tool restrictions plus post-run git status checks.
+
+set -uo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  dcness-claude-validator <agent> [MODE] --prompt-file <file> [--project-root <dir>]
+
+Agents:
+  code-validator
+  architecture-validator
+  pr-reviewer
+
+Options:
+  --prompt-file, -p   File containing the caller prompt.
+  --project-root, -C  Repository root. Default: git rev-parse --show-toplevel.
+  --helper            dcness-helper path. Default: sibling script.
+  --help, -h          Show this help.
+
+Environment:
+  DCNESS_CLAUDE_TIMEOUT  Seconds per Claude attempt. Default: 600.
+
+The wrapper runs Claude Code in print mode with hooks/plugins enabled:
+  claude -p --permission-mode dontAsk --allowedTools Read,Grep,Glob --output-format text
+
+It stores raw headless logs under the active run directory and only sends the
+final prose through end-step. If git status changes, the wrapper exits non-zero.
+USAGE
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  usage
+  exit 0
+fi
+
+if [ $# -lt 1 ]; then
+  usage >&2
+  exit 2
+fi
+
+AGENT="$1"
+shift
+
+case "$AGENT" in
+  code-validator|architecture-validator|pr-reviewer) ;;
+  *)
+    echo "[dcness-claude-validator] unsupported agent: $AGENT" >&2
+    exit 2
+    ;;
+esac
+
+MODE=""
+if [ $# -gt 0 ] && [[ "${1:-}" != -* ]]; then
+  MODE="$1"
+  shift
+fi
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT=""
+PROMPT_FILE=""
+HELPER="$SCRIPT_DIR/dcness-helper"
+CLAUDE_TIMEOUT="${DCNESS_CLAUDE_TIMEOUT:-600}"
+
+abs_path() {
+  case "$1" in
+    /*) printf '%s\n' "$1" ;;
+    *) printf '%s/%s\n' "$(pwd)" "$1" ;;
+  esac
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --prompt-file|-p)
+      PROMPT_FILE="${2:-}"
+      shift 2
+      ;;
+    --project-root|-C)
+      PROJECT_ROOT="${2:-}"
+      shift 2
+      ;;
+    --helper)
+      HELPER="${2:-}"
+      shift 2
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "[dcness-claude-validator] unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ -z "$PROMPT_FILE" ] || [ ! -f "$PROMPT_FILE" ]; then
+  echo "[dcness-claude-validator] --prompt-file is required and must exist" >&2
+  exit 2
+fi
+PROMPT_FILE="$(abs_path "$PROMPT_FILE")"
+
+if [ -z "$PROJECT_ROOT" ]; then
+  PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+fi
+if [ ! -d "$PROJECT_ROOT" ]; then
+  echo "[dcness-claude-validator] project root not found: $PROJECT_ROOT" >&2
+  exit 2
+fi
+PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
+HELPER="$(abs_path "$HELPER")"
+
+if [ ! -x "$HELPER" ]; then
+  echo "[dcness-claude-validator] helper not executable: $HELPER" >&2
+  exit 2
+fi
+
+case "$CLAUDE_TIMEOUT" in
+  ''|*[!0-9]*)
+    echo "[dcness-claude-validator] DCNESS_CLAUDE_TIMEOUT must be a positive integer: $CLAUDE_TIMEOUT" >&2
+    exit 2
+    ;;
+esac
+if [ "$CLAUDE_TIMEOUT" -lt 1 ]; then
+  echo "[dcness-claude-validator] DCNESS_CLAUDE_TIMEOUT must be >= 1" >&2
+  exit 2
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "[dcness-claude-validator] python3 not found; required for timeout and context resolution" >&2
+  exit 127
+fi
+
+if ! command -v claude >/dev/null 2>&1; then
+  echo "[dcness-claude-validator] claude CLI not found" >&2
+  exit 127
+fi
+
+cd "$PROJECT_ROOT"
+
+CONTEXT="$(
+  PYTHONPATH="$SCRIPT_DIR/.." python3 -c '
+import sys
+from harness.session_state import (
+    auto_detect_run_id,
+    auto_detect_session_id,
+    diagnose_sid_rid_resolution,
+)
+
+sid = auto_detect_session_id()
+rid = auto_detect_run_id()
+if not sid or not rid:
+    print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
+    sys.exit(1)
+print(f"{sid}\t{rid}")
+'
+)"
+if [ $? -ne 0 ]; then
+  echo "[dcness-claude-validator] sid/rid resolve failed before Claude launch" >&2
+  exit 1
+fi
+IFS="$(printf '\t')" read -r RESOLVED_SID RESOLVED_RID <<EOF
+$CONTEXT
+EOF
+export DCNESS_SESSION_ID="$RESOLVED_SID"
+export DCNESS_RUN_ID="$RESOLVED_RID"
+
+RAW_LOG_DIR="$(
+  PYTHONPATH="$SCRIPT_DIR/.." python3 - "$RESOLVED_SID" "$RESOLVED_RID" <<'PY'
+import sys
+from harness.session_state import run_dir
+
+print(run_dir(sys.argv[1], sys.argv[2]) / "headless-logs")
+PY
+)"
+mkdir -p "$RAW_LOG_DIR"
+
+git_status_without_harness_state() {
+  git -C "$PROJECT_ROOT" status --porcelain=v1 -uall 2>/dev/null \
+    | sed '/^.. \.claude\/harness-state\//d' || true
+}
+
+BEFORE_STATUS="$(git_status_without_harness_state)"
+BASELINE_CLEAN=0
+if git -C "$PROJECT_ROOT" diff --quiet --no-ext-diff 2>/dev/null \
+  && git -C "$PROJECT_ROOT" diff --cached --quiet --no-ext-diff 2>/dev/null; then
+  BASELINE_CLEAN=1
+fi
+
+TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-validator-${AGENT}.XXXXXX")"
+TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-validator-prompt-${AGENT}.XXXXXX")"
+RAW_LOG="$RAW_LOG_DIR/claude-headless-${AGENT}${MODE:+-$MODE}-$$.log"
+trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
+
+AGENT_DOC="$SCRIPT_DIR/../agents/$AGENT.md"
+AGENT_DETAIL="$SCRIPT_DIR/../agents/$AGENT/$AGENT-agent.md"
+
+{
+  echo "dcNess validation agent: $AGENT"
+  if [ -n "$MODE" ]; then
+    echo "dcNess validation mode: $MODE"
+  else
+    echo "dcNess validation mode: default"
+  fi
+  echo "project/worktree root: $PROJECT_ROOT"
+  echo "session id: $DCNESS_SESSION_ID"
+  echo "run id: $DCNESS_RUN_ID"
+  echo
+  echo "You are executing this dcNess validation step through Claude headless."
+  echo "Run with hooks and plugins enabled; do not use safe-mode, bare mode, or hook-skipping modes."
+  echo "Read-only request. Do not edit files, create files inside the repo, commit, push, or open PRs."
+  echo "Return prose only. The final paragraph must contain exactly one conclusion word: PASS, FAIL, or ESCALATE."
+  echo
+  if [ -f "$AGENT_DOC" ]; then
+    echo "----- BEGIN agents/$AGENT.md -----"
+    cat "$AGENT_DOC"
+    echo "----- END agents/$AGENT.md -----"
+    echo
+  fi
+  if [ -f "$AGENT_DETAIL" ]; then
+    echo "----- BEGIN agents/$AGENT/$AGENT-agent.md -----"
+    cat "$AGENT_DETAIL"
+    echo "----- END agents/$AGENT/$AGENT-agent.md -----"
+    echo
+  fi
+  echo "----- BEGIN CALLER PROMPT -----"
+  cat "$PROMPT_FILE"
+  echo "----- END CALLER PROMPT -----"
+} > "$TMP_PROMPT"
+
+CLAUDE_CMD=(
+  claude -p
+  --permission-mode dontAsk
+  --allowedTools Read,Grep,Glob
+  --output-format text
+)
+
+run_claude_once() {
+  python3 -c '
+import os
+import signal
+import subprocess
+import sys
+
+timeout = int(sys.argv[1])
+prompt = sys.argv[2]
+output = sys.argv[3]
+log = sys.argv[4]
+cmd = sys.argv[5:]
+with open(prompt, "rb") as stdin, open(output, "wb") as stdout, open(log, "ab") as raw:
+    raw.write(("COMMAND: " + " ".join(cmd) + "\n").encode("utf-8", "replace"))
+    proc = subprocess.Popen(
+        cmd,
+        stdin=stdin,
+        stdout=stdout,
+        stderr=raw,
+        start_new_session=True,
+    )
+    try:
+        proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait()
+        sys.exit(124)
+    sys.exit(proc.returncode)
+' "$CLAUDE_TIMEOUT" "$TMP_PROMPT" "$TMP_PROSE" "$RAW_LOG" "${CLAUDE_CMD[@]}"
+}
+
+CLAUDE_RC=0
+run_claude_once
+CLAUDE_RC=$?
+
+{
+  echo
+  echo "----- STDOUT / FINAL PROSE -----"
+  cat "$TMP_PROSE" 2>/dev/null || true
+} >> "$RAW_LOG"
+
+AFTER_STATUS="$(git_status_without_harness_state)"
+
+if [ "$CLAUDE_RC" -ne 0 ]; then
+  if [ "$BEFORE_STATUS" != "$AFTER_STATUS" ]; then
+    echo "[dcness-claude-validator] BLOCKED: Claude failed after changing git status. Automatic revert is forbidden." >&2
+    echo "[dcness-claude-validator] raw log: $RAW_LOG" >&2
+    git -C "$PROJECT_ROOT" status --short >&2 || true
+    exit 1
+  fi
+  echo "[dcness-claude-validator] claude -p failed before workspace mutation (exit $CLAUDE_RC); raw log: $RAW_LOG" >&2
+  exit "$CLAUDE_RC"
+fi
+
+if [ ! -s "$TMP_PROSE" ]; then
+  if [ "$BEFORE_STATUS" != "$AFTER_STATUS" ]; then
+    echo "[dcness-claude-validator] BLOCKED: Claude changed git status but produced empty prose." >&2
+    echo "[dcness-claude-validator] raw log: $RAW_LOG" >&2
+    git -C "$PROJECT_ROOT" status --short >&2 || true
+    exit 1
+  fi
+  echo "[dcness-claude-validator] Claude produced empty prose; raw log: $RAW_LOG" >&2
+  exit 1
+fi
+
+if [ "$BEFORE_STATUS" != "$AFTER_STATUS" ]; then
+  echo "[dcness-claude-validator] BLOCKED: Claude run changed git status. Automatic revert is forbidden." >&2
+  echo "[dcness-claude-validator] raw log: $RAW_LOG" >&2
+  git -C "$PROJECT_ROOT" status --short >&2 || true
+  exit 1
+fi
+
+if [ "$BASELINE_CLEAN" = "1" ]; then
+  if ! git -C "$PROJECT_ROOT" diff --quiet --no-ext-diff \
+    || ! git -C "$PROJECT_ROOT" diff --cached --quiet --no-ext-diff; then
+    echo "[dcness-claude-validator] BLOCKED: git diff appeared after Claude run. Automatic revert is forbidden." >&2
+    echo "[dcness-claude-validator] raw log: $RAW_LOG" >&2
+    exit 1
+  fi
+fi
+
+if [ -n "$MODE" ]; then
+  "$HELPER" end-step "$AGENT" "$MODE" --provider claude-headless --prose-file "$TMP_PROSE"
+else
+  "$HELPER" end-step "$AGENT" --provider claude-headless --prose-file "$TMP_PROSE"
+fi

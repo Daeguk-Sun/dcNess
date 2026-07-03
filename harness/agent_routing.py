@@ -5,8 +5,8 @@ projects opt in via /init-dcness, which writes:
 
     ~/.claude/plugins/data/dcness-dcness/routing.json
 
-Validation agents can be sent to Codex read-only. Implementation agents can be
-run Codex-first with Claude fallback.
+Validation agents can be sent to Codex read-only. Implementation agents default
+to a headless chain: Codex headless, Claude headless, then Claude main fallback.
 """
 from __future__ import annotations
 
@@ -23,22 +23,26 @@ __all__ = [
     "VALID_IMPLEMENTATION_PROVIDERS",
     "VALID_PROVIDERS",
     "VALID_VALIDATION_PROVIDERS",
+    "IMPLEMENTATION_PROVIDER_CHAINS",
     "routing_path",
     "load_routing",
     "save_routing",
     "resolve_provider",
+    "implementation_provider_chain",
     "set_provider",
     "set_implementation_provider",
     "enable_codex_validation",
     "disable_codex_validation",
+    "enable_headless_implementation",
+    "enable_claude_headless_implementation",
     "enable_codex_implementation",
     "disable_codex_implementation",
     "doctor",
     "format_status",
 ]
 
-CONFIG_VERSION = 2
-SUPPORTED_CONFIG_VERSIONS = (1, 2)
+CONFIG_VERSION = 3
+SUPPORTED_CONFIG_VERSIONS = (1, 2, 3)
 ROUTABLE_VALIDATION_AGENTS = (
     "code-validator",
     "architecture-validator",
@@ -50,11 +54,22 @@ ROUTABLE_IMPLEMENTATION_AGENTS = (
     "build-worker",
 )
 VALID_VALIDATION_PROVIDERS = ("claude", "codex")
-VALID_IMPLEMENTATION_PROVIDERS = ("claude", "codex-first")
+VALID_IMPLEMENTATION_PROVIDERS = (
+    "claude",
+    "codex-first",
+    "claude-headless",
+    "headless-chain",
+)
+IMPLEMENTATION_PROVIDER_CHAINS = {
+    "headless-chain": ("codex-headless", "claude-headless", "claude-main"),
+    "codex-first": ("codex-headless", "claude-main"),
+    "claude-headless": ("claude-headless", "claude-main"),
+    "claude": ("claude-main",),
+}
 # Backward-compatible export for callers that only know validation routing.
 VALID_PROVIDERS = VALID_VALIDATION_PROVIDERS
 DEFAULT_VALIDATION_PROVIDER = "claude"
-DEFAULT_IMPLEMENTATION_PROVIDER = "codex-first"
+DEFAULT_IMPLEMENTATION_PROVIDER = "headless-chain"
 SAFE_FALLBACK_PROVIDER = "claude"
 
 _DEFAULT_ROUTING_PATH = (
@@ -103,7 +118,8 @@ def _atomic_write_json(target: Path, payload: Dict[str, Any]) -> None:
 def load_routing(*, path: Optional[Path] = None) -> Dict[str, Any]:
     """Load routing config.
 
-    Missing config is not an error; it means all agents resolve to Claude.
+    Missing config is not an error; validation agents resolve to Claude and
+    implementation agents resolve to the default headless chain.
     Invalid JSON raises ValueError so `routing doctor` can fail loudly.
     """
     target = Path(path) if path is not None else routing_path()
@@ -168,7 +184,8 @@ def resolve_provider(agent: str, *, path: Optional[Path] = None) -> str:
     """Resolve provider for an agent.
 
     Validation agents default to Claude for backward compatibility.
-    Implementation agents default to Codex-first, with explicit Claude opt-out.
+    Implementation agents default to the 3-stage headless chain. Explicit legacy
+    values keep their previous meaning.
     Unknown agents always resolve to Claude.
     """
     if agent not in ROUTABLE_VALIDATION_AGENTS + ROUTABLE_IMPLEMENTATION_AGENTS:
@@ -191,6 +208,13 @@ def resolve_provider(agent: str, *, path: Optional[Path] = None) -> str:
     )
 
 
+def implementation_provider_chain(provider: str) -> tuple[str, ...]:
+    """Return execution stages for an implementation provider value."""
+    if provider not in IMPLEMENTATION_PROVIDER_CHAINS:
+        return IMPLEMENTATION_PROVIDER_CHAINS[SAFE_FALLBACK_PROVIDER]
+    return IMPLEMENTATION_PROVIDER_CHAINS[provider]
+
+
 def set_provider(agent: str, provider: str, *, path: Optional[Path] = None) -> Path:
     if agent not in ROUTABLE_VALIDATION_AGENTS:
         allowed = ", ".join(ROUTABLE_VALIDATION_AGENTS)
@@ -211,9 +235,10 @@ def set_implementation_provider(
         allowed = ", ".join(ROUTABLE_IMPLEMENTATION_AGENTS)
         raise ValueError(f"unsupported implementation agent: {agent} (allowed: {allowed})")
     if provider not in VALID_IMPLEMENTATION_PROVIDERS:
+        allowed_providers = "|".join(VALID_IMPLEMENTATION_PROVIDERS)
         raise ValueError(
             f"unsupported implementation provider: {provider} "
-            "(allowed: claude|codex-first)"
+            f"(allowed: {allowed_providers})"
         )
     cfg = load_routing(path=path)
     routes = dict(cfg.get("implementation_routes", {}))
@@ -237,11 +262,33 @@ def disable_codex_validation(*, path: Optional[Path] = None) -> Path:
 
 
 def enable_codex_implementation(*, path: Optional[Path] = None) -> Path:
+    """Legacy Codex-first implementation route.
+
+    This intentionally keeps the old two-stage meaning: Codex headless, then
+    Claude main. New installs should normally use enable_headless_implementation.
+    """
+    cfg = load_routing(path=path)
+    routes = {
+        agent: "codex-first"
+        for agent in ROUTABLE_IMPLEMENTATION_AGENTS
+    }
+    cfg["implementation_routes"] = routes
+    return save_routing(cfg, path=path)
+
+
+def enable_headless_implementation(*, path: Optional[Path] = None) -> Path:
     cfg = load_routing(path=path)
     routes = {
         agent: DEFAULT_IMPLEMENTATION_PROVIDER
         for agent in ROUTABLE_IMPLEMENTATION_AGENTS
     }
+    cfg["implementation_routes"] = routes
+    return save_routing(cfg, path=path)
+
+
+def enable_claude_headless_implementation(*, path: Optional[Path] = None) -> Path:
+    cfg = load_routing(path=path)
+    routes = {agent: "claude-headless" for agent in ROUTABLE_IMPLEMENTATION_AGENTS}
     cfg["implementation_routes"] = routes
     return save_routing(cfg, path=path)
 
@@ -312,7 +359,7 @@ def format_status(*, path: Optional[Path] = None) -> str:
     if not target.exists():
         lines.append(
             "[dcness routing] file: missing "
-            "(default validation Claude, implementation Codex-first)"
+            "(default validation Claude, implementation headless-chain)"
         )
     lines.append("[dcness routing] validation:")
     for agent in ROUTABLE_VALIDATION_AGENTS:

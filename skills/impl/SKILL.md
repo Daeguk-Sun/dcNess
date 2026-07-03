@@ -183,7 +183,7 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
 
 메인 직접 경로에서 `code-validator` 를 호출하지 않는 이유: 검증 대상인 impl/compact 계획 파일이 없다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, `pr-reviewer`, 단위 commit/PR, CI, false-clean 방지다.
 
-Codex implementation routing 이 `codex-first` 이면 Lite 기본 구현도 메인이 직접 Edit 하기 전에 구현 provider 를 확인할 수 있다. 메인이 Codex headless 실행을 선택하면 `build-worker` step 으로 기록하고 `dcness-codex-worker build-worker` 를 호출한다. Codex CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패하면 기존 메인 직접 구현 또는 Claude sub-agent 엔진으로 되돌린다. Codex 가 파일을 바꾼 뒤 실패하면 자동 폴백하지 않고 현재 diff 를 보고 정지한다.
+Implementation routing 이 headless 계열이면 Lite 기본 구현도 메인이 직접 Edit 하기 전에 구현 provider 를 확인할 수 있다. 메인이 headless 실행을 선택하면 `build-worker` step 으로 기록하고 `dcness-implementation-chain build-worker` 를 호출한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패하면 다음 provider 로 넘어가고, Claude main handoff 는 메인 직접 구현 또는 Claude sub-agent 엔진으로 처리한다. Headless provider 가 파일을 바꾼 뒤 실패하면 자동 폴백하지 않고 현재 diff 를 보고 정지한다.
 
 ## Lite 구현 경로 — sub-agent 엔진 (#714)
 
@@ -245,23 +245,30 @@ else
 fi
 ```
 
-Codex 분기는 review provider 구현일 뿐 별도 public workflow 가 아니다.
+Codex 분기는 review provider 구현일 뿐 별도 public workflow 가 아니다. Codex wrapper 가 저장하는 receipt 는 실제 provider 를 `codex-headless` 로 기록한다.
 
 ## Implementation Provider
 
-`test-engineer` / `engineer` / `build-worker` 는 implementation provider 분기 대상이다. 기본값은 `codex-first` 이고, Claude-only 사용자는 `/init-dcness` custom 또는 중간 CLI 로 `claude` 로 바꿀 수 있다.
+`test-engineer` / `engineer` / `build-worker` 는 implementation provider 분기 대상이다. 기본값은 `headless-chain`(Codex headless → Claude headless → Claude main)이고, Claude-only 사용자는 `/init-dcness` custom 또는 중간 CLI 로 `claude` 로 바꿀 수 있다.
 
 ```bash
 PROVIDER=$("$HELPER" routing resolve build-worker)   # 또는 test-engineer / engineer
-if [ "$PROVIDER" = "codex-first" ]; then
-  "$PLUGIN_ROOT/scripts/dcness-codex-worker" build-worker --prompt-file "$PROMPT_FILE"
-  # 실패 시 stderr/status 를 확인한다. "changed workspace" 실패는 자동 폴백 금지.
-else
+if [ "$PROVIDER" = "claude" ]; then
   Agent(subagent_type="build-worker", ...)
+  "$HELPER" end-step build-worker --provider claude-main
+else
+  rc=0
+  "$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker --provider "$PROVIDER" --prompt-file "$PROMPT_FILE" || rc=$?
+  if [ "$rc" -eq 75 ]; then
+    Agent(subagent_type="build-worker", ...)
+    "$HELPER" end-step build-worker --provider claude-main
+  elif [ "$rc" -ne 0 ]; then
+    exit "$rc"
+  fi
 fi
 ```
 
-Codex wrapper 가 성공하면 마지막 응답을 `end-step` 으로 저장한다. Codex 가 workspace 를 변경한 뒤 실패한 경우에는 wrapper 가 non-zero 로 멈추며 자동 Claude 폴백 금지다. 메인이 diff 를 확인하고 계속 진행/수정/폐기 여부를 판단한다.
+Headless wrapper 가 성공하면 마지막 응답을 `end-step` 으로 저장하고 실제 provider(`codex-headless` / `claude-headless`)를 ledger receipt 에 남긴다. Headless provider 가 workspace 를 변경한 뒤 실패한 경우에는 chain 이 non-zero 로 멈추며 자동 Claude 폴백 금지다. 메인이 diff 를 확인하고 계속 진행/수정/폐기 여부를 판단한다. workspace 변경 전 인프라 실패만 다음 provider 로 넘어가며, Claude main handoff 는 `FALLBACK_TO_CLAUDE_MAIN`/exit 75 로 표시된다.
 
 ## 종료 보고
 
