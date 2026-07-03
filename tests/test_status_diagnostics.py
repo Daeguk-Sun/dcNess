@@ -327,6 +327,46 @@ class CollectExternalRepoTests(unittest.TestCase):
             self.assertIn("missing", by_key["codex_skills"]["detail"])
             self.assertIn("Core Step 5", by_key["codex_skills"]["fix"] or "")
 
+    def test_claude_context_missing_sections_is_info_even_with_a_score(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            plugin_root = root / "plugin"
+            codex_home = root / "codex-home"
+            _write(root / "docs" / "index.md", "# Index\n")
+            _write(
+                root / "CLAUDE.md",
+                "\n".join([
+                    "# Project Instructions",
+                    "",
+                    "## Commands",
+                    "- `npm run test`",
+                    "",
+                    "## Architecture",
+                    "- docs/index.md is the entrypoint and module boundary.",
+                    "",
+                    "## Gotchas",
+                    "- Known issue records stay concise.",
+                    "",
+                    "## dcNess Cold Start",
+                    "- 다음 작업 후보 확인: `/next`",
+                    "- `docs/index.md`",
+                    "",
+                ]),
+            )
+
+            diag = collect_status_diagnostics(
+                cwd=root,
+                plugin_root=plugin_root,
+                codex_home=codex_home,
+                check_gh=False,
+                check_routing=False,
+            )
+
+            by_key = {c["key"]: c for c in diag["checks"]}
+            check = by_key["claude_context"]
+            self.assertEqual(check["status"], "INFO")
+            self.assertIn("권장 섹션 누락", check["detail"])
+
 
 class FailOpenDiagnosticsTests(unittest.TestCase):
     def test_no_recent_events_is_pass(self) -> None:

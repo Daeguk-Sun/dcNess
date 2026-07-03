@@ -728,6 +728,18 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("진행 상태 섹션", self.init_doc)
         self.assertIn("진행 상태 섹션", self.init_reference)
 
+    def test_issue_885_claude_md_seed_and_audit_stays_inside_existing_surfaces(self) -> None:
+        """#885 — CLAUDE.md seed/migration and audit wire into init/run-review only."""
+        helper = "scripts/dcness-context-docs"
+        self.assertTrue((ROOT / helper).exists())
+        self.assertTrue((ROOT / "harness" / "context_docs.py").exists())
+        self.assertIn(helper, self.init_doc)
+        self.assertIn(helper, self.init_reference)
+        self.assertIn("CLAUDE.md seed/migration", self.init_doc)
+        self.assertIn("6축 quality audit", self.init_reference)
+        self.assertIn("6축 rubric", self.run_review_skill)
+        self.assertIn("cold-start 앵커", self.run_review_skill)
+
     def test_init_dcness_completion_precedes_optional_bundle(self) -> None:
         """#799 — core 활성화 완료를 먼저 선언하고 선택형 확장은 bundle 1질문으로 둔다."""
         for needle in (
