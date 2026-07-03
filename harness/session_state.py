@@ -2991,7 +2991,14 @@ def _cli_end_step(args: Any) -> int:
         print(summary, file=sys.stderr)
     # step status append — finalize-run / 회고용
     _append_step_status(
-        sid, rid, agent, mode, "PROSE_LOGGED", prose, prose_path,
+        sid,
+        rid,
+        agent,
+        mode,
+        "PROSE_LOGGED",
+        prose,
+        prose_path,
+        provider=getattr(args, "provider", None),
     )
     clear_current_step(sid, rid, agent=agent, mode=mode)
     return 0
@@ -3085,6 +3092,8 @@ def _append_step_status(
     enum: str,
     prose: str,
     prose_path: "Path",
+    *,
+    provider: Optional[str] = None,
 ) -> None:
     """end-step 호출마다 ledger.jsonl 에 step_completed event append (이슈 #587).
 
@@ -3094,7 +3103,9 @@ def _append_step_status(
     """
     from harness import ledger
 
-    ledger.append_step_completed(sid, rid, agent, mode, enum, prose, prose_path)
+    ledger.append_step_completed(
+        sid, rid, agent, mode, enum, prose, prose_path, provider=provider
+    )
 
 
 def _record_design_run_if_applicable(sid: str, rid: str) -> None:
@@ -3663,7 +3674,7 @@ def collect_status_diagnostics(
             f"설치됨: {', '.join(installed)}" if installed else "없음 (선택 사항)",
         )
 
-    # Codex routing (self / 외부 공통 — INFO)
+    # Provider routing (self / 외부 공통 — INFO)
     if check_routing:
         try:
             from harness import agent_routing
@@ -3671,7 +3682,7 @@ def collect_status_diagnostics(
             routing_detail = agent_routing.format_status().strip().replace("\n", " | ")
         except Exception:
             routing_detail = "조회 실패"
-        add("routing", "Codex routing", "INFO", routing_detail)
+        add("routing", "Provider routing", "INFO", routing_detail)
 
     # gh CLI 인증 (self / 외부 공통 — WARN)
     if check_gh:
@@ -3782,6 +3793,16 @@ def _cli_routing(args: Any) -> int:
     if action == "enable-codex-implementation":
         path = agent_routing.enable_codex_implementation()
         print(f"[dcness routing] enabled Codex implementation: {path}")
+        print(agent_routing.format_status())
+        return 0
+    if action == "enable-headless-implementation":
+        path = agent_routing.enable_headless_implementation()
+        print(f"[dcness routing] enabled headless implementation chain: {path}")
+        print(agent_routing.format_status())
+        return 0
+    if action == "enable-claude-headless-implementation":
+        path = agent_routing.enable_claude_headless_implementation()
+        print(f"[dcness routing] enabled Claude headless implementation: {path}")
         print(agent_routing.format_status())
         return 0
     if action == "disable-codex-implementation":
@@ -3925,6 +3946,10 @@ def _build_arg_parser() -> Any:
     p_es.add_argument(
         "--prose-file", required=False, default=None,
         help="prose 본문 파일 경로 (미제공 시 hook auto-stage 경로 사용)",
+    )
+    p_es.add_argument(
+        "--provider", required=False, default=None,
+        help="실제 실행 provider 기록 (예: codex-headless / claude-headless / claude-main)",
     )
     p_es.set_defaults(func=_cli_end_step)
 
@@ -4158,9 +4183,21 @@ def _build_arg_parser() -> Any:
 
     rt_enable_impl = rt_sub.add_parser(
         "enable-codex-implementation",
-        help="test-engineer / engineer / build-worker 를 Codex-first 로 보냄",
+        help="legacy: test-engineer / engineer / build-worker 를 Codex-first 로 보냄",
     )
     rt_enable_impl.set_defaults(func=_cli_routing)
+
+    rt_enable_headless = rt_sub.add_parser(
+        "enable-headless-implementation",
+        help="implementation agent 를 Codex headless → Claude headless → Claude main 체인으로 보냄",
+    )
+    rt_enable_headless.set_defaults(func=_cli_routing)
+
+    rt_enable_claude_headless = rt_sub.add_parser(
+        "enable-claude-headless-implementation",
+        help="implementation agent 를 Claude headless → Claude main 체인으로 보냄",
+    )
+    rt_enable_claude_headless.set_defaults(func=_cli_routing)
 
     rt_disable_impl = rt_sub.add_parser(
         "disable-codex-implementation",
@@ -4173,7 +4210,10 @@ def _build_arg_parser() -> Any:
         help="특정 implementation agent provider 설정",
     )
     rt_set_impl.add_argument("agent")
-    rt_set_impl.add_argument("provider", choices=("claude", "codex-first"))
+    rt_set_impl.add_argument(
+        "provider",
+        choices=("claude", "codex-first", "claude-headless", "headless-chain"),
+    )
     rt_set_impl.set_defaults(func=_cli_routing)
 
     rt_resolve = rt_sub.add_parser("resolve", help="agent provider resolve")

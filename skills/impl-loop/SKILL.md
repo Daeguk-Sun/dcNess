@@ -217,22 +217,31 @@ else
 fi
 ```
 
-wrapper 가 Codex 마지막 응답을 `/tmp` 에 받고 `dcness-helper end-step <agent> --prose-file ...` 까지 수행하므로 Codex 분기 경로에서는 별도 `end-step` 중복 호출 금지.
+wrapper 가 Codex 마지막 응답을 `/tmp` 에 받고 `dcness-helper end-step <agent> --provider codex-headless --prose-file ...` 까지 수행하므로 Codex 분기 경로에서는 별도 `end-step` 중복 호출 금지.
 
-### implementation provider resolve (Codex-first 기본)
+### implementation provider resolve (headless-chain 기본)
 
-`test-engineer` / `engineer` / `build-worker` 호출 직전 implementation provider 를 같은 local routing config 로 resolve 한다. 기본값은 `codex-first` 이며, Claude-only 사용자는 `/init-dcness` custom 또는 중간 CLI 로 `claude` 로 바꾼다.
+`test-engineer` / `engineer` / `build-worker` 호출 직전 implementation provider 를 같은 local routing config 로 resolve 한다. 기본값은 `headless-chain` 이며, Claude-only 사용자는 `/init-dcness` custom 또는 중간 CLI 로 `claude` 로 바꾼다.
 
 ```bash
 PROVIDER=$("$HELPER" routing resolve <agent>)
-if [ "$PROVIDER" = "codex-first" ]; then
-  "$PLUGIN_ROOT/scripts/dcness-codex-worker" <agent> [MODE] --prompt-file "$PROMPT_FILE"
-else
+if [ "$PROVIDER" = "claude" ]; then
   # 기존 Claude Agent(subagent_type="<agent>") 경로.
+  "$HELPER" end-step <agent> [MODE] --provider claude-main
+else
+  rc=0
+  "$PLUGIN_ROOT/scripts/dcness-implementation-chain" <agent> [MODE] --provider "$PROVIDER" --prompt-file "$PROMPT_FILE" || rc=$?
+  if [ "$rc" -eq 75 ]; then
+    # 기존 Claude Agent(subagent_type="<agent>") 경로.
+    Agent(subagent_type="<agent>", ...)
+    "$HELPER" end-step <agent> [MODE] --provider claude-main
+  elif [ "$rc" -ne 0 ]; then
+    exit "$rc"
+  fi
 fi
 ```
 
-`dcness-codex-worker` 성공 경로는 마지막 응답 저장과 `end-step` 까지 수행한다. Codex CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 기존 Claude Agent 경로로 폴백할 수 있다. Codex 가 파일을 변경한 뒤 실패하거나 agent boundary 밖 파일을 변경하면 자동 폴백·자동 revert 없이 정지한다.
+`dcness-implementation-chain` 성공 경로는 마지막 응답 저장과 `end-step` 까지 수행한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 다음 provider 로 폴백할 수 있다. Headless provider 가 파일을 변경한 뒤 실패하거나 agent boundary 밖 파일을 변경하면 자동 폴백·자동 revert 없이 정지한다. Claude main handoff 는 `FALLBACK_TO_CLAUDE_MAIN`/exit 75 이므로 메인이 기존 Agent 경로를 실행한 뒤 `--provider claude-main` 으로 기록한다.
 
 ---
 

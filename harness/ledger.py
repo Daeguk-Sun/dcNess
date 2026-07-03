@@ -502,6 +502,8 @@ def build_receipt(
     enum: str,
     prose: str,
     prose_path: Any,
+    *,
+    provider: Optional[str] = None,
 ) -> Dict[str, Any]:
     """저장된 prose + known state 에서 receipt dict 생성 (helper-generated).
 
@@ -514,7 +516,7 @@ def build_receipt(
     hint_enum = enum
     if agent == "product-acceptance" and enum == "PROSE_LOGGED":
         hint_enum = "FAIL" if _product_acceptance_fail_from_prose(prose) else enum
-    return {
+    receipt = {
         "agent": agent,
         "mode": mode,
         "enum": enum,
@@ -525,6 +527,9 @@ def build_receipt(
         "evidence_paths": extract_evidence_paths(prose),
         "next_action": infer_next_action(agent, mode, must_fix=must_fix, enum=hint_enum),
     }
+    if provider:
+        receipt["provider"] = provider
+    return receipt
 
 
 def append_step_completed(
@@ -537,6 +542,7 @@ def append_step_completed(
     prose_path: Any,
     *,
     base_dir: Optional[Path] = None,
+    provider: Optional[str] = None,
 ) -> Dict[str, Any]:
     """end-step 시점: prose 에서 receipt 생성 → step_completed event append.
 
@@ -544,7 +550,7 @@ def append_step_completed(
     evidence_paths) 를 동반해 _append_event_raw 로 기록한다. public append_event 는
     step_completed 를 거부하므로 위조 경로가 없다 (codex review).
     """
-    receipt = build_receipt(agent, mode, enum, prose, prose_path)
+    receipt = build_receipt(agent, mode, enum, prose, prose_path, provider=provider)
     return _append_event_raw(
         sid, rid, "step_completed", base_dir=base_dir, **receipt
     )

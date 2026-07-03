@@ -139,7 +139,10 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             self.assertTrue(
                 helper_args.read_text(encoding="utf-8")
                 .strip()
-                .startswith("end-step architecture-validator SECOND --prose-file "),
+                .startswith(
+                    "end-step architecture-validator SECOND "
+                    "--provider codex-headless --prose-file "
+                ),
             )
             self.assertEqual(
                 prose_capture.read_text(encoding="utf-8"),
@@ -360,7 +363,9 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             self.assertTrue(
                 helper_args.read_text(encoding="utf-8")
                 .strip()
-                .startswith("end-step pr-reviewer --prose-file "),
+                .startswith(
+                    "end-step pr-reviewer --provider codex-headless --prose-file "
+                ),
             )
             prose = prose_capture.read_text(encoding="utf-8")
             self.assertIn("did not finish within 1s", prose)
@@ -486,7 +491,9 @@ class CodexWorkerWrapperTests(unittest.TestCase):
             self.assertTrue(
                 helper_args.read_text(encoding="utf-8")
                 .strip()
-                .startswith("end-step build-worker --prose-file "),
+                .startswith(
+                    "end-step build-worker --provider codex-headless --prose-file "
+                ),
             )
             self.assertEqual(
                 prose_capture.read_text(encoding="utf-8"),
@@ -756,7 +763,9 @@ class CodexWorkerWrapperTests(unittest.TestCase):
             self.assertTrue(
                 helper_args.read_text(encoding="utf-8")
                 .strip()
-                .startswith("end-step build-worker --prose-file "),
+                .startswith(
+                    "end-step build-worker --provider codex-headless --prose-file "
+                ),
             )
 
     def test_worker_failure_after_mutation_does_not_fallback_or_end_step(self) -> None:

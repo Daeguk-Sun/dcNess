@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Run a dcNess implementation worker through Codex and store prose via
-# dcness-helper end-step. The caller still owns begin-step and fallback policy.
+# Run a dcNess implementation worker through Claude headless and store prose via
+# dcness-helper end-step. Hooks/plugins must stay enabled; do not use --bare or
+# --safe-mode for worker execution.
 
 set -uo pipefail
 
 usage() {
   cat <<'USAGE'
 Usage:
-  dcness-codex-worker <agent> [MODE] --prompt-file <file> [--project-root <dir>]
+  dcness-claude-worker <agent> [MODE] --prompt-file <file> [--project-root <dir>]
 
 Agents:
   test-engineer
@@ -15,27 +16,25 @@ Agents:
   build-worker
 
 Options:
-  --prompt-file, -p   File containing the Codex prompt.
+  --prompt-file, -p   File containing the caller prompt.
   --project-root, -C  Repository root. Default: git rev-parse --show-toplevel.
   --helper            dcness-helper path. Default: sibling script.
   --help, -h          Show this help.
 
 Environment:
-  DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 1200.
+  DCNESS_CLAUDE_TIMEOUT  Seconds per Claude attempt. Default: 1200.
 
-The wrapper runs Codex in workspace-write mode:
-  codex exec -C "$PROJECT_ROOT" -s workspace-write --output-last-message "$TMP_PROSE"
+The wrapper runs Claude Code in print mode with hooks/plugins enabled:
+  claude -p --permission-mode acceptEdits --output-format text
 
 On success it validates changed paths against dcNess agent_boundary, reuses
-tdd-guard matching-test enforcement for Codex-changed implementation files, and stores:
-  dcness-helper end-step <agent> [MODE] --provider codex-headless --prose-file "$TMP_PROSE"
+tdd-guard matching-test enforcement for Claude-changed implementation files,
+and stores:
+  dcness-helper end-step <agent> [MODE] --provider claude-headless --prose-file ...
 
-Raw Codex session logs are preserved under the active run directory. The main
-context only receives short status messages and the final prose receipt.
-
-On Codex infrastructure failure with no workspace mutation, callers may fall
-back to the existing Claude Agent path. If Codex changed files and then failed,
-this wrapper exits non-zero and does not auto-revert.
+If Claude changes the workspace and then fails, automatic fallback/revert is
+forbidden. If it fails before workspace mutation, callers may continue the
+provider chain.
 USAGE
 }
 
@@ -55,7 +54,7 @@ shift
 case "$AGENT" in
   test-engineer|engineer|build-worker) ;;
   *)
-    echo "[dcness-codex-worker] unsupported agent: $AGENT" >&2
+    echo "[dcness-claude-worker] unsupported agent: $AGENT" >&2
     exit 2
     ;;
 esac
@@ -70,7 +69,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
-CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-1200}"
+CLAUDE_TIMEOUT="${DCNESS_CLAUDE_TIMEOUT:-1200}"
 
 abs_path() {
   case "$1" in
@@ -98,7 +97,7 @@ while [ $# -gt 0 ]; do
       exit 0
       ;;
     *)
-      echo "[dcness-codex-worker] unknown argument: $1" >&2
+      echo "[dcness-claude-worker] unknown argument: $1" >&2
       usage >&2
       exit 2
       ;;
@@ -106,7 +105,7 @@ while [ $# -gt 0 ]; do
 done
 
 if [ -z "$PROMPT_FILE" ] || [ ! -f "$PROMPT_FILE" ]; then
-  echo "[dcness-codex-worker] --prompt-file is required and must exist" >&2
+  echo "[dcness-claude-worker] --prompt-file is required and must exist" >&2
   exit 2
 fi
 PROMPT_FILE="$(abs_path "$PROMPT_FILE")"
@@ -115,35 +114,35 @@ if [ -z "$PROJECT_ROOT" ]; then
   PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 fi
 if [ ! -d "$PROJECT_ROOT" ]; then
-  echo "[dcness-codex-worker] project root not found: $PROJECT_ROOT" >&2
+  echo "[dcness-claude-worker] project root not found: $PROJECT_ROOT" >&2
   exit 2
 fi
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 HELPER="$(abs_path "$HELPER")"
 
 if [ ! -x "$HELPER" ]; then
-  echo "[dcness-codex-worker] helper not executable: $HELPER" >&2
+  echo "[dcness-claude-worker] helper not executable: $HELPER" >&2
   exit 2
 fi
 
-case "$CODEX_TIMEOUT" in
+case "$CLAUDE_TIMEOUT" in
   ''|*[!0-9]*)
-    echo "[dcness-codex-worker] DCNESS_CODEX_TIMEOUT must be a positive integer: $CODEX_TIMEOUT" >&2
+    echo "[dcness-claude-worker] DCNESS_CLAUDE_TIMEOUT must be a positive integer: $CLAUDE_TIMEOUT" >&2
     exit 2
     ;;
 esac
-if [ "$CODEX_TIMEOUT" -lt 1 ]; then
-  echo "[dcness-codex-worker] DCNESS_CODEX_TIMEOUT must be >= 1" >&2
+if [ "$CLAUDE_TIMEOUT" -lt 1 ]; then
+  echo "[dcness-claude-worker] DCNESS_CLAUDE_TIMEOUT must be >= 1" >&2
   exit 2
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
-  echo "[dcness-codex-worker] python3 not found; required for timeout and context resolution" >&2
+  echo "[dcness-claude-worker] python3 not found; required for timeout and context resolution" >&2
   exit 127
 fi
 
-if ! command -v codex >/dev/null 2>&1; then
-  echo "[dcness-codex-worker] codex CLI not found" >&2
+if ! command -v claude >/dev/null 2>&1; then
+  echo "[dcness-claude-worker] claude CLI not found" >&2
   exit 127
 fi
 
@@ -167,7 +166,7 @@ print(f"{sid}\t{rid}")
 '
 )"
 if [ $? -ne 0 ]; then
-  echo "[dcness-codex-worker] sid/rid resolve failed before Codex launch" >&2
+  echo "[dcness-claude-worker] sid/rid resolve failed before Claude launch" >&2
   exit 1
 fi
 IFS="$(printf '\t')" read -r RESOLVED_SID RESOLVED_RID <<EOF
@@ -193,9 +192,9 @@ git_status_without_harness_state() {
 
 BEFORE_STATUS="$(git_status_without_harness_state)"
 
-TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-${AGENT}.XXXXXX")"
-TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-prompt-${AGENT}.XXXXXX")"
-RAW_LOG="$RAW_LOG_DIR/codex-headless-${AGENT}${MODE:+-$MODE}-$$.log"
+TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-worker-${AGENT}.XXXXXX")"
+TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-worker-prompt-${AGENT}.XXXXXX")"
+RAW_LOG="$RAW_LOG_DIR/claude-headless-${AGENT}${MODE:+-$MODE}-$$.log"
 trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
 
 AGENT_DOC="$SCRIPT_DIR/../agents/$AGENT.md"
@@ -212,7 +211,8 @@ AGENT_DETAIL="$SCRIPT_DIR/../agents/$AGENT/$AGENT-agent.md"
   echo "session id: $DCNESS_SESSION_ID"
   echo "run id: $DCNESS_RUN_ID"
   echo
-  echo "You are executing this dcNess implementation worker step through Codex headless."
+  echo "You are executing this dcNess implementation worker step through Claude headless."
+  echo "Run with hooks and plugins enabled; do not use safe-mode, bare mode, or hook-skipping modes."
   echo "You may edit files in the project/worktree only within the embedded agent boundary."
   echo "Do not run git commit, git push, gh pr create, gh pr merge, gh issue mutation, or call other agents."
   echo "Return prose only. Use the conclusion enum required by the embedded agent instructions."
@@ -234,13 +234,9 @@ AGENT_DETAIL="$SCRIPT_DIR/../agents/$AGENT/$AGENT-agent.md"
   echo "----- END CALLER PROMPT -----"
 } > "$TMP_PROMPT"
 
-CODEX_CMD=(codex)
-if codex --help 2>/dev/null | grep -Eq -- '(^|[[:space:]])-a,|--ask-for-approval|--approval-policy'; then
-  CODEX_CMD+=( -a never )
-fi
-CODEX_ARGS=(exec -C "$PROJECT_ROOT" -s workspace-write --output-last-message "$TMP_PROSE" -)
+CLAUDE_CMD=(claude -p --permission-mode acceptEdits --output-format text)
 
-run_codex_once() {
+run_claude_once() {
   python3 -c '
 import os
 import signal
@@ -249,15 +245,16 @@ import sys
 
 timeout = int(sys.argv[1])
 prompt = sys.argv[2]
-log = sys.argv[3]
-cmd = sys.argv[4:]
-with open(prompt, "rb") as stdin, open(log, "ab") as raw:
+output = sys.argv[3]
+log = sys.argv[4]
+cmd = sys.argv[5:]
+with open(prompt, "rb") as stdin, open(output, "wb") as stdout, open(log, "ab") as raw:
     raw.write(("COMMAND: " + " ".join(cmd) + "\n").encode("utf-8", "replace"))
     proc = subprocess.Popen(
         cmd,
         stdin=stdin,
-        stdout=raw,
-        stderr=subprocess.STDOUT,
+        stdout=stdout,
+        stderr=raw,
         start_new_session=True,
     )
     try:
@@ -277,7 +274,7 @@ with open(prompt, "rb") as stdin, open(log, "ab") as raw:
             proc.wait()
         sys.exit(124)
     sys.exit(proc.returncode)
-' "$CODEX_TIMEOUT" "$TMP_PROMPT" "$RAW_LOG" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}"
+' "$CLAUDE_TIMEOUT" "$TMP_PROMPT" "$TMP_PROSE" "$RAW_LOG" "${CLAUDE_CMD[@]}"
 }
 
 workspace_changed() {
@@ -285,29 +282,35 @@ workspace_changed() {
   [ "$BEFORE_STATUS" != "$AFTER_STATUS" ]
 }
 
-CODEX_RC=0
-run_codex_once
-CODEX_RC=$?
+CLAUDE_RC=0
+run_claude_once
+CLAUDE_RC=$?
 
-if [ "$CODEX_RC" -ne 0 ]; then
+{
+  echo
+  echo "----- STDOUT / FINAL PROSE -----"
+  cat "$TMP_PROSE" 2>/dev/null || true
+} >> "$RAW_LOG"
+
+if [ "$CLAUDE_RC" -ne 0 ]; then
   if workspace_changed; then
-    echo "[dcness-codex-worker] BLOCKED: Codex failed after changing workspace. Automatic Claude fallback/revert is forbidden." >&2
-    echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
+    echo "[dcness-claude-worker] BLOCKED: Claude failed after changing workspace. Automatic fallback/revert is forbidden." >&2
+    echo "[dcness-claude-worker] raw log: $RAW_LOG" >&2
     git -C "$PROJECT_ROOT" status --short >&2 || true
     exit 1
   fi
-  echo "[dcness-codex-worker] codex exec failed before workspace mutation (exit $CODEX_RC); raw log: $RAW_LOG" >&2
-  exit "$CODEX_RC"
+  echo "[dcness-claude-worker] claude -p failed before workspace mutation (exit $CLAUDE_RC); raw log: $RAW_LOG" >&2
+  exit "$CLAUDE_RC"
 fi
 
 if [ ! -s "$TMP_PROSE" ]; then
   if workspace_changed; then
-    echo "[dcness-codex-worker] BLOCKED: Codex changed workspace but produced empty prose." >&2
-    echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
+    echo "[dcness-claude-worker] BLOCKED: Claude changed workspace but produced empty prose." >&2
+    echo "[dcness-claude-worker] raw log: $RAW_LOG" >&2
     git -C "$PROJECT_ROOT" status --short >&2 || true
     exit 1
   fi
-  echo "[dcness-codex-worker] Codex produced empty prose; raw log: $RAW_LOG" >&2
+  echo "[dcness-claude-worker] Claude produced empty prose; raw log: $RAW_LOG" >&2
   exit 1
 fi
 
@@ -344,8 +347,8 @@ for path in sorted(paths):
 PY
 )"
 if [ -n "$BOUNDARY_PROBLEMS" ]; then
-  echo "[dcness-codex-worker] BLOCKED: Codex changed files outside ${AGENT} boundary." >&2
-  echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
+  echo "[dcness-claude-worker] BLOCKED: Claude changed files outside ${AGENT} boundary." >&2
+  echo "[dcness-claude-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$BOUNDARY_PROBLEMS" >&2
   exit 1
 fi
@@ -398,14 +401,14 @@ EOF
 )"
 TDD_RC=$?
 if [ "$TDD_RC" -eq 1 ]; then
-  echo "[dcness-codex-worker] BLOCKED: TDD GUARD failed for Codex-changed implementation files." >&2
-  echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
+  echo "[dcness-claude-worker] BLOCKED: TDD GUARD failed for Claude-changed implementation files." >&2
+  echo "[dcness-claude-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$TDD_PROBLEMS" >&2
   exit 1
 fi
 
 if [ -n "$MODE" ]; then
-  "$HELPER" end-step "$AGENT" "$MODE" --provider codex-headless --prose-file "$TMP_PROSE"
+  "$HELPER" end-step "$AGENT" "$MODE" --provider claude-headless --prose-file "$TMP_PROSE"
 else
-  "$HELPER" end-step "$AGENT" --provider codex-headless --prose-file "$TMP_PROSE"
+  "$HELPER" end-step "$AGENT" --provider claude-headless --prose-file "$TMP_PROSE"
 fi

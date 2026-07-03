@@ -84,7 +84,7 @@ claude plugin install dcness@dcness
 
 > 갱신: `claude plugin update dcness@dcness` (문서·skill·hook 만 받는 경우 `/init-dcness` 재실행 불필요)
 
-검증·구현·리뷰 단계를 어느 엔진으로 돌릴지는 프로젝트별로 고를 수 있다(Claude 서브에이전트 / Codex). 엔진을 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. 엔진 구성을 새로 켜거나 바꿀 때만 `/init-dcness` 를 다시 실행한다.
+검증·구현·리뷰 단계를 어느 엔진으로 돌릴지는 프로젝트별로 고를 수 있다(Claude 서브에이전트 / Codex headless / Claude headless). 엔진을 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. 구현 기본값은 `headless-chain`(Codex headless → Claude headless → Claude main)이고, 엔진 구성을 새로 켜거나 바꿀 때만 `/init-dcness` 를 다시 실행한다.
 
 ## 작업 흐름
 
@@ -117,11 +117,11 @@ claude plugin install dcness@dcness
 
 **구현 엔진 기본값 전환** — `/impl`·`/impl-loop` 의 sub-agent 엔진 미지정 기본을 build-worker 로 통일했다. 풀 4-agent 는 frontmatter, 고위험 trigger, 사용자 엄정 override 승격 전용으로 남는다. ([#861](https://github.com/alruminum/dcNess/issues/861))
 
+**구현 provider 3단 체인** — implementation provider 기본값을 `headless-chain` 으로 바꿨다. 실행 순서는 Codex headless → Claude headless → Claude main 이며, workspace 변경 전 인프라 실패만 다음 provider 로 넘어간다. headless raw log 는 run 디렉터리의 `headless-logs/` 파일로 보존하고, ledger step receipt 에 실제 provider 를 남긴다. ([#860](https://github.com/alruminum/dcNess/issues/860))
+
 ## 진행 중 (로드맵)
 
-게이트를 엔진 무관하게 만든 작업([#859](https://github.com/alruminum/dcNess/issues/859))에 이어, 그 위에서 실행 엔진의 선택폭을 넓히는 단계다.
-
-- **구현 엔진 3단 폴백** ([#860](https://github.com/alruminum/dcNess/issues/860)) — codex headless → claude headless → claude 메인. Codex 가 안 깔린 사람도 격리 실행 혜택을 받게 한다.
+다음 릴리즈 후보 이슈는 GitHub Issue와 Project board를 기준으로 갱신한다.
 
 ## 핵심 특징
 

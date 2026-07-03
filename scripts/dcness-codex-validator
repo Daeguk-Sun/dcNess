@@ -31,7 +31,10 @@ Before running Codex, it embeds the installed dcness Codex skill from
 $CODEX_HOME/skills or the plugin bundle when available.
 
 Then it stores the final prose with:
-  dcness-helper end-step <agent> [MODE] --prose-file "$TMP_PROSE"
+  dcness-helper end-step <agent> [MODE] --provider codex-headless --prose-file "$TMP_PROSE"
+
+Raw Codex session logs are preserved under the active run directory. The main
+context only receives short status messages and the final prose receipt.
 USAGE
 }
 
@@ -172,7 +175,22 @@ EOF
 export DCNESS_SESSION_ID="$RESOLVED_SID"
 export DCNESS_RUN_ID="$RESOLVED_RID"
 
-BEFORE_STATUS="$(git -C "$PROJECT_ROOT" status --porcelain=v1 2>/dev/null || true)"
+RAW_LOG_DIR="$(
+  PYTHONPATH="$SCRIPT_DIR/.." python3 - "$RESOLVED_SID" "$RESOLVED_RID" <<'PY'
+import sys
+from harness.session_state import run_dir
+
+print(run_dir(sys.argv[1], sys.argv[2]) / "headless-logs")
+PY
+)"
+mkdir -p "$RAW_LOG_DIR"
+
+git_status_without_harness_state() {
+  git -C "$PROJECT_ROOT" status --porcelain=v1 -uall 2>/dev/null \
+    | sed '/^.. \.claude\/harness-state\//d' || true
+}
+
+BEFORE_STATUS="$(git_status_without_harness_state)"
 BASELINE_CLEAN=0
 if git -C "$PROJECT_ROOT" diff --quiet --no-ext-diff 2>/dev/null \
   && git -C "$PROJECT_ROOT" diff --cached --quiet --no-ext-diff 2>/dev/null; then
@@ -185,6 +203,7 @@ fi
 # 끝나야 한다 (GNU mktemp 는 embedded X 도 처리하므로 Linux CI 에선 안 드러남).
 TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-${AGENT}.XXXXXX")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-prompt-${AGENT}.XXXXXX")"
+RAW_LOG="$RAW_LOG_DIR/codex-headless-${AGENT}${MODE:+-$MODE}-$$.log"
 trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
 
 SKILL_NAME="dcness-${AGENT}"
@@ -240,26 +259,36 @@ import subprocess
 import sys
 
 timeout = int(sys.argv[1])
-cmd = sys.argv[2:]
-proc = subprocess.Popen(cmd, stdin=sys.stdin.buffer, start_new_session=True)
-try:
-    proc.wait(timeout=timeout)
-except subprocess.TimeoutExpired:
+prompt = sys.argv[2]
+log = sys.argv[3]
+cmd = sys.argv[4:]
+with open(prompt, "rb") as stdin, open(log, "ab") as raw:
+    raw.write(("COMMAND: " + " ".join(cmd) + "\n").encode("utf-8", "replace"))
+    proc = subprocess.Popen(
+        cmd,
+        stdin=stdin,
+        stdout=raw,
+        stderr=subprocess.STDOUT,
+        start_new_session=True,
+    )
     try:
-        os.killpg(proc.pid, signal.SIGTERM)
-    except ProcessLookupError:
-        pass
-    try:
-        proc.wait(timeout=1)
+        proc.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         try:
-            os.killpg(proc.pid, signal.SIGKILL)
+            os.killpg(proc.pid, signal.SIGTERM)
         except ProcessLookupError:
             pass
-        proc.wait()
-    sys.exit(124)
-sys.exit(proc.returncode)
-' "$CODEX_TIMEOUT" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}" < "$TMP_PROMPT"
+        try:
+            proc.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            try:
+                os.killpg(proc.pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            proc.wait()
+        sys.exit(124)
+    sys.exit(proc.returncode)
+' "$CODEX_TIMEOUT" "$TMP_PROMPT" "$RAW_LOG" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}"
 }
 
 write_timeout_prose() {
@@ -286,7 +315,7 @@ while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
     break
   fi
   if [ "$CODEX_RC" -eq 124 ]; then
-    echo "[dcness-codex-validator] codex exec timed out after ${CODEX_TIMEOUT}s (attempt ${ATTEMPT}/${MAX_ATTEMPTS})" >&2
+    echo "[dcness-codex-validator] codex exec timed out after ${CODEX_TIMEOUT}s (attempt ${ATTEMPT}/${MAX_ATTEMPTS}); raw log: $RAW_LOG" >&2
     if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
       ATTEMPT=$((ATTEMPT + 1))
       continue
@@ -294,28 +323,29 @@ while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
     TIMED_OUT=1
     break
   fi
-  echo "[dcness-codex-validator] codex exec failed (exit $CODEX_RC)" >&2
+  echo "[dcness-codex-validator] codex exec failed (exit $CODEX_RC); raw log: $RAW_LOG" >&2
   exit 1
 done
 
 if [ "$TIMED_OUT" = "1" ]; then
   write_timeout_prose
   if [ -n "$MODE" ]; then
-    "$HELPER" end-step "$AGENT" "$MODE" --prose-file "$TMP_PROSE" || true
+    "$HELPER" end-step "$AGENT" "$MODE" --provider codex-headless --prose-file "$TMP_PROSE" || true
   else
-    "$HELPER" end-step "$AGENT" --prose-file "$TMP_PROSE" || true
+    "$HELPER" end-step "$AGENT" --provider codex-headless --prose-file "$TMP_PROSE" || true
   fi
   exit 124
 fi
 
 if [ ! -s "$TMP_PROSE" ]; then
-  echo "[dcness-codex-validator] Codex produced empty prose" >&2
+  echo "[dcness-codex-validator] Codex produced empty prose; raw log: $RAW_LOG" >&2
   exit 1
 fi
 
-AFTER_STATUS="$(git -C "$PROJECT_ROOT" status --porcelain=v1 2>/dev/null || true)"
+AFTER_STATUS="$(git_status_without_harness_state)"
 if [ "$BEFORE_STATUS" != "$AFTER_STATUS" ]; then
   echo "[dcness-codex-validator] BLOCKED: Codex run changed git status. Automatic revert is forbidden." >&2
+  echo "[dcness-codex-validator] raw log: $RAW_LOG" >&2
   git -C "$PROJECT_ROOT" status --short >&2 || true
   exit 1
 fi
@@ -324,12 +354,13 @@ if [ "$BASELINE_CLEAN" = "1" ]; then
   if ! git -C "$PROJECT_ROOT" diff --quiet --no-ext-diff \
     || ! git -C "$PROJECT_ROOT" diff --cached --quiet --no-ext-diff; then
     echo "[dcness-codex-validator] BLOCKED: git diff appeared after Codex run. Automatic revert is forbidden." >&2
+    echo "[dcness-codex-validator] raw log: $RAW_LOG" >&2
     exit 1
   fi
 fi
 
 if [ -n "$MODE" ]; then
-  "$HELPER" end-step "$AGENT" "$MODE" --prose-file "$TMP_PROSE"
+  "$HELPER" end-step "$AGENT" "$MODE" --provider codex-headless --prose-file "$TMP_PROSE"
 else
-  "$HELPER" end-step "$AGENT" --prose-file "$TMP_PROSE"
+  "$HELPER" end-step "$AGENT" --provider codex-headless --prose-file "$TMP_PROSE"
 fi

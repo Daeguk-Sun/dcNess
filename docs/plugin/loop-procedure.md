@@ -101,21 +101,28 @@ else
 fi
 ```
 
-Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직접 포함한 뒤 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행한다. 마지막 응답은 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --prose-file ...` 로 저장한다. 따라서 Codex 분기 경로에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. 분기 config 파일명은 `routing.json` 이고 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 에 있으며, validation 비활성/미설정 기본값은 Claude 다.
+Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직접 포함한 뒤 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행한다. 마지막 응답은 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --provider codex-headless --prose-file ...` 로 저장한다. 따라서 Codex 분기 경로에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. 분기 config 파일명은 `routing.json` 이고 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 에 있으며, validation 비활성/미설정 기본값은 Claude 다.
 
-**implementation provider 분기 (Codex-first 기본)**: `test-engineer` / `engineer` / `build-worker` 는 호출 직전 provider 를 resolve 한다.
+**implementation provider 분기 (headless-chain 기본)**: `test-engineer` / `engineer` / `build-worker` 는 호출 직전 provider 를 resolve 한다.
 
 ```bash
 PROVIDER=$("$HELPER" routing resolve <agent>)
-if [ "$PROVIDER" = "codex-first" ]; then
-  "$PLUGIN_ROOT/scripts/dcness-codex-worker" <agent> [MODE] --prompt-file "$PROMPT_FILE"
-else
+if [ "$PROVIDER" = "claude" ]; then
   Agent(subagent_type="<agent>", ...)
-  "$HELPER" end-step <agent> [MODE]
+  "$HELPER" end-step <agent> [MODE] --provider claude-main
+else
+  rc=0
+  "$PLUGIN_ROOT/scripts/dcness-implementation-chain" <agent> [MODE] --provider "$PROVIDER" --prompt-file "$PROMPT_FILE" || rc=$?
+  if [ "$rc" -eq 75 ]; then
+    Agent(subagent_type="<agent>", ...)
+    "$HELPER" end-step <agent> [MODE] --provider claude-main
+  elif [ "$rc" -ne 0 ]; then
+    exit "$rc"
+  fi
 fi
 ```
 
-`dcness-codex-worker` 는 agent 지침을 prompt 에 직접 포함한 뒤 `codex exec -C "$PROJECT_ROOT" -s workspace-write` 로 실행한다. 성공하면 마지막 응답을 저장하고 `end-step` 까지 수행한다. Codex CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 메인이 기존 Claude Agent 경로로 폴백할 수 있다. Codex 가 파일을 변경한 뒤 실패하거나 boundary 밖 파일을 변경하면 자동 폴백하지 않는다. implementation 기본값은 `codex-first` 이며 `dcness-helper routing disable-codex-implementation` 으로 Claude-only 모드로 바꾼다.
+`dcness-implementation-chain` 은 `headless-chain`(Codex headless → Claude headless → Claude main), `codex-first`(legacy), `claude-headless`, `claude` 를 같은 routing config 로 실행한다. Headless wrapper 가 성공하면 마지막 응답을 저장하고 `end-step` 까지 수행한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 다음 provider 로 넘어간다. Headless provider 가 파일을 변경한 뒤 실패하거나 boundary 밖 파일을 변경하면 자동 폴백하지 않는다. chain 이 Claude main 에 도달하면 `FALLBACK_TO_CLAUDE_MAIN` 과 exit 75 를 반환하므로 메인이 기존 Agent 경로를 실행한 뒤 `--provider claude-main` 으로 `end-step` 을 기록한다. raw headless session log 는 run 디렉터리의 `headless-logs/` 파일로 보존한다.
 
 #### 호출 prompt 슬림 포인터 규약
 
