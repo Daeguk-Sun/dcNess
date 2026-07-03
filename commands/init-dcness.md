@@ -19,7 +19,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 본 문서는 사용자가 지금 선택하거나 실행해야 하는 bootstrap 절차만 다룬다. hook 정책, TDD Guard skip 룰, workflow template inventory, 배경 히스토리는 reference 로 내린다.
 
 - 상세 bootstrap inventory / workflow template inventory: [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md)
-- hook 정책 SSOT: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md)
+- hook 정책 SSOT: [`docs/plugin/hooks.md`](../docs/plugin/hooks.md), TDD Guard: [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh)
 - git / PR naming SSOT: [`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md)
 - Project lifecycle SSOT: [`docs/plugin/github-project.md`](../docs/plugin/github-project.md)
 
@@ -41,6 +41,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
 PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null)"
 HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+CONTEXT_DOCS="$PLUGIN_ROOT/scripts/dcness-context-docs"
 ```
 
 `PLUGIN_ROOT` 또는 `PROJECT_ROOT` 가 비면 중단하고 plugin 설치 상태와 git repo 여부를 먼저 확인한다.
@@ -53,6 +54,7 @@ core activation 의 성공 기준은 다음 항목까지다.
 - `~/.claude/settings.json` Read 권한
 - git hook shim 3종 설치
 - Codex validator skill 배포
+- `CLAUDE.md` seed/migration 감사
 - Provider routing 상태 확인
 - `dcness-helper status` 기준 FAIL 0
 선택형 확장은 core activation 성공 조건이 아니다. CI workflow, project docs seed, design seed, GitHub Project lifecycle, workflow 변경 PR 은 INFO/WARN 으로 남아도 core 성공 메시지를 흐리지 않는다.
@@ -71,6 +73,7 @@ core activation 의 성공 기준은 다음 항목까지다.
 - `Read 권한` FAIL → Core Step 3.
 - `git hook shim 3종` FAIL → Core Step 4.
 - `Codex validator skills` FAIL → Core Step 5 재실행.
+- `CLAUDE.md` 부재 또는 cold-start 앵커 부재 → Core Step 6.
 - `Provider routing` 은 INFO 로 상태만 확인한다. validation 이 이미 enabled 면 다시 쓰지 않고, implementation 은 custom 선택 때만 명시 변경한다.
 - `선택형 CI workflow` 는 INFO 다. core activation 성공/실패 판정에 넣지 않는다.
 
@@ -80,11 +83,7 @@ core activation 의 성공 기준은 다음 항목까지다.
 "$HELPER" enable
 ```
 
-결과:
-
-- 현재 cwd 의 main repo root 를 whitelist 에 추가.
-- whitelist: `~/.claude/plugins/data/dcness-dcness/projects.json`
-- 다음 Claude Code 세션부터 SessionStart / PreToolUse hook 이 활성 프로젝트로 인식.
+결과: 현재 cwd 의 main repo root 를 whitelist 에 추가하고 다음 세션부터 hook 활성 프로젝트로 인식한다.
 
 ### Core Step 3 - Read 권한 부여
 
@@ -159,7 +158,15 @@ done
 "$HELPER" routing status
 ```
 
-### Core Step 6 - 완료 선언
+### Core Step 6 - CLAUDE.md seed/migration
+
+부재 시 공식 구조 기반 `CLAUDE.md` 를 생성한다. 기존 파일은 재작성하지 않고 dcNess cold-start 앵커만 없을 때 append 하며, 6축 quality audit 결과와 개선 후보를 출력한다.
+
+```bash
+"$CONTEXT_DOCS" --ensure --repo "$PROJECT_ROOT"
+```
+
+### Core Step 7 - 완료 선언
 
 core 작업 뒤 `status` 를 재실행한다. FAIL 이 0 이면 INFO·NA 행과 선택 WARN 이 남아도 즉시 완료를 먼저 출력한다.
 
@@ -199,8 +206,7 @@ support:
 비활성화:
 - "$HELPER" disable
 
-Claude Code 세션 재시작 권장:
-- SessionStart 훅은 현재 세션에는 소급 적용되지 않는다.
+Claude Code 세션 재시작 권장: SessionStart 훅은 현재 세션에는 소급 적용되지 않는다.
 ```
 
 ## 선택형 확장
@@ -462,13 +468,7 @@ record_dcness_workflow_change ".github/workflows/github-project-lifecycle.yml"
 
 ## 이미 자동 적용되는 것
 
-활성화 후 새 Claude Code 세션에서 plug-in hook 이 자동 발화한다. 사용자 repo 에 별도 파일을 설치하지 않는다.
-
-- SessionStart: sid/live state 초기화와 활성 안내 inject.
-- 순서 차단 훅: Agent 호출 전 작업 순서 보호.
-- file-guard: agent 별 파일 경계와 외부 상태 변경 차단.
-- TDD Guard: `Edit` / `Write` / `NotebookEdit` / `Bash` write target 의 TS/JS 구현 파일 매칭 test 존재 확인. 세부 skip/한계는 [`docs/plugin/hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh).
-- Stop hook: run 종료와 continuation signal.
+활성화 후 새 Claude Code 세션에서 plug-in hook 이 자동 발화한다. 사용자 repo 에 별도 파일을 설치하지 않는다. 세부 hook 정책은 [`docs/plugin/hooks.md`](../docs/plugin/hooks.md) 가 SSOT 다.
 
 ## 추가 안내 — 재실행이 필요한 경우
 

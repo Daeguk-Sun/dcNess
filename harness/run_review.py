@@ -28,6 +28,8 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+from harness.context_docs import audit_claude_md_file
+
 # Reuse existing pricing util.
 try:
     from harness.efficiency.analyze_sessions import price_for
@@ -315,7 +317,7 @@ def audit_context_docs(
             severity="WARN",
             source=str(claude_path.relative_to(repo_path)),
             detail="프로젝트 루트에 CLAUDE.md 가 없어 세션 규칙 SSOT 를 찾을 수 없습니다.",
-            suggestion="/init-dcness 보강 또는 사용자 승인 기반 docs PR 로 CLAUDE.md 생성 후보를 검토합니다.",
+            suggestion="/init-dcness 가 공식 구조 기반 CLAUDE.md seed 를 생성할 수 있습니다.",
         ))
     elif _doc_has_placeholder(claude_text):
         findings.append(ContextAuditFinding(
@@ -325,6 +327,45 @@ def audit_context_docs(
             detail="CLAUDE.md 안에 TODO/TBD/미기록 계열 placeholder 가 남아 있습니다.",
             suggestion="placeholder 가 현재 프로젝트 규칙 공백이면 사용자 승인 후 구체 규칙으로 바꾸는 docs PR 후보입니다.",
         ))
+    if has_claude:
+        claude_audit = audit_claude_md_file(repo_path)
+        if claude_audit.missing_sections:
+            findings.append(ContextAuditFinding(
+                pattern="CLAUDE_STRUCTURE_GAP",
+                severity="CANDIDATE",
+                source="CLAUDE.md",
+                detail="공식 권장 섹션 누락: " + ", ".join(claude_audit.missing_sections),
+                suggestion="Commands / Architecture / Key Files / Code Style / Environment / Testing / Gotchas / Workflow 중 프로젝트에 필요한 섹션을 보강합니다.",
+            ))
+        if not claude_audit.has_cold_start_anchor:
+            findings.append(ContextAuditFinding(
+                pattern="CLAUDE_COLD_START_ANCHOR_MISSING",
+                severity="CANDIDATE",
+                source="CLAUDE.md",
+                detail="dcNess Cold Start 앵커가 없어 다음 작업과 live 보드 조회 경로가 세션 시작 문서에 없습니다.",
+                suggestion="/init-dcness 는 기존 내용을 변경하지 않고 앵커만 append 할 수 있습니다.",
+            ))
+        if claude_audit.total_score < 90:
+            axis_summary = ", ".join(
+                f"{axis.name} {axis.score}/{axis.maximum}"
+                for axis in claude_audit.axis_scores
+                if axis.score < axis.maximum
+            )
+            findings.append(ContextAuditFinding(
+                pattern="CLAUDE_QUALITY_GAP",
+                severity="CANDIDATE",
+                source="CLAUDE.md",
+                detail=f"CLAUDE.md quality score {claude_audit.total_score}/100 ({claude_audit.grade}); {axis_summary}",
+                suggestion="6축 rubric 결과를 보고 파괴적 재작성 없이 targeted addition 후보로 분리합니다.",
+            ))
+        if claude_audit.broken_references:
+            findings.append(ContextAuditFinding(
+                pattern="CLAUDE_STALE_REFERENCE",
+                severity="CANDIDATE",
+                source="CLAUDE.md",
+                detail="존재하지 않는 path 참조: " + ", ".join(claude_audit.broken_references[:5]),
+                suggestion="path 를 현재 파일 구조와 맞추거나 참조가 필요 없으면 사용자 승인 후 제거합니다.",
+            ))
 
     if not has_agents:
         findings.append(ContextAuditFinding(

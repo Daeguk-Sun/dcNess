@@ -27,7 +27,7 @@ description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스�
 1. **단계별 비용** — run 시작/종료 timestamp 내 assistant turn cost 합산 (price_for util 재사용)
 2. **잘한 점** (GOOD findings) — ENUM_CLEAN / PROSE_ECHO_OK / DDD_PHASE_A / DEPENDENCY_CAUSAL / EXTERNAL_VERIFIED_PRESENT
 3. **잘못한 점** (WASTE findings) — RETRY_SAME_FAIL / ECHO_VIOLATION / PLACEHOLDER_LEAK / MUST_FIX_GHOST / SPEC_GAP_LOOP / INFRA_READ / READONLY_BASH / EXTERNAL_VERIFIED_MISSING
-4. **CLAUDE.md/AGENTS.md 현행화 후보** — context 문서 존재, AGENTS.md 의 CLAUDE.md SSOT 참조, run-review finding 기반 세션 학습 환류 후보. 자동 수정하지 않고 제안만 출력한다.
+4. **CLAUDE.md/AGENTS.md 현행화 후보** — context 문서 존재, AGENTS.md 의 CLAUDE.md SSOT 참조, CLAUDE.md 공식 구조·6축 rubric·dcNess cold-start 앵커, run-review finding 기반 세션 학습 환류 후보. 자동 수정하지 않고 제안만 출력한다.
 
 ## 절차
 

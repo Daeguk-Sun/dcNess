@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# dcness-context-docs wrapper — PYTHONPATH 자동 설정 후 harness.context_docs CLI 실행.
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
+export PYTHONPATH="${PLUGIN_ROOT}:${PYTHONPATH:-}"
+
+exec python3 -m harness.context_docs "$@"

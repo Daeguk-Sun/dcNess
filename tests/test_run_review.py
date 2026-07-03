@@ -712,7 +712,19 @@ class ContextAuditTests(unittest.TestCase):
     def test_render_report_includes_context_audit_section(self):
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
-            (tmp / "CLAUDE.md").write_text("# Rules\n", encoding="utf-8")
+            (tmp / "CLAUDE.md").write_text(
+                "# Project Instructions\n\n"
+                "## Commands\n- `python3.11 -m unittest discover -s tests -v`\n\n"
+                "## Architecture\n- Entry point and module boundary are recorded in `CLAUDE.md`.\n\n"
+                "## Key Files\n- `CLAUDE.md`: project instructions.\n\n"
+                "## Code Style\n- Keep formatter and naming rules specific.\n\n"
+                "## Environment\n- Record required runtime versions.\n\n"
+                "## Testing\n- Keep test commands copy-pasteable.\n\n"
+                "## Gotchas\n- Capture repeated mistakes and known issues.\n\n"
+                "## Workflow\n- Use `/next` before choosing follow-up work.\n\n"
+                "## dcNess Cold Start\n- 다음 작업 후보 확인: `/next`\n",
+                encoding="utf-8",
+            )
             (tmp / "AGENTS.md").write_text(
                 "작업 규칙 SSOT: [`CLAUDE.md`](CLAUDE.md)\n",
                 encoding="utf-8",
@@ -747,6 +759,28 @@ class ContextAuditTests(unittest.TestCase):
                 agents.read_text(encoding="utf-8"),
                 "# Agent Rules\n별도 규칙을 여기에 적음\n",
             )
+
+    def test_context_audit_reports_claude_quality_and_anchor_candidates(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            claude = tmp / "CLAUDE.md"
+            agents = tmp / "AGENTS.md"
+            original = "# Project Notes\n\nGeneral prose only.\n"
+            claude.write_text(original, encoding="utf-8")
+            agents.write_text("SSOT: [`CLAUDE.md`](CLAUDE.md)\n", encoding="utf-8")
+
+            findings = audit_context_docs(tmp)
+
+            self.assertTrue(
+                any(f.pattern == "CLAUDE_STRUCTURE_GAP" for f in findings)
+            )
+            self.assertTrue(
+                any(f.pattern == "CLAUDE_COLD_START_ANCHOR_MISSING" for f in findings)
+            )
+            self.assertTrue(
+                any(f.pattern == "CLAUDE_QUALITY_GAP" for f in findings)
+            )
+            self.assertEqual(claude.read_text(encoding="utf-8"), original)
 
     def test_context_audit_surfaces_run_waste_as_feedback_candidate(self):
         with tempfile.TemporaryDirectory() as td:

@@ -3652,6 +3652,7 @@ def collect_status_diagnostics(
             ("whitelist", "whitelist 활성"),
             ("read_perm", "Read 권한 (~/.claude/settings.json)"),
             ("git_hooks", "git hook shim 3종"),
+            ("claude_context", "CLAUDE.md context"),
             ("codex_skills", "Codex validator skills"),
             ("ci_workflows", "선택형 CI workflow"),
         ):
@@ -3710,6 +3711,48 @@ def collect_status_diagnostics(
             ", ".join(f"{k}={v}" for k, v in codex_skills.items()),
             None if codex_all_ok else "init-dcness Core Step 5 로 Codex validator skills 재배포",
         )
+        try:
+            from harness.context_docs import audit_claude_md_file
+
+            claude_audit = audit_claude_md_file(project_root)
+            if not claude_audit.exists:
+                add(
+                    "claude_context",
+                    "CLAUDE.md context",
+                    "WARN",
+                    "CLAUDE.md 없음",
+                    "init-dcness Core Step 6 로 공식 구조 기반 CLAUDE.md seed 생성",
+                )
+            elif not claude_audit.has_cold_start_anchor:
+                add(
+                    "claude_context",
+                    "CLAUDE.md context",
+                    "WARN",
+                    f"dcNess Cold Start 앵커 없음; score={claude_audit.total_score}/100",
+                    "init-dcness Core Step 6 로 기존 파일에 앵커만 append",
+                )
+            elif claude_audit.total_score < 90:
+                add(
+                    "claude_context",
+                    "CLAUDE.md context",
+                    "INFO",
+                    f"score={claude_audit.total_score}/100 ({claude_audit.grade}); 개선 후보 있음",
+                )
+            else:
+                add(
+                    "claude_context",
+                    "CLAUDE.md context",
+                    "PASS",
+                    f"score={claude_audit.total_score}/100 ({claude_audit.grade})",
+                )
+        except Exception as exc:
+            add(
+                "claude_context",
+                "CLAUDE.md context",
+                "WARN",
+                f"진단 실패: {exc}",
+                "init-dcness Core Step 6 재실행 또는 dcness 업데이트 확인",
+            )
         # 선택형 CI workflow (선택 — INFO)
         ci = _check_ci_workflows(project_root)
         installed = [k for k, present in ci.items() if present]
