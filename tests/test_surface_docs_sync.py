@@ -549,6 +549,25 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 self.assertIn(needle, self.design_skill)
         self.assertIn("end-run/metrics freeze 후 Step 7 PR", self.design_routing)
 
+    def test_issue_852_worktree_remove_requires_clean_worktree(self) -> None:
+        """#852 — auto discard requires absorbed commits and no local dirty files."""
+        for needle in (
+            "커밋 diff 흡수 확인 + working tree clean",
+            "git status --porcelain --untracked-files=all",
+            "uncommitted/untracked",
+            'ExitWorktree(action="remove", discard_changes=true)',
+            'ExitWorktree(action="keep")',
+            "자동 discard 금지",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.loop_procedure)
+
+        self.assertIn(
+            "../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정",
+            self.impl_skill,
+        )
+        self.assertIn("ExitWorktree", self.impl_skill)
+
     def test_issue_832_design_runs_mechanical_artifact_audit(self) -> None:
         """#832 — design loop runs the artifact audit before final validator/PR."""
         for needle in (
