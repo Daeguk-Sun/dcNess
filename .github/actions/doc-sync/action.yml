@@ -1,5 +1,5 @@
 name: 'dcness doc-sync validation'
-description: 'Validate generated docs/index.md, docs/architecture.md, and /design artifact structure.'
+description: 'Validate generated docs/index.md epic/module tables, docs/architecture.md, and /design artifact structure.'
 runs:
   using: composite
   steps:
@@ -8,7 +8,7 @@ runs:
       with:
         node-version: '20'
 
-    - name: Validate docs/index.md epic table
+    - name: Validate docs/index.md epic/module tables
       shell: bash
       run: |
         set -euo pipefail

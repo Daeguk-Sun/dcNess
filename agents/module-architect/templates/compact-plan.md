@@ -18,6 +18,8 @@ contract:
   - `docs/architecture.md`
   - `docs/conventions.md`
   - `docs/decisions/`
+  - `docs/modules/<module-id>/architecture.md` (affected module 이 있으면)
+  - `docs/modules/<module-id>/conventions.md` (affected module 이 있으면)
 - 읽을 코드:
   -
 

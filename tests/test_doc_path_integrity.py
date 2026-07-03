@@ -174,6 +174,20 @@ class DocPathIntegrityTests(unittest.TestCase):
         self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
         self.assertIn("src/removed.ts", proc.stderr)
 
+    def test_module_docs_are_part_of_default_scan(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "docs" / "modules" / "android").mkdir(parents=True)
+            (root / "docs" / "modules" / "android" / "conventions.md").write_text(
+                "Android module implementation path: `app/removed.kt`.\n",
+                encoding="utf-8",
+            )
+
+            proc = _run(root)
+
+        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
+        self.assertIn("app/removed.kt", proc.stderr)
+
     def test_root_architecture_is_part_of_default_scan(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

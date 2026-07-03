@@ -1,5 +1,5 @@
 name: 'dcness doc-path integrity validation'
-description: 'Validate context/SSOT docs do not reference missing repo-relative paths.'
+description: 'Validate context/SSOT docs, including opt-in module docs, do not reference missing repo-relative paths.'
 inputs:
   docs:
     description: 'Comma or newline separated docs/globs to scan. Defaults to active-project context docs.'

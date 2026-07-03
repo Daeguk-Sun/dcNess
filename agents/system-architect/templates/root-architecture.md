@@ -1,7 +1,7 @@
 # 전역 아키텍처 지도
 
 > 이 문서는 프로젝트 전역 architecture map 이다. epic 상세 설계나 기술 스택 표를 복제하지 않는다.
-> 기술 스택과 운영 convention 은 `docs/conventions.md`, 결정 기록은 `docs/decisions/NNNN-slug.md` 를 가리킨다.
+> 기술 스택과 운영 convention 은 `docs/conventions.md`, 모듈 특수 delta 는 `docs/modules/<module-id>/`, 결정 기록은 `docs/decisions/NNNN-slug.md` 를 가리킨다.
 
 ## 시스템 개요
 

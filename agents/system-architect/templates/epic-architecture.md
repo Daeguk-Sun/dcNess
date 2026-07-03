@@ -8,6 +8,8 @@
   - `docs/architecture.md`
   - `docs/conventions.md`
   - `docs/decisions/`
+  - `docs/modules/<module-id>/architecture.md` (affected module 이 있으면)
+  - `docs/modules/<module-id>/conventions.md` (affected module 이 있으면)
   - `docs/epics/<epic>/stories.md`
   - `docs/epics/<epic>/domain-model.md` (있으면)
 - 읽을 코드:
@@ -31,11 +33,13 @@
 
 - `docs/architecture.md` append 필요 여부:
 - 추가/갱신할 전역 anchor:
+- 연결할 module docs:
 - 연결할 `docs/decisions/NNNN-slug.md`:
 
 ## 모듈 목록
 
 <!-- `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 이 표를 파싱한다. 헤더명과 표 형태를 유지한다. -->
+<!-- module docs 가 있으면 모듈 셀에 `docs/modules/<module-id>/architecture.md` 링크를 남긴다. -->
 
 | 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |
 |---|---|---|---|---|

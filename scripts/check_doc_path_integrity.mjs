@@ -19,6 +19,7 @@ const DEFAULT_DOC_ENTRIES = [
   'docs/project-context.md',
   'docs/architecture.md',
   'docs/conventions.md',
+  'docs/modules/**',
   'docs/decisions/**',
 ];
 
@@ -88,7 +89,7 @@ function parseArgs(argv) {
 }
 
 function printUsage() {
-  console.error('Usage: node scripts/check_doc_path_integrity.mjs [--root DIR] [--docs "CLAUDE.md,docs/index.md,docs/decisions/**"]');
+  console.error('Usage: node scripts/check_doc_path_integrity.mjs [--root DIR] [--docs "CLAUDE.md,docs/index.md,docs/modules/**,docs/decisions/**"]');
 }
 
 function splitDocEntries(value) {
