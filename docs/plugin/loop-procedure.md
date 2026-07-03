@@ -20,10 +20,10 @@ skill 트리거 또는 직접 발화 → 메인 Claude 가 **해당 skill 의 `#
 
 ### worktree 분기 (action 루프 한정)
 
-**worktree 격리로 산출물을 커밋하는 action 루프 (`/impl` · `/impl-loop` · `/design`) 진입 시 Step 0 에서 EnterWorktree 자동 호출** — 동시 다중 세션 충돌 회피 + 메인 working tree 보호. `/spec` / `/tech-review` / `/ux` / `/to-issue` (commit 없음) 는 commit 격리 목적 부재라 워크트리 X (메인 working tree 에서 직접 또는 별 branch). loop 별 적용 여부는 각 skill 본문 (예: [`impl/SKILL.md`](../../skills/impl/SKILL.md) · [`design/SKILL.md`](../../skills/design/SKILL.md) 워크트리 절 · [`impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)).
+**worktree 격리로 산출물을 커밋하는 action 루프 (`/impl` · `/impl-loop` · `/design` · `/ux`) 진입 시 Step 0 에서 EnterWorktree 자동 호출** — 동시 다중 세션 충돌 회피 + 메인 working tree 보호. `/ux` 는 git-tracked 확정 목업(`docs/design-variants/<screen-id>.html` + `canvas.html`)을 만들므로 action 루프다. `/spec` / `/tech-review` / `/to-issue` (commit 없음) 는 commit 격리 목적 부재라 워크트리 X (메인 working tree 에서 직접 또는 별 branch). loop 별 적용 여부는 각 skill 본문 (예: [`impl/SKILL.md`](../../skills/impl/SKILL.md) · [`design/SKILL.md`](../../skills/design/SKILL.md) 워크트리 절 · [`impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md) · [`ux/SKILL.md`](../../skills/ux/SKILL.md)).
 
 ```
-EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / design)
+EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / design / ux)
 ```
 
 - **거부 표현 시에만 건너뜀** — 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시 EnterWorktree 호출 0, 일반 cwd 그대로 진행.
@@ -81,7 +81,7 @@ TaskUpdate("<task>", completed)
 ```
 
 begin-step stdout 에 `[PROMPT_SLOT_CHECK]` 가 있으면 **Agent prompt 작성 전 먼저 읽고 self-check** 한다. 이 섹션은 메인 Claude 용 호출 직전 reminder 다. `[INSIGHTS: <agent>/<mode>]` 또는 `[PREVIOUS_TASKS]` 섹션이 있으면 Agent prompt 끝에 그대로 포함시킨다.
-- `[PROMPT_SLOT_CHECK]` — `/impl`·`/impl-loop`·`/design` action loop 에서 3슬롯 self-check 를 호출 순간에 노출한다. worktree 활성 시 worktree 절대경로를 prompt 에 넣고, 슬롯3에는 미기록 제약·신호만 두며 agent 본업의 방법(정규식·구현 단계·알고리즘·테스트 assert 방식)을 처방하지 않는다. 권고 신호이며 hook block 이 아니다. 출력의 `template` 경로는 [`agent-prompt-slots.md`](templates/agent-prompt-slots.md) 를 가리킨다.
+- `[PROMPT_SLOT_CHECK]` — `/impl`·`/impl-loop`·`/design`·`/ux` action loop 에서 3슬롯 self-check 를 호출 순간에 노출한다. worktree 활성 시 worktree 절대경로를 prompt 에 넣고, 슬롯3에는 미기록 제약·신호만 두며 agent 본업의 방법(정규식·구현 단계·알고리즘·테스트 assert 방식)을 처방하지 않는다. 권고 신호이며 hook block 이 아니다. 출력의 `template` 경로는 [`agent-prompt-slots.md`](templates/agent-prompt-slots.md) 를 가리킨다.
 - `[INSIGHTS]` — 해당 agent 의 과거 루프 학습 ("하지 말 것" / "잘 됐던 것"), 프로젝트 레벨 누적.
 - `[PREVIOUS_TASKS]` — `/impl-loop` chain 의 직전 task 산출 요약 list (build-worker 진입 시만, #525). 인접 task 인터페이스 정합 참고용 — build-worker 가 phase 3 통과 시 `prev-tasks-append` 로 자기 산출을 누적한 것.
 
@@ -121,7 +121,7 @@ fi
 
 **MUST.** 호출 직전 해당 `agent.md` 의 "입력" / "호출자가 prompt 로 전달하는 정보" 항목 read 후 prompt 작성 (형식 자유, 정보 명시 의무). prompt 에는 **(1) 읽을 SSOT 문서 포인터 (agent 가 자체 read 할 경로) (2) 대상 단위 (어떤 task / Story / 모듈) (3) 그 호출에 특유한 제약·주의 (4) 산출 경로·번호 규약·write 경계** 만 담는다.
 
-**호출 직전 self-check (#780).** `/impl`·`/impl-loop`·`/design` action loop 의 `begin-step` stdout 에 `[PROMPT_SLOT_CHECK]` 가 나오면 Agent prompt 를 쓰기 전에 아래 3가지를 확인한다. (a) 대상+읽을 진본이 슬롯 1에 있는가, (b) worktree 활성 시 worktree 절대경로가 슬롯 2에 있는가, (c) 슬롯 3이 방법 처방이 아니라 이 호출 특유의 미기록 제약·신호만 담는가. 이 신호는 적용 누락을 줄이는 reminder 이며, 코드 hook 으로 prompt 내용을 판정하거나 차단하지 않는다.
+**호출 직전 self-check (#780).** `/impl`·`/impl-loop`·`/design`·`/ux` action loop 의 `begin-step` stdout 에 `[PROMPT_SLOT_CHECK]` 가 나오면 Agent prompt 를 쓰기 전에 아래 3가지를 확인한다. (a) 대상+읽을 진본이 슬롯 1에 있는가, (b) worktree 활성 시 worktree 절대경로가 슬롯 2에 있는가, (c) 슬롯 3이 방법 처방이 아니라 이 호출 특유의 미기록 제약·신호만 담는가. 이 신호는 적용 누락을 줄이는 reminder 이며, 코드 hook 으로 prompt 내용을 판정하거나 차단하지 않는다.
 
 - ❌ **이미 SSOT 문서에 기록된 결정의 사본을 prompt 에 재기입 금지** — 합의 스택·계약·설계 결정은 agent 가 자기 "먼저 읽을 문서" 규약대로 SSOT 문서를 직접 읽어 획득한다. 같은 결정이 prompt 와 문서 두 곳에 살면 진본이 둘이 되어, 한쪽만 갱신될 때 어느 쪽이 맞는지 모르는 drift 가 생긴다 (dcNess 가 본래 막으려는 사본 drift 를 절차 자신이 유발).
 - ❌ **agent 본업을 "뭐뭐 해라"로 절차 재지시 금지** — 판단 축·작업 흐름·완료 기준은 각 `agent.md` 가 소유한다. 메인은 컨텍스트·제약·사실관계만 넘기고 *어떻게 할지* 는 agent 가 정한다 (아래 [finding 수용 원칙](#finding-수용-원칙-점-패치-금지-근본-수정) 의 relay 와 동형 — "해법 메커니즘은 메인이 처방하지 말 것").
@@ -350,7 +350,7 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 
 > **impl-task-loop 제외**: [impl-task-loop commit 구조](#impl-task-loop-commit-구조) 에서 branch/commit/push/PR 이미 완료 → Step 7a = merge only.
 
-clean 판정 통과 시 사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프): branch (`<prefix>/<short-slug>`, prefix = 해당 loop 의 branch_prefix — [`git-spec.md` 브랜치](git-spec.md#브랜치) valid 패턴) → **변경 파일 commit** → push → PR create → merge → main sync. **commit 대상 = 해당 loop 가 실제 변경한 파일** — design = `docs/**` 설계 산출물, ux = epic `ux-flow.md` 와 `docs/design.md` 아티팩트라 src-only 아님 (src-only 제한은 impl-task-loop 전용, [impl-task-loop commit 구조](#impl-task-loop-commit-구조)). **stray untracked 휩쓸기 주의**: impl 루프와 달리 비-impl loop 은 worktree 권한 경계가 src-only 가 아니고 clean 매트릭스가 untracked ≤ 10 을 허용하므로, `pr-create.sh` 의 `git add -A` 는 무관한 로컬 아티팩트까지 stage 한다 → 호출 *전* 산출물 외 파일을 정리하거나, 해당 loop 산출물만 명시 pathspec 으로 직접 stage 후 commit. 네이밍·본문·트레일러 = [`git-spec.md`](git-spec.md), 커밋 trailer 의 모델 표기는 글로벌 `~/.claude/CLAUDE.md` 기준. 실행 = [`scripts/pr-create.sh`](../../scripts/pr-create.sh) + [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh).
+clean 판정 통과 시 사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프): branch (`<prefix>/<short-slug>`, prefix = 해당 loop 의 branch_prefix — [`git-spec.md` 브랜치](git-spec.md#브랜치) valid 패턴) → **변경 파일 commit** → push → PR create → merge → main sync. **commit 대상 = 해당 loop 가 실제 변경한 파일** — design = `docs/**` 설계 산출물, ux = epic `ux-flow.md`, `docs/design.md`, `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, 필요 시 `docs/design-variants/_lib/**` seed 라 src-only 아님 (src-only 제한은 impl-task-loop 전용, [impl-task-loop commit 구조](#impl-task-loop-commit-구조)). **stray untracked 휩쓸기 주의**: impl 루프와 달리 비-impl loop 은 worktree 권한 경계가 src-only 가 아니고 clean 매트릭스가 untracked ≤ 10 을 허용하므로, `pr-create.sh` 의 `git add -A` 는 무관한 로컬 아티팩트까지 stage 한다 → 호출 *전* 산출물 외 파일을 정리하거나, 해당 loop 산출물만 명시 pathspec 으로 직접 stage 후 commit. 네이밍·본문·트레일러 = [`git-spec.md`](git-spec.md), 커밋 trailer 의 모델 표기는 글로벌 `~/.claude/CLAUDE.md` 기준. 실행 = [`scripts/pr-create.sh`](../../scripts/pr-create.sh) + [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh).
 
 worktree 진입 시 squash 흡수 검사 후 `ExitWorktree(action="<keep|remove>")` ([worktree 분기](#worktree-분기-action-루프-한정)).
 

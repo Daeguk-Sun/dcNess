@@ -63,6 +63,9 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.init_ref = (
             ROOT / "docs" / "plugin" / "init-dcness.md"
         ).read_text(encoding="utf-8")
+        self.loop_procedure = (
+            ROOT / "docs" / "plugin" / "loop-procedure.md"
+        ).read_text(encoding="utf-8")
         self.positioning = (
             ROOT / "docs" / "plugin" / "positioning.md"
         ).read_text(encoding="utf-8")
@@ -127,7 +130,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "canvas 등록",
             "docs/design-variants/<screen-id>.html",
             "docs/design-variants/canvas.html",
-            "`/impl` 은 그 확정본을 기준 있음",
+            "후속 `/impl` 은 머지된 확정본만 `기준 있음`",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.ux)
@@ -150,8 +153,43 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         for text in (self.ux, self.designer):
             with self.subTest(text=text[:30]):
                 self.assertIn("hi-fi 목업 필요", text)
-                self.assertIn("필요 로 표시된 화면", text)
+                self.assertIn("필요로 표시된 화면", text)
+                self.assertNotIn("필요 로 표시된 화면", text)
                 self.assertIn("전 화면 일괄 목업화 금지", text)
+
+        self.assertNotIn("필요 로 표시된 화면", self.ux_architect)
+
+    def test_ux_standalone_run_commits_confirmed_artifacts_via_pr(self) -> None:
+        for needle in (
+            "`/impl` · `/impl-loop` · `/design` · `/ux`",
+            "EnterWorktree(name=\"<skill>-{ts_short}\")",
+            "impl / impl-loop / design / ux",
+            "`/impl`·`/impl-loop`·`/design`·`/ux` action loop",
+            "`/spec` / `/tech-review` / `/to-issue` (commit 없음)",
+            "ux = epic `ux-flow.md`, `docs/design.md`, "
+            "`docs/design-variants/<screen-id>.html`, "
+            "`docs/design-variants/canvas.html`",
+            "해당 loop 산출물만 명시 pathspec",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.loop_procedure)
+
+        self.assertNotIn(
+            "`/spec` / `/tech-review` / `/ux` / `/to-issue` (commit 없음)",
+            self.loop_procedure,
+        )
+
+        for needle in (
+            "worktree",
+            "commit/PR",
+            "docs-only branch + PR",
+            "후속 `/impl` 은 머지된 확정본만 `기준 있음` 으로 이어받는다",
+            "merge",
+            "main sync",
+            "확정본을 uncommitted 상태로 남긴 채 종료하지 않는다",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.ux)
 
     def test_canvas_design_bootstraps_seed_and_requires_routing_enum(self) -> None:
         skill = (ROOT / "skills" / "canvas-design" / "SKILL.md").read_text(
