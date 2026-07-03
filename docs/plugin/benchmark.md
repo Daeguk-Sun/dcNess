@@ -256,7 +256,7 @@ FAIL/ESCALATE prose 안의 class token 언급 수라 finding 건수의 근사치
 
 ## 언제 유리하고 언제 과한가
 
-route 별 권장은 README "[언제 유리하고 언제 과한가](../../README.md#언제-유리하고-언제-과한가)"
+route 별 권장은 README "[누구에게 맞나](../../README.md#누구에게-맞나)"
 섹션이 요약본이고, 구현 경로 판정의 진본은
 [`docs/plugin/workflow-router.md`](workflow-router.md) 다.
 
