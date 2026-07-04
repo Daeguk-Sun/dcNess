@@ -77,6 +77,16 @@ GitHub issue 등록이 목표인 요청이면 `/to-issue` 로 보내고, 수정/
 
 GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#issuelabel-status-lifecycle)에 따라 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 Project `Status=In progress` 도 best-effort 로 함께 미러된다.
 
+## Step 0.2 — 파일 경계 override 후보 확인
+
+구현 경로 판정 전에 한 번 실행한다.
+
+```bash
+"$HELPER" boundary-suggestions
+```
+
+코어 `ALLOW_MATRIX` 로 커버되지 않는 비표준 소스 디렉터리가 있으면 `.dcness/boundary.json` 의 `engineer.add` 후보만 출력한다. 후보가 있으면 사람 승인 후에만 메인이 boundary 파일을 작성한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다.
+
 ## Step 0.4 — UI 기준 확보 분기
 
 UI 작업이면 구현 경로(Lite/Standard) 판정과 별도로 **UI 기준 확보 분기**를 먼저 판정한다. 목업은 무조건 만들지 않는다. 강제되는 불변식은 "신규 시각 구조 작업은 기대 고정 기준을 확보하고, 기준이 존재하면 구현까지 배선된다" 이다.

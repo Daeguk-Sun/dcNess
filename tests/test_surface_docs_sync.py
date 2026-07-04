@@ -738,6 +738,16 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 self.assertIn(".claude/harness-state/", text)
                 self.assertIn(".gitignore", text)
 
+    def test_issue_910_boundary_suggestion_trigger_is_documented(self) -> None:
+        """#910 — init/impl start suggests boundary override without writing it."""
+        for text in (self.init_doc, self.impl_skill, self.init_reference, self.hooks_doc):
+            with self.subTest(source=text[:30]):
+                self.assertIn("boundary-suggestions", text)
+                self.assertIn(".dcness/boundary.json", text)
+                self.assertIn("사람 승인", text)
+        self.assertIn("read-only", self.init_reference)
+        self.assertIn("표준 레이아웃·빈 프로젝트", self.impl_skill)
+
     def test_issue_885_claude_md_seed_and_audit_stays_inside_existing_surfaces(self) -> None:
         """#885 — CLAUDE.md seed/migration and audit wire into init/run-review only."""
         helper = "scripts/dcness-context-docs"
