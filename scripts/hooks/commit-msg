@@ -57,7 +57,9 @@ record_guard_hit() {
     --guard git-commit-msg \
     --category "$1" \
     --detail "$2" \
-    --source git_hook >/dev/null 2>&1 || true
+    --source git_hook \
+    --session-id "${DCNESS_SESSION_ID:-}" \
+    --run-id "${DCNESS_RUN_ID:-}" >/dev/null 2>&1 || true
 }
 
 # 1. git-naming 검증 — TDD chain 폐기 (v0.2.16 — PreToolUse hook 으로 이전)

@@ -168,6 +168,82 @@ class FileGuardWrapperExitTests(unittest.TestCase):
             events,
         )
 
+    def test_infra_read_records_read_boundary(self) -> None:
+        result = _run_wrapper(
+            "file-guard.sh",
+            self._file_payload("Read", file_path="hooks/secret.sh"),
+            cwd=self.cwd,
+        )
+
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        events = read_events(base_dir=self.base)
+        self.assertTrue(
+            any(
+                e.get("kind") == "guard_hit"
+                and e.get("guard") == "file-guard"
+                and e.get("category") == "read_boundary"
+                for e in events
+            ),
+            events,
+        )
+
+    def test_bash_external_mutation_records_bash_mutation(self) -> None:
+        result = _run_wrapper(
+            "file-guard.sh",
+            self._file_payload("Bash", command="git push origin main"),
+            cwd=self.cwd,
+        )
+
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        events = read_events(base_dir=self.base)
+        self.assertTrue(
+            any(
+                e.get("kind") == "guard_hit"
+                and e.get("guard") == "file-guard"
+                and e.get("category") == "bash_mutation"
+                for e in events
+            ),
+            events,
+        )
+
+    def test_bash_write_target_records_bash_write_boundary(self) -> None:
+        result = _run_wrapper(
+            "file-guard.sh",
+            self._file_payload("Bash", command="printf x > hooks/evil.sh"),
+            cwd=self.cwd,
+        )
+
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        events = read_events(base_dir=self.base)
+        self.assertTrue(
+            any(
+                e.get("kind") == "guard_hit"
+                and e.get("guard") == "file-guard"
+                and e.get("category") == "bash_write_boundary"
+                for e in events
+            ),
+            events,
+        )
+
+    def test_github_mcp_mutation_records_mcp_mutation(self) -> None:
+        result = _run_wrapper(
+            "file-guard.sh",
+            self._file_payload("mcp__github__merge_pull_request"),
+            cwd=self.cwd,
+        )
+
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        events = read_events(base_dir=self.base)
+        self.assertTrue(
+            any(
+                e.get("kind") == "guard_hit"
+                and e.get("guard") == "file-guard"
+                and e.get("category") == "mcp_mutation"
+                for e in events
+            ),
+            events,
+        )
+
     def test_src_write_exits_0(self) -> None:
         # engineer 의 src/ Write 는 허용 → exit 0.
         result = _run_wrapper(

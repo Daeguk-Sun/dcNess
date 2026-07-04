@@ -22,6 +22,8 @@ allow() {
 
 # plugin root 를 PYTHONPATH 에 prepend — cross-project 시나리오 대응 (다른 wrapper 정합).
 export PYTHONPATH="${CLAUDE_PLUGIN_ROOT:-.}:${PYTHONPATH:-}"
+SESSION_ID="${DCNESS_SESSION_ID:-}"
+RUN_ID="${DCNESS_RUN_ID:-}"
 
 record_fail_open() {
   python3 -m harness.session_state hook-fail-open \
@@ -35,7 +37,9 @@ record_guard_hit() {
     --guard tdd-guard \
     --category "$1" \
     --detail "$2" \
-    --source plugin_hook >/dev/null 2>&1 || true
+    --source plugin_hook \
+    --session-id "$SESSION_ID" \
+    --run-id "$RUN_ID" >/dev/null 2>&1 || true
 }
 
 # 활성화 게이트 (#597 커밋3) — 미활성 프로젝트는 즉시 allow (no-op).
@@ -47,6 +51,18 @@ if [ -z "$INPUT" ]; then
   record_fail_open "payload_empty" "empty stdin; TDD enforcement skipped"
   allow
 fi
+PAYLOAD_SESSION_ID=$(python3 - "$INPUT" <<'PY'
+import json, sys
+try:
+    payload = json.loads(sys.argv[1])
+except Exception:
+    sys.exit(0)
+sid = payload.get("sessionId") or payload.get("session_id") or payload.get("sessionid")
+if isinstance(sid, str):
+    print(sid)
+PY
+)
+[ -n "$SESSION_ID" ] || SESSION_ID="$PAYLOAD_SESSION_ID"
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 

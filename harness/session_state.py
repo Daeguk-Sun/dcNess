@@ -3867,10 +3867,12 @@ def _cli_guard_telemetry(args: Any) -> int:
         format_telemetry_report,
     )
 
+    since_days = args.since_days if args.since_days and args.since_days > 0 else None
     guard_summary = collect_guard_summary(
         cwd=Path(args.cwd) if args.cwd else None,
         base_dir=Path(args.base_dir) if args.base_dir else None,
         idle_days=args.idle_days,
+        since_days=since_days,
     )
     eval_summary = collect_eval_summary(
         cwd=Path(args.cwd) if args.cwd else None,
@@ -4281,6 +4283,7 @@ def _build_arg_parser() -> Any:
         help="#875 guard hit / eval saturation telemetry summary",
     )
     p_gt.add_argument("--idle-days", type=int, default=30)
+    p_gt.add_argument("--since-days", type=int, default=90)
     p_gt.add_argument("--saturation-days", type=int, default=30)
     p_gt.add_argument("--saturation-min-runs", type=int, default=3)
     p_gt.add_argument("--cwd", default="")

@@ -58,7 +58,9 @@ record_guard_hit() {
     --guard git-pre-push \
     --category "$1" \
     --detail "$2" \
-    --source git_hook >/dev/null 2>&1 || true
+    --source git_hook \
+    --session-id "${DCNESS_SESSION_ID:-}" \
+    --run-id "${DCNESS_RUN_ID:-}" >/dev/null 2>&1 || true
 }
 
 SCRIPT_PATH=$(resolve_plugin_script)

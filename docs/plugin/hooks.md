@@ -50,7 +50,7 @@ PreToolUse 차단 hook 은 정책 위반만 `exit 2` 로 내보낸다. Claude Co
 
 Fail-open 관측성: 미활성 프로젝트 no-op, main Claude turn, active run 밖 Agent 호출처럼 예상된 benign skip 은 조용히 통과한다. 반대로 활성 프로젝트에서 enforcement hook 이 payload 파싱 실패, session id 부재, state read/write 오류, handler 비정상 종료 때문에 검사를 평가하지 못하고 allow 한 경우는 `<project>/.claude/harness-state/fail-open-events.jsonl` 에 structured event 로 남긴다. `dcness-helper status` 의 `hook fail-open 진단` 항목은 최근 24시간 count 와 reason category 를 WARN 으로 보여준다.
 
-Guard hit 관측성: 정책 위반을 실제로 차단한 경우는 `<project>/.claude/harness-state/guard-telemetry.jsonl` 또는 active run 의 `guard-telemetry.jsonl` 에 `guard_hit` 이벤트로 append 된다. 기록 필드는 guard 이름, category, source, 시각, detail 이며 기록 실패는 원래 차단/허용 판정을 바꾸지 않는다. `dcness-helper guard-telemetry` 는 guard 별 hit 수와 최근 hit 시각을 집계하고, 기본 30일 동안 hit 가 없는 guard 를 **재평가 후보**로 표시한다. 이 표시는 정보 제공 전용이며 guard 를 자동으로 비활성화하지 않는다.
+Guard hit 관측성: 정책 위반을 실제로 차단한 경우는 `<project>/.claude/harness-state/guard-telemetry.jsonl` 또는 active run 의 `guard-telemetry.jsonl` 에 `guard_hit` 이벤트로 append 된다. 기록 필드는 guard 이름, category, source, 시각, detail 이며 기록 실패는 원래 차단/허용 판정을 바꾸지 않는다. 첫 기록 시 `telemetry_epoch` 를 함께 남겨 "도입 직후 무발화" 와 "충분히 관측한 장기 무발화" 를 구분한다. `dcness-helper guard-telemetry` 는 기본 `--since-days 90` 기간 한정 스캔으로 guard 별 hit 수와 최근 hit 시각을 집계하고, 관측 기간이 idle threshold 보다 짧으면 **관측 부족**, 충분히 관측했는데 기본 30일 동안 hit 가 없으면 **재평가 후보**로 표시한다. 이 표시는 정보 제공 전용이며 guard 를 자동으로 비활성화하지 않는다.
 
 Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision: "block"` JSON 을 stdout 으로 내보내 메인 turn 을 재발화시킨다.
 
@@ -235,7 +235,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 | `.git/hooks/pre-push` | `scripts/hooks/pre-push` | push 직전 | main 직접 push 차단 + 브랜치명 검증 | O |
 
 활성 프로젝트 기준으로 `pre-commit` 은 기본 설치 대상이 아니다. TDD 강제는 git hook 이 아니라 Layer 1 의 `tdd-guard.sh` 가 구현 파일 작성 전에 수행한다.
-git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 통과 뒤에만 수행한다. 비활성 프로젝트에서 남아 있는 git hook 이 차단하더라도 `guard-telemetry.jsonl` 을 만들지 않는다. `commit-msg` 차단은 `guard=git-commit-msg`, `pre-push` 차단은 `guard=git-pre-push` 로 기록된다. dcness self 작업용 `pre-commit` 은 `guard=git-pre-commit` 으로 main 직접 commit 차단과 python test gate 실패를 기록할 수 있지만, 외부 활성 프로젝트의 report 기본 known guard 후보에는 포함하지 않는다.
+git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 통과 뒤에만 수행한다. 비활성 프로젝트에서 남아 있는 git hook 이 차단하더라도 `guard-telemetry.jsonl` 을 만들지 않는다. `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 가 있는 headless worker 컨텍스트에서는 active run 로그에 귀속하고, 없으면 프로젝트 로그에 fallback 한다. `commit-msg` 차단은 `guard=git-commit-msg`, `pre-push` 차단은 `guard=git-pre-push` 로 기록된다. dcness self 작업용 `pre-commit` 은 `guard=git-pre-commit` 으로 main 직접 commit 차단과 python test gate 실패를 기록할 수 있지만, 외부 활성 프로젝트의 report 기본 known guard 후보에는 포함하지 않는다.
 
 ### .git/hooks/commit-msg
 

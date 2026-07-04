@@ -9,6 +9,7 @@ from tempfile import TemporaryDirectory
 
 from harness.guard_telemetry import read_events
 from harness.guard_telemetry import TELEMETRY_NAME
+from harness.session_state import generate_run_id, run_dir
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -141,6 +142,45 @@ class GitHookGuardTelemetryTests(unittest.TestCase):
                     for e in events
                 ),
                 events,
+            )
+
+    def test_pre_push_branch_naming_records_run_context_when_available(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            _git(root, "init")
+            run_id = generate_run_id()
+            env = _env(active=True)
+            env["DCNESS_SESSION_ID"] = "git-hook-telemetry-sid"
+            env["DCNESS_RUN_ID"] = run_id
+
+            result = subprocess.run(
+                ["sh", str(ROOT / "scripts" / "hooks" / "pre-push")],
+                input="refs/heads/BadBranch abc refs/heads/BadBranch def\n",
+                cwd=str(root),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+            events = read_events(cwd=root)
+            self.assertTrue(
+                any(
+                    e.get("kind") == "guard_hit"
+                    and e.get("guard") == "git-pre-push"
+                    and e.get("category") == "branch_naming"
+                    and e.get("session_id") == "git-hook-telemetry-sid"
+                    and e.get("run_id") == run_id
+                    for e in events
+                ),
+                events,
+            )
+            self.assertTrue(
+                (
+                    run_dir("git-hook-telemetry-sid", run_id, base_dir=root / ".claude" / "harness-state")
+                    / TELEMETRY_NAME
+                ).is_file()
             )
 
     def test_inactive_pre_push_block_does_not_create_telemetry(self) -> None:

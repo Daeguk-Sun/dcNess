@@ -19,8 +19,10 @@ from harness.session_state import RUN_ID_RE, run_dir, valid_session_id
 
 TELEMETRY_NAME = "guard-telemetry.jsonl"
 DEFAULT_IDLE_DAYS = 30
+DEFAULT_REPORT_SINCE_DAYS = 90
 DEFAULT_SATURATION_DAYS = 30
 DEFAULT_SATURATION_MIN_RUNS = 3
+OUTPUT_ESTIMATE_BASIS = "utf8_bytes/4_lower_bound"
 
 DISTRIBUTED_KNOWN_GUARDS: tuple[str, ...] = (
     "catastrophic-gate",
@@ -129,10 +131,19 @@ def append_event(
             base_dir=base_dir,
         )
         target.parent.mkdir(parents=True, exist_ok=True)
-        line = json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n"
+        needs_epoch = (
+            payload.get("kind") != "telemetry_epoch"
+            and (not target.exists() or target.stat().st_size == 0)
+        )
+        lines: list[Dict[str, Any]] = []
+        if needs_epoch:
+            lines.append({"kind": "telemetry_epoch", "ts": payload["ts"]})
+        lines.append(payload)
         fd = os.open(str(target), os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o600)
         try:
-            os.write(fd, line.encode("utf-8"))
+            for item in lines:
+                line = json.dumps(item, ensure_ascii=False, separators=(",", ":")) + "\n"
+                os.write(fd, line.encode("utf-8"))
         finally:
             os.close(fd)
     except Exception:  # noqa: BLE001 # nosec B110
@@ -182,6 +193,9 @@ def record_eval_case_result(
     report_chars: Optional[int] = None,
     judge_chars: Optional[int] = None,
     estimated_output_tokens: Optional[int] = None,
+    failure_stage: str = "",
+    failure_detail: str = "",
+    token_estimate_basis: str = "",
     cwd: Optional[Path] = None,
     base_dir: Optional[Path] = None,
 ) -> None:
@@ -200,6 +214,12 @@ def record_eval_case_result(
         event["judge_file"] = str(judge_file)
     if model:
         event["model"] = str(model)
+    if failure_stage:
+        event["failure_stage"] = str(failure_stage)[:80]
+    if failure_detail:
+        event["failure_detail"] = str(failure_detail).replace("\n", " ")[:_DETAIL_MAX]
+    if token_estimate_basis:
+        event["token_estimate_basis"] = str(token_estimate_basis)[:120]
     for key, value in (
         ("llm_turns", llm_turns),
         ("report_chars", report_chars),
@@ -244,6 +264,18 @@ def _candidate_log_paths(cwd: Optional[Path] = None, *, base_dir: Optional[Path]
         seen.add(resolved)
         unique.append(path)
     return unique
+
+
+def _has_nonempty_log_path(
+    cwd: Optional[Path] = None, *, base_dir: Optional[Path] = None
+) -> bool:
+    for path in _candidate_log_paths(cwd, base_dir=base_dir):
+        try:
+            if path.is_file() and path.stat().st_size > 0:
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def read_events(
@@ -291,9 +323,11 @@ def collect_guard_summary(
     base_dir: Optional[Path] = None,
     known_guards: Iterable[str] = KNOWN_GUARDS,
     idle_days: int = DEFAULT_IDLE_DAYS,
+    since_days: Optional[int] = None,
 ) -> Dict[str, Any]:
+    all_events = read_events(cwd, base_dir=base_dir, since_days=since_days)
     events = [
-        event for event in read_events(cwd, base_dir=base_dir)
+        event for event in all_events
         if event.get("kind") == "guard_hit"
     ]
     rows: dict[str, Dict[str, Any]] = {}
@@ -304,6 +338,9 @@ def collect_guard_summary(
             "categories": {},
             "sources": [],
             "reassessment_candidate": True,
+            "observation_since": None,
+            "observation_days": None,
+            "observation_status": "no_observation",
         }
     for event in events:
         guard = str(event.get("guard") or "unknown")
@@ -315,6 +352,9 @@ def collect_guard_summary(
                 "categories": {},
                 "sources": [],
                 "reassessment_candidate": True,
+                "observation_since": None,
+                "observation_days": None,
+                "observation_status": "no_observation",
             },
         )
         row["count"] += 1
@@ -327,12 +367,46 @@ def collect_guard_summary(
         if source not in row["sources"]:
             row["sources"].append(source)
 
-    cutoff = datetime.now(timezone.utc) - timedelta(days=max(int(idle_days), 0))
+    now = datetime.now(timezone.utc)
+    idle_days_i = max(int(idle_days), 0)
+    cutoff = now - timedelta(days=idle_days_i)
+    epoch_candidates = [
+        _parse_ts(event.get("ts"))
+        for event in all_events
+        if event.get("kind") == "telemetry_epoch"
+    ]
+    epoch = min((ts for ts in epoch_candidates if ts is not None), default=None)
+    if epoch is None:
+        event_candidates = [_parse_ts(event.get("ts")) for event in all_events]
+        epoch = min((ts for ts in event_candidates if ts is not None), default=None)
+    if epoch is None and since_days is not None and _has_nonempty_log_path(cwd, base_dir=base_dir):
+        epoch = now - timedelta(days=max(int(since_days), 0))
+
+    observation_days: Optional[int] = None
+    observation_since: Optional[str] = None
+    if epoch is not None:
+        observation_days = max((now - epoch).days, 0)
+        observation_since = epoch.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
     for row in rows.values():
         parsed = _parse_ts(row.get("last_ts"))
-        row["reassessment_candidate"] = parsed is None or parsed < cutoff
+        if epoch is None:
+            status = "no_observation"
+        elif int(row.get("count") or 0) == 0 and (observation_days or 0) < idle_days_i:
+            status = "insufficient_observation"
+        else:
+            status = "observed"
+        row["observation_since"] = observation_since
+        row["observation_days"] = observation_days
+        row["observation_status"] = status
+        if parsed is not None:
+            row["reassessment_candidate"] = parsed < cutoff
+        else:
+            row["reassessment_candidate"] = (
+                status == "observed" and (observation_days or 0) >= idle_days_i
+            )
         row["sources"] = sorted(row["sources"])
-    return {"idle_days": idle_days, "guards": rows}
+    return {"idle_days": idle_days, "since_days": since_days, "guards": rows}
 
 
 def collect_eval_summary(
@@ -361,6 +435,7 @@ def collect_eval_summary(
                 "judge_chars": 0,
                 "avg_llm_turns": 0.0,
                 "avg_estimated_output_tokens": 0.0,
+                "failure_stages": {},
                 "last_ts": None,
                 "saturation_candidate": False,
             },
@@ -374,6 +449,11 @@ def collect_eval_summary(
         )
         row["report_chars"] += max(int(event.get("report_chars") or 0), 0)
         row["judge_chars"] += max(int(event.get("judge_chars") or 0), 0)
+        failure_stage = str(event.get("failure_stage") or "")
+        if failure_stage:
+            row["failure_stages"][failure_stage] = (
+                row["failure_stages"].get(failure_stage, 0) + 1
+            )
         ts = str(event.get("ts") or "")
         if ts and (row["last_ts"] is None or ts > row["last_ts"]):
             row["last_ts"] = ts
@@ -393,6 +473,7 @@ def collect_eval_summary(
     return {
         "saturation_days": saturation_days,
         "saturation_min_runs": saturation_min_runs,
+        "token_estimate_basis": OUTPUT_ESTIMATE_BASIS,
         "cases": rows,
     }
 
@@ -403,12 +484,22 @@ def format_telemetry_report(
 ) -> str:
     lines: list[str] = []
     idle_days = int(guard_summary.get("idle_days") or DEFAULT_IDLE_DAYS)
-    lines.append(f"[guard telemetry] guard hits — idle threshold: {idle_days}d")
+    guard_header = f"[guard telemetry] guard hits — idle threshold: {idle_days}d"
+    since_days = guard_summary.get("since_days")
+    if since_days is not None:
+        guard_header += f", scan window: {int(since_days)}d"
+    lines.append(guard_header)
     guards = guard_summary.get("guards") if isinstance(guard_summary, dict) else {}
     if isinstance(guards, dict) and guards:
         for guard, row_any in sorted(guards.items()):
             row = row_any if isinstance(row_any, dict) else {}
-            marker = "재평가 후보" if row.get("reassessment_candidate") else "active"
+            status = row.get("observation_status")
+            if status == "no_observation":
+                marker = "관측 없음"
+            elif status == "insufficient_observation":
+                marker = "관측 부족"
+            else:
+                marker = "재평가 후보" if row.get("reassessment_candidate") else "active"
             last = row.get("last_ts") or "-"
             count = int(row.get("count") or 0)
             lines.append(f"- {guard}: {count} hit(s), last={last}, {marker}")
@@ -421,6 +512,8 @@ def format_telemetry_report(
         lines.append(
             f"[guard telemetry] eval saturation — window: {saturation_days}d, min_runs={min_runs}"
         )
+        if eval_summary.get("token_estimate_basis"):
+            lines.append("[guard telemetry] 토큰 추정 하한 — UTF-8 bytes/4 기준")
         cases = eval_summary.get("cases") if isinstance(eval_summary, dict) else {}
         if isinstance(cases, dict) and cases:
             for case, row_any in sorted(cases.items()):
@@ -432,10 +525,16 @@ def format_telemetry_report(
                 avg_turns = float(row.get("avg_llm_turns") or 0.0)
                 avg_tokens = float(row.get("avg_estimated_output_tokens") or 0.0)
                 last = row.get("last_ts") or "-"
+                failures = row.get("failure_stages") if isinstance(row, dict) else {}
+                failure_note = ""
+                if isinstance(failures, dict) and failures:
+                    failure_note = ", failures=" + ",".join(
+                        f"{stage}:{count}" for stage, count in sorted(failures.items())
+                    )
                 lines.append(
                     f"- {case}: {passes}/{attempts} ({accuracy:.0%}), "
                     f"avg_turns={avg_turns:.1f}, avg_tokens≈{avg_tokens:.0f}, "
-                    f"last={last}, {marker}"
+                    f"last={last}, {marker}{failure_note}"
                 )
         else:
             lines.append("- no eval case telemetry events")
@@ -449,6 +548,8 @@ def _cli_record_hit(args: argparse.Namespace) -> int:
         category=args.category,
         detail=args.detail,
         source=args.source,
+        session_id=args.session_id,
+        run_id=args.run_id,
         cwd=Path(args.cwd) if args.cwd else None,
         base_dir=Path(args.base_dir) if args.base_dir else None,
     )
@@ -468,6 +569,9 @@ def _cli_record_eval(args: argparse.Namespace) -> int:
         report_chars=args.report_chars,
         judge_chars=args.judge_chars,
         estimated_output_tokens=args.estimated_output_tokens,
+        failure_stage=args.failure_stage or "",
+        failure_detail=args.failure_detail or "",
+        token_estimate_basis=args.token_estimate_basis or "",
         cwd=Path(args.cwd) if args.cwd else None,
         base_dir=Path(args.base_dir) if args.base_dir else None,
     )
@@ -477,7 +581,13 @@ def _cli_record_eval(args: argparse.Namespace) -> int:
 def _cli_report(args: argparse.Namespace) -> int:
     cwd = Path(args.cwd) if args.cwd else None
     base_dir = Path(args.base_dir) if args.base_dir else None
-    guard_summary = collect_guard_summary(cwd, base_dir=base_dir, idle_days=args.idle_days)
+    since_days = args.since_days if args.since_days and args.since_days > 0 else None
+    guard_summary = collect_guard_summary(
+        cwd,
+        base_dir=base_dir,
+        idle_days=args.idle_days,
+        since_days=since_days,
+    )
     eval_summary = collect_eval_summary(
         cwd,
         base_dir=base_dir,
@@ -500,6 +610,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_hit.add_argument("--category", default="block")
     p_hit.add_argument("--detail", default="")
     p_hit.add_argument("--source", default="git_hook")
+    p_hit.add_argument("--session-id", default="")
+    p_hit.add_argument("--run-id", default="")
     p_hit.add_argument("--cwd", default="")
     p_hit.add_argument("--base-dir", default="")
     p_hit.set_defaults(func=_cli_record_hit)
@@ -518,12 +630,16 @@ def _build_parser() -> argparse.ArgumentParser:
     p_eval.add_argument("--report-chars", type=int, default=None)
     p_eval.add_argument("--judge-chars", type=int, default=None)
     p_eval.add_argument("--estimated-output-tokens", type=int, default=None)
+    p_eval.add_argument("--failure-stage", default="")
+    p_eval.add_argument("--failure-detail", default="")
+    p_eval.add_argument("--token-estimate-basis", default="")
     p_eval.add_argument("--cwd", default="")
     p_eval.add_argument("--base-dir", default="")
     p_eval.set_defaults(func=_cli_record_eval)
 
     p_report = sub.add_parser("report", help="summarize guard hits and eval saturation")
     p_report.add_argument("--idle-days", type=int, default=DEFAULT_IDLE_DAYS)
+    p_report.add_argument("--since-days", type=int, default=DEFAULT_REPORT_SINCE_DAYS)
     p_report.add_argument("--saturation-days", type=int, default=DEFAULT_SATURATION_DAYS)
     p_report.add_argument("--saturation-min-runs", type=int, default=DEFAULT_SATURATION_MIN_RUNS)
     p_report.add_argument("--cwd", default="")

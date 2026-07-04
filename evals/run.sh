@@ -29,6 +29,58 @@ is_strict_case() {
   return 1
 }
 
+byte_len() {
+  LC_ALL=C printf '%s' "$1" | wc -c | tr -d ' '
+}
+
+record_eval_result() {
+  local passed_flag="$1"
+  local failure_stage="$2"
+  local report_path="$3"
+  local judge_path="$4"
+  local turns="$5"
+  local report_len="$6"
+  local judge_len="$7"
+  local token_estimate="$8"
+  local status_arg="--failed"
+  if [ "$passed_flag" = "passed" ]; then
+    status_arg="--passed"
+  fi
+  if [ -n "$failure_stage" ]; then
+    PYTHONPATH="$ROOT:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-eval \
+      --case "$case_name" \
+      "$status_arg" \
+      --run-index "$i" \
+      --total-runs "$RUNS" \
+      --report-file "$report_path" \
+      --judge-file "$judge_path" \
+      --model "$MODEL" \
+      --llm-turns "$turns" \
+      --report-chars "$report_len" \
+      --judge-chars "$judge_len" \
+      --estimated-output-tokens "$token_estimate" \
+      --token-estimate-basis "utf8_bytes/4_lower_bound" \
+      --failure-stage "$failure_stage" \
+      --failure-detail "claude invocation failed" \
+      --base-dir "$OUTPUT_DIR" >/dev/null 2>&1 || true
+    return 0
+  fi
+  PYTHONPATH="$ROOT:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-eval \
+    --case "$case_name" \
+    "$status_arg" \
+    --run-index "$i" \
+    --total-runs "$RUNS" \
+    --report-file "$report_path" \
+    --judge-file "$judge_path" \
+    --model "$MODEL" \
+    --llm-turns "$turns" \
+    --report-chars "$report_len" \
+    --judge-chars "$judge_len" \
+    --estimated-output-tokens "$token_estimate" \
+    --token-estimate-basis "utf8_bytes/4_lower_bound" \
+    --base-dir "$OUTPUT_DIR" >/dev/null 2>&1 || true
+}
+
 for case_dir in "$ROOT"/evals/cases/*/; do
   case_name="$(basename "$case_dir")"
   case_path="${case_dir%/}"
@@ -58,6 +110,7 @@ for case_dir in "$ROOT"/evals/cases/*/; do
 
     if ! report="$(claude -p "$prompt" --model "$MODEL" --allowedTools "Read" --add-dir "$sandbox" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 검수 실행 실패"
+      record_eval_result "failed" "report" "" "" 1 0 0 0
       continue
     fi
     printf '%s\n' "$report" > "$report_file"
@@ -75,48 +128,30 @@ $report"
 
     if ! grade="$(claude -p "$judge_prompt" --model "$MODEL" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 채점 실행 실패"
+      report_chars="${#report}"
+      report_bytes="$(byte_len "$report")"
+      estimated_output_tokens=$(((report_bytes + 3) / 4))
+      record_eval_result "failed" "judge" "$report_file" "" 2 "$report_chars" 0 "$estimated_output_tokens"
       continue
     fi
     printf '%s\n' "$grade" > "$judge_file"
 
     report_chars="${#report}"
     judge_chars="${#grade}"
-    estimated_output_tokens=$(((report_chars + judge_chars + 3) / 4))
+    report_bytes="$(byte_len "$report")"
+    judge_bytes="$(byte_len "$grade")"
+    estimated_output_tokens=$(((report_bytes + judge_bytes + 3) / 4))
     llm_turns=2
 
     verdict="$(printf '%s\n' "$grade" | grep -E '^RESULT: (PASS|FAIL)$' | tail -1 || true)"
     if [ "$verdict" = "RESULT: PASS" ]; then
       pass=$((pass + 1))
       echo "[eval] $case_name run $i: 정답"
-      PYTHONPATH="$ROOT:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-eval \
-        --case "$case_name" \
-        --passed \
-        --run-index "$i" \
-        --total-runs "$RUNS" \
-        --report-file "$report_file" \
-        --judge-file "$judge_file" \
-        --model "$MODEL" \
-        --llm-turns "$llm_turns" \
-        --report-chars "$report_chars" \
-        --judge-chars "$judge_chars" \
-        --estimated-output-tokens "$estimated_output_tokens" \
-        --base-dir "$OUTPUT_DIR" >/dev/null 2>&1 || true
+      record_eval_result "passed" "" "$report_file" "$judge_file" "$llm_turns" "$report_chars" "$judge_chars" "$estimated_output_tokens"
     else
       echo "[eval] $case_name run $i: 오답"
       printf '%s\n' "$grade" | grep -E "^(OK|MISS) " || true
-      PYTHONPATH="$ROOT:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-eval \
-        --case "$case_name" \
-        --failed \
-        --run-index "$i" \
-        --total-runs "$RUNS" \
-        --report-file "$report_file" \
-        --judge-file "$judge_file" \
-        --model "$MODEL" \
-        --llm-turns "$llm_turns" \
-        --report-chars "$report_chars" \
-        --judge-chars "$judge_chars" \
-        --estimated-output-tokens "$estimated_output_tokens" \
-        --base-dir "$OUTPUT_DIR" >/dev/null 2>&1 || true
+      record_eval_result "failed" "" "$report_file" "$judge_file" "$llm_turns" "$report_chars" "$judge_chars" "$estimated_output_tokens"
     fi
   done
 
