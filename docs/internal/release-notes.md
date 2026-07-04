@@ -8,6 +8,13 @@
 
 - 자기개선 루프 SSOT 추가 — 측정 신호를 Sense→Diagnose→Decide→Act→Verify로 닫는 내부 절차를 [`docs/internal/self-improvement-loop.md`](self-improvement-loop.md)에 정의하고, 릴리즈 점검·eval 산출물 보존·핵심 행동 eval N/N 기준을 연결했다. [#893](https://github.com/alruminum/dcNess/issues/893)
 - 문서 개수 하드코딩 제거 — README/CLAUDE/loop-procedure/smart-compact의 구성 요소 count prose와 cross-ref count deny-list를 제거해 stale 방지 룰을 소멸시켰다. [#877](https://github.com/alruminum/dcNess/issues/877)
+- 릴리즈 전 가드 재평가 점검 명문화 — 릴리즈 절차가 `guard-telemetry` 집계 또는 수동 CI·hook 이력 확인으로 장기 무발화 guard를 소멸 후보로 판정하고, 결과를 아래 자기개선 점검 기록에 남기도록 했다. 새 CI 강제 게이트는 추가하지 않았다. [#878](https://github.com/alruminum/dcNess/issues/878)
+
+### 자기개선 점검 기록
+
+| 날짜 | 입력 | 판정 |
+|---|---|---|
+| 2026-07-04 | `python3.11 -m harness.guard_telemetry report` | 첫 Diagnose 수행. 프로젝트 `guard-telemetry.jsonl` 없음, `.metrics/evals/**/guard-telemetry.jsonl` 0개라 30일 관측 근거가 아직 없다. known guard는 원시 출력상 `재평가 후보`로 표시되지만, 장기 무발화가 아니라 신규 텔레메트리 관측 기간 부족으로 해석한다. 이번 릴리즈의 즉시 소멸 후보 없음. 다음 릴리즈에서 재확인한다. |
 
 ---
 
