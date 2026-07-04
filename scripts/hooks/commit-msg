@@ -51,6 +51,8 @@ if [ -z "$PLUGIN_ROOT" ]; then
 fi
 
 record_guard_hit() {
+  PYTHONPATH="${PLUGIN_ROOT}:${PYTHONPATH:-}" python3 -m harness.session_state is-active \
+    >/dev/null 2>&1 || return 0
   PYTHONPATH="${PLUGIN_ROOT}:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-hit \
     --guard git-commit-msg \
     --category "$1" \

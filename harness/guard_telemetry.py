@@ -22,14 +22,17 @@ DEFAULT_IDLE_DAYS = 30
 DEFAULT_SATURATION_DAYS = 30
 DEFAULT_SATURATION_MIN_RUNS = 3
 
-KNOWN_GUARDS: tuple[str, ...] = (
+DISTRIBUTED_KNOWN_GUARDS: tuple[str, ...] = (
     "catastrophic-gate",
     "file-guard",
     "tdd-guard",
-    "git-pre-commit",
     "git-commit-msg",
     "git-pre-push",
 )
+SELF_ONLY_KNOWN_GUARDS: tuple[str, ...] = (
+    "git-pre-commit",
+)
+KNOWN_GUARDS: tuple[str, ...] = DISTRIBUTED_KNOWN_GUARDS
 
 _DETAIL_MAX = 500
 
