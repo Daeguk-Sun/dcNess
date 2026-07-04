@@ -116,7 +116,7 @@
 | 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`design`](skills/design/design-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 분기 규칙 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
 | [`scripts/check_public_surface.mjs`](scripts/check_public_surface.mjs) | 공개 workflow 진입점 gate 기대값 수정 시 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
-| [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / SubagentStop) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
+| [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
 | [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — [dcness 자체는 init-dcness 미적용](#dcness-자체는-init-dcness-미적용-자기-규격-미얽매임) 참조) |
 | [`docs/plugin/deliverables-map.md`](docs/plugin/deliverables-map.md) | 외부 활성 프로젝트의 docs 산출물 위치·양식·계층 (`docs/index.md`, 전역 anchors, epic 산출물, `docs/decisions/`, `.dcness-work/`, 시드=산출 양식) SSOT — 산출물 경로/템플릿 수정 시 |
 | [`docs/plugin/parallel-policy.md`](docs/plugin/parallel-policy.md) | 병렬 peer 세션·claim board·merge lock 정책 수정 시 |
