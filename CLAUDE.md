@@ -116,7 +116,7 @@
 | 각 skill 의 `<skill>-routing.md` ([`impl`](skills/impl/impl-routing.md) / [`design`](skills/design/design-routing.md) / [`impl-loop`](skills/impl-loop/impl-loop-routing.md) 등) | 분기 규칙 진본 (mermaid + enum 표) + retry 한도 + escalate — agent 결론 → 다음 호출 매핑 수정 시 |
 | [`scripts/check_public_surface.mjs`](scripts/check_public_surface.mjs) | 공개 workflow 진입점 gate 기대값 수정 시 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md) | Step 0~8 mechanics (begin-run → begin-step → Agent → end-step → finalize-run) 수정 시 |
-| [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop = 8 hook) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
+| [`docs/plugin/hooks.md`](docs/plugin/hooks.md) | hook 시스템 (SessionStart / PreToolUse / PostToolUse / SubagentStop) 수정 시 SSOT. dcness self 작업용 `scripts/hooks/cc-pre-commit.sh` 는 별 항목 |
 | [`docs/plugin/issue-lifecycle.md`](docs/plugin/issue-lifecycle.md) | 외부 활성 프로젝트의 epic / story / impl 흐름 변경 시 SSOT (본 저장소 자체엔 미적용 — [dcness 자체는 init-dcness 미적용](#dcness-자체는-init-dcness-미적용-자기-규격-미얽매임) 참조) |
 | [`docs/plugin/deliverables-map.md`](docs/plugin/deliverables-map.md) | 외부 활성 프로젝트의 docs 산출물 위치·양식·계층 (`docs/index.md`, 전역 anchors, epic 산출물, `docs/decisions/`, `.dcness-work/`, 시드=산출 양식) SSOT — 산출물 경로/템플릿 수정 시 |
 | [`docs/plugin/parallel-policy.md`](docs/plugin/parallel-policy.md) | 병렬 peer 세션·claim board·merge lock 정책 수정 시 |
@@ -128,6 +128,7 @@
 | [`scripts/hooks/pre-commit`](scripts/hooks/pre-commit) | git pre-commit hook 수정 시 |
 | [`scripts/hooks/cc-pre-commit.sh`](scripts/hooks/cc-pre-commit.sh) | Claude Code PreToolUse hook 수정 시 |
 | [`docs/internal/doc-conventions.md`](docs/internal/doc-conventions.md) | 문서 섹션 참조·anchor 링크 표기 수정/리뷰 시 (cross-ref 게이트가 강제하는 규약 SSOT) |
+| [`docs/internal/self-improvement-loop.md`](docs/internal/self-improvement-loop.md) | 측정 신호를 하네스 개선으로 닫는 Sense→Diagnose→Decide→Act→Verify 자기개선 루프 수정 시 |
 | [`docs/internal/plugin-release.md`](docs/internal/plugin-release.md) | 플러그인 릴리즈·버전 배포 요청 시 — 순서·태그·주의사항 |
 | [`docs/internal/release-notes.md`](docs/internal/release-notes.md) | 릴리즈 노트 기록 — 버전별 커밋 범위·변경 요약 |
 

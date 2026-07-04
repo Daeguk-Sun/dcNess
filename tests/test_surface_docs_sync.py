@@ -254,7 +254,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         for name in REMOVED_WORKFLOW + SUPPORT:
             self.assertNotIn(f"| `{name}` |", basic_table)
 
-        public_surface = self._section(self.readme, r"## 공개 진입점", r"\n12개 sub-agent")
+        public_surface = self._section(self.readme, r"## 공개 진입점", r"\n## 거버넌스")
         for name in LIFECYCLE:
             self.assertIn(f"| 기본 workflow | `{name}` |", public_surface)
         for name in REMOVED_WORKFLOW:
@@ -316,14 +316,12 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertIn("/spec", text)
             self.assertNotIn("/product-plan", text)
 
-    def test_cross_ref_gate_agent_count_label_matches_public_surface(self) -> None:
-        self.assertIn("현재 12 종", self.cross_ref_script)
-        self.assertIn(r"agent\s+1[013]\s*종", self.cross_ref_script)
-        self.assertIn(r"1[013]\s*개\s+(?:sub-)?agent", self.cross_ref_script)
-        self.assertIn(r"1[013]\s+agents?", self.cross_ref_script)
-        self.assertIn("13개 agent/sub-agent", self.cross_ref_script)
-        self.assertNotIn(r"agent\s+1[0-2]\s*종", self.cross_ref_script)
-        self.assertNotIn("현재 13 종", self.cross_ref_script)
+    def test_cross_ref_gate_does_not_freeze_component_counts(self) -> None:
+        """#877 — component count drift should be avoided at the source, not patched by deny-list."""
+        self.assertNotIn("옛 agent 카운트", self.cross_ref_script)
+        self.assertNotIn("옛 hook 카운트", self.cross_ref_script)
+        self.assertNotIn("현재 12 종", self.cross_ref_script)
+        self.assertNotIn("현재 8 hook", self.cross_ref_script)
 
     def test_strict_conveyor_docs_use_current_entrypoints(self) -> None:
         expected = "entry_point=design|impl|ux"
@@ -347,7 +345,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                     self.assertIsNotNone(match, command)
                     runtime_hooks.add(match.group(1))
 
-        self.assertEqual(8, len(runtime_hooks))
+        self.assertGreater(len(runtime_hooks), 0)
         for hook_name in sorted(runtime_hooks):
             self.assertIn(f"### {hook_name}", self.hooks_doc)
             self.assertRegex(
