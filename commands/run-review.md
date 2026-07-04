@@ -1,6 +1,6 @@
 ---
 name: run-review
-description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스킬. 각 step 의 잘한 점·잘못한 점·비용을 추출해서 메타-하네스 self-improvement 루프 시작점 제공. 사용자가 "/run-review", "리뷰", "이번 run 어땠어", "낭비 분석", "잘못한 점 찾아", "사후 분석" 등을 말할 때 사용한다.
+description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스킬. 각 step 의 비용·낭비 finding·재발 개선 후보를 추출해서 메타-하네스 self-improvement 루프 시작점 제공. 사용자가 "/run-review", "리뷰", "이번 run 어땠어", "낭비 분석", "잘못한 점 찾아", "사후 분석" 등을 말할 때 사용한다.
 ---
 
 # Run Review Skill — 사후 분석 + 메타-하네스 self-improvement
@@ -12,7 +12,7 @@ description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스�
 - 사용자 발화: "/run-review", "리뷰", "이번 run 어땠어", "낭비 분석", "잘못한 점 찾아", "사후 분석", "복기"
 - impl-loop / spec 등 큰 사이클 종료 후 자동 회고
 - 대표 workflow 종료 시 CLAUDE.md/AGENTS.md 현행화 후보를 read-only 로 확인
-- 30일 누적 위반 사례 수집 (별도 후속 — 본 skill 은 단일 run)
+- 현재 run 의 waste pattern 이 같은 sessions root 에서 몇 번째 반복인지 확인
 
 ## 언제 사용하지 않음
 
@@ -25,8 +25,8 @@ description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스�
 `.sessions/{sid}/runs/{rid}/ledger.jsonl` (step_completed event) + 단계별 prose + CC session JSONL 을 cross-correlation 해서:
 
 1. **단계별 비용** — run 시작/종료 timestamp 내 assistant turn cost 합산 (price_for util 재사용)
-2. **잘한 점** (GOOD findings) — ENUM_CLEAN / PROSE_ECHO_OK / DDD_PHASE_A / DEPENDENCY_CAUSAL / EXTERNAL_VERIFIED_PRESENT
-3. **잘못한 점** (WASTE findings) — RETRY_SAME_FAIL / ECHO_VIOLATION / PLACEHOLDER_LEAK / MUST_FIX_GHOST / SPEC_GAP_LOOP / INFRA_READ / READONLY_BASH / EXTERNAL_VERIFIED_MISSING
+2. **잘못한 점** (WASTE findings) — `run_review.py` 의 현재 waste detector 결과
+3. **재발 기반 개선 후보** — 현재 run 의 waste pattern 이 같은 sessions root 에서 임계(기본 3회) 이상 반복되면 표면화. 룰 추가, skill 박제, 기존 룰 제거 중 무엇을 할지는 사용자가 결정한다.
 4. **CLAUDE.md/AGENTS.md 현행화 후보** — context 문서 존재, AGENTS.md 의 CLAUDE.md SSOT 참조, CLAUDE.md 공식 구조·6축 rubric·dcNess cold-start 앵커, run-review finding 기반 세션 학습 환류 후보. 자동 수정하지 않고 제안만 출력한다.
 
 ## 절차
@@ -63,20 +63,13 @@ Bash stdout 의 마크다운 리포트를 **한 글자도 바꾸지 않고 그�
 
 리포트 출력 *후* 메인 Claude 가 추가 1~3 줄로 후속 액션 권고 가능 (별도 줄 — 리포트 본문에 삽입 X):
 - HIGH waste 1+ → 해당 agent prompt 고치는 PR 권유
-- HIGH waste 0 + GOOD 다수 → "이번 run clean 정합. 다음 task 진행 가능"
+- HIGH waste 0 + 재발 후보 없음 → "이번 run clean 정합. 다음 task 진행 가능"
 - MUST_FIX_GHOST 발견 → 주의사항 멈춤 룰 강화 검토
 - context audit 후보 있음 → 사용자 승인 후 CLAUDE.md/AGENTS.md docs PR 또는 loop insight / agent prompt 수정으로 분리
 
-## 잘한 점 / 잘못한 점 패턴 매트릭스
+## 잘못한 점 패턴 매트릭스
 
-### 잘한 점 (GOOD)
-
-| 패턴 | 검출 조건 | 정합 룰 |
-|---|---|---|
-| `ENUM_CLEAN` | step enum 이 해당 skill `## Loop` advance/expected_steps 정합 + must_fix=False | 각 skill `## Loop` + [loop-procedure Step mechanics](../docs/plugin/loop-procedure.md#진입-모델) |
-| `PROSE_ECHO_OK` | prose_excerpt 5~12줄 | DCN-30-15 |
-| `DDD_PHASE_A` | architect SD prose 안 Domain Model / Phase A 섹션 | DCN-30-16 |
-| `DEPENDENCY_CAUSAL` | architect SD prose 의존성 화살표에 인과관계 표기 | DCN-30-16 |
+GOOD 자동 finding 은 폐기됐다. 잘한 사례 누적은 baseline noise 가 커서 학습 신호로 쓰지 않는다.
 
 ### 잘못한 점 (WASTE)
 
@@ -107,7 +100,7 @@ Bash stdout 의 마크다운 리포트를 **한 글자도 바꾸지 않고 그�
 
 - **per-Agent 정확 cost X (Phase 1)** — 현재는 run timeframe 합산 (coarse). Phase 2 = `toolUseResult.totalCost` 매칭 (Agent tool call 별).
 - **prose 텍스트 분석 한계** — 한국어/영어 mixed regex 기반. semantic 분석 안 함.
-- **한 run 만** — 30일 누적 / 다른 run 비교는 별도 skill 후속.
+- **단일 run 중심** — `/run-review` 의 재발 후보는 현재 run 의 waste pattern 만 같은 sessions root 에서 카운트한다. 전체 fleet 후보는 `harness/benchmark_aggregate.py` 를 사용한다.
 - **자동 트리거 범위 제한** — helper 기반 `/design`·`/impl` run 은 `end-run` 의 review.md 안에 context audit 섹션이 자동 포함된다. helper run 이 없는 `/spec`·standalone `/acceptance` 는 skill 종료 절차에서 `dcness-review --context-audit` 를 명시 호출한다.
 
 ## 참조

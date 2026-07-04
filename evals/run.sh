@@ -79,6 +79,11 @@ $report"
     fi
     printf '%s\n' "$grade" > "$judge_file"
 
+    report_chars="${#report}"
+    judge_chars="${#grade}"
+    estimated_output_tokens=$(((report_chars + judge_chars + 3) / 4))
+    llm_turns=2
+
     verdict="$(printf '%s\n' "$grade" | grep -E '^RESULT: (PASS|FAIL)$' | tail -1 || true)"
     if [ "$verdict" = "RESULT: PASS" ]; then
       pass=$((pass + 1))
@@ -91,6 +96,10 @@ $report"
         --report-file "$report_file" \
         --judge-file "$judge_file" \
         --model "$MODEL" \
+        --llm-turns "$llm_turns" \
+        --report-chars "$report_chars" \
+        --judge-chars "$judge_chars" \
+        --estimated-output-tokens "$estimated_output_tokens" \
         --base-dir "$OUTPUT_DIR" >/dev/null 2>&1 || true
     else
       echo "[eval] $case_name run $i: 오답"
@@ -103,6 +112,10 @@ $report"
         --report-file "$report_file" \
         --judge-file "$judge_file" \
         --model "$MODEL" \
+        --llm-turns "$llm_turns" \
+        --report-chars "$report_chars" \
+        --judge-chars "$judge_chars" \
+        --estimated-output-tokens "$estimated_output_tokens" \
         --base-dir "$OUTPUT_DIR" >/dev/null 2>&1 || true
     fi
   done

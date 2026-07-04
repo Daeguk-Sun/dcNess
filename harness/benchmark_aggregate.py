@@ -15,6 +15,7 @@ N run 을 한 번에 집계한다 — public benchmark (성공률/FAIL/escalate/
 - `blocked` 이벤트 수
 - PR 머지 성공률 (= pr_created 중 pr_merged 로 확인된 PR 비율, 이벤트 있을 때만)
 - waste finding top-N (detect_wastes 합산)
+- 재발 기반 개선 후보 (동일 waste pattern 이 임계 이상 반복될 때만 표면화)
 
 사용
 ----
@@ -22,6 +23,7 @@ N run 을 한 번에 집계한다 — public benchmark (성공률/FAIL/escalate/
     python3 harness/benchmark_aggregate.py [sessions-root] --entry-point impl
     python3 harness/benchmark_aggregate.py [sessions-root] --json
     python3 harness/benchmark_aggregate.py --top 8
+    python3 harness/benchmark_aggregate.py --recurrence-threshold 2
 
 sessions-root 미지정 시 cwd 기준 `.claude/harness-state/.sessions` 자동 탐색.
 """
@@ -56,6 +58,13 @@ _PR_REVIEWER_VERDICTS = {"PASS", "LGTM"} | _PR_REVIEWER_FAIL
 # 폴백하되 이 값들은 verdict 가 아니므로 제외한다.
 _NON_VERDICT_ENUMS = {"PROSE_LOGGED", "AMBIGUOUS", ""}
 
+DEFAULT_RECURRENCE_THRESHOLD = 3
+
+_IMPROVEMENT_SUGGESTION = (
+    "자동 박제 없음. 재발 원인을 확인한 뒤 룰 추가, skill 박제, 또는 기존 룰 제거 "
+    "중 하나를 사용자 결정으로 분리합니다."
+)
+
 
 def _step_verdict(step) -> str:
     """step 의 진짜 verdict — stored enum 이 실제 결론이면 그것을 우선한다.
@@ -82,6 +91,15 @@ def _repo_path_for_run(run_dir: Path) -> Optional[Path]:
 
 
 @dataclass
+class ImprovementCandidate:
+    pattern: str
+    count: int
+    threshold: int
+    source: str
+    suggestion: str
+
+
+@dataclass
 class FleetReport:
     run_count: int
     by_entry_point: dict
@@ -98,7 +116,34 @@ class FleetReport:
     pr_merge_success_ratio: Optional[float]
     waste_top: list  # [(pattern, count), ...] count desc
     success_measurable: bool
+    recurrence_threshold: int
+    improvement_candidates: list[ImprovementCandidate]
     waste_limit: int = 10
+
+
+def _build_improvement_candidates(
+    waste_counter: Counter,
+    *,
+    threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
+) -> list[ImprovementCandidate]:
+    """Return recurrent waste candidates only.
+
+    GOOD 사례나 raw note 는 입력 자체가 아니므로 집계되지 않는다. 후보는 제안일 뿐이며
+    CLAUDE.md·룰·스킬·문서를 자동 수정하지 않는다.
+    """
+    threshold = max(int(threshold), 1)
+    candidates: list[ImprovementCandidate] = []
+    for pattern, count in sorted(waste_counter.items(), key=lambda kv: (-kv[1], kv[0])):
+        if count < threshold:
+            continue
+        candidates.append(ImprovementCandidate(
+            pattern=pattern,
+            count=count,
+            threshold=threshold,
+            source="run_review.waste",
+            suggestion=_IMPROVEMENT_SUGGESTION,
+        ))
+    return candidates
 
 
 def _run_entry_point(run_dir: Path) -> Optional[str]:
@@ -150,7 +195,13 @@ def _run_event_counts(run_dir: Path) -> tuple[int, set[str], set[str]]:
     return blocked, pr_created, pr_merged
 
 
-def aggregate_runs(run_dirs: list, *, top: int = 10, repo_override=None) -> FleetReport:
+def aggregate_runs(
+    run_dirs: list,
+    *,
+    top: int = 10,
+    recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
+    repo_override=None,
+) -> FleetReport:
     """run_dir 목록을 fleet 집계한다.
 
     repo_override: build_report 의 invocation/cost 산출 기준 repo. 지정 시 모든 run 에
@@ -217,6 +268,7 @@ def aggregate_runs(run_dirs: list, *, top: int = 10, repo_override=None) -> Flee
     pr_merge_success_ratio = (
         pr_merge_success_count / pr_created_count if pr_created_count else None
     )
+    recurrence_threshold = max(int(recurrence_threshold), 1)
 
     return FleetReport(
         run_count=run_count,
@@ -234,18 +286,30 @@ def aggregate_runs(run_dirs: list, *, top: int = 10, repo_override=None) -> Flee
         pr_merge_success_ratio=pr_merge_success_ratio,
         waste_top=waste_counter.most_common(top),
         success_measurable=pr_merge_success_ratio is not None,
+        recurrence_threshold=recurrence_threshold,
+        improvement_candidates=_build_improvement_candidates(
+            waste_counter,
+            threshold=recurrence_threshold,
+        ),
         waste_limit=top,
     )
 
 
 def aggregate_sessions(sessions_root, *, entry_point: Optional[str] = None,
-                       top: int = 10, repo_override=None) -> FleetReport:
+                       top: int = 10,
+                       recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
+                       repo_override=None) -> FleetReport:
     """sessions-root 아래 모든 run 을 집계한다. entry_point 지정 시 그 진입점만."""
     sessions_root = Path(sessions_root)
     run_dirs = run_review.list_runs(sessions_root)
     if entry_point:
         run_dirs = [r for r in run_dirs if _run_entry_point(r) == entry_point]
-    return aggregate_runs(run_dirs, top=top, repo_override=repo_override)
+    return aggregate_runs(
+        run_dirs,
+        top=top,
+        recurrence_threshold=recurrence_threshold,
+        repo_override=repo_override,
+    )
 
 
 def _fmt_ratio(r: Optional[float]) -> str:
@@ -309,6 +373,21 @@ def render_markdown(report: FleetReport) -> str:
     else:
         lines.append("(검출된 waste 없음)")
     lines.append("")
+
+    lines.append(f"## 재발 기반 개선 후보 (threshold {report.recurrence_threshold})")
+    lines.append("")
+    if report.improvement_candidates:
+        lines.append("| pattern | count | suggestion |")
+        lines.append("|---|---:|---|")
+        for candidate in report.improvement_candidates:
+            lines.append(
+                f"| {candidate.pattern} | {candidate.count} | {candidate.suggestion} |"
+            )
+    else:
+        lines.append("(임계 도달 후보 없음 — GOOD 사례는 집계 대상이 아닙니다.)")
+    lines.append("")
+    lines.append("자동 수정 없음 — 후보 표면화까지만 수행하고 박제 여부는 사용자가 결정합니다.")
+    lines.append("")
     return "\n".join(lines)
 
 
@@ -321,6 +400,12 @@ def main(argv: Optional[list] = None) -> int:
     ap.add_argument("--entry-point", default=None,
                     help="impl / design 등 특정 진입점만 집계")
     ap.add_argument("--top", type=int, default=10, help="waste top-N (기본 10)")
+    ap.add_argument(
+        "--recurrence-threshold",
+        type=int,
+        default=DEFAULT_RECURRENCE_THRESHOLD,
+        help="개선 후보로 표면화할 동일 waste pattern 반복 임계값 (기본 3)",
+    )
     ap.add_argument("--repo", default=None,
                     help="cost/invocation 산출 기준 repo (세션 JSONL 위치). "
                          "worktree run 의 정확한 cost/END_STEP_SKIP 가 필요할 때 "
@@ -342,7 +427,9 @@ def main(argv: Optional[list] = None) -> int:
     # 절대 cwd 기준으로 인코딩하므로 `--repo .` 같은 상대경로는 키가 어긋난다.
     repo_override = Path(args.repo).resolve() if args.repo else None
     report = aggregate_sessions(sessions_root, entry_point=args.entry_point,
-                                top=args.top, repo_override=repo_override)
+                                top=args.top,
+                                recurrence_threshold=args.recurrence_threshold,
+                                repo_override=repo_override)
 
     if args.json:
         print(json.dumps({
@@ -361,6 +448,17 @@ def main(argv: Optional[list] = None) -> int:
             "pr_merge_success_ratio": report.pr_merge_success_ratio,
             "waste_top": report.waste_top,
             "success_measurable": report.success_measurable,
+            "recurrence_threshold": report.recurrence_threshold,
+            "improvement_candidates": [
+                {
+                    "pattern": candidate.pattern,
+                    "count": candidate.count,
+                    "threshold": candidate.threshold,
+                    "source": candidate.source,
+                    "suggestion": candidate.suggestion,
+                }
+                for candidate in report.improvement_candidates
+            ],
         }, ensure_ascii=False, indent=2))
     else:
         print(render_markdown(report))

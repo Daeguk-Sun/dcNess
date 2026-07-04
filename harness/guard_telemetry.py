@@ -175,6 +175,10 @@ def record_eval_case_result(
     report_file: str = "",
     judge_file: str = "",
     model: str = "",
+    llm_turns: Optional[int] = None,
+    report_chars: Optional[int] = None,
+    judge_chars: Optional[int] = None,
+    estimated_output_tokens: Optional[int] = None,
     cwd: Optional[Path] = None,
     base_dir: Optional[Path] = None,
 ) -> None:
@@ -193,6 +197,14 @@ def record_eval_case_result(
         event["judge_file"] = str(judge_file)
     if model:
         event["model"] = str(model)
+    for key, value in (
+        ("llm_turns", llm_turns),
+        ("report_chars", report_chars),
+        ("judge_chars", judge_chars),
+        ("estimated_output_tokens", estimated_output_tokens),
+    ):
+        if value is not None:
+            event[key] = max(int(value), 0)
     append_event(event, cwd=cwd, base_dir=base_dir)
 
 
@@ -340,6 +352,12 @@ def collect_eval_summary(
                 "attempts": 0,
                 "passes": 0,
                 "accuracy": 0.0,
+                "llm_turns": 0,
+                "estimated_output_tokens": 0,
+                "report_chars": 0,
+                "judge_chars": 0,
+                "avg_llm_turns": 0.0,
+                "avg_estimated_output_tokens": 0.0,
                 "last_ts": None,
                 "saturation_candidate": False,
             },
@@ -347,6 +365,12 @@ def collect_eval_summary(
         row["attempts"] += 1
         if event.get("passed") is True:
             row["passes"] += 1
+        row["llm_turns"] += max(int(event.get("llm_turns") or 0), 0)
+        row["estimated_output_tokens"] += max(
+            int(event.get("estimated_output_tokens") or 0), 0
+        )
+        row["report_chars"] += max(int(event.get("report_chars") or 0), 0)
+        row["judge_chars"] += max(int(event.get("judge_chars") or 0), 0)
         ts = str(event.get("ts") or "")
         if ts and (row["last_ts"] is None or ts > row["last_ts"]):
             row["last_ts"] = ts
@@ -356,6 +380,12 @@ def collect_eval_summary(
         attempts = int(row["attempts"])
         passes = int(row["passes"])
         row["accuracy"] = (passes / attempts) if attempts else 0.0
+        row["avg_llm_turns"] = (
+            row["llm_turns"] / attempts if attempts else 0.0
+        )
+        row["avg_estimated_output_tokens"] = (
+            row["estimated_output_tokens"] / attempts if attempts else 0.0
+        )
         row["saturation_candidate"] = attempts >= min_runs and attempts == passes
     return {
         "saturation_days": saturation_days,
@@ -396,9 +426,13 @@ def format_telemetry_report(
                 attempts = int(row.get("attempts") or 0)
                 passes = int(row.get("passes") or 0)
                 accuracy = float(row.get("accuracy") or 0.0)
+                avg_turns = float(row.get("avg_llm_turns") or 0.0)
+                avg_tokens = float(row.get("avg_estimated_output_tokens") or 0.0)
                 last = row.get("last_ts") or "-"
                 lines.append(
-                    f"- {case}: {passes}/{attempts} ({accuracy:.0%}), last={last}, {marker}"
+                    f"- {case}: {passes}/{attempts} ({accuracy:.0%}), "
+                    f"avg_turns={avg_turns:.1f}, avg_tokens≈{avg_tokens:.0f}, "
+                    f"last={last}, {marker}"
                 )
         else:
             lines.append("- no eval case telemetry events")
@@ -427,6 +461,10 @@ def _cli_record_eval(args: argparse.Namespace) -> int:
         report_file=args.report_file or "",
         judge_file=args.judge_file or "",
         model=args.model or "",
+        llm_turns=args.llm_turns,
+        report_chars=args.report_chars,
+        judge_chars=args.judge_chars,
+        estimated_output_tokens=args.estimated_output_tokens,
         cwd=Path(args.cwd) if args.cwd else None,
         base_dir=Path(args.base_dir) if args.base_dir else None,
     )
@@ -473,6 +511,10 @@ def _build_parser() -> argparse.ArgumentParser:
     p_eval.add_argument("--report-file", default="")
     p_eval.add_argument("--judge-file", default="")
     p_eval.add_argument("--model", default="")
+    p_eval.add_argument("--llm-turns", type=int, default=None)
+    p_eval.add_argument("--report-chars", type=int, default=None)
+    p_eval.add_argument("--judge-chars", type=int, default=None)
+    p_eval.add_argument("--estimated-output-tokens", type=int, default=None)
     p_eval.add_argument("--cwd", default="")
     p_eval.add_argument("--base-dir", default="")
     p_eval.set_defaults(func=_cli_record_eval)

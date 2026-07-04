@@ -13,7 +13,7 @@ dcNess 는 측정 인프라를 plug-in 본체에 같이 배포한다.
 |---|---|---|
 | [`scripts/measure_main_turns.py`](../../scripts/measure_main_turns.py) | Claude Code 세션의 메인 assistant turn 분포 (tool / text-only / thinking-only) + tool histogram + sub-agent 호출 분포 | 직접 실행 |
 | [`harness/run_review.py`](../../harness/run_review.py) | run 1개의 step별 비용·토큰 + 낭비(waste) finding | `/run-review` skill |
-| [`harness/benchmark_aggregate.py`](../../harness/benchmark_aggregate.py) | 여러 run 가로질러 fleet 집계 (PR 머지 성공률 / review rejection / escalate / blocked / waste top-N) | 직접 실행 |
+| [`harness/benchmark_aggregate.py`](../../harness/benchmark_aggregate.py) | 여러 run 가로질러 fleet 집계 (PR 머지 성공률 / review rejection / escalate / blocked / waste top-N / 재발 개선 후보) | 직접 실행 |
 
 guard 효능 재현은 별도다. dcNess 소스 checkout 에서만 제공되는
 `evals/guard_efficacy.py` 는 LLM 없이 hook/function 진입점을 직접 호출해 file boundary,
@@ -112,7 +112,9 @@ dcNess loop(`begin-run` ~ `end-run` 사이클)을 한 번이라도 돌린 run �
 ```
 
 `/run-review` 는 step별 비용, 낭비(WASTE — 같은 실패 재시도 / read-only Bash 낭비 /
-placeholder 누수 등) finding, 수정 제안을 리포트로 출력한다. 실 구현은
+placeholder 누수 등) finding, 수정 제안을 리포트로 출력한다. 현재 run 의 waste pattern
+이 같은 sessions root 의 과거 run 에서도 임계(기본 3회) 이상 반복됐으면 재발 기반 개선
+후보로 같이 표면화한다. 실 구현은
 [`harness/run_review.py`](../../harness/run_review.py) 다.
 
 ## 실측 샘플 (turn 절감)
@@ -149,8 +151,8 @@ notes 기록). 측정 스크립트의 재현 정확성은 알려진 두 세션(t
 
 위 두 도구가 run 1개를 보는 반면, [`harness/benchmark_aggregate.py`](../../harness/benchmark_aggregate.py)
 는 한 프로젝트의 **모든 run 의 `ledger.jsonl` 을 가로질러** 집계한다 — PR 머지 성공률,
-review rejection, escalate 수, blocked 수, waste top-N. `run_review.py` 의 검증된
-파서를 재사용한다.
+review rejection, escalate 수, blocked 수, waste top-N, 재발 기반 개선 후보.
+`run_review.py` 의 검증된 waste 분류를 재사용한다.
 
 ```sh
 # 활성 프로젝트 안에서 (sessions-root 자동 탐색) — $DCN 은 위 "스크립트 위치" 참조
@@ -159,7 +161,14 @@ python3 "$DCN"/harness/benchmark_aggregate.py
 # 경로 명시 + impl run 만 + JSON
 python3 "$DCN"/harness/benchmark_aggregate.py <repo>/.claude/harness-state/.sessions --entry-point impl
 python3 "$DCN"/harness/benchmark_aggregate.py <sessions-root> --json
+
+# 동일 waste pattern 이 2회 이상 반복되면 개선 후보로 표면화
+python3 "$DCN"/harness/benchmark_aggregate.py --recurrence-threshold 2
 ```
+
+재발 개선 후보의 기본 임계값은 3회다. 후보는 룰 추가, skill 박제, 기존 룰 제거 검토
+중 하나를 사람이 결정하기 위한 표면화일 뿐이며, `CLAUDE.md`·룰·skill·문서를 자동
+수정하지 않는다. GOOD 사례는 집계 대상이 아니다.
 
 ### multi-run 측정 recipe
 
@@ -193,7 +202,8 @@ done
 
 4. publish 가능한 표는 다음 항목을 같이 적는다: `run_count`, `pr_created_count`,
    `pr_merge_success_ratio`, `pr_reviewer_rejection_count/review_count`,
-   `blocked_event_count`, `escalate_count`, `waste_top`, source count, 한계.
+   `blocked_event_count`, `escalate_count`, `waste_top`, `improvement_candidates`,
+   source count, 한계.
 
 ### fleet 실측 (외부 활성 프로젝트 1곳)
 

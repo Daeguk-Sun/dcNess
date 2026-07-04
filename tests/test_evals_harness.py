@@ -156,6 +156,9 @@ class EvalsHarnessContractTests(unittest.TestCase):
                 '"kind":"eval_case_result"',
                 telemetry[0].read_text(encoding="utf-8"),
             )
+            telemetry_text = telemetry[0].read_text(encoding="utf-8")
+            self.assertIn('"llm_turns":2', telemetry_text)
+            self.assertIn('"estimated_output_tokens"', telemetry_text)
 
     def test_runner_persists_miss_report_and_judge_output_before_failing(self) -> None:
         """#893 — MISS runs must leave files for human/judge comparison."""
@@ -213,6 +216,8 @@ class EvalsHarnessContractTests(unittest.TestCase):
             text = telemetry[0].read_text(encoding="utf-8")
             self.assertIn('"kind":"eval_case_result"', text)
             self.assertIn('"passed":false', text)
+            self.assertIn('"llm_turns":2', text)
+            self.assertIn('"estimated_output_tokens"', text)
 
 
 if __name__ == "__main__":

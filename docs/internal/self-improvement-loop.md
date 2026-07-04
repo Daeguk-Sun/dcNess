@@ -54,7 +54,9 @@ Verify는 하나의 PASS로 뭉개지 않는다.
 
 `evals/run.sh`는 블라인드 검수 보고와 judge 채점 결과를 `.metrics/evals/` 아래 또는
 `EVAL_OUTPUT_DIR`로 지정한 위치에 저장한다. MISS가 났을 때 사람은 해당 파일을 직접 읽어
-agent 결함인지 judge 결함인지 구분한다.
+agent 결함인지 judge 결함인지 구분한다. 동시에 `guard-telemetry.jsonl`의
+`eval_case_result` 이벤트에 pass/fail, LLM 호출 수, 추정 출력 token 을 남겨 정답률은
+같지만 비용이 커진 회귀도 Sense 단계에서 볼 수 있게 한다.
 
 ## 첫 실증
 

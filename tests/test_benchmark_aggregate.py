@@ -357,6 +357,76 @@ class TestWasteTop(unittest.TestCase):
             self.assertIsInstance(rep.waste_top, list)
 
 
+class TestImprovementCandidates(unittest.TestCase):
+    def _run_with_retry_waste(self, tmp: Path, rid: str) -> Path:
+        same = "동일 실패 반복\nFAIL\n"
+        return _make_run_dir_ledger(
+            tmp, "s1", rid,
+            _run_events("impl", [
+                _step("code-validator", "v.md", enum="FAIL",
+                      ts="2026-06-01T00:01:00Z"),
+                _step("code-validator", "v.md", enum="FAIL",
+                      ts="2026-06-01T00:02:00Z"),
+            ]),
+            {"v.md": same},
+        )
+
+    def test_default_threshold_surfaces_recurrent_waste_candidate(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            runs = [
+                self._run_with_retry_waste(tmp, f"run-rc{i:06d}")
+                for i in range(3)
+            ]
+
+            rep = aggregate_runs(runs)
+
+            self.assertEqual(rep.recurrence_threshold, 3)
+            self.assertEqual(len(rep.improvement_candidates), 1)
+            candidate = rep.improvement_candidates[0]
+            self.assertEqual(candidate.pattern, "RETRY_SAME_FAIL")
+            self.assertEqual(candidate.count, 3)
+            self.assertEqual(candidate.threshold, 3)
+            self.assertIn("기존 룰 제거", candidate.suggestion)
+
+            md = render_markdown(rep)
+            self.assertIn("## 재발 기반 개선 후보", md)
+            self.assertIn("RETRY_SAME_FAIL", md)
+            self.assertIn("기존 룰 제거", md)
+
+    def test_recurrence_threshold_is_adjustable(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            runs = [
+                self._run_with_retry_waste(tmp, f"run-th{i:06d}")
+                for i in range(2)
+            ]
+
+            default_rep = aggregate_runs(runs)
+            lowered_rep = aggregate_runs(runs, recurrence_threshold=2)
+
+            self.assertEqual(default_rep.improvement_candidates, [])
+            self.assertEqual(len(lowered_rep.improvement_candidates), 1)
+            self.assertEqual(lowered_rep.improvement_candidates[0].threshold, 2)
+
+    def test_good_text_is_not_counted_as_recurrence_signal(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            runs = [
+                _make_run_dir_ledger(
+                    tmp, "s1", f"run-good{i:04d}",
+                    _run_events("impl", [_step("engineer", "e.md")]),
+                    {"e.md": "좋았던 점 GOOD\nIMPL_DONE\n"},
+                )
+                for i in range(3)
+            ]
+
+            rep = aggregate_runs(runs)
+
+            self.assertEqual(rep.waste_top, [])
+            self.assertEqual(rep.improvement_candidates, [])
+
+
 class TestEntryPointFilter(unittest.TestCase):
     def test_aggregate_sessions_filters_entry_point(self):
         with tempfile.TemporaryDirectory() as d:
