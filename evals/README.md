@@ -54,6 +54,11 @@ Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
 출력이다. MISS가 나면 두 파일을 대조해 agent 결함인지 judge 결함인지 분리한다. 이 파일은
 [#875](https://github.com/alruminum/dcNess/issues/875)의 추세 집계와
 [#894](https://github.com/alruminum/dcNess/issues/894)의 judge 보정 입력으로 소비된다.
+동시에 `guard-telemetry.jsonl` 에 케이스별 `eval_case_result` 이벤트를 append 한다.
+`dcness-helper guard-telemetry` 는 이 이벤트를 읽어 최근 window 에서 장기간 만점인
+케이스를 **노후 후보**로 표시한다. 이 표시는 케이스 삭제나 비활성화를 자동 실행하지 않는다.
+기본 산출 위치인 `.metrics/evals/**` 는 자동 집계 대상이다. `EVAL_OUTPUT_DIR` 를 repo 밖으로
+지정한 경우에는 `dcness-helper guard-telemetry --base-dir <EVAL_OUTPUT_DIR>` 로 그 산출물을 직접 본다.
 
 ## 채점 원리 — 정답표는 계약 수준으로만 쓴다
 

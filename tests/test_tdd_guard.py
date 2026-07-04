@@ -25,6 +25,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from harness.guard_telemetry import read_events
 from harness.session_state import read_fail_open_events
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -671,6 +672,16 @@ class TestBlockingSemantics(unittest.TestCase):
         self.assertIn("TDD GUARD", result.stderr)
         # 차단 reason 은 stderr 로 — stdout 에 deny JSON 을 더는 쓰지 않는다.
         self.assertNotIn("permissionDecision", result.stdout)
+        events = read_events(cwd=Path(self._tmp))
+        self.assertTrue(
+            any(
+                e.get("kind") == "guard_hit"
+                and e.get("guard") == "tdd-guard"
+                and e.get("category") == "missing_test"
+                for e in events
+            ),
+            events,
+        )
 
     def test_allow_exits_0(self):
         """매칭 테스트 존재 → exit 0 (allow)."""

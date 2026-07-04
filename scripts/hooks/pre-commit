@@ -10,12 +10,51 @@
 
 set -e
 
-current_branch=$(git rev-parse --abbrev-ref HEAD)
+resolve_dcness_root() {
+  legacy="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [ -n "$legacy" ] && [ -f "$legacy/harness/guard_telemetry.py" ]; then
+    echo "$legacy"
+    return 0
+  fi
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/harness/guard_telemetry.py" ]; then
+    echo "${CLAUDE_PLUGIN_ROOT}"
+    return 0
+  fi
+  cache_dir="${HOME}/.claude/plugins/cache/dcness/dcness"
+  if [ -d "$cache_dir" ]; then
+    latest=$(ls -1 "$cache_dir" 2>/dev/null | sort -V | tail -1)
+    if [ -n "$latest" ] && [ -f "$cache_dir/$latest/harness/guard_telemetry.py" ]; then
+      echo "$cache_dir/$latest"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+record_guard_hit() {
+  root="$(resolve_dcness_root 2>/dev/null || true)"
+  [ -n "$root" ] || return 0
+  PYTHONPATH="${root}:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-hit \
+    --guard git-pre-commit \
+    --category "$1" \
+    --detail "$2" \
+    --source git_hook >/dev/null 2>&1 || true
+}
+
+current_branch=$(
+  git symbolic-ref --quiet --short HEAD 2>/dev/null \
+    || git rev-parse --abbrev-ref HEAD 2>/dev/null \
+    || echo ""
+)
 if [ "$current_branch" = "main" ]; then
+  record_guard_hit "main_block" "main branch commit blocked"
   echo "ERROR: main 직접 commit 금지. branch 만든 후 commit + PR." >&2
   echo "  git checkout -b feature/<name>" >&2
   echo "  git commit ..." >&2
   exit 1
 fi
 
-sh scripts/check_python_tests.sh
+if ! sh scripts/check_python_tests.sh; then
+  record_guard_hit "python_tests" "pre-commit python test gate failed"
+  exit 1
+fi

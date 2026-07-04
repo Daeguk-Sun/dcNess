@@ -50,5 +50,16 @@ if [ -z "$PLUGIN_ROOT" ]; then
   exit 0
 fi
 
+record_guard_hit() {
+  PYTHONPATH="${PLUGIN_ROOT}:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-hit \
+    --guard git-commit-msg \
+    --category "$1" \
+    --detail "$2" \
+    --source git_hook >/dev/null 2>&1 || true
+}
+
 # 1. git-naming 검증 — TDD chain 폐기 (v0.2.16 — PreToolUse hook 으로 이전)
-node "$PLUGIN_ROOT/scripts/check_git_naming.mjs" --title "$COMMIT_TITLE" || exit 1
+if ! node "$PLUGIN_ROOT/scripts/check_git_naming.mjs" --title "$COMMIT_TITLE"; then
+  record_guard_hit "git_naming" "commit title rejected: $COMMIT_TITLE"
+  exit 1
+fi

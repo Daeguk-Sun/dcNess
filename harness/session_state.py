@@ -3859,6 +3859,32 @@ def _cli_status(args: Any) -> int:
     return 0
 
 
+def _cli_guard_telemetry(args: Any) -> int:
+    """Guard hit / eval saturation summary (#875)."""
+    from harness.guard_telemetry import (
+        collect_eval_summary,
+        collect_guard_summary,
+        format_telemetry_report,
+    )
+
+    guard_summary = collect_guard_summary(
+        cwd=Path(args.cwd) if args.cwd else None,
+        base_dir=Path(args.base_dir) if args.base_dir else None,
+        idle_days=args.idle_days,
+    )
+    eval_summary = collect_eval_summary(
+        cwd=Path(args.cwd) if args.cwd else None,
+        base_dir=Path(args.base_dir) if args.base_dir else None,
+        saturation_days=args.saturation_days,
+        saturation_min_runs=args.saturation_min_runs,
+    )
+    if args.json:
+        print(json.dumps({"guards": guard_summary, "evals": eval_summary}, ensure_ascii=False))
+    else:
+        print(format_telemetry_report(guard_summary, eval_summary))
+    return 0
+
+
 def _cli_routing(args: Any) -> int:
     """Local provider 분기 CLI.
 
@@ -4249,6 +4275,18 @@ def _build_arg_parser() -> Any:
 
     p_st = sub.add_parser("status", help="whitelist + 현재 cwd 상태")
     p_st.set_defaults(func=_cli_status)
+
+    p_gt = sub.add_parser(
+        "guard-telemetry",
+        help="#875 guard hit / eval saturation telemetry summary",
+    )
+    p_gt.add_argument("--idle-days", type=int, default=30)
+    p_gt.add_argument("--saturation-days", type=int, default=30)
+    p_gt.add_argument("--saturation-min-runs", type=int, default=3)
+    p_gt.add_argument("--cwd", default="")
+    p_gt.add_argument("--base-dir", default="")
+    p_gt.add_argument("--json", action="store_true")
+    p_gt.set_defaults(func=_cli_guard_telemetry)
 
     p_rt = sub.add_parser(
         "routing",

@@ -30,6 +30,14 @@ record_fail_open() {
     --detail "$2" >/dev/null 2>&1 || true
 }
 
+record_guard_hit() {
+  python3 -m harness.guard_telemetry record-hit \
+    --guard tdd-guard \
+    --category "$1" \
+    --detail "$2" \
+    --source plugin_hook >/dev/null 2>&1 || true
+}
+
 # 활성화 게이트 (#597 커밋3) — 미활성 프로젝트는 즉시 allow (no-op).
 # 나머지 6 wrapper 는 이미 보유. tdd-guard 만 누락이라 비활성 프로젝트서도 deny 발동하던 결함 수정.
 python3 -m harness.session_state is-active >/dev/null 2>&1 || allow
@@ -98,6 +106,7 @@ PY
     TARGET_ERR=$(printf '%s' "$TARGET_PAYLOAD" | bash "$0" 2>&1 >/dev/null)
     _tdd_target_rc=$?
     if [ "$_tdd_target_rc" -eq 2 ]; then
+      record_guard_hit "bash_missing_test" "Bash write target ${BASH_TARGET} missing matching test"
       deny "TDD GUARD[Bash]: Bash write target '${BASH_TARGET}' failed matching-test enforcement.
 
 ${TARGET_ERR}"
@@ -254,6 +263,7 @@ if ! has_test_for "$FILE_PATH"; then
     */src/*) SRC_ROOT="${FILE_PATH%%/src/*}/src" ;;
     *) SRC_ROOT="${PROJECT_ROOT}/src" ;;
   esac
+  record_guard_hit "missing_test" "$FILE_PATH"
   deny "TDD GUARD: '${BASE}' 에 대한 테스트 파일이 존재하지 않습니다. 구현 코드를 작성하기 *전*에 테스트를 먼저 작성하세요.
 
 권장 위치 (먼저 시도):

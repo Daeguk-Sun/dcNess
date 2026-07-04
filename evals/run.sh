@@ -83,9 +83,27 @@ $report"
     if [ "$verdict" = "RESULT: PASS" ]; then
       pass=$((pass + 1))
       echo "[eval] $case_name run $i: 정답"
+      PYTHONPATH="$ROOT:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-eval \
+        --case "$case_name" \
+        --passed \
+        --run-index "$i" \
+        --total-runs "$RUNS" \
+        --report-file "$report_file" \
+        --judge-file "$judge_file" \
+        --model "$MODEL" \
+        --base-dir "$OUTPUT_DIR" >/dev/null 2>&1 || true
     else
       echo "[eval] $case_name run $i: 오답"
       printf '%s\n' "$grade" | grep -E "^(OK|MISS) " || true
+      PYTHONPATH="$ROOT:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-eval \
+        --case "$case_name" \
+        --failed \
+        --run-index "$i" \
+        --total-runs "$RUNS" \
+        --report-file "$report_file" \
+        --judge-file "$judge_file" \
+        --model "$MODEL" \
+        --base-dir "$OUTPUT_DIR" >/dev/null 2>&1 || true
     fi
   done
 
