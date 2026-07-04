@@ -57,7 +57,7 @@ gh issue create --title "<title>" --body-file <brief.md> --label "<IssueType>"
 
 issue 생성 시 `epic`, `feature`, `story`, `task`, `subTask`, `bug` 중 정확히 하나의 IssueType label 을 붙인다. Priority 는 Issue Brief 본문의 `Priority` 줄이 진본이며 priority label 은 만들지 않는다. 새 issue 의 Status 의미는 `open` + `in-progress` label 없음, 즉 `Todo` 다.
 
-선택적으로 Project 보드를 쓰는 repo 는 전환기 호환을 위해 `register-issue` 로 Project item 을 backfill 할 수 있다. 이 경로는 item 이 없으면 추가하고 `Status=Todo` + `IssueType` + `Priority` 를 설정한다.
+선택적으로 Project 보드를 쓰는 repo 는 사람용 보드 미러를 위해 `register-issue` 로 Project item 을 backfill 할 수 있다. 이 경로는 item 이 없으면 추가하고 `Status=Todo` + `IssueType` + `Priority` 를 설정한다.
 
 ```bash
 node scripts/github_project_lifecycle.mjs register-issue \
@@ -84,7 +84,7 @@ GitHub 조회가 실패하면 실패를 명시하고 로컬 대안 경로를 안
 
 ### 작업 시작 — in-progress label
 
-특정 GitHub issue 를 대상으로 `/spec`, `/design`, `/impl`, `/ux` 같은 설계나 구현 흐름을 실제 시작하면 메인은 시작 직전에 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 전환기 호환으로 Project item `Status=In progress` 도 함께 보정한다.
+특정 GitHub issue 를 대상으로 `/spec`, `/design`, `/impl`, `/ux` 같은 설계나 구현 흐름을 실제 시작하면 메인은 시작 직전에 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 label 전이 뒤에 Project item `Status=In progress` 이동을 best-effort 로 1회 시도한다. 좌표 부재는 정상 skip 이고, item 부재·권한 실패·field/option 불일치·API 실패는 warning 으로만 보고한다.
 
 ```bash
 node scripts/github_project_lifecycle.mjs start-work \
@@ -93,11 +93,11 @@ node scripts/github_project_lifecycle.mjs start-work \
   --apply
 ```
 
-Project 보정까지 원하면 기존처럼 `--owner` / `--project` 를 명시하거나 repo variable `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` 를 둔다. `--apply` 없이 실행하면 `in-progress` label 잔존 여부와, Project 좌표가 있는 경우 Status drift 를 함께 보고한다.
+Project 미러까지 원하면 `--owner` / `--project` 를 명시하거나 repo variable `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` 를 둔다. `--apply` 없이 실행하면 `in-progress` label 잔존 여부와, Project 좌표가 있는 경우 Status drift warning 을 함께 보고한다. 이때 명령의 실패 판정은 label 상태만 본다.
 
 ### PR merge 후처리 — close + label cleanup
 
-default branch 로 PR merge 가 끝난 뒤 GitHub closing reference 가 issue close 를 발동한다. 후처리 경로는 PR body 또는 GitHub closing issue reference 에서 완료 후보 issue 를 찾고, `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 전환기 호환으로 Project item `Status=Done` 도 함께 보정한다.
+default branch 로 PR merge 가 끝난 뒤 GitHub closing reference 가 issue close 를 발동한다. 후처리 경로는 PR body 또는 GitHub closing issue reference 에서 완료 후보 issue 를 찾고, `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 label 제거 뒤에 Project item `Status=Done` 이동을 best-effort 로 1회 시도한다. 보드 미러 실패는 warning 으로만 보고하고 label cleanup 성공을 실패로 바꾸지 않는다.
 
 ```bash
 node scripts/github_project_lifecycle.mjs pr-merged \
@@ -110,7 +110,7 @@ node scripts/github_project_lifecycle.mjs pr-merged \
 
 ### IssueType / repo label drift
 
-issue 는 IssueType repo label 을 정확히 하나 가져야 하며, closed issue 에 `in-progress` label 이 남아 있으면 drift 다. Project 좌표가 있는 경우 선택적 Project `IssueType`/`Status`/`Priority` drift 도 함께 보고한다.
+issue 는 IssueType repo label 을 정확히 하나 가져야 하며, closed issue 에 `in-progress` label 이 남아 있으면 drift 다. `/next-work` 후보 선정과 drift 실패 판정은 보드를 읽지 않는다. 단, Project 좌표가 설정된 경우 drift 리포트는 보드 상태를 best-effort 로 읽어 Project `IssueType`/`Status`/`Priority` 불일치를 warning 으로만 출력할 수 있다.
 
 ```bash
 node scripts/github_project_lifecycle.mjs validate-issue \
@@ -122,12 +122,12 @@ node scripts/github_project_lifecycle.mjs validate-issue \
 
 ```text
 issue #663: closed issue retains in-progress label; remove in-progress.
-issue #663: Project IssueType=feature, repo label=bug. Set Project IssueType and exactly one matching repo label to the same value.
+[dcness-project] WARN: issue #663: Project IssueType=feature, repo label=bug. Set Project IssueType and exactly one matching repo label to the same value.
 ```
 
 ### CI/CD harness
 
-`/init-dcness` 는 선택적으로 `github-project-lifecycle` thin workflow 를 활성 repo 에 설치한다. 이 workflow 는 본 repo 의 composite action 을 호출해 issue label/type drift 를 PR/issue 이벤트에서 검증하고, merge 된 PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project v2 보정을 쓰는 repo 만 `DCNESS_PROJECT_TOKEN` secret 과 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` variables 가 필요하다. token 이 없으면 Project 보정은 graceful degrade 하며 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
+`/init-dcness` 는 선택적으로 `github-project-lifecycle` thin workflow 를 활성 repo 에 설치한다. 이 workflow 는 본 repo 의 composite action 을 호출해 issue label/type drift 를 PR/issue 이벤트에서 검증하고, merge 된 PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project v2 미러를 쓰는 repo 만 `DCNESS_PROJECT_TOKEN` secret 과 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` variables 가 필요하다. token 이 없거나 Project API 가 실패하면 Project 미러만 warning 으로 skip 되고 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
 
 ## 미등록 허용 모드
 

@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import tempfile
 import textwrap
 import unittest
 from pathlib import Path
@@ -71,6 +73,45 @@ def run_node(expression: str) -> dict:
 
 
 class GithubProjectLifecycleScriptTests(unittest.TestCase):
+    def run_cli_with_fake_gh(self, args: list[str], fake_gh_body: str) -> tuple[subprocess.CompletedProcess[str], list[list[str]]]:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            log_path = tmp / "gh-calls.jsonl"
+            fake_gh = bin_dir / "gh"
+            fake_gh.write_text(
+                "#!/usr/bin/env python3\n"
+                "import json, os, sys\n"
+                "from pathlib import Path\n"
+                "log_path = Path(os.environ['GH_FAKE_LOG'])\n"
+                "with log_path.open('a', encoding='utf-8') as handle:\n"
+                "    handle.write(json.dumps(sys.argv[1:]) + '\\n')\n"
+                + textwrap.dedent(fake_gh_body).lstrip(),
+                encoding="utf-8",
+            )
+            fake_gh.chmod(0o755)
+            env = {
+                **os.environ,
+                "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
+                "GH_FAKE_LOG": str(log_path),
+            }
+            completed = subprocess.run(
+                ["node", str(SCRIPT), *args],
+                cwd=ROOT,
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                env=env,
+            )
+            calls = [
+                json.loads(line)
+                for line in log_path.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            return completed, calls
+
     def test_standard_project_fields_require_all_options(self) -> None:
         fields = [
             {
@@ -963,6 +1004,275 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
         self.assertEqual(
             {"validateStatus": "Todo", "validatePriority": "major"}, result
         )
+
+    def test_start_work_apply_keeps_label_success_when_project_lookup_fails(self) -> None:
+        completed, calls = self.run_cli_with_fake_gh(
+            [
+                "start-work",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--issue",
+                "891",
+                "--apply",
+            ],
+            """
+            args = sys.argv[1:]
+            if args[:2] == ['issue', 'view']:
+                print(json.dumps({
+                    'number': 891,
+                    'labels': [{'name': 'feature'}],
+                    'state': 'OPEN',
+                    'url': 'https://github.com/Daeguk-Sun/dcNess/issues/891',
+                }))
+                sys.exit(0)
+            if args[:2] == ['label', 'create']:
+                sys.exit(0)
+            if args[:2] == ['issue', 'edit']:
+                sys.exit(0)
+            if args[:2] == ['project', 'view']:
+                print('HTTP 403: resource not accessible', file=sys.stderr)
+                sys.exit(1)
+            print('unexpected gh call: ' + ' '.join(args), file=sys.stderr)
+            sys.exit(2)
+            """,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("WARN", completed.stderr)
+        self.assertIn(["issue", "edit", "891", "--repo", "Daeguk-Sun/dcNess", "--add-label", "in-progress"], calls)
+        self.assertLess(
+            calls.index(["issue", "edit", "891", "--repo", "Daeguk-Sun/dcNess", "--add-label", "in-progress"]),
+            calls.index(["project", "view", "7", "--owner", "Daeguk-Sun", "--format", "json"]),
+        )
+
+    def test_start_work_apply_fails_when_label_transition_fails(self) -> None:
+        completed, calls = self.run_cli_with_fake_gh(
+            [
+                "start-work",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--issue",
+                "891",
+                "--apply",
+            ],
+            """
+            args = sys.argv[1:]
+            if args[:2] == ['issue', 'view']:
+                print(json.dumps({
+                    'number': 891,
+                    'labels': [{'name': 'feature'}],
+                    'state': 'OPEN',
+                    'url': 'https://github.com/Daeguk-Sun/dcNess/issues/891',
+                }))
+                sys.exit(0)
+            if args[:2] == ['label', 'create']:
+                sys.exit(0)
+            if args[:2] == ['issue', 'edit']:
+                print('HTTP 403: resource not accessible', file=sys.stderr)
+                sys.exit(1)
+            if args[:2] == ['project', 'view']:
+                print(json.dumps({'id': 'project-id'}))
+                sys.exit(0)
+            print('unexpected gh call: ' + ' '.join(args), file=sys.stderr)
+            sys.exit(2)
+            """,
+        )
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("gh issue edit 891", completed.stderr)
+        self.assertNotIn(["project", "view", "7", "--owner", "Daeguk-Sun", "--format", "json"], calls)
+
+    def test_pr_merged_apply_warns_but_succeeds_when_project_item_missing(self) -> None:
+        completed, calls = self.run_cli_with_fake_gh(
+            [
+                "pr-merged",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--body",
+                "Closes #891",
+                "--apply",
+            ],
+            """
+            args = sys.argv[1:]
+            if args[:2] == ['project', 'view']:
+                print(json.dumps({'id': 'project-id'}))
+                sys.exit(0)
+            if args[:2] == ['project', 'field-list']:
+                print(json.dumps({'fields': []}))
+                sys.exit(0)
+            if args[:2] == ['issue', 'view']:
+                print(json.dumps({
+                    'number': int(args[2]),
+                    'labels': [{'name': 'feature'}, {'name': 'in-progress'}],
+                    'state': 'CLOSED',
+                    'url': 'https://github.com/Daeguk-Sun/dcNess/issues/' + args[2],
+                }))
+                sys.exit(0)
+            if args[:2] == ['issue', 'edit']:
+                sys.exit(0)
+            if args[:2] == ['project', 'item-list']:
+                print(json.dumps({'items': []}))
+                sys.exit(0)
+            print('unexpected gh call: ' + ' '.join(args), file=sys.stderr)
+            sys.exit(2)
+            """,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("WARN", completed.stderr)
+        self.assertIn(["issue", "edit", "891", "--repo", "Daeguk-Sun/dcNess", "--remove-label", "in-progress"], calls)
+        self.assertLess(
+            calls.index(["issue", "edit", "891", "--repo", "Daeguk-Sun/dcNess", "--remove-label", "in-progress"]),
+            calls.index(["project", "view", "7", "--owner", "Daeguk-Sun", "--format", "json"]),
+        )
+        self.assertNotIn("item-edit", " ".join(" ".join(call) for call in calls))
+
+    def test_pr_merged_apply_fails_when_label_cleanup_fails(self) -> None:
+        completed, calls = self.run_cli_with_fake_gh(
+            [
+                "pr-merged",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--body",
+                "Closes #891",
+                "--apply",
+            ],
+            """
+            args = sys.argv[1:]
+            if args[:2] == ['issue', 'view']:
+                print(json.dumps({
+                    'number': int(args[2]),
+                    'labels': [{'name': 'feature'}, {'name': 'in-progress'}],
+                    'state': 'CLOSED',
+                    'url': 'https://github.com/Daeguk-Sun/dcNess/issues/' + args[2],
+                }))
+                sys.exit(0)
+            if args[:2] == ['issue', 'edit']:
+                print('HTTP 403: resource not accessible', file=sys.stderr)
+                sys.exit(1)
+            if args[:2] == ['project', 'view']:
+                print(json.dumps({'id': 'project-id'}))
+                sys.exit(0)
+            print('unexpected gh call: ' + ' '.join(args), file=sys.stderr)
+            sys.exit(2)
+            """,
+        )
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("gh issue edit 891", completed.stderr)
+        self.assertNotIn(["project", "view", "7", "--owner", "Daeguk-Sun", "--format", "json"], calls)
+
+    def test_validate_issue_reports_project_drift_as_warning_without_failing(self) -> None:
+        completed, _calls = self.run_cli_with_fake_gh(
+            [
+                "validate-issue",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--issue",
+                "891",
+                "--expected-status",
+                "In progress",
+            ],
+            """
+            args = sys.argv[1:]
+            if args[:2] == ['project', 'view']:
+                print(json.dumps({'id': 'project-id'}))
+                sys.exit(0)
+            if args[:2] == ['project', 'field-list']:
+                print(json.dumps({'fields': []}))
+                sys.exit(0)
+            if args[:2] == ['issue', 'view']:
+                print(json.dumps({
+                    'number': 891,
+                    'labels': [{'name': 'feature'}],
+                    'state': 'OPEN',
+                    'url': 'https://github.com/Daeguk-Sun/dcNess/issues/891',
+                }))
+                sys.exit(0)
+            if args[:2] == ['project', 'item-list']:
+                print(json.dumps({'items': [{
+                    'id': 'item-id',
+                    'content': {'number': 891, 'repository': 'Daeguk-Sun/dcNess'},
+                    'status': 'Todo',
+                    'issueType': 'feature',
+                    'priority': 'major',
+                }]}))
+                sys.exit(0)
+            print('unexpected gh call: ' + ' '.join(args), file=sys.stderr)
+            sys.exit(2)
+            """,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("IssueType label=feature", completed.stdout)
+        self.assertIn("WARN", completed.stderr)
+        self.assertIn("expected=In progress", completed.stderr)
+
+    def test_validate_issue_still_fails_on_label_contract_violation(self) -> None:
+        completed, _calls = self.run_cli_with_fake_gh(
+            [
+                "validate-issue",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--issue",
+                "891",
+            ],
+            """
+            args = sys.argv[1:]
+            if args[:2] == ['project', 'view']:
+                print(json.dumps({'id': 'project-id'}))
+                sys.exit(0)
+            if args[:2] == ['project', 'field-list']:
+                print(json.dumps({'fields': []}))
+                sys.exit(0)
+            if args[:2] == ['issue', 'view']:
+                print(json.dumps({
+                    'number': 891,
+                    'labels': [{'name': 'feature'}, {'name': 'bug'}],
+                    'state': 'OPEN',
+                    'url': 'https://github.com/Daeguk-Sun/dcNess/issues/891',
+                }))
+                sys.exit(0)
+            if args[:2] == ['project', 'item-list']:
+                print(json.dumps({'items': [{
+                    'id': 'item-id',
+                    'content': {'number': 891, 'repository': 'Daeguk-Sun/dcNess'},
+                    'status': 'Todo',
+                    'issueType': 'feature',
+                    'priority': 'major',
+                }]}))
+                sys.exit(0)
+            print('unexpected gh call: ' + ' '.join(args), file=sys.stderr)
+            sys.exit(2)
+            """,
+        )
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("expected exactly one IssueType label", completed.stdout)
 
 
 if __name__ == "__main__":

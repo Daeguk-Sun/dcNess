@@ -3,7 +3,7 @@
 > **Status**: ACTIVE
 > **Scope**: dcNess 표준 issue/label lifecycle, 선택적 GitHub Project v2 축, repo label, 상태 전이의 SSOT. 실행 메커니즘은 [`issue-lifecycle.md`](issue-lifecycle.md), git/PR trailer 룰은 [`git-spec.md`](git-spec.md), `/to-issue` 입력 필드 요약은 [`../../skills/to-issue/issue-fields.md`](../../skills/to-issue/issue-fields.md)를 함께 본다.
 
-dcNess 활성 repo 의 기계 SSOT 는 GitHub issue 자체다. `IssueType` 은 repo label 6종 중 정확히 1개, `Priority` 는 Issue Brief 본문 줄, `Status` 는 issue open/closed 상태와 `in-progress` label 로 판정한다. GitHub Project v2 의 `Status`, `IssueType`, `Priority` 세 축은 원하는 프로젝트가 쓰는 사람용 파생 뷰이며, 전환기 호환 보정 대상이다. `/init-dcness` bootstrap 은 선택 시 Project 축과 lifecycle repo label 7종(`IssueType` 6종 + `in-progress`)을 점검하고, `--apply` 경로에서는 부족한 repo label 과 새 Project field 를 만들 수 있다. 기존 Project field 에 option 이 빠진 경우는 GitHub CLI 가 option 추가를 직접 지원하지 않으므로 명확한 복구 안내를 낸다.
+dcNess 활성 repo 의 기계 SSOT 는 GitHub issue 자체다. `IssueType` 은 repo label 6종 중 정확히 1개, `Priority` 는 Issue Brief 본문 줄, `Status` 는 issue open/closed 상태와 `in-progress` label 로 판정한다. GitHub Project v2 의 `Status`, `IssueType`, `Priority` 세 축은 원하는 프로젝트가 쓰는 사람용 파생 뷰이며, dcNess 는 좌표가 설정된 repo 에서만 best-effort 로 보드 상태를 미러한다. Project 좌표 부재는 정상 skip 이고, Project item 부재·권한 실패·field/option 불일치·API 실패는 warning 으로 보고하되 issue/label lifecycle 의 성패를 바꾸지 않는다. `/init-dcness` bootstrap 은 선택 시 Project 축과 lifecycle repo label 7종(`IssueType` 6종 + `in-progress`)을 점검하고, `--apply` 경로에서는 부족한 repo label 과 새 Project field 를 만들 수 있다. 기존 Project field 에 option 이 빠진 경우는 GitHub CLI 가 option 추가를 직접 지원하지 않으므로 명확한 복구 안내를 낸다.
 
 ## Status
 
@@ -56,7 +56,7 @@ label drift 는 어떤 issue 의 lifecycle label 이 계약과 다른지 보여�
 issue #663: closed issue retains in-progress label; remove in-progress.
 ```
 
-IssueType / repo label drift 는 어떤 issue 에서 어떤 값이 어긋났는지 보여준다. Project 좌표가 있는 경우 전환기 호환을 위해 Project field drift 도 함께 보고한다.
+IssueType / repo label drift 는 어떤 issue 에서 어떤 label 계약이 어긋났는지 보여준다. Project 좌표가 있는 경우 보드를 best-effort 로 읽어 Project field drift 도 warning 으로 보고할 수 있다. 이 warning 은 사람이 보드를 미러로 정리할 때 쓰는 정보이며, drift 실패 판정은 IssueType label 유일성, `in-progress` label 유일성, closed issue 의 `in-progress` 잔존 같은 issue/label 규칙만 본다.
 
 예:
 
