@@ -320,6 +320,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         """#877 — component count drift should be avoided at the source, not patched by deny-list."""
         self.assertNotIn("옛 agent 카운트", self.cross_ref_script)
         self.assertNotIn("옛 hook 카운트", self.cross_ref_script)
+        self.assertNotIn("옛 loop 카운트", self.cross_ref_script)
         self.assertNotIn("현재 12 종", self.cross_ref_script)
         self.assertNotIn("현재 8 hook", self.cross_ref_script)
 

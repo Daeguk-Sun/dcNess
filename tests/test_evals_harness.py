@@ -151,6 +151,58 @@ class EvalsHarnessContractTests(unittest.TestCase):
             self.assertIn("blind report", report_files[0].read_text(encoding="utf-8"))
             self.assertIn("RESULT: PASS", judge_files[0].read_text(encoding="utf-8"))
 
+    def test_runner_persists_miss_report_and_judge_output_before_failing(self) -> None:
+        """#893 — MISS runs must leave files for human/judge comparison."""
+        with TemporaryDirectory() as td:
+            tmp = Path(td)
+            bin_dir = tmp / "bin"
+            out_dir = tmp / "eval-output"
+            bin_dir.mkdir()
+            fake_claude = bin_dir / "claude"
+            fake_claude.write_text(
+                "\n".join(
+                    [
+                        "#!/usr/bin/env bash",
+                        "set -euo pipefail",
+                        "prompt=''",
+                        "while [ \"$#\" -gt 0 ]; do",
+                        "  case \"$1\" in",
+                        "    -p) shift; prompt=\"$1\" ;;",
+                        "  esac",
+                        "  shift || true",
+                        "done",
+                        "if printf '%s' \"$prompt\" | grep -q '\\[정답표\\]'; then",
+                        "  printf 'MISS FAKE\\nRESULT: FAIL\\n'",
+                        "else",
+                        "  printf 'blind miss report with concrete evidence\\n'",
+                        "fi",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            fake_claude.chmod(fake_claude.stat().st_mode | stat.S_IEXEC)
+
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["EVAL_OUTPUT_DIR"] = str(out_dir)
+            env["EVAL_RUNS"] = "1"
+            result = subprocess.run(
+                ["bash", str(EVALS / "run.sh")],
+                cwd=str(ROOT),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+            report_files = sorted(out_dir.glob("*/run-1-report.md"))
+            judge_files = sorted(out_dir.glob("*/run-1-judge.md"))
+            self.assertGreaterEqual(len(report_files), 1)
+            self.assertEqual(len(report_files), len(judge_files))
+            self.assertIn("blind miss report", report_files[0].read_text(encoding="utf-8"))
+            self.assertIn("RESULT: FAIL", judge_files[0].read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
