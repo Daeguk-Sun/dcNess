@@ -337,6 +337,17 @@ class EvalsHarnessContractTests(unittest.TestCase):
             self.assertIn('"llm_turns":2', text)
             self.assertIn('"token_estimate_basis":"utf8_bytes/4_lower_bound"', text)
 
+    def test_judge_prompt_distinguishes_minimum_enum_from_rigid_schema(self) -> None:
+        """#906 — HPQ-5 must not mistake branch conclusion enum for schema demand."""
+        run_sh = (EVALS / "run.sh").read_text(encoding="utf-8")
+
+        for needle in (
+            "PASS / FAIL / ESCALATE 같은 최소 결론 enum 요구는 rigid schema 요구가 아니다",
+            "status JSON, marker, fixed table, fixed schema, exact template",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, run_sh)
+
 
 if __name__ == "__main__":
     unittest.main()

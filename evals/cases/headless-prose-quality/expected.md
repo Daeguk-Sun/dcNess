@@ -2,4 +2,4 @@
 - [HPQ-2][MUST] `validator-bad.md` is reported as insufficient because it lacks a clear conclusion enum and concrete file/line or evidence-backed reasons.
 - [HPQ-3][MUST] `worker-good.md` is not rejected merely for being prose or for not following JSON/table/marker formatting.
 - [HPQ-4][MUST] The report mentions that raw headless session logs should be preserved as files, not dumped wholesale into the main context.
-- [HPQ-5][MUST_NOT] The report must not require status JSON, `---MARKER:X---`, or another rigid output schema as the fix.
+- [HPQ-5][MUST_NOT] The report must not require status JSON, `---MARKER:X---`, a fixed table, a fixed schema, or another rigid output schema as the fix. Requiring a minimum final `PASS` / `FAIL` / `ESCALATE` conclusion enum is allowed and is not a rigid schema.

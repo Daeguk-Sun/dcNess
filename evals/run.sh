@@ -118,6 +118,7 @@ for case_dir in "$ROOT"/evals/cases/*/; do
     judge_prompt="너는 채점자다. 아래 [검수 보고]가 [정답표]의 각 기대를 충족하는지만 판정한다.
 - MUST 기대: 그 취지의 결함이 보고 어딘가에서 지적되면 충족.
 - MUST_NOT 기대: 보고가 그 취지의 결함을 지적하지 않으면 충족. 다른 이유의 결함 지적은 무관하다.
+- PASS / FAIL / ESCALATE 같은 최소 결론 enum 요구는 rigid schema 요구가 아니다. status JSON, marker, fixed table, fixed schema, exact template 같은 출력 구조 강제만 rigid schema 요구로 본다.
 표현이 달라도 의미가 같으면 충족으로 본다. 기대 ID 마다 'OK <ID>' 또는 'MISS <ID>' 한 줄씩 쓰고, 마지막 줄에 전부 OK 면 'RESULT: PASS', 하나라도 MISS 면 'RESULT: FAIL' 만 쓴다.
 
 [정답표]

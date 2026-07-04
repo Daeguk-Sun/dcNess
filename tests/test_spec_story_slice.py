@@ -90,6 +90,19 @@ class SpecStorySliceContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.product_acceptance)
 
+    def test_product_acceptance_spec_mode_tracks_first_core_e2e_closure(
+        self,
+    ) -> None:
+        for needle in (
+            "핵심 제품 약속의 첫 end-to-end 동작 검증이 어느 Story 에서 닫히는지",
+            "첫 Story 또는 가능한 한 앞 Story 가 아니라 뒤 Story 로 밀리면 순서 gap",
+            "각 Story 에 독립적인 하위 동작 증분이 있어도 이 순서 gap 이 자동 해소되지 않는다",
+            "중간 렌더나 미리보기만으로 핵심 제품 약속이 닫혔다고 보지 않는다",
+            "export, upload, publish",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.product_acceptance)
+
     def test_product_acceptance_report_includes_user_runnable_path(self) -> None:
         self.assertIn(
             "사용자가 지금 직접 확인할 수 있는 실행 동선(실행 명령, 화면 진입 경로 등) 안내",
