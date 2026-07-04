@@ -87,7 +87,7 @@
 
 - **main-block**: `scripts/hooks/pre-commit` — main 직접 commit 차단
 - **git-naming**: `scripts/hooks/commit-msg` (로컬) + `git-naming-validation.yml` (CI) — 브랜치·커밋·PR 제목 형식 강제
-- **pytest**: `scripts/check_python_tests.sh` — harness/tests/agents 변경 시만
+- **pytest**: `scripts/check_python_tests.sh` (로컬 pre-commit) + `python-tests.yml` (CI — unittest discover, doc-path-integrity 포함) — harness/tests/agents 변경 시만
 - **plugin-manifest**: `scripts/check_plugin_manifest.mjs` (CI `plugin-manifest.yml`) — `.claude-plugin/plugin.json` version / manifest 정합 검증
 - **pr-body**: `scripts/check_pr_body.mjs` (CI `pr-body-validation.yml`) — PR 본문 템플릿 충족 검증
 - **public-surface**: `scripts/check_public_surface.mjs` (CI `public-surface-validation.yml`) — 공개 workflow/command/agent 진입점 계약 검증
@@ -142,11 +142,13 @@ cp scripts/hooks/pre-push .git/hooks/pre-push && chmod +x .git/hooks/pre-push
 cp scripts/hooks/post-checkout .git/hooks/post-checkout && chmod +x .git/hooks/post-checkout
 
 # 하네스 단위 테스트 실행 (Python 3.11 기준 — macOS system python3 는 3.9 일 수 있음)
-python3.11 -m unittest discover -s tests -v
+python3.11 -m unittest discover -s tests -v < /dev/null   # stdin 리다이렉트 필수 — 안 닫으면 stdin 읽는 테스트가 무한 hang (#723)
 python3.11 -m unittest tests.test_signal_io -v   # 단일 모듈
 node scripts/check_public_surface.mjs
-python3.11 -m pip install -r requirements-quality.txt
-bash scripts/check_static_quality.sh
+
+# static-quality: system python 은 PEP 668 (externally-managed) 로 pip install 거부 — venv 사용
+python3.11 -m venv /tmp/dcness-quality-venv && /tmp/dcness-quality-venv/bin/pip install -q -r requirements-quality.txt
+PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality.sh
 ```
 
 > 빌드 / 런타임 명령어는 코드 도입 시 본 섹션에 추가 (별도 Task-ID).
@@ -174,4 +176,9 @@ bash scripts/check_static_quality.sh
 
 ## 환경변수
 
-현재 없음. 도입 시 본 섹션에 (이름·용도·기본값·필수 여부) 추가.
+| 이름 | 용도 | 기본값 | 필수 |
+|---|---|---|---|
+| `EVAL_RUNS` / `EVAL_MODEL` / `EVAL_OUTPUT_DIR` / `EVAL_RELEASE_CHECK` / `EVAL_STRICT_CASES` | `evals/run.sh` 행동 eval — 반복 수 / 모델 / 산출물 위치 / 릴리즈 N/N 모드 / 핵심 케이스 목록 | `1` / `sonnet` / `.metrics/evals/run-*` / `0` / 핵심 2케이스 | X |
+| `DCNESS_FORCE_ENABLE` | is-active 게이트 임시 활성 (디버깅) | 미설정 | X |
+| `DCNESS_PROJECTS_FILE` | `scripts/loop_diagnose.py` 의 활성 프로젝트 whitelist 경로 override (테스트용) | `~/.claude/plugins/data/dcness-dcness/projects.json` | X |
+| `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` | git hook telemetry 히트의 active run 귀속 (headless worker 컨텍스트) | 미설정 | X |
