@@ -19,6 +19,8 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from harness.guard_telemetry import read_events
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -87,6 +89,16 @@ class CatastrophicGateWrapperExitTests(unittest.TestCase):
             f"위반은 exit 2 여야 차단됨. stdout={result.stdout!r} stderr={result.stderr!r}",
         )
         self.assertIn("순서 차단 훅: engineer", result.stderr)
+        events = read_events(base_dir=self.base)
+        self.assertTrue(
+            any(
+                e.get("kind") == "guard_hit"
+                and e.get("guard") == "catastrophic-gate"
+                and e.get("category") == "order_gate"
+                for e in events
+            ),
+            events,
+        )
 
     def test_allow_exits_0(self) -> None:
         from harness.session_state import run_dir
@@ -145,6 +157,16 @@ class FileGuardWrapperExitTests(unittest.TestCase):
             f"인프라 write 는 exit 2 여야 차단됨. stdout={result.stdout!r} stderr={result.stderr!r}",
         )
         self.assertIn("agent-boundary", result.stderr)
+        events = read_events(base_dir=self.base)
+        self.assertTrue(
+            any(
+                e.get("kind") == "guard_hit"
+                and e.get("guard") == "file-guard"
+                and e.get("category") == "write_boundary"
+                for e in events
+            ),
+            events,
+        )
 
     def test_src_write_exits_0(self) -> None:
         # engineer 의 src/ Write 는 허용 → exit 0.

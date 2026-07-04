@@ -138,6 +138,32 @@ def _append_trace_safe(
         pass
 
 
+def _record_guard_hit_safe(
+    guard: str,
+    category: str,
+    detail: str,
+    *,
+    sid: str = "",
+    rid: str = "",
+    base_dir: Optional[Path] = None,
+) -> None:
+    """Best-effort guard-hit telemetry. Never changes hook allow/block result."""
+    try:
+        from harness.guard_telemetry import record_guard_hit
+
+        record_guard_hit(
+            guard,
+            category=category,
+            detail=detail,
+            source="plugin_hook",
+            session_id=sid,
+            run_id=rid,
+            base_dir=base_dir,
+        )
+    except Exception:  # noqa: BLE001 # nosec B110
+        pass
+
+
 # #272 W2 — prose robust extraction (어떤 nested 형식이든 first non-empty text)
 # CC PostToolUse Agent 의 tool_response 형식 이력:
 #   - 2026-05-01 도입 시 dict {"text": ...} 가정 (실측 X — 항상 fail)
@@ -508,6 +534,14 @@ def handle_pretooluse_agent(
                 mode=_mode_or_none(mode),
             )
             if strict_msg:
+                _record_guard_hit_safe(
+                    "catastrophic-gate",
+                    "strict_conveyor",
+                    strict_msg,
+                    sid=sid,
+                    rid=rid,
+                    base_dir=base_dir,
+                )
                 print(strict_msg, file=sys.stderr)
                 return 1
     except (OSError, ValueError) as exc:
@@ -538,6 +572,14 @@ def handle_pretooluse_agent(
         )
         order_gate_msg = None
     if order_gate_msg:
+        _record_guard_hit_safe(
+            "catastrophic-gate",
+            "order_gate",
+            order_gate_msg,
+            sid=sid,
+            rid=rid,
+            base_dir=base_dir,
+        )
         print(order_gate_msg, file=sys.stderr)
         return 1
 
@@ -726,6 +768,14 @@ def handle_pretooluse_file_op(
         if fp:
             reason = check_read_allowed(acting_agent, fp, cwd=cwd)
             if reason:
+                _record_guard_hit_safe(
+                    "file-guard",
+                    "read_boundary",
+                    reason,
+                    sid=sid,
+                    rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                    base_dir=base_dir,
+                )
                 print(f"[agent-boundary] {reason}", file=sys.stderr)
                 return 1
     elif tool_name in ("Edit", "Write", "NotebookEdit"):
@@ -733,6 +783,14 @@ def handle_pretooluse_file_op(
         if fp:
             reason = check_write_allowed(acting_agent, fp, cwd=cwd)
             if reason:
+                _record_guard_hit_safe(
+                    "file-guard",
+                    "write_boundary",
+                    reason,
+                    sid=sid,
+                    rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                    base_dir=base_dir,
+                )
                 print(f"[agent-boundary] {reason}", file=sys.stderr)
                 return 1
     elif tool_name == "Bash":
@@ -742,6 +800,14 @@ def handle_pretooluse_file_op(
         if not mutation_guard_off:
             reason = check_bash_mutation(cmd)
             if reason:
+                _record_guard_hit_safe(
+                    "file-guard",
+                    "bash_mutation",
+                    reason,
+                    sid=sid,
+                    rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                    base_dir=base_dir,
+                )
                 print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
                 return 1
         for fp in extract_bash_paths(cmd):
@@ -749,6 +815,14 @@ def handle_pretooluse_file_op(
             # (#694 codex P2). Edit/Write 의 literal 경로 검사(위)는 기본 False 라 영향 없음.
             reason = check_write_allowed(acting_agent, fp, cwd=cwd, shell_context=True)
             if reason:
+                _record_guard_hit_safe(
+                    "file-guard",
+                    "bash_write_boundary",
+                    reason,
+                    sid=sid,
+                    rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                    base_dir=base_dir,
+                )
                 print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
                 return 1
     elif tool_name.startswith("mcp__github__"):
@@ -756,6 +830,14 @@ def handle_pretooluse_file_op(
         # opt-out/infra 면 우회.
         reason = None if mutation_guard_off else check_github_mcp_mutation(tool_name)
         if reason:
+            _record_guard_hit_safe(
+                "file-guard",
+                "mcp_mutation",
+                reason,
+                sid=sid,
+                rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                base_dir=base_dir,
+            )
             print(f"[agent-boundary][MCP] {reason}", file=sys.stderr)
             return 1
 

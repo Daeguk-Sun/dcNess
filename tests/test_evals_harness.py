@@ -150,6 +150,12 @@ class EvalsHarnessContractTests(unittest.TestCase):
             self.assertEqual(len(report_files), len(judge_files))
             self.assertIn("blind report", report_files[0].read_text(encoding="utf-8"))
             self.assertIn("RESULT: PASS", judge_files[0].read_text(encoding="utf-8"))
+            telemetry = sorted(out_dir.glob("guard-telemetry.jsonl"))
+            self.assertEqual(len(telemetry), 1)
+            self.assertIn(
+                '"kind":"eval_case_result"',
+                telemetry[0].read_text(encoding="utf-8"),
+            )
 
     def test_runner_persists_miss_report_and_judge_output_before_failing(self) -> None:
         """#893 — MISS runs must leave files for human/judge comparison."""
@@ -202,6 +208,11 @@ class EvalsHarnessContractTests(unittest.TestCase):
             self.assertEqual(len(report_files), len(judge_files))
             self.assertIn("blind miss report", report_files[0].read_text(encoding="utf-8"))
             self.assertIn("RESULT: FAIL", judge_files[0].read_text(encoding="utf-8"))
+            telemetry = sorted(out_dir.glob("guard-telemetry.jsonl"))
+            self.assertEqual(len(telemetry), 1)
+            text = telemetry[0].read_text(encoding="utf-8")
+            self.assertIn('"kind":"eval_case_result"', text)
+            self.assertIn('"passed":false', text)
 
 
 if __name__ == "__main__":

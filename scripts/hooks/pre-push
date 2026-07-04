@@ -28,11 +28,43 @@ resolve_plugin_script() {
   return 1
 }
 
+resolve_dcness_root() {
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/harness/guard_telemetry.py" ]; then
+    echo "${CLAUDE_PLUGIN_ROOT}"
+    return 0
+  fi
+  cache_dir="${HOME}/.claude/plugins/cache/dcness/dcness"
+  if [ -d "$cache_dir" ]; then
+    latest=$(ls -1 "$cache_dir" 2>/dev/null | sort -V | tail -1)
+    if [ -n "$latest" ] && [ -f "$cache_dir/$latest/harness/guard_telemetry.py" ]; then
+      echo "$cache_dir/$latest"
+      return 0
+    fi
+  fi
+  legacy="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [ -n "$legacy" ] && [ -f "$legacy/harness/guard_telemetry.py" ]; then
+    echo "$legacy"
+    return 0
+  fi
+  return 1
+}
+
+record_guard_hit() {
+  root="$(resolve_dcness_root 2>/dev/null || true)"
+  [ -n "$root" ] || return 0
+  PYTHONPATH="${root}:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-hit \
+    --guard git-pre-push \
+    --category "$1" \
+    --detail "$2" \
+    --source git_hook >/dev/null 2>&1 || true
+}
+
 SCRIPT_PATH=$(resolve_plugin_script)
 
 while read local_ref local_sha remote_ref remote_sha; do
   # 1. main 직접 push 차단
   if [ "$remote_ref" = "refs/heads/main" ]; then
+    record_guard_hit "main_push_block" "push to refs/heads/main blocked"
     echo "ERROR: main 직접 push 금지. branch → PR → merge 절차를 따르세요." >&2
     echo "  gh pr create --title '...' --body '...'" >&2
     exit 1
@@ -47,6 +79,7 @@ while read local_ref local_sha remote_ref remote_sha; do
 
       if [ -n "$SCRIPT_PATH" ]; then
         if ! node "$SCRIPT_PATH" --branch "$BRANCH" >&2; then
+          record_guard_hit "branch_naming" "branch rejected: $BRANCH"
           echo "ERROR: 브랜치명 형식 위반 — push 차단 (#255 W4 정합)." >&2
           echo "  로컬에서 수정: git branch -m <올바른-브랜치명>" >&2
           echo "  허용 패턴 = docs/plugin/git-spec.md §1" >&2
