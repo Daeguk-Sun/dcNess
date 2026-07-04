@@ -27,6 +27,29 @@ class EvalsHarnessContractTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_judge_calibration_tool_is_documented(self) -> None:
+        calibrate = EVALS / "calibrate_judge.py"
+        self.assertTrue(calibrate.is_file())
+        result = subprocess.run(
+            ["python3.11", "-m", "py_compile", str(calibrate)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        example = EVALS / "judge-golden.example.json"
+        self.assertTrue(example.is_file())
+        self.assertIn('"labels"', example.read_text(encoding="utf-8"))
+
+        readme = (EVALS / "README.md").read_text(encoding="utf-8")
+        for needle in (
+            "python3 evals/calibrate_judge.py",
+            "judge-golden.json",
+            "judge_review_candidate",
+            "--min-agreement",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, readme)
+
     def test_every_case_has_required_files(self) -> None:
         case_dirs = sorted((EVALS / "cases").iterdir())
         self.assertGreaterEqual(len(case_dirs), 2)
