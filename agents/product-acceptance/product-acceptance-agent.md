@@ -68,6 +68,9 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 - Story / Epic 분할이 acceptance loop 로 회수 가능할 만큼 작고 명확하다.
 - 각 Story 가 완료 시 사용자가 확인 가능한 동작 증분을 명시하는가. 합쳐야만 동작이 나오는 부품 Story 묶음(기능 영역/레이어 분할)은 gap 으로 식별한다. 단, 불가피한 부품 Story(공통 인프라 등)가 어느 후행 Story 에서 그 동작이 확인되는지 명시했으면 gap 이 아니다.
 - Story 순서가 얇은 end-to-end 골격을 앞당기는가. 사용자 확인 가능한 동작이 마지막 Story 까지 밀리는 순서는 gap 으로 식별한다. 단, 불가피한 사유가 epic 완료 기준 근처에 기록돼 있으면 gap 대신 warning 으로 보고한다.
+- PRD 목표와 Must AC 에서 핵심 제품 약속을 먼저 식별하고, 핵심 제품 약속의 첫 end-to-end 동작 검증이 어느 Story 에서 닫히는지 본다. 첫 Story 또는 가능한 한 앞 Story 가 아니라 뒤 Story 로 밀리면 순서 gap 으로 식별한다.
+- 핵심 제품 약속은 PRD가 사용자에게 약속한 최종 산출·전달 경계까지 포함한다. export, upload, publish, download, delivery 같은 최종 사용자 가치 경계가 Must AC에 있으면, 중간 렌더나 미리보기만으로 핵심 제품 약속이 닫혔다고 보지 않는다.
+- 각 Story 에 독립적인 하위 동작 증분이 있어도 이 순서 gap 이 자동 해소되지 않는다. 하위 동작 증분은 Story 자체의 증거로 별도 평가하고, 핵심 제품 약속의 end-to-end 검증 위치와 분리해서 판단한다.
 
 ### STORY_ACCEPTANCE
 
