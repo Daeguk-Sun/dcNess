@@ -65,8 +65,8 @@ agent 결함인지 judge 결함인지 구분한다.
 | Sense | 하네스 엔지니어링 리뷰에서 구성 요소 개수 하드코딩과 그 stale 방지 deny-list가 reactive cycle 사례로 식별됐다. |
 | Diagnose | [#893](https://github.com/alruminum/dcNess/issues/893)의 자기개선 루프 epic에서 Decide 슬롯 첫 사례로 배치했다. |
 | Decide | 개수 변경마다 문서 본문과 deny-list를 같이 고치는 방식 대신, 본문 개수 표기를 제거하고 SSOT 링크·파생 검증으로 대체한다. |
-| Act | [#893](https://github.com/alruminum/dcNess/issues/893) 구현 PR에서 README/CLAUDE/loop-procedure/smart-compact의 count prose와 cross-ref count deny-list를 제거한다. |
-| Verify | `python3.11 -m unittest tests.test_surface_docs_sync tests.test_evals_harness -v`와 `node scripts/check_cross_refs.mjs`로 확인한다. |
+| Act | [#893](https://github.com/alruminum/dcNess/issues/893) 구현 PR에서 README/CLAUDE/loop-procedure/smart-compact의 count prose와 cross-ref count deny-list를 제거하고, `evals/run.sh` report/judge artifact 저장 계약을 보존한다. |
+| Verify | `python3.11 -m unittest tests.test_surface_docs_sync tests.test_evals_harness -v`와 `node scripts/check_cross_refs.mjs`로 count deny-list 제거와 eval artifact 저장을 확인한다. |
 
 ## 이슈 연결
 

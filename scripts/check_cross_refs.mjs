@@ -81,10 +81,6 @@ const DENY_LIST = [
     label: '옛 step 로그 `.steps.jsonl` — `ledger.jsonl` 의 step_completed event 로 흡수 (이슈 #587). legacy/폴백 맥락(옛·legacy 키워드 동반)만 허용.',
   },
   {
-    pattern: /\b8\s+loop\s+(행별|풀스펙)/,
-    label: '옛 loop 카운트 — 현재 loop 진본은 각 `skills/<skill>/SKILL.md` 의 `## Loop` contract',
-  },
-  {
     // `design-routing.md` 등 skill 분기 파일은 앞에 `-`/단어문자가 붙어 제외.
     pattern: /(?<![\w-])routing\.md/,
     label: '폐기 SSOT `docs/plugin/routing.md` — Phase 3 (#564) 폐기, 분기 규칙은 각 skill `<skill>-routing.md` 로 분산',
