@@ -28,6 +28,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - whitelist 활성화: 중복 제거.
 - `~/.claude/settings.json` Read 권한: 없을 때만 추가.
 - `.git/hooks/*`: thin shim always-overwrite.
+- `.gitignore`: `.claude/harness-state/` 는 core 에서 없을 때만 추가. `.dcness-work/` 는 선택형 docs seed 에서 없을 때만 추가.
 - `.github/workflows/*.yml`: 사용자가 선택한 경우 always-overwrite.
 - `docs/*`, `docs/design-variants/*`: 부재 시만 seed. 단 기존 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 섹션은 없을 때만 append.
 - Codex validator skills: `$CODEX_HOME/skills/dcness-*` always-overwrite.
@@ -53,6 +54,7 @@ core activation 의 성공 기준은 다음 항목까지다.
 - whitelist 활성화
 - `~/.claude/settings.json` Read 권한
 - git hook shim 3종 설치
+- runtime state `.gitignore` 보장
 - Codex validator skill 배포
 - `CLAUDE.md` seed/migration 감사
 - Provider routing 상태 확인
@@ -115,19 +117,15 @@ fi
 
 ```bash
 mkdir -p "$PROJECT_ROOT/.git/hooks"
-
 cp "$PLUGIN_ROOT/scripts/hooks/commit-msg" "$PROJECT_ROOT/.git/hooks/commit-msg"
 chmod +x "$PROJECT_ROOT/.git/hooks/commit-msg"
 echo "[dcness] .git/hooks/commit-msg 갱신 (thin shim -> plugin SSOT 호출)"
-
 cp "$PLUGIN_ROOT/scripts/hooks/post-checkout" "$PROJECT_ROOT/.git/hooks/post-checkout"
 chmod +x "$PROJECT_ROOT/.git/hooks/post-checkout"
 echo "[dcness] .git/hooks/post-checkout 갱신 (thin shim -> plugin SSOT 호출)"
-
 cp "$PLUGIN_ROOT/scripts/hooks/pre-push" "$PROJECT_ROOT/.git/hooks/pre-push"
 chmod +x "$PROJECT_ROOT/.git/hooks/pre-push"
 echo "[dcness] .git/hooks/pre-push 갱신 (thin shim -> plugin SSOT 호출)"
-
 if [ -f "$PROJECT_ROOT/scripts/check_git_naming.mjs" ]; then
   echo "[dcness] NOTE - scripts/check_git_naming.mjs 가 사용자 repo 에 잔존. 이제 plugin SSOT 에서 호출하므로 제거 권장:"
   echo "         git rm scripts/check_git_naming.mjs"
@@ -136,6 +134,8 @@ if [ -f "$PROJECT_ROOT/docs/plugin/skill-guidelines.md" ]; then
   echo "[dcness] NOTE - docs/plugin/skill-guidelines.md 가 사용자 repo 에 잔존. session-start.sh 가 이제 plugin SSOT 에서 read. 제거 권장:"
   echo "         git rm docs/plugin/skill-guidelines.md"
 fi
+touch "$PROJECT_ROOT/.gitignore"
+grep -qxF '.claude/harness-state/' "$PROJECT_ROOT/.gitignore" || { printf '%s\n' '.claude/harness-state/' >> "$PROJECT_ROOT/.gitignore"; echo "[dcness] .gitignore 에 .claude/harness-state/ 추가"; }
 ```
 
 ### Core Step 5 - Codex skill 배포와 routing 상태 확인
@@ -225,7 +225,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
 - 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
-- `.gitignore` 에 `.dcness-work/` 가 없으면 추천 ON.
+- `.gitignore` 에 `.dcness-work/` 가 없으면 추천 ON. `.claude/harness-state/` 는 core activation 에서 이미 보장한다.
 - UI 흔적이 있어도 `docs/design-variants/` 는 기본 skip. 특히 단일 `app/page.tsx` 정도만으로 design kit 를 설치하지 않는다.
 - GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
 - Codex validation routing 이 이미 enabled 면 skip. disabled/미설정이면 추천 bundle 에서 enable 대상으로 표시하고, custom 에서는 명시 선택으로 다룬다.
@@ -301,10 +301,9 @@ if [ ! -f "$PROJECT_ROOT/docs/decisions/README.md" ]; then
   echo "[dcness] docs/decisions/README.md 시드 완료"
 fi
 touch "$PROJECT_ROOT/.gitignore"
-if ! grep -qxF '.dcness-work/' "$PROJECT_ROOT/.gitignore"; then
-  printf '%s\n' '.dcness-work/' >> "$PROJECT_ROOT/.gitignore"
-  echo "[dcness] .gitignore 에 .dcness-work/ 추가"
-fi
+for IGNORE in '.dcness-work/' '.claude/harness-state/'; do
+  grep -qxF "$IGNORE" "$PROJECT_ROOT/.gitignore" || { printf '%s\n' "$IGNORE" >> "$PROJECT_ROOT/.gitignore"; echo "[dcness] .gitignore 에 $IGNORE 추가"; }
+done
 ```
 
 #### Provider routing

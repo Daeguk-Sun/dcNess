@@ -730,6 +730,14 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("진행 상태 섹션", self.init_doc)
         self.assertIn("진행 상태 섹션", self.init_reference)
 
+    def test_issue_903_init_dcness_ignores_runtime_harness_state(self) -> None:
+        """#903 — /init-dcness keeps runtime telemetry/state out of git status."""
+        for text in (self.init_doc, self.init_reference):
+            with self.subTest(source=text[:30]):
+                self.assertIn(".dcness-work/", text)
+                self.assertIn(".claude/harness-state/", text)
+                self.assertIn(".gitignore", text)
+
     def test_issue_885_claude_md_seed_and_audit_stays_inside_existing_surfaces(self) -> None:
         """#885 — CLAUDE.md seed/migration and audit wire into init/run-review only."""
         helper = "scripts/dcness-context-docs"

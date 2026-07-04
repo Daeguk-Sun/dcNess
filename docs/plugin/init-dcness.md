@@ -19,6 +19,7 @@ core activation 완료 기준이다. 아래 항목이 끝나고 `dcness-helper s
 | local git hook | `.git/hooks/commit-msg` | `scripts/hooks/commit-msg` | 항상 | always-overwrite | X |
 | local git hook | `.git/hooks/post-checkout` | `scripts/hooks/post-checkout` | 항상 | always-overwrite | X |
 | local git hook | `.git/hooks/pre-push` | `scripts/hooks/pre-push` | 항상 | always-overwrite | X |
+| runtime state ignore | `.gitignore` 의 `.claude/harness-state/` | `/init-dcness` append | 항상 | 없을 때만 추가 | X |
 | project context seed/migration | `CLAUDE.md` | `scripts/dcness-context-docs` / `harness/context_docs.py` | 항상 | 부재 시 생성. 기존 파일은 cold-start 앵커만 없을 때 append | X |
 | Codex validator skills | `$CODEX_HOME/skills/dcness-*` | `codex/skills/dcness-*` | 항상 | always-overwrite | X |
 | Codex provider routing 상태 확인 | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing status` | 항상 확인 | read-only | X |
@@ -36,7 +37,7 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 | doc sync workflow | `.github/workflows/doc-sync.yml` | [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml) | custom 선택 | always-overwrite | O |
 | project docs seed | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | authoring 템플릿 (`skills/spec/templates/index.md`, `skills/spec/templates/prd.md`, `agents/system-architect/templates/root-architecture.md`, `agents/system-architect/templates/conventions.md`) + `scripts/ensure_docs_index_next_section.mjs` — 시드와 산출 양식 단일 원본. 위치 SSOT [`deliverables-map.md`](deliverables-map.md) | 추천 bundle 또는 custom | 부재 시 생성. 기존 `docs/index.md` 는 진행 상태 섹션만 없을 때 append | X |
-| volatile workdir ignore | `.gitignore` 의 `.dcness-work/` | `/init-dcness` append | 추천 bundle 또는 custom | 없을 때만 추가 | X |
+| volatile workdir ignore | `.gitignore` 의 `.dcness-work/` + `.claude/harness-state/` 재확인 | `/init-dcness` append | 추천 bundle 또는 custom | 없을 때만 추가 | X |
 | design seed | `docs/design.md` | `docs/plugin/design.md` minimal 예시 | custom 선택 | 부재 시만 생성 | X |
 | design preview seed | `docs/design-variants/**` | `templates/design-variants/**` | custom 선택 | 부재 시만 생성 | X |
 | Codex validation routing 변경 | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing enable-codex-validation` / `disable-codex-validation` | disabled/미설정일 때 추천 bundle 또는 custom | opt-in 값으로 갱신 | X |
@@ -71,7 +72,7 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
 - 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
-- `.gitignore` 에 `.dcness-work/` 가 없으면 추천 ON.
+- `.gitignore` 에 `.dcness-work/` 가 없으면 추천 ON. `.claude/harness-state/` 는 core activation 에서 항상 보장한다.
 - `docs/design-variants/` 는 기본 skip. 단일 `app/page.tsx` 정도의 UI 흔적만으로 design kit 를 설치하지 않는다.
 - GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
 - Codex validation routing 이 이미 enabled 면 skip. disabled/미설정이면 추천 bundle 또는 custom 에서 명시적으로 다룬다.
@@ -163,6 +164,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | plugin 본체 문서/skill/hook 만 갱신 | 아니오 | `claude plugin update dcness@dcness` 로 plug-in cache 가 갱신된다. |
 | plugin uninstall/reinstall | 예 | plugin data 디렉토리가 정리되어 whitelist 가 사라진다. |
 | `.git/hooks/*` thin shim 갱신 | 예 | 사용자 repo `.git/hooks/` 파일은 plugin update 만으로 바뀌지 않는다. |
+| `.claude/harness-state/` gitignore 보강 | 예 | runtime state ignore 는 사용자 repo `.gitignore` append 라서 `/init-dcness` 재실행 때 적용된다. |
 | `CLAUDE.md` seed/migration 로직 갱신 | 예 | 기존 활성 프로젝트의 root `CLAUDE.md` 생성·cold-start 앵커 append 는 `/init-dcness` 재실행 때 적용된다. |
 | 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index/architecture 집계기를 1회 실행해야 한다. |
 | Codex validation routing opt-in 변경 | 예 | local plugin data 와 `$CODEX_HOME/skills` 를 갱신해야 한다. |
@@ -176,7 +178,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 `/init-dcness` 의 자동 commit + PR 단계는 `.github/workflows/*.yml` 만 대상으로 한다.
 
 - 포함: `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `github-project-lifecycle.yml`
-- 제외: `.git/hooks/*` (git 내부 파일), `~/.claude/**`, `$CODEX_HOME/**`, `docs/*` seed, `docs/design-variants/*` seed, 자동 CC hook 설명
+- 제외: `.git/hooks/*` (git 내부 파일), `~/.claude/**`, `$CODEX_HOME/**`, `.gitignore` runtime/volatile ignore, `docs/*` seed, `docs/design-variants/*` seed, 자동 CC hook 설명
 - 선행 조건: GitHub remote 존재, 현재 branch `main`, `gh auth status` 통과. 조건이 안 맞으면 branch/commit/push 를 시작하지 않고 skip 안내만 출력한다.
 
 seed 문서는 사용자 프로젝트 내용물이므로 사용자가 별도 작업 PR 에 포함할지 직접 판단한다.

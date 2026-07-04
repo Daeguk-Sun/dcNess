@@ -90,6 +90,15 @@ class GuardSummaryTests(unittest.TestCase):
             self.assertEqual(row["count"], 1)
             self.assertFalse(row["reassessment_candidate"])
 
+    def test_default_report_known_guards_exclude_self_only_pre_commit(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            summary = collect_guard_summary(cwd=root, idle_days=30)
+
+            self.assertIn("git-commit-msg", summary["guards"])
+            self.assertIn("git-pre-push", summary["guards"])
+            self.assertNotIn("git-pre-commit", summary["guards"])
+
 
 class EvalSummaryTests(unittest.TestCase):
     def test_eval_case_results_share_the_same_event_log(self) -> None:
