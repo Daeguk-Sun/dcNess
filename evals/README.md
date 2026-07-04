@@ -36,6 +36,10 @@ EVAL_RUNS=3 bash evals/run.sh        # 케이스당 3회 반복 (릴리즈 전 �
 EVAL_RUNS=3 EVAL_RELEASE_CHECK=1 bash evals/run.sh  # 핵심 실사고 케이스 N/N 확인
 EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonnet)
 EVAL_OUTPUT_DIR=/tmp/dcness-evals bash evals/run.sh # 산출물 저장 위치 지정
+
+# judge 보정 — 먼저 run 출력 디렉터리에 사람이 judge-golden.json 을 작성한다
+python3 evals/calibrate_judge.py .metrics/evals/run-YYYYMMDDTHHMMSSZ-PID
+python3 evals/calibrate_judge.py /tmp/dcness-evals --golden /tmp/dcness-evals/judge-golden.json --min-agreement 0.9 --report-file /tmp/dcness-evals/judge-calibration.md
 ```
 
 `guard_efficacy.py` 는 범주별 pass/fail count 를 출력한다. `provider-agnostic-order-gate`
@@ -62,6 +66,43 @@ Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
 케이스 삭제나 비활성화를 자동 실행하지 않는다.
 기본 산출 위치인 `.metrics/evals/**` 는 자동 집계 대상이다. `EVAL_OUTPUT_DIR` 를 repo 밖으로
 지정한 경우에는 `dcness-helper guard-telemetry --base-dir <EVAL_OUTPUT_DIR>` 로 그 산출물을 직접 본다.
+
+## judge 보정 — 사람 golden 과 채점 모델 대조
+
+`run-N-judge.md` 자체가 맞는지도 소수 케이스에서 따로 확인한다. 절차는 표면화까지만 한다.
+`calibrate_judge.py` 는 judge 모델, prompt, eval 설정을 수정하지 않는다.
+
+1. `bash evals/run.sh` 를 실행해 `.metrics/evals/run-.../<case>/run-N-report.md` 와
+   `run-N-judge.md` 를 남긴다.
+2. `evals/judge-golden.example.json` 을 해당 run 디렉터리의 `judge-golden.json` 으로 복사한 뒤,
+   사람이 `run-N-report.md` 를 읽고 각 기대 ID 의 정답 라벨을 `OK` / `MISS` 로 채운다.
+   `result` 는 생략 가능하다. 생략하면 모든 기대가 `OK` 일 때 `PASS`, 하나라도 `MISS` 면
+   `FAIL` 로 파생한다.
+3. `python3 evals/calibrate_judge.py <run-dir>` 를 실행한다. 기본 임계는 `--min-agreement 1.0`
+   이며, 일치도가 임계 미만이면 `judge_review_candidate: YES` 로 표시하고 exit 1 을 반환한다.
+   임계는 `--min-agreement 0.9` 처럼 조정할 수 있다.
+
+golden 파일 형식:
+
+```json
+{
+  "labels": [
+    {
+      "case": "shorts-real-spec",
+      "run": 1,
+      "expectations": {
+        "E1": "OK",
+        "E2": "OK"
+      }
+    }
+  ]
+}
+```
+
+`case` + `run` 은 `<run-dir>/<case>/run-<run>-judge.md` 를 가리킨다. 특수 경로를 비교할 때는
+`judge_file` 에 run 디렉터리 기준 상대 경로나 절대 경로를 넣을 수 있다. 리포트는 stdout 으로
+나오며, `--report-file <path>` 를 주면 같은 내용을 파일로도 남긴다. JSON 소비가 필요하면
+`--json` 을 사용한다.
 
 ## 채점 원리 — 정답표는 계약 수준으로만 쓴다
 

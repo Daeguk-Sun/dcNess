@@ -1,0 +1,24 @@
+{
+  "_comment": "Copy this file to <eval-run-dir>/judge-golden.json after running bash evals/run.sh. Fill labels by reading the matching run-N-report.md and deciding what the judge output should have said. If result is omitted, PASS is derived when every expectation is OK; otherwise FAIL is derived.",
+  "labels": [
+    {
+      "case": "shorts-real-spec",
+      "run": 1,
+      "expectations": {
+        "E1": "OK",
+        "E2": "OK"
+      }
+    },
+    {
+      "case": "headless-prose-quality",
+      "run": 1,
+      "expectations": {
+        "HPQ-1": "OK",
+        "HPQ-2": "OK",
+        "HPQ-3": "OK",
+        "HPQ-4": "OK",
+        "HPQ-5": "OK"
+      }
+    }
+  ]
+}
