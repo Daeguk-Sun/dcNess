@@ -3868,6 +3868,21 @@ def _cli_status(args: Any) -> int:
     return 0
 
 
+def _cli_boundary_suggestions(args: Any) -> int:
+    """Read-only `.dcness/boundary.json` add override suggestion (#910)."""
+    from harness.boundary_suggestions import (
+        collect_boundary_suggestions,
+        format_boundary_suggestions,
+    )
+
+    report = collect_boundary_suggestions(Path(args.cwd) if args.cwd else None)
+    if args.json:
+        print(json.dumps(report.to_dict(), ensure_ascii=False))
+    else:
+        print(format_boundary_suggestions(report))
+    return 0
+
+
 def _cli_guard_telemetry(args: Any) -> int:
     """Guard hit / eval saturation summary (#875)."""
     from harness.guard_telemetry import (
@@ -4289,6 +4304,14 @@ def _build_arg_parser() -> Any:
 
     p_st = sub.add_parser("status", help="whitelist + 현재 cwd 상태")
     p_st.set_defaults(func=_cli_status)
+
+    p_bsug = sub.add_parser(
+        "boundary-suggestions",
+        help="#910 read-only: 비표준 소스 디렉터리 boundary override 후보 출력",
+    )
+    p_bsug.add_argument("--cwd", default="", help="검사할 프로젝트 cwd (기본 현재 cwd)")
+    p_bsug.add_argument("--json", action="store_true")
+    p_bsug.set_defaults(func=_cli_boundary_suggestions)
 
     p_gt = sub.add_parser(
         "guard-telemetry",

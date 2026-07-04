@@ -58,6 +58,7 @@ core activation 의 성공 기준은 다음 항목까지다.
 - Codex validator skill 배포
 - `CLAUDE.md` seed/migration 감사
 - Provider routing 상태 확인
+- 파일 경계 override 후보 확인
 - `dcness-helper status` 기준 FAIL 0
 선택형 확장은 core activation 성공 조건이 아니다. CI workflow, project docs seed, design seed, GitHub Project lifecycle, workflow 변경 PR 은 INFO/WARN 으로 남아도 core 성공 메시지를 흐리지 않는다.
 
@@ -126,14 +127,6 @@ echo "[dcness] .git/hooks/post-checkout 갱신 (thin shim -> plugin SSOT 호출)
 cp "$PLUGIN_ROOT/scripts/hooks/pre-push" "$PROJECT_ROOT/.git/hooks/pre-push"
 chmod +x "$PROJECT_ROOT/.git/hooks/pre-push"
 echo "[dcness] .git/hooks/pre-push 갱신 (thin shim -> plugin SSOT 호출)"
-if [ -f "$PROJECT_ROOT/scripts/check_git_naming.mjs" ]; then
-  echo "[dcness] NOTE - scripts/check_git_naming.mjs 가 사용자 repo 에 잔존. 이제 plugin SSOT 에서 호출하므로 제거 권장:"
-  echo "         git rm scripts/check_git_naming.mjs"
-fi
-if [ -f "$PROJECT_ROOT/docs/plugin/skill-guidelines.md" ]; then
-  echo "[dcness] NOTE - docs/plugin/skill-guidelines.md 가 사용자 repo 에 잔존. session-start.sh 가 이제 plugin SSOT 에서 read. 제거 권장:"
-  echo "         git rm docs/plugin/skill-guidelines.md"
-fi
 touch "$PROJECT_ROOT/.gitignore"
 grep -qxF '.claude/harness-state/' "$PROJECT_ROOT/.gitignore" || { printf '%s\n' '.claude/harness-state/' >> "$PROJECT_ROOT/.gitignore"; echo "[dcness] .gitignore 에 .claude/harness-state/ 추가"; }
 ```
@@ -166,7 +159,15 @@ done
 "$CONTEXT_DOCS" --ensure --repo "$PROJECT_ROOT"
 ```
 
-### Core Step 7 - 완료 선언
+### Core Step 7 - 파일 경계 override 후보 확인
+
+```bash
+"$HELPER" boundary-suggestions
+```
+
+비표준 소스 디렉터리 후보가 출력되면 사용자에게 보여주고 사람 승인 뒤에만 `.dcness/boundary.json` 을 작성한다. 표준 레이아웃 또는 빈 프로젝트는 no-op 이며, 이 step 은 파일을 쓰지 않는다.
+
+### Core Step 8 - 완료 선언
 
 core 작업 뒤 `status` 를 재실행한다. FAIL 이 0 이면 INFO·NA 행과 선택 WARN 이 남아도 즉시 완료를 먼저 출력한다.
 

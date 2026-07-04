@@ -21,6 +21,7 @@ core activation 완료 기준이다. 아래 항목이 끝나고 `dcness-helper s
 | local git hook | `.git/hooks/pre-push` | `scripts/hooks/pre-push` | 항상 | always-overwrite | X |
 | runtime state ignore | `.gitignore` 의 `.claude/harness-state/` | `/init-dcness` append | 항상 | 없을 때만 추가 | X |
 | project context seed/migration | `CLAUDE.md` | `scripts/dcness-context-docs` / `harness/context_docs.py` | 항상 | 부재 시 생성. 기존 파일은 cold-start 앵커만 없을 때 append | X |
+| file boundary override suggestion | `.dcness/boundary.json` 후보만 | `dcness-helper boundary-suggestions` / `harness/boundary_suggestions.py` | 항상 | read-only. 사람 승인 전 작성 없음 | X |
 | Codex validator skills | `$CODEX_HOME/skills/dcness-*` | `codex/skills/dcness-*` | 항상 | always-overwrite | X |
 | Codex provider routing 상태 확인 | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing status` | 항상 확인 | read-only | X |
 | CC hooks | Claude Code plugin hook registry | `hooks/hooks.json` | 활성 프로젝트 새 세션 | 사용자 repo 쓰기 없음 | X |
@@ -49,6 +50,8 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 `dcness-helper status` 는 설치 상태뿐 아니라 최근 hook fail-open 활동도 `hook fail-open 진단` 항목으로 보여준다. 정상 inactive no-op 은 기록하지 않고, 활성 프로젝트에서 enforcement hook 이 검사를 평가하지 못하고 allow 한 경우만 최근 reason category 를 WARN 으로 노출한다. 자세한 정책은 [`hooks.md`](hooks.md) 가 SSOT 다.
 
 `CLAUDE.md` seed/migration 은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/dcness-context-docs`) 로 처리한다. 부재 시 Anthropic 공식 구조 기반 템플릿을 만들고, 기존 파일은 cold-start 앵커만 additive append 한다. 6축 quality audit 결과는 출력하지만 구조 개선·삭제·재배치는 후보만 제안한다.
+
+파일 경계 override 제안은 `dcness-helper boundary-suggestions` 로 처리한다. 코어 `ALLOW_MATRIX` 가 커버하지 않는 비표준 소스 디렉터리가 있을 때만 `.dcness/boundary.json` 의 `engineer.add` 후보를 출력하며, 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다. 이 helper 는 read-only 이므로 실제 boundary 파일 작성은 사람 승인 뒤 메인이 수행한다.
 
 `docs/index.md` 의 epic/module 표, 전역 `docs/architecture.md` 의 집계 섹션, 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. `/design` 산출물 구조 감사도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
 
@@ -164,6 +167,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | plugin 본체 문서/skill/hook 만 갱신 | 아니오 | `claude plugin update dcness@dcness` 로 plug-in cache 가 갱신된다. |
 | plugin uninstall/reinstall | 예 | plugin data 디렉토리가 정리되어 whitelist 가 사라진다. |
 | `.git/hooks/*` thin shim 갱신 | 예 | 사용자 repo `.git/hooks/` 파일은 plugin update 만으로 바뀌지 않는다. |
+| 파일 경계 override 후보 재확인 | 아니오 | `/init-dcness` 와 `/impl` 시작 시 `dcness-helper boundary-suggestions` 가 read-only 로 다시 감지한다. |
 | `.claude/harness-state/` gitignore 보강 | 예 | runtime state ignore 는 사용자 repo `.gitignore` append 라서 `/init-dcness` 재실행 때 적용된다. |
 | `CLAUDE.md` seed/migration 로직 갱신 | 예 | 기존 활성 프로젝트의 root `CLAUDE.md` 생성·cold-start 앵커 append 는 `/init-dcness` 재실행 때 적용된다. |
 | 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index/architecture 집계기를 1회 실행해야 한다. |
