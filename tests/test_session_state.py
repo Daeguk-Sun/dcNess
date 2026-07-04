@@ -2016,6 +2016,21 @@ class ProjectActivationTests(unittest.TestCase):
         os.chdir(repo_b)
         self.assertFalse(is_project_active())
 
+    def test_dcness_self_repo_is_not_globally_active_but_is_self(self) -> None:
+        """self repo 는 plugin hook 전체 active 가 아니며 is-self 로만 구분한다."""
+        from harness.session_state import _cli_is_self, is_project_active
+        from types import SimpleNamespace
+        repo = Path(self._tmp.name) / "dcness"
+        self._init_git_repo(repo)
+        manifest = repo / ".claude-plugin" / "plugin.json"
+        manifest.parent.mkdir(parents=True, exist_ok=True)
+        manifest.write_text(json.dumps({"name": "dcness"}), encoding="utf-8")
+        os.chdir(repo)
+
+        self.assertFalse(is_project_active())
+        self.assertEqual(_cli_is_self(SimpleNamespace()), 0)
+        self.assertFalse(self._whitelist_file.exists())
+
     def test_whitelist_corrupt_returns_empty(self) -> None:
         """projects.json 파일 깨졌을 때 빈 리스트 반환 (silent)."""
         from harness.session_state import list_active_projects

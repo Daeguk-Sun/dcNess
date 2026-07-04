@@ -20,6 +20,7 @@ from harness import ledger  # noqa: E402
 from harness import run_review  # noqa: E402
 from harness.benchmark_aggregate import aggregate_sessions  # noqa: E402
 from harness.guard_telemetry import (  # noqa: E402
+    DEFAULT_REPORT_SINCE_DAYS,
     collect_eval_summary,
     collect_guard_summary,
     read_events,
@@ -167,10 +168,13 @@ def _guard_candidates(
     for guard, raw in sorted(guards.items()):
         row = raw if isinstance(raw, dict) else {}
         count = int(row.get("count") or 0)
-        if count <= 0 or not row.get("reassessment_candidate"):
+        if not row.get("reassessment_candidate"):
             continue
         last = row.get("last_ts") if isinstance(row.get("last_ts"), str) else None
         detail = f"{count} hit(s), last={last or '-'}"
+        observation_since = row.get("observation_since")
+        if count == 0 and isinstance(observation_since, str) and observation_since:
+            detail += f", observed_since={observation_since}"
         candidates.append(
             _candidate(
                 key=f"guard:{guard}@{project_name}",
@@ -231,10 +235,14 @@ def _waste_candidates(
 
 def _collect_project(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     name = _project_name(path)
-    events = read_events(cwd=path)
+    events = read_events(cwd=path, since_days=args.since_days)
     sessions_root = path / ".claude" / "harness-state" / ".sessions"
     last_event_ts = _latest_project_ts(events, sessions_root)
-    guard_summary = collect_guard_summary(cwd=path, idle_days=args.idle_days)
+    guard_summary = collect_guard_summary(
+        cwd=path,
+        idle_days=args.idle_days,
+        since_days=args.since_days,
+    )
     fleet_report = aggregate_sessions(
         sessions_root,
         top=args.waste_top,
@@ -481,13 +489,22 @@ def _render_project(project: dict[str, Any]) -> list[str]:
     if isinstance(guards, dict):
         for guard, raw in sorted(guards.items()):
             row = raw if isinstance(raw, dict) else {}
-            status = "재평가 후보" if row.get("reassessment_candidate") else "active"
+            status = _guard_status_label(row)
             lines.append(
                 f"| {_md_cell(guard)} | {int(row.get('count') or 0)} | "
                 f"{_md_cell(row.get('last_ts') or '-')} | {status} |"
             )
     lines.append("")
     return lines
+
+
+def _guard_status_label(row: dict[str, Any]) -> str:
+    status = row.get("observation_status")
+    if status == "no_observation":
+        return "관측 없음"
+    if status == "insufficient_observation":
+        return "관측 부족"
+    return "재평가 후보" if row.get("reassessment_candidate") else "active"
 
 
 def render_markdown(payload: dict[str, Any]) -> str:
@@ -568,6 +585,7 @@ def _add_common_report_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--repo-root", default=str(Path.cwd()))
     parser.add_argument("--projects-file", default=_projects_file_default())
     parser.add_argument("--idle-days", type=int, default=30)
+    parser.add_argument("--since-days", type=int, default=DEFAULT_REPORT_SINCE_DAYS)
     parser.add_argument("--saturation-days", type=int, default=30)
     parser.add_argument("--saturation-min-runs", type=int, default=3)
     parser.add_argument("--waste-top", type=int, default=10)

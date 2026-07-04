@@ -3414,6 +3414,15 @@ def _cli_is_active(args: Any) -> int:
     return 0 if is_project_active() else 1
 
 
+def _cli_is_self(args: Any) -> int:
+    """현재 cwd 가 dcNess plugin 본체 repo 인지 여부 — self=exit 0, 아니면 1."""
+    try:
+        project_root = _resolve_project_root().resolve()
+    except OSError:
+        return 1
+    return 0 if _is_self_repo(project_root) else 1
+
+
 def _cli_hook_fail_open(args: Any) -> int:
     """hook wrapper 내부용 fail-open 이벤트 기록."""
     record_fail_open_event(
@@ -4264,6 +4273,9 @@ def _build_arg_parser() -> Any:
 
     p_ia = sub.add_parser("is-active", help="활성 여부 (silent, exit 0/1) — hook 게이트용")
     p_ia.set_defaults(func=_cli_is_active)
+
+    p_is = sub.add_parser("is-self", help="dcNess self repo 여부 (silent, exit 0/1)")
+    p_is.set_defaults(func=_cli_is_self)
 
     p_hfo = sub.add_parser(
         "hook-fail-open",

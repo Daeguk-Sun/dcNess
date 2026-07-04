@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,13 @@ def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
             f.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
+def _iso_days_ago(days: int) -> str:
+    return (
+        datetime.now(timezone.utc)
+        - timedelta(days=days)
+    ).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+
+
 def _write_guard_hit(project: Path, guard: str = "file-guard") -> None:
     _write_jsonl(
         project / ".claude" / "harness-state" / "guard-telemetry.jsonl",
@@ -31,7 +39,20 @@ def _write_guard_hit(project: Path, guard: str = "file-guard") -> None:
                 "guard": guard,
                 "category": "write_boundary",
                 "source": "test",
-                "ts": "2026-01-01T00:00:00Z",
+                "ts": _iso_days_ago(45),
+            }
+        ],
+    )
+
+
+def _write_telemetry_epoch(project: Path, *, days_ago: int) -> None:
+    _write_jsonl(
+        project / ".claude" / "harness-state" / "guard-telemetry.jsonl",
+        [
+            {
+                "kind": "telemetry_epoch",
+                "source": "test",
+                "ts": _iso_days_ago(days_ago),
             }
         ],
     )
@@ -168,6 +189,86 @@ class LoopDiagnoseTests(unittest.TestCase):
             keys = {candidate["key"] for candidate in payload["candidates"]}
             self.assertIn("guard:file-guard@alpha", keys)
             self.assertIn("waste:RETRY_SAME_FAIL@alpha", keys)
+            self.assertEqual(payload["projects"][0]["guard_summary"]["since_days"], 90)
+
+    def test_zero_hit_guard_after_observation_window_is_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            old_observed = tmp / "old-observed"
+            new_observed = tmp / "new-observed"
+            old_observed.mkdir()
+            new_observed.mkdir()
+            _write_telemetry_epoch(old_observed, days_ago=45)
+            _write_telemetry_epoch(new_observed, days_ago=5)
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps(
+                    {"version": 1, "projects": [str(old_observed), str(new_observed)]}
+                ),
+                encoding="utf-8",
+            )
+
+            result = self._run(repo_root, projects_file, "--json")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            keys = {candidate["key"] for candidate in payload["candidates"]}
+            self.assertIn("guard:file-guard@old-observed", keys)
+            self.assertNotIn("guard:file-guard@new-observed", keys)
+            old_summary = payload["projects"][0]["guard_summary"]["guards"]["file-guard"]
+            new_summary = payload["projects"][1]["guard_summary"]["guards"]["file-guard"]
+            self.assertEqual(old_summary["count"], 0)
+            self.assertEqual(old_summary["observation_status"], "observed")
+            self.assertTrue(old_summary["reassessment_candidate"])
+            self.assertEqual(
+                new_summary["observation_status"],
+                "insufficient_observation",
+            )
+            self.assertFalse(new_summary["reassessment_candidate"])
+
+            rendered = self._run(repo_root, projects_file)
+            self.assertEqual(rendered.returncode, 0, rendered.stderr)
+            self.assertIn("| file-guard | 0 | - | 재평가 후보 |", rendered.stdout)
+            self.assertIn("| file-guard | 0 | - | 관측 부족 |", rendered.stdout)
+
+    def test_since_days_limits_guard_summary_scan_window(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            alpha = tmp / "alpha"
+            alpha.mkdir()
+            _write_jsonl(
+                alpha / ".claude" / "harness-state" / "guard-telemetry.jsonl",
+                [
+                    {
+                        "kind": "guard_hit",
+                        "guard": "file-guard",
+                        "category": "write_boundary",
+                        "source": "test",
+                        "ts": _iso_days_ago(45),
+                    }
+                ],
+            )
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": [str(alpha)]}),
+                encoding="utf-8",
+            )
+
+            result = self._run(repo_root, projects_file, "--since-days", "7", "--json")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            summary = payload["projects"][0]["guard_summary"]
+            self.assertEqual(summary["since_days"], 7)
+            row = summary["guards"]["file-guard"]
+            self.assertEqual(row["count"], 0)
+            self.assertEqual(row["observation_status"], "insufficient_observation")
+            keys = {candidate["key"] for candidate in payload["candidates"]}
+            self.assertNotIn("guard:file-guard@alpha", keys)
 
     def test_decision_record_annotation_and_hide_decided(self) -> None:
         with tempfile.TemporaryDirectory() as td:
