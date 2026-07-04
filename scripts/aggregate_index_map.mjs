@@ -125,7 +125,7 @@ function collectModules(root) {
   return readdirSync(modulesRoot, { withFileTypes: true })
     .filter((entry) => entry.isDirectory())
     .map((entry) => entry.name)
-    .filter((name) => /^[a-z0-9][a-z0-9_-]*$/.test(name))
+    .filter((name) => /^[a-z][a-z0-9_-]*$/.test(name))
     .sort()
     .map((name) => {
       const moduleDir = join(modulesRoot, name);

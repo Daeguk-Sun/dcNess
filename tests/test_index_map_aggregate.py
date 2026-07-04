@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "aggregate_index_map.mjs"
+INDEX_TEMPLATE = ROOT / "skills" / "spec" / "templates" / "index.md"
 NODE = shutil.which("node")
 
 
@@ -117,6 +118,17 @@ class IndexMapAggregateTests(unittest.TestCase):
             self.assertEqual(check.returncode, 1)
             self.assertIn("stale", check.stderr)
 
+    def test_seeded_index_template_is_fresh_without_epics_or_modules(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            (project / "docs").mkdir()
+            shutil.copyfile(INDEX_TEMPLATE, project / "docs" / "index.md")
+
+            check = _run(project, "--check")
+
+        self.assertEqual(check.returncode, 0, check.stderr)
+        self.assertIn("PASS", check.stdout)
+
     def test_generates_module_table_from_module_directories(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
@@ -152,6 +164,23 @@ class IndexMapAggregateTests(unittest.TestCase):
 
             check = _run(project, "--check")
             self.assertEqual(check.returncode, 0, check.stderr)
+
+    def test_ignores_module_directories_that_do_not_match_module_id_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(project / "docs/index.md", "# 프로젝트 문서 인덱스\n")
+            _write(project / "docs/modules/android/architecture.md", "# Android\n")
+            _write(project / "docs/modules/3d-engine/architecture.md", "# 3D Engine\n")
+
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+            index = (project / "docs/index.md").read_text(encoding="utf-8")
+            self.assertIn(
+                "| [android](modules/android/) | [architecture.md](modules/android/architecture.md) | — | — |",
+                index,
+            )
+            self.assertNotIn("3d-engine", index)
 
     def test_generated_module_table_becomes_stale_when_module_removed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
