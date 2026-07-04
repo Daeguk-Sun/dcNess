@@ -1738,6 +1738,7 @@ def is_project_active(cwd: Optional[Path] = None) -> bool:
 
     - 기본 disabled — whitelist 없거나 cwd 가 목록 밖이면 False
     - whitelist 경로의 서브디렉토리 (worktree 포함) 도 True (γ resolution 으로 main repo 추출)
+    - dcNess plugin 본체 repo 는 self git hook telemetry 보존을 위해 whitelist 없이 True
     - `DCNESS_FORCE_ENABLE=1` env 로 임시 활성 (디버깅)
     """
     if os.environ.get("DCNESS_FORCE_ENABLE") == "1":
@@ -1746,6 +1747,8 @@ def is_project_active(cwd: Optional[Path] = None) -> bool:
         project_root = _resolve_project_root(cwd).resolve()
     except OSError:
         return False
+    if _is_self_repo(project_root):
+        return True
     project_root_str = str(project_root)
     for entry in _load_whitelist():
         if project_root_str == entry or project_root_str.startswith(entry + os.sep):

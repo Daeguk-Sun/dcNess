@@ -29,7 +29,7 @@ Sense→Diagnose→Decide→Act→Verify 루프를 따른다. 새 CI 게이트�
 - Diagnose: 전용 도구로 활성 프로젝트의 가드 발화 이력과 재발·낭비 신호([#876](https://github.com/alruminum/dcNess/issues/876)), dcNess self eval 포화 후보를 함께 본다. 새 CI 게이트가 아니라 릴리즈 전 사람이 읽는 점검이다.
 
   ```sh
-  python3.11 scripts/loop_diagnose.py --idle-days 30 --saturation-days 30 --saturation-min-runs 3
+  python3.11 scripts/loop_diagnose.py --idle-days 30 --since-days 90 --saturation-days 30 --saturation-min-runs 3
   ```
 
   - 가드 발화 텔레메트리([#875](https://github.com/alruminum/dcNess/issues/875))가 있으면 통합 후보 표의 `guard:*` 후보를 검토한다.
