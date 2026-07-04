@@ -242,6 +242,101 @@ class EvalsHarnessContractTests(unittest.TestCase):
             self.assertIn('"llm_turns":2', text)
             self.assertIn('"estimated_output_tokens"', text)
 
+    def test_runner_records_report_execution_failure(self) -> None:
+        """#904 — failed report LLM calls still count in eval telemetry."""
+        with TemporaryDirectory() as td:
+            tmp = Path(td)
+            bin_dir = tmp / "bin"
+            out_dir = tmp / "eval-output"
+            bin_dir.mkdir()
+            fake_claude = bin_dir / "claude"
+            fake_claude.write_text(
+                "\n".join(
+                    [
+                        "#!/usr/bin/env bash",
+                        "set -euo pipefail",
+                        "exit 42",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            fake_claude.chmod(fake_claude.stat().st_mode | stat.S_IEXEC)
+
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["EVAL_OUTPUT_DIR"] = str(out_dir)
+            env["EVAL_RUNS"] = "1"
+            result = subprocess.run(
+                ["bash", str(EVALS / "run.sh")],
+                cwd=str(ROOT),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+            telemetry = sorted(out_dir.glob("guard-telemetry.jsonl"))
+            self.assertEqual(len(telemetry), 1)
+            text = telemetry[0].read_text(encoding="utf-8")
+            self.assertIn('"kind":"eval_case_result"', text)
+            self.assertIn('"passed":false', text)
+            self.assertIn('"failure_stage":"report"', text)
+            self.assertIn('"llm_turns":1', text)
+
+    def test_runner_records_judge_execution_failure(self) -> None:
+        """#904 — failed judge LLM calls leave report artifact and failed attempt."""
+        with TemporaryDirectory() as td:
+            tmp = Path(td)
+            bin_dir = tmp / "bin"
+            out_dir = tmp / "eval-output"
+            bin_dir.mkdir()
+            fake_claude = bin_dir / "claude"
+            fake_claude.write_text(
+                "\n".join(
+                    [
+                        "#!/usr/bin/env bash",
+                        "set -euo pipefail",
+                        "prompt=''",
+                        "while [ \"$#\" -gt 0 ]; do",
+                        "  case \"$1\" in",
+                        "    -p) shift; prompt=\"$1\" ;;",
+                        "  esac",
+                        "  shift || true",
+                        "done",
+                        "if printf '%s' \"$prompt\" | grep -q '\\[정답표\\]'; then",
+                        "  exit 43",
+                        "else",
+                        "  printf '한글 검수 보고\\n'",
+                        "fi",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            fake_claude.chmod(fake_claude.stat().st_mode | stat.S_IEXEC)
+
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["EVAL_OUTPUT_DIR"] = str(out_dir)
+            env["EVAL_RUNS"] = "1"
+            result = subprocess.run(
+                ["bash", str(EVALS / "run.sh")],
+                cwd=str(ROOT),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+            self.assertGreaterEqual(len(sorted(out_dir.glob("*/run-1-report.md"))), 1)
+            telemetry = sorted(out_dir.glob("guard-telemetry.jsonl"))
+            self.assertEqual(len(telemetry), 1)
+            text = telemetry[0].read_text(encoding="utf-8")
+            self.assertIn('"failure_stage":"judge"', text)
+            self.assertIn('"llm_turns":2', text)
+            self.assertIn('"token_estimate_basis":"utf8_bytes/4_lower_bound"', text)
+
 
 if __name__ == "__main__":
     unittest.main()

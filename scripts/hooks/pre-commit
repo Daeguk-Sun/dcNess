@@ -38,7 +38,9 @@ record_guard_hit() {
     --guard git-pre-commit \
     --category "$1" \
     --detail "$2" \
-    --source git_hook >/dev/null 2>&1 || true
+    --source git_hook \
+    --session-id "${DCNESS_SESSION_ID:-}" \
+    --run-id "${DCNESS_RUN_ID:-}" >/dev/null 2>&1 || true
 }
 
 current_branch=$(

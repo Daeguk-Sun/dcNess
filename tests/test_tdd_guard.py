@@ -683,6 +683,25 @@ class TestBlockingSemantics(unittest.TestCase):
             events,
         )
 
+    def test_bash_missing_test_records_guard_hit(self):
+        """#904 — Bash write target 재귀 차단도 telemetry category 로 남긴다."""
+        command = "cat > src/biz_from_bash.ts <<'EOF'\nexport const x = 1;\nEOF\n"
+
+        result = run_bash_hook(command, self._tmp)
+
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        self.assertIn("TDD GUARD[Bash]", result.stderr)
+        events = read_events(cwd=Path(self._tmp))
+        self.assertTrue(
+            any(
+                e.get("kind") == "guard_hit"
+                and e.get("guard") == "tdd-guard"
+                and e.get("category") == "bash_missing_test"
+                for e in events
+            ),
+            events,
+        )
+
     def test_allow_exits_0(self):
         """매칭 테스트 존재 → exit 0 (allow)."""
         self._touch("src/biz.ts", "export const x = 1;\n")
