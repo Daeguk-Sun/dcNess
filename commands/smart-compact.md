@@ -175,7 +175,7 @@ EOF
 # 컨텍스트
 - 핵심: harness/session_state.py, harness/hooks.py, hooks/*.sh, commands/*.md
 - spec: docs/plugin/loop-procedure.md (Task/Agent/helper/hook loop mechanics)
-- agents/*.md 12개 모두 자유서술 방식 (DCN-CHG-27)
+- agents/*.md 전체 자유서술 방식 (DCN-CHG-27)
 - 기준: CLAUDE.md 강제 원칙 + docs/plugin/workflow-router.md
 
 다음 세션은 worktree 도입 의논 이어서 + manual smoke 또는 /init-dcness 진행.

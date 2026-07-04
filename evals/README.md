@@ -33,7 +33,9 @@ python3 evals/guard_efficacy.py --json # 범주별 pass/fail JSON
 
 bash evals/run.sh                    # 전 케이스 1회씩
 EVAL_RUNS=3 bash evals/run.sh        # 케이스당 3회 반복 (릴리즈 전 권장)
+EVAL_RUNS=3 EVAL_RELEASE_CHECK=1 bash evals/run.sh  # 핵심 실사고 케이스 N/N 확인
 EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonnet)
+EVAL_OUTPUT_DIR=/tmp/dcness-evals bash evals/run.sh # 산출물 저장 위치 지정
 ```
 
 `guard_efficacy.py` 는 범주별 pass/fail count 를 출력한다. `provider-agnostic-order-gate`
@@ -42,6 +44,16 @@ EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonne
 아니라 문서화된 한계가 실제로 한계로 남아 있음을 드러내는 항목이다.
 
 케이스마다 `정답 k/N` 표가 출력된다. 어떤 케이스든 정답 0회면 exit 1 — 방금 바꾼 지침이 보호를 깨먹었는지 확인한다.
+릴리즈 점검에서는 `EVAL_RELEASE_CHECK=1`을 함께 켜고 `shorts-real-spec`, `headless-prose-quality`
+같은 핵심 실사고 케이스가 N/N으로 통과해야 한다. 이 기준은 새 CI 게이트가 아니라
+[`docs/internal/self-improvement-loop.md`](../docs/internal/self-improvement-loop.md)의
+Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
+
+실행 산출물은 기본적으로 `.metrics/evals/run-<timestamp>-<pid>/`에 저장된다. 각 케이스
+디렉터리 아래 `run-<N>-report.md`는 블라인드 검수 보고, `run-<N>-judge.md`는 judge 채점
+출력이다. MISS가 나면 두 파일을 대조해 agent 결함인지 judge 결함인지 분리한다. 이 파일은
+[#875](https://github.com/alruminum/dcNess/issues/875)의 추세 집계와
+[#894](https://github.com/alruminum/dcNess/issues/894)의 judge 보정 입력으로 소비된다.
 
 ## 채점 원리 — 정답표는 계약 수준으로만 쓴다
 

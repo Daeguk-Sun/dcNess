@@ -21,6 +21,15 @@ GitHub object 형식(`{"source": "github", "repo": "...", "ref": "release"}`)은
 
 ## 3. 릴리즈 순서
 
+릴리즈 전 자기개선 점검은 [`self-improvement-loop.md`](self-improvement-loop.md)의
+Sense→Diagnose→Decide→Act→Verify 루프를 따른다. 새 CI 게이트가 아니라 사람이 도는
+권고 절차다.
+
+- Sense: `python3 evals/guard_efficacy.py`와 `EVAL_RUNS=3 EVAL_RELEASE_CHECK=1 bash evals/run.sh`를 실행한다. 행동 eval 산출물은 `.metrics/evals/` 또는 `EVAL_OUTPUT_DIR`에 남긴다.
+- Diagnose: 가드 발화 텔레메트리([#875](https://github.com/alruminum/dcNess/issues/875))가 준비되어 있으면 집계를 보고, 없으면 최근 CI·hook 실패 이력을 수동 확인한다. 재발·낭비 신호([#876](https://github.com/alruminum/dcNess/issues/876))도 같은 자리에서 본다.
+- Decide: 추가 전 제거 검토를 먼저 한다. 소멸 후보나 follow-up이 있으면 릴리즈 노트 `Unreleased` 또는 별도 GitHub issue에 기록한다.
+- Verify: 핵심 행동 eval(`shorts-real-spec`, `headless-prose-quality`)은 릴리즈 체크 모드에서 N/N 통과해야 한다. judge 판정이 의심스러우면 저장된 `run-<N>-report.md`와 `run-<N>-judge.md`를 [#894](https://github.com/alruminum/dcNess/issues/894) 보정 입력으로 남긴다.
+
 ```sh
 # 1. 브랜치 생성
 git checkout -b docs/release_{버전}_{설명} main

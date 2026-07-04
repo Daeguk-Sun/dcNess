@@ -81,22 +81,6 @@ const DENY_LIST = [
     label: '옛 step 로그 `.steps.jsonl` — `ledger.jsonl` 의 step_completed event 로 흡수 (이슈 #587). legacy/폴백 맥락(옛·legacy 키워드 동반)만 허용.',
   },
   {
-    pattern: /agent\s+1[013]\s*종/,
-    label: '옛 agent 카운트 (10, 11, 13 종) — 현재 12 종 (product-acceptance / designer / build-worker 포함)',
-  },
-  {
-    pattern: /\b1[013]\s*개\s+(?:sub-)?agent\b/,
-    label: '옛 agent 카운트 (10, 11, 13개 agent/sub-agent) — 현재 12개',
-  },
-  {
-    pattern: /\b1[013]\s+agents?\b/,
-    label: '옛 agent 카운트 (10, 11, 13 agent/agents) — 현재 12 agents',
-  },
-  {
-    pattern: /\b[79]\s*hook\s+(상세|전체|공유|충족|시점)/,
-    label: '옛 hook 카운트 (7 또는 9) — 현재 8 hook (hooks.md §3 sub-section 정합, issue #598 SubagentStop 추가)',
-  },
-  {
     pattern: /\b8\s+loop\s+(행별|풀스펙)/,
     label: '옛 loop 카운트 — 현재 loop 진본은 각 `skills/<skill>/SKILL.md` 의 `## Loop` contract',
   },

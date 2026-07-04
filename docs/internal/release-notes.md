@@ -6,7 +6,8 @@
 
 ## Unreleased
 
-- (없음)
+- 자기개선 루프 SSOT 추가 — 측정 신호를 Sense→Diagnose→Decide→Act→Verify로 닫는 내부 절차를 [`docs/internal/self-improvement-loop.md`](self-improvement-loop.md)에 정의하고, 릴리즈 점검·eval 산출물 보존·핵심 행동 eval N/N 기준을 연결했다. [#893](https://github.com/alruminum/dcNess/issues/893)
+- 문서 개수 하드코딩 제거 — README/CLAUDE/loop-procedure/smart-compact의 구성 요소 count prose와 cross-ref count deny-list를 제거해 stale 방지 룰을 소멸시켰다. [#877](https://github.com/alruminum/dcNess/issues/877)
 
 ---
 

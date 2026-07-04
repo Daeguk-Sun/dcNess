@@ -153,7 +153,7 @@ claude plugin install dcness@dcness
 | 유틸 | `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 생성 |
 | 유틸 | `/efficiency` | 세션 토큰·비용 분석 + HTML 대시보드 |
 
-12개 sub-agent(`agents/`, architect / validator / engineer / reviewer / acceptance 계열)는 사용자가 직접 부르는 게 아니라 workflow 안에서 gate·worker·reviewer 로 호출된다.
+Sub-agent(`agents/`, architect / validator / engineer / reviewer / acceptance 계열)는 사용자가 직접 부르는 게 아니라 workflow 안에서 gate·worker·reviewer 로 호출된다.
 
 ## 거버넌스 (dcNess 저장소 자체 작업 기준)
 
@@ -191,7 +191,7 @@ bash scripts/check_static_quality.sh          # ruff + mypy + bandit
 | [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 요청을 어떤 workflow 로 보낼지 판정 |
 | [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현 가이드 + 표본 한계 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | loop 실행 절차 (Step 0~8) |
-| [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | 순서 차단 훅 + 8 hook SSOT |
+| [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | 순서 차단 훅 + hook SSOT |
 | [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |
 | [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 |
 

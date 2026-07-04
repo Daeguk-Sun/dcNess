@@ -6,9 +6,12 @@ evals/ 의 러너·케이스·정답표가 구조 계약(계약 수준 정답표
 """
 from __future__ import annotations
 
+import os
+import stat
 import subprocess
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -93,6 +96,60 @@ class EvalsHarnessContractTests(unittest.TestCase):
         claude_md = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
         self.assertIn("bash evals/run.sh", claude_md)
         self.assertIn("행동 eval (권고 — CI 차단 아님)", claude_md)
+
+    def test_runner_persists_blind_report_and_judge_output(self) -> None:
+        """#893 — run.sh must leave artifacts for missed-case and judge calibration review."""
+        with TemporaryDirectory() as td:
+            tmp = Path(td)
+            bin_dir = tmp / "bin"
+            out_dir = tmp / "eval-output"
+            bin_dir.mkdir()
+            fake_claude = bin_dir / "claude"
+            fake_claude.write_text(
+                "\n".join(
+                    [
+                        "#!/usr/bin/env bash",
+                        "set -euo pipefail",
+                        "prompt=''",
+                        "while [ \"$#\" -gt 0 ]; do",
+                        "  case \"$1\" in",
+                        "    -p) shift; prompt=\"$1\" ;;",
+                        "  esac",
+                        "  shift || true",
+                        "done",
+                        "if printf '%s' \"$prompt\" | grep -q '\\[정답표\\]'; then",
+                        "  printf 'OK FAKE\\nRESULT: PASS\\n'",
+                        "else",
+                        "  printf 'blind report with concrete evidence\\n'",
+                        "fi",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            fake_claude.chmod(fake_claude.stat().st_mode | stat.S_IEXEC)
+
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["EVAL_OUTPUT_DIR"] = str(out_dir)
+            env["EVAL_RUNS"] = "1"
+            env["EVAL_RELEASE_CHECK"] = "1"
+            result = subprocess.run(
+                ["bash", str(EVALS / "run.sh")],
+                cwd=str(ROOT),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn(str(out_dir), result.stdout)
+            report_files = sorted(out_dir.glob("*/run-1-report.md"))
+            judge_files = sorted(out_dir.glob("*/run-1-judge.md"))
+            self.assertGreaterEqual(len(report_files), 1)
+            self.assertEqual(len(report_files), len(judge_files))
+            self.assertIn("blind report", report_files[0].read_text(encoding="utf-8"))
+            self.assertIn("RESULT: PASS", judge_files[0].read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
