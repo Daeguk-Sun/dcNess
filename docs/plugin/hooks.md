@@ -235,7 +235,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 | `.git/hooks/pre-push` | `scripts/hooks/pre-push` | push 직전 | main 직접 push 차단 + 브랜치명 검증 | O |
 
 활성 프로젝트 기준으로 `pre-commit` 은 기본 설치 대상이 아니다. TDD 강제는 git hook 이 아니라 Layer 1 의 `tdd-guard.sh` 가 구현 파일 작성 전에 수행한다.
-git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 통과 뒤에만 수행한다. 비활성 프로젝트에서 남아 있는 git hook 이 차단하더라도 `guard-telemetry.jsonl` 을 만들지 않는다. dcness self repo 는 whitelist 없이 active 로 판정해 self 작업 중 발생한 `commit-msg` / `pre-push` 차단 신호를 보존한다. `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 가 있는 headless worker 컨텍스트에서는 active run 로그에 귀속하고, 없으면 프로젝트 로그에 fallback 한다. `commit-msg` 차단은 `guard=git-commit-msg`, `pre-push` 차단은 `guard=git-pre-push` 로 기록된다. dcness self 작업용 `pre-commit` 은 `guard=git-pre-commit` 으로 main 직접 commit 차단과 python test gate 실패를 기록할 수 있지만, 외부 활성 프로젝트의 report 기본 known guard 후보에는 포함하지 않는다.
+git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또는 dcness self repo 판정 통과 뒤에만 수행한다. 비활성 외부 프로젝트에서 남아 있는 git hook 이 차단하더라도 `guard-telemetry.jsonl` 을 만들지 않는다. dcness self repo 는 plugin hook 전체를 active 로 만들지 않고, self 작업 중 발생한 `commit-msg` / `pre-push` 차단 신호만 git hook shim 기록 지점에서 보존한다. `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 가 있는 headless worker 컨텍스트에서는 active run 로그에 귀속하고, 없으면 프로젝트 로그에 fallback 한다. `commit-msg` 차단은 `guard=git-commit-msg`, `pre-push` 차단은 `guard=git-pre-push` 로 기록된다. dcness self 작업용 `pre-commit` 은 `guard=git-pre-commit` 으로 main 직접 commit 차단과 python test gate 실패를 기록할 수 있지만, 외부 활성 프로젝트의 report 기본 known guard 후보에는 포함하지 않는다.
 
 ### .git/hooks/commit-msg
 

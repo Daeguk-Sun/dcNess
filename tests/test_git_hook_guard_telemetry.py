@@ -178,6 +178,38 @@ class GitHookGuardTelemetryTests(unittest.TestCase):
                 events,
             )
 
+    def test_self_repo_pre_push_block_records_without_whitelist(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            root = base / "dcness"
+            root.mkdir()
+            _git(root, "init")
+            manifest = root / ".claude-plugin" / "plugin.json"
+            manifest.parent.mkdir(parents=True, exist_ok=True)
+            manifest.write_text(json.dumps({"name": "dcness"}), encoding="utf-8")
+
+            result = subprocess.run(
+                ["sh", str(ROOT / "scripts" / "hooks" / "pre-push")],
+                input="refs/heads/main abc refs/heads/main def\n",
+                cwd=str(root),
+                env=_env(whitelist_path=base / "projects.json"),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+            events = read_events(cwd=root)
+            self.assertTrue(
+                any(
+                    e.get("kind") == "guard_hit"
+                    and e.get("guard") == "git-pre-push"
+                    and e.get("category") == "main_push_block"
+                    for e in events
+                ),
+                events,
+            )
+
     def test_pre_push_branch_naming_records_run_context_when_available(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)
