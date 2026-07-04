@@ -38,6 +38,7 @@ class PublicSurfaceGateTests(unittest.TestCase):
         advanced = self._array(script, "advancedSkills")
         support = self._array(script, "supportSkills")
         utility_skills = self._array(script, "utilitySkills")
+        utility_commands = self._array(script, "utilityCommands")
         internal_skills = self._array(script, "internalSkills")
         internal_agents = self._array(script, "internalAgents")
 
@@ -45,6 +46,8 @@ class PublicSurfaceGateTests(unittest.TestCase):
         self.assertEqual(["impl-loop", "tech-review"], advanced)
         self.assertEqual(["to-issue"], support)
         self.assertEqual(["ux"], utility_skills)
+        self.assertIn("next-work", utility_commands)
+        self.assertNotIn("next", utility_commands)
         self.assertEqual(["canvas-design", "compact-design"], internal_skills)
         self.assertNotIn("qa", internal_agents)
 

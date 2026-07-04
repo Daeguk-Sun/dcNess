@@ -16,7 +16,7 @@ const EXPECTED = {
   advancedSkills: ['impl-loop', 'tech-review'],
   utilitySkills: ['ux'],
   internalSkills: ['canvas-design', 'compact-design'],
-  utilityCommands: ['efficiency', 'init-dcness', 'next', 'run-review', 'smart-compact'],
+  utilityCommands: ['efficiency', 'init-dcness', 'next-work', 'run-review', 'smart-compact'],
   internalAgents: [
     'architecture-validator',
     'build-worker',

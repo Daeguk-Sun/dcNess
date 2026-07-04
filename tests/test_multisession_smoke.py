@@ -176,7 +176,7 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("docs/index.md", ctx)
         self.assertIn("docs/index.md` 가 없으므로", ctx)
         self.assertNotIn("의 `## 진행 상태 · 다음 작업` 포인터", ctx)
-        self.assertIn("/next", ctx)
+        self.assertIn("/next-work", ctx)
 
         # 제거: 문서 진입 매트릭스 / docs preload 지시 / soft 필수·안티패턴 본문
         for forbidden in (
@@ -211,7 +211,7 @@ class BashPipelineSmokeTests(unittest.TestCase):
         ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
 
         self.assertIn("docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터", ctx)
-        self.assertIn("/next", ctx)
+        self.assertIn("/next-work", ctx)
         self.assertNotIn("섹션이 없으므로", ctx)
 
     def test_session_start_falls_back_when_index_section_missing(self) -> None:

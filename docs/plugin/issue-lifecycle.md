@@ -49,15 +49,15 @@ gh issue create --title "<title>" --body-file <brief.md> --label "<IssueType>"
 
 `scripts/check_issue_body.mjs` 가 실패하면 `gh issue create` 를 실행하지 않는다. 실제 issue 생성 preflight 는 `--labels` 를 함께 넘겨 label 계약까지 검증하고, 본문 초안만 점검할 때만 `--body-only` 를 명시한다. `/to-issue` 는 권장 도우미이며, `/to-issue` 외 이미 승인된 대화나 agent workflow 가 issue 를 생성하는 경우에도 같은 pre-create validation 을 통과해야 한다.
 
-## GitHub Project Status lifecycle
+## Issue/label Status lifecycle
 
-Project 축 정의의 SSOT 는 [`github-project.md`](github-project.md) 이다. 본 절은 issue 등록, `/spec`, `/design`, `/impl`, `/ux`, PR merge 후처리가 그 축을 어떻게 갱신하는지만 다룬다.
+계약 축 정의의 SSOT 는 [`github-project.md`](github-project.md) 이다. 본 절은 issue 등록, `/spec`, `/design`, `/impl`, `/ux`, PR merge 후처리가 issue/label 상태를 어떻게 갱신하는지만 다룬다. GitHub Project v2 보드는 선택적 사람용 파생 뷰이며, 기계 필수 경로가 아니다.
 
-### 이슈 등록 — Status=Todo
+### 이슈 등록 — open + IssueType label
 
-issue 등록 직후 Project item 으로 추가하고 `Status=Todo` + `IssueType` + `Priority` 를 설정한다. 단발 등록 (`/to-issue`) 과 epic/story 일괄 생성 ([`scripts/create_epic_story_issues.sh`](../../scripts/create_epic_story_issues.sh)) 이 같은 경로 `register-issue` 를 쓴다. epic → `IssueType=epic`, story → `IssueType=story`, 둘 다 `Priority=major` (일괄 기본).
+issue 생성 시 `epic`, `feature`, `story`, `task`, `subTask`, `bug` 중 정확히 하나의 IssueType label 을 붙인다. Priority 는 Issue Brief 본문의 `Priority` 줄이 진본이며 priority label 은 만들지 않는다. 새 issue 의 Status 의미는 `open` + `in-progress` label 없음, 즉 `Todo` 다.
 
-Priority 값과 단발/일괄 정책은 [`github-project.md#priority`](github-project.md#priority) 가 소유한다. 실행 경로에서는 단발 `/to-issue` 가 추론한 Priority 를 `--priority` 로 넘기고, epic/story 일괄 생성은 `major` 를 적용한다.
+선택적으로 Project 보드를 쓰는 repo 는 전환기 호환을 위해 `register-issue` 로 Project item 을 backfill 할 수 있다. 이 경로는 item 이 없으면 추가하고 `Status=Todo` + `IssueType` + `Priority` 를 설정한다.
 
 ```bash
 node scripts/github_project_lifecycle.mjs register-issue \
@@ -65,86 +65,69 @@ node scripts/github_project_lifecycle.mjs register-issue \
   --issue ISSUE_NUMBER --issue-type epic|story [--priority major] --apply
 ```
 
-`register-issue` 는 item 이 없으면 추가하고 (멱등), Status/IssueType/Priority 를 설정한 뒤 drift 를 사후검증한다.
-
-보드 (Project) 나 field/option 이 없거나 불완전해도 **issue 생성은 막지 않는다.** 메인은 사용자에게 보드를 만들거나 채울지 물어보고, 동의하면 `bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 먼저) 로 셋업한 뒤 등록한다. 거부하면 보드 없이 issue 만 생성한다. 일괄 생성 스크립트는 비대화형이라 좌표가 없으면 보드 등록만 skip 하고 (이슈는 생성됨) 경고하며, 멱등 재실행 시 이슈 생성은 skip 하고 보드 등록만 backfill 한다.
-
-보드 좌표 (owner/number) 는 repo 변수 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` 에 저장한다 — GitHub Actions `vars.*` 와 동일 저장소라 CI lifecycle workflow 와 단일 SSOT 다. `/init-dcness` bootstrap 이 `gh variable set` 으로 저장하고, 등록 경로는 `gh variable get` 으로 읽는다. 조회 우선순위: `--project`/`--owner` 플래그 → `DCNESS_PROJECT_*` env → `gh variable get` → owner 는 repo owner fallback.
+보드 (Project) 나 field/option 이 없거나 불완전해도 **issue 생성은 막지 않는다.** 일괄 생성 스크립트는 비대화형이라 좌표가 없으면 보드 등록만 skip 하고 issue 는 생성한다. 멱등 재실행 시 이슈 생성은 skip 하고 선택적 보드 등록만 backfill 한다.
 
 ### 다음 작업 조회 — read-only
 
-`/next` 는 같은 Project 좌표 해석 경로를 사용해 현재 보드의 `In progress` 항목과 다음 `Todo` 후보를 요약한다. 이 명령은 read-only 유틸리티라 `--apply` 를 받지 않고 Project item, issue, PR 상태를 변경하지 않는다.
+`/next-work` 는 open issue 목록의 label 과 body 를 읽어 L1→L2→L3 계층 후보를 결정한다. 이 명령은 read-only 유틸리티라 `--apply` 를 받지 않고 issue/label/Project/PR 상태를 변경하지 않는다.
 
 ```bash
-node scripts/github_project_lifecycle.mjs next \
-  --repo OWNER/REPO \
-  --owner OWNER \
-  --project PROJECT_NUMBER
+node scripts/github_project_lifecycle.mjs next-work --repo OWNER/REPO
 ```
 
-Project 좌표가 저장되지 않은 환경에서는 크래시하지 않고 `/init-dcness` bootstrap 으로 보드 좌표를 저장하라는 안내를 출력한 뒤 정상 종료한다. `docs/index.md` 는 live 상태를 복제하지 않고 GitHub Project 보드, epic/story issue, `/next` 를 가리키는 정적 포인터만 둔다. 기존 `docs/index.md` 에 해당 포인터 섹션이 없으면 `/init-dcness` 가 파일을 덮지 않고 섹션만 append 한다.
+- L1: `in-progress` label 이 붙은 open issue 전부.
+- L2: L1 을 제외한 blocker/critical issue.
+- L3: story → feature → task → bug 순. story 는 `epic-NN-<slug>` label 의 NN 오름차순, 같은 epic 안에서는 issue 번호 오름차순이다. feature/task/bug 는 Priority rank 후 issue 번호 오름차순이다.
+- `subTask` 는 독립 후보에서 제외한다. body 의 `Part of #N` 부모가 L1 에 있으면 해당 부모 아래에 중첩 표시한다.
 
-### 작업 시작 — Status=In progress
+GitHub 조회가 실패하면 실패를 명시하고 로컬 대안 경로를 안내한다. `docs/index.md` 는 live 상태를 복제하지 않고 issue/label 상태, epic/story issue, `/next-work` 를 가리키는 정적 포인터만 둔다. 기존 `docs/index.md` 에 해당 포인터 섹션이 없으면 `/init-dcness` 가 파일을 덮지 않고 섹션만 append 한다.
 
-특정 GitHub issue 를 대상으로 `/spec`, `/design`, `/impl`, `/ux` 같은 설계나 구현 흐름을 실제 시작하면 메인은 시작 직전에 Project item 을 `Status=In progress` 로 이동한다. Project 번호와 owner 를 알 수 없으면 추측하지 말고 `/init-dcness` bootstrap 을 먼저 수행한다.
+### 작업 시작 — in-progress label
+
+특정 GitHub issue 를 대상으로 `/spec`, `/design`, `/impl`, `/ux` 같은 설계나 구현 흐름을 실제 시작하면 메인은 시작 직전에 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 전환기 호환으로 Project item `Status=In progress` 도 함께 보정한다.
 
 ```bash
 node scripts/github_project_lifecycle.mjs start-work \
   --repo OWNER/REPO \
-  --owner OWNER \
-  --project PROJECT_NUMBER \
   --issue ISSUE_NUMBER \
   --apply
 ```
 
-`--apply` 없이 실행하면 현재 Status 를 읽고 status drift 를 보고한다. 메시지는 어떤 issue 의 어떤 field 를 고쳐야 하는지 포함한다.
+Project 보정까지 원하면 기존처럼 `--owner` / `--project` 를 명시하거나 repo variable `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` 를 둔다. `--apply` 없이 실행하면 `in-progress` label 잔존 여부와, Project 좌표가 있는 경우 Status drift 를 함께 보고한다.
 
-```text
-issue #663: status drift on Project field Status. expected=In progress, actual=Todo.
-```
+### PR merge 후처리 — close + label cleanup
 
-### PR merge 후처리 — Status=Done
-
-default branch 로 PR merge 가 끝난 뒤 후처리 경로는 PR body 또는 GitHub closing issue reference 에서 완료 후보 issue 를 찾고 `Status=Done` 으로 이동한다.
+default branch 로 PR merge 가 끝난 뒤 GitHub closing reference 가 issue close 를 발동한다. 후처리 경로는 PR body 또는 GitHub closing issue reference 에서 완료 후보 issue 를 찾고, `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 전환기 호환으로 Project item `Status=Done` 도 함께 보정한다.
 
 ```bash
 node scripts/github_project_lifecycle.mjs pr-merged \
   --repo OWNER/REPO \
-  --owner OWNER \
-  --project PROJECT_NUMBER \
   --pr PR_NUMBER \
   --apply
 ```
 
-완료 후보는 `Closes #N`, `Fixes #N`, `Resolves #N` 또는 GitHub 가 실제 close 후보로 제공한 issue 뿐이다. `Part of #N` 은 완료 신호가 아니다. `Part of #N` 만 있는 PR 은 issue 를 `Done` 으로 옮기지 않는다.
-
-`--apply` 없이 실행하면 `Status=Done` 누락을 drift 로 보고한다. 메시지는 어떤 issue 와 어떤 field 를 고쳐야 하는지 포함한다.
-
-```text
-issue #663: status drift on Project field Status. expected=Done, actual=In progress.
-```
+완료 후보는 `Closes #N`, `Fixes #N`, `Resolves #N` 또는 GitHub 가 실제 close 후보로 제공한 issue 뿐이다. `Part of #N` 은 완료 신호가 아니다. `Part of #N` 만 있는 PR 은 issue close 도, `in-progress` label 제거도 수행하지 않는다.
 
 ### IssueType / repo label drift
 
-issue 는 Project `IssueType` 과 같은 repo label 을 정확히 하나 가져야 한다. 값이 어긋나면 어떤 issue 에서 어떤 값이 다른지 보고한다.
+issue 는 IssueType repo label 을 정확히 하나 가져야 하며, closed issue 에 `in-progress` label 이 남아 있으면 drift 다. Project 좌표가 있는 경우 선택적 Project `IssueType`/`Status`/`Priority` drift 도 함께 보고한다.
 
 ```bash
 node scripts/github_project_lifecycle.mjs validate-issue \
   --repo OWNER/REPO \
-  --owner OWNER \
-  --project PROJECT_NUMBER \
   --issue ISSUE_NUMBER
 ```
 
 예:
 
 ```text
+issue #663: closed issue retains in-progress label; remove in-progress.
 issue #663: Project IssueType=feature, repo label=bug. Set Project IssueType and exactly one matching repo label to the same value.
 ```
 
 ### CI/CD harness
 
-`/init-dcness` 는 선택적으로 `github-project-lifecycle` thin workflow 를 활성 repo 에 설치한다. 이 workflow 는 본 repo 의 composite action 을 호출해 issue label/type drift 를 PR/issue 이벤트에서 검증하고, merge 된 PR 의 완료 후보 issue 를 `Done` 으로 보정한다. Project v2 쓰기에는 `project` scope 가 필요하므로 사용자 repo 는 `DCNESS_PROJECT_TOKEN` secret 과 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` variables 를 설정해야 한다. token 이 없으면 workflow 는 drift 검출 중심으로 실패 메시지를 남긴다.
+`/init-dcness` 는 선택적으로 `github-project-lifecycle` thin workflow 를 활성 repo 에 설치한다. 이 workflow 는 본 repo 의 composite action 을 호출해 issue label/type drift 를 PR/issue 이벤트에서 검증하고, merge 된 PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project v2 보정을 쓰는 repo 만 `DCNESS_PROJECT_TOKEN` secret 과 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` variables 가 필요하다. token 이 없으면 Project 보정은 graceful degrade 하며 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
 
 ## 미등록 허용 모드
 

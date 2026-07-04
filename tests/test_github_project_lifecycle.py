@@ -194,6 +194,139 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
         self.assertTrue(result["ok"])
         self.assertEqual([], result["missingLabels"])
 
+    def test_lifecycle_label_validation_requires_in_progress_label(self) -> None:
+        labels = [
+            {"name": "epic"},
+            {"name": "feature"},
+            {"name": "story"},
+            {"name": "task"},
+            {"name": "subTask"},
+            {"name": "bug"},
+        ]
+
+        result = run_node(f"lifecycle.validateLifecycleLabels({json.dumps(labels)})")
+
+        self.assertFalse(result["ok"])
+        self.assertEqual(["in-progress"], result["missingLabels"])
+
+    def test_select_next_candidates_uses_label_status_priority_and_epic_order(self) -> None:
+        issues = [
+            {
+                "number": 210,
+                "title": "Epic bundle is not a direct work item",
+                "body": "**Priority:** blocker\n",
+                "labels": [{"name": "epic"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/210",
+            },
+            {
+                "number": 301,
+                "title": "Epic 02 story 1",
+                "body": "**Priority:** major\n",
+                "labels": [{"name": "story"}, {"name": "epic-02-beta"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/301",
+            },
+            {
+                "number": 201,
+                "title": "Epic 01 story 1",
+                "body": "**Priority:** trivial\n",
+                "labels": [{"name": "story"}, {"name": "epic-01-alpha"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/201",
+            },
+            {
+                "number": 202,
+                "title": "Epic 01 story 2",
+                "body": "**Priority:** minor\n",
+                "labels": [{"name": "story"}, {"name": "epic-01-alpha"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/202",
+            },
+            {
+                "number": 250,
+                "title": "Manual story without epic slug",
+                "body": "**Priority:** major\n",
+                "labels": [{"name": "story"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/250",
+            },
+            {
+                "number": 230,
+                "title": "Critical bug",
+                "body": "**Priority:** critical\n",
+                "labels": [{"name": "bug"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/230",
+            },
+            {
+                "number": 220,
+                "title": "Resume this feature",
+                "body": "**Priority:** trivial\n",
+                "labels": [{"name": "feature"}, {"name": "in-progress"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/220",
+            },
+            {
+                "number": 221,
+                "title": "Child task under the active feature",
+                "body": "**Priority:** major\nPart of #220\n",
+                "labels": [{"name": "subTask"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/221",
+            },
+            {
+                "number": 222,
+                "title": "Child task whose parent is not active",
+                "body": "**Priority:** major\nPart of #999\n",
+                "labels": [{"name": "subTask"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/222",
+            },
+            {
+                "number": 240,
+                "title": "Feature without priority line",
+                "body": "no issue brief here",
+                "labels": [{"name": "feature"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/240",
+            },
+            {
+                "number": 235,
+                "title": "Minor feature",
+                "body": "**Priority:** minor\n",
+                "labels": [{"name": "feature"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/235",
+            },
+        ]
+
+        result = run_node(f"lifecycle.selectNextCandidates({json.dumps(issues)})")
+
+        self.assertEqual([220], [item["number"] for item in result["l1"]])
+        self.assertEqual([221], [item["number"] for item in result["l1"][0]["subTasks"]])
+        self.assertEqual([230], [item["number"] for item in result["l2"]])
+        self.assertEqual(
+            [
+                {"label": "epic-01-alpha", "numbers": [201, 202]},
+                {"label": "epic-02-beta", "numbers": [301]},
+                {"label": None, "numbers": [250]},
+            ],
+            [
+                {
+                    "label": group["epicSlugLabel"],
+                    "numbers": [item["number"] for item in group["items"]],
+                }
+                for group in result["l3"]["storyGroups"]
+            ],
+        )
+        self.assertEqual([235, 240], [item["number"] for item in result["l3"]["feature"]])
+        self.assertTrue(result["l3"]["feature"][-1]["priorityMissing"])
+        self.assertEqual([210], [item["number"] for item in result["excluded"]["epic"]])
+        self.assertEqual([222], [item["number"] for item in result["excluded"]["subTask"]])
+
+    def test_next_alias_is_not_supported_after_next_work_rename(self) -> None:
+        completed = subprocess.run(
+            ["node", str(SCRIPT), "next"],
+            cwd=ROOT,
+            check=False,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+
+        self.assertNotEqual(0, completed.returncode)
+        self.assertIn("unknown command: next", completed.stderr)
+
     def test_completion_candidates_ignore_part_of_references(self) -> None:
         body = """
         ## 관련 이슈 번호
@@ -325,6 +458,20 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
         self.assertIn("issue #42", result["message"])
         self.assertIn("Project IssueType=feature", result["message"])
         self.assertIn("repo label=bug", result["message"])
+
+    def test_lifecycle_label_state_rejects_closed_in_progress_issue(self) -> None:
+        result = run_node(
+            "lifecycle.validateLifecycleIssueLabels({"
+            "issueNumber: 42,"
+            "state: 'CLOSED',"
+            "labels: ['bug', 'in-progress']"
+            "})"
+        )
+
+        self.assertFalse(result["ok"])
+        self.assertTrue(
+            any("closed issue retains in-progress label" in message for message in result["messages"])
+        )
 
     def test_status_drift_message_can_name_repo_scoped_issue(self) -> None:
         result = run_node(

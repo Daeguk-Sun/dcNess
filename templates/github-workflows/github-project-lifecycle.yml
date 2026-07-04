@@ -6,11 +6,11 @@ on:
     types: [closed]
 permissions:
   contents: read
-  issues: read
+  issues: write
   pull-requests: read
 jobs:
   issue-drift:
-    if: ${{ github.event_name == 'issues' && vars.DCNESS_PROJECT_NUMBER != '' }}
+    if: ${{ github.event_name == 'issues' }}
     runs-on: ubuntu-latest
     steps:
       - uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main
@@ -22,7 +22,7 @@ jobs:
           issue-number: ${{ github.event.issue.number }}
           gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
   pr-merged:
-    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true && vars.DCNESS_PROJECT_NUMBER != '' }}
+    if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     steps:
       - uses: alruminum/dcNess/.github/actions/github-project-lifecycle@main

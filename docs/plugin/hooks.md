@@ -62,7 +62,7 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 - 상태 위생 청소 (세션당 1회, fail-open): stale by-pid 파일(24h) + 본 세션의 만료 run 슬롯(24h) + 전 세션의 run 디렉토리(prose/ledger, 7d — `/run-review` 원자료라 슬롯보다 길게 보관). TTL 상수 SSOT = `harness/session_state.py`
 - `hookSpecificOutput.additionalContext` 로 dcNess 활성 사실과 핵심 guard 안내 inject
 - 메인 Claude 첫 응답 첫 줄에 `[dcness 활성 확인]` 토큰을 요구해 활성 여부를 사용자가 바로 확인 가능하게 함
-- 프로젝트 상태나 다음 작업 질문에는 `docs/index.md` 와 `## 진행 상태 · 다음 작업` 섹션이 실제로 있을 때만 해당 포인터를 안내하고, 파일/섹션이 없으면 `/next` 우선 조회와 `/init-dcness` 보강 경로를 안내함
+- 프로젝트 상태나 다음 작업 질문에는 `docs/index.md` 와 `## 진행 상태 · 다음 작업` 섹션이 실제로 있을 때만 해당 포인터를 안내하고, 파일/섹션이 없으면 `/next-work` issue/label 조회와 `/init-dcness` 보강 경로를 안내함
 - 설치된 plug-in 버전과 `main` 의 최신 버전을 비교(하루 1회 캐시)해 더 높은 버전이 있을 때만 `claude plugin update` 알림을 함께 inject — 외부 활성 프로젝트가 옛 plug-in 버전 운영 룰에 묶이는 drift 회피
 
 **차단**: 없음. 실패해도 세션 시작을 막지 않는다.
@@ -326,22 +326,22 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 ### .github/workflows/github-project-lifecycle.yml
 
-**설치**: `/init-dcness` 의 GitHub Project lifecycle bootstrap 에서 사용자가 Project lifecycle guard 를 선택하면 생성한다.
+**설치**: `/init-dcness` 의 GitHub Project lifecycle bootstrap 에서 사용자가 lifecycle guard 를 선택하면 생성한다.
 
 **시점**:
 
 - issue opened/edited/labeled/unlabeled
-- PR closed, 단 merged PR 만 Done 보정 후보
+- PR closed, 단 merged PR 만 `in-progress` label cleanup 후보
 
 **역할**:
 
-- issue label 과 Project IssueType drift 검출
-- merged PR body 의 close keyword 대상 issue 를 Project Status `Done` 으로 보정
-- `Part of #N` 만 있는 PR 은 Done 후보로 보지 않음
+- issue label drift 검출. Project 좌표가 있으면 Project IssueType drift 도 함께 검출
+- merged PR body 의 close keyword 대상 issue 에서 `in-progress` label 제거. Project 좌표가 있으면 Project Status `Done` 도 전환기 호환으로 보정
+- `Part of #N` 만 있는 PR 은 cleanup 후보로 보지 않음
 
-**필수 설정**: Project v2 쓰기에는 `secrets.DCNESS_PROJECT_TOKEN`, `vars.DCNESS_PROJECT_NUMBER`, `vars.DCNESS_PROJECT_OWNER` 가 필요하다.
+**필수 설정**: label cleanup 에는 workflow `issues: write` 권한이 필요하다. Project v2 보정까지 쓰려면 `secrets.DCNESS_PROJECT_TOKEN`, `vars.DCNESS_PROJECT_NUMBER`, `vars.DCNESS_PROJECT_OWNER` 가 필요하다.
 
-**차단/보정**: issue drift 는 workflow 실패로 드러나고, merged PR 보정은 `apply: "true"` 로 Project 상태를 수정한다.
+**차단/보정**: issue drift 는 workflow 실패로 드러나고, merged PR 보정은 `apply: "true"` 로 label 과 선택적 Project 상태를 수정한다.
 
 ## 문서 동기화 게이트
 

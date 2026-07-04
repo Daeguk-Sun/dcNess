@@ -44,7 +44,7 @@ class DocsIndexNextSectionTests(unittest.TestCase):
             text = index.read_text(encoding="utf-8")
             self.assertIn("# 기존 인덱스\n\n- 유지할 내용", text)
             self.assertIn(SECTION_TITLE, text)
-            self.assertIn("- 콜드스타트 다음 작업 확인: `/next`", text)
+            self.assertIn("- 콜드스타트 다음 작업 확인: `/next-work`", text)
             self.assertIn("진행 상태 섹션 추가", result.stdout)
 
     def test_existing_section_is_not_duplicated(self) -> None:
@@ -56,7 +56,7 @@ class DocsIndexNextSectionTests(unittest.TestCase):
             index.write_text(
                 "# 프로젝트 문서 인덱스\n\n"
                 f"{SECTION_TITLE}\n\n"
-                "- 콜드스타트 다음 작업 확인: `/next`\n",
+                "- 콜드스타트 다음 작업 확인: `/next-work`\n",
                 encoding="utf-8",
             )
 

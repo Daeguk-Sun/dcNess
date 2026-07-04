@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { parseField } from './check_issue_body.mjs';
 
 export const GH_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
@@ -19,7 +20,14 @@ export const ISSUE_TYPE_LABEL_META = Object.freeze({
   bug: ['d73a4a', 'bug-level GitHub issue'],
 });
 
+export const IN_PROGRESS_LABEL = 'in-progress';
+export const LIFECYCLE_LABEL_META = Object.freeze({
+  ...ISSUE_TYPE_LABEL_META,
+  [IN_PROGRESS_LABEL]: ['fbca04', 'dcNess lifecycle status: work is currently in progress'],
+});
+
 export const ISSUE_TYPE_LABELS = Object.freeze(PROJECT_FIELDS.IssueType);
+export const LIFECYCLE_LABELS = Object.freeze([...ISSUE_TYPE_LABELS, IN_PROGRESS_LABEL]);
 const COMPLETION_KEYWORD = String.raw`(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)`;
 const ISSUE_REFERENCE = String.raw`(?:([A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+))?#(\d+)`;
 
@@ -84,6 +92,12 @@ export function validateIssueTypeLabels(labelsInput) {
   return { ok: missingLabels.length === 0, missingLabels };
 }
 
+export function validateLifecycleLabels(labelsInput) {
+  const names = new Set(labelNames(labelsInput));
+  const missingLabels = LIFECYCLE_LABELS.filter((label) => !names.has(label));
+  return { ok: missingLabels.length === 0, missingLabels };
+}
+
 export function parseCompletionIssueNumbers(body) {
   const refs = parseCompletionIssueRefs(body).refs;
   const numbers = [];
@@ -94,6 +108,30 @@ export function parseCompletionIssueNumbers(body) {
       numbers.push(ref.number);
     }
   }
+  return { numbers };
+}
+
+export function parsePartOfIssueNumbers(body) {
+  const text = String(body ?? '');
+  const referenceRegex = new RegExp(ISSUE_REFERENCE, 'g');
+  const numbers = [];
+  const seen = new Set();
+
+  for (const line of text.split(/\r?\n/)) {
+    const partOf = line.match(/\bpart\s+of\b/i);
+    if (!partOf) continue;
+
+    referenceRegex.lastIndex = 0;
+    const segment = line.slice(partOf.index + partOf[0].length);
+    for (const match of segment.matchAll(referenceRegex)) {
+      const number = Number(match[2]);
+      if (Number.isInteger(number) && !seen.has(number)) {
+        seen.add(number);
+        numbers.push(number);
+      }
+    }
+  }
+
   return { numbers };
 }
 
@@ -170,6 +208,37 @@ export function detectIssueTypeDrift({ issueNumber, projectIssueType, labels }) 
     message: `${issueRef}: Project IssueType=${projectValue}, repo label=${labelValue}. `
       + 'Set Project IssueType and exactly one matching repo label to the same value.',
   };
+}
+
+export function validateLifecycleIssueLabels({ issueNumber, state = null, labels }) {
+  const names = labelNames(labels);
+  const issueTypeLabels = names.filter((label) => ISSUE_TYPE_LABELS.includes(label));
+  const inProgressLabels = names.filter((label) => label === IN_PROGRESS_LABEL);
+  const issueRef = issueNumber ? `issue #${issueNumber}` : 'issue';
+  const messages = [];
+  let ok = true;
+
+  if (issueTypeLabels.length !== 1) {
+    ok = false;
+    messages.push(
+      `${issueRef}: expected exactly one IssueType label, actual=${issueTypeLabels.length || 0} `
+      + `(${issueTypeLabels.join(',') || '<none>'}).`,
+    );
+  } else {
+    messages.push(`${issueRef}: IssueType label=${issueTypeLabels[0]}`);
+  }
+
+  if (inProgressLabels.length > 1) {
+    ok = false;
+    messages.push(`${issueRef}: expected at most one ${IN_PROGRESS_LABEL} label, actual=${inProgressLabels.length}.`);
+  }
+
+  if (String(state ?? '').toUpperCase() === 'CLOSED' && inProgressLabels.length > 0) {
+    ok = false;
+    messages.push(`${issueRef}: closed issue retains in-progress label; remove ${IN_PROGRESS_LABEL}.`);
+  }
+
+  return { ok, messages };
 }
 
 export function statusDriftMessage({ repo = null, issueNumber, field = 'Status', expected, actual }) {
@@ -396,7 +465,10 @@ function normalizeRepoName(value) {
 }
 
 function ensureLabel(repo, name) {
-  const [color, description] = ISSUE_TYPE_LABEL_META[name];
+  const [color, description] = LIFECYCLE_LABEL_META[name];
+  if (!color || !description) {
+    throw new Error(`unknown lifecycle label: ${name}`);
+  }
   const create = gh(
     ['label', 'create', name, '--color', color, '--description', description, '--repo', repo],
     { allowFailure: true },
@@ -487,6 +559,128 @@ export function summarizeBoard(itemsInput) {
     if (status === 'Done') summary.done.push(entry);
   }
   return summary;
+}
+
+function issueNumber(issue) {
+  const number = Number(issue?.number);
+  return Number.isInteger(number) ? number : Number.MAX_SAFE_INTEGER;
+}
+
+function priorityMeta(body) {
+  const priority = parseField(body, 'Priority');
+  const rank = PROJECT_FIELDS.Priority.indexOf(priority);
+  if (rank === -1) {
+    return { priority: null, priorityRank: PROJECT_FIELDS.Priority.length, priorityMissing: true };
+  }
+  return { priority, priorityRank: rank, priorityMissing: false };
+}
+
+function epicSlugMeta(names) {
+  const matches = names
+    .map((name) => {
+      const match = String(name).match(/^epic-(\d+)-[a-z0-9][a-z0-9-]*$/);
+      if (!match) return null;
+      return { epicSlugLabel: name, epicNumber: Number(match[1]) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.epicNumber - b.epicNumber || a.epicSlugLabel.localeCompare(b.epicSlugLabel));
+  return matches[0] ?? { epicSlugLabel: null, epicNumber: null };
+}
+
+function normalizeNextCandidate(issue) {
+  const names = labelNames(issue?.labels);
+  const issueType = names.find((name) => ISSUE_TYPE_LABELS.includes(name)) ?? null;
+  const priority = priorityMeta(issue?.body);
+  const epicSlug = epicSlugMeta(names);
+  const parentIssueNumbers = parsePartOfIssueNumbers(issue?.body).numbers;
+  return {
+    number: issueNumber(issue),
+    title: String(issue?.title ?? '<untitled>'),
+    url: issue?.url ?? null,
+    issueType,
+    labels: names,
+    inProgress: names.includes(IN_PROGRESS_LABEL),
+    parentIssueNumbers,
+    subTasks: [],
+    ...priority,
+    ...epicSlug,
+  };
+}
+
+function byIssueNumber(a, b) {
+  return a.number - b.number;
+}
+
+function byPriorityThenNumber(a, b) {
+  return a.priorityRank - b.priorityRank || byIssueNumber(a, b);
+}
+
+function groupStoryCandidates(stories) {
+  const bySlug = new Map();
+  for (const story of stories) {
+    const key = story.epicSlugLabel ?? '';
+    if (!bySlug.has(key)) {
+      bySlug.set(key, {
+        epicSlugLabel: story.epicSlugLabel,
+        epicNumber: story.epicNumber,
+        items: [],
+      });
+    }
+    bySlug.get(key).items.push(story);
+  }
+  return [...bySlug.values()]
+    .map((group) => ({ ...group, items: group.items.sort(byIssueNumber) }))
+    .sort((a, b) => {
+      if (a.epicSlugLabel === null && b.epicSlugLabel !== null) return 1;
+      if (a.epicSlugLabel !== null && b.epicSlugLabel === null) return -1;
+      return (a.epicNumber ?? Number.MAX_SAFE_INTEGER) - (b.epicNumber ?? Number.MAX_SAFE_INTEGER)
+        || String(a.epicSlugLabel ?? '').localeCompare(String(b.epicSlugLabel ?? ''));
+    });
+}
+
+export function selectNextCandidates(issuesInput) {
+  const candidates = asArray(issuesInput)
+    .map(normalizeNextCandidate)
+    .filter((issue) => Number.isInteger(issue.number));
+
+  const l1 = candidates.filter((issue) => issue.inProgress).sort(byIssueNumber);
+  const l1Numbers = new Set(l1.map((issue) => issue.number));
+  const remaining = candidates.filter((issue) => !l1Numbers.has(issue.number));
+  const l1ByNumber = new Map(l1.map((issue) => [issue.number, issue]));
+  const subTaskItems = remaining.filter((issue) => issue.issueType === 'subTask').sort(byIssueNumber);
+  const attachedSubTaskNumbers = new Set();
+
+  for (const subTask of subTaskItems) {
+    const parent = subTask.parentIssueNumbers
+      .map((number) => l1ByNumber.get(number))
+      .find(Boolean);
+    if (!parent) continue;
+    parent.subTasks.push(subTask);
+    attachedSubTaskNumbers.add(subTask.number);
+  }
+
+  const excluded = {
+    epic: remaining.filter((issue) => issue.issueType === 'epic').sort(byIssueNumber),
+    subTask: subTaskItems.filter((issue) => !attachedSubTaskNumbers.has(issue.number)),
+  };
+  const workItems = remaining.filter(
+    (issue) => issue.issueType && !['epic', 'subTask'].includes(issue.issueType),
+  );
+  const l2 = workItems.filter((issue) => issue.priorityRank <= 1).sort(byPriorityThenNumber);
+  const l2Numbers = new Set(l2.map((issue) => issue.number));
+  const l3Items = workItems.filter((issue) => !l2Numbers.has(issue.number));
+
+  return {
+    l1,
+    l2,
+    l3: {
+      storyGroups: groupStoryCandidates(l3Items.filter((issue) => issue.issueType === 'story')),
+      feature: l3Items.filter((issue) => issue.issueType === 'feature').sort(byPriorityThenNumber),
+      task: l3Items.filter((issue) => issue.issueType === 'task').sort(byPriorityThenNumber),
+      bug: l3Items.filter((issue) => issue.issueType === 'bug').sort(byPriorityThenNumber),
+    },
+    excluded,
+  };
 }
 
 function projectItemIssueType(item) {
@@ -595,7 +789,7 @@ function commandBootstrap(args) {
   const apply = Boolean(args.apply);
 
   const labels = gh(['label', 'list', '--repo', repo, '--limit', '200', '--json', 'name'], { json: true });
-  const labelValidation = validateIssueTypeLabels(labels);
+  const labelValidation = validateLifecycleLabels(labels);
   if (!labelValidation.ok) {
     console.error(`[dcness-project] missing repo labels: ${labelValidation.missingLabels.join(', ')}`);
     if (apply) {
@@ -651,7 +845,7 @@ function commandBootstrap(args) {
   const finalFields = apply && fieldValidation.missingFields.length
     ? gh(['project', 'field-list', projectNumber, '--owner', owner, '--format', 'json'], { json: true })
     : fields;
-  const ok = validateIssueTypeLabels(finalLabels).ok && validateProjectFields(finalFields).ok;
+  const ok = validateLifecycleLabels(finalLabels).ok && validateProjectFields(finalFields).ok;
   console.log(ok ? '[dcness-project] bootstrap PASS' : '[dcness-project] bootstrap FAIL');
   return ok ? 0 : 1;
 }
@@ -663,8 +857,30 @@ function projectContext(args) {
   return { repo, owner, projectNumber, project, fields };
 }
 
+function projectContextIfConfigured(args) {
+  const { repo, owner, project: projectNumber } = resolveProjectCoordinates(args);
+  if (!projectNumber) {
+    return { repo, owner, projectNumber: null, project: null, fields: null };
+  }
+  const project = gh(['project', 'view', projectNumber, '--owner', owner, '--format', 'json'], { json: true });
+  const fields = gh(['project', 'field-list', projectNumber, '--owner', owner, '--format', 'json'], { json: true });
+  return { repo, owner, projectNumber, project, fields };
+}
+
 function getIssue(repo, issueNumber) {
-  return gh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,labels,url'], { json: true });
+  return gh(['issue', 'view', String(issueNumber), '--repo', repo, '--json', 'number,labels,state,url'], { json: true });
+}
+
+function issueHasLabel(issue, labelName) {
+  return labelNames(issue?.labels).includes(labelName);
+}
+
+function addIssueLabel({ repo, issueNumber, labelName }) {
+  gh(['issue', 'edit', String(issueNumber), '--repo', repo, '--add-label', labelName]);
+}
+
+function removeIssueLabel({ repo, issueNumber, labelName }) {
+  gh(['issue', 'edit', String(issueNumber), '--repo', repo, '--remove-label', labelName]);
 }
 
 function getProjectItems({ owner, projectNumber }) {
@@ -679,22 +895,30 @@ function getProjectItem({ owner, projectNumber, repo, issueNumber }) {
   return findProjectItem(items, { repo, number: issueNumber });
 }
 
-function formatBoardEntry(entry) {
+function formatNextCandidate(entry) {
   const ref = entry.number ? `#${entry.number}` : '<no-issue-number>';
-  const meta = [entry.issueType, entry.priority].filter(Boolean).join(', ');
+  const priority = entry.priorityMissing ? 'priority 미기재' : entry.priority;
+  const meta = [entry.issueType, priority].filter(Boolean).join(', ');
   const metaText = meta ? ` (${meta})` : '';
-  const repoText = entry.repo ? ` [${entry.repo}]` : '';
   const urlText = entry.url ? ` ${entry.url}` : '';
-  return `- ${ref}${repoText} ${entry.title}${metaText}${urlText}`;
+  return `- ${ref} ${entry.title}${metaText}${urlText}`;
 }
 
-function formatBoardSection(title, entries, { limit = null, emptyText = '없음' } = {}) {
+function formatNextCandidateLines(entry) {
+  const lines = [formatNextCandidate(entry)];
+  for (const subTask of asArray(entry?.subTasks)) {
+    lines.push(`  ${formatNextCandidate(subTask)}`);
+  }
+  return lines;
+}
+
+function formatFlatNextSection(title, entries, { emptyText = '없음', limit = null } = {}) {
   const visible = limit ? entries.slice(0, limit) : entries;
   const lines = [`## ${title}`];
   if (visible.length === 0) {
     lines.push(`- ${emptyText}`);
   } else {
-    lines.push(...visible.map(formatBoardEntry));
+    lines.push(...visible.flatMap(formatNextCandidateLines));
   }
   if (limit && entries.length > limit) {
     lines.push(`- 외 ${entries.length - limit}건`);
@@ -702,49 +926,106 @@ function formatBoardSection(title, entries, { limit = null, emptyText = '없음'
   return lines.join('\n');
 }
 
-function formatNextReport({ repo, owner, projectNumber, summary, todoLimit }) {
+function formatStoryGroups(groups) {
+  const lines = ['## L3 Story'];
+  if (groups.length === 0) {
+    lines.push('- 후보 없음');
+    return lines.join('\n');
+  }
+  for (const group of groups) {
+    lines.push(`- ${group.epicSlugLabel ?? '미분류 story'}`);
+    for (const item of group.items) {
+      lines.push(`  ${formatNextCandidate(item)}`);
+    }
+  }
+  lines.push('- 참고: story 세부 구현 순서의 진본은 epic 설계 산출물의 구현 순서 섹션이다.');
+  return lines.join('\n');
+}
+
+function formatNextWorkReport({ repo, candidates, limit }) {
   return [
-    `[dcness-next] Project #${projectNumber} (owner=${owner}, repo=${repo})`,
-    '[dcness-next] read-only: Project/issue 상태를 변경하지 않았습니다.',
+    `[dcness-next-work] repo=${repo}`,
+    '[dcness-next-work] read-only: GitHub issue/label 상태를 변경하지 않았습니다.',
     '',
-    formatBoardSection('In progress', summary.inProgress),
+    formatFlatNextSection('L1 이어하기 (in-progress)', candidates.l1),
     '',
-    formatBoardSection('Next Todo', summary.todo, {
-      limit: todoLimit,
-      emptyText: 'Todo 후보 없음',
+    formatFlatNextSection('L2 긴급 끼어들기 (blocker/critical)', candidates.l2, {
+      emptyText: '긴급 후보 없음',
+      limit,
     }),
     '',
-    `[dcness-next] Done: ${summary.done.length}건`,
+    formatStoryGroups(candidates.l3.storyGroups),
+    '',
+    formatFlatNextSection('L3 Feature', candidates.l3.feature, { emptyText: '후보 없음', limit }),
+    '',
+    formatFlatNextSection('L3 Task', candidates.l3.task, { emptyText: '후보 없음', limit }),
+    '',
+    formatFlatNextSection('L3 Bug', candidates.l3.bug, { emptyText: '후보 없음', limit }),
   ].join('\n');
 }
 
+function localNextFallbackLines() {
+  const lines = [];
+  if (existsSync('docs/index.md')) lines.push('- 로컬 포인터: docs/index.md');
+  if (existsSync('docs/epics')) lines.push('- 로컬 epic 산출물: docs/epics/');
+  if (existsSync('.dcness-work')) lines.push('- 로컬 작업 메모: .dcness-work/');
+  return lines.length ? lines : ['- 로컬 대안 경로 없음'];
+}
+
+function getOpenIssues(repo) {
+  return gh([
+    'issue',
+    'list',
+    '--state',
+    'open',
+    '--repo',
+    repo,
+    '--json',
+    'number,title,labels,body,url,createdAt',
+    '--limit',
+    '1000',
+  ], { json: true, allowFailure: true });
+}
+
 function commandNext(args) {
-  const { repo, owner, project: projectNumber } = resolveProjectCoordinates(args);
-  if (!projectNumber) {
-    console.log('[dcness-next] 보드 미설정 — /init-dcness bootstrap 으로 GitHub Project 좌표를 저장한 뒤 다시 실행하세요.');
-    console.log('[dcness-next] read-only: 외부 상태 변경 없음.');
+  const repo = detectRepo(args.repo);
+  const issues = getOpenIssues(repo);
+  if (!issues) {
+    console.log(`[dcness-next-work] GitHub issue 조회 실패: repo=${repo}`);
+    console.log('[dcness-next-work] read-only: 외부 상태 변경 없음.');
+    console.log('[dcness-next-work] 로컬 대안:');
+    console.log(localNextFallbackLines().join('\n'));
     return 0;
   }
-  const todoLimit = Number.isInteger(Number(args.limit)) && Number(args.limit) > 0
+  const limit = Number.isInteger(Number(args.limit)) && Number(args.limit) > 0
     ? Number(args.limit)
     : 5;
-  const items = getProjectItems({ owner, projectNumber });
-  const summary = summarizeBoard(items);
-  console.log(formatNextReport({ repo, owner, projectNumber, summary, todoLimit }));
+  const candidates = selectNextCandidates(issues);
+  console.log(formatNextWorkReport({ repo, candidates, limit }));
   return 0;
 }
 
 function commandValidateIssue(args) {
   if (!args.issue) throw new Error('--issue <number> is required.');
-  const { repo, owner, projectNumber } = projectContext(args);
+  const { repo, owner, projectNumber } = projectContextIfConfigured(args);
   const issue = getIssue(repo, args.issue);
-  const item = getProjectItem({ owner, projectNumber, repo, issueNumber: args.issue });
+  const labelValidation = validateLifecycleIssueLabels({
+    issueNumber: issue.number,
+    state: issue.state,
+    labels: issue.labels,
+  });
+  for (const message of labelValidation.messages) console.log(message);
 
+  if (!projectNumber) {
+    console.log('[dcness-project] Project 좌표 없음 — label drift 만 검사했습니다.');
+    return labelValidation.ok ? 0 : 1;
+  }
+
+  const item = getProjectItem({ owner, projectNumber, repo, issueNumber: args.issue });
   if (!item) {
     console.error(`issue #${args.issue}: Project item missing in Project ${projectNumber}.`);
     return 1;
   }
-
   const validation = validateIssueProjectRegistration({
     repo,
     issueNumber: issue.number,
@@ -757,26 +1038,59 @@ function commandValidateIssue(args) {
   for (const message of validation.messages) {
     console.log(message);
   }
-  return validation.ok ? 0 : 1;
+  return labelValidation.ok && validation.ok ? 0 : 1;
 }
 
 function commandStartWork(args) {
   if (!args.issue) throw new Error('--issue <number> is required.');
-  const { repo, owner, projectNumber, project, fields } = projectContext(args);
+  const { repo, owner, projectNumber, project, fields } = projectContextIfConfigured(args);
+  const issue = getIssue(repo, args.issue);
+  const hasInProgressLabel = issueHasLabel(issue, IN_PROGRESS_LABEL);
+  if (!args.apply) {
+    let ok = hasInProgressLabel;
+    console.log(
+      hasInProgressLabel
+        ? `issue #${args.issue}: label ${IN_PROGRESS_LABEL} already present`
+        : `issue #${args.issue}: missing label ${IN_PROGRESS_LABEL}`,
+    );
+    if (projectNumber) {
+      const item = getProjectItem({ owner, projectNumber, repo, issueNumber: args.issue });
+      if (!item?.id) {
+        console.error(`issue #${args.issue}: Project item missing in Project ${projectNumber}.`);
+        ok = false;
+      } else {
+        const actual = projectItemFieldValue(item, 'Status');
+        if (actual !== 'In progress') ok = false;
+        console.log(statusDriftMessage({
+          repo,
+          issueNumber: args.issue,
+          expected: 'In progress',
+          actual,
+        }));
+      }
+    } else {
+      console.log('[dcness-project] Project 좌표 없음 — label 상태만 검사했습니다.');
+    }
+    console.log(`Run again with --apply to add label ${IN_PROGRESS_LABEL} and set Project Status when configured.`);
+    return ok ? 0 : 1;
+  }
+  ensureLabel(repo, IN_PROGRESS_LABEL);
+  if (!hasInProgressLabel) {
+    addIssueLabel({ repo, issueNumber: args.issue, labelName: IN_PROGRESS_LABEL });
+  }
+  console.log(`issue #${args.issue}: label ${IN_PROGRESS_LABEL}`);
+  if (!projectNumber) {
+    console.log('[dcness-project] Project 좌표 없음 — Status board update skipped; label state is SSOT.');
+    return 0;
+  }
   const item = getProjectItem({ owner, projectNumber, repo, issueNumber: args.issue });
   if (!item?.id) {
     console.error(`issue #${args.issue}: Project item missing in Project ${projectNumber}.`);
     return 1;
   }
-  if (!args.apply) {
-    console.log(statusDriftMessage({
-      repo,
-      issueNumber: args.issue,
-      expected: 'In progress',
-      actual: projectItemFieldValue(item, 'Status'),
-    }));
-    console.log('Run again with --apply to set Status=In progress.');
-    return 1;
+  if (projectItemFieldValue(item, 'Status') === 'In progress') {
+    console.log(`issue #${args.issue}: Status=In progress`);
+    return 0;
   }
   setProjectSingleSelect({
     projectId: project.id,
@@ -896,45 +1210,64 @@ function commandPrMerged(args) {
     console.log('[dcness-project] no completion issue candidates. Part of #N is not a Done signal.');
     return 0;
   }
-  const { repo, owner, projectNumber, project, fields } = projectContext(args);
+  const { repo, owner, projectNumber, project, fields } = projectContextIfConfigured(args);
   const resolvedRefs = resolveCompletionRefsForProject(body, args.repo, repo);
 
   let failures = 0;
   for (const ref of resolvedRefs) {
-    const item = getProjectItem({
-      owner,
-      projectNumber,
-      repo: ref.repo,
-      issueNumber: ref.number,
-    });
-    if (!item?.id) {
+    const labelRepo = ref.repo ?? repo;
+    const issue = getIssue(labelRepo, ref.number);
+    const hasInProgressLabel = issueHasLabel(issue, IN_PROGRESS_LABEL);
+    if (args.apply) {
+      if (hasInProgressLabel) {
+        removeIssueLabel({ repo: labelRepo, issueNumber: ref.number, labelName: IN_PROGRESS_LABEL });
+      }
+      console.log(`issue ${labelRepo}#${ref.number}: label ${IN_PROGRESS_LABEL} removed`);
+    } else if (hasInProgressLabel) {
       failures += 1;
-      console.error(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Project item missing in Project ${projectNumber}.`);
-      continue;
+      console.error(`issue ${labelRepo}#${ref.number}: label ${IN_PROGRESS_LABEL} should be removed after merge.`);
+    } else {
+      console.log(`issue ${labelRepo}#${ref.number}: label ${IN_PROGRESS_LABEL} absent`);
     }
-    const actual = projectItemFieldValue(item, 'Status');
-    if (actual === 'Done') {
-      console.log(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Status=Done`);
-      continue;
-    }
-    if (!args.apply) {
-      failures += 1;
-      console.error(statusDriftMessage({
+
+    if (projectNumber) {
+      const item = getProjectItem({
+        owner,
+        projectNumber,
         repo: ref.repo,
         issueNumber: ref.number,
-        expected: 'Done',
-        actual,
-      }));
-      continue;
+      });
+      if (!item?.id) {
+        failures += 1;
+        console.error(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Project item missing in Project ${projectNumber}.`);
+        continue;
+      }
+      const actual = projectItemFieldValue(item, 'Status');
+      if (actual === 'Done') {
+        console.log(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Status=Done`);
+        continue;
+      }
+      if (!args.apply) {
+        failures += 1;
+        console.error(statusDriftMessage({
+          repo: ref.repo,
+          issueNumber: ref.number,
+          expected: 'Done',
+          actual,
+        }));
+        continue;
+      }
+      setProjectSingleSelect({
+        projectId: project.id,
+        itemId: item.id,
+        fields,
+        fieldName: 'Status',
+        optionName: 'Done',
+      });
+      console.log(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Status=Done`);
+    } else {
+      console.log('[dcness-project] Project 좌표 없음 — Status board update skipped; issue close state is SSOT.');
     }
-    setProjectSingleSelect({
-      projectId: project.id,
-      itemId: item.id,
-      fields,
-      fieldName: 'Status',
-      optionName: 'Done',
-    });
-    console.log(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Status=Done`);
   }
   return failures === 0 ? 0 : 1;
 }
@@ -942,11 +1275,11 @@ function commandPrMerged(args) {
 function help() {
   console.log(`Usage:
   node scripts/github_project_lifecycle.mjs bootstrap --repo OWNER/REPO --owner OWNER --project N [--apply]
-  node scripts/github_project_lifecycle.mjs next [--repo OWNER/REPO] [--owner OWNER] [--project N] [--limit N]
-  node scripts/github_project_lifecycle.mjs validate-issue --repo OWNER/REPO --owner OWNER --project N --issue N [--expected-status Todo|In progress|Done|any] [--expected-issue-type TYPE] [--expected-priority PRIORITY]
-  node scripts/github_project_lifecycle.mjs start-work --repo OWNER/REPO --owner OWNER --project N --issue N [--apply]
+  node scripts/github_project_lifecycle.mjs next-work [--repo OWNER/REPO] [--limit N]
+  node scripts/github_project_lifecycle.mjs validate-issue --repo OWNER/REPO [--owner OWNER] [--project N] --issue N [--expected-status Todo|In progress|Done|any] [--expected-issue-type TYPE] [--expected-priority PRIORITY]
+  node scripts/github_project_lifecycle.mjs start-work --repo OWNER/REPO [--owner OWNER] [--project N] --issue N [--apply]
   node scripts/github_project_lifecycle.mjs register-issue --repo OWNER/REPO --owner OWNER --project N --issue N --issue-type epic|story|... [--status Todo] [--priority major] [--preserve-existing] [--apply]
-  node scripts/github_project_lifecycle.mjs pr-merged --repo OWNER/REPO --owner OWNER --project N (--pr N | --body-file FILE | --body-env ENV) [--apply]
+  node scripts/github_project_lifecycle.mjs pr-merged --repo OWNER/REPO [--owner OWNER] [--project N] (--pr N | --body-file FILE | --body-env ENV) [--apply]
 `);
 }
 
@@ -960,7 +1293,7 @@ function main() {
   switch (command) {
     case 'bootstrap':
       return commandBootstrap(args);
-    case 'next':
+    case 'next-work':
       return commandNext(args);
     case 'validate-issue':
       return commandValidateIssue(args);

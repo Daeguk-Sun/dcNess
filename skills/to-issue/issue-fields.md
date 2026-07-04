@@ -2,15 +2,15 @@
 
 This file is the single source of truth for `/to-issue` issue classification fields. `SKILL.md` must reference this file instead of duplicating these option lists. The broader Project lifecycle SSOT is [`../../docs/plugin/github-project.md`].
 
-When GitHub Project field options or repo labels diverge from this file, stop before creating the issue and report the setup gap. Do not guess option ids or create labels implicitly. repo label 6종은 IssueType 축과 같은 의미로 쓴다.
+When repo labels diverge from this file, stop before creating the issue and report the setup gap. Do not guess option ids or create labels implicitly. IssueType repo label 6종은 IssueType 축과 같은 의미로 쓰며, `in-progress` 는 작업 시작/종료 전이용 lifecycle label 이다.
 
 ## Status
 
 | Value | Meaning |
 | --- | --- |
-| `Todo` | Issue has been registered but no target workflow has started yet. |
-| `In progress` | A target workflow such as `/spec`, `/design`, `/impl`, or `/ux` has started for the issue. |
-| `Done` | The issue was completed by a merged PR that actually closes/fixes/resolves it. |
+| `Todo` | Issue is open and does not have the `in-progress` label. |
+| `In progress` | Issue is open and has the `in-progress` label. |
+| `Done` | Issue is closed by a merged PR that actually closes/fixes/resolves it. |
 
 ## IssueType
 
@@ -43,8 +43,9 @@ When GitHub Project field options or repo labels diverge from this file, stop be
 ## Usage Rules
 
 - Use the selected `IssueType` value as the repo label.
-- Set Project `IssueType` and Project `Priority` to the exact values above.
-- Set Project `Status` to `Todo` when registering the issue.
-- Move Project `Status` to `In progress` when a target workflow starts.
-- Move Project `Status` to `Done` only from `Closes`, `Fixes`, `Resolves`, or GitHub closing references after default-branch merge. `Part of #N` is not a Done signal.
+- Store Priority in the Issue Brief body. Do not create priority labels.
+- A newly registered issue is `Todo` by open state + no `in-progress` label.
+- Add `in-progress` when a target workflow starts.
+- Remove `in-progress` after `Closes`, `Fixes`, `Resolves`, or GitHub closing references close the issue on default-branch merge. `Part of #N` is not a Done signal.
+- If a Project board is configured, mirror `IssueType`, `Priority`, and `Status` as a compatibility view only.
 - If a parent issue exists, reference it only. `/to-issue` does not close or rewrite the parent.

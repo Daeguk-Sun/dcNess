@@ -71,12 +71,12 @@ PROJECT_ROOT_FOR_DOCS=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 DOCS_INDEX="$PROJECT_ROOT_FOR_DOCS/docs/index.md"
 if [[ -f "$DOCS_INDEX" ]]; then
   if grep -Eq '^## 진행 상태 · 다음 작업[[:space:]]*$' "$DOCS_INDEX" 2>/dev/null; then
-    DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터를 확인하고, live 보드 상태는 `/next` 로 조회한다.'
+    DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터를 확인하고, live issue/label 상태는 `/next-work` 로 조회한다.'
   else
-    DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 현재 `docs/index.md` 에 `## 진행 상태 · 다음 작업` 섹션이 없으므로 live 보드 상태는 `/next` 로 조회한다. 필요하면 `/init-dcness` 재실행으로 섹션을 보강한다.'
+    DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 현재 `docs/index.md` 에 `## 진행 상태 · 다음 작업` 섹션이 없으므로 live issue/label 상태는 `/next-work` 로 조회한다. 필요하면 `/init-dcness` 재실행으로 섹션을 보강한다.'
   fi
 else
-  DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 `docs/index.md` 가 없으므로 live 보드 상태는 `/next` 로 조회한다. 필요하면 `/init-dcness` 로 project docs seed 를 설치한다.'
+  DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 `docs/index.md` 가 없으므로 live issue/label 상태는 `/next-work` 로 조회한다. 필요하면 `/init-dcness` 로 project docs seed 를 설치한다.'
 fi
 export DCNESS_NEXT_POINTER_MSG
 

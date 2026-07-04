@@ -50,7 +50,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function fieldRegex(fieldName) {
+export function fieldRegex(fieldName) {
   return new RegExp(String.raw`^[ \t]*\*\*${escapeRegex(fieldName)}:\*\*[ \t]*(.*)$`, 'im');
 }
 
@@ -58,7 +58,7 @@ function escapeRegex(value) {
   return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function parseField(body, fieldName) {
+export function parseField(body, fieldName) {
   const match = String(body ?? '').match(fieldRegex(fieldName));
   if (!match) return null;
   return match[1].trim();

@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+import json
 from pathlib import Path
 
 
@@ -69,7 +70,35 @@ def run_validator_file(body: str, *args: str) -> subprocess.CompletedProcess[str
         Path(path).unlink(missing_ok=True)
 
 
+def run_node(expression: str) -> object:
+    code = textwrap.dedent(
+        f"""
+        import * as issueBody from {json.dumps(SCRIPT.as_posix())};
+        const result = {expression};
+        console.log(JSON.stringify(result));
+        """
+    )
+    completed = subprocess.run(
+        ["node", "--input-type=module", "-e", code],
+        cwd=ROOT,
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    return json.loads(completed.stdout)
+
+
 class IssueBodyValidationTests(unittest.TestCase):
+    def test_field_parser_is_exported_for_lifecycle_selection(self) -> None:
+        body = "**IssueType:** story\n**Priority:** critical\n"
+
+        result = run_node(
+            f"issueBody.parseField({json.dumps(body)}, 'Priority')"
+        )
+
+        self.assertEqual("critical", result)
+
     def test_valid_issue_brief_with_matching_label_passes(self) -> None:
         result = run_validator(VALID_BODY, "--labels", "feature")
 

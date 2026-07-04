@@ -2204,7 +2204,7 @@ def _cli_next_task(args: Any) -> int:
         print(f"[new] design_doc: {design_doc}")
     if acceptance_required:
         print("[new] acceptance_required: true")
-    print("=== /next-task transition ===")
+    print("=== next-task transition ===")
     return 0
 
 

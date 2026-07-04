@@ -82,7 +82,7 @@ class ToIssueSkillTests(unittest.TestCase):
         for inline_list in forbidden_inline_lists:
             self.assertNotIn(inline_list, skill)
 
-    def test_issue_creation_requires_user_confirmation_and_project_fields(self) -> None:
+    def test_issue_creation_requires_user_confirmation_and_lifecycle_fields(self) -> None:
         text = self.skill_path.read_text(encoding="utf-8")
 
         for phrase in (
@@ -94,7 +94,8 @@ class ToIssueSkillTests(unittest.TestCase):
             "Project `Priority`",
             "Status=Todo",
             "repo label",
-            "Project `IssueType`과 같은 repo label",
+            "IssueType 과 같은 repo label",
+            "lifecycle state: open issue + `in-progress` label 없음 (`Todo`)",
             "parent issue",
             "닫거나 임의 수정하지 않는다",
         ):
