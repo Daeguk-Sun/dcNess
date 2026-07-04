@@ -708,6 +708,47 @@ class ReportRenderTests(unittest.TestCase):
             self.assertIn("| clean 판정 | ✅ |", text)
 
 
+class RecurrenceReportTests(unittest.TestCase):
+    def _retry_run(self, tmp: Path, rid: str) -> Path:
+        return _make_run_dir(tmp, "sid1", rid, [
+            {"ts": "2026-04-30T10:00:00", "agent": "code-validator", "mode": None,
+             "enum": "FAIL", "must_fix": False, "prose_excerpt": "same fail\nFAIL"},
+            {"ts": "2026-04-30T10:01:00", "agent": "code-validator", "mode": None,
+             "enum": "FAIL", "must_fix": False, "prose_excerpt": "same fail\nFAIL"},
+        ])
+
+    def test_build_report_can_include_cross_run_recurrence_candidates(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            runs = [self._retry_run(tmp, f"run-rec{i:04d}") for i in range(3)]
+
+            report = build_report(
+                runs[-1],
+                repo_path=tmp,
+                include_recurrence=True,
+                recurrence_threshold=3,
+            )
+            text = render_report(report)
+
+            self.assertTrue(report.recurrence_checked)
+            self.assertEqual(len(report.recurrence_candidates), 1)
+            candidate = report.recurrence_candidates[0]
+            self.assertEqual(candidate.pattern, "RETRY_SAME_FAIL")
+            self.assertEqual(candidate.count, 3)
+            self.assertIn("## 재발 기반 개선 후보", text)
+            self.assertIn("기존 룰 제거", text)
+
+    def test_build_report_skips_recurrence_scan_by_default(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            rd = self._retry_run(tmp, "run-rec-default")
+
+            report = build_report(rd, repo_path=tmp)
+
+            self.assertFalse(report.recurrence_checked)
+            self.assertEqual(report.recurrence_candidates, [])
+
+
 class ContextAuditTests(unittest.TestCase):
     def test_render_report_includes_context_audit_section(self):
         with tempfile.TemporaryDirectory() as td:

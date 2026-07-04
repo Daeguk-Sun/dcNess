@@ -55,8 +55,11 @@ Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
 [#875](https://github.com/alruminum/dcNess/issues/875)의 추세 집계와
 [#894](https://github.com/alruminum/dcNess/issues/894)의 judge 보정 입력으로 소비된다.
 동시에 `guard-telemetry.jsonl` 에 케이스별 `eval_case_result` 이벤트를 append 한다.
+이 이벤트에는 pass/fail 뿐 아니라 블라인드 검수와 judge 호출 2회를 기준으로 한
+`llm_turns`, 보고서/judge 출력 길이, 추정 출력 token 이 함께 기록된다.
 `dcness-helper guard-telemetry` 는 이 이벤트를 읽어 최근 window 에서 장기간 만점인
-케이스를 **노후 후보**로 표시한다. 이 표시는 케이스 삭제나 비활성화를 자동 실행하지 않는다.
+케이스를 **노후 후보**로 표시하고 평균 turn/token effort 를 함께 보여준다. 이 표시는
+케이스 삭제나 비활성화를 자동 실행하지 않는다.
 기본 산출 위치인 `.metrics/evals/**` 는 자동 집계 대상이다. `EVAL_OUTPUT_DIR` 를 repo 밖으로
 지정한 경우에는 `dcness-helper guard-telemetry --base-dir <EVAL_OUTPUT_DIR>` 로 그 산출물을 직접 본다.
 

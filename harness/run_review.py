@@ -23,6 +23,7 @@ import argparse
 import json
 import re
 import sys
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -259,6 +260,22 @@ class ContextAuditFinding:
 
 # issue #392 — `GoodFinding` dataclass 폐기. `detect_goods` 폐기와 정합.
 
+DEFAULT_RECURRENCE_THRESHOLD = 3
+
+_RECURRENCE_SUGGESTION = (
+    "자동 박제 없음. 재발 원인을 확인한 뒤 룰 추가, skill 박제, 또는 기존 룰 제거 "
+    "중 하나를 사용자 결정으로 분리합니다."
+)
+
+
+@dataclass
+class RecurrenceCandidate:
+    pattern: str
+    count: int
+    threshold: int
+    source: str
+    suggestion: str
+
 
 @dataclass
 class RunReport:
@@ -277,6 +294,9 @@ class RunReport:
     elapsed_s: int = 0
     final_enum: str = ""
     final_clean: bool = False
+    recurrence_checked: bool = False
+    recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD
+    recurrence_candidates: list[RecurrenceCandidate] = field(default_factory=list)
 
 
 def _read_context_doc(repo_path: Path, name: str) -> tuple[Path, str, bool]:
@@ -513,6 +533,49 @@ def find_run_dir(sessions_root: Path, run_id: Optional[str], use_latest: bool) -
         runs = list_runs(sessions_root)
         return runs[0] if runs else None
     return None
+
+
+def _sessions_root_for_run(run_dir: Path) -> Optional[Path]:
+    for parent in Path(run_dir).resolve().parents:
+        if parent.name == ".sessions":
+            return parent
+    return None
+
+
+def _build_recurrence_candidates(
+    current_wastes: list[WasteFinding],
+    run_dir: Path,
+    *,
+    threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
+) -> list[RecurrenceCandidate]:
+    """Count current run waste patterns across finished runs in the same sessions root."""
+    threshold = max(int(threshold), 1)
+    target_patterns = {w.pattern for w in current_wastes}
+    if not target_patterns:
+        return []
+    sessions_root = _sessions_root_for_run(run_dir)
+    if sessions_root is None:
+        return []
+
+    counter: Counter = Counter()
+    for candidate_run_dir in list_runs(sessions_root):
+        steps = parse_steps(candidate_run_dir)
+        for waste in detect_wastes(steps, run_dir=candidate_run_dir):
+            if waste.pattern in target_patterns:
+                counter[waste.pattern] += 1
+
+    candidates: list[RecurrenceCandidate] = []
+    for pattern, count in sorted(counter.items(), key=lambda kv: (-kv[1], kv[0])):
+        if count < threshold:
+            continue
+        candidates.append(RecurrenceCandidate(
+            pattern=pattern,
+            count=count,
+            threshold=threshold,
+            source="run_review.waste",
+            suggestion=_RECURRENCE_SUGGESTION,
+        ))
+    return candidates
 
 
 # ── Step 파싱 ─────────────────────────────────────────────────────────
@@ -1530,6 +1593,22 @@ def render_report(report: RunReport) -> str:
         lines.append("## 잘못한 점 — 없음 ✅")
         lines.append("")
 
+    if report.recurrence_checked:
+        lines.append(f"## 재발 기반 개선 후보 (threshold {report.recurrence_threshold})")
+        lines.append("")
+        if report.recurrence_candidates:
+            lines.append("| pattern | count | suggestion |")
+            lines.append("|---|---:|---|")
+            for candidate in report.recurrence_candidates:
+                lines.append(
+                    f"| {candidate.pattern} | {candidate.count} | {candidate.suggestion} |"
+                )
+        else:
+            lines.append("(임계 도달 후보 없음 — GOOD 사례는 집계 대상이 아닙니다.)")
+        lines.append("")
+        lines.append("자동 수정 없음 — 후보 표면화까지만 수행하고 박제 여부는 사용자가 결정합니다.")
+        lines.append("")
+
     lines.append(render_context_audit_section(report.repo_path, report=report))
 
     # issue #396 — 메인 인사이트 prompt (review.md 끝 임베드)
@@ -1554,7 +1633,13 @@ def render_report(report: RunReport) -> str:
 
 # ── 실행 ──────────────────────────────────────────────────────────────
 
-def build_report(run_dir: Path, repo_path: Path) -> RunReport:
+def build_report(
+    run_dir: Path,
+    repo_path: Path,
+    *,
+    include_recurrence: bool = False,
+    recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
+) -> RunReport:
     steps = parse_steps(run_dir)
 
     # DCN-CHG-20260430-20: per-Agent invocation 매칭 — wastes 탐지 *전*에 enrichment.
@@ -1602,6 +1687,16 @@ def build_report(run_dir: Path, repo_path: Path) -> RunReport:
         final_enum and not has_must_fix and not has_ambiguous
         and len([w for w in wastes if w.severity == "HIGH"]) == 0
     )
+    recurrence_threshold = max(int(recurrence_threshold), 1)
+    recurrence_candidates = (
+        _build_recurrence_candidates(
+            wastes,
+            run_dir,
+            threshold=recurrence_threshold,
+        )
+        if include_recurrence
+        else []
+    )
 
     sid = run_dir.parent.parent.name
     return RunReport(
@@ -1618,6 +1713,9 @@ def build_report(run_dir: Path, repo_path: Path) -> RunReport:
         elapsed_s=elapsed,
         final_enum=final_enum,
         final_clean=final_clean,
+        recurrence_checked=include_recurrence,
+        recurrence_threshold=recurrence_threshold,
+        recurrence_candidates=recurrence_candidates,
     )
 
 
@@ -1654,6 +1752,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--repo", default=".", help="저장소 cwd (default: cwd)")
     p.add_argument("--limit", type=int, default=10, help="--list 시 최대 개수")
     p.add_argument(
+        "--recurrence-threshold",
+        type=int,
+        default=DEFAULT_RECURRENCE_THRESHOLD,
+        help="재발 개선 후보로 표면화할 동일 waste pattern 반복 임계값 (기본 3)",
+    )
+    p.add_argument(
         "--context-audit",
         action="store_true",
         help="run 없이 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 출력",
@@ -1685,7 +1789,12 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"[run-review] run_dir 미탐지 (run_id={args.run_id})", file=sys.stderr)
         return 2
 
-    report = build_report(run_dir, repo_path)
+    report = build_report(
+        run_dir,
+        repo_path,
+        include_recurrence=True,
+        recurrence_threshold=args.recurrence_threshold,
+    )
     print(render_report(report))
     return 0
 

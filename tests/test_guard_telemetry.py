@@ -103,12 +103,18 @@ class EvalSummaryTests(unittest.TestCase):
                 cwd=root,
                 report_file="/tmp/report.md",
                 judge_file="/tmp/judge.md",
+                llm_turns=2,
+                report_chars=120,
+                judge_chars=80,
+                estimated_output_tokens=50,
             )
 
             events = read_events(cwd=root)
             self.assertEqual(events[0]["kind"], "eval_case_result")
             self.assertEqual(events[0]["case"], "headless-prose-quality")
             self.assertTrue(events[0]["passed"])
+            self.assertEqual(events[0]["llm_turns"], 2)
+            self.assertEqual(events[0]["estimated_output_tokens"], 50)
 
     def test_all_pass_eval_case_is_saturation_candidate(self) -> None:
         with TemporaryDirectory() as td:
@@ -138,7 +144,13 @@ class EvalSummaryTests(unittest.TestCase):
         with TemporaryDirectory() as td:
             root = Path(td)
             record_eval_case_result("flow-ownership-owner-good", passed=True, cwd=root)
-            record_eval_case_result("flow-ownership-owner-good", passed=False, cwd=root)
+            record_eval_case_result(
+                "flow-ownership-owner-good",
+                passed=False,
+                cwd=root,
+                llm_turns=2,
+                estimated_output_tokens=40,
+            )
 
             summary = collect_eval_summary(
                 cwd=root,
@@ -148,6 +160,10 @@ class EvalSummaryTests(unittest.TestCase):
 
             row = summary["cases"]["flow-ownership-owner-good"]
             self.assertEqual(row["accuracy"], 0.5)
+            self.assertEqual(row["llm_turns"], 2)
+            self.assertEqual(row["estimated_output_tokens"], 40)
+            self.assertEqual(row["avg_llm_turns"], 1.0)
+            self.assertEqual(row["avg_estimated_output_tokens"], 20.0)
             self.assertFalse(row["saturation_candidate"])
 
     def test_project_summary_reads_default_metrics_eval_output_logs(self) -> None:
@@ -190,6 +206,10 @@ class ReportFormatTests(unittest.TestCase):
                     "attempts": 2,
                     "passes": 2,
                     "accuracy": 1.0,
+                    "llm_turns": 4,
+                    "estimated_output_tokens": 120,
+                    "avg_llm_turns": 2.0,
+                    "avg_estimated_output_tokens": 60.0,
                     "last_ts": "2026-07-04T00:00:00Z",
                     "saturation_candidate": True,
                 }
@@ -199,6 +219,8 @@ class ReportFormatTests(unittest.TestCase):
         report = format_telemetry_report(guard_summary, eval_summary)
         self.assertIn("재평가 후보", report)
         self.assertIn("노후 후보", report)
+        self.assertIn("avg_turns=2.0", report)
+        self.assertIn("avg_tokens≈60", report)
 
 
 if __name__ == "__main__":
