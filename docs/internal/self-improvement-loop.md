@@ -16,7 +16,7 @@
 | 슬롯 | 질문 | 현재 담당 |
 |---|---|---|
 | Sense | 어떤 신호를 보나 | `/run-review`, benchmark/fleet 집계, `evals/guard_efficacy.py`, `evals/run.sh`, 가드 발화 텔레메트리 후보 [#875](https://github.com/alruminum/dcNess/issues/875), 재발·낭비 집계 후보 [#876](https://github.com/alruminum/dcNess/issues/876), judge 보정 후보 [#894](https://github.com/alruminum/dcNess/issues/894) |
-| Diagnose | 여러 신호를 어떻게 우선순위화하나 | 릴리즈 점검 [#878](https://github.com/alruminum/dcNess/issues/878)이 겸한다. 릴리즈 후보에서 Sense 신호를 한 자리에서 모아 blocker, release-note follow-up, 별도 issue로 나눈다. |
+| Diagnose | 여러 신호를 어떻게 우선순위화하나 | `scripts/loop_diagnose.py`와 repo-local `/loop-diagnose` command가 전담한다. 활성 프로젝트 whitelist 를 읽어 cross-project 신호를 당겨오고, 수시 점검과 릴리즈 점검 양쪽에서 후보를 blocker, release-note follow-up, 별도 issue로 나눈다. |
 | Decide | 무엇을 바꾸나 | 추가 전 제거 검토를 먼저 한다. 새 룰·hook·CI를 추가하기 전에 기존 룰 삭제, 문구 축약, SSOT 파생 생성으로 같은 효과를 낼 수 있는지 확인한다. 첫 사례는 개수 하드코딩 제거 [#877](https://github.com/alruminum/dcNess/issues/877)이다. |
 | Act | 실제 변경은 어디서 하나 | 일반 dcNess 변경 절차대로 branch → PR → merge를 탄다. PR 본문에 Sense 근거, Diagnose 판단, Decide 이유, Verify 계획을 짧게 적는다. |
 | Verify | 개선이 먹혔는지 어떻게 보나 | 변경 성격별로 결정적 eval, 행동 eval, 다음 Sense 주기 재측정을 분리한다. |
@@ -28,6 +28,20 @@ Sense 산출물을 모으고, Diagnose/Decide 결과를 릴리즈 노트 또는 
 
 평소 run 중 발견한 단발 신호는 바로 룰로 박지 않는다. 같은 신호가 반복되거나 릴리즈
 점검에서 비용·위험이 충분히 커졌을 때 Decide 슬롯으로 올린다.
+
+## 소비 표식
+
+Diagnose 후보는 같은 항목이 매번 다시 떠도 맥락을 잃지 않도록 3층으로 소비 상태를
+남긴다.
+
+| 층 | 위치 | 역할 |
+|---|---|---|
+| 워터마크 | `.metrics/loop-diagnose/sweeps.jsonl` | sweep 마다 프로젝트별 마지막 관측 시각과 후보 key 를 남긴다. 다음 sweep 은 이를 기준으로 `신규 발생 since ...` / `기왕` 을 구분한다. 로컬 runtime 상태라 git 추적하지 않는다. |
+| 결정 원장 | `docs/internal/loop-decisions.jsonl` | `record-decision` 이 후보별 최신 결정(`fixed` / `hold` / `rejected`)을 append 한다. git 추적 대상이며 리포트는 후보 옆에 이전 결정을 주석으로 표시한다. |
+| 릴리즈 노트 | `docs/internal/release-notes.md` | 릴리즈 시 사람이 읽는 최종 점검 기록이다. blocker, follow-up, 소멸 후보 없음 같은 릴리즈 판단을 수동으로 남긴다. |
+
+`fixed`와 `rejected` 는 `--hide-decided` 로 숨길 수 있다. `hold` 는 의도적으로 계속
+표시해 보류 사유가 stale 해졌는지 다음 Diagnose 때 다시 보게 한다.
 
 ## 결정 규칙
 
@@ -75,4 +89,4 @@ agent 결함인지 judge 결함인지 구분한다. 동시에 `guard-telemetry.j
 - Epic: [#893](https://github.com/alruminum/dcNess/issues/893)
 - Sense: [#875](https://github.com/alruminum/dcNess/issues/875), [#876](https://github.com/alruminum/dcNess/issues/876), [#894](https://github.com/alruminum/dcNess/issues/894)
 - Decide: [#877](https://github.com/alruminum/dcNess/issues/877)
-- Trigger/Diagnose: [#878](https://github.com/alruminum/dcNess/issues/878)
+- Trigger/Diagnose: [#878](https://github.com/alruminum/dcNess/issues/878), [#902](https://github.com/alruminum/dcNess/issues/902)
