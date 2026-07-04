@@ -84,7 +84,7 @@ docs/
 
 `docs/index.md` 는 cold-start agent 의 정적 entrypoint 다. `## 에픽` 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter `milestone` 값에서 파생되는 생성 섹션이며 수동 편집하지 않는다. 모듈 축을 쓰는 프로젝트에서는 `## 모듈` 표도 `docs/modules/<module-id>/` 에서 파생된다. live 진행상태를 문서에 복제하지 않고, 수동 섹션 `## 진행 상태 · 다음 작업` 에서 GitHub Project 보드, epic/story issue, `/next` 를 가리킨다. `/init-dcness` 는 기존 `docs/index.md` 를 overwrite 하지 않지만, 이 섹션이 없으면 `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs` 로 섹션만 append 한다.
 
-`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 는 각 epic 폴더와 opt-in module 폴더를 결정적으로 정렬하고 `docs/index.md` 의 `## 에픽` / `## 모듈` 표를 생성/갱신한다. 파일이 없는 선택 산출물 셀은 링크가 아닌 `—` 로 남긴다. `docs/modules/` 가 없으면 모듈 표는 생성하지 않아 단일 루트 프로젝트의 기존 index 동작을 바꾸지 않는다.
+`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 는 각 epic 폴더와 opt-in module 폴더를 결정적으로 정렬하고 `docs/index.md` 의 `## 에픽` / `## 모듈` 표를 생성/갱신한다. 파일이 없는 선택 산출물 셀은 링크가 아닌 `—` 로 남긴다. `docs/modules/` 가 없으면 모듈 표는 생성하지 않아 단일 루트 프로젝트의 기존 index 동작을 바꾸지 않는다. 기존 `docs/index.md` 에 수동 `## 모듈` 섹션이 있으면 모듈 축 활성화 시 생성 섹션으로 교체되므로, 수동 설명은 다른 heading 으로 옮긴 뒤 집계기를 실행한다.
 
 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 표와 `## Contract Ledger` 표를 수집해 전역 `docs/architecture.md` 의 `에픽 간 지도`, `전역 모듈 토폴로지`, `공유 계약 인덱스` 섹션을 생성/갱신한다. 이 세 섹션은 파생물이며 수동 편집하지 않는다. 모듈 스코프 문서가 있는 모듈은 epic architecture 의 `## 모듈 목록` 에 `docs/modules/<module-id>/architecture.md` 링크를 남기면 전역 topology 표에도 rebased 링크로 드러난다. epic architecture 템플릿의 표 헤더는 도구의 파싱 계약이므로 변경하려면 도구와 테스트를 함께 갱신한다.
 
