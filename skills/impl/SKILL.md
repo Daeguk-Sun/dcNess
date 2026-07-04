@@ -75,7 +75,7 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
 
 GitHub issue 등록이 목표인 요청이면 `/to-issue` 로 보내고, 수정/구현이 목표인 버그 신고는 아래 구현 경로 판정으로 처리한다.
 
-GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#issuelabel-status-lifecycle)에 따라 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 전환기 호환으로 Project `Status=In progress` 도 함께 보정된다.
+GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#issuelabel-status-lifecycle)에 따라 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 Project `Status=In progress` 도 best-effort 로 함께 미러된다.
 
 ## Step 0.4 — UI 기준 확보 분기
 

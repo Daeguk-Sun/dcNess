@@ -1,5 +1,5 @@
 name: 'dcness GitHub Project lifecycle'
-description: 'Validate or update dcNess issue/label lifecycle with optional GitHub Project v2 compatibility.'
+description: 'Validate or update dcNess issue/label lifecycle with optional best-effort GitHub Project v2 mirroring.'
 inputs:
   mode:
     description: 'bootstrap, validate-issue, start-work, or pr-merged'
@@ -40,7 +40,7 @@ inputs:
     required: false
     default: 'false'
   gh-token:
-    description: 'GitHub token with issues write; project scope is only needed for optional Project v2 compatibility.'
+    description: 'GitHub token with issues write; project scope is only needed for optional best-effort Project v2 mirroring.'
     required: false
     default: ''
 runs:

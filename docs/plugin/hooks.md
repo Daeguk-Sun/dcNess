@@ -274,7 +274,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 | `.github/workflows/pr-body-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | PR body issue trailer 검증 | 선택형 CI gate |
 | `.github/workflows/doc-path-integrity.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | repo-relative 경로 참조 실존 검증 | 선택형 CI gate |
 | `.github/workflows/doc-sync.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | index epic 표 + architecture map 파생물 drift 검증 + `/design` 산출물 구조 감사 | 선택형 CI gate |
-| `.github/workflows/github-project-lifecycle.yml` | `issues`, `pull_request closed` | issue 변경 또는 PR merge | Project field/label drift 검출, merged PR Done 보정 | 선택형 CI/CD |
+| `.github/workflows/github-project-lifecycle.yml` | `issues`, `pull_request closed` | issue 변경 또는 PR merge | issue/label drift 검출, merged PR `in-progress` label cleanup, 선택적 Project 미러 warning | 선택형 CI/CD |
 
 ### .github/workflows/git-naming-validation.yml
 
@@ -335,13 +335,13 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **역할**:
 
-- issue label drift 검출. Project 좌표가 있으면 Project IssueType drift 도 함께 검출
-- merged PR body 의 close keyword 대상 issue 에서 `in-progress` label 제거. Project 좌표가 있으면 Project Status `Done` 도 전환기 호환으로 보정
+- issue/label drift 검출. Project 좌표가 있으면 Project field drift 는 warning 으로만 보고
+- merged PR body 의 close keyword 대상 issue 에서 `in-progress` label 제거. Project 좌표가 있으면 Project Status `Done` 도 best-effort 미러
 - `Part of #N` 만 있는 PR 은 cleanup 후보로 보지 않음
 
-**필수 설정**: label cleanup 에는 workflow `issues: write` 권한이 필요하다. Project v2 보정까지 쓰려면 `secrets.DCNESS_PROJECT_TOKEN`, `vars.DCNESS_PROJECT_NUMBER`, `vars.DCNESS_PROJECT_OWNER` 가 필요하다.
+**필수 설정**: label cleanup 에는 workflow `issues: write` 권한이 필요하다. Project v2 미러까지 쓰려면 `secrets.DCNESS_PROJECT_TOKEN`, `vars.DCNESS_PROJECT_NUMBER`, `vars.DCNESS_PROJECT_OWNER` 가 필요하다.
 
-**차단/보정**: issue drift 는 workflow 실패로 드러나고, merged PR 보정은 `apply: "true"` 로 label 과 선택적 Project 상태를 수정한다.
+**차단/보정**: issue/label drift 는 workflow 실패로 드러난다. Project field drift 와 미러 실패는 warning 으로만 보고한다. merged PR 보정은 `apply: "true"` 로 label 을 수정하고, 좌표가 있으면 선택적 Project 상태를 best-effort 로 미러한다.
 
 ## 문서 동기화 게이트
 

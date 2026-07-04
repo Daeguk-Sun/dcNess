@@ -47,5 +47,5 @@ When repo labels diverge from this file, stop before creating the issue and repo
 - A newly registered issue is `Todo` by open state + no `in-progress` label.
 - Add `in-progress` when a target workflow starts.
 - Remove `in-progress` after `Closes`, `Fixes`, `Resolves`, or GitHub closing references close the issue on default-branch merge. `Part of #N` is not a Done signal.
-- If a Project board is configured, mirror `IssueType`, `Priority`, and `Status` as a compatibility view only.
+- If a Project board is configured, mirror `IssueType`, `Priority`, and `Status` as an optional best-effort view only.
 - If a parent issue exists, reference it only. `/to-issue` does not close or rewrite the parent.

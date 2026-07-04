@@ -857,14 +857,92 @@ function projectContext(args) {
   return { repo, owner, projectNumber, project, fields };
 }
 
-function projectContextIfConfigured(args) {
+function projectCoordinates(args) {
   const { repo, owner, project: projectNumber } = resolveProjectCoordinates(args);
+  return { repo, owner, projectNumber };
+}
+
+function warnProjectMirror(message) {
+  console.error(`[dcness-project] WARN: ${message}`);
+}
+
+function loadProjectMirrorContext({ owner, projectNumber }) {
   if (!projectNumber) {
-    return { repo, owner, projectNumber: null, project: null, fields: null };
+    return { available: false, project: null, fields: null };
   }
-  const project = gh(['project', 'view', projectNumber, '--owner', owner, '--format', 'json'], { json: true });
-  const fields = gh(['project', 'field-list', projectNumber, '--owner', owner, '--format', 'json'], { json: true });
-  return { repo, owner, projectNumber, project, fields };
+  try {
+    const project = gh(['project', 'view', projectNumber, '--owner', owner, '--format', 'json'], { json: true });
+    const fields = gh(['project', 'field-list', projectNumber, '--owner', owner, '--format', 'json'], { json: true });
+    return { available: true, project, fields };
+  } catch (error) {
+    warnProjectMirror(`Project ${projectNumber} mirror unavailable: ${error.message}`);
+    return { available: false, project: null, fields: null };
+  }
+}
+
+function getProjectItemForMirror({ owner, projectNumber, repo, issueNumber }) {
+  try {
+    const item = getProjectItem({ owner, projectNumber, repo, issueNumber });
+    if (!item?.id) {
+      warnProjectMirror(`issue ${repo ?? '<unknown-repo>'}#${issueNumber}: Project item missing in Project ${projectNumber}.`);
+      return null;
+    }
+    return item;
+  } catch (error) {
+    warnProjectMirror(`issue ${repo ?? '<unknown-repo>'}#${issueNumber}: Project item lookup failed in Project ${projectNumber}: ${error.message}`);
+    return null;
+  }
+}
+
+function reportProjectStatusForMirror({
+  owner,
+  projectNumber,
+  repo,
+  issueNumber,
+  expectedStatus,
+  apply = false,
+  mirrorContext = undefined,
+}) {
+  if (!projectNumber) {
+    console.log('[dcness-project] Project 좌표 없음 — Status board update skipped; issue/label state is SSOT.');
+    return;
+  }
+
+  const { available, project, fields } = mirrorContext ?? loadProjectMirrorContext({ owner, projectNumber });
+  if (!available) return;
+
+  const item = getProjectItemForMirror({ owner, projectNumber, repo, issueNumber });
+  if (!item?.id) return;
+
+  const actual = projectItemFieldValue(item, 'Status');
+  if (actual === expectedStatus) {
+    console.log(`issue ${repo ?? '<unknown-repo>'}#${issueNumber}: Status=${expectedStatus}`);
+    return;
+  }
+
+  const drift = statusDriftMessage({
+    repo,
+    issueNumber,
+    expected: expectedStatus,
+    actual,
+  });
+  if (!apply) {
+    warnProjectMirror(drift);
+    return;
+  }
+
+  try {
+    setProjectSingleSelect({
+      projectId: project.id,
+      itemId: item.id,
+      fields,
+      fieldName: 'Status',
+      optionName: expectedStatus,
+    });
+    console.log(`issue ${repo ?? '<unknown-repo>'}#${issueNumber}: Status=${expectedStatus}`);
+  } catch (error) {
+    warnProjectMirror(`issue ${repo ?? '<unknown-repo>'}#${issueNumber}: Project Status mirror failed: ${error.message}`);
+  }
 }
 
 function getIssue(repo, issueNumber) {
@@ -1007,7 +1085,7 @@ function commandNext(args) {
 
 function commandValidateIssue(args) {
   if (!args.issue) throw new Error('--issue <number> is required.');
-  const { repo, owner, projectNumber } = projectContextIfConfigured(args);
+  const { repo, owner, projectNumber } = projectCoordinates(args);
   const issue = getIssue(repo, args.issue);
   const labelValidation = validateLifecycleIssueLabels({
     issueNumber: issue.number,
@@ -1021,11 +1099,12 @@ function commandValidateIssue(args) {
     return labelValidation.ok ? 0 : 1;
   }
 
-  const item = getProjectItem({ owner, projectNumber, repo, issueNumber: args.issue });
-  if (!item) {
-    console.error(`issue #${args.issue}: Project item missing in Project ${projectNumber}.`);
-    return 1;
-  }
+  const { available } = loadProjectMirrorContext({ owner, projectNumber });
+  if (!available) return labelValidation.ok ? 0 : 1;
+
+  const item = getProjectItemForMirror({ owner, projectNumber, repo, issueNumber: args.issue });
+  if (!item) return labelValidation.ok ? 0 : 1;
+
   const validation = validateIssueProjectRegistration({
     repo,
     issueNumber: issue.number,
@@ -1036,14 +1115,14 @@ function commandValidateIssue(args) {
     expectedPriority: args['expected-priority'] ?? 'any',
   });
   for (const message of validation.messages) {
-    console.log(message);
+    warnProjectMirror(message);
   }
-  return labelValidation.ok && validation.ok ? 0 : 1;
+  return labelValidation.ok ? 0 : 1;
 }
 
 function commandStartWork(args) {
   if (!args.issue) throw new Error('--issue <number> is required.');
-  const { repo, owner, projectNumber, project, fields } = projectContextIfConfigured(args);
+  const { repo, owner, projectNumber } = projectCoordinates(args);
   const issue = getIssue(repo, args.issue);
   const hasInProgressLabel = issueHasLabel(issue, IN_PROGRESS_LABEL);
   if (!args.apply) {
@@ -1054,24 +1133,27 @@ function commandStartWork(args) {
         : `issue #${args.issue}: missing label ${IN_PROGRESS_LABEL}`,
     );
     if (projectNumber) {
-      const item = getProjectItem({ owner, projectNumber, repo, issueNumber: args.issue });
-      if (!item?.id) {
-        console.error(`issue #${args.issue}: Project item missing in Project ${projectNumber}.`);
-        ok = false;
-      } else {
-        const actual = projectItemFieldValue(item, 'Status');
-        if (actual !== 'In progress') ok = false;
-        console.log(statusDriftMessage({
-          repo,
-          issueNumber: args.issue,
-          expected: 'In progress',
-          actual,
-        }));
+      const { available } = loadProjectMirrorContext({ owner, projectNumber });
+      if (available) {
+        const item = getProjectItemForMirror({ owner, projectNumber, repo, issueNumber: args.issue });
+        if (item?.id) {
+          const actual = projectItemFieldValue(item, 'Status');
+          if (actual === 'In progress') {
+            console.log(`issue ${repo}#${args.issue}: Status=In progress`);
+          } else {
+            warnProjectMirror(statusDriftMessage({
+              repo,
+              issueNumber: args.issue,
+              expected: 'In progress',
+              actual,
+            }));
+          }
+        }
       }
     } else {
       console.log('[dcness-project] Project 좌표 없음 — label 상태만 검사했습니다.');
     }
-    console.log(`Run again with --apply to add label ${IN_PROGRESS_LABEL} and set Project Status when configured.`);
+    console.log(`Run again with --apply to add label ${IN_PROGRESS_LABEL} and best-effort mirror Project Status when configured.`);
     return ok ? 0 : 1;
   }
   ensureLabel(repo, IN_PROGRESS_LABEL);
@@ -1079,27 +1161,14 @@ function commandStartWork(args) {
     addIssueLabel({ repo, issueNumber: args.issue, labelName: IN_PROGRESS_LABEL });
   }
   console.log(`issue #${args.issue}: label ${IN_PROGRESS_LABEL}`);
-  if (!projectNumber) {
-    console.log('[dcness-project] Project 좌표 없음 — Status board update skipped; label state is SSOT.');
-    return 0;
-  }
-  const item = getProjectItem({ owner, projectNumber, repo, issueNumber: args.issue });
-  if (!item?.id) {
-    console.error(`issue #${args.issue}: Project item missing in Project ${projectNumber}.`);
-    return 1;
-  }
-  if (projectItemFieldValue(item, 'Status') === 'In progress') {
-    console.log(`issue #${args.issue}: Status=In progress`);
-    return 0;
-  }
-  setProjectSingleSelect({
-    projectId: project.id,
-    itemId: item.id,
-    fields,
-    fieldName: 'Status',
-    optionName: 'In progress',
+  reportProjectStatusForMirror({
+    owner,
+    projectNumber,
+    repo,
+    issueNumber: args.issue,
+    expectedStatus: 'In progress',
+    apply: true,
   });
-  console.log(`issue #${args.issue}: Status=In progress`);
   return 0;
 }
 
@@ -1210,8 +1279,10 @@ function commandPrMerged(args) {
     console.log('[dcness-project] no completion issue candidates. Part of #N is not a Done signal.');
     return 0;
   }
-  const { repo, owner, projectNumber, project, fields } = projectContextIfConfigured(args);
+  const { repo, owner, projectNumber } = projectCoordinates(args);
   const resolvedRefs = resolveCompletionRefsForProject(body, args.repo, repo);
+  let mirrorContext;
+  let mirrorContextLoaded = false;
 
   let failures = 0;
   for (const ref of resolvedRefs) {
@@ -1230,44 +1301,19 @@ function commandPrMerged(args) {
       console.log(`issue ${labelRepo}#${ref.number}: label ${IN_PROGRESS_LABEL} absent`);
     }
 
-    if (projectNumber) {
-      const item = getProjectItem({
-        owner,
-        projectNumber,
-        repo: ref.repo,
-        issueNumber: ref.number,
-      });
-      if (!item?.id) {
-        failures += 1;
-        console.error(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Project item missing in Project ${projectNumber}.`);
-        continue;
-      }
-      const actual = projectItemFieldValue(item, 'Status');
-      if (actual === 'Done') {
-        console.log(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Status=Done`);
-        continue;
-      }
-      if (!args.apply) {
-        failures += 1;
-        console.error(statusDriftMessage({
-          repo: ref.repo,
-          issueNumber: ref.number,
-          expected: 'Done',
-          actual,
-        }));
-        continue;
-      }
-      setProjectSingleSelect({
-        projectId: project.id,
-        itemId: item.id,
-        fields,
-        fieldName: 'Status',
-        optionName: 'Done',
-      });
-      console.log(`issue ${ref.repo ?? '<unknown-repo>'}#${ref.number}: Status=Done`);
-    } else {
-      console.log('[dcness-project] Project 좌표 없음 — Status board update skipped; issue close state is SSOT.');
+    if (projectNumber && !mirrorContextLoaded) {
+      mirrorContext = loadProjectMirrorContext({ owner, projectNumber });
+      mirrorContextLoaded = true;
     }
+    reportProjectStatusForMirror({
+      owner,
+      projectNumber,
+      repo: labelRepo,
+      issueNumber: ref.number,
+      expectedStatus: 'Done',
+      apply: Boolean(args.apply),
+      mirrorContext,
+    });
   }
   return failures === 0 ? 0 : 1;
 }
@@ -1308,25 +1354,11 @@ function main() {
   }
 }
 
-// 토큰/권한 부재로 추정되는 실패 패턴 — gh project 가 인증 실패를 "unknown owner type" 으로 표시하는 것 포함.
-// 이 부류는 CI 를 깨지 않고 graceful degrade (warn + exit 0): lifecycle 자동화는 best-effort 이고,
-// project scope 토큰이 없는 외부 활성 프로젝트의 PR CI 를 빨갛게 만들지 않기 위함.
-const TOKEN_DEGRADE_RE =
-  /unknown owner type|bad credentials|HTTP 40[13]|resource not accessible|requires .*scope|read:project|gh auth|not logged in|authentication/i;
-
 if (import.meta.url === `file://${process.argv[1]}`) {
   try {
     process.exitCode = main();
   } catch (error) {
     console.error(`[dcness-project] ${error.message}`);
-    if (TOKEN_DEGRADE_RE.test(error.message)) {
-      console.error(
-        '[dcness-project] WARN: GitHub Project 토큰/권한 부재로 추정 — lifecycle 자동화를 건너뜁니다 (graceful degrade). ' +
-          'project scope 토큰(secrets.DCNESS_PROJECT_TOKEN)을 설정하면 활성화됩니다. CI 는 실패시키지 않습니다.',
-      );
-      process.exitCode = 0;
-    } else {
-      process.exitCode = 1;
-    }
+    process.exitCode = 1;
   }
 }

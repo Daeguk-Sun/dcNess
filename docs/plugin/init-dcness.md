@@ -122,9 +122,9 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 
 - 대상 경로: `.github/workflows/github-project-lifecycle.yml`
 - 템플릿: [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml)
-- 역할: `alruminum/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue drift 를 검출하고 merged PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 전환기 호환으로 Project Status `Done` 보정도 함께 수행한다.
+- 역할: `alruminum/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue/label drift 를 검출하고 merged PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 Project Status `Done` 미러를 best-effort 로 함께 시도한다.
 
-`in-progress` label 제거에는 `issues: write` 권한이 필요하다. Project v2 쓰기에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없으면 Project 보정은 graceful degrade 하되 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
+`in-progress` label 제거에는 `issues: write` 권한이 필요하다. Project v2 미러에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없거나 Project API 가 실패하면 Project 미러만 warning 으로 skip 되고 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
 
 ## Project Bootstrap Commands
 
@@ -186,6 +186,6 @@ seed 문서는 사용자 프로젝트 내용물이므로 사용자가 별도 작
 - [`hooks.md`](hooks.md) - CC hook / git hook / CI layer policy
 - [`git-spec.md`](git-spec.md) - branch / commit / PR naming
 - [`github-project.md`](github-project.md) - Project v2 fields and bootstrap
-- [`issue-lifecycle.md`](issue-lifecycle.md) - issue hierarchy and Project lifecycle
+- [`issue-lifecycle.md`](issue-lifecycle.md) - issue hierarchy, label lifecycle, optional Project mirror
 - [`design.md`](design.md) - `docs/design.md` format
 - [`hooks/hooks.json`](../../hooks/hooks.json) - CC hook registration
