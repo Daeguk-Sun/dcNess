@@ -69,7 +69,16 @@ echo ""
 echo "문제 발생 시:"
 echo "  claude plugin uninstall dcness@dcness && claude plugin install dcness@dcness"
 echo "---"
+
+# 7. release 브랜치 배포 정합 확인 (사용자 배포물 — 수동 sync 불필요)
+#    사용자가 받는 배포물은 main/tag 가 아니라 release 브랜치다(dcness self 경로 제외 사본).
+#    release-sync.yml CI 가 main push 마다 sync_release.sh 를 자동 실행해 release 브랜치를 갱신하므로
+#    수동 실행은 불필요하다. 단, 태그만으로는 사용자에게 도달하지 않으니 아래로 정합을 확인한다.
+gh run list --workflow=release-sync.yml --limit 1                   # merge sha 발화 success 확인
+git show origin/release:.claude-plugin/plugin.json | grep version   # release 브랜치 = v{버전} 정합
 ```
+
+> **완료 기준은 3단 정합**: `main` plugin.json · `v{버전}` 태그 · `release` 브랜치 plugin.json 이 모두 같은 버전이어야 사용자에게 도달한 것이다. 태그만 박고 끝내면 배포 미도달을 완료로 착각할 수 있다.
 
 ## 4. 릴리즈 후 사용자 검증 방법
 
