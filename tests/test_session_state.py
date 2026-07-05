@@ -81,6 +81,7 @@ from harness.session_state import (
     live_path,
     read_live,
     read_session_pointer,
+    record_fail_open_event,
     run_dir,
     session_dir,
     session_id_from_stdin,
@@ -1482,6 +1483,36 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertFalse(called["hit"])
         self.assertNotIn("/run-review (auto)", out.getvalue())
+
+    def test_end_run_warns_on_recent_fail_open_event(self) -> None:
+        from harness import session_state as ss
+        from types import SimpleNamespace
+        from io import StringIO
+        from contextlib import redirect_stderr, redirect_stdout
+
+        live = read_live(self.sid) or {}
+        active = live.get("active_runs", {})
+        slot = dict(active[self.rid])
+        slot["finalized_at"] = "2026-07-05T00:00:00Z"
+        active[self.rid] = slot
+        update_live(self.sid, active_runs=active)
+
+        record_fail_open_event(
+            hook="file-guard",
+            category="payload_missing_session",
+            detail="session id missing; enforcement skipped",
+            cwd=Path.cwd(),
+        )
+
+        err = StringIO()
+        out = StringIO()
+        with redirect_stderr(err), redirect_stdout(out):
+            rc = ss._cli_end_run(SimpleNamespace())
+
+        self.assertEqual(rc, 0)
+        stderr_val = err.getvalue()
+        self.assertIn("hook fail-open warning", stderr_val)
+        self.assertIn("payload_missing_session=1", stderr_val)
 
     # issue #392 — auto accumulate 매커니즘 폐기로 관련 3 tests 삭제:
     #   - test_finalize_run_auto_review_triggers_accumulate

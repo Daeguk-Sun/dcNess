@@ -14,6 +14,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from harness import ledger  # noqa: E402
 from harness import run_review as run_review_module  # noqa: E402
+from harness.session_state import record_fail_open_event  # noqa: E402
 from harness.run_review import (  # noqa: E402
     RunReport, StepRecord, WasteFinding, build_report, detect_wastes, detect_notes,
     parse_steps, render_report, list_runs, find_run_dir,
@@ -701,6 +702,28 @@ class ReportRenderTests(unittest.TestCase):
             self.assertIn("## 단계별 상세", text)
             self.assertIn("MODULE_PLAN", text)
             self.assertIn("IMPL_DONE", text)
+
+    def test_render_warns_on_recent_fail_open_event(self):
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            rd = _make_run_dir(tmp, "sid1", "rid1", [
+                {"ts": "2026-04-30T10:00:00", "agent": "engineer", "mode": "IMPL",
+                 "enum": "IMPL_DONE", "must_fix": False,
+                 "prose_excerpt": "line1\nline2\nline3\nline4\nline5\nline6"},
+            ])
+            record_fail_open_event(
+                hook="tdd-guard",
+                category="payload_empty",
+                detail="empty stdin; enforcement skipped",
+                cwd=tmp,
+            )
+
+            report = build_report(rd, repo_path=tmp)
+            text = render_report(report)
+
+            self.assertIn("## ⚠️ hook fail-open warning", text)
+            self.assertIn("payload_empty=1", text)
+            self.assertIn("tdd-guard/payload_empty", text)
 
     def test_verify_only_pass_step_is_clean_without_pr_step(self):
         with tempfile.TemporaryDirectory() as td:

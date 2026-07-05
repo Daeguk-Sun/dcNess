@@ -8,6 +8,7 @@
 
 - README 첫 화면과 plug-in metadata 를 "PR workflow guard" 프레임에서 "agent workflow harness" 프레임으로 개편. README 에 설치 진단표, fail-open 감시, evidence 실측, Safety 범위 요약을 노출하고 최근 정비 상세는 릴리즈 노트 링크로 축소.
 - 결정적 guard-efficacy eval 을 advisory GitHub Actions workflow 로 노출하고 README Evidence 섹션에 상태 badge 를 추가.
+- hook fail-open 이벤트를 run 종료 stderr 와 `/run-review` 리포트에 warning 으로 노출해, 기존 fail-open summary API 증거가 작업 마감 표면에서도 보이도록 보강.
 
 ---
 
