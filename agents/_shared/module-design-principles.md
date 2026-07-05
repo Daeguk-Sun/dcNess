@@ -98,6 +98,8 @@ Agent Operability 는 다음 agent 가 cold-start 상태에서 올바른 edit ta
 
 새 mode, screen, panel, API route, CLI command, pipeline flow 가 자체 state, event, render, usecase 호출을 가지면 별도 owner flow/module 을 갖는다. entrypoint 는 mode dispatch 또는 composition wiring 역할로 제한한다. 기존 owner 가 없으면 첫 task 는 기능 append 가 아니라 seam extraction task 로 잡는다. 단일 파일 유지가 프로젝트 관례상 불가피하면, 그 파일 안에서도 owner section, state owner, validation path, future extension point 를 산출물에 명시한다.
 
+owner module 판단에서 entrypoint 파일 자체는 owner module 로 인정하지 않는다. 함수명 prefix 또는 같은 파일 위치는 searchability 보조 신호일 뿐 owner 분리 증거가 아니다. manual-only validation 은 owner 근처 validation path 가 아니다.
+
 ### 임계 — 작업성 신호, 하드 숫자 아님
 
 Agent Operability 는 하드 임계나 라인 수 게이트가 아니다. UI 라서 분해하거나 파일이 크다는 이유만으로 FAIL 시키지 않는다. diff 가 새 append 를 만들며 edit target, state owner, validation path 를 흐리게 할 때 이번 변경 범위의 finding 으로 드러낸다.
