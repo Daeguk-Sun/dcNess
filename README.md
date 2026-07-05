@@ -98,7 +98,7 @@ dcNess 는 무거운 절차를 항상 켜 두지 않는다. 문서 수정이나 
 
 ```sh
 # marketplace 등록 + plugin 설치 (Claude Code CLI)
-claude plugin marketplace add alruminum/dcNess
+claude plugin marketplace add Daeguk-Sun/dcNess
 claude plugin install dcness@dcness
 ```
 
@@ -195,7 +195,7 @@ Sub-agent(`agents/`, architect / validator / engineer / reviewer / acceptance �
 검증 기준은 Python 3.11 이다. macOS 기본 `python3` 는 3.9 일 수 있으니 로컬에서는 `python3.11` 을 명시한다.
 
 ```sh
-git clone https://github.com/alruminum/dcNess.git
+git clone https://github.com/Daeguk-Sun/dcNess.git
 cd dcNess
 cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 
