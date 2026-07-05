@@ -19,6 +19,7 @@ if str(_REPO_ROOT) not in sys.path:
 from harness import ledger  # noqa: E402
 from harness import run_review  # noqa: E402
 from harness.benchmark_aggregate import aggregate_sessions  # noqa: E402
+from harness.loop_lessons import list_active_lessons  # noqa: E402
 from harness.guard_telemetry import (  # noqa: E402
     DEFAULT_REPORT_SINCE_DAYS,
     collect_eval_summary,
@@ -233,6 +234,32 @@ def _waste_candidates(
     return out
 
 
+def _lesson_candidates(
+    project_name: str,
+    project_path: Path,
+    lessons: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for lesson in lessons:
+        pattern = str(lesson.get("pattern") or "")
+        agent = str(lesson.get("agent") or "")
+        mode = lesson.get("mode")
+        label = agent + (f"-{mode}" if mode else "")
+        hits = int(lesson.get("hits") or 0)
+        last = lesson.get("last") if isinstance(lesson.get("last"), str) else None
+        out.append(
+            _candidate(
+                key=f"lesson:{pattern}@{project_name}/{label}",
+                kind="lesson",
+                project=project_name,
+                scope_path=project_path,
+                detail=f"{pattern} active for {label}, hits={hits}",
+                last_ts=last,
+            )
+        )
+    return out
+
+
 def _collect_project(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     name = _project_name(path)
     events = read_events(cwd=path, since_days=args.since_days)
@@ -252,6 +279,8 @@ def _collect_project(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     fleet = _fleet_to_json(fleet_report)
     candidates = _guard_candidates(name, path, guard_summary)
     candidates.extend(_waste_candidates(name, path, fleet, last_event_ts))
+    lessons = list_active_lessons(path)
+    candidates.extend(_lesson_candidates(name, path, lessons))
     return {
         "name": name,
         "path": str(path),
@@ -260,8 +289,47 @@ def _collect_project(path: Path, args: argparse.Namespace) -> dict[str, Any]:
         "observation": "observed" if events else NO_OBSERVATION,
         "guard_summary": guard_summary,
         "fleet": fleet,
+        "lessons": lessons,
         "candidates": candidates,
     }
+
+
+def _cross_project_lesson_candidates(
+    repo_root: Path,
+    projects: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    by_pattern: dict[str, list[dict[str, Any]]] = defaultdict(list)
+    for project in projects:
+        for lesson in project.get("lessons", []):
+            if not isinstance(lesson, dict):
+                continue
+            pattern = str(lesson.get("pattern") or "")
+            if pattern:
+                row = dict(lesson)
+                row["project_name"] = project["name"]
+                by_pattern[pattern].append(row)
+
+    out: list[dict[str, Any]] = []
+    for pattern, rows in sorted(by_pattern.items()):
+        projects_with_pattern = sorted({str(row["project_name"]) for row in rows})
+        if len(projects_with_pattern) < 2:
+            continue
+        last = _max_ts([row.get("last") for row in rows])
+        detail = (
+            f"active in {len(projects_with_pattern)} project(s): "
+            + ", ".join(projects_with_pattern)
+        )
+        out.append(
+            _candidate(
+                key=f"lesson-rule:{pattern}",
+                kind="lesson-rule",
+                project="cross-project",
+                scope_path=repo_root,
+                detail=detail,
+                last_ts=last,
+            )
+        )
+    return out
 
 
 def _collect_self_evals(repo_root: Path, args: argparse.Namespace) -> dict[str, Any]:
@@ -439,6 +507,7 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
     candidates: list[dict[str, Any]] = []
     for project in projects:
         candidates.extend(project["candidates"])
+    candidates.extend(_cross_project_lesson_candidates(repo_root, projects))
     candidates.extend(evals["candidates"])
     _attach_status(candidates, previous=previous, decisions=decisions)
     _append_sweep(
@@ -482,6 +551,8 @@ def _render_project(project: dict[str, Any]) -> list[str]:
         f"- fleet runs: {fleet['run_count']}, "
         f"recurrent waste candidates: {len(fleet['improvement_candidates'])}"
     )
+    lessons = project.get("lessons") if isinstance(project.get("lessons"), list) else []
+    lines.append(f"- active lessons: {len(lessons)}")
     lines.append("")
     lines.append("| guard | count | last | status |")
     lines.append("|---|---:|---|---|")
@@ -495,6 +566,18 @@ def _render_project(project: dict[str, Any]) -> list[str]:
                 f"{_md_cell(row.get('last_ts') or '-')} | {status} |"
             )
     lines.append("")
+    if lessons:
+        lines.append("| lesson pattern | agent/mode | hits | last |")
+        lines.append("|---|---|---:|---|")
+        for lesson in lessons:
+            agent = str(lesson.get("agent") or "")
+            mode = lesson.get("mode")
+            label = agent + (f"/{mode}" if mode else "")
+            lines.append(
+                f"| `{_md_cell(lesson.get('pattern'))}` | {_md_cell(label)} | "
+                f"{int(lesson.get('hits') or 0)} | {_md_cell(lesson.get('last') or '-')} |"
+            )
+        lines.append("")
     return lines
 
 

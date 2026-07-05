@@ -81,6 +81,21 @@ INFRA_PATH_PATTERNS = [
 READONLY_AGENTS = {"code-validator", "architecture-validator", "pr-reviewer",
                     "plan-reviewer", "product-acceptance"}
 
+# #917 — lesson 대상 WasteFinding 패턴의 코드 SSOT.
+# NoteFinding(THINKING_LOOP / TOOL_USE_OVERFLOW)은 의도적으로 제외한다.
+ACTIVE_WASTE_PATTERNS = frozenset({
+    "RETRY_SAME_FAIL",
+    "MISSING_CONCLUSION_ENUM",
+    "STRAY_DIR_LEAK",
+    "MUST_FIX_GHOST",
+    "MUST_FIX_LEAK",
+    "SPEC_GAP_LOOP",
+    "INFRA_READ",
+    "READONLY_BASH",
+    "END_STEP_SKIP",
+    "TOOL_REPEAT_HIGH",
+})
+
 # DCN-CHG-20260430-20: Phase 2 — per-Agent budget for THINKING_LOOP detection.
 # elapsed_s: 정상 sub-agent 한 번 호출 한도 (초).
 # min_output_tokens: 정상 sub-agent 가 emit 할 최소 output token (이하 = stall 의심).
@@ -226,6 +241,8 @@ class StepRecord:
     # 마지막 단락 결론 (agents/code-validator.md 의 결론 + 권장 다음 단계 "PASS / FAIL / ESCALATE")
     # 을 표시 단계에서 추출. 부재 시 빈 문자열 (= sentinel 그대로 표시 fallback).
     conclusion_enum: str = ""
+    # #917 — recurrent lesson evidence. ledger 의 prose_file 절대경로를 보존한다.
+    prose_file: str = ""
 
 
 @dataclass
@@ -760,6 +777,7 @@ def parse_steps(run_dir: Path) -> list[StepRecord]:
             prose_excerpt=rec.get("prose_excerpt", ""),
             prose_full=prose_full,
             conclusion_enum=_extract_conclusion_enum(prose_full),
+            prose_file=str(prose_file or ""),
         ))
 
     # elapsed 계산 — 다음 step ts 와의 차이

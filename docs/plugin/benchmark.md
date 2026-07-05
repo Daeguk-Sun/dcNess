@@ -61,7 +61,7 @@ hook/function 의 결정적 allow/block 성능을 대신하지 않는다.
 | review rejection | `pr-reviewer` 가 실제로 반려한 비율 | `pr-reviewer` verdict: `FAIL / (PASS + LGTM + FAIL)` |
 | blocked events | run 이 안전하게 멈춘 횟수 | `ledger.jsonl` 의 `blocked` event |
 | escalate | agent 가 자동 진행을 거부하고 사용자/상위 설계로 올린 횟수 | step verdict 에 `ESCALATE` 포함 |
-| waste | 반복 실패, 도구 반복, placeholder 누수 등 비용 낭비 finding | `run_review.py` 의 waste detector |
+| waste | 반복 실패, 도구 반복, gate 모순 등 비용 낭비 finding | `run_review.py` 의 waste detector |
 | PR merge success | 생성된 PR 중 실제 merge 완료로 확인된 비율 | `pr_created` denominator 중 matching `pr_merged` event |
 
 `pr_merged` 만 있고 matching `pr_created` 가 없으면 성공률을 만들지 않는다. 이 경우
@@ -112,7 +112,7 @@ dcNess loop(`begin-run` ~ `end-run` 사이클)을 한 번이라도 돌린 run �
 ```
 
 `/run-review` 는 step별 비용, 낭비(WASTE — 같은 실패 재시도 / read-only Bash 낭비 /
-placeholder 누수 등) finding, 수정 제안을 리포트로 출력한다. 현재 run 의 waste pattern
+도구 반복, gate 모순 등) finding, 수정 제안을 리포트로 출력한다. 현재 run 의 waste pattern
 이 같은 sessions root 의 과거 run 에서도 임계(기본 3회) 이상 반복됐으면 재발 기반 개선
 후보로 같이 표면화한다. 실 구현은
 [`harness/run_review.py`](../../harness/run_review.py) 다.
@@ -152,7 +152,9 @@ notes 기록). 측정 스크립트의 재현 정확성은 알려진 두 세션(t
 위 두 도구가 run 1개를 보는 반면, [`harness/benchmark_aggregate.py`](../../harness/benchmark_aggregate.py)
 는 한 프로젝트의 **모든 run 의 `ledger.jsonl` 을 가로질러** 집계한다 — PR 머지 성공률,
 review rejection, escalate 수, blocked 수, waste top-N, 재발 기반 개선 후보.
-`run_review.py` 의 검증된 waste 분류를 재사용한다.
+`run_review.py` 의 검증된 waste 분류를 재사용한다. helper 기반 run 은 `end-run`
+직후 recurrent WasteFinding 을 프로젝트-로컬 `.claude/loop-lessons/` 에도 반영하므로,
+다음 같은 agent/mode `begin-step` 에서는 `[LESSONS]` 로 최근 lesson 이 주입된다.
 
 ```sh
 # 활성 프로젝트 안에서 (sessions-root 자동 탐색) — $DCN 은 위 "스크립트 위치" 참조

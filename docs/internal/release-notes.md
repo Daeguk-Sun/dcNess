@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- 프로젝트-로컬 lesson 층 추가 — recurrent WasteFinding 을 `.claude/loop-lessons/<agent>[-<mode>].md` 로 자동 축적하고 다음 `begin-step` 에 `[LESSONS]` 로 주입한다. NoteFinding 은 제외하며, `loop-diagnose` 가 활성 lesson 과 복수 프로젝트 동일 패턴을 Sense 후보로 읽는다. [#917](https://github.com/alruminum/dcNess/issues/917)
 - 자기개선 루프 SSOT 추가 — 측정 신호를 Sense→Diagnose→Decide→Act→Verify로 닫는 내부 절차를 [`docs/internal/self-improvement-loop.md`](self-improvement-loop.md)에 정의하고, 릴리즈 점검·eval 산출물 보존·핵심 행동 eval N/N 기준을 연결했다. [#893](https://github.com/alruminum/dcNess/issues/893)
 - 문서 개수 하드코딩 제거 — README/CLAUDE/loop-procedure/smart-compact의 구성 요소 count prose와 cross-ref count deny-list를 제거해 stale 방지 룰을 소멸시켰다. [#877](https://github.com/alruminum/dcNess/issues/877)
 - 릴리즈 전 가드 재평가 점검 명문화 — 릴리즈 절차가 `guard-telemetry` 집계 또는 수동 CI·hook 이력 확인으로 장기 무발화 guard를 소멸 후보로 판정하고, 결과를 아래 자기개선 점검 기록에 남기도록 했다. 새 CI 강제 게이트는 추가하지 않았다. [#878](https://github.com/alruminum/dcNess/issues/878)

@@ -15,8 +15,8 @@
 
 | 슬롯 | 질문 | 현재 담당 |
 |---|---|---|
-| Sense | 어떤 신호를 보나 | `/run-review`, benchmark/fleet 집계, `evals/guard_efficacy.py`, `evals/run.sh`, 가드 발화 텔레메트리 후보 [#875](https://github.com/alruminum/dcNess/issues/875), 재발·낭비 집계 후보 [#876](https://github.com/alruminum/dcNess/issues/876), judge 보정 후보 [#894](https://github.com/alruminum/dcNess/issues/894) |
-| Diagnose | 여러 신호를 어떻게 우선순위화하나 | `scripts/loop_diagnose.py`와 repo-local `/loop-diagnose` command가 전담한다. 활성 프로젝트 whitelist 를 읽어 cross-project 신호를 당겨오고, guard telemetry 는 `dcness-helper guard-telemetry` 와 같은 기본 90일 스캔창(`--since-days`)으로 본다. 수시 점검과 릴리즈 점검 양쪽에서 후보를 blocker, release-note follow-up, 별도 issue로 나눈다. |
+| Sense | 어떤 신호를 보나 | `/run-review`, benchmark/fleet 집계, 프로젝트-로컬 `.claude/loop-lessons/` 활성 lesson, `evals/guard_efficacy.py`, `evals/run.sh`, 가드 발화 텔레메트리 후보 [#875](https://github.com/alruminum/dcNess/issues/875), 재발·낭비 집계 후보 [#876](https://github.com/alruminum/dcNess/issues/876), judge 보정 후보 [#894](https://github.com/alruminum/dcNess/issues/894) |
+| Diagnose | 여러 신호를 어떻게 우선순위화하나 | `scripts/loop_diagnose.py`와 repo-local `/loop-diagnose` command가 전담한다. 활성 프로젝트 whitelist 를 읽어 cross-project 신호를 당겨오고, guard telemetry 는 `dcness-helper guard-telemetry` 와 같은 기본 90일 스캔창(`--since-days`)으로 본다. 활성 lesson 은 프로젝트별 Sense 항목으로 표시하고, 같은 lesson 패턴이 복수 프로젝트에서 활성화되면 중앙 RULE 후보로 올린다. 수시 점검과 릴리즈 점검 양쪽에서 후보를 blocker, release-note follow-up, 별도 issue로 나눈다. |
 | Decide | 무엇을 바꾸나 | 추가 전 제거 검토를 먼저 한다. 새 룰·hook·CI를 추가하기 전에 기존 룰 삭제, 문구 축약, SSOT 파생 생성으로 같은 효과를 낼 수 있는지 확인한다. 첫 사례는 개수 하드코딩 제거 [#877](https://github.com/alruminum/dcNess/issues/877)이다. |
 | Act | 실제 변경은 어디서 하나 | 일반 dcNess 변경 절차대로 branch → PR → merge를 탄다. PR 본문에 Sense 근거, Diagnose 판단, Decide 이유, Verify 계획을 짧게 적는다. |
 | Verify | 개선이 먹혔는지 어떻게 보나 | 변경 성격별로 결정적 eval, 행동 eval, 다음 Sense 주기 재측정을 분리한다. |
