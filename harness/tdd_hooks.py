@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
 import os
 import shlex
@@ -42,6 +43,9 @@ TEST_DIR_SEGMENTS = {
     "specs",
     "e2e",
 }
+TEST_CANDIDATE_TEMPLATES_KEY = "test_candidate_templates"
+TEST_FILE_GLOBS_KEY = "test_file_globs"
+PRESET_PLATFORMS = {"python", "web", "go", "android", "ios"}
 
 
 @dataclass(frozen=True)
@@ -104,6 +108,51 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
     )
 
 
+def _string_list(config: dict[str, Any], key: str) -> list[str]:
+    value = config.get(key)
+    if not isinstance(value, list):
+        return []
+    return [item for item in value if isinstance(item, str) and item]
+
+
+def _normalize_contract_config(config: dict[str, Any]) -> dict[str, Any]:
+    source_roots = _string_list(config, "source_roots")
+    impl_exts = _string_list(config, "impl_exts")
+    platform = str(config.get("platform") or "custom")
+    test_candidate_templates = _string_list(config, TEST_CANDIDATE_TEMPLATES_KEY)
+    if not source_roots or not impl_exts:
+        raise JsonConfigError(
+            f"{CONFIG_REL}: TDD config must include non-empty source_roots and impl_exts"
+        )
+    if platform not in PRESET_PLATFORMS and not test_candidate_templates:
+        raise JsonConfigError(
+            f"{CONFIG_REL}: custom TDD config must include non-empty "
+            f"{TEST_CANDIDATE_TEMPLATES_KEY}"
+        )
+    normalized = dict(config)
+    normalized["version"] = config.get("version", CONFIG_VERSION)
+    normalized["platform"] = platform
+    normalized["source_roots"] = source_roots
+    normalized["impl_exts"] = impl_exts
+    normalized[TEST_CANDIDATE_TEMPLATES_KEY] = test_candidate_templates
+    normalized[TEST_FILE_GLOBS_KEY] = _string_list(config, TEST_FILE_GLOBS_KEY)
+    registered = config.get("registered")
+    normalized["registered"] = registered if isinstance(registered, dict) else {}
+    return normalized
+
+
+def _load_project_contract_config(project_root: Path) -> Optional[dict[str, Any]]:
+    config_path = project_root / CONFIG_REL
+    if not config_path.is_file():
+        return None
+    config = _read_json(config_path, strict=True)
+    if not config:
+        raise JsonConfigError(
+            f"{config_path}: empty TDD config; refusing to overwrite existing file"
+        )
+    return _normalize_contract_config(config)
+
+
 def _iter_project_files(root: Path, suffixes: tuple[str, ...]) -> Iterable[Path]:
     for path in root.rglob("*"):
         rel_parts = path.relative_to(root).parts
@@ -146,9 +195,32 @@ def detect_platform(project_root: Path) -> Optional[str]:
     return None
 
 
+def _base_contract_config(
+    *,
+    platform: str,
+    source_roots: list[str],
+    impl_exts: list[str],
+    test_candidate_templates: list[str],
+    test_file_globs: list[str],
+) -> dict[str, Any]:
+    return {
+        "version": CONFIG_VERSION,
+        "platform": platform,
+        "source_roots": source_roots,
+        "impl_exts": impl_exts,
+        TEST_CANDIDATE_TEMPLATES_KEY: test_candidate_templates,
+        TEST_FILE_GLOBS_KEY: test_file_globs,
+        "registered": {"cc": False, "codex": False},
+    }
+
+
 def build_contract_config(project_root: Path, platform: Optional[str] = None) -> Optional[dict[str, Any]]:
     """Build the project-local TDD contract config used by generated hooks."""
     root = project_root.resolve()
+    if platform is None:
+        existing = _load_project_contract_config(root)
+        if existing is not None:
+            return existing
     detected = platform or detect_platform(root)
     if detected is None:
         return None
@@ -156,31 +228,72 @@ def build_contract_config(project_root: Path, platform: Optional[str] = None) ->
     if detected == "python":
         source_roots = _existing_source_roots(root, ("src", "app", "apps", "packages"))
         impl_exts = [".py"]
+        test_candidate_templates = [
+            "{parent}/test_{stem}.py",
+            "{parent}/{stem}_test.py",
+            "{parent}/tests/test_{stem}.py",
+            "tests/test_{stem}.py",
+            "tests/{stem}_test.py",
+        ]
+        test_file_globs = ["test_*.py", "*_test.py", "tests/**/*.py"]
     elif detected == "web":
         source_roots = _existing_source_roots(root, ("src", "app", "apps", "packages"))
         impl_exts = [".ts", ".tsx", ".js", ".jsx"]
+        test_candidate_templates = []
+        for test_ext in (".ts", ".tsx", ".js", ".jsx"):
+            test_candidate_templates.extend(
+                [
+                    f"{{parent}}/{{stem}}.test{test_ext}",
+                    f"{{parent}}/{{stem}}.spec{test_ext}",
+                    f"{{parent}}/__tests__/{{stem}}.test{test_ext}",
+                    f"src/__tests__/{{stem}}.test{test_ext}",
+                ]
+            )
+        test_file_globs = [
+            "**/*.test.ts",
+            "**/*.test.tsx",
+            "**/*.test.js",
+            "**/*.test.jsx",
+            "**/*.spec.ts",
+            "**/*.spec.tsx",
+            "**/*.spec.js",
+            "**/*.spec.jsx",
+            "**/__tests__/**",
+        ]
     elif detected == "go":
         source_roots = _existing_source_roots(root, (".", "cmd", "pkg", "internal"))
         impl_exts = [".go"]
+        test_candidate_templates = ["{parent}/{stem}_test.go"]
+        test_file_globs = ["**/*_test.go"]
     elif detected == "android":
         source_roots = _existing_source_roots(
             root,
             ("app/src/main", "src/main", "app", "src"),
         )
         impl_exts = [".kt", ".java"]
+        test_candidate_templates = [
+            "app/src/test/java/{stem}Test{ext}",
+            "{parent}/{stem}Test{ext}",
+        ]
+        test_file_globs = ["**/*Test.kt", "**/*Test.java"]
     elif detected == "ios":
         source_roots = _existing_source_roots(root, ("Sources", "App", "src"))
         impl_exts = [".swift"]
+        test_candidate_templates = [
+            "Tests/{stem}Tests.swift",
+            "{parent}/{stem}Tests.swift",
+        ]
+        test_file_globs = ["Tests/**/*.swift", "**/*Test.swift", "**/*Tests.swift"]
     else:
         return None
 
-    return {
-        "version": CONFIG_VERSION,
-        "platform": detected,
-        "source_roots": source_roots,
-        "impl_exts": impl_exts,
-        "registered": {"cc": False, "codex": False},
-    }
+    return _base_contract_config(
+        platform=detected,
+        source_roots=source_roots,
+        impl_exts=impl_exts,
+        test_candidate_templates=test_candidate_templates,
+        test_file_globs=test_file_globs,
+    )
 
 
 def _rel_path(path: Path, project_root: Path) -> Optional[Path]:
@@ -209,7 +322,76 @@ def _is_under_source_root(rel: Path, config: dict[str, Any]) -> bool:
     return False
 
 
-def _is_test_file(rel: Path, platform: str) -> bool:
+def _template_context(source_rel: Path) -> dict[str, str]:
+    parent = source_rel.parent.as_posix()
+    if parent in ("", "."):
+        parent = "."
+    stem = _strip_known_suffix(source_rel)
+    path_no_ext = (source_rel.parent / stem).as_posix()
+    return {
+        "path": source_rel.as_posix(),
+        "path_no_ext": path_no_ext,
+        "parent": parent,
+        "filename": source_rel.name,
+        "stem": stem,
+        "base": stem,
+        "ext": source_rel.suffix,
+    }
+
+
+def _render_template(template: str, source_rel: Path) -> Optional[str]:
+    try:
+        rendered = template.format(**_template_context(source_rel)).strip()
+    except (KeyError, ValueError):
+        return None
+    return rendered or None
+
+
+def _candidate_from_template(template: str, source_rel: Path) -> Optional[Path]:
+    rendered = _render_template(template, source_rel)
+    if rendered is None:
+        return None
+    candidate = Path(rendered)
+    if candidate.is_absolute() or ".." in candidate.parts:
+        return None
+    return candidate
+
+
+def _configured_test_candidates(source_rel: Path, config: dict[str, Any]) -> list[Path]:
+    candidates: list[Path] = []
+    for template in _string_list(config, TEST_CANDIDATE_TEMPLATES_KEY):
+        candidate = _candidate_from_template(template, source_rel)
+        if candidate is not None:
+            candidates.append(candidate)
+    return candidates
+
+
+def _unique_candidate_paths(candidates: list[Path]) -> list[Path]:
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        key = candidate.as_posix()
+        if key not in seen:
+            unique.append(candidate)
+            seen.add(key)
+    return unique
+
+
+def _matches_configured_test_file_glob(rel: Path, config: dict[str, Any]) -> bool:
+    rel_text = rel.as_posix()
+    for template in _string_list(config, TEST_FILE_GLOBS_KEY):
+        pattern = _render_template(template, rel)
+        if pattern is None:
+            continue
+        patterns = [pattern]
+        if pattern.startswith("./"):
+            patterns.append(pattern[2:])
+        if any(fnmatch.fnmatchcase(rel_text, item) for item in patterns):
+            return True
+    return False
+
+
+def _is_platform_test_file(rel: Path, platform: str) -> bool:
     parts = set(rel.parts[:-1])
     if parts & TEST_DIR_SEGMENTS:
         return True
@@ -227,6 +409,13 @@ def _is_test_file(rel: Path, platform: str) -> bool:
     return False
 
 
+def _is_test_file(rel: Path, config: dict[str, Any]) -> bool:
+    if _matches_configured_test_file_glob(rel, config):
+        return True
+    platform = str(config.get("platform") or "")
+    return _is_platform_test_file(rel, platform)
+
+
 def _strip_known_suffix(path: Path) -> str:
     return path.name[: -len(path.suffix)] if path.suffix else path.name
 
@@ -236,7 +425,9 @@ def matching_test_candidates(source_rel: Path, config: dict[str, Any]) -> list[P
     ext = source_rel.suffix
     base = _strip_known_suffix(source_rel)
     parent = source_rel.parent
-    candidates: list[Path] = []
+    candidates: list[Path] = _configured_test_candidates(source_rel, config)
+    if candidates and platform not in PRESET_PLATFORMS:
+        return _unique_candidate_paths(candidates)
 
     if platform == "python":
         candidates.extend(
@@ -270,14 +461,7 @@ def matching_test_candidates(source_rel: Path, config: dict[str, Any]) -> list[P
     else:
         candidates.append(parent / f"{base}.test{ext}")
 
-    unique: list[Path] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        key = candidate.as_posix()
-        if key not in seen:
-            unique.append(candidate)
-            seen.add(key)
-    return unique
+    return _unique_candidate_paths(candidates)
 
 
 def _android_test_path(source_rel: Path, base: str, ext: str) -> Path:
@@ -295,11 +479,10 @@ def should_enforce(path: Path, project_root: Path, config: dict[str, Any]) -> bo
     rel = _rel_path(path, project_root)
     if rel is None:
         return False
-    platform = str(config.get("platform") or "")
     impl_exts = config.get("impl_exts")
     if not isinstance(impl_exts, list) or rel.suffix not in impl_exts:
         return False
-    if _is_test_file(rel, platform):
+    if _is_test_file(rel, config):
         return False
     return _is_under_source_root(rel, config)
 
@@ -438,17 +621,7 @@ def _self_test_paths(config: dict[str, Any], token: str) -> tuple[Path, Path, Pa
     no_test = source_root / f"dcness_tdd_contract_no_test_{token}{ext}"
     with_test = source_root / f"dcness_tdd_contract_with_test_{token}{ext}"
     test_file = matching_test_candidates(with_test, config)[0]
-    test_self = test_file.parent / f"test_dcness_tdd_contract_self_{token}.py"
-    platform = str(config.get("platform") or "")
-    if platform == "web":
-        test_self = test_file.parent / f"dcness_tdd_contract_self_{token}.test.ts"
-    elif platform == "go":
-        test_self = test_file.parent / f"dcness_tdd_contract_self_{token}_test.go"
-    elif platform == "android":
-        test_self = test_file.parent / f"DcnessTddContractSelf{token}Test{ext}"
-    elif platform == "ios":
-        test_self = test_file.parent / f"DcnessTddContractSelf{token}Tests.swift"
-    return no_test, with_test, test_self
+    return no_test, with_test, test_file
 
 
 def _fixture_content(path: Path) -> str:
@@ -458,6 +631,8 @@ def _fixture_content(path: Path) -> str:
         return "export function dcnessContractSubject() { return 1; }\n"
     if path.suffix == ".go":
         return "package dcness\n\nfunc DcnessContractSubject() int { return 1 }\n"
+    if path.suffix == ".rs":
+        return "pub fn dcness_contract_subject() -> i32 { 1 }\n"
     if path.suffix in {".kt", ".java", ".swift"}:
         return "// dcness contract subject\n"
     return "dcness contract subject\n"
@@ -530,17 +705,16 @@ def run_self_test(
     plugin_root: Optional[Path] = None,
 ) -> None:
     token = uuid.uuid4().hex[:8]
-    no_test_rel, with_test_rel, test_self_rel = _self_test_paths(config, token)
+    no_test_rel, with_test_rel, test_file_rel = _self_test_paths(config, token)
     created = [
         _write_fixture_file(project_root, no_test_rel),
         _write_fixture_file(project_root, with_test_rel),
-        _write_fixture_file(project_root, matching_test_candidates(with_test_rel, config)[0]),
-        _write_fixture_file(project_root, test_self_rel),
+        _write_fixture_file(project_root, test_file_rel),
     ]
     cases = [
         SelfTestCase("without_test", created[0], "deny"),
         SelfTestCase("with_test", created[1], "allow"),
-        SelfTestCase("test_file_self", created[3], "allow"),
+        SelfTestCase("test_file_self", created[2], "allow"),
     ]
     failures: list[SelfTestFailure] = []
     try:
@@ -835,8 +1009,9 @@ def ensure_generated_hooks(
 
 def inspect_installation(project_root: Path) -> dict[str, Any]:
     root = project_root.resolve()
-    platform = detect_platform(root)
     config = _read_json(root / CONFIG_REL)
+    config_platform = config.get("platform") if isinstance(config.get("platform"), str) else None
+    platform = config_platform or detect_platform(root)
     registered_data = config.get("registered")
     registered: dict[str, Any] = registered_data if isinstance(registered_data, dict) else {}
     cc_hook = (root / CC_HOOK_REL).is_file()

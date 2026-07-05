@@ -136,6 +136,7 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                 (project / ".dcness" / "tdd-hooks.json").read_text(encoding="utf-8")
             )
             self.assertEqual(config["platform"], "python")
+            self.assertIn("test_candidate_templates", config)
             self.assertTrue(config["registered"]["cc"])
             self.assertTrue(config["registered"]["codex"])
 
@@ -298,6 +299,83 @@ class GeneratedTddHookContractTests(unittest.TestCase):
             denied = _run_hook(hook, project, no_test)
             self.assertEqual(denied.returncode, 2, denied.stderr)
             self.assertIn("price.py", denied.stderr)
+
+    def test_ensure_uses_project_owned_config_for_unknown_platform(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "Cargo.toml").write_text("[package]\nname='demo'\nversion='0.1.0'\n")
+            (project / "src").mkdir()
+            (project / "src" / "lib.rs").write_text("pub fn existing() -> i32 { 1 }\n")
+            (project / ".dcness").mkdir()
+            (project / ".dcness" / "tdd-hooks.json").write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "platform": "rust",
+                        "source_roots": ["src"],
+                        "impl_exts": [".rs"],
+                        "test_candidate_templates": [
+                            "tests/{stem}_test{ext}",
+                            "{parent}/{stem}_test{ext}",
+                        ],
+                        "test_file_globs": [
+                            "tests/**/*{ext}",
+                            "**/*_test{ext}",
+                        ],
+                        "registered": {"cc": False, "codex": False},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "cc",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("cc: registered", result.stdout)
+
+            report = inspect_installation(project)
+            self.assertEqual(report["platform"], "rust")
+            self.assertTrue(report["cc_registered"])
+
+            hook = project / ".claude" / "hooks" / "dcness-tdd-guard.sh"
+            no_test = project / "src" / "price.rs"
+            no_test.write_text("pub fn price() -> i32 { 1 }\n", encoding="utf-8")
+            denied = _run_hook(hook, project, no_test)
+            self.assertEqual(denied.returncode, 2, denied.stderr)
+            self.assertIn("price.rs", denied.stderr)
+            self.assertIn("tests/price_test.rs", denied.stderr)
+
+            (project / "src" / "price.test.rs").write_text(
+                "#[test]\nfn generic_name_only() { assert_eq!(1, 1); }\n",
+                encoding="utf-8",
+            )
+            still_denied = _run_hook(hook, project, no_test)
+            self.assertEqual(still_denied.returncode, 2, still_denied.stderr)
+
+            (project / "tests").mkdir()
+            (project / "tests" / "price_test.rs").write_text(
+                "#[test]\nfn price_contract() { assert_eq!(1, 1); }\n",
+                encoding="utf-8",
+            )
+            allowed = _run_hook(hook, project, no_test)
+            self.assertEqual(allowed.returncode, 0, allowed.stderr)
 
     def test_status_does_not_trust_stale_registered_flags_without_hook_files(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -482,6 +560,7 @@ class GeneratedTddHookDocsTests(unittest.TestCase):
             with self.subTest(text=text[:20]):
                 self.assertIn("TDD 계약", text)
                 self.assertIn("self-test", text)
+                self.assertIn("test_candidate_templates", text)
 
         ordered = [
             "TDD 계약",
