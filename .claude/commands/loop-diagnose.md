@@ -39,8 +39,13 @@ dcNess self 전용 Diagnose 도구를 실행한다. 이 command 는 외부 활�
 
 5. 릴리즈 점검 중이면 release notes 의 "자기개선 점검 기록" 표에 결론을 남긴다.
 
+> 사람 세션 없이 주기 실행되는 시간 기반 sweep 은 `scripts/loop_diagnose.py sweep` 이
+> 담당한다. 최신 digest 는 `.metrics/loop-diagnose/digest-latest.md` 에 남는다. 설치·주기는
+> `docs/internal/self-improvement-loop.md` 의 스케줄 sweep 절을 본다.
+
 ## 참조
 
 - `scripts/loop_diagnose.py`
+- `scripts/launchd/install-loop-sweep.sh`
 - `docs/internal/self-improvement-loop.md`
 - `docs/internal/plugin-release.md`

@@ -26,6 +26,12 @@
 릴리즈마다 한 번 돈다. [`plugin-release.md`](plugin-release.md)의 릴리즈 전 점검에서
 Sense 산출물을 모으고, Diagnose/Decide 결과를 릴리즈 노트 또는 후속 이슈에 남긴다.
 
+릴리즈 리듬과 별개로 시간 기반 sweep 이 사람 세션 없이 주기 실행된다. 로컬 스케줄러가
+`scripts/loop_diagnose.py sweep` 을 정해진 주기(기본 하루 1회)로 돌려 활성 프로젝트
+전반의 Diagnose 후보를 워터마크 기준 digest 로 남긴다. 릴리즈 사이에 신호가 stale 하게
+쌓이지 않게 하는 Sense 자동화이며, Decide 는 그대로 사람 몫이다 — sweep 은 read-only 라
+repo·이슈·설정을 바꾸지 않는다. 설치·주기·teardown 은 [스케줄 sweep](#스케줄-sweep) 참조.
+
 평소 run 중 발견한 단발 신호는 바로 룰로 박지 않는다. 같은 신호가 반복되거나 릴리즈
 점검에서 비용·위험이 충분히 커졌을 때 Decide 슬롯으로 올린다.
 
@@ -42,6 +48,51 @@ Diagnose 후보는 같은 항목이 매번 다시 떠도 맥락을 잃지 않도
 
 `fixed`와 `rejected` 는 `--hide-decided` 로 숨길 수 있다. `hold` 는 의도적으로 계속
 표시해 보류 사유가 stale 해졌는지 다음 Diagnose 때 다시 보게 한다.
+
+## 스케줄 sweep
+
+시간 기반 Sense 자동화다. 로컬 스케줄러가 사람 세션 없이 sweep 을 주기 실행해, 릴리즈
+리듬 사이에 신호가 stale 하게 쌓이지 않게 한다. dcNess self 운영 도구이며 plugin
+배포물이 아니다(활성 프로젝트로 배포하지 않는다).
+
+### 실행 주체와 주기
+
+macOS launchd LaunchAgent(`com.dcness.loop-sweep`)가
+`python3.11 scripts/loop_diagnose.py sweep --repo-root <repo>` 를 `StartInterval` 마다
+실행한다. GitHub Actions 는 loop_diagnose 가 로컬 whitelist·telemetry·세션 상태를 읽어야
+하므로 쓸 수 없다.
+
+```sh
+# 설치 (기본 주기 = 하루 1회, 86400초)
+bash scripts/launchd/install-loop-sweep.sh
+
+# 주기 파라미터화 (예: 6시간마다)
+bash scripts/launchd/install-loop-sweep.sh --interval 21600
+
+# 제거
+bash scripts/launchd/install-loop-sweep.sh --uninstall
+```
+
+기본 주기는 86400초(하루 1회)이며 `--interval SECONDS` 로 바꾼다. 즉시 1회 실행으로
+확인하려면 `launchctl kickstart -k gui/$(id -u)/com.dcness.loop-sweep` 를 쓴다.
+
+### 산출물
+
+| 경로 | 역할 |
+|---|---|
+| `.metrics/loop-diagnose/digest-latest.md` | 최신 sweep 의 사람이 읽는 digest. `report` 와 같은 통합 후보 표에 `신규` / `신규 발생 since` / `기왕` 을 표시한다. 다음 세션이나 릴리즈 점검에서 소비한다. |
+| `.metrics/loop-diagnose/sweep-log.jsonl` | sweep 실행 원장. 성공은 `status: ok`(후보 수·digest 경로), 실패는 `status: error`(사유)를 append 한다. |
+| `.metrics/loop-diagnose/launchd.{out,err}.log` | launchd 가 잡은 stdout/stderr. sweep-log 를 못 남길 만큼 이른 실패의 최후 흔적. |
+
+모두 `.metrics/` 아래 로컬 untracked 런타임 상태라 git 추적하지 않는다. 워터마크
+(`sweeps.jsonl`)와 같은 층이다.
+
+### 계약
+
+- read-only. sweep 은 관측·기록만 하고 repo·이슈·설정을 바꾸지 않는다. Decide/Act
+  자동화(룰 자동 추가·제거, 이슈 자동 생성)는 범위 밖이다.
+- 실패는 조용히 사라지지 않는다. build 실패 시 `sweep-log.jsonl` 에 `status: error` 를
+  남기고 non-zero 로 종료하며, launchd 가 `launchd.err.log` 에 stderr 를 잡는다.
 
 ## 결정 규칙
 

@@ -32,6 +32,12 @@ DEFAULT_PROJECTS_FILE = (
     Path.home() / ".claude" / "plugins" / "data" / "dcness-dcness" / "projects.json"
 )
 SWEEP_PATH = Path(".metrics") / "loop-diagnose" / "sweeps.jsonl"
+DIGEST_FILENAME = "digest-latest.md"
+SWEEP_LOG_FILENAME = "sweep-log.jsonl"
+DIGEST_NOTE = (
+    "> 스케줄 sweep 이 남긴 최신 digest. sweep 은 read-only 관측만 하며 Decide 는 사람 몫이다.\n"
+    "> 후보 소비는 `record-decision` 으로 남긴다.\n\n"
+)
 DECISIONS_PATH = Path("docs") / "internal" / "loop-decisions.jsonl"
 VALID_DECISIONS = {"fixed", "hold", "rejected"}
 DECISION_LABELS = {
@@ -495,6 +501,26 @@ def _append_sweep(
     _append_jsonl(repo_root / SWEEP_PATH, payload)
 
 
+def _digest_dir(args: argparse.Namespace) -> Path:
+    if getattr(args, "digest_dir", ""):
+        return Path(args.digest_dir).expanduser()
+    repo_root = Path(args.repo_root).expanduser().resolve()
+    return repo_root / SWEEP_PATH.parent
+
+
+def _write_digest(digest_dir: Path, markdown: str) -> Path:
+    digest_dir.mkdir(parents=True, exist_ok=True)
+    target = digest_dir / DIGEST_FILENAME
+    tmp = digest_dir / (DIGEST_FILENAME + ".tmp")
+    tmp.write_text(markdown, encoding="utf-8")
+    os.replace(tmp, target)
+    return target
+
+
+def _append_sweep_log(digest_dir: Path, entry: dict[str, Any]) -> None:
+    _append_jsonl(digest_dir / SWEEP_LOG_FILENAME, entry)
+
+
 def build_payload(args: argparse.Namespace) -> dict[str, Any]:
     repo_root = Path(args.repo_root).expanduser().resolve()
     projects_file = Path(args.projects_file).expanduser().resolve()
@@ -686,6 +712,16 @@ def _build_report_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _build_sweep_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        prog="loop_diagnose.py sweep",
+        description="Run an unattended sweep and persist a digest for later human review.",
+    )
+    _add_common_report_args(parser)
+    parser.add_argument("--digest-dir", default="")
+    return parser
+
+
 def _build_decision_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="loop_diagnose.py record-decision")
     parser.add_argument("--repo-root", default=str(Path.cwd()))
@@ -707,11 +743,41 @@ def _run_report(argv: list[str]) -> int:
     return 0
 
 
+def _run_sweep(args: argparse.Namespace) -> int:
+    """Unattended sweep: persist a digest and always leave a trace, never vanish."""
+    digest_dir = _digest_dir(args)
+    swept_at = _now_iso()
+    try:
+        payload = build_payload(args)
+    except Exception as exc:  # noqa: BLE001 - a failed scheduled sweep must leave a trace
+        print(f"loop sweep failed: {exc!r}", file=sys.stderr)
+        try:
+            _append_sweep_log(digest_dir, {"swept_at": swept_at, "status": "error", "error": repr(exc)})
+        except OSError as log_exc:
+            print(f"loop sweep: could not write failure log: {log_exc!r}", file=sys.stderr)
+        return 1
+    target = _write_digest(digest_dir, DIGEST_NOTE + render_markdown(payload))
+    _append_sweep_log(
+        digest_dir,
+        {
+            "swept_at": payload["swept_at"],
+            "status": "ok",
+            "candidate_count": len(payload["candidates"]),
+            "digest_path": str(target),
+        },
+    )
+    print(f"loop sweep ok: digest -> {target}")
+    return 0
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     if argv and argv[0] == "record-decision":
         args = _build_decision_parser().parse_args(argv[1:])
         return record_decision(args)
+    if argv and argv[0] == "sweep":
+        args = _build_sweep_parser().parse_args(argv[1:])
+        return _run_sweep(args)
     if argv and argv[0] == "report":
         argv = argv[1:]
     return _run_report(argv)

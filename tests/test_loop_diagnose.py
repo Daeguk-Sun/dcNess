@@ -1,6 +1,7 @@
 """loop_diagnose self-improvement sweep tool tests (#902)."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import subprocess
@@ -10,10 +11,19 @@ import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from unittest import mock
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "loop_diagnose.py"
+
+
+def _load_loop_diagnose() -> Any:
+    spec = importlib.util.spec_from_file_location("loop_diagnose", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -424,6 +434,106 @@ class LoopDiagnoseTests(unittest.TestCase):
             self.assertIn("lesson:MUST_FIX_GHOST@alpha/engineer-IMPL", keys)
             self.assertIn("lesson:MUST_FIX_GHOST@beta/engineer-IMPL", keys)
             self.assertIn("lesson-rule:MUST_FIX_GHOST", keys)
+
+
+class LoopSweepTests(unittest.TestCase):
+    def _run_sweep(
+        self,
+        repo_root: Path,
+        projects_file: Path,
+        *extra: str,
+    ) -> subprocess.CompletedProcess[str]:
+        env = os.environ.copy()
+        env["DCNESS_PROJECTS_FILE"] = str(projects_file)
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "sweep",
+                "--repo-root",
+                str(repo_root),
+                "--recurrence-threshold",
+                "1",
+                "--saturation-min-runs",
+                "2",
+                *extra,
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+    def test_sweep_persists_digest_and_log_and_is_readonly(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            alpha = tmp / "alpha"
+            beta = tmp / "beta"
+            alpha.mkdir()
+            beta.mkdir()
+            _write_guard_hit(alpha)
+            _write_recurrent_waste_run(alpha)
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": [str(alpha), str(beta)]}),
+                encoding="utf-8",
+            )
+            before_alpha = _snapshot_tree(alpha)
+            before_beta = _snapshot_tree(beta)
+
+            first = self._run_sweep(repo_root, projects_file)
+            self.assertEqual(first.returncode, 0, first.stderr)
+
+            digest_dir = repo_root / ".metrics" / "loop-diagnose"
+            digest = digest_dir / "digest-latest.md"
+            sweep_log = digest_dir / "sweep-log.jsonl"
+            watermark = digest_dir / "sweeps.jsonl"
+
+            self.assertTrue(digest.is_file())
+            self.assertTrue(watermark.is_file())
+            digest_text = digest.read_text(encoding="utf-8")
+            self.assertIn("통합 후보", digest_text)
+            self.assertIn("guard:file-guard@alpha", digest_text)
+            self.assertIn("신규", digest_text)
+
+            self.assertTrue(sweep_log.is_file())
+            entries = [json.loads(line) for line in sweep_log.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(entries[-1]["status"], "ok")
+            self.assertGreaterEqual(entries[-1]["candidate_count"], 1)
+            self.assertEqual(Path(entries[-1]["digest_path"]).resolve(), digest.resolve())
+
+            # read-only: swept projects are untouched
+            self.assertEqual(_snapshot_tree(alpha), before_alpha)
+            self.assertEqual(_snapshot_tree(beta), before_beta)
+
+            second = self._run_sweep(repo_root, projects_file)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn("기왕", digest.read_text(encoding="utf-8"))
+            entries = [json.loads(line) for line in sweep_log.read_text(encoding="utf-8").splitlines()]
+            self.assertEqual(len(entries), 2)
+            self.assertTrue(all(entry["status"] == "ok" for entry in entries))
+
+    def test_sweep_failure_leaves_trace_and_nonzero_exit(self) -> None:
+        module = _load_loop_diagnose()
+        with tempfile.TemporaryDirectory() as td:
+            digest_dir = Path(td) / "digest"
+            args = module._build_sweep_parser().parse_args(
+                ["--repo-root", td, "--digest-dir", str(digest_dir)]
+            )
+            with mock.patch.object(module, "build_payload", side_effect=RuntimeError("boom")):
+                rc = module._run_sweep(args)
+
+            self.assertEqual(rc, 1)
+            sweep_log = digest_dir / "sweep-log.jsonl"
+            self.assertTrue(sweep_log.is_file())
+            last = json.loads(sweep_log.read_text(encoding="utf-8").splitlines()[-1])
+            self.assertEqual(last["status"], "error")
+            self.assertIn("boom", last["error"])
+            # a failed build must not leave a stale/partial digest
+            self.assertFalse((digest_dir / "digest-latest.md").exists())
 
 
 if __name__ == "__main__":
