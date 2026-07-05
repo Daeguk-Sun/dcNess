@@ -43,10 +43,12 @@ description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝�
 - 코드에 근거가 없는 "왜 / 누구 / 비즈니스 모델" 같은 필드는 자동 확정하지 않고 추정으로 남기며 본문에 `DRAFT` 로 표기한다.
 - 🔴 **사용자 확인 전 진행 차단.** 사용자가 DRAFT 필드를 확인/교정하기 전에는 PR 단계로 넘어가지 않는다.
 
-### 3. 기존 문서 충돌 정렬 — diff + 승인
+### 3. 채움 대상 vs 사용자 문서 구분 — diff + 승인
 
-- 대상 repo 에 이미 산재 문서·비표준 ADR·기존 `docs/*` 가 있으면 **무단 덮어쓰기/이동 금지**.
-- 규격 위치/양식으로 정렬하는 변경은 diff 로 먼저 제시하고, 사용자 승인 후에만 적용한다. 부재 파일만 새로 쓴다.
+두 범주를 구분한다 (혼동하면 채워야 할 seed 를 못 채우거나 사용자 문서를 덮어쓴다):
+
+- **빈 dcNess seed 문서** (`/init-dcness` 가 템플릿에서 만든 내용 없는 골격 — `docs/prd.md`·`docs/architecture.md`·`docs/conventions.md`·`docs/index.md` 등): 본 스킬의 채움 대상이므로 역설계 내용으로 **직접 채운다**. seed 여부는 파일이 템플릿 골격 그대로이고 사용자 콘텐츠가 없는지로 판별한다.
+- **비어있지 않은 기존 문서** (사용자가 이미 쓴 내용, 대상 repo 의 산재 문서, 비표준 ADR): **무단 덮어쓰기/이동 금지**. 규격 위치/양식으로 정렬하는 변경은 diff 로 먼저 제시하고 사용자 승인 후에만 적용한다.
 
 ### 4. index 정리 + 집계 파생 섹션
 
@@ -54,12 +56,13 @@ description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝�
 
 ```bash
 PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
-node "$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs" "$(git rev-parse --show-toplevel)"
-node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"
-node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"
+PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+node "$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs" "$PROJECT_ROOT"
+node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --root "$PROJECT_ROOT"
+node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT"
 ```
 
-epic 이 아직 없으므로 index epic 표와 전역 architecture 집계 섹션이 비어 있어도 정상이다.
+세 스크립트 모두 대상 프로젝트 루트를 명시 대상으로 받는다(집계기는 `--root` 미지정 시 cwd 기본이므로, 서브디렉토리에서 호출해도 어긋나지 않게 `--root "$PROJECT_ROOT"` 를 넘긴다). epic 이 아직 없으므로 index epic 표와 전역 architecture 집계 섹션이 비어 있어도 정상이다.
 
 ### 5. 단일 docs 부트스트랩 PR
 

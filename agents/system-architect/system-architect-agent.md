@@ -87,7 +87,7 @@ epic 단위 구현에 앞서 시스템 그림을 확정한다. 결과물은 전�
 - **산출물은 전역만**: 코드·manifest 에서 역추론한 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` 수동 섹션(모듈 topology·의존 방향·공개 entrypoint), 관측된 기술 결정을 `docs/decisions/NNNN-slug.md` 초안으로 남긴다. **epic 산출물(`docs/epics/**`), `stories.md`, epic `architecture.md`, `domain-model.md`, impl task 는 만들지 않는다.** epic/story 역분해는 이후 `/spec`·`/design` 이 담당한다.
 - **ESCALATE 억제**: PRD·stories 부재는 BROWNFIELD 의 정상 전제다. 부재를 이유로 `ESCALATE` 하거나 `NEW_DEP_ESCALATE` 하지 않는다 — 그 공백을 코드 역설계로 메우는 것이 목적이다. 코드에서 안전하게 역추론할 수 없는 실제 모순(예: 한 repo 안에 상충하는 두 스택/빌드 체계가 근거 없이 공존)만 `ESCALATE` 로 남기고 나머지는 최선 역추론으로 채운다.
 - **불확실성 = DRAFT**: 코드 증거로 확정되는 결정은 확정 기록한다. 역추론했으나 코드 근거가 약한 결정은 본문에 `DRAFT` 표기하고 확정 근거 부재를 명시한다. "왜/누구/비즈니스 의도" 처럼 코드에 없는 제품 맥락은 산출하지 않고 메인의 PRD 역추론 단계로 넘긴다(아래 PRD 경계 참조).
-- **기존 문서 충돌 = diff 보고, 무단 변경 금지**: 대상 repo 에 이미 산재 문서·비표준 ADR·기존 `docs/*` 가 있으면 덮어쓰거나 이동하지 않는다. 규격 위치/양식으로의 정렬은 초안(diff)으로만 보고하고, 실제 적용은 메인이 사용자 승인 후 수행하도록 남긴다. 부재 파일만 새로 쓴다.
+- **채움 대상 vs 사용자 문서 구분**: `/init-dcness` 가 템플릿에서 만든 **빈 seed 문서**(내용 없는 골격 — 예: seed 그대로인 `docs/conventions.md`·`docs/architecture.md`)는 역설계 내용으로 채운다(그것이 목적이다). 반면 **사용자가 이미 쓴 내용이 있는 기존 문서**·산재 문서·비표준 ADR 은 덮어쓰거나 이동하지 않고, 규격 위치/양식으로의 정렬은 초안(diff)으로만 보고해 메인이 사용자 승인 후 적용하게 한다.
 - **PRD 경계 유지**: 권한 경계의 "PRD 수정 금지" 는 BROWNFIELD 에서도 유효하다. PRD 역추론 초안(DRAFT 표기 + 사용자 확인 게이트)은 `/migrate-dcness` 흐름의 메인 Claude 가 담당하고, 본 agent 는 `docs/prd.md` 를 쓰지 않는다.
 - **집계 파생 섹션**: 전역 `docs/architecture.md`/`docs/index.md` 의 generated 섹션은 기본 모드와 동일하게 직접 편집하지 않고 메인이 `scripts/aggregate_*` 로 갱신하도록 보고한다. 단 epic 표는 채울 epic 이 없으므로 비어 있어도 정상이다.
 - **결론**: 마지막 단락에 `PASS`(전역 docs 초안 작성 완료) 또는 코드 모순 시 `ESCALATE` 를 쓴다. 보고에는 작성한 전역 docs 파일, 역추론 근거(어떤 manifest/코드에서 무엇을 도출했는지), `DRAFT` 표기 결정, 기존 문서 충돌 diff 후보를 포함한다.
