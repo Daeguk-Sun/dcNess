@@ -1,38 +1,37 @@
 # dcNess
 
-> 검증된 시니어 팀의 개발 워크플로우를 AI 코딩 에이전트에게 입히는 Claude Code 플러그인.
-> 규율은 팀 워크플로우로 지키게 하고, 그 안의 판단은 발전하는 모델의 자율에 맡긴다.
+> Claude Code와 Codex를 실제 제품 개발 루프에 묶는 agent workflow harness.
 
 > **Origin**: [`alruminum/realworld-harness`](https://github.com/alruminum/realworld-harness) fork-and-refactor
 > **Spec(SSOT)**: [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)
 
-Claude Code 는 일 잘하는 동료다. 맥락만 제대로 주면 웬만한 작업은 알아서 끝까지 해낸다. 문제는 실력이 아니다.
+dcNess는 Claude Code와 Codex를 제품 개발 루프로 묶는 agent workflow harness입니다.
 
-아무리 잘하는 친구라도 혼자 오래 달리다 보면 팀의 순서에서 벗어날 때가 있다 — 테스트를 뒤로 미루고 구현부터, 검증을 건너뛰고 PR 부터, 맡은 범위 밖 파일까지. 사람이라면 코드 리뷰나 PR 규칙에서 잡히지만, 혼자 달리는 AI 옆에는 그걸 잡아 줄 사람이 없다.
+프롬프트로 "잘 지켜달라"고 부탁하는 대신 — hook, 역할 경계, 순서 게이트, TDD guard, 검증 가능한 작업 기록으로 설계 → 구현 → 검증 → 리뷰 흐름을 강제합니다.
 
-시니어 팀은 이런 걸 오래 쌓인 순서로 거른다. 테스트 먼저, 리뷰를 통과해야 머지, 각자 맡은 영역만. 시니어일수록 이 순서가 몸에 배어 있다.
+dcNess는 Git, PR, CI 흐름 안에서 Claude Code와 Codex를 실제 제품 개발에 쓰려는 개발자를 위한 도구입니다.
 
-dcNess 는 그 순서를 유능한 AI 동료에게 입힌다. 업무 방식은 잘 굴러가는 시니어 팀을 따르게 하되, 실제 코딩은 AI 가 가장 안전하고 빠르게 할 수 있는 방향으로 잡아 준다. 어떻게 짤지는 AI 가 정하고, 어떤 순서로 어디까지 손댈지는 팀 규칙이 정한다.
+모델의 코딩 능력을 의심해서 가두는 도구가 아니다. 실제 팀에서 되돌리기 어려운 경계만 코드로 붙든다. 어떤 해법을 고를지는 모델에게 맡기고, 어떤 순서로 어디까지 손댈지는 harness가 막는다.
 
-그래서 dcNess 가 붙드는 축은 둘이다 — **검증된 팀 워크플로우를 지키는 것**, 그리고 그 안에서 **모델의 자율성을 최대한 존중하는 것**.
-
-## 어떤 순서를 지키나
-
-AI 가 이 순서를 벗어나려 하면, dcNess 가 그 자리에서 붙잡고 빠뜨린 단계를 먼저 하게 한다.
+## 무엇을 강제하나
 
 | Claude Code 가 하려는 것 | dcNess 의 반응 |
 |---|---|
-| 테스트 없이 구현 코드부터 작성 | 매칭되는 테스트가 없으면 그 파일 쓰기를 막는다 |
-| 코드 검증을 건너뛰고 리뷰/PR 로 | 앞 단계 통과 기록이 없으면 다음 단계로 못 넘어간다 |
-| 맡은 범위 밖 파일 수정 | 그 agent 에게 허용된 파일 경계 밖이면 차단 |
+| 테스트 없이 구현 코드부터 작성 | **TDD guard**: 매칭 test/spec 파일이 없으면 구현 파일 쓰기를 막는다 |
+| 검증을 건너뛰고 리뷰/PR 로 이동 | **순서 게이트(order gate)**: 앞 단계 완료 기록이 없으면 다음 agent 단계로 못 넘어간다 |
+| 맡은 범위 밖 파일 수정 | **역할 경계(role boundary)**: agent 별 write/read 허용 경계 밖이면 차단한다 |
 | `main` 에 바로 커밋·push | `branch → PR` 경로로만 통과 |
 
-## 어디까지 개입하나
+여기서 hook은 Claude Code의 tool 호출 전후, git commit/push, CI event 같은 실행 지점에 붙는 작은 검사다. order gate는 현재 run의 단계 기록을 보고 "지금 이 agent가 호출될 차례인가"를 확인한다. TDD guard는 테스트를 실행하는 장치가 아니라, 구현 파일을 쓰기 전에 대응 test/spec 파일이 먼저 존재하는지를 확인하는 장치다.
 
-dcNess 가 개입하는 지점은 좁다. 코드를 어떻게 짤지, 어떤 도구를 쓸지, 어떤 접근을 택할지는 AI 의 판단에 맡긴다. 지금 대충 넘어가면 나중에 수정 비용이 몇 배로 불어나는 자리만 잡는다.
+## 어떻게 작동하나
 
-- **작업 순서** — 검증 → 구현 → 리뷰 → PR 시퀀스를 건너뛰지 못하게
-- **접근 영역** — agent 마다 손댈 수 있는 파일 범위 + 외부 상태 변경(push, 이슈 생성 등) 차단
+dcNess가 개입하는 지점은 좁다. 코드 구조, 라이브러리 선택, 구현 전략은 모델 판단에 맡기고, 지금 대충 넘어가면 나중에 수정 비용이 커지는 경계만 막는다.
+
+1. `/spec → /design → /impl → /acceptance` 흐름에서 필요한 단계만 올린다.
+2. 각 단계는 agent 역할과 파일 경계를 갖는다.
+3. agent가 낸 판단은 자유 prose로 남기고, 메인 Claude가 직접 읽고 다음 단계를 정한다.
+4. run 단위 기록을 남겨 나중에 어떤 판단과 단계가 있었는지 되짚을 수 있게 한다.
 
 ## 모델을 과소평가하지 않는다
 
@@ -49,6 +48,40 @@ dcNess 가 개입하는 지점은 좁다. 코드를 어떻게 짤지, 어떤 도
 
 잘 굴러가는 팀은 결과물만 남기지 않는다. 왜 그렇게 정했는지는 이슈에, 무엇을 어떻게 바꿨는지는 PR 에 남긴다. dcNess 의 작업 흐름도 그대로다. 모든 작업이 이슈 하나와 PR 하나로 묶여서, 결정의 근거와 변경 내용이 저장소 히스토리에 함께 쌓인다. 나중에 "이 코드가 왜 이렇게 됐지" 를 물으면, 따로 관리하는 ADR 문서가 아니라 실제 이슈와 PR 이 답이 된다.
 
+## 지금 제대로 물려 있는지 확인
+
+설치 후에는 `/init-dcness`가 출력하는 진단표를 먼저 본다. 핵심 항목이 `PASS`, `FAIL`이 0이면 harness가 현재 프로젝트에 정상 연결된 상태다. `WARN`은 선택형 CI workflow 미설치, 최근 fail-open 감지처럼 즉시 차단은 아니지만 확인할 신호다.
+
+```text
+[dcness] === 외부 활성 프로젝트 진단 ===
+  [PASS] whitelist 활성: 활성
+  [PASS] git hook 정합: 설치됨
+  [PASS] Codex skill 정합: 설치됨
+  [WARN] hook fail-open 진단: 최근 24시간 1건
+  [PASS] routing 설정: 유효
+[dcness] 요약: 4 PASS / 1 WARN / 0 FAIL
+```
+
+fail-open은 hook이 정책 판단을 못 해서 차단 대신 통과한 의심 이벤트다. dcNess는 이런 이벤트를 `<project>/.claude/harness-state/fail-open-events.jsonl`에 기록하고, 진단표에서 최근 24시간 count와 reason category를 `WARN`으로 보여준다.
+
+## Evidence
+
+as of v0.12.0 (2026-07-05), 로컬 실측 기준:
+
+| 항목 | 결과 | 재현 명령 |
+|---|---:|---|
+| 단위 테스트 | 1627 tests PASS | `python3.11 -m unittest discover -s tests -v < /dev/null` |
+| 결정적 guard eval | 33/33 PASS | `python3 evals/guard_efficacy.py --json` |
+| GitHub Actions gate | 10 workflows | `find .github/workflows -maxdepth 1 -type f -name '*.yml' \| wc -l` |
+
+최근 릴리즈별 변경 상세는 [`docs/internal/release-notes.md`](docs/internal/release-notes.md)에 남긴다.
+
+## Safety 범위
+
+dcNess의 file boundary와 mutation denylist는 보안 sandbox가 아니다. 목표는 신뢰하지 않는 코드를 격리하는 것이 아니라, 활성화된 개발 프로젝트에서 agent가 실수로 순서·역할·외부 상태 경계를 넘는 일을 줄이는 것이다. shell command substitution, 새 CLI 우회 패턴, OS 권한 밖 격리는 이 범위가 아니다.
+
+정확한 한계와 fail-open 기록 정책은 [`docs/plugin/hooks.md#safety-범위`](docs/plugin/hooks.md#safety-범위)를 본다.
+
 ## 누구에게 맞나
 
 **맞다** — Claude Code 로 실제 제품을 만들면서, `테스트 → 구현 → 리뷰 → PR` 순서와 파일 경계를 매번 지키고 싶은 사람. 끝난 작업을 나중에 다시 들여다보며 어디서 낭비가 났는지 잡아 절차를 다듬으려는 사람.
@@ -57,7 +90,7 @@ dcNess 가 개입하는 지점은 좁다. 코드를 어떻게 짤지, 어떤 도
 
 dcNess 는 무거운 절차를 항상 켜 두지 않는다. 문서 수정이나 한 줄 버그픽스는 가볍게 지나가고, 새 기능이나 위험이 큰 작업일 때만 설계·검토 절차를 끌어올린다. 그래서 작은 작업에는 부담이 적고, 큰 작업에는 안전하다.
 
-다른 스킬 기반 하네스([Superpowers](https://github.com/obra/superpowers), [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) 등)와 결이 다르다. 그쪽은 방법론과 다양한 도구 연동이 강점이다. dcNess 는 노출하는 표면을 작게 유지하는 대신, 작업 순서·파일 경계를 코드로 지키는 거버넌스와 run 단위로 되짚어 보는 replay 에 집중한다. 실측 수치와 재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) 에 있다.
+다른 스킬 기반 하네스([Superpowers](https://github.com/obra/superpowers), [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) 등)와 결이 다르다. 그쪽은 방법론과 다양한 도구 연동이 강점이다. dcNess 는 노출하는 표면을 작게 유지하는 대신, 작업 순서·파일 경계를 코드로 지키는 거버넌스와 run 단위 replay 에 집중한다. 실측 수치와 재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md)에 있다.
 
 ## 설치 & 활성화
 
@@ -84,7 +117,7 @@ claude plugin install dcness@dcness
 
 > 갱신: `claude plugin update dcness@dcness` (문서·skill·hook 만 받는 경우 `/init-dcness` 재실행 불필요)
 
-검증·구현·리뷰 단계를 어느 엔진으로 돌릴지는 프로젝트별로 고를 수 있다(Claude 서브에이전트 / Codex headless / Claude headless). 엔진을 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. 구현 기본값은 `headless-chain`(Codex headless → Claude headless → Claude main)이고, 엔진 구성을 새로 켜거나 바꿀 때만 `/init-dcness` 를 다시 실행한다.
+작은 작업은 가볍게 지나가고, 위험이 큰 작업만 절차가 올라간다. 문서 수정이나 명확한 한 줄 버그픽스는 Lite 경로로 짧게 끝내고, 새 기능·공개 contract·복잡한 설계 변경은 `/spec`·`/design` 쪽으로 올린다.
 
 ## 작업 흐름
 
@@ -97,31 +130,23 @@ claude plugin install dcness@dcness
 | `/impl` | 구현·수정·버그픽스를 실제 PR 로 끝낼 때 |
 | `/acceptance` | PRD / Epic / Story 기준으로 "정말 다 됐는지" 제품 검수할 때 |
 
-`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 설계 문서가 없고 파일·이슈 같은 구체적 단서가 명확하면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(Lite), 설계도가 있으면 그 설계도대로 구현한다(Standard). Standard 의 sub-agent 엔진 미지정 기본은 `build-worker → pr-reviewer` 이고, 풀 4-agent 는 고위험 trigger 나 사용자 엄정 override 때만 승격한다. 새 기능이나 위험이 큰 작업은 `/impl` 안에서 처리하지 않고 `/spec`·`/design` 으로 먼저 돌린 뒤, 나온 설계도를 들고 다시 들어온다.
+`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 설계 문서가 없고 파일·이슈 같은 구체적 단서가 명확하면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(Lite), 설계도가 있으면 그 설계도대로 구현한다(Standard). 새 기능이나 위험이 큰 작업은 `/impl` 안에서 처리하지 않고 `/spec`·`/design` 으로 먼저 돌린 뒤, 나온 설계도를 들고 다시 들어온다.
 
-`/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)와 엔진(build-worker 기본 / 풀 4-agent 승격)을 직교로 고른다.
+`/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)와 검증 엄정도를 직교로 고른다.
 
 보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next-work`(issue/label 에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름 먼저).
 
 각 단계에서 agent 가 낸 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등)이 다음 어느 단계로 이어지는지는 skill 별 `<skill>-routing.md`(mermaid 분기도 + 표 + retry + escalate)가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/impl-routing.md).
 
-## 최근 정비 (2026-07)
-
-**설계 루프 개편** — `/design` 을 epic 단위 배치 흐름으로 다시 짰다. 설계 산출물을 계약 기반으로 감사해서, 설계가 실제로 끝났는지를 사람 눈이 아니라 게이트가 확인한다(빠진 산출물, 형식만 맞고 내용이 빈 "false-clean" 차단). ([#831](https://github.com/alruminum/dcNess/issues/831) · [#832](https://github.com/alruminum/dcNess/issues/832) · [#833](https://github.com/alruminum/dcNess/issues/833) · [#834](https://github.com/alruminum/dcNess/issues/834) · [#847](https://github.com/alruminum/dcNess/issues/847))
-
-**디자인 매체 교체** — 외부 pencil 의존을 걷어내고, 확정된 UI 시안을 저장소 안 canvas 로 관리한다. `/ux` 는 구현 없이 목업과 흐름만 먼저 탐색하는 유틸리티로 재정의했다. ([#842](https://github.com/alruminum/dcNess/issues/842) · [#843](https://github.com/alruminum/dcNess/issues/843) · [#845](https://github.com/alruminum/dcNess/issues/845))
-
-**머지·종료 가드 보강** — 자동 머지 직전 확인 창([#851](https://github.com/alruminum/dcNess/issues/851)), worktree 종료 시 변경이 main 에 흡수됐는지 확인한 뒤 정리([#852](https://github.com/alruminum/dcNess/issues/852)), UI 작업은 목업과 실제 화면 정합까지 검수([#844](https://github.com/alruminum/dcNess/issues/844)).
-
-**엔진 무관 게이트** — 순서·TDD 강제가 Claude 서브에이전트뿐 아니라 headless(Codex 등) 경로에서도 똑같이 걸리도록 강제 지점을 재배치했다. 예전에는 순서·TDD 게이트가 Claude 서브에이전트 경로에서만 발화하고, 자기 프로세스 안에서 직접 파일을 쓰는 headless 경로는 게이트 밖이었다. 이제 어느 엔진으로 구현·검증을 돌려도 같은 규칙이 적용된다. ([#859](https://github.com/alruminum/dcNess/issues/859))
-
-**구현 엔진 기본값 전환** — `/impl`·`/impl-loop` 의 sub-agent 엔진 미지정 기본을 build-worker 로 통일했다. 풀 4-agent 는 frontmatter, 고위험 trigger, 사용자 엄정 override 승격 전용으로 남는다. ([#861](https://github.com/alruminum/dcNess/issues/861))
-
-**구현 provider 3단 체인** — implementation provider 기본값을 `headless-chain` 으로 바꿨다. 실행 순서는 Codex headless → Claude headless → Claude main 이며, workspace 변경 전 인프라 실패만 다음 provider 로 넘어간다. headless raw log 는 run 디렉터리의 `headless-logs/` 파일로 보존하고, ledger step receipt 에 실제 provider 를 남긴다. ([#860](https://github.com/alruminum/dcNess/issues/860))
-
 ## 진행 중 (로드맵)
 
 다음 릴리즈 후보 이슈는 GitHub Issue와 Project board를 기준으로 갱신한다.
+
+## 엔진과 기록
+
+검증·구현·리뷰 단계를 어느 엔진으로 돌릴지는 프로젝트별로 고를 수 있다(Claude 서브에이전트 / Codex headless / Claude headless). 엔진을 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. 구현 기본값은 `headless-chain`(Codex headless → Claude headless → Claude main)이고, 엔진 구성을 새로 켜거나 바꿀 때만 `/init-dcness` 를 다시 실행한다.
+
+Standard 구현 경로의 기본은 `build-worker → pr-reviewer` 이고, 풀 4-agent 는 고위험 trigger 나 사용자 엄정 override 때만 승격한다. 각 run의 단계 완료는 `ledger.jsonl`에 기록되며, prose 파일과 sha256 receipt로 검증 가능한 작업 기록을 남긴다.
 
 ## 핵심 특징
 
