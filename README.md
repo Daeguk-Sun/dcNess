@@ -66,13 +66,15 @@ fail-open은 hook이 정책 판단을 못 해서 차단 대신 통과한 의심 
 
 ## Evidence
 
-as of v0.12.0 (2026-07-05), 로컬 실측 기준:
+[![guard-efficacy](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml/badge.svg)](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml)
+
+as of v0.12.0 + Unreleased (2026-07-05), 로컬 실측 기준:
 
 | 항목 | 결과 | 재현 명령 |
 |---|---:|---|
 | 단위 테스트 | 1627 tests PASS | `python3.11 -m unittest discover -s tests -v < /dev/null` |
 | 결정적 guard eval | 33/33 PASS | `python3 evals/guard_efficacy.py --json` |
-| GitHub Actions gate | 10 workflows | `find .github/workflows -maxdepth 1 -type f -name '*.yml' \| wc -l` |
+| GitHub Actions gate | 11 workflows | `find .github/workflows -maxdepth 1 -type f -name '*.yml' \| wc -l` |
 
 최근 릴리즈별 변경 상세는 [`docs/internal/release-notes.md`](docs/internal/release-notes.md)에 남긴다.
 
