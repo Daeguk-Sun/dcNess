@@ -54,6 +54,16 @@ Guard hit 관측성: 정책 위반을 실제로 차단한 경우는 `<project>/.
 
 Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision: "block"` JSON 을 stdout 으로 내보내 메인 turn 을 재발화시킨다.
 
+## Safety 범위
+
+dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 변경 denylist 의 목적은 활성화된 개발 프로젝트에서 agent 가 실수로 순서·역할·외부 상태 경계를 넘는 일을 줄이는 것이다. 신뢰하지 않는 코드를 OS 수준으로 격리하거나, shell/runtime 의 모든 우회 형태를 완전 차단하는 보안 장치로 해석하면 안 된다.
+
+구체적으로, `file-guard.sh` 는 payload 에 드러난 file path, Bash write target, 알려진 `gh`/GitHub MCP mutation 패턴을 검사한다. 새 CLI subcommand, shell command substitution, 런타임 안에서 생성되는 두 번째 명령, 권한 있는 외부 프로세스처럼 payload 정적 검사에 드러나지 않는 경로는 차단 대상이 아닐 수 있다. `tdd-guard.sh` 도 test 존재와 생성형 hook 계약을 확인하지만 test 품질이나 실제 green 상태를 보장하지 않는다.
+
+이 한계 때문에 dcNess 는 hook 자체 오류나 판정 불가를 과차단하지 않고 fail-open 으로 기록한다. 활성 프로젝트에서 payload 파싱 실패, session id 부재, state read/write 오류, handler 비정상 종료 때문에 검사를 평가하지 못하고 allow 한 경우는 `<project>/.claude/harness-state/fail-open-events.jsonl` 에 남고, `dcness-helper status` 의 `hook fail-open 진단` 항목이 최근 24시간 count 와 reason category 를 `WARN` 으로 보여준다.
+
+보안 경계가 필요한 작업은 별도 sandbox, 컨테이너, OS 권한 분리, secret 격리 정책으로 다뤄야 한다. dcNess hook 은 그 위에서 개발 workflow 순서와 역할 경계를 보조하는 장치다.
+
 ### session-start.sh
 
 **시점**: Claude Code 세션 시작, resume, `/clear` 직후.

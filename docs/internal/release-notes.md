@@ -6,7 +6,7 @@
 
 ## Unreleased
 
-_(다음 릴리즈 대기 중)_
+- README 첫 화면과 plug-in metadata 를 "PR workflow guard" 프레임에서 "agent workflow harness" 프레임으로 개편. README 에 설치 진단표, fail-open 감시, evidence 실측, Safety 범위 요약을 노출하고 최근 정비 상세는 릴리즈 노트 링크로 축소.
 
 ---
 
