@@ -27,8 +27,8 @@ class ToIssueSkillTests(unittest.TestCase):
         self.assertIn("메인 Claude", text)
         self.assertIn("서브에이전트", text)
         self.assertIn("호출하지 않는다", text)
-        self.assertIn("사용자 승인", text)
-        self.assertIn("승인 전에는 GitHub issue 를 만들지 않는다", text)
+        self.assertIn("초안 승인 대기 없이", text)
+        self.assertIn("web 에서 확인", text)
 
     def test_issue_brief_template_has_required_contract_sections(self) -> None:
         skill = self.skill_path.read_text(encoding="utf-8")
@@ -82,7 +82,7 @@ class ToIssueSkillTests(unittest.TestCase):
         for inline_list in forbidden_inline_lists:
             self.assertNotIn(inline_list, skill)
 
-    def test_issue_creation_requires_user_confirmation_and_lifecycle_fields(self) -> None:
+    def test_issue_creation_records_lifecycle_and_label_fields(self) -> None:
         text = self.skill_path.read_text(encoding="utf-8")
 
         for phrase in (

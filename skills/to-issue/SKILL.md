@@ -1,11 +1,11 @@
 ---
 name: to-issue
-description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 만들기 위한 공개 진입점. 사용자가 "/to-issue", "이슈로 만들어줘", "티켓 만들어줘", "GitHub issue 등록", "issue 초안", "작업 후보를 issue 로 쪼개줘"처럼 issue draft/publish 를 원할 때 사용한다. 메인 Claude 가 직접 질문하고 dcNess 표준 Issue Brief 초안을 보여준 뒤 사용자 승인 후에만 GitHub issue 를 만들고 선택적으로 Project backfill 을 수행한다.
+description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 바로 등록하기 위한 공개 진입점. 사용자가 "/to-issue", "이슈 등록해줘", "이슈 만들어줘", "이거 이슈로 남겨줘", "티켓 만들어줘", "GitHub issue 등록", "후속 이슈 등록", "issue 초안", "작업 후보를 issue 로 쪼개줘"처럼 issue 등록을 원하거나, 작업 흐름 중 후속 이슈를 남길 때 사용한다. GitHub issue 생성·등록은 직접 만들지 말고 이 스킬을 기본 경로로 사용한다. 메인 Claude 가 대화 맥락으로 IssueType/Priority 를 추론하고 라벨을 붙여, 초안 승인 대기 없이 바로 GitHub issue 를 등록한 뒤 선택적으로 Project backfill 을 수행한다. 사용자는 등록된 issue 를 GitHub web 에서 확인하고 수정을 요청한다.
 ---
 
 # To Issue Skill
 
-`/to-issue` 는 GitHub issue 작성/등록 흐름이다. 메인 Claude 가 사용자와 직접 대화하며 모호함을 해소하고, 표준 Issue Brief 초안을 만든 뒤, 사용자 승인 후에만 GitHub issue 를 생성한다.
+`/to-issue` 는 GitHub issue 등록 흐름이다. 메인 Claude 가 대화 맥락으로 모호함을 해소하고 표준 Issue Brief 를 구성한 뒤, IssueType/Priority 를 추론하고 라벨을 붙여 초안 승인 대기 없이 바로 GitHub issue 를 등록한다. 사용자는 등록된 issue 를 GitHub web 에서 확인하고 수정 요청으로 교정한다.
 
 ## 범위
 
@@ -13,7 +13,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 - 버그를 바로 고칠 요청은 `/impl`, GitHub issue 로 추적할 요청은 `/to-issue` 가 처리한다.
 - `/to-issue` 는 이미 "issue 로 만들겠다"는 의도가 있는 문제/작업 후보를 durable 작업 계약으로 바꾸는 흐름이다.
 - `/spec` 의 epic/story 일괄 생성 흐름은 제품 계획 산출물 전용이다. `/to-issue` 는 단발 issue 또는 승인된 vertical slice 묶음을 다룬다.
-- `/to-issue` 는 권장 도우미다. `/to-issue` 외에 이미 승인된 대화나 다른 agent workflow 가 issue 를 만들 때도 `scripts/check_issue_body.mjs` pre-create validation 을 통과한 뒤 `gh issue create` 를 실행해야 한다.
+- GitHub issue 생성·등록은 `/to-issue` 를 기본 경로로 사용하고 직접 만들지 않는다 (작업 흐름 중 자발적으로 남기는 후속 이슈 포함). `/to-issue` 외 대화나 다른 agent workflow 가 issue 를 만들 때도 `scripts/check_issue_body.mjs` pre-create validation 을 통과하고 IssueType 라벨을 붙인 뒤 `gh issue create` 를 실행해야 한다.
 
 ## 원칙
 
@@ -62,7 +62,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 gh issue list --state open --search "<핵심 키워드>" --json number,title,labels,url
 ```
 
-중복 가능성이 있으면 새 issue 를 만들지 말고 사용자에게 기존 issue 를 이어갈지, 새 issue 로 분리할지 확인한다.
+제목이 거의 동일한 open issue 가 있으면 등록하지 말고, 기존 issue 를 이어갈지 새 issue 로 분리할지 먼저 확인한다. 명백한 중복이 아니면 확인 없이 바로 등록으로 진행한다.
 
 ### Step 2 — 명확화
 
@@ -74,34 +74,15 @@ gh issue list --state open --search "<핵심 키워드>" --json number,title,lab
 - IssueType label 값이 맞는가?
 - Priority 는 맥락에서 추론한다 — 매번 되묻지 않는다. 추론 신호가 상충하거나 사용자가 특정 우선순위를 의도한 정황이 있을 때만 확인한다.
 
-여러 issue 로 나눠야 하면 numbered list 로 vertical slice 초안을 먼저 보여주고, 사용자가 breakdown 을 승인한 뒤 각 slice 의 Issue Brief 를 작성한다.
+여러 issue 로 나눠야 하면 end-to-end vertical slice 로 나눠 각 slice 를 바로 등록하고, 분할 기준은 등록 안내에 함께 밝힌다.
 
-### Step 3 — Issue Brief 초안 작성
+### Step 3 — 본문 구성과 바로 등록
 
-issue 생성 전 [`templates/issue-brief.md`](templates/issue-brief.md)를 읽고, [`issue-fields.md`](issue-fields.md)의 선택값으로 `{{IssueType}}`, `{{Priority}}` 를 채운 초안을 보여준다.
+[`templates/issue-brief.md`](templates/issue-brief.md)를 읽고, [`issue-fields.md`](issue-fields.md)의 선택값으로 `{{IssueType}}`, `{{Priority}}` 를 채운다. `{{Priority}}` 는 [`issue-fields.md`](issue-fields.md)의 Priority 추론 가이드로 맥락에서 추론해 채우고, default `major` 로 조용히 수렴시키지 않는다. 템플릿의 섹션 구조를 임의로 축약하지 않는다. 안정적인 계약을 모르면 추측하지 말고 비워두거나 명확화 질문으로 남긴다.
 
-`{{Priority}}` 는 [`issue-fields.md`](issue-fields.md)의 Priority 추론 가이드로 맥락에서 추론해 채우고, default `major` 로 조용히 수렴시키지 않는다. 추론 근거를 초안과 함께 사용자에게 보여준다 (durable 한 Issue Brief 본문이 아니라 확인용). 사용자가 비-`major` 를 의도하거나 초안에서 교정하면 그 값을 그대로 반영한다.
+초안을 미리 보여주거나 승인을 기다리지 않는다. 추론한 IssueType/Priority 와 그에 대응하는 repo label 을 그대로 적용해 바로 등록한다. 사용자는 등록된 issue 를 GitHub web 에서 확인하고 수정 요청으로 교정한다.
 
-템플릿의 섹션 구조를 임의로 축약하지 않는다. 안정적인 계약을 모르면 추측하지 말고 비워두거나 명확화 질문으로 남긴다.
-
-### Step 4 — 승인
-
-초안 아래에 publish plan 을 함께 보여준다.
-
-- title
-- IssueType / Priority (Priority 는 추론값과 추론 근거를 함께 표기. 사용자가 교정하면 그 값을 반영)
-- repo label: IssueType 과 같은 repo label
-- lifecycle state: open issue + `in-progress` label 없음 (`Todo`)
-- optional Project backfill: Project 좌표가 있으면 `Status=Todo`, Project `IssueType`, Project `Priority`
-- parent issue: 있으면 참조만 하고 닫거나 임의 수정하지 않는다
-
-사용자가 명시적으로 승인하기 전에는 GitHub issue 를 만들지 않는다. 승인 전에는 GitHub issue 를 만들지 않는다. 승인을 거절하면 초안을 수정하고 다시 보여준다.
-
-### Step 5 — 등록과 검증
-
-등록 전 preflight 로 Issue Brief 본문과 repo label 이 실제 계약에 맞는지 확인한다. Project field/option 은 선택적 backfill 대상이다. 보드(Project)나 field/option 이 없거나 불완전하면 issue 생성을 멈추지 말고, 사용자가 원할 때만 `node scripts/github_project_lifecycle.mjs bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 를 먼저) 로 셋업하고, 좌표를 `gh variable set DCNESS_PROJECT_NUMBER --body <number>` / `gh variable set DCNESS_PROJECT_OWNER --body <owner>` 로 저장한 뒤 Project 등록을 backfill 한다. 거부하면 보드 없이 issue 만 생성한다. 어떤 경우에도 Project 상태는 issue 생성 자체를 막지 않는다.
-
-승인 후에만 생성한다.
+등록 전 preflight 로 Issue Brief 본문과 repo label 이 실제 계약에 맞는지 확인한다. Project field/option 은 선택적 backfill 대상이다. 보드(Project)나 field/option 이 없거나 불완전하면 등록을 멈추지 말고, 사용자가 원할 때만 `node scripts/github_project_lifecycle.mjs bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 를 먼저) 로 셋업하고, 좌표를 `gh variable set DCNESS_PROJECT_NUMBER --body <number>` / `gh variable set DCNESS_PROJECT_OWNER --body <owner>` 로 저장한 뒤 Project 등록을 backfill 한다. 거부하면 보드 없이 issue 만 등록한다. 어떤 경우에도 Project 상태는 등록 자체를 막지 않는다.
 
 ```bash
 node scripts/check_issue_body.mjs \
@@ -125,6 +106,17 @@ node scripts/github_project_lifecycle.mjs register-issue \
   --priority "<Priority>" \
   --apply
 ```
+
+### Step 4 — 등록 후 통보와 검증
+
+등록 직후 issue 링크를 사용자에게 통보하고, GitHub web 에서 확인해 수정할 것이 있으면 말해달라고 안내한다. 통보에는 등록된 issue 의 확정 상태를 함께 밝힌다.
+
+- title
+- IssueType / Priority (Priority 는 추론값과 추론 근거를 함께 표기)
+- repo label: IssueType 과 같은 repo label
+- lifecycle state: open issue + `in-progress` label 없음 (`Todo`)
+- optional Project backfill: Project 좌표가 있으면 `Status=Todo`, Project `IssueType`, Project `Priority`
+- parent issue: 있으면 참조만 하고 닫거나 임의 수정하지 않는다
 
 성공 안내 전 등록 상태를 다시 검증한다.
 

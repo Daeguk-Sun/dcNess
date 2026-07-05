@@ -668,7 +668,8 @@ def render_markdown(payload: dict[str, Any]) -> str:
         "수동 실행하고 결과를 별도 Decide 입력으로 남깁니다."
     )
     lines.append(
-        "- 자동 수정과 자동 이슈 생성은 하지 않습니다. 후보 검토 뒤 "
+        "- 자동 수정과 자동 이슈 생성은 하지 않습니다. 후보를 이슈로 남길 때는 "
+        "직접 gh issue create 대신 /to-issue 를 사용하고, 검토 뒤 "
         "`record-decision`으로 소비 표식을 남깁니다."
     )
     lines.append("")
