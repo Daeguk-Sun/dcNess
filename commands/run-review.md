@@ -28,6 +28,7 @@ description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스�
 2. **잘못한 점** (WASTE findings) — `run_review.py` 의 현재 waste detector 결과
 3. **재발 기반 개선 후보** — 현재 run 의 waste pattern 이 같은 sessions root 에서 임계(기본 3회) 이상 반복되면 표면화. 룰 추가, skill 박제, 기존 룰 제거 중 무엇을 할지는 사용자가 결정한다.
 4. **CLAUDE.md/AGENTS.md 현행화 후보** — context 문서 존재, AGENTS.md 의 CLAUDE.md SSOT 참조, CLAUDE.md 공식 구조·6축 rubric·dcNess cold-start 앵커, run-review finding 기반 세션 학습 환류 후보. 자동 수정하지 않고 제안만 출력한다.
+5. **프로젝트-로컬 lesson 생성 입력** — helper `end-run` 시점에 같은 sessions root 의 recurrent WasteFinding 을 `.claude/loop-lessons/<agent>[-<mode>].md` 로 자동 축적한다. NoteFinding 은 lesson 입력이 아니다.
 
 ## 절차
 
@@ -73,16 +74,13 @@ GOOD 자동 finding 은 폐기됐다. 잘한 사례 누적은 baseline noise 가
 
 ### 잘못한 점 (WASTE)
 
-| 패턴 | 심각도 | 검출 조건 | 정합 룰 |
-|---|---|---|---|
-| `RETRY_SAME_FAIL` | MEDIUM | 연속 동일 FAIL enum | 각 skill `<skill>-routing.md` 의 retry 한도 |
-| `ECHO_VIOLATION` | MEDIUM | prose_excerpt < 3줄 | DCN-30-15 |
-| `PLACEHOLDER_LEAK` | HIGH (system-architect) / MEDIUM | prose 안 `[미기록]` / `M0 이후` / `NotImplementedError` | DCN-30-18 |
-| `MUST_FIX_GHOST` | HIGH | must_fix=true 이후 다음 step 진행 | loop 실행 절차 주의사항 룰 |
-| `SPEC_GAP_LOOP` | MEDIUM | module-architect 보강 cycle > 2회 | 각 skill `<skill>-routing.md` 의 retry 한도 |
-| `INFRA_READ` | HIGH | prose 안 인프라 경로 흔적 | 중대 차단 권한 경계 |
-| `READONLY_BASH` | HIGH | read-only agent 가 Bash 호출 | 중대 차단 권한 경계 |
-| `THINKING_LOOP` (DCN-30-20) | HIGH | duration > budget × 1.5 + output_tokens < budget × 0.3 (또는 duration > 5분 + output < 1k) | old planning run 6분 stall 실측 사례 |
+패턴 목록의 SSOT 는 `harness/run_review.py` 의 `ACTIVE_WASTE_PATTERNS` 와
+`detect_wastes()` 구현이다. 이 문서는 목록 사본을 박제하지 않는다. detector 추가·삭제
+시 lesson archive 여부도 이 코드 SSOT 를 따른다.
+
+`THINKING_LOOP` / `TOOL_USE_OVERFLOW` 같은 `detect_notes()` 결과는 severity 없는
+raw 알림이다. run-review 리포트에는 "측정 noted" 로 표시되지만, 재발 lesson 입력에는
+포함하지 않는다.
 
 ### Per-Agent 비용 / 토큰 (DCN-30-20, Phase 2)
 
@@ -102,11 +100,11 @@ GOOD 자동 finding 은 폐기됐다. 잘한 사례 누적은 baseline noise 가
 - **prose 텍스트 분석 한계** — 한국어/영어 mixed regex 기반. semantic 분석 안 함.
 - **단일 run 중심** — `/run-review` 의 재발 후보는 현재 run 의 waste pattern 만 같은 sessions root 에서 카운트한다. 전체 fleet 후보는 `harness/benchmark_aggregate.py` 를 사용한다.
 - **자동 트리거 범위 제한** — helper 기반 `/design`·`/impl` run 은 `end-run` 의 review.md 안에 context audit 섹션이 자동 포함된다. helper run 이 없는 `/spec`·standalone `/acceptance` 는 skill 종료 절차에서 `dcness-review --context-audit` 를 명시 호출한다.
+- **lesson 생성 시점** — helper `end-run` 이 `run_finished` 를 기록한 직후 recurrent WasteFinding 을 동기화한다. 따라서 review.md 에 표시되는 후보와 별개로, 다음 `begin-step` 의 `[LESSONS]` 주입은 finished run 기준으로 계산된다.
 
 ## 참조
 
 - `harness/run_review.py` — 본 skill 의 실 구현
+- `harness/loop_lessons.py` — recurrent WasteFinding 기반 프로젝트-로컬 lesson 저장·주입
 - `commands/efficiency.md` — 세션 단위 토큰/캐시 효율 (보완 관계)
-- [`system-architect-agent.md` 판단 축](../agents/system-architect/system-architect-agent.md#판단-축) — PLACEHOLDER_LEAK 룰 출처 (옛 Spike Gate 차단 패턴)
-- loop skill 가시성 룰 (DCN-30-15) — ECHO_VIOLATION 룰 출처
 - 선행 하네스 review skill 패턴 — 본 skill 출처

@@ -111,6 +111,26 @@ def _write_eval_events(repo_root: Path) -> None:
     )
 
 
+def _write_lesson(project: Path, pattern: str, *, hits: int = 3) -> None:
+    path = project / ".claude" / "loop-lessons" / "engineer-IMPL.md"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "# Loop Lessons: engineer / IMPL\n\n"
+        "<!-- dcness-loop-lessons:v1 -->\n\n"
+        "## Active\n\n"
+        f"### {pattern}\n"
+        "- status: active\n"
+        f"- hits: {hits}\n"
+        "- last: 2026-07-05T00:03:00Z\n"
+        "- lesson: Engineer must change approach before retrying this recurrent waste.\n"
+        "- evidence:\n"
+        "  - run_id=run-lesson path=.claude/harness-state/.sessions/s/runs/run-lesson/engineer-IMPL.md\n"
+        "\n"
+        "## Archived\n",
+        encoding="utf-8",
+    )
+
+
 def _snapshot_tree(root: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     for path in sorted(p for p in root.rglob("*") if p.is_file()):
@@ -377,6 +397,33 @@ class LoopDiagnoseTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("eval:headless-prose-quality", result.stdout)
             self.assertIn("judge 보정은 자동 수집하지 않습니다", result.stdout)
+
+    def test_active_lessons_are_sense_candidates_and_cross_project_rule_candidate(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            alpha = tmp / "alpha"
+            beta = tmp / "beta"
+            alpha.mkdir()
+            beta.mkdir()
+            _write_lesson(alpha, "MUST_FIX_GHOST", hits=3)
+            _write_lesson(beta, "MUST_FIX_GHOST", hits=4)
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": [str(alpha), str(beta)]}),
+                encoding="utf-8",
+            )
+
+            result = self._run(repo_root, projects_file, "--json")
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            payload = json.loads(result.stdout)
+            self.assertEqual(payload["projects"][0]["lessons"][0]["pattern"], "MUST_FIX_GHOST")
+            keys = {candidate["key"] for candidate in payload["candidates"]}
+            self.assertIn("lesson:MUST_FIX_GHOST@alpha/engineer-IMPL", keys)
+            self.assertIn("lesson:MUST_FIX_GHOST@beta/engineer-IMPL", keys)
+            self.assertIn("lesson-rule:MUST_FIX_GHOST", keys)
 
 
 if __name__ == "__main__":

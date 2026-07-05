@@ -2030,6 +2030,19 @@ def _cli_end_run(args: Any) -> int:
         ledger.append_event(sid, rid, "run_finished")
     except Exception:  # nosec B110
         pass
+    try:
+        from harness.loop_lessons import sync_from_run
+
+        changed = sync_from_run(run_dir(sid, rid), repo_path=Path.cwd())
+        if changed:
+            changed_list = ", ".join(str(path) for path in changed)
+            print(f"[lessons] updated: {changed_list}", file=sys.stderr)
+    except Exception as exc:  # nosec B110
+        print(
+            f"[lessons] WARN — recurrent lesson sync skipped: "
+            f"{type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
     _record_design_run_if_applicable(sid, rid)
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
@@ -2383,6 +2396,18 @@ def _cli_begin_step(args: Any) -> int:
             print(f"\n[INSIGHTS: {label}]\n{_insights}")
     except Exception:  # nosec B110
         pass  # insights 주입 실패는 silent — 본 step 차단 X
+
+    # #917: recurrent waste lessons. loop-insights 와 동렬의 advisory 주입이며,
+    # 실패해도 begin-step 자체를 차단하지 않는다.
+    try:
+        from harness.loop_lessons import read as _ll_read
+
+        _lessons = _ll_read(agent, mode or None)
+        if _lessons:
+            label = f"{agent}/{mode}" if mode else agent
+            print(f"\n[LESSONS: {label}]\n{_lessons}")
+    except Exception:  # nosec B110
+        pass
 
     # #525: build-worker 진입 시 직전 task 산출 요약 stdout 주입. 메인 Claude 가
     # Bash 결과로 읽고 build-worker prompt 에 포함시킨다 (loop_insights 와 동일

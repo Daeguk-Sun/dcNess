@@ -1111,6 +1111,24 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertNotIn("[PROMPT_SLOT_CHECK]", out.getvalue())
 
+    def test_begin_step_emits_loop_lessons_when_present(self) -> None:
+        """#917 — lessons are injected next to insights without blocking the step."""
+        from harness.session_state import _cli_begin_step
+        from types import SimpleNamespace
+        from io import StringIO
+        from contextlib import redirect_stdout
+        from unittest.mock import patch
+
+        out = StringIO()
+        with patch("harness.loop_lessons.read", return_value="- `MUST_FIX_GHOST`: stop on blockers"):
+            with redirect_stdout(out):
+                rc = _cli_begin_step(SimpleNamespace(agent="pr-reviewer", mode=None))
+
+        self.assertEqual(rc, 0)
+        stdout = out.getvalue()
+        self.assertIn("[LESSONS: pr-reviewer]", stdout)
+        self.assertIn("MUST_FIX_GHOST", stdout)
+
     def test_run_dir_cli_outputs_absolute_path(self) -> None:
         # DCN-30-21: run-dir subcommand for prose-staging path 격리.
         from harness.session_state import _cli_run_dir, run_dir
