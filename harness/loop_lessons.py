@@ -15,6 +15,7 @@ from harness.session_state import _resolve_project_root
 
 LESSONS_DIR = Path(".claude") / "loop-lessons"
 LESSON_FILE_MARKER = "<!-- dcness-loop-lessons:v1 -->"
+MAX_EVIDENCE_ITEMS = 10
 
 LESSON_TEMPLATES: dict[str, str] = {
     "RETRY_SAME_FAIL": (
@@ -203,6 +204,7 @@ def upsert_entry(
     for item in evidence:
         if item and item not in entry.evidence:
             entry.evidence.append(item)
+    entry.evidence = entry.evidence[-MAX_EVIDENCE_ITEMS:]
     entries[pattern] = entry
     _write_entries(path, entries)
     return path

@@ -9,6 +9,7 @@ from unittest.mock import patch
 
 from harness import ledger
 from harness.loop_lessons import (
+    MAX_EVIDENCE_ITEMS,
     archive_removed_patterns,
     lessons_path,
     list_active_lessons,
@@ -158,6 +159,26 @@ class LoopLessonsSyncTests(unittest.TestCase):
             active = list_active_lessons(tmp)
             self.assertEqual(active[0]["agent"], "pr-reviewer")
             self.assertIsNone(active[0]["mode"])
+
+    def test_evidence_is_capped_to_recent_items(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            p = upsert_entry(
+                "engineer",
+                "IMPL",
+                "TOOL_REPEAT_HIGH",
+                hits=12,
+                last="2026-07-05T00:12:00Z",
+                evidence=[f"run_id=run-{i:02d} path=/tmp/{i:02d}.md" for i in range(12)],
+                cwd=tmp,
+            )
+
+            content = p.read_text(encoding="utf-8")
+            self.assertEqual(content.count("run_id=run-"), MAX_EVIDENCE_ITEMS)
+            self.assertNotIn("run_id=run-00", content)
+            self.assertNotIn("run_id=run-01", content)
+            self.assertIn("run_id=run-02", content)
+            self.assertIn("run_id=run-11", content)
 
     def test_archive_removed_patterns_excludes_from_read(self) -> None:
         with tempfile.TemporaryDirectory() as td:

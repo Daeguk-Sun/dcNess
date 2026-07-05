@@ -1,5 +1,7 @@
 """tests/test_run_review.py — DCN-CHG-20260430-19 run_review 단위 테스트."""
 
+import ast
+import inspect
 import json
 import sys
 import tempfile
@@ -11,16 +13,43 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from harness import ledger  # noqa: E402
+from harness import run_review as run_review_module  # noqa: E402
 from harness.run_review import (  # noqa: E402
     RunReport, StepRecord, WasteFinding, build_report, detect_wastes, detect_notes,
     parse_steps, render_report, list_runs, find_run_dir,
     _normalize_agent_type, assign_invocations_to_steps,
     DCNESS_AGENT_NAMES, LEGACY_AGENT_ALIASES,
     WINDOW_TS_PADDING, _extract_conclusion_enum,
-    audit_context_docs,
+    audit_context_docs, ACTIVE_WASTE_PATTERNS,
 )
 # issue #392 — detect_goods 폐기
 # issue #394 — detect_notes 신규 (TOOL_USE_OVERFLOW / THINKING_LOOP)
+
+
+class ActiveWastePatternSsotTests(unittest.TestCase):
+    def test_active_waste_patterns_match_wastefinding_emit_literals(self) -> None:
+        """#917 — lesson 대상 SSOT가 WasteFinding detector emit 목록과 drift 나지 않는다."""
+        tree = ast.parse(inspect.getsource(run_review_module))
+        emitted: set[str] = set()
+        dynamic_pattern_lines: list[int] = []
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            func = node.func
+            if not isinstance(func, ast.Name) or func.id != "WasteFinding":
+                continue
+            pattern_kw = next((kw for kw in node.keywords if kw.arg == "pattern"), None)
+            if not isinstance(pattern_kw, ast.keyword):
+                dynamic_pattern_lines.append(node.lineno)
+                continue
+            value = pattern_kw.value
+            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                emitted.add(value.value)
+            else:
+                dynamic_pattern_lines.append(value.lineno)
+
+        self.assertEqual(dynamic_pattern_lines, [])
+        self.assertEqual(ACTIVE_WASTE_PATTERNS, frozenset(emitted))
 
 
 def _make_run_dir(tmp: Path, sid: str, rid: str, step_records: list[dict],
