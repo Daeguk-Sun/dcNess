@@ -743,6 +743,34 @@ def clear_current_step(
     return True
 
 
+def _steps_jsonl_path(sid: str, rid: str, *, base_dir: Optional[Path] = None) -> Path:
+    """[deprecated] 옛 `.steps.jsonl` 경로 — ledger.jsonl 로 흡수됨 (이슈 #587).
+
+    `ledger.legacy_steps_path` 위임 (마이그레이션 폴백 참조 전용). 새 코드는
+    `harness.ledger` 모듈을 직접 쓴다.
+    """
+    from harness import ledger
+
+    return ledger.legacy_steps_path(sid, rid, base_dir=base_dir)
+
+
+def _read_steps_jsonl(
+    sid: str,
+    rid: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> list:
+    """run 의 step_completed event 를 시간순 반환 (옛 `.steps.jsonl` 호환 — 이슈 #587).
+
+    `ledger.read_step_completed` 위임. ledger.jsonl 우선, 없으면 옛 .steps.jsonl
+    폴백 (마이그레이션 셔틀). 반환 레코드는 옛 row 필드명 호환 — 소비처
+    (finalize-run / strict-conveyor / Stop hook) 는 그대로 읽는다.
+    """
+    from harness import ledger
+
+    return ledger.read_step_completed(sid, rid, base_dir=base_dir)
+
+
 def _read_or_empty(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8") if path.exists() else ""
@@ -1690,12 +1718,6 @@ def _split_attr(module_name: str, name: str) -> Any:
     return value
 
 
-def _read_steps_jsonl(*args: Any, **kwargs: Any) -> Any:
-    return _split_attr("harness.session_state_cli", "_read_steps_jsonl")(
-        *args, **kwargs
-    )
-
-
 def _extract_prose_summary(*args: Any, **kwargs: Any) -> Any:
     return _split_attr("harness.session_state_cli", "_extract_prose_summary")(
         *args, **kwargs
@@ -1776,7 +1798,6 @@ _CLI_REEXPORT_NAMES = frozenset(
         "_prior_engineer_tool_use_count",
         "_record_design_run_if_applicable",
         "_repo_root_from_state_root",
-        "_steps_jsonl_path",
     }
 )
 
