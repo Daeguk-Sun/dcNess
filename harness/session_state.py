@@ -3663,6 +3663,7 @@ def collect_status_diagnostics(
             ("git_hooks", "git hook shim 3종"),
             ("claude_context", "CLAUDE.md context"),
             ("codex_skills", "Codex validator skills"),
+            ("generated_tdd_hooks", "Generated TDD hooks"),
             ("ci_workflows", "선택형 CI workflow"),
         ):
             add(key, label, "NA", na_detail)
@@ -3780,6 +3781,53 @@ def collect_status_diagnostics(
             "INFO",
             f"설치됨: {', '.join(installed)}" if installed else "없음 (선택 사항)",
         )
+        try:
+            from harness.tdd_hooks import inspect_installation
+
+            generated_tdd = inspect_installation(project_root)
+            platform = generated_tdd.get("platform")
+            if not platform:
+                add(
+                    "generated_tdd_hooks",
+                    "Generated TDD hooks",
+                    "INFO",
+                    "빈 프로젝트 또는 미지원 플랫폼 — 생성 skip",
+                )
+            elif generated_tdd.get("cc_registered") and generated_tdd.get("codex_registered"):
+                add(
+                    "generated_tdd_hooks",
+                    "Generated TDD hooks",
+                    "PASS",
+                    f"platform={platform}, CC+Codex 등록됨",
+                )
+            elif generated_tdd.get("cc_registered") or generated_tdd.get("codex_registered"):
+                add(
+                    "generated_tdd_hooks",
+                    "Generated TDD hooks",
+                    "WARN",
+                    (
+                        f"platform={platform}, partial "
+                        f"cc={generated_tdd.get('cc_registered')} "
+                        f"codex={generated_tdd.get('codex_registered')}"
+                    ),
+                    "scripts/dcness-tdd-hooks ensure --targets cc,codex 재실행",
+                )
+            else:
+                add(
+                    "generated_tdd_hooks",
+                    "Generated TDD hooks",
+                    "WARN",
+                    f"platform={platform}, 프로젝트 로컬 TDD hook 미생성",
+                    "init-dcness 의 generated TDD hook 단계 실행",
+                )
+        except Exception as exc:
+            add(
+                "generated_tdd_hooks",
+                "Generated TDD hooks",
+                "WARN",
+                f"진단 실패: {exc}",
+                "dcness 업데이트 또는 scripts/dcness-tdd-hooks status 확인",
+            )
 
     # Provider routing (self / 외부 공통 — INFO)
     if check_routing:

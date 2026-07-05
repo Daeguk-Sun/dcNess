@@ -87,6 +87,22 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 
 코어 `ALLOW_MATRIX` 로 커버되지 않는 비표준 소스 디렉터리가 있으면 `.dcness/boundary.json` 의 `engineer.add` 후보만 출력한다. 후보가 있으면 사람 승인 후에만 메인이 boundary 파일을 작성한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다.
 
+## Step 0.3 — generated TDD hook 부재 확인
+
+구현 진입 전에 project-local TDD hook 상태를 한 번 확인한다. dcNess 는 **TDD 계약**과 생성 직후 **self-test** 를 소유하고, hook 본문은 프로젝트 플랫폼에 맞게 생성된다.
+
+```bash
+"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"
+```
+
+플랫폼이 감지됐는데 generated hook 이 없으면 사용자에게 생성 제안을 보여준다. 승인 시 `/init-dcness` 와 같은 순서로 진행한다: TDD 계약 self-test fixture 확인 → CC hook 후보 생성/self-test/등록 → Codex hook 후보 생성/self-test/등록.
+
+```bash
+"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" ensure --project-root "$PROJECT_ROOT" --targets cc,codex --plugin-root "$PLUGIN_ROOT"
+```
+
+빈 프로젝트, 미지원 플랫폼, 생성 실패, self-test 실패는 no-op 으로 안전 통과한다. 생성 훅이 있으면 중앙 `tdd-guard.sh` 와 headless worker 사후 검사는 그 generated hook 을 먼저 실행한다.
+
 ## Step 0.4 — UI 기준 확보 분기
 
 UI 작업이면 구현 경로(Lite/Standard) 판정과 별도로 **UI 기준 확보 분기**를 먼저 판정한다. 목업은 무조건 만들지 않는다. 강제되는 불변식은 "신규 시각 구조 작업은 기대 고정 기준을 확보하고, 기준이 존재하면 구현까지 배선된다" 이다.

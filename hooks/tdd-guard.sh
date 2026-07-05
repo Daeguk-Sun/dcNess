@@ -66,6 +66,39 @@ PY
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 
+delegate_generated_project_hook() {
+  # #909 — project-local generated hook wins over the legacy central TS/JS guard.
+  # The generated hook has already passed dcNess-owned contract self-test before
+  # registration. Central hook delegates here so interactive CC and headless
+  # wrappers both use the same project-specific contract.
+  [ "${DCNESS_TDD_DELEGATED:-}" = "1" ] && return 0
+  local generated_hook="$PROJECT_ROOT/.claude/hooks/dcness-tdd-guard.sh"
+  local generated_config="$PROJECT_ROOT/.dcness/tdd-hooks.json"
+  [ -x "$generated_hook" ] && [ -f "$generated_config" ] || return 0
+
+  local generated_err generated_rc
+  generated_err=$(
+    printf '%s' "$INPUT" \
+      | DCNESS_TDD_DELEGATED=1 \
+        DCNESS_TDD_PROJECT_ROOT="$PROJECT_ROOT" \
+        DCNESS_TDD_PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}" \
+        bash "$generated_hook" 2>&1 >/dev/null
+  )
+  generated_rc=$?
+  if [ "$generated_rc" -eq 0 ]; then
+    allow
+  fi
+  if [ "$generated_rc" -eq 2 ]; then
+    record_guard_hit "generated_missing_test" "$generated_err"
+    printf '%s\n' "$generated_err" >&2
+    exit 2
+  fi
+  record_fail_open "generated_hook_error" "generated hook exited ${generated_rc}; central fallback skipped"
+  allow
+}
+
+delegate_generated_project_hook
+
 deny() {
   # reason 을 stderr 로 — exit 2 (호출부) 와 짝지어 CC 가 Claude 에 피드백.
   printf '%s\n' "$1" >&2

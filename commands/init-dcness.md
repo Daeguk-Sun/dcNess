@@ -33,7 +33,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - `docs/*`, `docs/design-variants/*`: 부재 시만 seed. 단 기존 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 섹션은 없을 때만 append.
 - Codex validator skills: `$CODEX_HOME/skills/dcness-*` always-overwrite.
 - Codex provider routing: core 에서는 상태만 확인하고, 선택형 확장에서 validation opt-in 과 implementation 기본값을 갱신.
-- CC hook / TDD Guard: 사용자 repo 파일 설치 없음. 활성화 후 plug-in hook 으로 자동 발화.
+- TDD Guard: dcNess 가 **TDD 계약 + self-test** 를 소유한다. 프로젝트가 비어 있지 않으면 플랫폼 감지 후 project-local CC/Codex hook 생성을 제안하고, 생성 후보는 self-test 통과 전에는 등록하지 않는다. 생성 훅이 없으면 중앙 plug-in hook 이 안전 fallback 으로 동작한다.
 
 ## 공통 변수
 이후 절차에서 반복 사용한다.
@@ -49,18 +49,7 @@ CONTEXT_DOCS="$PLUGIN_ROOT/scripts/dcness-context-docs"
 
 ## Core Activation
 
-core activation 의 성공 기준은 다음 항목까지다.
-
-- whitelist 활성화
-- `~/.claude/settings.json` Read 권한
-- git hook shim 3종 설치
-- runtime state `.gitignore` 보장
-- Codex validator skill 배포
-- `CLAUDE.md` seed/migration 감사
-- Provider routing 상태 확인
-- 파일 경계 override 후보 확인
-- `dcness-helper status` 기준 FAIL 0
-선택형 확장은 core activation 성공 조건이 아니다. CI workflow, project docs seed, design seed, GitHub Project lifecycle, workflow 변경 PR 은 INFO/WARN 으로 남아도 core 성공 메시지를 흐리지 않는다.
+core activation 의 성공 기준은 whitelist, Read 권한, git hook shim, runtime ignore, Codex validator skills, `CLAUDE.md` 감사, provider routing, 파일 경계 후보, Generated TDD hook 상태, `dcness-helper status` FAIL 0 까지다. 선택형 확장은 core activation 성공 조건이 아니다. CI workflow, project docs seed, design seed, GitHub Project lifecycle, workflow 변경 PR 은 INFO/WARN 으로 남아도 core 성공 메시지를 흐리지 않는다.
 
 ### Core Step 1 - 상태 진단
 
@@ -78,6 +67,7 @@ core activation 의 성공 기준은 다음 항목까지다.
 - `Codex validator skills` FAIL → Core Step 5 재실행.
 - `CLAUDE.md` 부재 또는 cold-start 앵커 부재 → Core Step 6.
 - `Provider routing` 은 INFO 로 상태만 확인한다. validation 이 이미 enabled 면 다시 쓰지 않고, implementation 은 custom 선택 때만 명시 변경한다.
+- `Generated TDD hooks` 는 INFO/WARN 이다. 빈 프로젝트는 skip 하고, 미생성 non-empty 프로젝트는 아래 Core Step 7.5 의 역제안으로 처리한다.
 - `선택형 CI workflow` 는 INFO 다. core activation 성공/실패 판정에 넣지 않는다.
 
 ### Core Step 2 - 활성화
@@ -167,6 +157,12 @@ done
 
 비표준 소스 디렉터리 후보가 출력되면 사용자에게 보여주고 사람 승인 뒤에만 `.dcness/boundary.json` 을 작성한다. 표준 레이아웃 또는 빈 프로젝트는 no-op 이며, 이 step 은 파일을 쓰지 않는다.
 
+### Core Step 7.5 - generated TDD hook 역제안
+
+`"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"` 로 상태를 본다. 지원 플랫폼에서 hook 이 없으면 사용자 승인 뒤 `ensure --targets cc,codex` 를 실행한다.
+
+순서는 고정: **TDD 계약 + self-test** → **CC hook self-test/등록** → **Codex hook self-test/등록**. 빈 프로젝트/미지원/실패는 no-op 이며 상세는 [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md) 와 [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh) 를 따른다.
+
 ### Core Step 8 - 완료 선언
 
 core 작업 뒤 `status` 를 재실행한다. FAIL 이 0 이면 INFO·NA 행과 선택 WARN 이 남아도 즉시 완료를 먼저 출력한다.
@@ -182,7 +178,7 @@ core 작업 뒤 `status` 를 재실행한다. FAIL 이 0 이면 INFO·NA 행과 
 
 다음 세션부터 자동 적용:
 - SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop hook
-- TDD Guard 는 사용자 설정 없이 plug-in hook 으로 자동 발화
+- TDD Guard 는 생성된 project-local hook 이 있으면 그 계약으로, 없으면 중앙 fallback 으로 동작
 
 기본 workflow:
 - /spec — PRD / Epic / Story / AC 정의
@@ -320,7 +316,7 @@ done
 
 #### workflow 변경 PR
 
-자동 PR 대상은 `/init-dcness` 가 배포한 `.github/workflows/*.yml` 변경만이다. TDD Guard 는 자동 hook 이라 사용자 repo 파일 변경이 없고, docs/design seed 는 사용자 콘텐츠라 자동 infra PR 에 섞지 않는다.
+자동 PR 대상은 `/init-dcness` 가 배포한 `.github/workflows/*.yml` 변경만이다. Generated TDD hook 은 사용자 repo 의 `.dcness/`, `.claude/`, `.codex/` 에 project-local 파일을 쓸 수 있지만 activation bootstrap 산출물이라 자동 workflow PR 대상은 아니다. docs/design seed 는 사용자 콘텐츠라 자동 infra PR 에 섞지 않는다.
 
 ```bash
 cd "$PROJECT_ROOT"
