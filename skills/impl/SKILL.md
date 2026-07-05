@@ -89,7 +89,7 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 
 ## Step 0.3 — generated TDD hook 부재 확인
 
-구현 진입 전에 project-local TDD hook 상태를 한 번 확인한다. dcNess 는 **TDD 계약**과 생성 직후 **self-test** 를 소유하고, hook 본문은 프로젝트 플랫폼에 맞게 생성된다.
+구현 진입 전에 project-local TDD hook 상태를 한 번 확인한다. dcNess 는 **TDD 계약**과 생성 직후 **self-test** 를 소유하고, hook 본문은 현재 helper 의 플랫폼 프리셋(`python`, `web`, `go`, `android`, `ios`)에 맞게 생성된다.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"
@@ -102,6 +102,8 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 ```
 
 빈 프로젝트, 미지원 플랫폼, 생성 실패, self-test 실패는 no-op 으로 안전 통과한다. 생성 훅이 있으면 중앙 `tdd-guard.sh` 와 headless worker 사후 검사는 그 generated hook 을 먼저 실행한다.
+
+`status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 bootstrap commit 에 포함해야 한다. 커밋되지 않은 생성 파일은 새 worktree/headless worker 체크아웃에 없으므로 project-local TDD 계약이 재사용되지 않는다.
 
 ## Step 0.4 — UI 기준 확보 분기
 

@@ -378,6 +378,7 @@ PY
         | CLAUDE_PLUGIN_ROOT="$SCRIPT_DIR/.." \
           PYTHONPATH="$SCRIPT_DIR/..:${PYTHONPATH:-}" \
           DCNESS_FORCE_ENABLE=1 \
+          DCNESS_HEADLESS_TDD_CHECK=1 \
           bash "$SCRIPT_DIR/../hooks/tdd-guard.sh" 2>&1 >/dev/null
     )"
     _tdd_rc=$?

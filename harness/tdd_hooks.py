@@ -72,13 +72,27 @@ class SelfTestError(RuntimeError):
         super().__init__("\n".join(lines))
 
 
-def _read_json(path: Path) -> dict[str, Any]:
+class JsonConfigError(RuntimeError):
+    """Raised when an existing user-owned JSON file would be overwritten."""
+
+
+def _read_json(path: Path, *, strict: bool = False) -> dict[str, Any]:
     if not path.is_file():
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    except json.JSONDecodeError as exc:
+        if strict:
+            raise JsonConfigError(
+                f"{path}: invalid JSON; refusing to overwrite existing file"
+            ) from exc
         return {}
+    except OSError as exc:
+        if strict:
+            raise JsonConfigError(f"{path}: cannot read JSON file: {exc}") from exc
+        return {}
+    if strict and not isinstance(data, dict):
+        raise JsonConfigError(f"{path}: JSON root must be an object")
     return data if isinstance(data, dict) else {}
 
 
@@ -623,7 +637,7 @@ def _strip_existing_dcness_tdd_hooks(entries: list[Any]) -> list[Any]:
 
 
 def _register_hook_json(path: Path, matcher: str, command: str) -> None:
-    data = _read_json(path)
+    data = _read_json(path, strict=True)
     hooks = data.setdefault("hooks", {})
     if not isinstance(hooks, dict):
         hooks = {}
@@ -667,6 +681,82 @@ def _register_codex(project_root: Path) -> None:
     )
 
 
+def _preflight_registration_json(project_root: Path, targets: Iterable[str]) -> None:
+    _read_json(project_root / CONFIG_REL, strict=True)
+    target_set = set(targets)
+    if "cc" in target_set:
+        _read_json(project_root / CC_SETTINGS_REL, strict=True)
+    if "codex" in target_set:
+        _read_json(project_root / CODEX_HOOKS_REL, strict=True)
+
+
+def _run_git(project_root: Path, args: list[str]) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(  # nosec B603, B607
+        ["git", "-C", str(project_root), *args],
+        capture_output=True,
+        text=True,
+        timeout=5,
+    )
+
+
+def _is_git_work_tree(project_root: Path) -> bool:
+    try:
+        proc = _run_git(project_root, ["rev-parse", "--is-inside-work-tree"])
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return proc.returncode == 0 and proc.stdout.strip() == "true"
+
+
+def _is_committed_clean(project_root: Path, rel: Path) -> bool:
+    rel_text = rel.as_posix()
+    try:
+        status = _run_git(project_root, ["status", "--porcelain", "--", rel_text])
+        tracked = _run_git(project_root, ["ls-files", "--error-unmatch", "--", rel_text])
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return status.returncode == 0 and not status.stdout.strip() and tracked.returncode == 0
+
+
+def generated_files_git_state(project_root: Path) -> dict[str, Any]:
+    root = project_root.resolve()
+    existing = _existing_generated_file_rels(root)
+    if not existing:
+        return {
+            "generated_files": [],
+            "generated_files_committed": True,
+            "uncommitted_generated_files": [],
+        }
+    if not _is_git_work_tree(root):
+        return {
+            "generated_files": existing,
+            "generated_files_committed": False,
+            "uncommitted_generated_files": existing,
+        }
+    uncommitted = [
+        rel for rel in existing if not _is_committed_clean(root, Path(rel))
+    ]
+    return {
+        "generated_files": existing,
+        "generated_files_committed": not uncommitted,
+        "uncommitted_generated_files": uncommitted,
+    }
+
+
+def _existing_generated_file_rels(root: Path) -> list[str]:
+    existing: list[str] = []
+    if (root / CONFIG_REL).exists():
+        existing.append(CONFIG_REL.as_posix())
+    if _hook_json_references(root / CC_SETTINGS_REL, "dcness-tdd-guard.sh"):
+        existing.append(CC_SETTINGS_REL.as_posix())
+    if (root / CC_HOOK_REL).exists():
+        existing.append(CC_HOOK_REL.as_posix())
+    if _hook_json_references(root / CODEX_HOOKS_REL, "dcness-tdd-guard.sh"):
+        existing.append(CODEX_HOOKS_REL.as_posix())
+    if (root / CODEX_HOOK_REL).exists():
+        existing.append(CODEX_HOOK_REL.as_posix())
+    return existing
+
+
 def ensure_generated_hooks(
     *,
     project_root: Path,
@@ -685,7 +775,8 @@ def ensure_generated_hooks(
         normalized = ["cc"] + [target for target in normalized if target != "cc"]
 
     config_path = root / CONFIG_REL
-    current = _read_json(config_path)
+    _preflight_registration_json(root, normalized)
+    current = _read_json(config_path, strict=True)
     registered_data = current.get("registered")
     registered: dict[str, Any] = registered_data if isinstance(registered_data, dict) else {}
     registered_config: dict[str, bool] = {
@@ -725,9 +816,20 @@ def ensure_generated_hooks(
             registered_config[target] = True
             config["registered"] = registered_config
             _write_json(config_path, config)
-            messages.append(f"{target}: registered")
+            if target == "codex":
+                messages.append("codex: registered (Codex trust approval may still be required)")
+            else:
+                messages.append(f"{target}: registered")
     finally:
         shutil.rmtree(tmp_dir, ignore_errors=True)
+    git_state = generated_files_git_state(root)
+    uncommitted = git_state["uncommitted_generated_files"]
+    if uncommitted:
+        joined = ", ".join(uncommitted)
+        messages.append(
+            "commit-required: generated TDD hook files must be committed for "
+            f"worktree/headless reuse: {joined}"
+        )
     return messages
 
 
@@ -741,7 +843,7 @@ def inspect_installation(project_root: Path) -> dict[str, Any]:
     codex_hook = (root / CODEX_HOOK_REL).is_file()
     cc_configured = _hook_json_references(root / CC_SETTINGS_REL, "dcness-tdd-guard.sh")
     codex_configured = _hook_json_references(root / CODEX_HOOKS_REL, "dcness-tdd-guard.sh")
-    return {
+    report = {
         "platform": platform,
         "config": bool(config),
         "cc_hook": cc_hook,
@@ -749,6 +851,8 @@ def inspect_installation(project_root: Path) -> dict[str, Any]:
         "cc_registered": bool(registered.get("cc")) and cc_hook and cc_configured,
         "codex_registered": bool(registered.get("codex")) and codex_hook and codex_configured,
     }
+    report.update(generated_files_git_state(root))
+    return report
 
 
 def _hook_json_references(path: Path, needle: str) -> bool:
@@ -778,7 +882,11 @@ def _cmd_self_test(args: argparse.Namespace) -> int:
     config: Optional[dict[str, Any]]
     if args.config:
         config_path = Path(args.config).resolve()
-        config = _read_json(config_path)
+        try:
+            config = _read_json(config_path, strict=True)
+        except JsonConfigError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
     else:
         config = build_contract_config(project_root, args.platform)
         config_path = project_root / ".dcness" / ".tmp-self-test-config.json"
@@ -812,7 +920,7 @@ def _cmd_ensure(args: argparse.Namespace) -> int:
             targets=tuple(part for part in args.targets.split(",") if part),
             plugin_root=Path(args.plugin_root).resolve(),
         )
-    except (SelfTestError, ValueError) as exc:
+    except (JsonConfigError, SelfTestError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
         return 1
     for message in messages:
@@ -830,8 +938,13 @@ def _cmd_status(args: argparse.Namespace) -> int:
         "generated TDD hooks: "
         f"platform={platform}, "
         f"cc={report['cc_registered']}, "
-        f"codex={report['codex_registered']}"
+        f"codex={report['codex_registered']}, "
+        f"generated_files_committed={report['generated_files_committed']}"
     )
+    uncommitted = report.get("uncommitted_generated_files")
+    if isinstance(uncommitted, list) and uncommitted:
+        joined = ", ".join(str(item) for item in uncommitted)
+        print(f"commit-required: {joined}")
     return 0
 
 

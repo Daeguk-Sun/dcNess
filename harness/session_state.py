@@ -3793,12 +3793,26 @@ def collect_status_diagnostics(
                     "INFO",
                     "빈 프로젝트 또는 미지원 플랫폼 — 생성 skip",
                 )
+            elif (
+                generated_tdd.get("cc_registered")
+                and generated_tdd.get("codex_registered")
+                and not generated_tdd.get("generated_files_committed")
+            ):
+                uncommitted = generated_tdd.get("uncommitted_generated_files") or []
+                detail = ", ".join(str(item) for item in uncommitted[:5])
+                add(
+                    "generated_tdd_hooks",
+                    "Generated TDD hooks",
+                    "WARN",
+                    f"platform={platform}, CC+Codex 등록됨, 미커밋 생성 파일: {detail}",
+                    "generated TDD hook 파일을 bootstrap commit 에 포함",
+                )
             elif generated_tdd.get("cc_registered") and generated_tdd.get("codex_registered"):
                 add(
                     "generated_tdd_hooks",
                     "Generated TDD hooks",
                     "PASS",
-                    f"platform={platform}, CC+Codex 등록됨",
+                    f"platform={platform}, CC+Codex 로컬 등록됨 (Codex trust 승인은 별도 확인)",
                 )
             elif generated_tdd.get("cc_registered") or generated_tdd.get("codex_registered"):
                 add(

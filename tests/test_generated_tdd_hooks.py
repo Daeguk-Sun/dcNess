@@ -38,11 +38,24 @@ def _run_hook(hook: Path, project: Path, file_path: Path) -> subprocess.Complete
     )
 
 
-def _run_central_guard(project: Path, file_path: Path) -> subprocess.CompletedProcess[str]:
+def _run_central_guard(
+    project: Path,
+    file_path: Path,
+    *,
+    headless: bool = False,
+) -> subprocess.CompletedProcess[str]:
     payload = {
         "tool_name": "Edit",
         "tool_input": {"file_path": str(file_path)},
     }
+    env = {
+        **os.environ,
+        "CLAUDE_PLUGIN_ROOT": str(ROOT),
+        "DCNESS_FORCE_ENABLE": "1",
+        "PYTHONPATH": str(ROOT),
+    }
+    if headless:
+        env["DCNESS_HEADLESS_TDD_CHECK"] = "1"
     return subprocess.run(
         ["bash", str(CENTRAL_TDD_GUARD)],
         input=json.dumps(payload),
@@ -50,12 +63,7 @@ def _run_central_guard(project: Path, file_path: Path) -> subprocess.CompletedPr
         text=True,
         cwd=project,
         timeout=10,
-        env={
-            **os.environ,
-            "CLAUDE_PLUGIN_ROOT": str(ROOT),
-            "DCNESS_FORCE_ENABLE": "1",
-            "PYTHONPATH": str(ROOT),
-        },
+        env=env,
     )
 
 
@@ -122,6 +130,7 @@ class GeneratedTddHookContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("cc: registered", result.stdout)
             self.assertIn("codex: registered", result.stdout)
+            self.assertIn("commit-required:", result.stdout)
 
             config = json.loads(
                 (project / ".dcness" / "tdd-hooks.json").read_text(encoding="utf-8")
@@ -144,6 +153,118 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                 any("apply_patch" in e.get("matcher", "") for e in codex_pre),
                 codex_hooks,
             )
+
+    def test_status_reports_generated_files_until_committed_to_git(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            (project / "src").mkdir()
+            (project / "src" / "existing.py").write_text("def existing():\n    return 1\n")
+
+            subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "cc,codex",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+
+            report = inspect_installation(project)
+            self.assertFalse(report["generated_files_committed"])
+            self.assertIn(".dcness/tdd-hooks.json", report["uncommitted_generated_files"])
+            self.assertIn(".claude/settings.json", report["uncommitted_generated_files"])
+            self.assertIn(".codex/hooks.json", report["uncommitted_generated_files"])
+
+            subprocess.run(["git", "add", "."], cwd=project, check=True)
+            subprocess.run(
+                [
+                    "git",
+                    "-c",
+                    "user.name=dcness-test",
+                    "-c",
+                    "user.email=dcness@example.invalid",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "bootstrap generated hooks",
+                ],
+                cwd=project,
+                check=True,
+            )
+
+            committed_report = inspect_installation(project)
+            self.assertTrue(committed_report["generated_files_committed"])
+            self.assertEqual(committed_report["uncommitted_generated_files"], [])
+
+    def test_status_ignores_unrelated_user_settings_without_tdd_reference(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            settings = project / ".claude" / "settings.json"
+            settings.parent.mkdir()
+            settings.write_text(
+                json.dumps({"permissions": {"allow": ["Read(docs/**)"]}}),
+                encoding="utf-8",
+            )
+            codex_hooks = project / ".codex" / "hooks.json"
+            codex_hooks.parent.mkdir()
+            codex_hooks.write_text(json.dumps({"hooks": {}}), encoding="utf-8")
+
+            report = inspect_installation(project)
+
+            self.assertEqual(report["generated_files"], [])
+            self.assertTrue(report["generated_files_committed"])
+            self.assertEqual(report["uncommitted_generated_files"], [])
+
+    def test_ensure_refuses_malformed_cc_settings_without_overwriting(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            (project / "src").mkdir()
+            (project / "src" / "existing.py").write_text("def existing():\n    return 1\n")
+            settings = project / ".claude" / "settings.json"
+            settings.parent.mkdir()
+            original = '{"permissions": '
+            settings.write_text(original, encoding="utf-8")
+
+            result = subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "cc",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("invalid JSON", result.stderr)
+            self.assertEqual(settings.read_text(encoding="utf-8"), original)
+            self.assertFalse((project / ".claude" / "hooks" / "dcness-tdd-guard.sh").exists())
+            self.assertFalse((project / ".dcness" / "tdd-hooks.json").exists())
 
     def test_generated_python_hook_enforces_flat_project_without_source_dir(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -279,9 +400,48 @@ class GeneratedTddHookContractTests(unittest.TestCase):
             target = project / "src" / "headless_contract.py"
             target.write_text("def headless_contract():\n    return 1\n", encoding="utf-8")
 
-            result = _run_central_guard(project, target)
+            result = _run_central_guard(project, target, headless=True)
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertIn("headless_contract", result.stderr)
+
+    def test_central_tdd_guard_skips_project_hook_during_interactive_cc_path(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            (project / "src").mkdir()
+            (project / "src" / "existing.py").write_text("def existing():\n    return 1\n")
+
+            subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "cc",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+
+            target = project / "src" / "interactive_contract.py"
+            target.write_text("def interactive_contract():\n    return 1\n", encoding="utf-8")
+
+            central = _run_central_guard(project, target)
+            self.assertEqual(central.returncode, 0, central.stderr)
+            self.assertNotIn("TDD GUARD", central.stderr)
+
+            project_hook = project / ".claude" / "hooks" / "dcness-tdd-guard.sh"
+            generated = _run_hook(project_hook, project, target)
+            self.assertEqual(generated.returncode, 2, generated.stderr)
+            self.assertIn("interactive_contract", generated.stderr)
 
     def test_ensure_skips_empty_project_without_registering_hooks(self) -> None:
         with tempfile.TemporaryDirectory() as td:

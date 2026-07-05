@@ -66,6 +66,26 @@ PY
 
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 
+cc_generated_project_hook_registered() {
+  local settings="$PROJECT_ROOT/.claude/settings.json"
+  [ -f "$settings" ] || return 1
+  python3 - "$settings" >/dev/null 2>&1 <<'PY'
+import json
+import sys
+
+try:
+    data = json.loads(open(sys.argv[1], encoding="utf-8").read())
+except Exception:
+    sys.exit(1)
+hooks = data.get("hooks") if isinstance(data, dict) else None
+pre = hooks.get("PreToolUse") if isinstance(hooks, dict) else None
+if not isinstance(pre, list):
+    sys.exit(1)
+needle = "dcness-tdd-guard.sh"
+sys.exit(0 if any(needle in json.dumps(entry) for entry in pre) else 1)
+PY
+}
+
 delegate_generated_project_hook() {
   # #909 — project-local generated hook wins over the legacy central TS/JS guard.
   # The generated hook has already passed dcNess-owned contract self-test before
@@ -75,6 +95,13 @@ delegate_generated_project_hook() {
   local generated_hook="$PROJECT_ROOT/.claude/hooks/dcness-tdd-guard.sh"
   local generated_config="$PROJECT_ROOT/.dcness/tdd-hooks.json"
   [ -x "$generated_hook" ] && [ -f "$generated_config" ] || return 0
+
+  # Interactive Claude Code can run both the plug-in hook and the project-local
+  # hook for the same event. If the project hook is registered, let it own the
+  # decision and keep the central hook for headless/synthetic checks only.
+  if [ "${DCNESS_HEADLESS_TDD_CHECK:-}" != "1" ] && cc_generated_project_hook_registered; then
+    allow
+  fi
 
   local generated_err generated_rc
   generated_err=$(

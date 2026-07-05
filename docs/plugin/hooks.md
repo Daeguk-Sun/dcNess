@@ -159,15 +159,17 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **시점**: `Edit`, `Write`, `NotebookEdit` 로 파일을 수정하기 직전. `Bash` 는 명시적 write target 추출 직후, 각 target 에 같은 검사를 적용한다. Codex/headless 구현 worker 는 Codex 성공 종료 후 `end-step` 저장 전에 변경 파일 목록에 같은 검사를 적용한다.
 
-**우선순위**: 프로젝트에 generated TDD hook 이 있으면 중앙 plug-in `tdd-guard.sh` 는 먼저 `.claude/hooks/dcness-tdd-guard.sh` 를 실행한다. 이 generated hook 은 `/init-dcness` 가 플랫폼 감지 후 만든 project-local 파일이며, 등록 전에 dcNess 소유 **TDD 계약**과 **self-test** 를 통과해야 한다. generated hook 이 없을 때만 중앙 TS/JS fallback 이 돈다.
+**우선순위**: 프로젝트에 generated TDD hook 이 있으면 project-local hook 이 TDD 판단을 소유한다. Interactive Claude Code 경로에서 `.claude/settings.json` 이 generated hook 을 등록한 상태라면 중앙 plug-in `tdd-guard.sh` 는 중복 판단을 피하고 즉시 allow 한다. Headless worker 와 synthetic 검사 경로는 `DCNESS_HEADLESS_TDD_CHECK=1` 로 중앙 hook 을 호출해 `.claude/hooks/dcness-tdd-guard.sh` 에 위임한다. generated hook 이 없을 때만 중앙 TS/JS fallback 이 돈다.
 
 **TDD 계약 + self-test**: 계약은 생성물과 독립이다. `scripts/dcness-tdd-hooks self-test` 는 fixture 로 `무-test 구현 파일 → deny`, `매칭 test 있음 → allow`, `test 파일 자체 → allow` 를 재현한다. `/init-dcness` 의 `scripts/dcness-tdd-hooks ensure --targets cc,codex` 는 이 계약 self-test 를 먼저 실행하고, 통과한 후보만 hook 으로 등록한다.
 
-**지원 플랫폼**: generated hook 은 프로젝트 감지 결과(android/iOS/web/backend 등)를 기준으로 project-local config(`.dcness/tdd-hooks.json`)를 만든다. 빈 프로젝트 또는 미지원 플랫폼은 생성 skip 이며 안전 no-op 이다. 중앙 fallback 은 기존 호환을 위해 TS/JS 만 (`*.ts`, `*.tsx`, `*.js`, `*.jsx`) 검사한다. 그 외 확장자는 generated hook 이 없으면 silent skip 이다.
+**지원 플랫폼**: 현재 generated hook helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋을 기준으로 project-local config(`.dcness/tdd-hooks.json`)를 만든다. 빈 프로젝트 또는 미지원 플랫폼은 생성 skip 이며 안전 no-op 이다. 새 플랫폼은 이 프리셋을 확장해야 하므로, 프로젝트 에이전트가 플랫폼별 규칙을 더 직접 소유하는 후속 위임 작업 대상이다. 중앙 fallback 은 기존 호환을 위해 TS/JS 만 (`*.ts`, `*.tsx`, `*.js`, `*.jsx`) 검사한다. 그 외 확장자는 generated hook 이 없으면 silent skip 이다.
 
-**생성/등록 순서**: CC hook 이 먼저다. `.claude/hooks/dcness-tdd-guard.sh` 후보가 self-test 를 통과해야 `.claude/settings.json` PreToolUse(`Edit|Write|NotebookEdit|Bash`) 에 등록된다. Codex hook 은 그 다음 같은 패턴으로 `.codex/hooks/dcness-tdd-guard.sh` 와 `.codex/hooks.json` PreToolUse(`Edit|Write|apply_patch`) 에 등록된다. Codex 쪽은 CLI 의 사용자 신뢰 승인(`~/.codex/config.toml` trusted hash 흐름)이 추가로 필요할 수 있다.
+**생성/등록 순서**: CC hook 이 먼저다. `.claude/hooks/dcness-tdd-guard.sh` 후보가 self-test 를 통과해야 `.claude/settings.json` PreToolUse(`Edit|Write|NotebookEdit|Bash`) 에 등록된다. Codex hook 은 그 다음 같은 패턴으로 `.codex/hooks/dcness-tdd-guard.sh` 와 `.codex/hooks.json` PreToolUse(`Edit|Write|apply_patch`) 에 등록된다. 기존 `.claude/settings.json` 또는 `.codex/hooks.json` 이 깨진 JSON 이면 등록을 거부하고 파일을 덮어쓰지 않는다. Codex 쪽은 CLI 의 사용자 신뢰 승인(`~/.codex/config.toml` trusted hash 흐름)이 추가로 필요할 수 있으므로, `registered` 는 project-local 파일 등록 상태이지 사용자 trust 승인 완료를 뜻하지 않는다.
 
-**공존 규칙**: generated hook 이 있으면 중앙 hook 은 위임 후 종료한다. 따라서 TS/JS 프로젝트에서도 중앙 fallback 과 project-local hook 이 같은 파일을 이중 deny 하지 않는다. generated hook 이 실패하거나 self-test 를 통과하지 못한 후보는 등록되지 않으며, 미설정·생성 실패 시 no-op 으로 안전 통과한다.
+**Git 도달성**: 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 Git 에 커밋되어야 새 worktree 와 headless worker 체크아웃에서 같은 계약을 재사용한다. 자동 workflow PR 대상은 아니지만 activation bootstrap commit 대상이다. `scripts/dcness-tdd-hooks status` 는 HEAD 에 깨끗하게 반영되지 않은 생성 파일을 `commit-required` 로 표시하고, `dcness-helper status` 는 같은 상태를 WARN 으로 표시한다.
+
+**공존 규칙**: generated hook 이 interactive CC project hook 으로 등록되어 있으면 중앙 hook 은 중복 실행하지 않는다. Headless/synthetic 경로는 중앙 hook 이 generated hook 에 위임한 뒤 종료한다. 따라서 TS/JS 프로젝트에서도 중앙 fallback 과 project-local hook 이 같은 파일을 이중 deny 하지 않는다. generated hook 이 실패하거나 self-test 를 통과하지 못한 후보는 등록되지 않으며, 미설정·생성 실패 시 no-op 으로 안전 통과한다.
 
 **중앙 fallback 역할**: generated hook 이 없는 프로젝트에서는 TS/JS 구현 파일에 대응하는 test/spec 파일이 *존재하는지* 확인한다. 없으면 구현 파일 작성을 막는다. **test 의 존재만 검사하고, test 를 실행하지는 않는다** — green/red 판정이 아니라 "작성 전 test 가 먼저 있는가" 강제다.
 
@@ -187,7 +189,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **Bash write target 정책**: `Bash` payload 는 [`harness.agent_boundary.extract_bash_paths`](../../harness/agent_boundary.py) 가 추출하는 명시적 write target 에 한해 검사한다. 예: redirect(`>`, `>>`), `tee`, in-place edit(`sed/perl/awk -i`), `cp`/`mv`/`rm` target. 추출된 target 이 TS/JS 구현 파일이면 직접 `Edit`/`Write`/`NotebookEdit` 와 동일한 skip 규칙 및 6-tier matching-test 존재 검사를 탄다. write target 이 없거나 TS/JS 구현 파일이 아니면 silent skip 한다.
 
-**Headless worker 정책**: [`scripts/dcness-codex-worker`](../../scripts/dcness-codex-worker) 와 [`scripts/dcness-claude-worker`](../../scripts/dcness-claude-worker) 는 성공 prose 생성 후 file-boundary 검사를 먼저 수행하고, 그 다음 changed path(`git diff`/staged diff/untracked) 중 삭제가 아닌 파일을 synthetic `Edit` payload 로 `tdd-guard.sh` 에 다시 넣는다. 중앙 `tdd-guard.sh` 가 generated hook 을 위임하므로 headless lane 도 non-TS/JS 플랫폼에서 같은 project-local **TDD 계약**을 재사용한다. `exit 2` 는 step 성공 종료를 차단하고 위반 파일 목록을 출력한다. guard 자체 오류는 `headless-tdd-guard` fail-open event 로 기록하고 작업을 과차단하지 않는다.
+**Headless worker 정책**: [`scripts/dcness-codex-worker`](../../scripts/dcness-codex-worker) 와 [`scripts/dcness-claude-worker`](../../scripts/dcness-claude-worker) 는 성공 prose 생성 후 file-boundary 검사를 먼저 수행하고, 그 다음 changed path(`git diff`/staged diff/untracked) 중 삭제가 아닌 파일을 synthetic `Edit` payload 로 `tdd-guard.sh` 에 다시 넣는다. 중앙 `tdd-guard.sh` 가 generated hook 을 위임하므로 headless lane 도 non-TS/JS 플랫폼에서 같은 project-local **TDD 계약**을 재사용한다. 단, 이 재사용은 generated hook 파일들이 Git 에 커밋되어 해당 worktree 에 존재할 때만 성립한다. `exit 2` 는 step 성공 종료를 차단하고 위반 파일 목록을 출력한다. guard 자체 오류는 `headless-tdd-guard` fail-open event 로 기록하고 작업을 과차단하지 않는다.
 
 **차단**: test 부재 시 `exit 2` + 한국어 안내. Bash write target 차단 메시지는 `TDD GUARD[Bash]` 로 시작해 어떤 target 이 matching-test enforcement 에 실패했는지 함께 표시한다. Headless worker 차단 메시지는 `[dcness-codex-worker] BLOCKED: TDD GUARD ...` 또는 `[dcness-claude-worker] BLOCKED: TDD GUARD ...` 로 시작하고 위반 파일 목록을 포함한다.
 

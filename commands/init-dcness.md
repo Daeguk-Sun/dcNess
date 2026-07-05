@@ -163,6 +163,8 @@ done
 
 순서는 고정: **TDD 계약 + self-test** → **CC hook self-test/등록** → **Codex hook self-test/등록**. 빈 프로젝트/미지원/실패는 no-op 이며 상세는 [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md) 와 [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh) 를 따른다.
 
+`status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 activation bootstrap commit 에 포함하도록 사용자에게 안내한다. 이 파일들은 자동 workflow PR 대상은 아니지만, 커밋되지 않으면 새 worktree/headless worker 가 project-local 계약을 재사용하지 못한다.
+
 ### Core Step 8 - 완료 선언
 
 core 작업 뒤 `status` 를 재실행한다. FAIL 이 0 이면 INFO·NA 행과 선택 WARN 이 남아도 즉시 완료를 먼저 출력한다.
@@ -316,7 +318,7 @@ done
 
 #### workflow 변경 PR
 
-자동 PR 대상은 `/init-dcness` 가 배포한 `.github/workflows/*.yml` 변경만이다. Generated TDD hook 은 사용자 repo 의 `.dcness/`, `.claude/`, `.codex/` 에 project-local 파일을 쓸 수 있지만 activation bootstrap 산출물이라 자동 workflow PR 대상은 아니다. docs/design seed 는 사용자 콘텐츠라 자동 infra PR 에 섞지 않는다.
+자동 PR 대상은 `/init-dcness` 가 배포한 `.github/workflows/*.yml` 변경만이다. Generated TDD hook 은 사용자 repo 의 `.dcness/`, `.claude/`, `.codex/` 에 project-local 파일을 쓸 수 있지만 activation bootstrap 산출물이라 자동 workflow PR 대상은 아니다. 단, 새 worktree/headless worker 도 같은 TDD 계약을 쓰려면 이 생성 파일들은 별도 bootstrap commit 에 포함돼야 한다. docs/design seed 는 사용자 콘텐츠라 자동 infra PR 에 섞지 않는다.
 
 ```bash
 cd "$PROJECT_ROOT"
