@@ -3317,6 +3317,8 @@ class SplitModuleImportTests(unittest.TestCase):
 import harness.session_state_activation
 import harness.session_state_fail_open
 import harness.session_state_status
+import harness.session_state_cli_wave
+import harness.session_state_cli_finalize
 import harness.session_state_cli
 from harness.session_state import _build_arg_parser
 assert _build_arg_parser is not None
