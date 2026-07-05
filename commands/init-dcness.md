@@ -178,9 +178,11 @@ core 작업 뒤 `status` 를 재실행한다. FAIL 이 0 이면 INFO·NA 행과 
 - 프로젝트: <main repo root>
 - whitelist: ~/.claude/plugins/data/dcness-dcness/projects.json
 
-다음 세션부터 자동 적용:
-- SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop hook
-- TDD Guard 는 생성된 project-local hook 이 있으면 그 계약으로, 없으면 중앙 fallback 으로 동작
+자동 적용: SessionStart / PreToolUse / PostToolUse / SubagentStop / Stop hook + TDD Guard.
+5분 온보딩 (5분 독해 상한):
+- 강제/자율 경계: 코드로 막는 것은 작업 순서, 접근 영역, git main 직접 commit/push 다. prose/handoff/도구 선택은 agent 자율이다. 포인터: docs/plugin/hooks.md#catastrophic-gatesh
+- 첫 작업 진입점: 구현·수정·버그픽스는 /impl 로 시작한다. 새 제품 합의는 /spec -> /design -> /impl -> /acceptance 흐름이다. 포인터: docs/plugin/workflow-router.md#구현-경로-표
+- 막힐 때 볼 곳: hook-first recovery 원칙으로 hook 차단 메시지와 "$HELPER" status 를 먼저 본다. 재실행·재배포 판단은 docs/plugin/init-dcness.md#re-run-matrix 를 본다.
 
 기본 workflow:
 - /spec — PRD / Epic / Story / AC 정의

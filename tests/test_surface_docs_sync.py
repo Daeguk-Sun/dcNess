@@ -796,6 +796,36 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertNotIn(stale_heading, self.init_doc)
         self.assertNotIn("(Y/n)", self.init_doc)
 
+    def test_issue_920_init_completion_includes_five_minute_onboarding(self) -> None:
+        """#920 — /init-dcness 완료 직후 최소 온보딩 3요소를 한 화면에 제공한다."""
+        onboarding = self._section(
+            self.init_doc,
+            r"5분 온보딩",
+            r"\n\n기본 workflow:",
+        )
+        for needle in (
+            "5분 독해 상한",
+            "강제/자율 경계",
+            "작업 순서",
+            "접근 영역",
+            "첫 작업 진입점",
+            "/impl",
+            "막힐 때 볼 곳",
+            "hook-first recovery",
+            '"$HELPER" status',
+            "docs/plugin/hooks.md#catastrophic-gatesh",
+            "docs/plugin/workflow-router.md#구현-경로-표",
+            "docs/plugin/init-dcness.md#re-run-matrix",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, onboarding)
+
+        self.assertLessEqual(
+            len([line for line in onboarding.splitlines() if line.strip()]),
+            14,
+        )
+        self.assertNotIn("신규 공개 진입점", onboarding)
+
     def test_hooks_doc_distinguishes_issue_mutation_paths(self) -> None:
         """#681 AC#4 — hooks.md 가 Bash `gh issue` 차단 vs GitHub MCP issue 통과를 구별한다."""
         self.assertIn(
