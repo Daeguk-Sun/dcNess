@@ -1,0 +1,7 @@
+{"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "waste:TOOL_REPEAT_HIGH@youTubeGenerator", "note": "lesson 층 프로젝트-로컬 소유; 단일 프로젝트라 중앙 RULE 미승격. 복수 프로젝트 확산 시 재검토.", "ref": "#931"}
+{"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "waste:MISSING_CONCLUSION_ENUM@youTubeGenerator", "note": "lesson 층 프로젝트-로컬 소유; 단일 프로젝트라 중앙 RULE 미승격. 복수 프로젝트 확산 시 재검토.", "ref": "#931"}
+{"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "waste:MUST_FIX_GHOST@youTubeGenerator", "note": "lesson 층 프로젝트-로컬 소유; 단일 프로젝트라 중앙 RULE 미승격. 복수 프로젝트 확산 시 재검토.", "ref": "#931"}
+{"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "waste:MUST_FIX_LEAK@youTubeGenerator", "note": "lesson 층 프로젝트-로컬 소유; 단일 프로젝트라 중앙 RULE 미승격. 복수 프로젝트 확산 시 재검토.", "ref": "#931"}
+{"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "eval:flow-ownership-owner-good", "note": "negative-guard 회귀 감시 유지; 포화 지속 시 다음 주기 은퇴 재검토.", "ref": "#931"}
+{"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "eval:story-slice-partfirst", "note": "negative-guard 회귀 감시 유지; 포화 지속 시 다음 주기 은퇴 재검토.", "ref": "#931"}
+{"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "eval:story-slice-skeleton", "note": "negative-guard 회귀 감시 유지; 포화 지속 시 다음 주기 은퇴 재검토.", "ref": "#931"}
