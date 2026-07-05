@@ -59,6 +59,37 @@ class ContextDocsTests(unittest.TestCase):
             self.assertIn("appended-cold-start", first.actions)
             self.assertEqual(second.actions, ["noop"])
 
+    def test_seed_skips_python_test_command_without_python_markers(self) -> None:
+        from harness.context_docs import build_claude_seed
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "tests").mkdir()
+            (root / "package.json").write_text(
+                '{"scripts": {"test": "vitest"}}', encoding="utf-8"
+            )
+
+            seed = build_claude_seed(root)
+
+            self.assertNotIn("unittest", seed)
+            self.assertNotIn("python3.11", seed)
+            self.assertIn("npm run test", seed)
+
+    def test_seed_uses_python3_for_python_project_tests(self) -> None:
+        from harness.context_docs import build_claude_seed
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "tests").mkdir()
+            (root / "pyproject.toml").write_text(
+                '[project]\nname = "demo"\n', encoding="utf-8"
+            )
+
+            seed = build_claude_seed(root)
+
+            self.assertIn("- `python3 -m unittest discover -s tests -v`", seed)
+            self.assertNotIn("python3.11", seed)
+
     def test_audit_reports_rubric_gaps_without_mutating_existing_doc(self) -> None:
         from harness.context_docs import audit_claude_md_file
 

@@ -130,10 +130,21 @@ def _detect_package_commands(root: Path) -> list[str]:
     return commands
 
 
+def _has_python_markers(root: Path) -> bool:
+    return any(
+        (root / marker).exists()
+        for marker in ("pyproject.toml", "setup.py", "setup.cfg")
+    )
+
+
 def _detect_python_commands(root: Path) -> list[str]:
+    # Python 마커가 없으면 test 디렉토리만 보고 python 명령을 심지 않는다 — JS 등 비-python
+    # 저장소에도 tests/ 가 흔하고, python3.11 은 일반 기계에 거의 없다. 버전 고정 대신 python3.
+    if not _has_python_markers(root):
+        return []
     commands: list[str] = []
     if (root / "tests").exists():
-        commands.append("- `python3.11 -m unittest discover -s tests -v`")
+        commands.append("- `python3 -m unittest discover -s tests -v`")
     if (root / "scripts" / "check_static_quality.sh").exists():
         commands.append("- `bash scripts/check_static_quality.sh`")
     return commands
