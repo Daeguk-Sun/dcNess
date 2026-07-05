@@ -47,7 +47,7 @@ node scripts/check_issue_body.mjs \
 gh issue create --title "<title>" --body-file <brief.md> --label "<IssueType>"
 ```
 
-`scripts/check_issue_body.mjs` 가 실패하면 `gh issue create` 를 실행하지 않는다. 실제 issue 생성 preflight 는 `--labels` 를 함께 넘겨 label 계약까지 검증하고, 본문 초안만 점검할 때만 `--body-only` 를 명시한다. `/to-issue` 는 권장 도우미이며, `/to-issue` 외 이미 승인된 대화나 agent workflow 가 issue 를 생성하는 경우에도 같은 pre-create validation 을 통과해야 한다.
+`scripts/check_issue_body.mjs` 가 실패하면 `gh issue create` 를 실행하지 않는다. 실제 issue 생성 preflight 는 `--labels` 를 함께 넘겨 label 계약까지 검증하고, 본문 초안만 점검할 때만 `--body-only` 를 명시한다. GitHub issue 생성·등록은 직접 `gh issue create` 대신 `/to-issue` 를 기본 경로로 사용한다 (작업 흐름 중 자발적으로 남기는 후속 이슈 포함). `/to-issue` 외 대화나 agent workflow 가 issue 를 생성하는 경우에도 같은 pre-create validation 을 통과하고 IssueType 라벨을 붙여야 한다.
 
 ## Issue/label Status lifecycle
 

@@ -19,7 +19,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 | support 진입점 | 역할 |
 |---|---|
-| `/to-issue` | 문제/작업 후보를 메인이 질문해 dcNess 표준 Issue Brief 초안으로 만들고, 사용자 승인 후 GitHub issue 와 Project item 으로 등록 |
+| `/to-issue` | 문제/작업 후보를 메인이 맥락에서 추론해 dcNess 표준 Issue Brief 로 구성하고, 초안 승인 대기 없이 GitHub issue 와 Project item 으로 바로 등록 (사용자는 web 에서 확인·수정) |
 
 ## Advanced Entrypoints
 
