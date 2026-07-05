@@ -37,7 +37,7 @@ class DocPathIntegrityTests(unittest.TestCase):
 
         self.assertIn("name: doc-path-integrity", workflow)
         self.assertIn("actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5", workflow)
-        self.assertIn("alruminum/dcNess/.github/actions/doc-path-integrity@main", workflow)
+        self.assertIn("Daeguk-Sun/dcNess/.github/actions/doc-path-integrity@main", workflow)
         self.assertNotIn("paths:", workflow)
         self.assertIn("scripts/check_doc_path_integrity.mjs", action)
 

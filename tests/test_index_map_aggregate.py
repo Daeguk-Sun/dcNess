@@ -41,7 +41,7 @@ class IndexMapAggregateTests(unittest.TestCase):
 
         self.assertIn("name: doc-sync", workflow)
         self.assertIn("actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5", workflow)
-        self.assertIn("alruminum/dcNess/.github/actions/doc-sync@main", workflow)
+        self.assertIn("Daeguk-Sun/dcNess/.github/actions/doc-sync@main", workflow)
         self.assertNotIn("paths:", workflow)
         self.assertIn("scripts/aggregate_index_map.mjs", action)
         self.assertIn("scripts/aggregate_architecture_map.mjs", action)

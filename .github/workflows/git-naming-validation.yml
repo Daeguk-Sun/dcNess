@@ -4,7 +4,7 @@
 # 규칙 정의: docs/plugin/git-spec.md (SSOT)
 # 본 dcness self repo 는 자기 composite action (.github/actions/git-naming) 을 dogfooding.
 # 외부 활성화 프로젝트는 init-dcness 가 묻고 Y 답변 시 thin yml 을 사용자 repo 에 배포 — 그 yml 은
-# `uses: alruminum/dcNess/.github/actions/git-naming@main` 1줄로 동일 검증.
+# `uses: Daeguk-Sun/dcNess/.github/actions/git-naming@main` 1줄로 동일 검증.
 
 name: git-naming-validation
 
