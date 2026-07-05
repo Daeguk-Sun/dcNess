@@ -145,6 +145,20 @@ class AgentOperabilityContractTests(unittest.TestCase):
                 with self.subTest(text=text_name, needle=needle):
                     self.assertIn(needle, text)
 
+    def test_pr_reviewers_do_not_accept_entrypoint_file_as_owner(self) -> None:
+        for text_name, text in (
+            ("claude", self.pr_reviewer),
+            ("axes", self.pr_review_axes),
+            ("codex", self.codex_pr_reviewer),
+        ):
+            for needle in (
+                "entrypoint 파일 자체는 owner module 로 인정하지 않는다",
+                "함수명 prefix",
+                "manual-only validation",
+            ):
+                with self.subTest(text=text_name, needle=needle):
+                    self.assertIn(needle, text)
+
     def test_shared_principles_scope_must_fix_promotion_to_pr_reviewer(self) -> None:
         self.assertIn("MUST FIX 로 승격", self.shared_principles)
         self.assertIn(
@@ -152,6 +166,13 @@ class AgentOperabilityContractTests(unittest.TestCase):
             self.shared_principles,
         )
         self.assertIn("크기가 아니라 작업성 악화 조합", self.shared_principles)
+        for needle in (
+            "entrypoint 파일 자체는 owner module 로 인정하지 않는다",
+            "함수명 prefix",
+            "manual-only validation",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.shared_principles)
 
     def test_architecture_validators_check_agent_operability_evidence(self) -> None:
         for text_name, text in (

@@ -42,5 +42,7 @@
 - owner module 없이 새 mode/screen/panel/flow 를 기존 entrypoint 에 흡수하는가
 - validation path 가 owner flow/module 근처에 남지 않고 수동 탐색에 의존하는가
 - 수정 허용 범위가 overly broad entrypoint touch 로 열려 있어 무관한 흐름까지 편집하게 만드는가
+- entrypoint 파일 자체는 owner module 로 인정하지 않는다. 함수명 prefix 또는 같은 파일 위치는 searchability 보조 신호일 뿐 owner 분리 증거가 아니다
+- manual-only validation 은 owner 근처 validation path 가 아니다
 - 기준은 [`module-design-principles.md` Agent Operability](../../_shared/module-design-principles.md#agent-operability) 절이다. 파일 크기나 UI 변경 자체가 아니라 edit target, state owner, validation path 악화를 본다
 - severity: owner module 없이 새 flow 를 entrypoint 에 append 하면서 render/helper/session/global state 를 흡수하고 owner 근처 validation path 를 남기지 않는 조합은 NICE TO HAVE 가 아니라 MUST FIX 로 승격한다. owner module + dispatch-only entrypoint + owner 근처 validation path 구조나 파일 크기·footprint 밖 기존 누적은 승격 대상이 아니다
