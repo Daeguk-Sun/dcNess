@@ -2,7 +2,6 @@
 
 > Claude Code와 Codex를 실제 제품 개발 루프에 묶는 agent workflow harness.
 
-> **Origin**: [`alruminum/realworld-harness`](https://github.com/alruminum/realworld-harness) fork-and-refactor
 > **Spec(SSOT)**: [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)
 
 dcNess는 Claude Code와 Codex를 제품 개발 루프로 묶는 agent workflow harness입니다.
