@@ -134,6 +134,23 @@ scope: module:<module-id>/epic-NN
 
 기존 `global` 과 `epic-NN` 값은 그대로 유효하다. 결정이 여러 모듈을 동시에 바꾸면 module scope 를 여러 개 나열하지 말고 `epic-NN` 또는 `global` 로 올린 뒤 본문 링크에서 영향 모듈을 적는다. `module:<module-id>/epic-NN` 은 특정 epic 안에서 특정 모듈에만 닫히는 결정에 사용한다.
 
+## 모듈 CLAUDE.md (권고)
+
+Claude Code 는 프로젝트 루트뿐 아니라 하위 폴더의 `CLAUDE.md` 도 인식한다. 루트 계층(user `~/.claude/CLAUDE.md` → 상위 디렉토리 → 작업 디렉토리)은 세션 시작 시 로드되고, 하위 폴더 `CLAUDE.md` 는 그 아래 파일을 다룰 때 로드된다. 여러 파일은 상위 → 하위 순으로 이어붙어 더 가까운 파일의 규칙이 나중에 놓여 우선한다. 아래는 활성 프로젝트가 이 계층을 언제·무엇으로 나눌지에 대한 권고다. `CLAUDE.md` 는 사용자 소유물이라 dcNess 는 게이트·hook·CI 로 강제하지 않고 기준만 제시한다.
+
+**분할 시점** — 모듈이 독자 스택·빌드/테스트 명령·컨벤션을 갖게 되어 루트 규칙만으로는 그 폴더의 작업 지침이 부정확해질 때 하위 `CLAUDE.md` 를 만든다. 이는 위 [모듈 산출물](#모듈-산출물)에서 `docs/modules/<module-id>/` 를 만드는 신호(독자 스택·빌드 명령·규약·runtime boundary)와 같다. 단순 디렉토리, 작은 library, 전역 규약으로 충분한 내부 package 는 하위 `CLAUDE.md` 를 만들지 않는다.
+
+**분할 내용** — 모듈 특수 규칙만 하위로 내린다: 그 폴더에서만 다른 빌드/테스트/실행 명령, local convention, 모듈 한정 주의사항. 전역 규칙(공통 formatter, branch/commit 규약, repo 전역 style, dcNess workflow)은 루트 `CLAUDE.md` 에 유지하고 하위에 복제하지 않는다. 가까운 파일이 우선하므로 전역 규칙을 하위에 다시 쓰면 두 사본이 drift 되는 원천이 된다. [모듈 산출물](#모듈-산출물)의 "전역은 루트, 모듈은 delta 만" 원칙을 `CLAUDE.md` 계층에도 그대로 적용한다.
+
+**크기 압력** — 루트 `CLAUDE.md` 가 특정 모듈 세부로 비대해지면, 그 세부를 해당 폴더 `CLAUDE.md` 로 내려 루트를 전역 규칙만으로 얇게 유지하는 것을 우선 검토한다. 하위 `CLAUDE.md` 는 그 폴더 작업 시에만 로드되므로, 세부를 내릴수록 무관한 모듈에서 작업하는 cold session 이 읽는 입력이 줄어든다. 이는 위 [문서 총량 예산](#문서-총량-예산)의 module scoped pack 상한과 같은 철학이다. `CLAUDE.md` 는 자동 상속이라 예산 표에는 넣지 않지만 "전역은 한 곳, 모듈 delta 만 하위" 라는 같은 입력 경계를 따른다.
+
+`docs/modules/<module-id>/` 와 하위 폴더 `CLAUDE.md` 는 같은 모듈 경계에서 갈라지지만 다른 산출물이다. 전자는 dcNess workflow agent 가 읽는 git-tracked 설계 입력이고, 후자는 그 폴더에서 동작하는 모든 Claude Code 세션에 자동 적용되는 사용자 소유 지침이다. 서로를 대체하지 않는다.
+
+시나리오:
+
+- **모노레포 — 독자 스택 모듈 추가**: TypeScript 웹 서비스 repo 에 React Native 모바일 앱을 `apps/mobile/` 로 추가하면, 모바일 빌드/테스트/실행 명령과 플랫폼 특수 convention 을 `apps/mobile/CLAUDE.md` 에 둔다. 루트 `CLAUDE.md` 에는 공통 규칙(커밋·branch·리뷰 규약, 공용 lint)만 남기고 모바일 세부를 루트로 끌어올리지 않는다. 같은 경계에서 `docs/modules/mobile/` 설계 문서도 만든다.
+- **단일 서비스 내 모듈화**: 단일 스택 repo 라도 특정 하위 패키지가 독자 도메인 규칙·엄격한 테스트 게이트를 가지면(예: `packages/payment/` 가 결제 도메인 불변식과 추가 검증 명령을 요구), 그 규칙만 `packages/payment/CLAUDE.md` 에 둔다. 공통 스택·도구 규칙은 여전히 루트 하나에만 둔다.
+
 ## 교차 모듈 epic
 
 epic 은 제품 단위라 여러 모듈을 가로지를 수 있다. 교차 모듈 epic 도 `docs/epics/epic-NN-<slug>/` 하나만 가진다. backend 와 mobile app 을 동시에 바꾸는 기능이라도 모듈별 `stories.md` 사본을 만들지 않는다.
