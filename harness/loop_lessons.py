@@ -260,6 +260,7 @@ def list_active_lessons(
     cwd: Path = Path("."),
     *,
     active_patterns: Optional[set[str]] = None,
+    archive: bool = True,
 ) -> list[dict[str, object]]:
     root = _normalize_cwd(cwd)
     base = root / LESSONS_DIR
@@ -268,7 +269,8 @@ def list_active_lessons(
     active = active_patterns if active_patterns is not None else _active_patterns_default()
     rows: list[dict[str, object]] = []
     for path in sorted(base.glob("*.md")):
-        archive_removed_patterns(path, active_patterns=active)
+        if archive:
+            archive_removed_patterns(path, active_patterns=active)
         agent, mode = _infer_agent_mode(path)
         for entry in _read_entries(path).values():
             if entry.status != "active" or entry.pattern not in active:
