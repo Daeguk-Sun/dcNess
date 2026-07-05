@@ -539,6 +539,38 @@ class LoopSweepTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(_snapshot_tree(alpha), before_alpha)
 
+    def test_sweep_digest_failure_leaves_error_and_does_not_advance_watermark(self) -> None:
+        # If the digest cannot be persisted, the watermark must NOT advance — otherwise the
+        # candidates would be recorded as seen and resurface as 기왕 (signal lost) — and the
+        # failure must still leave a status:error trace.
+        module = _load_loop_diagnose()
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            alpha = tmp / "alpha"
+            alpha.mkdir()
+            _write_guard_hit(alpha)
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": [str(alpha)]}),
+                encoding="utf-8",
+            )
+            digest_dir = repo_root / ".metrics" / "loop-diagnose"
+            # digest-latest.md as a directory makes _write_digest's os.replace fail
+            (digest_dir / "digest-latest.md").mkdir(parents=True)
+            args = module._build_sweep_parser().parse_args(
+                ["--repo-root", str(repo_root), "--projects-file", str(projects_file),
+                 "--recurrence-threshold", "1"]
+            )
+
+            rc = module._run_sweep(args)
+
+            self.assertEqual(rc, 1)
+            last = json.loads((digest_dir / "sweep-log.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+            self.assertEqual(last["status"], "error")
+            self.assertFalse((digest_dir / "sweeps.jsonl").exists())
+
     def test_sweep_failure_leaves_trace_and_nonzero_exit(self) -> None:
         module = _load_loop_diagnose()
         with tempfile.TemporaryDirectory() as td:

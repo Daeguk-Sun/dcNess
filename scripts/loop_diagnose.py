@@ -523,7 +523,7 @@ def _append_sweep_log(digest_dir: Path, entry: dict[str, Any]) -> None:
     _append_jsonl(digest_dir / SWEEP_LOG_FILENAME, entry)
 
 
-def build_payload(args: argparse.Namespace) -> dict[str, Any]:
+def build_payload(args: argparse.Namespace, *, write_watermark: bool = True) -> dict[str, Any]:
     repo_root = Path(args.repo_root).expanduser().resolve()
     projects_file = Path(args.projects_file).expanduser().resolve()
     swept_at = _now_iso()
@@ -538,15 +538,16 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
     candidates.extend(_cross_project_lesson_candidates(repo_root, projects))
     candidates.extend(evals["candidates"])
     _attach_status(candidates, previous=previous, decisions=decisions)
-    _append_sweep(
-        repo_root,
-        swept_at=swept_at,
-        projects=projects,
-        evals=evals,
-        candidates=candidates,
-    )
+    if write_watermark:
+        _append_sweep(
+            repo_root,
+            swept_at=swept_at,
+            projects=projects,
+            evals=evals,
+            candidates=candidates,
+        )
 
-    return {
+    payload = {
         "swept_at": swept_at,
         "projects_file": str(projects_file),
         "state_file": str(repo_root / SWEEP_PATH),
@@ -555,6 +556,19 @@ def build_payload(args: argparse.Namespace) -> dict[str, Any]:
         "evals": evals,
         "candidates": _visible_candidates(candidates, bool(args.hide_decided)),
     }
+    if not write_watermark:
+        # The caller advances the watermark itself, after the digest is durable, so a
+        # persistence failure never marks these candidates as seen (freshness would drop
+        # to 기왕 and the signal would be lost). Full candidate list — not the visibility
+        # filtered view — so the watermark records every key observed this sweep.
+        payload["_pending_watermark"] = {
+            "repo_root": repo_root,
+            "swept_at": swept_at,
+            "projects": projects,
+            "evals": evals,
+            "candidates": candidates,
+        }
+    return payload
 
 
 def _md_cell(value: Any) -> str:
@@ -746,11 +760,31 @@ def _run_report(argv: list[str]) -> int:
 
 
 def _run_sweep(args: argparse.Namespace) -> int:
-    """Unattended sweep: persist a digest and always leave a trace, never vanish."""
+    """Unattended sweep: persist a digest, then advance the watermark, always leaving a
+    trace. The watermark is written only after the digest is durable so a persistence
+    failure neither hides fresh signal nor vanishes without a status:error entry."""
     digest_dir = _digest_dir(args)
     swept_at = _now_iso()
     try:
-        payload = build_payload(args)
+        payload = build_payload(args, write_watermark=False)
+        pending = payload.pop("_pending_watermark")
+        target = _write_digest(digest_dir, DIGEST_NOTE + render_markdown(payload))
+        _append_sweep(
+            pending["repo_root"],
+            swept_at=pending["swept_at"],
+            projects=pending["projects"],
+            evals=pending["evals"],
+            candidates=pending["candidates"],
+        )
+        _append_sweep_log(
+            digest_dir,
+            {
+                "swept_at": payload["swept_at"],
+                "status": "ok",
+                "candidate_count": len(payload["candidates"]),
+                "digest_path": str(target),
+            },
+        )
     except Exception as exc:  # noqa: BLE001 - a failed scheduled sweep must leave a trace
         print(f"loop sweep failed: {exc!r}", file=sys.stderr)
         try:
@@ -758,16 +792,6 @@ def _run_sweep(args: argparse.Namespace) -> int:
         except OSError as log_exc:
             print(f"loop sweep: could not write failure log: {log_exc!r}", file=sys.stderr)
         return 1
-    target = _write_digest(digest_dir, DIGEST_NOTE + render_markdown(payload))
-    _append_sweep_log(
-        digest_dir,
-        {
-            "swept_at": payload["swept_at"],
-            "status": "ok",
-            "candidate_count": len(payload["candidates"]),
-            "digest_path": str(target),
-        },
-    )
     print(f"loop sweep ok: digest -> {target}")
     return 0
 
