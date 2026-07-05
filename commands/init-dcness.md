@@ -33,7 +33,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - `docs/*`, `docs/design-variants/*`: 부재 시만 seed. 단 기존 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 섹션은 없을 때만 append.
 - Codex validator skills: `$CODEX_HOME/skills/dcness-*` always-overwrite.
 - Codex provider routing: core 에서는 상태만 확인하고, 선택형 확장에서 validation opt-in 과 implementation 기본값을 갱신.
-- TDD Guard: dcNess 가 **TDD 계약 + self-test** 를 소유한다. 프로젝트가 비어 있지 않으면 플랫폼 감지 후 project-local CC/Codex hook 생성을 제안하고, 생성 후보는 self-test 통과 전에는 등록하지 않는다. 생성 훅이 없으면 중앙 plug-in hook 이 안전 fallback 으로 동작한다.
+- TDD Guard: dcNess 가 **TDD 계약 + self-test** 를 소유한다. 프로젝트가 비어 있지 않으면 플랫폼 감지 또는 사람 승인된 `.dcness/tdd-hooks.json` 계약(`source_roots`, `impl_exts`, custom 플랫폼의 `test_candidate_templates`, 선택 `test_file_globs`)을 기준으로 project-local CC/Codex hook 생성을 제안하고, 생성 후보는 self-test 통과 전에는 등록하지 않는다. 생성 훅이 없으면 중앙 plug-in hook 이 안전 fallback 으로 동작한다.
 
 ## 공통 변수
 이후 절차에서 반복 사용한다.
@@ -159,9 +159,9 @@ done
 
 ### Core Step 7.5 - generated TDD hook 역제안
 
-`"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"` 로 상태를 본다. 지원 플랫폼에서 hook 이 없으면 사용자 승인 뒤 `ensure --targets cc,codex` 를 실행한다.
+`"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"` 로 상태를 본다. 지원 플랫폼이거나 사람 승인된 `.dcness/tdd-hooks.json` 계약(`test_candidate_templates` 포함)이 있는데 hook 이 없으면 사용자 승인 뒤 `ensure --targets cc,codex` 를 실행한다. 미지원 플랫폼이고 project-local 계약도 없으면 no-op 으로 skip 한다.
 
-순서는 고정: **TDD 계약 + self-test** → **CC hook self-test/등록** → **Codex hook self-test/등록**. 빈 프로젝트/미지원/실패는 no-op 이며 상세는 [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md) 와 [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh) 를 따른다.
+순서는 고정: **TDD 계약 + self-test** → **CC hook self-test/등록** → **Codex hook self-test/등록**. 빈 프로젝트/미지원/설정 생성 실패는 no-op 이며, 기존 config 가 깨졌거나 필수 필드가 없으면 덮어쓰지 않는다. 상세는 [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md) 와 [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh) 를 따른다.
 
 `status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 activation bootstrap commit 에 포함하도록 사용자에게 안내한다. 이 파일들은 자동 workflow PR 대상은 아니지만, 커밋되지 않으면 새 worktree/headless worker 가 project-local 계약을 재사용하지 못한다.
 

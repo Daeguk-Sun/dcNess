@@ -89,13 +89,13 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 
 ## Step 0.3 — generated TDD hook 부재 확인
 
-구현 진입 전에 project-local TDD hook 상태를 한 번 확인한다. dcNess 는 **TDD 계약**과 생성 직후 **self-test** 를 소유하고, hook 본문은 현재 helper 의 플랫폼 프리셋(`python`, `web`, `go`, `android`, `ios`)에 맞게 생성된다.
+구현 진입 전에 project-local TDD hook 상태를 한 번 확인한다. dcNess 는 **TDD 계약**과 생성 직후 **self-test** 를 소유하고, hook 본문은 현재 helper 의 플랫폼 프리셋(`python`, `web`, `go`, `android`, `ios`) 또는 사람 승인된 `.dcness/tdd-hooks.json` 계약(`source_roots`, `impl_exts`, custom 플랫폼의 `test_candidate_templates`, 선택 `test_file_globs`)에 맞게 생성된다.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"
 ```
 
-플랫폼이 감지됐는데 generated hook 이 없으면 사용자에게 생성 제안을 보여준다. 승인 시 `/init-dcness` 와 같은 순서로 진행한다: TDD 계약 self-test fixture 확인 → CC hook 후보 생성/self-test/등록 → Codex hook 후보 생성/self-test/등록.
+플랫폼이 감지됐거나 project-local 계약이 있는데 generated hook 이 없으면 사용자에게 생성 제안을 보여준다. 미지원 플랫폼에서 새 규칙이 필요하면 구현 에이전트가 `.dcness/tdd-hooks.json` 초안을 만들 수 있지만, 사람 승인 뒤에만 `ensure` 를 실행한다. 승인 시 `/init-dcness` 와 같은 순서로 진행한다: TDD 계약 self-test fixture 확인 → CC hook 후보 생성/self-test/등록 → Codex hook 후보 생성/self-test/등록.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-tdd-hooks" ensure --project-root "$PROJECT_ROOT" --targets cc,codex --plugin-root "$PLUGIN_ROOT"

@@ -22,7 +22,7 @@ core activation 완료 기준이다. 아래 항목이 끝나고 `dcness-helper s
 | runtime state ignore | `.gitignore` 의 `.claude/harness-state/` | `/init-dcness` append | 항상 | 없을 때만 추가 | X |
 | project context seed/migration | `CLAUDE.md` | `scripts/dcness-context-docs` / `harness/context_docs.py` | 항상 | 부재 시 생성. 기존 파일은 cold-start 앵커만 없을 때 append | X |
 | file boundary override suggestion | `.dcness/boundary.json` 후보만 | `dcness-helper boundary-suggestions` / `harness/boundary_suggestions.py` | 항상 | read-only. 사람 승인 전 작성 없음 | X |
-| generated TDD hook 제안/생성 | `.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh` | `scripts/dcness-tdd-hooks` | 플랫폼 감지 + 사용자 승인 시 | self-test 통과 후보만 등록. CC 검증 후 Codex 생성 | X |
+| generated TDD hook 제안/생성 | `.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh` | `scripts/dcness-tdd-hooks` | 플랫폼 감지 또는 사람 승인된 project-local 계약 + 사용자 승인 시 | self-test 통과 후보만 등록. CC 검증 후 Codex 생성 | X |
 | Codex validator skills | `$CODEX_HOME/skills/dcness-*` | `codex/skills/dcness-*` | 항상 | always-overwrite | X |
 | Codex provider routing 상태 확인 | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing status` | 항상 확인 | read-only | X |
 | CC hooks | Claude Code plugin hook registry | `hooks/hooks.json` | 활성 프로젝트 새 세션 | 사용자 repo 쓰기 없음 | X |
@@ -54,7 +54,7 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 
 파일 경계 override 제안은 `dcness-helper boundary-suggestions` 로 처리한다. 코어 `ALLOW_MATRIX` 가 커버하지 않는 비표준 소스 디렉터리가 있을 때만 `.dcness/boundary.json` 의 `engineer.add` 후보를 출력하며, 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다. 이 helper 는 read-only 이므로 실제 boundary 파일 작성은 사람 승인 뒤 메인이 수행한다.
 
-Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소유 영역은 **TDD 계약**과 **self-test** 이며, self-test fixture 는 `무-test 구현 파일 → deny`, `매칭 test 있음 → allow`, `test 파일 자체 → allow` 를 검증한다. 현재 helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 project-local config 를 만들며, 새 플랫폼은 후속 위임 작업 전까지 프리셋 확장이 필요하다. `/init-dcness` 에서 생성할 때는 CC hook 후보를 먼저 self-test 하고 통과해야 `.claude/settings.json` 에 등록한다. 그 다음 Codex hook 후보를 같은 계약으로 self-test 하고 `.codex/hooks.json` 에 등록한다. 빈 프로젝트·미지원 플랫폼·생성 실패는 no-op 으로 안전 통과한다.
+Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소유 영역은 **TDD 계약**과 **self-test** 이며, self-test fixture 는 `무-test 구현 파일 → deny`, `매칭 test 있음 → allow`, `test 파일 자체 → allow` 를 검증한다. helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있고, 프리셋 미지원 플랫폼은 사람 승인된 `.dcness/tdd-hooks.json` 계약을 우선 사용한다. 모든 계약은 `source_roots`, `impl_exts` 가 필요하고, custom 플랫폼은 `test_candidate_templates` 도 필요하다. 선택 `test_file_globs` 로 test 파일 자체 allow 규칙을 보강한다. `/init-dcness` 에서 생성할 때는 CC hook 후보를 먼저 self-test 하고 통과해야 `.claude/settings.json` 에 등록한다. 그 다음 Codex hook 후보를 같은 계약으로 self-test 하고 `.codex/hooks.json` 에 등록한다. 빈 프로젝트·project-local 계약 없는 미지원 플랫폼·생성 실패는 no-op 으로 안전 통과한다.
 
 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 자동 workflow PR 에 섞지 않지만 Git 커밋 대상이다. 커밋되지 않으면 새 worktree 나 headless worker 체크아웃에서 project-local hook 을 볼 수 없어 중앙 fallback 으로 내려간다. `scripts/dcness-tdd-hooks status` 와 `ensure` 는 이 파일들이 HEAD 에 깨끗하게 반영되기 전까지 `commit-required` 를 출력한다.
 
