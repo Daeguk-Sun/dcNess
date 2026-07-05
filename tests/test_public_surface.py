@@ -59,6 +59,18 @@ class PublicSurfaceGateTests(unittest.TestCase):
         self.assertIn("Support Entrypoints", positioning)
         self.assertIn("기본/support/고급/유틸리티/내부 agent", positioning)
 
+    def test_migrate_dcness_is_registered_utility_command(self) -> None:
+        """#828 — /migrate-dcness 는 utility command 인벤토리와 positioning Utility 표에 등록된다."""
+        script = SCRIPT.read_text(encoding="utf-8")
+        positioning = (ROOT / "docs" / "plugin" / "positioning.md").read_text(
+            encoding="utf-8"
+        )
+
+        utility_commands = self._array(script, "utilityCommands")
+        self.assertIn("migrate-dcness", utility_commands)
+        self.assertTrue((ROOT / "commands" / "migrate-dcness.md").exists())
+        self.assertIn("`/migrate-dcness`", positioning)
+
     def _array(self, text: str, key: str) -> list[str]:
         match = re.search(rf"{key}:\s*\[([^\]]*)\]", text)
         self.assertIsNotNone(match)

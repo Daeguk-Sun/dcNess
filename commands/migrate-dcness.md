@@ -1,0 +1,79 @@
+---
+name: migrate-dcness
+description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝트를, 코드 역설계로 전역 docs(prd/architecture/conventions/decisions/index)의 *내용*을 채워 마치 처음부터 dcNess 를 써온 것처럼 agent 가 일할 문서 토대를 까는 일회성 유틸리티 진입점. 사용자가 "migrate-dcness", "dcness 마이그레이션", "기존 프로젝트 docs 역설계로 채워", "전역 docs 부트스트랩", "/migrate-dcness" 등을 말할 때 사용. /init-dcness(활성화)의 짝이며, epic/story 산출물(docs/epics/...)은 만들지 않는다.
+---
+
+# Migrate dcNess Skill — 기존 프로젝트 전역 docs 부트스트랩
+
+> `/init-dcness` 가 인프라 활성화 + 빈 골격 seed 까지 한다면, `/migrate-dcness` 는 기존 코드를 역설계해 전역 docs 의 *내용*을 채운다. 일회성. 깊이 = 전역 docs 까지 (epic/story 역분해는 이후 `/spec`·`/design`).
+
+## 언제 사용
+
+- 사용자 발화: "migrate-dcness", "dcness 마이그레이션", "기존 프로젝트 docs 역설계", "/migrate-dcness"
+- 기존 코드베이스가 있는 프로젝트에 dcNess 를 도입하는데, `/init-dcness` seed 골격만으로는 내용이 비어 agent 가 읽고 일할 토대가 없을 때
+
+## 선행 조건
+
+- `/init-dcness` 활성화가 먼저다. 미활성이면 [`/init-dcness`](init-dcness.md) 를 먼저 실행한다.
+- 대상은 기존 코드가 있는 brownfield 프로젝트다. 빈 프로젝트는 `/init-dcness` seed 로 충분하므로 본 스킬은 no-op 이다.
+- **일회성**: 전역 docs 토대가 이미 채워진 프로젝트에는 다시 돌리지 않는다.
+
+## 범위 (깊이 경계)
+
+- 채우는 전역 docs: `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/`, `docs/index.md`.
+- 위치·양식 SSOT = [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md). 시드 양식 = 산출 양식 원칙을 따른다.
+- **만들지 않는 것**: epic/story 산출물(`docs/epics/**`), module-architect 호출, 새 agent/새 템플릿. epic/story 역분해는 이후 `/spec`·`/design` 이 점진적으로 담당한다.
+
+## 절차
+
+### 0. 사전 확인 (추측 금지)
+
+- 활성 상태와 기존 docs 인벤토리를 read-only 로 확인한다. `docs/` 에 이미 무엇이 있고 무엇이 비었는지 파악한다.
+- 코드 진본을 실측한다: 소스 레이아웃, manifest(`package.json` / `pyproject.toml` / `go.mod` / `Cargo.toml` 등), `README`, 빌드·CI 설정, 공개 entrypoint.
+
+### 1. system-architect BROWNFIELD — 코드 파생 전역 docs
+
+- Agent 로 `system-architect` 를 **BROWNFIELD 모드**로 호출한다. 지침은 [`system-architect` BROWNFIELD 모드](../agents/system-architect/system-architect-agent.md#brownfield-모드-역설계-부트스트랩)가 SSOT 다.
+- 산출: 코드·manifest 에서 역추론한 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` 수동 섹션(모듈 topology·의존 방향·공개 entrypoint), 관측된 기술 결정을 `docs/decisions/NNNN-slug.md` 초안으로.
+- PRD·stories 가 없어도 ESCALATE 없이 채운다 (그 공백을 메우는 것이 목적). 코드 근거가 약한 결정은 `DRAFT` 로 표기된다.
+
+### 2. PRD 역추론 초안 (메인) — 필수 사용자 확인 게이트
+
+- 메인 Claude 가 `README`·모듈 구조에서 제품 맥락을 역추론해 `docs/prd.md` 초안을 쓴다. 양식 = [`skills/spec/templates/prd.md`](../skills/spec/templates/prd.md).
+- 코드에 근거가 없는 "왜 / 누구 / 비즈니스 모델" 같은 필드는 자동 확정하지 않고 추정으로 남기며 본문에 `DRAFT` 로 표기한다.
+- 🔴 **사용자 확인 전 진행 차단.** 사용자가 DRAFT 필드를 확인/교정하기 전에는 PR 단계로 넘어가지 않는다.
+
+### 3. 기존 문서 충돌 정렬 — diff + 승인
+
+- 대상 repo 에 이미 산재 문서·비표준 ADR·기존 `docs/*` 가 있으면 **무단 덮어쓰기/이동 금지**.
+- 규격 위치/양식으로 정렬하는 변경은 diff 로 먼저 제시하고, 사용자 승인 후에만 적용한다. 부재 파일만 새로 쓴다.
+
+### 4. index 정리 + 집계 파생 섹션
+
+- 대상 프로젝트 루트에서 index 진행 상태 섹션과 집계 파생 섹션을 정리한다. 파생 섹션은 손으로 복제하지 않는다.
+
+```bash
+PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
+node "$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs" "$(git rev-parse --show-toplevel)"
+node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"
+node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"
+```
+
+epic 이 아직 없으므로 index epic 표와 전역 architecture 집계 섹션이 비어 있어도 정상이다.
+
+### 5. 단일 docs 부트스트랩 PR
+
+- 대상 프로젝트에서 브랜치 → PR 하나로 마감한다. 브랜치·커밋·PR 네이밍은 [`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md) 를 따른다.
+- PR 본문에 무엇을 코드 역설계로 채웠는지, 어떤 필드가 `DRAFT` 로 사용자 확인을 거쳤는지, 어떤 기존 문서를 승인 후 정렬했는지 남긴다.
+
+## 배포 경로 검증
+
+- command(`commands/migrate-dcness.md`) + agent(`system-architect` BROWNFIELD 모드) 변경은 plug-in 본체(분류 1)라, 사용자가 `claude plugin update` 로 plug-in 을 갱신하면 기존 활성 프로젝트에도 자동 도달한다. 별도 배포 복사 스텝은 없다.
+
+## 참조
+
+- [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md) — 전역 docs 위치·양식 SSOT
+- [`system-architect` BROWNFIELD 모드](../agents/system-architect/system-architect-agent.md#brownfield-모드-역설계-부트스트랩) — 역설계 산출 지침
+- [`/init-dcness`](init-dcness.md) — 활성화 (본 스킬의 선행 짝)
+- [`docs/plugin/positioning.md`](../docs/plugin/positioning.md) — Utility 공개 노출 범위
+- [`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md) — 브랜치·커밋·PR 네이밍
