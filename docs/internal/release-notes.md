@@ -6,16 +6,45 @@
 
 ## Unreleased
 
-- 프로젝트-로컬 lesson 층 추가 — recurrent WasteFinding 을 `.claude/loop-lessons/<agent>[-<mode>].md` 로 자동 축적하고 다음 `begin-step` 에 `[LESSONS]` 로 주입한다. NoteFinding 은 제외하며, `loop-diagnose` 가 활성 lesson 과 복수 프로젝트 동일 패턴을 Sense 후보로 읽는다. [#917](https://github.com/alruminum/dcNess/issues/917)
-- 자기개선 루프 SSOT 추가 — 측정 신호를 Sense→Diagnose→Decide→Act→Verify로 닫는 내부 절차를 [`docs/internal/self-improvement-loop.md`](self-improvement-loop.md)에 정의하고, 릴리즈 점검·eval 산출물 보존·핵심 행동 eval N/N 기준을 연결했다. [#893](https://github.com/alruminum/dcNess/issues/893)
-- 문서 개수 하드코딩 제거 — README/CLAUDE/loop-procedure/smart-compact의 구성 요소 count prose와 cross-ref count deny-list를 제거해 stale 방지 룰을 소멸시켰다. [#877](https://github.com/alruminum/dcNess/issues/877)
-- 릴리즈 전 가드 재평가 점검 명문화 — 릴리즈 절차가 `guard-telemetry` 집계 또는 수동 CI·hook 이력 확인으로 장기 무발화 guard를 소멸 후보로 판정하고, 결과를 아래 자기개선 점검 기록에 남기도록 했다. 새 CI 강제 게이트는 추가하지 않았다. [#878](https://github.com/alruminum/dcNess/issues/878)
+_(다음 릴리즈 대기 중)_
+
+---
+
+## v0.12.0 (2026-07-05)
+
+**커밋 범위**: `v0.11.0..v0.12.0` (머지 PR 27개)
+**핵심 변경**: 측정 신호를 하네스 개선으로 닫는 **자기개선 루프를 처음부터 끝까지 구축**한 게 중심인 minor 릴리즈. (1) Sense→Diagnose→Decide→Act→Verify SSOT 와 가드 발화 텔레메트리 · Diagnose 도구(`/loop-diagnose`) · 시간 기반 sweep · 프로젝트-로컬 lesson 층까지 루프 인프라를 깔았고, (2) 활성 프로젝트의 **컨텍스트 · 문서 거버넌스**(context audit · CLAUDE.md seed 감사 · docs 모듈 축)를 보강했으며, (3) **생성형 TDD hook** 계약과 파일 경계 override 제안 · init 온보딩 안내 같은 setup UX 를 더했다. 부수 — 이슈 label lifecycle · 보드 best-effort 미러, 행동 eval 판정 안정화 · judge calibration.
+
+### 무엇이 바뀌나
+
+1. **자기개선 루프 구축** ([#895](https://github.com/alruminum/dcNess/pull/895) [#893](https://github.com/alruminum/dcNess/issues/893), [#898](https://github.com/alruminum/dcNess/pull/898) [#875](https://github.com/alruminum/dcNess/issues/875), [#907](https://github.com/alruminum/dcNess/pull/907) [#903](https://github.com/alruminum/dcNess/issues/903), [#911](https://github.com/alruminum/dcNess/pull/911) [#904](https://github.com/alruminum/dcNess/issues/904), [#905](https://github.com/alruminum/dcNess/pull/905), [#925](https://github.com/alruminum/dcNess/pull/925) [#921](https://github.com/alruminum/dcNess/issues/921), [#899](https://github.com/alruminum/dcNess/pull/899) [#876](https://github.com/alruminum/dcNess/issues/876), [#900](https://github.com/alruminum/dcNess/pull/900) [#894](https://github.com/alruminum/dcNess/issues/894), [#922](https://github.com/alruminum/dcNess/pull/922) [#917](https://github.com/alruminum/dcNess/issues/917), [#901](https://github.com/alruminum/dcNess/pull/901) [#878](https://github.com/alruminum/dcNess/issues/878), [#912](https://github.com/alruminum/dcNess/pull/912) [#906](https://github.com/alruminum/dcNess/issues/906), [#913](https://github.com/alruminum/dcNess/pull/913) [#902](https://github.com/alruminum/dcNess/issues/902), [#897](https://github.com/alruminum/dcNess/pull/897) [#877](https://github.com/alruminum/dcNess/issues/877)) — 측정→개선 루프를 처음부터 끝까지 구축. 자기개선 SSOT([`docs/internal/self-improvement-loop.md`](self-improvement-loop.md), Sense→Diagnose→Decide→Act→Verify) 신설, 가드 발화 텔레메트리 수집 + 위생·품질 정비, Diagnose 도구 `/loop-diagnose`(활성 프로젝트 cross-project 신호 통합) + 시간 기반 sweep 스케줄 자동화, 재발 waste 신호 개선 후보 표면화, judge calibration 리포트, 프로젝트-로컬 lesson 층(`.claude/loop-lessons/<agent>[-<mode>].md` 자동 축적 → 다음 `begin-step` 에 `[LESSONS]` 주입), 릴리즈 전 가드 재평가 절차 명문화, 행동 eval 판정 안정화 · 통합 drift · 문서 count deny-list 보정.
+
+2. **활성 프로젝트 컨텍스트·문서 거버넌스** ([#883](https://github.com/alruminum/dcNess/pull/883) [#881](https://github.com/alruminum/dcNess/issues/881), [#886](https://github.com/alruminum/dcNess/pull/886) [#885](https://github.com/alruminum/dcNess/issues/885), [#889](https://github.com/alruminum/dcNess/pull/889) [#884](https://github.com/alruminum/dcNess/issues/884), [#890](https://github.com/alruminum/dcNess/pull/890), [#924](https://github.com/alruminum/dcNess/pull/924) [#882](https://github.com/alruminum/dcNess/issues/882)) — 활성 프로젝트 컨텍스트 감사 트리거 추가, 활성 프로젝트 `CLAUDE.md` seed 감사, docs 산출물 모듈 축 추가 + index seed doc-sync 회귀 수정, 모듈별 `CLAUDE.md` 분할 권고 기준.
+
+3. **생성형 TDD hook** ([#916](https://github.com/alruminum/dcNess/pull/916) [#909](https://github.com/alruminum/dcNess/issues/909), [#919](https://github.com/alruminum/dcNess/pull/919) [#908](https://github.com/alruminum/dcNess/issues/908), [#923](https://github.com/alruminum/dcNess/pull/923)) — 생성형 TDD hook 계약 추가 + 후속 보강 + 플랫폼 규칙 위임.
+
+4. **온보딩·경계 setup UX** ([#926](https://github.com/alruminum/dcNess/pull/926), [#915](https://github.com/alruminum/dcNess/pull/915) [#910](https://github.com/alruminum/dcNess/issues/910)) — `init` 직후 온보딩 안내 추가, 파일 경계 override 제안 트리거.
+
+5. **이슈·보드 lifecycle + 문서 현행화** ([#888](https://github.com/alruminum/dcNess/pull/888) [#887](https://github.com/alruminum/dcNess/issues/887), [#892](https://github.com/alruminum/dcNess/pull/892), [#896](https://github.com/alruminum/dcNess/pull/896), [#914](https://github.com/alruminum/dcNess/pull/914)) — issue label lifecycle next-work, 보드 미러 best-effort 처리, CLAUDE map 의 Stop hook 항목 복원, `CLAUDE.md` 현행화(환경변수 표·테스트 함정·pytest CI 짝).
 
 ### 자기개선 점검 기록
 
 | 날짜 | 입력 | 판정 |
 |---|---|---|
 | 2026-07-04 | `python3.11 -m harness.guard_telemetry report` | 첫 Diagnose 수행. 프로젝트 `guard-telemetry.jsonl` 없음, `.metrics/evals/**/guard-telemetry.jsonl` 0개라 30일 관측 근거가 아직 없다. known guard는 원시 출력상 `재평가 후보`로 표시되지만, 장기 무발화가 아니라 신규 텔레메트리 관측 기간 부족으로 해석한다. 이번 릴리즈의 즉시 소멸 후보 없음. 다음 릴리즈에서 재확인한다. |
+| 2026-07-05 | `python3.11 evals/guard_efficacy.py` (33/33) · `python3.11 scripts/loop_diagnose.py --idle-days 30 --since-days 90 --saturation-days 30 --saturation-min-runs 3` | v0.12.0 릴리즈 점검. guard-efficacy 33/33 PASS. 전 활성 프로젝트 guard 텔레메트리 `관측 이력 없음`(미배포/관측기간 부족)으로 2026-07-04 판정 유지 — 즉시 소멸 guard 후보 없음. 통합 후보는 youTubeGenerator waste 4건(모두 기왕) · dcness-self eval 포화 3건(4/4 100%)이며 릴리즈 blocker 아닌 follow-up 성격. 핵심 행동 eval(`shorts-real-spec`·`headless-prose-quality`)은 릴리즈 체크 모드 N/N 로 별도 확인. |
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — Diagnose 도구 `/loop-diagnose` · 프로젝트-로컬 lesson 주입 · 생성형 TDD hook · 파일 경계 override 제안 · `init` 온보딩 안내 등 `hooks/**` · `skills/**` · `commands/**` 변경.
+- **자기개선 루프는 dcNess self 운영 절차** — SSOT·Diagnose 도구·sweep 스케줄은 dcNess 저장소 유지보수용이며, 외부 활성 프로젝트에는 lesson 층 주입 · TDD hook · 경계 override 제안 · 온보딩 안내가 사용자-facing 으로 도달한다.
+- **기존 활성 프로젝트**는 `init` 이 배포·복사하는 파일(스크립트·hook·워크플로우) 갱신을 받으려면 plugin update 후 `/init-dcness` 재실행이 필요하다.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
 
 ---
 
