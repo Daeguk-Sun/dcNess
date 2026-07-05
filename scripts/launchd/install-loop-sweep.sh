@@ -79,6 +79,18 @@ PYTHON_BIN="$(command -v python3.11 || true)"
 TEMPLATE="${SCRIPT_DIR}/${LABEL}.plist.template"
 [ -f "${TEMPLATE}" ] || { echo "template not found: ${TEMPLATE}" >&2; exit 1; }
 
+# The plist is rendered by textual substitution; a path with XML- or sed-hostile
+# characters (& < > " |) would corrupt it and make launchctl bootstrap fail. These never
+# occur in a normal checkout, so refuse clearly instead of emitting a broken plist.
+case "${REPO_ROOT}${PYTHON_BIN}" in
+  *[\&\<\>\"\|]*)
+    echo "refusing: repo root or python path contains an unsupported character (& < > \" |)" >&2
+    echo "  repo:   ${REPO_ROOT}" >&2
+    echo "  python: ${PYTHON_BIN}" >&2
+    exit 1
+    ;;
+esac
+
 mkdir -p "${AGENTS_DIR}" "${REPO_ROOT}/.metrics/loop-diagnose"
 
 sed -e "s|__PYTHON_BIN__|${PYTHON_BIN}|g" \
