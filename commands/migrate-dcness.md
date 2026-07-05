@@ -26,29 +26,34 @@ description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝�
 
 ## 절차
 
-### 0. 사전 확인 (추측 금지)
+### 0. 사전 준비 — 브랜치 격리 + 문서 분류 (모든 쓰기의 선행 조건)
 
-- 활성 상태와 기존 docs 인벤토리를 read-only 로 확인한다. `docs/` 에 이미 무엇이 있고 무엇이 비었는지 파악한다.
+어떤 쓰기보다 **먼저** 안전 경계를 세운다. 이 두 결과가 이후 모든 쓰기 단계의 입력이다.
+
+- **브랜치 pre-flight (쓰기 전 필수)**: 현재 branch 가 기본 브랜치(`main` 등)면 부트스트랩 브랜치를 먼저 만들고 이후 모든 쓰기를 그 브랜치에서 한다. main 직접 쓰기/커밋 금지. 브랜치 네이밍은 [`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md)(예: `docs/{desc}`).
+- **docs 인벤토리 + 3범주 분류 (read-only)**: 각 전역 docs 대상을 아래 세 범주로 분류한다. 이 분류는 Step 1·2 가 무엇을 직접 쓰고 무엇을 diff 로 넘길지 결정한다.
+  - (a) **부재** — 새로 쓴다.
+  - (b) **빈 dcNess seed** — `/init-dcness` 가 템플릿에서 만든 내용 없는 골격 그대로이고 사용자 콘텐츠가 없다. 역설계 내용으로 **직접 채운다**.
+  - (c) **비어있지 않은 사용자 문서** — 사용자가 이미 쓴 내용, 대상 repo 의 산재 문서, 비표준 ADR. **직접 쓰지 않는다.** 정렬은 Step 3 에서 diff + 승인.
 - 코드 진본을 실측한다: 소스 레이아웃, manifest(`package.json` / `pyproject.toml` / `go.mod` / `Cargo.toml` 등), `README`, 빌드·CI 설정, 공개 entrypoint.
+- 🔴 (c) 로 분류된 파일은 Step 1·2 에서 **절대 직접 쓰지 않는다.**
 
 ### 1. system-architect BROWNFIELD — 코드 파생 전역 docs
 
 - Agent 로 `system-architect` 를 **BROWNFIELD 모드**로 호출한다. 지침은 [`system-architect` BROWNFIELD 모드](../agents/system-architect/system-architect-agent.md#brownfield-모드-역설계-부트스트랩)가 SSOT 다.
-- 산출: 코드·manifest 에서 역추론한 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` 수동 섹션(모듈 topology·의존 방향·공개 entrypoint), 관측된 기술 결정을 `docs/decisions/NNNN-slug.md` 초안으로.
+- 산출 대상은 Step 0 에서 (a)/(b) 로 분류된 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` 수동 섹션(모듈 topology·의존 방향·공개 entrypoint), `docs/decisions/NNNN-slug.md` 초안뿐이다. (c) 로 분류된 기존 문서는 채우지 않고 diff 후보로만 보고한다.
 - PRD·stories 가 없어도 ESCALATE 없이 채운다 (그 공백을 메우는 것이 목적). 코드 근거가 약한 결정은 `DRAFT` 로 표기된다.
 
 ### 2. PRD 역추론 초안 (메인) — 필수 사용자 확인 게이트
 
-- 메인 Claude 가 `README`·모듈 구조에서 제품 맥락을 역추론해 `docs/prd.md` 초안을 쓴다. 양식 = [`skills/spec/templates/prd.md`](../skills/spec/templates/prd.md).
+- `docs/prd.md` 가 Step 0 에서 **(a) 부재 또는 (b) 빈 seed 일 때만** 초안을 쓴다. (c) 비어있지 않은 기존 PRD 면 직접 쓰지 않고 Step 3 의 diff + 승인 대상으로 넘긴다.
+- 메인 Claude 가 `README`·모듈 구조에서 제품 맥락을 역추론해 초안을 쓴다. 양식 = [`skills/spec/templates/prd.md`](../skills/spec/templates/prd.md).
 - 코드에 근거가 없는 "왜 / 누구 / 비즈니스 모델" 같은 필드는 자동 확정하지 않고 추정으로 남기며 본문에 `DRAFT` 로 표기한다.
 - 🔴 **사용자 확인 전 진행 차단.** 사용자가 DRAFT 필드를 확인/교정하기 전에는 PR 단계로 넘어가지 않는다.
 
-### 3. 채움 대상 vs 사용자 문서 구분 — diff + 승인
+### 3. 사용자 문서 정렬 — diff + 승인
 
-두 범주를 구분한다 (혼동하면 채워야 할 seed 를 못 채우거나 사용자 문서를 덮어쓴다):
-
-- **빈 dcNess seed 문서** (`/init-dcness` 가 템플릿에서 만든 내용 없는 골격 — `docs/prd.md`·`docs/architecture.md`·`docs/conventions.md`·`docs/index.md` 등): 본 스킬의 채움 대상이므로 역설계 내용으로 **직접 채운다**. seed 여부는 파일이 템플릿 골격 그대로이고 사용자 콘텐츠가 없는지로 판별한다.
-- **비어있지 않은 기존 문서** (사용자가 이미 쓴 내용, 대상 repo 의 산재 문서, 비표준 ADR): **무단 덮어쓰기/이동 금지**. 규격 위치/양식으로 정렬하는 변경은 diff 로 먼저 제시하고 사용자 승인 후에만 적용한다.
+- Step 0 에서 (c) 로 분류된 기존 문서만 대상이다. 규격 위치/양식으로 정렬하는 변경은 **무단 덮어쓰기/이동 없이** diff 로 먼저 제시하고 사용자 승인 후에만 적용한다.
 
 ### 4. index 정리 + 집계 파생 섹션
 
@@ -66,7 +71,7 @@ node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT
 
 ### 5. 단일 docs 부트스트랩 PR
 
-- 대상 프로젝트에서 브랜치 → PR 하나로 마감한다. 브랜치·커밋·PR 네이밍은 [`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md) 를 따른다.
+- Step 0 에서 만든 부트스트랩 브랜치에서 커밋 → PR 하나로 마감한다. 커밋·PR 네이밍은 [`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md) 를 따른다.
 - PR 본문에 무엇을 코드 역설계로 채웠는지, 어떤 필드가 `DRAFT` 로 사용자 확인을 거쳤는지, 어떤 기존 문서를 승인 후 정렬했는지 남긴다.
 
 ## 배포 경로 검증
