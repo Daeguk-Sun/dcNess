@@ -64,6 +64,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -3306,6 +3307,29 @@ class NextTaskLedgerTests(unittest.TestCase):
             )
         self.assertEqual(rc2, 0)
         self.assertIn("pr_merged", out.getvalue())
+
+
+class SplitModuleImportTests(unittest.TestCase):
+    def test_split_modules_import_without_parent_preload(self) -> None:
+        """분할 모듈은 facade 선로드 없이도 fresh interpreter 에서 import 가능."""
+        repo_root = Path(__file__).resolve().parents[1]
+        code = """
+import harness.session_state_activation
+import harness.session_state_fail_open
+import harness.session_state_status
+import harness.session_state_cli
+from harness.session_state import _build_arg_parser
+assert _build_arg_parser is not None
+"""
+        proc = subprocess.run(  # nosec B603
+            [sys.executable, "-c", code],
+            cwd=repo_root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=10,
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr + proc.stdout)
 
 
 if __name__ == "__main__":
