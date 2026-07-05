@@ -285,7 +285,9 @@ def _collect_project(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     fleet = _fleet_to_json(fleet_report)
     candidates = _guard_candidates(name, path, guard_summary)
     candidates.extend(_waste_candidates(name, path, fleet, last_event_ts))
-    lessons = list_active_lessons(path)
+    # loop_diagnose only observes swept projects — never mutate their lesson files
+    # (archiving is left to each project's own write path).
+    lessons = list_active_lessons(path, archive=False)
     candidates.extend(_lesson_candidates(name, path, lessons))
     return {
         "name": name,

@@ -516,6 +516,29 @@ class LoopSweepTests(unittest.TestCase):
             self.assertEqual(len(entries), 2)
             self.assertTrue(all(entry["status"] == "ok" for entry in entries))
 
+    def test_sweep_does_not_archive_stale_lessons_in_swept_projects(self) -> None:
+        # A lesson pattern no longer in the active set would be flipped to archived
+        # (file rewrite) by the default lesson listing. The read-only sweep must not
+        # mutate a swept project's files for that.
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            alpha = tmp / "alpha"
+            alpha.mkdir()
+            _write_lesson(alpha, "OLD_REMOVED_PATTERN", hits=3)
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": [str(alpha)]}),
+                encoding="utf-8",
+            )
+            before_alpha = _snapshot_tree(alpha)
+
+            result = self._run_sweep(repo_root, projects_file)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(_snapshot_tree(alpha), before_alpha)
+
     def test_sweep_failure_leaves_trace_and_nonzero_exit(self) -> None:
         module = _load_loop_diagnose()
         with tempfile.TemporaryDirectory() as td:
