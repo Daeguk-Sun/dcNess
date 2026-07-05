@@ -91,6 +91,7 @@ __all__ = [
     "record_fail_open_event",
     "read_fail_open_events",
     "collect_fail_open_summary",
+    "format_fail_open_warning",
 ]
 
 # ── 상수 ─────────────────────────────────────────────────────────────
@@ -1947,6 +1948,22 @@ def _format_fail_open_summary(summary: Dict[str, Any]) -> str:
     return f"최근 {since_hours}h {total}건 — {category_text}{latest_text}"
 
 
+def format_fail_open_warning(summary: Dict[str, Any]) -> str:
+    """최근 hook fail-open 을 run 종료/review 표면에 노출하는 공통 문구."""
+    total = int(summary.get("total") or 0) if isinstance(summary, dict) else 0
+    if total <= 0:
+        return ""
+    return "\n".join(
+        [
+            "## ⚠️ hook fail-open warning",
+            "",
+            f"- {_format_fail_open_summary(summary)}",
+            "- enforcement hook 이 정책 판단을 완료하지 못해 allow 한 이벤트입니다.",
+            "- 반복되면 `dcness-helper status` 의 `hook fail-open 진단`과 hook stderr 로그를 확인하세요.",
+        ]
+    )
+
+
 # ── CLI (python3 -m harness.session_state <subcommand>) ─────────────
 
 
@@ -2044,6 +2061,12 @@ def _cli_end_run(args: Any) -> int:
             file=sys.stderr,
         )
     _record_design_run_if_applicable(sid, rid)
+    try:
+        warning = format_fail_open_warning(collect_fail_open_summary(cwd=Path.cwd()))
+        if warning:
+            print(warning, file=sys.stderr)
+    except Exception:  # nosec B110
+        pass
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
         clear_pid_current_run(cc_pid)

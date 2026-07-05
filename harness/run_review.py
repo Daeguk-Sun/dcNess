@@ -43,10 +43,20 @@ except Exception:
 # 이전 데이터는 단순 단어경계 매칭의 false positive 포함. parser 가 prose_full 보유 시
 # 신규 negation-aware regex 로 재계산. prose_full 부재 시 jsonl fallback.
 try:
-    from harness.session_state import _has_positive_must_fix
+    from harness.session_state import (
+        _has_positive_must_fix,
+        collect_fail_open_summary,
+        format_fail_open_warning,
+    )
 except Exception:
     def _has_positive_must_fix(_prose: str) -> bool:  # type: ignore
         return False
+
+    def collect_fail_open_summary(*_args, **_kwargs) -> dict:  # type: ignore
+        return {"total": 0}
+
+    def format_fail_open_warning(_summary: dict) -> str:  # type: ignore
+        return ""
 
 # ── 상수 ───────────────────────────────────────────────────────────────
 
@@ -1527,6 +1537,13 @@ def render_report(report: RunReport) -> str:
     lines.append(f"| 최종 enum | `{report.final_enum}` |")
     lines.append(f"| clean 판정 | {'✅' if report.final_clean else '❌'} |")
     lines.append("")
+
+    fail_open_warning = format_fail_open_warning(
+        collect_fail_open_summary(cwd=report.repo_path)
+    )
+    if fail_open_warning:
+        lines.append(fail_open_warning)
+        lines.append("")
 
     # 호출 흐름 — issue #383 B4: prose 결론 enum 우선 표시.
     # helper sentinel `PROSE_LOGGED` 는 prose-only mode 신호일 뿐 사용자 가독성 0.
