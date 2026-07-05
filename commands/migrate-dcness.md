@@ -55,9 +55,11 @@ description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝�
 
 - Step 0 에서 (c) 로 분류된 기존 문서만 대상이다. 규격 위치/양식으로 정렬하는 변경은 **무단 덮어쓰기/이동 없이** diff 로 먼저 제시하고 사용자 승인 후에만 적용한다.
 
-### 4. index 정리 + 집계 파생 섹션
+### 4. index 정리 + 집계 파생 섹션 — 분류에 따라 직접 적용 vs 승인
 
-- 대상 프로젝트 루트에서 index 진행 상태 섹션과 집계 파생 섹션을 정리한다. 파생 섹션은 손으로 복제하지 않는다.
+이 스크립트들은 `docs/index.md` 진행 상태 섹션 append 와 `docs/index.md`/`docs/architecture.md` 의 generated 섹션 갱신으로 **파일을 직접 수정**한다. 따라서 Step 0 분류를 그대로 존중해야 Step 3 승인 가드를 우회하지 않는다.
+
+- **`docs/index.md`·`docs/architecture.md` 가 (a)/(b) 일 때만** 아래를 직접 실행한다. 파생 섹션은 손으로 복제하지 않는다.
 
 ```bash
 PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
@@ -65,6 +67,13 @@ PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 node "$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs" "$PROJECT_ROOT"
 node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --root "$PROJECT_ROOT"
 node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT"
+```
+
+- **둘 중 하나라도 (c) 사용자 문서면** 직접 실행하지 않는다. 집계기는 `--check` 로 drift 만 확인하고(파일 미수정), index 진행 상태 섹션 append 는 추가될 블록을 미리 보여준 뒤, Step 3 처럼 diff + 사용자 승인 후에만 실제 갱신을 적용한다.
+
+```bash
+node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --root "$PROJECT_ROOT" --check
+node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT" --check
 ```
 
 세 스크립트 모두 대상 프로젝트 루트를 명시 대상으로 받는다(집계기는 `--root` 미지정 시 cwd 기본이므로, 서브디렉토리에서 호출해도 어긋나지 않게 `--root "$PROJECT_ROOT"` 를 넘긴다). epic 이 아직 없으므로 index epic 표와 전역 architecture 집계 섹션이 비어 있어도 정상이다.
