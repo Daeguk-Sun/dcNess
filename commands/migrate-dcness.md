@@ -59,11 +59,17 @@ description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝�
 
 이 스크립트들은 `docs/index.md` 진행 상태 섹션 append 와 `docs/index.md`/`docs/architecture.md` 의 generated 섹션 갱신으로 **파일을 직접 수정**한다. 따라서 Step 0 분류를 그대로 존중해야 Step 3 승인 가드를 우회하지 않는다.
 
-- **`docs/index.md`·`docs/architecture.md` 가 (a)/(b) 일 때만** 아래를 직접 실행한다. 파생 섹션은 손으로 복제하지 않는다.
+공통 변수 (어느 분기든 필요 — 분기 밖에서 먼저 설정):
 
 ```bash
 PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)"
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
+```
+
+- **`docs/index.md`·`docs/architecture.md` 가 (a) 부재면 먼저 seed 로 만든다.** generated-section 스크립트는 파일이 없으면 no-op 이라 index 가 끝내 안 생기므로, `docs/index.md`(양식 `skills/spec/templates/index.md`)·`docs/architecture.md`(양식 `agents/system-architect/templates/root-architecture.md`, 단 Step 1 BROWNFIELD 가 이미 채웠으면 그 파일 유지)를 seed 원본에서 생성한 뒤 (b) 로 취급한다.
+- **(a→seed)/(b) 이면** 아래를 직접 실행한다. 파생 섹션은 손으로 복제하지 않는다.
+
+```bash
 node "$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs" "$PROJECT_ROOT"
 node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --root "$PROJECT_ROOT"
 node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT"
@@ -76,7 +82,7 @@ node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --root "$PROJECT_ROOT" --che
 node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT" --check
 ```
 
-세 스크립트 모두 대상 프로젝트 루트를 명시 대상으로 받는다(집계기는 `--root` 미지정 시 cwd 기본이므로, 서브디렉토리에서 호출해도 어긋나지 않게 `--root "$PROJECT_ROOT"` 를 넘긴다). epic 이 아직 없으므로 index epic 표와 전역 architecture 집계 섹션이 비어 있어도 정상이다.
+집계기는 `--root` 미지정 시 cwd 기본이므로, 서브디렉토리에서 호출해도 어긋나지 않게 `--root "$PROJECT_ROOT"` 를 넘긴다. epic 이 아직 없으므로 index epic 표와 전역 architecture 집계 섹션이 비어 있어도 정상이다.
 
 ### 5. 단일 docs 부트스트랩 PR
 
