@@ -42,6 +42,29 @@ if [ "${UNINSTALL}" -eq 1 ]; then
   exit 0
 fi
 
+# A LaunchAgent is a persistent schedule that must point at the stable main checkout.
+# A linked git worktree carries a .git *file* (gitlink) rather than a directory; if we
+# installed from one, its .claude/worktrees/<branch> path would get baked into the plist
+# and the sweep would die once ExitWorktree removes that worktree. Refuse and point the
+# user at the main repo instead of silently installing a self-destructing schedule.
+if [ -f "${REPO_ROOT}/.git" ]; then
+  COMMON_DIR="$(cd "${REPO_ROOT}" && git rev-parse --git-common-dir 2>/dev/null || true)"
+  MAIN_ROOT=""
+  if [ -n "${COMMON_DIR}" ]; then
+    case "${COMMON_DIR}" in
+      /*) ABS_COMMON="${COMMON_DIR}" ;;
+      *) ABS_COMMON="$(cd "${REPO_ROOT}/${COMMON_DIR}" && pwd)" ;;
+    esac
+    MAIN_ROOT="$(dirname "${ABS_COMMON}")"
+  fi
+  echo "refusing to install from a transient worktree: ${REPO_ROOT}" >&2
+  echo "a LaunchAgent must point at the persistent main checkout, not a worktree that ExitWorktree can remove." >&2
+  if [ -n "${MAIN_ROOT}" ]; then
+    echo "re-run from the main repo: bash ${MAIN_ROOT}/scripts/launchd/install-loop-sweep.sh" >&2
+  fi
+  exit 1
+fi
+
 case "${INTERVAL}" in
   ''|*[!0-9]*)
     echo "interval must be a positive integer number of seconds" >&2

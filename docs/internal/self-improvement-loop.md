@@ -76,6 +76,11 @@ bash scripts/launchd/install-loop-sweep.sh --uninstall
 기본 주기는 86400초(하루 1회)이며 `--interval SECONDS` 로 바꾼다. 즉시 1회 실행으로
 확인하려면 `launchctl kickstart -k gui/$(id -u)/com.dcness.loop-sweep` 를 쓴다.
 
+설치는 **persistent main checkout 에서 실행한다**. LaunchAgent 는 오래 사는 스케줄이라
+transient worktree(`.claude/worktrees/<branch>`) 경로가 박히면 `ExitWorktree` 로 worktree
+가 제거된 뒤 sweep 이 죽는다. installer 는 worktree 에서의 설치를 거부하고 main 경로를
+안내한다(제거는 경로 무관하게 동작).
+
 ### 산출물
 
 | 경로 | 역할 |
