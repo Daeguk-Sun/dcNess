@@ -181,6 +181,16 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         self.assertEqual(0, node_log.count("register-issue"))
         self.assertIn("보드", result.stdout + result.stderr)
 
+    def test_fresh_run_upserts_labels_before_issue_create(self):
+        # 신규 저장소에는 vNN / epic-NN-<slug> label 이 없어 gh issue create -l 이
+        # 통째로 실패한다 — 생성 직전 label upsert 가 선행돼야 한다.
+        result, gh_log, node_log, _ = self._run(STORIES_NEW, {})
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(4, gh_log.count("label create"))
+        for lbl in ("epic", "story", "v01", "epic-01-demo"):
+            self.assertIn(f"label create {lbl}", gh_log)
+        self.assertLess(gh_log.index("label create"), gh_log.index("issue create"))
+
     def test_partial_board_failure_reported_issues_still_created(self):
         result, gh_log, node_log, _ = self._run(
             STORIES_NEW, {"VARS_PRESENT": "1", "FAIL_ISSUE": "102"}
@@ -198,6 +208,7 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         )
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(0, gh_log.count("issue create"))
+        self.assertEqual(0, gh_log.count("label create"))
         self.assertEqual(3, node_log.count("register-issue"))
         self.assertIn("--issue 100", node_log)
         self.assertIn("--issue 101", node_log)

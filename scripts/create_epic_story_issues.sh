@@ -195,6 +195,18 @@ if [ -z "$VNN" ]; then
   exit 1
 fi
 
+# 신규 저장소에는 vNN / epic-NN-<slug> label 이 없어 gh issue create -l 이 통째로 실패한다
+# (setup_labels.sh 는 IssueType 6종 + in-progress 만 만들고 vNN/epic slug label 은 안 만든다).
+# 이슈 생성 직전, 이 스크립트가 붙이는 label 을 create-if-missing 로 선반영해 첫 등록 실패를 막는다.
+# 이미 있으면 no-op (색/설명은 setup_labels.sh 가 canonical — 여기선 존재만 보장).
+_ensure_issue_label() {
+  gh label create "$1" --color ededed --description "dcNess issue label" >/dev/null 2>&1 || true
+}
+_ensure_issue_label epic
+_ensure_issue_label story
+_ensure_issue_label "$VNN"
+_ensure_issue_label "$EPIC_SLUG"
+
 # epic 이슈 생성
 echo "[issue-create] epic 이슈 생성 — '$EPIC_TITLE'"
 # 헤더 양식 분기 — epic 본문 = epic 헤더 ~ 첫 Story 헤더 사이
