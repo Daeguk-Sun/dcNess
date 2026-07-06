@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { parseField } from './check_issue_body.mjs';
+import { epicPhase } from './lib/epic_phase.mjs';
 
 export const GH_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
@@ -1004,23 +1006,62 @@ function formatFlatNextSection(title, entries, { emptyText = '없음', limit = n
   return lines.join('\n');
 }
 
-function formatStoryGroups(groups) {
+function resolveProjectRoot() {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  } catch {
+    return process.cwd();
+  }
+}
+
+// next-work 는 GitHub issue 로 이미 등록된 story 를 나열하므로, 로컬 산출물이 없어도
+// (repo 밖 실행 / stale checkout) story 자체는 존재한다. 그래서 epic_phase 의 'spec'
+// (stories.md 부재) 은 여기선 "스펙 미작성" 이 아니라 "로컬 산출물 확인 불가 → 판정 보류"
+// 로 해석한다 (오탐으로 /design 을 단정하지 않는다).
+function epicGroupNextAction(epicSlugLabel, root) {
+  if (!epicSlugLabel) return { kind: 'unlabeled' };
+  const { phase } = epicPhase(join(root, 'docs', 'epics', epicSlugLabel));
+  if (phase === 'impl') return { kind: 'impl' };
+  if (phase === 'design') return { kind: 'design' };
+  return { kind: 'unresolved' };
+}
+
+function storyGroupHeaderLine(epicSlugLabel, action) {
+  switch (action.kind) {
+    case 'impl':
+      return `- ${epicSlugLabel} — 설계 완료 → story impl 후보 (\`/impl\`)`;
+    case 'design':
+      return `- ${epicSlugLabel} — 설계 미완 → 다음 액션 \`/design docs/epics/${epicSlugLabel}\` (아래 story 는 아직 impl 후보 아님)`;
+    case 'unlabeled':
+      return '- 미분류 story — epic 라벨 없음 → 판정 보류';
+    default:
+      return `- ${epicSlugLabel} — 설계 산출물 로컬 확인 불가 → 판정 보류 (\`/design\`/\`/impl\` 미결)`;
+  }
+}
+
+export function formatStoryGroups(groups, root = resolveProjectRoot()) {
   const lines = ['## L3 Story'];
   if (groups.length === 0) {
     lines.push('- 후보 없음');
     return lines.join('\n');
   }
+  let anyDesignComplete = false;
   for (const group of groups) {
-    lines.push(`- ${group.epicSlugLabel ?? '미분류 story'}`);
+    const action = epicGroupNextAction(group.epicSlugLabel, root);
+    if (action.kind === 'impl') anyDesignComplete = true;
+    lines.push(storyGroupHeaderLine(group.epicSlugLabel, action));
     for (const item of group.items) {
       lines.push(`  ${formatNextCandidate(item)}`);
     }
   }
-  lines.push('- 참고: story 세부 구현 순서의 진본은 epic 설계 산출물의 구현 순서 섹션이다.');
+  // 각주는 "설계 산출물이 존재한다" 를 전제하므로 설계 완료 epic 이 하나라도 있을 때만 붙인다.
+  if (anyDesignComplete) {
+    lines.push('- 참고: 설계 완료 epic 의 story 구현 순서 진본은 epic 설계 산출물의 구현 순서 섹션이다.');
+  }
   return lines.join('\n');
 }
 
-function formatNextWorkReport({ repo, candidates, limit }) {
+function formatNextWorkReport({ repo, candidates, limit, root = resolveProjectRoot() }) {
   return [
     `[dcness-next-work] repo=${repo}`,
     '[dcness-next-work] read-only: GitHub issue/label 상태를 변경하지 않았습니다.',
@@ -1032,7 +1073,7 @@ function formatNextWorkReport({ repo, candidates, limit }) {
       limit,
     }),
     '',
-    formatStoryGroups(candidates.l3.storyGroups),
+    formatStoryGroups(candidates.l3.storyGroups, root),
     '',
     formatFlatNextSection('L3 Feature', candidates.l3.feature, { emptyText: '후보 없음', limit }),
     '',
@@ -1079,7 +1120,7 @@ function commandNext(args) {
     ? Number(args.limit)
     : 5;
   const candidates = selectNextCandidates(issues);
-  console.log(formatNextWorkReport({ repo, candidates, limit }));
+  console.log(formatNextWorkReport({ repo, candidates, limit, root: resolveProjectRoot() }));
   return 0;
 }
 

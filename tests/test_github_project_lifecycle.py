@@ -1275,5 +1275,145 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
         self.assertIn("expected exactly one IssueType label", completed.stdout)
 
 
+class NextWorkStoryGroupPhaseTests(unittest.TestCase):
+    """`next-work` L3 Story 나열이 epic 설계 산출물 존재로 `/design` vs `/impl` 을 구분하는지 (#951)."""
+
+    def _epic(
+        self,
+        root: Path,
+        slug: str,
+        *,
+        stories: bool = True,
+        architecture: bool = False,
+        impl_task: bool = False,
+    ) -> None:
+        epic_dir = root / "docs" / "epics" / slug
+        epic_dir.mkdir(parents=True, exist_ok=True)
+        if stories:
+            (epic_dir / "stories.md").write_text("# stories\n", encoding="utf-8")
+        if architecture:
+            (epic_dir / "architecture.md").write_text("# arch\n", encoding="utf-8")
+        if impl_task:
+            impl_dir = epic_dir / "impl"
+            impl_dir.mkdir(exist_ok=True)
+            (impl_dir / "01-foo.md").write_text("# task\n", encoding="utf-8")
+
+    def _format(self, groups: list, root: Path) -> str:
+        return run_node(
+            f"lifecycle.formatStoryGroups({json.dumps(groups)}, {json.dumps(str(root))})"
+        )
+
+    def test_design_incomplete_epic_marks_design_action_without_impl_footnote(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._epic(root, "epic-01-alpha", stories=True)
+            groups = [
+                {
+                    "epicSlugLabel": "epic-01-alpha",
+                    "epicNumber": 1,
+                    "items": [{"number": 201, "title": "Story one"}],
+                }
+            ]
+            out = self._format(groups, root)
+            self.assertIn("설계 미완", out)
+            self.assertIn("/design docs/epics/epic-01-alpha", out)
+            self.assertIn("#201 Story one", out)
+            self.assertNotIn("구현 순서 진본", out)
+
+    def test_design_complete_epic_promotes_impl_with_footnote(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._epic(root, "epic-02-beta", stories=True, architecture=True, impl_task=True)
+            groups = [
+                {
+                    "epicSlugLabel": "epic-02-beta",
+                    "epicNumber": 2,
+                    "items": [{"number": 301, "title": "Beta story"}],
+                }
+            ]
+            out = self._format(groups, root)
+            self.assertRegex(out, r"epic-02-beta.*설계 완료")
+            self.assertIn("/impl", out)
+            self.assertIn("구현 순서 진본", out)
+
+    def test_architecture_without_impl_task_is_still_design_incomplete(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            # architecture.md 는 있으나 impl/NN-*.md 부재 = 설계 미완 (핵심 엣지, #950 SSOT 와 동일)
+            self._epic(root, "epic-03-gamma", stories=True, architecture=True, impl_task=False)
+            groups = [
+                {
+                    "epicSlugLabel": "epic-03-gamma",
+                    "epicNumber": 3,
+                    "items": [{"number": 401, "title": "Gamma story"}],
+                }
+            ]
+            out = self._format(groups, root)
+            self.assertIn("설계 미완", out)
+            self.assertIn("/design docs/epics/epic-03-gamma", out)
+            self.assertNotIn("구현 순서 진본", out)
+
+    def test_mixed_epics_are_labeled_per_epic(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._epic(root, "epic-01-alpha", stories=True)
+            self._epic(root, "epic-02-beta", stories=True, architecture=True, impl_task=True)
+            groups = [
+                {
+                    "epicSlugLabel": "epic-01-alpha",
+                    "epicNumber": 1,
+                    "items": [{"number": 201, "title": "A"}],
+                },
+                {
+                    "epicSlugLabel": "epic-02-beta",
+                    "epicNumber": 2,
+                    "items": [{"number": 301, "title": "B"}],
+                },
+            ]
+            out = self._format(groups, root)
+            self.assertRegex(out, r"epic-01-alpha.*설계 미완")
+            self.assertIn("/design docs/epics/epic-01-alpha", out)
+            self.assertRegex(out, r"epic-02-beta.*설계 완료")
+            self.assertIn("구현 순서 진본", out)
+
+    def test_missing_local_epic_dir_holds_judgment(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            # docs/epics 자체가 없음 (repo 밖 실행 / stale checkout) — 오탐으로 /design 단정 금지
+            groups = [
+                {
+                    "epicSlugLabel": "epic-09-late",
+                    "epicNumber": 9,
+                    "items": [{"number": 901, "title": "Late"}],
+                }
+            ]
+            out = self._format(groups, root)
+            self.assertIn("판정 보류", out)
+            self.assertIn("#901 Late", out)
+            self.assertNotIn("/design docs/epics/epic-09-late", out)
+            self.assertNotIn("구현 순서 진본", out)
+
+    def test_unlabeled_story_group_holds_judgment(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            groups = [
+                {
+                    "epicSlugLabel": None,
+                    "epicNumber": None,
+                    "items": [{"number": 250, "title": "Manual"}],
+                }
+            ]
+            out = self._format(groups, root)
+            self.assertIn("미분류 story", out)
+            self.assertIn("판정 보류", out)
+            self.assertIn("#250 Manual", out)
+            self.assertNotIn("구현 순서 진본", out)
+
+    def test_empty_groups_still_report_no_candidates(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            out = self._format([], Path(td))
+            self.assertIn("후보 없음", out)
+
+
 if __name__ == "__main__":
     unittest.main()
