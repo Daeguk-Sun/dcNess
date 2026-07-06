@@ -197,7 +197,7 @@ compact plan 은 `/impl` Standard 진입 전 경량 설계 산출물이다. 구�
 | `.dcness-work/spikes/` | 짧은 탐색 결과, 버릴 수 있는 실험 |
 | `.dcness-work/research/` | 외부 문서 조사 raw note |
 | `.dcness-work/open-questions/` | 아직 산출물로 확정되지 않은 질문 |
-| `.dcness-work/handoffs/` | run 간 임시 handoff |
+| `.dcness-work/handoffs/` | run 간 임시 handoff + 세션 간 warm 인계 (`/handoff` 가 쓰는 활성 `next-session.md`, SessionStart 소비 후 `archive/<ts>.md`) |
 | `.dcness-work/reviews/` | tech-review evidence, HTML report, logs |
 
 `/init-dcness` 는 사용자 프로젝트 `.gitignore` 에 `.dcness-work/` 를 추가한다.

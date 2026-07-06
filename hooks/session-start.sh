@@ -80,6 +80,42 @@ else
 fi
 export DCNESS_NEXT_POINTER_MSG
 
+# === 대기 핸드오프 (warm 레이어) ===
+# 이전 세션이 /handoff 로 남긴 인계 문서가 있으면 archive 로 먼저 옮겨 원자적으로
+# 소비(claim)한 뒤 그 내용을 additionalContext 최상단에 주입한다. mv(rename)를 read
+# 보다 선행하므로 병렬 peer 세션 중 rename 에 성공한 first-consumer 만 내용을 얻어
+# 단일 소비자 계약을 만족한다. 소비된 파일은 archive 에 보존(무손실)돼 다음다음 세션에
+# stale 재주입되지 않는다. 파일 부재 시 아무 동작도 하지 않아 훅은 기존 동작 그대로다.
+# 쓰기 경로(commands/handoff.md)도 같은 repo 루트를 써 서브디렉토리 실행에도 정합한다.
+# `.dcness-work/` 는 untracked·writable 이므로 심어진 심링크를 따라가 임의 로컬 파일(.env
+# 등)을 컨텍스트로 유출하지 않도록, 심링크가 아닌 정규 파일일 때만 claim/read 한다.
+DCNESS_HANDOFF_MSG=""
+HANDOFF_ACTIVE="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/next-session.md"
+if [[ -f "$HANDOFF_ACTIVE" && ! -L "$HANDOFF_ACTIVE" && -s "$HANDOFF_ACTIVE" ]]; then
+  HANDOFF_ARCHIVE_DIR="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/archive"
+  mkdir -p "$HANDOFF_ARCHIVE_DIR" 2>/dev/null
+  # 파일명에 프로세스 PID 를 붙여 같은 초에 소비되는 서로 다른 handoff 끼리 archive
+  # 파일명이 충돌해 덮어써지는(무손실 위반) 것을 막는다. 세션마다 별 프로세스라 PID 는
+  # 서로 다르고, 동일 src 를 노리는 병렬 mv 는 rename 원자성으로 하나만 성공한다.
+  HANDOFF_CLAIMED="$HANDOFF_ARCHIVE_DIR/$(date +%Y%m%d-%H%M%S)-$$.md"
+  # mv(rename)는 심링크를 따라가지 않으므로 check 이후 심링크로 교체되는 TOCTOU 도
+  # archived 사본을 read 전 재확인해 차단한다.
+  if mv "$HANDOFF_ACTIVE" "$HANDOFF_CLAIMED" 2>/dev/null \
+     && [[ -f "$HANDOFF_CLAIMED" && ! -L "$HANDOFF_CLAIMED" ]]; then
+    # slim-inject 보호 + exec env 한도 회피 — 상한 초과 시 전문을 주입하지 않고
+    # archive 전문을 가리키는 포인터만 넣는다(무손실: 전문은 archive 사본에 보존).
+    HANDOFF_MAX_BYTES=16384
+    HANDOFF_BYTES=$(wc -c < "$HANDOFF_CLAIMED" 2>/dev/null | tr -d '[:space:]')
+    HANDOFF_BYTES=${HANDOFF_BYTES:-0}
+    if [[ "$HANDOFF_BYTES" -gt "$HANDOFF_MAX_BYTES" ]]; then
+      DCNESS_HANDOFF_MSG="대기 핸드오프가 너무 큼(${HANDOFF_BYTES}B > ${HANDOFF_MAX_BYTES}B) — slim-inject 보호를 위해 전문 주입 생략. 다음 파일을 직접 읽고 시작할 것: ${HANDOFF_CLAIMED}"
+    else
+      DCNESS_HANDOFF_MSG=$(cat "$HANDOFF_CLAIMED" 2>/dev/null || echo "")
+    fi
+  fi
+fi
+export DCNESS_HANDOFF_MSG
+
 # 슬림 inject (#596) — SessionStart 는 *초기화 + 최소 활성 안내* 만 담당.
 # 문서 진입 매트릭스 / 안티패턴 / soft 필수 / cost-aware 항목은 제거: 하네스 모델은
 # "문서 선독 기반 compliance" 가 아니라 "hook 이 차단하고 그 자리에서 복구". 절차·분기는
@@ -88,8 +124,16 @@ python3 -c "
 import json, os
 update_msg = os.environ.get('DCNESS_UPDATE_MSG', '').strip()
 next_pointer_msg = os.environ.get('DCNESS_NEXT_POINTER_MSG', '').strip()
+handoff_msg = os.environ.get('DCNESS_HANDOFF_MSG', '').strip()
+handoff_block = ''
+if handoff_msg:
+    handoff_block = (
+        '## ⚠️ 대기 핸드오프 — 이것부터 읽고 시작\n\n'
+        '이전 세션이 /handoff 로 남긴 인계다. 다음 액션부터 확인하고, 상세는 포인터를 질의 시점에 lazy 로드한다.\n\n'
+        + handoff_msg + '\n\n---\n\n'
+    )
 header = (update_msg + '\n\n---\n\n') if update_msg else ''
-msg = header + f'''## [dcness 활성 환경]
+msg = handoff_block + header + f'''## [dcness 활성 환경]
 
 첫 응답 첫 줄에 \`[dcness 활성 확인]\` 토큰 출력 (활성 신호 — 부재 시 사용자가 룰 미적용을 즉시 인지).
 

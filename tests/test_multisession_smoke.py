@@ -231,6 +231,166 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("/init-dcness` 재실행으로 섹션을 보강", ctx)
         self.assertNotIn("docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터", ctx)
 
+    def test_session_start_injects_pending_handoff(self) -> None:
+        """#953 — 이전 세션이 남긴 handoff 가 additionalContext 최상단에 주입되고
+        주입 직후 archive 로 이동해 active 경로에서 사라진다 (무손실 clear)."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+        (handoffs / "next-session.md").write_text(
+            "# 다음 세션 핸드오프\n\n## 다음 액션\n- issue953 handoff 테스트 green 확인\n",
+            encoding="utf-8",
+        )
+
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-handoff"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(
+            result.returncode, 0,
+            f"stderr: {result.stderr}\nstdout: {result.stdout}",
+        )
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+        # 핸드오프 내용이 최상단(활성 안내보다 위)에 주입
+        self.assertIn("대기 핸드오프", ctx)
+        self.assertIn("issue953 handoff 테스트 green 확인", ctx)
+        self.assertLess(
+            ctx.index("대기 핸드오프"), ctx.index("[dcness 활성 환경]"),
+            "핸드오프가 활성 안내보다 위에 와야 한다",
+        )
+
+        # 소비 후 active 파일 제거 + archive 로 이동 (무손실)
+        self.assertFalse(
+            (handoffs / "next-session.md").exists(),
+            "active 핸드오프가 archive 로 이동되지 않음 — 다음 세션 stale 재주입 위험",
+        )
+        archived = list((handoffs / "archive").glob("*.md"))
+        self.assertEqual(len(archived), 1, f"archive 파일 1개 기대, 실제: {archived}")
+        self.assertIn(
+            "issue953 handoff 테스트 green 확인",
+            archived[0].read_text(encoding="utf-8"),
+        )
+
+    def test_session_start_handoff_consumed_once(self) -> None:
+        """#953 — claim-first: 한 번 소비된 handoff 는 다음 SessionStart 에 재주입되지
+        않고 archive 사본도 늘지 않는다 (단일 소비자 계약, 순차 프록시)."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+        (handoffs / "next-session.md").write_text(
+            "# 핸드오프\n\n## 다음 액션\n- 단일 소비 검증\n",
+            encoding="utf-8",
+        )
+
+        first = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-consume-1"}, cwd=self.cwd,
+        )
+        self.assertEqual(first.returncode, 0)
+        ctx1 = json.loads(first.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("단일 소비 검증", ctx1)
+
+        second = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-consume-2"}, cwd=self.cwd,
+        )
+        self.assertEqual(second.returncode, 0)
+        ctx2 = json.loads(second.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("대기 핸드오프", ctx2)
+        self.assertNotIn("단일 소비 검증", ctx2)
+
+        # archive 사본은 1개만 (두 번째 세션이 stale 재소비/재아카이브하지 않음)
+        archived = list((handoffs / "archive").glob("*.md"))
+        self.assertEqual(len(archived), 1, f"archive 1개 기대, 실제: {archived}")
+
+    def test_session_start_two_handoffs_both_archived(self) -> None:
+        """#953 — 같은 초에 소비되는 서로 다른 두 handoff 의 archive 사본이 파일명
+        충돌 없이 둘 다 보존된다 (무손실 계약). ts-only 파일명이면 덮어써져 실패."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+
+        (handoffs / "next-session.md").write_text(
+            "# H1\n\n## 다음 액션\n- first-handoff\n", encoding="utf-8",
+        )
+        r1 = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-h1"}, cwd=self.cwd,
+        )
+        self.assertEqual(r1.returncode, 0)
+
+        (handoffs / "next-session.md").write_text(
+            "# H2\n\n## 다음 액션\n- second-handoff\n", encoding="utf-8",
+        )
+        r2 = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-h2"}, cwd=self.cwd,
+        )
+        self.assertEqual(r2.returncode, 0)
+
+        archived = [
+            p.read_text(encoding="utf-8")
+            for p in (handoffs / "archive").glob("*.md")
+        ]
+        self.assertEqual(
+            len(archived), 2,
+            f"두 handoff 모두 보존돼야 함(무손실) — 실제 archive: {archived}",
+        )
+        joined = "\n".join(archived)
+        self.assertIn("first-handoff", joined)
+        self.assertIn("second-handoff", joined)
+
+    def test_session_start_symlink_handoff_not_followed(self) -> None:
+        """#953 — next-session.md 가 심링크면 따라가지 않는다. `.dcness-work/` 는
+        writable 이라 심어진 심링크(→ .env 등)를 훅이 read 하면 로컬 시크릿이 모델
+        컨텍스트로 유출되므로, 정규 파일이 아닐 때는 소비/주입하지 않는다 (codex P2)."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+        secret = self.cwd / "secret.txt"
+        secret.write_text("SECRET_CONTENT_LEAK\n", encoding="utf-8")
+        (handoffs / "next-session.md").symlink_to(secret)
+
+        result = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-symlink"}, cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("SECRET_CONTENT_LEAK", ctx, "심링크 타겟이 컨텍스트로 유출됨")
+        self.assertNotIn("대기 핸드오프", ctx)
+        # 심링크는 따라가 archive 로 옮기지도 않는다 (타겟 보존)
+        self.assertTrue(secret.exists())
+
+    def test_session_start_oversize_handoff_injects_pointer_not_dump(self) -> None:
+        """#953 — 상한 초과 handoff 는 전문을 컨텍스트로 덤프하지 않고 archive 전문
+        포인터만 주입한다 (slim-inject 보호 + exec 한도 회피, 전문은 무손실 보존)."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+        bulk = "X" * 20000  # 16KB 상한 초과
+        (handoffs / "next-session.md").write_text(
+            f"# 대용량\n{bulk}\n", encoding="utf-8",
+        )
+
+        result = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-big"}, cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("XXXXXXXXXX", ctx, "대용량 handoff 전문이 컨텍스트로 덤프됨")
+        self.assertIn("너무 큼", ctx, "상한 초과 포인터 메시지 부재")
+
+        # 전문은 archive 사본에 보존 (무손실)
+        archived = list((handoffs / "archive").glob("*.md"))
+        self.assertEqual(len(archived), 1)
+        self.assertIn("XXXXXXXXXX", archived[0].read_text(encoding="utf-8"))
+
+    def test_session_start_no_handoff_is_noop(self) -> None:
+        """#953 — handoff 파일 부재 시 훅은 기존 동작 그대로 (무해)."""
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-no-handoff"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("대기 핸드오프", ctx)
+        # 파일이 없으면 archive 디렉토리조차 만들지 않는다
+        self.assertFalse((self.cwd / ".dcness-work" / "handoffs" / "archive").exists())
+
     def test_invalid_sid_silent_no_artifacts(self) -> None:
         result = _run_bash_hook(
             "session-start.sh",
