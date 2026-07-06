@@ -231,6 +231,35 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("/init-dcness` 재실행으로 섹션을 보강", ctx)
         self.assertNotIn("docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터", ctx)
 
+    def test_session_start_pointer_orchestrates_next_and_remaining(self) -> None:
+        """#954 — next 포인터가 "뭐하지 / 남은 일 / 이제 뭐해야하지" 류 자연어 트리거에
+        (1) warm 인계 우선, (2) 없으면 구조 소스로 phase 도출, (3) 다음 액션 1개 단정
+        (메뉴 나열 금지) + 남은 일 브리핑, (4) 그 액션 컨텍스트만 focused preload 를
+        지시하는지 검증한다. warm 인계 문구는 no-handoff 테스트가 막는 '대기 핸드오프'
+        문자열을 쓰면 안 되므로 'warm 인계' 로 표현한다."""
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-pointer-orch"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+        # 넓어진 자연어 트리거 어휘. '프로젝트 상태' 는 hooks.md 계약(파일/섹션 유무별
+        # 포인터·/next-work 안내)의 진입점이므로 어휘 확장 시 떨어뜨리면 회귀.
+        for trigger in ("프로젝트 상태", "뭐하지", "남은 일", "이제 뭐해야하지", "남은 일 브리핑"):
+            self.assertIn(trigger, ctx, f"트리거 어휘 '{trigger}' 누락")
+        # warm 우선 (단, no-handoff 테스트가 막는 '대기 핸드오프' 문자열은 금지)
+        self.assertIn("warm 인계", ctx)
+        self.assertNotIn("대기 핸드오프", ctx)
+        # 다음 액션 1개 단정 (메뉴 나열 아님) + 남은 일 브리핑 + focused preload
+        self.assertIn("다음 액션 1개", ctx)
+        self.assertIn("메뉴 나열", ctx)
+        self.assertIn("focused preload", ctx)
+        # /next-work 가 phase 를 증명 못해 '판정 보류' 하면 /design·/impl 를 지어내지
+        # 않도록 단정을 확정 phase 조건부로 묶는다 (스크립트 보류 가드 우회 방지).
+        self.assertIn("판정 보류", ctx)
+
     def test_session_start_injects_pending_handoff(self) -> None:
         """#953 — 이전 세션이 남긴 handoff 가 additionalContext 최상단에 주입되고
         주입 직후 archive 로 이동해 active 경로에서 사라진다 (무손실 clear)."""
