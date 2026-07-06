@@ -69,15 +69,21 @@ export DCNESS_UPDATE_MSG
 
 PROJECT_ROOT_FOR_DOCS=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
 DOCS_INDEX="$PROJECT_ROOT_FOR_DOCS/docs/index.md"
+# 구조 소스(cold) 절 — docs/index.md 유무·`## 진행 상태 · 다음 작업` 섹션 유무로 분기.
+# 오케스트레이션 래퍼(트리거 어휘 + 단정 + focused preload)는 세 경우 공통이라 아래서
+# 한 번만 조립한다. 'warm 인계' 로 지칭 — no-handoff 세션에서도 항상 주입되는 포인터라
+# handoff 블록 헤더('대기 핸드오프')와 같은 문자열을 쓰면 그 부재를 검증하는 소비/부재
+# 테스트를 회귀시키므로 다른 표현을 쓴다.
 if [[ -f "$DOCS_INDEX" ]]; then
   if grep -Eq '^## 진행 상태 · 다음 작업[[:space:]]*$' "$DOCS_INDEX" 2>/dev/null; then
-    DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터를 확인하고, live issue/label 상태는 `/next-work` 로 조회한다.'
+    DCNESS_NEXT_INDEX_CLAUSE='없으면 구조 소스(cold)로 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터와 `/next-work`(issue/label + phase 판정)를 화해시켜 phase 를 도출한다.'
   else
-    DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 현재 `docs/index.md` 에 `## 진행 상태 · 다음 작업` 섹션이 없으므로 live issue/label 상태는 `/next-work` 로 조회한다. 필요하면 `/init-dcness` 재실행으로 섹션을 보강한다.'
+    DCNESS_NEXT_INDEX_CLAUSE='없으면 구조 소스(cold)로, 현재 `docs/index.md` 에 `## 진행 상태 · 다음 작업` 섹션이 없으므로 `/next-work`(issue/label + phase 판정)로 phase 를 도출한다. 필요하면 `/init-dcness` 재실행으로 섹션을 보강한다.'
   fi
 else
-  DCNESS_NEXT_POINTER_MSG='프로젝트 상태나 다음 작업을 물으면 `docs/index.md` 가 없으므로 live issue/label 상태는 `/next-work` 로 조회한다. 필요하면 `/init-dcness` 로 project docs seed 를 설치한다.'
+  DCNESS_NEXT_INDEX_CLAUSE='없으면 구조 소스(cold)로, `docs/index.md` 가 없으므로 `/next-work`(issue/label + phase 판정)로 phase 를 도출한다. 필요하면 `/init-dcness` 로 project docs seed 를 설치한다.'
 fi
+DCNESS_NEXT_POINTER_MSG='"뭐하지 / 다음 일 / 남은 일 알려줘 / 이제 뭐해야하지 / 남은 일 브리핑 / 이어서" 처럼 다음·남은 일을 물으면: (1) 위에 warm 인계(이전 세션 /handoff)가 주입돼 있으면 그 다음 액션부터 이어간다. (2) '"$DCNESS_NEXT_INDEX_CLAUSE"' (3) 소스를 종합해 다음 액션 1개를 단정한다 — 메뉴 나열이 아니라 `/design <epic-path>` · `/impl` · 특정 story 중 하나 + 근거. 남은 일 전체를 물으면 `/next-work` 계층(L1>L2>L3)으로 함께 브리핑한다. (4) 그 액션이 가리키는 문서(해당 epic stories / prd 관련 절 / 설계 산출물 유무 / 리팩터 base 브랜치)만 focused preload 해 바로 착수한다. SessionStart 통독 금지 — preload 는 이 질의(또는 skill 진입) 시점에만.'
 export DCNESS_NEXT_POINTER_MSG
 
 # === 대기 핸드오프 (warm 레이어) ===
