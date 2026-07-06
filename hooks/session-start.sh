@@ -83,7 +83,7 @@ if [[ -f "$DOCS_INDEX" ]]; then
 else
   DCNESS_NEXT_INDEX_CLAUSE='없으면 구조 소스(cold)로, `docs/index.md` 가 없으므로 `/next-work`(issue/label + phase 판정)로 phase 를 도출한다. 필요하면 `/init-dcness` 로 project docs seed 를 설치한다.'
 fi
-DCNESS_NEXT_POINTER_MSG='"뭐하지 / 다음 일 / 남은 일 알려줘 / 이제 뭐해야하지 / 남은 일 브리핑 / 이어서" 처럼 다음·남은 일을 물으면: (1) 위에 warm 인계(이전 세션 /handoff)가 주입돼 있으면 그 다음 액션부터 이어간다. (2) '"$DCNESS_NEXT_INDEX_CLAUSE"' (3) 소스를 종합해 다음 액션 1개를 단정한다 — 메뉴 나열이 아니라 `/design <epic-path>` · `/impl` · 특정 story 중 하나 + 근거. 남은 일 전체를 물으면 `/next-work` 계층(L1>L2>L3)으로 함께 브리핑한다. (4) 그 액션이 가리키는 문서(해당 epic stories / prd 관련 절 / 설계 산출물 유무 / 리팩터 base 브랜치)만 focused preload 해 바로 착수한다. SessionStart 통독 금지 — preload 는 이 질의(또는 skill 진입) 시점에만.'
+DCNESS_NEXT_POINTER_MSG='"프로젝트 상태 / 뭐하지 / 다음 일 / 남은 일 알려줘 / 이제 뭐해야하지 / 남은 일 브리핑 / 이어서" 처럼 프로젝트 상태나 다음·남은 일을 물으면: (1) 위에 warm 인계(이전 세션 /handoff)가 주입돼 있으면 그 다음 액션부터 이어간다. (2) '"$DCNESS_NEXT_INDEX_CLAUSE"' (3) 소스를 종합해 다음 액션 1개를 단정한다 — 단 `/next-work` 가 그 후보에 `판정 보류`(설계 phase 미확인: repo 밖 실행 / stale checkout / epic 산출물 부재)를 표시하면 `/design`·`/impl` 을 지어내지 말고 그 보류 사유를 그대로 알린다. phase 가 확정된 경우에만 `/design <epic-path>` · `/impl` · 특정 story 중 하나로 단정하고 근거를 붙인다(메뉴 나열 금지). 남은 일 전체를 물으면 `/next-work` 계층(L1>L2>L3)으로 함께 브리핑한다. (4) 단정한 액션이 가리키는 문서(해당 epic stories / prd 관련 절 / 설계 산출물 유무 / 리팩터 base 브랜치)만 focused preload 해 바로 착수한다. SessionStart 통독 금지 — preload 는 이 질의(또는 skill 진입) 시점에만.'
 export DCNESS_NEXT_POINTER_MSG
 
 # === 대기 핸드오프 (warm 레이어) ===

@@ -245,8 +245,9 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0)
         ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
 
-        # 넓어진 자연어 트리거 어휘
-        for trigger in ("뭐하지", "남은 일", "이제 뭐해야하지", "남은 일 브리핑"):
+        # 넓어진 자연어 트리거 어휘. '프로젝트 상태' 는 hooks.md 계약(파일/섹션 유무별
+        # 포인터·/next-work 안내)의 진입점이므로 어휘 확장 시 떨어뜨리면 회귀.
+        for trigger in ("프로젝트 상태", "뭐하지", "남은 일", "이제 뭐해야하지", "남은 일 브리핑"):
             self.assertIn(trigger, ctx, f"트리거 어휘 '{trigger}' 누락")
         # warm 우선 (단, no-handoff 테스트가 막는 '대기 핸드오프' 문자열은 금지)
         self.assertIn("warm 인계", ctx)
@@ -255,6 +256,9 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("다음 액션 1개", ctx)
         self.assertIn("메뉴 나열", ctx)
         self.assertIn("focused preload", ctx)
+        # /next-work 가 phase 를 증명 못해 '판정 보류' 하면 /design·/impl 를 지어내지
+        # 않도록 단정을 확정 phase 조건부로 묶는다 (스크립트 보류 가드 우회 방지).
+        self.assertIn("판정 보류", ctx)
 
     def test_session_start_injects_pending_handoff(self) -> None:
         """#953 — 이전 세션이 남긴 handoff 가 additionalContext 최상단에 주입되고
