@@ -94,16 +94,63 @@ class IndexMapAggregateTests(unittest.TestCase):
             self.assertIn("<!-- dcness-index-map:generated -->", index)
             self.assertNotIn("old content", index)
             self.assertIn(
-                "| [epic-01-alpha](epics/epic-01-alpha/) | v01 | [stories.md](epics/epic-01-alpha/stories.md) | [architecture.md](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | — | — |",
+                "| [epic-01-alpha](epics/epic-01-alpha/) | v01 | [stories.md](epics/epic-01-alpha/stories.md) | [architecture.md](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | — | — | `/design` (설계 미완) |",
                 index,
             )
             self.assertIn(
-                "| [epic-02-beta](epics/epic-02-beta/) | — | [stories.md](epics/epic-02-beta/stories.md) | — | — | — | [tech-review.md](epics/epic-02-beta/tech-review.md) |",
+                "| [epic-02-beta](epics/epic-02-beta/) | — | [stories.md](epics/epic-02-beta/stories.md) | — | — | — | [tech-review.md](epics/epic-02-beta/tech-review.md) | `/design` (설계 미완) |",
                 index,
             )
 
             check = _run(project, "--check")
             self.assertEqual(check.returncode, 0, check.stderr)
+
+    def test_epic_table_derives_next_action_column(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(project / "docs/index.md", "# Index\n\n## 에픽\n\n")
+            # 설계 미완: stories 만 존재
+            _write(project / "docs/epics/epic-01-alpha/stories.md", "# Story Backlog\n")
+            # 설계 완료: architecture + impl task 존재
+            _write(project / "docs/epics/epic-02-beta/stories.md", "# Story Backlog\n")
+            _write(project / "docs/epics/epic-02-beta/architecture.md", "# Architecture\n")
+            _write(project / "docs/epics/epic-02-beta/impl/01-foo.md", "# Task\n")
+            # 설계 미완: architecture 는 있으나 impl task 부재 (핵심 엣지)
+            _write(project / "docs/epics/epic-03-gamma/stories.md", "# Story Backlog\n")
+            _write(project / "docs/epics/epic-03-gamma/architecture.md", "# Architecture\n")
+            # 스펙 미작성: stories.md 부재 (에픽 디렉토리만 존재)
+            _write(project / "docs/epics/epic-04-delta/notes.md", "placeholder\n")
+
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+            index = (project / "docs/index.md").read_text(encoding="utf-8")
+            self.assertIn(
+                "| 에픽 | 마일스톤 | Stories | Architecture | Domain Model | UX Flow | Tech Review | 다음 액션 |",
+                index,
+            )
+            self.assertRegex(index, r"epic-01-alpha.*\| `/design` \(설계 미완\) \|")
+            self.assertRegex(index, r"epic-02-beta.*\| `/impl` \(설계 완료\) \|")
+            self.assertRegex(index, r"epic-03-gamma.*\| `/design` \(설계 미완\) \|")
+            self.assertRegex(index, r"epic-04-delta.*\| `/spec` \(스펙 미작성\) \|")
+
+            check = _run(project, "--check")
+            self.assertEqual(check.returncode, 0, check.stderr)
+
+    def test_impl_task_must_match_nn_prefix_for_design_complete(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(project / "docs/index.md", "# Index\n\n## 에픽\n\n")
+            _write(project / "docs/epics/epic-01-alpha/stories.md", "# Story Backlog\n")
+            _write(project / "docs/epics/epic-01-alpha/architecture.md", "# Architecture\n")
+            # impl/ 에 NN- prefix 아닌 파일만 있으면 설계 완료로 보지 않는다
+            _write(project / "docs/epics/epic-01-alpha/impl/README.md", "# Notes\n")
+
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+            index = (project / "docs/index.md").read_text(encoding="utf-8")
+            self.assertRegex(index, r"epic-01-alpha.*\| `/design` \(설계 미완\) \|")
 
     def test_check_fails_when_index_table_is_stale(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

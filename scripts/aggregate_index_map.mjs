@@ -19,6 +19,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
+import { epicPhase } from './lib/epic_phase.mjs';
 
 const SECTION_EPICS = '에픽';
 const SECTION_MODULES = '모듈';
@@ -114,6 +115,7 @@ function collectEpics(root) {
         uxFlowPath: join(epicDir, 'ux-flow.md'),
         techReviewPath: join(epicDir, 'tech-review.md'),
         milestone: parseFrontmatterValue(storiesContent, 'milestone') || PLACEHOLDER,
+        nextAction: epicPhase(epicDir).label,
       };
     });
 }
@@ -161,13 +163,14 @@ function buildEpicTable(indexPath, epics) {
     optionalFileLink('domain-model.md', indexPath, epic.domainModelPath),
     optionalFileLink('ux-flow.md', indexPath, epic.uxFlowPath),
     optionalFileLink('tech-review.md', indexPath, epic.techReviewPath),
+    epic.nextAction,
   ]);
 
   return table(
-    ['에픽', '마일스톤', 'Stories', 'Architecture', 'Domain Model', 'UX Flow', 'Tech Review'],
+    ['에픽', '마일스톤', 'Stories', 'Architecture', 'Domain Model', 'UX Flow', 'Tech Review', '다음 액션'],
     rows.length > 0
       ? rows
-      : [[PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER]]
+      : [[PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER, PLACEHOLDER]]
   );
 }
 

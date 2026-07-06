@@ -82,7 +82,7 @@ docs/
 
 `docs/architecture.md` 는 epic 이 늘 때마다 append-growing map 으로 갱신한다. 상세 설계 본문을 전역에 복제하지 않고, 전역 모듈/의존/결정 anchor 와 epic 문서 링크를 추가한다.
 
-`docs/index.md` 는 cold-start agent 의 정적 entrypoint 다. `## 에픽` 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter `milestone` 값에서 파생되는 생성 섹션이며 수동 편집하지 않는다. 모듈 축을 쓰는 프로젝트에서는 `## 모듈` 표도 `docs/modules/<module-id>/` 에서 파생된다. live 진행상태를 문서에 복제하지 않고, 수동 섹션 `## 진행 상태 · 다음 작업` 에서 GitHub issue/label 상태, epic/story issue, `/next-work` 를 가리킨다. `/init-dcness` 는 기존 `docs/index.md` 를 overwrite 하지 않지만, 이 섹션이 없으면 `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs` 로 섹션만 append 한다.
+`docs/index.md` 는 cold-start agent 의 정적 entrypoint 다. `## 에픽` 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter `milestone` 값에서 파생되는 생성 섹션이며 수동 편집하지 않는다. `다음 액션` 컬럼은 산출물 존재만으로 epic 단위 phase 를 파생한다: `stories.md` 부재면 `/spec`, `stories.md` 는 있으나 설계 미완이면 `/design`, 설계 완료면 `/impl`. 설계 완료 판정은 `architecture.md` 존재 AND `impl/NN-*.md` 1개 이상 존재이며(선택 산출물 `domain-model.md`·`ux-flow.md`·`tech-review.md` 부재는 미완으로 보지 않는다), auto-memory 없이도 콜드스타트 다음 액션을 자족적으로 확정하기 위한 것이다. 모듈 축을 쓰는 프로젝트에서는 `## 모듈` 표도 `docs/modules/<module-id>/` 에서 파생된다. live 진행상태를 문서에 복제하지 않고, 수동 섹션 `## 진행 상태 · 다음 작업` 에서 GitHub issue/label 상태, epic/story issue, `/next-work` 를 가리킨다. `/init-dcness` 는 기존 `docs/index.md` 를 overwrite 하지 않지만, 이 섹션이 없으면 `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs` 로 섹션만 append 한다.
 
 `$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 는 각 epic 폴더와 opt-in module 폴더를 결정적으로 정렬하고 `docs/index.md` 의 `## 에픽` / `## 모듈` 표를 생성/갱신한다. 파일이 없는 선택 산출물 셀은 링크가 아닌 `—` 로 남긴다. `docs/modules/` 가 없으면 모듈 표는 생성하지 않아 단일 루트 프로젝트의 기존 index 동작을 바꾸지 않는다. 기존 `docs/index.md` 에 수동 `## 모듈` 섹션이 있으면 모듈 축 활성화 시 생성 섹션으로 교체되므로, 수동 설명은 다른 heading 으로 옮긴 뒤 집계기를 실행한다.
 

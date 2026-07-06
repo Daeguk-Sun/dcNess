@@ -12,6 +12,7 @@ on:
       - 'docs/**'
       - 'scripts/aggregate_index_map.mjs'
       - 'scripts/aggregate_architecture_map.mjs'
+      - 'scripts/lib/**'
       - '.github/actions/doc-sync/**'
       - '.github/workflows/doc-sync.yml'
 
