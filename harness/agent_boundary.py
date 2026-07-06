@@ -289,6 +289,31 @@ READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
 }
 
 
+# ── plugin read allow-list carve-out (#962) ────────────────────────────
+# 외부 활성 프로젝트에서 서브에이전트가 자기 plugin 의 "에이전트 소비용" 콘텐츠
+# (agents/** — 지침·템플릿·references·_shared, 그리고 지침이 읽으라고 지정한
+# docs/plugin/** 문서) 를 Read 할 수 있게, 광범위 인프라 패턴 `(^|/)\.claude/` 차단에서
+# 좁게 예외 허용한다. #614(지침 분리) 로 실제 지침이 agents/<name>/ 하위로 옮겨지면서
+# 외부 프로젝트에선 그 경로가 plugin cache(=`.claude/` 매칭) 아래에 놓여 v0.5.0 이후
+# 서브에이전트가 자기 전체 지침에 도달 못 하던 침묵 열화를 복구한다.
+#
+# 판정 기준은 *활성* plugin root (CLAUDE_PLUGIN_ROOT — file-guard hook 이 CC 로부터
+# 자동 수신). plugin cache 에 공존하는 구버전(다른 root)은 예외 대상이 아니라 계속
+# 차단된다 (stale 버전 오선택 방지). write 경계는 무변경 — 본 예외는 Read 전용이다.
+_PLUGIN_READ_ALLOW_ZONES: tuple[str, ...] = (
+    r'^agents/',
+    r'^docs/plugin/',
+)
+# 예외 구역 안이라도 계속 차단되는 개별 인프라 패턴 — 원 동기(인프라 탐독 토큰 낭비
+# 방지) 보존. broad `(^|/)\.claude/` 만 예외에서 제외하고 나머지 INFRA 패턴을
+# plugin-relative 경로에 재적용한다. 예: docs/plugin/loop-procedure.md 는 allow-zone
+# (docs/plugin/) 안이지만 loop-procedure 패턴에 매칭돼 계속 차단.
+_BROAD_CLAUDE_INFRA_PATTERN = r'(^|/)\.claude/'
+_PLUGIN_READ_ZONE_INFRA: tuple[str, ...] = tuple(
+    p for p in DCNESS_INFRA_PATTERNS if p != _BROAD_CLAUDE_INFRA_PATTERN
+)
+
+
 # ── is_infra_project() 3 OR 신호 ──────────────────────────────
 def _is_dcness_self_repo(cwd: Path) -> bool:
     """cwd 또는 그 상위에 dcness self repo 마커가 실재하나.
@@ -688,23 +713,66 @@ def check_write_allowed(
     return None
 
 
+def _plugin_read_carveout(
+    file_path: str,
+    cwd: Path,
+    plugin_root: Optional[str],
+) -> bool:
+    """활성 plugin 의 agents/** · 지정 docs/plugin/** read 예외 여부 (#962).
+
+    True = broad `.claude/` 차단에서 예외 허용 (Read 전용). 판정은 활성 plugin root
+    (plugin_root, 기본 CLAUDE_PLUGIN_ROOT) 기준 — 대상과 root 를 모두 resolve() 후
+    상대화하므로 symlink/`..` 로 예외 구역을 위장한 우회는 닫힌다 (구역 밖으로
+    resolve 되면 relative_to 실패 → False → broad `.claude/` 차단으로 회귀). allow-zone
+    안이라도 개별 인프라 패턴(loop-procedure 등)에 매칭되면 False (차단 유지).
+    """
+    if not plugin_root:
+        return False
+    try:
+        root = Path(plugin_root).expanduser().resolve()
+        p = Path(file_path).expanduser()
+        target = (p if p.is_absolute() else (cwd / p)).resolve()
+        rel = str(target.relative_to(root))
+    except (OSError, ValueError, RuntimeError):
+        return False
+    if not _matches_any(rel, _PLUGIN_READ_ALLOW_ZONES):
+        return False
+    if _matches_any(rel, _PLUGIN_READ_ZONE_INFRA):
+        return False
+    return True
+
+
 def check_read_allowed(
     agent: Optional[str],
     file_path: str,
     *,
     cwd: Optional[Path] = None,
+    plugin_root: Optional[str] = None,
 ) -> Optional[str]:
     """Read 검사 — block reason str / None=allow.
 
     메인 = 통과. is_infra_project = 통과. opt-out = 통과.
+    #962 carve-out = 활성 plugin 의 agents/** · 지정 docs/plugin/** 는 예외 허용.
     INFRA pattern = 모든 sub-agent 차단 (인프라 누설 방지).
     READ_DENY_MATRIX = agent 별 추가 차단.
+
+    plugin_root 미지정 시 CLAUDE_PLUGIN_ROOT env 로 폴백 (file-guard hook 은 이 env 를
+    CC 로부터 자동 수신 — is_infra_project 참조). env 도 없으면 carve-out 미적용.
     """
     if not agent:
         return None
     if is_infra_project(cwd):
         return None
     if is_opt_out(cwd):
+        return None
+    if cwd is None:
+        cwd = Path.cwd()
+    if plugin_root is None:
+        plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT") or None
+
+    # #962 — 활성 plugin 의 agents/** · 지정 docs/plugin/** 는 broad `.claude/` 차단에서
+    # 예외 허용. 개별 인프라 패턴·plugin 밖 민감 경로는 아래 일반 검사로 계속 차단된다.
+    if _plugin_read_carveout(file_path, cwd, plugin_root):
         return None
 
     norm = _normalize(file_path, cwd)

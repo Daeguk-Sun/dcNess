@@ -27,6 +27,7 @@ if str(ROOT) not in sys.path:
 from harness.agent_boundary import (  # noqa: E402
     check_bash_mutation,
     check_github_mcp_mutation,
+    check_read_allowed,
     check_write_allowed,
 )
 from harness.hooks import handle_pretooluse_agent  # noqa: E402
@@ -82,6 +83,32 @@ def _file_write(agent: str, path: str) -> Probe:
     def probe() -> tuple[Decision, str]:
         with tempfile.TemporaryDirectory() as td, _external_project_boundary():
             return _reason_decision(check_write_allowed(agent, path, cwd=Path(td)))
+
+    return probe
+
+
+def _file_read(agent: str, build_target: Callable[[Path, Path, Path], str]) -> Probe:
+    """#962 read-boundary probe — 외부 활성 프로젝트에서 활성 plugin root 기준 read 검사.
+
+    build_target(base, cwd, plugin_root) 가 대상 경로를 만든다. plugin_root 는 실제
+    배포 레이아웃(~/.claude/plugins/cache/dcness/dcness/<ver>)을 모사하며, cwd 는 외부
+    프로젝트다. 경로가 실존할 필요는 없다 (resolve 는 strict=False).
+    """
+    def probe() -> tuple[Decision, str]:
+        with tempfile.TemporaryDirectory() as td, _external_project_boundary():
+            base = Path(td)
+            cwd = base / "project"
+            cwd.mkdir()
+            plugin_root = (
+                base / ".claude" / "plugins" / "cache" / "dcness" / "dcness" / "0.13.0"
+            )
+            plugin_root.mkdir(parents=True)
+            target = build_target(base, cwd, plugin_root)
+            return _reason_decision(
+                check_read_allowed(
+                    agent, target, cwd=cwd, plugin_root=str(plugin_root)
+                )
+            )
 
     return probe
 
@@ -364,6 +391,65 @@ def build_cases() -> list[GuardCase]:
             "allow",
             "architect-owned docs remain writable by architect.",
             _file_write("architect", "docs/architecture.md"),
+        ),
+        GuardCase(
+            "read_boundary_allows_own_agent_instructions",
+            "read-boundary",
+            "allow",
+            "subagent can read its own active-plugin agents/** full instructions.",
+            _file_read(
+                "system-architect",
+                lambda b, c, r: str(
+                    r / "agents/system-architect/system-architect-agent.md"
+                ),
+            ),
+        ),
+        GuardCase(
+            "read_boundary_allows_designated_plugin_doc",
+            "read-boundary",
+            "allow",
+            "subagent can read designated docs/plugin/** references in active plugin.",
+            _file_read(
+                "module-architect", lambda b, c, r: str(r / "docs/plugin/terms.md")
+            ),
+        ),
+        GuardCase(
+            "read_boundary_blocks_plugin_loop_procedure",
+            "read-boundary",
+            "block",
+            "plugin infra doc (loop-procedure) stays blocked inside the allow zone.",
+            _file_read(
+                "module-architect",
+                lambda b, c, r: str(r / "docs/plugin/loop-procedure.md"),
+            ),
+        ),
+        GuardCase(
+            "read_boundary_blocks_plugin_hook_infra",
+            "read-boundary",
+            "block",
+            "plugin hook/guard code stays blocked (outside agents/ · docs/plugin/).",
+            _file_read(
+                "system-architect", lambda b, c, r: str(r / "hooks/file-guard.sh")
+            ),
+        ),
+        GuardCase(
+            "read_boundary_blocks_home_claude_outside_plugin",
+            "read-boundary",
+            "block",
+            "~/.claude paths outside the plugin folder (history/settings) stay blocked.",
+            _file_read(
+                "system-architect", lambda b, c, r: str(b / ".claude/history.jsonl")
+            ),
+        ),
+        GuardCase(
+            "read_boundary_blocks_project_harness_state",
+            "read-boundary",
+            "block",
+            "project .claude/harness-state read stays blocked.",
+            _file_read(
+                "system-architect",
+                lambda b, c, r: ".claude/harness-state/.sessions/x/live.json",
+            ),
         ),
         GuardCase(
             "bash_mutation_blocks_git_push",

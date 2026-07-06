@@ -35,6 +35,7 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
         categories = set(report["categories"])
         for category in (
             "file-boundary",
+            "read-boundary",
             "bash-mutation",
             "mcp-mutation",
             "order-gate",
@@ -50,6 +51,9 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
         case_ids = {case["id"] for case in report["cases"]}
         for case_id in (
             "file_boundary_blocks_infra",
+            "read_boundary_allows_own_agent_instructions",
+            "read_boundary_blocks_plugin_loop_procedure",
+            "read_boundary_blocks_home_claude_outside_plugin",
             "bash_mutation_blocks_git_push",
             "mcp_mutation_blocks_pr_merge",
             "order_gate_blocks_missing_begin_step",
