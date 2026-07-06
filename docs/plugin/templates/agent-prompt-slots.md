@@ -28,7 +28,7 @@ main repo 절대경로를 worktree 경로처럼 넘기지 않는다.}}
 
 ## 슬롯 해석
 
-- **슬롯 1**: 대상 단위 + 읽을 SSOT + write 경계. 같은 결정·계약·요구사항을 prompt 에 다시 복사하지 않는다.
+- **슬롯 1**: 대상 단위 + 읽을 SSOT + write 경계. 같은 결정·계약·요구사항을 prompt 에 다시 복사하지 않는다. **외부 활성 프로젝트에서 sub-agent 의 *자기 전체 지침*(얇은 진입점이 가리키는 `agents/<name>/<name>-agent.md`) 경로는 cwd 상대가 아니라 활성 plugin root 기준**이므로, 메인이 그 절대경로를 슬롯 1 에 적어 준다 — `ROOT="${CLAUDE_PLUGIN_ROOT:-$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)}"; [ -z "$ROOT" ] && ROOT="$HOME/.claude/plugins/marketplaces/dcness"; INSTR="$ROOT/agents/<name>/<name>-agent.md"` (**활성 `CLAUDE_PLUGIN_ROOT` 우선** — carve-out 이 활성 root 만 허용하고 구버전 캐시는 차단하므로 최고버전을 먼저 고르면 highest≠active 일 때 file-guard 에 막힌다. 미설정 시에만 cache 최고버전 → 로컬 marketplace fallback). dcness self 저장소면 cwd 상대경로 그대로. (진입점 본문의 `${CLAUDE_PLUGIN_ROOT}` 는 텍스트 치환되지 않아 self-발견이 헤맬 수 있으니 메인이 선공급하면 확실하다.)
 - **슬롯 2**: worktree 활성 시 절대경로. Claude Code Task tool 에 cwd 전달 경로가 없으므로 메인이 명시한다.
 - **슬롯 3**: 그 호출에만 필요한 미기록 제약·신호. 방법 처방을 막는 가드다.
 

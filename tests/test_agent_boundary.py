@@ -1167,6 +1167,239 @@ class ReadAllowedTests(unittest.TestCase):
             )
 
 
+class PluginReadCarveoutTests(unittest.TestCase):
+    """#962 — 외부 활성 프로젝트에서 서브에이전트가 자기 plugin 의 agents/** ·
+    지정 docs/plugin/** 를 Read 할 수 있게 broad `.claude/` 차단에서 예외 허용.
+
+    민감 영역(plugin 밖 ~/.claude/ · project harness-state)과 plugin 안 개별
+    인프라(hooks · 가드 · routing · loop-procedure · governance)는 계속 차단.
+    """
+
+    def setUp(self):
+        # is_infra_project / is_opt_out 을 결정적으로 False 로 — 외부 활성 프로젝트 모사.
+        self._infra = patch(
+            "harness.agent_boundary.is_infra_project", return_value=False
+        )
+        self._optout = patch(
+            "harness.agent_boundary.is_opt_out", return_value=False
+        )
+        self._infra.start()
+        self._optout.start()
+
+    def tearDown(self):
+        self._infra.stop()
+        self._optout.stop()
+
+    def _dirs(self, td: str) -> tuple[Path, Path]:
+        """(cwd=외부 프로젝트, plugin_root=활성 plugin cache 버전) 를 만든다."""
+        base = Path(td)
+        cwd = base / "project"
+        cwd.mkdir()
+        # 활성 plugin root 는 실제 배포 레이아웃(~/.claude/plugins/cache/...)을 모사.
+        plugin_root = (
+            base / ".claude" / "plugins" / "cache" / "dcness" / "dcness" / "0.13.0"
+        )
+        plugin_root.mkdir(parents=True)
+        return cwd, plugin_root
+
+    # ── allow: 자기 plugin 의 에이전트 소비용 콘텐츠 ─────────────────
+    def test_agent_instructions_read_allowed(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/system-architect/system-architect-agent.md")
+            self.assertIsNone(
+                check_read_allowed(
+                    "system-architect", target, cwd=cwd, plugin_root=str(root)
+                )
+            )
+
+    def test_agent_shared_read_allowed(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/_shared/agent-doc-format/agent.md")
+            self.assertIsNone(
+                check_read_allowed(
+                    "system-architect", target, cwd=cwd, plugin_root=str(root)
+                )
+            )
+
+    def test_agent_templates_read_allowed(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/system-architect/templates/decision.md")
+            self.assertIsNone(
+                check_read_allowed(
+                    "system-architect", target, cwd=cwd, plugin_root=str(root)
+                )
+            )
+
+    def test_designated_docs_plugin_read_allowed(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "docs/plugin/terms.md")
+            self.assertIsNone(
+                check_read_allowed(
+                    "module-architect", target, cwd=cwd, plugin_root=str(root)
+                )
+            )
+
+    def test_env_fallback_when_param_omitted(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/pr-reviewer/pr-reviewer-agent.md")
+            with patch.dict(
+                os.environ, {"CLAUDE_PLUGIN_ROOT": str(root)}, clear=False
+            ):
+                self.assertIsNone(
+                    check_read_allowed("pr-reviewer", target, cwd=cwd)
+                )
+
+    # ── block: plugin 안 개별 인프라는 계속 차단 (원 동기 보존) ────────
+    def test_plugin_loop_procedure_still_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "docs/plugin/loop-procedure.md")
+            reason = check_read_allowed(
+                "module-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    def test_plugin_hooks_still_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "hooks/file-guard.sh")
+            reason = check_read_allowed(
+                "system-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    def test_plugin_harness_guard_still_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "harness/agent_boundary.py")
+            reason = check_read_allowed(
+                "system-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    def test_plugin_skill_routing_still_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "skills/impl/impl-routing.md")
+            reason = check_read_allowed(
+                "system-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    def test_plugin_governance_still_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "docs/internal/governance.md")
+            reason = check_read_allowed(
+                "system-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    # ── block: 민감 영역 read 는 계속 차단 ───────────────────────────
+    def test_home_claude_outside_plugin_blocked(self):
+        # plugin 폴더 밖 ~/.claude/ (이력·transcript·설정) — 계속 차단.
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            # plugin cache 밖의 .claude 하위 민감 파일.
+            target = str(Path(td) / ".claude" / "history.jsonl")
+            reason = check_read_allowed(
+                "system-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    def test_project_harness_state_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            reason = check_read_allowed(
+                "system-architect",
+                ".claude/harness-state/.sessions/x/live.json",
+                cwd=cwd,
+                plugin_root=str(root),
+            )
+            self.assertIsNotNone(reason)
+
+    # ── block: 구버전 캐시 오선택 방지 (활성 root 아니면 예외 대상 아님) ──
+    def test_stale_plugin_version_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            stale = root.parent / "0.3.0"
+            stale.mkdir()
+            target = str(stale / "agents/system-architect/system-architect-agent.md")
+            reason = check_read_allowed(
+                "system-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    # ── block: symlink/.. 위장 우회 차단 ─────────────────────────────
+    def test_symlink_disguise_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            secret = Path(td) / ".claude" / "secret.txt"
+            secret.parent.mkdir(parents=True, exist_ok=True)
+            secret.write_text("sensitive\n", encoding="utf-8")
+            link = root / "agents" / "evil.md"
+            link.parent.mkdir(parents=True, exist_ok=True)
+            link.symlink_to(secret)
+            reason = check_read_allowed(
+                "system-architect", str(link), cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    # ── READ_DENY_MATRIX 가 carve-out 보다 우선 (codex review 관찰 1) ──
+    def test_read_deny_matrix_precedes_carveout(self):
+        # designer 의 src/ READ_DENY 는 plugin 구역과 겹치는 실경로가 없어 실해 0 이지만,
+        # 겹치는 경로(agents/designer/src/…)를 주면 carve-out 예외보다 deny 가 이긴다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/designer/src/x.md")
+            reason = check_read_allowed(
+                "designer", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+            self.assertIn("READ_DENY_MATRIX", reason)
+
+    # ── plugin root 절대 prefix 의 우발적 deny 토큰 무시 (codex P2-A) ──
+    def test_deny_ignores_incidental_root_prefix(self):
+        # plugin root 경로 자체에 `/src/` 가 있어도(로컬 체크아웃), 정당한 지침 read 는
+        # 허용된다 — READ_DENY 는 plugin-relative 경로에만 적용되기 때문.
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            cwd = base / "project"
+            cwd.mkdir()
+            root = base / "src" / "dcness"  # 절대경로에 `/src/` 포함
+            root.mkdir(parents=True)
+            target = str(root / "agents/designer/designer-agent.md")
+            # designer READ_DENY = (^|/)src/ — norm 에 적용하면 root prefix 로 오차단.
+            self.assertIsNone(
+                check_read_allowed(
+                    "designer", target, cwd=cwd, plugin_root=str(root)
+                )
+            )
+
+    # ── zone 안 nested .claude/ 서브트리 차단 (codex P2-B) ─────────────
+    def test_nested_dot_claude_in_zone_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/foo/.claude/transcript.json")
+            reason = check_read_allowed(
+                "system-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
+    # ── write 경계 무변경 (carve-out 은 read 전용) ────────────────────
+    def test_write_boundary_unchanged_for_plugin_agents(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/system-architect/system-architect-agent.md")
+            reason = check_write_allowed("engineer", target, cwd=cwd)
+            self.assertIsNotNone(reason)
+
+
 class BashHeuristicTests(unittest.TestCase):
     def test_no_indicator_returns_empty(self):
         self.assertEqual(extract_bash_paths("ls -la docs/"), [])
