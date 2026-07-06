@@ -1350,6 +1350,19 @@ class PluginReadCarveoutTests(unittest.TestCase):
             )
             self.assertIsNotNone(reason)
 
+    # ── READ_DENY_MATRIX 가 carve-out 보다 우선 (codex review 관찰 1) ──
+    def test_read_deny_matrix_precedes_carveout(self):
+        # designer 의 src/ READ_DENY 는 plugin 구역과 겹치는 실경로가 없어 실해 0 이지만,
+        # 겹치는 경로(agents/designer/src/…)를 주면 carve-out 예외보다 deny 가 이긴다.
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/designer/src/x.md")
+            reason = check_read_allowed(
+                "designer", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+            self.assertIn("READ_DENY_MATRIX", reason)
+
     # ── write 경계 무변경 (carve-out 은 read 전용) ────────────────────
     def test_write_boundary_unchanged_for_plugin_agents(self):
         with tempfile.TemporaryDirectory() as td:

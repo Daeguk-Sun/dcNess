@@ -752,9 +752,9 @@ def check_read_allowed(
     """Read 검사 — block reason str / None=allow.
 
     메인 = 통과. is_infra_project = 통과. opt-out = 통과.
+    READ_DENY_MATRIX = agent 별 추가 차단 (carve-out 보다 우선 — 아래 순서 주석 참조).
     #962 carve-out = 활성 plugin 의 agents/** · 지정 docs/plugin/** 는 예외 허용.
     INFRA pattern = 모든 sub-agent 차단 (인프라 누설 방지).
-    READ_DENY_MATRIX = agent 별 추가 차단.
 
     plugin_root 미지정 시 CLAUDE_PLUGIN_ROOT env 로 폴백 (file-guard hook 은 이 env 를
     CC 로부터 자동 수신 — is_infra_project 참조). env 도 없으면 carve-out 미적용.
@@ -770,17 +770,12 @@ def check_read_allowed(
     if plugin_root is None:
         plugin_root = os.environ.get("CLAUDE_PLUGIN_ROOT") or None
 
-    # #962 — 활성 plugin 의 agents/** · 지정 docs/plugin/** 는 broad `.claude/` 차단에서
-    # 예외 허용. 개별 인프라 패턴·plugin 밖 민감 경로는 아래 일반 검사로 계속 차단된다.
-    if _plugin_read_carveout(file_path, cwd, plugin_root):
-        return None
-
     norm = _normalize(file_path, cwd)
 
-    matched = _matches_any(norm, DCNESS_INFRA_PATTERNS)
-    if matched:
-        return f"인프라 path 읽기 금지: matched `{matched}` (DCNESS_INFRA_PATTERNS)"
-
+    # READ_DENY_MATRIX (agent 별 추가 차단) 를 carve-out 보다 *먼저* 검사한다. agent 전용
+    # deny 는 plugin carve-out 예외보다 우선해야 한다 — 현행 READ_DENY 패턴(src/ 등)은
+    # plugin agents/·docs/plugin 구역과 겹치는 실경로가 없어 효과는 동일하지만, 미래에
+    # 겹치는 규칙이 추가돼도 carve-out 이 이를 우회하지 못하게 순서로 보장한다.
     deny = READ_DENY_MATRIX.get(agent, ())
     matched = _matches_any(norm, deny)
     if matched:
@@ -788,6 +783,16 @@ def check_read_allowed(
             f"{agent} READ_DENY_MATRIX 매칭: `{norm}` "
             f"(READ_DENY_MATRIX matched `{matched}`)"
         )
+
+    # #962 — 활성 plugin 의 agents/** · 지정 docs/plugin/** 는 broad `.claude/` 차단에서
+    # 예외 허용. plugin 안 개별 인프라 패턴·plugin 밖 민감 경로는 아래 INFRA 검사로 계속 차단.
+    if _plugin_read_carveout(file_path, cwd, plugin_root):
+        return None
+
+    matched = _matches_any(norm, DCNESS_INFRA_PATTERNS)
+    if matched:
+        return f"인프라 path 읽기 금지: matched `{matched}` (DCNESS_INFRA_PATTERNS)"
+
     return None
 
 
