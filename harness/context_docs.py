@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
+from harness.tdd_hooks import detect_platform
+
 
 RECOMMENDED_SECTIONS = (
     "Commands",
@@ -130,17 +132,12 @@ def _detect_package_commands(root: Path) -> list[str]:
     return commands
 
 
-def _has_python_markers(root: Path) -> bool:
-    return any(
-        (root / marker).exists()
-        for marker in ("pyproject.toml", "setup.py", "setup.cfg")
-    )
-
-
 def _detect_python_commands(root: Path) -> list[str]:
-    # Python 마커가 없으면 test 디렉토리만 보고 python 명령을 심지 않는다 — JS 등 비-python
-    # 저장소에도 tests/ 가 흔하고, python3.11 은 일반 기계에 거의 없다. 버전 고정 대신 python3.
-    if not _has_python_markers(root):
+    # "이 저장소가 python 인가" 판정은 tdd_hooks.detect_platform 이 SSOT
+    # (pyproject.toml / requirements.txt / .py 파일). 별도 좁은 기준을 두면 drift 가 난다 —
+    # JS 등 비-python 저장소에도 tests/ 가 흔해 tests/ 존재만으론 python 명령을 심지 않고,
+    # 버전 고정(python3.11) 대신 일반적으로 존재하는 python3 를 쓴다.
+    if detect_platform(root) != "python":
         return []
     commands: list[str] = []
     if (root / "tests").exists():
