@@ -92,7 +92,10 @@ HANDOFF_ACTIVE="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/next-session.md"
 if [[ -s "$HANDOFF_ACTIVE" ]]; then
   HANDOFF_ARCHIVE_DIR="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/archive"
   mkdir -p "$HANDOFF_ARCHIVE_DIR" 2>/dev/null
-  HANDOFF_CLAIMED="$HANDOFF_ARCHIVE_DIR/$(date +%Y%m%d-%H%M%S).md"
+  # 파일명에 프로세스 PID 를 붙여 같은 초에 소비되는 서로 다른 handoff 끼리 archive
+  # 파일명이 충돌해 덮어써지는(무손실 위반) 것을 막는다. 세션마다 별 프로세스라 PID 는
+  # 서로 다르고, 동일 src 를 노리는 병렬 mv 는 rename 원자성으로 하나만 성공한다.
+  HANDOFF_CLAIMED="$HANDOFF_ARCHIVE_DIR/$(date +%Y%m%d-%H%M%S)-$$.md"
   if mv "$HANDOFF_ACTIVE" "$HANDOFF_CLAIMED" 2>/dev/null; then
     DCNESS_HANDOFF_MSG=$(cat "$HANDOFF_CLAIMED" 2>/dev/null || echo "")
   fi

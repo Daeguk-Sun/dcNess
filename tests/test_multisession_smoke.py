@@ -301,6 +301,40 @@ class BashPipelineSmokeTests(unittest.TestCase):
         archived = list((handoffs / "archive").glob("*.md"))
         self.assertEqual(len(archived), 1, f"archive 1개 기대, 실제: {archived}")
 
+    def test_session_start_two_handoffs_both_archived(self) -> None:
+        """#953 — 같은 초에 소비되는 서로 다른 두 handoff 의 archive 사본이 파일명
+        충돌 없이 둘 다 보존된다 (무손실 계약). ts-only 파일명이면 덮어써져 실패."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+
+        (handoffs / "next-session.md").write_text(
+            "# H1\n\n## 다음 액션\n- first-handoff\n", encoding="utf-8",
+        )
+        r1 = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-h1"}, cwd=self.cwd,
+        )
+        self.assertEqual(r1.returncode, 0)
+
+        (handoffs / "next-session.md").write_text(
+            "# H2\n\n## 다음 액션\n- second-handoff\n", encoding="utf-8",
+        )
+        r2 = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-h2"}, cwd=self.cwd,
+        )
+        self.assertEqual(r2.returncode, 0)
+
+        archived = [
+            p.read_text(encoding="utf-8")
+            for p in (handoffs / "archive").glob("*.md")
+        ]
+        self.assertEqual(
+            len(archived), 2,
+            f"두 handoff 모두 보존돼야 함(무손실) — 실제 archive: {archived}",
+        )
+        joined = "\n".join(archived)
+        self.assertIn("first-handoff", joined)
+        self.assertIn("second-handoff", joined)
+
     def test_session_start_no_handoff_is_noop(self) -> None:
         """#953 — handoff 파일 부재 시 훅은 기존 동작 그대로 (무해)."""
         result = _run_bash_hook(
