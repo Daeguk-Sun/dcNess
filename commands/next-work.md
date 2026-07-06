@@ -30,7 +30,7 @@ node "$SCRIPT" next-work --repo OWNER/REPO
 
 - read-only: `--apply` 를 쓰지 않고, issue/label/Project/PR 상태를 변경하지 않는다.
 - Project 좌표나 bootstrap 없이 open issue 목록만으로 동작한다.
-- 출력 계층은 L1 `in-progress` 이어하기 → L2 blocker/critical 긴급 → L3 story/feature/task/bug 후보 순서다.
+- 출력 계층은 L1 `in-progress` 이어하기 → L2 blocker/critical 긴급 → L3 story/feature/task/bug 후보 순서다. L2 긴급 승격은 story 를 제외한다 — story 는 priority 무관하게 소속 epic 설계 phase 로 판정하므로 항상 L3 로 흘려보낸다.
 - `subTask` 는 독립 후보에서 제외하고, body 의 `Part of #N` 부모가 L1 에 있을 때만 그 부모 아래에 중첩 표시한다.
 - story 후보는 `epic-NN-<slug>` label 의 NN 오름차순, 같은 epic 안에서는 issue 번호 오름차순으로 표시한다.
 - story 는 epic 단위로 로컬 설계 산출물(`docs/epics/epic-NN-<slug>/architecture.md` + `impl/NN-*.md`) 존재를 확인해 다음 액션을 구분한다. 설계 미완 epic 은 story 를 impl 후보로 내밀지 않고 `/design <epic-path>` 를 제시하고, 설계 완료 epic 만 story 를 impl 후보로 승격한다. 로컬에 해당 epic 산출물이 없으면(repo 밖 실행 / stale checkout) `/design` 을 단정하지 않고 판정을 보류한다.

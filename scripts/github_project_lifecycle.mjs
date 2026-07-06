@@ -668,7 +668,12 @@ export function selectNextCandidates(issuesInput) {
   const workItems = remaining.filter(
     (issue) => issue.issueType && !['epic', 'subTask'].includes(issue.issueType),
   );
-  const l2 = workItems.filter((issue) => issue.priorityRank <= 1).sort(byPriorityThenNumber);
+  // story 는 priority 와 무관하게 소속 epic 의 설계 phase 로 다음 액션이 결정된다(설계 전이면
+  // impl 후보가 아니라 /design). 그래서 blocker/critical 이어도 L2 긴급으로 승격하지 않고 항상
+  // L3 phase-aware 그룹으로 흘려보낸다 — 승격하면 phase 판정을 우회해 설계 전 story 를 impl 로 오도.
+  const l2 = workItems
+    .filter((issue) => issue.issueType !== 'story' && issue.priorityRank <= 1)
+    .sort(byPriorityThenNumber);
   const l2Numbers = new Set(l2.map((issue) => issue.number));
   const l3Items = workItems.filter((issue) => !l2Numbers.has(issue.number));
 

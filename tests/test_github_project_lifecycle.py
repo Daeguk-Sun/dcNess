@@ -1459,6 +1459,36 @@ class NextWorkStoryGroupPhaseTests(unittest.TestCase):
             expr = f"lifecycle.parseRepoSlug({json.dumps(url)})"
             self.assertEqual(run_node(expr), expected, msg=f"{url=}")
 
+    def test_blocker_story_stays_in_l3_group_not_l2(self) -> None:
+        # blocker/critical story 도 L2 긴급으로 승격되지 않고 L3 phase-aware 그룹으로 간다.
+        # (승격 시 phase 판정을 우회해 설계 전 epic story 를 impl 로 오도하는 것을 차단.)
+        issues = [
+            {
+                "number": 401,
+                "title": "Urgent story in undesigned epic",
+                "body": "**Priority:** blocker\n",
+                "labels": [{"name": "story"}, {"name": "epic-05-urgent"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/401",
+            },
+            {
+                "number": 402,
+                "title": "Critical bug",
+                "body": "**Priority:** critical\n",
+                "labels": [{"name": "bug"}],
+                "url": "https://github.com/Daeguk-Sun/dcNess/issues/402",
+            },
+        ]
+        result = run_node(f"lifecycle.selectNextCandidates({json.dumps(issues)})")
+        l2_numbers = [item["number"] for item in result["l2"]]
+        self.assertNotIn(401, l2_numbers)
+        self.assertIn(402, l2_numbers)  # bug 는 여전히 L2 긴급
+        story_numbers = [
+            item["number"]
+            for group in result["l3"]["storyGroups"]
+            for item in group["items"]
+        ]
+        self.assertIn(401, story_numbers)
+
 
 if __name__ == "__main__":
     unittest.main()
