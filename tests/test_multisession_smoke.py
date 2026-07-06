@@ -231,6 +231,60 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("/init-dcness` 재실행으로 섹션을 보강", ctx)
         self.assertNotIn("docs/index.md` 의 `## 진행 상태 · 다음 작업` 포인터", ctx)
 
+    def test_session_start_injects_pending_handoff(self) -> None:
+        """#953 — 이전 세션이 남긴 handoff 가 additionalContext 최상단에 주입되고
+        주입 직후 archive 로 이동해 active 경로에서 사라진다 (무손실 clear)."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+        (handoffs / "next-session.md").write_text(
+            "# 다음 세션 핸드오프\n\n## 다음 액션\n- issue953 handoff 테스트 green 확인\n",
+            encoding="utf-8",
+        )
+
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-handoff"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(
+            result.returncode, 0,
+            f"stderr: {result.stderr}\nstdout: {result.stdout}",
+        )
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+        # 핸드오프 내용이 최상단(활성 안내보다 위)에 주입
+        self.assertIn("대기 핸드오프", ctx)
+        self.assertIn("issue953 handoff 테스트 green 확인", ctx)
+        self.assertLess(
+            ctx.index("대기 핸드오프"), ctx.index("[dcness 활성 환경]"),
+            "핸드오프가 활성 안내보다 위에 와야 한다",
+        )
+
+        # 소비 후 active 파일 제거 + archive 로 이동 (무손실)
+        self.assertFalse(
+            (handoffs / "next-session.md").exists(),
+            "active 핸드오프가 archive 로 이동되지 않음 — 다음 세션 stale 재주입 위험",
+        )
+        archived = list((handoffs / "archive").glob("*.md"))
+        self.assertEqual(len(archived), 1, f"archive 파일 1개 기대, 실제: {archived}")
+        self.assertIn(
+            "issue953 handoff 테스트 green 확인",
+            archived[0].read_text(encoding="utf-8"),
+        )
+
+    def test_session_start_no_handoff_is_noop(self) -> None:
+        """#953 — handoff 파일 부재 시 훅은 기존 동작 그대로 (무해)."""
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-no-handoff"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("대기 핸드오프", ctx)
+        # 파일이 없으면 archive 디렉토리조차 만들지 않는다
+        self.assertFalse((self.cwd / ".dcness-work" / "handoffs" / "archive").exists())
+
     def test_invalid_sid_silent_no_artifacts(self) -> None:
         result = _run_bash_hook(
             "session-start.sh",

@@ -80,6 +80,18 @@ else
 fi
 export DCNESS_NEXT_POINTER_MSG
 
+# === 대기 핸드오프 (warm 레이어) ===
+# 이전 세션이 /handoff 로 남긴 인계 문서가 있으면 내용을 캡처해 additionalContext
+# 최상단에 주입하고, 주입 직후 archive 로 옮겨 무손실 clear 한다. 캡처를 선행하므로
+# 이후 어떤 실패에도 내용은 archive 에 보존된다. 파일 부재 시 아무 동작도 하지 않아
+# 훅은 기존 동작 그대로다.
+DCNESS_HANDOFF_MSG=""
+HANDOFF_ACTIVE="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/next-session.md"
+if [[ -s "$HANDOFF_ACTIVE" ]]; then
+  DCNESS_HANDOFF_MSG=$(cat "$HANDOFF_ACTIVE" 2>/dev/null || echo "")
+fi
+export DCNESS_HANDOFF_MSG
+
 # 슬림 inject (#596) — SessionStart 는 *초기화 + 최소 활성 안내* 만 담당.
 # 문서 진입 매트릭스 / 안티패턴 / soft 필수 / cost-aware 항목은 제거: 하네스 모델은
 # "문서 선독 기반 compliance" 가 아니라 "hook 이 차단하고 그 자리에서 복구". 절차·분기는
@@ -88,8 +100,16 @@ python3 -c "
 import json, os
 update_msg = os.environ.get('DCNESS_UPDATE_MSG', '').strip()
 next_pointer_msg = os.environ.get('DCNESS_NEXT_POINTER_MSG', '').strip()
+handoff_msg = os.environ.get('DCNESS_HANDOFF_MSG', '').strip()
+handoff_block = ''
+if handoff_msg:
+    handoff_block = (
+        '## ⚠️ 대기 핸드오프 — 이것부터 읽고 시작\n\n'
+        '이전 세션이 /handoff 로 남긴 인계다. 다음 액션부터 확인하고, 상세는 포인터를 질의 시점에 lazy 로드한다.\n\n'
+        + handoff_msg + '\n\n---\n\n'
+    )
 header = (update_msg + '\n\n---\n\n') if update_msg else ''
-msg = header + f'''## [dcness 활성 환경]
+msg = handoff_block + header + f'''## [dcness 활성 환경]
 
 첫 응답 첫 줄에 \`[dcness 활성 확인]\` 토큰 출력 (활성 신호 — 부재 시 사용자가 룰 미적용을 즉시 인지).
 
@@ -110,6 +130,14 @@ print(json.dumps({
     }
 }))
 " 2>/dev/null
+
+# 주입 직후 archive 이동 (무손실 clear) — 다음다음 세션 stale 재주입 차단.
+# 병렬 peer 세션은 각자 SessionStart 를 발화하므로 first-consumer 가 이 mv 로 소비한다.
+if [[ -n "$DCNESS_HANDOFF_MSG" && -s "$HANDOFF_ACTIVE" ]]; then
+  HANDOFF_ARCHIVE_DIR="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/archive"
+  mkdir -p "$HANDOFF_ARCHIVE_DIR" 2>/dev/null
+  mv "$HANDOFF_ACTIVE" "$HANDOFF_ARCHIVE_DIR/$(date +%Y%m%d-%H%M%S).md" 2>/dev/null || true
+fi
 
 # 모든 실패는 silent
 exit 0
