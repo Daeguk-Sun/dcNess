@@ -40,8 +40,9 @@ Sense→Diagnose→Decide→Act→Verify 루프를 따른다. 새 CI 게이트�
 - Verify: 핵심 행동 eval(`shorts-real-spec`, `headless-prose-quality`)은 릴리즈 체크 모드에서 N/N 통과해야 한다. judge 판정이 의심스러우면 저장된 `run-<N>-report.md`와 `run-<N>-judge.md`를 [#894](https://github.com/alruminum/dcNess/issues/894) 보정 입력으로 남긴다.
 
 ```sh
-# 1. 브랜치 생성
-git checkout -b docs/release_{버전}_{설명} main
+# 1. 브랜치 생성 — 브랜치명 버전은 . 대신 _ (0.13.0 → 0_13_0).
+#    docs/{desc} 네이밍 게이트가 . 을 거부한다. (커밋 제목·태그·버전 파일은 . 유지)
+git checkout -b docs/release_0_13_0_{설명} main
 
 # 2. 버전 올리기
 #    .claude-plugin/plugin.json     "version" 필드
@@ -52,7 +53,7 @@ git add .claude-plugin/plugin.json .claude-plugin/marketplace.json
 git commit -m "[docs] release {버전} — {설명}"
 
 # 4. PR 생성 → CI PASS → merge
-git push -u origin docs/release_{버전}_{설명}
+git push -u origin docs/release_0_13_0_{설명}
 gh pr create --title "[docs] release {버전} — {설명}" ...
 gh pr merge {번호} --merge
 
