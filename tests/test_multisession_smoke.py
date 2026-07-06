@@ -355,6 +355,29 @@ class BashPipelineSmokeTests(unittest.TestCase):
         # 심링크는 따라가 archive 로 옮기지도 않는다 (타겟 보존)
         self.assertTrue(secret.exists())
 
+    def test_session_start_oversize_handoff_injects_pointer_not_dump(self) -> None:
+        """#953 — 상한 초과 handoff 는 전문을 컨텍스트로 덤프하지 않고 archive 전문
+        포인터만 주입한다 (slim-inject 보호 + exec 한도 회피, 전문은 무손실 보존)."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+        bulk = "X" * 20000  # 16KB 상한 초과
+        (handoffs / "next-session.md").write_text(
+            f"# 대용량\n{bulk}\n", encoding="utf-8",
+        )
+
+        result = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-big"}, cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("XXXXXXXXXX", ctx, "대용량 handoff 전문이 컨텍스트로 덤프됨")
+        self.assertIn("너무 큼", ctx, "상한 초과 포인터 메시지 부재")
+
+        # 전문은 archive 사본에 보존 (무손실)
+        archived = list((handoffs / "archive").glob("*.md"))
+        self.assertEqual(len(archived), 1)
+        self.assertIn("XXXXXXXXXX", archived[0].read_text(encoding="utf-8"))
+
     def test_session_start_no_handoff_is_noop(self) -> None:
         """#953 — handoff 파일 부재 시 훅은 기존 동작 그대로 (무해)."""
         result = _run_bash_hook(

@@ -102,7 +102,16 @@ if [[ -f "$HANDOFF_ACTIVE" && ! -L "$HANDOFF_ACTIVE" && -s "$HANDOFF_ACTIVE" ]];
   # archived 사본을 read 전 재확인해 차단한다.
   if mv "$HANDOFF_ACTIVE" "$HANDOFF_CLAIMED" 2>/dev/null \
      && [[ -f "$HANDOFF_CLAIMED" && ! -L "$HANDOFF_CLAIMED" ]]; then
-    DCNESS_HANDOFF_MSG=$(cat "$HANDOFF_CLAIMED" 2>/dev/null || echo "")
+    # slim-inject 보호 + exec env 한도 회피 — 상한 초과 시 전문을 주입하지 않고
+    # archive 전문을 가리키는 포인터만 넣는다(무손실: 전문은 archive 사본에 보존).
+    HANDOFF_MAX_BYTES=16384
+    HANDOFF_BYTES=$(wc -c < "$HANDOFF_CLAIMED" 2>/dev/null | tr -d '[:space:]')
+    HANDOFF_BYTES=${HANDOFF_BYTES:-0}
+    if [[ "$HANDOFF_BYTES" -gt "$HANDOFF_MAX_BYTES" ]]; then
+      DCNESS_HANDOFF_MSG="대기 핸드오프가 너무 큼(${HANDOFF_BYTES}B > ${HANDOFF_MAX_BYTES}B) — slim-inject 보호를 위해 전문 주입 생략. 다음 파일을 직접 읽고 시작할 것: ${HANDOFF_CLAIMED}"
+    else
+      DCNESS_HANDOFF_MSG=$(cat "$HANDOFF_CLAIMED" 2>/dev/null || echo "")
+    fi
   fi
 fi
 export DCNESS_HANDOFF_MSG

@@ -28,8 +28,12 @@ description: 세션을 넘기기 전 의도/결정/진행/다음 액션을 `.dcn
 # repo 루트 기준으로 쓴다 — SessionStart 훅이 소비할 경로와 동일 유도(git top-level).
 # 서브디렉토리에서 /handoff 를 발화해도 훅이 읽는 위치에 정확히 쓰이게 한다.
 PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-mkdir -p "$PROJECT_ROOT/.dcness-work/handoffs"
-cat > "$PROJECT_ROOT/.dcness-work/handoffs/next-session.md" <<'EOF'
+HANDOFF_DIR="$PROJECT_ROOT/.dcness-work/handoffs"
+mkdir -p "$HANDOFF_DIR"
+# 심링크 타겟 오염 방지 — 임시 파일에 쓴 뒤 rename 으로 교체한다. next-session.md 가
+# 심링크여도 rename 은 링크 자체를 대체(타겟을 따라가 덮어쓰지 않음). 훅의 읽기측
+# 심링크 하드닝과 대칭. `.dcness-work/` 는 writable 이라 이 방어가 필요하다.
+cat > "$HANDOFF_DIR/.next-session.tmp" <<'EOF'
 # 다음 세션 핸드오프 — <YYYY-MM-DD>
 
 ## 다음 액션 (필수)
@@ -47,6 +51,7 @@ cat > "$PROJECT_ROOT/.dcness-work/handoffs/next-session.md" <<'EOF'
 - <핵심 파일 경로>
 - <핵심 문서·이슈 링크>
 EOF
+mv -f "$HANDOFF_DIR/.next-session.tmp" "$HANDOFF_DIR/next-session.md"
 ```
 
 파일을 쓴 뒤 사용자에게 경로와 다음 액션을 보고한다.
