@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { parseField } from './check_issue_body.mjs';
+import { epicPhase } from './lib/epic_phase.mjs';
 
 export const GH_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
@@ -666,7 +668,12 @@ export function selectNextCandidates(issuesInput) {
   const workItems = remaining.filter(
     (issue) => issue.issueType && !['epic', 'subTask'].includes(issue.issueType),
   );
-  const l2 = workItems.filter((issue) => issue.priorityRank <= 1).sort(byPriorityThenNumber);
+  // story 는 priority 와 무관하게 소속 epic 의 설계 phase 로 다음 액션이 결정된다(설계 전이면
+  // impl 후보가 아니라 /design). 그래서 blocker/critical 이어도 L2 긴급으로 승격하지 않고 항상
+  // L3 phase-aware 그룹으로 흘려보낸다 — 승격하면 phase 판정을 우회해 설계 전 story 를 impl 로 오도.
+  const l2 = workItems
+    .filter((issue) => issue.issueType !== 'story' && issue.priorityRank <= 1)
+    .sort(byPriorityThenNumber);
   const l2Numbers = new Set(l2.map((issue) => issue.number));
   const l3Items = workItems.filter((issue) => !l2Numbers.has(issue.number));
 
@@ -1004,23 +1011,96 @@ function formatFlatNextSection(title, entries, { emptyText = '없음', limit = n
   return lines.join('\n');
 }
 
-function formatStoryGroups(groups) {
+function resolveProjectRoot() {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  } catch {
+    return process.cwd();
+  }
+}
+
+function sameRepo(a, b) {
+  return Boolean(a) && Boolean(b) && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+}
+
+// git remote URL 에서 OWNER/REPO slug 파싱 (https / ssh / `.git` 접미사 / 후행 슬래시 모두). 없으면 null.
+export function parseRepoSlug(url) {
+  const match = String(url).trim().match(/[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/);
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
+// 현재 git checkout 의 origin remote slug. git 에서 직접 뽑으므로 `GH_REPO`/`gh` 기본 repo
+// override 에 영향받지 않는다 (로컬 파일이 *어느 repo 것인지*의 진본). 확인 불가면 null.
+function gitRemoteSlugOrNull() {
+  try {
+    const url = execFileSync('git', ['config', '--get', 'remote.origin.url'], { encoding: 'utf8' }).trim();
+    return parseRepoSlug(url);
+  } catch {
+    return null;
+  }
+}
+
+// 로컬 `docs/epics/...` 산출물은 *현재 git checkout* 의 repo 를 서술한다. 그래서 대상 repo
+// (issue 출처)가 현재 checkout 의 git remote 와 일치할 때만 로컬 phase 판정을 쓴다. 로컬 식별을
+// gh 가 아니라 git 에서 뽑는 이유: `gh repo view` 는 `GH_REPO`/기본 repo override 를 따르므로
+// 다른 checkout/repo 밖에서도 대상 repo 를 반환해 가드를 우회시킨다. 불일치/미확인이면 보류.
+export function shouldUseLocalPhaseRoot(targetRepo, localRepoSlug) {
+  return sameRepo(targetRepo, localRepoSlug);
+}
+
+// next-work 는 GitHub issue 로 이미 등록된 story 를 나열하므로, 로컬 산출물이 없어도
+// (repo 밖 실행 / stale checkout / 대상 repo != 로컬 checkout) story 자체는 존재한다.
+// 그래서 로컬 근거가 없을 때(root 부재)와 epic_phase 의 'spec'(stories.md 부재)은 여기선
+// "스펙 미작성" 이 아니라 "로컬 산출물 확인 불가 → 판정 보류" 로 해석한다 (오탐으로 /design 단정 X).
+function epicGroupNextAction(epicSlugLabel, root) {
+  if (!epicSlugLabel) return { kind: 'unlabeled' };
+  if (!root) return { kind: 'unresolved' };
+  const { phase } = epicPhase(join(root, 'docs', 'epics', epicSlugLabel));
+  if (phase === 'impl') return { kind: 'impl' };
+  if (phase === 'design') return { kind: 'design' };
+  return { kind: 'unresolved' };
+}
+
+function storyGroupHeaderLine(epicSlugLabel, action) {
+  switch (action.kind) {
+    case 'impl':
+      return `- ${epicSlugLabel} — 설계 완료 → story impl 후보 (\`/impl\`)`;
+    case 'design':
+      return `- ${epicSlugLabel} — 설계 미완 → 다음 액션 \`/design docs/epics/${epicSlugLabel}\` (아래 story 는 아직 impl 후보 아님)`;
+    case 'unlabeled':
+      return '- 미분류 story — epic 라벨 없음 → 판정 보류';
+    default:
+      return `- ${epicSlugLabel} — 설계 산출물 로컬 확인 불가 → 판정 보류 (\`/design\`/\`/impl\` 미결)`;
+  }
+}
+
+export function formatStoryGroups(groups, root = null) {
   const lines = ['## L3 Story'];
   if (groups.length === 0) {
     lines.push('- 후보 없음');
     return lines.join('\n');
   }
+  // root 부재 = 로컬 checkout 이 대상 repo 를 서술하지 않음 (--repo 불일치 / repo 밖). 이유를 밝혀 보류.
+  if (!root && groups.some((group) => group.epicSlugLabel)) {
+    lines.push('- 참고: 대상 repo 가 현재 로컬 checkout 과 달라 설계 phase(`/design` vs `/impl`) 판정을 보류한다.');
+  }
+  let anyDesignComplete = false;
   for (const group of groups) {
-    lines.push(`- ${group.epicSlugLabel ?? '미분류 story'}`);
+    const action = epicGroupNextAction(group.epicSlugLabel, root);
+    if (action.kind === 'impl') anyDesignComplete = true;
+    lines.push(storyGroupHeaderLine(group.epicSlugLabel, action));
     for (const item of group.items) {
       lines.push(`  ${formatNextCandidate(item)}`);
     }
   }
-  lines.push('- 참고: story 세부 구현 순서의 진본은 epic 설계 산출물의 구현 순서 섹션이다.');
+  // 각주는 "설계 산출물이 존재한다" 를 전제하므로 설계 완료 epic 이 하나라도 있을 때만 붙인다.
+  if (anyDesignComplete) {
+    lines.push('- 참고: 설계 완료 epic 의 story 구현 순서 진본은 epic 설계 산출물의 구현 순서 섹션이다.');
+  }
   return lines.join('\n');
 }
 
-function formatNextWorkReport({ repo, candidates, limit }) {
+function formatNextWorkReport({ repo, candidates, limit, root = null }) {
   return [
     `[dcness-next-work] repo=${repo}`,
     '[dcness-next-work] read-only: GitHub issue/label 상태를 변경하지 않았습니다.',
@@ -1032,7 +1112,7 @@ function formatNextWorkReport({ repo, candidates, limit }) {
       limit,
     }),
     '',
-    formatStoryGroups(candidates.l3.storyGroups),
+    formatStoryGroups(candidates.l3.storyGroups, root),
     '',
     formatFlatNextSection('L3 Feature', candidates.l3.feature, { emptyText: '후보 없음', limit }),
     '',
@@ -1079,7 +1159,10 @@ function commandNext(args) {
     ? Number(args.limit)
     : 5;
   const candidates = selectNextCandidates(issues);
-  console.log(formatNextWorkReport({ repo, candidates, limit }));
+  // 로컬 git checkout 이 대상 repo(issue 출처)를 서술할 때만 로컬 산출물로 phase 를 판정한다.
+  // `--repo`/`GH_REPO` 로 다른 repo 를 가리키면 로컬 파일이 무관하므로 root 없이 판정을 보류한다.
+  const root = shouldUseLocalPhaseRoot(repo, gitRemoteSlugOrNull()) ? resolveProjectRoot() : null;
+  console.log(formatNextWorkReport({ repo, candidates, limit, root }));
   return 0;
 }
 

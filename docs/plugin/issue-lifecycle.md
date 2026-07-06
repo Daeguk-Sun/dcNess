@@ -76,8 +76,9 @@ node scripts/github_project_lifecycle.mjs next-work --repo OWNER/REPO
 ```
 
 - L1: `in-progress` label 이 붙은 open issue 전부.
-- L2: L1 을 제외한 blocker/critical issue.
+- L2: L1 을 제외한 blocker/critical issue. 단 **story 는 제외** — story 는 priority 와 무관하게 소속 epic 의 설계 phase 로 다음 액션이 결정되므로 항상 L3 로 흘려보낸다(L2 승격 시 phase 판정 우회).
 - L3: story → feature → task → bug 순. story 는 `epic-NN-<slug>` label 의 NN 오름차순, 같은 epic 안에서는 issue 번호 오름차순이다. feature/task/bug 는 Priority rank 후 issue 번호 오름차순이다.
+- L3 story 는 epic 단위로 로컬 설계 산출물(`docs/epics/epic-NN-<slug>/architecture.md` + `impl/NN-*.md`) 존재를 확인해 다음 액션을 구분한다. **설계 미완 epic** 은 story 를 impl 후보로 내밀지 않고 `/design <epic-path>` 를 제시하고, **설계 완료 epic** 만 story 를 impl 후보(L3)로 승격한다. 로컬 산출물은 *현재 git checkout* 의 repo 를 서술하므로 대상 repo 가 현재 checkout(git remote) 과 다르면(`--repo`/`GH_REPO` override) 로컬 phase 판정을 쓰지 않고 보류한다.
 - `subTask` 는 독립 후보에서 제외한다. body 의 `Part of #N` 부모가 L1 에 있으면 해당 부모 아래에 중첩 표시한다.
 
 GitHub 조회가 실패하면 실패를 명시하고 로컬 대안 경로를 안내한다. `docs/index.md` 는 live 상태를 복제하지 않고 issue/label 상태, epic/story issue, `/next-work` 를 가리키는 정적 포인터만 둔다. 기존 `docs/index.md` 에 해당 포인터 섹션이 없으면 `/init-dcness` 가 파일을 덮지 않고 섹션만 append 한다.
