@@ -385,6 +385,13 @@ function detectRepo(repoArg) {
   return repo;
 }
 
+// 현재 checkout 의 canonical repo (gh 가 리다이렉트를 정규화). repo 밖이면 null.
+function detectLocalRepoOrNull() {
+  return gh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], {
+    allowFailure: true,
+  }) || null;
+}
+
 function repoOwner(repo, ownerArg) {
   return ownerArg || repo.split('/')[0];
 }
@@ -1014,12 +1021,26 @@ function resolveProjectRoot() {
   }
 }
 
+function sameRepo(a, b) {
+  return Boolean(a) && Boolean(b) && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
+}
+
+// 로컬 `docs/epics/...` 산출물은 *현재 checkout* 의 repo 를 서술한다. 그래서 phase 판정에
+// 로컬 파일을 쓰려면 대상 repo 가 현재 checkout 과 일치해야 한다. `--repo` 로 다른 repo 를
+// 지정하면 (repoArg 존재 && localRepo 불일치) 로컬 산출물이 대상 repo 를 서술하지 않으므로
+// 로컬 phase 판정을 쓰지 않는다. repoArg 미지정 시 resolvedRepo 는 로컬 자동 감지값이라 항상 일치.
+export function shouldUseLocalPhaseRoot(repoArg, resolvedRepo, localRepo) {
+  if (!repoArg) return true;
+  return sameRepo(localRepo, resolvedRepo);
+}
+
 // next-work 는 GitHub issue 로 이미 등록된 story 를 나열하므로, 로컬 산출물이 없어도
-// (repo 밖 실행 / stale checkout) story 자체는 존재한다. 그래서 epic_phase 의 'spec'
-// (stories.md 부재) 은 여기선 "스펙 미작성" 이 아니라 "로컬 산출물 확인 불가 → 판정 보류"
-// 로 해석한다 (오탐으로 /design 을 단정하지 않는다).
+// (repo 밖 실행 / stale checkout / 대상 repo != 로컬 checkout) story 자체는 존재한다.
+// 그래서 로컬 근거가 없을 때(root 부재)와 epic_phase 의 'spec'(stories.md 부재)은 여기선
+// "스펙 미작성" 이 아니라 "로컬 산출물 확인 불가 → 판정 보류" 로 해석한다 (오탐으로 /design 단정 X).
 function epicGroupNextAction(epicSlugLabel, root) {
   if (!epicSlugLabel) return { kind: 'unlabeled' };
+  if (!root) return { kind: 'unresolved' };
   const { phase } = epicPhase(join(root, 'docs', 'epics', epicSlugLabel));
   if (phase === 'impl') return { kind: 'impl' };
   if (phase === 'design') return { kind: 'design' };
@@ -1039,11 +1060,15 @@ function storyGroupHeaderLine(epicSlugLabel, action) {
   }
 }
 
-export function formatStoryGroups(groups, root = resolveProjectRoot()) {
+export function formatStoryGroups(groups, root = null) {
   const lines = ['## L3 Story'];
   if (groups.length === 0) {
     lines.push('- 후보 없음');
     return lines.join('\n');
+  }
+  // root 부재 = 로컬 checkout 이 대상 repo 를 서술하지 않음 (--repo 불일치 / repo 밖). 이유를 밝혀 보류.
+  if (!root && groups.some((group) => group.epicSlugLabel)) {
+    lines.push('- 참고: 대상 repo 가 현재 로컬 checkout 과 달라 설계 phase(`/design` vs `/impl`) 판정을 보류한다.');
   }
   let anyDesignComplete = false;
   for (const group of groups) {
@@ -1061,7 +1086,7 @@ export function formatStoryGroups(groups, root = resolveProjectRoot()) {
   return lines.join('\n');
 }
 
-function formatNextWorkReport({ repo, candidates, limit, root = resolveProjectRoot() }) {
+function formatNextWorkReport({ repo, candidates, limit, root = null }) {
   return [
     `[dcness-next-work] repo=${repo}`,
     '[dcness-next-work] read-only: GitHub issue/label 상태를 변경하지 않았습니다.',
@@ -1120,7 +1145,11 @@ function commandNext(args) {
     ? Number(args.limit)
     : 5;
   const candidates = selectNextCandidates(issues);
-  console.log(formatNextWorkReport({ repo, candidates, limit, root: resolveProjectRoot() }));
+  // 로컬 checkout 이 대상 repo 를 서술할 때만 로컬 산출물로 phase 를 판정한다. `--repo` 로 다른
+  // repo 를 지정하면 로컬 파일이 대상 repo 와 무관하므로 root 를 넘기지 않고 판정을 보류한다.
+  const localRepo = args.repo ? detectLocalRepoOrNull() : repo;
+  const root = shouldUseLocalPhaseRoot(args.repo, repo, localRepo) ? resolveProjectRoot() : null;
+  console.log(formatNextWorkReport({ repo, candidates, limit, root }));
   return 0;
 }
 

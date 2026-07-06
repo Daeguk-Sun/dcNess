@@ -1414,6 +1414,38 @@ class NextWorkStoryGroupPhaseTests(unittest.TestCase):
             out = self._format([], Path(td))
             self.assertIn("후보 없음", out)
 
+    def test_null_root_holds_all_judgment_with_cross_repo_note(self) -> None:
+        # root 부재(대상 repo != 로컬 checkout) → 로컬 산출물 무시하고 전부 보류, 이유 명시.
+        groups = [
+            {
+                "epicSlugLabel": "epic-01-alpha",
+                "epicNumber": 1,
+                "items": [{"number": 201, "title": "Cross"}],
+            }
+        ]
+        out = run_node(f"lifecycle.formatStoryGroups({json.dumps(groups)}, null)")
+        self.assertIn("현재 로컬 checkout 과 달라", out)
+        self.assertIn("판정 보류", out)
+        self.assertIn("#201 Cross", out)
+        self.assertNotIn("/design docs/epics/epic-01-alpha", out)
+        self.assertNotIn("구현 순서 진본", out)
+
+    def test_should_use_local_phase_root_matrix(self) -> None:
+        cases = [
+            # (repoArg, resolvedRepo, localRepo, expected)
+            (None, "A/B", "A/B", True),          # --repo 미지정 → 자동 감지값이라 항상 로컬 일치
+            ("A/B", "A/B", "A/B", True),         # 명시했지만 로컬과 일치
+            ("a/b", "a/b", "A/B", True),         # 대소문자 무시 일치
+            ("A/B", "A/B", "C/D", False),        # 로컬 checkout 이 다른 repo
+            ("A/B", "A/B", None, False),         # repo 밖 실행 (로컬 감지 실패)
+        ]
+        for repo_arg, resolved, local, expected in cases:
+            expr = (
+                "lifecycle.shouldUseLocalPhaseRoot("
+                f"{json.dumps(repo_arg)}, {json.dumps(resolved)}, {json.dumps(local)})"
+            )
+            self.assertEqual(run_node(expr), expected, msg=f"{repo_arg=} {resolved=} {local=}")
+
 
 if __name__ == "__main__":
     unittest.main()
