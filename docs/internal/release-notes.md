@@ -6,9 +6,44 @@
 
 ## Unreleased
 
-- README 첫 화면과 plug-in metadata 를 "PR workflow guard" 프레임에서 "agent workflow harness" 프레임으로 개편. README 에 설치 진단표, fail-open 감시, evidence 실측, Safety 범위 요약을 노출하고 최근 정비 상세는 릴리즈 노트 링크로 축소.
-- 결정적 guard-efficacy eval 을 advisory GitHub Actions workflow 로 노출하고 README Evidence 섹션에 상태 badge 를 추가.
-- hook fail-open 이벤트를 run 종료 stderr 와 `/run-review` 리포트에 warning 으로 노출해, 기존 fail-open summary API 증거가 작업 마감 표면에서도 보이도록 보강.
+- (없음)
+
+---
+
+## v0.13.0 (2026-07-06)
+
+**커밋 범위**: `v0.12.0..v0.13.0` (머지 PR 13개, #932~#944)
+**핵심 변경**: **신규 환경·공개 저장소에서의 설치·활성화 견고성(hardening)** 이 중심인 minor 릴리즈. (1) 공개 저장소 org 참조를 `Daeguk-Sun` 으로 통일하고 README fork 흔적을 제거, git hook 이 node 부재 시 fail-open, CLAUDE.md·requirements seed 의 python 판정을 `detect_platform` SSOT 로 통일해 **fresh 환경의 첫 설치·첫 이슈 등록이 깨지지 않도록** 했고, (2) `/to-issue` 를 **선등록 모델**로 전환(승인 게이트 폐기 + 맥락 추론 라벨 자동 + 이슈 생성 전 label 선upsert), (3) 기존 프로젝트를 역설계해 전역 docs 를 부트스트랩하는 **`/migrate-dcness` 신규 스킬**을 더했다. 부수 — README 를 "agent workflow harness" 프레임으로 포지셔닝 개편 + guard-efficacy advisory CI badge + hook fail-open 가시성, `session_state` 모듈 재분할, 자기개선 loop Decide 기록.
+
+### 무엇이 바뀌나
+
+1. **신규 환경·공개 저장소 릴리즈 hardening** ([#941](https://github.com/Daeguk-Sun/dcNess/pull/941), [#942](https://github.com/Daeguk-Sun/dcNess/pull/942), [#944](https://github.com/Daeguk-Sun/dcNess/pull/944)) — 배포 workflow·업데이트 훅·문서의 공개 저장소 org 참조를 `Daeguk-Sun` 으로 통일하고 README 앞머리의 fork Origin 줄을 제거. git hook shim 이 node 부재 시 fail-open(naming skip, main-block 은 유지)하도록 하고, `CLAUDE.md` seed 의 python 명령을 마커 조건화 + `python3` 로 완화, seed 의 python 판정을 `detect_platform` SSOT 로 통일해 `requirements.txt` 회귀를 수정. marketplace·plugin 설명을 한국어로 통일.
+
+2. **`/to-issue` 선등록 모델 전환** ([#943](https://github.com/Daeguk-Sun/dcNess/pull/943)) — 승인 게이트를 폐기하고 맥락 추론 라벨을 자동 부여하는 선등록 모델로 전환, 발화 트리거·라우팅을 강화. 이슈 생성 전 `vNN`·epic slug label 을 선upsert 해 신규 저장소 첫 등록 실패를 차단.
+
+3. **`/migrate-dcness` 신규 스킬** ([#940](https://github.com/Daeguk-Sun/dcNess/pull/940) [#828](https://github.com/Daeguk-Sun/dcNess/issues/828)) — 기존 프로젝트 코드를 역설계해 전역 docs 를 부트스트랩하는 마이그레이션 스킬을 추가(브랜치 격리·문서 분류 선행·부재 index seed 생성 등 codex 리뷰 근본원인 수정 포함).
+
+4. **포지셔닝·guard-eval·fail-open 가시성 프로그램** ([#933](https://github.com/Daeguk-Sun/dcNess/pull/933), [#934](https://github.com/Daeguk-Sun/dcNess/pull/934), [#935](https://github.com/Daeguk-Sun/dcNess/pull/935) [#928](https://github.com/Daeguk-Sun/dcNess/issues/928)) — README 첫 화면과 plug-in metadata 를 "PR workflow guard" 에서 "agent workflow harness" 프레임으로 개편(설치 진단표·fail-open 감시·evidence 실측·Safety 범위 요약 노출), 결정적 guard-efficacy eval 을 advisory GitHub Actions workflow + README 상태 badge 로 고정, hook fail-open 이벤트를 run 종료 stderr 와 `/run-review` 리포트에 warning 으로 노출.
+
+5. **`session_state` 모듈 재분할 + eval·loop 정비** ([#937](https://github.com/Daeguk-Sun/dcNess/pull/937) [#929](https://github.com/Daeguk-Sun/dcNess/issues/929), [#938](https://github.com/Daeguk-Sun/dcNess/pull/938), [#936](https://github.com/Daeguk-Sun/dcNess/pull/936) [#930](https://github.com/Daeguk-Sun/dcNess/issues/930), [#939](https://github.com/Daeguk-Sun/dcNess/pull/939) [#931](https://github.com/Daeguk-Sun/dcNess/issues/931), [#932](https://github.com/Daeguk-Sun/dcNess/pull/932)) — `session_state` 를 응집 하위 모듈로 재분할(역방향 헬퍼 core 복귀), flow ownership eval 판정 보강, v0.12.0 자기개선 후보 7건을 `보류`로 Decide 기록, plugin-release 절차에 release 브랜치 자동 sync 정합 확인 스텝 추가.
+
+### 자기개선 점검 기록
+
+| 날짜 | 입력 | 판정 |
+|---|---|---|
+| 2026-07-06 | `python3.11 evals/guard_efficacy.py` (33/33) · `python3.11 scripts/loop_diagnose.py --idle-days 30 --since-days 90 --saturation-days 30 --saturation-min-runs 3` | v0.13.0 릴리즈 점검. guard-efficacy **33/33 PASS**. loop_diagnose: 전 활성 프로젝트 guard 텔레메트리 `관측 이력 없음`(미배포/관측기간 부족) — 즉시 소멸 guard 후보 없음. 통합 후보(youTubeGenerator waste 4건 · dcness-self eval 포화 3건)는 전부 [#931](https://github.com/Daeguk-Sun/dcNess/issues/931) 에서 이미 `보류`로 Decide 된 기왕 항목이라 신규 후보 없음. **소멸 후보 없음.** 핵심 행동 eval(`shorts-real-spec`·`headless-prose-quality`) strict 케이스는 이번 릴리즈 diff(setup·문서·org 참조·`session_state` 재분할)와 무관해 live LLM 재실행은 생략(advisory). |
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `/to-issue` 선등록 모델(승인 게이트 폐기 + 자동 라벨), `/migrate-dcness` 신규 스킬, README·metadata 포지셔닝 개편 등 `commands/**`·`skills/**` 변경.
+- **신규 환경 설치·활성화 안정성 향상** — git hook 이 node 부재 시 fail-open 하고, seed 파일의 python 판정이 플랫폼 SSOT 로 통일돼 fresh 환경 첫 설치·첫 이슈 등록 실패가 줄어든다.
+- **기존 활성 프로젝트**는 `init` 이 배포·복사하는 파일(스크립트·hook·워크플로우) 갱신을 받으려면 plugin update 후 `/init-dcness` 재실행이 필요하다.
+
+### 업데이트
+
+```sh
+claude plugin update dcness@dcness
+```
 
 ---
 
