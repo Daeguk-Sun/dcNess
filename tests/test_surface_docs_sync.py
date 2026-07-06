@@ -358,7 +358,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         git_hooks = set(
             re.findall(r'scripts/hooks/([A-Za-z0-9_.-]+)"', self.init_doc)
         )
-        self.assertEqual({"commit-msg", "post-checkout", "pre-push"}, git_hooks)
+        self.assertEqual({"commit-msg", "post-checkout", "pre-push", "pre-commit"}, git_hooks)
         for hook_name in sorted(git_hooks):
             self.assertIn(f"### .git/hooks/{hook_name}", self.hooks_doc)
             self.assertIn(f"`scripts/hooks/{hook_name}`", self.hooks_doc)

@@ -11,7 +11,7 @@ from harness.session_state_activation import _resolve_project_root, is_project_a
 from harness.session_state_fail_open import collect_fail_open_summary, _format_fail_open_summary
 
 _READ_PERM = "Read(~/.claude/plugins/cache/dcness/**)"
-_GIT_HOOK_SHIMS = ("commit-msg", "post-checkout", "pre-push")
+_GIT_HOOK_SHIMS = ("commit-msg", "post-checkout", "pre-push", "pre-commit")
 _SHIM_MARKERS = ("plugins/cache/dcness", "CLAUDE_PLUGIN_ROOT")
 _CI_WORKFLOWS = (
     "git-naming-validation.yml",

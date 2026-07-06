@@ -67,6 +67,47 @@ class GitHookGuardTelemetryTests(unittest.TestCase):
                 events,
             )
 
+    def test_pre_commit_feature_branch_passes_without_python_gate_script(self) -> None:
+        # 외부 활성 프로젝트에는 scripts/check_python_tests.sh 가 없다 — python 게이트는
+        # 스크립트가 있는 repo(사실상 dcness self)에서만 돌고, 부재 시 commit 을 막지 않는다.
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            _git(root, "init")
+            _git(root, "checkout", "-b", "feature/external_work")
+
+            result = subprocess.run(
+                ["sh", str(ROOT / "scripts" / "hooks" / "pre-commit")],
+                cwd=str(root),
+                env=_env(active=True),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+    def test_inactive_pre_commit_block_does_not_create_telemetry(self) -> None:
+        # 비활성 외부 프로젝트: main-block 차단은 유지하되 telemetry 는 남기지 않는다
+        # (commit-msg / pre-push 와 동일 계약).
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            root = base / "repo"
+            root.mkdir()
+            _git(root, "init")
+            _git(root, "checkout", "-b", "main")
+
+            result = subprocess.run(
+                ["sh", str(ROOT / "scripts" / "hooks" / "pre-commit")],
+                cwd=str(root),
+                env=_env(whitelist_path=base / "projects.json"),
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
+            self.assertEqual(read_events(cwd=root), [])
+
     def test_commit_msg_naming_block_records_guard_hit(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)

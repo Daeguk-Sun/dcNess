@@ -104,19 +104,19 @@ fi
 
 ### Core Step 4 - local git hook 설치
 
-브랜치명, 커밋 제목, main 직접 push 를 로컬에서 조기 차단한다. 본체 검증 로직은 사용자 repo 에 복사하지 않고 plug-in SSOT 를 직접 호출한다.
+브랜치명, 커밋 제목, main 직접 commit, main 직접 push 를 로컬에서 조기 차단한다. 본체 검증 로직은 사용자 repo 에 복사하지 않고 plug-in SSOT 를 직접 호출한다.
 
 ```bash
 mkdir -p "$PROJECT_ROOT/.git/hooks"
+cp "$PLUGIN_ROOT/scripts/hooks/pre-commit" "$PROJECT_ROOT/.git/hooks/pre-commit"
+chmod +x "$PROJECT_ROOT/.git/hooks/pre-commit"
 cp "$PLUGIN_ROOT/scripts/hooks/commit-msg" "$PROJECT_ROOT/.git/hooks/commit-msg"
 chmod +x "$PROJECT_ROOT/.git/hooks/commit-msg"
-echo "[dcness] .git/hooks/commit-msg 갱신 (thin shim -> plugin SSOT 호출)"
 cp "$PLUGIN_ROOT/scripts/hooks/post-checkout" "$PROJECT_ROOT/.git/hooks/post-checkout"
 chmod +x "$PROJECT_ROOT/.git/hooks/post-checkout"
-echo "[dcness] .git/hooks/post-checkout 갱신 (thin shim -> plugin SSOT 호출)"
 cp "$PLUGIN_ROOT/scripts/hooks/pre-push" "$PROJECT_ROOT/.git/hooks/pre-push"
 chmod +x "$PROJECT_ROOT/.git/hooks/pre-push"
-echo "[dcness] .git/hooks/pre-push 갱신 (thin shim -> plugin SSOT 호출)"
+echo "[dcness] .git/hooks/{pre-commit,commit-msg,post-checkout,pre-push} 갱신 (main 직접 commit 차단 + thin shim -> plugin SSOT 호출)"
 touch "$PROJECT_ROOT/.gitignore"
 grep -qxF '.claude/harness-state/' "$PROJECT_ROOT/.gitignore" || { printf '%s\n' '.claude/harness-state/' >> "$PROJECT_ROOT/.gitignore"; echo "[dcness] .gitignore 에 .claude/harness-state/ 추가"; }
 ```
