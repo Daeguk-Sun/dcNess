@@ -297,7 +297,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 
 ## Layer 3 — CI/CD workflows
 
-설치 경로: 사용자 repo 의 `.github/workflows/`. `/init-dcness` 에서 사용자가 Y 를 선택한 경우 thin workflow 를 생성한다. workflow 본체는 `alruminum/dcNess` 의 composite action 을 호출한다.
+설치 경로: 사용자 repo 의 `.github/workflows/`. `/init-dcness` 에서 사용자가 Y 를 선택한 경우 thin workflow 를 생성한다. workflow 본체는 `Daeguk-Sun/dcNess` 의 composite action 을 호출한다.
 
 | Workflow | Trigger | 언제 | 하는 일 | 성격 |
 |---|---|---|---|---|
