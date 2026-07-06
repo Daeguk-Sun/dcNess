@@ -335,6 +335,26 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("first-handoff", joined)
         self.assertIn("second-handoff", joined)
 
+    def test_session_start_symlink_handoff_not_followed(self) -> None:
+        """#953 — next-session.md 가 심링크면 따라가지 않는다. `.dcness-work/` 는
+        writable 이라 심어진 심링크(→ .env 등)를 훅이 read 하면 로컬 시크릿이 모델
+        컨텍스트로 유출되므로, 정규 파일이 아닐 때는 소비/주입하지 않는다 (codex P2)."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+        secret = self.cwd / "secret.txt"
+        secret.write_text("SECRET_CONTENT_LEAK\n", encoding="utf-8")
+        (handoffs / "next-session.md").symlink_to(secret)
+
+        result = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-symlink"}, cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("SECRET_CONTENT_LEAK", ctx, "심링크 타겟이 컨텍스트로 유출됨")
+        self.assertNotIn("대기 핸드오프", ctx)
+        # 심링크는 따라가 archive 로 옮기지도 않는다 (타겟 보존)
+        self.assertTrue(secret.exists())
+
     def test_session_start_no_handoff_is_noop(self) -> None:
         """#953 — handoff 파일 부재 시 훅은 기존 동작 그대로 (무해)."""
         result = _run_bash_hook(
