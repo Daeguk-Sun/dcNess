@@ -5,8 +5,8 @@
 #   cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-commit
 #
 # 게이트:
-#   1. main 직접 commit 차단 (모든 commit)
-#   2. python-tests (관련 staged 파일이 있을 때만)
+#   1. main 직접 commit 차단 (모든 commit — 외부 활성 프로젝트 포함, /init-dcness 배포)
+#   2. python-tests (scripts/check_python_tests.sh 존재 시에만 — 사실상 dcness self 전용)
 
 set -e
 
@@ -34,6 +34,13 @@ resolve_dcness_root() {
 record_guard_hit() {
   root="$(resolve_dcness_root 2>/dev/null || true)"
   [ -n "$root" ] || return 0
+  if PYTHONPATH="${root}:${PYTHONPATH:-}" python3 -m harness.session_state is-active >/dev/null 2>&1; then
+    :
+  elif PYTHONPATH="${root}:${PYTHONPATH:-}" python3 -m harness.session_state is-self >/dev/null 2>&1; then
+    :
+  else
+    return 0
+  fi
   PYTHONPATH="${root}:${PYTHONPATH:-}" python3 -m harness.guard_telemetry record-hit \
     --guard git-pre-commit \
     --category "$1" \
@@ -56,7 +63,9 @@ if [ "$current_branch" = "main" ]; then
   exit 1
 fi
 
-if ! sh scripts/check_python_tests.sh; then
-  record_guard_hit "python_tests" "pre-commit python test gate failed"
-  exit 1
+if [ -f scripts/check_python_tests.sh ]; then
+  if ! sh scripts/check_python_tests.sh; then
+    record_guard_hit "python_tests" "pre-commit python test gate failed"
+    exit 1
+  fi
 fi

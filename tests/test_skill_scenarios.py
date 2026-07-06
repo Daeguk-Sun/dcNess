@@ -219,11 +219,12 @@ class SkillScenarioRegressionTests(unittest.TestCase):
             )
 
     def test_init_dcness_core_hooks_listed(self) -> None:
-        """핵심 thin-shim hook 3개가 deploy 섹션에 명시돼야 한다 (배포 누락 차단)."""
+        """핵심 thin-shim hook 4개가 deploy 섹션에 명시돼야 한다 (배포 누락 차단)."""
         for hook in (
             "scripts/hooks/commit-msg",
             "scripts/hooks/post-checkout",
             "scripts/hooks/pre-push",
+            "scripts/hooks/pre-commit",
         ):
             self.assertIn(hook, self.init_doc)
 

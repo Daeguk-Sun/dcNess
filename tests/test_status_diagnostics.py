@@ -139,7 +139,7 @@ class GitHooksTests(unittest.TestCase):
     def test_thin_shim_ok(self) -> None:
         with TemporaryDirectory() as td:
             hd = Path(td)
-            for name in ("commit-msg", "post-checkout", "pre-push"):
+            for name in ("commit-msg", "post-checkout", "pre-push", "pre-commit"):
                 self._shim(hd, name)
             result = _check_git_hooks(hd)
             self.assertEqual(set(result.values()), {"ok"})

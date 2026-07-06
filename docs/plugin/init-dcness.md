@@ -24,6 +24,7 @@ core activation 완료 기준이다. 아래 항목이 끝나고 `dcness-helper s
 |---|---|---|---|---|---|
 | 활성 whitelist | `~/.claude/plugins/data/dcness-dcness/projects.json` | `harness/session_state.py` | 항상 | 중복 제거 | X |
 | Read 권한 | `~/.claude/settings.json` | `/init-dcness` jq patch | 항상 | 없을 때만 추가 | X |
+| local git hook | `.git/hooks/pre-commit` | `scripts/hooks/pre-commit` | 항상 | always-overwrite | X |
 | local git hook | `.git/hooks/commit-msg` | `scripts/hooks/commit-msg` | 항상 | always-overwrite | X |
 | local git hook | `.git/hooks/post-checkout` | `scripts/hooks/post-checkout` | 항상 | always-overwrite | X |
 | local git hook | `.git/hooks/pre-push` | `scripts/hooks/pre-push` | 항상 | always-overwrite | X |

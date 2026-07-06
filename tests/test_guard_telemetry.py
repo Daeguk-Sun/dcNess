@@ -207,14 +207,14 @@ class GuardSummaryTests(unittest.TestCase):
                 "insufficient_observation",
             )
 
-    def test_default_report_known_guards_exclude_self_only_pre_commit(self) -> None:
+    def test_default_report_known_guards_include_distributed_pre_commit(self) -> None:
         with TemporaryDirectory() as td:
             root = Path(td)
             summary = collect_guard_summary(cwd=root, idle_days=30)
 
             self.assertIn("git-commit-msg", summary["guards"])
             self.assertIn("git-pre-push", summary["guards"])
-            self.assertNotIn("git-pre-commit", summary["guards"])
+            self.assertIn("git-pre-commit", summary["guards"])
 
 
 class EvalSummaryTests(unittest.TestCase):

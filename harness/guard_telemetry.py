@@ -30,10 +30,9 @@ DISTRIBUTED_KNOWN_GUARDS: tuple[str, ...] = (
     "tdd-guard",
     "git-commit-msg",
     "git-pre-push",
-)
-SELF_ONLY_KNOWN_GUARDS: tuple[str, ...] = (
     "git-pre-commit",
 )
+SELF_ONLY_KNOWN_GUARDS: tuple[str, ...] = ()
 KNOWN_GUARDS: tuple[str, ...] = DISTRIBUTED_KNOWN_GUARDS
 
 _DETAIL_MAX = 500
