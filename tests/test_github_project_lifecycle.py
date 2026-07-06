@@ -1432,19 +1432,32 @@ class NextWorkStoryGroupPhaseTests(unittest.TestCase):
 
     def test_should_use_local_phase_root_matrix(self) -> None:
         cases = [
-            # (repoArg, resolvedRepo, localRepo, expected)
-            (None, "A/B", "A/B", True),          # --repo 미지정 → 자동 감지값이라 항상 로컬 일치
-            ("A/B", "A/B", "A/B", True),         # 명시했지만 로컬과 일치
-            ("a/b", "a/b", "A/B", True),         # 대소문자 무시 일치
-            ("A/B", "A/B", "C/D", False),        # 로컬 checkout 이 다른 repo
-            ("A/B", "A/B", None, False),         # repo 밖 실행 (로컬 감지 실패)
+            # (targetRepo=issue 출처, localRepoSlug=현재 git checkout, expected)
+            ("A/B", "A/B", True),        # 대상 repo == 로컬 checkout
+            ("a/b", "A/B", True),        # 대소문자 무시 일치
+            ("A/B", "C/D", False),       # 로컬 checkout 이 다른 repo (--repo/GH_REPO override)
+            ("A/B", None, False),        # 로컬 git remote 확인 불가 (repo 밖)
         ]
-        for repo_arg, resolved, local, expected in cases:
+        for target, local, expected in cases:
             expr = (
                 "lifecycle.shouldUseLocalPhaseRoot("
-                f"{json.dumps(repo_arg)}, {json.dumps(resolved)}, {json.dumps(local)})"
+                f"{json.dumps(target)}, {json.dumps(local)})"
             )
-            self.assertEqual(run_node(expr), expected, msg=f"{repo_arg=} {resolved=} {local=}")
+            self.assertEqual(run_node(expr), expected, msg=f"{target=} {local=}")
+
+    def test_parse_repo_slug_handles_common_remote_urls(self) -> None:
+        cases = [
+            ("https://github.com/OWNER/REPO.git", "OWNER/REPO"),
+            ("https://github.com/OWNER/REPO", "OWNER/REPO"),
+            ("git@github.com:OWNER/REPO.git", "OWNER/REPO"),
+            ("git@github.com:OWNER/REPO", "OWNER/REPO"),
+            ("ssh://git@github.com/OWNER/REPO.git", "OWNER/REPO"),
+            ("https://github.com/OWNER/REPO/", "OWNER/REPO"),
+            ("not-a-remote-url", None),
+        ]
+        for url, expected in cases:
+            expr = f"lifecycle.parseRepoSlug({json.dumps(url)})"
+            self.assertEqual(run_node(expr), expected, msg=f"{url=}")
 
 
 if __name__ == "__main__":

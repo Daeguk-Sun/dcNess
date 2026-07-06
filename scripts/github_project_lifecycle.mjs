@@ -385,13 +385,6 @@ function detectRepo(repoArg) {
   return repo;
 }
 
-// 현재 checkout 의 canonical repo (gh 가 리다이렉트를 정규화). repo 밖이면 null.
-function detectLocalRepoOrNull() {
-  return gh(['repo', 'view', '--json', 'nameWithOwner', '-q', '.nameWithOwner'], {
-    allowFailure: true,
-  }) || null;
-}
-
 function repoOwner(repo, ownerArg) {
   return ownerArg || repo.split('/')[0];
 }
@@ -1025,13 +1018,29 @@ function sameRepo(a, b) {
   return Boolean(a) && Boolean(b) && String(a).trim().toLowerCase() === String(b).trim().toLowerCase();
 }
 
-// 로컬 `docs/epics/...` 산출물은 *현재 checkout* 의 repo 를 서술한다. 그래서 phase 판정에
-// 로컬 파일을 쓰려면 대상 repo 가 현재 checkout 과 일치해야 한다. `--repo` 로 다른 repo 를
-// 지정하면 (repoArg 존재 && localRepo 불일치) 로컬 산출물이 대상 repo 를 서술하지 않으므로
-// 로컬 phase 판정을 쓰지 않는다. repoArg 미지정 시 resolvedRepo 는 로컬 자동 감지값이라 항상 일치.
-export function shouldUseLocalPhaseRoot(repoArg, resolvedRepo, localRepo) {
-  if (!repoArg) return true;
-  return sameRepo(localRepo, resolvedRepo);
+// git remote URL 에서 OWNER/REPO slug 파싱 (https / ssh / `.git` 접미사 / 후행 슬래시 모두). 없으면 null.
+export function parseRepoSlug(url) {
+  const match = String(url).trim().match(/[:/]([^/:]+)\/([^/]+?)(?:\.git)?\/?$/);
+  return match ? `${match[1]}/${match[2]}` : null;
+}
+
+// 현재 git checkout 의 origin remote slug. git 에서 직접 뽑으므로 `GH_REPO`/`gh` 기본 repo
+// override 에 영향받지 않는다 (로컬 파일이 *어느 repo 것인지*의 진본). 확인 불가면 null.
+function gitRemoteSlugOrNull() {
+  try {
+    const url = execFileSync('git', ['config', '--get', 'remote.origin.url'], { encoding: 'utf8' }).trim();
+    return parseRepoSlug(url);
+  } catch {
+    return null;
+  }
+}
+
+// 로컬 `docs/epics/...` 산출물은 *현재 git checkout* 의 repo 를 서술한다. 그래서 대상 repo
+// (issue 출처)가 현재 checkout 의 git remote 와 일치할 때만 로컬 phase 판정을 쓴다. 로컬 식별을
+// gh 가 아니라 git 에서 뽑는 이유: `gh repo view` 는 `GH_REPO`/기본 repo override 를 따르므로
+// 다른 checkout/repo 밖에서도 대상 repo 를 반환해 가드를 우회시킨다. 불일치/미확인이면 보류.
+export function shouldUseLocalPhaseRoot(targetRepo, localRepoSlug) {
+  return sameRepo(targetRepo, localRepoSlug);
 }
 
 // next-work 는 GitHub issue 로 이미 등록된 story 를 나열하므로, 로컬 산출물이 없어도
@@ -1145,10 +1154,9 @@ function commandNext(args) {
     ? Number(args.limit)
     : 5;
   const candidates = selectNextCandidates(issues);
-  // 로컬 checkout 이 대상 repo 를 서술할 때만 로컬 산출물로 phase 를 판정한다. `--repo` 로 다른
-  // repo 를 지정하면 로컬 파일이 대상 repo 와 무관하므로 root 를 넘기지 않고 판정을 보류한다.
-  const localRepo = args.repo ? detectLocalRepoOrNull() : repo;
-  const root = shouldUseLocalPhaseRoot(args.repo, repo, localRepo) ? resolveProjectRoot() : null;
+  // 로컬 git checkout 이 대상 repo(issue 출처)를 서술할 때만 로컬 산출물로 phase 를 판정한다.
+  // `--repo`/`GH_REPO` 로 다른 repo 를 가리키면 로컬 파일이 무관하므로 root 없이 판정을 보류한다.
+  const root = shouldUseLocalPhaseRoot(repo, gitRemoteSlugOrNull()) ? resolveProjectRoot() : null;
   console.log(formatNextWorkReport({ repo, candidates, limit, root }));
   return 0;
 }

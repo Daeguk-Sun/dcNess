@@ -34,7 +34,7 @@ node "$SCRIPT" next-work --repo OWNER/REPO
 - `subTask` 는 독립 후보에서 제외하고, body 의 `Part of #N` 부모가 L1 에 있을 때만 그 부모 아래에 중첩 표시한다.
 - story 후보는 `epic-NN-<slug>` label 의 NN 오름차순, 같은 epic 안에서는 issue 번호 오름차순으로 표시한다.
 - story 는 epic 단위로 로컬 설계 산출물(`docs/epics/epic-NN-<slug>/architecture.md` + `impl/NN-*.md`) 존재를 확인해 다음 액션을 구분한다. 설계 미완 epic 은 story 를 impl 후보로 내밀지 않고 `/design <epic-path>` 를 제시하고, 설계 완료 epic 만 story 를 impl 후보로 승격한다. 로컬에 해당 epic 산출물이 없으면(repo 밖 실행 / stale checkout) `/design` 을 단정하지 않고 판정을 보류한다.
-- 로컬 산출물은 *현재 checkout* 의 repo 를 서술하므로, `--repo` 로 현재 로컬 checkout 과 다른 repo 를 지정하면 로컬 phase 판정을 쓰지 않고 전부 보류한다(엉뚱한 repo 의 설계 산출물로 `/design`/`/impl` 을 오판하지 않는다).
+- 로컬 산출물은 *현재 git checkout* 의 repo 를 서술하므로, 대상 repo(issue 출처)가 현재 checkout 의 git remote 와 다르면(`--repo`/`GH_REPO` override 등) 로컬 phase 판정을 쓰지 않고 전부 보류한다(엉뚱한 repo 의 설계 산출물로 `/design`/`/impl` 을 오판하지 않는다). 로컬 repo 식별은 `gh` 가 아니라 git remote 에서 뽑아 override 에 영향받지 않는다.
 - Priority 는 Issue Brief 본문의 `Priority` 줄을 파싱한다. 없거나 invalid 면 `priority 미기재` 로 표시하고 그룹 뒤에 둔다.
 - GitHub 조회가 실패하면 실패를 명시하고 로컬 대안 경로를 안내한다.
 
