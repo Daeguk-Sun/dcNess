@@ -25,8 +25,11 @@ description: 세션을 넘기기 전 의도/결정/진행/다음 액션을 `.dcn
 4. **포인터** — 상세를 담은 산출물·파일·이슈 링크 (본문에 덤프하지 않고 링크만).
 
 ```bash
-mkdir -p .dcness-work/handoffs
-cat > .dcness-work/handoffs/next-session.md <<'EOF'
+# repo 루트 기준으로 쓴다 — SessionStart 훅이 소비할 경로와 동일 유도(git top-level).
+# 서브디렉토리에서 /handoff 를 발화해도 훅이 읽는 위치에 정확히 쓰이게 한다.
+PROJECT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
+mkdir -p "$PROJECT_ROOT/.dcness-work/handoffs"
+cat > "$PROJECT_ROOT/.dcness-work/handoffs/next-session.md" <<'EOF'
 # 다음 세션 핸드오프 — <YYYY-MM-DD>
 
 ## 다음 액션 (필수)
@@ -51,9 +54,9 @@ EOF
 ## 동작 계약
 
 - **단문 원칙** — "다음 액션 1개(필수) + 근거 + 포인터 링크" 중심의 단문으로 제한한다. 세션 전체 요약 덤프 금지. 상세 컨텍스트는 포인터가 가리키는 산출물을 다음 세션이 질의 시점에 lazy 로드한다. SessionStart 주입량이 커지면 slim-inject 원칙이 무너진다.
-- **결정적 단일 경로** — 활성 파일명은 `next-session.md` 로 고정한다. SessionStart 훅이 확인할 결정적 단일 경로가 하나 필요하므로 세션마다 다른 이름을 쓰지 않는다. 이미 파일이 있으면 덮어쓴다(가장 최근 인계만 유효).
-- **소비 = archive 이동** — 다음 세션 SessionStart 훅이 이 파일을 additionalContext 최상단에 주입하고 주입 직후 `.dcness-work/handoffs/archive/<ts>.md` 로 옮긴다(무손실 clear). 다음다음 세션에 stale 재주입되지 않는다.
-- **first-consumer-wins** — 병렬 peer 세션은 각자 SessionStart 를 발화하므로 먼저 시작한 세션이 handoff 를 소비(archive)한다. handoff 는 단일 소비자 인계 문서이고, 병렬 작업 분배는 [claim board](../docs/plugin/parallel-policy.md#4-task-claim-board) 몫이다.
+- **결정적 단일 경로** — 활성 파일은 repo 루트(`git rev-parse --show-toplevel`) 기준 `.dcness-work/handoffs/next-session.md` 로 고정한다. 쓰기(command)와 읽기(SessionStart 훅)가 같은 repo-root 유도를 써 서브디렉토리 실행에도 정합한다. SessionStart 훅이 확인할 결정적 단일 경로가 하나 필요하므로 세션마다 다른 이름을 쓰지 않는다. 이미 파일이 있으면 덮어쓴다(가장 최근 인계만 유효).
+- **소비 = archive claim** — 다음 세션 SessionStart 훅이 이 파일을 `.dcness-work/handoffs/archive/<ts>.md` 로 먼저 옮겨(mv) 원자적으로 소비한 뒤 그 내용을 additionalContext 최상단에 주입한다(무손실 clear). 다음다음 세션에 stale 재주입되지 않는다.
+- **first-consumer-wins** — 병렬 peer 세션은 각자 SessionStart 를 발화하지만, 소비가 read 가 아니라 archive mv(rename)로 먼저 일어나므로 rename 에 성공한 first-consumer 만 handoff 를 얻는다. handoff 는 단일 소비자 인계 문서이고, 병렬 작업 분배는 [claim board](../docs/plugin/parallel-policy.md#4-task-claim-board) 몫이다.
 - **git 제외** — `.dcness-work/` 는 git-excluded 작업 영역이다(활성화 시 `/init-dcness` 가 `.gitignore` 에 추가). handoff 는 커밋 산출물이 아니라 세션 간 scratch 다.
 
 ## 참조

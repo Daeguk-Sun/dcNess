@@ -81,14 +81,21 @@ fi
 export DCNESS_NEXT_POINTER_MSG
 
 # === 대기 핸드오프 (warm 레이어) ===
-# 이전 세션이 /handoff 로 남긴 인계 문서가 있으면 내용을 캡처해 additionalContext
-# 최상단에 주입하고, 주입 직후 archive 로 옮겨 무손실 clear 한다. 캡처를 선행하므로
-# 이후 어떤 실패에도 내용은 archive 에 보존된다. 파일 부재 시 아무 동작도 하지 않아
-# 훅은 기존 동작 그대로다.
+# 이전 세션이 /handoff 로 남긴 인계 문서가 있으면 archive 로 먼저 옮겨 원자적으로
+# 소비(claim)한 뒤 그 내용을 additionalContext 최상단에 주입한다. mv(rename)를 read
+# 보다 선행하므로 병렬 peer 세션 중 rename 에 성공한 first-consumer 만 내용을 얻어
+# 단일 소비자 계약을 만족한다. 소비된 파일은 archive 에 보존(무손실)돼 다음다음 세션에
+# stale 재주입되지 않는다. 파일 부재 시 아무 동작도 하지 않아 훅은 기존 동작 그대로다.
+# 쓰기 경로(commands/handoff.md)도 같은 repo 루트를 써 서브디렉토리 실행에도 정합한다.
 DCNESS_HANDOFF_MSG=""
 HANDOFF_ACTIVE="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/next-session.md"
 if [[ -s "$HANDOFF_ACTIVE" ]]; then
-  DCNESS_HANDOFF_MSG=$(cat "$HANDOFF_ACTIVE" 2>/dev/null || echo "")
+  HANDOFF_ARCHIVE_DIR="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/archive"
+  mkdir -p "$HANDOFF_ARCHIVE_DIR" 2>/dev/null
+  HANDOFF_CLAIMED="$HANDOFF_ARCHIVE_DIR/$(date +%Y%m%d-%H%M%S).md"
+  if mv "$HANDOFF_ACTIVE" "$HANDOFF_CLAIMED" 2>/dev/null; then
+    DCNESS_HANDOFF_MSG=$(cat "$HANDOFF_CLAIMED" 2>/dev/null || echo "")
+  fi
 fi
 export DCNESS_HANDOFF_MSG
 
@@ -130,14 +137,6 @@ print(json.dumps({
     }
 }))
 " 2>/dev/null
-
-# 주입 직후 archive 이동 (무손실 clear) — 다음다음 세션 stale 재주입 차단.
-# 병렬 peer 세션은 각자 SessionStart 를 발화하므로 first-consumer 가 이 mv 로 소비한다.
-if [[ -n "$DCNESS_HANDOFF_MSG" && -s "$HANDOFF_ACTIVE" ]]; then
-  HANDOFF_ARCHIVE_DIR="$PROJECT_ROOT_FOR_DOCS/.dcness-work/handoffs/archive"
-  mkdir -p "$HANDOFF_ARCHIVE_DIR" 2>/dev/null
-  mv "$HANDOFF_ACTIVE" "$HANDOFF_ARCHIVE_DIR/$(date +%Y%m%d-%H%M%S).md" 2>/dev/null || true
-fi
 
 # 모든 실패는 silent
 exit 0

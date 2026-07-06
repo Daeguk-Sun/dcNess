@@ -73,7 +73,7 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 - sid 추출, `.by-pid/<cc_pid>` 작성, `live.json` 초기화
 - 상태 위생 청소 (세션당 1회, fail-open): stale by-pid 파일(24h) + 본 세션의 만료 run 슬롯(24h) + 전 세션의 run 디렉토리(prose/ledger, 7d — `/run-review` 원자료라 슬롯보다 길게 보관). TTL 상수 SSOT = `harness/session_state.py`
 - `hookSpecificOutput.additionalContext` 로 dcNess 활성 사실과 핵심 guard 안내 inject
-- 이전 세션이 `/handoff` 로 남긴 `.dcness-work/handoffs/next-session.md` 가 있으면 그 내용을 `additionalContext` 최상단에 최우선 주입하고, 주입 직후 `.dcness-work/handoffs/archive/<ts>.md` 로 옮겨 무손실 clear 함 — 다음다음 세션 stale 재주입 차단. 파일 부재 시 기존 동작 그대로. 병렬 peer 세션은 first-consumer 가 archive 로 소비
+- 이전 세션이 `/handoff` 로 남긴 `.dcness-work/handoffs/next-session.md` 가 있으면 `.dcness-work/handoffs/archive/<ts>.md` 로 먼저 옮겨(mv) 원자적으로 소비한 뒤 그 내용을 `additionalContext` 최상단에 최우선 주입함(무손실 clear) — 다음다음 세션 stale 재주입 차단. mv(rename)를 read 보다 선행하므로 병렬 peer 세션 중 rename 에 성공한 first-consumer 만 소비(단일 소비자 계약). 파일 부재 시 기존 동작 그대로
 - 메인 Claude 첫 응답 첫 줄에 `[dcness 활성 확인]` 토큰을 요구해 활성 여부를 사용자가 바로 확인 가능하게 함
 - 프로젝트 상태나 다음 작업 질문에는 `docs/index.md` 와 `## 진행 상태 · 다음 작업` 섹션이 실제로 있을 때만 해당 포인터를 안내하고, 파일/섹션이 없으면 `/next-work` issue/label 조회와 `/init-dcness` 보강 경로를 안내함
 - 설치된 plug-in 버전과 `main` 의 최신 버전을 비교(하루 1회 캐시)해 더 높은 버전이 있을 때만 `claude plugin update` 알림을 함께 inject — 외부 활성 프로젝트가 옛 plug-in 버전 운영 룰에 묶이는 drift 회피

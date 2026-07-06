@@ -272,6 +272,35 @@ class BashPipelineSmokeTests(unittest.TestCase):
             archived[0].read_text(encoding="utf-8"),
         )
 
+    def test_session_start_handoff_consumed_once(self) -> None:
+        """#953 — claim-first: 한 번 소비된 handoff 는 다음 SessionStart 에 재주입되지
+        않고 archive 사본도 늘지 않는다 (단일 소비자 계약, 순차 프록시)."""
+        handoffs = self.cwd / ".dcness-work" / "handoffs"
+        handoffs.mkdir(parents=True)
+        (handoffs / "next-session.md").write_text(
+            "# 핸드오프\n\n## 다음 액션\n- 단일 소비 검증\n",
+            encoding="utf-8",
+        )
+
+        first = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-consume-1"}, cwd=self.cwd,
+        )
+        self.assertEqual(first.returncode, 0)
+        ctx1 = json.loads(first.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("단일 소비 검증", ctx1)
+
+        second = _run_bash_hook(
+            "session-start.sh", {"sessionId": "smoke-ses-consume-2"}, cwd=self.cwd,
+        )
+        self.assertEqual(second.returncode, 0)
+        ctx2 = json.loads(second.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("대기 핸드오프", ctx2)
+        self.assertNotIn("단일 소비 검증", ctx2)
+
+        # archive 사본은 1개만 (두 번째 세션이 stale 재소비/재아카이브하지 않음)
+        archived = list((handoffs / "archive").glob("*.md"))
+        self.assertEqual(len(archived), 1, f"archive 1개 기대, 실제: {archived}")
+
     def test_session_start_no_handoff_is_noop(self) -> None:
         """#953 — handoff 파일 부재 시 훅은 기존 동작 그대로 (무해)."""
         result = _run_bash_hook(
