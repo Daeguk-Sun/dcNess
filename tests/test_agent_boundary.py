@@ -1363,6 +1363,34 @@ class PluginReadCarveoutTests(unittest.TestCase):
             self.assertIsNotNone(reason)
             self.assertIn("READ_DENY_MATRIX", reason)
 
+    # ── plugin root 절대 prefix 의 우발적 deny 토큰 무시 (codex P2-A) ──
+    def test_deny_ignores_incidental_root_prefix(self):
+        # plugin root 경로 자체에 `/src/` 가 있어도(로컬 체크아웃), 정당한 지침 read 는
+        # 허용된다 — READ_DENY 는 plugin-relative 경로에만 적용되기 때문.
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            cwd = base / "project"
+            cwd.mkdir()
+            root = base / "src" / "dcness"  # 절대경로에 `/src/` 포함
+            root.mkdir(parents=True)
+            target = str(root / "agents/designer/designer-agent.md")
+            # designer READ_DENY = (^|/)src/ — norm 에 적용하면 root prefix 로 오차단.
+            self.assertIsNone(
+                check_read_allowed(
+                    "designer", target, cwd=cwd, plugin_root=str(root)
+                )
+            )
+
+    # ── zone 안 nested .claude/ 서브트리 차단 (codex P2-B) ─────────────
+    def test_nested_dot_claude_in_zone_blocked(self):
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/foo/.claude/transcript.json")
+            reason = check_read_allowed(
+                "system-architect", target, cwd=cwd, plugin_root=str(root)
+            )
+            self.assertIsNotNone(reason)
+
     # ── write 경계 무변경 (carve-out 은 read 전용) ────────────────────
     def test_write_boundary_unchanged_for_plugin_agents(self):
         with tempfile.TemporaryDirectory() as td:

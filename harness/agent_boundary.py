@@ -300,17 +300,17 @@ READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
 # 판정 기준은 *활성* plugin root (CLAUDE_PLUGIN_ROOT — file-guard hook 이 CC 로부터
 # 자동 수신). plugin cache 에 공존하는 구버전(다른 root)은 예외 대상이 아니라 계속
 # 차단된다 (stale 버전 오선택 방지). write 경계는 무변경 — 본 예외는 Read 전용이다.
+#
+# 🔴 예외 구역 판정·검사는 모두 *plugin-relative* 경로 기준이다 (절대 norm 아님):
+#   - READ_DENY / 개별 인프라 재검사를 상대경로에 적용해, plugin root 절대경로의 우발적
+#     prefix(로컬 체크아웃 `~/src/...` 등)가 deny/infra 에 오매칭되는 것을 막는다 (codex P2).
+#   - 상대경로엔 cache `.claude/plugins/` prefix 가 없으므로, 개별 인프라 재검사에 broad
+#     `(^|/)\.claude/` 를 *그대로 유지*해도 zone 안 nested `.claude/` 서브트리(예
+#     `agents/foo/.claude/`)만 차단하고 정상 지침(`.claude/` 미포함)은 통과한다. 원 동기
+#     (인프라 탐독 방지)를 보존하며 nested 민감 경로 재오픈을 막는다 (codex P2).
 _PLUGIN_READ_ALLOW_ZONES: tuple[str, ...] = (
     r'^agents/',
     r'^docs/plugin/',
-)
-# 예외 구역 안이라도 계속 차단되는 개별 인프라 패턴 — 원 동기(인프라 탐독 토큰 낭비
-# 방지) 보존. broad `(^|/)\.claude/` 만 예외에서 제외하고 나머지 INFRA 패턴을
-# plugin-relative 경로에 재적용한다. 예: docs/plugin/loop-procedure.md 는 allow-zone
-# (docs/plugin/) 안이지만 loop-procedure 패턴에 매칭돼 계속 차단.
-_BROAD_CLAUDE_INFRA_PATTERN = r'(^|/)\.claude/'
-_PLUGIN_READ_ZONE_INFRA: tuple[str, ...] = tuple(
-    p for p in DCNESS_INFRA_PATTERNS if p != _BROAD_CLAUDE_INFRA_PATTERN
 )
 
 
@@ -713,33 +713,32 @@ def check_write_allowed(
     return None
 
 
-def _plugin_read_carveout(
+def _plugin_read_zone_rel(
     file_path: str,
     cwd: Path,
     plugin_root: Optional[str],
-) -> bool:
-    """활성 plugin 의 agents/** · 지정 docs/plugin/** read 예외 여부 (#962).
+) -> Optional[str]:
+    """활성 plugin read allow-zone(agents/·docs/plugin/) 안이면 plugin-relative 경로를,
+    아니면 None 을 반환한다 (#962).
 
-    True = broad `.claude/` 차단에서 예외 허용 (Read 전용). 판정은 활성 plugin root
-    (plugin_root, 기본 CLAUDE_PLUGIN_ROOT) 기준 — 대상과 root 를 모두 resolve() 후
-    상대화하므로 symlink/`..` 로 예외 구역을 위장한 우회는 닫힌다 (구역 밖으로
-    resolve 되면 relative_to 실패 → False → broad `.claude/` 차단으로 회귀). allow-zone
-    안이라도 개별 인프라 패턴(loop-procedure 등)에 매칭되면 False (차단 유지).
+    판정은 활성 plugin root (plugin_root, 기본 CLAUDE_PLUGIN_ROOT) 기준 — 대상과 root 를
+    모두 resolve() 후 상대화하므로 symlink/`..` 로 예외 구역을 위장한 우회는 닫힌다
+    (구역 밖으로 resolve 되면 relative_to 실패 → None). 반환된 상대경로는 호출부에서
+    (a) READ_DENY 검사 대상(절대 root prefix 우발 매칭 방지)과 (b) 개별 인프라 재검사
+    (nested `.claude/`·loop-procedure 등 차단)에 쓰인다.
     """
     if not plugin_root:
-        return False
+        return None
     try:
         root = Path(plugin_root).expanduser().resolve()
         p = Path(file_path).expanduser()
         target = (p if p.is_absolute() else (cwd / p)).resolve()
         rel = str(target.relative_to(root))
     except (OSError, ValueError, RuntimeError):
-        return False
+        return None
     if not _matches_any(rel, _PLUGIN_READ_ALLOW_ZONES):
-        return False
-    if _matches_any(rel, _PLUGIN_READ_ZONE_INFRA):
-        return False
-    return True
+        return None
+    return rel
 
 
 def check_read_allowed(
@@ -772,21 +771,28 @@ def check_read_allowed(
 
     norm = _normalize(file_path, cwd)
 
-    # READ_DENY_MATRIX (agent 별 추가 차단) 를 carve-out 보다 *먼저* 검사한다. agent 전용
-    # deny 는 plugin carve-out 예외보다 우선해야 한다 — 현행 READ_DENY 패턴(src/ 등)은
-    # plugin agents/·docs/plugin 구역과 겹치는 실경로가 없어 효과는 동일하지만, 미래에
-    # 겹치는 규칙이 추가돼도 carve-out 이 이를 우회하지 못하게 순서로 보장한다.
+    # #962 — 활성 plugin allow-zone(agents/·docs/plugin/) 판정. zone 안이면 plugin-relative
+    # 경로를 얻는다. READ_DENY·개별 인프라 재검사를 (norm 이 아니라) 이 상대경로에 적용해
+    # plugin root 절대경로의 우발적 prefix(로컬 체크아웃 `~/src/...` 등) 오매칭을 막는다 (codex P2).
+    zone_rel = _plugin_read_zone_rel(file_path, cwd, plugin_root)
+
+    # READ_DENY_MATRIX (agent 별 추가 차단) 를 carve-out 보다 *먼저* 검사한다 — agent 전용
+    # deny 는 plugin carve-out 예외보다 우선해야 하며, 미래에 겹치는 규칙이 추가돼도 carve-out
+    # 이 이를 우회하지 못하게 순서로 보장한다. zone 안이면 상대경로에, 밖이면 norm 에 적용.
     deny = READ_DENY_MATRIX.get(agent, ())
-    matched = _matches_any(norm, deny)
+    deny_target = zone_rel if zone_rel is not None else norm
+    matched = _matches_any(deny_target, deny)
     if matched:
         return (
-            f"{agent} READ_DENY_MATRIX 매칭: `{norm}` "
+            f"{agent} READ_DENY_MATRIX 매칭: `{deny_target}` "
             f"(READ_DENY_MATRIX matched `{matched}`)"
         )
 
-    # #962 — 활성 plugin 의 agents/** · 지정 docs/plugin/** 는 broad `.claude/` 차단에서
-    # 예외 허용. plugin 안 개별 인프라 패턴·plugin 밖 민감 경로는 아래 INFRA 검사로 계속 차단.
-    if _plugin_read_carveout(file_path, cwd, plugin_root):
+    # #962 carve-out — zone 안이고 개별 인프라 패턴(전체 INFRA, *상대경로* 기준)에 안 걸리면
+    # 예외 허용. 상대경로엔 cache `.claude/plugins/` prefix 가 없으므로 broad `.claude/` 는
+    # zone 안 nested `.claude/` 서브트리만 차단하고 정상 지침은 통과시킨다 (codex P2). infra
+    # 매칭 시엔 아래 norm INFRA 검사로 흘러가 차단된다 (rel 은 norm 의 suffix — 항상 매칭).
+    if zone_rel is not None and not _matches_any(zone_rel, DCNESS_INFRA_PATTERNS):
         return None
 
     matched = _matches_any(norm, DCNESS_INFRA_PATTERNS)

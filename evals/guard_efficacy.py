@@ -452,6 +452,16 @@ def build_cases() -> list[GuardCase]:
             ),
         ),
         GuardCase(
+            "read_boundary_blocks_nested_dot_claude_in_zone",
+            "read-boundary",
+            "block",
+            "nested .claude/ subtree inside the allow zone stays blocked.",
+            _file_read(
+                "system-architect",
+                lambda b, c, r: str(r / "agents/foo/.claude/transcript.json"),
+            ),
+        ),
+        GuardCase(
             "bash_mutation_blocks_git_push",
             "bash-mutation",
             "block",
