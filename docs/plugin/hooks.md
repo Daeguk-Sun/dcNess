@@ -297,7 +297,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 
 ## Layer 3 — CI/CD workflows
 
-설치 경로: 사용자 repo 의 `.github/workflows/`. `/init-dcness` 에서 사용자가 Y 를 선택한 경우 thin workflow 를 생성한다. workflow 본체는 `alruminum/dcNess` 의 composite action 을 호출한다.
+설치 경로: 사용자 repo 의 `.github/workflows/`. `/init-dcness` 에서 사용자가 Y 를 선택한 경우 thin workflow 를 생성한다. workflow 본체는 `Daeguk-Sun/dcNess` 의 composite action 을 호출한다.
 
 | Workflow | Trigger | 언제 | 하는 일 | 성격 |
 |---|---|---|---|---|
@@ -313,7 +313,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `alruminum/dcNess/.github/actions/git-naming@main` 을 호출해 `github.head_ref` 와 PR title 을 검증한다.
+**역할**: `Daeguk-Sun/dcNess/.github/actions/git-naming@main` 을 호출해 `github.head_ref` 와 PR title 을 검증한다.
 
 **차단**: workflow 실패. hard merge gate 여부는 사용자 repo 의 branch protection/ruleset 설정에 달려 있다.
 
@@ -323,7 +323,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `alruminum/dcNess/.github/actions/pr-body@main` 을 호출해 PR body 에 issue trailer 가 있는지 확인한다.
+**역할**: `Daeguk-Sun/dcNess/.github/actions/pr-body@main` 을 호출해 PR body 에 issue trailer 가 있는지 확인한다.
 
 허용 패턴:
 
@@ -339,7 +339,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때. 문서가 그대로여도 참조 대상 파일이 삭제·이동되면 stale path 가 생길 수 있으므로 path filter 를 두지 않는다.
 
-**역할**: `alruminum/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative path 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다.
+**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative path 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다.
 
 **차단**: workflow 실패. hard merge gate 여부는 사용자 repo 의 branch protection/ruleset 설정에 달려 있다.
 
@@ -349,7 +349,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `alruminum/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표와 `docs/architecture.md` generated architecture map 이 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서, architecture map 은 epic `architecture.md` 의 `## 모듈 목록` / `## Contract Ledger` 표에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물이 canonical Contract Ledger `contract` 열과 level-2 `## Contract References` row-key 포인터 구조를 지키는지 감사한다.
+**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표와 `docs/architecture.md` generated architecture map 이 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서, architecture map 은 epic `architecture.md` 의 `## 모듈 목록` / `## Contract Ledger` 표에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물이 canonical Contract Ledger `contract` 열과 level-2 `## Contract References` row-key 포인터 구조를 지키는지 감사한다.
 
 **빈 환경**: `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 갓 시드된 프로젝트에서는 no-op PASS 한다.
 

@@ -86,14 +86,18 @@ while read local_ref local_sha remote_ref remote_sha; do
       # main / master / HEAD / develop 면 skip (이미 main 차단 별도)
       case "$BRANCH" in main|master|HEAD|develop) continue ;; esac
 
-      if [ -n "$SCRIPT_PATH" ]; then
-        if ! node "$SCRIPT_PATH" --branch "$BRANCH" >&2; then
-          record_guard_hit "branch_naming" "branch rejected: $BRANCH"
-          echo "ERROR: 브랜치명 형식 위반 — push 차단 (#255 W4 정합)." >&2
-          echo "  로컬에서 수정: git branch -m <올바른-브랜치명>" >&2
-          echo "  허용 패턴 = docs/plugin/git-spec.md §1" >&2
-          exit 1
-        fi
+      # node 부재 시 브랜치명 검증만 fail-open (WARN + skip). main-block(위)은 node 미사용이라
+      # 그대로 차단 유지 — node 미설치(exit 127)를 형식 위반과 구분.
+      if [ -z "$SCRIPT_PATH" ]; then
+        : # git-naming 스크립트 미발견 — 기존 동작대로 조용히 skip
+      elif ! command -v node >/dev/null 2>&1; then
+        echo "[pre-push] WARN — node 미설치. 브랜치명 검증 skip (fail-open)." >&2
+      elif ! node "$SCRIPT_PATH" --branch "$BRANCH" >&2; then
+        record_guard_hit "branch_naming" "branch rejected: $BRANCH"
+        echo "ERROR: 브랜치명 형식 위반 — push 차단 (#255 W4 정합)." >&2
+        echo "  로컬에서 수정: git branch -m <올바른-브랜치명>" >&2
+        echo "  허용 패턴 = docs/plugin/git-spec.md §1" >&2
+        exit 1
       fi
       ;;
   esac

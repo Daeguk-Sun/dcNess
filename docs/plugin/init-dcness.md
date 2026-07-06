@@ -115,31 +115,31 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 
 - 대상 경로: `.github/workflows/git-naming-validation.yml`
 - 템플릿: [`templates/github-workflows/git-naming-validation.yml`](../../templates/github-workflows/git-naming-validation.yml)
-- 역할: `alruminum/dcNess/.github/actions/git-naming@main` 을 호출해 `github.head_ref` 와 PR title 을 검증한다.
+- 역할: `Daeguk-Sun/dcNess/.github/actions/git-naming@main` 을 호출해 `github.head_ref` 와 PR title 을 검증한다.
 
 ### pr-body-validation.yml
 
 - 대상 경로: `.github/workflows/pr-body-validation.yml`
 - 템플릿: [`templates/github-workflows/pr-body-validation.yml`](../../templates/github-workflows/pr-body-validation.yml)
-- 역할: `alruminum/dcNess/.github/actions/pr-body@main` 을 호출해 PR body 에 issue trailer 가 있는지 확인한다.
+- 역할: `Daeguk-Sun/dcNess/.github/actions/pr-body@main` 을 호출해 PR body 에 issue trailer 가 있는지 확인한다.
 
 ### doc-path-integrity.yml
 
 - 대상 경로: `.github/workflows/doc-path-integrity.yml`
 - 템플릿: [`templates/github-workflows/doc-path-integrity.yml`](../../templates/github-workflows/doc-path-integrity.yml)
-- 역할: `alruminum/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative 경로 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다. 문서가 그대로여도 참조 대상 파일 삭제·이동으로 stale path 가 생길 수 있어 PR마다 실행한다.
+- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative 경로 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다. 문서가 그대로여도 참조 대상 파일 삭제·이동으로 stale path 가 생길 수 있어 PR마다 실행한다.
 
 ### doc-sync.yml
 
 - 대상 경로: `.github/workflows/doc-sync.yml`
 - 템플릿: [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml)
-- 역할: `alruminum/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표와 `docs/architecture.md` 의 전역 architecture map 이 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 Contract Ledger row-key 포인터 구조를 감사한다. `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다.
+- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표와 `docs/architecture.md` 의 전역 architecture map 이 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 Contract Ledger row-key 포인터 구조를 감사한다. `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다.
 
 ### github-project-lifecycle.yml
 
 - 대상 경로: `.github/workflows/github-project-lifecycle.yml`
 - 템플릿: [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml)
-- 역할: `alruminum/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue/label drift 를 검출하고 merged PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 Project Status `Done` 미러를 best-effort 로 함께 시도한다.
+- 역할: `Daeguk-Sun/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue/label drift 를 검출하고 merged PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 Project Status `Done` 미러를 best-effort 로 함께 시도한다.
 
 `in-progress` label 제거에는 `issues: write` 권한이 필요하다. Project v2 미러에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없거나 Project API 가 실패하면 Project 미러만 warning 으로 skip 되고 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
 

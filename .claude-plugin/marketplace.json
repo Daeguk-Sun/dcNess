@@ -1,7 +1,7 @@
 {
   "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
   "name": "dcness",
-  "description": "Agent workflow harness for Claude Code and Codex that enforces order gates, role boundaries, TDD guard, and verifiable run records inside Git/PR/CI workflows.",
+  "description": "Claude Code와 Codex를 Git/PR/CI 흐름 안에서 순서 게이트·역할 경계·TDD guard·검증 가능한 작업 기록으로 묶는 agent workflow harness. (한국어 사용자 대상)",
   "owner": {
     "name": "alruminum",
     "email": "alruminum@gmail.com"
@@ -14,7 +14,7 @@
     {
       "name": "dcness",
       "source": "./",
-      "description": "Agent workflow harness for Claude Code and Codex — order gates, role boundaries, TDD guard, and verifiable run records for Git/PR/CI work.",
+      "description": "Claude Code와 Codex를 순서 게이트·역할 경계·TDD guard·검증 가능한 작업 기록으로 Git/PR/CI 작업에 묶는 agent workflow harness. (한국어 사용자 대상)",
       "category": "development",
       "tags": [
         "claude-code",

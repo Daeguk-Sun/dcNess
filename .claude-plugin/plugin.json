@@ -1,7 +1,7 @@
 {
   "name": "dcness",
   "version": "0.12.0",
-  "description": "Agent workflow harness for Claude Code and Codex that enforces order gates, role boundaries, TDD guard, and verifiable run records inside Git/PR/CI workflows.",
+  "description": "Claude Code와 Codex를 Git/PR/CI 흐름 안에서 순서 게이트·역할 경계·TDD guard·검증 가능한 작업 기록으로 묶는 agent workflow harness. (한국어 사용자 대상)",
   "author": {
     "name": "alruminum",
     "email": "alruminum@gmail.com"

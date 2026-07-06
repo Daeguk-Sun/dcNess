@@ -11,6 +11,6 @@ jobs:
     name: PR body close-keyword gate
     runs-on: ubuntu-latest
     steps:
-      - uses: alruminum/dcNess/.github/actions/pr-body@main
+      - uses: Daeguk-Sun/dcNess/.github/actions/pr-body@main
         with:
           body: ${{ github.event.pull_request.body }}

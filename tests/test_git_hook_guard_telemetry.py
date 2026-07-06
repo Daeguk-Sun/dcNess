@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import subprocess
 import unittest
 from pathlib import Path
@@ -271,6 +272,83 @@ class GitHookGuardTelemetryTests(unittest.TestCase):
                 (root / ".claude" / "harness-state" / TELEMETRY_NAME).exists()
             )
             self.assertEqual(read_events(cwd=root), [])
+
+
+class GitHookNodeFailOpenTests(unittest.TestCase):
+    """node 미설치 환경 계약 — naming 검증만 skip (fail-open), main 차단은 유지."""
+
+    def _restricted_path(self, base: Path) -> str:
+        # node 없는 PATH — shim 이 필요로 하는 최소 도구만 symlink.
+        bin_dir = base / "bin"
+        bin_dir.mkdir()
+        for tool in ("head", "grep"):
+            src = shutil.which(tool)
+            self.assertIsNotNone(src, tool)
+            (bin_dir / tool).symlink_to(src)
+        return str(bin_dir)
+
+    def test_commit_msg_skips_naming_when_node_missing(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            repo = base / "repo"
+            repo.mkdir()
+            msg = repo / "COMMIT_EDITMSG"
+            msg.write_text("bad subject\n", encoding="utf-8")
+            env = _env(active=True)
+            env["PATH"] = self._restricted_path(base)
+
+            result = subprocess.run(
+                ["/bin/sh", str(ROOT / "scripts" / "hooks" / "commit-msg"), str(msg)],
+                cwd=str(repo),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn("WARN", result.stderr)
+
+    def test_pre_push_branch_naming_skips_when_node_missing(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            repo = base / "repo"
+            repo.mkdir()
+            env = _env(active=True)
+            env["PATH"] = self._restricted_path(base)
+
+            result = subprocess.run(
+                ["/bin/sh", str(ROOT / "scripts" / "hooks" / "pre-push")],
+                input="refs/heads/BadBranch abc refs/heads/BadBranch def\n",
+                cwd=str(repo),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            self.assertIn("WARN", result.stderr)
+
+    def test_pre_push_main_block_still_blocks_without_node(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            repo = base / "repo"
+            repo.mkdir()
+            env = _env(active=True)
+            env["PATH"] = self._restricted_path(base)
+
+            result = subprocess.run(
+                ["/bin/sh", str(ROOT / "scripts" / "hooks" / "pre-push")],
+                input="refs/heads/main abc refs/heads/main def\n",
+                cwd=str(repo),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 1, result.stderr + result.stdout)
 
 
 if __name__ == "__main__":

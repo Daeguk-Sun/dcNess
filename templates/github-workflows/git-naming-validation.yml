@@ -11,7 +11,7 @@ jobs:
     name: git-naming-spec gate
     runs-on: ubuntu-latest
     steps:
-      - uses: alruminum/dcNess/.github/actions/git-naming@main
+      - uses: Daeguk-Sun/dcNess/.github/actions/git-naming@main
         with:
           branch: ${{ github.head_ref }}
           title: ${{ github.event.pull_request.title }}

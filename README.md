@@ -169,7 +169,7 @@ Standard 구현 경로의 기본은 `build-worker → pr-reviewer` 이고, 풀 4
 | 기본 workflow | `/design` | 화면·시스템·모듈 설계 |
 | 기본 workflow | `/impl` | 구현 진입 — 경로(Lite/Standard)와 엔진을 내부 판정 |
 | 기본 workflow | `/acceptance` | story/epic 제품 검수 |
-| support | `/to-issue` | 자연어 → Issue Brief 초안 → 승인 후 GitHub 등록 |
+| support | `/to-issue` | 자연어 → Issue Brief → 승인 대기 없이 GitHub 선등록 (web 에서 확인·수정) |
 | 고급 | `/tech-review` | 위험한 설계의 사전 기술 검증 |
 | 고급 | `/impl-loop` | deep impl task 파일 단위 구현 러너 |
 | 유틸 | `/ux` | 구현 없이 목업·흐름 먼저 탐색, PICK 확정본은 canvas 에 등록 |

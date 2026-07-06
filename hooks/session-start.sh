@@ -44,7 +44,7 @@ if [[ -n "$INSTALLED_VERSION" && "$INSTALLED_VERSION" != "null" ]]; then
 
   # 캐시 stale (24h+) — gh api 로 main 의 plugin.json fetch
   if (( NOW > 0 && NOW - LAST_CHECK > CHECK_INTERVAL )); then
-    FETCHED=$(gh api repos/alruminum/dcNess/contents/.claude-plugin/plugin.json --jq '.content' 2>/dev/null \
+    FETCHED=$(gh api repos/Daeguk-Sun/dcNess/contents/.claude-plugin/plugin.json --jq '.content' 2>/dev/null \
               | base64 -d 2>/dev/null \
               | jq -r '.version' 2>/dev/null \
               || echo "")

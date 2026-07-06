@@ -15,4 +15,4 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: alruminum/dcNess/.github/actions/doc-sync@main
+      - uses: Daeguk-Sun/dcNess/.github/actions/doc-sync@main

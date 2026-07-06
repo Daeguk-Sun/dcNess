@@ -3,7 +3,7 @@
 # 규칙 정의: docs/plugin/issue-lifecycle.md §1.4 + §2.3 (SSOT)
 # 본 dcness self repo 는 자기 composite action (.github/actions/pr-body) 을 dogfooding.
 # 외부 활성화 프로젝트는 init-dcness 가 묻고 Y 답변 시 thin yml 을 사용자 repo 에 배포 — 그 yml 은
-# `uses: alruminum/dcNess/.github/actions/pr-body@main` 1줄로 동일 검증.
+# `uses: Daeguk-Sun/dcNess/.github/actions/pr-body@main` 1줄로 동일 검증.
 
 name: pr-body-validation
 

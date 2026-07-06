@@ -68,7 +68,14 @@ record_guard_hit() {
 }
 
 # 1. git-naming 검증 — TDD chain 폐기 (v0.2.16 — PreToolUse hook 으로 이전)
-if ! node "$PLUGIN_ROOT/scripts/check_git_naming.mjs" --title "$COMMIT_TITLE"; then
-  record_guard_hit "git_naming" "commit title rejected: $COMMIT_TITLE"
-  exit 1
+# node 부재 시 fail-open — node 미설치(exit 127)를 형식 위반(exit 1)과 구분해 WARN + skip.
+# plugin hook 계열의 fail-open(부재/크래시 시 allow) 설계와 일관 — node 미설치 기계에서
+# 활성화 직후 모든 commit 이 차단되는 것을 막는다.
+if command -v node >/dev/null 2>&1; then
+  if ! node "$PLUGIN_ROOT/scripts/check_git_naming.mjs" --title "$COMMIT_TITLE"; then
+    record_guard_hit "git_naming" "commit title rejected: $COMMIT_TITLE"
+    exit 1
+  fi
+else
+  echo "[commit-msg] WARN — node 미설치. git-naming 검증 skip (fail-open)." >&2
 fi
