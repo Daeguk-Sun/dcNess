@@ -4,7 +4,7 @@ description: >
   구현 계획에 따라 src 코드를 수정하는 에이전트. 실제 지침은
   docs/plugin/agents/engineer/engineer-agent.md 에 있다.
 tools: Read, Write, Edit, Bash, Glob, Grep
-model: sonnet
+model: opus
 ---
 
 # engineer

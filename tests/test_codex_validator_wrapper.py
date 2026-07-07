@@ -153,6 +153,207 @@ class CodexValidatorWrapperTests(unittest.TestCase):
                 "sid-test\nrun-1234abcd\n",
             )
 
+    def test_passes_model_and_effort_overrides_when_env_is_set(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Review this implementation.\n", encoding="utf-8")
+
+            args_capture = tmp / "codex-args.txt"
+            prose_capture = tmp / "captured-prose.md"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    if [ "$1" = "--help" ]; then
+                      echo "Usage: codex [OPTIONS]"
+                      echo "  -a, --ask-for-approval <APPROVAL_POLICY>"
+                      exit 0
+                    fi
+                    printf '%s\\n' "$@" > "$ARGS_CAPTURE"
+                    out=""
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --output-last-message)
+                          out="$2"
+                          shift 2
+                          ;;
+                        *)
+                          shift
+                          ;;
+                      esac
+                    done
+                    cat >/dev/null
+                    printf 'Codex prose\\n\\nPASS\\n' > "$out"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            helper = tmp / "dcness-helper"
+            helper.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --prose-file)
+                          cp "$2" "$PROSE_CAPTURE"
+                          exit 0
+                          ;;
+                      esac
+                      shift
+                    done
+                    exit 1
+                    """
+                ),
+                encoding="utf-8",
+            )
+            helper.chmod(0o755)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "ARGS_CAPTURE": str(args_capture),
+                    "DCNESS_CODEX_EFFORT": "xhigh",
+                    "DCNESS_CODEX_MODEL": "gpt-test-model",
+                    "DCNESS_RUN_ID": "run-abcdef01",
+                    "DCNESS_SESSION_ID": "sid-model",
+                    "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(WRAPPER),
+                    "code-validator",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            args = args_capture.read_text(encoding="utf-8")
+            self.assertIn("-m\ngpt-test-model\n", args)
+            self.assertIn("-c\nmodel_reasoning_effort=xhigh\n", args)
+
+    def test_inherits_model_and_effort_when_env_is_unset(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Review this implementation.\n", encoding="utf-8")
+
+            args_capture = tmp / "codex-args.txt"
+            prose_capture = tmp / "captured-prose.md"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    if [ "$1" = "--help" ]; then
+                      echo "Usage: codex [OPTIONS]"
+                      exit 0
+                    fi
+                    printf '%s\\n' "$@" > "$ARGS_CAPTURE"
+                    out=""
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --output-last-message)
+                          out="$2"
+                          shift 2
+                          ;;
+                        *)
+                          shift
+                          ;;
+                      esac
+                    done
+                    cat >/dev/null
+                    printf 'Codex prose\\n\\nPASS\\n' > "$out"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            helper = tmp / "dcness-helper"
+            helper.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --prose-file)
+                          cp "$2" "$PROSE_CAPTURE"
+                          exit 0
+                          ;;
+                      esac
+                      shift
+                    done
+                    exit 1
+                    """
+                ),
+                encoding="utf-8",
+            )
+            helper.chmod(0o755)
+
+            env = os.environ.copy()
+            env.pop("DCNESS_CODEX_EFFORT", None)
+            env.pop("DCNESS_CODEX_MODEL", None)
+            env.update(
+                {
+                    "ARGS_CAPTURE": str(args_capture),
+                    "DCNESS_RUN_ID": "run-abcdef02",
+                    "DCNESS_SESSION_ID": "sid-inherit",
+                    "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(WRAPPER),
+                    "code-validator",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            args = args_capture.read_text(encoding="utf-8").splitlines()
+            self.assertNotIn("-m", args)
+            self.assertNotIn("model_reasoning_effort=xhigh", args)
+
     def test_resolves_sid_rid_without_caller_env(self) -> None:
         """issue #625 — Codex subprocess PPID/env 단절 전 wrapper 가 sid/rid 를 export."""
         with tempfile.TemporaryDirectory() as td:
@@ -499,6 +700,107 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 prose_capture.read_text(encoding="utf-8"),
                 "Worker prose\n\nPASS\n",
             )
+
+    def test_worker_passes_model_and_effort_overrides_when_env_is_set(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement the task.\n", encoding="utf-8")
+
+            args_capture = tmp / "codex-args.txt"
+            prose_capture = tmp / "captured-prose.md"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    if [ "$1" = "--help" ]; then
+                      echo "Usage: codex [OPTIONS]"
+                      echo "  -a, --ask-for-approval <APPROVAL_POLICY>"
+                      exit 0
+                    fi
+                    printf '%s\\n' "$@" > "$ARGS_CAPTURE"
+                    out=""
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --output-last-message)
+                          out="$2"
+                          shift 2
+                          ;;
+                        *)
+                          shift
+                          ;;
+                      esac
+                    done
+                    cat >/dev/null
+                    printf 'Worker prose\\n\\nPASS\\n' > "$out"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            helper = tmp / "dcness-helper"
+            helper.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --prose-file)
+                          cp "$2" "$PROSE_CAPTURE"
+                          exit 0
+                          ;;
+                      esac
+                      shift
+                    done
+                    exit 1
+                    """
+                ),
+                encoding="utf-8",
+            )
+            helper.chmod(0o755)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "ARGS_CAPTURE": str(args_capture),
+                    "DCNESS_CODEX_EFFORT": "high",
+                    "DCNESS_CODEX_MODEL": "gpt-worker-model",
+                    "DCNESS_RUN_ID": "run-abcdef03",
+                    "DCNESS_SESSION_ID": "sid-worker-model",
+                    "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            args = args_capture.read_text(encoding="utf-8")
+            self.assertIn("-m\ngpt-worker-model\n", args)
+            self.assertIn("-c\nmodel_reasoning_effort=high\n", args)
 
     def test_worker_success_blocks_boundary_violation_without_end_step(self) -> None:
         with tempfile.TemporaryDirectory() as td:
