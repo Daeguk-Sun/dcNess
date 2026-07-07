@@ -13,54 +13,33 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 
 ## 사전 준비
 
-- 읽을 문서:
-  - `docs/index.md`
-  - `docs/prd.md`
-  - `docs/architecture.md`
-  - `docs/conventions.md`
-  - `docs/decisions/`
-  - `docs/modules/<module-id>/architecture.md` (affected module 이 있으면)
-  - `docs/modules/<module-id>/conventions.md` (affected module 이 있으면)
-  - `docs/epics/<epic>/stories.md`
-  - `docs/epics/<epic>/architecture.md`
-  - `docs/epics/<epic>/domain-model.md` (있으면)
+- 읽을 문서 (task-specific docs 만 남긴다):
+  - `docs/conventions.md` (코드 변경 task 기본)
+  - `docs/epics/<epic>/stories.md` (해당 Story/공통 task 근거)
+  - `docs/epics/<epic>/architecture.md` (module responsibility / public interface / Story -> 모듈 매핑)
+  - `docs/modules/<module-id>/architecture.md` (affected owner module 한정)
+  - `docs/modules/<module-id>/conventions.md` (affected owner module 한정)
+  - `docs/decisions/NNNN-slug.md` (해당 계약/결정만)
+  - `docs/epics/<epic>/domain-model.md` / `docs/design.md` / `docs/design-variants/<screen-id>.html` (task가 직접 쓰는 경우만)
 - 읽을 코드:
   -
 
-> 선행 task 는 frontmatter `depends_on` 이 단일 SSOT 다 (병렬 독립성 판정 입력). 본문에 따로 적어 drift 시키지 않는다.
+> 전역 고정 문서 목록을 복제하지 않는다. 단, `docs/conventions.md` 는 코드 변경 task 의 전역 코딩 규약 전달 경로이므로 기본으로 둔다. 선행 task 는 frontmatter `depends_on` 이 단일 SSOT 다 (병렬 독립성 판정 입력).
 
 ## 무엇을 만드나
 
--
+- 구현 대상과 Story 완료 시 실제로 검증되는 동작 (1-2줄):
+- 제품 경계(UI/API/CLI/worker entrypoint/통합 wiring):
+- 첫 동작 증거 지점:
 
 ## 왜 만드나
 
--
-
-## Story 동작 슬라이스
-
-> 파일이나 레이어가 아니라 사용자가 약속받은 동작을 적는다. 이 task 단독으로 제품 경계 동작이 열리지 않으면, 어느 선행/후속 task 묶음에서 처음 동작하는지와 그 이유를 쓴다. 첫 동작 증거가 Story 마지막 task까지 밀리면 여기와 module-architect 보고에 warning 을 남긴다.
-
-- Story 완료 시 실제로 검증되는 동작:
-- 이 task가 연결하는 제품 경계(UI/API/CLI/worker entrypoint/통합 wiring):
-- 첫 동작 증거 지점:
-- 병렬성보다 동작 슬라이스를 우선한 결정:
-
-## Agent Workability
-
-> 다음 agent 가 cold-start 로 들어와도 edit target, state owner, validation path 를 복구할 수 있어야 한다. 진본 위치는 epic `architecture.md` 의 모듈 목록(책임/공개 인터페이스/검증 경로)과 이 task-local 증거다.
-
-- owner flow/module:
-- entrypoint role:
-- state owner:
-- allowed touch:
-- forbidden touch:
-- validation path:
-- future change scenario:
+- PRD/Story 근거와 병렬성보다 동작 슬라이스를 우선한 결정 (1-2줄):
+- Story 마지막 task까지 밀리면 warning / 불가피한 이유 / 후속 검증:
 
 ## 디자인 참조
 
-> `design: required` 이거나 UI 기준 확보 분기가 `기준 있음` / `신규 시각 구조 + 기준 없음` 으로 판정된 task 는 확정 목업 경로와 핵심 node-id 매핑을 적는다. `design: optional` 이고 시각 구조 불변이면 `해당 없음` 으로 명시한다.
+> UI task 한정. `design: required` 이거나 UI 기준 확보 분기가 `기준 있음` / `신규 시각 구조 + 기준 없음` 으로 판정된 task 는 확정 목업 경로와 핵심 node-id 매핑을 적는다. non-UI task 는 이 섹션 전체를 삭제한다.
 
 - 확정 목업 경로: `docs/design-variants/<screen-id>.html` 또는 해당 없음
 - canvas 경로: `docs/design-variants/canvas.html` 또는 해당 없음
@@ -73,41 +52,37 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 
 ### 수정 허용
 
-> **한 bullet = 정확히 하나의 repo-relative 파일 경로** (또는 끝에 `/` 붙인 디렉토리). 이 목록의 교집합으로 병렬 wave 충돌이 판정된다 (정책: `docs/plugin/parallel-policy.md`). 볼드/라벨/괄호처럼 단일 경로 후보가 분명한 형식 잡음은 `dcness-helper normalize-scope` 가 교정한다. 경로가 없거나 여러 경로/산문이 섞인 bullet 은 의미 판단이 필요하므로 validator finding 으로 남는다. 부가 설명은 `# 주석` 또는 blockquote 로 적는다.
+> 기본값은 owner module directory grant 다. **한 bullet = 정확히 하나의 repo-relative 파일 경로 또는 끝 `/` 디렉토리**이고, 모듈 작업은 `src/<owner-module>/` 처럼 owner module directory 를 끝 `/` 로 연다. 그 디렉토리 안의 신규 파일은 구현자 재량이다. 같은 owner directory 를 여러 task 가 나눠 병렬/분할 구현할 때만 file-level path 로 좁힌다. 부가 설명은 `# 주석` 또는 blockquote 로 적는다.
 
--
+- `src/<owner-module>/`
 
 ### 수정 금지
 
 -
 
-## 계약 / 결정 참조
-
-> Cross-task/public contract 의미는 epic `architecture.md` 의 모듈 목록 책임/공개 인터페이스 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. 이 task 는 관련 모듈과 decision id/link 만 가리킨다. invariant, ordering, error mode, config, forbidden alternative 전문을 impl 문서에 복제하지 않는다.
-> Task-local private interfaces that are not consumed by another task stay in `## 인터페이스`.
-
-| kind | ref | action | note |
-|---|---|---|---|
-| module |  | new/update/existing | reflected in `docs/epics/<epic>/architecture.md` module list |
-| decision |  | new/update/existing | `docs/decisions/NNNN-slug.md` |
-
 ## 인터페이스
 
+- 계약/결정 링크:
+  - module: `<module-id>` (`docs/epics/<epic>/architecture.md` 모듈 목록)
+  - decision: `docs/decisions/NNNN-slug.md` 또는 해당 없음
 - task 내부 한정 private interface:
+- owner/entrypoint 요약 (entrypoint task 한정; 비-entrypoint task 는 생략):
+  - owner flow/module:
+  - entrypoint role:
+  - state owner:
+  - validation path:
 
 ## 수용 기준
 
-| REQ | 내용 | 검증 | 통과 조건 |
+> 검증은 기본적으로 실행 가능한 명령이다. manual QA 는 명령 변환 불가 사유와 관찰 증거를 같이 적을 때만 허용한다.
+
+| REQ | 내용 | 검증 명령 | 통과 조건 |
 |---|---|---|---|
-| REQ-001 |  | (TEST) |  |
-
-## Module Design Check
-
-- Deep module:
-- DI/의존 주입:
-- 공개 노출 범위:
-- 의존 차단:
+| REQ-001 |  | `(TEST) <command>` |  |
+| REQ-UI-001 |  | `(MANUAL QA: 명령 변환 불가 사유=<reason>) <관찰 증거>` |  |
 
 ## 주의사항
 
--
+- 모듈 설계 주의: Deep module / DI·의존 주입 / 공개 노출 범위 / 의존 차단 중 이 task 가 반드시 지킬 제약만 적는다.
+- public contract 의미는 module responsibility / public interface 와 decision 문서에 두고, impl 문서에는 링크만 남긴다.
+- 구현 세부(pseudo-code, private helper name, forced test-function name)를 선점하지 않는다.

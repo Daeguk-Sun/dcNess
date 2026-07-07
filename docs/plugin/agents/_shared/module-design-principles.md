@@ -92,7 +92,7 @@ Agent Operability 는 다음 agent 가 cold-start 상태에서 올바른 edit ta
 - state ownership — session/global/local state key 의 owner 가 모듈 또는 flow 단위로 드러나는가.
 - extension point — 다음 mode/screen/panel/flow 를 어디에 추가해야 하는지 기존 구조가 알려 주는가.
 - validation locality — 해당 흐름을 바꾼 뒤 어떤 test/smoke/UI/API/CLI 경로로 확인할지 owner 근처에 남는가.
-- compaction survivability — 긴 세션이 compact 되어도 산출물의 module responsibility / public interface 또는 Agent Workability 만으로 edit target, state owner, validation path 를 복구할 수 있는가.
+- compaction survivability — 긴 세션이 compact 되어도 산출물의 module responsibility / public interface 또는 owner/entrypoint 요약만으로 edit target, state owner, validation path 를 복구할 수 있는가.
 
 ### Flow ownership
 
@@ -107,7 +107,7 @@ Agent Operability 는 하드 임계나 라인 수 게이트가 아니다. UI 라
 ### 적용 영역
 
 - system-architect — THIN_BOOTSTRAP 에서는 root architecture 에 큰 모듈 경계와 의존 방향만 얇게 남기고, CHECKPOINT 에서 epic architecture 모듈 목록의 책임/공개 인터페이스/검증 경로에 flow 별 owner module, entrypoint role, state owner, forbidden append, validation path 를 연결한다.
-- module-architect — epic architecture 모듈 목록과 impl task 의 Agent Workability 를 남기고, entrypoint 를 건드리기 전에 flow owner 를 확정한다. owner 가 없으면 seam extraction task 를 앞세운다.
+- module-architect — epic architecture 모듈 목록과 impl task 의 owner/entrypoint 요약을 남기고, entrypoint 를 건드리기 전에 flow owner 를 확정한다. owner 가 없으면 seam extraction task 를 앞세운다.
 - pr-reviewer — 이번 diff 가 edit target 을 불명확하게 만들거나 state owner 를 entrypoint/session 에 흩뜨리거나 overly broad entrypoint touch 를 요구하는지 본다. owner module 없이 entrypoint append + render/helper/session/global state 흡수 + owner 근처 validation path 부재가 한 diff 에 겹치면 소프트 신호가 아니라 MUST FIX 로 승격한다 — 크기가 아니라 작업성 악화 조합이 기준이다. footprint 밖 기존 누적은 후속 권고로 둔다.
 
 ## Interface Design for Testability — 테스트 가능성 위한 인터페이스 설계
@@ -246,7 +246,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 | Agent | evidence |
 |---|---|
 | [`system-architect`](../../../../agents/system-architect.md) | THIN_BOOTSTRAP 의 큰 모듈 topology 또는 CHECKPOINT 보고의 system boundary 결정, module responsibility 보강, 의존성 차단 도구, DI 패턴 |
-| [`module-architect`](../../../../agents/module-architect.md) | epic architecture 모듈 목록, impl 템플릿의 `Module Design Check`, Agent Workability, 작은 공개 노출 범위, module/decision contract reference, Story 동작 수직 슬라이스, 검증 가능한 수용 기준 |
+| [`module-architect`](../../../../agents/module-architect.md) | epic architecture 모듈 목록, impl 템플릿 `주의사항` 의 모듈 설계 주의, owner/entrypoint 요약, 작은 공개 노출 범위, module/decision 링크, Story 동작 수직 슬라이스, 검증 가능한 수용 기준 |
 | [`engineer`](../../../../agents/engineer.md) | 구현 보고의 계약 준수, 의존 주입 또는 wrapper 사용, 검증 결과 |
 | [`test-engineer`](../../../../agents/test-engineer.md) | 테스트 보고의 REQ 연결, 의존 mock 경계, 구현 독립성 |
 | [`build-worker`](../../../../agents/build-worker.md) | phase 보고의 RED/GREEN/self-validate 증거 |
@@ -262,7 +262,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 - **계약과 인터페이스**: module responsibility 와 decision 문서가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 를 담는가.
 - **구현 가능성**: engineer 와 test-engineer 가 의존을 주입하고 결과를 관찰할 수 있는가.
 - **제품 동작 슬라이스**: Story 완료 시 실제로 검증되는 동작과 첫 제품 경계 증거가 산출물에 남았는가.
-- **Agent Operability**: module responsibility / public interface 와 Agent Workability 로 edit target, state owner, validation path 를 복구할 수 있는가.
+- **Agent Operability**: module responsibility / public interface 와 owner/entrypoint 요약으로 edit target, state owner, validation path 를 복구할 수 있는가.
 - **drift 통제**: 같은 계약의 사본이 서로 다른 의미로 남지 않았는가.
 
 자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이 필요한 영역은 finding 이 아니라 수동 review 권고로 분리해 사용자에게 보여준다.

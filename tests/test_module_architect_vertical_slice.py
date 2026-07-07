@@ -70,8 +70,10 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             self.assertIn(needle, self.module_architect)
 
     def test_impl_task_template_requires_story_behavior_slice_evidence(self) -> None:
+        self.assertNotIn("## Story 동작 슬라이스", self.impl_template)
         for needle in (
-            "## Story 동작 슬라이스",
+            "## 무엇을 만드나",
+            "## 왜 만드나",
             "Story 완료 시 실제로 검증되는 동작",
             "제품 경계(UI/API/CLI/worker entrypoint/통합 wiring)",
             "첫 동작 증거 지점",
@@ -88,6 +90,7 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             "제품 동작 슬라이스",
             "Story 완료 시 실제로 검증되는 동작",
             "섹션명만 보지 말고",
+            "옛 섹션명 부재만으로 FAIL 하지 않는다",
             "final epic 검증에서는 Story별 첫 제품 경계 동작 증거",
             "final epic 검증이면 대상 impl 문서의 제품 동작 수직 슬라이스 증거",
             "첫 동작 증거 지점",
@@ -111,6 +114,7 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             "Story 완료 시 실제로 검증되는 동작",
             "제품 경계(UI/API/CLI/worker entrypoint/통합 wiring)",
             "섹션명만 보지 말고",
+            "옛 섹션명 부재만으로 FAIL 하지 않는다",
             "final epic 검증에서는 Story별 첫 제품 경계 동작 증거",
             "마지막 task까지 첫 제품 동작이 밀린 상태",
             "`TASK_LOCAL`",

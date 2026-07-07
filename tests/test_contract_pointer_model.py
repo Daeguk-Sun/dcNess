@@ -13,23 +13,46 @@ def read(rel_path: str) -> str:
 
 
 class ModuleDecisionContractModelTests(unittest.TestCase):
-    def test_impl_task_template_uses_module_decision_references_not_ledger_keys(self) -> None:
+    def test_impl_task_template_uses_lightweight_module_decision_references_not_ledger_keys(self) -> None:
         template = read("docs/plugin/agents/module-architect/templates/impl-task.md")
         legacy_template = read(
             "docs/plugin/agents/module-architect/templates/contract-sweep-report.md"
         )
 
-        self.assertIn("## 계약 / 결정 참조", template)
+        self.assertNotIn("## 계약 / 결정 참조", template)
+        self.assertNotIn("| kind | ref | action | note |", template)
+        self.assertIn("계약/결정 링크", template)
         self.assertIn("module", template)
         self.assertIn("decision", template)
         self.assertNotIn("## Contract References", template)
         self.assertNotIn("Ledger row key", template)
         self.assertNotIn("row keys only", template)
         self.assertNotIn("## Contract\n", template)
+        self.assertNotIn("## Module Design Check", template)
+        self.assertIn("모듈 설계 주의", template)
 
         self.assertIn("Legacy Contract Sync Report", legacy_template)
         self.assertIn("module/decision 참조", legacy_template)
         self.assertIn("구양식", legacy_template)
+
+    def test_impl_task_template_defaults_to_owner_dir_scope_and_command_acceptance(
+        self,
+    ) -> None:
+        template = read("docs/plugin/agents/module-architect/templates/impl-task.md")
+        module_architect = read("docs/plugin/agents/module-architect/module-architect-agent.md")
+
+        for text in (template, module_architect):
+            with self.subTest(text=text[:40]):
+                self.assertIn("docs/conventions.md", text)
+                self.assertIn("owner module directory", text)
+                self.assertIn("끝 `/`", text)
+                self.assertIn("신규 파일", text)
+                self.assertIn("구현자 재량", text)
+                self.assertIn("같은 owner directory", text)
+                self.assertIn("file-level", text)
+                self.assertIn("실행 가능한 명령", text)
+                self.assertIn("manual QA", text)
+                self.assertIn("명령 변환 불가 사유", text)
 
     def test_agents_treat_module_list_and_decisions_as_contract_sources(self) -> None:
         module_architect = read("docs/plugin/agents/module-architect/module-architect-agent.md")
