@@ -29,6 +29,7 @@ from typing import Optional
 
 __all__ = [
     "MissingSignal",
+    "validate_mode_name",
     "signal_path",
     "write_prose",
     "read_prose",
@@ -37,7 +38,10 @@ __all__ = [
 ]
 
 _AGENT_NAME_RE = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
-_MODE_NAME_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
+_MODE_NAME_RE = re.compile(
+    r"^(?:[A-Z][A-Z0-9_]{0,63}|"
+    r"(?![a-z][a-z0-9-]*-[0-9]+$)[a-z][a-z0-9-]{0,63})$"
+)
 _RUN_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$")
 
 
@@ -94,7 +98,7 @@ def _validate_agent(agent: str) -> None:
         )
 
 
-def _validate_mode(mode: Optional[str]) -> None:
+def validate_mode_name(mode: Optional[str]) -> None:
     if mode is None:
         return
     if not isinstance(mode, str) or not _MODE_NAME_RE.match(mode):
@@ -102,6 +106,10 @@ def _validate_mode(mode: Optional[str]) -> None:
             f"invalid mode name: {mode!r} "
             f"(must match {_MODE_NAME_RE.pattern} or be None)"
         )
+
+
+def _validate_mode(mode: Optional[str]) -> None:
+    validate_mode_name(mode)
 
 
 def _validate_run_id(run_id: str) -> None:

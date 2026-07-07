@@ -514,6 +514,13 @@ def _cli_begin_step(args: Any) -> int:
         print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
         return 1
     mode = args.mode if args.mode else None
+    try:
+        from harness.signal_io import validate_mode_name
+
+        validate_mode_name(mode)
+    except ValueError as exc:
+        print(f"[begin-step] FAIL — {exc}", file=sys.stderr)
+        return 1
     # #700 — agent 이름 canonical 정규화. update_current_step 도 내부 정규화하지만
     # ledger checkpoint / engineer hint 까지 같은 표기로 일관시킨다.
     from harness.agent_names import normalize_agent_type

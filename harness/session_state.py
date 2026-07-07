@@ -797,7 +797,10 @@ def _read_or_empty(path: Path) -> str:
 
 
 _PROSE_OCCURRENCE_SUFFIX_RE = re.compile(r"^[1-9][0-9]*$")
-_PROSE_MODE_SUFFIX_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}(?:-[1-9][0-9]*)?$")
+_PROSE_MODE_SUFFIX_RE = re.compile(
+    r"^(?:[A-Z][A-Z0-9_]{0,63}|[a-z][a-z0-9-]{0,63})"
+    r"(?:-[1-9][0-9]*)?$"
+)
 
 
 def _run_prose_paths_for_agent(rd: Path, agent: str) -> list[Path]:
@@ -821,8 +824,9 @@ def run_prose_has_pass(rd: Path, agent: str) -> bool:
     """PASS marker lookup aligned with end-step prose filenames.
 
     Accepted names are `<agent>.md`, numeric occurrence files such as
-    `<agent>-1.md`, mode-suffixed files such as `<agent>-CODE_VALIDATION.md`,
-    and mode occurrence files such as `<agent>-CODE_VALIDATION-1.md`.
+    `<agent>-1.md`, mode-suffixed files such as
+    `<agent>-CODE_VALIDATION.md` or `<agent>-epic-batch.md`, and mode
+    occurrence files such as `<agent>-CODE_VALIDATION-1.md`.
     """
     for prose in _run_prose_paths_for_agent(rd, agent):
         if "PASS" in _read_or_empty(prose):
