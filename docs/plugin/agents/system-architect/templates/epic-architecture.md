@@ -15,35 +15,19 @@
 - 읽을 코드:
   -
 
-## Domain Model Decision
+## Domain Model
 
 - `domain-model.md` 작성 여부:
 - 생략 판단 근거 (생략 시 필수):
 - 작성 필요 신호 (invariant / entity / value object / aggregate / domain service):
 
-## 계약 표면 코드 SSOT 대조
-
-- 확인한 기존 포트:
-- 확인한 기존 도메인 타입:
-- 확인한 기존 공개 entrypoint:
-- 설계와 기존 코드 계약 충돌 여부:
-- 충돌 시 결정 근거 / Contract Ledger 반영:
-
-## 전역 map 반영
-
-- `docs/architecture.md` append 필요 여부:
-- 추가/갱신할 전역 anchor:
-- 연결할 module docs:
-- 연결할 `docs/decisions/NNNN-slug.md`:
-
 ## 모듈 목록
 
-<!-- `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 이 표를 파싱한다. 헤더명과 표 형태를 유지한다. -->
-<!-- module docs 가 있으면 모듈 셀에 `docs/modules/<module-id>/architecture.md` 링크를 남긴다. -->
+> durable 설계 진본이다. cross-task 불변조건, forbidden append, flow/state owner, 공개 entrypoint 책임은 해당 모듈의 `책임` 또는 `공개 인터페이스` 칸에 한 줄로 둔다. 긴 사유와 대안 폐기는 `docs/decisions/NNNN-slug.md` 로 분리하고 이 표에는 decision id/link 만 남긴다.
 
-| 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |
-|---|---|---|---|---|
-|  |  |  |  |  |
+| 모듈 | 책임 | 의존 모듈 | 공개 인터페이스 | 검증 경로 | 결정 |
+|---|---|---|---|---|---|
+|  |  |  |  |  |  |
 
 ## 의존 그래프
 
@@ -51,49 +35,8 @@
 flowchart LR
 ```
 
-## Contract Ledger
-
-<!-- `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 가 공유 계약 인덱스로 수집한다. 헤더명과 표 형태를 유지한다. -->
-<!-- `contract` 열은 stable row key 다. 발급 후 재사용·의미 변경 금지. cross-task 계약 전문은 이 표에만 쓴다. -->
-
-| contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |
-|---|---|---|---|---|---|---|---|---|---|
-|  |  |  |  |  |  |  |  |  |  |
-
-## Decisions
-
-| Decision | Scope | Reason |
-|---|---|---|
-|  |  |  |
-
-## 공통 task 후보
-
-| task | 이유 | 선행 조건 |
-|---|---|---|
-|  |  |  |
-
 ## Story -> 모듈 매핑
 
-| Story | 영향 모듈 | 이유 |
-|---|---|---|
-|  |  |  |
-
-## Flow Ownership Map
-
-> 새 mode/screen/panel/API/CLI/pipeline flow 의 owner 를 명시한다. entrypoint 는 dispatch 또는 composition wiring 역할로 제한하고, 흐름별 state/event/render/usecase 호출은 owner module 로 모은다.
-
-| flow | owner module | entrypoint touch | state owner | UI/API/CLI surface | forbidden append | validation path | future scenario |
-|---|---|---|---|---|---|---|---|
-|  |  |  |  |  |  |  |  |
-
-## 구현 순서
-
-- 순서와 근거:
-- 첫 제품 경계 동작 증거가 나오는 시점:
-- 부품-먼저 순서면 경고와 사유:
-
-## Module Design Check
-
-- Deep module:
-- 작은 공개 노출 범위:
-- DI/의존 차단:
+| Story | 영향 모듈 | 첫 제품 경계 동작 증거 | 이유 |
+|---|---|---|---|
+|  |  |  |  |

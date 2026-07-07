@@ -94,10 +94,10 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 |---|---|
 | pr-reviewer gate | engineer 산출물이 있는데 code-validator PASS 없이 pr-reviewer 호출 |
 | engineer gate | 설계 산출물 없이 engineer/build-worker 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* `begin-run --lane lite` 로 기록된 Lite 구현 경로(#714), 셋 중 하나로 충족 |
-| module-architect gate | architecture-validator 1차 PASS 없이 design 의 module-architect 반복 진입 |
+| module-architect gate | opt-in system checkpoint 이후 architecture-validator PASS 없이 design 의 module-architect 재진입 |
 | 진행 순서 검사 | active run 안에서 직전 `begin-step` 과 다른 agent/mode 호출, `current_step` 부재, 이미 staged 된 stale step |
 
-**진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사와 module-architect gate 를 탄다.
+**진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사를 탄다. module-architect gate 는 기본 선두 진입을 막지 않고, opt-in system checkpoint 산출물이 있는 run 에서 validator PASS 없는 재진입만 막는다.
 
 **engineer gate 의 design_doc 경로**: 설계(impl 문서 / compact plan)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 engineer gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**` / `docs/compact-plans/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
 
@@ -320,7 +320,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 | `.github/workflows/git-naming-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | 브랜치명 + PR 제목 git-spec 검증 | 선택형 CI gate |
 | `.github/workflows/pr-body-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | PR body issue trailer 검증 | 선택형 CI gate |
 | `.github/workflows/doc-path-integrity.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | repo-relative 경로 참조 실존 검증 | 선택형 CI gate |
-| `.github/workflows/doc-sync.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | index epic 표 + architecture map 파생물 drift 검증 + `/design` 산출물 구조 감사 | 선택형 CI gate |
+| `.github/workflows/doc-sync.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | index epic 표 drift 검증 + `/design` 산출물 구조 감사 | 선택형 CI gate |
 | `.github/workflows/github-project-lifecycle.yml` | `issues`, `pull_request closed` | issue 변경 또는 PR merge | issue/label drift 검출, merged PR `in-progress` label cleanup, 선택적 Project 미러 warning | 선택형 CI/CD |
 
 ### .github/workflows/git-naming-validation.yml
@@ -365,7 +365,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표와 `docs/architecture.md` generated architecture map 이 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서, architecture map 은 epic `architecture.md` 의 `## 모듈 목록` / `## Contract Ledger` 표에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물이 canonical Contract Ledger `contract` 열과 level-2 `## Contract References` row-key 포인터 구조를 지키는지 감사한다.
+**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표가 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사한다. legacy Contract Ledger / Contract References 는 호환 경고로만 보고하며 형식만으로 실패시키지 않는다.
 
 **빈 환경**: `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 갓 시드된 프로젝트에서는 no-op PASS 한다.
 

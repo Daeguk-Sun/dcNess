@@ -55,9 +55,9 @@ description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝�
 
 - Step 0 에서 (c) 로 분류된 기존 문서만 대상이다. 규격 위치/양식으로 정렬하는 변경은 **무단 덮어쓰기/이동 없이** diff 로 먼저 제시하고 사용자 승인 후에만 적용한다.
 
-### 4. index 정리 + 집계 파생 섹션 — 분류에 따라 직접 적용 vs 승인
+### 4. index 정리 + 선택 전역 요약 — 분류에 따라 직접 적용 vs 승인
 
-이 스크립트들은 `docs/index.md` 진행 상태 섹션 append 와 `docs/index.md`/`docs/architecture.md` 의 generated 섹션 갱신으로 **파일을 직접 수정**한다. 따라서 Step 0 분류를 그대로 존중해야 Step 3 승인 가드를 우회하지 않는다.
+이 스크립트들은 `docs/index.md` 진행 상태 섹션 append 와 `docs/index.md` generated 섹션 갱신으로 **파일을 직접 수정**한다. 따라서 Step 0 분류를 그대로 존중해야 Step 3 승인 가드를 우회하지 않는다. 전역 architecture 요약은 checked-in freshness 대상이 아니므로 필요할 때만 온디맨드로 생성한다.
 
 공통 변수 (어느 분기든 필요 — 분기 밖에서 먼저 설정):
 
@@ -72,17 +72,15 @@ PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 ```bash
 node "$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs" "$PROJECT_ROOT"
 node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --root "$PROJECT_ROOT"
-node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT"
 ```
 
 - **둘 중 하나라도 (c) 사용자 문서면** 직접 실행하지 않는다. 집계기는 `--check` 로 drift 만 확인하고(파일 미수정), index 진행 상태 섹션 append 는 추가될 블록을 미리 보여준 뒤, Step 3 처럼 diff + 사용자 승인 후에만 실제 갱신을 적용한다.
 
 ```bash
 node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --root "$PROJECT_ROOT" --check
-node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT" --check
 ```
 
-집계기는 `--root` 미지정 시 cwd 기본이므로, 서브디렉토리에서 호출해도 어긋나지 않게 `--root "$PROJECT_ROOT"` 를 넘긴다. epic 이 아직 없으므로 index epic 표와 전역 architecture 집계 섹션이 비어 있어도 정상이다.
+집계기는 `--root` 미지정 시 cwd 기본이므로, 서브디렉토리에서 호출해도 어긋나지 않게 `--root "$PROJECT_ROOT"` 를 넘긴다. epic 이 아직 없으므로 index epic 표가 비어 있어도 정상이다. 사람이 전역 architecture 요약을 보고 싶을 때만 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT"` 를 별도 실행한다.
 
 ### 5. 단일 docs 부트스트랩 PR
 

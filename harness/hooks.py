@@ -15,8 +15,8 @@ bash 훅 (`hooks/*.sh`) 이 stdin payload + cc_pid 를 본 모듈의 핸들러�
 (skill 안 Pre-flight) 또는 다른 흐름 (`/design` 의 impl 미리 머지 등)
 으로 이전 — 코드 강제 폐기. 본 hook 코드 강제는 3 게이트:
 pr-reviewer 게이트 (engineer 산출물 이후 code-validator PASS) / engineer 게이트 (직전
-module-architect PASS) / module-architect 게이트 (design 안 첫 호출
-직전 architecture-validator PASS).
+module-architect PASS) / module-architect 게이트 (design 안 opt-in system
+checkpoint 이후 재진입 직전 architecture-validator PASS).
 
 규약:
     - 모든 실패 케이스 silent (exit 0) — CC 동작 방해 최소화
@@ -1315,8 +1315,8 @@ def _is_design_loop(
 ) -> bool:
     """현재 run 이 design 설계 루프인지 확인 (entry_point 기준).
 
-    module-architect 게이트 발동 조건 — design 안 module-architect
-    × K 첫 호출 직전 architecture-validator PASS 필수.
+    module-architect 게이트 발동 조건 — design 안 opt-in system checkpoint
+    이후 module-architect 재진입 직전 architecture-validator PASS 필수.
     """
     try:
         live = read_live(sid, base_dir=base_dir) or {}

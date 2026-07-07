@@ -244,8 +244,8 @@ phase prose 실제 기록 디렉토리 = `dcness-helper run-dir` 이 출력하�
 | `FAIL` → engineer POLISH | 직전 engineer IMPL task | `TaskUpdate(<task>, in_progress)` |
 | POLISH 후 pr-reviewer 재실행 | 직전 pr-reviewer task | `TaskUpdate(<task>, in_progress)` |
 | `IMPL_PARTIAL` → engineer 재호출 | 직전 engineer IMPL task | `TaskUpdate(<task>, in_progress)` |
-| architecture-validator 1차 `FAIL` → system-architect 재진입 | 직전 system-architect task | `TaskUpdate(<task>, in_progress)` |
-| architecture-validator 단위/최종 검증 `FAIL` → module-architect 또는 system-architect 재진입 | 직전 해당 agent task | `TaskUpdate(<task>, in_progress)` |
+| architecture-validator final `FAIL: SYSTEM_BOUNDARY` → system checkpoint | 직전 system-architect task 또는 새 opt-in checkpoint task | `TaskUpdate(<task>, in_progress)` 또는 checkpoint task 생성 |
+| architecture-validator final `FAIL: TASK_LOCAL` → module-architect 재진입 | 직전 module-architect task | `TaskUpdate(<task>, in_progress)` |
 | ux-architect self-check FAIL → ux-architect 재진입 | 직전 ux-architect task | `TaskUpdate(<task>, in_progress)` (prose 내부 cycle — 별도 task X) |
 | `AMBIGUOUS` 재호출 1회 | 직전 동일 agent task | `TaskUpdate(<task>, in_progress)` |
 | `SPEC_GAP_FOUND` → module-architect (보강) | 신규 task (다른 agent) | `TaskCreate` 가능 |
@@ -454,7 +454,7 @@ dcNess run 밖에서 호출되면 ledger 기록은 경고만 내고 PR 작업 �
 
 ## 순서 차단 훅 정합
 
-각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer·build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물 / `/design` 첫 module-architect 단위 진입 직전 architecture-validator 1차 PASS. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer·build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물 / `/design` opt-in system checkpoint 이후 module-architect 재진입 직전 architecture-validator PASS. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 ---
 

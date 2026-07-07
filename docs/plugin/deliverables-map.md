@@ -34,7 +34,7 @@
 docs/
 ├── index.md                         # 프로젝트 문서 entrypoint
 ├── prd.md                           # 제품 요구사항
-├── architecture.md                  # append-growing 전역 architecture map
+├── architecture.md                  # 전역 architecture anchor
 ├── conventions.md                   # 기술 스택, naming, tooling, style 결정
 ├── tech-review.md                   # 전역 기술 검토 결론
 ├── design.md                        # 선택: 전역 design token / system-level UX 결정
@@ -73,22 +73,22 @@ docs/
 |---|---|---|---|
 | 문서 entrypoint | `docs/index.md` | `/init-dcness`, `/spec`, `scripts/aggregate_index_map.mjs` | `skills/spec/templates/index.md` |
 | PRD | `docs/prd.md` | `/spec` | `skills/spec/templates/prd.md` |
-| 전역 architecture map | `docs/architecture.md` | system-architect | `docs/plugin/agents/system-architect/templates/root-architecture.md` |
+| 전역 architecture anchor | `docs/architecture.md` | `/init-dcness`, module-architect, opt-in system-architect | `docs/plugin/agents/system-architect/templates/root-architecture.md` |
 | convention map | `docs/conventions.md` | `/init-dcness`, system-architect | `docs/plugin/agents/system-architect/templates/conventions.md` |
 | 기술 검토 결론 | `docs/tech-review.md` | tech-reviewer | `docs/plugin/agents/tech-reviewer/templates/tech-review.md` |
 | 전역 design token | `docs/design.md` | ux-architect | `docs/plugin/design.md` |
 | design run 기록 | `docs/metrics/design-runs.jsonl` | `dcness-helper end-run` before design PR | JSONL schema v1 (`harness/design_run_records.py`) |
 | 결정 기록 | `docs/decisions/NNNN-slug.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/decision.md` |
 
-`docs/architecture.md` 는 epic 이 늘 때마다 append-growing map 으로 갱신한다. 상세 설계 본문을 전역에 복제하지 않고, 전역 모듈/의존/결정 anchor 와 epic 문서 링크를 추가한다.
+`docs/architecture.md` 는 전역 anchor 다. 상세 설계 본문, 전역 generated summary, Contract Ledger, ux/story 요약을 복제하지 않는다. 전역 모듈/의존/결정의 긴 설명은 `docs/decisions/` 또는 module docs 로 보낸다.
 
 `docs/index.md` 는 cold-start agent 의 정적 entrypoint 다. `## 에픽` 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter `milestone` 값에서 파생되는 생성 섹션이며 수동 편집하지 않는다. `다음 액션` 컬럼은 산출물 존재만으로 epic 단위 phase 를 파생한다: `stories.md` 부재면 `/spec`, `stories.md` 는 있으나 설계 미완이면 `/design`, 설계 완료면 `/impl`. 설계 완료 판정은 `architecture.md` 존재 AND `impl/NN-*.md` 1개 이상 존재이며(선택 산출물 `domain-model.md`·`ux-flow.md`·`tech-review.md` 부재는 미완으로 보지 않는다), auto-memory 없이도 콜드스타트 다음 액션을 자족적으로 확정하기 위한 것이다. 모듈 축을 쓰는 프로젝트에서는 `## 모듈` 표도 `docs/modules/<module-id>/` 에서 파생된다. live 진행상태를 문서에 복제하지 않고, 수동 섹션 `## 진행 상태 · 다음 작업` 에서 GitHub issue/label 상태, epic/story issue, `/next-work` 를 가리킨다. `/init-dcness` 는 기존 `docs/index.md` 를 overwrite 하지 않지만, 이 섹션이 없으면 `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs` 로 섹션만 append 한다.
 
 `$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 는 각 epic 폴더와 opt-in module 폴더를 결정적으로 정렬하고 `docs/index.md` 의 `## 에픽` / `## 모듈` 표를 생성/갱신한다. 파일이 없는 선택 산출물 셀은 링크가 아닌 `—` 로 남긴다. `docs/modules/` 가 없으면 모듈 표는 생성하지 않아 단일 루트 프로젝트의 기존 index 동작을 바꾸지 않는다. 기존 `docs/index.md` 에 수동 `## 모듈` 섹션이 있으면 모듈 축 활성화 시 생성 섹션으로 교체되므로, 수동 설명은 다른 heading 으로 옮긴 뒤 집계기를 실행한다.
 
-`$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 표와 `## Contract Ledger` 표를 수집해 전역 `docs/architecture.md` 의 `에픽 간 지도`, `전역 모듈 토폴로지`, `공유 계약 인덱스` 섹션을 생성/갱신한다. 이 세 섹션은 파생물이며 수동 편집하지 않는다. 모듈 스코프 문서가 있는 모듈은 epic architecture 의 `## 모듈 목록` 에 `docs/modules/<module-id>/architecture.md` 링크를 남기면 전역 topology 표에도 rebased 링크로 드러난다. epic architecture 템플릿의 표 헤더는 도구의 파싱 계약이므로 변경하려면 도구와 테스트를 함께 갱신한다.
+`$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 과 legacy `## Contract Ledger` 를 읽어 인간용 전역 요약을 온디맨드로 생성할 수 있다. 이 결과는 checked-in 유지 의무나 CI drift gate 대상이 아니다. 필요한 보고 시점에 실행하고 PR 산출물 본문에는 복제하지 않는다.
 
-Contract Ledger 는 cross-task 계약 전문의 단일 진본이다. `contract` 열은 stable row key 이며 발급 후 재사용하거나 의미를 바꾸지 않는다. impl/compact 산출물은 `contract.produces` / `contract.consumes` 와 `## Contract References` 에 row-key references 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 나 compact plan 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다.
+Cross-task 계약 의미는 epic `architecture.md` 의 `## 모듈 목록` 책임/공개 인터페이스/검증 경로 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl/compact 산출물은 module id 와 decision id/link 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 나 compact plan 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다. 구양식 Contract Ledger / Contract References 는 기존 활성 프로젝트 호환을 위해 유효하지만, 신규 산출물이나 이번에 수정하는 산출물은 module/decision 참조로 축소한다.
 
 기술 스택, naming, formatter, runtime, package manager, dependency policy 같은 반복 입력은 `docs/conventions.md` 에 둔다. 전역 architecture 는 시스템 topology 와 cross-epic map 에 집중한다.
 
@@ -112,7 +112,7 @@ Contract Ledger 는 cross-task 계약 전문의 단일 진본이다. `contract` 
 
 - 제품 요구사항과 사용자-facing 범위: `docs/prd.md`
 - epic/story 요구사항과 구현 순서: `docs/epics/epic-NN-<slug>/`
-- 여러 모듈이 공유하는 시스템 topology, public contract, cross-epic map: `docs/architecture.md`
+- 여러 모듈이 공유하는 시스템 topology anchor, public contract decision, cross-epic anchor: `docs/architecture.md` / `docs/decisions/`
 - 공통 스택·공통 도구·repo 전역 style: `docs/conventions.md`
 - 결정 기록 파일 위치: `docs/decisions/NNNN-slug.md`
 
@@ -158,9 +158,9 @@ epic 은 제품 단위라 여러 모듈을 가로지를 수 있다. 교차 모�
 교차 모듈 epic 의 기준:
 
 - `stories.md` 는 사용자-facing Story 와 완료 동작만 소유한다.
-- epic `architecture.md` 는 `Story -> 모듈 매핑`, `Flow Ownership Map`, `Contract Ledger` 로 affected module 과 cross-module contract 를 드러낸다.
-- 모듈별 `architecture.md` / `conventions.md` 는 해당 모듈의 local boundary 와 validation path 만 제공한다. epic 요구사항이나 Contract Ledger 전문을 복제하지 않는다.
-- cross-module contract 전문은 epic `architecture.md` 의 `## Contract Ledger` 와 전역 `docs/architecture.md` generated `공유 계약 인덱스` 로 올라간다. 모듈 문서는 필요한 Ledger row key 링크만 둔다.
+- epic `architecture.md` 는 `모듈 목록`, `의존 그래프`, `Story -> 모듈 매핑` 으로 affected module 과 cross-module contract 를 드러낸다. owner/state/forbidden append/validation path 는 모듈 목록 책임/공개 인터페이스/검증 경로 칸에 압축한다.
+- 모듈별 `architecture.md` / `conventions.md` 는 해당 모듈의 local boundary 와 validation path 만 제공한다. epic 요구사항이나 계약 전문을 복제하지 않는다.
+- cross-module contract 전문은 module responsibility 한 줄과 `docs/decisions/NNNN-slug.md` 로 올라간다. 모듈 문서는 필요한 decision 링크만 둔다.
 - module-architect 는 affected module 의 docs 만 읽는다. 같은 repo 의 다른 모듈 docs 는 code search 로 필요성이 확인되기 전까지 입력 세트에 넣지 않는다.
 
 ## epic 산출물
@@ -171,7 +171,7 @@ epic 은 제품 단위라 여러 모듈을 가로지를 수 있다. 교차 모�
 |---|---|---|---|
 | Story 정의 | `stories.md` | `/spec` | `skills/spec/spec-stories-reference.md` |
 | UX flow | `ux-flow.md` | ux-architect | `docs/plugin/agents/ux-architect/templates/ux-flow.md` |
-| epic architecture | `architecture.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/epic-architecture.md` |
+| epic architecture | `architecture.md` | module-architect / opt-in system-architect | `docs/plugin/agents/system-architect/templates/epic-architecture.md` |
 | domain model | `domain-model.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/domain-model.md` |
 | epic tech-review | `tech-review.md` | tech-reviewer | `docs/plugin/agents/tech-reviewer/templates/tech-review.md` |
 | impl task | `impl/NN-*.md` | module-architect | `docs/plugin/agents/module-architect/templates/impl-task.md` |
@@ -227,7 +227,7 @@ agent prompt 는 문서 전문 재기입 대신 아래 포인터 세트를 넘�
 | 역할 | 전역 최소 입력 | module 스코프 입력 | epic 고정 입력 | 상황별 입력 |
 |---|---|---|---|---|
 | ux-architect | `docs/index.md`, `docs/prd.md`, `docs/conventions.md` | 해당 화면이 특정 모듈에 닫히면 `docs/modules/<module-id>/conventions.md` | `stories.md`, 대상 `ux-flow.md` | `docs/design.md`, 기존 화면 코드 |
-| system-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, 선택 `tech-review.md` | `stories.md`, `architecture.md`, 선택 `domain-model.md` | `docs/tech-review.md`, epic `tech-review.md`, `ux-flow.md`, 코드 계약 표면 |
+| system-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, 선택 `tech-review.md` | `stories.md`, `architecture.md`, 선택 `domain-model.md` | opt-in system checkpoint, `docs/tech-review.md`, epic `tech-review.md`, `ux-flow.md`, 코드 계약 표면 |
 | module-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, validation path | `stories.md`, `architecture.md`, 선택 `domain-model.md`, `impl/` | `docs/design.md`, `docs/compact-plans/<slug>.md`, 코드 계약 표면 |
 | tech-reviewer | `docs/index.md`, `docs/prd.md`, `docs/conventions.md` | 새 의존·runtime 이 특정 모듈에 닫히면 해당 module docs | option 4 때 대상 epic `stories.md` | `.dcness-work/reviews/` |
 
@@ -237,11 +237,11 @@ impl task 와 compact plan 은 `## 사전 준비` 아래에 `읽을 문서`와 `
 
 `/init-dcness` 는 `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` 를 만든다. 시드 파일은 실제 authoring 템플릿과 같은 원본을 사용한다. 빈 seed 전용 복제본을 따로 만들지 않는다. `docs/modules/` 는 모노레포·모듈화가 확인된 뒤 만드는 opt-in 산출물이므로 `/init-dcness` 기본 seed 로 만들지 않는다.
 
-index epic/module 표와 전역 architecture map 이 stale 인지 확인하려면 활성 프로젝트 루트에서 plugin script 를 실행한다.
+index epic/module 표가 stale 인지 확인하려면 활성 프로젝트 루트에서 plugin script 를 실행한다. 전역 architecture 요약은 필요할 때 온디맨드로 생성한다.
 
 ```sh
 node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --check
-node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --check
+node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"  # optional on-demand report
 node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs"
 ```
 

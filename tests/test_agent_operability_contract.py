@@ -66,21 +66,20 @@ class AgentOperabilityContractTests(unittest.TestCase):
         self.assertIn("하드 임계", self.shared_principles)
         self.assertIn("hard gate 가 아니다", self.shared_principles)
 
-    def test_epic_architecture_template_requires_flow_ownership_map(self) -> None:
+    def test_epic_architecture_template_records_operability_in_module_list(self) -> None:
         for needle in (
-            "## Flow Ownership Map",
-            "owner module",
-            "entrypoint touch",
-            "state owner",
-            "UI/API/CLI surface",
+            "## 모듈 목록",
+            "책임",
+            "공개 인터페이스",
+            "검증 경로",
             "forbidden append",
-            "validation path",
-            "future scenario",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.epic_architecture_template)
 
-        for needle in ("Flow Ownership Map", "owner module", "validation path"):
+        self.assertNotIn("## Flow Ownership Map", self.epic_architecture_template)
+
+        for needle in ("module responsibility", "owner module", "validation path"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.system_architect)
 
@@ -101,7 +100,7 @@ class AgentOperabilityContractTests(unittest.TestCase):
     def test_module_architect_requires_flow_owner_before_entrypoint_append(self) -> None:
         for needle in (
             "Agent Operability",
-            "Flow Ownership Map",
+            "module responsibility",
             "entrypoint",
             "flow owner",
             "seam extraction task",
@@ -181,7 +180,7 @@ class AgentOperabilityContractTests(unittest.TestCase):
         ):
             for needle in (
                 "Agent Operability",
-                "Flow Ownership Map",
+                "module responsibility",
                 "Agent Workability",
                 "edit target",
                 "state owner",

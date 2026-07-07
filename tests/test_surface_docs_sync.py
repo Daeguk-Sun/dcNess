@@ -174,7 +174,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
 
         for needle in (
             "문서 영향",
-            "PRD / stories / architecture / decisions / Contract Ledger",
+            "PRD / stories / architecture / decisions / module responsibility",
             "이번 diff 가 기존 장기 문서를 무효화했는지",
         ):
             with self.subTest(needle=needle):
@@ -496,17 +496,19 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertNotIn("`/architect-loop`", text)
             self.assertNotIn("호환 alias", text)
 
-    def test_issue_810_architecture_validator_checks_root_append_map(self) -> None:
-        """#810 AC5 — validator must check root architecture append reflection."""
-        for needle in (
+    def test_issue_969_architecture_validator_does_not_require_root_append_map(self) -> None:
+        """#969 — final validator no longer fails on checked-in root architecture map drift."""
+        for stale in (
             "전역 `docs/architecture.md` append 반영",
-            "대상 epic의 모듈/흐름이 전역 `docs/architecture.md`",
             "system 단위(1차) 검증이면 전역 architecture append 반영",
+            "aggregate_architecture_map.mjs --check",
         ):
-            self.assertIn(needle, self.architecture_validator)
+            self.assertNotIn(stale, self.architecture_validator)
+        self.assertIn("final epic 검증", self.architecture_validator)
+        self.assertIn("형식만으로 Must", self.architecture_validator)
 
-    def test_issue_811_architecture_map_aggregation_contract_is_documented(self) -> None:
-        """#811 — root architecture map is generated from epic architecture tables."""
+    def test_issue_969_architecture_map_is_on_demand_not_doc_sync_gate(self) -> None:
+        """#969 — root architecture summary is on-demand, not a checked-in drift gate."""
         script = (ROOT / "scripts" / "aggregate_architecture_map.mjs")
         index_script = ROOT / "scripts" / "aggregate_index_map.mjs"
         root_template = (
@@ -524,19 +526,20 @@ class SurfaceDocsSyncTests(unittest.TestCase):
 
         self.assertTrue(script.exists())
         self.assertTrue(index_script.exists())
-        self.assertIn("## 공유 계약 인덱스", root_template)
+        self.assertNotIn("## 공유 계약 인덱스", root_template)
+        self.assertIn("온디맨드", root_template)
         self.assertIn("dcness-index-map:generated", index_template)
-        self.assertIn("scripts/aggregate_architecture_map.mjs", epic_template)
-        self.assertIn("| 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |", epic_template)
-        self.assertIn("| contract | owner | producer | consumer | invariant |", epic_template)
+        self.assertNotIn("scripts/aggregate_architecture_map.mjs", epic_template)
+        self.assertIn("| 모듈 | 책임 | 의존 모듈 | 공개 인터페이스 | 검증 경로 | 결정 |", epic_template)
+        self.assertNotIn("| contract | owner | producer | consumer | invariant |", epic_template)
         self.assertIn("scripts/aggregate_index_map.mjs", self.init_doc)
         self.assertIn("scripts/aggregate_index_map.mjs", self.init_reference)
         self.assertIn("scripts/aggregate_index_map.mjs", self.spec_skill)
         self.assertIn("scripts/aggregate_architecture_map.mjs", self.init_doc)
         self.assertIn("scripts/aggregate_architecture_map.mjs", self.init_reference)
         self.assertIn("scripts/aggregate_index_map.mjs", system_architect)
-        self.assertIn("scripts/aggregate_architecture_map.mjs", system_architect)
-        self.assertIn("aggregate_architecture_map.mjs", self.architecture_validator)
+        self.assertIn("온디맨드", system_architect)
+        self.assertNotIn("aggregate_architecture_map.mjs", self.architecture_validator)
 
     def test_design_records_are_frozen_before_design_pr(self) -> None:
         """#833 follow-up — design metrics are committed with the design PR."""
@@ -551,7 +554,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.design_skill)
-        self.assertIn("end-run/metrics freeze 후 Step 7 PR", self.design_routing)
+        self.assertIn("end-run/metrics freeze 후 Step 6 PR", self.design_routing)
 
     def test_issue_852_worktree_remove_requires_clean_worktree(self) -> None:
         """#852 — auto discard requires absorbed commits and no local dirty files."""
@@ -576,17 +579,15 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         """#832 — design loop runs the artifact audit before final validator/PR."""
         for needle in (
             "check_design_artifact_structure.mjs",
-            "contract-ledger-missing-contract-column",
-            "contract-references-shape",
-            "module-architect `mode=contract_sweep`",
+            "legacy Contract Ledger / Contract References 경고",
+            "final validator 진입을 막지 않는다",
         ):
             self.assertIn(needle, self.design_skill)
 
         for needle in (
-            "canonical `contract` 열",
-            "`Key` 같은 별칭",
-            "level-2 `## Contract References` 섹션",
-            "인라인 prose",
+            "형식만으로 FAIL 하지 않는다",
+            "Should finding",
+            "module responsibility",
         ):
             self.assertIn(needle, self.architecture_validator)
 

@@ -1,6 +1,6 @@
-# system freeze 참고
+# System Checkpoint 참고
 
-system-architect 산출물은 1차 validation PASS 뒤 기본적으로 freeze된 것으로 본다. 이후 모든 결함이 system 재설계 사유는 아니다.
+system-architect 는 `/design` 기본 상설 stage 가 아니다. 기존 모듈 경계, 도메인 불변조건, 저장 정책, public API boundary, 전역 decision 처럼 system-level 결정을 바꾸는 신호가 있을 때만 opt-in checkpoint 로 호출한다.
 
 ## system 재진입 사유
 
@@ -11,19 +11,24 @@ system-architect 산출물은 1차 validation PASS 뒤 기본적으로 freeze된
 - port consumer가 바뀜
 - 저장 정책이 바뀜
 - `docs/decisions/` 수준의 전역 결정이 틀림
-- 전역 architecture map 의 cross-epic anchor 가 잘못됨
+- 기존 모듈 경계 또는 public API boundary 가 바뀜
 
 ## system 재진입이 아닌 것
 
-`CONTRACT_PROPAGATION`은 결정 자체가 아니라 사본 전파가 틀렸거나 신규 산출물에 Contract Ledger 전문 사본이 생긴 경우다. 이 경우 module-architect의 `mode=contract_sweep`이 canonical 행 키를 남기고 stale 전문 사본을 제거한다.
+다음은 module-architect 보강 또는 validator Should finding 으로 처리한다.
 
-## freeze 이후 허용되는 append
+- 구양식 Contract Ledger / Contract References 사본이 남아 있음
+- ux-flow 또는 stories prose 가 module responsibility / decision 과 표현만 다름
+- impl task 의 Agent Workability, scope, acceptance criteria 보강
+- 전역 architecture 요약 리포트가 생성되지 않음
 
-새 epic 을 설계할 때 `docs/architecture.md` 는 append-growing map 으로 갱신될 수 있다. 다음은 system 재설계가 아니라 map 확장이다.
+## checkpoint 이후 허용되는 append
 
-- `Cross-Epic Map` 에 새 epic 링크 추가
-- `Global Module Topology` 에 새 owner epic 행 추가
-- `External Boundaries` 에 이미 검토된 boundary 링크 추가
+새 epic 을 설계할 때 다음은 system 재설계가 아니라 module-architect epic-batch 에서 처리 가능한 append 다.
+
+- epic `architecture.md` 모듈 목록에 새 owner module 행 추가
 - 새 `docs/decisions/NNNN-slug.md` 링크 추가
+- affected module docs 에 validation path delta 추가
+- impl task 의 module/decision 참조 보강
 
 기존 accepted decision 자체를 바꾸거나 전역 invariant 를 바꾸면 append 가 아니라 `SYSTEM_BOUNDARY` 로 본다.

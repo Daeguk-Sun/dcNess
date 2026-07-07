@@ -1,7 +1,7 @@
 # design 분기 규칙 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: `/design` skill **단일 전용** 분기 규칙 진본 — 이 skill 안 agent (ux-architect / system-architect / architecture-validator / module-architect / designer) 의 결론 → 다음 호출 + retry 한도 + escalate 처리. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
+> **Scope**: `/design` skill **단일 전용** 분기 규칙 진본 — 이 skill 안 agent (ux-architect / module-architect / architecture-validator / opt-in system-architect / designer) 의 결론 → 다음 호출 + retry 한도 + escalate 처리. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
 > **Cross-ref**: 순서 차단 훅 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) · 권한 경계 = [`agent_boundary.py`](../../harness/agent_boundary.py) · 용어 기준 = [`terms.md`](../../docs/plugin/terms.md).
 
 ## 읽는 법
@@ -14,16 +14,15 @@ agent 는 일을 마치면 prose 마지막 단락에 어떤 결과로 끝났는�
 
 ```mermaid
 flowchart TB
-  UX[ux-architect] -->|UX_FLOW_READY| SA[system-architect]
+  UX[ux-architect] -->|UX_FLOW_READY| MA_BATCH[module-architect epic-batch]
   UX -->|UX_REFINE_READY| SEED[design-variants seed 보장]
   SEED --> DS[designer]
-  SA -->|PASS| AV1[architecture-validator 1차]
-  AV1 -->|PASS| MA_BATCH[module-architect epic-batch]
   MA_BATCH -->|PASS| AV_FINAL[architecture-validator final epic 검증]
-  AV_FINAL -->|PASS| M([end-run/metrics freeze 후 Step 7 PR · 사용자 확인 checkpoint · 머지 → /impl 안내])
-  AV1 -->|FAIL ≤3| SA
+  MA_BATCH -->|SYSTEM_CHECKPOINT_REQUIRED| SA[system-architect opt-in checkpoint]
+  SA -->|PASS| MA_BATCH
+  AV_FINAL -->|PASS| M([end-run/metrics freeze 후 Step 6 PR · 사용자 확인 checkpoint · 머지 → /impl 안내])
   AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤3"| SA
-  AV_FINAL -->|"FAIL: CONTRACT_PROPAGATION · TASK_LOCAL ≤3"| MA_BATCH
+  AV_FINAL -->|"FAIL: TASK_LOCAL ≤3"| MA_BATCH
   SA -->|NEW_DEP_ESCALATE| U((사용자 · 4안))
   MA_BATCH -->|NEW_DEP_ESCALATE| U
   UX -.->|UX_FLOW_ESCALATE| U
@@ -35,7 +34,7 @@ flowchart TB
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
   class UX,SA,DS,MA_BATCH,SEED produce
-  class AV1,AV_FINAL verify
+  class AV_FINAL verify
   class U user
 ```
 
@@ -47,16 +46,16 @@ flowchart TB
 
 | agent | 결론 → 다음 호출 |
 |---|---|
-| **ux-architect** | `UX_FLOW_READY` → system-architect · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
-| **system-architect** | `PASS` → architecture-validator(1차) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
-| **architecture-validator** | `PASS`(1차) → module-architect(epic-batch) · `PASS`(final epic 검증) → SKILL.md Step 6 end-run/metrics freeze 후 Step 7 PR + 사용자 확인 checkpoint · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
-| **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
+| **ux-architect** | `UX_FLOW_READY` → module-architect(epic-batch) · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
+| **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SYSTEM_CHECKPOINT_REQUIRED` → system-architect opt-in checkpoint · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
+| **system-architect** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
+| **architecture-validator** | `PASS`(final epic 검증) → SKILL.md Step 5 end-run/metrics freeze 후 Step 6 PR + 사용자 확인 checkpoint · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
 | **designer** | `PASS` → 사용자 PICK · `ESCALATE` → 사용자. (UX_REFINE 분기 진입 시) |
 
 표만으로 안 풀리는 맥락:
 
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.
-- **architecture-validator 시점** — 1차 = system 산출물 기준으로 요구사항 출처, 설계 표준, Contract Ledger 충분성, 구현 순서(첫 제품 경계 동작 앞당김), Flow Ownership Map, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 검토한다. final epic 검증 = 모든 impl 산출물을 한 번에 읽고 Story 간 compose/wiring, forward-ref 회수, Contract Ledger sweep, Story별 첫 제품 경계 동작 증거, cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `CONTRACT_PROPAGATION` / `TASK_LOCAL`) 동반.
+- **architecture-validator 시점** — final epic 검증만 기본이다. 모든 impl 산출물을 한 번에 읽고 Story 간 compose/wiring, forward-ref 회수, Story별 첫 제품 경계 동작 증거, 구현 순서(첫 제품 경계 동작 앞당김), cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `TASK_LOCAL`) 동반. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 FAIL 하지 않고 Should 로 보고한다.
 - **규모 초과 사전 가드** — Step 4 전 Story 수와 예상 full design pack 규모가 target 1,500줄 / hard warning 2,000줄 예산을 넘을 전망이면, 메인은 자동 진행 대신 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. 이는 대형 epic 출력 한계 방지용 escape 이며 per-Story 검증 기본값 복원이 아니다.
 - **고위험 추가 검증** — 보안·migration·public API breakage 같은 신호가 batch 작성 중 뒤늦게 드러나면 메인은 final epic 검증 전 추가 검토를 선택할 수 있다. 단 이것은 예외적 보강이지 옛 per-Story 검증 기본값의 복원이 아니다.
 
@@ -66,26 +65,25 @@ flowchart TB
 
 | finding 분류 | 뜻 | 재진입 대상 | 비고 |
 |---|---|---|---|
-| `SYSTEM_BOUNDARY` | 큰 그림(상위 경계)이 틀림 — 도메인 invariant / port 소비자 / usecase ownership / 전역 decision / storage policy / Flow Ownership Map / 기존 코드 계약 표면과의 상위 불일치 | **system-architect** 재진입 | 비싼 재설계. system 재진입의 기본 사유. |
-| `CONTRACT_PROPAGATION` | 결정은 맞는데 stale 사본이 남았거나 신규 산출물에 Contract Ledger 전문 사본이 생김 | **module-architect `mode=contract_sweep`** | 포인터화 sweep. system 재설계 아님. canonical 행 키(진본 = Contract Ledger) + sweep 키워드를 prompt 로 전달한다. |
+| `SYSTEM_BOUNDARY` | 큰 그림(상위 경계)이 틀림 — 도메인 invariant / port 소비자 / usecase ownership / 전역 decision / storage policy / public API boundary / 기존 코드 계약 표면과의 상위 불일치 | **system-architect opt-in checkpoint** | 비싼 재설계. system checkpoint 의 기본 사유. |
 | `TASK_LOCAL` | 특정 impl task 문서만 틀림 — 예시 / depends_on / 수용기준 / requirements / Implementation Detail Leak / `risk`·`engine`·`수정 허용` 누락 | **module-architect(epic-batch)** 보강 | batch 컨텍스트를 유지해 같은 계열 task 를 함께 고친다. |
 
-- system-architect 재진입은 `SYSTEM_BOUNDARY` 일 때 기본값이다. stale 문구 전파 누락 또는 전문 사본 제거는 `CONTRACT_PROPAGATION` 으로 처리(sweep), system 재설계로 끌어올리지 않는다.
-- `CONTRACT_AMENDMENT` 은 분기 enum 이 아니다 — module-architect 가 public contract 를 바꿀 때 취하는 자연어 행동 의무 (Contract Ledger 갱신 / "변경 없음" 명시). 분기 결정은 위 3 분류로만 한다.
+- system-architect 재진입은 `SYSTEM_BOUNDARY` 일 때만 기본값이다. stale 문구 전파 누락, 구양식 Contract Ledger/References 존재, ux-flow/stories 요약 drift 는 형식만으로 system 재설계로 끌어올리지 않는다.
+- `CONTRACT_AMENDMENT` 은 분기 enum 이 아니다 — module-architect 가 public contract 를 바꿀 때 취하는 자연어 행동 의무 (module responsibility / decision 갱신 또는 "변경 없음" 명시). 분기 결정은 위 2 분류로만 한다.
 
 ## retry 한도
 
 | 재시도 경로 | 한도 | 초과 시 |
 |---|---|---|
 | ux-architect self-check FAIL → ux-architect 재진입 (prose 내부) | 2 cycle | 사용자 위임 |
-| architecture-validator 1차 FAIL → system-architect | 3 cycle | 사용자 위임 |
 | final epic 검증 FAIL → 산출 주체 재진입 | 3 cycle | 사용자 위임 |
+| module-architect `SYSTEM_CHECKPOINT_REQUIRED` → system checkpoint → epic-batch 재진입 | 3 cycle | 사용자 위임 |
 | module-architect `SPEC_GAP_FOUND` → 보강 → 신규 케이스 재진입 | 3 cycle | 사용자 위임 |
 
 > retry 한도는 문서상 장식이 아니라 실행 판단이다. 같은 경로가 표의 각 행에 적힌 한도를 초과하면 자동 복구하지 않고, 남은 finding·영향·선택지를 사용자에게 보고한다.
 > 한도 초과 시 사용자 위임이 실제 다음 행동이다.
 >
-> **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 분기](#finding-분류-분기)) — 1차는 검증 대상이 system-architect 산출물이라 기본적으로 system-architect 재진입이다. final epic 검증은 `SYSTEM_BOUNDARY` → system-architect, `CONTRACT_PROPAGATION` → module-architect `mode=contract_sweep`, `TASK_LOCAL` → module-architect(epic-batch) 보강.
+> **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 분기](#finding-분류-분기)) — final epic 검증은 `SYSTEM_BOUNDARY` → system-architect opt-in checkpoint, `TASK_LOCAL` → module-architect(epic-batch) 보강.
 > cycle 발생 시 working tree only — commit X. PASS 후에만 commit.
 
 > **finding 수용 자세** (점 패치 X, 근본 재설계) — 같은 영역 finding 이 2회+ 반복되면 점 패치 retry 로 한도를 소진하지 말고 근본 원인을 짚어 그 영역을 재설계한다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).

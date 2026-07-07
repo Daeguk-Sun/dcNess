@@ -3,9 +3,6 @@ depth: standard
 design: optional|required
 story: compact
 issue: <optional>
-contract:
-  produces:             # Ledger row keys only when this plan changes a cross-task/public contract
-  consumes:             # Ledger row keys only
 ---
 
 # Compact Implementation Plan
@@ -52,15 +49,14 @@ contract:
 - 목업 대비 의도적 차이:
   -
 
-## Contract References
+## 계약 / 결정 참조
 
-> Cross-task/public contract details live only in the relevant epic `architecture.md` `## Contract Ledger` or root architecture decision link.
-> Use Ledger row keys only here; do not copy invariant, ordering, error mode, config, or forbidden alternative.
+> Cross-task/public contract 의미는 관련 module 책임/공개 인터페이스와 `docs/decisions/NNNN-slug.md` 에 둔다. compact plan 은 관련 모듈과 decision id/link 만 가리키고 invariant, ordering, error mode, config, forbidden alternative 전문을 복제하지 않는다.
 
-| kind | Ledger row key | action | note |
+| kind | ref | action | note |
 |---|---|---|---|
-| produces |  | new/update/existing | Ledger updated or not applicable |
-| consumes |  | existing |  |
+| module |  | new/update/existing |  |
+| decision |  | new/update/existing |  |
 
 ## 테스트 기준
 
