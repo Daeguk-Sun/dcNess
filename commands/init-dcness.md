@@ -31,7 +31,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - `.gitignore`: `.claude/harness-state/` 는 core 에서 없을 때만 추가. `.dcness-work/` 는 선택형 docs seed 에서 없을 때만 추가.
 - `.github/workflows/*.yml`: 사용자가 선택한 경우 always-overwrite.
 - `docs/*`, `docs/design-variants/*`: 부재 시만 seed. 단 기존 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 섹션은 없을 때만 append.
-- Codex validator skills: `$CODEX_HOME/skills/dcness-*` always-overwrite.
+- Codex validator skills: `$CODEX_HOME/skills/dcness-*` always-overwrite. Validator wrapper 는 활성 plugin 원본을 우선 주입하고, 이 복사본은 native Codex skill 등록과 fallback 용도다.
 - Codex provider routing: core 에서는 상태만 확인하고, 선택형 확장에서 validation opt-in 과 implementation 기본값을 갱신.
 - TDD Guard: dcNess 가 **TDD 계약 + self-test** 를 소유한다. 프로젝트가 비어 있지 않으면 플랫폼 감지 또는 사람 승인된 `.dcness/tdd-hooks.json` 계약(`source_roots`, `impl_exts`, custom 플랫폼의 `test_candidate_templates`, 선택 `test_file_globs`)을 기준으로 project-local CC/Codex hook 생성을 제안하고, 생성 후보는 self-test 통과 전에는 등록하지 않는다. 생성 훅이 없으면 중앙 plug-in hook 이 안전 fallback 으로 동작한다.
 
@@ -123,7 +123,7 @@ grep -qxF '.claude/harness-state/' "$PROJECT_ROOT/.gitignore" || { printf '%s\n'
 
 ### Core Step 5 - Codex skill 배포와 routing 상태 확인
 
-`code-validator` / `architecture-validator` / `pr-reviewer` 는 Codex read-only 실행으로 보낼 수 있다. `test-engineer` / `engineer` / `build-worker` 는 headless-chain implementation 실행으로 보낼 수 있다. 사용자 repo 에 provider config 를 만들지 않는다.
+`code-validator` / `architecture-validator` / `pr-reviewer` 는 Codex read-only 실행으로 보낼 수 있다. `test-engineer` / `engineer` / `build-worker` 는 headless-chain implementation 실행으로 보낼 수 있다. 사용자 repo 에 provider config 를 만들지 않는다. Validator wrapper 는 wrapper parent 의 `codex/skills/dcness-*` 원본을 먼저 prompt 에 주입하고, 필요하면 `CLAUDE_PLUGIN_ROOT` 를 plugin root fallback 으로 확인한다. `$CODEX_HOME/skills` 배포본이 원본과 다르면 stale copy 로 보고 무시하며, plugin 원본을 찾을 수 없을 때만 배포본으로 fallback 한다.
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"

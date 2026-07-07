@@ -24,14 +24,17 @@ Environment:
   DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 600.
   DCNESS_CODEX_MODEL    Optional Codex model override. Default: inherit user config.
   DCNESS_CODEX_EFFORT   Optional reasoning effort override. Default: inherit user config.
+  CLAUDE_PLUGIN_ROOT    Optional plugin root fallback. Default: wrapper parent.
 
 The wrapper runs Codex in read-only mode. On Codex CLI versions that expose
 approval flags, it also passes global -a never. Model and effort overrides are
 only passed when the matching environment variables are set:
   codex [-a never] [-m "$DCNESS_CODEX_MODEL"] [-c "model_reasoning_effort=$DCNESS_CODEX_EFFORT"] exec -C "$PROJECT_ROOT" -s read-only --output-last-message "$TMP_PROSE"
 
-Before running Codex, it embeds the installed dcness Codex skill from
-$CODEX_HOME/skills or the plugin bundle when available.
+Before running Codex, it embeds the active plugin bundle's dcness Codex skill.
+If the $CODEX_HOME/skills copy is stale, the wrapper ignores it and prints a
+refresh warning. If the plugin bundle skill is unavailable, it falls back to
+$CODEX_HOME/skills.
 
 Then it stores the final prose with:
   dcness-helper end-step <agent> [MODE] --provider codex-headless --prose-file "$TMP_PROSE"
@@ -214,16 +217,27 @@ trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
 SKILL_NAME="dcness-${AGENT}"
 CODEX_HOME_DIR="${CODEX_HOME:-${HOME:-}/.codex}"
 SKILL_FILE=""
-SKILL_CANDIDATES=(
-  "$CODEX_HOME_DIR/skills/$SKILL_NAME/SKILL.md"
-  "$SCRIPT_DIR/../codex/skills/$SKILL_NAME/SKILL.md"
-)
-for CANDIDATE in "${SKILL_CANDIDATES[@]}"; do
+PLUGIN_SKILL_FILE=""
+INSTALLED_SKILL_FILE="$CODEX_HOME_DIR/skills/$SKILL_NAME/SKILL.md"
+PLUGIN_ROOT_CANDIDATES=( "$SCRIPT_DIR/.." )
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  PLUGIN_ROOT_CANDIDATES+=( "$CLAUDE_PLUGIN_ROOT" )
+fi
+for PLUGIN_ROOT_CANDIDATE in "${PLUGIN_ROOT_CANDIDATES[@]}"; do
+  CANDIDATE="$PLUGIN_ROOT_CANDIDATE/codex/skills/$SKILL_NAME/SKILL.md"
   if [ -f "$CANDIDATE" ]; then
-    SKILL_FILE="$CANDIDATE"
+    PLUGIN_SKILL_FILE="$CANDIDATE"
     break
   fi
 done
+if [ -n "$PLUGIN_SKILL_FILE" ]; then
+  SKILL_FILE="$PLUGIN_SKILL_FILE"
+  if [ -f "$INSTALLED_SKILL_FILE" ] && ! cmp -s "$PLUGIN_SKILL_FILE" "$INSTALLED_SKILL_FILE"; then
+    echo "[dcness-codex-validator] WARN: stale installed skill ignored: $INSTALLED_SKILL_FILE differs from active plugin source $PLUGIN_SKILL_FILE. Re-run /init-dcness Core Step 5 to refresh \$CODEX_HOME/skills." >&2
+  fi
+elif [ -f "$INSTALLED_SKILL_FILE" ]; then
+  SKILL_FILE="$INSTALLED_SKILL_FILE"
+fi
 
 {
   echo "dcNess validation agent: $AGENT"

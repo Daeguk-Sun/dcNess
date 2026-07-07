@@ -32,7 +32,7 @@ core activation 완료 기준이다. 아래 항목이 끝나고 `dcness-helper s
 | project context seed/migration | `CLAUDE.md` | `scripts/dcness-context-docs` / `harness/context_docs.py` | 항상 | 부재 시 생성. 기존 파일은 cold-start 앵커만 없을 때 append | X |
 | file boundary override suggestion | `.dcness/boundary.json` 후보만 | `dcness-helper boundary-suggestions` / `harness/boundary_suggestions.py` | 항상 | read-only. 사람 승인 전 작성 없음 | X |
 | generated TDD hook 제안/생성 | `.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh` | `scripts/dcness-tdd-hooks` | 플랫폼 감지 또는 사람 승인된 project-local 계약 + 사용자 승인 시 | self-test 통과 후보만 등록. CC 검증 후 Codex 생성 | X |
-| Codex validator skills | `$CODEX_HOME/skills/dcness-*` | `codex/skills/dcness-*` | 항상 | always-overwrite | X |
+| Codex validator skills | `$CODEX_HOME/skills/dcness-*` | `codex/skills/dcness-*` | 항상 | always-overwrite. Validator wrapper 는 활성 plugin 원본을 우선 주입하고 이 복사본은 native Codex skill 등록과 fallback 용도 | X |
 | Codex provider routing 상태 확인 | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing status` | 항상 확인 | read-only | X |
 | CC hooks | Claude Code plugin hook registry | `hooks/hooks.json` | 활성 프로젝트 새 세션 | 사용자 repo 쓰기 없음 | X |
 
@@ -80,6 +80,8 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 | pr-reviewer | `docs/plugin/agents/pr-reviewer/pr-reviewer-agent.md` | `codex/skills/dcness-pr-reviewer/SKILL.md` |
 
 공유 guidance 는 `docs/plugin/agents/_shared/validation-reporting-guidance.md` 를 Claude agent 가 참조하고, Codex skill 은 같은 의미 문구를 내장한다. Codex skill 은 native Codex frontmatter(`--- name: ... description: ... ---`)를 유지해야 하며, `/init-dcness` Core Step 5 가 `$CODEX_HOME/skills/dcness-*` 로 always-overwrite 배포한다. 동기화 회귀는 `tests/test_validator_handoff_guidance.py` 가 막는다.
+
+`scripts/dcness-codex-validator` 는 plugin update 직후 재-init 전에도 현행 지침을 쓰도록 활성 plugin 원본을 먼저 prompt 에 주입한다. `$CODEX_HOME` 배포본이 원본과 다르면 stale copy 로 경고한 뒤 원본을 사용한다.
 
 ## Recommended Bundle Defaults
 
@@ -185,7 +187,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | `.claude/harness-state/` gitignore 보강 | 예 | runtime state ignore 는 사용자 repo `.gitignore` append 라서 `/init-dcness` 재실행 때 적용된다. |
 | `CLAUDE.md` seed/migration 로직 갱신 | 예 | 기존 활성 프로젝트의 root `CLAUDE.md` 생성·cold-start 앵커 append 는 `/init-dcness` 재실행 때 적용된다. |
 | 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index 집계기를 1회 실행해야 한다. 전역 architecture 요약은 온디맨드다. |
-| Codex validation routing opt-in 변경 | 예 | local plugin data 와 `$CODEX_HOME/skills` 를 갱신해야 한다. |
+| Codex validation routing opt-in 변경 | 예 | local plugin data 를 갱신하고 native Codex skill 등록/fallback 용 `$CODEX_HOME/skills` 를 최신화해야 한다. Validator wrapper 의 prompt 지침은 plugin update 된 원본을 우선 사용한다. |
 | Implementation routing 변경 | 예 | local plugin data 를 갱신해야 한다. |
 | Project lifecycle 좌표 저장/변경 | 예 | repo variables 와 선택형 workflow 를 갱신해야 한다. |
 | docs/design + docs/design-variants seed 추가 | 예 | 부재 파일 seed 는 사용자 repo 에 직접 생성된다. draft 는 `docs/design-variants/drafts/` 에 두고 `.gitignore` 로 무시하되 `drafts/.gitkeep` 으로 디렉터리를 보존한다. 기존 활성 프로젝트가 과거 루트 `design-variants/` seed 만 갖고 있으면 `/init-dcness` custom design seed 를 재실행하거나 `templates/design-variants/{.gitignore,canvas.html,_lib/*,drafts/.gitkeep}` 를 `docs/design-variants/` 로 복사한다. |
