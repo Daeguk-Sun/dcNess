@@ -148,16 +148,18 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.ux)
 
-    def test_ux_flow_inventory_marks_hi_fi_mockup_need_only(self) -> None:
+    def test_ux_flow_inventory_tracks_mockup_need_and_confirmed_path(self) -> None:
         for text in (self.ux_architect, self.ux_flow_template):
             with self.subTest(text=text[:30]):
                 self.assertIn("hi-fi 목업 필요", text)
                 self.assertIn("필요/불필요", text)
+                self.assertIn("확정 목업 경로", text)
 
         self.assertIn(
-            "| 화면 ID | 화면명 | 역할 | PRD 근거 | hi-fi 목업 필요 | 우선순위 |",
+            "| 화면 ID | 화면명 | 역할 | PRD 근거 | hi-fi 목업 필요 | 확정 목업 경로 | 우선순위 |",
             self.ux_flow_template,
         )
+        self.assertIn("확정본 없음", self.ux_flow_template)
 
         for text in (self.ux, self.designer):
             with self.subTest(text=text[:30]):

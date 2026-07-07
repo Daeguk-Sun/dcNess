@@ -2,9 +2,9 @@
 
 ## 화면 인벤토리
 
-| 화면 ID | 화면명 | 역할 | PRD 근거 | hi-fi 목업 필요 | 우선순위 |
-|---|---|---|---|---|---|
-|  |  |  |  | 필요/불필요 |  |
+| 화면 ID | 화면명 | 역할 | PRD 근거 | hi-fi 목업 필요 | 확정 목업 경로 | 우선순위 |
+|---|---|---|---|---|---|---|
+|  |  |  |  | 필요/불필요 | 확정본 없음 또는 `docs/design-variants/<screen-id>.html` |  |
 
 ## 화면 흐름
 
@@ -35,6 +35,13 @@ stateDiagram-v2
 #### Designer Notes
 
 -
+
+#### 확정 목업
+
+- 확정 목업 경로: 확정본 없음
+- canvas 경로: 해당 없음 또는 `docs/design-variants/canvas.html`
+- 핵심 `data-node-id`:
+  -
 
 ## 디자인 시스템
 
