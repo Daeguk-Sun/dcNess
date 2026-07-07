@@ -235,6 +235,49 @@ class DesignSurfaceContractTests(unittest.TestCase):
 
         self.assertIn("사용자 확인 checkpoint", routing)
 
+    def test_design_retry_limit_has_single_provider_agnostic_counter(self) -> None:
+        """#970 — final validation retry limit must not reset by finding or provider."""
+        design_dir = ROOT / "skills" / "design"
+        design = (design_dir / "SKILL.md").read_text(encoding="utf-8")
+        routing = (design_dir / "design-routing.md").read_text(encoding="utf-8")
+        loop_procedure = (ROOT / "docs" / "plugin" / "loop-procedure.md").read_text(
+            encoding="utf-8"
+        )
+        validator = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "architecture-validator"
+            / "architecture-validator-agent.md"
+        ).read_text(encoding="utf-8")
+        codex_validator = (
+            ROOT / "codex" / "skills" / "dcness-architecture-validator" / "SKILL.md"
+        ).read_text(encoding="utf-8")
+
+        for needle in (
+            "RCA",
+            "final epic 검증 FAIL → 산출 주체 재진입 counter 는 하나",
+            "`SYSTEM_BOUNDARY` / `TASK_LOCAL`",
+            "finding 영역 변경",
+            "새 finding 등장",
+            "리셋하지 않는다",
+            "4번째 자동 재진입",
+            "루프 재구성 이후",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, routing)
+
+        for text in (design, routing, loop_procedure):
+            with self.subTest(text=text[:60]):
+                self.assertIn("Claude Agent 와 Codex wrapper 모두 메인이 집계", text)
+                self.assertIn("Codex wrapper 는 end-step 까지 수행하지만 counter 소유자가 아니다", text)
+
+        for text in (validator, codex_validator):
+            with self.subTest(provider_doc=text[:60]):
+                self.assertIn("retry counter 를 증가·리셋하지 않는다", text)
+                self.assertIn("메인이 design-routing.md 의 provider-agnostic counter", text)
+
     def test_design_dispatches_internal_ux_and_system_stages(self) -> None:
         """#958 — /design remains public while durable artifacts select an internal stage."""
         design_dir = ROOT / "skills" / "design"

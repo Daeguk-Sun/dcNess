@@ -118,7 +118,7 @@ else
 fi
 ```
 
-Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직접 포함한 뒤 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행한다. 마지막 응답은 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --provider codex-headless --prose-file ...` 로 저장한다. 따라서 Codex 분기 경로에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. `DCNESS_CODEX_MODEL` 을 설정하면 wrapper 가 `-m` 모델 override 를, `DCNESS_CODEX_EFFORT` 를 설정하면 `-c model_reasoning_effort=...` override 를 전달한다. 둘 다 미설정이면 사용자 Codex config 를 그대로 상속하며, dcNess 는 특정 Codex 모델명을 하드코딩하지 않는다. 분기 config 파일명은 `routing.json` 이고 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 에 있으며, validation 비활성/미설정 기본값은 Claude 다.
+Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직접 포함한 뒤 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행한다. 마지막 응답은 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --provider codex-headless --prose-file ...` 로 저장한다. 따라서 Codex 분기 경로에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. Claude Agent 와 Codex wrapper 모두 메인이 집계한다. Codex wrapper 는 end-step 까지 수행하지만 counter 소유자가 아니다. `DCNESS_CODEX_MODEL` 을 설정하면 wrapper 가 `-m` 모델 override 를, `DCNESS_CODEX_EFFORT` 를 설정하면 `-c model_reasoning_effort=...` override 를 전달한다. 둘 다 미설정이면 사용자 Codex config 를 그대로 상속하며, dcNess 는 특정 Codex 모델명을 하드코딩하지 않는다. 분기 config 파일명은 `routing.json` 이고 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 에 있으며, validation 비활성/미설정 기본값은 Claude 다.
 
 **implementation provider 분기 (headless-chain 기본)**: `test-engineer` / `engineer` / `build-worker` 는 호출 직전 provider 를 resolve 한다.
 
@@ -276,7 +276,7 @@ phase prose 실제 기록 디렉토리 = `dcness-helper run-dir` 이 출력하�
 | `AMBIGUOUS` 재호출 1회 | 직전 동일 agent task | `TaskUpdate(<task>, in_progress)` |
 | `SPEC_GAP_FOUND` → module-architect (보강) | 신규 task (다른 agent) | `TaskCreate` 가능 |
 
-이유: retry / POLISH 는 *동일 step 의 재실행*. 신규 TaskCreate 시 같은 step 이 task list 에 중복 등장 → 진행 추적 오염. cycle 카운터는 step occurrence (`<agent>[-<mode>]-N.md`) 로 보존되므로 task 는 1개로 유지.
+이유: retry / POLISH 는 *동일 step 의 재실행*. 신규 TaskCreate 시 같은 step 이 task list 에 중복 등장 → 진행 추적 오염. cycle 카운터는 step occurrence (`<agent>[-<mode>]-N.md`) 로 보존되므로 task 는 1개로 유지. provider wrapper 가 `end-step` 을 대신 호출해도 retry counter 의 소유자는 메인이다. 메인은 해당 loop 의 `<skill>-routing.md` counter key 로 세며, finding 분류·파일·provider 변경만으로 같은 retry 경로의 counter 를 나누거나 리셋하지 않는다.
 
 **MUST 순서** (retry / POLISH 진입 시):
 
