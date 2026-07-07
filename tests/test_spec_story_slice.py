@@ -113,7 +113,7 @@ class SpecStorySliceContractTests(unittest.TestCase):
         for needle in (
             "첫 제품 경계 동작 증거를 앞당기는 순서를 설명하는가",
             "부품을 다 만든 뒤에야 처음 동작하는 순서는 epic `architecture.md` 의 "
-            "`구현 순서` 섹션에 경고와 사유로 남긴다",
+            "`Story -> 모듈 매핑` 또는 stories.md epic 완료 기준 근처에 경고와 사유로 남긴다",
             "첫 제품 경계 동작 증거를 앞당기는 관점을 포함한다",
         ):
             with self.subTest(needle=needle):

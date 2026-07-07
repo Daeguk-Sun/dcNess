@@ -44,7 +44,7 @@ class IndexMapAggregateTests(unittest.TestCase):
         self.assertIn("Daeguk-Sun/dcNess/.github/actions/doc-sync@main", workflow)
         self.assertNotIn("paths:", workflow)
         self.assertIn("scripts/aggregate_index_map.mjs", action)
-        self.assertIn("scripts/aggregate_architecture_map.mjs", action)
+        self.assertNotIn("scripts/aggregate_architecture_map.mjs", action)
         self.assertIn("scripts/check_design_artifact_structure.mjs", action)
         self.assertIn("--check", action)
 

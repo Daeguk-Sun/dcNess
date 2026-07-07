@@ -79,15 +79,27 @@ class DesignSurfaceContractTests(unittest.TestCase):
             routing,
         )
 
-        for expected in (
+        for stale in (
             "architecture-validator(1차/system freeze)",
+            "system freeze",
+            "Contract Ledger row-key",
+            "contract_sweep",
+            "CONTRACT_PROPAGATION",
+        ):
+            self.assertNotIn(stale, design)
+            self.assertNotIn(stale, routing)
+
+        for expected in (
+            "system-architect(thin bootstrap)",
+            "모듈 topology 부재",
             "module-architect(epic-batch)",
-            "epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성",
+            "epic architecture 최소형과 epic 전체 impl 산출물",
             "Story 단위 작성 주체로 쪼개지 않는다",
             "architecture-validator(final epic 검증)",
-            "Step 5 — architecture-validator final epic 검증",
+            "Step 4 — architecture-validator final epic 검증",
             "모든 Story 에 단위 검증을 기본값으로 복원하지 않는다",
             "check_design_artifact_structure.mjs",
+            "SYSTEM_CHECKPOINT_REQUIRED",
         ):
             self.assertIn(expected, design)
 
@@ -95,11 +107,14 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("UI epic 이면 `ux-flow.md`", design)
 
         for expected in (
-            "AV1 -->|PASS| MA_BATCH",
+            "SA_BOOT[system-architect thin bootstrap]",
+            "SA_BOOT -->|PASS| MA_BATCH",
             "MA_BATCH -->|PASS| AV_FINAL",
             "`PASS`(final epic 검증)",
+            "bootstrap 뒤 architecture-validator 를 끼우지 않고 바로 module-architect",
             "module-architect(epic-batch)",
             "architecture-validator(final epic 검증)",
+            "SYSTEM_CHECKPOINT_REQUIRED",
         ):
             self.assertIn(expected, routing)
 
@@ -142,6 +157,9 @@ class DesignSurfaceContractTests(unittest.TestCase):
             "규모 preflight",
             "target 1,500줄 / hard warning 2,000줄",
             "epic 분할 또는 예외적 batch 2분할",
+            "system checkpoint 승격",
+            "THIN_BOOTSTRAP",
+            "topology 부재",
         ):
             self.assertIn(needle, design)
 
@@ -158,24 +176,46 @@ class DesignSurfaceContractTests(unittest.TestCase):
                 self.assertIn("계약 표면 코드 SSOT 대조", text)
                 self.assertIn("포트, 도메인 타입, 공개 entrypoint", text)
 
-        self.assertIn("## Domain Model Decision", system_template)
+        for needle in (
+            "THIN_BOOTSTRAP",
+            "큰 모듈 목록(책임 + 공개 인터페이스 한 줄)",
+            "도메인 모델 작성/생략 판단, 계약 표면 코드 SSOT 대조, Module Design Check evidence, Agent Operability 상세, impl task 작성으로 확장하지 않는가",
+            "bootstrap 뒤에 별도 architecture-validator 를 끼우지 않고 module-architect(epic-batch)로 바로 간다",
+            "CHECKPOINT",
+        ):
+            self.assertIn(needle, system_architect)
+
+        root_template = (
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "root-architecture.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("## 큰 모듈 경계", root_template)
+        self.assertIn("| 모듈 | 책임 | 공개 인터페이스 | 결정 |", root_template)
+        self.assertIn("## 의존 그래프", root_template)
+
+        self.assertIn("## Domain Model", system_template)
         self.assertIn("생략 판단 근거 (생략 시 필수)", system_template)
-        self.assertIn("## 계약 표면 코드 SSOT 대조", system_template)
-        self.assertIn("확인한 기존 포트", system_template)
-        self.assertIn("확인한 기존 도메인 타입", system_template)
-        self.assertIn("확인한 기존 공개 entrypoint", system_template)
+        self.assertIn("## 모듈 목록", system_template)
+        self.assertIn("## 의존 그래프", system_template)
+        self.assertIn("## Story -> 모듈 매핑", system_template)
+        self.assertNotIn("## Contract Ledger", system_template)
+        self.assertNotIn("## Flow Ownership Map", system_template)
 
         self.assertIn(
-            "`domain-model.md` 가 있으면 함께 읽고, 없으면 epic `architecture.md` 의 생략 판단 근거",
+            "domain-model.md` 가 있으면 함께 읽고, 없으면 낮은 도메인 복잡도 등 생략 판단 근거",
             module_architect,
         )
         self.assertIn("파일 부재만으로 도메인 모델을 새로 만들거나 ESCALATE 하지 않는다", module_architect)
+        self.assertIn("SYSTEM_CHECKPOINT_REQUIRED", module_architect)
+        self.assertIn("기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision", module_architect)
+        self.assertIn("신규 epic-scope decision 기록은 자율", module_architect)
+        self.assertIn("기존 전역 decision 변경은 `SYSTEM_CHECKPOINT_REQUIRED`", module_architect)
         self.assertIn("파일 부재만으로 `SPEC_GAP_FOUND` 하지 않는다", test_engineer)
 
         for text in (validator, codex_validator):
             with self.subTest(domain_validator=text[:60]):
                 self.assertIn("domain-model.md` 작성 또는 생략 판단 근거", text)
-                self.assertIn("domain-model 작성/생략 근거 누락", text)
+                self.assertIn("domain-model 작성/생략 근거가 impl 계약과 모순", text)
+                self.assertIn("형식만으로 Must", text)
 
     def test_design_clean_path_requires_pre_merge_confirmation_unless_yolo(self) -> None:
         """#851 — final PASS 뒤 설계 pack main 머지 전 사용자 확인 checkpoint 보존."""

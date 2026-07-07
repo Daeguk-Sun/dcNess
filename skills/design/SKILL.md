@@ -1,6 +1,6 @@
 ---
 name: design
-description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단위로 ux-architect / system-architect / module-architect / architecture-validator 를 호출하여 설계 산출물 (선택 `docs/epics/.../ux-flow.md` + `docs/architecture.md` + `docs/conventions.md` + 선택 `docs/modules/...` + `docs/decisions/*.md` + `docs/epics/.../architecture.md` + 선택 `docs/epics/.../domain-model.md` + `docs/epics/.../impl/*.md`) 을 작성하고 1 PR 로 머지하는 설계 루프 스킬. system freeze 뒤에는 module-architect(epic-batch)가 epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성하고, architecture-validator(final epic 검증)가 최종 검증으로 수렴한다. 사용자가 "설계해줘", "design", "epic 설계", "/design <epic-path>", "ux-flow 부터", "impl 다 만들어줘" 등을 말할 때 반드시 이 스킬을 사용한다. `/spec` 의 후속. 구현 진입은 `/impl`, story/epic 제품 검수는 `/acceptance`.
+description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단위로 선택 ux-architect / module-architect / architecture-validator 를 호출하여 agent-first 설계 산출물 (선택 `docs/epics/.../ux-flow.md` + `docs/decisions/*.md` + `docs/epics/.../architecture.md` 최소형 + 선택 `docs/epics/.../domain-model.md` + `docs/epics/.../impl/*.md`) 을 작성하고 1 PR 로 머지하는 설계 루프 스킬. 기존 모듈 topology 가 전혀 없는 greenfield 첫 설계에서는 system-architect(thin bootstrap)가 큰 모듈 경계만 1회 얇게 나눈 뒤 module-architect(epic-batch)로 이어진다. 그 외 기본 경로는 module-architect(epic-batch)가 epic architecture 최소형과 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성하고, architecture-validator(final epic 검증)가 최종 검증으로 수렴한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있을 때만 system-architect opt-in checkpoint 로 승격한다. 사용자가 "설계해줘", "design", "epic 설계", "/design <epic-path>", "ux-flow 부터", "impl 다 만들어줘" 등을 말할 때 반드시 이 스킬을 사용한다. `/spec` 의 후속. 구현 진입은 `/impl`, story/epic 제품 검수는 `/acceptance`.
 ---
 
 # Design Skill — 1 epic 단위 설계 루프
@@ -15,9 +15,9 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 - **loop**: `design`
 - **entry_point**: `design` (begin-run 인자 — 사용자 명시 진입)
-- **task_list** (Step 1): (UI epic) ux-architect:UX_FLOW → [기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip — 메인 직접, helper 비대상] → system-architect → architecture-validator(1차/system freeze) → module-architect(epic-batch) → architecture-validator(final epic 검증) · (UI-less epic) ux-architect 제외
-- **advance**: `UX_FLOW_READY` → `PASS`(system) → `PASS`(1차 freeze) → `PASS`(epic-batch) → `PASS`(final epic 검증)
-- **expected_steps**: 5 (UI epic) / 4 (UI-less epic). 기술 스택 그릴미 또는 확인-후-skip 은 begin-step 비대상이라 미포함
+- **task_list** (Step 1): (UI epic) ux-architect:UX_FLOW → [기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip — 메인 직접, helper 비대상] → module-architect(epic-batch) → architecture-validator(final epic 검증) · (UI-less epic) ux-architect 제외. 모듈 topology 부재 greenfield 첫 설계면 system-architect(thin bootstrap)를 module-architect 앞에 1회 추가한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있으면 system-architect opt-in checkpoint 를 module-architect 앞/뒤에 끼운다.
+- **advance**: `UX_FLOW_READY` → 선택 `PASS`(thin bootstrap) → `PASS`(epic-batch) → `PASS`(final epic 검증). opt-in system checkpoint 는 `SYSTEM_CHECKPOINT_REQUIRED` → `PASS`(system) → module-architect 재진입.
+- **expected_steps**: 3 (UI epic) / 2 (UI-less epic). 기술 스택 그릴미 또는 확인-후-skip 은 begin-step 비대상이라 미포함. thin bootstrap 또는 system checkpoint 승격 시 각각 +1.
 - **분기 규칙**: [`design-routing.md`](design-routing.md)
 
 본 skill 본문 = design 절차 풀스펙 진본. 절차 mechanics = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md).
@@ -52,7 +52,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 메인이 정당하게 read 하는 최소 범위 예시:
 
 - `stories.md` 의 Story 목록과 각 Story 헤더/완료 동작 위치
-- `architecture.md` 의 Contract Ledger / Flow Ownership Map / 구현 순서 위치
+- `architecture.md` 의 모듈 목록 / 의존 그래프 / Story -> 모듈 매핑 위치
 - 산출 대상 impl 번호 · write 경계
 - sub-agent 산출물을 적용할 때도 사전 전문 read 대신 적용 지점 grep
 
@@ -68,25 +68,25 @@ Step 0 진입 시 자동 `EnterWorktree(name="design-{ts_short}")`. 사용자 �
 
 ## Sub-agent prompt 작성 checkpoint (#780)
 
-`ux-architect` / `system-architect` / `module-architect` / `architecture-validator` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
+`ux-architect` / `system-architect(thin bootstrap 또는 checkpoint)` / `module-architect` / `architecture-validator` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
-- **대상 + 읽을 진본**: `docs/index.md`, epic `stories.md`, 전역/epic `architecture.md`, `docs/conventions.md`, affected module 의 `docs/modules/<module-id>/architecture.md` / `conventions.md`, `docs/decisions/`, 선택 epic `domain-model.md`, 검토 대상 산출물, 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint) 포인터만 둔다. 요구사항·계약·설계 결정을 prompt 에 전문 재기입하지 않는다. 모듈 docs 는 affected module 에 한정하고 무관한 모듈은 넣지 않는다.
+- **대상 + 읽을 진본**: `docs/index.md`, epic `stories.md`, 전역/epic `architecture.md`, `docs/conventions.md`, affected module 의 `docs/modules/<module-id>/architecture.md` / `conventions.md`, `docs/decisions/`, 선택 epic `domain-model.md`, 검토 대상 산출물, 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint) 포인터만 둔다. 요구사항·계약·설계 결정을 prompt 에 전문 재기입하지 않는다. 모듈 docs 는 affected module 에 한정하고 무관한 모듈은 넣지 않는다. 계약 의미의 durable 진본은 module responsibility/public interface 와 decision 문서다.
 - **worktree**: design worktree 활성 시 worktree 절대경로를 넣는다. main repo 절대경로를 worktree 경로처럼 넘기지 않는다.
 - **이 호출 특유**: Step 2.9 그릴미 합의 또는 기록된 스택 결정 확인-후-skip 사실, artifact audit 결과, wave-plan 신호처럼 아직 진본에 없는 신호만 둔다. 모듈 분할 방식·알고리즘·검증 assert 방식 같은 방법 처방은 넣지 않는다.
 
-## 기술 스택 그릴미 체크포인트 (Step 2.9 — system-architect 직전)
+## 기술 스택 그릴미 체크포인트 (Step 2.9 — module-architect 직전)
 
-system-architect(Step 3) 호출 직전 메인 Claude 가 사용자와 직접 기술 스택을 합의하거나, 이미 기록된 스택 결정이 있으면 확인 안내 후 skip 하는 체크포인트다. system-architect 는 서브에이전트라 사용자와 직접 대화할 수 없으므로, 미기록 합의만 prompt 로 일회 전달하고 system-architect 가 그 결정을 `docs/conventions.md` 또는 `docs/decisions/NNNN-slug.md` 에 기록하도록 지시한다.
+module-architect(epic-batch) 호출 직전 메인 Claude 가 사용자와 직접 기술 스택을 합의하거나, 이미 기록된 스택 결정이 있으면 확인 안내 후 skip 하는 체크포인트다. module-architect 는 서브에이전트라 사용자와 직접 대화할 수 없으므로, 미기록 합의만 prompt 로 일회 전달하고 module-architect 가 그 결정을 `docs/conventions.md` 또는 `docs/decisions/NNNN-slug.md` 에 기록하도록 지시한다. system checkpoint 로 승격된 경우에도 같은 합의 사실을 system-architect prompt 에 전달한다.
 
-- **기록된 스택 결정 있으면 확인-후-skip**: `docs/conventions.md` 또는 `docs/decisions/**` 에 현재 epic 에 적용 가능한 언어/프레임워크/DB/외부 의존 결정이 실존하면, 메인은 사용자에게 "기록된 스택 결정이 있어 그릴미를 생략하고 이 결정을 사용한다" 고 한 줄 안내한 뒤 그릴미를 반복하지 않는다. 이 skip 사실은 system-architect prompt 의 미기록 신호로 한 번만 전달한다.
+- **기록된 스택 결정 있으면 확인-후-skip**: `docs/conventions.md` 또는 `docs/decisions/**` 에 현재 epic 에 적용 가능한 언어/프레임워크/DB/외부 의존 결정이 실존하면, 메인은 사용자에게 "기록된 스택 결정이 있어 그릴미를 생략하고 이 결정을 사용한다" 고 한 줄 안내한 뒤 그릴미를 반복하지 않는다. 이 skip 사실은 module-architect prompt 의 미기록 신호로 한 번만 전달한다.
 - **첫 epic 등 미기록 상태면 그릴미 유지**: 적용 가능한 결정이 없거나 tech-review 축 2 권고가 미해결이면 기존 그릴미 패턴을 진행한다. 한 번에 한 질문 / 가설+권장안 제시 / 코드·문서 탐색 우선 / 결정나무 가지치기 원칙을 따른다.
 - **사용자 opt-out**: 사용자 발화에 정규식 `(그릴미|기술\s*스택|스택)\s*(빼|없|말|알아서|생략)` 매치 시 skip 한다.
-- **UI 판정과 무관** — UI epic / UI-less epic 모두 system-architect 직전에 위치한다.
+- **UI 판정과 무관** — UI epic / UI-less epic 모두 module-architect 직전에 위치한다.
 - **미합의** (사용자가 스택 결정 못 냄 / 보류) 시 처리 = [`design-routing.md` escalate 처리](design-routing.md#escalate-처리).
 
 ## UI-less epic 분기 (Step 1 전 판정)
 
-TaskCreate 직전 메인이 `docs/prd.md` 의 "화면 인벤토리 + 대략적 플로우" 섹션을 read 하고 판정한다. ux-architect 산출물(ux-flow.md)은 system-architect 의 "(있으면)" 선택 입력일 뿐이므로, UI-less epic 에서 ux 단계 skip 은 후속 단계를 깨지 않는다.
+TaskCreate 직전 메인이 `docs/prd.md` 의 "화면 인벤토리 + 대략적 플로우" 섹션을 read 하고 판정한다. ux-architect 산출물(ux-flow.md)은 module-architect 의 "(있으면)" 선택 입력일 뿐이므로, UI-less epic 에서 ux 단계 skip 은 후속 단계를 깨지 않는다.
 
 | 판정 | 조건 | 행동 |
 |---|---|---|
@@ -95,34 +95,34 @@ TaskCreate 직전 메인이 `docs/prd.md` 의 "화면 인벤토리 + 대략적 �
 | **모호** | 화면 인벤토리 일부만 UI / 판정 불확실 | 보수적으로 UI epic 진행 |
 
 - 판정은 메인 prose 자율 영역 — hook 강제 아님 ([`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)).
-- UI-less 판정 시 expected_steps = 4, UI epic 은 5.
+- UI-less 판정 시 expected_steps = 2, UI epic 은 3.
 
 ## 절차 (요약)
 
 상세 = 본 절차 + [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#진입-모델) Step mechanics.
 
 1. **Step 0** — 워크트리 진입 + `EnterWorktree` + branch (`docs/<epic-slug>`) + `begin-run design`
-2. **Step 1** — UI 판정 후 TaskCreate. UI epic → ux-architect / system-architect / architecture-validator 1차 / module-architect(epic-batch) / architecture-validator(final epic 검증). UI-less epic → ux-architect 제외.
+2. **Step 1** — UI 판정 + topology 부재 판정 후 TaskCreate. UI epic → ux-architect / module-architect(epic-batch) / architecture-validator(final epic 검증). UI-less epic → ux-architect 제외. greenfield 첫 설계에서 `docs/architecture.md` root anchor 의 큰 모듈 topology 가 비어 있고 어떤 `docs/epics/**/architecture.md` 에도 유효 `## 모듈 목록` row 가 없으면 system-architect(thin bootstrap)를 module-architect 앞에 1회 배치한다. 이 thin bootstrap 뒤에는 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다. system checkpoint 는 기본 TaskCreate 에 넣지 않고, boundary 변경 신호가 있을 때만 추가한다.
 3. **Step 2 — ux-architect:UX_FLOW** (UI epic 한정) → `UX_FLOW_READY` → commit 1 (epic 단위 `docs/epics/epic-NN-*/ux-flow.md`)
    - `UX_REFINE_READY` 로 `/design` 안에서 designer 후속이 필요하면, designer 호출 전 `/ux` 의 "designer 진입 공통 preflight" 와 동일하게 `docs/design-variants/` seed 보장 후 designer 로 진행한다.
-4. **Step 2.9 — 기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip** — 메인 직접, helper begin/end-step 비대상. 미기록 합의 또는 skip 사실만 Step 3 prompt 로 전달한다.
-5. **Step 3 — system-architect** — 전역 append map, `docs/conventions.md`/`docs/decisions/**`, 필요한 module scope docs, epic `architecture.md` 를 작성한다. domain 복잡도가 낮으면 `domain-model.md 생략 가능` 이며, 생략 판단 근거를 epic `architecture.md` 에 남긴다. 도메인 invariant / entity / value object / aggregate / domain service 가 구현 판단에 필요하면 `domain-model.md` 를 작성한다. system-architect 는 계약 표면 코드 SSOT 대조를 수행해 기존 포트, 도메인 타입, 공개 entrypoint 와 설계가 어긋나지 않는지 확인하고 그 증거를 산출물에 남긴다. → `PASS`
-6. **Step 3.5 — architecture-validator 1차/system freeze** — system 산출물 기준으로 요구사항 출처, 설계 표준, Contract Ledger 충분성, 구현 순서(첫 제품 경계 동작 앞당김), Flow Ownership Map, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 검토한다. → `PASS` → commit 2. 이후 system 문서 freeze — final epic 검증 FAIL 이 와도 finding 분류가 `SYSTEM_BOUNDARY` 가 아니면 system-architect 재진입 X.
-7. **Step 4 — module-architect(epic-batch)** — epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지 않는다. 입력은 전체 `stories.md`, frozen epic `architecture.md`, 선택 `domain-model.md`, UI epic 이면 `ux-flow.md`, `docs/conventions.md`, affected module docs, `docs/decisions/**`, 계약 표면 코드 SSOT 포인터다. 산출물은 공통 task 와 모든 Story 의 `impl/NN-*.md` 전체이며, 각 impl task 는 `risk / engine / depends_on`, `수정 허용`, Contract Ledger row-key references, Story 동작 수직 슬라이스, 각 Story 완료 시 실제로 검증되는 동작, 첫 제품 경계 동작 증거 지점, Agent Workability 를 계속 충족해야 한다. 공통 task 가 있으면 같은 batch 안에서 먼저 필요한 기반 task 로 배치한다.
-   - **규모 preflight**: Step 4 진입 전 메인이 Story 수와 예상 full design pack 규모를 [`deliverables-map.md`](../../docs/plugin/deliverables-map.md) 의 target 1,500줄 / hard warning 2,000줄 예산에 맞춰 빠르게 추정한다. 2,000줄 초과가 예상되거나 impl task 수가 한 sub-agent 출력 한계에 몰릴 정도로 크면 자동으로 얇은 batch 를 진행하지 말고 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. batch 2분할을 선택해도 Story 단위 작성/검증 기본값 복원이 아니며, 분할 경계·공유 계약을 epic architecture/Contract Ledger 에 먼저 남기고 final epic 검증은 전체 산출물 기준으로 한 번 더 수행한다.
+4. **Step 2.9 — 기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip** — 메인 직접, helper begin/end-step 비대상. 미기록 합의 또는 skip 사실은 thin bootstrap 이 있으면 Step 2.95 prompt 로, 없으면 Step 3 prompt 로 전달한다.
+5. **Step 2.95 — system-architect(THIN_BOOTSTRAP, 조건부 1회)** — topology 부재 greenfield 첫 설계에서만 실행한다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 기술 스택/전역 decision 기록으로 제한한다. 도메인 모델 작성/생략 판단, 계약 표면 코드 SSOT 대조, Module Design Check evidence, Agent Operability 상세, impl task 작성은 하지 않는다. `PASS` 후 검증 step 없이 바로 module-architect(epic-batch)로 간다.
+6. **Step 3 — module-architect(epic-batch)** — epic architecture 최소형과 epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지 않는다. 입력은 전체 `stories.md`, 기존 epic `architecture.md`(있으면), 선택 `domain-model.md`, UI epic 이면 `ux-flow.md`, `docs/conventions.md`, affected module docs, `docs/decisions/**`, thin bootstrap 산출물이 있으면 root topology/decision 포인터, 계약 표면 코드 SSOT 포인터다. domain-model.md 생략 가능 여부는 도메인 복잡도 기준으로 판단하고 생략 판단 근거를 epic architecture 에 남긴다. 산출물은 epic `architecture.md` 의 durable 3섹션(모듈 목록, 의존 그래프, Story -> 모듈 매핑), 필요 시 `domain-model.md`, decision 문서, 공통 task 와 모든 Story 의 `impl/NN-*.md` 전체다. Story -> 모듈 매핑은 구현 순서(첫 제품 경계 동작 앞당김) 관점에서 첫 제품 경계 동작 증거가 어느 Story/task 묶음에서 닫히는지 설명한다. 각 impl task 는 `risk / engine / depends_on`, `수정 허용`, module/decision references, Story 동작 수직 슬라이스, 각 Story 완료 시 실제로 검증되는 동작, 첫 제품 경계 동작 증거 지점, Agent Workability 를 계속 충족해야 한다. 공통 task 가 있으면 같은 batch 안에서 먼저 필요한 기반 task 로 배치한다.
+   - **규모 preflight**: Step 3 진입 전 메인이 Story 수와 예상 full design pack 규모를 [`deliverables-map.md`](../../docs/plugin/deliverables-map.md) 의 target 1,500줄 / hard warning 2,000줄 예산에 맞춰 빠르게 추정한다. 2,000줄 초과가 예상되거나 impl task 수가 한 sub-agent 출력 한계에 몰릴 정도로 크면 자동으로 얇은 batch 를 진행하지 말고 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. batch 2분할을 선택해도 Story 단위 작성/검증 기본값 복원이 아니며, 분할 경계·공유 계약을 epic architecture module responsibility / decision 에 먼저 남기고 final epic 검증은 전체 산출물 기준으로 한 번 더 수행한다.
    - **기본값 금지**: 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다. 고위험 신호가 뒤늦게 드러나면 메인 판단으로 추가 검증 또는 사용자 위임을 선택할 수 있지만, 기본 루프는 epic-batch 생산 + final epic 검증이다.
-   - **계약 변경**: public contract 를 만들거나 바꾸면 Contract Ledger 를 갱신하고 impl 문서는 row key 만 가리킨다.
-8. **Step 5.0 — mechanical pre-final checks** — final validator 호출 직전 메인이 1회 실행한다: `bash "$PLUGIN_ROOT/scripts/dcness-helper" normalize-scope <epic impl 디렉토리>` → `bash "$PLUGIN_ROOT/scripts/dcness-helper" wave-plan <epic impl 디렉토리>` → `node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs" --root "$PROJECT_ROOT"`. artifact audit 가 `contract-ledger-missing-contract-column`, `contract-references-shape`, `contract-detail-copy`, `unknown-ledger-row-key` 를 보고하면 false-clean 방지를 위해 final validator 로 넘어가지 말고 해당 파일을 module-architect `mode=contract_sweep` 로 되돌린다. normalizer/wave-plan 에 `unresolved_slugs` 또는 `format_unnormalized_slugs` 가 남으면 해당 slug 만 final validator prompt 의 미기록 신호로 전달한다.
-9. **Step 5 — architecture-validator final epic 검증** — epic 전체 산출물을 한 번에 검증한다. 요구사항 출처 충실도, 설계 표준, 계약과 인터페이스, 제품 동작 슬라이스, Story 간 compose/wiring, Contract Ledger sweep, cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 본다. Must finding 마다 `SYSTEM_BOUNDARY` / `CONTRACT_PROPAGATION` / `TASK_LOCAL` 분류를 붙인다. → `PASS` → 최종 검증 결과 commit.
-10. **Step 6 — end-run + design run 기록 freeze** — final epic architecture-validator `PASS` 직후, PR 생성 전에 `bash "$PLUGIN_ROOT/scripts/dcness-helper" end-run` 을 실행한다. end-run 안전망이 finalize-run/review 를 만들고, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션을 포함한다. `/design` run 이면 현재 design worktree 의 `docs/metrics/design-runs.jsonl` 도 갱신한다. 이 파일은 design 산출물이므로 같은 PR 에 포함되어야 한다. PR/merge 뒤에 end-run 을 미루면 worktree 또는 main working tree 에 uncommitted metrics 가 고립되므로 금지한다.
-11. **Step 7 — PR + main 머지 직전 사용자 확인 + ExitWorktree** — `git push -u origin docs/<epic-slug>` + `gh pr create --base <BASE>` (body = 설계 산출물 요약 + `Part of #<epic-issue>`) 후, main 머지 직전 사용자 확인 checkpoint 를 1회 둔다. 메인은 산출물 요약(전역 architecture/conventions/decisions/epic architecture/domain-model/impl 파일 목록)과 diff 규모(`git diff --stat <BASE>...HEAD`, 설계 pack 줄 수/파일 수)를 제시하고 진행 여부를 묻는다. yolo 모드(`yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서`)에서는 이 확인을 생략한다. 확인 응답 전에는 `scripts/pr-finalize.sh` 를 호출하지 않는다. 확인 또는 yolo skip 후 `bash scripts/pr-finalize.sh` → merge/main sync 완료 후 ExitWorktree.
+   - **계약 변경**: public contract 를 만들거나 바꾸면 module responsibility / public interface 와 `docs/decisions/NNNN-slug.md` 를 갱신하고 impl 문서는 module/decision 참조만 가리킨다.
+   - **system checkpoint 승격**: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision 변경이 필요하면 `SYSTEM_CHECKPOINT_REQUIRED` 로 보고한다. 신규 epic-scope decision 기록은 module-architect 자율 범위다. 메인은 system-architect opt-in checkpoint 를 호출하고, PASS 후 module-architect(epic-batch)를 재진입한다.
+7. **Step 4.0 — mechanical pre-final checks** — final validator 호출 직전 메인이 1회 실행한다: `bash "$PLUGIN_ROOT/scripts/dcness-helper" normalize-scope <epic impl 디렉토리>` → `bash "$PLUGIN_ROOT/scripts/dcness-helper" wave-plan <epic impl 디렉토리>` → `node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs" --root "$PROJECT_ROOT"`. artifact audit 의 legacy Contract Ledger / Contract References 경고는 구양식 유효성 신호이며 그 자체로 final validator 진입을 막지 않는다. normalizer/wave-plan 에 `unresolved_slugs` 또는 `format_unnormalized_slugs` 가 남으면 해당 slug 만 final validator prompt 의 미기록 신호로 전달한다.
+8. **Step 4 — architecture-validator final epic 검증** — epic 전체 산출물을 한 번에 검증한다. 요구사항 출처 충실도, 설계 표준, 계약과 인터페이스, 제품 동작 슬라이스, Story 간 compose/wiring, cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 본다. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 Must finding 으로 올리지 않는다. Must finding 마다 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류를 붙인다. → `PASS` → 최종 검증 결과 commit.
+9. **Step 5 — end-run + design run 기록 freeze** — final epic architecture-validator `PASS` 직후, PR 생성 전에 `bash "$PLUGIN_ROOT/scripts/dcness-helper" end-run` 을 실행한다. end-run 안전망이 finalize-run/review 를 만들고, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션을 포함한다. `/design` run 이면 현재 design worktree 의 `docs/metrics/design-runs.jsonl` 도 갱신한다. 이 파일은 design 산출물이므로 같은 PR 에 포함되어야 한다. PR/merge 뒤에 end-run 을 미루면 worktree 또는 main working tree 에 uncommitted metrics 가 고립되므로 금지한다.
+10. **Step 6 — PR + main 머지 직전 사용자 확인 + ExitWorktree** — `git push -u origin docs/<epic-slug>` + `gh pr create --base <BASE>` (body = 설계 산출물 요약 + `Part of #<epic-issue>`) 후, main 머지 직전 사용자 확인 checkpoint 를 1회 둔다. 메인은 산출물 요약(전역 architecture/conventions/decisions/epic architecture/domain-model/impl 파일 목록)과 diff 규모(`git diff --stat <BASE>...HEAD`, 설계 pack 줄 수/파일 수)를 제시하고 진행 여부를 묻는다. yolo 모드(`yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서`)에서는 이 확인을 생략한다. 확인 응답 전에는 `scripts/pr-finalize.sh` 를 호출하지 않는다. 확인 또는 yolo skip 후 `bash scripts/pr-finalize.sh` → merge/main sync 완료 후 ExitWorktree.
    - **base 분기 (MUST)**: `gh pr create` 직전 epic 단위 stories.md 상단 `**Base Branch:**` 줄 매치 → `--base <매치 값>` (통합 브랜치 케이스, base = `feature/<slug>`). 매치 없음 → `--base main` (default). Step 0 의 `EnterWorktree` branch (`docs/<epic-slug>`) 도 동일 base 기반 — 절차 [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#base-ref-분기-통합-브랜치-모드-424).
 
 > 각 Step 의 agent 결론에 따른 분기·재진입·cycle 한도·escalate = [`design-routing.md`](design-routing.md). loop 종료 후 후속(`/impl` 안내 등)도 그 파일.
 
 ## validation provider resolve (Codex opt-in)
 
-architecture-validator 1차와 final epic 검증 모두 호출 직전 provider 를 resolve 한다.
+architecture-validator final epic 검증 호출 직전 provider 를 resolve 한다.
 
 ```bash
 PROVIDER=$("$HELPER" routing resolve architecture-validator)

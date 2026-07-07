@@ -92,7 +92,7 @@ Agent Operability 는 다음 agent 가 cold-start 상태에서 올바른 edit ta
 - state ownership — session/global/local state key 의 owner 가 모듈 또는 flow 단위로 드러나는가.
 - extension point — 다음 mode/screen/panel/flow 를 어디에 추가해야 하는지 기존 구조가 알려 주는가.
 - validation locality — 해당 흐름을 바꾼 뒤 어떤 test/smoke/UI/API/CLI 경로로 확인할지 owner 근처에 남는가.
-- compaction survivability — 긴 세션이 compact 되어도 산출물의 Flow Ownership Map 또는 Agent Workability 만으로 edit target, state owner, validation path 를 복구할 수 있는가.
+- compaction survivability — 긴 세션이 compact 되어도 산출물의 module responsibility / public interface 또는 Agent Workability 만으로 edit target, state owner, validation path 를 복구할 수 있는가.
 
 ### Flow ownership
 
@@ -106,8 +106,8 @@ Agent Operability 는 하드 임계나 라인 수 게이트가 아니다. UI 라
 
 ### 적용 영역
 
-- system-architect — epic architecture 에 Flow Ownership Map 을 남겨 flow 별 owner module, entrypoint touch, state owner, surface, forbidden append, validation path, future scenario 를 연결한다.
-- module-architect — impl task 에 Agent Workability 를 남기고, entrypoint 를 건드리기 전에 flow owner 를 확정한다. owner 가 없으면 seam extraction task 를 앞세운다.
+- system-architect — THIN_BOOTSTRAP 에서는 root architecture 에 큰 모듈 경계와 의존 방향만 얇게 남기고, CHECKPOINT 에서 epic architecture 모듈 목록의 책임/공개 인터페이스/검증 경로에 flow 별 owner module, entrypoint role, state owner, forbidden append, validation path 를 연결한다.
+- module-architect — epic architecture 모듈 목록과 impl task 의 Agent Workability 를 남기고, entrypoint 를 건드리기 전에 flow owner 를 확정한다. owner 가 없으면 seam extraction task 를 앞세운다.
 - pr-reviewer — 이번 diff 가 edit target 을 불명확하게 만들거나 state owner 를 entrypoint/session 에 흩뜨리거나 overly broad entrypoint touch 를 요구하는지 본다. owner module 없이 entrypoint append + render/helper/session/global state 흡수 + owner 근처 validation path 부재가 한 diff 에 겹치면 소프트 신호가 아니라 MUST FIX 로 승격한다 — 크기가 아니라 작업성 악화 조합이 기준이다. footprint 밖 기존 누적은 후속 권고로 둔다.
 
 ## Interface Design for Testability — 테스트 가능성 위한 인터페이스 설계
@@ -205,7 +205,7 @@ Story 설계의 기본 단위는 레이어나 파일 묶음이 아니라 사용�
 | Java | `module-info.java` — JPMS 영역 |
 | Rust | crate / module 의 `pub` 가시성 영역 + `cargo-modules` 정적 분석 |
 
-system-architect 가 architecture.md 의 *기술 스택* 영역에 *어떤 도구로 강제할지* 명시 의무.
+module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/` 에 *어떤 도구로 강제할지* 명시 의무. system checkpoint 로 승격된 경우 system-architect 가 같은 결정을 보강한다.
 
 ### 영역 2. 모듈 공개 / 비공개 영역 구분 강제
 
@@ -219,7 +219,7 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 *어떤 도�
 | Java | `public` / `package-private` / `private` 영역 |
 | Rust | `pub` / `pub(crate)` / 기본 비공개 영역 |
 
-module-architect 가 epic 단위 architecture.md 의 *모듈 공개 API* 영역에 명시 의무.
+module-architect 가 epic 단위 architecture.md 의 *모듈 목록 공개 인터페이스* 영역에 명시 의무.
 
 ### 영역 3. Dependency Injection 강제
 
@@ -231,12 +231,12 @@ module-architect 가 epic 단위 architecture.md 의 *모듈 공개 API* 영역�
 - **인자 주입** — 함수의 인자로 의존 받음
 - **프레임워크 영역** — Spring (Java) / NestJS / Angular (TypeScript) 의 DI 컨테이너
 
-system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명시 의무. module-architect 가 모듈 안에서 패턴 적용 의무.
+module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/` 에 DI 패턴 명시 의무. system checkpoint 로 승격된 경우 system-architect 가 같은 결정을 보강한다.
 
 ### 적용 영역
 
-- system-architect — 의존성 강제 도구 선정 + architecture.md 에 명시
-- module-architect — 모듈 공개 API 영역 명시 + DI 패턴 적용
+- system-architect — THIN_BOOTSTRAP 에서는 큰 모듈 의존 방향만 남기고, CHECKPOINT 에서 의존성 강제 도구 선정 + architecture/docs decision 보강
+- module-architect — 모듈 공개 인터페이스 영역 명시 + DI 패턴 적용
 - engineer — 빌드 시점 강제 도구 설정 + 의존 작성
 
 ## 산출물 evidence 연결
@@ -245,8 +245,8 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 
 | Agent | evidence |
 |---|---|
-| [`system-architect`](../../../../agents/system-architect.md) | architecture 템플릿의 `Module Design Check`, Flow Ownership Map, 의존성 차단 도구, DI 패턴, Contract Ledger |
-| [`module-architect`](../../../../agents/module-architect.md) | impl 템플릿의 `Module Design Check`, Agent Workability, 작은 공개 노출 범위, contract/interface, Story 동작 수직 슬라이스, 검증 가능한 수용 기준 |
+| [`system-architect`](../../../../agents/system-architect.md) | THIN_BOOTSTRAP 의 큰 모듈 topology 또는 CHECKPOINT 보고의 system boundary 결정, module responsibility 보강, 의존성 차단 도구, DI 패턴 |
+| [`module-architect`](../../../../agents/module-architect.md) | epic architecture 모듈 목록, impl 템플릿의 `Module Design Check`, Agent Workability, 작은 공개 노출 범위, module/decision contract reference, Story 동작 수직 슬라이스, 검증 가능한 수용 기준 |
 | [`engineer`](../../../../agents/engineer.md) | 구현 보고의 계약 준수, 의존 주입 또는 wrapper 사용, 검증 결과 |
 | [`test-engineer`](../../../../agents/test-engineer.md) | 테스트 보고의 REQ 연결, 의존 mock 경계, 구현 독립성 |
 | [`build-worker`](../../../../agents/build-worker.md) | phase 보고의 RED/GREEN/self-validate 증거 |
@@ -259,15 +259,15 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 [`architecture-validator`](../../../../agents/architecture-validator.md) 는 본 SSOT 를 고정 checklist 로 세지 않는다. 다음 축에서 evidence 를 확인한다.
 
 - **설계 표준**: 모듈 공개 노출 범위, 의존 방향, DI 판단, 차단 도구가 산출물에 남았는가.
-- **계약과 인터페이스**: Contract Ledger 가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 를 담는가.
+- **계약과 인터페이스**: module responsibility 와 decision 문서가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 를 담는가.
 - **구현 가능성**: engineer 와 test-engineer 가 의존을 주입하고 결과를 관찰할 수 있는가.
 - **제품 동작 슬라이스**: Story 완료 시 실제로 검증되는 동작과 첫 제품 경계 증거가 산출물에 남았는가.
-- **Agent Operability**: Flow Ownership Map 과 Agent Workability 로 edit target, state owner, validation path 를 복구할 수 있는가.
+- **Agent Operability**: module responsibility / public interface 와 Agent Workability 로 edit target, state owner, validation path 를 복구할 수 있는가.
 - **drift 통제**: 같은 계약의 사본이 서로 다른 의미로 남지 않았는가.
 
 자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이 필요한 영역은 finding 이 아니라 수동 review 권고로 분리해 사용자에게 보여준다.
 
-**Contract Ledger (계약 원장) 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 이 계약들은 `/design` 에서 epic architecture.md 의 `## Contract Ledger` 에 1급 산출물로 모인다. `contract` 열은 stable 행 키이며, impl/compact plan 은 그 행 키만 참조한다. system-architect 가 작성하고, module-architect 가 public contract 변경 시 Ledger 를 갱신하며, architecture-validator 가 stale 사본, 신규 전문 사본, shallow contract 를 검토한다. 분류·분기 상세 = [`design-routing.md`](../../../../skills/design/design-routing.md#finding-분류-분기).
+**Module/Decision contract 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 신규 `/design` 에서 이 계약들은 epic architecture.md 의 `## 모듈 목록` 책임/공개 인터페이스 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl/compact plan 은 module id 와 decision id/link 만 참조한다. module-architect 가 public contract 변경 시 두 진본을 갱신하며, architecture-validator 는 구양식 사본의 존재만으로 FAIL 하지 않고 module/decision 과 충돌하는 구현 차단 위험만 Must finding 으로 본다. 분류·분기 상세 = [`design-routing.md`](../../../../skills/design/design-routing.md#finding-분류-분기).
 
 ## 참조
 

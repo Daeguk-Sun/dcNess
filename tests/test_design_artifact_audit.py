@@ -1,4 +1,4 @@
-"""Regression tests for design artifact structure audit (#832)."""
+"""Regression tests for the /design artifact audit (#969)."""
 from __future__ import annotations
 
 import json
@@ -29,7 +29,12 @@ def _run(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
-def _seed_project(root: Path, *, impl_body: str, architecture_extra: str = "") -> None:
+def _seed_project(
+    root: Path,
+    *,
+    impl_body: str,
+    architecture_body: str | None = None,
+) -> None:
     _write(
         root / "docs/index.md",
         """
@@ -39,23 +44,35 @@ def _seed_project(root: Path, *, impl_body: str, architecture_extra: str = "") -
 
         | 에픽 | 마일스톤 | Stories | Architecture | Domain Model | UX Flow | Tech Review |
         |---|---|---|---|---|---|---|
-        | [epic-01-alpha](epics/epic-01-alpha/) | v01 | [stories.md](epics/epic-01-alpha/stories.md) | [architecture.md](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | — | — |
+        | [epic-01-alpha](epics/epic-01-alpha/) | v01 | [stories.md](epics/epic-01-alpha/stories.md) | [architecture.md](epics/epic-01-alpha/architecture.md) | — | — | — |
         """,
     )
     _write(root / "docs/architecture.md", "# Root Architecture\n")
     _write(root / "docs/epics/epic-01-alpha/stories.md", "# Stories\n")
-    _write(root / "docs/epics/epic-01-alpha/domain-model.md", "# Domain\n")
     _write(
         root / "docs/epics/epic-01-alpha/architecture.md",
-        f"""
+        architecture_body
+        or """
         # Epic Architecture
 
-        ## Contract Ledger
+        ## 모듈 목록
 
-        | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |
-        |---|---|---|---|---|---|---|---|---|---|
-        | AuthSession | AuthCore | LoginForm | AuthCore | session id stable | login before refresh | reject | env | global mutable session | [ADR-0001](../../decisions/0001-auth.md) |
-        {architecture_extra}
+        | 모듈 | 책임 | 공개 인터페이스 |
+        |---|---|---|
+        | AuthCore | session invariant owner; forbidden append: global mutable session | authenticate() |
+
+        ## 의존 그래프
+
+        ```mermaid
+        flowchart LR
+          AuthCore
+        ```
+
+        ## Story -> 모듈 매핑
+
+        | Story | 영향 모듈 | 이유 |
+        |---|---|---|
+        | 1 | AuthCore | login behavior |
         """,
     )
     _write(root / "docs/epics/epic-01-alpha/impl/01-auth.md", impl_body)
@@ -63,135 +80,7 @@ def _seed_project(root: Path, *, impl_body: str, architecture_extra: str = "") -
 
 @unittest.skipUnless(NODE, "node not installed - design artifact audit is a node script")
 class DesignArtifactAuditTests(unittest.TestCase):
-    def test_pointer_artifacts_pass_and_recover_contract_from_index(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _seed_project(
-                root,
-                impl_body="""
-                ---
-                contract:
-                  produces: [AuthSession]
-                  consumes: []
-                ---
-
-                # Auth task
-
-                ## Contract References
-
-                | kind | Ledger row key | action | note |
-                |---|---|---|---|
-                | produces | AuthSession | new | Ledger updated |
-                """,
-            )
-
-            proc = _run(root, "--json", "--contract", "AuthSession")
-
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        payload = json.loads(proc.stdout)
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["violations"], [])
-        self.assertEqual(payload["recovery"]["contract"], "AuthSession")
-        self.assertEqual(
-            payload["recovery"]["ledger_path"],
-            "docs/epics/epic-01-alpha/architecture.md",
-        )
-        self.assertIn(
-            "docs/epics/epic-01-alpha/impl/01-auth.md",
-            payload["recovery"]["referencing_impl"],
-        )
-
-    def test_new_pointer_artifact_fails_when_contract_detail_is_copied(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _seed_project(
-                root,
-                impl_body="""
-                ---
-                contract:
-                  produces: [AuthSession]
-                  consumes: []
-                ---
-
-                # Auth task
-
-                ## Contract References
-
-                | kind | Ledger row key | action | note |
-                |---|---|---|---|
-                | produces | AuthSession | new | Ledger updated |
-
-                ## Contract
-
-                | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative |
-                |---|---|---|---|---|---|---|---|---|
-                | AuthSession | AuthCore | LoginForm | AuthCore | duplicated | duplicated | duplicated | duplicated | duplicated |
-                """,
-            )
-
-            proc = _run(root)
-
-        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn("contract-detail-copy", proc.stderr)
-        self.assertIn("01-auth.md", proc.stderr)
-
-    def test_unknown_ledger_row_key_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _seed_project(
-                root,
-                impl_body="""
-                ---
-                contract:
-                  produces: [MissingContract]
-                  consumes: []
-                ---
-
-                # Auth task
-
-                ## Contract References
-
-                | kind | Ledger row key | action | note |
-                |---|---|---|---|
-                | produces | MissingContract | new | wrong key |
-                """,
-            )
-
-            proc = _run(root)
-
-        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn("unknown-ledger-row-key", proc.stderr)
-        self.assertIn("MissingContract", proc.stderr)
-
-    def test_contract_ledger_requires_canonical_contract_column(self) -> None:
-        """Replay regression: `/design` used `Key`, so the audit parsed 0 rows."""
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _seed_project(
-                root,
-                impl_body="# Auth task\n\n## Contract References\n\n- none\n",
-            )
-            _write(
-                root / "docs/epics/epic-01-alpha/architecture.md",
-                """
-                # Epic Architecture
-
-                ## Contract Ledger
-
-                | Key | Owner | Producer | Consumer | Invariant | Ordering | Error Mode | Config | Forbidden Alternative |
-                |---|---|---|---|---|---|---|---|---|
-                | AuthSession | AuthCore | LoginForm | AuthCore | stable | login before refresh | reject | env | global mutable session |
-                """,
-            )
-
-            proc = _run(root)
-
-        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn("contract-ledger-missing-contract-column", proc.stderr)
-        self.assertIn("Key", proc.stderr)
-
-    def test_inline_contract_references_fail_shape(self) -> None:
-        """Replay regression: `/design` emitted bold inline references, not the section/table."""
+    def test_agent_first_minimal_artifacts_pass_without_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _seed_project(
@@ -199,29 +88,10 @@ class DesignArtifactAuditTests(unittest.TestCase):
                 impl_body="""
                 # Auth task
 
-                **Contract References**: `AuthSession`
-                """,
-            )
+                ## 계약 / 결정 참조
 
-            proc = _run(root)
-
-        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn("contract-references-shape", proc.stderr)
-        self.assertIn("AuthSession", proc.stderr)
-
-    def test_legacy_contract_table_warns_but_passes(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _seed_project(
-                root,
-                impl_body="""
-                # Legacy task
-
-                ## Contract
-
-                | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative |
-                |---|---|---|---|---|---|---|---|---|
-                | AuthSession | AuthCore | LoginForm | AuthCore | old | old | old | old | old |
+                - module: AuthCore
+                - decision: docs/decisions/0001-auth.md
                 """,
             )
 
@@ -231,15 +101,89 @@ class DesignArtifactAuditTests(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertTrue(payload["ok"])
         self.assertEqual(payload["violations"], [])
-        self.assertEqual(payload["warnings"][0]["code"], "legacy-contract-table")
+        self.assertEqual(payload["warnings"], [])
 
-    def test_budget_warning_reports_full_pack_over_target(self) -> None:
+    def test_legacy_contract_ledger_and_references_warn_but_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             _seed_project(
                 root,
-                impl_body="# Auth task\n\n## Contract References\n\n- none\n",
+                architecture_body="""
+                # Epic Architecture
+
+                ## 모듈 목록
+
+                | 모듈 | 책임 | 공개 인터페이스 |
+                |---|---|---|
+                | AuthCore | auth owner | authenticate() |
+
+                ## 의존 그래프
+
+                ```mermaid
+                flowchart LR
+                ```
+
+                ## Contract Ledger
+
+                | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |
+                |---|---|---|---|---|---|---|---|---|---|
+                | AuthSession | AuthCore | LoginForm | AuthCore | stable | before refresh | reject | env | global session | ADR-0001 |
+
+                ## Story -> 모듈 매핑
+
+                | Story | 영향 모듈 | 이유 |
+                |---|---|---|
+                | 1 | AuthCore | login behavior |
+                """,
+                impl_body="""
+                ---
+                contract:
+                  produces: [AuthSession]
+                  consumes: []
+                ---
+
+                # Legacy task
+
+                ## Contract References
+
+                | kind | Ledger row key | action | note |
+                |---|---|---|---|
+                | produces | AuthSession | new | Ledger updated |
+                """,
             )
+
+            proc = _run(root, "--json")
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["violations"], [])
+        warning_codes = {warning["code"] for warning in payload["warnings"]}
+        self.assertIn("legacy-contract-ledger", warning_codes)
+        self.assertIn("legacy-contract-frontmatter", warning_codes)
+        self.assertIn("legacy-contract-references", warning_codes)
+
+    def test_missing_core_agent_first_sections_are_warnings_not_failures(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _seed_project(
+                root,
+                architecture_body="# Epic Architecture\n\n## 모듈 목록\n\n-\n",
+                impl_body="# Auth task\n",
+            )
+
+            proc = _run(root, "--json")
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        warning_codes = {warning["code"] for warning in payload["warnings"]}
+        self.assertIn("dependency-graph-missing", warning_codes)
+        self.assertIn("story-module-map-missing", warning_codes)
+
+    def test_budget_warning_reports_full_pack_over_target(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _seed_project(root, impl_body="# Auth task\n")
             noisy_lines = "\n".join(f"- line {i}" for i in range(1510))
             _write(root / "docs/epics/epic-01-alpha/stories.md", f"# Stories\n{noisy_lines}\n")
 
@@ -252,19 +196,19 @@ class DesignArtifactAuditTests(unittest.TestCase):
             any(w["code"] == "design-pack-over-target" for w in payload["warnings"])
         )
 
-    def test_contract_recovery_requires_index_entrypoint(self) -> None:
+    def test_legacy_contract_lookup_flag_is_deprecated_not_a_recovery_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            _seed_project(
-                root,
-                impl_body="# Auth task\n\n## Contract References\n\n- none\n",
-            )
-            (root / "docs/index.md").unlink()
+            _seed_project(root, impl_body="# Auth task\n")
 
-            proc = _run(root, "--contract", "AuthSession")
+            proc = _run(root, "--json", "--contract", "AuthSession")
 
-        self.assertEqual(proc.returncode, 1, proc.stdout + proc.stderr)
-        self.assertIn("cold-session-index-missing", proc.stderr)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        self.assertIsNone(payload["recovery"])
+        self.assertTrue(
+            any(w["code"] == "deprecated-contract-lookup" for w in payload["warnings"])
+        )
 
 
 if __name__ == "__main__":

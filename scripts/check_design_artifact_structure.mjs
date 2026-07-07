@@ -1,26 +1,30 @@
 #!/usr/bin/env node
 /**
- * Audit generated `/design` artifacts for contract-ledger pointer semantics.
+ * Audit generated `/design` artifacts for the agent-first design contract.
  *
- * This is intentionally read-only. It verifies that new impl/compact artifacts
- * refer to Contract Ledger row keys instead of copying ledger detail tables, and
- * it provides a deterministic cold-session lookup for a requested contract key.
+ * This script is intentionally read-only. The current contract no longer uses
+ * Contract Ledger row-key infrastructure as a CI-enforced format. Legacy Ledger
+ * and Contract References artifacts remain valid for existing active projects;
+ * this audit reports them as warnings while keeping the gate green.
  *
  * Usage:
  *   node scripts/check_design_artifact_structure.mjs --root /path/to/project
- *   node scripts/check_design_artifact_structure.mjs --json --contract AuthSession
+ *   node scripts/check_design_artifact_structure.mjs --json
  */
 import {
   existsSync,
   readFileSync,
   readdirSync,
-  statSync,
 } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 
 const DESIGN_PACK_LINE_TARGET = 1500;
 const DESIGN_PACK_LINE_HARD_WARNING = 2000;
 const LEGACY_CONTRACT_DETAIL_COLUMNS = new Set([
+  'contract',
+  'owner',
+  'producer',
+  'consumer',
   'invariant',
   'ordering',
   'error mode',
@@ -30,9 +34,10 @@ const LEGACY_CONTRACT_DETAIL_COLUMNS = new Set([
 
 function usage() {
   return [
-    'Usage: node scripts/check_design_artifact_structure.mjs [--root <path>] [--json] [--contract <rowKey>]',
+    'Usage: node scripts/check_design_artifact_structure.mjs [--root <path>] [--json] [--contract <legacyRowKey>]',
     '',
-    'Audits docs/epics/* design artifacts for Contract Ledger row-key pointers.',
+    'Audits docs/epics/* design artifacts for agent-first structure and legacy contract-surface warnings.',
+    '--contract is accepted for backward compatibility and now emits a deprecation warning.',
   ].join('\n');
 }
 
@@ -54,7 +59,7 @@ function parseArgs(argv) {
       args.json = true;
     } else if (arg === '--contract') {
       const value = argv[i + 1];
-      if (!value) throw new Error('--contract requires a Contract Ledger row key');
+      if (!value) throw new Error('--contract requires a legacy Contract Ledger row key');
       args.contract = value;
       i += 1;
     } else if (arg === '-h' || arg === '--help') {
@@ -81,11 +86,6 @@ function readText(path) {
   return readFileSync(path, 'utf8');
 }
 
-function isBlankish(value) {
-  const text = String(value ?? '').trim();
-  return text === '' || text === '-' || text === '—';
-}
-
 function splitTableLine(line) {
   const trimmed = line.trim();
   const withoutEdges = trimmed.replace(/^\|/, '').replace(/\|$/, '');
@@ -94,6 +94,14 @@ function splitTableLine(line) {
 
 function isSeparatorRow(cells) {
   return cells.every((cell) => /^:?-{3,}:?$/.test(cell.trim()));
+}
+
+function normalizeHeader(value) {
+  return String(value ?? '')
+    .replace(/[`*_]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 function extractSection(content, heading) {
@@ -107,12 +115,9 @@ function extractSection(content, heading) {
   return next === -1 ? rest : rest.slice(0, next);
 }
 
-function parseMarkdownTable(section) {
-  return parseFirstMarkdownTable(section).rows;
-}
-
-function parseFirstMarkdownTable(section) {
-  return parseMarkdownTables(section)[0] ?? { header: [], rows: [] };
+function hasSection(content, heading) {
+  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^##\\s+${escaped}\\s*$`, 'm').test(content);
 }
 
 function parseMarkdownTables(content) {
@@ -133,14 +138,7 @@ function parseMarkdownTables(content) {
     for (; cursor < lines.length; cursor += 1) {
       const line = lines[cursor].trim();
       if (!line.startsWith('|')) break;
-      const cells = splitTableLine(line);
-      if (cells.every(isBlankish)) continue;
-
-      const row = {};
-      for (let c = 0; c < header.length; c += 1) {
-        row[header[c]] = cells[c] ?? '';
-      }
-      rows.push(row);
+      rows.push(splitTableLine(line));
     }
 
     tables.push({ header, rows });
@@ -150,155 +148,22 @@ function parseMarkdownTables(content) {
   return tables;
 }
 
-function normalizeHeader(value) {
-  return String(value ?? '')
-    .replace(/[`*_]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLowerCase();
-}
-
-function pick(row, names) {
-  const lowerNames = new Set(names.map((name) => name.toLowerCase()));
-  for (const [key, value] of Object.entries(row)) {
-    if (names.includes(key) || lowerNames.has(key.toLowerCase())) {
-      return value;
-    }
-  }
-  return '';
-}
-
-function hasCanonicalHeader(table, names) {
-  const normalizedNames = new Set(names.map((name) => normalizeHeader(name)));
-  return table.header.some((header) => normalizedNames.has(normalizeHeader(header)));
-}
-
-function isContractDetailTable(table) {
+function isLegacyContractDetailTable(table) {
   const headers = new Set(table.header.map(normalizeHeader));
-  if (!headers.has('contract')) return false;
+  let matches = 0;
   for (const column of LEGACY_CONTRACT_DETAIL_COLUMNS) {
-    if (headers.has(column)) return true;
+    if (headers.has(column)) matches += 1;
   }
-  return false;
+  return matches >= 5;
 }
 
-function containsContractDetailTable(content) {
-  return parseMarkdownTables(content).some(isContractDetailTable);
+function containsLegacyContractDetailTable(content) {
+  return parseMarkdownTables(content).some(isLegacyContractDetailTable);
 }
 
-function hasContractReferencesSection(content) {
-  return /^##\s+Contract References\s*$/m.test(content);
-}
-
-function hasContractReferencesMention(content) {
-  return /\bContract References\b/i.test(content);
-}
-
-function extractFrontmatter(content) {
-  const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
-  return match?.[1] ?? '';
-}
-
-function cleanKeyToken(value) {
-  return String(value ?? '')
-    .replace(/#.*/, '')
-    .replace(/^[\s"'`]+|[\s"',`]+$/g, '')
-    .trim();
-}
-
-function isEmptyKey(value) {
-  const text = cleanKeyToken(value).toLowerCase();
-  return text === '' || text === '-' || text === '—' || text === 'none' || text === 'n/a' || text === '[]';
-}
-
-function parseScalarList(value) {
-  const text = String(value ?? '').trim();
-  if (isEmptyKey(text)) return [];
-  if (text.startsWith('[') && text.endsWith(']')) {
-    return text
-      .slice(1, -1)
-      .split(',')
-      .map(cleanKeyToken)
-      .filter((item) => !isEmptyKey(item));
-  }
-  return text
-    .split(',')
-    .map(cleanKeyToken)
-    .filter((item) => !isEmptyKey(item));
-}
-
-function extractContractKeysFromFrontmatter(content) {
-  const frontmatter = extractFrontmatter(content);
-  if (!frontmatter) return [];
-
-  const keys = new Set();
-  const lines = frontmatter.split(/\r?\n/);
-  let inContract = false;
-  let contractIndent = 0;
-  let activeList = false;
-
-  for (const line of lines) {
-    const indent = line.match(/^\s*/)?.[0].length ?? 0;
-    if (/^\s*contract\s*:\s*$/.test(line)) {
-      inContract = true;
-      contractIndent = indent;
-      activeList = false;
-      continue;
-    }
-
-    if (!inContract) continue;
-    if (line.trim() && indent <= contractIndent) break;
-
-    const field = line.match(/^\s*(produces|consumes)\s*:\s*(.*)$/);
-    if (field) {
-      activeList = field[2].trim() === '';
-      for (const key of parseScalarList(field[2])) keys.add(key);
-      continue;
-    }
-
-    const item = line.match(/^\s*-\s*(.+)$/);
-    if (activeList && item) {
-      for (const key of parseScalarList(item[1])) keys.add(key);
-    } else if (line.trim()) {
-      activeList = false;
-    }
-  }
-
-  return Array.from(keys);
-}
-
-function extractContractKeysFromReferences(content) {
-  const keys = new Set();
-  for (const line of content.split(/\r?\n/)) {
-    const normalized = line.replace(/\*\*/g, '').trim();
-    const inline = normalized.match(/^Contract References\s*:\s*(.+)$/i);
-    if (!inline) continue;
-    for (const key of parseScalarList(inline[1])) keys.add(key);
-  }
-
-  const section = extractSection(content, 'Contract References');
-  if (!section) return Array.from(keys);
-
-  for (const row of parseMarkdownTable(section)) {
-    const key = pick(row, [
-      'Ledger row key',
-      'ledger row key',
-      'Contract Ledger row key',
-      'contract',
-      'Contract',
-    ]);
-    for (const value of parseScalarList(key)) keys.add(value);
-  }
-
-  if (keys.size === 0) {
-    for (const line of section.split(/\r?\n/)) {
-      const item = line.match(/^\s*[-*]\s*(?:produces|consumes)?\s*:?\s*(.+)$/i);
-      if (!item) continue;
-      for (const key of parseScalarList(item[1])) keys.add(key);
-    }
-  }
-
-  return Array.from(keys);
+function hasContractFrontmatter(content) {
+  const frontmatter = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
+  return Boolean(frontmatter && /^\s*contract\s*:/m.test(frontmatter[1]));
 }
 
 function countLines(path) {
@@ -316,23 +181,19 @@ function listMarkdownFiles(dir) {
     .sort();
 }
 
+function makeProblem(code, file, message, extra = {}) {
+  return {
+    code,
+    file,
+    message,
+    ...extra,
+  };
+}
+
 function parseEpic(root, epicDirName) {
   const epicDir = join(root, 'docs', 'epics', epicDirName);
   const architecturePath = join(epicDir, 'architecture.md');
   const content = readText(architecturePath);
-  const contractLedgerTable = parseFirstMarkdownTable(extractSection(content, 'Contract Ledger'));
-  const hasContractColumn = hasCanonicalHeader(contractLedgerTable, ['contract']);
-  const contractRows = (hasContractColumn ? contractLedgerTable.rows : [])
-    .map((row) => ({
-      contract: pick(row, ['contract', 'Contract']),
-      owner: pick(row, ['owner', 'Owner']),
-      producer: pick(row, ['producer', 'Producer']),
-      consumer: pick(row, ['consumer', 'Consumer']),
-      invariant: pick(row, ['invariant', 'Invariant']),
-      refs: pick(row, ['refs', 'Refs']),
-    }))
-    .filter((row) => !isBlankish(row.contract));
-
   const implPaths = listMarkdownFiles(join(epicDir, 'impl'));
   const designPackPaths = [
     join(epicDir, 'stories.md'),
@@ -351,10 +212,7 @@ function parseEpic(root, epicDirName) {
     name: epicDirName,
     dir: epicDir,
     architecturePath,
-    contractLedgerHeader: contractLedgerTable.header,
-    contractLedgerRowCount: contractLedgerTable.rows.length,
-    contractLedgerHasContractColumn: hasContractColumn,
-    contractRows,
+    architectureContent: content,
     implPaths,
     designPackLineCount,
   };
@@ -382,50 +240,103 @@ function collectCompactPlanPaths(root) {
     .sort();
 }
 
-function makeProblem(code, file, message, extra = {}) {
-  return {
-    code,
-    file,
-    message,
-    ...extra,
-  };
-}
+function auditArchitecture(root, epic, warnings) {
+  const relativePath = rel(root, epic.architecturePath);
+  const content = epic.architectureContent;
 
-function auditArtifact({ root, path, epicName, ledgerKeys, globalLedgerKeys, violations, warnings }) {
-  const content = readText(path);
-  const frontmatterKeys = extractContractKeysFromFrontmatter(content);
-  const referenceKeys = extractContractKeysFromReferences(content);
-  const referencedKeys = Array.from(new Set([...frontmatterKeys, ...referenceKeys])).sort();
-  const hasCanonicalReferences = hasContractReferencesSection(content);
-  const hasReferencesMention = hasContractReferencesMention(content);
-  const hasPointerMetadata = hasCanonicalReferences || frontmatterKeys.length > 0 || referenceKeys.length > 0;
-  const hasDetailTable = containsContractDetailTable(content);
-  const relativePath = rel(root, path);
-
-  if (hasReferencesMention && !hasCanonicalReferences) {
-    violations.push(
+  if (!hasSection(content, '모듈 목록')) {
+    warnings.push(
       makeProblem(
-        'contract-references-shape',
+        'module-list-missing',
         relativePath,
-        `Contract References must be a level-2 section with Ledger row-key references, not inline prose; found inline keys: ${referencedKeys.join(', ') || '-'}`,
-        { epic: epicName, contracts: referencedKeys }
+        'epic architecture has no module list section',
+        { epic: epic.name }
       )
     );
   }
-
-  if (hasPointerMetadata && hasDetailTable) {
-    violations.push(
+  if (!hasSection(content, '의존 그래프')) {
+    warnings.push(
       makeProblem(
-        'contract-detail-copy',
+        'dependency-graph-missing',
         relativePath,
-        'new pointer-style artifact must not copy Contract Ledger detail tables',
+        'epic architecture has no dependency graph section',
+        { epic: epic.name }
+      )
+    );
+  }
+  if (!hasSection(content, 'Story -> 모듈 매핑')) {
+    warnings.push(
+      makeProblem(
+        'story-module-map-missing',
+        relativePath,
+        'epic architecture has no Story -> module mapping section',
+        { epic: epic.name }
+      )
+    );
+  }
+  if (hasSection(content, 'Contract Ledger')) {
+    warnings.push(
+      makeProblem(
+        'legacy-contract-ledger',
+        relativePath,
+        'legacy Contract Ledger retained for backward compatibility; new design artifacts use module responsibilities and decision links',
+        { epic: epic.name }
+      )
+    );
+  }
+  if (hasSection(content, 'Flow Ownership Map')) {
+    warnings.push(
+      makeProblem(
+        'legacy-flow-ownership-map',
+        relativePath,
+        'legacy Flow Ownership Map retained for backward compatibility; new design artifacts place ownership in module responsibilities and impl Agent Workability',
+        { epic: epic.name }
+      )
+    );
+  }
+  if (hasSection(content, 'Decisions')) {
+    const section = extractSection(content, 'Decisions');
+    if (parseMarkdownTables(section).length > 0) {
+      warnings.push(
+        makeProblem(
+          'legacy-decisions-table',
+          relativePath,
+          'legacy Decisions table retained for backward compatibility; new design artifacts link docs/decisions directly',
+          { epic: epic.name }
+        )
+      );
+    }
+  }
+}
+
+function auditArtifact({ root, path, epicName, warnings }) {
+  const content = readText(path);
+  const relativePath = rel(root, path);
+
+  if (hasContractFrontmatter(content)) {
+    warnings.push(
+      makeProblem(
+        'legacy-contract-frontmatter',
+        relativePath,
+        'legacy contract frontmatter retained for backward compatibility; new artifacts cite modules and decision ids instead',
         { epic: epicName }
       )
     );
-  } else if (!hasPointerMetadata && hasDetailTable) {
+  }
+  if (hasSection(content, 'Contract References') || /\bContract References\b/i.test(content)) {
     warnings.push(
       makeProblem(
-        'legacy-contract-table',
+        'legacy-contract-references',
+        relativePath,
+        'legacy Contract References retained for backward compatibility; new artifacts cite modules and decision ids instead',
+        { epic: epicName }
+      )
+    );
+  }
+  if (containsLegacyContractDetailTable(content)) {
+    warnings.push(
+      makeProblem(
+        'legacy-contract-detail-table',
         relativePath,
         'legacy contract detail table retained for backward compatibility',
         { epic: epicName }
@@ -433,80 +344,7 @@ function auditArtifact({ root, path, epicName, ledgerKeys, globalLedgerKeys, vio
     );
   }
 
-  for (const key of referencedKeys) {
-    if (!globalLedgerKeys.has(key)) {
-      violations.push(
-        makeProblem(
-          'unknown-ledger-row-key',
-          relativePath,
-          `Contract Ledger row key is not defined: ${key}`,
-          { epic: epicName, contract: key }
-        )
-      );
-    } else if (epicName && !ledgerKeys.has(key)) {
-      warnings.push(
-        makeProblem(
-          'external-ledger-row-key',
-          relativePath,
-          `Contract Ledger row key is defined outside this epic: ${key}`,
-          { epic: epicName, contract: key }
-        )
-      );
-    }
-  }
-
-  return { path, epicName, referencedKeys };
-}
-
-function buildLedger(root, epics, violations) {
-  const entries = [];
-  const byKey = new Map();
-
-  for (const epic of epics) {
-    if (epic.contractLedgerRowCount > 0 && !epic.contractLedgerHasContractColumn) {
-      violations.push(
-        makeProblem(
-          'contract-ledger-missing-contract-column',
-          rel(root, epic.architecturePath),
-          `Contract Ledger table must use canonical \`contract\` column as the stable row key; found columns: ${epic.contractLedgerHeader.join(', ') || '-'}`,
-          {
-            epic: epic.name,
-            headers: epic.contractLedgerHeader,
-          }
-        )
-      );
-    }
-
-    for (const row of epic.contractRows) {
-      const key = row.contract.trim();
-      const entry = {
-        contract: key,
-        epic: epic.name,
-        ledgerPath: epic.architecturePath,
-        row,
-      };
-      entries.push(entry);
-      if (!byKey.has(key)) byKey.set(key, []);
-      byKey.get(key).push(entry);
-    }
-  }
-
-  for (const [key, matches] of byKey.entries()) {
-    if (matches.length <= 1) continue;
-    violations.push(
-      makeProblem(
-        'duplicate-ledger-row-key',
-        rel(root, matches[0].ledgerPath),
-        `Contract Ledger row key is duplicated: ${key}`,
-        {
-          contract: key,
-          locations: matches.map((match) => rel(root, match.ledgerPath)),
-        }
-      )
-    );
-  }
-
-  return { entries, byKey, keys: new Set(byKey.keys()) };
+  return { path, epicName };
 }
 
 function auditDesignPackBudgets(root, epics, warnings) {
@@ -542,93 +380,33 @@ function auditDesignPackBudgets(root, epics, warnings) {
   }
 }
 
-function buildRecovery({ root, contract, ledger, artifacts, violations, warnings }) {
-  const indexPath = join(root, 'docs', 'index.md');
-  if (!existsSync(indexPath)) {
-    violations.push(
-      makeProblem(
-        'cold-session-index-missing',
-        rel(root, indexPath),
-        'docs/index.md is required as the cold-session entrypoint',
-        { contract }
-      )
-    );
-    return null;
-  }
-
-  const matches = ledger.byKey.get(contract) ?? [];
-  if (matches.length === 0) {
-    violations.push(
-      makeProblem(
-        'contract-not-found',
-        rel(root, indexPath),
-        `Contract Ledger row key was not found: ${contract}`,
-        { contract }
-      )
-    );
-    return null;
-  }
-  if (matches.length > 1) {
-    violations.push(
-      makeProblem(
-        'contract-ambiguous',
-        rel(root, indexPath),
-        `Contract Ledger row key is ambiguous: ${contract}`,
-        { contract, locations: matches.map((match) => rel(root, match.ledgerPath)) }
-      )
-    );
-    return null;
-  }
-
-  const match = matches[0];
-  const indexContent = readText(indexPath);
-  if (!indexContent.includes(match.epic) && !indexContent.includes(`epics/${match.epic}`)) {
-    warnings.push(
-      makeProblem(
-        'cold-session-index-missing-epic-link',
-        rel(root, indexPath),
-        `docs/index.md does not visibly link the contract epic: ${match.epic}`,
-        { contract, epic: match.epic }
-      )
-    );
-  }
-
-  return {
-    contract,
-    index_path: rel(root, indexPath),
-    epic: match.epic,
-    ledger_path: rel(root, match.ledgerPath),
-    referencing_impl: artifacts
-      .filter((artifact) => artifact.referencedKeys.includes(contract))
-      .map((artifact) => rel(root, artifact.path))
-      .sort(),
-    validation_paths: [
-      'docs/plugin/agents/architecture-validator/architecture-validator-agent.md',
-      'docs/plugin/agents/module-architect/templates/impl-task.md',
-    ],
-  };
-}
-
 function audit(root, contract = '') {
   const violations = [];
   const warnings = [];
   const epics = collectEpics(root);
-  const ledger = buildLedger(root, epics, violations);
   const artifacts = [];
+
+  if (contract) {
+    warnings.push(
+      makeProblem(
+        'deprecated-contract-lookup',
+        'docs/index.md',
+        `--contract ${contract} is deprecated because Contract Ledger row-key lookup is no longer the design recovery path`,
+        { contract }
+      )
+    );
+  }
 
   auditDesignPackBudgets(root, epics, warnings);
 
   for (const epic of epics) {
-    const ledgerKeys = new Set(epic.contractRows.map((row) => row.contract.trim()));
+    auditArchitecture(root, epic, warnings);
     for (const implPath of epic.implPaths) {
       artifacts.push(
         auditArtifact({
           root,
           path: implPath,
           epicName: epic.name,
-          ledgerKeys,
-          globalLedgerKeys: ledger.keys,
-          violations,
           warnings,
         })
       );
@@ -641,31 +419,27 @@ function audit(root, contract = '') {
         root,
         path: compactPlanPath,
         epicName: '',
-        ledgerKeys: ledger.keys,
-        globalLedgerKeys: ledger.keys,
-        violations,
         warnings,
       })
     );
   }
-
-  const recovery = contract
-    ? buildRecovery({ root, contract, ledger, artifacts, violations, warnings })
-    : null;
 
   return {
     ok: violations.length === 0,
     root,
     epics: epics.map((epic) => ({
       name: epic.name,
-      ledger_path: rel(root, epic.architecturePath),
-      contract_count: epic.contractRows.length,
+      architecture_path: rel(root, epic.architecturePath),
       impl_count: epic.implPaths.length,
       design_pack_line_count: epic.designPackLineCount,
     })),
+    artifacts: artifacts.map((artifact) => ({
+      path: rel(root, artifact.path),
+      epic: artifact.epicName,
+    })),
     violations,
     warnings,
-    recovery,
+    recovery: null,
   };
 }
 
@@ -687,33 +461,25 @@ function renderText(result) {
     return;
   }
 
-  const contractMessage = result.recovery
-    ? `, contract ${result.recovery.contract} -> ${result.recovery.ledger_path}`
-    : '';
   console.log(
-    `[design-artifact] PASS - ${result.epics.length} epic(s), ${result.warnings.length} warning(s)${contractMessage}`
+    `[design-artifact] PASS - ${result.epics.length} epic(s), ${result.warnings.length} warning(s)`
   );
 }
 
 function main() {
-  const args = parseArgs(process.argv.slice(2));
-  if (!existsSync(args.root) || !statSync(args.root).isDirectory()) {
-    throw new Error(`--root is not a directory: ${args.root}`);
+  try {
+    const args = parseArgs(process.argv.slice(2));
+    const result = audit(args.root, args.contract);
+    if (args.json) {
+      console.log(JSON.stringify(result, null, 2));
+    } else {
+      renderText(result);
+    }
+    process.exit(result.ok ? 0 : 1);
+  } catch (error) {
+    console.error(`[design-artifact] ERROR ${error.message}`);
+    process.exit(2);
   }
-
-  const result = audit(args.root, args.contract);
-  if (args.json) {
-    console.log(JSON.stringify(result, null, 2));
-  } else {
-    renderText(result);
-  }
-
-  process.exit(result.ok ? 0 : 1);
 }
 
-try {
-  main();
-} catch (error) {
-  console.error(`[design-artifact] ERROR ${error.message}`);
-  process.exit(2);
-}
+main();

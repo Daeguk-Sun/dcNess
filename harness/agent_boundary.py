@@ -96,7 +96,7 @@ DCNESS_INFRA_PATTERNS: tuple[str, ...] = (
 #    둘 다 좁힌다.
 #    넓게(임의 agent, 임의 .md) 열면 engineer 같은 agent 가 run_dir 에 module-architect.md /
 #    code-validator.md / architecture-validator.md 를 `PASS` 로 *위조* → `_has_pass` 가 신뢰 →
-#    catastrophic gate (pr-reviewer / engineer / module-architect 게이트) 우회 (codex review P1). build-* 파일명은 어떤
+#    catastrophic gate (pr-reviewer / engineer 게이트) 우회 (codex review P1). build-* 파일명은 어떤
 #    gate 도 신뢰하지 않으므로 forge 불가.
 RUN_DIR_PROSE_ALLOW: tuple[str, ...] = (
     r'(^|/)\.claude/harness-state/\.sessions/[^/]+/runs/[^/]+/build-(test|impl|validate|polish)\.md$',

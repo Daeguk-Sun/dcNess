@@ -67,7 +67,7 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 
 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 자동 workflow PR 에 섞지 않지만 Git 커밋 대상이다. 커밋되지 않으면 새 worktree 나 headless worker 체크아웃에서 project-local hook 을 볼 수 없어 중앙 fallback 으로 내려간다. `scripts/dcness-tdd-hooks status` 와 `ensure` 는 이 파일들이 HEAD 에 깨끗하게 반영되기 전까지 `commit-required` 를 출력한다.
 
-`docs/index.md` 의 epic/module 표, 전역 `docs/architecture.md` 의 집계 섹션, 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. `/design` 산출물 구조 감사도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
+`docs/index.md` 의 epic/module 표와 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. 전역 architecture 인간용 요약은 필요할 때 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 로 `.dcness-work/reports/architecture-map.md` 에 온디맨드 생성한다. `/design` 산출물 구조 감사도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
 
 ## Provider Mirror Sync
 
@@ -134,7 +134,7 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 
 - 대상 경로: `.github/workflows/doc-sync.yml`
 - 템플릿: [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml)
-- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표와 `docs/architecture.md` 의 전역 architecture map 이 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 Contract Ledger row-key 포인터 구조를 감사한다. `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다.
+- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표가 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사한다. `docs/index.md` 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다. legacy Contract Ledger / Contract References 는 호환 경고로만 보고하며 형식만으로 실패시키지 않는다.
 
 ### github-project-lifecycle.yml
 
@@ -184,7 +184,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | 파일 경계 override 후보 재확인 | 아니오 | `/init-dcness` 와 `/impl` 시작 시 `dcness-helper boundary-suggestions` 가 read-only 로 다시 감지한다. |
 | `.claude/harness-state/` gitignore 보강 | 예 | runtime state ignore 는 사용자 repo `.gitignore` append 라서 `/init-dcness` 재실행 때 적용된다. |
 | `CLAUDE.md` seed/migration 로직 갱신 | 예 | 기존 활성 프로젝트의 root `CLAUDE.md` 생성·cold-start 앵커 append 는 `/init-dcness` 재실행 때 적용된다. |
-| 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index/architecture 집계기를 1회 실행해야 한다. |
+| 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index 집계기를 1회 실행해야 한다. 전역 architecture 요약은 온디맨드다. |
 | Codex validation routing opt-in 변경 | 예 | local plugin data 와 `$CODEX_HOME/skills` 를 갱신해야 한다. |
 | Implementation routing 변경 | 예 | local plugin data 를 갱신해야 한다. |
 | Project lifecycle 좌표 저장/변경 | 예 | repo variables 와 선택형 workflow 를 갱신해야 한다. |

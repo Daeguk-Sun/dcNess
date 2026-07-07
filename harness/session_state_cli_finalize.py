@@ -561,9 +561,8 @@ _YOLO_FALLBACKS: Dict[str, Dict[str, Optional[str]]] = {
         "action": "route-by-classification",
         "hint": (
             "validator 재호출 X — finding 분류로 architect 분기 (design-routing): "
-            "SYSTEM_BOUNDARY → system-architect 재진입 / "
-            "CONTRACT_PROPAGATION → module-architect mode=contract_sweep / "
-            "TASK_LOCAL → module-architect 보강(해당 task). 분류 모호 시 사용자 위임 (cycle ≤ 2)"
+            "SYSTEM_BOUNDARY → system-architect opt-in checkpoint / "
+            "TASK_LOCAL → module-architect 보강(해당 task). 분류 모호 시 사용자 위임 (cycle ≤ 3)"
         ),
         "next_enum": None,
     },

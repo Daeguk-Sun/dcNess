@@ -28,7 +28,7 @@ merge 전에 변경된 코드가 코드베이스의 장기 유지보수성을 �
 - 운영 위험: 임시 코드, debug 잔재, 환경값 hardcode가 있는가.
 - 명백한 보안 위험: 입력 주입, XSS, secret 노출, origin 검증 누락처럼 코드 패턴으로 확인 가능한 위험이 있는가.
 - 반복 실패 신호: 이전 라운드 맥락이 제공됐고 같은 파일/주제에서 2회 이상 FAIL이 반복되면 점 수정이 아니라 클래스형 결함인지 보는가.
-- 문서 영향: 이번 diff 가 PRD / stories / architecture / decisions / Contract Ledger / 사용자-facing 문서의 기존 진술을 stale 하게 만들었는가. 영향이 있으면 갱신 필요를 finding 으로 남기고, 없으면 별도 finding 으로 만들지 않는다.
+- 문서 영향: 이번 diff 가 PRD / stories / architecture / decisions / module responsibility / 사용자-facing 문서의 기존 진술을 stale 하게 만들었는가. 영향이 있으면 갱신 필요를 finding 으로 남기고, legacy Contract Ledger / Contract References 형식 잔존만 있으면 별도 Must finding 으로 만들지 않는다.
 - Agent Operability: 이번 diff 가 다음 agent 의 edit target 을 불명확하게 만들거나, state owner 를 entrypoint/session/global state 에 흩뜨리거나, validation path 없이 overly broad entrypoint touch 를 요구하지 않는가.
 
 ## 작업 흐름

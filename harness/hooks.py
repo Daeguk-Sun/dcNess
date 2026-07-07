@@ -13,10 +13,9 @@ bash 훅 (`hooks/*.sh`) 이 stdin payload + cc_pid 를 본 모듈의 핸들러�
 
 옛 merge-gate (LGTM 없이 merge) / impl-task-loop 3-commit 룰은 *메인 영역*
 (skill 안 Pre-flight) 또는 다른 흐름 (`/design` 의 impl 미리 머지 등)
-으로 이전 — 코드 강제 폐기. 본 hook 코드 강제는 3 게이트:
+으로 이전 — 코드 강제 폐기. 본 hook 코드 강제는 2 게이트:
 pr-reviewer 게이트 (engineer 산출물 이후 code-validator PASS) / engineer 게이트 (직전
-module-architect PASS) / module-architect 게이트 (design 안 첫 호출
-직전 architecture-validator PASS).
+module-architect PASS).
 
 규약:
     - 모든 실패 케이스 silent (exit 0) — CC 동작 방해 최소화
@@ -1305,34 +1304,6 @@ def _run_lane(
         return lane if isinstance(lane, str) else None
     except (OSError, ValueError):
         return None
-
-
-def _is_design_loop(
-    sid: str,
-    rid: str,
-    *,
-    base_dir: Optional[Path] = None,
-) -> bool:
-    """현재 run 이 design 설계 루프인지 확인 (entry_point 기준).
-
-    module-architect 게이트 발동 조건 — design 안 module-architect
-    × K 첫 호출 직전 architecture-validator PASS 필수.
-    """
-    try:
-        live = read_live(sid, base_dir=base_dir) or {}
-        active = live.get("active_runs", {})
-        if not isinstance(active, dict):
-            return False
-        slot = active.get(rid, {})
-        entry = slot.get("entry_point", "") if isinstance(slot, dict) else ""
-        return entry == "design"
-    except Exception:  # noqa: BLE001 — safe default
-        return False
-
-
-def _module_architect_first_call(rd: Path) -> bool:
-    """module-architect 첫 호출인지 — 기존 prose 파일 부재 검사."""
-    return not (rd / "module-architect.md").exists()
 
 
 # ── Stop hook (issue #382) ────────────────────────────────────────────

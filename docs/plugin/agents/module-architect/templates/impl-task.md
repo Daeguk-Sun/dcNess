@@ -7,9 +7,6 @@ risk: normal|high|low   # 설계 시점 위험 등급. high = 고위험 trigger 
 engine: 2agent|4agent   # 권장 엔진. 2agent = build-worker(경량) · 4agent = 풀 4-agent(test→impl→validate→review 엄정). risk: high → 4agent
 risk_reason:            # 자연어 한 줄 — 판정 근거. 예: "외부 HTTP", "URL 파싱", "auth/PII", "도메인 invariant 변경" / 고위험 아니면 "고위험 trigger 없음"
 depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존 흡수). 선행 없으면 [] 로 명시. 비운 채로 두면(미작성) 미상 → 병렬에서 직렬 강등
-contract:
-  produces:             # Ledger row keys only. 이 task 가 만들거나 바꾸는 public contract 행 키
-  consumes:             # Ledger row keys only. 소비하는 contract 행 키 → producer task 를 depends_on 에 반영
 ---
 
 # <NN-task-slug>
@@ -51,7 +48,7 @@ contract:
 
 ## Agent Workability
 
-> Flow Ownership Map 의 task-local 증거다. 다음 agent 가 cold-start 로 들어와도 edit target, state owner, validation path 를 복구할 수 있어야 한다.
+> 다음 agent 가 cold-start 로 들어와도 edit target, state owner, validation path 를 복구할 수 있어야 한다. 진본 위치는 epic `architecture.md` 의 모듈 목록(책임/공개 인터페이스/검증 경로)과 이 task-local 증거다.
 
 - owner flow/module:
 - entrypoint role:
@@ -84,16 +81,15 @@ contract:
 
 -
 
-## Contract References
+## 계약 / 결정 참조
 
-> Cross-task public contract details live only in epic `architecture.md` `## Contract Ledger`.
-> Use Ledger row keys only here; do not restate invariant, ordering, error mode, config, or forbidden alternative.
+> Cross-task/public contract 의미는 epic `architecture.md` 의 모듈 목록 책임/공개 인터페이스 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. 이 task 는 관련 모듈과 decision id/link 만 가리킨다. invariant, ordering, error mode, config, forbidden alternative 전문을 impl 문서에 복제하지 않는다.
 > Task-local private interfaces that are not consumed by another task stay in `## 인터페이스`.
 
-| kind | Ledger row key | action | note |
+| kind | ref | action | note |
 |---|---|---|---|
-| produces |  | new/update/existing | Ledger updated in `docs/epics/<epic>/architecture.md` |
-| consumes |  | existing | Producer reflected in `depends_on` |
+| module |  | new/update/existing | reflected in `docs/epics/<epic>/architecture.md` module list |
+| decision |  | new/update/existing | `docs/decisions/NNNN-slug.md` |
 
 ## 인터페이스
 

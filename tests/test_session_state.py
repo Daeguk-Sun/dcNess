@@ -2595,10 +2595,10 @@ PASS — 빈 문자열 가드 추가.
         self.assertEqual(payload["action"], "route-by-classification")
         # mechanical 재호출 action 이 아니어야 함 (read-only validator 재실행 = 같은 FAIL)
         self.assertNotIn(payload["action"], ("re-invoke", "re-invoke-prev"))
-        # hint 에 3 분류 토큰이 모두 있어야 메인이 분류로 분기 가능
+        # hint 에 현행 Must 분류 토큰이 있어야 메인이 분류로 분기 가능
         self.assertIn("SYSTEM_BOUNDARY", payload["hint"])
-        self.assertIn("CONTRACT_PROPAGATION", payload["hint"])
         self.assertIn("TASK_LOCAL", payload["hint"])
+        self.assertNotIn("CONTRACT_PROPAGATION", payload["hint"])
 
 
 # ---------------------------------------------------------------------------

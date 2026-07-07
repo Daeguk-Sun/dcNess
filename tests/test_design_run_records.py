@@ -100,10 +100,7 @@ class DesignRunRecordTests(unittest.TestCase):
                         "Still failing\nFAIL\n"
                     ),
                     "ma.md": "보강 완료\nPASS\n",
-                    "av2.md": (
-                        "Resolved TASK_LOCAL. CONTRACT_PROPAGATION 없음.\n"
-                        "PASS\n"
-                    ),
+                    "av2.md": "Resolved TASK_LOCAL.\nPASS\n",
                 },
             )
             record = build_design_record(run_dir, repo_path=tmp)

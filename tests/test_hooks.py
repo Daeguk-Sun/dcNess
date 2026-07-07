@@ -714,13 +714,13 @@ class CatastrophicPrReviewerTests(_PreToolBase):
 
 
 # ---------------------------------------------------------------------------
-# module-architect 게이트 — design 안 첫 module-architect 단위 호출 직전
-# architecture-validator PASS 필수 (PR B-4 부활, β-strong)
+# module-architect — design 안 first call / thin bootstrap 이후 진입 / opt-in system checkpoint 이후 재진입 모두
+# 별도 architecture-validator 순서 게이트 없이 허용
 # ---------------------------------------------------------------------------
 
 
 class _DesignLoopBase(unittest.TestCase):
-    """design entry_point 컨텍스트 — module-architect 게이트 발동 조건."""
+    """design entry_point 컨텍스트 — module-architect 진입 허용 조건."""
 
     sid = "test-sid-arch"
     rid = "run-archloop"
@@ -760,9 +760,8 @@ class HasPassOccurrenceTests(unittest.TestCase):
     """#797 — `_has_pass` 의 occurrence PASS 탐색이 첫 재호출(`-1.md`)부터
     빠짐없이 포함하는지 헬퍼 단위로 고정.
 
-    이 헬퍼는 module-architect 게이트(architecture-validator PASS)와
-    pr-reviewer 게이트(code-validator PASS)가 공유하므로, occurrence off-by-one
-    회귀는 여러 게이트를 동시에 오염시킨다.
+    이 헬퍼는 pr-reviewer 게이트(code-validator PASS)와 여러 PASS 판정에서
+    공유하므로, occurrence off-by-one 회귀는 게이트를 오염시킨다.
     """
 
     def setUp(self) -> None:
@@ -803,18 +802,45 @@ class HasPassOccurrenceTests(unittest.TestCase):
         self.assertFalse(_has_pass(self.rd, "architecture-validator"))
 
 
-class CatastrophicArchitectureValidatorTests(_DesignLoopBase):
-    def test_module_architect_first_call_blocked_without_arch_validator(self) -> None:
+class CatastrophicDesignModuleArchitectTests(_DesignLoopBase):
+    def test_module_architect_first_call_allowed_without_system_checkpoint(self) -> None:
         self._begin_step("module-architect")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("module-architect"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
 
-    def test_module_architect_first_call_allowed_with_arch_validator_pass(self) -> None:
+    def test_module_architect_after_system_checkpoint_allowed_without_validator(self) -> None:
         self._begin_step("module-architect")
+        (self.run_path / "system-architect.md").write_text(
+            "## 결론\nPASS\n", encoding="utf-8",
+        )
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_module_architect_after_thin_bootstrap_allowed_without_validator(self) -> None:
+        self._begin_step("module-architect")
+        (self.run_path / "system-architect-THIN_BOOTSTRAP.md").write_text(
+            "## 결론\nPASS\n", encoding="utf-8",
+        )
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_module_architect_allowed_when_arch_validator_pass_exists(self) -> None:
+        self._begin_step("module-architect")
+        (self.run_path / "system-architect.md").write_text(
+            "## 결론\nPASS\n", encoding="utf-8",
+        )
         (self.run_path / "architecture-validator.md").write_text(
             "## 결론\nPASS\n", encoding="utf-8",
         )
@@ -825,14 +851,16 @@ class CatastrophicArchitectureValidatorTests(_DesignLoopBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_module_architect_first_call_allowed_after_arch_validator_revalidation_pass(
+    def test_module_architect_allowed_when_arch_validator_revalidation_pass_exists(
         self,
     ) -> None:
-        # #797 — 1차 검증 FAIL(`.md`) → 재검증 PASS(`-1.md`, 첫 재호출) 흐름.
-        # occurrence 명명상 2번째 호출 = `-1.md` 이므로, 게이트가 `-1.md` 를
-        # 건너뛰면(옛 range(2,10)) "FAIL → 재검증 PASS" 라는 design 루프의 정상
-        # 분기를 오차단했다(off-by-one). 재검증 PASS 를 인식해 통과해야 한다.
+        # architecture-validator 산출물이 있어도 module-architect 진입 자체를
+        # 추가로 차단하지 않는다. PASS occurrence 인식 회귀는 HasPassOccurrenceTests
+        # 가 별도로 고정한다.
         self._begin_step("module-architect")
+        (self.run_path / "system-architect.md").write_text(
+            "## 결론\nPASS\n", encoding="utf-8",
+        )
         (self.run_path / "architecture-validator.md").write_text(
             "## 결론\nFAIL\n", encoding="utf-8",
         )
@@ -860,7 +888,7 @@ class CatastrophicArchitectureValidatorTests(_DesignLoopBase):
         self.assertEqual(rc, 0)
 
     def test_gate_skipped_for_non_design_loop(self) -> None:
-        """impl-task-loop 등 다른 entry_point 는 module-architect 게이트 미적용."""
+        """impl-task-loop 등 다른 entry_point 도 module-architect 별도 게이트 없음."""
         with TemporaryDirectory() as td:
             base = Path(td)
             sid, rid, cc_pid = "sid-impl", "run-impl1234", 44444
@@ -878,14 +906,14 @@ class CatastrophicArchitectureValidatorTests(_DesignLoopBase):
             )
             self.assertEqual(rc, 0)
 
-    def test_design_entry_point_enforces_arch_validator_gate(self) -> None:
+    def test_design_entry_point_allows_first_module_architect_call(self) -> None:
         self._begin_step("module-architect")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("module-architect"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
 
 
 class TechReviewerRecallNotBlockedTests(_DesignLoopBase):
