@@ -1055,18 +1055,18 @@ export function shouldUseLocalPhaseRoot(targetRepo, localRepoSlug) {
 function epicGroupNextAction(epicSlugLabel, root) {
   if (!epicSlugLabel) return { kind: 'unlabeled' };
   if (!root) return { kind: 'unresolved' };
-  const { phase } = epicPhase(join(root, 'docs', 'epics', epicSlugLabel));
-  if (phase === 'impl') return { kind: 'impl' };
-  if (phase === 'design') return { kind: 'design' };
+  const phaseInfo = epicPhase(join(root, 'docs', 'epics', epicSlugLabel));
+  if (phaseInfo.phase === 'impl') return { kind: 'impl', label: phaseInfo.label };
+  if (phaseInfo.phase === 'design') return { kind: 'design', label: phaseInfo.label };
   return { kind: 'unresolved' };
 }
 
 function storyGroupHeaderLine(epicSlugLabel, action) {
   switch (action.kind) {
     case 'impl':
-      return `- ${epicSlugLabel} — 설계 완료 → story impl 후보 (\`/impl\`)`;
+      return `- ${epicSlugLabel} — ${action.label} → story impl 후보 (\`/impl\`)`;
     case 'design':
-      return `- ${epicSlugLabel} — 설계 미완 → 다음 액션 \`/design docs/epics/${epicSlugLabel}\` (아래 story 는 아직 impl 후보 아님)`;
+      return `- ${epicSlugLabel} — ${action.label} → 다음 액션 \`/design docs/epics/${epicSlugLabel}\` (아래 story 는 아직 impl 후보 아님)`;
     case 'unlabeled':
       return '- 미분류 story — epic 라벨 없음 → 판정 보류';
     default:

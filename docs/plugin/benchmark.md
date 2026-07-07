@@ -248,8 +248,10 @@ done
 
 ## 재현 4 — design run 영속 기록
 
-`/design` run 은 final validator `PASS` 직후 PR 생성 전에 실행하는 `end-run` 시점에
-`docs/metrics/design-runs.jsonl` 에도 compact record 를 남긴다. 이 파일은
+`/design` run 은 각 stage PR 생성 전에 실행하는 `end-run` 시점에
+`docs/metrics/design-runs.jsonl` 에도 compact record 를 남긴다. `design-ux` 와
+`design-system` 은 같은 `entry_point=design` 아래 `stage` 값으로 구분하므로, 기존
+단일 run 수치와 stage별 run 수치를 나란히 비교할 수 있다. 이 파일은
 git-tracked design 산출물이므로 design worktree 의 같은 PR 에 포함되어야 한다.
 `.claude/harness-state` TTL 정리나 Claude transcript 삭제 뒤에도 후속 세션이 읽을 수
 있다. run-local prose/ledger 가 원본이고, 이 파일은 baseline 비교용 인덱스다.

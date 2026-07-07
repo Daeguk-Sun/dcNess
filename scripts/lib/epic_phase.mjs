@@ -11,6 +11,8 @@
  *   architecture.md 존재 AND impl/NN-*.md 1개 이상 존재.
  *   domain-model.md / ux-flow.md / tech-review.md 는 선택 산출물이라 판정에서 제외한다
  *   (선택 산출물 부재를 설계 미완으로 오판하지 않는다).
+ *   단, ux-flow.md 존재 + full design pack 부재는 UI epic 의 stage 1 완료 신호로
+ *   "`/design` (ux 완료 · system 미완)" 라벨만 세분화한다.
  */
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -33,6 +35,10 @@ export function isDesignComplete(epicDir) {
   return existsSync(join(epicDir, 'architecture.md')) && hasImplTask(epicDir);
 }
 
+export function isUxStageComplete(epicDir) {
+  return existsSync(join(epicDir, 'ux-flow.md'));
+}
+
 /**
  * @param {string} epicDir  docs/epics/epic-NN-<slug> 절대/상대 경로
  * @returns {{ phase: 'spec'|'design'|'impl', action: '/spec'|'/design'|'/impl', label: string }}
@@ -43,6 +49,9 @@ export function epicPhase(epicDir) {
     return { phase: 'spec', action: '/spec', label: '`/spec` (스펙 미작성)' };
   }
   if (!isDesignComplete(epicDir)) {
+    if (isUxStageComplete(epicDir)) {
+      return { phase: 'design', action: '/design', label: '`/design` (ux 완료 · system 미완)' };
+    }
     return { phase: 'design', action: '/design', label: '`/design` (설계 미완)' };
   }
   return { phase: 'impl', action: '/impl', label: '`/impl` (설계 완료)' };

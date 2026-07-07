@@ -235,6 +235,41 @@ class DesignSurfaceContractTests(unittest.TestCase):
 
         self.assertIn("사용자 확인 checkpoint", routing)
 
+    def test_design_dispatches_internal_ux_and_system_stages(self) -> None:
+        """#958 — /design remains public while durable artifacts select an internal stage."""
+        design_dir = ROOT / "skills" / "design"
+        design = (design_dir / "SKILL.md").read_text(encoding="utf-8")
+        routing = (design_dir / "design-routing.md").read_text(encoding="utf-8")
+        design_ux = (ROOT / "skills" / "design-ux" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        design_system = (ROOT / "skills" / "design-system" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        surface = (ROOT / "scripts" / "check_public_surface.mjs").read_text(
+            encoding="utf-8"
+        )
+
+        for needle in (
+            "얇은 dispatcher",
+            "design-ux",
+            "design-system",
+            "ux 완료 · system 미완",
+            "begin-run design --stage design-ux",
+            "begin-run design --stage design-system",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design)
+
+        self.assertIn("DESIGN_UX_PR_MERGED", routing)
+        self.assertIn("DESIGN_SYSTEM_PR_MERGED", routing)
+        self.assertIn("'design-ux'", surface)
+        self.assertIn("'design-system'", surface)
+        self.assertIn("공개 진입점이 아니다", design_ux)
+        self.assertIn("stage 1 PR", design_ux)
+        self.assertIn("stage 2 PR", design_system)
+        self.assertIn("기존 설계 pack 계약", design_system)
+
 
 if __name__ == "__main__":
     unittest.main()

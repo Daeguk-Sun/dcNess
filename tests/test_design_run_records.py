@@ -72,6 +72,7 @@ class DesignRunRecordTests(unittest.TestCase):
                     {
                         "event": "run_started",
                         "entry_point": "design",
+                        "stage": "design-ux",
                         "ts": "2026-07-01T00:00:00+00:00",
                     },
                     _step(
@@ -108,6 +109,7 @@ class DesignRunRecordTests(unittest.TestCase):
         self.assertIsNotNone(record)
         assert record is not None
         self.assertEqual(record["entry_point"], "design")
+        self.assertEqual(record["stage"], "design-ux")
         self.assertEqual(record["duration_s"], 600)
         self.assertEqual(record["step_count"], 3)
         self.assertEqual(record["final_verdict"], "PASS")
@@ -167,7 +169,7 @@ class DesignRunRecordTests(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertTrue(record_path_exists)
         self.assertIn("run-design02", rendered)
-        self.assertIn("| run_id | started_at | verdict |", rendered)
+        self.assertIn("| run_id | stage | started_at | verdict |", rendered)
 
     def test_worktree_record_path_is_design_artifact_root(self) -> None:
         """Worktree `/design` writes the PR artifact, not main checkout state.

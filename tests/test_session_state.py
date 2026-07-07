@@ -635,6 +635,30 @@ class ActiveRunsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             start_run(self.sid, self.run_id, "design", base_dir=self.base, lane="lite")
 
+    # -- #958 — design stage 기록 (design-runs.jsonl stage별 run 구분) --
+
+    def test_start_run_records_design_stage(self) -> None:
+        start_run(
+            self.sid, self.run_id, "design",
+            base_dir=self.base, stage="design-ux",
+        )
+        slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
+        self.assertEqual(slot["stage"], "design-ux")
+
+    def test_start_run_design_stage_non_design_entry_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            start_run(
+                self.sid, self.run_id, "impl",
+                base_dir=self.base, stage="design-ux",
+            )
+
+    def test_start_run_design_stage_invalid_value_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            start_run(
+                self.sid, self.run_id, "design",
+                base_dir=self.base, stage="ux",
+            )
+
     # -- #722 — 마감 acceptance 대상 run marker --
 
     def test_start_run_records_acceptance_required(self) -> None:
@@ -3107,6 +3131,14 @@ class DesignDocArgparseTests(unittest.TestCase):
         from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(["begin-run", "impl"])
         self.assertIsNone(ns.lane)
+
+    def test_begin_run_accepts_design_stage(self) -> None:
+        from harness.session_state import _build_arg_parser
+        ns = _build_arg_parser().parse_args(
+            ["begin-run", "design", "--stage", "design-ux"]
+        )
+        self.assertEqual(ns.cmd, "begin-run")
+        self.assertEqual(ns.stage, "design-ux")
 
     def test_design_records_subcommand_accepts_json_and_limit(self) -> None:
         from harness.session_state import _build_arg_parser

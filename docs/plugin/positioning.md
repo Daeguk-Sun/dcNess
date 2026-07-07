@@ -47,16 +47,20 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 ## Internal Skills
 
-아래 skill 은 공개 진입점이 아니라 **다른 workflow 내부에서 되돌림(backpressure) 목적지로만 호출**되는 내부 skill 이다. 사용자가 `/` 진입점으로 외우지 않으며 README 기본 흐름에도 노출하지 않는다.
+아래 skill 은 공개 진입점이 아니라 **다른 workflow 내부에서만 호출**되는 내부 skill 이다. 일부는 되돌림(backpressure) 목적지이고, 일부는 공개 workflow 의 stage 분리용 목적지다. 사용자가 `/` 진입점으로 외우지 않으며 README 기본 흐름에도 노출하지 않는다.
 
 | 내부 skill | 역할 |
 |---|---|
 | `canvas-design` | `/ux`, `/impl`, `/impl-loop` 이 UI 기준 확보나 선행 목업 탐색이 필요하다고 판정했을 때 호출하는 내부 wrapper. designer draft 생성, 사용자 PICK, 확정본 승격, `docs/design-variants/canvas.html` frame 등록을 한 경로로 수행하며 공개 진입점으로 노출하지 않음 |
 | `compact-design` | `/impl` 이 "구현 전 경량 설계가 필요하다" 고 판단했을 때 되돌아오는 경량 모듈 설계 목적지. 새 agent 를 만들지 않고 `module-architect` 를 COMPACT_PLAN 모드로 호출하는 wrapper. full 설계 public 진입점은 `/design` 으로 유지 |
+| `design-ux` | `/design` dispatcher 가 UI epic 의 UX 산출물이 아직 durable 하지 않다고 판정했을 때 호출하는 내부 stage 1. `ux-flow.md` / `docs/design.md` / `docs/design-variants/` 확정본을 자체 PR 로 머지하며 공개 진입점으로 노출하지 않음 |
+| `design-system` | `/design` dispatcher 가 UI-less epic 이거나 UX stage 완료 epic 이라고 판정했을 때 호출하는 내부 stage 2. 기존 system/module 설계 pack 계약을 자체 PR 로 머지하며 공개 진입점으로 노출하지 않음 |
 
 `canvas-design` 은 시각 기준 확보를 각 workflow 안에 중복 기술하지 않기 위한 내부 wrapper 다. 확정본 SSOT 는 `docs/design-variants/` 이며, designer 는 `drafts/` 만 쓰고 메인이 확정본과 canvas 를 갱신한다. `/ux` 는 이 경로를 얇게 감싸 선행 탐색 결과를 확정본으로 남기고, `/impl` 과 `/impl-loop` 은 이 경로를 호출해 확정 목업 경로와 node-id 매핑을 구현자에게 전달한다.
 
 `compact-design` 은 경량 설계를 impl 레이어 *안* 에서 직접 생성·소비하던 구조를 impl 밖 독립 skill 로 옮긴 것이다. 설계 산출 주체는 종전과 같은 `module-architect` 이고, 산출물은 `docs/compact-plans/<slug>.md` 한 파일이다. 되돌림 원리 SSOT 는 [`workflow-router.md` 되돌림 원리](workflow-router.md#되돌림backpressure-원리)다.
+
+`design-ux` 와 `design-system` 은 `/design` 의 내부 stage 다. 사용자가 stage 이름을 호출하지 않고, `/design` 이 durable 산출물 실존 판정으로 자동 선택한다. `ux-flow.md` 존재 + 설계 pack 부재이면 `docs/index.md` 와 `/next-work` 가 "`/design` (ux 완료 · system 미완)" 을 표시해 다음 `/design` 진입이 system stage 로 이어진다.
 
 ## Internal Agents
 
@@ -66,7 +70,7 @@ agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-val
 
 ## Contract Gate
 
-기본/support/고급/유틸리티/내부 agent 목록(과 내부 skill `internalSkills`)과 skill/command/agent 의 frontmatter name 대 path 정합은 [`scripts/check_public_surface.mjs`](../../scripts/check_public_surface.mjs) 가 검사한다. 새 기본 workflow 를 추가하려면 이 문서와 gate 기대값을 함께 수정해야 한다. `canvas-design`, `compact-design` 같은 내부 skill 은 `internalSkills` 카테고리로 분류돼 `/` 공개 진입점에 추가되지 않는다.
+기본/support/고급/유틸리티/내부 agent 목록(과 내부 skill `internalSkills`)과 skill/command/agent 의 frontmatter name 대 path 정합은 [`scripts/check_public_surface.mjs`](../../scripts/check_public_surface.mjs) 가 검사한다. 새 기본 workflow 를 추가하려면 이 문서와 gate 기대값을 함께 수정해야 한다. `canvas-design`, `compact-design`, `design-ux`, `design-system` 같은 내부 skill 은 `internalSkills` 카테고리로 분류돼 `/` 공개 진입점에 추가되지 않는다.
 
 ### 신규 공개 진입점 justification (왜 작게 유지하나)
 

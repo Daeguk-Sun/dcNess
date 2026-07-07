@@ -21,6 +21,7 @@ def _parent_state_module():
 
 _state = _parent_state_module()
 _PPID_LOOKUP_TIMEOUT_SEC = _state._PPID_LOOKUP_TIMEOUT_SEC
+_VALID_DESIGN_STAGES = _state._VALID_DESIGN_STAGES
 _VALID_LANES = _state._VALID_LANES
 _active_worktree_root_for_prompt = _state._active_worktree_root_for_prompt
 _clear_default_base_cache = _state._clear_default_base_cache
@@ -137,11 +138,12 @@ def _cli_begin_run(args: Any) -> int:
     issue_num = args.issue_num if args.issue_num is not None else None
     design_doc = getattr(args, "design_doc", None)
     lane = getattr(args, "lane", None)
+    stage = getattr(args, "stage", None)
     acceptance_required = bool(getattr(args, "acceptance_required", False))
     try:
         start_run(
             sid, rid, args.entry_point,
-            issue_num=issue_num, design_doc=design_doc, lane=lane,
+            issue_num=issue_num, design_doc=design_doc, lane=lane, stage=stage,
             acceptance_required=acceptance_required,
         )
     except ValueError as exc:
@@ -149,7 +151,7 @@ def _cli_begin_run(args: Any) -> int:
         return 1
     _ledger_run_started(
         sid, rid, args.entry_point,
-        issue_num=issue_num, design_doc=design_doc, lane=lane,
+        issue_num=issue_num, design_doc=design_doc, lane=lane, stage=stage,
         acceptance_required=acceptance_required,
     )
     cc_pid = get_cc_pid_via_ppid_chain()
@@ -933,6 +935,11 @@ def _build_arg_parser() -> Any:
         help="/impl 2축 구현 경로(설계도 유무: lite / standard, #714) — lane=lite 는 "
              "설계도 없는 Lite 구현 경로로 engineer 게이트 설계 산출물 사전 조건 "
              "면제 신호. entry_point=impl 에서만 수용",
+    )
+    p_br.add_argument(
+        "--stage", default=None, choices=_VALID_DESIGN_STAGES,
+        help="/design 내부 stage 기록(#958) — design-ux 또는 design-system. "
+             "entry_point=design 에서만 수용",
     )
     p_br.add_argument(
         "--acceptance-required", action="store_true",

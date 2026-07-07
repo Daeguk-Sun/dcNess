@@ -137,6 +137,19 @@ class IndexMapAggregateTests(unittest.TestCase):
             check = _run(project, "--check")
             self.assertEqual(check.returncode, 0, check.stderr)
 
+    def test_epic_table_marks_ux_done_system_incomplete_for_ui_epic(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(project / "docs/index.md", "# Index\n\n## 에픽\n\n")
+            _write(project / "docs/epics/epic-01-alpha/stories.md", "# Story Backlog\n")
+            _write(project / "docs/epics/epic-01-alpha/ux-flow.md", "# UX Flow\n")
+
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+            index = (project / "docs/index.md").read_text(encoding="utf-8")
+            self.assertRegex(index, r"epic-01-alpha.*\| `/design` \(ux 완료 · system 미완\) \|")
+
     def test_impl_task_must_match_nn_prefix_for_design_complete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
