@@ -10,6 +10,34 @@
 
 ---
 
+## v0.15.0 (2026-07-07)
+
+**커밋 범위**: `v0.14.0..v0.15.0` (머지 PR 9개, #973~#987)
+**핵심 변경**: **`/design` 내부 stage 분리·목업 선행 계약 + Codex/provider 실행 경로 정합** 이 중심인 minor 릴리즈. (1) `/design` 을 얇은 dispatcher 로 명시하고 내부 `design-ux`/`design-system` stage 로 분리해 stage 단위 durable 진행 상태를 남기며, 목업 선행 checkpoint·UX 산출물 stage 2 입력 계약·final 검증 retry 단일 counter 를 정합화, (2) sub-agent 모델 티어 재정렬 + Codex wrapper model/effort opt-in pin, provider wrapper `PLUGIN_ROOT` 해석 prelude 보강, Codex validator skill 의 stale 배포본 우선 선택을 plugin 원본 우선으로 수정, (3) mode 검증 SSOT 확장(begin-step/end-step 기준 통일) + impl task 산출물 경량화.
+
+### 무엇이 바뀌나
+
+1. **`/design` 내부 stage 분리 + 목업 선행 분기** ([#973](https://github.com/Daeguk-Sun/dcNess/pull/973) [#958](https://github.com/Daeguk-Sun/dcNess/issues/958), [#975](https://github.com/Daeguk-Sun/dcNess/pull/975) [#957](https://github.com/Daeguk-Sun/dcNess/issues/957)) — `/design` 을 얇은 dispatcher 로 명시하고 내부 `design-ux` / `design-system` stage skill 로 분리, epic phase SSOT 가 `ux-flow.md` 완료 + 설계 pack 부재 상태를 별도 라벨로 파생해 세션 단절 후 stage 재개가 가능해졌다. UI epic 에 목업 선행 여부 checkpoint(opt-out/yolo=목업 없음)와 목업=예 한정 디자인 시스템 체크포인트를 추가하고, 확정 목업을 stage 2 필수 입력으로 강제.
+
+2. **design 계약 정합 후속** ([#986](https://github.com/Daeguk-Sun/dcNess/pull/986) [#974](https://github.com/Daeguk-Sun/dcNess/issues/974), [#987](https://github.com/Daeguk-Sun/dcNess/pull/987) [#970](https://github.com/Daeguk-Sun/dcNess/issues/970)) — stage 2 architect prompt checkpoint 에 UI epic 한정 UX 산출물 4종(epic ux-flow, `docs/design.md`, 화면별 확정 목업, canvas) 포인터를 기본 입력으로 명시하고 `ux-flow.md` 화면 인벤토리에 확정 목업 경로를 durable 하게 기록. final epic 검증 FAIL 재진입 counter 를 단일 provider-agnostic counter 로 명문화해 분류 전환·finding 영역 변경·provider 경로에 의한 cycle 리셋을 차단(3 cycle 한도 복구).
+
+3. **Codex/provider 실행 경로 정합** ([#980](https://github.com/Daeguk-Sun/dcNess/pull/980) [#976](https://github.com/Daeguk-Sun/dcNess/issues/976), [#983](https://github.com/Daeguk-Sun/dcNess/pull/983) [#979](https://github.com/Daeguk-Sun/dcNess/issues/979), [#984](https://github.com/Daeguk-Sun/dcNess/pull/984) [#978](https://github.com/Daeguk-Sun/dcNess/issues/978)) — 판단 실패 비용이 큰 sub-agent(설계 pack 작성·검증·구현·제품 검수·경량 worker)의 모델 티어를 재정렬하고 `DCNESS_CODEX_MODEL` / `DCNESS_CODEX_EFFORT` opt-in pin 을 추가. provider wrapper 호출 예시에 `PLUGIN_ROOT` 해석 prelude 를 보강해 외부 활성 프로젝트의 경로 오추정을 차단. Codex validator 가 `$CODEX_HOME/skills` stale 배포본 대신 plugin 원본 skill 을 우선 주입하고 stale copy 를 경고.
+
+4. **mode 검증 정합 + impl task 경량화** ([#985](https://github.com/Daeguk-Sun/dcNess/pull/985) [#977](https://github.com/Daeguk-Sun/dcNess/issues/977), [#982](https://github.com/Daeguk-Sun/dcNess/pull/982) [#981](https://github.com/Daeguk-Sun/dcNess/issues/981)) — `harness/signal_io.py` mode 검증 SSOT 를 확장해 begin-step/end-step 검증 기준을 통일하고 `epic-batch` 같은 skill label 표기·lowercase-hyphen mode prose PASS 를 인정(/design stage 2 mode 생략 우회 해소). impl-task 템플릿을 cold-start 필수 증거 중심으로 경량화하고 `수정 허용` 기본값을 owner module directory grant 로 전환.
+
+### 자기개선 점검 기록
+
+| 날짜 | 입력 | 판정 |
+|---|---|---|
+| 2026-07-07 | (빠른 배포 — eval 생략) | 사용자 지시로 self-improvement 권고 eval 점검(guard_efficacy · 행동 eval)을 생략한 빠른 minor 배포. `signal_io.py` mode 검증 변경(#985)은 머지 PR CI(pytest)로 검증됨. **소멸 후보 없음.** |
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `/design` stage 분리·목업 선행 계약, sub-agent 모델 티어 재정렬, Codex wrapper 정합, impl task 경량 템플릿 등 `agents/**`·`commands/**`·`skills/**`·`scripts/**`·`harness/**` 변경.
+- **Codex 사용 프로젝트** — `DCNESS_CODEX_MODEL` / `DCNESS_CODEX_EFFORT` 환경변수로 모델·reasoning effort pin 을 opt-in 할 수 있다. `$CODEX_HOME/skills` 배포본이 stale 이어도 validator 는 plugin 원본 skill 을 우선하므로 폐기된 판단 축 주입이 차단된다.
+
+---
+
 ## v0.14.0 (2026-07-07)
 
 **커밋 범위**: `v0.13.0..v0.14.0` (머지 PR 9개, #946~#971)
