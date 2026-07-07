@@ -84,15 +84,14 @@ class AgentOperabilityContractTests(unittest.TestCase):
                 self.assertIn(needle, self.system_architect)
 
     def test_impl_task_template_requires_agent_workability_evidence(self) -> None:
+        self.assertNotIn("## Agent Workability", self.impl_template)
         for needle in (
-            "## Agent Workability",
+            "owner/entrypoint 요약",
             "owner flow/module",
+            "entrypoint task 한정",
             "entrypoint role",
             "state owner",
-            "allowed touch",
-            "forbidden touch",
             "validation path",
-            "future change scenario",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_template)
@@ -181,10 +180,11 @@ class AgentOperabilityContractTests(unittest.TestCase):
             for needle in (
                 "Agent Operability",
                 "module responsibility",
-                "Agent Workability",
+                "owner/entrypoint 요약",
                 "edit target",
                 "state owner",
                 "validation path",
+                "옛 섹션명 부재만으로 FAIL 하지 않는다",
             ):
                 with self.subTest(text=text_name, needle=needle):
                     self.assertIn(needle, text)
