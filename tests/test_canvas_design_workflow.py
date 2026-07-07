@@ -355,6 +355,39 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertNotIn('src="<screen-id>-v<N>.html"', canvas)
         self.assertIn("../_lib/show-ids.js", html_variant)
 
+    def test_canvas_seed_supports_flow_board_screen_nodes(self) -> None:
+        canvas_html = (
+            ROOT / "templates" / "design-variants" / "canvas.html"
+        ).read_text(encoding="utf-8")
+        canvas_js = (
+            ROOT / "templates" / "design-variants" / "_lib" / "canvas.js"
+        ).read_text(encoding="utf-8")
+
+        for needle in (
+            'class="screen-node"',
+            'data-node-id="<screen-id>"',
+            'data-title="',
+            'data-desc="',
+            'data-states="',
+            'data-h="',
+        ):
+            with self.subTest(template=needle):
+                self.assertIn(needle, canvas_html)
+
+        for needle in (
+            "querySelectorAll('.screen-node')",
+            "dataset.nodeId",
+            "dataset.h",
+            "node-caption",
+            "dataset.label",
+            "data-label",
+            "data-bend",
+            "zoomToFit",
+            "focusNode",
+        ):
+            with self.subTest(renderer=needle):
+                self.assertIn(needle, canvas_js)
+
     def _array(self, text: str, key: str) -> list[str]:
         match = re.search(rf"{key}:\s*\[([^\]]*)\]", text)
         self.assertIsNotNone(match)

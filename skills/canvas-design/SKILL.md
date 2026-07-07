@@ -25,7 +25,7 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
 
 `docs/design-variants/` 한 지붕이 확정본 SSOT 다.
 
-- `docs/design-variants/canvas.html` — 프로젝트 전체 화면 지도. 확정 화면을 iframe frame 으로 등록하고, 필요하면 흐름 화살표를 둔다.
+- `docs/design-variants/canvas.html` — 프로젝트 전체 화면 지도. 확정 화면을 iframe frame 으로 등록한다. 화면별 캡션과 2D 위치가 필요한 플로우 보드는 `.screen-node` 로 등록하고, 필요하면 라벨 달린 흐름 화살표를 둔다.
 - `docs/design-variants/_lib/` — `canvas.js`, `show-ids.js` 같은 공유 helper.
 - `docs/design-variants/<screen-id>.html` — 화면별 확정본. v 접미사는 쓰지 않는다. 히스토리는 git 이 보존한다.
 - `docs/design-variants/drafts/` — 탐색용 draft. `.gitignore` 로 무시한다.
@@ -61,8 +61,9 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
    - 확정본은 v 접미사를 쓰지 않는다.
 6. **canvas frame 등록**
    - 메인이 `docs/design-variants/canvas.html` 에 `<iframe data-frame-id="<screen-id>" src="<screen-id>.html"></iframe>` 를 등록한다.
-   - 이미 같은 `data-frame-id` 가 있으면 중복 등록하지 않고 기존 frame 을 갱신한다.
-   - 화면 간 흐름이 확정돼 있으면 `svg.flow-arrows` 의 `path[data-from][data-to]` 로 연결한다. 클릭 프로토타이핑은 후속 범위다.
+   - 화면 플로우 설명이 필요하면 `<div class="screen-node" data-node-id="<screen-id>" data-pos="<col>,<row>" data-title="..." data-desc="..." data-states="..." data-h="900"><iframe src="<screen-id>.html"></iframe></div>` 로 등록한다.
+   - 이미 같은 `data-frame-id` 또는 `data-node-id` 가 있으면 중복 등록하지 않고 기존 항목을 갱신한다.
+   - 화면 간 흐름이 확정돼 있으면 `svg.flow-arrows` 의 `path[data-from][data-to][data-label][data-bend]` 로 연결한다. canvas helper 가 라벨 pill, 강조, 초기 fit-to-view 를 처리한다.
 7. **반환**
    - 확정 목업 경로: `docs/design-variants/<screen-id>.html`
    - canvas 경로: `docs/design-variants/canvas.html`
