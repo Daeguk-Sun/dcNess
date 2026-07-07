@@ -1644,6 +1644,62 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         )
         self.assertTrue(prose_md.exists())
 
+    def test_begin_end_step_accepts_lower_hyphen_mode(self) -> None:
+        """issue #977 — begin-step 이 받은 소문자·하이픈 mode 를 end-step 도 수용."""
+        from harness.session_state import (
+            _cli_begin_step,
+            _cli_end_step,
+            run_dir,
+            run_prose_has_pass,
+            session_dir,
+        )
+        from types import SimpleNamespace
+        from io import StringIO
+        from contextlib import redirect_stdout
+
+        begin_out = StringIO()
+        with redirect_stdout(begin_out):
+            rc = _cli_begin_step(
+                SimpleNamespace(agent="module-architect", mode="epic-batch")
+            )
+        self.assertEqual(rc, 0)
+        self.assertIn("ok", begin_out.getvalue())
+
+        prose_path = self.base / "tmp_epic_batch_prose.md"
+        prose_path.write_text("## 결론\nPASS\n", encoding="utf-8")
+
+        end_out = StringIO()
+        with redirect_stdout(end_out):
+            rc = _cli_end_step(
+                SimpleNamespace(
+                    agent="module-architect",
+                    mode="epic-batch",
+                    prose_file=str(prose_path),
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(end_out.getvalue().strip(), "PROSE_LOGGED")
+
+        prose_md = (
+            session_dir(self.sid) / "runs" / self.rid /
+            "module-architect-epic-batch.md"
+        )
+        self.assertTrue(prose_md.exists())
+        self.assertTrue(run_prose_has_pass(run_dir(self.sid, self.rid), "module-architect"))
+
+    def test_begin_step_rejects_mode_that_end_step_would_reject(self) -> None:
+        """issue #977 — begin-step/end-step mode 검증 기준은 동일해야 한다."""
+        from harness.session_state import _cli_begin_step
+        from types import SimpleNamespace
+        from io import StringIO
+        from contextlib import redirect_stderr
+
+        err = StringIO()
+        with redirect_stderr(err):
+            rc = _cli_begin_step(SimpleNamespace(agent="module-architect", mode="Plan"))
+        self.assertEqual(rc, 1)
+        self.assertIn("invalid mode name", err.getvalue())
+
     def test_end_step_prose_only_mode_no_allowed_enums(self) -> None:
         """자유서술 방식 (이슈 #280/#284) — PROSE_LOGGED + prose 저장 + .steps.jsonl + stderr 요약."""
         from harness.session_state import (

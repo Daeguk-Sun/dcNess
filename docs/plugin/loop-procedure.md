@@ -80,9 +80,9 @@ TaskCreate("<agent>: <mode 또는 짧은 설명>")
 
 ```
 TaskUpdate("<task>", in_progress)
-"$HELPER" begin-step <agent> [<MODE>]
-Agent(subagent_type="<agent>", mode="<MODE>", description="...")  # 또는 provider 분기
-"$HELPER" end-step <agent> [<MODE>]   # 자유서술 방식(stdout=PROSE_LOGGED). Codex wrapper 경로는 wrapper 가 호출
+"$HELPER" begin-step <agent> [<mode>]
+Agent(subagent_type="<agent>", mode="<mode>", description="...")  # 또는 provider 분기
+"$HELPER" end-step <agent> [<mode>]   # 자유서술 방식(stdout=PROSE_LOGGED). Codex wrapper 경로는 wrapper 가 호출
 # 의무 echo (5~12 줄) — 아래 "결과 echo + 평가" 섹션
 TaskUpdate("<task>", completed)
 ```
@@ -95,7 +95,7 @@ begin-step stdout 에 `[PROMPT_SLOT_CHECK]` 가 있으면 **Agent prompt 작성 
 
 active run(`entry_point=design|impl|ux`) 안에서 `begin-step` 없이 `Agent` 를 직접 호출하거나, `begin-step` 의 agent/mode 와 다른 `Agent` 를 호출하면 PreToolUse hook 의 진행 순서 검사가 호출 전 차단한다. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 gate 를 탄다. Agent 결과가 hook 에 의해 staged 된 뒤에는 반드시 `end-step` 으로 기록하고 다음 `begin-step` 으로 넘어간다.
 
-메인이 prose를 직접 Write 할 필요 없음 — PostToolUse Agent hook 이 sub 종료 시 `tool_response.text` 에서 prose 를 자동으로 `<run_dir>/<agent>[-<MODE>].md` 에 저장하고 `live.json.current_step.prose_file` 에 경로 기록. `end-step` 이 이 경로를 자동 읽는다.
+메인이 prose를 직접 Write 할 필요 없음 — PostToolUse Agent hook 이 sub 종료 시 `tool_response.text` 에서 prose 를 자동으로 `<run_dir>/<agent>[-<mode>].md` 에 저장하고 `live.json.current_step.prose_file` 에 경로 기록. `end-step` 이 이 경로를 자동 읽는다.
 
 **validation provider 분기 (local opt-in)**: `code-validator` / `architecture-validator` / `pr-reviewer` 는 호출 직전 provider 를 resolve 한다.
 
@@ -172,7 +172,7 @@ fi
 
 **worktree 활성 시 worktree 절대 경로 prompt 에 추가 명시 — MUST**: cwd 가 `.claude/worktrees/<name>/` 안이면 sub-agent prompt 에 worktree 절대 경로 명시. main repo abs path 사용 금지 — 머지 전 옛 코드 read 로 false positive (CC #31546 / #48096). 근거: CC Task tool 에 cwd parameter 부재 (#12748), subagent frontmatter cwd field 부재 (#31940) — 메인이 명시 책임.
 
-**자유서술 방식** (이슈 #280/#284): end-step stdout = `PROSE_LOGGED`. 메인 Claude 가 prose 자체 (`<run_dir>/<agent>[-<MODE>].md`) 를 직접 읽고 다음 호출을 판단한다 — 호출한 loop skill 의 `<skill>-routing.md` (분기 규칙 진본) 참조. 결정 못 하면 사용자에게 위임 (prose 본문에 "결정 불가" 명시 — issue #392: routing_telemetry cascade marker 폐기, 자연어 위임만).
+**자유서술 방식** (이슈 #280/#284): end-step stdout = `PROSE_LOGGED`. 메인 Claude 가 prose 자체 (`<run_dir>/<agent>[-<mode>].md`) 를 직접 읽고 다음 호출을 판단한다 — 호출한 loop skill 의 `<skill>-routing.md` (분기 규칙 진본) 참조. 결정 못 하면 사용자에게 위임 (prose 본문에 "결정 불가" 명시 — issue #392: routing_telemetry cascade marker 폐기, 자연어 위임만).
 
 #### 결과 echo + 평가 — MUST (5~12줄)
 
@@ -224,24 +224,25 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 **step 명명 규칙**: begin/end-step 은 `agent mode` 두 인자 형식만 허용.
 
 ```bash
-"$HELPER" begin-step <agent> [<MODE>]
-"$HELPER" end-step   <agent> [<MODE>]
+"$HELPER" begin-step <agent> [<mode>]
+"$HELPER" end-step   <agent> [<mode>]
 ```
 
 - `agent` — 소문자·하이픈만 (`^[a-z][a-z0-9-]{0,63}$`)
-- `mode` — 대문자·숫자·언더스코어만 (`^[A-Z][A-Z0-9_]{0,63}$`)
+- `mode` — legacy 대문자·숫자·언더스코어(`^[A-Z][A-Z0-9_]{0,63}$`) 또는 skill 라벨용 소문자·숫자·하이픈(`^[a-z][a-z0-9-]{0,63}$`, 단 occurrence suffix 와 충돌하는 `-<숫자>` 끝맺음 제외)
 - 콜론 표기 금지 — `"engineer:POLISH-1"` 형식은 `_validate_agent` 거부 → prose 미기록
 
 **prose 파일 자동 명명** (PostToolUse hook 이 `signal_io.signal_path` 기준 결정):
 - 단순: `<run_dir>/<agent>.md`
-- mode 보유: `<run_dir>/<agent>-<MODE>.md`
-- 같은 (agent, mode) N번째 반복: `<run_dir>/<agent>[-<MODE>]-N.md` (occurrence 카운터 자동 충돌 처리)
+- mode 보유: `<run_dir>/<agent>-<mode>.md`
+- 같은 (agent, mode) N번째 반복: `<run_dir>/<agent>[-<mode>]-N.md` (occurrence 카운터 자동 충돌 처리)
 
 | 상황 | begin/end-step | 생성 파일 |
 |---|---|---|
 | POLISH 1회 | `begin-step engineer POLISH` | `engineer-POLISH.md` |
 | POLISH 2회 | `begin-step engineer POLISH` | `engineer-POLISH-1.md` |
 | IMPL 재시도 | `begin-step engineer IMPL` | `engineer-IMPL-1.md` |
+| `/design` epic batch | `begin-step module-architect epic-batch` | `module-architect-epic-batch.md` |
 
 재호출마다 별도 begin/end-step 1쌍 필수 (DCN-30-25 안전망). `--prose-file` 명시적 전달은 legacy/override 용도로 여전히 허용.
 
@@ -275,13 +276,13 @@ phase prose 실제 기록 디렉토리 = `dcness-helper run-dir` 이 출력하�
 | `AMBIGUOUS` 재호출 1회 | 직전 동일 agent task | `TaskUpdate(<task>, in_progress)` |
 | `SPEC_GAP_FOUND` → module-architect (보강) | 신규 task (다른 agent) | `TaskCreate` 가능 |
 
-이유: retry / POLISH 는 *동일 step 의 재실행*. 신규 TaskCreate 시 같은 step 이 task list 에 중복 등장 → 진행 추적 오염. cycle 카운터는 step occurrence (`<agent>[-<MODE>]-N.md`) 로 보존되므로 task 는 1개로 유지.
+이유: retry / POLISH 는 *동일 step 의 재실행*. 신규 TaskCreate 시 같은 step 이 task list 에 중복 등장 → 진행 추적 오염. cycle 카운터는 step occurrence (`<agent>[-<mode>]-N.md`) 로 보존되므로 task 는 1개로 유지.
 
 **MUST 순서** (retry / POLISH 진입 시):
 
 ```
 TaskUpdate(<기존 task>, in_progress)   # 신규 TaskCreate 금지
-"$HELPER" begin-step <agent> [<MODE>]   # occurrence 자동 증가 → -N.md
+"$HELPER" begin-step <agent> [<mode>]   # occurrence 자동 증가 → -N.md
 Agent(...)
 ENUM=$("$HELPER" end-step ...)
 TaskUpdate(<기존 task>, completed)
@@ -443,7 +444,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 
 ## run-ledger + receipt (resume / audit)
 
-`begin-run` / `begin-step` / `end-step` / `end-run` 은 prose 저장과 별개로 run_dir 안 `ledger.jsonl` 에 append-only event 를 자동 기록한다. prose 파일 (`<run_dir>/<agent>[-<MODE>].md`) 이 계속 SSOT 이고, ledger 는 긴 prose 를 매번 대화 context 에 재주입하지 않고도 resume / handoff / audit 에 필요한 상태를 담는 색인 장부다. **agent 에게 JSON 출력 형식을 강제하지 않는다** — helper 가 저장된 prose + known state 에서 receipt 를 생성한다.
+`begin-run` / `begin-step` / `end-step` / `end-run` 은 prose 저장과 별개로 run_dir 안 `ledger.jsonl` 에 append-only event 를 자동 기록한다. prose 파일 (`<run_dir>/<agent>[-<mode>].md`) 이 계속 SSOT 이고, ledger 는 긴 prose 를 매번 대화 context 에 재주입하지 않고도 resume / handoff / audit 에 필요한 상태를 담는 색인 장부다. **agent 에게 JSON 출력 형식을 강제하지 않는다** — helper 가 저장된 prose + known state 에서 receipt 를 생성한다.
 
 **자동 기록 event** (코드 경로):
 - `run_started` (begin-run) — entry_point / issue_num / design_doc(기록 시)

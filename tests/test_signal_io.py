@@ -109,9 +109,18 @@ class SignalPathValidationTests(unittest.TestCase):
                 signal_path(bad, "run", base_dir=self.base)
 
     def test_invalid_mode_name(self) -> None:
-        for bad in ["plan", "Plan", "PLAN-A", "1MODE"]:
+        for bad in ["Plan", "PLAN-A", "plan_mode", "1MODE", "mode-1"]:
             with self.assertRaises(ValueError, msg=f"mode={bad!r}"):
                 signal_path("validator", "run", mode=bad, base_dir=self.base)
+
+    def test_lower_hyphen_mode_name(self) -> None:
+        path = signal_path(
+            "module-architect",
+            "r1",
+            mode="epic-batch",
+            base_dir=self.base,
+        )
+        self.assertEqual(path.name, "module-architect-epic-batch.md")
 
     def test_invalid_run_id_traversal(self) -> None:
         with self.assertRaises(ValueError):
