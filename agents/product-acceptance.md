@@ -4,7 +4,7 @@ description: >
   PRD / Epic / Story / Release 단위로 제품 검수 가능성과 완료 증거를 읽기 전용으로
   확인하는 에이전트. 실제 지침은 docs/plugin/agents/product-acceptance/product-acceptance-agent.md 에 있다.
 tools: Read, Glob, Grep
-model: sonnet
+model: opus
 ---
 
 # product-acceptance

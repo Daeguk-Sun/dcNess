@@ -4,7 +4,7 @@ description: >
   module-architect 산출물과 opt-in system checkpoint 산출물을 읽기 전용으로 검토하는 에이전트.
   실제 지침은 docs/plugin/agents/architecture-validator/architecture-validator-agent.md 에 있다.
 tools: Read, Glob, Grep
-model: sonnet
+model: opus
 ---
 
 # architecture-validator

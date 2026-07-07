@@ -22,10 +22,13 @@ Options:
 
 Environment:
   DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 600.
+  DCNESS_CODEX_MODEL    Optional Codex model override. Default: inherit user config.
+  DCNESS_CODEX_EFFORT   Optional reasoning effort override. Default: inherit user config.
 
 The wrapper runs Codex in read-only mode. On Codex CLI versions that expose
-approval flags, it also passes global -a never:
-  codex [-a never] exec -C "$PROJECT_ROOT" -s read-only --output-last-message "$TMP_PROSE"
+approval flags, it also passes global -a never. Model and effort overrides are
+only passed when the matching environment variables are set:
+  codex [-a never] [-m "$DCNESS_CODEX_MODEL"] [-c "model_reasoning_effort=$DCNESS_CODEX_EFFORT"] exec -C "$PROJECT_ROOT" -s read-only --output-last-message "$TMP_PROSE"
 
 Before running Codex, it embeds the installed dcness Codex skill from
 $CODEX_HOME/skills or the plugin bundle when available.
@@ -70,6 +73,8 @@ PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
 CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-600}"
+CODEX_MODEL="${DCNESS_CODEX_MODEL:-}"
+CODEX_EFFORT="${DCNESS_CODEX_EFFORT:-}"
 
 abs_path() {
   case "$1" in
@@ -248,6 +253,12 @@ CODEX_CMD=(codex)
 CODEX_ARGS=(exec -C "$PROJECT_ROOT" -s read-only --output-last-message "$TMP_PROSE")
 if codex --help 2>/dev/null | grep -Eq -- '(^|[[:space:]])-a,|--ask-for-approval|--approval-policy'; then
   CODEX_CMD+=( -a never )
+fi
+if [ -n "$CODEX_MODEL" ]; then
+  CODEX_CMD+=( -m "$CODEX_MODEL" )
+fi
+if [ -n "$CODEX_EFFORT" ]; then
+  CODEX_CMD+=( -c "model_reasoning_effort=$CODEX_EFFORT" )
 fi
 CODEX_ARGS+=( - )
 

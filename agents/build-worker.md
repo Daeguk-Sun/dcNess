@@ -4,7 +4,7 @@ description: >
   /impl-loop 경량 엔진에서 테스트, 구현, 자체 검증을 한 번에 수행하는 에이전트.
   실제 지침은 docs/plugin/agents/build-worker/build-worker-agent.md 에 있다.
 tools: Read, Write, Edit, Bash, Glob, Grep
-model: sonnet
+model: opus
 ---
 
 # build-worker
