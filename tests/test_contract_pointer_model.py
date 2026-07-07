@@ -54,6 +54,18 @@ class ModuleDecisionContractModelTests(unittest.TestCase):
                 self.assertIn("manual QA", text)
                 self.assertIn("명령 변환 불가 사유", text)
 
+    def test_impl_task_scope_narrows_test_grants_to_owner_module_subdir(self) -> None:
+        template = read("docs/plugin/agents/module-architect/templates/impl-task.md")
+        module_architect = read("docs/plugin/agents/module-architect/module-architect-agent.md")
+
+        for text in (template, module_architect):
+            with self.subTest(text=text[:40]):
+                self.assertIn("테스트 grant", text)
+                self.assertIn("test root 전체", text)
+                self.assertIn("owner module 에 대응하는 하위", text)
+                self.assertIn("공통 기반 task", text)
+                self.assertIn("사유를 주석", text)
+
     def test_agents_treat_module_list_and_decisions_as_contract_sources(self) -> None:
         module_architect = read("docs/plugin/agents/module-architect/module-architect-agent.md")
         validator = read(

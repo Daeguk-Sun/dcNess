@@ -52,7 +52,7 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 
 ### 수정 허용
 
-> 기본값은 owner module directory grant 다. **한 bullet = 정확히 하나의 repo-relative 파일 경로 또는 끝 `/` 디렉토리**이고, 모듈 작업은 `src/<owner-module>/` 처럼 owner module directory 를 끝 `/` 로 연다. 그 디렉토리 안의 신규 파일은 구현자 재량이다. 같은 owner directory 를 여러 task 가 나눠 병렬/분할 구현할 때만 file-level path 로 좁힌다. 부가 설명은 `# 주석` 또는 blockquote 로 적는다.
+> 기본값은 owner module directory grant 다. **한 bullet = 정확히 하나의 repo-relative 파일 경로 또는 끝 `/` 디렉토리**이고, 모듈 작업은 `src/<owner-module>/` 처럼 owner module directory 를 끝 `/` 로 연다. 그 디렉토리 안의 신규 파일은 구현자 재량이다. 같은 owner directory 를 여러 task 가 나눠 병렬/분할 구현할 때만 file-level path 로 좁힌다. 테스트 grant 는 test root 전체(예: `app/src/test/java/<root-package>/`)가 아니라 owner module 에 대응하는 하위 디렉토리(예: `app/src/test/java/<root-package>/<owner-module>/`)로 좁힌다. 대응 하위 경로를 특정할 수 없는 공통 기반 task 만 넓은 테스트 grant 를 허용하고 `# 사유: ...`처럼 사유를 주석으로 남긴다. 부가 설명은 `# 주석` 또는 blockquote 로 적는다.
 
 - `src/<owner-module>/`
 
