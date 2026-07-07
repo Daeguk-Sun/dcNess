@@ -84,6 +84,8 @@ module-architect epic-batch 산출물을 읽기 전용으로 검토한다. 앞�
 
 FAIL / ESCALATE 판단 노트와 재검증 delta-first 보고는 [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)를 따른다. 이 가이드는 출력 schema 가 아니라 메인이 다음 행동을 판단할 수 있게 실패 사실, 판단 근거, 재검증 변화량을 드러내는 의미 요구다.
 
+retry 또는 재검증 호출이어도 validator 는 retry counter 를 증가·리셋하지 않는다. 메인이 design-routing.md 의 provider-agnostic counter 로 자동 재진입 한도를 판단한다. validator 는 직전 finding 대비 resolved / still failing / new 만 판정 가능하게 쓰고, 새 finding 등장이나 분류 변경을 한도 리셋처럼 표현하지 않는다.
+
 ## 템플릿과 참고 문서
 
 - [`templates/review-report.md`](templates/review-report.md)

@@ -36,8 +36,8 @@ flowchart TB
   SA_CHECK -->|PASS| MA_BATCH
   AV_FINAL -->|PASS| M([end-run/metrics freeze 후 Step 6 PR · 사용자 확인 checkpoint · 머지 → /impl 안내])
   M -->|DESIGN_SYSTEM_PR_MERGED| DONE([/impl 안내])
-  AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤3"| SA_CHECK
-  AV_FINAL -->|"FAIL: TASK_LOCAL ≤3"| MA_BATCH
+  AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤3 shared"| SA_CHECK
+  AV_FINAL -->|"FAIL: TASK_LOCAL ≤3 shared"| MA_BATCH
   SA_CHECK -->|NEW_DEP_ESCALATE| U((사용자 · 4안))
   SA_BOOT -->|NEW_DEP_ESCALATE| U
   MA_BATCH -->|NEW_DEP_ESCALATE| U
@@ -55,7 +55,7 @@ flowchart TB
   class U user
 ```
 
-> 파랑 = 생산 agent · 초록 = 검증 agent · 회색 = 사용자 위임. 점선 = escalate. 엣지의 `≤N` = retry 한도 ([retry 한도](#retry-한도)).
+> 파랑 = 생산 agent · 초록 = 검증 agent · 회색 = 사용자 위임. 점선 = escalate. 엣지의 `≤N` = retry 한도 ([retry 한도](#retry-한도)). `SYSTEM_BOUNDARY` / `TASK_LOCAL` final FAIL 엣지는 같은 shared counter 를 쓴다.
 >
 > tech-reviewer 는 design 진입 *전* (`/tech-review` skill) 단계가 기본이다. design 중 새 외부 의존이 발견되면 사용자가 option 4 를 명시 선택한 경우에만 대상 epic 범위로 좁혀 호출한다.
 
@@ -110,6 +110,17 @@ flowchart TB
 >
 > **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 분기](#finding-분류-분기)) — final epic 검증은 `SYSTEM_BOUNDARY` → system-architect opt-in checkpoint, `TASK_LOCAL` → module-architect(epic-batch) 보강.
 > cycle 발생 시 working tree only — commit X. PASS 후에만 commit.
+
+### final 검증 counter 계약
+
+**RCA**: Android `/design` 관측에서는 final 검증 FAIL 후 새 stale 사본 finding 이 나올 때마다 "같은 경로" 판단이 흐려졌고, 그래프의 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 양쪽 edge 를 분류별 별도 한도로 읽을 여지도 있었다. 그 결과 3 cycle 계약이 사용자 위임으로 전환되지 못하고 6 cycle 자동 재진입을 허용했다. 원인은 hook 강제 부재가 아니라 counter key 와 reset 금지가 문서상 충분히 실행 가능하지 않았던 것이다.
+
+- **final epic 검증 FAIL → 산출 주체 재진입 counter 는 하나**다. final validator 가 `FAIL` 을 내고 메인이 자동으로 producer 를 다시 부르기로 결정하는 순간 1 cycle 로 센다.
+- 재진입 대상은 finding 분류로 고른다. `SYSTEM_BOUNDARY` 는 system-architect opt-in checkpoint, `TASK_LOCAL` 은 module-architect(epic-batch) 보강으로 가지만 둘은 같은 final 검증 retry counter 를 공유한다.
+- `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류 전환, finding 영역 변경, 파일 변경, finding 수 변화, 새 finding 등장, provider 변경으로 counter 를 리셋하지 않는다.
+- 3 cycle 까지만 자동 재진입한다. 4번째 자동 재진입이 필요해지는 순간에는 진행을 멈추고 남은 finding, 영향, 선택지(system checkpoint 계속 / module 보강 계속 / `/spec` 재진입 / hold)를 사용자에게 위임한다.
+- Claude Agent 와 Codex wrapper 모두 메인이 집계한다. Codex wrapper 는 end-step 까지 수행하지만 counter 소유자가 아니다. counter evidence 는 `architecture-validator`, `architecture-validator-1` 같은 같은 agent occurrence 와 ledger receipt 이며, provider field 는 counter key 가 아니다.
+- 루프 재구성 이후 상설 초기 검증 stage 가 없어져도 이 계약은 남는다. 적용 대상은 design-system stage 의 final epic 검증과 그 FAIL 이 유발하는 system checkpoint 또는 epic-batch 재진입이다.
 
 > **finding 수용 자세** (점 패치 X, 근본 재설계) — 같은 영역 finding 이 2회+ 반복되면 점 패치 retry 로 한도를 소진하지 말고 근본 원인을 짚어 그 영역을 재설계한다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).
 

@@ -74,6 +74,8 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 
 같은 agent/mode 의 retry 또는 재검증이면 전체 배경을 반복하지 않고 직전 결과 대비 변화부터 쓴다. 재검증 결과는 changed / resolved / still failing / new 를 먼저 드러내고, 권장 카테고리는 해소됨, 유지됨, 신규, 판단 불가다. 남은 차단 finding 에는 파일/라인/명령 같은 재현 가능한 근거를 유지한다.
 
+retry 또는 재검증 호출이어도 Codex validator 는 retry counter 를 증가·리셋하지 않는다. 메인이 design-routing.md 의 provider-agnostic counter 로 자동 재진입 한도를 판단한다. 새 finding 등장, finding 분류 변경, Codex provider 사용 사실을 한도 리셋처럼 표현하지 않는다.
+
 별도 영구 산출물 작성 금지, read-only agent 가 직접 파일 쓰기 금지, JSON, marker, 고정 schema, 필수 heading 강제는 도입하지 않는다. `PASS` 단발에는 적용하지 않는다.
 
 ## 완료 기준

@@ -38,8 +38,8 @@ def _make_run_dir(tmp: Path, sid: str, rid: str, events: list[dict], prose: dict
     return run_dir
 
 
-def _step(agent: str, filename: str, ts: str) -> dict:
-    return {
+def _step(agent: str, filename: str, ts: str, *, provider: str | None = None) -> dict:
+    step = {
         "event": "step_completed",
         "ts": ts,
         "agent": agent,
@@ -48,6 +48,9 @@ def _step(agent: str, filename: str, ts: str) -> dict:
         "prose_file": filename,
         "prose_excerpt": "",
     }
+    if provider:
+        step["provider"] = provider
+    return step
 
 
 class DesignRunRecordTests(unittest.TestCase):
@@ -117,6 +120,57 @@ class DesignRunRecordTests(unittest.TestCase):
         self.assertNotIn("CONTRACT_PROPAGATION", record["finding_classes"])
         self.assertEqual(record["revalidation_cycles"], {"architecture-validator": 1})
         self.assertEqual(record["units"][0]["verdict"], "FAIL")
+        self.assertEqual(record["units"][2]["cycle"], 1)
+
+    def test_revalidation_cycles_are_provider_agnostic(self) -> None:
+        """#970 — Claude/Codex provider switches do not split retry counters."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            run_dir = _make_run_dir(
+                tmp,
+                "sid1",
+                "run-design-provider",
+                [
+                    {
+                        "event": "run_started",
+                        "entry_point": "design",
+                        "stage": "design-system",
+                        "ts": "2026-07-01T00:00:00+00:00",
+                    },
+                    _step(
+                        "architecture-validator",
+                        "av-claude.md",
+                        "2026-07-01T00:01:00+00:00",
+                        provider="claude-main",
+                    ),
+                    _step(
+                        "module-architect",
+                        "ma.md",
+                        "2026-07-01T00:04:00+00:00",
+                    ),
+                    _step(
+                        "architecture-validator",
+                        "av-codex.md",
+                        "2026-07-01T00:08:00+00:00",
+                        provider="codex-headless",
+                    ),
+                    {
+                        "event": "run_finished",
+                        "ts": "2026-07-01T00:10:00+00:00",
+                    },
+                ],
+                {
+                    "av-claude.md": "Must finding: SYSTEM_BOUNDARY at docs/a.md:1\nFAIL\n",
+                    "ma.md": "system checkpoint 반영\nPASS\n",
+                    "av-codex.md": "Resolved SYSTEM_BOUNDARY.\nPASS\n",
+                },
+            )
+            record = build_design_record(run_dir, repo_path=tmp)
+
+        self.assertIsNotNone(record)
+        assert record is not None
+        self.assertEqual(record["revalidation_cycles"], {"architecture-validator": 1})
+        self.assertEqual(record["units"][0]["cycle"], 0)
         self.assertEqual(record["units"][2]["cycle"], 1)
 
     def test_non_design_run_is_ignored(self) -> None:
