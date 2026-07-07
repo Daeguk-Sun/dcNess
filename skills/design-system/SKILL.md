@@ -49,7 +49,7 @@ UI epic 이면 stage 1 의 epic `ux-flow.md`, `docs/design.md` 포인터 또는 
 4. **기술 스택 체크포인트** — 기록된 스택 결정이 있으면 확인 안내 후 skip 하고, 없으면 메인이 사용자와 직접 합의한다.
 5. **조건부 system-architect** — greenfield topology 부재면 thin bootstrap 을 1회 호출한다. 기존 모듈 경계·도메인 invariant·storage policy·public API boundary·전역 decision 변경 신호가 있으면 opt-in checkpoint 를 호출한다. UI epic 은 조건부 system-architect prompt 에도 stage 1 UX 산출물 4종(epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, 화면별 확정 목업 또는 `확정본 없음`, canvas 포인터 또는 부재 신호)을 넣는다.
 6. **module-architect(epic-batch)** — epic architecture 최소형과 epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지 않는다. 확정 목업이 있는 UI epic 은 목업 대조 근거를 architecture 와 impl `## 디자인 참조` 에 남기고, impl task 의 `## 디자인 참조` 가 확정 목업 경로와 핵심 node-id 매핑으로 채워지게 한다.
-7. **mechanical pre-final checks** — normalize-scope, wave-plan, design artifact audit 를 실행하고 unresolved 신호만 final validator prompt 에 전달한다.
+7. **mechanical pre-final checks** — normalize-scope, wave-plan, 확정 목업 UI epic 한정 mockup-node-check, design artifact audit 를 실행하고 unresolved 신호만 final validator prompt 에 전달한다.
 8. **architecture-validator(final epic 검증)** — 기존 설계 pack 계약 그대로 final epic 검증을 수행한다. 확정 목업이 있는 UI epic 에서는 목업 미참조 설계 금지 원칙에 따라 디자인 대조 근거를 검토한다. FAIL 은 `design-routing.md` 의 finding 분류에 따라 system checkpoint 또는 module-architect 로 되돌린다.
 9. **end-run + metrics freeze** — PR 생성 전에 `dcness-helper end-run` 을 실행해 `docs/metrics/design-runs.jsonl` 에 stage run 을 기록한다.
 10. **stage 2 PR** — full design pack 산출물을 stage/commit/push/PR 생성한다. main 머지 직전에는 설계 pack 요약과 diff 규모를 제시하고 사용자 확인 checkpoint 를 둔다. yolo 모드에서는 기존 `/design` 계약대로 확인을 생략할 수 있다. PR merge/main sync 후 `/impl <epic-path>` 를 안내한다.

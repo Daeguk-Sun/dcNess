@@ -113,6 +113,8 @@ FAIL_OPEN_RECENT_LIMIT = 5
 _FAIL_OPEN_DETAIL_MAX = 500
 _PROMPT_SLOT_CHECK_ENTRY_POINTS = {"impl", "design"}
 _PROMPT_SLOT_TEMPLATE_REL = Path("docs/plugin/templates/agent-prompt-slots.md")
+_DESIGN_SSOT_REMINDER_AGENTS = {"module-architect", "architecture-validator"}
+_CONFIRMED_MOCKUP_DIR_REL = Path("docs/design-variants")
 
 
 # ── 경로 유틸 ───────────────────────────────────────────────────────
@@ -997,12 +999,91 @@ def _active_worktree_root_for_prompt(*, cwd: Optional[Path] = None) -> Optional[
     return str(root_path) if _is_dcness_worktree_path(root_path) else None
 
 
+def _repo_root_for_prompt_check(*, cwd: Optional[Path] = None) -> Path:
+    """Return repo root for advisory prompt checks, falling back to cwd."""
+    probe_cwd = Path(cwd or Path.cwd()).resolve()
+    try:
+        result = subprocess.run(  # nosec B603, B607
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=str(probe_cwd),
+            timeout=_PPID_LOOKUP_TIMEOUT_SEC,
+        )
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+        OSError,
+    ):
+        return probe_cwd
+    root = result.stdout.strip()
+    return Path(root).resolve() if root else probe_cwd
+
+
+def _confirmed_mockup_paths_for_prompt(*, cwd: Optional[Path] = None) -> tuple[str, ...]:
+    """Find confirmed screen mockups for prompt-writing reminders.
+
+    This is deliberately broad and advisory. It detects top-level confirmed screen
+    HTML files under ``docs/design-variants/`` and ignores canvas/drafts seed files.
+    """
+    root = _repo_root_for_prompt_check(cwd=cwd)
+    mockup_dir = root / _CONFIRMED_MOCKUP_DIR_REL
+    if not mockup_dir.is_dir():
+        return ()
+    try:
+        from harness.mockup_node_check import is_confirmed_mockup_html
+    except Exception:  # nosec B110
+        return ()
+    paths: list[str] = []
+    for path in sorted(mockup_dir.glob("*.html")):
+        if not is_confirmed_mockup_html(path):
+            continue
+        try:
+            paths.append(path.relative_to(root).as_posix())
+        except ValueError:
+            paths.append(str(path))
+    return tuple(paths)
+
+
+def _design_ssot_reminder_line(
+    *,
+    agent: Optional[str],
+    cwd: Optional[Path] = None,
+) -> Optional[str]:
+    """Return a design SSOT advisory line for design agents when mockups exist."""
+    if not agent:
+        return None
+    try:
+        from harness.agent_names import normalize_agent_type
+
+        agent_name = normalize_agent_type(agent) or agent
+    except Exception:  # nosec B110
+        agent_name = agent
+    if agent_name not in _DESIGN_SSOT_REMINDER_AGENTS:
+        return None
+    mockups = _confirmed_mockup_paths_for_prompt(cwd=cwd)
+    if not mockups:
+        return None
+    preview = ", ".join(f"`{path}`" for path in mockups[:3])
+    if len(mockups) > 3:
+        preview = f"{preview}, ..."
+    return (
+        "- design SSOT: 확정 목업 감지("
+        f"{preview}). 확정 목업 존재 UI epic 이면 슬롯 1에 `docs/design.md`, "
+        "확정 목업 파일, `docs/design-variants/canvas.html`, node-id 매핑 출처를 "
+        "포함했는지 확인."
+    )
+
+
 def _prompt_slot_check_text(
     session_id: str,
     run_id: str,
     *,
     base_dir: Optional[Path] = None,
     cwd: Optional[Path] = None,
+    agent: Optional[str] = None,
 ) -> str:
     """Advisory self-check emitted immediately before Agent prompt writing."""
     try:
@@ -1027,15 +1108,19 @@ def _prompt_slot_check_text(
             "- worktree: 비활성이 확실하면 생략. 활성 여부가 애매하면 "
             "`pwd` / `git rev-parse --show-toplevel` 확인 후 절대경로 포함."
         )
-    return "\n".join(
-        [
-            "[PROMPT_SLOT_CHECK]",
-            f"- template: `{template_path}`",
-            "- 대상+읽을 진본: 이번 호출 단위와 agent 가 자체 read 할 SSOT 경로만 둔다.",
-            worktree_line,
-            "- 이 호출 특유: 진본에 없는 제약/신호만 둔다. 정규식·구현 단계·알고리즘·테스트 assert 방식 등 방법 처방 금지.",
-        ]
+    lines = [
+        "[PROMPT_SLOT_CHECK]",
+        f"- template: `{template_path}`",
+        "- 대상+읽을 진본: 이번 호출 단위와 agent 가 자체 read 할 SSOT 경로만 둔다.",
+        worktree_line,
+    ]
+    design_line = _design_ssot_reminder_line(agent=agent, cwd=cwd)
+    if design_line:
+        lines.append(design_line)
+    lines.append(
+        "- 이 호출 특유: 진본에 없는 제약/신호만 둔다. 정규식·구현 단계·알고리즘·테스트 assert 방식 등 방법 처방 금지."
     )
+    return "\n".join(lines)
 
 
 def set_pending_agent(
@@ -1776,6 +1861,7 @@ _CLI_REEXPORT_NAMES = frozenset(
         "_cli_is_self",
         "_cli_ledger_event",
         "_cli_merge_lock",
+        "_cli_mockup_node_check",
         "_cli_next_task",
         "_cli_normalize_scope",
         "_cli_post_task_begin",

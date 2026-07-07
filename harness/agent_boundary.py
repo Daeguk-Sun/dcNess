@@ -1271,7 +1271,8 @@ _MUTATION_RECURSION_LIMIT = 3
 # 단 `prev-tasks-reset` 은 **메인 전담 + 파괴적**(메인 repo 의 .prev-tasks.md FIFO 삭제)이고
 # 어떤 sub-agent 도 호출 안 하므로 차단한다 — 병렬 worker 가 leader 의 handoff 컨텍스트를
 # 지우지 못하게 (#636 F16). append(추가)는 허용, reset(삭제)은 차단으로 비대칭.
-# read-only (run-dir/run-status/is-active/status/routing/wave-plan/wave-status) 는 통과.
+# read-only (run-dir/run-status/is-active/status/routing/wave-plan/wave-status/
+# mockup-node-check) 는 통과.
 # 단 `wave-plan --register` 는 claim board 를 mutate 하므로 차단한다.
 # `pr-create.sh` / `pr-finalize.sh` 같은 main-owned wrapper 도 command position 에서 차단한다.
 _HELPER_LEADER_SUBCOMMANDS = frozenset({

@@ -560,7 +560,7 @@ def _cli_begin_step(args: Any) -> int:
 
     print("ok")
 
-    prompt_slot_check = _prompt_slot_check_text(sid, rid)
+    prompt_slot_check = _prompt_slot_check_text(sid, rid, agent=agent)
     if prompt_slot_check:
         print(f"\n{prompt_slot_check}")
 
@@ -670,6 +670,15 @@ def _cli_chain_view(args: Any) -> int:
         + (["--prev", str(args.prev)] if args.prev is not None else [])
         + (["--initial"] if getattr(args, "initial", False) else [])
     )
+
+
+def _cli_mockup_node_check(args: Any) -> int:
+    """Read-only design reference node-id checker (#989)."""
+    from harness.mockup_node_check import check_mockup_nodes
+
+    payload = check_mockup_nodes(args.impl_paths, mockup_dir=args.mockup_dir)
+    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    return 0 if payload.get("ok") else 1
 
 
 def _cli_ledger_event(args: Any) -> int:
@@ -1115,6 +1124,18 @@ def _build_arg_parser() -> Any:
     )
     p_ns.add_argument("paths", nargs="+", help="impl 파일 / 디렉토리 / glob")
     p_ns.set_defaults(func=_cli_normalize_scope)
+
+    p_mnc = sub.add_parser(
+        "mockup-node-check",
+        help="impl 디자인 참조의 data-node-id 가 확정 목업에 실존하는지 read-only 검증 (#989)",
+    )
+    p_mnc.add_argument("impl_paths", nargs="+", help="impl 파일 / 디렉토리 / glob")
+    p_mnc.add_argument(
+        "--mockup-dir",
+        default="docs/design-variants",
+        help="확정 목업 디렉토리 (default: docs/design-variants)",
+    )
+    p_mnc.set_defaults(func=_cli_mockup_node_check)
 
     p_wc = sub.add_parser(
         "wave-claim",
