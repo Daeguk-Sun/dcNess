@@ -265,6 +265,15 @@ high-risk trigger 가 있거나 사전 설계 합의가 필요한 작업은 impl
 `pr-reviewer` 는 read-only validation provider 분기 대상이다. 메인은 호출 직전 provider 를 resolve 한다.
 
 ```bash
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+
 PROVIDER=$("$HELPER" routing resolve pr-reviewer)
 if [ "$PROVIDER" = "codex" ]; then
   "$PLUGIN_ROOT/scripts/dcness-codex-validator" pr-reviewer --prompt-file "$PROMPT_FILE"
@@ -280,6 +289,15 @@ Codex 분기는 review provider 구현일 뿐 별도 public workflow 가 아니�
 `test-engineer` / `engineer` / `build-worker` 는 implementation provider 분기 대상이다. 기본값은 `headless-chain`(Codex headless → Claude headless → Claude main)이고, Claude-only 사용자는 `/init-dcness` custom 또는 중간 CLI 로 `claude` 로 바꿀 수 있다.
 
 ```bash
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+
 PROVIDER=$("$HELPER" routing resolve build-worker)   # 또는 test-engineer / engineer
 if [ "$PROVIDER" = "claude" ]; then
   Agent(subagent_type="build-worker", ...)

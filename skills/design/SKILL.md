@@ -155,6 +155,15 @@ UI epic 으로 판정되고 `design-ux` stage 를 선택한 직후 메인이 목
 architecture-validator final epic 검증 호출 직전 provider 를 resolve 한다.
 
 ```bash
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+
 PROVIDER=$("$HELPER" routing resolve architecture-validator)
 if [ "$PROVIDER" = "codex" ]; then
   "$PLUGIN_ROOT/scripts/dcness-codex-validator" architecture-validator --prompt-file "$PROMPT_FILE"
