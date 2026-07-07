@@ -11,6 +11,7 @@ __all__ = [
     "check_mockup_nodes",
     "collect_mockup_node_ids",
     "extract_design_reference_node_ids",
+    "is_confirmed_mockup_html",
 ]
 
 _NODE_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
@@ -39,21 +40,28 @@ class _NodeIdParser(HTMLParser):
                 self.node_ids.add(value.strip())
 
 
-def _is_excluded_mockup(path: Path) -> bool:
+def is_confirmed_mockup_html(path: Path) -> bool:
+    """Return whether ``path`` is a confirmed screen mockup HTML file."""
     parts = set(path.parts)
-    return path.name == "canvas.html" or "drafts" in parts or "_lib" in parts
+    return (
+        path.suffix.lower() == ".html"
+        and path.name != "canvas.html"
+        and not path.name.startswith("_")
+        and "drafts" not in parts
+        and "_lib" not in parts
+    )
 
 
 def _resolve_mockup_files(mockup_dir: str | Path) -> list[Path]:
     root = Path(mockup_dir)
     if root.is_file():
-        return [root] if root.suffix.lower() == ".html" and not _is_excluded_mockup(root) else []
+        return [root] if is_confirmed_mockup_html(root) else []
     if not root.is_dir():
         return []
     return [
         path
         for path in sorted(root.glob("*.html"))
-        if path.is_file() and not _is_excluded_mockup(path)
+        if path.is_file() and is_confirmed_mockup_html(path)
     ]
 
 
@@ -68,11 +76,13 @@ def collect_mockup_node_ids(mockup_dir: str | Path) -> tuple[set[str], list[Path
     return node_ids, files
 
 
-def _resolve_impl_files(raw_paths: Iterable[str]) -> list[Path]:
+def _resolve_impl_files(raw_paths: Iterable[str]) -> tuple[list[Path], list[dict]]:
     files: list[Path] = []
+    input_errors: list[dict] = []
     seen: set[Path] = set()
     for raw in raw_paths:
         matches = glob.glob(raw, recursive=True) or [raw]
+        raw_found = False
         for match in matches:
             path = Path(match)
             candidates: Iterable[Path]
@@ -83,12 +93,15 @@ def _resolve_impl_files(raw_paths: Iterable[str]) -> list[Path]:
             else:
                 candidates = []
             for candidate in candidates:
+                raw_found = True
                 resolved = candidate.resolve()
                 if resolved in seen:
                     continue
                 seen.add(resolved)
                 files.append(candidate)
-    return files
+        if not raw_found:
+            input_errors.append({"path": raw, "reason": "not_found_or_no_markdown"})
+    return files, input_errors
 
 
 def _design_reference_section(text: str) -> str:
@@ -137,6 +150,19 @@ def _left_side_arrow_candidate(line: str) -> str | None:
     return _clean_node_id_candidate(left)
 
 
+def _data_node_id_line_candidates(line: str) -> list[str]:
+    if "data-node-id" not in line:
+        return []
+    return [
+        candidate
+        for candidate in (
+            _clean_node_id_candidate(match.group(1))
+            for match in _BACKTICK_RE.finditer(line)
+        )
+        if candidate is not None
+    ]
+
+
 def extract_design_reference_node_ids(text: str) -> list[str]:
     """Extract cited node ids from an impl document's ``## 디자인 참조`` section."""
     section = _design_reference_section(text)
@@ -150,10 +176,10 @@ def extract_design_reference_node_ids(text: str) -> list[str]:
             seen.add(candidate)
             out.append(candidate)
 
-    for match in _BACKTICK_RE.finditer(section):
-        add(_clean_node_id_candidate(match.group(1)))
     for line in section.splitlines():
         add(_left_side_arrow_candidate(line))
+        for candidate in _data_node_id_line_candidates(line):
+            add(candidate)
     return out
 
 
@@ -163,7 +189,8 @@ def check_mockup_nodes(raw_paths: Iterable[str], *, mockup_dir: str | Path) -> d
     files_payload: list[dict] = []
     all_missing: set[str] = set()
     all_cited: set[str] = set()
-    for impl_path in _resolve_impl_files(raw_paths):
+    impl_files, input_errors = _resolve_impl_files(raw_paths)
+    for impl_path in impl_files:
         cited = extract_design_reference_node_ids(impl_path.read_text(encoding="utf-8"))
         existing = sorted(node_id for node_id in cited if node_id in available_ids)
         missing = sorted(node_id for node_id in cited if node_id not in available_ids)
@@ -178,9 +205,10 @@ def check_mockup_nodes(raw_paths: Iterable[str], *, mockup_dir: str | Path) -> d
             }
         )
     return {
-        "ok": not all_missing,
+        "ok": not all_missing and not input_errors,
         "mockup_dir": str(mockup_dir),
         "mockup_files": [str(path) for path in mockup_files],
+        "input_errors": input_errors,
         "available_node_ids": sorted(available_ids),
         "cited_node_ids": sorted(all_cited),
         "missing_node_ids": sorted(all_missing),

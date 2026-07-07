@@ -1032,9 +1032,13 @@ def _confirmed_mockup_paths_for_prompt(*, cwd: Optional[Path] = None) -> tuple[s
     mockup_dir = root / _CONFIRMED_MOCKUP_DIR_REL
     if not mockup_dir.is_dir():
         return ()
+    try:
+        from harness.mockup_node_check import is_confirmed_mockup_html
+    except Exception:  # nosec B110
+        return ()
     paths: list[str] = []
     for path in sorted(mockup_dir.glob("*.html")):
-        if path.name == "canvas.html" or path.name.startswith("_"):
+        if not is_confirmed_mockup_html(path):
             continue
         try:
             paths.append(path.relative_to(root).as_posix())

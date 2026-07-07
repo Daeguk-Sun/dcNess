@@ -1151,6 +1151,39 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertIn("docs/design-variants/checkout.html", text)
         self.assertIn("node-id 매핑", text)
 
+    def test_prompt_slot_check_uses_same_confirmed_mockup_exclusions(self) -> None:
+        """#989 — 리마인더도 canvas/drafts/_lib/_prefix 확정본 제외 규칙을 공유."""
+        from harness.session_state import (
+            _prompt_slot_check_text,
+            start_run,
+        )
+
+        action_rid = "run-c1b2c3d4"
+        start_run(self.sid, action_rid, "design")
+        mockup_dir = self.base / "docs" / "design-variants"
+        (mockup_dir / "drafts").mkdir(parents=True)
+        (mockup_dir / "_lib").mkdir()
+        for rel in (
+            "canvas.html",
+            "_internal.html",
+            "drafts/checkout-draft1.html",
+            "_lib/helper.html",
+        ):
+            (mockup_dir / rel).write_text(
+                '<main data-node-id="checkout.root"></main>',
+                encoding="utf-8",
+            )
+
+        text = _prompt_slot_check_text(
+            self.sid,
+            action_rid,
+            cwd=self.base,
+            agent="module-architect",
+        )
+
+        self.assertIn("[PROMPT_SLOT_CHECK]", text)
+        self.assertNotIn("design SSOT", text)
+
     def test_prompt_slot_check_design_ssot_reminder_is_agent_scoped(self) -> None:
         """#989 — 확정 목업 리마인더는 module-architect/architecture-validator 에 한정."""
         from harness.session_state import (
