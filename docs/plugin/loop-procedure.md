@@ -41,7 +41,14 @@ EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / d
 ### begin-run
 
 ```bash
-HELPER="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*} 2>/dev/null | sort -V | tail -1)/scripts/dcness-helper"
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
 RUN_ID=$("$HELPER" begin-run <entry_point> [--issue-num N] [--design-doc <path>] [--acceptance-required])
 echo "[<entry>] run started: $RUN_ID"
 ```
@@ -93,6 +100,15 @@ active run(`entry_point=design|impl|ux`) 안에서 `begin-step` 없이 `Agent` �
 **validation provider 분기 (local opt-in)**: `code-validator` / `architecture-validator` / `pr-reviewer` 는 호출 직전 provider 를 resolve 한다.
 
 ```bash
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+
 PROVIDER=$("$HELPER" routing resolve <agent>)
 if [ "$PROVIDER" = "codex" ]; then
   "$PLUGIN_ROOT/scripts/dcness-codex-validator" <agent> [MODE] --prompt-file "$PROMPT_FILE"
@@ -107,6 +123,15 @@ Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직�
 **implementation provider 분기 (headless-chain 기본)**: `test-engineer` / `engineer` / `build-worker` 는 호출 직전 provider 를 resolve 한다.
 
 ```bash
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+
 PROVIDER=$("$HELPER" routing resolve <agent>)
 if [ "$PROVIDER" = "claude" ]; then
   Agent(subagent_type="<agent>", ...)

@@ -209,6 +209,15 @@ worktree branch 안 commit / push / PR 생성·머지 = **메인 Claude 전담**
 `code-validator` / `pr-reviewer` (또는 build-worker self-validate 후 pr-reviewer) 호출 직전 provider 를 local 분기 config 로 resolve 한다. config = `~/.claude/plugins/data/dcness-dcness/routing.json`.
 
 ```bash
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+
 PROVIDER=$("$HELPER" routing resolve <agent>)
 if [ "$PROVIDER" = "codex" ]; then
   "$PLUGIN_ROOT/scripts/dcness-codex-validator" <agent> --prompt-file "$PROMPT_FILE"
@@ -224,6 +233,15 @@ wrapper 가 Codex 마지막 응답을 `/tmp` 에 받고 `dcness-helper end-step 
 `test-engineer` / `engineer` / `build-worker` 호출 직전 implementation provider 를 같은 local routing config 로 resolve 한다. 기본값은 `headless-chain` 이며, Claude-only 사용자는 `/init-dcness` custom 또는 중간 CLI 로 `claude` 로 바꾼다.
 
 ```bash
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+
 PROVIDER=$("$HELPER" routing resolve <agent>)
 if [ "$PROVIDER" = "claude" ]; then
   # 기존 Claude Agent(subagent_type="<agent>") 경로.
