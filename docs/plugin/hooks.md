@@ -96,7 +96,7 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 | engineer gate | 설계 산출물 없이 engineer/build-worker 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* `begin-run --lane lite` 로 기록된 Lite 구현 경로(#714), 셋 중 하나로 충족 |
 | 진행 순서 검사 | active run 안에서 직전 `begin-step` 과 다른 agent/mode 호출, `current_step` 부재, 이미 staged 된 stale step |
 
-**진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사를 탄다. module-architect 는 `/design` 기본 선두 진입과 opt-in system checkpoint 이후 재진입 모두 별도 validator 게이트 없이 허용한다. checkpoint 필요 여부와 재진입 흐름은 `skills/design/design-routing.md` 의 agent enum(`SYSTEM_CHECKPOINT_REQUIRED`)과 `begin-step` 물리 순서 검사로만 다룬다.
+**진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사를 탄다. module-architect 는 `/design` 기본 선두 진입, greenfield thin bootstrap 이후 진입, opt-in system checkpoint 이후 재진입 모두 별도 validator 게이트 없이 허용한다. checkpoint 필요 여부와 재진입 흐름은 `skills/design/design-routing.md` 의 agent enum(`SYSTEM_CHECKPOINT_REQUIRED`)과 `begin-step` 물리 순서 검사로만 다룬다.
 
 **engineer gate 의 design_doc 경로**: 설계(impl 문서 / compact plan)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 engineer gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**` / `docs/compact-plans/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
 

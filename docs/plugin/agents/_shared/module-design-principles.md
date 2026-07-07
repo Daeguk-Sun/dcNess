@@ -106,7 +106,7 @@ Agent Operability 는 하드 임계나 라인 수 게이트가 아니다. UI 라
 
 ### 적용 영역
 
-- system-architect — opt-in checkpoint 에서 epic architecture 모듈 목록의 책임/공개 인터페이스/검증 경로에 flow 별 owner module, entrypoint role, state owner, forbidden append, validation path 를 연결한다.
+- system-architect — THIN_BOOTSTRAP 에서는 root architecture 에 큰 모듈 경계와 의존 방향만 얇게 남기고, CHECKPOINT 에서 epic architecture 모듈 목록의 책임/공개 인터페이스/검증 경로에 flow 별 owner module, entrypoint role, state owner, forbidden append, validation path 를 연결한다.
 - module-architect — epic architecture 모듈 목록과 impl task 의 Agent Workability 를 남기고, entrypoint 를 건드리기 전에 flow owner 를 확정한다. owner 가 없으면 seam extraction task 를 앞세운다.
 - pr-reviewer — 이번 diff 가 edit target 을 불명확하게 만들거나 state owner 를 entrypoint/session 에 흩뜨리거나 overly broad entrypoint touch 를 요구하는지 본다. owner module 없이 entrypoint append + render/helper/session/global state 흡수 + owner 근처 validation path 부재가 한 diff 에 겹치면 소프트 신호가 아니라 MUST FIX 로 승격한다 — 크기가 아니라 작업성 악화 조합이 기준이다. footprint 밖 기존 누적은 후속 권고로 둔다.
 
@@ -235,7 +235,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 
 ### 적용 영역
 
-- system-architect — opt-in checkpoint 에서 의존성 강제 도구 선정 + architecture/docs decision 보강
+- system-architect — THIN_BOOTSTRAP 에서는 큰 모듈 의존 방향만 남기고, CHECKPOINT 에서 의존성 강제 도구 선정 + architecture/docs decision 보강
 - module-architect — 모듈 공개 인터페이스 영역 명시 + DI 패턴 적용
 - engineer — 빌드 시점 강제 도구 설정 + 의존 작성
 
@@ -245,7 +245,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 
 | Agent | evidence |
 |---|---|
-| [`system-architect`](../../../../agents/system-architect.md) | opt-in checkpoint 보고의 system boundary 결정, module responsibility 보강, 의존성 차단 도구, DI 패턴 |
+| [`system-architect`](../../../../agents/system-architect.md) | THIN_BOOTSTRAP 의 큰 모듈 topology 또는 CHECKPOINT 보고의 system boundary 결정, module responsibility 보강, 의존성 차단 도구, DI 패턴 |
 | [`module-architect`](../../../../agents/module-architect.md) | epic architecture 모듈 목록, impl 템플릿의 `Module Design Check`, Agent Workability, 작은 공개 노출 범위, module/decision contract reference, Story 동작 수직 슬라이스, 검증 가능한 수용 기준 |
 | [`engineer`](../../../../agents/engineer.md) | 구현 보고의 계약 준수, 의존 주입 또는 wrapper 사용, 검증 결과 |
 | [`test-engineer`](../../../../agents/test-engineer.md) | 테스트 보고의 REQ 연결, 의존 mock 경계, 구현 독립성 |

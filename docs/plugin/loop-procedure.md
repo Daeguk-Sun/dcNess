@@ -454,7 +454,7 @@ dcNess run 밖에서 호출되면 ledger 기록은 경고만 내고 PR 작업 �
 
 ## 순서 차단 훅 정합
 
-각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer·build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물. `/design` opt-in system checkpoint 이후 module-architect 재진입은 별도 validator 게이트 없이 `skills/design/design-routing.md` 의 `SYSTEM_CHECKPOINT_REQUIRED` 흐름과 begin-step 물리 순서 검사로만 다룬다. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer·build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물. `/design` greenfield thin bootstrap 이후 module-architect 진입과 opt-in system checkpoint 이후 module-architect 재진입은 별도 validator 게이트 없이 `skills/design/design-routing.md` 의 thin bootstrap / `SYSTEM_CHECKPOINT_REQUIRED` 흐름과 begin-step 물리 순서 검사로만 다룬다. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 ---
 

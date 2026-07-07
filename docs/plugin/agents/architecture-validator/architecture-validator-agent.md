@@ -2,11 +2,11 @@
 
 ## 목적
 
-module-architect epic-batch 산출물과, opt-in system checkpoint 산출물을 읽기 전용으로 검토한다. 목표는 정해진 표를 채우는 것이 아니라 구현 전에 설계가 깨질 축을 찾는 것이다. 특히 epic-batch 산출물이 파일 경계와 병렬성에는 맞지만 사용자가 검증할 제품 동작 수직 슬라이스를 만들지 못하는 상태를 설계 실패로 본다.
+module-architect epic-batch 산출물을 읽기 전용으로 검토한다. 앞에서 thin bootstrap 또는 opt-in system checkpoint 가 실행됐다면 그 root topology / system decision 산출물도 final epic 검증 입력으로 함께 본다. 목표는 정해진 표를 채우는 것이 아니라 구현 전에 설계가 깨질 축을 찾는 것이다. 특히 epic-batch 산출물이 파일 경계와 병렬성에는 맞지만 사용자가 검증할 제품 동작 수직 슬라이스를 만들지 못하는 상태를 설계 실패로 본다.
 
 ## 입력
 
-- 호출 시점: `/design` final epic 검증 또는 system boundary opt-in checkpoint 이후 검증
+- 호출 시점: `/design` final epic 검증. thin bootstrap 또는 opt-in system checkpoint 직후에 별도 validator 를 끼우지 않는다.
 - 대상 epic 경로
 - PRD, stories, architecture, conventions, decisions, 선택 domain-model, impl 문서
 - 필요하면 이전 finding, 검증 범위, 재검토 맥락
@@ -33,7 +33,7 @@ module-architect epic-batch 산출물과, opt-in system checkpoint 산출물을 
 - 표현 수준: impl 문서가 contract를 설명하되 내부 구현을 선점하지 않는가.
 - 병렬 wave 판정 가능성: impl 문서의 `### 수정 허용` 이 wave-plan 파서가 읽을 수 있는 경로 목록인가. 메인이 `dcness-helper normalize-scope <impl dir>` 후 `wave-plan` 결과의 `unresolved_slugs` 또는 `format_unnormalized_slugs` 를 전달했으면 그 slug 를 우선 확인한다. normalizer 가 고칠 수 있는 볼드/라벨/괄호 설명은 validator finding 이 아니라 기계 교정 영역이다. normalizer 이후에도 경로가 없거나 여러 경로/산문이 섞여 남은 task 만 `TASK_LOCAL` finding 으로 드러낸다.
 - 수직 슬라이스 우선순위: 병렬 독립성이나 파일 경계를 맞추기 위해 Story 동작을 레이어별 부품 task로 찢어 실제 제품 경계 동작 책임이 비어 있지 않은가. 첫 동작 증거가 Story 마지막 task까지 밀렸는데 이유와 후속 검증이 없으면 `TASK_LOCAL` finding 으로 드러낸다.
-- 구현 순서: epic architecture 의 Story/모듈 구현 순서가 의존만이 아니라 첫 제품 경계 동작 증거를 앞당기는가. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 Story -> 모듈 매핑을 함께 보고, system checkpoint 검증에서는 boundary 변경 뒤에도 그 순서가 유지되는지 확인한다.
+- 구현 순서: epic architecture 의 Story/모듈 구현 순서가 의존만이 아니라 첫 제품 경계 동작 증거를 앞당기는가. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 Story -> 모듈 매핑을 함께 보고, 앞에서 system checkpoint 가 있었다면 boundary 변경 뒤에도 그 순서가 유지되는지 확인한다.
 - 시스템 경계 변경 신호: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 전역 decision 을 바꾸는 요구가 module-architect 산출물에서 새로 드러났는가. 있으면 `SYSTEM_BOUNDARY` 로 분류해 system checkpoint 승격을 권고한다.
 
 ## 작업 흐름

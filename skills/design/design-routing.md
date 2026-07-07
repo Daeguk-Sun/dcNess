@@ -1,7 +1,7 @@
 # design 분기 규칙 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: `/design` skill **단일 전용** 분기 규칙 진본 — 이 skill 안 agent (ux-architect / module-architect / architecture-validator / opt-in system-architect / designer) 의 결론 → 다음 호출 + retry 한도 + escalate 처리. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
+> **Scope**: `/design` skill **단일 전용** 분기 규칙 진본 — 이 skill 안 agent (ux-architect / system-architect(thin bootstrap/checkpoint) / module-architect / architecture-validator / designer) 의 결론 → 다음 호출 + retry 한도 + escalate 처리. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md).
 > **Cross-ref**: 순서 차단 훅 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) · 권한 경계 = [`agent_boundary.py`](../../harness/agent_boundary.py) · 용어 기준 = [`terms.md`](../../docs/plugin/terms.md).
 
 ## 읽는 법
@@ -14,26 +14,33 @@ agent 는 일을 마치면 prose 마지막 단락에 어떤 결과로 끝났는�
 
 ```mermaid
 flowchart TB
-  UX[ux-architect] -->|UX_FLOW_READY| MA_BATCH[module-architect epic-batch]
+  START([Step 1 topology 판정]) -->|UI epic| UX[ux-architect]
+  START -->|UI-less epic| BOOT{모듈 topology 부재?}
+  UX -->|UX_FLOW_READY| BOOT
   UX -->|UX_REFINE_READY| SEED[design-variants seed 보장]
   SEED --> DS[designer]
+  BOOT -->|yes| SA_BOOT[system-architect thin bootstrap]
+  BOOT -->|no| MA_BATCH[module-architect epic-batch]
+  SA_BOOT -->|PASS| MA_BATCH
   MA_BATCH -->|PASS| AV_FINAL[architecture-validator final epic 검증]
-  MA_BATCH -->|SYSTEM_CHECKPOINT_REQUIRED| SA[system-architect opt-in checkpoint]
-  SA -->|PASS| MA_BATCH
+  MA_BATCH -->|SYSTEM_CHECKPOINT_REQUIRED| SA_CHECK[system-architect opt-in checkpoint]
+  SA_CHECK -->|PASS| MA_BATCH
   AV_FINAL -->|PASS| M([end-run/metrics freeze 후 Step 6 PR · 사용자 확인 checkpoint · 머지 → /impl 안내])
-  AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤3"| SA
+  AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤3"| SA_CHECK
   AV_FINAL -->|"FAIL: TASK_LOCAL ≤3"| MA_BATCH
-  SA -->|NEW_DEP_ESCALATE| U((사용자 · 4안))
+  SA_CHECK -->|NEW_DEP_ESCALATE| U((사용자 · 4안))
+  SA_BOOT -->|NEW_DEP_ESCALATE| U
   MA_BATCH -->|NEW_DEP_ESCALATE| U
   UX -.->|UX_FLOW_ESCALATE| U
-  SA -.->|ESCALATE| U
+  SA_BOOT -.->|ESCALATE| U
+  SA_CHECK -.->|ESCALATE| U
   MA_BATCH -.->|ESCALATE| U
   AV_FINAL -.->|ESCALATE| U
 
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class UX,SA,DS,MA_BATCH,SEED produce
+  class UX,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED produce
   class AV_FINAL verify
   class U user
 ```
@@ -46,14 +53,16 @@ flowchart TB
 
 | agent | 결론 → 다음 호출 |
 |---|---|
-| **ux-architect** | `UX_FLOW_READY` → module-architect(epic-batch) · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
+| **ux-architect** | `UX_FLOW_READY` → topology 부재 판정 후 system-architect(thin bootstrap) 또는 module-architect(epic-batch) · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
 | **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SYSTEM_CHECKPOINT_REQUIRED` → system-architect opt-in checkpoint · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
-| **system-architect** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
+| **system-architect(thin bootstrap)** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
+| **system-architect(opt-in checkpoint)** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **architecture-validator** | `PASS`(final epic 검증) → SKILL.md Step 5 end-run/metrics freeze 후 Step 6 PR + 사용자 확인 checkpoint · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
 | **designer** | `PASS` → 사용자 PICK · `ESCALATE` → 사용자. (UX_REFINE 분기 진입 시) |
 
 표만으로 안 풀리는 맥락:
 
+- **system-architect(thin bootstrap)** 는 greenfield 첫 설계에서 모듈 topology 가 전혀 없을 때만 module-architect 앞에 1회 들어간다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 스택/전역 decision 기록으로 제한한다. bootstrap 뒤 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다.
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.
 - **architecture-validator 시점** — final epic 검증만 기본이다. 모든 impl 산출물을 한 번에 읽고 Story 간 compose/wiring, forward-ref 회수, Story별 첫 제품 경계 동작 증거, 구현 순서(첫 제품 경계 동작 앞당김), cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `TASK_LOCAL`) 동반. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 FAIL 하지 않고 Should 로 보고한다.
 - **규모 초과 사전 가드** — Step 4 전 Story 수와 예상 full design pack 규모가 target 1,500줄 / hard warning 2,000줄 예산을 넘을 전망이면, 메인은 자동 진행 대신 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. 이는 대형 epic 출력 한계 방지용 escape 이며 per-Story 검증 기본값 복원이 아니다.
@@ -82,6 +91,7 @@ flowchart TB
 
 > retry 한도는 문서상 장식이 아니라 실행 판단이다. 같은 경로가 표의 각 행에 적힌 한도를 초과하면 자동 복구하지 않고, 남은 finding·영향·선택지를 사용자에게 보고한다.
 > 한도 초과 시 사용자 위임이 실제 다음 행동이다.
+> thin bootstrap 은 retry loop 가 아니라 topology 부재 판정 때 1회만 들어가는 선행 산출이다. 실패하면 사용자에게 위임하고, bootstrap 산출물 검증을 위한 별도 architecture-validator 단계는 만들지 않는다.
 >
 > **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 분기](#finding-분류-분기)) — final epic 검증은 `SYSTEM_BOUNDARY` → system-architect opt-in checkpoint, `TASK_LOCAL` → module-architect(epic-batch) 보강.
 > cycle 발생 시 working tree only — commit X. PASS 후에만 commit.

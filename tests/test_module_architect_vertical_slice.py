@@ -143,7 +143,7 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             "구현 순서: epic architecture 의 Story/모듈 구현 순서가 의존만이 아니라 "
             "첫 제품 경계 동작 증거를 앞당기는가",
             "final epic 검증에서는 Story별 첫 제품 경계 동작 증거",
-            "system checkpoint 검증에서는 boundary 변경 뒤에도 그 순서가 유지되는지 확인한다",
+            "앞에서 system checkpoint 가 있었다면 boundary 변경 뒤에도 그 순서가 유지되는지 확인한다",
             "epic 구현 순서가 사유 없이 부품-먼저로 남은 상태는 `SYSTEM_BOUNDARY` 다",
         ):
             self.assertIn(needle, self.arch_validator)

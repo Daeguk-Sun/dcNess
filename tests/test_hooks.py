@@ -714,7 +714,7 @@ class CatastrophicPrReviewerTests(_PreToolBase):
 
 
 # ---------------------------------------------------------------------------
-# module-architect — design 안 first call / opt-in system checkpoint 이후 재진입 모두
+# module-architect — design 안 first call / thin bootstrap 이후 진입 / opt-in system checkpoint 이후 재진입 모두
 # 별도 architecture-validator 순서 게이트 없이 허용
 # ---------------------------------------------------------------------------
 
@@ -824,7 +824,19 @@ class CatastrophicDesignModuleArchitectTests(_DesignLoopBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_module_architect_reentry_allowed_with_arch_validator_pass(self) -> None:
+    def test_module_architect_after_thin_bootstrap_allowed_without_validator(self) -> None:
+        self._begin_step("module-architect")
+        (self.run_path / "system-architect-THIN_BOOTSTRAP.md").write_text(
+            "## 결론\nPASS\n", encoding="utf-8",
+        )
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("module-architect"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 0)
+
+    def test_module_architect_allowed_when_arch_validator_pass_exists(self) -> None:
         self._begin_step("module-architect")
         (self.run_path / "system-architect.md").write_text(
             "## 결론\nPASS\n", encoding="utf-8",
@@ -839,7 +851,7 @@ class CatastrophicDesignModuleArchitectTests(_DesignLoopBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_module_architect_after_system_checkpoint_allowed_after_arch_validator_revalidation_pass(
+    def test_module_architect_allowed_when_arch_validator_revalidation_pass_exists(
         self,
     ) -> None:
         # architecture-validator 산출물이 있어도 module-architect 진입 자체를

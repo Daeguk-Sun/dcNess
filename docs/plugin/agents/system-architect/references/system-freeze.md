@@ -1,6 +1,8 @@
 # System Checkpoint 참고
 
-system-architect 는 `/design` 기본 상설 stage 가 아니다. 기존 모듈 경계, 도메인 불변조건, 저장 정책, public API boundary, 전역 decision 처럼 system-level 결정을 바꾸는 신호가 있을 때만 opt-in checkpoint 로 호출한다.
+system-architect 는 `/design` 기본 상설 stage 가 아니다. 예외는 두 가지다. 첫째, greenfield 첫 설계에서 모듈 topology 가 전혀 없을 때 module-architect 앞에 1회 THIN_BOOTSTRAP 으로 큰 모듈 경계만 얇게 나눈다. 둘째, 기존 모듈 경계, 도메인 불변조건, 저장 정책, public API boundary, 전역 decision 처럼 system-level 결정을 바꾸는 신호가 있을 때만 opt-in CHECKPOINT 로 호출한다.
+
+THIN_BOOTSTRAP 은 system 재진입이 아니다. bootstrap 뒤에 별도 architecture-validator 를 끼우지 않고 module-architect(epic-batch)로 바로 간다.
 
 ## system 재진입 사유
 

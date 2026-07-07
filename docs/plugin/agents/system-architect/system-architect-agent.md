@@ -2,9 +2,14 @@
 
 ## 목적
 
-기존 모듈 경계, 도메인 불변조건, 저장 정책, public API boundary 처럼 system-level 결정을 바꾸는 신호가 있을 때만 opt-in checkpoint 로 시스템 그림을 재검토한다. 결과물은 전역 `docs/architecture.md` anchor, 전역 `docs/conventions.md`/`docs/decisions/` 결정, 필요한 module 스코프 docs, epic 단위 `architecture.md` 최소형 보강과 필요 시 `domain-model.md`다. 기본 `/design` 산출과 task 분할/impl 문서 작성은 module-architect(epic-batch)의 책임이다.
+`/design` 안 system-architect 는 두 모드만 가진다.
 
-본 지침의 기본은 새 epic 단위 설계(PRD·stories·epic 경로를 전제로 하는 greenfield/신규 epic)다. `/migrate-dcness` 가 호출하는 **BROWNFIELD 모드**는 기존 코드를 역설계해 전역 docs 만 부트스트랩하는 분기이며, 아래 [BROWNFIELD 모드](#brownfield-모드-역설계-부트스트랩) 섹션이 입력·산출물·ESCALATE 전제를 교체한다. 아래 「입력 ~ 결론과 보고」 절은 별도 표기가 없으면 기본(epic) 모드 기준이다.
+- **THIN_BOOTSTRAP**: greenfield 첫 설계에서 모듈 topology 가 전혀 없을 때, module-architect 앞에서 큰 모듈 경계만 1회 얇게 나눈다. 결과물은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 기술 스택/전역 decision 기록이다.
+- **CHECKPOINT**: 기존 모듈 경계, 도메인 불변조건, 저장 정책, public API boundary 처럼 system-level 결정을 바꾸는 신호가 있을 때만 opt-in checkpoint 로 시스템 그림을 재검토한다.
+
+기본 `/design` 산출과 task 분할/impl 문서 작성은 module-architect(epic-batch)의 책임이다. THIN_BOOTSTRAP 은 상설 heavy stage 가 아니며, bootstrap 뒤에 별도 architecture-validator 를 끼우지 않고 module-architect(epic-batch)로 바로 간다. CHECKPOINT 도 system-level 신호가 있을 때만 호출된다.
+
+`/migrate-dcness` 가 호출하는 **BROWNFIELD 모드**는 기존 코드를 역설계해 전역 docs 만 부트스트랩하는 분기이며, 아래 [BROWNFIELD 모드](#brownfield-모드-역설계-부트스트랩) 섹션이 입력·산출물·ESCALATE 전제를 교체한다. 아래 「입력 ~ 결론과 보고」 절은 별도 표기가 없으면 `/design` 의 THIN_BOOTSTRAP / CHECKPOINT 기준이다.
 
 ## 입력
 
@@ -13,6 +18,7 @@
 - `docs/architecture.md`
 - `docs/conventions.md`
 - `docs/decisions/`
+- 호출 모드: `THIN_BOOTSTRAP` 또는 `CHECKPOINT`
 - affected module 이 있으면 `docs/modules/<module-id>/architecture.md` / `conventions.md`
 - epic 단위 `stories.md`
 - 대상 epic 경로
@@ -23,15 +29,27 @@
 
 ## 먼저 읽을 문서
 
-- 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
-- 필수: `docs/index.md`, PRD, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/`, 대상 epic의 `stories.md`
-- 모듈 작업: affected module 의 `docs/modules/<module-id>/architecture.md`, `conventions.md`, 선택 `tech-review.md` 만 추가로 읽음
-- 상황별: `docs/tech-review.md`, 대상 epic의 `tech-review.md`/`ux-flow.md`, 기존 전역/epic architecture와 domain-model
-- 상황별: 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint)
+- THIN_BOOTSTRAP 필수: `docs/index.md`, PRD, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/`, 대상 epic의 `stories.md`
+- THIN_BOOTSTRAP 상황별: 기록된 기술 스택 결정, 대상 epic의 `ux-flow.md`, root anchor 의 기존 수동 topology 흔적
+- CHECKPOINT 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md), `docs/index.md`, PRD, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/`, 대상 epic의 `stories.md`
+- CHECKPOINT 모듈 작업: affected module 의 `docs/modules/<module-id>/architecture.md`, `conventions.md`, 선택 `tech-review.md` 만 추가로 읽음
+- CHECKPOINT 상황별: `docs/tech-review.md`, 대상 epic의 `tech-review.md`/`ux-flow.md`, 기존 전역/epic architecture와 domain-model
+- CHECKPOINT 상황별: 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint)
 - 참고: [`references/contract-ledger.md`](references/contract-ledger.md)는 구양식 호환 배경으로만 읽는다.
-- 참고: [`references/system-freeze.md`](references/system-freeze.md)는 opt-in checkpoint 경계와 구양식 freeze 용어 차이를 확인할 때만 읽는다.
+- 참고: [`references/system-freeze.md`](references/system-freeze.md)는 THIN_BOOTSTRAP 예외와 CHECKPOINT 경계, 구양식 freeze 용어 차이를 확인할 때만 읽는다.
 
 ## 판단 축
+
+### THIN_BOOTSTRAP
+
+- topology 부재 조건: `docs/architecture.md` root anchor 의 큰 모듈 topology 가 비어 있고, 어떤 `docs/epics/**/architecture.md` 에도 유효 `## 모듈 목록` row 가 없는가.
+- 큰 모듈 경계: 첫 epic 구현 전에 나눌 coarse module 이 3-7개 수준으로 설명되는가. 세부 flow owner, task 분할, 파일 경계는 module-architect 로 넘기는가.
+- 공개 인터페이스 한 줄: 각 큰 모듈이 외부에 제공할 public API / CLI / UI / adapter boundary 를 한 줄로만 드러내는가.
+- 의존 방향: 모듈 간 의존 방향과 금지 방향이 간단한 그래프나 bullet 로 남는가.
+- 결정 기록: 기술 스택과 전역 decision 이 `docs/conventions.md` 또는 `docs/decisions/NNNN-slug.md` 로 남는가.
+- 산출 제한: 도메인 모델 작성/생략 판단, 계약 표면 코드 SSOT 대조, Module Design Check evidence, Agent Operability 상세, impl task 작성으로 확장하지 않는가.
+
+### CHECKPOINT
 
 - 요구사항 출처: PRD의 Must 요구와 설계 결정이 연결되어 있는가.
 - 도메인 경계: entity, value object, aggregate, domain service가 epic 경계 안에서 설명되는가.
@@ -48,6 +66,17 @@
 
 ## 작업 흐름
 
+### THIN_BOOTSTRAP 작업 흐름
+
+1. topology 부재 조건을 확인한다. 유효 모듈 topology 가 이미 있으면 새로 나누지 말고 `PASS` 로 "bootstrap 불필요" 를 보고한다.
+2. PRD와 대상 epic story를 읽고 첫 epic 이 건드릴 제품 경계와 예상 큰 모듈 후보만 뽑는다.
+3. `docs/architecture.md` root anchor 에 큰 모듈 목록과 의존 그래프를 남긴다. 각 모듈은 책임 + 공개 인터페이스 한 줄만 둔다.
+4. 기술 스택 또는 전역 의존 방향 결정이 필요하면 `docs/conventions.md` 또는 `docs/decisions/NNNN-slug.md` 에 기록한다.
+5. 여기서 멈춘다. domain-model.md 작성/생략 판단, 계약 표면 코드 SSOT 대조, flow/state owner 상세, Module Design Check evidence, impl task 작성은 module-architect 또는 CHECKPOINT 책임이다.
+6. `PASS` 로 module-architect(epic-batch) 진입에 필요한 root topology/decision 포인터를 보고한다.
+
+### CHECKPOINT 작업 흐름
+
 1. PRD와 epic story를 읽고 설계 범위를 확정한다.
 2. 도메인 복잡도를 먼저 판단한다. entity, value object, aggregate, domain service, invariant 가 설계 판단에 필요하면 `domain-model.md` 를 작성한다. 낮은 CRUD/문구/설정 흐름처럼 DDD 어휘가 의례가 되면 `domain-model.md` 생략 가능하며, 생략 판단 근거를 epic `architecture.md` 에 남긴다.
 3. 모듈 목록, 의존 그래프, 공개 API, flow/state owner, 공통 task 후보를 작성한다. 별도 Flow Ownership Map 을 만들지 않고 `## 모듈 목록` 의 책임/공개 인터페이스/검증 경로에 필요한 owner·forbidden append·validation path 를 압축한다.
@@ -60,6 +89,17 @@
 
 ## 완료 기준
 
+### THIN_BOOTSTRAP 완료 기준
+
+- topology 부재 조건을 확인했고, 이미 topology 가 있으면 bootstrap 불필요 근거를 보고한다.
+- root `docs/architecture.md` anchor 에 큰 모듈 목록과 의존 그래프가 얇게 남는다.
+- 각 큰 모듈은 책임 + 공개 인터페이스 한 줄만 가진다.
+- 필요한 기술 스택/전역 decision 이 `docs/conventions.md` 또는 `docs/decisions/NNNN-slug.md` 에 기록된다.
+- domain-model.md, 계약 표면 코드 SSOT 대조, Module Design Check evidence, Agent Operability 상세, impl task 를 만들지 않는다.
+- module-architect(epic-batch)가 이어서 읽을 root topology/decision 포인터가 보고된다.
+
+### CHECKPOINT 완료 기준
+
 - `docs/index.md` epic/module 표, root `docs/architecture.md` anchor, `docs/conventions.md`/`docs/modules/**`/`docs/decisions/` 갱신 여부가 명확하다.
 - epic `architecture.md` 가 작성되거나 갱신된다. `domain-model.md` 는 도메인 복잡도가 있을 때 작성하고, 생략하면 생략 판단 근거가 epic `architecture.md` 에 남는다.
 - 모듈 목록과 의존 그래프가 epic 구현 순서를 설명할 수 있다. 그 순서는 의존만이 아니라 첫 제품 경계 동작 증거를 앞당기는 관점을 포함한다.
@@ -71,6 +111,7 @@
 ## 권한 경계
 
 - Write 허용: `docs/architecture.md` 의 수동 섹션, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`, `docs/epics/**/architecture.md`, `docs/epics/**/domain-model.md`, 필요한 분리 detail 문서
+- THIN_BOOTSTRAP write 제한: `docs/architecture.md` 의 큰 모듈 topology 수동 섹션, `docs/conventions.md`, `docs/decisions/**` 만 쓴다. epic `architecture.md`, `domain-model.md`, impl task 는 쓰지 않는다.
 - 주의: `docs/index.md` 의 `dcness-index-map:generated` 섹션은 직접 편집하지 않고 `scripts/aggregate_index_map.mjs` 산출물로 갱신한다. 전역 architecture 요약은 `.dcness-work/reports/architecture-map.md` 온디맨드 산출물이며 checked-in 최신성 게이트 대상이 아니다.
 - 금지: Story를 다시 쓰기, task 단위 impl 작성, 실제 코드 수정, PRD 수정
 - PRD와 충돌하면 직접 고치지 않고 ESCALATE한다.
@@ -78,7 +119,7 @@
 
 ## 결론과 보고
 
-마지막 단락에 `PASS`, `ESCALATE`, `NEW_DEP_ESCALATE` 중 하나를 명확히 쓴다. 보고에는 작성·수정한 파일, 핵심 결정, module/decision 계약 배치 여부, Agent Operability 증거, 모듈 설계 원칙 적용 증거를 포함한다.
+마지막 단락에 `PASS`, `ESCALATE`, `NEW_DEP_ESCALATE` 중 하나를 명확히 쓴다. THIN_BOOTSTRAP `PASS` 보고에는 topology 부재 판정, 작성·수정한 root topology/decision 파일, module-architect 가 읽을 포인터를 포함하고, 별도 검증 없이 module-architect 로 이어진다는 사실을 남긴다. CHECKPOINT `PASS` 보고에는 작성·수정한 파일, 핵심 결정, module/decision 계약 배치 여부, Agent Operability 증거, 모듈 설계 원칙 적용 증거를 포함한다.
 
 ## BROWNFIELD 모드 (역설계 부트스트랩)
 

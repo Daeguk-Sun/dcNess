@@ -73,14 +73,14 @@ docs/
 |---|---|---|---|
 | 문서 entrypoint | `docs/index.md` | `/init-dcness`, `/spec`, `scripts/aggregate_index_map.mjs` | `skills/spec/templates/index.md` |
 | PRD | `docs/prd.md` | `/spec` | `skills/spec/templates/prd.md` |
-| 전역 architecture anchor | `docs/architecture.md` | `/init-dcness`, module-architect, opt-in system-architect | `docs/plugin/agents/system-architect/templates/root-architecture.md` |
+| 전역 architecture anchor | `docs/architecture.md` | `/init-dcness`, system-architect(thin bootstrap/checkpoint), module-architect | `docs/plugin/agents/system-architect/templates/root-architecture.md` |
 | convention map | `docs/conventions.md` | `/init-dcness`, system-architect | `docs/plugin/agents/system-architect/templates/conventions.md` |
 | 기술 검토 결론 | `docs/tech-review.md` | tech-reviewer | `docs/plugin/agents/tech-reviewer/templates/tech-review.md` |
 | 전역 design token | `docs/design.md` | ux-architect | `docs/plugin/design.md` |
 | design run 기록 | `docs/metrics/design-runs.jsonl` | `dcness-helper end-run` before design PR | JSONL schema v1 (`harness/design_run_records.py`) |
 | 결정 기록 | `docs/decisions/NNNN-slug.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/decision.md` |
 
-`docs/architecture.md` 는 전역 anchor 다. 상세 설계 본문, 전역 generated summary, Contract Ledger, ux/story 요약을 복제하지 않는다. 전역 모듈/의존/결정의 긴 설명은 `docs/decisions/` 또는 module docs 로 보낸다.
+`docs/architecture.md` 는 전역 anchor 다. greenfield thin bootstrap 때 큰 모듈 경계와 의존 그래프를 얇게 담을 수 있지만, 상세 설계 본문, 전역 generated summary, Contract Ledger, ux/story 요약을 복제하지 않는다. 전역 모듈/의존/결정의 긴 설명은 `docs/decisions/` 또는 module docs 로 보낸다.
 
 `docs/index.md` 는 cold-start agent 의 정적 entrypoint 다. `## 에픽` 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter `milestone` 값에서 파생되는 생성 섹션이며 수동 편집하지 않는다. `다음 액션` 컬럼은 산출물 존재만으로 epic 단위 phase 를 파생한다: `stories.md` 부재면 `/spec`, `stories.md` 는 있으나 설계 미완이면 `/design`, 설계 완료면 `/impl`. 설계 완료 판정은 `architecture.md` 존재 AND `impl/NN-*.md` 1개 이상 존재이며(선택 산출물 `domain-model.md`·`ux-flow.md`·`tech-review.md` 부재는 미완으로 보지 않는다), auto-memory 없이도 콜드스타트 다음 액션을 자족적으로 확정하기 위한 것이다. 모듈 축을 쓰는 프로젝트에서는 `## 모듈` 표도 `docs/modules/<module-id>/` 에서 파생된다. live 진행상태를 문서에 복제하지 않고, 수동 섹션 `## 진행 상태 · 다음 작업` 에서 GitHub issue/label 상태, epic/story issue, `/next-work` 를 가리킨다. `/init-dcness` 는 기존 `docs/index.md` 를 overwrite 하지 않지만, 이 섹션이 없으면 `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs` 로 섹션만 append 한다.
 
@@ -171,7 +171,7 @@ epic 은 제품 단위라 여러 모듈을 가로지를 수 있다. 교차 모�
 |---|---|---|---|
 | Story 정의 | `stories.md` | `/spec` | `skills/spec/spec-stories-reference.md` |
 | UX flow | `ux-flow.md` | ux-architect | `docs/plugin/agents/ux-architect/templates/ux-flow.md` |
-| epic architecture | `architecture.md` | module-architect / opt-in system-architect | `docs/plugin/agents/system-architect/templates/epic-architecture.md` |
+| epic architecture | `architecture.md` | module-architect / system-architect(checkpoint) | `docs/plugin/agents/system-architect/templates/epic-architecture.md` |
 | domain model | `domain-model.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/domain-model.md` |
 | epic tech-review | `tech-review.md` | tech-reviewer | `docs/plugin/agents/tech-reviewer/templates/tech-review.md` |
 | impl task | `impl/NN-*.md` | module-architect | `docs/plugin/agents/module-architect/templates/impl-task.md` |
@@ -228,7 +228,7 @@ agent prompt 는 문서 전문 재기입 대신 아래 포인터 세트를 넘�
 | 역할 | 전역 최소 입력 | module 스코프 입력 | epic 고정 입력 | 상황별 입력 |
 |---|---|---|---|---|
 | ux-architect | `docs/index.md`, `docs/prd.md`, `docs/conventions.md` | 해당 화면이 특정 모듈에 닫히면 `docs/modules/<module-id>/conventions.md` | `stories.md`, 대상 `ux-flow.md` | `docs/design.md`, 기존 화면 코드 |
-| system-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, 선택 `tech-review.md` | `stories.md`, `architecture.md`, 선택 `domain-model.md` | opt-in system checkpoint, `docs/tech-review.md`, epic `tech-review.md`, `ux-flow.md`, 코드 계약 표면 |
+| system-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, 선택 `tech-review.md` | `stories.md`, `architecture.md`, 선택 `domain-model.md` | thin bootstrap, opt-in system checkpoint, `docs/tech-review.md`, epic `tech-review.md`, `ux-flow.md`, 코드 계약 표면 |
 | module-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, validation path | `stories.md`, `architecture.md`, 선택 `domain-model.md`, `impl/` | `docs/design.md`, `docs/compact-plans/<slug>.md`, 코드 계약 표면 |
 | tech-reviewer | `docs/index.md`, `docs/prd.md`, `docs/conventions.md` | 새 의존·runtime 이 특정 모듈에 닫히면 해당 module docs | option 4 때 대상 epic `stories.md` | `.dcness-work/reviews/` |
 

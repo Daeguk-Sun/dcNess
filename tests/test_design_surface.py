@@ -90,6 +90,8 @@ class DesignSurfaceContractTests(unittest.TestCase):
             self.assertNotIn(stale, routing)
 
         for expected in (
+            "system-architect(thin bootstrap)",
+            "모듈 topology 부재",
             "module-architect(epic-batch)",
             "epic architecture 최소형과 epic 전체 impl 산출물",
             "Story 단위 작성 주체로 쪼개지 않는다",
@@ -105,8 +107,11 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("UI epic 이면 `ux-flow.md`", design)
 
         for expected in (
+            "SA_BOOT[system-architect thin bootstrap]",
+            "SA_BOOT -->|PASS| MA_BATCH",
             "MA_BATCH -->|PASS| AV_FINAL",
             "`PASS`(final epic 검증)",
+            "bootstrap 뒤 architecture-validator 를 끼우지 않고 바로 module-architect",
             "module-architect(epic-batch)",
             "architecture-validator(final epic 검증)",
             "SYSTEM_CHECKPOINT_REQUIRED",
@@ -153,6 +158,8 @@ class DesignSurfaceContractTests(unittest.TestCase):
             "target 1,500줄 / hard warning 2,000줄",
             "epic 분할 또는 예외적 batch 2분할",
             "system checkpoint 승격",
+            "THIN_BOOTSTRAP",
+            "topology 부재",
         ):
             self.assertIn(needle, design)
 
@@ -168,6 +175,22 @@ class DesignSurfaceContractTests(unittest.TestCase):
             with self.subTest(text=text[:60]):
                 self.assertIn("계약 표면 코드 SSOT 대조", text)
                 self.assertIn("포트, 도메인 타입, 공개 entrypoint", text)
+
+        for needle in (
+            "THIN_BOOTSTRAP",
+            "큰 모듈 목록(책임 + 공개 인터페이스 한 줄)",
+            "도메인 모델 작성/생략 판단, 계약 표면 코드 SSOT 대조, Module Design Check evidence, Agent Operability 상세, impl task 작성으로 확장하지 않는가",
+            "bootstrap 뒤에 별도 architecture-validator 를 끼우지 않고 module-architect(epic-batch)로 바로 간다",
+            "CHECKPOINT",
+        ):
+            self.assertIn(needle, system_architect)
+
+        root_template = (
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "root-architecture.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("## 큰 모듈 경계", root_template)
+        self.assertIn("| 모듈 | 책임 | 공개 인터페이스 | 결정 |", root_template)
+        self.assertIn("## 의존 그래프", root_template)
 
         self.assertIn("## Domain Model", system_template)
         self.assertIn("생략 판단 근거 (생략 시 필수)", system_template)
