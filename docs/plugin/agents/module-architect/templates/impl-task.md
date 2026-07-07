@@ -14,6 +14,7 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 ## 사전 준비
 
 - 읽을 문서 (task-specific docs 만 남긴다):
+  - `docs/conventions.md` (코드 변경 task 기본)
   - `docs/epics/<epic>/stories.md` (해당 Story/공통 task 근거)
   - `docs/epics/<epic>/architecture.md` (module responsibility / public interface / Story -> 모듈 매핑)
   - `docs/modules/<module-id>/architecture.md` (affected owner module 한정)
@@ -23,7 +24,7 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 - 읽을 코드:
   -
 
-> 전역 고정 문서 목록을 복제하지 않는다. 선행 task 는 frontmatter `depends_on` 이 단일 SSOT 다 (병렬 독립성 판정 입력).
+> 전역 고정 문서 목록을 복제하지 않는다. 단, `docs/conventions.md` 는 코드 변경 task 의 전역 코딩 규약 전달 경로이므로 기본으로 둔다. 선행 task 는 frontmatter `depends_on` 이 단일 SSOT 다 (병렬 독립성 판정 입력).
 
 ## 무엇을 만드나
 

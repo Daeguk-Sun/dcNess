@@ -108,6 +108,12 @@ class AgentOperabilityContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.module_architect)
 
+        design_skill = (ROOT / "skills" / "design" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("owner/entrypoint 요약", design_skill)
+        self.assertNotIn("Agent Workability 를 계속 충족", design_skill)
+
     def test_pr_reviewers_share_agent_operability_review_axis(self) -> None:
         for text_name, text in (
             ("claude", self.pr_reviewer),

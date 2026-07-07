@@ -43,6 +43,7 @@ class ModuleDecisionContractModelTests(unittest.TestCase):
 
         for text in (template, module_architect):
             with self.subTest(text=text[:40]):
+                self.assertIn("docs/conventions.md", text)
                 self.assertIn("owner module directory", text)
                 self.assertIn("끝 `/`", text)
                 self.assertIn("신규 파일", text)
