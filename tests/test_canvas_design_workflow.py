@@ -142,6 +142,12 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, self.ux)
 
+    def test_ux_natural_language_routes_design_baseline_requests(self) -> None:
+        """#957 — design system/baseline requests route to /ux instead of ad-hoc docs."""
+        for needle in ("디자인 시스템", "디자인 토큰", "베이스라인"):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.ux)
+
     def test_ux_flow_inventory_marks_hi_fi_mockup_need_only(self) -> None:
         for text in (self.ux_architect, self.ux_flow_template):
             with self.subTest(text=text[:30]):

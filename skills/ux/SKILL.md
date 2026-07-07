@@ -1,6 +1,6 @@
 ---
 name: ux
-description: 구현 없이 목업과 흐름을 먼저 탐색하는 선행 디자인 utility. UX_FLOW(신규 화면 흐름) / UX_REFINE(기존 디자인 개선) 뒤 내부 canvas-design 을 얇게 감싸 drafts 반복 → 사용자 PICK → 확정본 승격 + canvas 등록으로 끝낸다. 사용자가 "/ux", "ux", "화면 플로우 짜줘", "디자인 시안", "와이어프레임", "ux 다듬어", "디자인 개선", "레이아웃 개선" 등을 말할 때 사용한다. 코드 구현은 `/impl`.
+description: 구현 없이 목업과 흐름을 먼저 탐색하는 선행 디자인 utility. UX_FLOW(신규 화면 흐름) / UX_REFINE(기존 디자인 개선) 뒤 내부 canvas-design 을 얇게 감싸 drafts 반복 → 사용자 PICK → 확정본 승격 + canvas 등록으로 끝낸다. 사용자가 "/ux", "ux", "화면 플로우 짜줘", "디자인 시안", "와이어프레임", "ux 다듬어", "디자인 개선", "레이아웃 개선", "디자인 시스템", "디자인 토큰", "베이스라인" 등을 말할 때 사용한다. 코드 구현은 `/impl`.
 ---
 
 # UX Skill — 선행 디자인 탐색 wrapper
@@ -35,7 +35,7 @@ PR merge 와 main sync 를 확인한 뒤에만 완료를 보고한다. 후속 `/
 | **UX_FLOW** (ux-design-stage) | 신규 화면 플로우 정의 — PRD/스토리 화면 인벤토리 기반 와이어프레임 | ux-architect:UX_FLOW |
 | **UX_REFINE** (ux-refine-stage) | 기존 디자인의 레이아웃·비주얼 개선 (이미 화면 존재) | ux-architect:UX_REFINE |
 
-사용자 발화로 판정한다. "새 화면 / 플로우 / 와이어프레임" 은 UX_FLOW, "다듬어 / 개선 / refine / 레이아웃" 은 UX_REFINE 이다. 모호하면 사용자에게 한 번만 물어본다.
+사용자 발화로 판정한다. "새 화면 / 플로우 / 와이어프레임" 은 UX_FLOW, "다듬어 / 개선 / refine / 레이아웃" 은 UX_REFINE 이다. "디자인 시스템 / 디자인 토큰 / 베이스라인" 류 요청은 ad-hoc `docs/design-refs/` 문서를 만들지 않고 `/ux` 로 받아 `docs/design.md` 기준 신호로 정리한다. 모호하면 사용자에게 한 번만 물어본다.
 
 ## Inputs
 

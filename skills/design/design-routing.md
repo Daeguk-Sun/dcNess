@@ -19,7 +19,11 @@ flowchart TB
   DUX -->|DESIGN_UX_PR_MERGED| START
   DSYS --> TOPO[Step 1 topology 판정]
   TOPO -->|UI epic 또는 UI-less| BOOT{모듈 topology 부재?}
-  DUX --> UX[ux-architect]
+  DUX --> MU{목업 선행 여부}
+  MU -->|목업 없음 / opt-out / yolo| UX[ux-architect]
+  MU -->|목업=예| DSKIP{디자인 시스템 체크포인트}
+  DSKIP -->|docs/design.md 유효| UX
+  DSKIP -->|부재 / ad-hoc 베이스라인| UX
   UX -->|UX_FLOW_READY| UXPR[stage 1 PR]
   UXPR -->|DESIGN_UX_PR_MERGED| START
   UX -->|UX_REFINE_READY| SEED[design-variants seed 보장]
@@ -46,7 +50,7 @@ flowchart TB
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class DUX,DSYS,UX,UXPR,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED produce
+  class DUX,DSYS,UX,UXPR,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,MU,DSKIP produce
   class AV_FINAL verify
   class U user
 ```
@@ -74,6 +78,8 @@ flowchart TB
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.
 - **architecture-validator 시점** — final epic 검증만 기본이다. 모든 impl 산출물을 한 번에 읽고 Story 간 compose/wiring, forward-ref 회수, Story별 첫 제품 경계 동작 증거, 구현 순서(첫 제품 경계 동작 앞당김), cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `TASK_LOCAL`) 동반. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 FAIL 하지 않고 Should 로 보고한다.
 - **stage PR 경계** — `DESIGN_UX_PR_MERGED` 는 UX 산출물이 main 에 durable 해졌다는 신호다. dispatcher 는 같은 `/design` 공개 진입점으로 재판정해 system stage 로 이어간다. `DESIGN_SYSTEM_PR_MERGED` 는 full design pack 이 durable 해졌다는 신호이므로 `/impl` 로 넘어간다.
+- **목업 선행 여부 checkpoint** — UI epic 의 `design-ux` stage 는 ux-architect 호출 전에 목업 선행 여부를 1회 묻는다. 목업 없음 / opt-out / yolo 는 기존 흐름을 유지하고, 목업=예 는 디자인 시스템 체크포인트와 canvas-design 사용자 PICK 을 먼저 닫는다. 사용자 PICK 확정 이후에만 design-system stage 로 넘어간다.
+- **목업 미참조 금지** — `design-system` stage 는 확정 목업이 있는 UI epic 에서 확정 목업 경로, node-id 매핑, `docs/design.md` 토큰을 module-architect 와 architecture-validator 입력에 넣는다. 산출물이 목업 미참조 상태면 final epic 검증 PASS 로 처리하지 않고 finding 분류에 따라 module-architect 또는 system checkpoint 로 되돌린다.
 - **규모 초과 사전 가드** — Step 4 전 Story 수와 예상 full design pack 규모가 target 1,500줄 / hard warning 2,000줄 예산을 넘을 전망이면, 메인은 자동 진행 대신 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. 이는 대형 epic 출력 한계 방지용 escape 이며 per-Story 검증 기본값 복원이 아니다.
 - **고위험 추가 검증** — 보안·migration·public API breakage 같은 신호가 batch 작성 중 뒤늦게 드러나면 메인은 final epic 검증 전 추가 검토를 선택할 수 있다. 단 이것은 예외적 보강이지 옛 per-Story 검증 기본값의 복원이 아니다.
 

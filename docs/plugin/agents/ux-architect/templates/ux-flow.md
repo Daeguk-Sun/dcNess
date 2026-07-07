@@ -38,6 +38,7 @@ stateDiagram-v2
 
 ## 디자인 시스템
 
+- 기준:
 - color:
 - typography:
 - spacing:

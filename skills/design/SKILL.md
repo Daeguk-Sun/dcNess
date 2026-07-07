@@ -1,6 +1,6 @@
 ---
 name: design
-description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단위로 선택 ux-architect / module-architect / architecture-validator 를 호출하여 agent-first 설계 산출물 (선택 `docs/epics/.../ux-flow.md` + `docs/decisions/*.md` + `docs/epics/.../architecture.md` 최소형 + 선택 `docs/epics/.../domain-model.md` + `docs/epics/.../impl/*.md`) 을 작성하고 1 PR 로 머지하는 설계 루프 스킬. 기존 모듈 topology 가 전혀 없는 greenfield 첫 설계에서는 system-architect(thin bootstrap)가 큰 모듈 경계만 1회 얇게 나눈 뒤 module-architect(epic-batch)로 이어진다. 그 외 기본 경로는 module-architect(epic-batch)가 epic architecture 최소형과 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성하고, architecture-validator(final epic 검증)가 최종 검증으로 수렴한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있을 때만 system-architect opt-in checkpoint 로 승격한다. 사용자가 "설계해줘", "design", "epic 설계", "/design <epic-path>", "ux-flow 부터", "impl 다 만들어줘" 등을 말할 때 반드시 이 스킬을 사용한다. `/spec` 의 후속. 구현 진입은 `/impl`, story/epic 제품 검수는 `/acceptance`.
+description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단위로 선택 ux-architect / module-architect / architecture-validator 를 호출하여 agent-first 설계 산출물 (선택 `docs/epics/.../ux-flow.md` + `docs/design.md` + 선택 `docs/design-variants/*.html` + `docs/decisions/*.md` + `docs/epics/.../architecture.md` 최소형 + 선택 `docs/epics/.../domain-model.md` + `docs/epics/.../impl/*.md`) 을 작성하고 PR 로 머지하는 설계 루프 스킬. UI epic 은 system/module 설계 전에 목업 선행 여부를 확인하고, 목업=예 경로에서는 사용자 PICK 확정본을 system stage 입력으로 고정한다. 기존 모듈 topology 가 전혀 없는 greenfield 첫 설계에서는 system-architect(thin bootstrap)가 큰 모듈 경계만 1회 얇게 나눈 뒤 module-architect(epic-batch)로 이어진다. 그 외 기본 경로는 module-architect(epic-batch)가 epic architecture 최소형과 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성하고, architecture-validator(final epic 검증)가 최종 검증으로 수렴한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있을 때만 system-architect opt-in checkpoint 로 승격한다. 사용자가 "설계해줘", "design", "epic 설계", "/design <epic-path>", "ux-flow 부터", "impl 다 만들어줘" 등을 말할 때 반드시 이 스킬을 사용한다. `/spec` 의 후속. 구현 진입은 `/impl`, story/epic 제품 검수는 `/acceptance`.
 ---
 
 # Design Skill — 1 epic 단위 설계 루프
@@ -17,7 +17,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 - **loop**: `design`
 - **entry_point**: `design` (begin-run 인자 — 사용자 명시 진입)
-- **task_list** (Step 1): `/design` dispatcher 가 durable 산출물로 내부 stage 를 선택한다. stage 1 `design-ux` = ux-architect:UX_FLOW → 조건부 canvas-design → stage 1 PR. stage 2 `design-system` = [기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip — 메인 직접, helper 비대상] → module-architect(epic-batch) → architecture-validator(final epic 검증). (UI-less epic) ux-architect 제외. 모듈 topology 부재 greenfield 첫 설계면 system-architect(thin bootstrap)를 module-architect 앞에 1회 추가한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있으면 system-architect opt-in checkpoint 를 module-architect 앞/뒤에 끼운다.
+- **task_list** (Step 1): `/design` dispatcher 가 durable 산출물로 내부 stage 를 선택한다. stage 1 `design-ux` = 목업 선행 여부 checkpoint → ux-architect:UX_FLOW → 목업=예 한정 디자인 시스템 체크포인트 → 조건부 canvas-design → 사용자 PICK → stage 1 PR. 목업 없음 / opt-out / yolo 기본값 = 목업 없음 경로는 기존 UX stage 흐름을 유지하고 canvas-design 을 강제하지 않는다. stage 2 `design-system` = [기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip — 메인 직접, helper 비대상] → module-architect(epic-batch) → architecture-validator(final epic 검증). (UI-less epic) ux-architect 제외. 모듈 topology 부재 greenfield 첫 설계면 system-architect(thin bootstrap)를 module-architect 앞에 1회 추가한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있으면 system-architect opt-in checkpoint 를 module-architect 앞/뒤에 끼운다.
 - **advance**: `UX_FLOW_READY` → 선택 `PASS`(thin bootstrap) → `PASS`(epic-batch) → `PASS`(final epic 검증). opt-in system checkpoint 는 `SYSTEM_CHECKPOINT_REQUIRED` → `PASS`(system) → module-architect 재진입.
 - **expected_steps**: 3 (UI epic) / 2 (UI-less epic). 기술 스택 그릴미 또는 확인-후-skip 은 begin-step 비대상이라 미포함. thin bootstrap 또는 system checkpoint 승격 시 각각 +1.
 - **분기 규칙**: [`design-routing.md`](design-routing.md)
@@ -115,13 +115,24 @@ TaskCreate 직전 메인이 `docs/prd.md` 의 "화면 인벤토리 + 대략적 �
 - 판정은 메인 prose 자율 영역 — hook 강제 아님 ([`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)).
 - UI-less 판정 시 expected_steps = 2, UI epic 은 3.
 
+## 목업 선행 체크포인트 (UI epic 한정)
+
+UI epic 으로 판정되고 `design-ux` stage 를 선택한 직후 메인이 목업 선행 여부를 1회 묻는다. 목업=예 경로는 system stage 는 사용자 PICK 확정 이후에만 진입한다는 계약을 둔다. 목업 없음, 사용자 opt-out, 또는 yolo 모드에서는 yolo 기본값 = 목업 없음 으로 처리해 기존 흐름 그대로 진행한다.
+
+- **목업 선행 여부 질문**: "이 UI epic 은 system/module 설계 전에 hi-fi 목업 PICK 을 먼저 확정할까요?" 처럼 사용자가 예/아니오를 판단할 수 있게 묻는다.
+- **opt-out**: 사용자 발화에 정규식 `(목업|mockup|시안|디자인)\s*(빼|없|말|나중|생략)` 매치 시 목업 없음 으로 처리한다.
+- **목업=예**: `design-ux` stage 안에서 디자인 시스템 체크포인트를 먼저 닫고, `hi-fi 목업 필요` 가 `필요` 인 화면만 canvas-design 으로 draft → 사용자 PICK → 확정본 승격 + canvas 등록을 수행한다.
+- **목업 없음**: `ux-flow.md` 와 text wireframe 은 유지하되 canvas-design PICK 을 필수화하지 않는다. 후속 `design-system` 은 확정 목업 입력 없이 기존 system/module 설계 계약으로 진행한다.
+
+디자인 시스템 체크포인트는 기술 스택 그릴미와 같은 확인-후-skip 패턴이다. `docs/design.md` 가 실존하고 현재 epic 에 유효하면 확인-후-skip 한다. 부재하거나 ad-hoc 베이스라인 문서가 있으면 사용자에게 참고 디자인 시스템을 요청하고, 외부 import 1회 변환으로 `docs/design.md` 에 흡수한 뒤 ux-architect prompt 에 참고 디자인 시스템 신호로 전달한다.
+
 ## 절차 (요약)
 
 상세 = 본 절차 + [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#진입-모델) Step mechanics.
 
 1. **Step 0** — 워크트리 진입 + `EnterWorktree` + branch (`docs/<epic-slug>`) + stage 선택 전 `begin-run design` 준비. 실제 stage run 은 dispatcher 판정 뒤 `begin-run design --stage design-ux` 또는 `begin-run design --stage design-system` 로 시작한다.
 2. **Step 0.5 — stage dispatcher** — durable 산출물 실존 판정으로 `design-ux` 또는 `design-system` 을 선택한다. 내부 stage 절차 전문은 각 stage skill 을 로드한다.
-3. **Step 1 — UI 판정 + topology 부재 판정 후 TaskCreate.** `design-ux` stage 에서는 ux-architect(+조건부 canvas-design) 만 TaskCreate 한다. `design-system` stage 에서는 module-architect(epic-batch) / architecture-validator(final epic 검증)를 TaskCreate 한다. UI-less epic → ux-architect 제외. greenfield 첫 설계에서 `docs/architecture.md` root anchor 의 큰 모듈 topology 가 비어 있고 어떤 `docs/epics/**/architecture.md` 에도 유효 `## 모듈 목록` row 가 없으면 system-architect(thin bootstrap)를 module-architect 앞에 1회 배치한다. 이 thin bootstrap 뒤에는 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다. system checkpoint 는 기본 TaskCreate 에 넣지 않고, boundary 변경 신호가 있을 때만 추가한다.
+3. **Step 1 — UI 판정 + 목업 선행 여부 + topology 부재 판정 후 TaskCreate.** `design-ux` stage 에서는 목업 선행 여부와 디자인 시스템 체크포인트를 메인이 처리하고 ux-architect(+목업=예 한정 조건부 canvas-design) 만 TaskCreate 한다. `design-system` stage 에서는 module-architect(epic-batch) / architecture-validator(final epic 검증)를 TaskCreate 한다. UI-less epic → ux-architect 제외. greenfield 첫 설계에서 `docs/architecture.md` root anchor 의 큰 모듈 topology 가 비어 있고 어떤 `docs/epics/**/architecture.md` 에도 유효 `## 모듈 목록` row 가 없으면 system-architect(thin bootstrap)를 module-architect 앞에 1회 배치한다. 이 thin bootstrap 뒤에는 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다. system checkpoint 는 기본 TaskCreate 에 넣지 않고, boundary 변경 신호가 있을 때만 추가한다.
 4. **Stage 1 — design-ux / ux-architect:UX_FLOW** (UI epic 한정) → `UX_FLOW_READY` → stage 1 PR (epic 단위 `docs/epics/epic-NN-*/ux-flow.md`, 조건부 `docs/design.md`, 조건부 `docs/design-variants/`)
    - `UX_REFINE_READY` 로 `/design` 안에서 designer 후속이 필요하면, designer 호출 전 `/ux` 의 "designer 진입 공통 preflight" 와 동일하게 `docs/design-variants/` seed 보장 후 designer 로 진행한다.
 5. **Stage 2 — design-system / 기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip** — 메인 직접, helper begin/end-step 비대상. 미기록 합의 또는 skip 사실은 thin bootstrap 이 있으면 Step 2.95 prompt 로, 없으면 Step 3 prompt 로 전달한다.
