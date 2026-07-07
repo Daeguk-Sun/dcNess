@@ -10,6 +10,35 @@
 
 ---
 
+## v0.14.0 (2026-07-07)
+
+**커밋 범위**: `v0.13.0..v0.14.0` (머지 PR 9개, #946~#971)
+**핵심 변경**: **설계 루프의 agent-first 전환 + 플러그인 agent 등록·읽기 경계 정합 + 세션 인계·다음작업 UX** 가 중심인 minor 릴리즈. (1) `/design` 설계 루프를 agent-first 로 전환하고 thin bootstrap 분기·checkpoint 계약을 정합화, (2) `agents/` 하위에 중첩돼 있던 문서 42개를 `docs/plugin/agents/` 로 옮겨 **가짜 agent 타입 등록 오염을 해소**하고 subagent read 경계에 활성 plugin `agents/`·`docs/plugin/` carve-out 을 추가, (3) 세션 간 warm 인계 레이어(`/handoff`)·"뭐하지/남은 일" next-pointer·next-work epic phase 판정으로 **콜드스타트/다음작업 진입 UX** 를 강화했다. 부수 — 외부 활성 프로젝트의 main 브랜치 직접 commit 차단, epic phase SSOT(`scripts/lib/epic_phase.mjs`) 도입, plugin-release 브랜치 예시 버전 언더스코어 정정.
+
+### 무엇이 바뀌나
+
+1. **설계 루프 agent-first 전환** ([#971](https://github.com/Daeguk-Sun/dcNess/pull/971) [#969](https://github.com/Daeguk-Sun/dcNess/issues/969)) — `/design` 설계 루프를 agent-first 로 전환하고, thin bootstrap 설계 분기를 추가하며 checkpoint 계약을 정합화.
+
+2. **agent 등록 오염 해소 + subagent read 경계** ([#968](https://github.com/Daeguk-Sun/dcNess/pull/968) [#963](https://github.com/Daeguk-Sun/dcNess/issues/963), [#967](https://github.com/Daeguk-Sun/dcNess/pull/967) [#962](https://github.com/Daeguk-Sun/dcNess/issues/962)) — `agents/` 하위 중첩 문서 42개를 `docs/plugin/agents/` 로 이동해 가짜 agent 타입 등록 오염을 제거(pytest 트리거에 `docs/plugin/agents/` 추가). subagent read carve-out 을 활성 plugin `agents/`·`docs/plugin/` 에 부여하고 경계 검사를 plugin-relative 경로로, slot 경로 해소를 활성 `CLAUDE_PLUGIN_ROOT` 우선으로 정합화(codex 관찰 반영).
+
+3. **세션 인계·다음작업 UX** ([#961](https://github.com/Daeguk-Sun/dcNess/pull/961) [#953](https://github.com/Daeguk-Sun/dcNess/issues/953), [#965](https://github.com/Daeguk-Sun/dcNess/pull/965) [#954](https://github.com/Daeguk-Sun/dcNess/issues/954), [#959](https://github.com/Daeguk-Sun/dcNess/pull/959) [#951](https://github.com/Daeguk-Sun/dcNess/issues/951)) — 세션 간 warm 인계 레이어(`/handoff` + SessionStart 최우선 주입·archive clear, claim-first 소비·심링크-safe·크기 상한)를 추가. "뭐하지/남은 일" 트리거로 다음 액션을 단정하고 focused preload 를 오케스트레이션하는 next-pointer 도입. next-work 를 lifecycle SSOT phase 계약과 동기화(story L2 승격 차단, 로컬 repo 식별을 git remote 기반으로 전환).
+
+4. **epic phase SSOT + 외부 main 커밋 차단** ([#956](https://github.com/Daeguk-Sun/dcNess/pull/956) [#950](https://github.com/Daeguk-Sun/dcNess/issues/950), [#949](https://github.com/Daeguk-Sun/dcNess/pull/949) [#948](https://github.com/Daeguk-Sun/dcNess/issues/948), [#946](https://github.com/Daeguk-Sun/dcNess/pull/946)) — epic phase/다음액션 판정을 `scripts/lib/epic_phase.mjs` SSOT 로 통일하고 `docs/index.md` 에픽 표에 파생 다음 액션 컬럼을 추가. 외부 활성 프로젝트의 main 브랜치 직접 commit 을 차단(#948 결함 수정). plugin-release 브랜치 예시 버전을 언더스코어 형식으로 정정.
+
+### 자기개선 점검 기록
+
+| 날짜 | 입력 | 판정 |
+|---|---|---|
+| 2026-07-07 | (빠른 배포 — eval 생략) | 사용자 지시로 self-improvement 권고 eval 점검(guard_efficacy · 행동 eval)을 생략한 빠른 minor 배포. guard/hook 로직 회귀 위험이 낮은 변경(설계 루프·문서 이동·경계 carve-out·UX)이 중심. **소멸 후보 없음.** |
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `/design` agent-first 설계 루프, `/handoff` 세션 인계 레이어, next-pointer/next-work 다음작업 UX, subagent read 경계 정합 등 `agents/**`·`commands/**`·`skills/**`·`hooks/**` 변경.
+- **가짜 agent 타입 등록 오염 해소** — `agents/` 하위 중첩 문서 이동으로 존재하지 않던 agent 타입이 등록되던 오염이 사라진다.
+- **외부 활성 프로젝트 main 브랜치 보호 강화** — 외부 프로젝트에서 main 브랜치 직접 commit 이 차단된다(init-dcness 주장과의 불일치 해소).
+
+---
+
 ## v0.13.0 (2026-07-06)
 
 **커밋 범위**: `v0.12.0..v0.13.0` (머지 PR 13개, #932~#944)
