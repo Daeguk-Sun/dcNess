@@ -21,13 +21,13 @@ class SpecStorySliceContractTests(unittest.TestCase):
             ROOT / "skills" / "spec" / "SKILL.md"
         ).read_text(encoding="utf-8")
         self.product_acceptance = (
-            ROOT / "agents" / "product-acceptance" / "product-acceptance-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "product-acceptance" / "product-acceptance-agent.md"
         ).read_text(encoding="utf-8")
         self.system_architect = (
-            ROOT / "agents" / "system-architect" / "system-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "system-architect-agent.md"
         ).read_text(encoding="utf-8")
         self.shared_principles = (
-            ROOT / "agents" / "_shared" / "module-design-principles.md"
+            ROOT / "docs" / "plugin" / "agents" / "_shared" / "module-design-principles.md"
         ).read_text(encoding="utf-8")
 
     def test_stories_reference_requires_behavior_increment_split(self) -> None:

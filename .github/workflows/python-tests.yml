@@ -5,7 +5,8 @@
 # - DCN-CHG-20260429-13 prose-only 패턴 회귀 차단
 #
 # 트리거:
-# - PR / push to main 시 tests/ 또는 harness/ 또는 agents/ 또는 skills/ 변경 시
+# - PR / push to main 시 tests/ 또는 harness/ 또는 agents/ 또는 docs/plugin/agents/ 또는 skills/ 변경 시
+#   (docs/plugin/agents/ = 지침·templates·references·_shared 이동처 — 계약 테스트가 그 내용을 소비)
 #   (skills/ = test_loop_procedure_base_ref / test_impl_cost_aware 가 skills/<n>/SKILL.md 내용 단언)
 #   (commands/ = test_skill_scenarios / test_surface_docs_sync 가 commands/init-dcness.md deploy·문서 단언)
 #   (templates/github-workflows/ = init-dcness 선택형 workflow 배포 파일 단언)
@@ -30,6 +31,7 @@ on:
       - 'harness/**'
       - 'tests/**'
       - 'agents/**'
+      - 'docs/plugin/agents/**'
       - 'skills/**'
       - 'commands/**'
       - 'templates/github-workflows/**'
@@ -47,6 +49,7 @@ on:
       - 'harness/**'
       - 'tests/**'
       - 'agents/**'
+      - 'docs/plugin/agents/**'
       - 'skills/**'
       - 'commands/**'
       - 'templates/github-workflows/**'

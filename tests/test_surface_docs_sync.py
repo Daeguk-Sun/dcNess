@@ -90,16 +90,16 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.pr_reviewer = (
-            ROOT / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
         ).read_text(encoding="utf-8")
         self.architecture_validator = (
-            ROOT / "agents" / "architecture-validator" / "architecture-validator-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "architecture-validator" / "architecture-validator-agent.md"
         ).read_text(encoding="utf-8")
         self.ux_architect = (
-            ROOT / "agents" / "ux-architect" / "ux-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "ux-architect" / "ux-architect-agent.md"
         ).read_text(encoding="utf-8")
         self.tech_reviewer = (
-            ROOT / "agents" / "tech-reviewer" / "tech-reviewer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "tech-reviewer" / "tech-reviewer-agent.md"
         ).read_text(encoding="utf-8")
         self.cross_ref_script = (ROOT / "scripts" / "check_cross_refs.mjs").read_text(
             encoding="utf-8"
@@ -130,18 +130,18 @@ class SurfaceDocsSyncTests(unittest.TestCase):
 
     def test_module_design_principles_are_agent_shared_not_plugin_surface(self) -> None:
         plugin_path = ROOT / "docs" / "plugin" / "module-design-principles.md"
-        shared_path = ROOT / "agents" / "_shared" / "module-design-principles.md"
+        shared_path = ROOT / "docs" / "plugin" / "agents" / "_shared" / "module-design-principles.md"
 
         self.assertFalse(plugin_path.exists())
         self.assertTrue(shared_path.exists())
 
         for rel_path in (
-            "agents/system-architect/system-architect-agent.md",
-            "agents/module-architect/module-architect-agent.md",
-            "agents/engineer/engineer-agent.md",
-            "agents/test-engineer/test-engineer-agent.md",
-            "agents/build-worker/build-worker-agent.md",
-            "agents/architecture-validator/architecture-validator-agent.md",
+            "docs/plugin/agents/system-architect/system-architect-agent.md",
+            "docs/plugin/agents/module-architect/module-architect-agent.md",
+            "docs/plugin/agents/engineer/engineer-agent.md",
+            "docs/plugin/agents/test-engineer/test-engineer-agent.md",
+            "docs/plugin/agents/build-worker/build-worker-agent.md",
+            "docs/plugin/agents/architecture-validator/architecture-validator-agent.md",
         ):
             text = (ROOT / rel_path).read_text(encoding="utf-8")
             self.assertIn("../_shared/module-design-principles.md", text)
@@ -217,6 +217,11 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         plugin_docs = sorted(
             path.relative_to(ROOT).as_posix()
             for path in (ROOT / "docs" / "plugin").rglob("*.md")
+            # docs/plugin/agents/ 는 얇은 진입점(agents/<name>.md)이 가리키는 agent 소비용
+            # 지침·templates·references·_shared 다 (#963 — agents/ 재귀 등록 오염 해소로 이동).
+            # CLAUDE.md 문서 지도는 사람용 SSOT 네비라 agent-internal 콘텐츠는 대상 밖 —
+            # reachability 는 진입점 + cross-ref 고아 게이트가 보장한다.
+            if not path.relative_to(ROOT).as_posix().startswith("docs/plugin/agents/")
         )
         missing = [path for path in plugin_docs if path not in self.claude]
         self.assertEqual([], missing)
@@ -505,16 +510,16 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         script = (ROOT / "scripts" / "aggregate_architecture_map.mjs")
         index_script = ROOT / "scripts" / "aggregate_index_map.mjs"
         root_template = (
-            ROOT / "agents" / "system-architect" / "templates" / "root-architecture.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "root-architecture.md"
         ).read_text(encoding="utf-8")
         index_template = (
             ROOT / "skills" / "spec" / "templates" / "index.md"
         ).read_text(encoding="utf-8")
         epic_template = (
-            ROOT / "agents" / "system-architect" / "templates" / "epic-architecture.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "epic-architecture.md"
         ).read_text(encoding="utf-8")
         system_architect = (
-            ROOT / "agents" / "system-architect" / "system-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "system-architect-agent.md"
         ).read_text(encoding="utf-8")
 
         self.assertTrue(script.exists())
@@ -633,13 +638,13 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             encoding="utf-8"
         )
         conventions = (
-            ROOT / "agents" / "system-architect" / "templates" / "conventions.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "conventions.md"
         ).read_text(encoding="utf-8")
         decision = (
-            ROOT / "agents" / "system-architect" / "templates" / "decision.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "decision.md"
         ).read_text(encoding="utf-8")
         root_architecture = (
-            ROOT / "agents" / "system-architect" / "templates" / "root-architecture.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "root-architecture.md"
         ).read_text(encoding="utf-8")
 
         self.assertIn("# 프로젝트 문서 인덱스", index)

@@ -14,9 +14,9 @@ def read(rel_path: str) -> str:
 
 class ContractPointerModelTests(unittest.TestCase):
     def test_impl_task_template_uses_ledger_row_references_not_contract_copies(self) -> None:
-        template = read("agents/module-architect/templates/impl-task.md")
+        template = read("docs/plugin/agents/module-architect/templates/impl-task.md")
         sweep_template = read(
-            "agents/module-architect/templates/contract-sweep-report.md"
+            "docs/plugin/agents/module-architect/templates/contract-sweep-report.md"
         )
 
         self.assertIn("## Contract References", template)
@@ -33,11 +33,11 @@ class ContractPointerModelTests(unittest.TestCase):
         self.assertIn("행 키 참조", sweep_template)
 
     def test_agents_treat_epic_contract_ledger_as_single_source_of_truth(self) -> None:
-        module_architect = read("agents/module-architect/module-architect-agent.md")
+        module_architect = read("docs/plugin/agents/module-architect/module-architect-agent.md")
         validator = read(
-            "agents/architecture-validator/architecture-validator-agent.md"
+            "docs/plugin/agents/architecture-validator/architecture-validator-agent.md"
         )
-        amendment = read("agents/module-architect/references/contract-amendment.md")
+        amendment = read("docs/plugin/agents/module-architect/references/contract-amendment.md")
 
         for text in (module_architect, validator, amendment):
             with self.subTest(text=text[:40]):
@@ -64,8 +64,8 @@ class ContractPointerModelTests(unittest.TestCase):
         self.assertIn("row-key references", deliverables)
 
     def test_contract_ledger_template_keeps_parser_header_and_declares_key_stability(self) -> None:
-        template = read("agents/system-architect/templates/epic-architecture.md")
-        reference = read("agents/system-architect/references/contract-ledger.md")
+        template = read("docs/plugin/agents/system-architect/templates/epic-architecture.md")
+        reference = read("docs/plugin/agents/system-architect/references/contract-ledger.md")
 
         self.assertIn(
             "| contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |",

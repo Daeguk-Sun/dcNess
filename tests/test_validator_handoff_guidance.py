@@ -11,23 +11,23 @@ ROOT = Path(__file__).resolve().parents[1]
 class ValidatorHandoffGuidanceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.shared = (
-            ROOT / "agents" / "_shared" / "validation-reporting-guidance.md"
+            ROOT / "docs" / "plugin" / "agents" / "_shared" / "validation-reporting-guidance.md"
         ).read_text(encoding="utf-8")
         self.init_reference = (
             ROOT / "docs" / "plugin" / "init-dcness.md"
         ).read_text(encoding="utf-8")
         self.claude_agents = {
             "code-validator": (
-                ROOT / "agents" / "code-validator" / "code-validator-agent.md"
+                ROOT / "docs" / "plugin" / "agents" / "code-validator" / "code-validator-agent.md"
             ).read_text(encoding="utf-8"),
             "architecture-validator": (
                 ROOT
-                / "agents"
+                / "docs" / "plugin" / "agents"
                 / "architecture-validator"
                 / "architecture-validator-agent.md"
             ).read_text(encoding="utf-8"),
             "pr-reviewer": (
-                ROOT / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
+                ROOT / "docs" / "plugin" / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
             ).read_text(encoding="utf-8"),
         }
         self.codex_skills = {
@@ -116,7 +116,7 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
         for needle in (
             "## Provider Mirror Sync",
             "같은 PR 안에서 함께 갱신",
-            "agents/architecture-validator/architecture-validator-agent.md",
+            "docs/plugin/agents/architecture-validator/architecture-validator-agent.md",
             "codex/skills/dcness-architecture-validator/SKILL.md",
             "native Codex frontmatter",
             "tests/test_validator_handoff_guidance.py",

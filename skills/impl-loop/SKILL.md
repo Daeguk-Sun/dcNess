@@ -176,7 +176,7 @@ retry / POLISH 시 기존 sub-step 재활용 — 신규 TaskCreate X.
 
 ### git 권한
 
-worktree branch 안 commit / push / PR 생성·머지 = **메인 Claude 전담**. engineer / build-worker / test-engineer 등 sub-agent 는 git commit/push/branch + `gh pr create/merge` 금지 — 코드 변경만 (worker 는 PR 본문·commit message *초안* 만 prose return, 실제 명령은 메인). main 직접 commit/push = ❌ (main-block hook 차단). 상세 = [`git-spec.md`](../../docs/plugin/git-spec.md#git-절차) + [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#impl-task-loop-commit-구조) + [`build-worker-agent.md` 권한 경계](../../agents/build-worker/build-worker-agent.md#권한-경계).
+worktree branch 안 commit / push / PR 생성·머지 = **메인 Claude 전담**. engineer / build-worker / test-engineer 등 sub-agent 는 git commit/push/branch + `gh pr create/merge` 금지 — 코드 변경만 (worker 는 PR 본문·commit message *초안* 만 prose return, 실제 명령은 메인). main 직접 commit/push = ❌ (main-block hook 차단). 상세 = [`git-spec.md`](../../docs/plugin/git-spec.md#git-절차) + [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#impl-task-loop-commit-구조) + [`build-worker-agent.md` 권한 경계](../../docs/plugin/agents/build-worker/build-worker-agent.md#권한-경계).
 
 ### 사전 read (lazy — 필요시만, #400)
 
@@ -461,7 +461,7 @@ next: <다음 task slug 진입 | 정지 사유>
 - **build-worker 엔진**: `build-worker: N tests RED→GREEN · M files +X -Y · validate PASS|FAIL · pr-reviewer: LGTM|FAIL` (impl 부재로 module-architect 선두면 앞에 `module-architect: PASS|ESCALATE · ` 추가)
 - **풀 4-agent 엔진** (chain + `엄정하게` override): `test-engineer: N tests · engineer: M files +X -Y · code-validator: PASS|FAIL · pr-reviewer: LGTM|FAIL` (advanced fallback 으로 module-architect 선두면 앞에 `module-architect: PASS · ` 추가)
 
-**5줄 작성 책임 = 메인 (PR 생성·머지 완료 후)** — `PR <#NNN> merged` 의 번호·merged 상태는 `scripts/pr-create.sh` / `pr-finalize.sh` 완료 후에야 확정된다. 특히 **풀 4-agent 엔진은 PR 이 pr-reviewer PASS *후* 생성**되므로 pr-reviewer 는 PR 번호조차 모른다 — pr-reviewer 가 5줄을 박을 수 없다. 따라서 pr-reviewer 는 자기 결론(LGTM/FAIL) + 엔진별 메트릭 *재료* 만 prose 에 제공하고 ([`pr-reviewer-agent.md` 결론과 보고](../../agents/pr-reviewer/pr-reviewer-agent.md#결론과-보고) 정합), **메인이 머지(pr-finalize) 완료 후 위 5줄을 종합해 chat 에 echo** 한다 — 자유 형식 단축 금지 (외부 사용자 [F8 실측](https://github.com/alruminum/dcNess/issues/507)). build-worker 엔진은 PR 이 pr-reviewer *전* 생성되지만, merged 상태는 동일하게 머지 후 확정이라 5줄 종합은 메인 책임으로 통일.
+**5줄 작성 책임 = 메인 (PR 생성·머지 완료 후)** — `PR <#NNN> merged` 의 번호·merged 상태는 `scripts/pr-create.sh` / `pr-finalize.sh` 완료 후에야 확정된다. 특히 **풀 4-agent 엔진은 PR 이 pr-reviewer PASS *후* 생성**되므로 pr-reviewer 는 PR 번호조차 모른다 — pr-reviewer 가 5줄을 박을 수 없다. 따라서 pr-reviewer 는 자기 결론(LGTM/FAIL) + 엔진별 메트릭 *재료* 만 prose 에 제공하고 ([`pr-reviewer-agent.md` 결론과 보고](../../docs/plugin/agents/pr-reviewer/pr-reviewer-agent.md#결론과-보고) 정합), **메인이 머지(pr-finalize) 완료 후 위 5줄을 종합해 chat 에 echo** 한다 — 자유 형식 단축 금지 (외부 사용자 [F8 실측](https://github.com/alruminum/dcNess/issues/507)). build-worker 엔진은 PR 이 pr-reviewer *전* 생성되지만, merged 상태는 동일하게 머지 후 확정이라 5줄 종합은 메인 책임으로 통일.
 
 **마감 task 는 acceptance 줄 1개 추가 (6줄)** — `PR <#NNN> merged` 줄 *앞* 에 `acceptance: story #<M> PASS (round <n>)` (epic 마감은 ` · epic #<E> PASS (round <n>)` 덧붙임). FAIL 정지 시에는 `acceptance: story #<M> FAIL — gap <요약>` + next 줄에 정지 사유.
 

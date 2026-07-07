@@ -86,7 +86,7 @@ class SpecSurfaceContractTests(unittest.TestCase):
             self.spec_dir / "spec-routing.md",
             ROOT / "skills" / "tech-review" / "SKILL.md",
             ROOT / "skills" / "tech-review" / "tech-review-routing.md",
-            ROOT / "agents" / "tech-reviewer" / "tech-reviewer-agent.md",
+            ROOT / "docs" / "plugin" / "agents" / "tech-reviewer" / "tech-reviewer-agent.md",
         ]
         combined = "\n".join(path.read_text(encoding="utf-8") for path in files)
 
@@ -95,7 +95,7 @@ class SpecSurfaceContractTests(unittest.TestCase):
         self.assertIn("생성/갱신", combined)
 
         reviewer = (
-            ROOT / "agents" / "tech-reviewer" / "tech-reviewer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "tech-reviewer" / "tech-reviewer-agent.md"
         ).read_text(encoding="utf-8")
         self.assertIn(
             "PRD의 기술 검토 필요 영역에 명시된 검토 질문을 정식 항목으로 확인한다",

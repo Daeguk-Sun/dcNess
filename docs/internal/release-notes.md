@@ -479,7 +479,7 @@ claude plugin update dcness@dcness
 
 3. **architecture-validator 영역 갱신** — 3 영역 검증 — **Placeholder Leak (유지) + Cross-Story Interface 정합성 (옛 Cross-Task Interface 에서 변경 — Story 안은 module-architect self-check 가 cover, Story 간만 validator 영역) + 공통 SSOT 룰 위반 (신규 — 순환 의존 / 미허가 의존 / public API contract 위반 자동 영역 + Deep Modules / 부작용 없는 반환 수동 review 권고 영역 분리)**. Spike Gate 폐기. `/architect-loop` 안에서 두 시점 호출 — Step 3.5 (system-architect 직후, Placeholder + 공통 SSOT) + Step 5 (module 다 끝난 후, Cross-Story Interface).
 
-4. **공통 SSOT 신설 — [`agents/_shared/module-design-principles.md`](../../agents/_shared/module-design-principles.md)** — 세 영역 룰을 한 곳에 모음 — Deep Modules (John Ousterhout, "A Philosophy of Software Design") + Interface Design for Testability ([mattpocock skills](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/interface-design.md)) + 의존성 강제 세 영역 (순환 의존 / 미허가 의존 빌드 시점 차단 / 모듈 공개·비공개 영역 구분 강제 / DI 강제). system / module / engineer / test-engineer 의 호출 시 read 의무. drift 차단 + agent 본문 분량 ↓.
+4. **공통 SSOT 신설 — [`agents/_shared/module-design-principles.md`](../../docs/plugin/agents/_shared/module-design-principles.md)** — 세 영역 룰을 한 곳에 모음 — Deep Modules (John Ousterhout, "A Philosophy of Software Design") + Interface Design for Testability ([mattpocock skills](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/interface-design.md)) + 의존성 강제 세 영역 (순환 의존 / 미허가 의존 빌드 시점 차단 / 모듈 공개·비공개 영역 구분 강제 / DI 강제). system / module / engineer / test-engineer 의 호출 시 read 의무. drift 차단 + agent 본문 분량 ↓.
 
 5. **batch 모드 폐기** — 옛 `/architect-loop` 의 batch 모드 (K ≥ 8 시 Story 단위 묶음 1 호출) 폐기. Story 묶음 자체가 batch 의 본질 해결.
 

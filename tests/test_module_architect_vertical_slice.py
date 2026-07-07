@@ -11,27 +11,27 @@ ROOT = Path(__file__).resolve().parents[1]
 class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.module_architect = (
-            ROOT / "agents" / "module-architect" / "module-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "module-architect-agent.md"
         ).read_text(encoding="utf-8")
         self.impl_template = (
-            ROOT / "agents" / "module-architect" / "templates" / "impl-task.md"
+            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "templates" / "impl-task.md"
         ).read_text(encoding="utf-8")
         self.arch_validator = (
             ROOT
-            / "agents"
+            / "docs" / "plugin" / "agents"
             / "architecture-validator"
             / "architecture-validator-agent.md"
         ).read_text(encoding="utf-8")
         self.arch_validator_template = (
             ROOT
-            / "agents"
+            / "docs" / "plugin" / "agents"
             / "architecture-validator"
             / "templates"
             / "review-report.md"
         ).read_text(encoding="utf-8")
         self.arch_validator_examples = (
             ROOT
-            / "agents"
+            / "docs" / "plugin" / "agents"
             / "architecture-validator"
             / "references"
             / "finding-examples.md"
@@ -44,7 +44,7 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             / "SKILL.md"
         ).read_text(encoding="utf-8")
         self.shared_principles = (
-            ROOT / "agents" / "_shared" / "module-design-principles.md"
+            ROOT / "docs" / "plugin" / "agents" / "_shared" / "module-design-principles.md"
         ).read_text(encoding="utf-8")
         self.parallel_policy = (
             ROOT / "docs" / "plugin" / "parallel-policy.md"
@@ -168,7 +168,7 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
         )
         epic_architecture_template = (
             ROOT
-            / "agents"
+            / "docs" / "plugin" / "agents"
             / "system-architect"
             / "templates"
             / "epic-architecture.md"

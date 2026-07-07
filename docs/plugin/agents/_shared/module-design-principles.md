@@ -175,7 +175,7 @@ Story 설계의 기본 단위는 레이어나 파일 묶음이 아니라 사용�
 - module-architect — Story 완료 시 검증되는 동작과 첫 동작 증거 지점을 impl 문서에 남긴다.
 - architecture-validator — impl 문서가 레이어별 부품 task만 만들고 실제 Story 동작 책임을 비워두면 finding 으로 드러낸다.
 - engineer / build-worker — 핵심 AC를 mock-only green 이 아니라 제품 경계의 동작 증거로 연결한다.
-- `/spec` stories.md — Story 분할·순서 자체가 동작 증분 단위가 되도록 같은 원칙을 Story 수준에 적용한다. 상세 기준은 [`skills/spec/spec-stories-reference.md`](../../skills/spec/spec-stories-reference.md).
+- `/spec` stories.md — Story 분할·순서 자체가 동작 증분 단위가 되도록 같은 원칙을 Story 수준에 적용한다. 상세 기준은 [`skills/spec/spec-stories-reference.md`](../../../../skills/spec/spec-stories-reference.md).
 
 ## 동작 증거 기준
 
@@ -245,18 +245,18 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 
 | Agent | evidence |
 |---|---|
-| [`system-architect`](../system-architect.md) | architecture 템플릿의 `Module Design Check`, Flow Ownership Map, 의존성 차단 도구, DI 패턴, Contract Ledger |
-| [`module-architect`](../module-architect.md) | impl 템플릿의 `Module Design Check`, Agent Workability, 작은 공개 노출 범위, contract/interface, Story 동작 수직 슬라이스, 검증 가능한 수용 기준 |
-| [`engineer`](../engineer.md) | 구현 보고의 계약 준수, 의존 주입 또는 wrapper 사용, 검증 결과 |
-| [`test-engineer`](../test-engineer.md) | 테스트 보고의 REQ 연결, 의존 mock 경계, 구현 독립성 |
-| [`build-worker`](../build-worker.md) | phase 보고의 RED/GREEN/self-validate 증거 |
-| [`architecture-validator`](../architecture-validator.md) | 설계 표준, 계약과 인터페이스, 구현 가능성 축의 finding 또는 PASS 근거 |
-| [`code-validator`](../code-validator.md) | 의존 계약, 도메인/디자인 정합, 구현 위험 축의 finding 또는 PASS 근거 |
-| [`pr-reviewer`](../pr-reviewer.md) | diff 가 Agent Operability 를 악화시키는지에 대한 finding 또는 후속 권고 |
+| [`system-architect`](../../../../agents/system-architect.md) | architecture 템플릿의 `Module Design Check`, Flow Ownership Map, 의존성 차단 도구, DI 패턴, Contract Ledger |
+| [`module-architect`](../../../../agents/module-architect.md) | impl 템플릿의 `Module Design Check`, Agent Workability, 작은 공개 노출 범위, contract/interface, Story 동작 수직 슬라이스, 검증 가능한 수용 기준 |
+| [`engineer`](../../../../agents/engineer.md) | 구현 보고의 계약 준수, 의존 주입 또는 wrapper 사용, 검증 결과 |
+| [`test-engineer`](../../../../agents/test-engineer.md) | 테스트 보고의 REQ 연결, 의존 mock 경계, 구현 독립성 |
+| [`build-worker`](../../../../agents/build-worker.md) | phase 보고의 RED/GREEN/self-validate 증거 |
+| [`architecture-validator`](../../../../agents/architecture-validator.md) | 설계 표준, 계약과 인터페이스, 구현 가능성 축의 finding 또는 PASS 근거 |
+| [`code-validator`](../../../../agents/code-validator.md) | 의존 계약, 도메인/디자인 정합, 구현 위험 축의 finding 또는 PASS 근거 |
+| [`pr-reviewer`](../../../../agents/pr-reviewer.md) | diff 가 Agent Operability 를 악화시키는지에 대한 finding 또는 후속 권고 |
 
 ## validator 의 검증 연결
 
-[`architecture-validator`](../architecture-validator.md) 는 본 SSOT 를 고정 checklist 로 세지 않는다. 다음 축에서 evidence 를 확인한다.
+[`architecture-validator`](../../../../agents/architecture-validator.md) 는 본 SSOT 를 고정 checklist 로 세지 않는다. 다음 축에서 evidence 를 확인한다.
 
 - **설계 표준**: 모듈 공개 노출 범위, 의존 방향, DI 판단, 차단 도구가 산출물에 남았는가.
 - **계약과 인터페이스**: Contract Ledger 가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 를 담는가.
@@ -267,13 +267,13 @@ system-architect 가 architecture.md 의 *기술 스택* 영역에 DI 패턴 명
 
 자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이 필요한 영역은 finding 이 아니라 수동 review 권고로 분리해 사용자에게 보여준다.
 
-**Contract Ledger (계약 원장) 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 이 계약들은 `/design` 에서 epic architecture.md 의 `## Contract Ledger` 에 1급 산출물로 모인다. `contract` 열은 stable 행 키이며, impl/compact plan 은 그 행 키만 참조한다. system-architect 가 작성하고, module-architect 가 public contract 변경 시 Ledger 를 갱신하며, architecture-validator 가 stale 사본, 신규 전문 사본, shallow contract 를 검토한다. 분류·분기 상세 = [`design-routing.md`](../../skills/design/design-routing.md#finding-분류-분기).
+**Contract Ledger (계약 원장) 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 이 계약들은 `/design` 에서 epic architecture.md 의 `## Contract Ledger` 에 1급 산출물로 모인다. `contract` 열은 stable 행 키이며, impl/compact plan 은 그 행 키만 참조한다. system-architect 가 작성하고, module-architect 가 public contract 변경 시 Ledger 를 갱신하며, architecture-validator 가 stale 사본, 신규 전문 사본, shallow contract 를 검토한다. 분류·분기 상세 = [`design-routing.md`](../../../../skills/design/design-routing.md#finding-분류-분기).
 
 ## 참조
 
-- [`../../docs/plugin/terms.md`](../../docs/plugin/terms.md) — 용어·공개 진입점·분기 표현 수정/리뷰 시 확인
-- 각 loop skill 의 `<skill>-routing.md` — agent 호출 분기 (예: [`../../skills/design/design-routing.md`](../../skills/design/design-routing.md))
-- [`harness/agent_boundary.py`](../../harness/agent_boundary.py) — agent 권한 영역 (코드 SSOT)
+- [`docs/plugin/terms.md`](../../terms.md) — 용어·공개 진입점·분기 표현 수정/리뷰 시 확인
+- 각 loop skill 의 `<skill>-routing.md` — agent 호출 분기 (예: [`skills/design/design-routing.md`](../../../../skills/design/design-routing.md))
+- [`harness/agent_boundary.py`](../../../../harness/agent_boundary.py) — agent 권한 영역 (코드 SSOT)
 - John Ousterhout, "A Philosophy of Software Design"
 - [mattpocock skills — Deep Modules](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/deep-modules.md)
 - [mattpocock skills — Interface Design](https://github.com/mattpocock/skills/blob/main/skills/engineering/tdd/interface-design.md)

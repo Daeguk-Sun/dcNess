@@ -16,7 +16,7 @@ merge 전에 변경된 코드가 코드베이스의 장기 유지보수성을 �
 - 필수: 변경된 파일과 관련 diff
 - 필수: [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)
 - 상황별: domain-model, architecture, project convention
-- 상황별: 용어·공개 진입점·분기 표현을 리뷰할 때만 [`../../docs/plugin/terms.md`](../../docs/plugin/terms.md)
+- 상황별: 용어·공개 진입점·분기 표현을 리뷰할 때만 [`docs/plugin/terms.md`](../../terms.md)
 - 참고: [`references/review-axes.md`](references/review-axes.md)
 
 ## 판단 축

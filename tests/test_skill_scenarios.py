@@ -40,10 +40,10 @@ class SkillScenarioRegressionTests(unittest.TestCase):
             ROOT / "skills" / "impl-loop" / "impl-loop-routing.md"
         ).read_text(encoding="utf-8")
         self.build_worker = (
-            ROOT / "agents" / "build-worker" / "build-worker-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "build-worker" / "build-worker-agent.md"
         ).read_text(encoding="utf-8")
         self.test_engineer = (
-            ROOT / "agents" / "test-engineer" / "test-engineer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "test-engineer" / "test-engineer-agent.md"
         ).read_text(encoding="utf-8")
         self.init_doc = (ROOT / "commands" / "init-dcness.md").read_text(
             encoding="utf-8"
@@ -114,7 +114,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         """agent 본문과 report 템플릿의 결론 enum 집합이 갈라지면 worker 가 템플릿 쪽
         구식 enum 으로 보고해 다음 호출 판단이 오분기된다 (리뷰 P2 실측 — VALIDATION_BLOCKED 누락)."""
         template = (
-            ROOT / "agents" / "build-worker" / "templates" / "build-worker-report.md"
+            ROOT / "docs" / "plugin" / "agents" / "build-worker" / "templates" / "build-worker-report.md"
         ).read_text(encoding="utf-8")
         for enum in (
             "PASS", "SPEC_GAP_FOUND", "TESTS_FAIL",

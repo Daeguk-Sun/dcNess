@@ -22,7 +22,7 @@ module-architect 의 `/design` epic-batch 호출은 전체 Story 를 한 컨텍�
 
 ## Story 분할 기준 — 사용자 검증 가능한 동작 증분
 
-Story 분할의 1차 목표는 기능 영역이나 구현 레이어가 아니라, 각 Story 완료 시 사용자가 실제 제품 경계(UI/API/CLI/worker entrypoint/통합 wiring)에서 직접 확인할 수 있는 동작 증분이다. task 수준 기준([`agents/_shared/module-design-principles.md`](../../agents/_shared/module-design-principles.md) 의 Product Behavior Slices — 제품 동작 수직 슬라이스)과 같은 원칙의 Story 수준 적용이다.
+Story 분할의 1차 목표는 기능 영역이나 구현 레이어가 아니라, 각 Story 완료 시 사용자가 실제 제품 경계(UI/API/CLI/worker entrypoint/통합 wiring)에서 직접 확인할 수 있는 동작 증분이다. task 수준 기준([`docs/plugin/agents/_shared/module-design-principles.md`](../../docs/plugin/agents/_shared/module-design-principles.md) 의 Product Behavior Slices — 제품 동작 수직 슬라이스)과 같은 원칙의 Story 수준 적용이다.
 
 - 각 Story 는 "완료되면 사용자가 무엇을 실행하거나 확인할 수 있는가" 에 답해야 한다. 답이 "다른 Story 와 합쳐져야 동작" 이면 부품 Story 다.
 - 기능 영역 단위(예: 인테이크 / 렌더 / 업로드 / 오디오) 분할, 레이어 단위(ports / adapter / usecase) 분할은 부품 Story 묶음 신호다 — 동작 증분 단위로 재분할한다.

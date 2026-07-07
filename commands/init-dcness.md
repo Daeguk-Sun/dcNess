@@ -284,8 +284,8 @@ for FILE in index.md prd.md architecture.md conventions.md; do
   case "$FILE" in
     index.md)        SRC="$PLUGIN_ROOT/skills/spec/templates/index.md" ;;
     prd.md)          SRC="$PLUGIN_ROOT/skills/spec/templates/prd.md" ;;
-    architecture.md) SRC="$PLUGIN_ROOT/agents/system-architect/templates/root-architecture.md" ;;
-    conventions.md)  SRC="$PLUGIN_ROOT/agents/system-architect/templates/conventions.md" ;;
+    architecture.md) SRC="$PLUGIN_ROOT/docs/plugin/agents/system-architect/templates/root-architecture.md" ;;
+    conventions.md)  SRC="$PLUGIN_ROOT/docs/plugin/agents/system-architect/templates/conventions.md" ;;
   esac
   if [ -f "$PROJECT_ROOT/docs/$FILE" ]; then
     echo "[dcness] docs/$FILE 이미 존재 - skip"

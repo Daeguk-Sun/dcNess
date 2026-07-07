@@ -11,32 +11,32 @@ ROOT = Path(__file__).resolve().parents[1]
 class AgentOperabilityContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.shared_principles = (
-            ROOT / "agents" / "_shared" / "module-design-principles.md"
+            ROOT / "docs" / "plugin" / "agents" / "_shared" / "module-design-principles.md"
         ).read_text(encoding="utf-8")
         self.module_architect = (
-            ROOT / "agents" / "module-architect" / "module-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "module-architect-agent.md"
         ).read_text(encoding="utf-8")
         self.impl_template = (
-            ROOT / "agents" / "module-architect" / "templates" / "impl-task.md"
+            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "templates" / "impl-task.md"
         ).read_text(encoding="utf-8")
         self.epic_architecture_template = (
-            ROOT / "agents" / "system-architect" / "templates" / "epic-architecture.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "epic-architecture.md"
         ).read_text(encoding="utf-8")
         self.system_architect = (
-            ROOT / "agents" / "system-architect" / "system-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "system-architect-agent.md"
         ).read_text(encoding="utf-8")
         self.pr_reviewer = (
-            ROOT / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
         ).read_text(encoding="utf-8")
         self.pr_review_axes = (
-            ROOT / "agents" / "pr-reviewer" / "references" / "review-axes.md"
+            ROOT / "docs" / "plugin" / "agents" / "pr-reviewer" / "references" / "review-axes.md"
         ).read_text(encoding="utf-8")
         self.codex_pr_reviewer = (
             ROOT / "codex" / "skills" / "dcness-pr-reviewer" / "SKILL.md"
         ).read_text(encoding="utf-8")
         self.architecture_validator = (
             ROOT
-            / "agents"
+            / "docs" / "plugin" / "agents"
             / "architecture-validator"
             / "architecture-validator-agent.md"
         ).read_text(encoding="utf-8")

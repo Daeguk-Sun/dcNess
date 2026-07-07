@@ -603,8 +603,8 @@ function buildRecovery({ root, contract, ledger, artifacts, violations, warnings
       .map((artifact) => rel(root, artifact.path))
       .sort(),
     validation_paths: [
-      'agents/architecture-validator/architecture-validator-agent.md',
-      'agents/module-architect/templates/impl-task.md',
+      'docs/plugin/agents/architecture-validator/architecture-validator-agent.md',
+      'docs/plugin/agents/module-architect/templates/impl-task.md',
     ],
   };
 }

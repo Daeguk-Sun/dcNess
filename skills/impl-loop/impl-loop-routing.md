@@ -136,7 +136,7 @@ standalone `/acceptance` 의 분기 규칙([`acceptance-routing.md`](../acceptan
 
 | gap 종류 | 다음 |
 |---|---|
-| PRD / AC 미충족 · 검수 증거 부족 · 스모크 실패 (auto-fixable) | engineer:IMPL 재진입(gap 수정 — POLISH 아님: POLISH 는 pr-reviewer finding 전용·로직 변경 금지 모드, [`engineer-agent.md`](../../agents/engineer/engineer-agent.md) 정합). build-worker 엔진도 run 시작 시 `--design-doc <task impl 문서>` 를 기록하므로 engineer gate 를 통과한다. → `IMPL_DONE` → code-validator `PASS` → lint/build/test green → 메인 commit/push to PR branch → pr-reviewer 재리뷰 → product-acceptance 재검수 (round ≤3) |
+| PRD / AC 미충족 · 검수 증거 부족 · 스모크 실패 (auto-fixable) | engineer:IMPL 재진입(gap 수정 — POLISH 아님: POLISH 는 pr-reviewer finding 전용·로직 변경 금지 모드, [`engineer-agent.md`](../../docs/plugin/agents/engineer/engineer-agent.md) 정합). build-worker 엔진도 run 시작 시 `--design-doc <task impl 문서>` 를 기록하므로 engineer gate 를 통과한다. → `IMPL_DONE` → code-validator `PASS` → lint/build/test green → 메인 commit/push to PR branch → pr-reviewer 재리뷰 → product-acceptance 재검수 (round ≤3) |
 | mock-only green / 동작 증거 부족 (auto-fixable) | engineer:IMPL 재진입. 핵심 AC 를 닫을 수 있는 자동 동작 증거를 추가한다. 사람 E2E 만 요구하지 않고 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke 중 AC 성격에 맞는 증거를 보강한다. |
 | 화면 증거 부재 (auto-fixable) | engineer:IMPL 재진입. 프로젝트가 선택한 UI 자동화, visual smoke, 스크린샷 산출물 등 실제 구현 화면 증거를 추가한다. dcNess 는 스크린샷 생성 도구를 배포하지 않고, 증거 요구와 판정만 담당한다. |
 | 목업 불일치 (구현 보강으로 닫힘) | engineer:IMPL 재진입. 확정 목업 대비 레이아웃 계층, 상태(default/empty/error 등), 토큰 대응을 맞추거나 의도적 차이를 구현/검수 증거에 명시한다. |
