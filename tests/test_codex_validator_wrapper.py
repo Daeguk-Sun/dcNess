@@ -18,7 +18,7 @@ WORKER = ROOT / "scripts" / "dcness-codex-worker"
 
 
 class CodexValidatorWrapperTests(unittest.TestCase):
-    def test_embeds_installed_skill_and_mode_before_prompt(self) -> None:
+    def test_embeds_plugin_skill_and_mode_before_prompt_when_installed_copy_is_stale(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             project = tmp / "project"
@@ -32,7 +32,7 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             skill_dir = codex_home / "skills" / "dcness-architecture-validator"
             skill_dir.mkdir(parents=True)
             skill_dir.joinpath("SKILL.md").write_text(
-                "# Test Skill\n\nSPECIAL_SKILL_CHECKLIST\n",
+                "# Installed Skill\n\nSTALE_INSTALLED_CHECKLIST\n",
                 encoding="utf-8",
             )
 
@@ -134,8 +134,11 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             prompt = prompt_capture.read_text(encoding="utf-8")
             self.assertIn("dcNess validation agent: architecture-validator", prompt)
             self.assertIn("dcNess validation mode: SECOND", prompt)
-            self.assertIn("SPECIAL_SKILL_CHECKLIST", prompt)
+            self.assertIn("# dcness-architecture-validator", prompt)
+            self.assertNotIn("STALE_INSTALLED_CHECKLIST", prompt)
             self.assertIn("Review this implementation.", prompt)
+            self.assertIn("stale installed skill ignored", result.stderr)
+            self.assertIn("/init-dcness Core Step 5", result.stderr)
             self.assertTrue(
                 helper_args.read_text(encoding="utf-8")
                 .strip()

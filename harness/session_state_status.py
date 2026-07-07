@@ -283,7 +283,9 @@ def collect_status_diagnostics(
             "Codex validator skills",
             "PASS" if codex_all_ok else "FAIL",
             ", ".join(f"{k}={v}" for k, v in codex_skills.items()),
-            None if codex_all_ok else "init-dcness Core Step 5 로 Codex validator skills 재배포",
+            None
+            if codex_all_ok
+            else "/init-dcness Core Step 5 로 $CODEX_HOME/skills 의 Codex validator skills 재배포",
         )
         try:
             from harness.context_docs import audit_claude_md_file
