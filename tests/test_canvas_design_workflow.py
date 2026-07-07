@@ -117,7 +117,10 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertEqual(["spec", "design", "impl", "acceptance"], defaults)
         self.assertEqual(["impl-loop", "tech-review"], advanced)
         self.assertEqual(["ux"], utility_skills)
-        self.assertEqual(["canvas-design", "compact-design"], sorted(internal))
+        self.assertEqual(
+            ["canvas-design", "compact-design", "design-system", "design-ux"],
+            sorted(internal),
+        )
 
     def test_ux_is_thin_canvas_design_wrapper_with_confirmed_outputs(self) -> None:
         for needle in (

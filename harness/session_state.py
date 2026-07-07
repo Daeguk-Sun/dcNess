@@ -519,6 +519,7 @@ def _validate_design_doc(design_doc: str) -> str:
 # 사전 조건 면제 신호로 인정하므로, 임의 문자열이 면제를 유발하지 못하게
 # 기록 시점에 이 집합으로 fail-fast 검증한다.
 _VALID_LANES = ("lite", "standard")
+_VALID_DESIGN_STAGES = ("design-ux", "design-system")
 
 
 def start_run(
@@ -530,6 +531,7 @@ def start_run(
     issue_num: Optional[int] = None,
     design_doc: Optional[str] = None,
     lane: Optional[str] = None,
+    stage: Optional[str] = None,
     acceptance_required: bool = False,
 ) -> None:
     """`active_runs[run_id]` 슬롯 추가 + run 디렉토리 생성.
@@ -551,6 +553,9 @@ def start_run(
     acceptance_required — story/epic 마감 task 로, pr-reviewer PASS 뒤 inline
     product-acceptance 를 거쳐야 정상 종료되는 run 이라는 신호 (#722).
     Stop hook 이 이 marker 를 읽어 pr-reviewer 를 종료 agent 로 취급하지 않는다.
+
+    stage — /design 내부 durable stage 기록(#958). 공개 entry_point 는 design 으로
+    유지하고, design-runs.jsonl 에서 UX PR run 과 system PR run 을 구분한다.
     """
     if not valid_session_id(session_id):
         raise ValueError(f"invalid session_id: {session_id!r}")
@@ -566,6 +571,15 @@ def start_run(
         if lane not in _VALID_LANES:
             raise ValueError(
                 f"lane must be one of {_VALID_LANES} (got {lane!r})"
+            )
+    if stage is not None:
+        if entry_point != "design":
+            raise ValueError(
+                f"stage is only valid for entry_point=design (got {entry_point!r})"
+            )
+        if stage not in _VALID_DESIGN_STAGES:
+            raise ValueError(
+                f"stage must be one of {_VALID_DESIGN_STAGES} (got {stage!r})"
             )
     if acceptance_required and entry_point != "impl":
         raise ValueError(
@@ -601,6 +615,7 @@ def start_run(
         "issue_num": issue_num,
         "design_doc": design_doc,
         "lane": lane,
+        "stage": stage,
         "acceptance_required": bool(acceptance_required),
     }
     update_live(session_id, base_dir=base_dir, active_runs=active)
@@ -616,6 +631,7 @@ def _ledger_run_started(
     issue_num: Optional[int] = None,
     design_doc: Optional[str] = None,
     lane: Optional[str] = None,
+    stage: Optional[str] = None,
     acceptance_required: bool = False,
     base_dir: Optional[Path] = None,
 ) -> None:
@@ -635,6 +651,8 @@ def _ledger_run_started(
             extra["design_doc"] = design_doc
         if lane is not None:
             extra["lane"] = lane
+        if stage is not None:
+            extra["stage"] = stage
         if acceptance_required:
             extra["acceptance_required"] = True
         ledger.append_event(session_id, run_id, "run_started", base_dir=base_dir, **extra)

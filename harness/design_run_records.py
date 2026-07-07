@@ -96,6 +96,14 @@ def _entry_point(events: list[dict[str, Any]]) -> str:
     return ""
 
 
+def _design_stage(events: list[dict[str, Any]]) -> str:
+    for event in events:
+        if event.get("event") == "run_started":
+            value = event.get("stage")
+            return value if isinstance(value, str) else ""
+    return ""
+
+
 def _step_verdict(step: run_review.StepRecord) -> str:
     if step.enum and step.enum not in _NON_VERDICT_ENUMS:
         return step.enum
@@ -183,6 +191,7 @@ def build_design_record(run_dir: Path, repo_path: Optional[Path] = None) -> Opti
         "run_id": report.run_id,
         "session_id": report.session_id,
         "entry_point": "design",
+        "stage": _design_stage(events),
         "started_at": started_at,
         "finished_at": finished_at,
         "duration_s": _duration_s(started_at, finished_at),
@@ -254,15 +263,16 @@ def render_records(records: list[dict], *, limit: Optional[int] = None) -> str:
     if not rows:
         lines.append("(records 없음)")
         return "\n".join(lines)
-    lines.append("| run_id | started_at | verdict | steps | duration_s | findings | cycles |")
-    lines.append("|---|---|---:|---:|---:|---|---|")
+    lines.append("| run_id | stage | started_at | verdict | steps | duration_s | findings | cycles |")
+    lines.append("|---|---|---|---:|---:|---:|---|---|")
     for rec in rows:
         findings = rec.get("finding_classes") or {}
         finding_cell = ", ".join(f"{k}:{v}" for k, v in sorted(findings.items())) or "-"
         cycles = rec.get("revalidation_cycles") or {}
         cycle_cell = ", ".join(f"{k}:{v}" for k, v in sorted(cycles.items())) or "-"
         lines.append(
-            f"| {rec.get('run_id', '')} | {rec.get('started_at', '')} | "
+            f"| {rec.get('run_id', '')} | {rec.get('stage', '') or '-'} | "
+            f"{rec.get('started_at', '')} | "
             f"{rec.get('final_verdict', '') or '-'} | {rec.get('step_count', 0)} | "
             f"{rec.get('duration_s', 0)} | {finding_cell} | {cycle_cell} |"
         )

@@ -1284,6 +1284,7 @@ class NextWorkStoryGroupPhaseTests(unittest.TestCase):
         slug: str,
         *,
         stories: bool = True,
+        ux_flow: bool = False,
         architecture: bool = False,
         impl_task: bool = False,
     ) -> None:
@@ -1291,6 +1292,8 @@ class NextWorkStoryGroupPhaseTests(unittest.TestCase):
         epic_dir.mkdir(parents=True, exist_ok=True)
         if stories:
             (epic_dir / "stories.md").write_text("# stories\n", encoding="utf-8")
+        if ux_flow:
+            (epic_dir / "ux-flow.md").write_text("# ux\n", encoding="utf-8")
         if architecture:
             (epic_dir / "architecture.md").write_text("# arch\n", encoding="utf-8")
         if impl_task:
@@ -1318,6 +1321,22 @@ class NextWorkStoryGroupPhaseTests(unittest.TestCase):
             self.assertIn("설계 미완", out)
             self.assertIn("/design docs/epics/epic-01-alpha", out)
             self.assertIn("#201 Story one", out)
+            self.assertNotIn("구현 순서 진본", out)
+
+    def test_ux_done_system_incomplete_epic_marks_design_resume_stage(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._epic(root, "epic-01-alpha", stories=True, ux_flow=True)
+            groups = [
+                {
+                    "epicSlugLabel": "epic-01-alpha",
+                    "epicNumber": 1,
+                    "items": [{"number": 201, "title": "Story one"}],
+                }
+            ]
+            out = self._format(groups, root)
+            self.assertIn("ux 완료 · system 미완", out)
+            self.assertIn("/design docs/epics/epic-01-alpha", out)
             self.assertNotIn("구현 순서 진본", out)
 
     def test_design_complete_epic_promotes_impl_with_footnote(self) -> None:
