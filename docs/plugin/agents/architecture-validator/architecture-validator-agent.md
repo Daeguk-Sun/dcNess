@@ -37,7 +37,7 @@ module-architect epic-batch 산출물을 읽기 전용으로 검토한다. 앞�
 - 수직 슬라이스 우선순위: 병렬 독립성이나 파일 경계를 맞추기 위해 Story 동작을 레이어별 부품 task로 찢어 실제 제품 경계 동작 책임이 비어 있지 않은가. 첫 동작 증거가 Story 마지막 task까지 밀렸는데 이유와 후속 검증이 없으면 `TASK_LOCAL` finding 으로 드러낸다.
 - 구현 순서: epic architecture 의 Story/모듈 구현 순서가 의존만이 아니라 첫 제품 경계 동작 증거를 앞당기는가. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 Story -> 모듈 매핑을 함께 보고, 앞에서 system checkpoint 가 있었다면 boundary 변경 뒤에도 그 순서가 유지되는지 확인한다.
 - 시스템 경계 변경 신호: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 전역 decision 을 바꾸는 요구가 module-architect 산출물에서 새로 드러났는가. 있으면 `SYSTEM_BOUNDARY` 로 분류해 system checkpoint 승격을 권고한다.
-- 디자인 입력 강제: 확정 목업이 있는 UI epic 에서 목업 미참조 설계 금지 원칙을 지키는가. epic architecture 와 impl task 의 `## 디자인 참조` 가 확정 목업 경로, node-id 매핑, docs/design.md 토큰을 대조하고, 의도적 차이를 설명하는가.
+- 디자인 입력 강제: 확정 목업이 있는 UI epic 에서 목업 미참조 설계 금지 원칙을 지키는가. epic architecture 와 impl task 의 `## 디자인 참조` 가 확정 목업 경로, node-id 매핑, docs/design.md 토큰을 대조하고, 의도적 차이를 설명하는가. 메인이 `dcness-helper mockup-node-check --mockup-dir docs/design-variants <impl dir>` 결과를 전달했으면 `missing_node_ids` 를 우선 증거로 본다.
 
 ## 작업 흐름
 

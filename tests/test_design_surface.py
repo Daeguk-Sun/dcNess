@@ -378,6 +378,7 @@ class DesignSurfaceContractTests(unittest.TestCase):
                 self.assertIn(needle, module_architect)
                 self.assertIn(needle, validator)
 
+        self.assertIn("dcness-helper mockup-node-check", validator)
         self.assertIn("사용자 PICK 확정 이후", routing)
         self.assertIn("목업 미참조", routing)
 

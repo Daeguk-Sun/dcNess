@@ -1767,6 +1767,9 @@ class BashMutationTests(unittest.TestCase):
         self.assertIsNone(check_bash_mutation("dcness-helper is-active"))
         self.assertIsNone(check_bash_mutation("dcness-helper wave-status"))
         self.assertIsNone(
+            check_bash_mutation("dcness-helper mockup-node-check docs/x/impl --mockup-dir docs/design-variants")
+        )
+        self.assertIsNone(
             check_bash_mutation("bash scripts/dcness-helper wave-plan docs/x/impl")
         )
 

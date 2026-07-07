@@ -902,6 +902,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "**이 호출 특유:**",
             "방법 처방",
             "main repo 절대경로",
+            "확정 목업 존재 UI epic",
+            "docs/design.md",
+            "node-id 매핑",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.agent_prompt_template)
