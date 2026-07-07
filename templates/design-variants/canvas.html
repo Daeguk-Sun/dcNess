@@ -17,9 +17,15 @@
        사용자가 위치 명시 요청 시만 data-pos="<col>,<row>" 박음.
     2. viewport 다른 frame:
          <iframe data-frame-id="..." data-viewport="desktop" src="..."></iframe>
-    3. 화살표는 optional — 사용자 명시 요청 시만 추가:
+    3. Figma형 플로우 보드가 필요하면 screen-node 로 2D 배치 + 캡션을 선언한다:
+         <div class="screen-node" data-node-id="<screen-id>" data-pos="<col>,<row>"
+              data-title="화면 제목" data-desc="화면 설명" data-states="기본 / 빈 / 로딩"
+              data-h="900">
+           <iframe src="<screen-id>.html"></iframe>
+         </div>
+    4. 화살표는 optional — 사용자 명시 요청 시만 추가:
          <svg class="flow-arrows">
-           <path data-from="login" data-to="payment-confirm" data-label="로그인 후"/>
+           <path data-from="login" data-to="payment-confirm" data-label="로그인 후" data-bend="0"/>
          </svg>
   -->
   <div class="canvas">
