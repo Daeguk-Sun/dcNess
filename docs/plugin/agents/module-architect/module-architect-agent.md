@@ -11,7 +11,9 @@ epic-batch, Standard 구현 경로 compact plan, 보강 요청, legacy contract 
 - affected module 이 있으면 해당 `docs/modules/<module-id>/architecture.md` / `conventions.md`
 - 필요하면 SPEC_GAP, validator finding, bug issue, legacy contract sync 요청
 - `/impl` Standard 구현 경로의 compact plan 요청
-- 선택적으로 확정 목업 `docs/design-variants/<screen-id>.html`, canvas 경로, 핵심 node-id 매핑, UX 관련 문서. `/design` stage 1 에서 확정 목업이 생성된 UI epic 은 확정 목업 경로, node-id 매핑, docs/design.md 토큰이 필수 입력이다.
+- UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로, `docs/design-variants/canvas.html` 포인터 또는 부재 신호
+- `/design` stage 1 에서 확정 목업이 생성된 UI epic 은 확정 목업 `docs/design-variants/<screen-id>.html`, 확정 목업 경로, 핵심 node-id 매핑, docs/design.md 토큰이 필수 입력이다.
+- UI-less epic 또는 목업 opt-out 화면은 확정 목업 입력을 요구하지 않는다. `ux-flow.md` 가 `확정본 없음` 으로 기록한 화면은 목업 경로를 관례로 추론하지 않는다.
 
 ## 먼저 읽을 문서
 
@@ -20,7 +22,8 @@ epic-batch, Standard 구현 경로 compact plan, 보강 요청, legacy contract 
 - 모듈 작업: affected module 의 `docs/modules/<module-id>/architecture.md`, `conventions.md` 만 추가로 읽음. 같은 repo 의 다른 module docs 는 입력 세트에 넣지 않음
 - 상황별: 대상 epic의 `domain-model.md`, 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint)
 - 상황별: `docs/design.md`, 관련 기존 impl 문서
-- UI epic 확정 목업 존재 시 필수: `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, 확정 목업 경로와 node-id 매핑
+- UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `docs/design-variants/canvas.html` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로
+- UI epic 확정 목업 존재 시 필수: `docs/design-variants/<screen-id>.html`, 확정 목업 경로와 node-id 매핑
 - 참고: [`references/implementation-boundary.md`](references/implementation-boundary.md), [`references/contract-amendment.md`](references/contract-amendment.md)
 
 ## 판단 축

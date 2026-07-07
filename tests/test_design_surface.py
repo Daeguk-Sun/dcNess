@@ -381,6 +381,59 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("사용자 PICK 확정 이후", routing)
         self.assertIn("목업 미참조", routing)
 
+    def test_design_system_prompts_carry_ux_artifact_pointers(self) -> None:
+        """#974 — stage 2 architect prompts include durable UX artifacts for UI epics."""
+        design = (ROOT / "skills" / "design" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        design_ux = (ROOT / "skills" / "design-ux" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        design_system = (ROOT / "skills" / "design-system" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        module_architect = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "module-architect"
+            / "module-architect-agent.md"
+        ).read_text(encoding="utf-8")
+        ux_flow_template = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "ux-architect"
+            / "templates"
+            / "ux-flow.md"
+        ).read_text(encoding="utf-8")
+
+        for needle in (
+            "epic `ux-flow.md`",
+            "`docs/design.md`",
+            "화면별 확정 목업",
+            "`docs/design-variants/canvas.html`",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design)
+                self.assertIn(needle, design_system)
+
+        for needle in (
+            "UI epic 조건부 필수",
+            "대상 epic의 `ux-flow.md`",
+            "확정 목업 경로",
+            "node-id 매핑",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, module_architect)
+
+        self.assertIn("확정 목업 경로", ux_flow_template)
+        self.assertIn("확정본 없음", ux_flow_template)
+        self.assertIn("확정본 승격 후", design_ux)
+        self.assertIn("ux-flow.md` 화면 인벤토리", design_ux)
+
 
 if __name__ == "__main__":
     unittest.main()
