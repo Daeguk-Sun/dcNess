@@ -25,10 +25,11 @@
 **gate 축** (먼저 — 어떤 구현 경로/진입점으로 진입할지):
 
 1. GitHub issue 초안/등록 요청인가? → `/to-issue`
-2. high-risk trigger 가 있나? → 설계 선행 (`/spec`·`/design`, `/impl` 밖)
-3. 목표/범위/성공 기준이 모호한가? → clarify 또는 `/spec`
-4. 설계 문서(경로)가 들어왔거나 concrete signal 이 있고 즉시 구현 경계가 명확한가? → `/impl` (설계도 있으면 Standard, 없으면 Lite)
-5. high-risk 는 없지만 구현 경계나 테스트 기준이 애매한가? → `compact-design` 산출 후 `/impl` Standard
+2. 구현 없이 목업·화면 흐름·디자인 시스템·디자인 토큰·베이스라인 요청인가? → `/ux`
+3. high-risk trigger 가 있나? → 설계 선행 (`/spec`·`/design`, `/impl` 밖)
+4. 목표/범위/성공 기준이 모호한가? → clarify 또는 `/spec`
+5. 설계 문서(경로)가 들어왔거나 concrete signal 이 있고 즉시 구현 경계가 명확한가? → `/impl` (설계도 있으면 Standard, 없으면 Lite)
+6. high-risk 는 없지만 구현 경계나 테스트 기준이 애매한가? → `compact-design` 산출 후 `/impl` Standard
 
 **shape 축** (gate 통과 후 — 구현을 어떻게 실행할지):
 

@@ -15,7 +15,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 
 - 필수: UX_FLOW 는 전역 최소 `docs/index.md`, `docs/prd.md`, `docs/conventions.md` 와 epic 고정 `docs/epics/<epic>/stories.md`, 대상 `docs/epics/<epic>/ux-flow.md`
 - 필수: 그 외 모드는 모드별 입력 문서
-- 상황별: `docs/design.md`, 기존 화면 코드
+- 상황별: `docs/design.md`, 기존 화면 코드, 메인이 전달한 참고 디자인 시스템 신호
 - 참고: [`templates/ux-flow.md`](templates/ux-flow.md), [`templates/refine-report.md`](templates/refine-report.md)
 
 ## 판단 축
@@ -26,6 +26,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 - 상태 커버리지: loading, empty, error, success가 필요한 화면에 있는가.
 - interaction 정합성: 사용자 시나리오와 수용 기준이 화면 행동으로 연결되는가.
 - 디자인 시스템: color, typography, spacing, radius 같은 system-level token이 일관되는가.
+- 디자인 시스템 기준: 참고 디자인 시스템 신호가 있으면 `docs/design.md` 토큰과 화면별 Designer Notes 가 그 기준을 반영하는가.
 - 범위 통제: UX 문제를 DB, API, product scope 결정으로 넘지 않는가.
 
 ## 작업 흐름
@@ -33,7 +34,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 1. 모드를 확인하고 입력이 충분한지 본다.
 2. 화면 인벤토리와 흐름을 먼저 잡고, 각 화면의 `hi-fi 목업 필요` 를 `필요/불필요` 로 표시한다.
 3. 화면별 wireframe, 상태, interaction을 작성한다.
-4. system-level design token이 필요하면 ux-architect 권한 영역만 갱신한다.
+4. system-level design token이 필요하거나 참고 디자인 시스템 신호가 전달됐으면 ux-architect 권한 영역 안에서 `docs/design.md` 를 갱신한다.
 5. 변경분만 다루는 모드에서는 기존 문서 전체를 다시 쓰지 않는다.
 6. 결론 전 판단 축을 자기 점검한다.
 
@@ -42,7 +43,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 - 모든 대상 화면이 인벤토리와 흐름에 연결된다.
 - 핵심 상태와 회복 경로가 빠지지 않는다.
 - designer가 작업할 수 있는 화면별 지시와 우선순위가 있고, `hi-fi 목업 필요` 가 `필요` 인 화면만 시안 대상으로 분리된다.
-- design.md 수정이 권한 영역 안에 있다.
+- design.md 수정이 권한 영역 안에 있고, 참고 디자인 시스템 신호가 있으면 `docs/design.md` 토큰에 반영된다.
 
 ## 권한 경계
 

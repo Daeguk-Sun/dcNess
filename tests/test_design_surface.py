@@ -270,6 +270,74 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("stage 2 PR", design_system)
         self.assertIn("기존 설계 pack 계약", design_system)
 
+    def test_design_mockup_prefreeze_branch_contracts(self) -> None:
+        """#957 — mockup opt-in happens before system design and becomes required input."""
+        design = (ROOT / "skills" / "design" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        routing = (
+            ROOT / "skills" / "design" / "design-routing.md"
+        ).read_text(encoding="utf-8")
+        design_ux = (ROOT / "skills" / "design-ux" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        design_system = (ROOT / "skills" / "design-system" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        module_architect = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "module-architect"
+            / "module-architect-agent.md"
+        ).read_text(encoding="utf-8")
+        validator = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "architecture-validator"
+            / "architecture-validator-agent.md"
+        ).read_text(encoding="utf-8")
+
+        for needle in (
+            "목업 선행 여부",
+            "목업=예",
+            "목업 없음",
+            "opt-out",
+            "yolo 기본값 = 목업 없음",
+            "system stage 는 사용자 PICK 확정 이후",
+            "디자인 시스템 체크포인트",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design)
+                self.assertIn(needle, design_ux)
+
+        for needle in (
+            "docs/design.md 실존+유효",
+            "확인-후-skip",
+            "ad-hoc 베이스라인 문서",
+            "외부 import 1회 변환",
+            "참고 디자인 시스템 신호",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design_ux)
+
+        for needle in (
+            "확정 목업 경로",
+            "node-id 매핑",
+            "docs/design.md 토큰",
+            "목업 미참조 설계 금지",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design_system)
+                self.assertIn(needle, module_architect)
+                self.assertIn(needle, validator)
+
+        self.assertIn("사용자 PICK 확정 이후", routing)
+        self.assertIn("목업 미참조", routing)
+
 
 if __name__ == "__main__":
     unittest.main()
