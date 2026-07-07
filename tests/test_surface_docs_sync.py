@@ -523,11 +523,17 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         system_architect = (
             ROOT / "docs" / "plugin" / "agents" / "system-architect" / "system-architect-agent.md"
         ).read_text(encoding="utf-8")
+        script_text = script.read_text(encoding="utf-8")
 
         self.assertTrue(script.exists())
         self.assertTrue(index_script.exists())
+        self.assertIn(".dcness-work/reports/architecture-map.md", script_text)
+        self.assertIn("--stdout", script_text)
+        self.assertNotIn("--check", script_text)
         self.assertNotIn("## 공유 계약 인덱스", root_template)
+        self.assertNotIn("| 결정 | 범위 | 이유 |", root_template)
         self.assertIn("온디맨드", root_template)
+        self.assertIn(".dcness-work/reports/architecture-map.md", root_template)
         self.assertIn("dcness-index-map:generated", index_template)
         self.assertNotIn("scripts/aggregate_architecture_map.mjs", epic_template)
         self.assertIn("| 모듈 | 책임 | 의존 모듈 | 공개 인터페이스 | 검증 경로 | 결정 |", epic_template)

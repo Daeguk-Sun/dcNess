@@ -182,6 +182,10 @@ class DesignSurfaceContractTests(unittest.TestCase):
             module_architect,
         )
         self.assertIn("파일 부재만으로 도메인 모델을 새로 만들거나 ESCALATE 하지 않는다", module_architect)
+        self.assertIn("SYSTEM_CHECKPOINT_REQUIRED", module_architect)
+        self.assertIn("기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision", module_architect)
+        self.assertIn("신규 epic-scope decision 기록은 자율", module_architect)
+        self.assertIn("기존 전역 decision 변경은 `SYSTEM_CHECKPOINT_REQUIRED`", module_architect)
         self.assertIn("파일 부재만으로 `SPEC_GAP_FOUND` 하지 않는다", test_engineer)
 
         for text in (validator, codex_validator):

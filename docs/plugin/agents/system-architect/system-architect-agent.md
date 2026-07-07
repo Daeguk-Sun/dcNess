@@ -55,7 +55,7 @@
 5. cross-task 계약이 있으면 module responsibility 한 줄과 `docs/decisions/NNNN-slug.md` 에 의미와 사유를 배치한다.
 6. 기술 스택, 의존 차단 도구, DI 패턴을 `docs/conventions.md` 와 필요한 decision 문서에 남긴다. 특정 모듈에만 닫히는 delta 는 `docs/modules/<module-id>/conventions.md` 또는 module scope decision 으로 남긴다.
 7. `agents/_shared/module-design-principles.md` 적용 증거를 산출물에 남긴다.
-8. epic architecture 표와 필요한 module docs 를 채운 뒤 `docs/index.md` epic/module 표 갱신이 필요함을 보고한다. 메인은 활성 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 를 실행한다. 전역 architecture 요약이 필요할 때만 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 를 온디맨드로 실행한다.
+8. epic architecture 표와 필요한 module docs 를 채운 뒤 `docs/index.md` epic/module 표 갱신이 필요함을 보고한다. 메인은 활성 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 를 실행한다. 전역 architecture 요약이 필요할 때만 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 를 실행해 `.dcness-work/reports/architecture-map.md` 온디맨드 리포트를 만든다.
 9. 범위 충돌이나 새 외부 의존이 보이면 멈추고 ESCALATE한다.
 
 ## 완료 기준
@@ -71,7 +71,7 @@
 ## 권한 경계
 
 - Write 허용: `docs/architecture.md` 의 수동 섹션, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`, `docs/epics/**/architecture.md`, `docs/epics/**/domain-model.md`, 필요한 분리 detail 문서
-- 주의: `docs/index.md` 의 `dcness-index-map:generated` 섹션은 직접 편집하지 않고 `scripts/aggregate_index_map.mjs` 산출물로 갱신한다. `docs/architecture.md` 전역 요약은 온디맨드 산출물이며 checked-in 최신성 게이트 대상이 아니다.
+- 주의: `docs/index.md` 의 `dcness-index-map:generated` 섹션은 직접 편집하지 않고 `scripts/aggregate_index_map.mjs` 산출물로 갱신한다. 전역 architecture 요약은 `.dcness-work/reports/architecture-map.md` 온디맨드 산출물이며 checked-in 최신성 게이트 대상이 아니다.
 - 금지: Story를 다시 쓰기, task 단위 impl 작성, 실제 코드 수정, PRD 수정
 - PRD와 충돌하면 직접 고치지 않고 ESCALATE한다.
 - tech-review에 없던 외부 의존이 필요하면 `NEW_DEP_ESCALATE`로 보고한다.

@@ -886,21 +886,6 @@ def _run_entry_point(
         return ""
 
 
-def _module_architect_first_call(rd: Path) -> bool:
-    """module-architect 첫 호출인지 — 기존 prose 파일 부재 검사."""
-    return not any(path.exists() for path in _run_prose_paths_for_agent(rd, "module-architect"))
-
-
-def _run_has_system_architect_output(rd: Path) -> bool:
-    """system checkpoint 산출물이 있는지 확인한다.
-
-    `/design` 기본 경로는 module-architect 선두 진입을 허용한다. 단 같은
-    run 안에서 opt-in system-architect checkpoint 를 실행했다면, 그 산출물은
-    architecture-validator PASS 뒤에 module-architect 로 이어져야 한다.
-    """
-    return any(path.exists() for path in _run_prose_paths_for_agent(rd, "system-architect"))
-
-
 _IMPLEMENTATION_ORDER_GATE_AGENTS = frozenset({"engineer", "build-worker"})
 
 
@@ -947,21 +932,6 @@ def evaluate_order_gate_for_step(
                 "pr-reviewer 호출은 code-validator PASS 후만. 충족 방법: "
                 "`begin-step code-validator` → code-validator PASS → "
                 "`end-step code-validator` 를 먼저 완료하세요."
-            )
-
-    if (
-        norm_agent == "module-architect"
-        and _run_entry_point(session_id, run_id, base_dir=base_dir) == "design"
-        and _module_architect_first_call(rd)
-        and _run_has_system_architect_output(rd)
-    ):
-        if not _run_prose_has_pass(rd, "architecture-validator"):
-            return (
-                "[순서 차단 훅: module-architect 게이트] system checkpoint 이후 "
-                "module-architect 재진입은 architecture-validator PASS 후만 "
-                "(architecture-validator.md 안 PASS 마커). 충족 방법: "
-                "architecture-validator step 을 PASS 로 완료한 뒤 module-architect 를 "
-                "시작하세요."
             )
 
     return None

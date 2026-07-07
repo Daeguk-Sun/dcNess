@@ -86,7 +86,7 @@ docs/
 
 `$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 는 각 epic 폴더와 opt-in module 폴더를 결정적으로 정렬하고 `docs/index.md` 의 `## 에픽` / `## 모듈` 표를 생성/갱신한다. 파일이 없는 선택 산출물 셀은 링크가 아닌 `—` 로 남긴다. `docs/modules/` 가 없으면 모듈 표는 생성하지 않아 단일 루트 프로젝트의 기존 index 동작을 바꾸지 않는다. 기존 `docs/index.md` 에 수동 `## 모듈` 섹션이 있으면 모듈 축 활성화 시 생성 섹션으로 교체되므로, 수동 설명은 다른 heading 으로 옮긴 뒤 집계기를 실행한다.
 
-`$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 과 legacy `## Contract Ledger` 를 읽어 인간용 전역 요약을 온디맨드로 생성할 수 있다. 이 결과는 checked-in 유지 의무나 CI drift gate 대상이 아니다. 필요한 보고 시점에 실행하고 PR 산출물 본문에는 복제하지 않는다.
+`$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 과 legacy `## Contract Ledger` 를 읽어 인간용 전역 요약을 `.dcness-work/reports/architecture-map.md` 에 온디맨드로 생성할 수 있다. 이 결과는 checked-in 유지 의무나 CI drift gate 대상이 아니다. 필요한 보고 시점에 실행하고 PR 산출물 본문에는 복제하지 않는다.
 
 Cross-task 계약 의미는 epic `architecture.md` 의 `## 모듈 목록` 책임/공개 인터페이스/검증 경로 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl/compact 산출물은 module id 와 decision id/link 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 나 compact plan 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다. 구양식 Contract Ledger / Contract References 는 기존 활성 프로젝트 호환을 위해 유효하지만, 신규 산출물이나 이번에 수정하는 산출물은 module/decision 참조로 축소한다.
 
@@ -199,6 +199,7 @@ compact plan 은 `/impl` Standard 진입 전 경량 설계 산출물이다. 구�
 | `.dcness-work/open-questions/` | 아직 산출물로 확정되지 않은 질문 |
 | `.dcness-work/handoffs/` | run 간 임시 handoff + 세션 간 warm 인계 (`/handoff` 가 쓰는 활성 `next-session.md`, SessionStart 소비 후 `archive/<ts>.md`) |
 | `.dcness-work/reviews/` | tech-review evidence, HTML report, logs |
+| `.dcness-work/reports/` | 온디맨드 집계 리포트, 재생성 가능한 임시 요약 |
 
 `/init-dcness` 는 사용자 프로젝트 `.gitignore` 에 `.dcness-work/` 를 추가한다.
 
@@ -241,7 +242,7 @@ index epic/module 표가 stale 인지 확인하려면 활성 프로젝트 루트
 
 ```sh
 node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs" --check
-node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"  # optional on-demand report
+node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"  # optional .dcness-work/reports/architecture-map.md
 node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs"
 ```
 

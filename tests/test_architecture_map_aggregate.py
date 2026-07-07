@@ -1,4 +1,4 @@
-"""Regression tests for the architecture map aggregation tool (#811)."""
+"""Regression tests for the on-demand architecture map report tool (#811/#969)."""
 from __future__ import annotations
 
 import shutil
@@ -28,6 +28,10 @@ def _run(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
     )
 
 
+def _report(root: Path) -> Path:
+    return root / ".dcness-work" / "reports" / "architecture-map.md"
+
+
 def _section(content: str, heading: str) -> str:
     marker = f"## {heading}"
     start = content.index(marker) + len(marker)
@@ -51,10 +55,9 @@ def _table_cell_counts(section: str) -> list[int]:
 
 @unittest.skipUnless(NODE, "node not installed — architecture map tool is a node script")
 class ArchitectureMapAggregateTests(unittest.TestCase):
-    def test_generates_root_map_from_epic_architecture_tables(self) -> None:
+    def test_generates_report_from_epic_architecture_tables(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
-            _write(project / "docs/architecture.md", "# 전역 아키텍처 지도\n")
             _write(project / "docs/epics/epic-01-alpha/domain-model.md", "# Domain\n")
             _write(
                 project / "docs/epics/epic-01-alpha/architecture.md",
@@ -85,7 +88,7 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             proc = _run(project)
             self.assertEqual(proc.returncode, 0, proc.stderr)
 
-            root_map = (project / "docs/architecture.md").read_text(encoding="utf-8")
+            root_map = _report(project).read_text(encoding="utf-8")
             self.assertIn("## 에픽 간 지도", root_map)
             epic_map_counts = _table_cell_counts(_section(root_map, "에픽 간 지도"))
             self.assertGreaterEqual(len(epic_map_counts), 2)
@@ -94,51 +97,18 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
                 f"generated epic map row widths differ from header: {epic_map_counts}",
             )
             self.assertIn(
-                "| [epic-01-alpha](epics/epic-01-alpha) | [architecture.md](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | AuthCore, TokenStore | [ADR-0001](decisions/0001-auth.md) |",
+                "| [epic-01-alpha](../../docs/epics/epic-01-alpha) | [architecture.md](../../docs/epics/epic-01-alpha/architecture.md) | [domain-model.md](../../docs/epics/epic-01-alpha/domain-model.md) | AuthCore, TokenStore | [ADR-0001](../../docs/decisions/0001-auth.md) |",
                 root_map,
             )
             self.assertIn(
-                "| AuthCore | login orchestration | TokenStore | `authenticate()` | [epic-01-alpha](epics/epic-01-alpha/architecture.md) |",
+                "| AuthCore | login orchestration | TokenStore | `authenticate()` | [epic-01-alpha](../../docs/epics/epic-01-alpha/architecture.md) |",
                 root_map,
             )
             self.assertIn("## 공유 계약 인덱스", root_map)
             self.assertIn(
-                "| AuthSession | AuthCore | LoginForm | AuthCore | session id stable | [ADR-0001](decisions/0001-auth.md) | [epic-01-alpha](epics/epic-01-alpha/architecture.md) |",
+                "| AuthSession | AuthCore | LoginForm | AuthCore | session id stable | [ADR-0001](../../docs/decisions/0001-auth.md) | [epic-01-alpha](../../docs/epics/epic-01-alpha/architecture.md) |",
                 root_map,
             )
-
-            check = _run(project, "--check")
-            self.assertEqual(check.returncode, 0, check.stderr)
-
-    def test_check_fails_when_root_map_is_stale(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            project = Path(tmp)
-            _write(project / "docs/architecture.md", "# 전역 아키텍처 지도\n")
-            _write(
-                project / "docs/epics/epic-01-alpha/architecture.md",
-                """
-                # Epic Architecture
-
-                ## 모듈 목록
-
-                | 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |
-                |---|---|---|---|---|
-                | AuthCore | login orchestration | - | `authenticate()` | auth contract |
-                """,
-            )
-
-            self.assertEqual(_run(project).returncode, 0)
-
-            architecture = project / "docs/epics/epic-01-alpha/architecture.md"
-            architecture.write_text(
-                architecture.read_text(encoding="utf-8")
-                + "| SessionCache | cache session | AuthCore | `getSession()` | cache test |\n",
-                encoding="utf-8",
-            )
-
-            check = _run(project, "--check")
-            self.assertEqual(check.returncode, 1)
-            self.assertIn("stale", check.stderr)
 
     def test_rebases_module_doc_links_from_epic_module_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -161,19 +131,19 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             proc = _run(project)
             self.assertEqual(proc.returncode, 0, proc.stderr)
 
-            root_map = (project / "docs/architecture.md").read_text(encoding="utf-8")
+            root_map = _report(project).read_text(encoding="utf-8")
             self.assertIn(
-                "| [android](modules/android/architecture.md) | mobile UI shell | - | `MainActivity` | [epic-01-mobile](epics/epic-01-mobile/architecture.md) |",
+                "| [android](../../docs/modules/android/architecture.md) | mobile UI shell | - | `MainActivity` | [epic-01-mobile](../../docs/epics/epic-01-mobile/architecture.md) |",
                 root_map,
             )
 
-    def test_rerun_corrects_legacy_four_cell_epic_map_rows(self) -> None:
+    def test_rerun_corrects_legacy_four_cell_report_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             _write(
-                project / "docs/architecture.md",
+                _report(project),
                 """
-                # 전역 아키텍처 지도
+                # 전역 아키텍처 온디맨드 리포트
 
                 ## 에픽 간 지도
 
@@ -201,22 +171,21 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             proc = _run(project)
             self.assertEqual(proc.returncode, 0, proc.stderr)
 
-            root_map = (project / "docs/architecture.md").read_text(encoding="utf-8")
+            root_map = _report(project).read_text(encoding="utf-8")
             epic_map_counts = _table_cell_counts(_section(root_map, "에픽 간 지도"))
             self.assertTrue(
                 all(count == epic_map_counts[0] for count in epic_map_counts[1:]),
                 f"generated epic map row widths differ from header: {epic_map_counts}",
             )
             self.assertIn(
-                "| [epic-01-alpha](epics/epic-01-alpha) | [architecture.md](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | AuthCore | - |",
+                "| [epic-01-alpha](../../docs/epics/epic-01-alpha) | [architecture.md](../../docs/epics/epic-01-alpha/architecture.md) | [domain-model.md](../../docs/epics/epic-01-alpha/domain-model.md) | AuthCore | - |",
                 root_map,
             )
 
-    def test_preserves_manual_root_sections_while_updating_generated_sections(self) -> None:
+    def test_does_not_mutate_manual_root_anchor_while_generating_report(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
-            _write(
-                project / "docs/architecture.md",
+            manual_root = textwrap.dedent(
                 """
                 # 전역 아키텍처 지도
 
@@ -231,7 +200,11 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
                 ## 데이터 흐름
 
                 수동 데이터 흐름.
-                """,
+                """
+            ).lstrip()
+            _write(
+                project / "docs/architecture.md",
+                manual_root,
             )
             _write(
                 project / "docs/epics/epic-01-alpha/architecture.md",
@@ -248,34 +221,76 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
 
             self.assertEqual(_run(project).returncode, 0)
 
-            root_map = (project / "docs/architecture.md").read_text(encoding="utf-8")
-            self.assertIn("수동으로 작성한 개요.", root_map)
-            self.assertIn("수동 데이터 흐름.", root_map)
-            self.assertIn("| AuthCore | login orchestration | - | `authenticate()` |", root_map)
-            self.assertNotIn("old content", root_map)
+            self.assertEqual(
+                (project / "docs/architecture.md").read_text(encoding="utf-8"),
+                manual_root,
+            )
+            report = _report(project).read_text(encoding="utf-8")
+            self.assertIn("| AuthCore | login orchestration | - | `authenticate()` |", report)
+            self.assertNotIn("old content", report)
 
-    def test_no_epic_architecture_or_missing_root_map_is_noop_pass(self) -> None:
+    def test_no_epic_architecture_is_noop_pass(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
             _write(project / "docs/architecture.md", "# 전역 아키텍처 지도\n\nmanual\n")
 
-            check = _run(project, "--check")
-            self.assertEqual(check.returncode, 0, check.stderr)
-            self.assertIn("no-op", check.stdout)
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("no-op", proc.stdout)
             self.assertEqual(
                 (project / "docs/architecture.md").read_text(encoding="utf-8"),
                 "# 전역 아키텍처 지도\n\nmanual\n",
             )
+            self.assertFalse(_report(project).exists())
 
-            missing_root_map = project / "missing-root-map"
-            missing_root_map.mkdir()
+    def test_missing_root_anchor_still_generates_report(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            missing_root_map = Path(tmp)
             _write(
                 missing_root_map / "docs/epics/epic-01-alpha/architecture.md",
-                "# Epic Architecture\n",
+                """
+                # Epic Architecture
+
+                ## 모듈 목록
+
+                | 모듈 | 책임 | 의존 모듈 | 공개 API |
+                |---|---|---|---|
+                | AuthCore | login orchestration | - | `authenticate()` |
+                """,
             )
-            missing_check = _run(missing_root_map, "--check")
-            self.assertEqual(missing_check.returncode, 0, missing_check.stderr)
-            self.assertIn("no-op", missing_check.stdout)
+            proc = _run(missing_root_map)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertFalse((missing_root_map / "docs/architecture.md").exists())
+            self.assertIn("AuthCore", _report(missing_root_map).read_text(encoding="utf-8"))
+
+    def test_stdout_mode_prints_report_without_writing_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(
+                project / "docs/epics/epic-01-alpha/architecture.md",
+                """
+                # Epic Architecture
+
+                ## 모듈 목록
+
+                | 모듈 | 책임 | 의존 모듈 | 공개 API |
+                |---|---|---|---|
+                | AuthCore | login orchestration | - | `authenticate()` |
+                """,
+            )
+
+            proc = _run(project, "--stdout")
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+            self.assertIn("# 전역 아키텍처 온디맨드 리포트", proc.stdout)
+            self.assertIn("AuthCore", proc.stdout)
+            self.assertFalse(_report(project).exists())
+
+    def test_check_mode_is_removed(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            proc = _run(project, "--check")
+            self.assertEqual(proc.returncode, 2)
+            self.assertIn("unknown argument: --check", proc.stderr)
 
 
 if __name__ == "__main__":

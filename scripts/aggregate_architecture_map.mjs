@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generate/update docs/architecture.md from epic architecture documents.
+ * Generate an on-demand architecture map report from epic architecture documents.
  *
  * Source of truth:
  * - docs/epics/epic-NN-<slug>/architecture.md
@@ -10,7 +10,8 @@
  * Usage:
  *   node scripts/aggregate_architecture_map.mjs
  *   node scripts/aggregate_architecture_map.mjs --root /path/to/project
- *   node scripts/aggregate_architecture_map.mjs --check
+ *   node scripts/aggregate_architecture_map.mjs --stdout
+ *   node scripts/aggregate_architecture_map.mjs --out .dcness-work/reports/architecture-map.md
  */
 import {
   existsSync,
@@ -20,33 +21,26 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { dirname, join, relative, resolve, sep } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 const SECTION_EPIC_MAP = '에픽 간 지도';
 const SECTION_TOPOLOGY = '전역 모듈 토폴로지';
 const SECTION_CONTRACTS = '공유 계약 인덱스';
-const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
-const TEMPLATE_PATH = resolve(
-  SCRIPT_DIR,
-  '..',
-  'agents',
-  'system-architect',
-  'templates',
-  'root-architecture.md'
-);
+const DEFAULT_REPORT_PATH = join('.dcness-work', 'reports', 'architecture-map.md');
 
 function usage() {
   return [
-    'Usage: node scripts/aggregate_architecture_map.mjs [--root <path>] [--check]',
+    'Usage: node scripts/aggregate_architecture_map.mjs [--root <path>] [--out <path>] [--stdout]',
     '',
-    'Updates docs/architecture.md generated sections from docs/epics/*/architecture.md.',
+    'Generates an on-demand architecture report from docs/epics/*/architecture.md.',
+    `Default output: ${DEFAULT_REPORT_PATH}`,
   ].join('\n');
 }
 
 function parseArgs(argv) {
   const args = {
     root: process.cwd(),
-    check: false,
+    out: DEFAULT_REPORT_PATH,
+    stdout: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -56,8 +50,13 @@ function parseArgs(argv) {
       if (!value) throw new Error('--root requires a path');
       args.root = value;
       i += 1;
-    } else if (arg === '--check') {
-      args.check = true;
+    } else if (arg === '--out') {
+      const value = argv[i + 1];
+      if (!value) throw new Error('--out requires a path');
+      args.out = value;
+      i += 1;
+    } else if (arg === '--stdout') {
+      args.stdout = true;
     } else if (arg === '-h' || arg === '--help') {
       console.log(usage());
       process.exit(0);
@@ -245,16 +244,16 @@ function placeholderRow(width) {
   return Array.from({ length: width }, () => '-');
 }
 
-function buildSections(rootArchitecturePath, epics) {
+function buildSections(reportPath, epics) {
   const epicMapRows = epics.map((epic) => [
-    mdLink(epic.name, rootArchitecturePath, dirname(epic.architecturePath)),
-    mdLink('architecture.md', rootArchitecturePath, epic.architecturePath),
+    mdLink(epic.name, reportPath, dirname(epic.architecturePath)),
+    mdLink('architecture.md', reportPath, epic.architecturePath),
     existsSync(epic.domainModelPath)
-      ? mdLink('domain-model.md', rootArchitecturePath, epic.domainModelPath)
+      ? mdLink('domain-model.md', reportPath, epic.domainModelPath)
       : '-',
     epic.moduleRows.map((row) => row.name).join(', ') || '-',
     epic.decisionRows
-      .map((decision) => rebaseMarkdownLinks(decision, epic.architecturePath, rootArchitecturePath))
+      .map((decision) => rebaseMarkdownLinks(decision, epic.architecturePath, reportPath))
       .join(', ') || '-',
   ]);
 
@@ -262,25 +261,25 @@ function buildSections(rootArchitecturePath, epics) {
   const contractRows = [];
 
   for (const epic of epics) {
-    const epicLink = mdLink(epic.name, rootArchitecturePath, epic.architecturePath);
+    const epicLink = mdLink(epic.name, reportPath, epic.architecturePath);
     for (const row of epic.moduleRows) {
       topologyRows.push([
-        rebaseMarkdownLinks(row.name, epic.architecturePath, rootArchitecturePath),
-        rebaseMarkdownLinks(row.responsibility, epic.architecturePath, rootArchitecturePath),
-        rebaseMarkdownLinks(row.dependencies, epic.architecturePath, rootArchitecturePath),
-        rebaseMarkdownLinks(row.publicSurface, epic.architecturePath, rootArchitecturePath),
+        rebaseMarkdownLinks(row.name, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.responsibility, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.dependencies, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.publicSurface, epic.architecturePath, reportPath),
         epicLink,
       ]);
     }
 
     for (const row of epic.contractRows) {
       contractRows.push([
-        rebaseMarkdownLinks(row.contract, epic.architecturePath, rootArchitecturePath),
-        rebaseMarkdownLinks(row.owner, epic.architecturePath, rootArchitecturePath),
-        rebaseMarkdownLinks(row.producer, epic.architecturePath, rootArchitecturePath),
-        rebaseMarkdownLinks(row.consumer, epic.architecturePath, rootArchitecturePath),
-        rebaseMarkdownLinks(row.invariant, epic.architecturePath, rootArchitecturePath),
-        rebaseMarkdownLinks(row.refs, epic.architecturePath, rootArchitecturePath),
+        rebaseMarkdownLinks(row.contract, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.owner, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.producer, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.consumer, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.invariant, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.refs, epic.architecturePath, reportPath),
         epicLink,
       ]);
     }
@@ -323,42 +322,23 @@ function generatedSection(heading, body) {
   ].join('\n');
 }
 
-function replaceSection(content, heading, replacement) {
-  const escaped = heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const match = content.match(new RegExp(`^##\\s+${escaped}\\s*$`, 'm'));
-  if (!match || match.index === undefined) {
-    return `${content.trimEnd()}\n\n${replacement}`;
-  }
-
-  const start = match.index;
-  const restStart = match.index + match[0].length;
-  const rest = content.slice(restStart);
-  const next = rest.search(/\n##\s+/);
-  const end = next === -1 ? content.length : restStart + next + 1;
-  return `${content.slice(0, start)}${replacement}${content.slice(end)}`;
+function resolveOutPath(root, out) {
+  return resolve(root, out);
 }
 
-function baseRootArchitecture(rootArchitecturePath) {
-  if (existsSync(rootArchitecturePath)) {
-    return readFileSync(rootArchitecturePath, 'utf8');
-  }
-  if (existsSync(TEMPLATE_PATH)) {
-    return readFileSync(TEMPLATE_PATH, 'utf8');
-  }
-  return '# 전역 아키텍처 지도\n';
-}
-
-function nextRootArchitecture(root, epics = collectEpics(root)) {
-  const rootArchitecturePath = join(root, 'docs', 'architecture.md');
-  const sections = buildSections(rootArchitecturePath, epics);
-  let content = baseRootArchitecture(rootArchitecturePath);
-
-  for (const [heading, body] of sections.entries()) {
-    content = replaceSection(content, heading, generatedSection(heading, body));
-  }
+function nextArchitectureReport(root, reportPath, epics = collectEpics(root)) {
+  const sections = buildSections(reportPath, epics);
+  const content = [
+    '# 전역 아키텍처 온디맨드 리포트',
+    '',
+    '> docs/epics/*/architecture.md 에서 생성한 임시 리포트다. PR 본문이나 checked-in architecture anchor 에 복제하지 않는다.',
+    '',
+    ...Array.from(sections.entries()).map(([heading, body]) => generatedSection(heading, body).trimEnd()),
+    '',
+  ].join('\n');
 
   return {
-    path: rootArchitecturePath,
+    path: reportPath,
     content: `${content.trimEnd()}\n`,
     epicCount: epics.length,
     moduleCount: epics.reduce((sum, epic) => sum + epic.moduleRows.length, 0),
@@ -368,30 +348,20 @@ function nextRootArchitecture(root, epics = collectEpics(root)) {
 
 function main() {
   const args = parseArgs(process.argv.slice(2));
-  const rootArchitecturePath = join(args.root, 'docs', 'architecture.md');
+  const reportPath = resolveOutPath(args.root, args.out);
   const epics = collectEpics(args.root);
-  if (!existsSync(rootArchitecturePath) || epics.length === 0) {
-    const reason = !existsSync(rootArchitecturePath)
-      ? 'docs/architecture.md missing'
-      : 'no valid docs/epics/*/architecture.md files';
+  if (epics.length === 0) {
+    const reason = 'no valid docs/epics/*/architecture.md files';
     console.log(`[architecture-map] no-op PASS — ${reason}`);
     return;
   }
 
-  const next = nextRootArchitecture(args.root, epics);
+  const next = nextArchitectureReport(args.root, reportPath, epics);
   const current = existsSync(next.path) ? readFileSync(next.path, 'utf8') : null;
 
-  if (args.check) {
-    if (current === next.content) {
-      console.log(
-        `[architecture-map] PASS — ${next.epicCount} epic, ${next.moduleCount} module, ${next.contractCount} contract`
-      );
-      return;
-    }
-    console.error(
-      '[architecture-map] FAIL — docs/architecture.md is stale. Run this script without --check from the project root.'
-    );
-    process.exit(1);
+  if (args.stdout) {
+    process.stdout.write(next.content);
+    return;
   }
 
   mkdirSync(dirname(next.path), { recursive: true });
@@ -399,7 +369,7 @@ function main() {
     writeFileSync(next.path, next.content, 'utf8');
   }
   console.log(
-    `[architecture-map] updated ${slash(relative(args.root, next.path))} — ${next.epicCount} epic, ${next.moduleCount} module, ${next.contractCount} contract`
+    `[architecture-map] wrote ${slash(relative(args.root, next.path))} — ${next.epicCount} epic, ${next.moduleCount} module, ${next.contractCount} contract`
   );
 }
 
