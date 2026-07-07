@@ -2,7 +2,7 @@
 name: ux-architect
 description: >
   화면 흐름, 와이어프레임, 인터랙션을 정의하는 에이전트. 실제 지침은
-  agents/ux-architect/ux-architect-agent.md 에 있다.
+  docs/plugin/agents/ux-architect/ux-architect-agent.md 에 있다.
 tools: Read, Write, Glob, Grep
 model: sonnet
 ---
@@ -15,6 +15,6 @@ model: sonnet
 
 첫 행동:
 
-1. [`agents/ux-architect/ux-architect-agent.md`](ux-architect/ux-architect-agent.md)를 읽는다.
+1. [`docs/plugin/agents/ux-architect/ux-architect-agent.md`](../docs/plugin/agents/ux-architect/ux-architect-agent.md)를 읽는다.
 2. PRD와 현재 UI 상태를 기준으로 화면 흐름, 상태, 인터랙션, 디자인 시스템 축을 정리한다.
-3. UX Flow Doc은 [`templates/ux-flow.md`](ux-architect/templates/ux-flow.md)를 참고한다.
+3. UX Flow Doc은 [`templates/ux-flow.md`](../docs/plugin/agents/ux-architect/templates/ux-flow.md)를 참고한다.

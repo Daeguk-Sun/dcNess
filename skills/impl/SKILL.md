@@ -311,4 +311,4 @@ helper 기반 `begin-run impl` 이 열린 경로에서는 대표 workflow 종료
 - 진입점 분기 규칙: [`docs/plugin/workflow-router.md`](../../docs/plugin/workflow-router.md)
 - 구현 경로 분기 규칙: [`impl-routing.md`](impl-routing.md)
 - branch / commit / PR: [`docs/plugin/git-spec.md`](../../docs/plugin/git-spec.md)
-- compact plan template: [`agents/module-architect/templates/compact-plan.md`](../../agents/module-architect/templates/compact-plan.md)
+- compact plan template: [`docs/plugin/agents/module-architect/templates/compact-plan.md`](../../docs/plugin/agents/module-architect/templates/compact-plan.md)

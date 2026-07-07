@@ -6,7 +6,7 @@ agent 문서는 사람이 먼저 읽고, 모델이 그 다음 읽는 문서다. 
 
 `agents/<name>.md` 진입점에는 frontmatter, 호환 안내, 첫 행동, 필수 분기 enum만 남긴다. 판단 축, 산출물 서식, 반복 결함 사례는 agent 디렉터리의 본문, `templates/`, `references/`로 내린다.
 
-용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`docs/plugin/terms.md`](../../docs/plugin/terms.md) 를 확인한다. 모든 agent 에 상시 선독을 추가하지 않는다.
+용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`docs/plugin/terms.md`](../../terms.md) 를 확인한다. 모든 agent 에 상시 선독을 추가하지 않는다.
 
 Claude plugin details가 보여주는 on-invoke token은 진입점 기준이다. 분리본과 references는 첫 행동 이후 Read로 추가 로드되므로, 이 변경은 always-on description/진입점 비용 절감이지 전체 실행 비용의 절대 감소로 해석하지 않는다.
 

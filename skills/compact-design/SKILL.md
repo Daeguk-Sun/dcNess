@@ -32,7 +32,7 @@ dcNess 의 단계 간 되돌림 원리(downstream 이 upstream 산출물 부족�
 
 2. **`module-architect:COMPACT_PLAN` 호출** — 새 agent 를 만들지 않는다. 기존 [`module-architect`](../../agents/module-architect.md) 서브에이전트를 COMPACT_PLAN 모드로 호출한다.
    - 산출물: `docs/compact-plans/<slug>.md` 한 파일.
-   - 형식: [`agents/module-architect/templates/compact-plan.md`](../../agents/module-architect/templates/compact-plan.md) — 수정 허용/금지, 변경 방향, 테스트 기준, 수용 기준, 승격 신호.
+   - 형식: [`docs/plugin/agents/module-architect/templates/compact-plan.md`](../../docs/plugin/agents/module-architect/templates/compact-plan.md) — 수정 허용/금지, 변경 방향, 테스트 기준, 수용 기준, 승격 신호.
    - 호출 prompt 는 슬림 포인터 규약을 따른다 — 관련 코드 SSOT / issue 포인터 + 설계 gap 만 전달하고 결정 전문을 재기입하지 않는다.
 
 3. **승격 신호 점검** — module-architect 가 compact plan 작성 중 새 외부 의존 / auth·security·PII / migration·destructive / cross-module contract 변화를 발견하면 `NEW_DEP_ESCALATE` 또는 `ESCALATE` 로 경량 범위 초과 → full 설계(`/design`) escalate 를 보고한다. 이 경우 compact plan 을 확정하지 말고 호출 측에 승격을 돌려준다.
@@ -56,5 +56,5 @@ compact plan 이 같은 세션에서 막 산출됐든, 이전에 머지된 뒤 �
 - 용어 사전: [`terms.md`](../../docs/plugin/terms.md)
 - impl 진입 분기: [`impl-routing.md`](../impl/impl-routing.md) · [`impl/SKILL.md`](../impl/SKILL.md)
 - 설계 산출 agent: [`module-architect`](../../agents/module-architect.md)
-- compact plan 템플릿: [`agents/module-architect/templates/compact-plan.md`](../../agents/module-architect/templates/compact-plan.md)
+- compact plan 템플릿: [`docs/plugin/agents/module-architect/templates/compact-plan.md`](../../docs/plugin/agents/module-architect/templates/compact-plan.md)
 - engineer 게이트 design_doc: [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh)

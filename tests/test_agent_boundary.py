@@ -1203,10 +1203,25 @@ class PluginReadCarveoutTests(unittest.TestCase):
         return cwd, plugin_root
 
     # ── allow: 자기 plugin 의 에이전트 소비용 콘텐츠 ─────────────────
+    # 전문 지침·templates·references·_shared 는 docs/plugin/agents/ 아래로 이동됐다
+    # (#963 — agents/ 재귀 등록 오염 해소). docs/plugin/ carve-out zone 이 이를 커버한다.
     def test_agent_instructions_read_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd, root = self._dirs(td)
-            target = str(root / "agents/system-architect/system-architect-agent.md")
+            target = str(
+                root / "docs/plugin/agents/system-architect/system-architect-agent.md"
+            )
+            self.assertIsNone(
+                check_read_allowed(
+                    "system-architect", target, cwd=cwd, plugin_root=str(root)
+                )
+            )
+
+    def test_entry_point_read_allowed(self):
+        # 얇은 진입점 agents/<name>.md 는 agents/ 에 남아 있고, agents/ zone 이 계속 커버.
+        with tempfile.TemporaryDirectory() as td:
+            cwd, root = self._dirs(td)
+            target = str(root / "agents/system-architect.md")
             self.assertIsNone(
                 check_read_allowed(
                     "system-architect", target, cwd=cwd, plugin_root=str(root)
@@ -1216,7 +1231,9 @@ class PluginReadCarveoutTests(unittest.TestCase):
     def test_agent_shared_read_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd, root = self._dirs(td)
-            target = str(root / "agents/_shared/agent-doc-format/agent.md")
+            target = str(
+                root / "docs/plugin/agents/_shared/module-design-principles.md"
+            )
             self.assertIsNone(
                 check_read_allowed(
                     "system-architect", target, cwd=cwd, plugin_root=str(root)
@@ -1226,7 +1243,9 @@ class PluginReadCarveoutTests(unittest.TestCase):
     def test_agent_templates_read_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd, root = self._dirs(td)
-            target = str(root / "agents/system-architect/templates/decision.md")
+            target = str(
+                root / "docs/plugin/agents/system-architect/templates/decision.md"
+            )
             self.assertIsNone(
                 check_read_allowed(
                     "system-architect", target, cwd=cwd, plugin_root=str(root)
@@ -1246,7 +1265,9 @@ class PluginReadCarveoutTests(unittest.TestCase):
     def test_env_fallback_when_param_omitted(self):
         with tempfile.TemporaryDirectory() as td:
             cwd, root = self._dirs(td)
-            target = str(root / "agents/pr-reviewer/pr-reviewer-agent.md")
+            target = str(
+                root / "docs/plugin/agents/pr-reviewer/pr-reviewer-agent.md"
+            )
             with patch.dict(
                 os.environ, {"CLAUDE_PLUGIN_ROOT": str(root)}, clear=False
             ):

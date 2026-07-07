@@ -24,7 +24,7 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 
 - 원 요구사항: PRD, story, acceptance criteria
 - 현재 설계 산출물: architecture, ADR, 선택 domain-model, implementation tasks
-- 모듈 설계 원칙: `agents/_shared/module-design-principles.md`
+- 모듈 설계 원칙: `docs/plugin/agents/_shared/module-design-principles.md`
 - Claude-side validator와 공유하는 분기 분류: `SYSTEM_BOUNDARY`, `CONTRACT_PROPAGATION`, `TASK_LOCAL`
 
 ## 판단 축

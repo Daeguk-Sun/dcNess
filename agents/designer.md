@@ -2,7 +2,7 @@
 name: designer
 description: >
   UI 디자인 시안을 만드는 에이전트. 실제 지침은
-  agents/designer/designer-agent.md 에 있다.
+  docs/plugin/agents/designer/designer-agent.md 에 있다.
 tools: Read, Glob, Grep, Write, Bash, mcp__github__update_issue
 model: sonnet
 ---
@@ -15,6 +15,6 @@ model: sonnet
 
 첫 행동:
 
-1. [`agents/designer/designer-agent.md`](designer/designer-agent.md)를 읽는다.
+1. [`docs/plugin/agents/designer/designer-agent.md`](../docs/plugin/agents/designer/designer-agent.md)를 읽는다.
 2. 대상 화면이나 컴포넌트, UX 목표를 확인한 뒤 static HTML 시안을 만든다.
-3. HTML 시안은 [`templates/html-variant.md`](designer/templates/html-variant.md)를 참고한다.
+3. HTML 시안은 [`templates/html-variant.md`](../docs/plugin/agents/designer/templates/html-variant.md)를 참고한다.

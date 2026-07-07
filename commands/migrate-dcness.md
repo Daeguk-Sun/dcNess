@@ -40,7 +40,7 @@ description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝�
 
 ### 1. system-architect BROWNFIELD — 코드 파생 전역 docs
 
-- Agent 로 `system-architect` 를 **BROWNFIELD 모드**로 호출한다. 지침은 [`system-architect` BROWNFIELD 모드](../agents/system-architect/system-architect-agent.md#brownfield-모드-역설계-부트스트랩)가 SSOT 다.
+- Agent 로 `system-architect` 를 **BROWNFIELD 모드**로 호출한다. 지침은 [`system-architect` BROWNFIELD 모드](../docs/plugin/agents/system-architect/system-architect-agent.md#brownfield-모드-역설계-부트스트랩)가 SSOT 다.
 - 산출 대상은 Step 0 에서 (a)/(b) 로 분류된 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` 수동 섹션(모듈 topology·의존 방향·공개 entrypoint), `docs/decisions/NNNN-slug.md` 초안뿐이다. (c) 로 분류된 기존 문서는 채우지 않고 diff 후보로만 보고한다.
 - PRD·stories 가 없어도 ESCALATE 없이 채운다 (그 공백을 메우는 것이 목적). 코드 근거가 약한 결정은 `DRAFT` 로 표기된다.
 
@@ -66,7 +66,7 @@ PLUGIN_ROOT="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dc
 PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 ```
 
-- **`docs/index.md`·`docs/architecture.md` 가 (a) 부재면 먼저 seed 로 만든다.** generated-section 스크립트는 파일이 없으면 no-op 이라 index 가 끝내 안 생기므로, `docs/index.md`(양식 `skills/spec/templates/index.md`)·`docs/architecture.md`(양식 `agents/system-architect/templates/root-architecture.md`, 단 Step 1 BROWNFIELD 가 이미 채웠으면 그 파일 유지)를 seed 원본에서 생성한 뒤 (b) 로 취급한다.
+- **`docs/index.md`·`docs/architecture.md` 가 (a) 부재면 먼저 seed 로 만든다.** generated-section 스크립트는 파일이 없으면 no-op 이라 index 가 끝내 안 생기므로, `docs/index.md`(양식 `skills/spec/templates/index.md`)·`docs/architecture.md`(양식 `docs/plugin/agents/system-architect/templates/root-architecture.md`, 단 Step 1 BROWNFIELD 가 이미 채웠으면 그 파일 유지)를 seed 원본에서 생성한 뒤 (b) 로 취급한다.
 - **(a→seed)/(b) 이면** 아래를 직접 실행한다. 파생 섹션은 손으로 복제하지 않는다.
 
 ```bash
@@ -96,7 +96,7 @@ node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs" --root "$PROJECT_ROOT
 ## 참조
 
 - [`docs/plugin/deliverables-map.md`](../docs/plugin/deliverables-map.md) — 전역 docs 위치·양식 SSOT
-- [`system-architect` BROWNFIELD 모드](../agents/system-architect/system-architect-agent.md#brownfield-모드-역설계-부트스트랩) — 역설계 산출 지침
+- [`system-architect` BROWNFIELD 모드](../docs/plugin/agents/system-architect/system-architect-agent.md#brownfield-모드-역설계-부트스트랩) — 역설계 산출 지침
 - [`/init-dcness`](init-dcness.md) — 활성화 (본 스킬의 선행 짝)
 - [`docs/plugin/positioning.md`](../docs/plugin/positioning.md) — Utility 공개 노출 범위
 - [`docs/plugin/git-spec.md`](../docs/plugin/git-spec.md) — 브랜치·커밋·PR 네이밍

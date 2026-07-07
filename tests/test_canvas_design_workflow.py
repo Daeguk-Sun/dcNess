@@ -37,25 +37,25 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             ROOT / "skills" / "spec" / "spec-routing.md"
         ).read_text(encoding="utf-8")
         self.designer = (
-            ROOT / "agents" / "designer" / "designer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "designer" / "designer-agent.md"
         ).read_text(encoding="utf-8")
         self.ux_architect = (
-            ROOT / "agents" / "ux-architect" / "ux-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "ux-architect" / "ux-architect-agent.md"
         ).read_text(encoding="utf-8")
         self.ux_flow_template = (
-            ROOT / "agents" / "ux-architect" / "templates" / "ux-flow.md"
+            ROOT / "docs" / "plugin" / "agents" / "ux-architect" / "templates" / "ux-flow.md"
         ).read_text(encoding="utf-8")
         self.engineer = (
-            ROOT / "agents" / "engineer" / "engineer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "engineer" / "engineer-agent.md"
         ).read_text(encoding="utf-8")
         self.build_worker = (
-            ROOT / "agents" / "build-worker" / "build-worker-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "build-worker" / "build-worker-agent.md"
         ).read_text(encoding="utf-8")
         self.impl_template = (
-            ROOT / "agents" / "module-architect" / "templates" / "impl-task.md"
+            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "templates" / "impl-task.md"
         ).read_text(encoding="utf-8")
         self.compact_template = (
-            ROOT / "agents" / "module-architect" / "templates" / "compact-plan.md"
+            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "templates" / "compact-plan.md"
         ).read_text(encoding="utf-8")
         self.init_skill = (ROOT / "commands" / "init-dcness.md").read_text(
             encoding="utf-8"
@@ -337,7 +337,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             encoding="utf-8"
         )
         html_variant = (
-            ROOT / "agents" / "designer" / "templates" / "html-variant.md"
+            ROOT / "docs" / "plugin" / "agents" / "designer" / "templates" / "html-variant.md"
         ).read_text(encoding="utf-8")
 
         self.assertIn('src="<screen-id>.html"', canvas)

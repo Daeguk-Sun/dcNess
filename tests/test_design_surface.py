@@ -108,17 +108,17 @@ class DesignSurfaceContractTests(unittest.TestCase):
         design = (design_dir / "SKILL.md").read_text(encoding="utf-8")
         routing = (design_dir / "design-routing.md").read_text(encoding="utf-8")
         system_architect = (
-            ROOT / "agents" / "system-architect" / "system-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "system-architect-agent.md"
         ).read_text(encoding="utf-8")
         system_template = (
-            ROOT / "agents" / "system-architect" / "templates" / "epic-architecture.md"
+            ROOT / "docs" / "plugin" / "agents" / "system-architect" / "templates" / "epic-architecture.md"
         ).read_text(encoding="utf-8")
         module_architect = (
-            ROOT / "agents" / "module-architect" / "module-architect-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "module-architect-agent.md"
         ).read_text(encoding="utf-8")
         validator = (
             ROOT
-            / "agents"
+            / "docs" / "plugin" / "agents"
             / "architecture-validator"
             / "architecture-validator-agent.md"
         ).read_text(encoding="utf-8")
@@ -126,7 +126,7 @@ class DesignSurfaceContractTests(unittest.TestCase):
             ROOT / "codex" / "skills" / "dcness-architecture-validator" / "SKILL.md"
         ).read_text(encoding="utf-8")
         test_engineer = (
-            ROOT / "agents" / "test-engineer" / "test-engineer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "test-engineer" / "test-engineer-agent.md"
         ).read_text(encoding="utf-8")
 
         for needle in (

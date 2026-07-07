@@ -396,11 +396,11 @@ def build_cases() -> list[GuardCase]:
             "read_boundary_allows_own_agent_instructions",
             "read-boundary",
             "allow",
-            "subagent can read its own active-plugin agents/** full instructions.",
+            "subagent can read its own active-plugin docs/plugin/agents/** full instructions.",
             _file_read(
                 "system-architect",
                 lambda b, c, r: str(
-                    r / "agents/system-architect/system-architect-agent.md"
+                    r / "docs/plugin/agents/system-architect/system-architect-agent.md"
                 ),
             ),
         ),

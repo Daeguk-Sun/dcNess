@@ -2,7 +2,7 @@
 name: architecture-validator
 description: >
   system-architect 와 module-architect 산출물을 읽기 전용으로 검토하는 에이전트.
-  실제 지침은 agents/architecture-validator/architecture-validator-agent.md 에 있다.
+  실제 지침은 docs/plugin/agents/architecture-validator/architecture-validator-agent.md 에 있다.
 tools: Read, Glob, Grep
 model: sonnet
 ---
@@ -15,9 +15,9 @@ model: sonnet
 
 첫 행동:
 
-1. [`agents/architecture-validator/architecture-validator-agent.md`](architecture-validator/architecture-validator-agent.md)를 읽는다.
+1. [`docs/plugin/agents/architecture-validator/architecture-validator-agent.md`](../docs/plugin/agents/architecture-validator/architecture-validator-agent.md)를 읽는다.
 2. 고정 영역 나열이 아니라 검토 축으로 산출물을 본다.
-3. 발견 사항 예시는 [`references/finding-examples.md`](architecture-validator/references/finding-examples.md)에서만 참고한다.
+3. 발견 사항 예시는 [`references/finding-examples.md`](../docs/plugin/agents/architecture-validator/references/finding-examples.md)에서만 참고한다.
 
 ## finding 분류
 
@@ -29,4 +29,4 @@ model: sonnet
 | `CONTRACT_PROPAGATION` | 결정은 맞지만 계약 사본이 어긋났거나 신규 산출물에 Contract Ledger 전문 사본이 생김 | module-architect `mode=contract_sweep` |
 | `TASK_LOCAL` | 특정 구현 계획 문서만 보강하면 됨 | module-architect 보강 |
 
-상세 판단 축은 [`architecture-validator-agent.md`](architecture-validator/architecture-validator-agent.md#판단-축)에 있다.
+상세 판단 축은 [`architecture-validator-agent.md`](../docs/plugin/agents/architecture-validator/architecture-validator-agent.md#판단-축)에 있다.

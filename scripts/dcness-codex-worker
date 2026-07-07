@@ -199,7 +199,7 @@ RAW_LOG="$RAW_LOG_DIR/codex-headless-${AGENT}${MODE:+-$MODE}-$$.log"
 trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
 
 AGENT_DOC="$SCRIPT_DIR/../agents/$AGENT.md"
-AGENT_DETAIL="$SCRIPT_DIR/../agents/$AGENT/$AGENT-agent.md"
+AGENT_DETAIL="$SCRIPT_DIR/../docs/plugin/agents/$AGENT/$AGENT-agent.md"
 
 {
   echo "dcNess implementation agent: $AGENT"
@@ -224,9 +224,9 @@ AGENT_DETAIL="$SCRIPT_DIR/../agents/$AGENT/$AGENT-agent.md"
     echo
   fi
   if [ -f "$AGENT_DETAIL" ]; then
-    echo "----- BEGIN agents/$AGENT/$AGENT-agent.md -----"
+    echo "----- BEGIN docs/plugin/agents/$AGENT/$AGENT-agent.md -----"
     cat "$AGENT_DETAIL"
-    echo "----- END agents/$AGENT/$AGENT-agent.md -----"
+    echo "----- END docs/plugin/agents/$AGENT/$AGENT-agent.md -----"
     echo
   fi
   echo "----- BEGIN CALLER PROMPT -----"

@@ -21,7 +21,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 필수: 호출자가 지정한 `docs/index.md`, PRD, epic stories, issue, 또는 acceptance 기준 문서
 - 필수: 호출자가 제공한 구현 PR, 테스트 결과, smoke 결과, 변경 파일 목록
 - 상황별: `docs/architecture.md`, `docs/decisions/`, epic architecture/impl 문서, tech-review 결과
-- 상황별 (SPEC_ACCEPTANCE): [`skills/spec/spec-stories-reference.md`](../../skills/spec/spec-stories-reference.md) 의 Story 분할·순서 기준과 예외
+- 상황별 (SPEC_ACCEPTANCE): [`skills/spec/spec-stories-reference.md`](../../../../skills/spec/spec-stories-reference.md) 의 Story 분할·순서 기준과 예외
 - 참고: 기존 acceptance 결과가 있으면 이전 gap 과 재검수 증거
 
 ## 판단 축

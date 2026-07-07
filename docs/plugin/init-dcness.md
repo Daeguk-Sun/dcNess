@@ -47,7 +47,7 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 | doc path workflow | `.github/workflows/doc-path-integrity.yml` | [`templates/github-workflows/doc-path-integrity.yml`](../../templates/github-workflows/doc-path-integrity.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | doc sync workflow | `.github/workflows/doc-sync.yml` | [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml) | custom 선택 | always-overwrite | O |
-| project docs seed | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | authoring 템플릿 (`skills/spec/templates/index.md`, `skills/spec/templates/prd.md`, `agents/system-architect/templates/root-architecture.md`, `agents/system-architect/templates/conventions.md`) + `scripts/ensure_docs_index_next_section.mjs` — 시드와 산출 양식 단일 원본. 위치 SSOT [`deliverables-map.md`](deliverables-map.md) | 추천 bundle 또는 custom | 부재 시 생성. 기존 `docs/index.md` 는 진행 상태 섹션만 없을 때 append | X |
+| project docs seed | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | authoring 템플릿 (`skills/spec/templates/index.md`, `skills/spec/templates/prd.md`, `docs/plugin/agents/system-architect/templates/root-architecture.md`, `docs/plugin/agents/system-architect/templates/conventions.md`) + `scripts/ensure_docs_index_next_section.mjs` — 시드와 산출 양식 단일 원본. 위치 SSOT [`deliverables-map.md`](deliverables-map.md) | 추천 bundle 또는 custom | 부재 시 생성. 기존 `docs/index.md` 는 진행 상태 섹션만 없을 때 append | X |
 | volatile workdir ignore | `.gitignore` 의 `.dcness-work/` + `.claude/harness-state/` 재확인 | `/init-dcness` append | 추천 bundle 또는 custom | 없을 때만 추가 | X |
 | design seed | `docs/design.md` | `docs/plugin/design.md` minimal 예시 | custom 선택 | 부재 시만 생성 | X |
 | design preview seed | `docs/design-variants/**` | `templates/design-variants/**` | custom 선택 | 부재 시만 생성 | X |
@@ -75,11 +75,11 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 
 | validator | Claude path | Codex mirror path |
 |---|---|---|
-| code-validator | `agents/code-validator/code-validator-agent.md` | `codex/skills/dcness-code-validator/SKILL.md` |
-| architecture-validator | `agents/architecture-validator/architecture-validator-agent.md` | `codex/skills/dcness-architecture-validator/SKILL.md` |
-| pr-reviewer | `agents/pr-reviewer/pr-reviewer-agent.md` | `codex/skills/dcness-pr-reviewer/SKILL.md` |
+| code-validator | `docs/plugin/agents/code-validator/code-validator-agent.md` | `codex/skills/dcness-code-validator/SKILL.md` |
+| architecture-validator | `docs/plugin/agents/architecture-validator/architecture-validator-agent.md` | `codex/skills/dcness-architecture-validator/SKILL.md` |
+| pr-reviewer | `docs/plugin/agents/pr-reviewer/pr-reviewer-agent.md` | `codex/skills/dcness-pr-reviewer/SKILL.md` |
 
-공유 guidance 는 `agents/_shared/validation-reporting-guidance.md` 를 Claude agent 가 참조하고, Codex skill 은 같은 의미 문구를 내장한다. Codex skill 은 native Codex frontmatter(`--- name: ... description: ... ---`)를 유지해야 하며, `/init-dcness` Core Step 5 가 `$CODEX_HOME/skills/dcness-*` 로 always-overwrite 배포한다. 동기화 회귀는 `tests/test_validator_handoff_guidance.py` 가 막는다.
+공유 guidance 는 `docs/plugin/agents/_shared/validation-reporting-guidance.md` 를 Claude agent 가 참조하고, Codex skill 은 같은 의미 문구를 내장한다. Codex skill 은 native Codex frontmatter(`--- name: ... description: ... ---`)를 유지해야 하며, `/init-dcness` Core Step 5 가 `$CODEX_HOME/skills/dcness-*` 로 always-overwrite 배포한다. 동기화 회귀는 `tests/test_validator_handoff_guidance.py` 가 막는다.
 
 ## Recommended Bundle Defaults
 

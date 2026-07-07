@@ -46,7 +46,7 @@ PRD와 현재 UI 상태를 화면 흐름, wireframe, interaction, system-level d
 
 ## 권한 경계
 
-- Write 허용: epic 단위 `docs/epics/.../ux-flow.md`, `docs/design.md`의 system-level token 영역. 위치·계층 SSOT = [`docs/plugin/deliverables-map.md`](../../docs/plugin/deliverables-map.md).
+- Write 허용: epic 단위 `docs/epics/.../ux-flow.md`, `docs/design.md`의 system-level token 영역. 위치·계층 SSOT = [`docs/plugin/deliverables-map.md`](../../deliverables-map.md).
 - 금지: PRD 수정, DB/API/system architecture 결정, src 수정
 - UX_REFINE에서는 src를 읽지 않는다.
 - components token은 designer 권한이다.

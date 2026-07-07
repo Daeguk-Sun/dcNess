@@ -16,7 +16,7 @@
 - 필수: 변경된 구현 파일
 - 필수: [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)
 - 상황별: domain-model, architecture, design, DB schema
-- 상황별: 용어·공개 진입점·분기 표현을 검증할 때만 [`../../docs/plugin/terms.md`](../../docs/plugin/terms.md)
+- 상황별: 용어·공개 진입점·분기 표현을 검증할 때만 [`docs/plugin/terms.md`](../../terms.md)
 - 참고: [`references/finding-examples.md`](references/finding-examples.md)
 
 ## 판단 축

@@ -73,12 +73,12 @@ docs/
 |---|---|---|---|
 | 문서 entrypoint | `docs/index.md` | `/init-dcness`, `/spec`, `scripts/aggregate_index_map.mjs` | `skills/spec/templates/index.md` |
 | PRD | `docs/prd.md` | `/spec` | `skills/spec/templates/prd.md` |
-| 전역 architecture map | `docs/architecture.md` | system-architect | `agents/system-architect/templates/root-architecture.md` |
-| convention map | `docs/conventions.md` | `/init-dcness`, system-architect | `agents/system-architect/templates/conventions.md` |
-| 기술 검토 결론 | `docs/tech-review.md` | tech-reviewer | `agents/tech-reviewer/templates/tech-review.md` |
+| 전역 architecture map | `docs/architecture.md` | system-architect | `docs/plugin/agents/system-architect/templates/root-architecture.md` |
+| convention map | `docs/conventions.md` | `/init-dcness`, system-architect | `docs/plugin/agents/system-architect/templates/conventions.md` |
+| 기술 검토 결론 | `docs/tech-review.md` | tech-reviewer | `docs/plugin/agents/tech-reviewer/templates/tech-review.md` |
 | 전역 design token | `docs/design.md` | ux-architect | `docs/plugin/design.md` |
 | design run 기록 | `docs/metrics/design-runs.jsonl` | `dcness-helper end-run` before design PR | JSONL schema v1 (`harness/design_run_records.py`) |
-| 결정 기록 | `docs/decisions/NNNN-slug.md` | system-architect / module-architect | `agents/system-architect/templates/decision.md` |
+| 결정 기록 | `docs/decisions/NNNN-slug.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/decision.md` |
 
 `docs/architecture.md` 는 epic 이 늘 때마다 append-growing map 으로 갱신한다. 상세 설계 본문을 전역에 복제하지 않고, 전역 모듈/의존/결정 anchor 와 epic 문서 링크를 추가한다.
 
@@ -170,11 +170,11 @@ epic 은 제품 단위라 여러 모듈을 가로지를 수 있다. 교차 모�
 | 산출물 | epic 폴더 기준 경로 | 생성 주체 | 양식 |
 |---|---|---|---|
 | Story 정의 | `stories.md` | `/spec` | `skills/spec/spec-stories-reference.md` |
-| UX flow | `ux-flow.md` | ux-architect | `agents/ux-architect/templates/ux-flow.md` |
-| epic architecture | `architecture.md` | system-architect / module-architect | `agents/system-architect/templates/epic-architecture.md` |
-| domain model | `domain-model.md` | system-architect / module-architect | `agents/system-architect/templates/domain-model.md` |
-| epic tech-review | `tech-review.md` | tech-reviewer | `agents/tech-reviewer/templates/tech-review.md` |
-| impl task | `impl/NN-*.md` | module-architect | `agents/module-architect/templates/impl-task.md` |
+| UX flow | `ux-flow.md` | ux-architect | `docs/plugin/agents/ux-architect/templates/ux-flow.md` |
+| epic architecture | `architecture.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/epic-architecture.md` |
+| domain model | `domain-model.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/domain-model.md` |
+| epic tech-review | `tech-review.md` | tech-reviewer | `docs/plugin/agents/tech-reviewer/templates/tech-review.md` |
+| impl task | `impl/NN-*.md` | module-architect | `docs/plugin/agents/module-architect/templates/impl-task.md` |
 
 epic `domain-model.md` 는 조건부 산출물이다. entity, value object, aggregate, domain service, invariant 같은 도메인 모델이 구현 판단에 필요할 때 작성한다. 낮은 도메인 복잡도에서는 생략 가능하며, 생략 판단 근거는 epic `architecture.md` 에 남긴다.
 
@@ -184,7 +184,7 @@ epic `tech-review.md` 는 `/design` 중 `NEW_DEP_ESCALATE` option 4 로 새 외�
 
 | 산출물 | 경로 | 생성 주체 | 양식 |
 |---|---|---|---|
-| compact plan | `docs/compact-plans/<slug>.md` | module-architect | `agents/module-architect/templates/compact-plan.md` |
+| compact plan | `docs/compact-plans/<slug>.md` | module-architect | `docs/plugin/agents/module-architect/templates/compact-plan.md` |
 
 compact plan 은 `/impl` Standard 진입 전 경량 설계 산출물이다. 구현자가 읽어야 하므로 git-tracked 문서로 남긴다.
 

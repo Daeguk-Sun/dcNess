@@ -23,7 +23,7 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.entry = ROOT / "agents" / "product-acceptance.md"
         self.prompt = (
             ROOT
-            / "agents"
+            / "docs" / "plugin" / "agents"
             / "product-acceptance"
             / "product-acceptance-agent.md"
         )
