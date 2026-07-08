@@ -10,6 +10,36 @@
 
 ---
 
+## v0.18.0 (2026-07-08)
+
+**커밋 범위**: `v0.17.0..v0.18.0` (머지 PR 4개, #1012 · #1013 · #1014 · #1015)
+**핵심 변경**: **구현 진입 게이트를 provider-agnostic 하게 앞당기고 경계·TDD 계약을 정밀화한** minor 릴리즈. (1) `/impl-loop` 가 `/impl` 사전점검을 우회하던 문제를 공통 impl entry pre-flight(impl plan boundary + generated TDD hook)로 `engineer`/`build-worker` 진입 직전에 강제, (2) headless implementation provider 의 boundary BLOCK 을 ledger/live marker 로 durable 기록해 같은 run 의 다음 step 을 provider-independent order gate 가 차단, (3) `tdd-exempt: <사유>` 마커로 구조적으로 테스트가 불필요한 파일의 사유 있는 통과 경로를 열되 빈 사유는 계속 deny, (4) `/init-dcness` 추천 라우팅을 구현 실행/계약 검증 역할로 분리하는 role-split preset 추가.
+
+### 무엇이 바뀌나
+
+1. **impl 진입 공통 pre-flight gate 강제** ([#1015](https://github.com/Daeguk-Sun/dcNess/pull/1015) [#1009](https://github.com/Daeguk-Sun/dcNess/issues/1009)) — `/impl-loop` deep task runner 가 `/impl` 문서 절차의 진입 사전점검을 우회해 boundary/TDD 보호막이 늦게 발화하던 문제를 해소. `boundary-suggestions --impl-plan <path>` 옵션을 추가해 impl/compact plan 의 `### 수정 허용` 경로를 `ALLOW_MATRIX ∪ .dcness/boundary.json` 기준으로 대조하고, `evaluate_order_gate_for_step()` 의 `engineer`/`build-worker` 진입 직전에 impl plan boundary pre-flight 와 generated TDD hook pre-flight 를 강제한다. 실제 차단은 `begin-step`/catastrophic gate 공통 판정 함수에 넣어 Claude Agent provider 와 Codex/headless provider 가 같은 조건을 타며, Lite 기본 경로(계획 파일 없는 메인 직접 구현)와 dcNess self repo 는 대상에서 제외한다.
+
+2. **headless boundary BLOCK durable 기록 + 다음 step 차단** ([#1013](https://github.com/Daeguk-Sun/dcNess/pull/1013) [#1010](https://github.com/Daeguk-Sun/dcNess/issues/1010)) — headless implementation provider(Codex/Claude)가 sub-agent boundary 밖 파일을 수정하면 wrapper 가 `exit 1` 로 끝나면서도 `end-step` 전 실패 경로라 durable marker 가 남지 않아 같은 run 의 다음 step 이 무심코 진행될 수 있던 문제를 해소. `dcness-codex-worker`/`dcness-claude-worker` 가 boundary violation 감지 시 `category=engineer_boundary` 의 `blocked` ledger event 와 `live.json` active run 슬롯의 run-level `blocked` marker 를 남기고, provider-independent order gate 가 live marker 또는 ledger-only fallback marker 를 보면 다음 `begin-step`/Agent 진입을 차단한다. `VALIDATION_BLOCKED` 와 달리 메인 검증 재실행으로 복구 불가한 상태(workspace 가 이미 역할 경계 밖으로 변함)라 run-level marker 로 처리한다.
+
+3. **`tdd-exempt` 마커 지원** ([#1014](https://github.com/Daeguk-Sun/dcNess/pull/1014) [#1011](https://github.com/Daeguk-Sun/dcNess/issues/1011)) — TDD guard 가 DTO/stub/로직 무관 편집처럼 구조적으로 테스트가 불필요한 파일까지 hard block 하던 오탐에 사유 있는 통과 경로를 추가. `tdd-exempt: <사유>` 마커를 공통 Python helper 로 판정하고 generated hook 과 중앙 TS/JS fallback 이 같은 계약을 사용하도록 연결(기존 파일 내용·`Write`/`Edit` payload·Codex `apply_patch`·headless worker 사후 TDD 검사 공통). block 기본값은 유지하고 빈 사유 마커는 계속 deny 하며, 마커는 같은 줄에 사유가 있어야 해 남용을 막고 코드에 커밋되어 `rg "tdd-exempt:"` 로 사용 빈도를 감시할 수 있다. project-local generated hook 이 런타임에 `scripts/dcness-tdd-hooks run` 을 호출하는 기존 구조를 유지해 새 generated 파일 재배포 없이 plugin 업데이트로 계약이 적용된다.
+
+4. **`/init-dcness` 추천 라우팅 역할 분리** ([#1012](https://github.com/Daeguk-Sun/dcNess/pull/1012) [#1008](https://github.com/Daeguk-Sun/dcNess/issues/1008)) — 추천 bundle 이 validation 축과 implementation 기본값을 따로 다뤄 구현 provider 와 검증 provider 가 같은 모델 축으로 몰릴 수 있던 문제를 해소. `enable_role_split_routing()` preset 을 추가해 `engineer`/`build-worker`=headless-chain, `test-engineer`/`code-validator`/`pr-reviewer`=claude, `architecture-validator`=codex 로 구현 실행과 계약 정의/검증 역할을 분리하고, `dcness-helper routing enable-role-split-routing` CLI 로 원자적 적용 후 status 를 출력한다. routing schema 는 그대로 `routes`/`implementation_routes` 만 쓰며 all-codex/Claude-only/legacy custom 경로는 유지한다.
+
+### 자기개선 점검 기록
+
+| 날짜 | 입력 | 판정 |
+|---|---|---|
+| 2026-07-08 | `python3.11 evals/guard_efficacy.py` (42/42) · `python3.11 scripts/loop_diagnose.py --idle-days 30 --since-days 90 --saturation-days 30 --saturation-min-runs 3` | v0.18.0 릴리즈 점검. 이번 릴리즈는 guard/hook 로직 변경 중심(order gate·tdd-guard·catastrophic-gate·boundary)이라 결정적 guard-efficacy 를 재실행 — **42/42 PASS**(이번 릴리즈의 tdd-exempt·boundary·provider-agnostic 케이스 추가 반영, 이전 33/33 → 42/42). loop_diagnose: 전 활성 프로젝트 guard 텔레메트리 `관측 이력 없음`(미배포/관측기간 부족) — 즉시 소멸 guard 후보 없음. 신규 통합 후보(NexusMessenger `TOOL_REPEAT_HIGH` waste/lesson 3건)는 이번 diff 와 무관한 활성 프로젝트 관측이라 follow-up 성격, 릴리즈 blocker 아님. LLM 기반 행동 eval 은 이번 diff 가 결정적 gate 로직이라 각 머지 PR CI(pytest·guard_efficacy·static-quality·public-surface·cross-ref)로 검증됨 — 생략(advisory). **소멸 후보 없음.** |
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — impl 진입 pre-flight gate, headless boundary BLOCK marker, `tdd-exempt` 마커, `/init-dcness` role-split 추천 라우팅 등 `harness/**`·`hooks/**`·`scripts/**`·`skills/impl*/**`·`commands/init-dcness.md`·`docs/plugin/**` 변경.
+- **`/impl-loop` deep task 사용 프로젝트** — impl 계획의 `### 수정 허용` 비표준 경로와 generated TDD hook 미준비가 `engineer`/`build-worker` 진입 직전에 차단된다. dcNess self repo 는 pre-flight 대상에서 제외돼 plugin 자체 개발 흐름을 오차단하지 않는다.
+- **테스트가 구조적으로 불필요한 파일** — `tdd-exempt: <사유>` 를 같은 줄 사유와 함께 남기면 TDD guard 를 통과한다. 빈 사유는 계속 차단되고 차단 메시지는 테스트 작성과 override 마커 두 경로를 함께 안내한다.
+- **`/init-dcness` 신규/재실행 프로젝트** — 추천 라우팅이 role-split(구현 실행 headless-chain · 검증 claude/codex 분리)로 바뀐다. all-codex/Claude-only/legacy custom 경로는 그대로 선택할 수 있다.
+
+---
+
 ## v0.17.0 (2026-07-08)
 
 **커밋 범위**: `v0.16.0..v0.17.0` (머지 PR 6개, #996 · #1001 · #1003 · #1004 · #1005 · #1006)
