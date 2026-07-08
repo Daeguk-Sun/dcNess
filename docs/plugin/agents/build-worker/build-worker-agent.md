@@ -49,7 +49,7 @@
 
 ## 고위험 task self-check
 
-외부 HTTP/네트워크 어댑터, URL·파일·사용자 입력 같은 신뢰 경계 밖 입력 파싱, 인증/보안, PII, decision 합의 없는 도메인 invariant 변경은 build-worker self-grading drift가 가장 잘 나는 영역이다. 이런 task를 맡은 경우:
+외부 HTTP/네트워크 어댑터, URL·파일·사용자 입력 같은 신뢰 경계 밖 입력 파싱, 인증/보안, PII, 도메인 invariant 변경은 build-worker self-grading drift가 가장 잘 나는 영역이다. 이 self-check 는 엔진 승격 기준과 별개이며, decision 으로 합의된 invariant 구현에도 적용된다. 이런 task를 맡은 경우:
 
 - SSRF, path traversal, placeholder attribution, 실패를 성공처럼 반환하는 계약 위반을 테스트에 포함한다.
 - 외부 데이터가 누락되거나 실패했을 때 도메인 모델을 날조하지 않는다.
