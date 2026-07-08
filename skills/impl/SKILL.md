@@ -45,7 +45,7 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
 ## Loop
 
 - **Lite 구현 경로 — 메인 직접 (기본)**: 코드/문서 변경은 메인이 수행하고, review step 만 `begin-run impl` 안에서 `pr-reviewer` 로 기록한다. `code-validator` 는 호출하지 않는다.
-- **Lite 구현 경로 — sub-agent 엔진 (#714)**: 사용자/메인이 sub-agent 엔진을 명시 선택하거나 메인이 추천하면 `begin-run impl --lane lite` 로 진입한다. 미지정 기본은 build-worker 이고, 풀4는 `risk: high` / `engine: 4agent` / 고위험 trigger / 사용자 엄정 override 때만 승격한다. `lane=lite` 기록이 engineer 게이트 설계 산출물 사전 조건을 면제한다. 엔진 시퀀스는 Standard 와 동일(풀4: test-engineer → engineer:IMPL → code-validator → pr-reviewer / 경량: build-worker 1 step → pr-reviewer). 잔존 보호(`pr-reviewer ← code-validator PASS`)는 그대로 강제된다.
+- **Lite 구현 경로 — sub-agent 엔진 (#714)**: 사용자/메인이 sub-agent 엔진을 명시 선택하거나 메인이 추천하면 `begin-run impl --lane lite` 로 진입한다. 미지정 기본은 build-worker 이고, 풀4는 `risk: high` / `engine: 4agent` / 구현 시점 위험 trigger / 사용자 엄정 override 때만 승격한다. `lane=lite` 기록이 engineer 게이트 설계 산출물 사전 조건을 면제한다. 엔진 시퀀스는 Standard 와 동일(풀4: test-engineer → engineer:IMPL → code-validator → pr-reviewer / 경량: build-worker 1 step → pr-reviewer). 잔존 보호(`pr-reviewer ← code-validator PASS`)는 그대로 강제된다.
 - **Standard 구현 경로 — 경량 build-worker 엔진 (디폴트)**
   - **loop**: `impl-standard`
   - **entry_point**: `impl`

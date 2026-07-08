@@ -151,7 +151,7 @@ class TestImplLoopRiskPreview(unittest.TestCase):
         skill = read_impl_skill()
         routing = read_impl_routing()
         for body in (skill, routing):
-            self.assertIn("고위험 trigger 는 build-worker 선호보다 우선", body)
+            self.assertIn("구현 시점 위험 trigger 는 build-worker 선호보다 우선", body)
             self.assertIn("frontmatter `risk: high`", body)
             self.assertIn("frontmatter `engine: 4agent`", body)
             self.assertIn("사용자 엄정", body)

@@ -111,7 +111,7 @@ finding 수용 원칙은 `/impl-loop` 와 같다. 같은 영역 finding 이 반�
 - 새 외부 dependency/API/SDK/model 필요 → impl 밖 설계 선행(`/spec` 내부 `/tech-review` preflight / `/design`)
 - auth/security/PII/compliance 영향
 - migration/destructive/public API breakage
-- cross-module/cross-story contract 변화
+- 설계/decision 합의 없는 cross-module/cross-story contract 변화
 - 테스트 기준 또는 수용 기준이 끝까지 모호함
 - review finding 이 3회 안에 수렴하지 않음
 
