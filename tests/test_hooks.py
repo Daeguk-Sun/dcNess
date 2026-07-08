@@ -665,6 +665,23 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
 
         self.assertIsNone(message)
 
+    def test_begin_step_blocks_non_override_boundary_reason(self) -> None:
+        doc = self._write_impl_plan("- docs/notes.md")
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: impl pre-flight boundary]", message or "")
+        self.assertIn("docs/notes.md", message or "")
+        self.assertIn("계획 scope", message or "")
+
     def test_begin_step_blocks_detected_project_missing_generated_tdd_hooks(self) -> None:
         doc = self._write_impl_plan("- src/app.py")
         (self.base / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")

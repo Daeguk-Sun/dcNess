@@ -148,6 +148,26 @@ class BoundarySuggestionsTests(unittest.TestCase):
             self.assertEqual([], report.suggestions)
             self.assertEqual("impl_plan_covered", report.reason)
 
+    def test_impl_plan_scope_reports_non_override_boundary_block(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            plan = root / "docs" / "epics" / "epic-01-x" / "impl" / "01-bootstrap.md"
+            self._write(
+                plan,
+                "## Scope\n\n"
+                "### 수정 허용\n\n"
+                "- docs/notes.md\n",
+            )
+
+            report = collect_boundary_suggestions(root, impl_plan=plan)
+
+            self.assertEqual("impl_plan_uncovered", report.reason)
+            self.assertEqual([], report.suggestions)
+            self.assertIn("docs/notes.md", report.blocking_reasons)
+            formatted = format_boundary_suggestions(report)
+            self.assertIn("boundary 차단 경로", formatted)
+            self.assertIn("계획 scope", formatted)
+
     def test_ignores_tests_docs_dependencies_and_build_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)

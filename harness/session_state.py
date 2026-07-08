@@ -1002,13 +1002,14 @@ def _impl_plan_boundary_preflight_message(
             "[순서 차단 훅: impl pre-flight boundary] impl 계획의 `### 수정 허용` "
             f"boundary 대조 실패: {exc}. 계획 scope 를 확인한 뒤 재시도하세요."
         )
-    if not report.suggestions:
+    if not report.suggestions and not report.blocking_reasons:
         return None
     return (
         "[순서 차단 훅: impl pre-flight boundary] impl 계획의 `### 수정 허용` "
-        "경로 중 engineer/build-worker boundary 로 커버되지 않는 항목이 있습니다. "
-        "사람 승인 후 `.dcness/boundary.json` engineer.add override 를 기록하기 전까지 "
-        "구현 step 을 시작할 수 없습니다.\n"
+        "경로 중 engineer/build-worker boundary 로 커버되지 않거나 차단되는 항목이 "
+        "있습니다. ALLOW_MATRIX 미커버 경로는 사람 승인 후 `.dcness/boundary.json` "
+        "engineer.add override 를 기록하고, INFRA/docs 등 되돌릴 수 없는 deny 경로는 "
+        "계획 scope 를 수정하기 전까지 구현 step 을 시작할 수 없습니다.\n"
         f"{format_boundary_suggestions(report)}"
     )
 

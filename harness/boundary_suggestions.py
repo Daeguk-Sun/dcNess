@@ -9,7 +9,7 @@ import json
 import os
 import re
 import subprocess  # nosec B404
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional
 
@@ -109,6 +109,7 @@ class BoundarySuggestionReport:
     uncovered_files: int
     suggestions: list[BoundarySuggestion]
     reason: str
+    blocking_reasons: dict[str, str] = field(default_factory=dict)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -266,13 +267,17 @@ def collect_impl_plan_boundary_suggestions(
     parsed = parse_impl_task(impl_plan)
     scope_paths = sorted(parsed.scope_paths)
     uncovered: list[str] = []
+    blocking_reasons: dict[str, str] = {}
     for rel in scope_paths:
         reason = check_write_allowed("engineer", rel, cwd=root)
-        if reason is not None and "ALLOW_MATRIX" in reason:
+        if reason is None:
+            continue
+        blocking_reasons[rel] = reason
+        if "ALLOW_MATRIX" in reason:
             uncovered.append(rel)
 
     suggestions = _suggestions_for_impl_plan_scope(uncovered)
-    if suggestions:
+    if blocking_reasons:
         report_reason = "impl_plan_uncovered"
     elif not scope_paths:
         report_reason = "impl_plan_scope_ambiguous"
@@ -284,6 +289,7 @@ def collect_impl_plan_boundary_suggestions(
         uncovered_files=len(uncovered),
         suggestions=suggestions,
         reason=report_reason,
+        blocking_reasons=blocking_reasons,
     )
 
 
@@ -334,6 +340,21 @@ def format_boundary_suggestions(report: BoundarySuggestionReport) -> str:
     if report.reason == "self_repo":
         return "[dcness boundary] no-op - dcNess self repo 는 boundary override 제안 대상이 아닙니다."
     if not report.suggestions:
+        if report.blocking_reasons:
+            lines = [
+                "[dcness boundary] engineer/build-worker boundary 차단 경로:",
+            ]
+            for path, reason in sorted(report.blocking_reasons.items()):
+                lines.append(f"- `{path}`: {reason}")
+            lines.extend(
+                [
+                    "",
+                    "ALLOW_MATRIX 미커버 경로는 사람 승인 후 `.dcness/boundary.json` "
+                    "engineer.add override 가 필요합니다.",
+                    "INFRA/docs 등 되돌릴 수 없는 deny 경로는 impl 계획 scope 를 수정하세요.",
+                ]
+            )
+            return "\n".join(lines)
         if report.reason == "empty":
             detail = "소스 파일 없음"
         elif report.reason == "impl_plan_scope_ambiguous":
@@ -353,6 +374,20 @@ def format_boundary_suggestions(report: BoundarySuggestionReport) -> str:
             f"- `{item.directory}` ({item.file_count} files) -> "
             f"`{item.pattern}`; examples: {examples}"
         )
+    suggested_paths = {
+        example
+        for item in report.suggestions
+        for example in item.examples
+    }
+    non_override_blocks = {
+        path: reason
+        for path, reason in report.blocking_reasons.items()
+        if path not in suggested_paths
+    }
+    if non_override_blocks:
+        lines.extend(["", "override 로 열 수 없는 차단 경로:"])
+        for path, reason in sorted(non_override_blocks.items()):
+            lines.append(f"- `{path}`: {reason}")
     lines.extend(
         [
             "",
