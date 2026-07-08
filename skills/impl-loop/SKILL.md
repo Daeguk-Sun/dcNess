@@ -106,6 +106,15 @@ UI 작업 감지 시 engine 무관하게 구현 시퀀스 선두에 내부 [`can
 
 [`issue-lifecycle.md` mid-flow 누락 차단](../../docs/plugin/issue-lifecycle.md#mid-flow-누락-차단-pre-flight-gate) 매치 강제 — 부모 epic stories.md 상단 `**GitHub Epic Issue:** [#\d+]` 또는 `미등록 (사유: …)` 매치 0건 시 즉시 STOP + 사용자 보고. silent skip 금지.
 
+### Impl entry pre-flight (engineer/build-worker 직전, 공통 강제)
+
+deep task 구현 run 은 `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 시작한다. 이 기록을 기준으로 `begin-step engineer/build-worker` 가 `/impl` 과 같은 entry pre-flight 를 provider-independent 로 강제한다.
+
+- **Boundary pre-flight**: impl 문서의 `### 수정 허용` 경로를 `ALLOW_MATRIX ∪ .dcness/boundary.json`(engineer.add) 과 대조한다. 미커버 경로가 있으면 구현 step 시작을 STOP 하고, 사람 승인 후 `.dcness/boundary.json` override 를 기록해야 한다. 사전 확인은 `dcness-helper boundary-suggestions --impl-plan <task>` 로도 볼 수 있다.
+- **Generated TDD hook pre-flight**: 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated hook 이 없거나 생성 파일이 커밋되지 않았으면 구현 step 시작을 STOP 한다. 사람 승인 후 `scripts/dcness-tdd-hooks ensure --targets cc,codex` 를 실행하고 생성 파일을 bootstrap commit 에 포함한다. 빈 프로젝트·미지원 플랫폼은 no-op 이다.
+
+계획 파일이 없는 일반 구현은 본 skill 비대상이며 `/impl` 이 Lite/Standard 를 판정한다. Lite 기본 경로는 메인 직접 구현이라 impl plan `### 수정 허용` 대조 대상이 아니다.
+
 ### 부모 이슈 본문 read 의무 (MUST)
 
 Pre-flight gate 통과 후, 매치된 **epic / story 이슈** 번호 *각 본문 read 의무*. **task 는 GitHub 이슈가 없다** ([`issue-lifecycle.md` 이슈 계층](../../docs/plugin/issue-lifecycle.md#이슈-계층) — PR 1개 = task 1개, PR 자체가 추적 단위) → `<task-num>` read 하지 않는다. task 컨텍스트는 impl 파일 frontmatter + 본문이 진본.
@@ -267,7 +276,7 @@ fi
 
 승격 시퀀스 = **test-engineer → engineer (IMPL) → code-validator → pr-reviewer**. 4 단계 *모두 호출* 의무 (MUST — false-clean 차단, #431).
 
-🔴 **begin-run 에 `--design-doc` 필수**: 엔진 A 는 설계(impl 문서)가 별도 run 에서 머지된 *뒤* 진입하므로 같은 run 안에 module-architect prose 가 없다 — `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 머지된 설계 문서를 run 에 기록해야 engineer 게이트(순서 차단 훅)가 IMPL 진입을 허용한다 ([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). story/epic 마감 task 이고 acceptance 기본 ON 이면 같은 begin-run 에 `--acceptance-required` 도 붙인다. 이 marker 는 Stop hook 이 pr-reviewer 직후 run 을 자동 종료하지 않고 product-acceptance 진입 turn 을 재발화하게 하는 신호다. chain 에서 다음 task 도 풀 4-agent 면 `next-task --design-doc <다음 task 의 impl 문서 경로>` 로 동일 기록하고, 다음 task 가 마감 acceptance 대상이면 `--acceptance-required` 도 함께 기록한다. advanced fallback 으로 module-architect 를 선두 추가한 run 은 같은-run PASS prose 가 생기므로 생략 가능하나, task 의 impl 문서가 이미 있으면 기록을 권장한다.
+🔴 **begin-run 에 `--design-doc` 필수**: 엔진 A 는 설계(impl 문서)가 별도 run 에서 머지된 *뒤* 진입하므로 같은 run 안에 module-architect prose 가 없다 — `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 머지된 설계 문서를 run 에 기록해야 engineer 게이트(순서 차단 훅)가 IMPL 진입을 허용한다 ([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). 같은 기록은 impl entry pre-flight 의 boundary 대조 입력이기도 하다. story/epic 마감 task 이고 acceptance 기본 ON 이면 같은 begin-run 에 `--acceptance-required` 도 붙인다. 이 marker 는 Stop hook 이 pr-reviewer 직후 run 을 자동 종료하지 않고 product-acceptance 진입 turn 을 재발화하게 하는 신호다. chain 에서 다음 task 도 풀 4-agent 면 `next-task --design-doc <다음 task 의 impl 문서 경로>` 로 동일 기록하고, 다음 task 가 마감 acceptance 대상이면 `--acceptance-required` 도 함께 기록한다. advanced fallback 으로 module-architect 를 선두 추가한 run 은 같은-run PASS prose 가 생기므로 생략 가능하나, task 의 impl 문서가 이미 있으면 기록을 권장한다.
 
 ✅ 정상 흐름:
 1. **test-engineer** (TESTS_WRITTEN) → 테스트 선작성
@@ -288,7 +297,7 @@ fi
 시퀀스 = **build-worker (2-step: test+impl+self-validate 통합) → pr-reviewer**. deep task 보강 필요 시 module-architect 선두 (3-step).
 
 1. **begin-run + (reset) + build-worker step** — `begin-run impl --design-doc <task 의 impl 문서 경로>` (마감 acceptance 대상이면 `--acceptance-required` 추가) → **(chain 의 첫 task 또는 single 모드면 `dcness-helper prev-tasks-reset` — `begin-step` *전*, prev-tasks 초기화)** → `begin-step build-worker` → `dcness-helper run-dir` 로 `<run_dir>` 확인 → `Agent(build-worker, prompt=<impl 경로 + task slug + RUN_ID + run_dir + (begin-step stdout 의 [PREVIOUS_TASKS] 섹션 있으면 그대로 포함, #525)>)` → 반환 prose 결론 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). 이후 `end-step build-worker`. worker 안 phase 별 prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 는 worker 자체 Write — [`loop-procedure.md` build-worker phase prose](../../docs/plugin/loop-procedure.md#build-worker-phase-prose-impl-loop-hybrid-a-한정). `<run_dir>` 는 harness-state run_dir 그대로이며 `phases/<RUN_ID>/` 별도 경로가 아니다.
-   `--design-doc` 은 build-worker 자체를 위한 값이 아니라, worker self-validate 실패나 마감 acceptance FAIL 뒤 `engineer:IMPL` 로 재진입할 때 engineer gate 의 설계 산출물 사전 조건을 만족시키는 기록이다. deep task 구현은 항상 impl 문서가 입력이므로 엔진 B 에서도 기록한다.
+   `--design-doc` 은 build-worker 자체를 위한 값이 아니라, worker self-validate 실패나 마감 acceptance FAIL 뒤 `engineer:IMPL` 로 재진입할 때 engineer gate 의 설계 산출물 사전 조건을 만족시키고, impl entry pre-flight 가 `### 수정 허용` boundary 를 대조할 수 있게 하는 기록이다. deep task 구현은 항상 impl 문서가 입력이므로 엔진 B 에서도 기록한다.
 2. **git/PR 생성 (메인)** — worker prose 의 commit message + PR 본문 초안을 임시 파일로 박고 `scripts/pr-create.sh` 통합 호출:
    ```bash
    cat > /tmp/pr-body-<slug>.md <<'PR'

@@ -584,6 +584,122 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         )
         self.assertIsNone(message)
 
+    def _write_impl_plan(self, scope: str, *, root: Optional[Path] = None) -> Path:
+        project_root = root or self.base
+        doc = (
+            project_root / "docs" / "epics" / "epic-01-x" / "impl" / "03-foo.md"
+        )
+        doc.parent.mkdir(parents=True, exist_ok=True)
+        doc.write_text(
+            "## Scope\n\n"
+            "### 수정 허용\n\n"
+            f"{scope}\n",
+            encoding="utf-8",
+        )
+        return doc
+
+    def _record_design_doc_for_gate(self, doc: Path) -> None:
+        self._set_slot(design_doc=str(doc.resolve()))
+
+    def test_begin_step_blocks_design_doc_scope_outside_engineer_boundary(self) -> None:
+        doc = self._write_impl_plan("- gradle/libs.versions.toml")
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: impl pre-flight boundary]", message or "")
+        self.assertIn("gradle/libs.versions.toml", message or "")
+        self.assertIn(".dcness/boundary.json", message or "")
+
+    def test_begin_step_allows_design_doc_scope_with_boundary_override(self) -> None:
+        doc = self._write_impl_plan("- gradle/libs.versions.toml")
+        boundary = self.base / ".dcness" / "boundary.json"
+        boundary.parent.mkdir(parents=True, exist_ok=True)
+        boundary.write_text(
+            json.dumps(
+                {"engineer": {"add": [r"^gradle/libs\.versions\.toml$"]}},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNone(message)
+
+    def test_begin_step_design_doc_root_uses_nearest_docs_segment(self) -> None:
+        project = self.base / "parent" / "docs" / "workspace" / "project"
+        doc = self._write_impl_plan("- gradle/libs.versions.toml", root=project)
+        boundary = project / ".dcness" / "boundary.json"
+        boundary.parent.mkdir(parents=True, exist_ok=True)
+        boundary.write_text(
+            json.dumps(
+                {"engineer": {"add": [r"^gradle/libs\.versions\.toml$"]}},
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNone(message)
+
+    def test_begin_step_blocks_non_override_boundary_reason(self) -> None:
+        doc = self._write_impl_plan("- docs/notes.md")
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: impl pre-flight boundary]", message or "")
+        self.assertIn("docs/notes.md", message or "")
+        self.assertIn("계획 scope", message or "")
+
+    def test_begin_step_blocks_detected_project_missing_generated_tdd_hooks(self) -> None:
+        doc = self._write_impl_plan("- src/app.py")
+        (self.base / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: impl pre-flight TDD]", message or "")
+        self.assertIn("platform=python", message or "")
+        self.assertIn("dcness-tdd-hooks ensure", message or "")
+
     def test_begin_step_blocks_after_live_boundary_block_marker(self) -> None:
         mark_run_blocked(
             self.sid,
