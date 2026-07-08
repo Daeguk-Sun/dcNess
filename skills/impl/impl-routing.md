@@ -57,7 +57,9 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 
 ## 구현 경로 × 엔진 실행 매핑
 
-구현 경로(설계도 유무)와 엔진(풀4/경량)은 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다(#714). sub-agent 엔진 미지정 시 기본은 build-worker 이고, 풀 4-agent 승격은 `risk: high` 또는 `engine: 4agent` frontmatter, 고위험 trigger 자동 승격, 사용자 엄정 발화 override 때만 수행한다. 구현 경로별 engineer 게이트 사전 조건 충족 메커니즘만 다르다: Standard 는 `--design-doc`, Lite 는 `--lane lite`(설계도 면제).
+구현 경로(설계도 유무)와 엔진(풀4/경량)은 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다(#714). sub-agent 엔진 미지정 시 기본은 build-worker 이고, 풀 4-agent 승격은 `risk: high` 또는 `engine: 4agent` frontmatter, 구현 시점 위험 trigger 자동 승격, 사용자 엄정 발화 override 때만 수행한다. 구현 경로별 engineer 게이트 사전 조건 충족 메커니즘만 다르다: Standard 는 `--design-doc`, Lite 는 `--lane lite`(설계도 면제).
+
+엔진 판정의 고위험 trigger 는 **구현 시점 위험** 기준이다. [`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표는 impl 진입 전 설계 선행 판정 전용이고, 설계도(impl task 또는 compact plan)가 들어온 뒤의 엔진 판정 기준이 아니다. 구현 시점 위험 = migration/destructive change, auth/security/PII/compliance(규제·보안 의미 한정), public API breakage, 외부 HTTP·네트워크 어댑터, URL·파일·사용자 입력 등 신뢰 경계 밖 입력 파싱, 신규 3rd-party dependency·외부 서비스 도입. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이면 `engine: 4agent`.
 
 | 경로 | 다음 |
 |---|---|
@@ -71,7 +73,7 @@ Standard 의 설계도는 (a) 이미 머지된 설계 문서이거나 (b) `compa
 
 Standard 경량 build-worker 경로도 build-worker self-validate 뒤 `pr-reviewer` 를 거친다. 경량은 구현 step 수를 줄이는 선택이지 review gate 를 생략하는 선택이 아니다.
 
-풀 4-agent 승격 사유는 판정 echo 에 남긴다: frontmatter `risk: high`, frontmatter `engine: 4agent`, 고위험 trigger, 사용자 엄정 발화. build-worker 디폴트 근거도 echo 에 남긴다: engine 미지정 + 고위험 trigger 없음.
+풀 4-agent 승격 사유는 판정 echo 에 남긴다: frontmatter `risk: high`, frontmatter `engine: 4agent`, 구현 시점 위험 trigger, 사용자 엄정 발화. build-worker 디폴트 근거도 echo 에 남긴다: engine 미지정 + 고위험 trigger 없음.
 
 Lite 에 sub-agent 엔진을 붙일 때는 설계도가 없으므로 `begin-run impl --lane lite` 로 구현 경로를 기록해 engineer 게이트의 설계 산출물 사전 조건을 면제한다(#714). 면제는 *명시적으로 기록된* `lane=lite` 한정이며 engineer 게이트 *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 불변(풀4 경로). 구현 경로 값은 `entry_point=impl` 에서만 기록되므로 design/architect-loop 의 module-architect PASS 강제는 영향받지 않는다.
 

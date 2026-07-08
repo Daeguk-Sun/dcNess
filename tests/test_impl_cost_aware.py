@@ -22,6 +22,24 @@ def read_impl_routing() -> str:
     return (ROOT / "skills" / "impl-loop" / "impl-loop-routing.md").read_text(encoding="utf-8")
 
 
+def read_impl_skill_default() -> str:
+    return (ROOT / "skills" / "impl" / "SKILL.md").read_text(encoding="utf-8")
+
+
+def read_impl_routing_default() -> str:
+    return (ROOT / "skills" / "impl" / "impl-routing.md").read_text(encoding="utf-8")
+
+
+def read_module_architect() -> str:
+    return (
+        ROOT / "docs" / "plugin" / "agents" / "module-architect" / "module-architect-agent.md"
+    ).read_text(encoding="utf-8")
+
+
+def read_workflow_router() -> str:
+    return (ROOT / "docs" / "plugin" / "workflow-router.md").read_text(encoding="utf-8")
+
+
 class TestPreReadCostAware(unittest.TestCase):
     """#436 — 사전 read 의무가 cost-aware 룰 명시."""
 
@@ -139,6 +157,42 @@ class TestImplLoopRiskPreview(unittest.TestCase):
             self.assertIn("사용자 엄정", body)
             self.assertIn("풀 4-agent", body)
             self.assertIn("reason", body)
+
+    def test_engine_risk_uses_implementation_time_criteria_not_design_router_table(self):
+        module_architect = read_module_architect()
+        impl_loop = read_impl_skill()
+        impl_loop_routing = read_impl_routing()
+        impl = read_impl_skill_default()
+        impl_routing = read_impl_routing_default()
+        router = read_workflow_router()
+
+        for body in (module_architect, impl_loop, impl_loop_routing, impl, impl_routing):
+            with self.subTest(body=body[:60]):
+                self.assertIn("구현 시점 위험", body)
+                self.assertIn("workflow-router", body)
+                self.assertIn("설계 선행 판정 전용", body)
+                self.assertIn("엔진 판정", body)
+                self.assertIn("cross-module / cross-story interface", body)
+                self.assertIn("단독 승격 사유가 아니다", body)
+                self.assertIn("플랫폼 SDK 표준 사용", body)
+                self.assertIn("런타임 권한 요청", body)
+                self.assertIn("decision 으로 이미 합의", body)
+
+        self.assertIn("high-risk trigger 표는 설계 선행 판정 전용", router)
+        self.assertIn("impl-task 엔진 판정", router)
+        self.assertIn("module-architect", router)
+
+    def test_engine_risk_examples_match_issue_acceptance(self):
+        module_architect = read_module_architect()
+        impl_loop = read_impl_skill()
+
+        for body in (module_architect, impl_loop):
+            with self.subTest(body=body[:60]):
+                self.assertIn("수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청", body)
+                self.assertIn("engine: 2agent", body)
+                self.assertIn("destructive schema 변경", body)
+                self.assertIn("신뢰 경계 밖 입력 파싱", body)
+                self.assertIn("engine: 4agent", body)
 
 
 if __name__ == "__main__":

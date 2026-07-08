@@ -29,7 +29,9 @@ description: 구현 요청을 받아 가장 작은 안전 workflow 로 PR 까지
 | 경량 build-worker | build-worker 1 step (테스트·구현·자체검증) → `pr-reviewer` | sub-agent 엔진 미지정 시 디폴트 |
 | 풀 4-agent | `test-engineer → engineer:IMPL → code-validator → pr-reviewer` | 승격 전용 |
 
-엔진 선택은 **사용자 우선, 미지정 시 build-worker 기본**이고 구현 경로와 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다. 풀 4-agent 는 승격 전용이며 다음 세 경우에만 들어간다: `risk: high` 또는 `engine: 4agent` frontmatter, 고위험 trigger 자동 승격, 사용자 엄정 발화 override(`엄정|꼼꼼|제대로|풀|rigor`). 경량 발화(`빠르게|경량|worker|가볍게`)는 build-worker 선호지만 고위험 trigger 가 우선한다. 메인은 판정 echo 에 엔진과 디폴트 근거 또는 승격 근거 1줄을 남긴다. 구현 경로별로 engineer 게이트 사전 조건 충족 메커니즘이 다르다:
+엔진 선택은 **사용자 우선, 미지정 시 build-worker 기본**이고 구현 경로와 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다. 풀 4-agent 는 승격 전용이며 다음 세 경우에만 들어간다: `risk: high` 또는 `engine: 4agent` frontmatter, 구현 시점 위험 trigger 자동 승격, 사용자 엄정 발화 override(`엄정|꼼꼼|제대로|풀|rigor`). 경량 발화(`빠르게|경량|worker|가볍게`)는 build-worker 선호지만 고위험 trigger 는 build-worker 선호보다 우선한다. 메인은 판정 echo 에 엔진과 디폴트 근거 또는 승격 근거 1줄을 남긴다. 구현 경로별로 engineer 게이트 사전 조건 충족 메커니즘이 다르다:
+
+엔진 판정의 고위험 trigger 는 **구현 시점 위험** 기준이다. [`workflow-router`](../../docs/plugin/workflow-router.md) high-risk trigger 표는 impl 진입 전 설계 선행 판정 전용이고, 설계도(impl task 또는 compact plan)가 들어온 Standard 엔진 판정 기준이 아니다. 구현 시점 위험 = migration/destructive change, auth/security/PII/compliance(규제·보안 의미 한정), public API breakage, 외부 HTTP·네트워크 어댑터, URL·파일·사용자 입력 등 신뢰 경계 밖 입력 파싱, 신규 3rd-party dependency·외부 서비스 도입. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이면 `engine: 4agent`.
 
 - **Standard + sub-agent 엔진**: 설계도(`begin-run impl --design-doc <경로>`)가 engineer 게이트 사전 조건이다.
 - **Lite + sub-agent 엔진**: Lite 는 정의상 설계도가 없으므로 `begin-run impl --lane lite` 로 구현 경로를 기록해 engineer 게이트의 설계 산출물 사전 조건을 면제한다(#714). 면제 경계는 *명시적으로 기록된* `lane=lite` 한정이며, 뒤따르는 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 그대로 강제된다([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)).
@@ -60,7 +62,7 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
   - **advance**: `TESTS_WRITTEN` → `IMPL_DONE` → `PASS` → `PASS`
   - **expected_steps**: 4
   - **분기 규칙**: [`impl-routing.md`](impl-routing.md)
-- **풀 4-agent 승격 사유**: `risk: high` 또는 `engine: 4agent` frontmatter, 고위험 trigger 자동 승격, 사용자 엄정 발화 override. 세 경로 모두 판정 echo 에 사유를 남긴다.
+- **풀 4-agent 승격 사유**: `risk: high` 또는 `engine: 4agent` frontmatter, 구현 시점 위험 trigger 자동 승격, 사용자 엄정 발화 override. 세 경로 모두 판정 echo 에 사유를 남긴다.
 - **경량 build-worker 엔진도 `build-worker → pr-reviewer`** 순서이며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다.
 - **high-risk → impl 밖**: high-risk trigger 가 있으면 impl 이 직접 처리하지 않는다. impl 진입 *전* 분기 규칙([`workflow-router`](../../docs/plugin/workflow-router.md))이 설계 선행(`/spec`·`/design`)으로 보내고, deep impl task 파일이 이미 있으면 `/impl-loop <task>` 로 위임한다.
 
@@ -234,7 +236,7 @@ Standard 는 **설계 문서(경로)가 들어온** 구현 경로다. impl 은 �
 
 **경량 build-worker 엔진 (디폴트) 실행:** 동일하게 `--design-doc` 으로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행한다. 그 다음 `pr-reviewer` 가 local diff 를 읽기 전용으로 리뷰하며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다. worker 가 commit message·PR body 초안을 남겨도 실제 commit/PR/merge 는 메인이 pr-reviewer PASS 뒤 수행한다.
 
-**풀 4-agent 엔진 (승격 전용) 실행:** `risk: high` 또는 `engine: 4agent` frontmatter, 고위험 trigger 자동 승격, 사용자 엄정 발화 override 일 때만 사용한다. 메인은 판정 echo 에 승격 사유를 남긴다.
+**풀 4-agent 엔진 (승격 전용) 실행:** `risk: high` 또는 `engine: 4agent` frontmatter, 구현 시점 위험 trigger 자동 승격, 사용자 엄정 발화 override 일 때만 사용한다. 메인은 판정 echo 에 승격 사유를 남긴다.
 
 1. `test-engineer`
    - 설계도의 테스트 기준을 실패 테스트로 만든다.
