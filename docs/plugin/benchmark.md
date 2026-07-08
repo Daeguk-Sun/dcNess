@@ -175,7 +175,7 @@ python3 "$DCN"/harness/benchmark_aggregate.py --recurrence-threshold 2
 ### multi-run 측정 recipe
 
 1. 같은 프로젝트에서 `/impl` 또는 `/impl-loop` 로 여러 task 를 처리한다. PR 생성은
-   `scripts/pr-create.sh`, 머지는 `scripts/pr-finalize.sh` 경로를 타야 `pr_created` /
+   `$PLUGIN_ROOT/scripts/pr-create.sh`, 머지는 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 경로를 타야 `pr_created` /
    `pr_merged` ledger event 가 자동으로 남는다.
 2. 각 run 을 정상 종료한 뒤 프로젝트별 fleet JSON 을 저장한다.
 

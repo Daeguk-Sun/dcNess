@@ -274,7 +274,7 @@ fi
 2. **engineer:IMPL** (IMPL_DONE) → 구현 + 테스트 PASS
 3. **code-validator** (PASS) — impl 계획 ↔ 구현 정합 검증
 4. **pr-reviewer** (LGTM, read-only) — 코드 품질·보안 검토만. `tools: Read, Glob, Grep` — *commit/push/PR 생성·머지 권한 없음*. **엔진 A 는 PR 생성 *전* 단계라 pr-reviewer 입력 = impl 경로 + 구현 변경 파일 목록(로컬 diff)** — PR 객체 아님 (build-worker 엔진과 달리 PR 미생성 상태. [`pr-reviewer.md`](../../agents/pr-reviewer.md) 입력 규약 참조)
-5. **메인 Claude (git/PR)** — pr-reviewer PASS 후, **engineer/code-validator prose (변경 요약·의도) + [`git-spec.md`](../../docs/plugin/git-spec.md#pr-본문) 템플릿 기반으로 메인이 commit message·PR 본문 작성** (엔진 A 는 build-worker 미사용 → "worker prose" 아님. PR 트레일러 `Closes/Part of` 는 impl frontmatter `task_index`/`story` + [git-spec PR 트레일러](../../docs/plugin/git-spec.md#pr-트레일러-part-of-closes) 적용) → `scripts/pr-create.sh` 호출 → **story/epic 마감 task 면 [마감 acceptance](#마감-acceptance) PASS 후에만** `scripts/pr-finalize.sh` 머지
+5. **메인 Claude (git/PR)** — pr-reviewer PASS 후, **engineer/code-validator prose (변경 요약·의도) + [`git-spec.md`](../../docs/plugin/git-spec.md#pr-본문) 템플릿 기반으로 메인이 commit message·PR 본문 작성** (엔진 A 는 build-worker 미사용 → "worker prose" 아님. PR 트레일러 `Closes/Part of` 는 impl frontmatter `task_index`/`story` + [git-spec PR 트레일러](../../docs/plugin/git-spec.md#pr-트레일러-part-of-closes) 적용) → `$PLUGIN_ROOT/scripts/pr-create.sh` 호출 → **story/epic 마감 task 면 [마감 acceptance](#마감-acceptance) PASS 후에만** `$PLUGIN_ROOT/scripts/pr-finalize.sh` 머지
 
 ❌ 안티패턴 (#431 실측 회귀): test-engineer + engineer 만 호출하고 commit/push/PR 안 만들고 prose "PASS" 박고 종료. 1 자식 = 1 PR + 1 이슈 close 보장 깨짐.
 
@@ -297,13 +297,13 @@ fi
    cat > /tmp/commit-msg-<slug>.md <<'COMMIT'
    <worker prose 의 commit message 그대로>
    COMMIT
-   bash scripts/pr-create.sh \
+   bash "$PLUGIN_ROOT/scripts/pr-create.sh" \
      --branch <§브랜치명 결정 산출: feature/epic{N}_story{M}_{desc} 또는 fix/issue{N}_{desc}> --base <base> \
      --title "<...>" --body-file /tmp/pr-body-<slug>.md \
      --commit-msg-file /tmp/commit-msg-<slug>.md
    ```
    분리 명령 (`git checkout -b` / `add` / `commit` / `push` / `gh pr create` 각각) 은 *비권장* — 메인 turn 누적 영역.
-3. **pr-reviewer step + 머지** — `begin-step pr-reviewer` → `Agent(pr-reviewer, ...)` → `PASS` 시 `end-step pr-reviewer` 로 step 을 닫고, **story/epic 마감 task 면 그 다음 [마감 acceptance](#마감-acceptance) PASS 를 받은 후에만** `bash scripts/pr-finalize.sh <PR>` (gh pr merge --auto + watch + main sync 자동). `FAIL` 시 engineer POLISH 단발 진입 → **POLISH_DONE 후 메인이 POLISH 변경을 PR 브랜치에 `git add`/`commit`/`push` 1회** (PR 은 step 2 에서 이미 생성됨 — 변경이 worktree 에만 남으면 stale PR 머지/ dirty finalize 위험) → pr-reviewer 재리뷰 (cycle ≤ 2) 후 `end-step pr-reviewer`.
+3. **pr-reviewer step + 머지** — `begin-step pr-reviewer` → `Agent(pr-reviewer, ...)` → `PASS` 시 `end-step pr-reviewer` 로 step 을 닫고, **story/epic 마감 task 면 그 다음 [마감 acceptance](#마감-acceptance) PASS 를 받은 후에만** `bash "$PLUGIN_ROOT/scripts/pr-finalize.sh" <PR>` (gh pr merge --auto + watch + default worktree sync 자동). `FAIL` 시 engineer POLISH 단발 진입 → **POLISH_DONE 후 메인이 POLISH 변경을 PR 브랜치에 `git add`/`commit`/`push` 1회** (PR 은 step 2 에서 이미 생성됨 — 변경이 worktree 에만 남으면 stale PR 머지/ dirty finalize 위험) → pr-reviewer 재리뷰 (cycle ≤ 2) 후 `end-step pr-reviewer`.
 
 > **advanced fallback — deep task 보강 필요 시 module-architect 선두** — build-worker 직전에 `begin-step module-architect` → `Agent(module-architect, prompt=<task 컨텍스트 + impl 파일 생성 위치>)` → `PASS` 시 impl 파일 생성 확인 후 `end-step module-architect` → 정상 build-worker 진입. 이것은 Lite direct 구현이 아니라 deep task 보강 경로다. `ESCALATE` 시 사용자 위임.
 >
@@ -438,7 +438,7 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" wave-plan --register <impl-gl
 1. `/impl-loop <canonical-impl-path>` single 진입.
 2. 진입 초기 `wave-claim` 으로 task claim. conflict/completed/stale 이면 시작하지 않음.
 3. 기존 single flow 로 build/test/review/PR 생성.
-4. `scripts/pr-finalize.sh` 호출. 스크립트가 repo-level merge lock 을 잡고, 같은 story 의 모든 prior sibling `task_index` 완료 evidence 를 확인한 뒤 merge 한다. story/epic 마감 task 면 pr-finalize *전* 에 sibling 완료 확인(`wave-status`) + 마감 acceptance 를 먼저 수행한다 ([마감 acceptance](#마감-acceptance) 시점).
+4. `$PLUGIN_ROOT/scripts/pr-finalize.sh` 호출. 스크립트가 repo-level merge lock 을 잡고, 같은 story 의 모든 prior sibling `task_index` 완료 evidence 를 확인한 뒤 merge 한다. story/epic 마감 task 면 pr-finalize *전* 에 sibling 완료 확인(`wave-status`) + 마감 acceptance 를 먼저 수행한다 ([마감 acceptance](#마감-acceptance) 시점).
 5. merge 성공 시 claim board 에 completed 기록이 남는다.
 
 merge lock 이 보존하는 것:
