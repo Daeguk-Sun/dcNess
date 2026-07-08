@@ -245,6 +245,10 @@ class DesignSurfaceContractTests(unittest.TestCase):
             with self.subTest(text=text[:60]):
                 self.assertIn("사용자 최종 설계 승인", text)
 
+        self.assertIn(
+            "| 승인-gated 산출물 최종 승인 (`/design`, `/ux`) | 사용자 승인 | 동일 (yolo 우회 X) |",
+            loop_procedure,
+        )
         self.assertNotIn("최종 검증 결과 commit", design)
         self.assertNotIn("사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프)", loop_procedure)
 
@@ -334,14 +338,29 @@ class DesignSurfaceContractTests(unittest.TestCase):
         routing = (
             ROOT / "skills" / "design" / "design-routing.md"
         ).read_text(encoding="utf-8")
+        design_ux = (ROOT / "skills" / "design-ux" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
         design_system = (ROOT / "skills" / "design-system" / "SKILL.md").read_text(
             encoding="utf-8"
         )
+        module_architect = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "module-architect"
+            / "module-architect-agent.md"
+        ).read_text(encoding="utf-8")
 
         for needle in (
             "완료된 pack 개정",
             "`/design <epic> --revise`",
             "대화 맥락의 명시 개정 신호",
+            "UX 층 개정",
+            "`design-ux` revision mode",
+            "`design-system` revision mode",
+            "화면 통합",
             "surgical revision",
             "영향 산출물만 개정",
             "미변경 impl task 보존",
@@ -360,6 +379,8 @@ class DesignSurfaceContractTests(unittest.TestCase):
         for needle in (
             "revision mode",
             "full design pack 이 완료됐더라도",
+            "UX 산출물 자체 개정은 `design-ux` revision mode 의 책임",
+            "직전 `design-ux` revision",
             "수술적 개정",
             "미변경 impl task 를 재생성하지 않는다",
             "final epic 검증",
@@ -367,7 +388,28 @@ class DesignSurfaceContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, design_system)
 
+        for needle in (
+            "UX 층 revision mode",
+            "UX 산출물만 수술적으로 개정",
+            "stage 1 revision PR",
+            "`design-system` revision mode",
+            "system/module 산출물은 직접 수정하지 않는다",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design_ux)
+
+        for needle in (
+            "`/design` revision mode",
+            "영향 산출물만 수술적으로 개정",
+            "미변경 impl task 를 보존",
+            "UX revision 전파",
+            "파생 drift 체크 결과",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, module_architect)
+
         self.assertIn("완료된 pack 개정", routing)
+        self.assertIn("완료된 pack + UX 층 개정 REVISION", routing)
         self.assertIn("REVISION", routing)
 
     def test_design_mockup_prefreeze_branch_contracts(self) -> None:
