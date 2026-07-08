@@ -153,6 +153,12 @@ class PrFinalizePostMergeWorktreeTests(unittest.TestCase):
         subprocess.run(["git", "init", "--bare", str(origin)], check=True, capture_output=True)
         subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=root, check=True)
         subprocess.run(["git", "push", "-u", "origin", "main"], cwd=root, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+            cwd=origin,
+            check=True,
+            capture_output=True,
+        )
 
         subprocess.run(
             ["git", "worktree", "add", "-q", "-b", "feature/a", str(feature), "main"],
@@ -185,6 +191,12 @@ class PrFinalizePostMergeWorktreeTests(unittest.TestCase):
         subprocess.run(["git", "init", "--bare", str(origin)], check=True, capture_output=True)
         subprocess.run(["git", "remote", "add", "origin", str(origin)], cwd=root, check=True)
         subprocess.run(["git", "push", "-u", "origin", "main"], cwd=root, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "symbolic-ref", "HEAD", "refs/heads/main"],
+            cwd=origin,
+            check=True,
+            capture_output=True,
+        )
         subprocess.run(["git", "switch", "-c", "feature/a"], cwd=root, check=True, capture_output=True)
 
         subprocess.run(["git", "clone", "-q", str(origin), str(updater)], check=True)
