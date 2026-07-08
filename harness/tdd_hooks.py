@@ -1025,6 +1025,32 @@ def _is_git_work_tree(project_root: Path) -> bool:
     return proc.returncode == 0 and proc.stdout.strip() == "true"
 
 
+def _git_path(project_root: Path, value: str) -> Path:
+    path = Path(value)
+    if not path.is_absolute():
+        path = project_root / path
+    return path.resolve(strict=False)
+
+
+def _is_linked_git_worktree(project_root: Path) -> bool:
+    try:
+        git_dir = _run_git(project_root, ["rev-parse", "--git-dir"])
+        common_dir = _run_git(project_root, ["rev-parse", "--git-common-dir"])
+    except (OSError, subprocess.SubprocessError):
+        return False
+    if git_dir.returncode != 0 or common_dir.returncode != 0:
+        return False
+    git_path = _git_path(project_root, git_dir.stdout.strip())
+    common_path = _git_path(project_root, common_dir.stdout.strip())
+    if git_path == common_path:
+        return False
+    try:
+        rel = git_path.relative_to(common_path)
+    except ValueError:
+        return False
+    return len(rel.parts) >= 2 and rel.parts[0] == "worktrees"
+
+
 def _is_committed_clean(project_root: Path, rel: Path) -> bool:
     rel_text = rel.as_posix()
     try:
@@ -1038,17 +1064,22 @@ def _is_committed_clean(project_root: Path, rel: Path) -> bool:
 def generated_files_git_state(project_root: Path) -> dict[str, Any]:
     root = project_root.resolve()
     existing = _existing_generated_file_rels(root)
+    linked_worktree = _is_linked_git_worktree(root) if _is_git_work_tree(root) else False
     if not existing:
         return {
             "generated_files": [],
             "generated_files_committed": True,
             "uncommitted_generated_files": [],
+            "linked_worktree": linked_worktree,
+            "generated_files_commit_required": False,
         }
     if not _is_git_work_tree(root):
         return {
             "generated_files": existing,
             "generated_files_committed": False,
             "uncommitted_generated_files": existing,
+            "linked_worktree": False,
+            "generated_files_commit_required": False,
         }
     uncommitted = [
         rel for rel in existing if not _is_committed_clean(root, Path(rel))
@@ -1057,6 +1088,8 @@ def generated_files_git_state(project_root: Path) -> dict[str, Any]:
         "generated_files": existing,
         "generated_files_committed": not uncommitted,
         "uncommitted_generated_files": uncommitted,
+        "linked_worktree": linked_worktree,
+        "generated_files_commit_required": bool(uncommitted) and linked_worktree,
     }
 
 
@@ -1144,10 +1177,17 @@ def ensure_generated_hooks(
     uncommitted = git_state["uncommitted_generated_files"]
     if uncommitted:
         joined = ", ".join(uncommitted)
-        messages.append(
-            "commit-required: generated TDD hook files must be committed for "
-            f"worktree/headless reuse: {joined}"
-        )
+        if git_state.get("generated_files_commit_required"):
+            messages.append(
+                "commit-required: generated TDD hook files must be committed for "
+                f"linked worktree/headless reuse: {joined}"
+            )
+        else:
+            messages.append(
+                "commit-advisory: in-place execution can use generated TDD hook "
+                "files from disk; commit before linked worktree/headless reuse: "
+                f"{joined}"
+            )
     return messages
 
 
@@ -1258,12 +1298,17 @@ def _cmd_status(args: argparse.Namespace) -> int:
         f"platform={platform}, "
         f"cc={report['cc_registered']}, "
         f"codex={report['codex_registered']}, "
-        f"generated_files_committed={report['generated_files_committed']}"
+        f"generated_files_committed={report['generated_files_committed']}, "
+        f"linked_worktree={report['linked_worktree']}, "
+        f"generated_files_commit_required={report['generated_files_commit_required']}"
     )
     uncommitted = report.get("uncommitted_generated_files")
     if isinstance(uncommitted, list) and uncommitted:
         joined = ", ".join(str(item) for item in uncommitted)
-        print(f"commit-required: {joined}")
+        if report.get("generated_files_commit_required"):
+            print(f"commit-required: {joined}")
+        else:
+            print(f"commit-advisory: {joined}")
     return 0
 
 

@@ -111,7 +111,7 @@ UI 작업 감지 시 engine 무관하게 구현 시퀀스 선두에 내부 [`can
 deep task 구현 run 은 `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 시작한다. 이 기록을 기준으로 `begin-step engineer/build-worker` 가 `/impl` 과 같은 entry pre-flight 를 provider-independent 로 강제한다.
 
 - **Boundary pre-flight**: impl 문서의 `### 수정 허용` 경로를 `ALLOW_MATRIX ∪ .dcness/boundary.json`(engineer.add) 과 대조한다. 미커버 경로가 있으면 구현 step 시작을 STOP 하고, 사람 승인 후 `.dcness/boundary.json` override 를 기록해야 한다. 사전 확인은 `dcness-helper boundary-suggestions --impl-plan <task>` 로도 볼 수 있다.
-- **Generated TDD hook pre-flight**: 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated hook 이 없거나 생성 파일이 커밋되지 않았으면 구현 step 시작을 STOP 한다. 사람 승인 후 `scripts/dcness-tdd-hooks ensure --targets cc,codex` 를 실행하고 생성 파일을 bootstrap commit 에 포함한다. 빈 프로젝트·미지원 플랫폼은 no-op 이다.
+- **Generated TDD hook pre-flight**: 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated hook 이 없거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않았으면 구현 step 시작을 STOP 한다. in-place 실행은 hook 파일이 디스크에 실존·등록돼 있으면 생성 파일 커밋 없이 통과한다. 사람 승인 후 `scripts/dcness-tdd-hooks ensure --targets cc,codex` 를 실행하고, linked worktree/headless 재사용이 필요하면 생성 파일을 bootstrap commit 에 포함한다. 빈 프로젝트·미지원 플랫폼은 no-op 이다.
 
 계획 파일이 없는 일반 구현은 본 skill 비대상이며 `/impl` 이 Lite/Standard 를 판정한다. Lite 기본 경로는 메인 직접 구현이라 impl plan `### 수정 허용` 대조 대상이 아니다.
 
