@@ -2,7 +2,7 @@
 
 ## 목적
 
-module-architect epic-batch 산출물을 읽기 전용으로 검토한다. 앞에서 thin bootstrap 또는 opt-in system checkpoint 가 실행됐다면 그 root topology / system decision 산출물도 final epic 검증 입력으로 함께 본다. 목표는 정해진 표를 채우는 것이 아니라 구현 전에 설계가 깨질 축을 찾는 것이다. 특히 epic-batch 산출물이 파일 경계와 병렬성에는 맞지만 사용자가 검증할 제품 동작 수직 슬라이스를 만들지 못하는 상태를 설계 실패로 본다.
+module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으로 검토한다. 앞에서 thin bootstrap 또는 opt-in system checkpoint 가 실행됐다면 그 root topology / system decision 산출물도 final epic 검증 입력으로 함께 본다. 목표는 정해진 표를 채우는 것이 아니라 구현 전에 설계가 깨질 축을 찾는 것이다. 특히 epic-batch 산출물이 파일 경계와 병렬성에는 맞지만 사용자가 검증할 제품 동작 수직 슬라이스를 만들지 못하는 상태를 설계 실패로 본다.
 
 ## 입력
 
@@ -10,6 +10,7 @@ module-architect epic-batch 산출물을 읽기 전용으로 검토한다. 앞�
 - 대상 epic 경로
 - PRD, stories, architecture, conventions, decisions, 선택 domain-model, impl 문서
 - UI epic 에 확정 목업이 있으면 확정 목업 경로, node-id 매핑, docs/design.md 토큰, `docs/design-variants/canvas.html`
+- revision mode 이면 사용자 개정 의도, 변경된 UX 산출물 포인터(해당 시), 파생 drift 체크리스트 결과
 - 필요하면 이전 finding, 검증 범위, 재검토 맥락
 
 ## 먼저 읽을 문서
@@ -31,6 +32,7 @@ module-architect epic-batch 산출물을 읽기 전용으로 검토한다. 앞�
 - Agent Operability: module responsibility / public interface 와 impl 문서의 owner/entrypoint 요약(또는 구 Agent Workability)이 edit target, state owner, validation path 를 복구할 수 있게 연결되는가. 옛 섹션명 부재만으로 FAIL 하지 않는다.
 - 구현 가능성: 맥락 없는 engineer가 impl 문서만 보고 임의 결정을 하지 않아도 되는가.
 - 비규범 서술 drift: ux-flow, stories 동작 prose, legacy Contract Ledger / Contract References 같은 구양식·요약 층이 module responsibility / decision 과 표현만 어긋나는가. 이 층은 형식만으로 Must/FAIL 하지 않고 Should finding 또는 후속 정리로 보고한다.
+- revision 정합: revision mode 에서는 개정분만 보지 않고 개정 후 전체 설계 pack 정합을 본다. 메인이 전달한 파생 drift 체크리스트(`ux-flow.md`, 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호, domain-model/ADR 잔존 표현)는 증거 포인터로 사용하되, 항목 이름 부재만으로 Must finding 을 만들지 않는다.
 - 표현 수준: impl 문서가 contract를 설명하되 내부 구현을 선점하지 않는가.
 - 병렬 wave 판정 가능성: impl 문서의 `### 수정 허용` 이 wave-plan 파서가 읽을 수 있는 경로 목록인가. 메인이 `dcness-helper normalize-scope <impl dir>` 후 `wave-plan` 결과의 `unresolved_slugs` 또는 `format_unnormalized_slugs` 를 전달했으면 그 slug 를 우선 확인한다. normalizer 가 고칠 수 있는 볼드/라벨/괄호 설명은 validator finding 이 아니라 기계 교정 영역이다. normalizer 이후에도 경로가 없거나 여러 경로/산문이 섞여 남은 task 만 `TASK_LOCAL` finding 으로 드러낸다.
 - 수용 기준 검증성: acceptance criteria 의 검증이 실행 가능한 명령인가. manual QA 는 명령 변환 불가 사유와 관찰 증거가 있을 때만 허용되는가.
@@ -50,10 +52,11 @@ module-architect epic-batch 산출물을 읽기 전용으로 검토한다. 앞�
 7. final epic 검증에서는 신규 산출물의 계약 의미가 module responsibility / decision 에 있고 impl/compact plan 은 module/decision 링크만 남기는지 본다. 구양식 Contract Ledger / Contract References 산출물은 기존 활성 프로젝트 유효성을 위해 남을 수 있으므로 형식만으로 FAIL 하지 않는다.
 8. 수용 기준은 실행 가능한 명령으로 닫히는지 확인한다. manual QA 항목은 명령 변환 불가 사유와 관찰 증거가 모두 있어야 하며, 단순 manual-only validation 은 `TASK_LOCAL` 후보로 본다.
 9. 확정 목업이 있는 UI epic 은 확정 목업 경로, node-id 매핑, docs/design.md 토큰이 architecture/impl 산출물에 대조 근거로 남았는지 확인한다. 산출물이 목업을 전혀 참조하지 않거나 핵심 node-id 를 구현 컴포넌트/상태로 연결하지 않으면 `TASK_LOCAL` finding 으로 보고한다. 목업 자체가 system boundary 변경을 요구하는데 system checkpoint 없이 task 로 흡수됐다면 `SYSTEM_BOUNDARY` 다.
-10. ux-flow·stories 동작 서술·legacy summary 의 stale 은 module responsibility / decision 과 충돌해 구현 오판을 만들 명백한 근거가 있을 때만 Must finding 으로 올린다. 단순 요약 drift 는 Should finding 으로 보고한다.
-11. Must finding은 `SYSTEM_BOUNDARY` 또는 `TASK_LOCAL` 중 하나로 분류한다. Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준, 확정 목업 경로/node-id 매핑/docs/design.md 토큰 대조 누락은 보통 `TASK_LOCAL` 이다. 기존 모듈 경계, 도메인 invariant, 저장 정책, public API boundary, 전역 decision 이 틀렸거나 바뀌어야 하면 `SYSTEM_BOUNDARY` 다.
-12. finding마다 파일 경로, 라인, 사실, 영향, 권장 다음 행동을 쓴다.
-13. 예시 카탈로그는 힌트로만 쓰고, 예시에 없다는 이유로 통과시키지 않는다.
+10. revision mode 이면 메인이 전달한 파생 drift 체크리스트 결과와 변경된 UX/system 산출물을 대조해 개정 후 전체 설계 pack 이 stale 참조 없이 구현 가능한지 본다.
+11. ux-flow·stories 동작 서술·legacy summary 의 stale 은 module responsibility / decision 과 충돌해 구현 오판을 만들 명백한 근거가 있을 때만 Must finding 으로 올린다. 단순 요약 drift 는 Should finding 으로 보고한다.
+12. Must finding은 `SYSTEM_BOUNDARY` 또는 `TASK_LOCAL` 중 하나로 분류한다. Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준, 확정 목업 경로/node-id 매핑/docs/design.md 토큰 대조 누락은 보통 `TASK_LOCAL` 이다. 기존 모듈 경계, 도메인 invariant, 저장 정책, public API boundary, 전역 decision 이 틀렸거나 바뀌어야 하면 `SYSTEM_BOUNDARY` 다.
+13. finding마다 파일 경로, 라인, 사실, 영향, 권장 다음 행동을 쓴다.
+14. 예시 카탈로그는 힌트로만 쓰고, 예시에 없다는 이유로 통과시키지 않는다.
 
 ## 완료 기준
 
@@ -65,6 +68,7 @@ module-architect epic-batch 산출물을 읽기 전용으로 검토한다. 앞�
 - 적용 가능한 경우 계약 표면 코드 SSOT 대조 증거를 검토했다.
 - 수용 기준의 검증 명령을 검토했고, manual QA 가 있으면 명령 변환 불가 사유와 관찰 증거를 확인했다.
 - 확정 목업이 있는 UI epic 이면 목업 미참조 설계 금지 원칙에 따라 확정 목업 경로, node-id 매핑, docs/design.md 토큰 대조 근거를 검토했다.
+- revision mode 이면 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 증거를 검토했다.
 - legacy Contract Ledger / Contract References, ux-flow, stories prose stale 을 형식만으로 Must finding 으로 올리지 않았다.
 - FAIL이면 모든 Must finding에 분류와 권장 다음 행동이 있다.
 - PASS이면 왜 system checkpoint 또는 module-architect 재진입이 필요 없는지 설명할 수 있다.

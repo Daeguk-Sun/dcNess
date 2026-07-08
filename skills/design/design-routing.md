@@ -16,8 +16,15 @@ agent 는 일을 마치면 prose 마지막 단락에 어떤 결과로 끝났는�
 flowchart TB
   START([Step 0.5 durable stage 판정]) -->|UI epic + ux-flow 없음| DUX[design-ux stage]
   START -->|ux-flow 있음 또는 UI-less| DSYS[design-system stage]
-  START -->|완료된 pack 개정 REVISION| DSYS_REV[design-system revision mode]
+  START -->|완료된 pack + UX 층 개정 REVISION| DUX_REV[design-ux revision mode]
+  START -->|완료된 pack + system/module 개정 REVISION| DSYS_REV[design-system revision mode]
   DUX -->|DESIGN_UX_PR_MERGED| START
+  DUX_REV --> UX_REV[ux-architect UX revision]
+  UX_REV -->|UX_FLOW_READY + 목업 변경 없음| UXPR_REV[stage 1 revision PR]
+  UX_REV -->|확정 목업 신규/변경 필요| SEED_REV[design-variants seed 보장]
+  SEED_REV --> CANVAS_REV[canvas-design / 사용자 PICK]
+  CANVAS_REV --> UXPR_REV
+  UXPR_REV -->|DESIGN_UX_PR_MERGED| DSYS_REV
   DSYS --> TOPO[Step 1 topology 판정]
   DSYS_REV --> TOPO
   TOPO -->|UI epic 또는 UI-less| BOOT{모듈 topology 부재?}
@@ -52,7 +59,7 @@ flowchart TB
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class DUX,DSYS,DSYS_REV,UX,UXPR,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,MU,DSKIP produce
+  class DUX,DUX_REV,DSYS,DSYS_REV,UX,UX_REV,UXPR,UXPR_REV,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,SEED_REV,CANVAS_REV,MU,DSKIP produce
   class AV_FINAL verify
   class U user
 ```
@@ -61,11 +68,13 @@ flowchart TB
 >
 > tech-reviewer 는 design 진입 *전* (`/tech-review` skill) 단계가 기본이다. design 중 새 외부 의존이 발견되면 사용자가 option 4 를 명시 선택한 경우에만 대상 epic 범위로 좁혀 호출한다.
 
+- **UX revision 목업 경로**: 화면 통합/분할/삭제로 확정 목업 신규/변경이 필요하면 `design-ux` revision mode 안에서도 design-variants seed 보장 → canvas-design / 사용자 PICK → stage 1 revision PR 순서를 거친다. 목업 변경이 없으면 UX revision PR 로 직행한다.
+
 ## 결론 → 다음 호출 매핑
 
 | agent | 결론 → 다음 호출 |
 |---|---|
-| **design-ux stage** | `DESIGN_UX_PR_MERGED` → `/design` dispatcher 재판정. durable `ux-flow.md` 존재 + full design pack 부재이면 design-system stage · `ESCALATE` → 사용자 |
+| **design-ux stage** | `DESIGN_UX_PR_MERGED` → `/design` dispatcher 재판정. 신규 UX stage 는 durable `ux-flow.md` 존재 + full design pack 부재이면 design-system stage, UX revision mode 는 stage 1 revision PR 뒤 design-system revision mode · `ESCALATE` → 사용자 |
 | **design-system stage** | `DESIGN_SYSTEM_PR_MERGED` → `/impl <epic-path>` 안내 · `ESCALATE` → 사용자 |
 | **ux-architect** | `UX_FLOW_READY` → 사용자 최종 설계 승인 후 stage 1 PR 생성 → `/design` dispatcher 재판정 · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
 | **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SYSTEM_CHECKPOINT_REQUIRED` → system-architect opt-in checkpoint · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
@@ -79,8 +88,8 @@ flowchart TB
 - **system-architect(thin bootstrap)** 는 greenfield 첫 설계에서 모듈 topology 가 전혀 없을 때만 module-architect 앞에 1회 들어간다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 스택/전역 decision 기록으로 제한한다. bootstrap 뒤 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다.
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.
 - **architecture-validator 시점** — final epic 검증만 기본이다. 모든 impl 산출물을 한 번에 읽고 Story 간 compose/wiring, forward-ref 회수, Story별 첫 제품 경계 동작 증거, 구현 순서(첫 제품 경계 동작 앞당김), cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `TASK_LOCAL`) 동반. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 FAIL 하지 않고 Should 로 보고한다.
-- **완료된 pack 개정 REVISION** — `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 full design pack 이 완료됐더라도 `design-system` revision mode 로 들어간다. REVISION 은 완료 판정을 깨는 오류가 아니라 완료된 pack 개정 경로다. 개정 의도가 없으면 완료 pack 은 `/impl` 안내가 기본이다.
-- **revision mode 원칙** — module-architect 는 surgical revision 으로 영향 산출물만 개정하고 미변경 impl task 를 보존한다. final validator 는 개정분만 보지 않고 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트를 검증한다.
+- **완료된 pack 개정 REVISION** — `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 full design pack 이 완료됐더라도 revision mode 로 들어간다. 화면 통합·분할·삭제, `ux-flow.md`, 확정 목업, `docs/design.md` 토큰처럼 UX 산출물 자체를 바꾸는 신호는 `design-ux` revision mode 로 먼저 들어가고, stage 1 revision PR 뒤 `design-system` revision mode 로 전파한다. 구조·모듈·ADR·impl task 개정 신호는 곧장 `design-system` revision mode 로 들어간다. REVISION 은 완료 판정을 깨는 오류가 아니라 완료된 pack 개정 경로다. 개정 의도가 없으면 완료 pack 은 `/impl` 안내가 기본이다.
+- **revision mode 원칙** — ux-architect 는 UX 층 revision 에서 영향 UX 산출물만 개정하고 system/module 산출물을 직접 수정하지 않는다. module-architect 는 system/module revision 에서 surgical revision 으로 영향 산출물만 개정하고 미변경 impl task 를 보존한다. final validator 는 개정분만 보지 않고 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트를 검증한다.
 - **stage PR 경계** — `DESIGN_UX_PR_MERGED` 는 UX 산출물이 main 에 durable 해졌다는 신호다. dispatcher 는 같은 `/design` 공개 진입점으로 재판정해 system stage 로 이어간다. `DESIGN_SYSTEM_PR_MERGED` 는 full design pack 이 durable 해졌다는 신호이므로 `/impl` 로 넘어간다.
 - **목업 선행 여부 checkpoint** — UI epic 의 `design-ux` stage 는 ux-architect 호출 전에 목업 선행 여부를 1회 묻는다. 목업 없음 / opt-out / yolo 는 기존 흐름을 유지하고, 목업=예 는 디자인 시스템 체크포인트와 canvas-design 사용자 PICK 을 먼저 닫는다. 사용자 PICK 확정 이후에만 design-system stage 로 넘어간다.
 - **목업 미참조 금지** — `design-system` stage 는 확정 목업이 있는 UI epic 에서 확정 목업 경로, node-id 매핑, `docs/design.md` 토큰을 module-architect 와 architecture-validator 입력에 넣는다. 산출물이 목업 미참조 상태면 final epic 검증 PASS 로 처리하지 않고 finding 분류에 따라 module-architect 또는 system checkpoint 로 되돌린다.

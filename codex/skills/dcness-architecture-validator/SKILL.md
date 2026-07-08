@@ -7,7 +7,7 @@ description: Use when dcNess routes architecture-validator cross-review work to 
 
 ## 언제 쓰나
 
-dcNess가 `architecture-validator`를 Codex 교차 검토로 보낼 때 사용한다. 구현 착수 전 또는 architecture PR merge 전에 module-architect epic-batch 산출물과 opt-in system checkpoint 산출물이 구현 가능한 계약으로 이어지는지 읽기 전용으로 검토한다.
+dcNess가 `architecture-validator`를 Codex 교차 검토로 보낼 때 사용한다. 구현 착수 전 또는 architecture PR merge 전에 module-architect epic-batch 또는 revision mode 산출물과 opt-in system checkpoint 산출물이 구현 가능한 계약으로 이어지는지 읽기 전용으로 검토한다.
 
 ## 목적
 
@@ -18,6 +18,7 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 - architecture 또는 epic 디렉터리 경로
 - PRD, story, ADR/decision, architecture, 선택 domain-model, implementation task 경로
 - final epic validation인지, system boundary opt-in checkpoint 이후 검증인지에 대한 호출 맥락
+- revision mode 이면 사용자 개정 의도, 변경된 UX 산출물 포인터(해당 시), 파생 drift 체크리스트 결과
 - 필요하면 이전 finding과 재검토 맥락
 
 ## 먼저 볼 기준
@@ -48,6 +49,7 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 - 첫 제품 경계 동작이 Story 마지막 task까지 밀렸는데 이유와 후속 검증이 없지 않은가.
 - impl 문서의 `### 수정 허용` 이 wave-plan 파서가 읽을 수 있는 경로 목록인가. 호출자가 `dcness-helper normalize-scope <impl dir>` 후 `wave-plan` 결과의 `unresolved_slugs` 또는 `format_unnormalized_slugs` 를 전달했으면 그 slug 를 우선 확인한다.
 - ux-flow, stories prose, legacy Contract Ledger / Contract References 같은 비규범·구양식 층이 stale 하더라도 형식만으로 Must finding 으로 올리지 않았는가. module responsibility / decision 과 충돌해 구현 오판을 만들 때만 Must 후보로 본다.
+- revision mode 에서는 개정분만 보지 않고 개정 후 전체 설계 pack 정합을 본다. 메인이 전달한 파생 drift 체크리스트(`ux-flow.md`, 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호, domain-model/ADR 잔존 표현)는 evidence pointer로 사용하되, 항목 이름 부재만으로 Must finding 을 만들지 않는다.
 
 ## 작업 흐름
 
@@ -59,12 +61,13 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 6. final epic 검증에서는 domain-model 작성/생략 근거가 impl 계약과 모순되지 않는지, 계약 표면 코드 SSOT 대조 증거가 있는지 확인한다. 포트, 도메인 타입, 공개 entrypoint 를 바꾸는 task 가 기존 코드와 충돌하거나 module/decision 근거 없이 새 계약을 전제하면 finding 으로 보고한다.
 7. 수용 기준은 실행 가능한 명령으로 닫히는지 확인한다. manual QA 항목은 명령 변환 불가 사유와 관찰 증거가 모두 있어야 하며, 단순 manual-only validation 은 `TASK_LOCAL` 후보로 본다.
 8. `### 수정 허용` 형식은 normalizer 가 먼저 처리한 뒤 남은 `unresolved_slugs` / `format_unnormalized_slugs` 만 검토한다. 볼드/라벨/괄호처럼 단일 경로 후보가 분명한 항목은 기계 교정 범위라 Must finding 으로 반복하지 않는다.
-9. Must finding마다 파일 경로, 라인, 구체적 사실, 영향, 권장 다음 행동을 쓴다.
-10. Must finding은 다음 중 하나로 분류한다.
+9. revision mode 이면 메인이 전달한 파생 drift 체크리스트 결과와 변경된 UX/system 산출물을 대조해 개정 후 전체 설계 pack 이 stale 참조 없이 구현 가능한지 본다.
+10. Must finding마다 파일 경로, 라인, 구체적 사실, 영향, 권장 다음 행동을 쓴다.
+11. Must finding은 다음 중 하나로 분류한다.
    - `SYSTEM_BOUNDARY`: 기존 모듈 경계, ownership, domain invariant, storage policy, public API boundary, 전역 decision 이 틀려 system checkpoint 승격 또는 system architecture 재검토가 필요하다.
    - `TASK_LOCAL`: 단일 implementation task 문서 또는 epic-batch 산출물 보강으로 충분하다.
-11. Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준은 보통 `TASK_LOCAL` 이다.
-12. 예시에 없는 문제라도 설계 실패 가능성이 evidence로 보이면 finding으로 남긴다.
+12. Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준은 보통 `TASK_LOCAL` 이다.
+13. 예시에 없는 문제라도 설계 실패 가능성이 evidence로 보이면 finding으로 남긴다.
 
 ## FAIL / ESCALATE 판단 노트와 재검증 delta-first 보고
 
@@ -87,6 +90,7 @@ retry 또는 재검증 호출이어도 Codex validator 는 retry counter 를 증
 - final epic 검증이면 `domain-model.md` 작성 또는 생략 판단 근거가 impl 계약과 모순되지 않는지 검토했다.
 - 적용 가능한 경우 계약 표면 코드 SSOT 대조 증거를 검토했다.
 - 수용 기준의 검증 명령을 검토했고, manual QA 가 있으면 명령 변환 불가 사유와 관찰 증거를 확인했다.
+- revision mode 이면 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 증거를 검토했다.
 - legacy Contract Ledger / Contract References, ux-flow, stories prose stale 을 형식만으로 Must finding 으로 올리지 않았다.
 - `### 수정 허용` 형식 신호가 주어졌다면 normalizer 이후에도 남은 미해결 slug 인지 구분했다.
 - FAIL이면 모든 Must finding에 path:line evidence, 분류 token, 다음 행동이 있다.

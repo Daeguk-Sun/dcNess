@@ -307,6 +307,7 @@ validator (`code-validator` / `architecture-validator` / `pr-reviewer`) 의 FAIL
 | `TESTS_FAIL` / code-validator `FAIL` | 재시도 (≤3) | 동일 |
 | `IMPL_PARTIAL` | engineer 재호출 (split ≤3) | 동일 — 새 context window |
 | `FAIL` | 사용자 위임 | engineer POLISH (cycle ≤2) |
+| 승인-gated 산출물 최종 승인 (`/design`, `/ux`) | 사용자 승인 | 동일 (yolo 우회 X) |
 | Step 7 주의사항 (NICE TO HAVE only, MUST FIX 0) | 사용자 위임 | 7a 자동 |
 | 중대 차단 룰 | hard safety | hard safety (yolo 우회 X) |
 
