@@ -82,6 +82,8 @@ flowchart TB
 
 ### high-risk trigger — 각각 왜 사전 설계가 필요한가
 
+> **용도 경계**: 이 high-risk trigger 표는 설계 선행 판정 전용이다. impl-task 엔진 판정(`risk` / `engine` / `risk_reason`)은 [`module-architect`](agents/module-architect/module-architect-agent.md) 의 구현 시점 위험 기준이 SSOT 다. full `/design` 산출물의 cross-module / cross-story interface 처럼 설계 단계에서 이미 architecture와 validator가 소화한 위험을 풀 4-agent 승격 사유로 다시 계상하지 않는다.
+
 | high-risk trigger | 왜 설계 선행 |
 |---|---|
 | 새 product feature / epic | 사용자 가치·범위가 미확정 → 기획부터 |
