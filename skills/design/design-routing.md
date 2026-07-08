@@ -20,7 +20,10 @@ flowchart TB
   START -->|완료된 pack + system/module 개정 REVISION| DSYS_REV[design-system revision mode]
   DUX -->|DESIGN_UX_PR_MERGED| START
   DUX_REV --> UX_REV[ux-architect UX revision]
-  UX_REV -->|UX_FLOW_READY| UXPR_REV[stage 1 revision PR]
+  UX_REV -->|UX_FLOW_READY + 목업 변경 없음| UXPR_REV[stage 1 revision PR]
+  UX_REV -->|확정 목업 신규/변경 필요| SEED_REV[design-variants seed 보장]
+  SEED_REV --> CANVAS_REV[canvas-design / 사용자 PICK]
+  CANVAS_REV --> UXPR_REV
   UXPR_REV -->|DESIGN_UX_PR_MERGED| DSYS_REV
   DSYS --> TOPO[Step 1 topology 판정]
   DSYS_REV --> TOPO
@@ -56,7 +59,7 @@ flowchart TB
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class DUX,DUX_REV,DSYS,DSYS_REV,UX,UX_REV,UXPR,UXPR_REV,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,MU,DSKIP produce
+  class DUX,DUX_REV,DSYS,DSYS_REV,UX,UX_REV,UXPR,UXPR_REV,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,SEED_REV,CANVAS_REV,MU,DSKIP produce
   class AV_FINAL verify
   class U user
 ```
@@ -64,6 +67,8 @@ flowchart TB
 > 파랑 = 생산 agent · 초록 = 검증 agent · 회색 = 사용자 위임. 점선 = escalate. 엣지의 `≤N` = retry 한도 ([retry 한도](#retry-한도)). `SYSTEM_BOUNDARY` / `TASK_LOCAL` final FAIL 엣지는 같은 shared counter 를 쓴다.
 >
 > tech-reviewer 는 design 진입 *전* (`/tech-review` skill) 단계가 기본이다. design 중 새 외부 의존이 발견되면 사용자가 option 4 를 명시 선택한 경우에만 대상 epic 범위로 좁혀 호출한다.
+
+- **UX revision 목업 경로**: 화면 통합/분할/삭제로 확정 목업 신규/변경이 필요하면 `design-ux` revision mode 안에서도 design-variants seed 보장 → canvas-design / 사용자 PICK → stage 1 revision PR 순서를 거친다. 목업 변경이 없으면 UX revision PR 로 직행한다.
 
 ## 결론 → 다음 호출 매핑
 

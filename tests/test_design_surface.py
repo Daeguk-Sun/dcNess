@@ -352,6 +352,17 @@ class DesignSurfaceContractTests(unittest.TestCase):
             / "module-architect"
             / "module-architect-agent.md"
         ).read_text(encoding="utf-8")
+        validator = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "architecture-validator"
+            / "architecture-validator-agent.md"
+        ).read_text(encoding="utf-8")
+        codex_validator = (
+            ROOT / "codex" / "skills" / "dcness-architecture-validator" / "SKILL.md"
+        ).read_text(encoding="utf-8")
 
         for needle in (
             "완료된 pack 개정",
@@ -368,6 +379,7 @@ class DesignSurfaceContractTests(unittest.TestCase):
             "전역 `architecture.md` 요약",
             "상태 ID prefix",
             "`design-report.html`",
+            "`ux-flow.md`, ADR supersede-vs-edit",
             "ADR supersede-vs-edit",
             "확정 목업 node-id",
             "final validator",
@@ -410,7 +422,20 @@ class DesignSurfaceContractTests(unittest.TestCase):
 
         self.assertIn("완료된 pack 개정", routing)
         self.assertIn("완료된 pack + UX 층 개정 REVISION", routing)
+        self.assertIn("확정 목업 신규/변경 필요", routing)
+        self.assertIn("canvas-design / 사용자 PICK", routing)
         self.assertIn("REVISION", routing)
+
+        for text in (validator, codex_validator):
+            with self.subTest(revision_validator=text[:60]):
+                for needle in (
+                    "revision mode",
+                    "개정 후 전체 설계 pack 정합",
+                    "파생 drift 체크리스트",
+                    "`ux-flow.md`",
+                    "항목 이름 부재만으로 Must finding",
+                ):
+                    self.assertIn(needle, text)
 
     def test_design_mockup_prefreeze_branch_contracts(self) -> None:
         """#957 — mockup opt-in happens before system design and becomes required input."""

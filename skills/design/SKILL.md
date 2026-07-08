@@ -103,7 +103,7 @@ revision mode 의 기본 원칙은 surgical revision 이다. module-architect �
 
 - 영향 산출물만 개정: epic `architecture.md`, 선택 `domain-model.md`, 관련 `docs/decisions/**`, 실제 영향받는 `impl/NN-*.md`, 필요한 전역 `architecture.md` / `conventions.md` 요약만 갱신한다.
 - 미변경 impl task 보존: 변경과 무관한 `impl/NN-*.md` 는 rewrite 하지 않는다. 순서 변경이 필요하면 이유와 affected task 만 명시한다.
-- 파생 drift 체크리스트: 전역 `architecture.md` 요약, 상태 ID prefix, 생성 리포트 `design-report.html`, ADR supersede-vs-edit 결정, 도메인 모델/ADR 잔존 표현, Story/화면 번호 참조, 확정 목업 node-id·토큰 보존 경계를 확인한다.
+- 파생 drift 체크리스트: 전역 `architecture.md` 요약, 상태 ID prefix, 생성 리포트 `design-report.html`, `ux-flow.md`, ADR supersede-vs-edit 결정, 도메인 모델/ADR 잔존 표현, Story/화면 번호 참조, 확정 목업 node-id·토큰 보존 경계를 확인한다.
 - ADR supersede-vs-edit: 기존 결정의 의미가 바뀌면 새 ADR 로 supersede 하는지, 오탈자/명칭 정정이면 기존 ADR 편집인지 명시한다.
 - final validator 는 개정분만 보는 것이 아니라 개정 후 전체 설계 pack 정합을 한 번 더 본다.
 
