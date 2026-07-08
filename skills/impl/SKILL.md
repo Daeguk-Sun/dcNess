@@ -109,7 +109,7 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 
 빈 프로젝트와 미지원 플랫폼은 no-op 으로 안전 통과한다. 플랫폼 또는 project-local 계약이 감지된 프로젝트에서 generated hook 이 없거나 생성/self-test 가 실패하면 구현 진입 전 사용자 위임으로 멈춘다. 생성 훅이 있으면 중앙 `tdd-guard.sh` 와 headless worker 사후 검사는 그 generated hook 을 먼저 실행한다.
 
-`status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 bootstrap commit 에 포함해야 한다. 커밋되지 않은 생성 파일은 새 worktree/headless worker 체크아웃에 없으므로 project-local TDD 계약이 재사용되지 않는다.
+`status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 bootstrap commit 에 포함해야 한다. `commit-advisory` 는 현재 in-place 실행에서는 디스크 실존·등록만으로 guard 배선을 확인할 수 있지만, 새 linked worktree/headless worker 체크아웃에서 project-local TDD 계약을 재사용하려면 commit 이 필요하다는 뜻이다.
 
 ## Step 0.4 — UI 기준 확보 분기
 

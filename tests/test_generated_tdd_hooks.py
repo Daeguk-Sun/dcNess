@@ -151,7 +151,7 @@ class GeneratedTddHookContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("cc: registered", result.stdout)
             self.assertIn("codex: registered", result.stdout)
-            self.assertIn("commit-required:", result.stdout)
+            self.assertIn("commit-advisory:", result.stdout)
 
             config = json.loads(
                 (project / ".dcness" / "tdd-hooks.json").read_text(encoding="utf-8")
@@ -205,6 +205,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
 
             report = inspect_installation(project)
             self.assertFalse(report["generated_files_committed"])
+            self.assertFalse(report["linked_worktree"])
+            self.assertFalse(report["generated_files_commit_required"])
             self.assertIn(".dcness/tdd-hooks.json", report["uncommitted_generated_files"])
             self.assertIn(".claude/settings.json", report["uncommitted_generated_files"])
             self.assertIn(".codex/hooks.json", report["uncommitted_generated_files"])
@@ -228,6 +230,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
 
             committed_report = inspect_installation(project)
             self.assertTrue(committed_report["generated_files_committed"])
+            self.assertFalse(committed_report["linked_worktree"])
+            self.assertFalse(committed_report["generated_files_commit_required"])
             self.assertEqual(committed_report["uncommitted_generated_files"], [])
 
     def test_status_ignores_unrelated_user_settings_without_tdd_reference(self) -> None:

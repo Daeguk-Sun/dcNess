@@ -1035,21 +1035,32 @@ def _generated_tdd_preflight_message(project_root: Path) -> Optional[str]:
     cc_registered = bool(report.get("cc_registered"))
     codex_registered = bool(report.get("codex_registered"))
     committed = bool(report.get("generated_files_committed"))
-    if cc_registered and codex_registered and committed:
+    commit_required = bool(report.get("generated_files_commit_required"))
+    linked_worktree = bool(report.get("linked_worktree"))
+    if cc_registered and codex_registered and (committed or not commit_required):
         return None
 
     uncommitted = report.get("uncommitted_generated_files") or []
     detail = ""
     if isinstance(uncommitted, list) and uncommitted:
         detail = f", uncommitted={', '.join(str(item) for item in uncommitted[:5])}"
+    recovery = (
+        "사람 승인 후 `scripts/dcness-tdd-hooks ensure --project-root <project> "
+        "--targets cc,codex --plugin-root <plugin-root>` 를 실행하세요."
+    )
+    if commit_required:
+        recovery = (
+            "사람 승인 후 `scripts/dcness-tdd-hooks ensure --project-root <project> "
+            "--targets cc,codex --plugin-root <plugin-root>` 를 실행하고 생성 파일을 "
+            "linked worktree/headless 재사용 가능하도록 bootstrap commit 에 포함하세요."
+        )
     return (
         "[순서 차단 훅: impl pre-flight TDD] generated TDD hook 이 구현 진입 전 "
         "준비되지 않았습니다. "
         f"platform={platform}, cc={cc_registered}, codex={codex_registered}, "
-        f"generated_files_committed={committed}{detail}. "
-        "사람 승인 후 `scripts/dcness-tdd-hooks ensure --project-root <project> "
-        "--targets cc,codex --plugin-root <plugin-root>` 를 실행하고 생성 파일을 "
-        "bootstrap commit 에 포함하세요."
+        f"generated_files_committed={committed}, linked_worktree={linked_worktree}, "
+        f"generated_files_commit_required={commit_required}{detail}. "
+        f"{recovery}"
     )
 
 

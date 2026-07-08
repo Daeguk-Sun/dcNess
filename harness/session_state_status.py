@@ -362,7 +362,7 @@ def collect_status_diagnostics(
             elif (
                 generated_tdd.get("cc_registered")
                 and generated_tdd.get("codex_registered")
-                and not generated_tdd.get("generated_files_committed")
+                and generated_tdd.get("generated_files_commit_required")
             ):
                 uncommitted = generated_tdd.get("uncommitted_generated_files") or []
                 detail = ", ".join(str(item) for item in uncommitted[:5])
@@ -370,15 +370,21 @@ def collect_status_diagnostics(
                     "generated_tdd_hooks",
                     "Generated TDD hooks",
                     "WARN",
-                    f"platform={platform}, CC+Codex 등록됨, 미커밋 생성 파일: {detail}",
+                    (
+                        f"platform={platform}, CC+Codex 등록됨, linked worktree 에서 "
+                        f"커밋 필요한 생성 파일: {detail}"
+                    ),
                     "generated TDD hook 파일을 bootstrap commit 에 포함",
                 )
             elif generated_tdd.get("cc_registered") and generated_tdd.get("codex_registered"):
+                suffix = ""
+                if not generated_tdd.get("generated_files_committed"):
+                    suffix = ", in-place disk 실존으로 통과 (linked worktree/headless 재사용 전 commit 필요)"
                 add(
                     "generated_tdd_hooks",
                     "Generated TDD hooks",
                     "PASS",
-                    f"platform={platform}, CC+Codex 로컬 등록됨 (Codex trust 승인은 별도 확인)",
+                    f"platform={platform}, CC+Codex 로컬 등록됨{suffix} (Codex trust 승인은 별도 확인)",
                 )
             elif generated_tdd.get("cc_registered") or generated_tdd.get("codex_registered"):
                 add(

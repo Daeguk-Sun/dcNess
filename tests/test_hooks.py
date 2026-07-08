@@ -601,6 +601,89 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
     def _record_design_doc_for_gate(self, doc: Path) -> None:
         self._set_slot(design_doc=str(doc.resolve()))
 
+    def _write_registered_tdd_hooks(self, project: Path) -> None:
+        config = project / ".dcness" / "tdd-hooks.json"
+        config.parent.mkdir(parents=True, exist_ok=True)
+        config.write_text(
+            json.dumps(
+                {
+                    "version": 1,
+                    "platform": "python",
+                    "source_roots": ["src"],
+                    "impl_exts": [".py"],
+                    "registered": {"cc": True, "codex": True},
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+        cc_hook = project / ".claude" / "hooks" / "dcness-tdd-guard.sh"
+        cc_hook.parent.mkdir(parents=True, exist_ok=True)
+        cc_hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        cc_settings = project / ".claude" / "settings.json"
+        cc_settings.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "Edit|Write|NotebookEdit|Bash",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "bash .claude/hooks/dcness-tdd-guard.sh",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+        codex_hook = project / ".codex" / "hooks" / "dcness-tdd-guard.sh"
+        codex_hook.parent.mkdir(parents=True, exist_ok=True)
+        codex_hook.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        codex_hooks = project / ".codex" / "hooks.json"
+        codex_hooks.write_text(
+            json.dumps(
+                {
+                    "hooks": {
+                        "PreToolUse": [
+                            {
+                                "matcher": "Edit|Write|apply_patch",
+                                "hooks": [
+                                    {
+                                        "type": "command",
+                                        "command": "bash .codex/hooks/dcness-tdd-guard.sh",
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            ),
+            encoding="utf-8",
+        )
+
+    def _git_commit_all(self, project: Path, message: str) -> None:
+        subprocess.run(["git", "add", "."], cwd=project, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.name=dcness-test",
+                "-c",
+                "user.email=dcness@example.invalid",
+                "commit",
+                "-q",
+                "-m",
+                message,
+            ],
+            cwd=project,
+            check=True,
+        )
+
     def test_begin_step_blocks_design_doc_scope_outside_engineer_boundary(self) -> None:
         doc = self._write_impl_plan("- gradle/libs.versions.toml")
         self._record_design_doc_for_gate(doc)
@@ -699,6 +782,82 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         self.assertIn("[순서 차단 훅: impl pre-flight TDD]", message or "")
         self.assertIn("platform=python", message or "")
         self.assertIn("dcness-tdd-hooks ensure", message or "")
+
+    def test_begin_step_allows_in_place_uncommitted_generated_tdd_hooks(self) -> None:
+        project = self.base / "project"
+        project.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+        (project / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+        (project / "src").mkdir()
+        (project / "src" / "app.py").write_text("def app():\n    return 1\n", encoding="utf-8")
+        doc = self._write_impl_plan("- src/app.py", root=project)
+        self._write_registered_tdd_hooks(project)
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNone(message)
+
+    def test_begin_step_blocks_linked_worktree_uncommitted_generated_tdd_hooks(self) -> None:
+        project = self.base / "project"
+        project.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+        (project / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+        (project / "src").mkdir()
+        (project / "src" / "app.py").write_text("def app():\n    return 1\n", encoding="utf-8")
+        self._write_impl_plan("- src/app.py", root=project)
+        self._git_commit_all(project, "initial project")
+        linked = self.base / "linked-project"
+        subprocess.run(["git", "worktree", "add", "-q", str(linked)], cwd=project, check=True)
+        self._write_registered_tdd_hooks(linked)
+        doc = linked / "docs" / "epics" / "epic-01-x" / "impl" / "03-foo.md"
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: impl pre-flight TDD]", message or "")
+        self.assertIn("linked_worktree=True", message or "")
+        self.assertIn("generated_files_commit_required=True", message or "")
+
+    def test_begin_step_blocks_linked_worktree_missing_generated_tdd_hooks(self) -> None:
+        project = self.base / "project"
+        project.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+        (project / "pyproject.toml").write_text("[project]\nname='x'\n", encoding="utf-8")
+        (project / "src").mkdir()
+        (project / "src" / "app.py").write_text("def app():\n    return 1\n", encoding="utf-8")
+        self._write_impl_plan("- src/app.py", root=project)
+        self._git_commit_all(project, "initial project")
+        linked = self.base / "linked-project"
+        subprocess.run(["git", "worktree", "add", "-q", str(linked)], cwd=project, check=True)
+        doc = linked / "docs" / "epics" / "epic-01-x" / "impl" / "03-foo.md"
+        self._record_design_doc_for_gate(doc)
+
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: impl pre-flight TDD]", message or "")
+        self.assertIn("cc=False", message or "")
+        self.assertIn("codex=False", message or "")
 
     def test_begin_step_blocks_after_live_boundary_block_marker(self) -> None:
         mark_run_blocked(
