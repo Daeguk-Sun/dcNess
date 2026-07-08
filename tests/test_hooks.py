@@ -39,6 +39,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, Optional
 
+from harness import ledger
 from harness.hooks import (
     _has_pass,
     handle_posttooluse_agent,
@@ -53,6 +54,7 @@ from harness.agent_trace import read_all as read_trace
 # issue #392 — redo_log 폐기
 from harness.session_state import (
     evaluate_order_gate_for_step,
+    mark_run_blocked,
     read_live,
     read_fail_open_events,
     read_pid_session,
@@ -581,6 +583,52 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
             base_dir=self.base,
         )
         self.assertIsNone(message)
+
+    def test_begin_step_blocks_after_live_boundary_block_marker(self) -> None:
+        mark_run_blocked(
+            self.sid,
+            self.rid,
+            category="engineer_boundary",
+            agent="engineer",
+            mode="IMPL",
+            provider="codex-headless",
+            reason="hooks/catastrophic-gate.sh: write denied",
+            raw_log="/tmp/codex.log",
+            base_dir=self.base,
+        )
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "code-validator",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: headless boundary BLOCK]", message or "")
+        self.assertIn("engineer_boundary", message or "")
+        self.assertIn("hooks/catastrophic-gate.sh", message or "")
+
+    def test_begin_step_blocks_after_ledger_only_boundary_block_event(self) -> None:
+        ledger.append_event(
+            self.sid,
+            self.rid,
+            "blocked",
+            category="engineer_boundary",
+            agent="engineer",
+            mode="IMPL",
+            provider="codex-headless",
+            reason="hooks/catastrophic-gate.sh: write denied",
+            base_dir=self.base,
+        )
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "pr-reviewer",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNotNone(message)
+        self.assertIn("[순서 차단 훅: headless boundary BLOCK]", message or "")
 
 
 # ---------------------------------------------------------------------------

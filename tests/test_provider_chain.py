@@ -15,6 +15,7 @@ from harness.session_state import start_run, update_current_step
 ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_VALIDATOR = ROOT / "scripts" / "dcness-claude-validator"
 CLAUDE_WORKER = ROOT / "scripts" / "dcness-claude-worker"
+CODEX_WORKER = ROOT / "scripts" / "dcness-codex-worker"
 CHAIN = ROOT / "scripts" / "dcness-implementation-chain"
 
 
@@ -46,6 +47,90 @@ def _write_helper(path: Path, helper_args: Path, prose_capture: Path) -> None:
 
 
 class ClaudeHeadlessWrapperTests(unittest.TestCase):
+    def _assert_worker_records_boundary_block(
+        self,
+        *,
+        wrapper: Path,
+        provider: str,
+        binary_name: str,
+        binary_script: str,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            sid = "sid-boundary-block"
+            rid = "run-0badc0de"
+            state_base = project / ".claude" / "harness-state"
+            start_run(sid, rid, "impl", base_dir=state_base, lane="lite")
+            update_current_step(sid, rid, "engineer", "IMPL", base_dir=state_base)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement this task.\n", encoding="utf-8")
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(bin_dir / binary_name, binary_script)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_RUN_ID": rid,
+                    "DCNESS_SESSION_ID": sid,
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(wrapper),
+                    "engineer",
+                    "IMPL",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("changed files outside engineer boundary", result.stderr)
+            self.assertFalse(helper_args.exists())
+
+            events = ledger.read_events(sid, rid, base_dir=state_base)
+            blocked_events = [
+                event for event in events
+                if event.get("event") == "blocked"
+                and event.get("category") == "engineer_boundary"
+            ]
+            self.assertEqual(len(blocked_events), 1)
+            self.assertEqual(blocked_events[0].get("agent"), "engineer")
+            self.assertEqual(blocked_events[0].get("mode"), "IMPL")
+            self.assertEqual(blocked_events[0].get("provider"), provider)
+            self.assertIn("hooks/catastrophic-gate.sh", blocked_events[0].get("reason", ""))
+            self.assertTrue(blocked_events[0].get("raw_log", "").endswith(".log"))
+
+            from harness.session_state import read_live
+
+            live = read_live(sid, base_dir=state_base)
+            marker = live["active_runs"][rid].get("blocked")
+            self.assertIsInstance(marker, dict)
+            self.assertEqual(marker.get("category"), "engineer_boundary")
+            self.assertEqual(marker.get("provider"), provider)
+
     def test_worker_uses_hook_loading_claude_print_mode_and_records_provider(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
@@ -349,6 +434,49 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             self.assertEqual(blocked_events[0].get("agent"), "build-worker")
             self.assertEqual(blocked_events[0].get("provider"), "claude-headless")
             self.assertIn("build-worker.md", blocked_events[0].get("prose_file", ""))
+
+    def test_codex_worker_records_boundary_block_in_ledger_and_live_marker(self) -> None:
+        self._assert_worker_records_boundary_block(
+            wrapper=CODEX_WORKER,
+            provider="codex-headless",
+            binary_name="codex",
+            binary_script="""\
+            #!/bin/sh
+            if [ "$1" = "--help" ]; then
+              echo "Usage: codex"
+              exit 0
+            fi
+            out=""
+            while [ "$#" -gt 0 ]; do
+              if [ "$1" = "--output-last-message" ]; then
+                out="$2"
+                shift 2
+                continue
+              fi
+              shift
+            done
+            cat >/dev/null
+            mkdir -p hooks src
+            printf 'outside boundary\\n' > hooks/catastrophic-gate.sh
+            printf 'inside boundary\\n' > src/generated.py
+            printf 'Codex worker prose\\n\\nPASS\\n' > "$out"
+            """,
+        )
+
+    def test_claude_worker_records_boundary_block_in_ledger_and_live_marker(self) -> None:
+        self._assert_worker_records_boundary_block(
+            wrapper=CLAUDE_WORKER,
+            provider="claude-headless",
+            binary_name="claude",
+            binary_script="""\
+            #!/bin/sh
+            cat >/dev/null
+            mkdir -p hooks src
+            printf 'outside boundary\\n' > hooks/catastrophic-gate.sh
+            printf 'inside boundary\\n' > src/generated.py
+            printf 'Claude worker prose\\n\\nPASS\\n'
+            """,
+        )
 
     def test_validator_blocks_workspace_mutation_without_end_step(self) -> None:
         with tempfile.TemporaryDirectory() as td:

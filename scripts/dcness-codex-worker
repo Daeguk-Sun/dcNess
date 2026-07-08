@@ -296,6 +296,52 @@ workspace_changed() {
   [ "$BEFORE_STATUS" != "$AFTER_STATUS" ]
 }
 
+record_boundary_block() {
+  local provider="$1"
+  BOUNDARY_REASON="${BOUNDARY_PROBLEMS:-}" \
+    PYTHONPATH="$SCRIPT_DIR/.." python3 - \
+      "$RESOLVED_SID" "$RESOLVED_RID" "$AGENT" "${MODE:-}" "$provider" "$RAW_LOG" <<'PY' || true
+import os
+import sys
+
+sid, rid, agent, mode, provider, raw_log = sys.argv[1:7]
+reason = os.environ.get("BOUNDARY_REASON", "").strip()
+
+fields = {
+    "category": "engineer_boundary",
+    "agent": agent,
+    "provider": provider,
+    "reason": reason,
+    "raw_log": raw_log,
+}
+if mode:
+    fields["mode"] = mode
+
+try:
+    from harness import ledger
+
+    ledger.append_event(sid, rid, "blocked", **fields)
+except Exception as exc:  # noqa: BLE001
+    print(f"[dcness-codex-worker] WARN: ledger boundary block record failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+
+try:
+    from harness.session_state import mark_run_blocked
+
+    mark_run_blocked(
+        sid,
+        rid,
+        category="engineer_boundary",
+        agent=agent,
+        mode=mode or None,
+        provider=provider,
+        reason=reason,
+        raw_log=raw_log,
+    )
+except Exception as exc:  # noqa: BLE001
+    print(f"[dcness-codex-worker] WARN: live boundary block marker failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+PY
+}
+
 CODEX_RC=0
 run_codex_once
 CODEX_RC=$?
@@ -355,6 +401,7 @@ for path in sorted(paths):
 PY
 )"
 if [ -n "$BOUNDARY_PROBLEMS" ]; then
+  record_boundary_block "codex-headless"
   echo "[dcness-codex-worker] BLOCKED: Codex changed files outside ${AGENT} boundary." >&2
   echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$BOUNDARY_PROBLEMS" >&2
