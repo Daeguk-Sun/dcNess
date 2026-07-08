@@ -10,6 +10,34 @@
 
 ---
 
+## v0.17.0 (2026-07-08)
+
+**커밋 범위**: `v0.16.0..v0.17.0` (머지 PR 6개, #996 · #1001 · #1003 · #1004 · #1005 · #1006)
+**핵심 변경**: **구현 시점 엔진 위험 판정 분리 + 완료 설계 pack 개정(revision) 경로** 가 중심인 minor 릴리즈. (1) impl-task 의 `risk`/`engine` 판정을 설계 선행 판정용 `workflow-router` high-risk 표에서 떼어내 "구현 시점 위험" 기준으로 재정의해 이미 설계에서 소화한 위험의 풀 4-agent 과승격을 줄이고, build-worker self-check 는 self-grading drift 방지 목적으로 분리, (2) `/design` dispatcher 에 완료된 full design pack 을 UX 층/system·module 층으로 나눠 재진입시키는 개정 경로를 추가하고 final validator PASS 뒤에도 사용자 최종 설계 승인 전 commit/PR 을 막도록 계약 정합화, (3) `pr-finalize` post-merge 단계가 default branch worktree 를 실제 fast-forward sync + merged feature worktree cleanup 까지 책임지도록 확장, (4) harness/tests/scripts/templates 모듈 루트에 컴퍼스형 `CLAUDE.md` navigation 문서 추가.
+
+### 무엇이 바뀌나
+
+1. **구현 시점 엔진 위험 판정 분리 + build-worker self-check** ([#1004](https://github.com/Daeguk-Sun/dcNess/pull/1004) [#1002](https://github.com/Daeguk-Sun/dcNess/issues/1002), [#1006](https://github.com/Daeguk-Sun/dcNess/pull/1006)) — impl-task 의 `risk`/`engine` 판정이 설계 선행 여부를 가르는 `workflow-router` high-risk 표를 엔진 판정에도 재사용해, `/design` 에서 이미 소화한 위험(수직 슬라이스 cross-module, 플랫폼 SDK 표준 사용, 런타임 권한 흐름)까지 풀 4-agent 로 과승격되던 문제를 해소. `module-architect` impl-task 기준과 `/impl`·`/impl-loop` 엔진 fallback 을 "구현 시점 위험" 기준으로 동기화하고 `workflow-router` high-risk 표는 설계 선행 판정 전용임을 명시. build-worker 고위험 self-check 는 엔진 승격 기준과 직교하게 분리해, 도메인 invariant 변경을 decision 합의 여부와 무관한 drift-prone 영역으로 복원하고 kept/excluded 양쪽 trigger 목록을 5개 기준 문서 동기화 테스트로 방어.
+
+2. **완료 설계 pack 개정(revision) 경로 + UX/system 층 분리** ([#1003](https://github.com/Daeguk-Sun/dcNess/pull/1003) [#997](https://github.com/Daeguk-Sun/dcNess/issues/997), [#1005](https://github.com/Daeguk-Sun/dcNess/pull/1005)) — `/design` dispatcher 가 완료된 full design pack 을 durable 산출물만으로 `/impl` 안내로만 확정하던 것을, 구조 변경·화면 통합·모듈 리네임·ADR 추가 같은 설계 개정으로 재진입시키는 1급 경로를 추가. UX 층 개정 신호(화면 통합/분할/삭제, `ux-flow.md`, 확정 목업, `docs/design.md` 토큰)는 `design-ux` revision mode 로 먼저 재진입 후 `design-system` revision mode 로 전파하도록 층을 분리. 영향 산출물만 개정·미변경 impl task 보존·파생 drift checklist·final validator 전체 pack 재검증 계약을 정합화하고, final PASS 뒤에도 사용자 최종 설계 승인 전에는 `git add`/`commit`/`push`/`gh pr create`/`pr-finalize` 를 호출하지 않도록 design·design-ux·design-system·loop-procedure·yolo 표·architecture-validator(Claude·Codex 미러) 계약을 맞춤.
+
+3. **pr-finalize post-merge default worktree sync/cleanup** ([#996](https://github.com/Daeguk-Sun/dcNess/pull/996) [#995](https://github.com/Daeguk-Sun/dcNess/issues/995)) — `pr-finalize` 가 PR merge 후 `origin/<default>` ref 만 최신화하고 실제 default branch worktree HEAD 를 fast-forward 하지 않아 다음 작업 전 수동 `git pull --ff-only` 가 필요하던 문제를 해소. default branch worktree 가 있으면 `merge --ff-only` 로 동기화, 없으면 clean current worktree 를 전환해 동기화하며, merged clean linked feature worktree 와 stale admin entry 를 안전 조건 안에서 정리. dirty/non-fast-forward/checkout conflict 는 reset·stash 없이 `preserved` 목록으로 보존 출력. default branch 이름은 hard-code 대신 `gh repo view` ref 사용, 사용자-facing finalizer 경로를 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 계약으로 정리.
+
+4. **모듈별 컴퍼스형 CLAUDE.md navigation 추가** ([#1001](https://github.com/Daeguk-Sun/dcNess/pull/1001) [#998](https://github.com/Daeguk-Sun/dcNess/issues/998)) — harness/tests/scripts/templates 모듈 루트에 `CLAUDE.md` 를 추가해 모듈 단위 작업 시 root CLAUDE.md 전체 의존을 줄임. 작업 규칙을 재기술하지 않고 root CLAUDE.md 를 참조한 뒤 모듈별 소유 범위·핵심 파일·수정 주의점·검증 경로만 짧게 제공. dcness self 내부 navigation 문서로 외부 배포 공개 계약·`/init-dcness` inventory 변경은 없다.
+
+### 자기개선 점검 기록
+
+| 날짜 | 입력 | 판정 |
+|---|---|---|
+| 2026-07-08 | (빠른 배포 — eval 생략) | 사용자 지시로 self-improvement 권고 eval 점검(guard_efficacy · 행동 eval)을 생략한 빠른 minor 배포. 엔진 위험 기준 분리(#1004/#1006)·design revision 계약(#1003/#1005)·pr-finalize sync(#996)는 각 머지 PR CI(pytest·static-quality·public-surface·cross-ref·index-map)로 검증됨. **소멸 후보 없음.** |
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — 구현 시점 엔진 위험 판정 분리, `/design` 완료 pack 개정 경로, `pr-finalize` post-merge sync/cleanup, 모듈 CLAUDE.md navigation 등 `docs/plugin/**`·`skills/**`·`scripts/**` 변경.
+- **`pr-finalize` 사용 프로젝트** — merge 후 default branch worktree 가 자동으로 `origin/<default>` 까지 fast-forward 되고 merged feature worktree 가 정리된다. dirty/non-fast-forward 상태는 자동 reset 없이 보존 목록으로 안내한다. 사용자-facing 문구는 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 가리키므로 로컬 사본을 별도로 요구하지 않는다.
+
+---
+
 ## v0.16.0 (2026-07-08)
 
 **커밋 범위**: `v0.15.0..v0.16.0` (머지 PR 3개, #991~#993)
