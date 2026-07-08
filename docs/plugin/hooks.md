@@ -189,6 +189,8 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **중앙 fallback 역할**: generated hook 이 없는 프로젝트에서는 TS/JS 구현 파일에 대응하는 test/spec 파일이 *존재하는지* 확인한다. 없으면 구현 파일 작성을 막는다. **test 의 존재만 검사하고, test 를 실행하지는 않는다** — green/red 판정이 아니라 "작성 전 test 가 먼저 있는가" 강제다.
 
+**파일 단위 override marker**: 테스트가 구조적으로 불필요한 파일은 파일 내용 또는 이번 `Write` / `Edit` / `apply_patch` payload 에 `tdd-exempt: <사유>` 를 남기면 해당 파일의 test 부재 차단만 통과한다. 콜론 뒤 사유는 같은 줄에 최소 1단어 이상 있어야 하며, 빈 `tdd-exempt:` 는 통과하지 않는다. 주석 형태를 권장한다. 마커는 코드에 커밋되므로 `rg "tdd-exempt:"` 로 사용 빈도를 확인하고 pr-reviewer 가 남용 여부를 검토할 수 있다.
+
 **skip 대상**:
 
 - test/spec 파일 자체 — basename 의 `.test.` / `.spec.` 접미 컨벤션 (`foo.test.ts`, `bar.spec.tsx`)
@@ -421,9 +423,10 @@ hook 또는 workflow 를 추가/삭제/이름 변경할 때 이 문서가 빠지
 |---|---|---|
 | 미활성 프로젝트 | 전체 CC hook | `is-active` 게이트에서 즉시 no-op |
 | `.no-dcness-guard` cwd marker | file-guard | file boundary / 외부 변경 차단 목록 임시 우회 |
+| `tdd-exempt: <사유>` 파일 marker | tdd-guard | 해당 파일의 test 부재 차단만 사유와 함께 override |
 | `DCNESS_INFRA=1`, `~/.claude/.dcness-infra`, dcNess self repo marker | file boundary | dcNess 자체 작업에서 infra path 보호 해제 |
 
-우회 marker 는 catastrophic-gate 와 tdd-guard 에 없다. git hook 의 `--no-verify` 우회는 가능하지만 dcNess 절차상 금지다. CI/CD workflow 는 GitHub 에 올라온 PR/issue 이벤트에서 다시 검증한다.
+catastrophic-gate 에는 marker override 가 없다. `tdd-exempt: <사유>` 는 tdd-guard 의 test 부재 차단에만 적용되며, file-guard / catastrophic-gate / git hook 을 우회하지 않는다. git hook 의 `--no-verify` 우회는 가능하지만 dcNess 절차상 금지다. CI/CD workflow 는 GitHub 에 올라온 PR/issue 이벤트에서 다시 검증한다.
 
 ## 참조
 

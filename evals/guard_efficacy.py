@@ -281,7 +281,12 @@ pathlib.Path(out).write_text("Worker prose\\n\\nPASS\\n", encoding="utf-8")
     return probe
 
 
-def _tdd_guard(rel_path: str, *, matching_test: bool = False) -> Probe:
+def _tdd_guard(
+    rel_path: str,
+    *,
+    matching_test: bool = False,
+    content: str = "export const value = 1;\n",
+) -> Probe:
     def probe() -> tuple[Decision, str]:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -293,7 +298,7 @@ def _tdd_guard(rel_path: str, *, matching_test: bool = False) -> Probe:
                 timeout=10,
                 check=False,
             )
-            target = _write_file(root, rel_path, "export const value = 1;\n")
+            target = _write_file(root, rel_path, content)
             if matching_test:
                 stem = target.with_suffix("").name
                 _write_file(target.parent, f"{stem}.test.ts", "test('ok', () => {})\n")
@@ -610,6 +615,16 @@ def build_cases() -> list[GuardCase]:
             _tdd_guard("src/price.ts", matching_test=True),
         ),
         GuardCase(
+            "tdd_guard_allows_exempt_marker_with_reason",
+            "tdd-guard",
+            "allow",
+            "A committed tdd-exempt reason marker satisfies the TDD guard for that file.",
+            _tdd_guard(
+                "src/price.ts",
+                content="// tdd-exempt: DTO shell only\nexport const price = 1;\n",
+            ),
+        ),
+        GuardCase(
             "tdd_guard_allows_config_false_positive",
             "tdd-guard",
             "allow",
@@ -639,6 +654,20 @@ def build_cases() -> list[GuardCase]:
                 {
                     "src/price.ts": "export const price = 1;\n",
                     "src/price.test.ts": "test('price', () => {});\n",
+                }
+            ),
+        ),
+        GuardCase(
+            "headless_tdd_allows_worker_success_with_exempt_marker",
+            "provider-agnostic-tdd",
+            "allow",
+            "Codex worker succeeds when the changed implementation file carries an exemption reason.",
+            _headless_worker_tdd(
+                {
+                    "src/price.ts": (
+                        "// tdd-exempt: DTO shell only\n"
+                        "export const price = 1;\n"
+                    ),
                 }
             ),
         ),

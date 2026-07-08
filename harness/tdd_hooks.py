@@ -46,6 +46,15 @@ TEST_DIR_SEGMENTS = {
 TEST_CANDIDATE_TEMPLATES_KEY = "test_candidate_templates"
 TEST_FILE_GLOBS_KEY = "test_file_globs"
 PRESET_PLATFORMS = {"python", "web", "go", "android", "ios"}
+TDD_EXEMPT_MARKER = "tdd-exempt:"
+TDD_EXEMPT_DISPLAY = "tdd-exempt: <사유>"
+_PAYLOAD_MARKER_KEYS = (
+    "content",
+    "new_string",
+    "new_source",
+    "cell_source",
+    "source",
+)
 
 
 @dataclass(frozen=True)
@@ -106,6 +115,137 @@ def _write_json(path: Path, data: dict[str, Any]) -> None:
         json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+
+
+def has_tdd_exempt_marker(text: str) -> bool:
+    """Return True when a line contains `tdd-exempt:` with a non-empty reason."""
+    if not isinstance(text, str):
+        return False
+    for line in text.splitlines():
+        _before, marker, after = line.partition(TDD_EXEMPT_MARKER)
+        if marker and after.strip():
+            return True
+    return False
+
+
+def file_has_tdd_exempt_marker(path: Path, project_root: Path) -> bool:
+    candidate = path if path.is_absolute() else project_root / path
+    try:
+        if not candidate.is_file():
+            return False
+        return has_tdd_exempt_marker(candidate.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError):
+        return False
+
+
+def _resolved_for_match(path: Path, project_root: Path) -> Optional[Path]:
+    candidate = path if path.is_absolute() else project_root / path
+    try:
+        return candidate.resolve(strict=False)
+    except OSError:
+        return None
+
+
+def _paths_match(left: Path, right: Path, project_root: Path) -> bool:
+    left_resolved = _resolved_for_match(left, project_root)
+    right_resolved = _resolved_for_match(right, project_root)
+    if left_resolved is not None and right_resolved is not None:
+        return left_resolved == right_resolved
+    return left.as_posix() == right.as_posix()
+
+
+def _payload_mentions_path(payload: dict[str, Any], path: Path, project_root: Path) -> bool:
+    payload_paths = extract_payload_paths(payload)
+    if not payload_paths:
+        return False
+    return any(_paths_match(payload_path, path, project_root) for payload_path in payload_paths)
+
+
+def _payload_direct_marker_texts(tool_input: dict[str, Any]) -> Iterable[str]:
+    for key in _PAYLOAD_MARKER_KEYS:
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            yield value
+    edits = tool_input.get("edits")
+    if isinstance(edits, list):
+        for edit in edits:
+            if not isinstance(edit, dict):
+                continue
+            for key in _PAYLOAD_MARKER_KEYS:
+                value = edit.get(key)
+                if isinstance(value, str):
+                    yield value
+
+
+def _extract_patch_text(tool_input: dict[str, Any]) -> str:
+    text_parts: list[str] = []
+    for key in ("patch", "input", "command"):
+        value = tool_input.get(key)
+        if isinstance(value, str):
+            text_parts.append(value)
+    return "\n".join(text_parts)
+
+
+def _patch_path_matches(current_path: str, path: Path, project_root: Path) -> bool:
+    current = Path(current_path)
+    return _paths_match(current, path, project_root)
+
+
+def _apply_patch_has_marker_for_path(
+    patch_text: str,
+    path: Path,
+    project_root: Path,
+) -> bool:
+    current_path: Optional[str] = None
+    current_matches = False
+    for line in patch_text.splitlines():
+        if line.startswith("*** Add File: "):
+            current_path = line[len("*** Add File: ") :].strip()
+            current_matches = _patch_path_matches(current_path, path, project_root)
+            continue
+        if line.startswith("*** Update File: "):
+            current_path = line[len("*** Update File: ") :].strip()
+            current_matches = _patch_path_matches(current_path, path, project_root)
+            continue
+        if line.startswith("*** "):
+            current_path = None
+            current_matches = False
+            continue
+        if line.startswith("+++ b/"):
+            current_path = line[len("+++ b/") :].strip()
+            current_matches = _patch_path_matches(current_path, path, project_root)
+            continue
+        if (
+            current_path
+            and current_matches
+            and line.startswith("+")
+            and not line.startswith("+++")
+        ):
+            if has_tdd_exempt_marker(line[1:]):
+                return True
+    return False
+
+
+def payload_has_tdd_exempt_marker_for_path(
+    payload: dict[str, Any],
+    path: Path,
+    project_root: Path,
+) -> bool:
+    """Check target file content and pending payload content for a justified override."""
+    if file_has_tdd_exempt_marker(path, project_root):
+        return True
+    if not _payload_mentions_path(payload, path, project_root):
+        return False
+
+    tool_input = payload.get("tool_input")
+    if not isinstance(tool_input, dict):
+        return False
+
+    if str(payload.get("tool_name") or "") == "apply_patch":
+        patch_text = _extract_patch_text(tool_input)
+        return _apply_patch_has_marker_for_path(patch_text, path, project_root)
+
+    return any(has_tdd_exempt_marker(text) for text in _payload_direct_marker_texts(tool_input))
 
 
 def _string_list(config: dict[str, Any], key: str) -> list[str]:
@@ -550,6 +690,8 @@ def evaluate_payload(
             continue
         if has_matching_test(path, project_root, config):
             continue
+        if payload_has_tdd_exempt_marker_for_path(payload, path, project_root):
+            continue
         rel = _rel_path(path, project_root) or path
         candidates = matching_test_candidates(rel, config)
         suggested = "\n".join(f"  - {candidate.as_posix()}" for candidate in candidates[:5])
@@ -558,6 +700,8 @@ def evaluate_payload(
             "TDD GUARD[generated]: "
             f"'{rel.as_posix()}' 에 대한 매칭 테스트가 없습니다.\n"
             "구현 파일을 쓰기 전에 테스트를 먼저 작성하세요.\n"
+            f"정말 테스트가 구조적으로 불필요하면 파일에 `{TDD_EXEMPT_DISPLAY}` "
+            "마커를 사유와 함께 남기세요. 빈 사유는 통과하지 않습니다.\n"
             f"권장 위치:\n{suggested}",
         )
     return "allow", ""
