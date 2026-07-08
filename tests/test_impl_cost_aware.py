@@ -40,6 +40,12 @@ def read_workflow_router() -> str:
     return (ROOT / "docs" / "plugin" / "workflow-router.md").read_text(encoding="utf-8")
 
 
+def read_build_worker() -> str:
+    return (
+        ROOT / "docs" / "plugin" / "agents" / "build-worker" / "build-worker-agent.md"
+    ).read_text(encoding="utf-8")
+
+
 class TestPreReadCostAware(unittest.TestCase):
     """#436 — 사전 read 의무가 cost-aware 룰 명시."""
 
@@ -177,10 +183,32 @@ class TestImplLoopRiskPreview(unittest.TestCase):
                 self.assertIn("플랫폼 SDK 표준 사용", body)
                 self.assertIn("런타임 권한 요청", body)
                 self.assertIn("decision 으로 이미 합의", body)
+                for trigger in (
+                    "migration",
+                    "destructive",
+                    "auth",
+                    "security",
+                    "PII",
+                    "compliance",
+                    "public API breakage",
+                    "외부 HTTP",
+                    "네트워크 어댑터",
+                    "신뢰 경계 밖 입력 파싱",
+                    "신규 3rd-party",
+                    "외부 서비스",
+                ):
+                    self.assertIn(trigger, body)
 
         self.assertIn("high-risk trigger 표는 설계 선행 판정 전용", router)
         self.assertIn("impl-task 엔진 판정", router)
         self.assertIn("module-architect", router)
+
+    def test_build_worker_self_check_keeps_invariant_drift_warning(self):
+        body = read_build_worker()
+        self.assertIn("도메인 invariant 변경은 build-worker self-grading drift", body)
+        self.assertIn("엔진 승격 기준과 별개", body)
+        self.assertIn("decision 으로 합의된 invariant 구현에도 적용", body)
+        self.assertNotIn("decision 합의 없는 도메인 invariant 변경은", body)
 
     def test_engine_risk_examples_match_issue_acceptance(self):
         module_architect = read_module_architect()
