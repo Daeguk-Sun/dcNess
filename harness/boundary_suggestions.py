@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Iterable, Optional
 
 from harness.agent_boundary import check_write_allowed
+from harness.parallel_wave import parse_impl_task
 
 
 SOURCE_EXTENSIONS: frozenset[str] = frozenset(
@@ -196,6 +197,13 @@ def _pattern_for_directory(directory: str) -> str:
     return "^" + "/".join(re.escape(part) for part in directory.rstrip("/").split("/")) + "/"
 
 
+def _pattern_for_scope_path(path: str) -> str:
+    normalized = path.strip()
+    if normalized.endswith("/"):
+        return _pattern_for_directory(normalized)
+    return "^" + "/".join(re.escape(part) for part in normalized.split("/")) + "$"
+
+
 def _group_uncovered(uncovered: list[Path]) -> list[BoundarySuggestion]:
     grouped: dict[str, list[Path]] = {}
     for rel in uncovered:
@@ -226,8 +234,68 @@ def _suggestion_directory(rel: Path) -> str:
     return parent.rstrip("/") + "/"
 
 
-def collect_boundary_suggestions(cwd: Optional[Path] = None) -> BoundarySuggestionReport:
+def _suggestions_for_impl_plan_scope(paths: Iterable[str]) -> list[BoundarySuggestion]:
+    suggestions: list[BoundarySuggestion] = []
+    for rel in sorted(set(paths)):
+        suggestions.append(
+            BoundarySuggestion(
+                directory=rel,
+                pattern=_pattern_for_scope_path(rel),
+                file_count=1,
+                examples=[rel],
+            )
+        )
+    return suggestions
+
+
+def collect_impl_plan_boundary_suggestions(
+    cwd: Optional[Path],
+    impl_plan: Path,
+) -> BoundarySuggestionReport:
+    """Detect `### 수정 허용` paths not covered by the engineer boundary."""
+    root = _project_root(cwd)
+    if _is_dcness_self_repo(root):
+        return BoundarySuggestionReport(
+            project_root=str(root),
+            scanned_files=0,
+            uncovered_files=0,
+            suggestions=[],
+            reason="self_repo",
+        )
+
+    parsed = parse_impl_task(impl_plan)
+    scope_paths = sorted(parsed.scope_paths)
+    uncovered: list[str] = []
+    for rel in scope_paths:
+        reason = check_write_allowed("engineer", rel, cwd=root)
+        if reason is not None and "ALLOW_MATRIX" in reason:
+            uncovered.append(rel)
+
+    suggestions = _suggestions_for_impl_plan_scope(uncovered)
+    if suggestions:
+        report_reason = "impl_plan_uncovered"
+    elif not scope_paths:
+        report_reason = "impl_plan_scope_ambiguous"
+    else:
+        report_reason = "impl_plan_covered"
+    return BoundarySuggestionReport(
+        project_root=str(root),
+        scanned_files=len(scope_paths),
+        uncovered_files=len(uncovered),
+        suggestions=suggestions,
+        reason=report_reason,
+    )
+
+
+def collect_boundary_suggestions(
+    cwd: Optional[Path] = None,
+    *,
+    impl_plan: Optional[Path] = None,
+) -> BoundarySuggestionReport:
     """Detect source directories not covered by the effective engineer boundary."""
+    if impl_plan is not None:
+        return collect_impl_plan_boundary_suggestions(cwd, impl_plan)
+
     root = _project_root(cwd)
     if _is_dcness_self_repo(root):
         return BoundarySuggestionReport(
@@ -266,17 +334,18 @@ def format_boundary_suggestions(report: BoundarySuggestionReport) -> str:
     if report.reason == "self_repo":
         return "[dcness boundary] no-op - dcNess self repo 는 boundary override 제안 대상이 아닙니다."
     if not report.suggestions:
-        detail = (
-            "소스 파일 없음"
-            if report.reason == "empty"
-            else "코어 ALLOW_MATRIX 또는 기존 .dcness/boundary.json 으로 모두 커버됨"
-        )
+        if report.reason == "empty":
+            detail = "소스 파일 없음"
+        elif report.reason == "impl_plan_scope_ambiguous":
+            detail = "impl 계획의 `### 수정 허용` 경로를 확정할 수 없음"
+        else:
+            detail = "코어 ALLOW_MATRIX 또는 기존 .dcness/boundary.json 으로 모두 커버됨"
         return f"[dcness boundary] no-op - {detail}."
 
     add_patterns = [item.pattern for item in report.suggestions]
     sample = {"engineer": {"add": add_patterns}}
     lines = [
-        "[dcness boundary] 코어 ALLOW_MATRIX 미커버 소스 디렉터리 후보:",
+        "[dcness boundary] 코어 ALLOW_MATRIX 미커버 경로 후보:",
     ]
     for item in report.suggestions:
         examples = ", ".join(f"`{example}`" for example in item.examples)

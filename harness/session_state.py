@@ -921,13 +921,135 @@ def _run_design_doc_exists(
     base_dir: Optional[Path] = None,
 ) -> bool:
     """현재 run 슬롯에 기록된 design_doc 이 디스크에 실존하는지."""
+    doc = _run_design_doc_path(session_id, run_id, base_dir=base_dir)
+    return bool(doc and doc.is_file())
+
+
+def _run_design_doc_path(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Optional[Path]:
+    """현재 run 슬롯의 design_doc 절대경로를 반환한다."""
     try:
         doc = _slot_for_run(session_id, run_id, base_dir=base_dir).get("design_doc")
         if not isinstance(doc, str) or not doc:
-            return False
-        return Path(doc).is_file()
+            return None
+        return Path(doc)
+    except (OSError, ValueError):
+        return None
+
+
+def _project_root_from_design_doc(doc: Path) -> Optional[Path]:
+    """`.../docs/...` 설계 산출물 경로에서 프로젝트 루트를 복원한다."""
+    try:
+        resolved = doc.resolve()
+    except (OSError, RuntimeError):
+        resolved = doc
+    parts = resolved.parts
+    for idx in range(len(parts) - 1, 0, -1):
+        if parts[idx] == "docs":
+            return Path(*parts[:idx])
+    return None
+
+
+def _is_dcness_self_project(project_root: Path) -> bool:
+    manifest = project_root / ".claude-plugin" / "plugin.json"
+    try:
+        data = json.loads(manifest.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return False
+    return isinstance(data, dict) and data.get("name") == "dcness"
+
+
+def _impl_run_project_root(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Path:
+    doc = _run_design_doc_path(session_id, run_id, base_dir=base_dir)
+    if doc is not None:
+        root = _project_root_from_design_doc(doc)
+        if root is not None:
+            return root
+    return Path.cwd().resolve()
+
+
+def _impl_plan_boundary_preflight_message(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Optional[str]:
+    doc = _run_design_doc_path(session_id, run_id, base_dir=base_dir)
+    if doc is None or not doc.is_file():
+        return None
+    project_root = _project_root_from_design_doc(doc)
+    if project_root is None:
+        return None
+
+    try:
+        from harness.boundary_suggestions import (
+            collect_boundary_suggestions,
+            format_boundary_suggestions,
+        )
+
+        report = collect_boundary_suggestions(project_root, impl_plan=doc)
+    except Exception as exc:
+        return (
+            "[순서 차단 훅: impl pre-flight boundary] impl 계획의 `### 수정 허용` "
+            f"boundary 대조 실패: {exc}. 계획 scope 를 확인한 뒤 재시도하세요."
+        )
+    if not report.suggestions:
+        return None
+    return (
+        "[순서 차단 훅: impl pre-flight boundary] impl 계획의 `### 수정 허용` "
+        "경로 중 engineer/build-worker boundary 로 커버되지 않는 항목이 있습니다. "
+        "사람 승인 후 `.dcness/boundary.json` engineer.add override 를 기록하기 전까지 "
+        "구현 step 을 시작할 수 없습니다.\n"
+        f"{format_boundary_suggestions(report)}"
+    )
+
+
+def _generated_tdd_preflight_message(project_root: Path) -> Optional[str]:
+    if _is_dcness_self_project(project_root):
+        return None
+    try:
+        from harness.tdd_hooks import inspect_installation
+
+        report = inspect_installation(project_root)
+    except Exception as exc:
+        return (
+            "[순서 차단 훅: impl pre-flight TDD] generated TDD hook 상태 확인 실패: "
+            f"{exc}. `scripts/dcness-tdd-hooks status --project-root <project>` 로 "
+            "상태를 확인하세요."
+        )
+
+    platform = report.get("platform")
+    if not platform:
+        return None
+
+    cc_registered = bool(report.get("cc_registered"))
+    codex_registered = bool(report.get("codex_registered"))
+    committed = bool(report.get("generated_files_committed"))
+    if cc_registered and codex_registered and committed:
+        return None
+
+    uncommitted = report.get("uncommitted_generated_files") or []
+    detail = ""
+    if isinstance(uncommitted, list) and uncommitted:
+        detail = f", uncommitted={', '.join(str(item) for item in uncommitted[:5])}"
+    return (
+        "[순서 차단 훅: impl pre-flight TDD] generated TDD hook 이 구현 진입 전 "
+        "준비되지 않았습니다. "
+        f"platform={platform}, cc={cc_registered}, codex={codex_registered}, "
+        f"generated_files_committed={committed}{detail}. "
+        "사람 승인 후 `scripts/dcness-tdd-hooks ensure --project-root <project> "
+        "--targets cc,codex --plugin-root <plugin-root>` 를 실행하고 생성 파일을 "
+        "bootstrap commit 에 포함하세요."
+    )
 
 
 def _run_lane(
@@ -1045,6 +1167,16 @@ def evaluate_order_gate_for_step(
                 "시작할 때 `begin-run impl --design-doc <설계문서>` 를 기록하세요. "
                 "명시적 Lite 구현 경로라면 `begin-run impl --lane lite` 로 시작하세요."
             )
+        boundary_message = _impl_plan_boundary_preflight_message(
+            session_id, run_id, base_dir=base_dir,
+        )
+        if boundary_message:
+            return boundary_message
+        tdd_message = _generated_tdd_preflight_message(
+            _impl_run_project_root(session_id, run_id, base_dir=base_dir)
+        )
+        if tdd_message:
+            return tdd_message
 
     if norm_agent == "pr-reviewer":
         if _run_has_engineer_output(rd) and not _run_prose_has_pass(rd, "code-validator"):

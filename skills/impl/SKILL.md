@@ -85,9 +85,13 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 
 ```bash
 "$HELPER" boundary-suggestions
+# 설계 문서 경로가 이미 있으면:
+"$HELPER" boundary-suggestions --impl-plan <docs/compact-plans/...md 또는 docs/epics/.../impl/...md>
 ```
 
-코어 `ALLOW_MATRIX` 로 커버되지 않는 비표준 소스 디렉터리가 있으면 `.dcness/boundary.json` 의 `engineer.add` 후보만 출력한다. 후보가 있으면 사람 승인 후에만 메인이 boundary 파일을 작성한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다.
+코어 `ALLOW_MATRIX` 로 커버되지 않는 비표준 소스 디렉터리가 있으면 `.dcness/boundary.json` 의 `engineer.add` 후보만 출력한다. 설계 문서가 있는 Standard 경로에서는 설계 문서의 `### 수정 허용` 경로도 같은 기준으로 대조한다. 후보가 있으면 사람 승인 후에만 메인이 boundary 파일을 작성한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다.
+
+이 pre-flight 는 `begin-step engineer/build-worker` 에서도 provider-independent 로 강제된다. Standard run 의 `--design-doc` 이 가리키는 impl/compact plan 안 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되지 않으면 구현 step 시작이 차단된다. Lite 기본 경로는 계획 파일 없이 메인 직접 구현이므로 plan-specific boundary 대조 대상이 아니다.
 
 ## Step 0.3 — generated TDD hook 부재 확인
 
@@ -103,7 +107,7 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 "$PLUGIN_ROOT/scripts/dcness-tdd-hooks" ensure --project-root "$PROJECT_ROOT" --targets cc,codex --plugin-root "$PLUGIN_ROOT"
 ```
 
-빈 프로젝트, 미지원 플랫폼, 생성 실패, self-test 실패는 no-op 으로 안전 통과한다. 생성 훅이 있으면 중앙 `tdd-guard.sh` 와 headless worker 사후 검사는 그 generated hook 을 먼저 실행한다.
+빈 프로젝트와 미지원 플랫폼은 no-op 으로 안전 통과한다. 플랫폼 또는 project-local 계약이 감지된 프로젝트에서 generated hook 이 없거나 생성/self-test 가 실패하면 구현 진입 전 사용자 위임으로 멈춘다. 생성 훅이 있으면 중앙 `tdd-guard.sh` 와 headless worker 사후 검사는 그 generated hook 을 먼저 실행한다.
 
 `status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 bootstrap commit 에 포함해야 한다. 커밋되지 않은 생성 파일은 새 worktree/headless worker 체크아웃에 없으므로 project-local TDD 계약이 재사용되지 않는다.
 
@@ -230,7 +234,7 @@ Implementation routing 이 headless 계열이면 Lite 기본 구현도 메인이
 
 Standard 는 **설계 문서(경로)가 들어온** 구현 경로다. impl 은 설계를 만들지 않는다 — 받은 설계도(`docs/compact-plans/<slug>.md` / `docs/epics/**/impl/*.md`)를 충실히 구현만 한다. 경량 설계 산출 자체는 impl 밖 내부 skill [`compact-design`](../../skills/compact-design/SKILL.md)(= `module-architect:COMPACT_PLAN` wrapper) 또는 full `/design` 이 담당하고, 그 산출물 경로가 Standard 진입의 사전 조건이다.
 
-진입 시 `begin-run impl --design-doc <설계 문서 경로>` 로 설계도를 기록한다 — 이것이 engineer 게이트의 설계 산출물 사전 조건 증거다([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh)). 설계도가 (a) 이전에 머지된 설계 문서든 (b) `compact-design` 이 방금 산출한 compact plan 이든, impl 은 같은 run 에서 설계를 생성하지 않으므로 Standard 는 **항상 `--design-doc` 기록 하나로** 진입한다 (same-run module-architect step 없음).
+진입 시 `begin-run impl --design-doc <설계 문서 경로>` 로 설계도를 기록한다 — 이것이 engineer 게이트의 설계 산출물 사전 조건 증거다([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh)). 설계도가 (a) 이전에 머지된 설계 문서든 (b) `compact-design` 이 방금 산출한 compact plan 이든, impl 은 같은 run 에서 설계를 생성하지 않으므로 Standard 는 **항상 `--design-doc` 기록 하나로** 진입한다 (same-run module-architect step 없음). 이 경로가 기록되면 begin-step 게이트가 `### 수정 허용` boundary 대조도 자동 수행한다.
 
 엔진(풀4/경량)은 구현 경로와 직교로 별도 판정한다 — 사용자 우선, 미지정 시 build-worker 기본이다.
 

@@ -11,10 +11,12 @@
 #          — CC docs: PreToolUse 는 exit 2 라야 차단 + stderr 가 Claude 에 피드백.
 #            exit 1 = non-blocking error → 도구 그대로 진행 (차단 안 됨).
 #
-# 강제 룰 (3 게이트):
+# 강제 룰:
 #   - pr-reviewer 게이트 — pr-reviewer 직전 code-validator PASS 확인
 #   - engineer 게이트 — engineer 직전 설계 산출물 확인 (같은 run 의 module-architect PASS
 #     또는 begin-run --design-doc 으로 기록된 설계 문서 실존)
+#   - impl entry pre-flight — design_doc 의 `### 수정 허용` boundary 대조 +
+#     generated TDD hook 활성/커밋 확인
 #   - module-architect 게이트 — /design 첫 module-architect 단위 호출 직전 architecture-validator 1차 PASS
 
 set -uo pipefail

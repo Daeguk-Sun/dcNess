@@ -807,7 +807,11 @@ def _cli_boundary_suggestions(args: Any) -> int:
         format_boundary_suggestions,
     )
 
-    report = collect_boundary_suggestions(Path(args.cwd) if args.cwd else None)
+    impl_plan = Path(args.impl_plan) if args.impl_plan else None
+    report = collect_boundary_suggestions(
+        Path(args.cwd) if args.cwd else None,
+        impl_plan=impl_plan,
+    )
     if args.json:
         print(json.dumps(report.to_dict(), ensure_ascii=False))
     else:
@@ -1264,6 +1268,11 @@ def _build_arg_parser() -> Any:
         help="#910 read-only: 비표준 소스 디렉터리 boundary override 후보 출력",
     )
     p_bsug.add_argument("--cwd", default="", help="검사할 프로젝트 cwd (기본 현재 cwd)")
+    p_bsug.add_argument(
+        "--impl-plan",
+        default="",
+        help="impl/compact plan 의 `### 수정 허용` 경로를 ALLOW_MATRIX 와 대조",
+    )
     p_bsug.add_argument("--json", action="store_true")
     p_bsug.set_defaults(func=_cli_boundary_suggestions)
 
