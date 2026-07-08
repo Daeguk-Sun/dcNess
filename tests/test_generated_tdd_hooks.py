@@ -38,6 +38,27 @@ def _run_hook(hook: Path, project: Path, file_path: Path) -> subprocess.Complete
     )
 
 
+def _run_hook_payload(
+    hook: Path,
+    project: Path,
+    payload: dict,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        ["bash", str(hook)],
+        input=json.dumps(payload),
+        capture_output=True,
+        text=True,
+        cwd=project,
+        timeout=10,
+        env={
+            **os.environ,
+            "CLAUDE_PLUGIN_ROOT": str(ROOT),
+            "DCNESS_TDD_PLUGIN_ROOT": str(ROOT),
+            "PYTHONPATH": str(ROOT),
+        },
+    )
+
+
 def _run_central_guard(
     project: Path,
     file_path: Path,
@@ -434,6 +455,7 @@ class GeneratedTddHookContractTests(unittest.TestCase):
             denied = _run_hook(hook, project, no_test)
             self.assertEqual(denied.returncode, 2, denied.stderr)
             self.assertIn("TDD GUARD", denied.stderr)
+            self.assertIn("tdd-exempt: <사유>", denied.stderr)
 
             (project / "tests").mkdir()
             (project / "tests" / "test_price.py").write_text(
@@ -447,6 +469,177 @@ class GeneratedTddHookContractTests(unittest.TestCase):
             test_file.write_text("def test_new_contract():\n    assert True\n", encoding="utf-8")
             test_allowed = _run_hook(hook, project, test_file)
             self.assertEqual(test_allowed.returncode, 0, test_allowed.stderr)
+
+    def test_generated_hook_allows_existing_file_with_tdd_exempt_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            (project / "src").mkdir()
+            (project / "src" / "existing.py").write_text("def existing():\n    return 1\n")
+
+            subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "cc",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+
+            hook = project / ".claude" / "hooks" / "dcness-tdd-guard.sh"
+            exempt = project / "src" / "dto.py"
+            exempt.write_text(
+                "# tdd-exempt: dataclass shape only\n"
+                "class Dto:\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+
+            allowed = _run_hook(hook, project, exempt)
+
+            self.assertEqual(allowed.returncode, 0, allowed.stderr)
+
+    def test_generated_hook_rejects_empty_tdd_exempt_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            (project / "src").mkdir()
+            (project / "src" / "existing.py").write_text("def existing():\n    return 1\n")
+
+            subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "cc",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+
+            hook = project / ".claude" / "hooks" / "dcness-tdd-guard.sh"
+            empty_reason = project / "src" / "dto.py"
+            empty_reason.write_text(
+                "# tdd-exempt:   \n"
+                "class Dto:\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+
+            denied = _run_hook(hook, project, empty_reason)
+
+            self.assertEqual(denied.returncode, 2, denied.stderr)
+
+    def test_generated_hook_allows_write_payload_with_tdd_exempt_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            (project / "src").mkdir()
+            (project / "src" / "existing.py").write_text("def existing():\n    return 1\n")
+
+            subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "cc",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+
+            hook = project / ".claude" / "hooks" / "dcness-tdd-guard.sh"
+            target = project / "src" / "payload_dto.py"
+            payload = {
+                "tool_name": "Write",
+                "tool_input": {
+                    "file_path": str(target),
+                    "content": (
+                        "# tdd-exempt: generated dataclass only\n"
+                        "class PayloadDto:\n"
+                        "    pass\n"
+                    ),
+                },
+            }
+
+            allowed = _run_hook_payload(hook, project, payload)
+
+            self.assertEqual(allowed.returncode, 0, allowed.stderr)
+
+    def test_generated_hook_allows_apply_patch_add_file_with_tdd_exempt_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            (project / "src").mkdir()
+            (project / "src" / "existing.py").write_text("def existing():\n    return 1\n")
+
+            subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "codex",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+
+            hook = project / ".codex" / "hooks" / "dcness-tdd-guard.sh"
+            payload = {
+                "tool_name": "apply_patch",
+                "tool_input": {
+                    "patch": (
+                        "*** Begin Patch\n"
+                        "*** Add File: src/codex_dto.py\n"
+                        "+# tdd-exempt: generated DTO only\n"
+                        "+class CodexDto:\n"
+                        "+    pass\n"
+                        "*** End Patch\n"
+                    )
+                },
+            }
+
+            allowed = _run_hook_payload(hook, project, payload)
+
+            self.assertEqual(allowed.returncode, 0, allowed.stderr)
 
     def test_central_tdd_guard_delegates_to_generated_hook_for_headless_paths(self) -> None:
         with tempfile.TemporaryDirectory() as td:

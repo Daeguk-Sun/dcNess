@@ -220,6 +220,27 @@ if [ -z "$FILE_PATH" ]; then
   allow
 fi
 
+has_tdd_exempt_marker_for_current_payload() {
+  python3 - "$INPUT" "$FILE_PATH" "$PROJECT_ROOT" >/dev/null 2>&1 <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from harness.tdd_hooks import payload_has_tdd_exempt_marker_for_path
+
+try:
+    payload = json.loads(sys.argv[1] or "{}")
+except Exception:
+    sys.exit(1)
+if not isinstance(payload, dict):
+    sys.exit(1)
+
+path = Path(sys.argv[2])
+project_root = Path(sys.argv[3])
+sys.exit(0 if payload_has_tdd_exempt_marker_for_path(payload, path, project_root) else 1)
+PY
+}
+
 # 자동 skip — test/spec 파일 자체 + 표준 test 디렉터리 (#681)
 # 주의: 단순 *test* / *spec* 광역 glob 은 contest.ts / spectrum.ts / latest.ts 같은
 # 구현 파일을 test 파일로 오인 skip → TDD 강제를 우회시킨다 (false negative).
@@ -331,6 +352,9 @@ has_test_for() {
 }
 
 if ! has_test_for "$FILE_PATH"; then
+  if has_tdd_exempt_marker_for_current_payload; then
+    allow
+  fi
   BASE=$(basename "$FILE_PATH" | sed -E 's/\.(ts|tsx|js|jsx)$//')
   DIR=$(dirname "$FILE_PATH")
   PARENT=$(dirname "$DIR")
@@ -341,6 +365,8 @@ if ! has_test_for "$FILE_PATH"; then
   esac
   record_guard_hit "missing_test" "$FILE_PATH"
   deny "TDD GUARD: '${BASE}' 에 대한 테스트 파일이 존재하지 않습니다. 구현 코드를 작성하기 *전*에 테스트를 먼저 작성하세요.
+
+테스트가 구조적으로 불필요한 파일이면 파일 내용 또는 이번 Write/Edit payload 에 \`tdd-exempt: <사유>\` 마커를 남기세요. 콜론 뒤 사유가 비어 있으면 통과하지 않습니다.
 
 권장 위치 (먼저 시도):
   ${DIR}/${BASE}.test.ts                또는 ${DIR}/${BASE}.spec.ts

@@ -92,6 +92,20 @@ def run_hook_raw(
     )
 
 
+def run_hook_payload(payload: dict, cwd: str) -> subprocess.CompletedProcess:
+    """tdd-guard.sh 를 임의 payload 로 호출한다."""
+    return subprocess.run(
+        ["bash", str(HOOK_PATH)],
+        input=json.dumps(payload),
+        capture_output=True, text=True, cwd=cwd, timeout=10,
+        env={
+            **os.environ,
+            "PYTHONPATH": str(ROOT),
+            "DCNESS_FORCE_ENABLE": "1",
+        },
+    )
+
+
 def decision(result: subprocess.CompletedProcess) -> str:
     """allow / deny 를 returncode 로 판정 — exit 0=allow / exit 2=deny."""
     if result.returncode == 0:
@@ -225,7 +239,10 @@ class TestRegressionPreserved(unittest.TestCase):
             "src/business-logic.ts",
             "export function calculatePrice(qty, unit) { return qty * unit; }\n",
         )
-        self.assertEqual(decision(run_hook(path, self._tmp)), "deny")
+        result = run_hook(path, self._tmp)
+        self.assertEqual(decision(result), "deny")
+        self.assertIn("테스트를 먼저 작성", result.stderr)
+        self.assertIn("tdd-exempt: <사유>", result.stderr)
 
     def test_src_business_logic_with_test_allowed(self):
         """일반 비즈니스 로직 + 매칭 테스트 존재 → allow."""
@@ -247,6 +264,90 @@ class TestRegressionPreserved(unittest.TestCase):
             decision(run_hook("docs/design-variants/_lib/show-ids.js", self._tmp)),
             "allow",
         )
+
+
+class TestTddExemptMarker(unittest.TestCase):
+    """사유가 있는 tdd-exempt marker 는 파일 단위 override 다."""
+
+    def setUp(self):
+        self._tmp = tempfile.mkdtemp()
+        subprocess.run(["git", "init"], cwd=self._tmp, capture_output=True)
+
+    def tearDown(self):
+        shutil.rmtree(self._tmp, ignore_errors=True)
+
+    def _touch(self, rel: str, content: str) -> str:
+        p = Path(self._tmp) / rel
+        p.parent.mkdir(parents=True, exist_ok=True)
+        p.write_text(content, encoding="utf-8")
+        return str(p)
+
+    def test_existing_file_with_tdd_exempt_reason_allowed(self):
+        path = self._touch(
+            "src/user-dto.ts",
+            "// tdd-exempt: DTO shape only; no executable logic\n"
+            "export interface UserDto { id: string }\n",
+        )
+
+        self.assertEqual(decision(run_hook(path, self._tmp)), "allow")
+
+    def test_existing_file_empty_tdd_exempt_reason_still_denied(self):
+        path = self._touch(
+            "src/user-dto.ts",
+            "// tdd-exempt:   \n"
+            "export interface UserDto { id: string }\n",
+        )
+
+        result = run_hook(path, self._tmp)
+
+        self.assertEqual(decision(result), "deny")
+        self.assertIn("tdd-exempt: <사유>", result.stderr)
+
+    def test_write_payload_with_tdd_exempt_reason_allowed_for_new_file(self):
+        target = str(Path(self._tmp) / "src" / "generated-dto.ts")
+        payload = {
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": target,
+                "content": (
+                    "// tdd-exempt: generated DTO barrel only\n"
+                    "export type GeneratedDto = { id: string }\n"
+                ),
+            },
+        }
+
+        self.assertEqual(decision(run_hook_payload(payload, self._tmp)), "allow")
+
+    def test_edit_payload_new_string_with_tdd_exempt_reason_allowed(self):
+        target = self._touch(
+            "src/existing-dto.ts",
+            "export type ExistingDto = { id: string }\n",
+        )
+        payload = {
+            "tool_name": "Edit",
+            "tool_input": {
+                "file_path": target,
+                "old_string": "export type ExistingDto = { id: string }\n",
+                "new_string": (
+                    "// tdd-exempt: DTO type only\n"
+                    "export type ExistingDto = { id: string }\n"
+                ),
+            },
+        }
+
+        self.assertEqual(decision(run_hook_payload(payload, self._tmp)), "allow")
+
+    def test_write_payload_empty_tdd_exempt_reason_denied_for_new_file(self):
+        target = str(Path(self._tmp) / "src" / "generated-dto.ts")
+        payload = {
+            "tool_name": "Write",
+            "tool_input": {
+                "file_path": target,
+                "content": "// tdd-exempt:   \nexport const generated = true;\n",
+            },
+        }
+
+        self.assertEqual(decision(run_hook_payload(payload, self._tmp)), "deny")
 
 
 class TestBashWriteTargets(unittest.TestCase):

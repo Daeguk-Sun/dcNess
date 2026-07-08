@@ -854,6 +854,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("Bash write target 정책", self.hooks_doc)
         self.assertIn("TDD GUARD[Bash]", self.hooks_doc)
         self.assertIn("contest.ts", self.hooks_doc)
+        self.assertIn("tdd-exempt: <사유>", self.hooks_doc)
 
     def test_backpressure_loop_is_first_class_across_stages(self) -> None:
         """#702 — 단계 간 되돌림(backpressure) 원리가 분기 규칙 SSOT 에 일급으로 명시된다."""
