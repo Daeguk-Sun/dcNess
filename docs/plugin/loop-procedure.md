@@ -381,11 +381,13 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 
 **verify-only 예외 (`/impl-loop`)**: `code-validator:VERIFY_ONLY` prose 가 `PASS`이고 prose 안에 검증 명령 exit 0 + `git status --porcelain` 변경 0 증거가 있으면, step 1개 + PR 0개도 clean 이다. 이 예외에서는 `pr-create.sh` 를 호출하지 않는다.
 
-### 7a — Clean 자동 commit/PR
+### 7a — Clean commit/PR
 
 > **impl-task-loop 제외**: [impl-task-loop commit 구조](#impl-task-loop-commit-구조) 에서 branch/commit/push/PR 이미 완료 → Step 7a = merge only.
 
-clean 판정 통과 시 사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프): branch (`<prefix>/<short-slug>`, prefix = 해당 loop 의 branch_prefix — [`git-spec.md` 브랜치](git-spec.md#브랜치) valid 패턴) → **변경 파일 commit** → push → PR create → merge → default worktree sync/cleanup. **commit 대상 = 해당 loop 가 실제 변경한 파일** — design = `docs/**` 설계 산출물, ux = epic `ux-flow.md`, `docs/design.md`, `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, 필요 시 `docs/design-variants/_lib/**` seed 라 src-only 아님 (src-only 제한은 impl-task-loop 전용, [impl-task-loop commit 구조](#impl-task-loop-commit-구조)). **stray untracked 휩쓸기 주의**: impl 루프와 달리 비-impl loop 은 worktree 권한 경계가 src-only 가 아니고 clean 매트릭스가 untracked ≤ 10 을 허용하므로, `pr-create.sh` 의 `git add -A` 는 무관한 로컬 아티팩트까지 stage 한다 → 호출 *전* 산출물 외 파일을 정리하거나, 해당 loop 산출물만 명시 pathspec 으로 직접 stage 후 commit. 네이밍·본문·트레일러 = [`git-spec.md`](git-spec.md), 커밋 trailer 의 모델 표기는 글로벌 `~/.claude/CLAUDE.md` 기준. 실행 = `$PLUGIN_ROOT/scripts/pr-create.sh` + `$PLUGIN_ROOT/scripts/pr-finalize.sh`.
+clean 판정은 commit 가능 상태를 뜻하지만, 사용자 승인-gated 산출물의 승인까지 대신하지 않는다. `/design` 과 `/ux` 처럼 사용자가 산출물을 검수해야 하는 loop 는 해당 skill 의 사용자 최종 설계 승인 또는 확정본 승인 checkpoint 를 먼저 닫는다. 승인 응답 전에는 `git add`, `git commit`, `git push`, `gh pr create`, `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다.
+
+승인-gated 가 아니거나 승인 checkpoint 가 이미 닫힌 clean loop 는 branch (`<prefix>/<short-slug>`, prefix = 해당 loop 의 branch_prefix — [`git-spec.md` 브랜치](git-spec.md#브랜치) valid 패턴) → **변경 파일 commit** → push → PR create → merge → default worktree sync/cleanup 으로 진행한다. **commit 대상 = 해당 loop 가 실제 변경한 파일** — design = `docs/**` 설계 산출물, ux = epic `ux-flow.md`, `docs/design.md`, `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, 필요 시 `docs/design-variants/_lib/**` seed 라 src-only 아님 (src-only 제한은 impl-task-loop 전용, [impl-task-loop commit 구조](#impl-task-loop-commit-구조)). **stray untracked 휩쓸기 주의**: impl 루프와 달리 비-impl loop 은 worktree 권한 경계가 src-only 가 아니고 clean 매트릭스가 untracked ≤ 10 을 허용하므로, `pr-create.sh` 의 `git add -A` 는 무관한 로컬 아티팩트까지 stage 한다 → 호출 *전* 산출물 외 파일을 정리하거나, 해당 loop 산출물만 명시 pathspec 으로 직접 stage 후 commit. 네이밍·본문·트레일러 = [`git-spec.md`](git-spec.md), 커밋 trailer 의 모델 표기는 글로벌 `~/.claude/CLAUDE.md` 기준. 실행 = `$PLUGIN_ROOT/scripts/pr-create.sh` + `$PLUGIN_ROOT/scripts/pr-finalize.sh`.
 
 worktree 진입 시 [worktree 분기](#worktree-분기-action-루프-한정) 의 커밋 diff 흡수 + working tree clean 검사를 완료한 뒤 `ExitWorktree(action="<keep|remove>")` 를 호출한다.
 

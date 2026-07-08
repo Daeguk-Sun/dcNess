@@ -16,8 +16,10 @@ agent 는 일을 마치면 prose 마지막 단락에 어떤 결과로 끝났는�
 flowchart TB
   START([Step 0.5 durable stage 판정]) -->|UI epic + ux-flow 없음| DUX[design-ux stage]
   START -->|ux-flow 있음 또는 UI-less| DSYS[design-system stage]
+  START -->|완료된 pack 개정 REVISION| DSYS_REV[design-system revision mode]
   DUX -->|DESIGN_UX_PR_MERGED| START
   DSYS --> TOPO[Step 1 topology 판정]
+  DSYS_REV --> TOPO
   TOPO -->|UI epic 또는 UI-less| BOOT{모듈 topology 부재?}
   DUX --> MU{목업 선행 여부}
   MU -->|목업 없음 / opt-out / yolo| UX[ux-architect]
@@ -34,7 +36,7 @@ flowchart TB
   MA_BATCH -->|PASS| AV_FINAL[architecture-validator final epic 검증]
   MA_BATCH -->|SYSTEM_CHECKPOINT_REQUIRED| SA_CHECK[system-architect opt-in checkpoint]
   SA_CHECK -->|PASS| MA_BATCH
-  AV_FINAL -->|PASS| M([end-run/metrics freeze 후 Step 6 PR · 사용자 확인 checkpoint · 머지 → /impl 안내])
+  AV_FINAL -->|PASS| M([end-run/metrics freeze 후 사용자 최종 설계 승인 · commit/PR · 머지 → /impl 안내])
   M -->|DESIGN_SYSTEM_PR_MERGED| DONE([/impl 안내])
   AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤3 shared"| SA_CHECK
   AV_FINAL -->|"FAIL: TASK_LOCAL ≤3 shared"| MA_BATCH
@@ -50,7 +52,7 @@ flowchart TB
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class DUX,DSYS,UX,UXPR,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,MU,DSKIP produce
+  class DUX,DSYS,DSYS_REV,UX,UXPR,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,MU,DSKIP produce
   class AV_FINAL verify
   class U user
 ```
@@ -65,11 +67,11 @@ flowchart TB
 |---|---|
 | **design-ux stage** | `DESIGN_UX_PR_MERGED` → `/design` dispatcher 재판정. durable `ux-flow.md` 존재 + full design pack 부재이면 design-system stage · `ESCALATE` → 사용자 |
 | **design-system stage** | `DESIGN_SYSTEM_PR_MERGED` → `/impl <epic-path>` 안내 · `ESCALATE` → 사용자 |
-| **ux-architect** | `UX_FLOW_READY` → stage 1 PR 생성 후 `/design` dispatcher 재판정 · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
+| **ux-architect** | `UX_FLOW_READY` → 사용자 최종 설계 승인 후 stage 1 PR 생성 → `/design` dispatcher 재판정 · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
 | **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SYSTEM_CHECKPOINT_REQUIRED` → system-architect opt-in checkpoint · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **system-architect(thin bootstrap)** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **system-architect(opt-in checkpoint)** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
-| **architecture-validator** | `PASS`(final epic 검증) → SKILL.md Step 5 end-run/metrics freeze 후 Step 6 PR + 사용자 확인 checkpoint · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
+| **architecture-validator** | `PASS`(final epic 검증) → SKILL.md Step 5 end-run/metrics freeze 후 사용자 최종 설계 승인 + commit/PR · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
 | **designer** | `PASS` → 사용자 PICK · `ESCALATE` → 사용자. (UX_REFINE 분기 진입 시) |
 
 표만으로 안 풀리는 맥락:
@@ -77,6 +79,8 @@ flowchart TB
 - **system-architect(thin bootstrap)** 는 greenfield 첫 설계에서 모듈 topology 가 전혀 없을 때만 module-architect 앞에 1회 들어간다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 스택/전역 decision 기록으로 제한한다. bootstrap 뒤 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다.
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.
 - **architecture-validator 시점** — final epic 검증만 기본이다. 모든 impl 산출물을 한 번에 읽고 Story 간 compose/wiring, forward-ref 회수, Story별 첫 제품 경계 동작 증거, 구현 순서(첫 제품 경계 동작 앞당김), cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `TASK_LOCAL`) 동반. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 FAIL 하지 않고 Should 로 보고한다.
+- **완료된 pack 개정 REVISION** — `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 full design pack 이 완료됐더라도 `design-system` revision mode 로 들어간다. REVISION 은 완료 판정을 깨는 오류가 아니라 완료된 pack 개정 경로다. 개정 의도가 없으면 완료 pack 은 `/impl` 안내가 기본이다.
+- **revision mode 원칙** — module-architect 는 surgical revision 으로 영향 산출물만 개정하고 미변경 impl task 를 보존한다. final validator 는 개정분만 보지 않고 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트를 검증한다.
 - **stage PR 경계** — `DESIGN_UX_PR_MERGED` 는 UX 산출물이 main 에 durable 해졌다는 신호다. dispatcher 는 같은 `/design` 공개 진입점으로 재판정해 system stage 로 이어간다. `DESIGN_SYSTEM_PR_MERGED` 는 full design pack 이 durable 해졌다는 신호이므로 `/impl` 로 넘어간다.
 - **목업 선행 여부 checkpoint** — UI epic 의 `design-ux` stage 는 ux-architect 호출 전에 목업 선행 여부를 1회 묻는다. 목업 없음 / opt-out / yolo 는 기존 흐름을 유지하고, 목업=예 는 디자인 시스템 체크포인트와 canvas-design 사용자 PICK 을 먼저 닫는다. 사용자 PICK 확정 이후에만 design-system stage 로 넘어간다.
 - **목업 미참조 금지** — `design-system` stage 는 확정 목업이 있는 UI epic 에서 확정 목업 경로, node-id 매핑, `docs/design.md` 토큰을 module-architect 와 architecture-validator 입력에 넣는다. 산출물이 목업 미참조 상태면 final epic 검증 PASS 로 처리하지 않고 finding 분류에 따라 module-architect 또는 system checkpoint 로 되돌린다.
@@ -109,7 +113,7 @@ flowchart TB
 > thin bootstrap 은 retry loop 가 아니라 topology 부재 판정 때 1회만 들어가는 선행 산출이다. 실패하면 사용자에게 위임하고, bootstrap 산출물 검증을 위한 별도 architecture-validator 단계는 만들지 않는다.
 >
 > **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 분기](#finding-분류-분기)) — final epic 검증은 `SYSTEM_BOUNDARY` → system-architect opt-in checkpoint, `TASK_LOCAL` → module-architect(epic-batch) 보강.
-> cycle 발생 시 working tree only — commit X. PASS 후에만 commit.
+> cycle 발생 시 working tree only — commit X. final PASS 뒤에도 사용자 최종 설계 승인 전에는 commit X.
 
 ### final 검증 counter 계약
 
@@ -145,6 +149,6 @@ system-architect / module-architect 가 design 도중 tech-review 미검증 새 
 
 ## 후속 (loop 종료 후)
 
-- 본 loop clean → 자동 commit/PR + 머지 → 사용자에게 "`/impl <epic-path>` 로 구현 진입할까요?" 안내
+- 본 loop clean → 사용자 최종 설계 승인 → commit/PR + 머지 → 사용자에게 "`/impl <epic-path>` 로 구현 진입할까요?" 안내
 - 주의사항 → 사용자 결정 (수동)
 - spec gap 발견 + cycle 한도 초과 → 사용자 위임 (`/spec` 재진입 권고)
