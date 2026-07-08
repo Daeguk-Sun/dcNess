@@ -12,7 +12,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - 사용자 발화: "init-dcness", "dcness 활성화", "/init-dcness", "이 프로젝트에 dcness 켜"
 - 새 프로젝트에 dcness plugin 사용 시작 시
 - 비활성 -> 활성 전환 시
-- project-local bootstrap 파일이나 Codex 분기 opt-in 을 새로 설치/갱신할 때
+- project-local bootstrap 파일이나 provider routing preset 을 새로 설치/갱신할 때
 
 ## 실행 원칙
 
@@ -24,7 +24,6 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - Project lifecycle SSOT: [`docs/plugin/github-project.md`](../docs/plugin/github-project.md)
 
 멱등 기준:
-
 - whitelist 활성화: 중복 제거.
 - `~/.claude/settings.json` Read 권한: 없을 때만 추가.
 - `.git/hooks/*`: thin shim always-overwrite.
@@ -32,7 +31,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - `.github/workflows/*.yml`: 사용자가 선택한 경우 always-overwrite.
 - `docs/*`, `docs/design-variants/*`: 부재 시만 seed. 단 기존 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 섹션은 없을 때만 append.
 - Codex validator skills: `$CODEX_HOME/skills/dcness-*` always-overwrite. Validator wrapper 는 활성 plugin 원본을 우선 주입하고, 이 복사본은 native Codex skill 등록과 fallback 용도다.
-- Codex provider routing: core 에서는 상태만 확인하고, 선택형 확장에서 validation opt-in 과 implementation 기본값을 갱신.
+- Codex provider routing: core 에서는 상태만 확인하고, 선택형 확장에서 추천 role-split preset 또는 custom provider 조합을 갱신.
 - TDD Guard: dcNess 가 **TDD 계약 + self-test** 를 소유한다. 프로젝트가 비어 있지 않으면 플랫폼 감지 또는 사람 승인된 `.dcness/tdd-hooks.json` 계약(`source_roots`, `impl_exts`, custom 플랫폼의 `test_candidate_templates`, 선택 `test_file_globs`)을 기준으로 project-local CC/Codex hook 생성을 제안하고, 생성 후보는 self-test 통과 전에는 등록하지 않는다. 생성 훅이 없으면 중앙 plug-in hook 이 안전 fallback 으로 동작한다.
 
 ## 공통 변수
@@ -66,7 +65,7 @@ core activation 의 성공 기준은 whitelist, Read 권한, git hook shim, runt
 - `git hook shim 3종` FAIL → Core Step 4.
 - `Codex validator skills` FAIL → Core Step 5 재실행.
 - `CLAUDE.md` 부재 또는 cold-start 앵커 부재 → Core Step 6.
-- `Provider routing` 은 INFO 로 상태만 확인한다. validation 이 이미 enabled 면 다시 쓰지 않고, implementation 은 custom 선택 때만 명시 변경한다.
+- `Provider routing` 은 INFO 로 상태만 확인한다. 추천 role-split preset 은 선택형 확장에서만 적용하고, custom 선택 때 기존 all-codex/Claude-only 조합을 명시 변경한다.
 - `Generated TDD hooks` 는 INFO/WARN 이다. 빈 프로젝트는 skip 하고, 미생성 non-empty 프로젝트는 아래 Core Step 7.5 의 역제안으로 처리한다.
 - `선택형 CI workflow` 는 INFO 다. core activation 성공/실패 판정에 넣지 않는다.
 
@@ -121,9 +120,9 @@ touch "$PROJECT_ROOT/.gitignore"
 grep -qxF '.claude/harness-state/' "$PROJECT_ROOT/.gitignore" || { printf '%s\n' '.claude/harness-state/' >> "$PROJECT_ROOT/.gitignore"; echo "[dcness] .gitignore 에 .claude/harness-state/ 추가"; }
 ```
 
-### Core Step 5 - Codex skill 배포와 routing 상태 확인
+### Core Step 5 - Codex skill 배포와 provider routing 상태 확인
 
-`code-validator` / `architecture-validator` / `pr-reviewer` 는 Codex read-only 실행으로 보낼 수 있다. `test-engineer` / `engineer` / `build-worker` 는 headless-chain implementation 실행으로 보낼 수 있다. 사용자 repo 에 provider config 를 만들지 않는다. Validator wrapper 는 wrapper parent 의 `codex/skills/dcness-*` 원본을 먼저 prompt 에 주입하고, 필요하면 `CLAUDE_PLUGIN_ROOT` 를 plugin root fallback 으로 확인한다. `$CODEX_HOME/skills` 배포본이 원본과 다르면 stale copy 로 보고 무시하며, plugin 원본을 찾을 수 없을 때만 배포본으로 fallback 한다.
+`code-validator` / `architecture-validator` / `pr-reviewer` 는 Codex read-only 또는 Claude 검증 실행으로 보낼 수 있다. `test-engineer` / `engineer` / `build-worker` 는 Claude 또는 headless-chain implementation 실행으로 보낼 수 있다. 사용자 repo 에 provider config 를 만들지 않는다. Validator wrapper 는 wrapper parent 의 `codex/skills/dcness-*` 원본을 먼저 prompt 에 주입하고, 필요하면 `CLAUDE_PLUGIN_ROOT` 를 plugin root fallback 으로 확인한다. `$CODEX_HOME/skills` 배포본이 원본과 다르면 stale copy 로 보고 무시하며, plugin 원본을 찾을 수 없을 때만 배포본으로 fallback 한다.
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -135,7 +134,7 @@ for DIR in dcness-code-validator dcness-architecture-validator dcness-pr-reviewe
 done
 ```
 
-이미 Codex validation routing 이 enabled 면 질문하지 않고 현재 값을 유지한다. implementation routing 은 미설정 기본값이 `headless-chain` 이며, Claude-only 사용자는 core completion 뒤 선택형 확장 custom 경로에서 `claude` 로 바꾼다.
+Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bundle 의 role-split preset 은 `engineer/build-worker=headless-chain`, `test-engineer/code-validator/pr-reviewer=claude`, `architecture-validator=codex` 이며, core completion 뒤 선택형 확장에서 `enable-role-split-routing` 으로만 적용한다.
 
 ```bash
 "$HELPER" routing status
@@ -229,8 +228,8 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 - `.gitignore` 에 `.dcness-work/` 가 없으면 추천 ON. `.claude/harness-state/` 는 core activation 에서 이미 보장한다.
 - UI 흔적이 있어도 `docs/design-variants/` 는 기본 skip. 특히 단일 `app/page.tsx` 정도만으로 design kit 를 설치하지 않는다.
 - GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
-- Codex validation routing 이 이미 enabled 면 skip. disabled/미설정이면 추천 bundle 에서 enable 대상으로 표시하고, custom 에서는 명시 선택으로 다룬다.
-- Implementation routing 이 명시 `claude` 가 아니면 추천 bundle 에서 `headless-chain` 유지 대상으로 표시한다. custom 에서는 `headless-chain` / `codex-first` / `claude-headless` / `claude` 중 하나를 명시 선택한다.
+- Provider routing 추천 bundle 은 `enable-role-split-routing` 단일 entrypoint 로 역할 분리 preset 을 적용한다: `engineer/build-worker=headless-chain`, `test-engineer/code-validator/pr-reviewer=claude`, `architecture-validator=codex`. 기존 활성 프로젝트가 추천 preset 만 소급 적용하려면 `"$HELPER" routing enable-role-split-routing` 뒤 `"$HELPER" routing doctor` 로 PASS 를 확인한다.
+- custom 에서는 기존 선택지를 유지한다: all-codex validation 은 `enable-codex-validation`, legacy Codex-first implementation 은 `enable-codex-implementation`, Claude-only implementation 은 `disable-codex-implementation`.
 - workflow 변경 PR 은 GitHub remote 가 있고, `gh auth status` 가 통과하고, `.github/workflows/*.yml` 변경이 있고, 현재 branch 가 `main` 이면 추천 ON. Y 선택 시 별도 질문 없이 branch 생성, workflow 파일만 stage, commit, push, PR 생성까지 진행한다. `gh` 미설치/미인증이면 자동 PR 은 skip 하고 custom/manual 안내만 남긴다.
 
 추천 출력 예시:
@@ -242,8 +241,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
  - docs: root architecture.md 감지로 docs/architecture.md skip
  - design kit: skip
  - Project lifecycle: skip
- - Codex validation routing: enable
- - Implementation routing: headless-chain
+ - Provider routing: role-split preset (engineer/build-worker=headless-chain, test-engineer/code-validator/pr-reviewer=claude, architecture-validator=codex)
  - workflow PR: gh 인증 + main branch + workflow 변경 시 자동 생성
 적용할까요? (Y/n/custom)
 ```
@@ -310,12 +308,14 @@ done
 #### Provider routing
 
 ```bash
-"$HELPER" routing enable-codex-validation        # 추천 ON 이고 현재 enabled 가 아닐 때 1회
+"$HELPER" routing enable-role-split-routing      # 추천 bundle: engineer/build-worker=headless-chain, test-engineer/code-validator/pr-reviewer=claude, architecture-validator=codex
+"$HELPER" routing enable-codex-validation        # custom: validation agent 를 모두 Codex 로 보낼 때
+"$HELPER" routing disable-codex-validation       # custom: validation agent 를 모두 Claude 로 되돌릴 때
 "$HELPER" routing enable-headless-implementation   # custom 에서 3단 headless-chain 복귀 시
 "$HELPER" routing enable-claude-headless-implementation  # custom 에서 Claude headless 우선 선택 시
 "$HELPER" routing enable-codex-implementation   # custom 에서 legacy Codex-first 선택 시
 "$HELPER" routing disable-codex-implementation  # custom 에서 Claude-only 선택 시
-"$HELPER" routing status
+"$HELPER" routing doctor
 ```
 
 #### workflow 변경 PR
@@ -411,8 +411,8 @@ custom 은 기존 세부 기능을 유지하되 이미 결정 가능한 항목�
 - CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `github-project-lifecycle.yml` 을 각각 선택할 수 있다.
 - docs seed: 이미 존재하는 파일은 묻지 않는다. 단 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 append 보강한다. 루트 `architecture.md` 가 있으면 `docs/architecture.md` 생성 질문을 생략하고 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - design seed: UI 프로젝트 여부가 불명확할 때만 묻는다. `docs/design.md` 는 부재 시 [`docs/plugin/design.md`](../docs/plugin/design.md) 기준 minimal template 생성 여부를 선택한다. `docs/design-variants/` 는 사용자가 명시 선택한 경우에만 설치한다. draft 는 `docs/design-variants/drafts/` 에 두고 gitignore 한다. 기존 활성 프로젝트가 과거 루트 `design-variants/` seed 만 갖고 있으면 custom design seed 를 재실행하거나 아래 파일들을 `docs/design-variants/` 로 복사해 재배포한다.
-- Codex validation routing: 현재 enabled 면 묻지 않는다. disabled/미설정이면 enable/disable 중 하나를 명시 선택한다.
-- Implementation routing: `headless-chain` / `codex-first` / `claude-headless` / `claude` 중 하나를 명시 선택한다. Claude-only 사용자는 `claude` 를 고른다.
+- Provider routing: 추천 role-split 으로 복귀하려면 `enable-role-split-routing` 을 선택한다. all-codex validation 을 원하면 `enable-codex-validation`, Claude 검증 복귀를 원하면 `disable-codex-validation` 을 명시 선택한다.
+- Implementation routing: `headless-chain` / `codex-first` / `claude-headless` / `claude` 중 하나를 명시 선택한다. Claude-only 사용자는 `disable-codex-implementation` 으로 `claude` 를 고른다.
 - GitHub Project lifecycle: custom 에서만 진행한다. 세부 계약은 [`docs/plugin/github-project.md`](../docs/plugin/github-project.md) 와 [`docs/plugin/issue-lifecycle.md`](../docs/plugin/issue-lifecycle.md) 가 SSOT 다.
 - workflow 변경 PR: `.github/workflows/*.yml` 변경이 있고 현재 branch 가 `main` 이고 `gh auth status` 가 통과할 때만 선택한다. 선택 시 workflow 파일만 stage 한다.
 
@@ -474,7 +474,7 @@ record_dcness_workflow_change ".github/workflows/github-project-lifecycle.yml"
 
 - plugin uninstall/reinstall 로 whitelist 가 사라진 경우
 - 선택형 CI workflow 를 새로 깔거나 갱신하는 경우
-- Codex validation 분기를 새로 opt-in 하거나 implementation routing 을 headless-chain / Claude-only / legacy Codex-first 등으로 바꾸는 경우
+- provider routing 을 추천 role-split preset / all-codex validation / headless-chain / Claude-only / legacy Codex-first 등으로 바꾸는 경우
 - Project lifecycle bootstrap 또는 project-local seed 가 필요한 경우
 
 ```bash

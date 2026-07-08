@@ -867,6 +867,11 @@ def _cli_routing(args: Any) -> int:
         print(f"[dcness routing] enabled Codex validation: {path}")
         print(agent_routing.format_status())
         return 0
+    if action == "enable-role-split-routing":
+        path = agent_routing.enable_role_split_routing()
+        print(f"[dcness routing] enabled role-split routing: {path}")
+        print(agent_routing.format_status())
+        return 0
     if action == "disable-codex-validation":
         path = agent_routing.disable_codex_validation()
         print(f"[dcness routing] disabled Codex validation: {path}")
@@ -1292,6 +1297,16 @@ def _build_arg_parser() -> Any:
         help="code-validator / architecture-validator / pr-reviewer 를 Codex 로 보냄",
     )
     rt_enable.set_defaults(func=_cli_routing)
+
+    rt_role_split = rt_sub.add_parser(
+        "enable-role-split-routing",
+        help=(
+            "추천 role split: engineer/build-worker=headless-chain, "
+            "test-engineer/code-validator/pr-reviewer=claude, "
+            "architecture-validator=codex"
+        ),
+    )
+    rt_role_split.set_defaults(func=_cli_routing)
 
     rt_disable = rt_sub.add_parser(
         "disable-codex-validation",
