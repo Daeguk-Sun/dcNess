@@ -550,8 +550,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
     def test_design_records_are_frozen_before_design_pr(self) -> None:
         """#833 follow-up — design metrics are committed with the design PR."""
         end_run_at = self.design_skill.index("end-run + design run 기록 freeze")
-        pr_at = self.design_skill.index("PR + main 머지 직전 사용자 확인 + ExitWorktree")
-        self.assertLess(end_run_at, pr_at)
+        approval_at = self.design_skill.index("사용자 최종 설계 승인 + commit/PR")
+        self.assertLess(end_run_at, approval_at)
         for needle in (
             "PR 생성 전에",
             "docs/metrics/design-runs.jsonl",
@@ -560,7 +560,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.design_skill)
-        self.assertIn("end-run/metrics freeze 후 Step 6 PR", self.design_routing)
+        self.assertIn("end-run/metrics freeze 후 사용자 최종 설계 승인", self.design_routing)
 
     def test_issue_852_worktree_remove_requires_clean_worktree(self) -> None:
         """#852 — auto discard requires absorbed commits and no local dirty files."""

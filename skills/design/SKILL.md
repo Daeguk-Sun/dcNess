@@ -1,6 +1,6 @@
 ---
 name: design
-description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단위로 선택 ux-architect / module-architect / architecture-validator 를 호출하여 agent-first 설계 산출물 (선택 `docs/epics/.../ux-flow.md` + `docs/design.md` + 선택 `docs/design-variants/*.html` + `docs/decisions/*.md` + `docs/epics/.../architecture.md` 최소형 + 선택 `docs/epics/.../domain-model.md` + `docs/epics/.../impl/*.md`) 을 작성하고 PR 로 머지하는 설계 루프 스킬. UI epic 은 system/module 설계 전에 목업 선행 여부를 확인하고, 목업=예 경로에서는 사용자 PICK 확정본을 system stage 입력으로 고정한다. 기존 모듈 topology 가 전혀 없는 greenfield 첫 설계에서는 system-architect(thin bootstrap)가 큰 모듈 경계만 1회 얇게 나눈 뒤 module-architect(epic-batch)로 이어진다. 그 외 기본 경로는 module-architect(epic-batch)가 epic architecture 최소형과 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성하고, architecture-validator(final epic 검증)가 최종 검증으로 수렴한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있을 때만 system-architect opt-in checkpoint 로 승격한다. 사용자가 "설계해줘", "design", "epic 설계", "/design <epic-path>", "ux-flow 부터", "impl 다 만들어줘" 등을 말할 때 반드시 이 스킬을 사용한다. `/spec` 의 후속. 구현 진입은 `/impl`, story/epic 제품 검수는 `/acceptance`.
+description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단위로 선택 ux-architect / module-architect / architecture-validator 를 호출하여 agent-first 설계 산출물 (선택 `docs/epics/.../ux-flow.md` + `docs/design.md` + 선택 `docs/design-variants/*.html` + `docs/decisions/*.md` + `docs/epics/.../architecture.md` 최소형 + 선택 `docs/epics/.../domain-model.md` + `docs/epics/.../impl/*.md`) 을 작성하고 PR 로 머지하는 설계 루프 스킬. UI epic 은 system/module 설계 전에 목업 선행 여부를 확인하고, 목업=예 경로에서는 사용자 PICK 확정본을 system stage 입력으로 고정한다. 완료된 설계 pack 도 `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 design-system revision mode 로 재진입해 수술적으로 개정한다. 기존 모듈 topology 가 전혀 없는 greenfield 첫 설계에서는 system-architect(thin bootstrap)가 큰 모듈 경계만 1회 얇게 나눈 뒤 module-architect(epic-batch)로 이어진다. 그 외 기본 경로는 module-architect(epic-batch)가 epic architecture 최소형과 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성하고, architecture-validator(final epic 검증)가 최종 검증으로 수렴한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있을 때만 system-architect opt-in checkpoint 로 승격한다. 사용자가 "설계해줘", "design", "epic 설계", "/design <epic-path>", "/design <epic-path> --revise", "ux-flow 부터", "impl 다 만들어줘" 등을 말할 때 반드시 이 스킬을 사용한다. `/spec` 의 후속. 구현 진입은 `/impl`, story/epic 제품 검수는 `/acceptance`.
 ---
 
 # Design Skill — 1 epic 단위 설계 루프
@@ -9,7 +9,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 기본 공개 진입점은 `/spec -> /design -> /impl -> /acceptance` 다.
 
-`/design` 은 사용자-facing 으로는 하나의 얇은 dispatcher 다. 진입 시 epic durable 산출물 실존 판정을 먼저 수행해 내부 stage 를 자동 선택하며, 사용자는 `design-ux` / `design-system` 이름을 알 필요가 없다. UI epic 에서 `ux-flow.md` 가 없으면 내부 [`design-ux`](../design-ux/SKILL.md) stage 를 실행해 UX 산출물을 자체 PR 로 먼저 머지한다. `ux-flow.md` 는 있으나 full design pack(`architecture.md` + `impl/NN-*.md`) 이 없으면 내부 [`design-system`](../design-system/SKILL.md) stage 를 실행한다. UI-less epic 은 `ux-flow.md` 가 원래 없으므로 기존처럼 곧장 system/module 설계 stage 로 들어가며 1 PR 흐름을 유지한다.
+`/design` 은 사용자-facing 으로는 하나의 얇은 dispatcher 다. 진입 시 epic durable 산출물 실존 판정을 먼저 수행해 내부 stage 를 자동 선택하며, 사용자는 `design-ux` / `design-system` 이름을 알 필요가 없다. UI epic 에서 `ux-flow.md` 가 없으면 내부 [`design-ux`](../design-ux/SKILL.md) stage 를 실행해 UX 산출물을 자체 PR 로 먼저 머지한다. `ux-flow.md` 는 있으나 full design pack(`architecture.md` + `impl/NN-*.md`) 이 없으면 내부 [`design-system`](../design-system/SKILL.md) stage 를 실행한다. UI-less epic 은 `ux-flow.md` 가 원래 없으므로 기존처럼 곧장 system/module 설계 stage 로 들어가며 1 PR 흐름을 유지한다. full design pack 이 이미 완료된 epic 은 기본적으로 `/impl` 로 안내하지만, `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 `design-system` revision mode 로 재진입한다.
 
 > 🔴 **분기 규칙 SSOT** — agent 결론 → 다음 호출 / retry 한도 / escalate 처리는 [`design-routing.md`](design-routing.md) 가 본 skill 의 단일 진본. 본 파일은 진행 절차만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
@@ -17,7 +17,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 - **loop**: `design`
 - **entry_point**: `design` (begin-run 인자 — 사용자 명시 진입)
-- **task_list** (Step 1): `/design` dispatcher 가 durable 산출물로 내부 stage 를 선택한다. stage 1 `design-ux` = 목업 선행 여부 checkpoint → ux-architect:UX_FLOW → 목업=예 한정 디자인 시스템 체크포인트 → 조건부 canvas-design → 사용자 PICK → stage 1 PR. 목업 없음 / opt-out / yolo 기본값 = 목업 없음 경로는 기존 UX stage 흐름을 유지하고 canvas-design 을 강제하지 않는다. stage 2 `design-system` = [기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip — 메인 직접, helper 비대상] → module-architect(epic-batch) → architecture-validator(final epic 검증). (UI-less epic) ux-architect 제외. 모듈 topology 부재 greenfield 첫 설계면 system-architect(thin bootstrap)를 module-architect 앞에 1회 추가한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있으면 system-architect opt-in checkpoint 를 module-architect 앞/뒤에 끼운다.
+- **task_list** (Step 1): `/design` dispatcher 가 durable 산출물과 명시 개정 의도로 내부 stage 를 선택한다. stage 1 `design-ux` = 목업 선행 여부 checkpoint → ux-architect:UX_FLOW → 목업=예 한정 디자인 시스템 체크포인트 → 조건부 canvas-design → 사용자 PICK → stage 1 PR. 목업 없음 / opt-out / yolo 기본값 = 목업 없음 경로는 기존 UX stage 흐름을 유지하고 canvas-design 을 강제하지 않는다. stage 2 `design-system` = [기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip — 메인 직접, helper 비대상] → module-architect(epic-batch 또는 revision mode) → architecture-validator(final epic 검증). (UI-less epic) ux-architect 제외. 모듈 topology 부재 greenfield 첫 설계면 system-architect(thin bootstrap)를 module-architect 앞에 1회 추가한다. 기존 모듈 경계·불변조건·public API boundary 변경 신호가 있으면 system-architect opt-in checkpoint 를 module-architect 앞/뒤에 끼운다.
 - **advance**: `UX_FLOW_READY` → 선택 `PASS`(thin bootstrap) → `PASS`(epic-batch) → `PASS`(final epic 검증). opt-in system checkpoint 는 `SYSTEM_CHECKPOINT_REQUIRED` → `PASS`(system) → module-architect 재진입.
 - **expected_steps**: 3 (UI epic) / 2 (UI-less epic). 기술 스택 그릴미 또는 확인-후-skip 은 begin-step 비대상이라 미포함. thin bootstrap 또는 system checkpoint 승격 시 각각 +1.
 - **분기 규칙**: [`design-routing.md`](design-routing.md)
@@ -28,6 +28,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 - epic 경로 (필수, 예: `docs/epics/epic-01-<slug>/`)
 - 또는 stories.md 경로 (메인이 epic dir 추출)
+- 완료된 pack 개정 의도(선택): `/design <epic> --revise` 또는 "설계 변경", "개정", "re-open", "amend", "화면 통합", "모듈 리네임", "ADR 추가/수정"처럼 full design pack 을 바꾸겠다는 대화 맥락의 명시 개정 신호
 
 ## 전제 조건 (진입 전 충족 의무)
 
@@ -44,6 +45,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 - 버그픽스 → `/impl`
 - GitHub issue 초안/등록 → `/to-issue`
 - 이미 설계 완료된 epic 의 일부 deep impl 보강 → `/impl` 또는 deep task 파일을 직접 지정하는 `/impl-loop`
+- 이미 설계 완료된 epic 의 구조·흐름·모듈·ADR 개정 → `/design <epic> --revise` (본 skill 대상)
 
 ## 사전 read (lazy — 필요시만, #400)
 
@@ -70,17 +72,30 @@ Step 0 진입 시 자동 `EnterWorktree(name="design-{ts_short}")`. 사용자 �
 
 ## Stage dispatcher (Step 0.5)
 
-Pre-flight gate 직후 메인이 epic durable 산출물만 보고 내부 stage 를 고른다. 판정은 [`scripts/lib/epic_phase.mjs`](../../scripts/lib/epic_phase.mjs) 의 설계 완료 기준을 재사용한다.
+Pre-flight gate 직후 메인이 epic durable 산출물과 명시 개정 의도를 보고 내부 stage 를 고른다. full design pack 완료 여부 판정은 [`scripts/lib/epic_phase.mjs`](../../scripts/lib/epic_phase.mjs) 의 설계 완료 기준을 재사용한다.
 
-| durable 상태 | 내부 stage | 사용자 표시 |
+| durable 상태 / 의도 | 내부 stage | 사용자 표시 |
 |---|---|---|
 | `stories.md` 부재 | STOP | `/spec` 재진입 권고 |
 | UI epic + `ux-flow.md` 부재 + full design pack 부재 | `design-ux` | `/design` (설계 미완) |
 | `ux-flow.md` 존재 + full design pack 부재 | `design-system` | `/design` (ux 완료 · system 미완) |
 | UI-less epic + full design pack 부재 | `design-system` | `/design` (설계 미완) |
-| `architecture.md` 존재 AND `impl/NN-*.md` 1개 이상 존재 | 완료 | `/impl` 안내 |
+| full design pack 완료 + `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호 | `design-system` revision mode | `/design` (완료된 pack 개정) |
+| `architecture.md` 존재 AND `impl/NN-*.md` 1개 이상 존재 + 개정 의도 없음 | 완료 | `/impl` 안내 |
 
 full design pack 판정에서 `domain-model.md`, `tech-review.md`, `ux-flow.md` 는 선택 산출물이므로 설계 완료 조건에 넣지 않는다. UI-less epic 은 `ux-flow.md` 가 없기 때문에 기존 "설계 미완" 라벨을 유지하며, UX 완료로 오판하지 않는다.
+
+명시 revision 의도는 durable 산출물 판정을 덮어쓰는 사용자 의도다. 완료된 pack 개정(re-open/amend)은 기존 설계 완료 상태를 깨진 상태로 오판하는 것이 아니라, 의도적으로 `design-system` revision mode 에 재진입하는 경로다. 개정 의도가 없으면 완료 pack 은 계속 `/impl` 안내가 기본이다.
+
+### 완료된 pack 개정 — surgical revision
+
+revision mode 의 기본 원칙은 surgical revision 이다. module-architect 는 전체 pack 재생성을 기본값으로 삼지 않고, 사용자 변경 의도와 영향 그래프에 걸린 산출물만 개정한다.
+
+- 영향 산출물만 개정: epic `architecture.md`, 선택 `domain-model.md`, 관련 `docs/decisions/**`, 실제 영향받는 `impl/NN-*.md`, 필요한 전역 `architecture.md` / `conventions.md` 요약만 갱신한다.
+- 미변경 impl task 보존: 변경과 무관한 `impl/NN-*.md` 는 rewrite 하지 않는다. 순서 변경이 필요하면 이유와 affected task 만 명시한다.
+- 파생 drift 체크리스트: 전역 `architecture.md` 요약, 상태 ID prefix, 생성 리포트 `design-report.html`, ADR supersede-vs-edit 결정, 도메인 모델/ADR 잔존 표현, Story/화면 번호 참조, 확정 목업 node-id·토큰 보존 경계를 확인한다.
+- ADR supersede-vs-edit: 기존 결정의 의미가 바뀌면 새 ADR 로 supersede 하는지, 오탈자/명칭 정정이면 기존 ADR 편집인지 명시한다.
+- final validator 는 개정분만 보는 것이 아니라 개정 후 전체 설계 pack 정합을 한 번 더 본다.
 
 내부 stage 는 helper run 에 stage marker 를 남긴다. stage 1 은 `begin-run design --stage design-ux`, stage 2 는 `begin-run design --stage design-system` 로 시작한다. `docs/metrics/design-runs.jsonl` 은 같은 `entry_point=design` 아래 stage 값을 기록해 기존 단일 run 수치와 stage별 run 수치를 구분한다.
 
@@ -131,21 +146,22 @@ UI epic 으로 판정되고 `design-ux` stage 를 선택한 직후 메인이 목
 상세 = 본 절차 + [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#진입-모델) Step mechanics.
 
 1. **Step 0** — 워크트리 진입 + `EnterWorktree` + branch (`docs/<epic-slug>`) + stage 선택 전 `begin-run design` 준비. 실제 stage run 은 dispatcher 판정 뒤 `begin-run design --stage design-ux` 또는 `begin-run design --stage design-system` 로 시작한다.
-2. **Step 0.5 — stage dispatcher** — durable 산출물 실존 판정으로 `design-ux` 또는 `design-system` 을 선택한다. 내부 stage 절차 전문은 각 stage skill 을 로드한다.
-3. **Step 1 — UI 판정 + 목업 선행 여부 + topology 부재 판정 후 TaskCreate.** `design-ux` stage 에서는 목업 선행 여부와 디자인 시스템 체크포인트를 메인이 처리하고 ux-architect(+목업=예 한정 조건부 canvas-design) 만 TaskCreate 한다. `design-system` stage 에서는 module-architect(epic-batch) / architecture-validator(final epic 검증)를 TaskCreate 한다. UI-less epic → ux-architect 제외. greenfield 첫 설계에서 `docs/architecture.md` root anchor 의 큰 모듈 topology 가 비어 있고 어떤 `docs/epics/**/architecture.md` 에도 유효 `## 모듈 목록` row 가 없으면 system-architect(thin bootstrap)를 module-architect 앞에 1회 배치한다. 이 thin bootstrap 뒤에는 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다. system checkpoint 는 기본 TaskCreate 에 넣지 않고, boundary 변경 신호가 있을 때만 추가한다.
-4. **Stage 1 — design-ux / ux-architect:UX_FLOW** (UI epic 한정) → `UX_FLOW_READY` → stage 1 PR (epic 단위 `docs/epics/epic-NN-*/ux-flow.md`, 조건부 `docs/design.md`, 조건부 `docs/design-variants/`)
+2. **Step 0.5 — stage dispatcher** — durable 산출물 실존 판정과 명시 개정 의도로 `design-ux`, `design-system`, 또는 `design-system` revision mode 를 선택한다. 내부 stage 절차 전문은 각 stage skill 을 로드한다.
+3. **Step 1 — UI 판정 + 목업 선행 여부 + topology 부재 판정 후 TaskCreate.** `design-ux` stage 에서는 목업 선행 여부와 디자인 시스템 체크포인트를 메인이 처리하고 ux-architect(+목업=예 한정 조건부 canvas-design) 만 TaskCreate 한다. `design-system` stage 에서는 module-architect(epic-batch 또는 revision mode) / architecture-validator(final epic 검증)를 TaskCreate 한다. UI-less epic → ux-architect 제외. greenfield 첫 설계에서 `docs/architecture.md` root anchor 의 큰 모듈 topology 가 비어 있고 어떤 `docs/epics/**/architecture.md` 에도 유효 `## 모듈 목록` row 가 없으면 system-architect(thin bootstrap)를 module-architect 앞에 1회 배치한다. 이 thin bootstrap 뒤에는 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다. system checkpoint 는 기본 TaskCreate 에 넣지 않고, boundary 변경 신호가 있을 때만 추가한다.
+4. **Stage 1 — design-ux / ux-architect:UX_FLOW** (UI epic 한정) → `UX_FLOW_READY` → 사용자 최종 설계 승인 후 stage 1 PR (epic 단위 `docs/epics/epic-NN-*/ux-flow.md`, 조건부 `docs/design.md`, 조건부 `docs/design-variants/`)
    - `UX_REFINE_READY` 로 `/design` 안에서 designer 후속이 필요하면, designer 호출 전 `/ux` 의 "designer 진입 공통 preflight" 와 동일하게 `docs/design-variants/` seed 보장 후 designer 로 진행한다.
 5. **Stage 2 — design-system / 기술 스택 그릴미 또는 기록된 스택 결정 확인-후-skip** — 메인 직접, helper begin/end-step 비대상. 미기록 합의 또는 skip 사실은 thin bootstrap 이 있으면 Step 2.95 prompt 로, 없으면 Step 3 prompt 로 전달한다.
 6. **Stage 2 — system-architect(THIN_BOOTSTRAP, 조건부 1회)** — topology 부재 greenfield 첫 설계에서만 실행한다. UI epic 이면 prompt 의 "대상 + 읽을 진본" 에 stage 1 UX 산출물(epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, 화면별 확정 목업 또는 `확정본 없음`, canvas 포인터 또는 부재 신호)을 함께 넣어 큰 모듈 경계가 화면 흐름·상태 기준을 모른 채 시작하지 않게 한다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 기술 스택/전역 decision 기록으로 제한한다. 도메인 모델 작성/생략 판단, 계약 표면 코드 SSOT 대조, Module Design Check evidence, Agent Operability 상세, impl task 작성은 하지 않는다. `PASS` 후 검증 step 없이 바로 module-architect(epic-batch)로 간다.
-7. **Stage 2 — module-architect(epic-batch)** — epic architecture 최소형과 epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지 않는다. 입력은 전체 `stories.md`, 기존 epic `architecture.md`(있으면), 선택 `domain-model.md`, UI epic 이면 epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로, 화면별 확정 목업 `docs/design-variants/<screen-id>.html` 또는 `확정본 없음`, `docs/design-variants/canvas.html` 포인터 또는 부재 신호, 핵심 node-id 매핑, `docs/conventions.md`, affected module docs, `docs/decisions/**`, thin bootstrap 산출물이 있으면 root topology/decision 포인터, 계약 표면 코드 SSOT 포인터다. domain-model.md 생략 가능 여부는 도메인 복잡도 기준으로 판단하고 생략 판단 근거를 epic architecture 에 남긴다. 산출물은 epic `architecture.md` 의 durable 3섹션(모듈 목록, 의존 그래프, Story -> 모듈 매핑), 필요 시 `domain-model.md`, decision 문서, 공통 task 와 모든 Story 의 `impl/NN-*.md` 전체다. Story -> 모듈 매핑은 구현 순서(첫 제품 경계 동작 앞당김) 관점에서 첫 제품 경계 동작 증거가 어느 Story/task 묶음에서 닫히는지 설명한다. 각 impl task 는 `risk / engine / depends_on`, `수정 허용`, module/decision references, Story 동작 수직 슬라이스, 각 Story 완료 시 실제로 검증되는 동작, 첫 제품 경계 동작 증거 지점, owner/entrypoint 요약을 계속 충족해야 한다. 공통 task 가 있으면 같은 batch 안에서 먼저 필요한 기반 task 로 배치한다.
+7. **Stage 2 — module-architect(epic-batch / revision mode)** — 신규 pack 에서는 epic architecture 최소형과 epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지 않는다. revision mode 에서는 사용자 개정 의도와 영향 그래프를 먼저 요약하고, surgical revision 원칙에 따라 영향 산출물만 개정하며 미변경 impl task 를 보존한다. 입력은 전체 `stories.md`, 기존 epic `architecture.md`(있으면), 선택 `domain-model.md`, UI epic 이면 epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로, 화면별 확정 목업 `docs/design-variants/<screen-id>.html` 또는 `확정본 없음`, `docs/design-variants/canvas.html` 포인터 또는 부재 신호, 핵심 node-id 매핑, `docs/conventions.md`, affected module docs, `docs/decisions/**`, thin bootstrap 산출물이 있으면 root topology/decision 포인터, 계약 표면 코드 SSOT 포인터다. domain-model.md 생략 가능 여부는 도메인 복잡도 기준으로 판단하고 생략 판단 근거를 epic architecture 에 남긴다. 산출물은 epic `architecture.md` 의 durable 3섹션(모듈 목록, 의존 그래프, Story -> 모듈 매핑), 필요 시 `domain-model.md`, decision 문서, 공통 task 와 모든 Story 의 `impl/NN-*.md` 전체다. Story -> 모듈 매핑은 구현 순서(첫 제품 경계 동작 앞당김) 관점에서 첫 제품 경계 동작 증거가 어느 Story/task 묶음에서 닫히는지 설명한다. 각 impl task 는 `risk / engine / depends_on`, `수정 허용`, module/decision references, Story 동작 수직 슬라이스, 각 Story 완료 시 실제로 검증되는 동작, 첫 제품 경계 동작 증거 지점, owner/entrypoint 요약을 계속 충족해야 한다. 공통 task 가 있으면 같은 batch 안에서 먼저 필요한 기반 task 로 배치한다.
+   - **revision mode drift audit**: 완료된 pack 개정에서는 module-architect prompt 에 파생 drift 체크리스트를 넣고, final validator prompt 에도 같은 체크리스트의 확인 결과를 넘긴다. 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호 참조, 도메인 모델 잔존 표현을 확인한다.
    - **규모 preflight**: Step 3 진입 전 메인이 Story 수와 예상 full design pack 규모를 [`deliverables-map.md`](../../docs/plugin/deliverables-map.md) 의 target 1,500줄 / hard warning 2,000줄 예산에 맞춰 빠르게 추정한다. 2,000줄 초과가 예상되거나 impl task 수가 한 sub-agent 출력 한계에 몰릴 정도로 크면 자동으로 얇은 batch 를 진행하지 말고 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. batch 2분할을 선택해도 Story 단위 작성/검증 기본값 복원이 아니며, 분할 경계·공유 계약을 epic architecture module responsibility / decision 에 먼저 남기고 final epic 검증은 전체 산출물 기준으로 한 번 더 수행한다.
    - **기본값 금지**: 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다. 고위험 신호가 뒤늦게 드러나면 메인 판단으로 추가 검증 또는 사용자 위임을 선택할 수 있지만, 기본 루프는 epic-batch 생산 + final epic 검증이다.
    - **계약 변경**: public contract 를 만들거나 바꾸면 module responsibility / public interface 와 `docs/decisions/NNNN-slug.md` 를 갱신하고 impl 문서는 module/decision 참조만 가리킨다.
    - **system checkpoint 승격**: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision 변경이 필요하면 `SYSTEM_CHECKPOINT_REQUIRED` 로 보고한다. 신규 epic-scope decision 기록은 module-architect 자율 범위다. 메인은 system-architect opt-in checkpoint 를 호출하고, PASS 후 module-architect(epic-batch)를 재진입한다.
 8. **Stage 2 — mechanical pre-final checks** — final validator 호출 직전 메인이 1회 실행한다: `bash "$PLUGIN_ROOT/scripts/dcness-helper" normalize-scope <epic impl 디렉토리>` → `bash "$PLUGIN_ROOT/scripts/dcness-helper" wave-plan <epic impl 디렉토리>` → 확정 목업이 있는 UI epic 이면 `bash "$PLUGIN_ROOT/scripts/dcness-helper" mockup-node-check --mockup-dir docs/design-variants <epic impl 디렉토리>` → `node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs" --root "$PROJECT_ROOT"`. artifact audit 의 legacy Contract Ledger / Contract References 경고는 구양식 유효성 신호이며 그 자체로 final validator 진입을 막지 않는다. normalizer/wave-plan 에 `unresolved_slugs` 또는 `format_unnormalized_slugs` 가 남으면 해당 slug 만 final validator prompt 의 미기록 신호로 전달한다. mockup-node-check 에 `missing_node_ids` 또는 `input_errors` 가 있으면 해당 JSON receipt 를 final validator prompt 의 미기록 신호로 전달한다.
-9. **Stage 2 — architecture-validator final epic 검증** (기존 절차명: **Step 4 — architecture-validator final epic 검증**) — epic 전체 산출물을 한 번에 검증한다. 요구사항 출처 충실도, 설계 표준, 계약과 인터페이스, 제품 동작 슬라이스, Story 간 compose/wiring, cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 본다. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 Must finding 으로 올리지 않는다. Must finding 마다 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류를 붙인다. → `PASS` → 최종 검증 결과 commit.
+9. **Stage 2 — architecture-validator final epic 검증** (기존 절차명: **Step 4 — architecture-validator final epic 검증**) — epic 전체 산출물을 한 번에 검증한다. 요구사항 출처 충실도, 설계 표준, 계약과 인터페이스, 제품 동작 슬라이스, Story 간 compose/wiring, cold-seat 구현 가능성, PRD origin 대조, impl 과상세화, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 본다. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 Must finding 으로 올리지 않는다. revision mode 에서는 final validator 가 개정분만 보지 않고 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 결과를 다시 본다. Must finding 마다 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류를 붙인다. `PASS` 는 사용자 최종 설계 승인 checkpoint 로 넘어갈 수 있다는 뜻이지 commit 승인 신호가 아니다.
 10. **Step 5 — end-run + design run 기록 freeze** — 각 stage PR 생성 전에 `bash "$PLUGIN_ROOT/scripts/dcness-helper" end-run` 을 실행한다. end-run 안전망이 finalize-run/review 를 만들고, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션을 포함한다. `/design` run 이면 현재 design worktree 의 `docs/metrics/design-runs.jsonl` 도 갱신한다. 이 파일은 design 산출물이므로 같은 PR 에 포함되어야 한다. PR/merge 뒤에 end-run 을 미루면 worktree 또는 main working tree 에 uncommitted metrics 가 고립되므로 금지한다.
-11. **Step 6 — PR + main 머지 직전 사용자 확인 + ExitWorktree** — `git push -u origin docs/<epic-slug>` + `gh pr create --base <BASE>` (body = 설계 산출물 요약 + `Part of #<epic-issue>`) 후, main 머지 직전 사용자 확인 checkpoint 를 1회 둔다. stage 1 PR 은 UX 산출물 요약과 diff 규모를, stage 2 PR 은 산출물 요약(전역 architecture/conventions/decisions/epic architecture/domain-model/impl 파일 목록)과 diff 규모(`git diff --stat <BASE>...HEAD`, 설계 pack 줄 수/파일 수)를 제시하고 진행 여부를 묻는다. yolo 모드(`yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서`)에서는 이 확인을 생략한다. 확인 응답 전에는 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다. 확인 또는 yolo skip 후 `bash "$PLUGIN_ROOT/scripts/pr-finalize.sh"` → merge/default worktree sync 완료 후 ExitWorktree.
+11. **Step 6 — 사용자 최종 설계 승인 + commit/PR + ExitWorktree** — final validator PASS 와 end-run 이 끝나면 먼저 설계 산출물 요약과 diff 규모를 사용자에게 제시하고 최종 설계 검수/승인을 받는다. stage 1 은 UX 산출물 요약, 목업 선행 여부, 확정 목업 경로, diff 규모를 제시한다. stage 2 는 산출물 요약(전역 architecture/conventions/decisions/epic architecture/domain-model/impl 파일 목록), revision mode 여부와 drift audit 결과, diff 규모(`git diff --stat <BASE>...HEAD`, 설계 pack 줄 수/파일 수)를 제시한다. 승인 응답 전에는 `git add`, `git commit`, `git push`, `gh pr create`, `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다. yolo 모드(`yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서`)도 사용자 최종 설계 승인을 생략하지 않는다. 승인 뒤에만 branch commit → push → `gh pr create --base <BASE>` (body = 설계 산출물 요약 + `Part of #<epic-issue>`) → `bash "$PLUGIN_ROOT/scripts/pr-finalize.sh"` → merge/default worktree sync 완료 후 ExitWorktree.
    - **base 분기 (MUST)**: `gh pr create` 직전 epic 단위 stories.md 상단 `**Base Branch:**` 줄 매치 → `--base <매치 값>` (통합 브랜치 케이스, base = `feature/<slug>`). 매치 없음 → `--base main` (default). Step 0 의 `EnterWorktree` branch (`docs/<epic-slug>`) 도 동일 base 기반 — 절차 [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#base-ref-분기-통합-브랜치-모드-424).
 
 > 각 Step 의 agent 결론에 따른 분기·재진입·cycle 한도·escalate = [`design-routing.md`](design-routing.md). loop 종료 후 후속(`/impl` 안내 등)도 그 파일.

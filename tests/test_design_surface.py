@@ -217,23 +217,36 @@ class DesignSurfaceContractTests(unittest.TestCase):
                 self.assertIn("domain-model 작성/생략 근거가 impl 계약과 모순", text)
                 self.assertIn("형식만으로 Must", text)
 
-    def test_design_clean_path_requires_pre_merge_confirmation_unless_yolo(self) -> None:
-        """#851 — final PASS 뒤 설계 pack main 머지 전 사용자 확인 checkpoint 보존."""
+    def test_design_clean_path_requires_pre_commit_approval(self) -> None:
+        """#851/#997 — final PASS 뒤 commit 전에 사용자 최종 설계 승인을 받는다."""
         design_dir = ROOT / "skills" / "design"
         design = (design_dir / "SKILL.md").read_text(encoding="utf-8")
         routing = (design_dir / "design-routing.md").read_text(encoding="utf-8")
+        design_ux = (ROOT / "skills" / "design-ux" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        design_system = (ROOT / "skills" / "design-system" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        loop_procedure = (ROOT / "docs" / "plugin" / "loop-procedure.md").read_text(
+            encoding="utf-8"
+        )
 
         for needle in (
-            "main 머지 직전 사용자 확인",
+            "사용자 최종 설계 승인",
             "산출물 요약",
             "diff 규모",
-            "yolo",
-            "확인 응답 전에는 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다",
+            "승인 응답 전에는 `git add`, `git commit`, `git push`, `gh pr create`, `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, design)
 
-        self.assertIn("사용자 확인 checkpoint", routing)
+        for text in (routing, design_ux, design_system, loop_procedure):
+            with self.subTest(text=text[:60]):
+                self.assertIn("사용자 최종 설계 승인", text)
+
+        self.assertNotIn("최종 검증 결과 commit", design)
+        self.assertNotIn("사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프)", loop_procedure)
 
     def test_design_retry_limit_has_single_provider_agnostic_counter(self) -> None:
         """#970 — final validation retry limit must not reset by finding or provider."""
@@ -312,6 +325,50 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("stage 1 PR", design_ux)
         self.assertIn("stage 2 PR", design_system)
         self.assertIn("기존 설계 pack 계약", design_system)
+
+    def test_completed_design_pack_can_be_revised_surgically(self) -> None:
+        """#997 — completed design packs need a first-class amend/re-open path."""
+        design = (ROOT / "skills" / "design" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        routing = (
+            ROOT / "skills" / "design" / "design-routing.md"
+        ).read_text(encoding="utf-8")
+        design_system = (ROOT / "skills" / "design-system" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+
+        for needle in (
+            "완료된 pack 개정",
+            "`/design <epic> --revise`",
+            "대화 맥락의 명시 개정 신호",
+            "surgical revision",
+            "영향 산출물만 개정",
+            "미변경 impl task 보존",
+            "파생 drift 체크리스트",
+            "전역 `architecture.md` 요약",
+            "상태 ID prefix",
+            "`design-report.html`",
+            "ADR supersede-vs-edit",
+            "확정 목업 node-id",
+            "final validator",
+            "전체 설계 pack 정합",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design)
+
+        for needle in (
+            "revision mode",
+            "full design pack 이 완료됐더라도",
+            "수술적 개정",
+            "미변경 impl task 를 재생성하지 않는다",
+            "final epic 검증",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, design_system)
+
+        self.assertIn("완료된 pack 개정", routing)
+        self.assertIn("REVISION", routing)
 
     def test_design_mockup_prefreeze_branch_contracts(self) -> None:
         """#957 — mockup opt-in happens before system design and becomes required input."""
