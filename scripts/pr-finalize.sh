@@ -1,5 +1,5 @@
 #!/bin/bash
-# dcness pr-finalize — PR 머지 + CI 대기 + origin/main ref 동기화 자동
+# dcness pr-finalize — PR 머지 + CI 대기 + default worktree 동기화 자동
 #
 # pr-finalize 호출 = 머지 확정. 이 스크립트는 별도 최종 승인 UI 없이 merge 를 시도한다.
 #
@@ -7,8 +7,9 @@
 #   1. gh pr merge --auto --merge (auto-merge 토글 ON)
 #   2. gh pr checks --watch (CI 결과 대기)
 #   3. auto-merge 완료 대기 (GitHub 백그라운드 lag)
-#   4. git fetch origin main (origin/main remote-tracking 만 갱신, refspec 없이)
-#   5. (통합 브랜치 sub-PR 만) PR body 의 close 선언 기반 issue close 보정
+#   4. git fetch origin <default> + default branch worktree fast-forward
+#   5. clean feature worktree / stale worktree admin entry 정리
+#   6. (통합 브랜치 sub-PR 만) PR body 의 close 선언 기반 issue close 보정
 #
 # 통합 브랜치 sub-PR (base ≠ default branch) 인지:
 #   - CI 체크 0개를 정상으로 처리 — 검증 워크플로는 default branch 대상 PR 만 발동.
@@ -21,17 +22,17 @@
 #   pr-finalize.sh <PR_NUMBER>    # 명시 PR 번호
 #
 # 안전:
-#   - 현재 working tree dirty 면 sync skip 옵션 (Y/n 물음)
+#   - 현재/대상 working tree dirty 면 강제 reset/stash 없이 preserved 목록에 이유 출력
 #   - CI FAIL 시 sync skip + 에러 코드
 #   - 머지 안 됐으면 sync skip + 사용자 안내
 #
 # 멀티 worktree 호환:
-#   - Step 4 는 `git fetch origin main` (refspec 없이) — 다른 worktree 가 main checkout 중이어도
-#     origin/main remote-tracking ref 만 갱신, 어느 worktree HEAD 와도 충돌 X.
-#   - 새 branch 생성은 `scripts/pr-create.sh` 가 `origin/$BASE` 기반으로 처리하므로 base 항상 최신.
+#   - default branch 가 다른 worktree 에 checkout 되어 있으면 그 worktree 를 fast-forward.
+#   - default branch worktree 가 없고 현재 worktree 가 clean 이면 현재 worktree 를 default 로 전환.
+#   - clean linked feature worktree 만 `git worktree remove` 로 정리.
 #
 # stdout / stderr 분리:
-#   - stdout = 최종 1줄 (PR URL + merged) — 메인 Claude / 사용자에게 필요한 정보.
+#   - stdout = 최종 1줄 (PR URL + sync/cleanup summary) — 메인 Claude / 사용자에게 필요한 정보.
 #   - stderr = 진행 표시 / WARN / ERROR — 사용자가 보고 싶으면 보면 됨, 메인 컨텍스트엔 안 들어감.
 
 set -e
@@ -41,8 +42,15 @@ HELPER="$SCRIPT_DIR/dcness-helper"
 
 PR="$1"
 BRANCH=""
+PR_HEAD_REF=""
 MERGE_LOCK_TOKEN=""
 MERGE_CLAIM_KEY=""
+CURRENT_WORKTREE=""
+SYNCED_DEFAULT_PATH=""
+SYNCED_DEFAULT_HEAD=""
+ORIGIN_DEFAULT_HEAD=""
+CLEANED_ITEMS=""
+PRESERVED_ITEMS=""
 
 json_field() {
   python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"
@@ -69,6 +77,191 @@ extract_close_issue_numbers() {
       }
     }
   ' | sort -un
+}
+
+append_item() {
+  local current="$1"
+  local item="$2"
+  if [ -z "$current" ]; then
+    printf '%s' "$item"
+  else
+    printf '%s; %s' "$current" "$item"
+  fi
+}
+
+add_cleaned() {
+  CLEANED_ITEMS=$(append_item "$CLEANED_ITEMS" "$1")
+}
+
+add_preserved() {
+  PRESERVED_ITEMS=$(append_item "$PRESERVED_ITEMS" "$1")
+}
+
+format_items() {
+  if [ -z "$1" ]; then
+    printf 'none'
+  else
+    printf '%s' "$1"
+  fi
+}
+
+canonical_path() {
+  (cd "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
+}
+
+same_path() {
+  [ "$(canonical_path "$1")" = "$(canonical_path "$2")" ]
+}
+
+worktree_is_clean() {
+  [ -z "$(git -C "$1" status --porcelain)" ]
+}
+
+find_worktree_by_branch() {
+  local branch="$1"
+  git worktree list --porcelain | awk -v ref="refs/heads/${branch}" '
+    $1 == "worktree" { path = substr($0, 10) }
+    $1 == "branch" && $2 == ref { print path; exit }
+  '
+}
+
+is_linked_worktree() {
+  local git_dir
+  git_dir=$(git -C "$1" rev-parse --git-dir 2>/dev/null || true)
+  case "$git_dir" in
+    */.git/worktrees/*|*.git/worktrees/*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+sync_default_worktree() {
+  local path="$1"
+  if ! worktree_is_clean "$path"; then
+    add_preserved "$path: dirty default worktree; run git -C '$path' status, then git -C '$path' merge --ff-only origin/$DEFAULT_REF"
+    return 1
+  fi
+
+  echo "[pr-finalize] default worktree fast-forward: $path" >&2
+  if ! git -C "$path" merge --ff-only "origin/$DEFAULT_REF" >&2; then
+    add_preserved "$path: non-fast-forward default sync; inspect git -C '$path' status/log before manual resolution"
+    return 1
+  fi
+
+  SYNCED_DEFAULT_PATH="$path"
+  SYNCED_DEFAULT_HEAD=$(git -C "$path" rev-parse HEAD 2>/dev/null || true)
+  return 0
+}
+
+switch_current_to_default_worktree() {
+  local path="$1"
+  if ! worktree_is_clean "$path"; then
+    add_preserved "$path: dirty current worktree; no default branch worktree exists, so default sync requires manual cleanup first"
+    return 1
+  fi
+
+  echo "[pr-finalize] default worktree 없음 — 현재 clean worktree 를 $DEFAULT_REF 로 전환" >&2
+  if git -C "$path" show-ref --verify --quiet "refs/heads/$DEFAULT_REF"; then
+    git -C "$path" switch "$DEFAULT_REF" >&2 || {
+      add_preserved "$path: checkout conflict switching to $DEFAULT_REF"
+      return 1
+    }
+  else
+    git -C "$path" switch -c "$DEFAULT_REF" --track "origin/$DEFAULT_REF" >&2 || {
+      add_preserved "$path: checkout conflict creating $DEFAULT_REF from origin/$DEFAULT_REF"
+      return 1
+    }
+  fi
+
+  sync_default_worktree "$path"
+}
+
+cleanup_merged_feature_worktree() {
+  local feature_path
+  local anchor
+  feature_path=$(find_worktree_by_branch "$BRANCH")
+
+  if [ "$STATE" != "MERGED" ] || [ -z "$feature_path" ] || [ "$BRANCH" = "$DEFAULT_REF" ]; then
+    return 0
+  fi
+  if [ -n "$SYNCED_DEFAULT_PATH" ] && same_path "$feature_path" "$SYNCED_DEFAULT_PATH"; then
+    return 0
+  fi
+  if ! is_linked_worktree "$feature_path"; then
+    add_preserved "$feature_path: feature branch is not a linked worktree"
+    return 0
+  fi
+  if ! worktree_is_clean "$feature_path"; then
+    add_preserved "$feature_path: dirty merged feature worktree"
+    return 0
+  fi
+
+  anchor="$SYNCED_DEFAULT_PATH"
+  if [ -z "$anchor" ]; then
+    anchor=$(find_worktree_by_branch "$DEFAULT_REF")
+  fi
+  if [ -z "$anchor" ]; then
+    add_preserved "$feature_path: no default worktree anchor available for safe removal"
+    return 0
+  fi
+
+  if [ -n "$CURRENT_WORKTREE" ] && same_path "$CURRENT_WORKTREE" "$feature_path"; then
+    cd "$anchor"
+  fi
+  if git -C "$anchor" worktree remove "$feature_path" >&2; then
+    add_cleaned "$feature_path: removed merged feature worktree"
+  else
+    add_preserved "$feature_path: git worktree remove failed"
+  fi
+}
+
+prune_stale_worktrees() {
+  local dry_run
+  dry_run=$(git worktree prune --dry-run 2>&1 || true)
+  if [ -z "$dry_run" ]; then
+    return 0
+  fi
+  if git worktree prune >&2; then
+    add_cleaned "stale worktree admin entries pruned: $(printf '%s' "$dry_run" | tr '\n' ' ')"
+  else
+    add_preserved "stale worktree admin entries: prune failed: $(printf '%s' "$dry_run" | tr '\n' ' ')"
+  fi
+}
+
+post_merge_sync_and_cleanup() {
+  local default_path
+
+  echo "[pr-finalize] origin/$DEFAULT_REF ref 동기화" >&2
+  if ! git fetch origin "$DEFAULT_REF" --quiet; then
+    echo "[pr-finalize] ERROR: git fetch origin $DEFAULT_REF 실패 (네트워크 / 권한)" >&2
+    exit 1
+  fi
+  ORIGIN_DEFAULT_HEAD=$(git rev-parse "origin/$DEFAULT_REF" 2>/dev/null || true)
+
+  if [ "$INTEGRATION" = "true" ]; then
+    if ! git fetch origin "$BASE_REF" --quiet; then
+      echo "[pr-finalize] WARN: git fetch origin $BASE_REF 실패 — 다음 sub-PR branch 생성 전 수동 fetch 권장" >&2
+    fi
+  fi
+
+  default_path=$(find_worktree_by_branch "$DEFAULT_REF")
+  if [ -n "$default_path" ]; then
+    sync_default_worktree "$default_path" || true
+  else
+    switch_current_to_default_worktree "$CURRENT_WORKTREE" || true
+  fi
+
+  cleanup_merged_feature_worktree
+  prune_stale_worktrees
+}
+
+emit_final_summary() {
+  if [ -z "$ORIGIN_DEFAULT_HEAD" ]; then
+    ORIGIN_DEFAULT_HEAD=$(git rev-parse "origin/$DEFAULT_REF" 2>/dev/null || printf 'unknown')
+  fi
+  if [ -n "$SYNCED_DEFAULT_PATH" ] && [ -z "$SYNCED_DEFAULT_HEAD" ]; then
+    SYNCED_DEFAULT_HEAD=$(git -C "$SYNCED_DEFAULT_PATH" rev-parse HEAD 2>/dev/null || true)
+  fi
+  echo "[pr-finalize] PR #$PR merged · $PR_URL · default_path=${SYNCED_DEFAULT_PATH:-none} · HEAD=${SYNCED_DEFAULT_HEAD:-none} · origin/$DEFAULT_REF=${ORIGIN_DEFAULT_HEAD:-unknown} · cleaned=$(format_items "$CLEANED_ITEMS") · preserved=$(format_items "$PRESERVED_ITEMS")"
 }
 
 cleanup_merge_lock() {
@@ -106,8 +299,14 @@ if [ -z "$PR" ]; then
 fi
 
 if [ -z "$BRANCH" ]; then
-  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  PR_HEAD_REF=$(gh pr view "$PR" --json headRefName -q .headRefName 2>/dev/null || true)
+  if [ -n "$PR_HEAD_REF" ]; then
+    BRANCH="$PR_HEAD_REF"
+  else
+    BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  fi
 fi
+CURRENT_WORKTREE=$(git rev-parse --show-toplevel)
 
 # 통합 브랜치 sub-PR 판정 — base ≠ default branch
 DEFAULT_REF=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || true)
@@ -128,12 +327,11 @@ fi
 if [ -n "$(git status --porcelain)" ]; then
   echo "[pr-finalize] WARN: working tree dirty — fetch sync 영향은 없지만 다음 작업 시 충돌 위험" >&2
   git status --short >&2
-  echo "[pr-finalize] 계속 진행 (auto-merge 만, sync skip) Y/n? " >&2
+  echo "[pr-finalize] 계속 진행 (dirty worktree 는 sync/cleanup preserved 로 보고) Y/n? " >&2
   read -r reply
   if [ "$reply" != "Y" ] && [ "$reply" != "y" ]; then
     exit 1
   fi
-  SKIP_SYNC=true
 fi
 
 # Peer mode guard (#641): unregistered branches return mode=serial and keep the
@@ -151,7 +349,7 @@ if [ "$MERGE_LOCK_MODE" = "peer" ]; then
   MERGE_CLAIM_KEY=$(printf '%s\n' "$MERGE_LOCK_JSON" | json_field claim_key)
   echo "[pr-finalize] peer merge lock 획득 — claim $MERGE_CLAIM_KEY" >&2
   echo "[pr-finalize] lock 이후 base/PR 상태 재확인" >&2
-  git fetch origin main --quiet
+  git fetch origin "$DEFAULT_REF" --quiet
   if ! gh pr update-branch "$PR" >&2; then
     echo "[pr-finalize] WARN: gh pr update-branch 실패 또는 불필요 — merge/check 단계에서 재검증" >&2
   fi
@@ -214,7 +412,7 @@ if [ "$STATE" != "MERGED" ]; then
   exit 1
 fi
 
-# Step 4: origin/main ref 동기화 (refspec 없이 fetch — worktree 호환)
+# Step 4: post-merge ledger 기록
 PR_URL=$(gh pr view "$PR" --json url -q .url 2>/dev/null)
 record_pr_merged "$PR" "$PR_URL"
 
@@ -254,21 +452,5 @@ if [ "$INTEGRATION" = "true" ]; then
   done
 fi
 
-if [ "${SKIP_SYNC:-}" = "true" ]; then
-  echo "[pr-finalize] origin/$DEFAULT_REF 동기화 skip (working tree dirty)" >&2
-  echo "[pr-finalize] PR #$PR merged · $PR_URL"
-  exit 0
-fi
-
-echo "[pr-finalize] origin/$DEFAULT_REF ref 동기화" >&2
-if ! git fetch origin "$DEFAULT_REF" --quiet; then
-  echo "[pr-finalize] ERROR: git fetch origin $DEFAULT_REF 실패 (네트워크 / 권한)" >&2
-  exit 1
-fi
-if [ "$INTEGRATION" = "true" ]; then
-  if ! git fetch origin "$BASE_REF" --quiet; then
-    echo "[pr-finalize] WARN: git fetch origin $BASE_REF 실패 — 다음 sub-PR branch 생성 전 수동 fetch 권장" >&2
-  fi
-fi
-
-echo "[pr-finalize] PR #$PR merged · $PR_URL"
+post_merge_sync_and_cleanup
+emit_final_summary

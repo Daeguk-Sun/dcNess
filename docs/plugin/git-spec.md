@@ -114,7 +114,7 @@ Part of #N
 3. git push -u origin {브랜치명}
 4. gh pr create --base {base} --title "..." --body "..."
    # base 분기 룰 step 1 과 동일 — 통합 브랜치 모드면 sub-PR base = 통합 브랜치
-5. "$PLUGIN_ROOT/scripts/pr-finalize.sh"   # 머지 + CI 대기 + main sync 자동 (한 명령)
+5. "$PLUGIN_ROOT/scripts/pr-finalize.sh"   # 머지 + CI 대기 + default worktree sync/cleanup 자동 (한 명령)
 ```
 
 > 통합 브랜치 케이스 — stories.md 상단에 `**Base Branch:** feature/{slug}` 마커가 박혀있으면 모든 sub-PR 의 base = 그 통합 브랜치. 마지막 통합 → main 머지 PR 만 base = main + body 에 `Closes #{epic}` + `Closes #{story1...N}` 일괄 박음 ([통합 브랜치 케이스](#통합-브랜치-케이스-base-main-sub-pr-의-auto-close-한계-must)).
@@ -126,7 +126,8 @@ Part of #N
 - `gh pr checks --watch` (CI 결과 대기)
 - auto-merge 완료 대기 (GitHub 백그라운드 lag)
 - peer claim 이 있으면 completed 기록 (`merge-lock complete`)
-- `git fetch origin main` (origin/main ref 동기화 — worktree 호환. 통합 브랜치 sub-PR 이면 origin/<base> 도 fetch)
+- `git fetch origin <default>` 후 default branch worktree fast-forward (통합 브랜치 sub-PR 이면 origin/<base> 도 fetch)
+- clean linked feature worktree 와 stale worktree admin entry 를 안전 조건 안에서 정리하고, dirty/non-fast-forward/checkout 충돌은 `preserved` 목록에 이유와 함께 남긴다.
 - **통합 브랜치 sub-PR (base ≠ default branch) 자동 인지** — CI 체크 0개 정상 처리 + 머지 후 PR body close 선언 기반 issue close 보정 ([통합 브랜치 케이스](#통합-브랜치-케이스-base-main-sub-pr-의-auto-close-한계-must))
 - (예정) Test Plan 종합 — 하위 commit 들의 `## Test Plan` 자동 수집·중복 제거·PR body 갱신
 
@@ -202,7 +203,7 @@ stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통
 흐름:
 
 1. **각 sub-PR (base = `feature/<slug>`)** — PR body 에 평소대로 `Part of #<story>` / `Closes #<story>` 박되 머지 시 *발동 안 됨* 전제. `Document-Exception-PR-Close: 통합 브랜치 sub-PR — main 머지 시 일괄 close` 박아 `check_pr_body.mjs` 게이트 우회 가능 (자유 선택).
-   - **close 보정 자동화**: sub-PR 머지를 [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh) 로 하면 base ≠ default branch 를 감지해 (a) CI 체크 0개를 정상으로 처리하고 (b) PR body 의 독립 trailer 줄에 있는 `Closes`/`Fixes`/`Resolves` 선언이 가리키는 OPEN issue 목록을 출력한 뒤 PR 링크 코멘트와 함께 close 보정한다. 산문 인용·blockquote·list 예시는 close 대상으로 보지 않는다. 수동 CLOSE 불필요. 이미 close 된 issue 에 대한 마지막 →main 일괄 `Closes` 는 무해 (GitHub 이 무시).
+   - **close 보정 자동화**: sub-PR 머지를 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 로 하면 base ≠ default branch 를 감지해 (a) CI 체크 0개를 정상으로 처리하고 (b) PR body 의 독립 trailer 줄에 있는 `Closes`/`Fixes`/`Resolves` 선언이 가리키는 OPEN issue 목록을 출력한 뒤 PR 링크 코멘트와 함께 close 보정한다. 산문 인용·blockquote·list 예시는 close 대상으로 보지 않는다. 수동 CLOSE 불필요. 이미 close 된 issue 에 대한 마지막 →main 일괄 `Closes` 는 무해 (GitHub 이 무시).
 2. **마지막 통합 → main 머지 PR (base = main)** — PR body 에 **모든 story + epic 을 일괄 close**:
    ```
    Closes #<story1>

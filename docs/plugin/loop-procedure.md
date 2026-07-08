@@ -341,7 +341,7 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 
 ### Step 7a (impl-task-loop)
 
-PR 이미 생성된 상태 — merge only. [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh) 가 머지 + CI 대기 + main sync 자동.
+PR 이미 생성된 상태 — merge only. `$PLUGIN_ROOT/scripts/pr-finalize.sh` 가 머지 + CI 대기 + default worktree sync/cleanup 을 자동 수행한다.
 
 ---
 
@@ -385,7 +385,7 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 
 > **impl-task-loop 제외**: [impl-task-loop commit 구조](#impl-task-loop-commit-구조) 에서 branch/commit/push/PR 이미 완료 → Step 7a = merge only.
 
-clean 판정 통과 시 사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프): branch (`<prefix>/<short-slug>`, prefix = 해당 loop 의 branch_prefix — [`git-spec.md` 브랜치](git-spec.md#브랜치) valid 패턴) → **변경 파일 commit** → push → PR create → merge → main sync. **commit 대상 = 해당 loop 가 실제 변경한 파일** — design = `docs/**` 설계 산출물, ux = epic `ux-flow.md`, `docs/design.md`, `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, 필요 시 `docs/design-variants/_lib/**` seed 라 src-only 아님 (src-only 제한은 impl-task-loop 전용, [impl-task-loop commit 구조](#impl-task-loop-commit-구조)). **stray untracked 휩쓸기 주의**: impl 루프와 달리 비-impl loop 은 worktree 권한 경계가 src-only 가 아니고 clean 매트릭스가 untracked ≤ 10 을 허용하므로, `pr-create.sh` 의 `git add -A` 는 무관한 로컬 아티팩트까지 stage 한다 → 호출 *전* 산출물 외 파일을 정리하거나, 해당 loop 산출물만 명시 pathspec 으로 직접 stage 후 commit. 네이밍·본문·트레일러 = [`git-spec.md`](git-spec.md), 커밋 trailer 의 모델 표기는 글로벌 `~/.claude/CLAUDE.md` 기준. 실행 = [`scripts/pr-create.sh`](../../scripts/pr-create.sh) + [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh).
+clean 판정 통과 시 사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프): branch (`<prefix>/<short-slug>`, prefix = 해당 loop 의 branch_prefix — [`git-spec.md` 브랜치](git-spec.md#브랜치) valid 패턴) → **변경 파일 commit** → push → PR create → merge → default worktree sync/cleanup. **commit 대상 = 해당 loop 가 실제 변경한 파일** — design = `docs/**` 설계 산출물, ux = epic `ux-flow.md`, `docs/design.md`, `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, 필요 시 `docs/design-variants/_lib/**` seed 라 src-only 아님 (src-only 제한은 impl-task-loop 전용, [impl-task-loop commit 구조](#impl-task-loop-commit-구조)). **stray untracked 휩쓸기 주의**: impl 루프와 달리 비-impl loop 은 worktree 권한 경계가 src-only 가 아니고 clean 매트릭스가 untracked ≤ 10 을 허용하므로, `pr-create.sh` 의 `git add -A` 는 무관한 로컬 아티팩트까지 stage 한다 → 호출 *전* 산출물 외 파일을 정리하거나, 해당 loop 산출물만 명시 pathspec 으로 직접 stage 후 commit. 네이밍·본문·트레일러 = [`git-spec.md`](git-spec.md), 커밋 trailer 의 모델 표기는 글로벌 `~/.claude/CLAUDE.md` 기준. 실행 = `$PLUGIN_ROOT/scripts/pr-create.sh` + `$PLUGIN_ROOT/scripts/pr-finalize.sh`.
 
 worktree 진입 시 [worktree 분기](#worktree-분기-action-루프-한정) 의 커밋 diff 흡수 + working tree clean 검사를 완료한 뒤 `ExitWorktree(action="<keep|remove>")` 를 호출한다.
 
@@ -455,7 +455,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 `ledger.jsonl` 의 `step_completed` receipt 는 read 시점에 primary ledger 한정으로 `prose_file` 실존 + `sha256` digest match 를 strict 검증한다. 검증 실패 step 은 위조/손상으로 보고 소비처(`run-status` / `run-review` / finalize gate)에서 제외한다. 옛 `.steps.jsonl` 폴백은 마이그레이션 호환 경로라 같은 검증을 걸지 않는다.
 
 **PR lifecycle event**: `scripts/pr-create.sh` 는 PR 생성 성공 뒤 `pr_created`,
-`scripts/pr-finalize.sh` 는 merge 완료 확인 뒤 `pr_merged` 를 자동 기록한다. active
+`$PLUGIN_ROOT/scripts/pr-finalize.sh` 는 merge 완료 확인 뒤 `pr_merged` 를 자동 기록한다. active
 dcNess run 밖에서 호출되면 ledger 기록은 경고만 내고 PR 작업 자체는 계속된다.
 
 **수동 checkpoint event** (메인/skill 이 `ledger-event` 로 — 강제 X):

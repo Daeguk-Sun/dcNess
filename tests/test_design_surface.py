@@ -228,7 +228,7 @@ class DesignSurfaceContractTests(unittest.TestCase):
             "산출물 요약",
             "diff 규모",
             "yolo",
-            "확인 응답 전에는 `scripts/pr-finalize.sh` 를 호출하지 않는다",
+            "확인 응답 전에는 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, design)

@@ -25,6 +25,8 @@ class PrFinalizePeerLockWiringTests(unittest.TestCase):
         self.assertIn("MERGE_CLAIM_KEY", script)
         self.assertIn("--claim-key", script)
         self.assertIn("gh pr update-branch", script)
+        self.assertIn('git fetch origin "$DEFAULT_REF"', script)
+        self.assertNotIn("git fetch origin main --quiet", script)
 
     def test_pr_finalize_ci_failure_marks_peer_claim_failed(self) -> None:
         with tempfile.TemporaryDirectory() as td:
