@@ -76,6 +76,7 @@ __all__ = [
     "start_run",
     "update_current_step",
     "clear_current_step",
+    "mark_run_blocked",
     "evaluate_order_gate_for_step",
     "run_prose_has_pass",
     "set_pending_agent",
@@ -763,6 +764,52 @@ def clear_current_step(
     return True
 
 
+def mark_run_blocked(
+    session_id: str,
+    run_id: str,
+    *,
+    category: str,
+    agent: Optional[str] = None,
+    mode: Optional[str] = None,
+    provider: Optional[str] = None,
+    reason: Optional[str] = None,
+    raw_log: Optional[str] = None,
+    base_dir: Optional[Path] = None,
+) -> Dict[str, Any]:
+    """Persist a run-level blocked marker in live.json.
+
+    ledger.jsonl is the audit trail; this live marker gives the next step gate a
+    cheap active-run signal. The marker is intentionally run-level, not
+    current_step-level, because boundary BLOCK means the workspace needs explicit
+    main/user intervention before any further sub-step can be trusted.
+    """
+    if not isinstance(category, str) or not category:
+        raise ValueError("category must be non-empty str")
+    live = read_live(session_id, base_dir=base_dir) or {}
+    active = live.get("active_runs", {})
+    if not isinstance(active, dict) or run_id not in active:
+        raise ValueError(f"run_id not active: {run_id}")
+
+    marker: Dict[str, Any] = {"category": category, "at": _now_iso()}
+    for key, val in (
+        ("agent", agent),
+        ("mode", mode),
+        ("provider", provider),
+        ("reason", reason),
+        ("raw_log", raw_log),
+    ):
+        if val is not None:
+            marker[key] = val
+
+    slot = dict(active[run_id])
+    slot["blocked"] = marker
+    slot["last_confirmed_at"] = marker["at"]
+    active = dict(active)
+    active[run_id] = slot
+    update_live(session_id, base_dir=base_dir, active_runs=active)
+    return marker
+
+
 def _steps_jsonl_path(sid: str, rid: str, *, base_dir: Optional[Path] = None) -> Path:
     """[deprecated] 옛 `.steps.jsonl` 경로 — ledger.jsonl 로 흡수됨 (이슈 #587).
 
@@ -910,6 +957,50 @@ def _run_entry_point(
         return ""
 
 
+def _run_engineer_boundary_block_marker(
+    session_id: str,
+    run_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    try:
+        marker = _slot_for_run(session_id, run_id, base_dir=base_dir).get("blocked")
+        if isinstance(marker, dict) and marker.get("category") == "engineer_boundary":
+            return marker
+    except (OSError, ValueError):
+        pass
+
+    try:
+        from harness import ledger
+
+        for event in reversed(ledger.read_events(session_id, run_id, base_dir=base_dir)):
+            if (
+                event.get("event") == "blocked"
+                and event.get("category") == "engineer_boundary"
+            ):
+                return event
+    except Exception:  # nosec B110
+        pass
+    return None
+
+
+def _boundary_block_gate_message(marker: Dict[str, Any]) -> str:
+    reason = marker.get("reason")
+    raw_log = marker.get("raw_log")
+    detail = ""
+    if isinstance(reason, str) and reason:
+        detail += f" reason={reason}"
+    if isinstance(raw_log, str) and raw_log:
+        detail += f" raw_log={raw_log}"
+    return (
+        "[순서 차단 훅: headless boundary BLOCK] 이 run 은 "
+        "headless worker boundary BLOCK(category=engineer_boundary) 기록이 있어 "
+        "다음 step 을 시작할 수 없습니다. workspace diff 와 ledger marker 를 확인한 뒤 "
+        "새 run 또는 명시적 수동 복구로 진행하세요."
+        f"{detail}"
+    )
+
+
 _IMPLEMENTATION_ORDER_GATE_AGENTS = frozenset({"engineer", "build-worker"})
 
 
@@ -931,6 +1022,12 @@ def evaluate_order_gate_for_step(
     norm_agent = normalize_agent_type(agent) or agent
     effective_mode = mode if isinstance(mode, str) and mode else None
     rd = run_dir(session_id, run_id, base_dir=base_dir)
+
+    boundary_block = _run_engineer_boundary_block_marker(
+        session_id, run_id, base_dir=base_dir
+    )
+    if boundary_block:
+        return _boundary_block_gate_message(boundary_block)
 
     if norm_agent in _IMPLEMENTATION_ORDER_GATE_AGENTS and effective_mode != "POLISH":
         lane_lite = _run_lane(session_id, run_id, base_dir=base_dir) == "lite"
