@@ -10,6 +10,32 @@
 
 ---
 
+## v0.16.0 (2026-07-08)
+
+**커밋 범위**: `v0.15.0..v0.16.0` (머지 PR 3개, #991~#993)
+**핵심 변경**: **`/design` 설계 계약 정합 후속** 이 중심인 minor 릴리즈. (1) 확정 목업이 있는 UI epic 에서 module-architect / architecture-validator 프롬프트가 design SSOT(`docs/design.md`·확정 목업·canvas·node-id 매핑)를 빠뜨리는 것을 슬롯 예시·begin-step 리마인더·read-only `mockup-node-check` helper 로 방지, (2) design-variants canvas seed 에 화면 플로우 보드 모드를 추가해 라벨·캡션·상태·노드별 높이·초기 fit-to-view 를 표현, (3) module-architect impl-task 산출물의 테스트 grant 입도를 owner module 대응 하위 경로로 좁혀 병렬 wave disjoint 판정의 과다 충돌을 완화.
+
+### 무엇이 바뀌나
+
+1. **확정 목업 design SSOT 입력 누락 방지** ([#993](https://github.com/Daeguk-Sun/dcNess/pull/993) [#989](https://github.com/Daeguk-Sun/dcNess/issues/989)) — `agent-prompt-slots.md` 의 module-architect / architecture-validator 입력 예시에 확정 목업 UI epic design SSOT 항목을 추가하고, `begin-step` prompt slot check 가 확정 목업 파일을 감지하면 두 agent 에 design SSOT 리마인더를 출력하도록 확장. `dcness-helper mockup-node-check` read-only 서브커맨드를 추가해 impl `## 디자인 참조` 의 node-id 인용과 확정 목업 `data-node-id` 를 JSON 으로 대조하고, `/design` stage 2 mechanical pre-final checks 에 확정 목업 UI epic 한정 호출을 배선. `canvas.html`·`drafts/`·`_lib/`·`_` prefix HTML 은 확정 화면 목업에서 제외.
+
+2. **design-variants canvas 플로우 보드 지원** ([#992](https://github.com/Daeguk-Sun/dcNess/pull/992) [#960](https://github.com/Daeguk-Sun/dcNess/issues/960)) — canvas seed 에 `.screen-node` 플로우 보드 모드를 추가해 캡션 카드·상태 chip·`data-h` 노드별 iframe 높이·곡선 화살표(`data-bend`)와 라벨 pill·초기 fit-to-view·노드/화살표 focus 강조를 렌더. `.screen-node` 존재 시에만 플로우 보드 모드로 전환해 기존 iframe grid seed 와 공존하고, 색상/폰트는 `--dcness-canvas-*` CSS custom property fallback 으로 분리해 활성 프로젝트가 자체 토큰으로 override 할 수 있다. `docs/plugin/design.md` 와 `skills/canvas-design/SKILL.md` 에 계약 문서화.
+
+3. **테스트 grant 입도 지침 보강** ([#991](https://github.com/Daeguk-Sun/dcNess/pull/991) [#990](https://github.com/Daeguk-Sun/dcNess/issues/990)) — module-architect 의 `수정 허용` 작성 규칙과 impl-task 템플릿 Scope 안내에 테스트 grant 를 owner module 대응 하위 경로로 좁히라는 규칙과 넓은 grant 예외 조건을 추가. 공유 test-root grant 가 병렬 wave disjoint 판정에서 전 task 충돌로 보이던 문제를 산출물 작성 지침 단계에서 완화한다.
+
+### 자기개선 점검 기록
+
+| 날짜 | 입력 | 판정 |
+|---|---|---|
+| 2026-07-08 | (빠른 배포 — eval 생략) | 사용자 지시로 self-improvement 권고 eval 점검(guard_efficacy · 행동 eval)을 생략한 빠른 minor 배포. `begin-step` 리마인더·`dcness-helper mockup-node-check`·agent boundary read-only 분류 변경(#993)은 머지 PR CI(pytest·static-quality·public-surface·guard 관련 테스트)로 검증됨. **소멸 후보 없음.** |
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — 확정 목업 design SSOT 리마인더·`mockup-node-check` helper, canvas 플로우 보드 seed, 테스트 grant 입도 지침 등 `docs/plugin/**`·`skills/**`·`harness/**`·`templates/design-variants/**` 변경.
+- **canvas seed 를 이미 배포받은 활성 프로젝트** — 기존 파일을 덮어쓰지 않는 정책상 plugin update 만으로 로컬 `docs/design-variants/_lib/canvas.js` 가 자동 교체되지는 않는다. 플로우 보드 모드가 필요하면 갱신된 template 파일을 해당 프로젝트 `docs/design-variants/` 로 복사해야 한다.
+
+---
+
 ## v0.15.0 (2026-07-07)
 
 **커밋 범위**: `v0.14.0..v0.15.0` (머지 PR 9개, #973~#987)
