@@ -162,6 +162,7 @@ class BoundarySuggestionsTests(unittest.TestCase):
             report = collect_boundary_suggestions(root, impl_plan=plan)
 
             self.assertEqual("impl_plan_uncovered", report.reason)
+            self.assertEqual(1, report.uncovered_files)
             self.assertEqual([], report.suggestions)
             self.assertIn("docs/notes.md", report.blocking_reasons)
             formatted = format_boundary_suggestions(report)

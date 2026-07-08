@@ -286,7 +286,7 @@ def collect_impl_plan_boundary_suggestions(
     return BoundarySuggestionReport(
         project_root=str(root),
         scanned_files=len(scope_paths),
-        uncovered_files=len(uncovered),
+        uncovered_files=len(blocking_reasons),
         suggestions=suggestions,
         reason=report_reason,
         blocking_reasons=blocking_reasons,
