@@ -67,6 +67,17 @@ class AgentRoutingTests(unittest.TestCase):
         for agent in agent_routing.ROUTABLE_IMPLEMENTATION_AGENTS:
             self.assertEqual(agent_routing.resolve_provider(agent), "codex-first")
 
+    def test_role_split_preset_routes_implementation_and_contract_roles(self) -> None:
+        agent_routing.enable_role_split_routing()
+
+        self.assertEqual(agent_routing.resolve_provider("engineer"), "headless-chain")
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
+        self.assertEqual(agent_routing.resolve_provider("test-engineer"), "claude")
+        self.assertEqual(agent_routing.resolve_provider("code-validator"), "claude")
+        self.assertEqual(agent_routing.resolve_provider("pr-reviewer"), "claude")
+        self.assertEqual(agent_routing.resolve_provider("architecture-validator"), "codex")
+        self.assertEqual(agent_routing.doctor(), [])
+
     def test_set_implementation_provider_validates_agent_and_provider(self) -> None:
         agent_routing.set_implementation_provider("build-worker", "claude")
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
@@ -183,6 +194,9 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(ns.routing_cmd, "resolve")
         self.assertEqual(ns.agent, "code-validator")
 
+        ns = parser.parse_args(["routing", "enable-role-split-routing"])
+        self.assertEqual(ns.routing_cmd, "enable-role-split-routing")
+
         ns = parser.parse_args(
             ["routing", "set-implementation", "build-worker", "claude-headless"]
         )
@@ -266,6 +280,28 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertIn("set implementation build-worker=codex-first", out.getvalue())
 
+    def test_cli_role_split_routing_preset_and_doctor(self) -> None:
+        from harness.session_state import _cli_routing
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(SimpleNamespace(routing_cmd="enable-role-split-routing"))
+        self.assertEqual(rc, 0)
+        text = out.getvalue()
+        self.assertIn("enabled role-split routing", text)
+        self.assertIn("architecture-validator: codex", text)
+        self.assertIn("code-validator: claude", text)
+        self.assertIn("pr-reviewer: claude", text)
+        self.assertIn("test-engineer: claude", text)
+        self.assertIn("engineer: headless-chain", text)
+        self.assertIn("build-worker: headless-chain", text)
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(SimpleNamespace(routing_cmd="doctor"))
+        self.assertEqual(rc, 0)
+        self.assertIn("[dcness routing] doctor: PASS", out.getvalue())
+
     def test_cli_doctor_fails_on_bad_file(self) -> None:
         from harness.session_state import _cli_routing
 
@@ -276,6 +312,29 @@ class AgentRoutingCliTests(unittest.TestCase):
             rc = _cli_routing(SimpleNamespace(routing_cmd="doctor"))
         self.assertEqual(rc, 1)
         self.assertIn("status: INVALID", out.getvalue())
+
+
+class InitRoleSplitRoutingDocsTests(unittest.TestCase):
+    def test_init_docs_recommend_role_split_preset_and_keep_custom_routes(self) -> None:
+        root = Path(__file__).resolve().parents[1]
+        command = (root / "commands" / "init-dcness.md").read_text(
+            encoding="utf-8",
+        )
+        doc = (root / "docs" / "plugin" / "init-dcness.md").read_text(
+            encoding="utf-8",
+        )
+
+        for text in (command, doc):
+            with self.subTest(text=text[:40]):
+                self.assertIn("enable-role-split-routing", text)
+                self.assertIn("engineer/build-worker=headless-chain", text)
+                self.assertIn("test-engineer/code-validator/pr-reviewer=claude", text)
+                self.assertIn("architecture-validator=codex", text)
+                self.assertIn("기존 활성 프로젝트", text)
+                self.assertIn("routing doctor", text)
+                self.assertIn("enable-codex-validation", text)
+                self.assertIn("enable-codex-implementation", text)
+                self.assertIn("disable-codex-implementation", text)
 
 
 if __name__ == "__main__":

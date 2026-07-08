@@ -31,6 +31,7 @@ __all__ = [
     "implementation_provider_chain",
     "set_provider",
     "set_implementation_provider",
+    "enable_role_split_routing",
     "enable_codex_validation",
     "disable_codex_validation",
     "enable_headless_implementation",
@@ -244,6 +245,22 @@ def set_implementation_provider(
     routes = dict(cfg.get("implementation_routes", {}))
     routes[agent] = provider
     cfg["implementation_routes"] = routes
+    return save_routing(cfg, path=path)
+
+
+def enable_role_split_routing(*, path: Optional[Path] = None) -> Path:
+    """Enable the recommended role-split routing preset."""
+    cfg = load_routing(path=path)
+    cfg["routes"] = {
+        "code-validator": "claude",
+        "architecture-validator": "codex",
+        "pr-reviewer": "claude",
+    }
+    cfg["implementation_routes"] = {
+        "test-engineer": "claude",
+        "engineer": DEFAULT_IMPLEMENTATION_PROVIDER,
+        "build-worker": DEFAULT_IMPLEMENTATION_PROVIDER,
+    }
     return save_routing(cfg, path=path)
 
 
