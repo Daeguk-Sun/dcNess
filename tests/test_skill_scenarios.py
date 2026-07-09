@@ -166,7 +166,6 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         for relpath in (
             "docs/plugin/workflow-router.md",
             "docs/plugin/positioning.md",
-            "skills/compact-design/SKILL.md",
         ):
             with self.subTest(relpath=relpath):
                 text = (ROOT / relpath).read_text(encoding="utf-8")

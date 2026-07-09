@@ -1,11 +1,11 @@
 ---
 name: impl-loop
-description: deep impl task 파일(design 의 Story/공통 module-architect 단위 산출물)을 받아 정식 impl 루프로 구현하는 legacy/advanced runner. task 1개(single) 또는 여러 개(chain) 를 처리 — 기본은 한 세션 직렬, opt-in 병렬은 별도 interactive 세션들이 각자 single task 를 수행. 각 task = 1 PR + 1 이슈 close. 엔진 미지정 시 기본은 build-worker (2/3-step, 경량) 이고, 풀 4-agent (test-engineer → engineer → code-validator → pr-reviewer, 엄정)는 frontmatter/고위험/사용자 엄정 승격 전용이다. story/epic 마감 task 는 머지 전 product-acceptance 검수가 기본으로 끼며 PASS 후에만 마감 PR 을 머지한다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
+description: Story/공통 impl task 파일(design 산출물)을 받아 provider-agnostic headless story/epic runner 로 구현한다. task 1개(single) 또는 여러 개(chain/story/epic) 를 처리하며, 각 task 는 task commit 으로 누적되고 story 단위 PR 1개로 닫힌다. 엔진 미지정 시 기본은 build-worker이고, 풀 4-agent(test-engineer → engineer → code-validator → pr-reviewer)는 frontmatter/고위험/사용자 엄정 승격 전용이다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록/story/epic 을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
 ---
 
-# Impl Loop Skill — deep impl task 구현 루프 (single / chain × 풀 / build-worker)
+# Impl Loop Skill — story/epic headless impl runner
 
-> 본 스킬 = `/design` 가 `impl/NN-*.md` 본문 detail 까지 채운 deep task 를 구현으로 옮기는 legacy/advanced runner 다. 일반 구현 요청은 [`/impl`](../impl/SKILL.md) 이 구현 경로를 판정하고, deep impl task 파일이 있을 때만 본 스킬로 위임한다.
+> 본 스킬 = `/design` 가 `impl/NN-*.md` 본문 detail 까지 채운 Story/공통 task 를 provider-agnostic headless runner 로 구현한다. 일반 구현 요청은 [`/impl`](../impl/SKILL.md) 이 구현 경로를 판정하고, impl task 파일이 있을 때만 본 스킬로 위임한다.
 
 > 🔴 **분기 규칙 SSOT** — agent 결론 → 다음 호출 / retry 한도 / escalate 처리는 [`impl-loop-routing.md`](impl-loop-routing.md) 가 본 skill 의 단일 진본. 본 파일은 *진행 절차(Step)* 만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
@@ -32,7 +32,7 @@ UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint �
 
 ## 비대상 (다른 skill 추천)
 
-- 일반 구현 / 버그픽스 / 한 줄 수정 / compact plan 필요 → `/impl`
+- 일반 구현 / 버그픽스 / 한 줄 수정 / 설계 문서 없는 작은 구현 → `/impl`
 - spec / design 단계 → `/spec` (PRD) 또는 `/design` (설계)
 - deep task 부재 (계획 X) → `/impl` 이 구현 경로(설계도 유무 — Lite / Standard)와 엔진을 판정
 

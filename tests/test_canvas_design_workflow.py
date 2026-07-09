@@ -54,9 +54,6 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.impl_template = (
             ROOT / "docs" / "plugin" / "agents" / "module-architect" / "templates" / "impl-task.md"
         ).read_text(encoding="utf-8")
-        self.compact_template = (
-            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "templates" / "compact-plan.md"
-        ).read_text(encoding="utf-8")
         self.init_skill = (ROOT / "commands" / "init-dcness.md").read_text(
             encoding="utf-8"
         )
@@ -118,7 +115,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertEqual(["impl-loop", "tech-review"], advanced)
         self.assertEqual(["ux"], utility_skills)
         self.assertEqual(
-            ["canvas-design", "compact-design", "design-system", "design-ux"],
+            ["canvas-design", "design-system", "design-ux"],
             sorted(internal),
         )
 
@@ -265,14 +262,12 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
                 self.assertIn(needle, self.impl_loop)
         self.assertNotIn("풀 4-agent 엔진 한정", self.impl_loop)
 
-    def test_design_reference_contract_is_in_impl_and_compact_templates(self) -> None:
-        for text in (self.impl_template, self.compact_template):
-            with self.subTest(template=text[:30]):
-                self.assertIn("design: optional|required", text)
-                self.assertIn("## 디자인 참조", text)
-                self.assertIn("확정 목업 경로", text)
-                self.assertIn("data-node-id", text)
-                self.assertIn("구현 컴포넌트", text)
+    def test_design_reference_contract_is_in_impl_template(self) -> None:
+        self.assertIn("design: optional|required", self.impl_template)
+        self.assertIn("## 디자인 참조", self.impl_template)
+        self.assertIn("확정 목업 경로", self.impl_template)
+        self.assertIn("data-node-id", self.impl_template)
+        self.assertIn("구현 컴포넌트", self.impl_template)
 
     def test_agents_use_confirmed_mockup_as_design_alignment_axis(self) -> None:
         for text in (self.engineer, self.build_worker):

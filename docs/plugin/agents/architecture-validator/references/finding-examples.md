@@ -45,7 +45,7 @@
 
 - 전역 decision 과 epic architecture 의 같은 결정이 다름
 - decision 은 갱신됐지만 impl 문서에 이전 consumer가 남음
-- module responsibility 는 갱신됐지만 impl/compact plan 의 module/decision 참조가 이전 의미를 가리킴
+- module responsibility 는 갱신됐지만 impl 문서의 module/decision 참조가 이전 의미를 가리킴
 - 특정 task만 수정하면 되는데 system 재설계로 끌어올릴 위험이 있음
 
 ## 표현 수준

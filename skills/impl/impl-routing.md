@@ -17,7 +17,7 @@ flowchart TB
   UI -->|기준 있음| CDES1["canvas-design: 승격·참조<br/>확정 목업 + node-id 반환"]
   UI -->|신규 시각 구조 + 기준 없음| CDES2["canvas-design: draft → PICK → 확정본 승격"]
   UI -->|시각 구조 불변 / 목업 없이| DOC
-  CDES1 --> DOC{"설계 산출물 있음?<br/>(머지된 impl 문서 / compact plan)"}
+  CDES1 --> DOC{"설계 산출물 있음?<br/>(머지된 impl 문서)"}
   CDES2 --> DOC
   DOC -->|예| ST["Standard: 설계도 기반 구현<br/>--design-doc 기록 · 엔진 풀4/경량 직교"]
   DOC -->|아니오| HR{"high-risk trigger?"}
@@ -26,10 +26,7 @@ flowchart TB
   AM -->|예| CL["명확화 또는 /spec"]
   AM -->|아니오| CS{"concrete signal + 즉시 구현 경계?"}
   CS -->|예| LT["Lite: 메인 직접 구현"]
-  CS -->|아니오| CD["compact-design 으로 되돌려 compact plan 산출"]
-  CD -->|설계도 확보| ST
-  CD -->|작성 중 high-risk 발견| OUT
-  CD -->|너무 단순함| LT
+  CS -->|아니오| CL2["명확화 또는 /design 선행"]
   OUT -->|deep impl task 있음| IL["/impl-loop <task>"]
   OUT -->|설계도 산출| ST
 ```
@@ -51,7 +48,7 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 구현 경로 판정 *전*에 "이 작업을 닫을 설계 산출물이 이미 있는가" 를 먼저 본다([`SKILL.md`](SKILL.md) Step 0.5) — 위 그래프의 `DOC` 노드다. 이것이 impl 의 1차 분기이며, 설계 깊이(경량/full) 판단은 impl 이 직접 하지 않고 설계 레이어로 내려보낸다. 원리 SSOT = [`workflow-router.md` 되돌림 원리](../../docs/plugin/workflow-router.md#되돌림backpressure-원리).
 
 - 설계 문서 있음 → **Standard**. `begin-run impl --design-doc <경로>` 로 기록하고 받은 설계도로 구현만 한다. 엔진(풀4/경량)은 직교로 별도 판정.
-- 설계 문서 없음 + 경량 설계 필요 → 내부 [`compact-design`](../../skills/compact-design/SKILL.md) skill 로 **되돌려** compact plan 을 산출한 뒤, 그 경로를 들고 Standard 로 진입한다. impl 은 설계를 직접 만들지 않는다.
+- 설계 문서 없음 + 구현 경계/테스트 기준 애매 → `/impl` 안에서 설계도를 만들지 않고 사용자 명확화 또는 `/design` 선행으로 올린다.
 - 설계 문서 없음 + concrete signal 충분 + high-risk 0개 → **Lite** (메인 직접 구현).
 - 설계 문서 없음 + full 설계 필요(high-risk) → impl *밖* — 설계 선행(`/design`·`/spec`) 후 설계도를 들고 Standard 재진입.
 
@@ -59,7 +56,7 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 
 구현 경로(설계도 유무)와 엔진(풀4/경량)은 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다(#714). sub-agent 엔진 미지정 시 기본은 build-worker 이고, 풀 4-agent 승격은 `risk: high` 또는 `engine: 4agent` frontmatter, 구현 시점 위험 trigger 자동 승격, 사용자 엄정 발화 override 때만 수행한다. 구현 경로별 engineer 게이트 사전 조건 충족 메커니즘만 다르다: Standard 는 `--design-doc`, Lite 는 `--lane lite`(설계도 면제).
 
-엔진 판정의 고위험 trigger 는 **구현 시점 위험** 기준이다. [`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표는 impl 진입 전 설계 선행 판정 전용이고, 설계도(impl task 또는 compact plan)가 들어온 뒤의 엔진 판정 기준이 아니다. 구현 시점 위험 = migration/destructive change, auth/security/PII/compliance(규제·보안 의미 한정), public API breakage, 외부 HTTP·네트워크 어댑터, URL·파일·사용자 입력 등 신뢰 경계 밖 입력 파싱, 신규 3rd-party dependency·외부 서비스 도입. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이면 `engine: 4agent`.
+엔진 판정의 고위험 trigger 는 **구현 시점 위험** 기준이다. [`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표는 impl 진입 전 설계 선행 판정 전용이고, 설계도(impl task)가 들어온 뒤의 엔진 판정 기준이 아니다. 구현 시점 위험 = migration/destructive change, auth/security/PII/compliance(규제·보안 의미 한정), public API breakage, 외부 HTTP·네트워크 어댑터, URL·파일·사용자 입력 등 신뢰 경계 밖 입력 파싱, 신규 3rd-party dependency·외부 서비스 도입. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이면 `engine: 4agent`.
 
 | 경로 | 다음 |
 |---|---|
@@ -69,7 +66,7 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 | Standard · 경량 build-worker (디폴트) | `begin-run impl --design-doc <경로>` 기록 후 `build-worker` 1 step (테스트·구현·자체검증) → `pr-reviewer` |
 | Standard · 풀 4-agent 승격 | `begin-run impl --design-doc <경로>` 기록 후 `test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer` |
 
-Standard 의 설계도는 (a) 이미 머지된 설계 문서이거나 (b) `compact-design` 이 방금 산출한 compact plan 이다. 두 경우 모두 메인이 `begin-run impl --design-doc <경로>` 로 같은 경로를 기록하며, Standard 는 same-run module-architect step 없이 받은 설계도로 구현만 한다 — `--design-doc` 이 Standard engineer 게이트 사전 조건의 단일 메커니즘이다.
+Standard 의 설계도는 이미 머지된 impl 문서다. 메인이 `begin-run impl --design-doc <경로>` 로 경로를 기록하며, Standard 는 same-run module-architect step 없이 받은 설계도로 구현만 한다 — `--design-doc` 이 Standard engineer 게이트 사전 조건의 단일 메커니즘이다.
 
 Standard 경량 build-worker 경로도 build-worker self-validate 뒤 `pr-reviewer` 를 거친다. 경량은 구현 step 수를 줄이는 선택이지 review gate 를 생략하는 선택이 아니다.
 
@@ -84,9 +81,9 @@ high-risk 는 impl 밖 — deep impl task 있으면 `/impl-loop`, 없으면 `/sp
 | 단계 | 결론 → 다음 |
 |---|---|
 | Lite `pr-reviewer` | `PASS` → commit/PR/CI · `FAIL` → 메인 root-cause 수정 + test 재통과 + pr-reviewer 재호출(≤3) |
-| Standard `test-engineer` | `TESTS_WRITTEN` → engineer:IMPL · `SPEC_GAP_FOUND` → `compact-design` 으로 설계 되돌림 |
-| Standard `engineer` | `IMPL_DONE` → code-validator · `TESTS_FAIL` → engineer 재시도(≤3) · `SPEC_GAP_FOUND` → `compact-design` 설계 되돌림(≤2) · `IMPLEMENTATION_ESCALATE` → 사용자 |
-| Standard `code-validator` | `PASS` → pr-reviewer · `FAIL` → engineer 재진입(≤3) · `ESCALATE` → `compact-design` 설계 되돌림 또는 사용자 |
+| Standard `test-engineer` | `TESTS_WRITTEN` → engineer:IMPL · `SPEC_GAP_FOUND` → `/design` 선행 또는 사용자 |
+| Standard `engineer` | `IMPL_DONE` → code-validator · `TESTS_FAIL` → engineer 재시도(≤3) · `SPEC_GAP_FOUND` → `/design` 선행 또는 사용자 · `IMPLEMENTATION_ESCALATE` → 사용자 |
+| Standard `code-validator` | `PASS` → pr-reviewer · `FAIL` → engineer 재진입(≤3) · `ESCALATE` → `/design` 선행 또는 사용자 |
 | Standard `pr-reviewer` | `PASS` → commit/PR/CI/merge · `FAIL` → engineer:POLISH + test 재통과 + pr-reviewer 재호출(≤3) |
 | Standard `build-worker` (경량) | `PASS` → pr-reviewer · `FAIL`/`BLOCKED` → 메인 root-cause 수정 또는 풀 4-agent 승격 |
 
@@ -99,7 +96,7 @@ high-risk 는 impl 밖 — deep impl task 있으면 `/impl-loop`, 없으면 `/sp
 | Lite pr-reviewer FAIL → 메인 root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
 | Standard engineer TESTS_FAIL | 3 | 사용자 |
 | Standard code-validator FAIL → engineer | 3 | 사용자 |
-| Standard SPEC_GAP_FOUND → compact-design 설계 되돌림 | 2 | impl 밖 설계 선행 또는 사용자 |
+| Standard SPEC_GAP_FOUND → 설계 선행 | 1 | `/design` 또는 사용자 |
 | Standard pr-reviewer FAIL → engineer:POLISH | 3 | 사용자 |
 
 finding 수용 원칙은 `/impl-loop` 와 같다. 같은 영역 finding 이 반복되면 줄 단위 점 패치가 아니라 root cause 를 재검토한다.

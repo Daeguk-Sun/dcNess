@@ -1271,7 +1271,7 @@ def _build_arg_parser() -> Any:
     p_bsug.add_argument(
         "--impl-plan",
         default="",
-        help="impl/compact plan 의 `### 수정 허용` 경로를 ALLOW_MATRIX 와 대조",
+        help="impl 문서의 `### 수정 허용` 경로를 ALLOW_MATRIX 와 대조",
     )
     p_bsug.add_argument("--json", action="store_true")
     p_bsug.set_defaults(func=_cli_boundary_suggestions)

@@ -231,15 +231,6 @@ function collectEpics(root) {
     .map((name) => parseEpic(root, name));
 }
 
-function collectCompactPlanPaths(root) {
-  const compactPlanRoot = join(root, 'docs', 'compact-plans');
-  if (!existsSync(compactPlanRoot)) return [];
-  return readdirSync(compactPlanRoot, { withFileTypes: true })
-    .filter((entry) => entry.isFile() && entry.name.endsWith('.md'))
-    .map((entry) => join(compactPlanRoot, entry.name))
-    .sort();
-}
-
 function auditArchitecture(root, epic, warnings) {
   const relativePath = rel(root, epic.architecturePath);
   const content = epic.architectureContent;
@@ -411,17 +402,6 @@ function audit(root, contract = '') {
         })
       );
     }
-  }
-
-  for (const compactPlanPath of collectCompactPlanPaths(root)) {
-    artifacts.push(
-      auditArtifact({
-        root,
-        path: compactPlanPath,
-        epicName: '',
-        warnings,
-      })
-    );
   }
 
   return {

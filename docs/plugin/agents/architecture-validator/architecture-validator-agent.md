@@ -25,7 +25,7 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 
 - 요구사항 출처 충실도: PRD Must와 impl REQ, architecture 결정이 서로 어긋나지 않는가.
 - 설계 표준: 모듈 설계 원칙, 의존 방향, 공개 노출 범위, DI 판단이 evidence로 남았는가.
-- 계약과 인터페이스: cross-task/public contract 의미가 epic `architecture.md` 모듈 목록 책임/공개 인터페이스와 `docs/decisions/` 에 있고, impl/compact plan 은 module/decision 참조만 가리키는가. task 내부 한정 private interface 는 impl 문서에 남겨도 된다.
+- 계약과 인터페이스: cross-task/public contract 의미가 epic `architecture.md` 모듈 목록 책임/공개 인터페이스와 `docs/decisions/` 에 있고, impl 문서는 module/decision 참조만 가리키는가. task 내부 한정 private interface 는 impl 문서에 남겨도 된다.
 - 조건부 domain model: `domain-model.md` 가 있으면 epic architecture/decision 과 충돌하지 않는가. 없으면 epic `architecture.md` 에 낮은 도메인 복잡도 등 생략 판단 근거가 남았는가. 도메인 invariant/entity/value object/aggregate/domain service 가 필요한데 파일도 근거도 없으면 `SYSTEM_BOUNDARY` 다.
 - 계약 표면 코드 SSOT 대조: brownfield 에서 기존 포트, 도메인 타입, 공개 entrypoint 와 새 설계/impl task 가 어긋나지 않는가.
 - 제품 동작 슬라이스: Story 완료 시 실제로 검증되는 동작, 각 task 또는 task 묶음이 연결하는 제품 경계, 첫 동작 증거 지점이 impl 산출물에 남았는가. 옛 섹션명 부재만으로 FAIL 하지 않는다.
@@ -49,7 +49,7 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 4. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 epic architecture 의 구현 순서가 의존만이 아니라 제품 경계 동작을 앞당기는지 확인한다. 부품-먼저 순서가 남아 있으면 epic architecture 의 `Story -> 모듈 매핑` 또는 stories.md epic 완료 기준 근처에 경고와 사유가 있는지 본다. 사유가 기록돼 있으면 finding 대신 warning 으로 보고한다. epic 구현 순서가 사유 없이 부품-먼저로 남은 상태는 `SYSTEM_BOUNDARY` 다.
 5. final epic 검증에서 entrypoint 를 만지는 impl 문서는 owner/entrypoint 요약 또는 동등한 증거가 owner flow/module, entrypoint role, state owner, validation path 를 남겼는지 본다. 구 `Agent Workability` 섹션도 하위호환 증거로 인정하지만, 옛 섹션명 부재만으로 FAIL 하지 않는다.
 6. final epic 검증에서는 domain-model 작성/생략 근거가 impl 계약과 모순되지 않는지, 계약 표면 코드 SSOT 대조 증거가 있는지 확인한다. 포트, 도메인 타입, 공개 entrypoint 를 바꾸는 task 가 기존 코드와 충돌하거나 module/decision 근거 없이 새 계약을 전제하면 finding 으로 보고한다.
-7. final epic 검증에서는 신규 산출물의 계약 의미가 module responsibility / decision 에 있고 impl/compact plan 은 module/decision 링크만 남기는지 본다. 구양식 Contract Ledger / Contract References 산출물은 기존 활성 프로젝트 유효성을 위해 남을 수 있으므로 형식만으로 FAIL 하지 않는다.
+7. final epic 검증에서는 신규 산출물의 계약 의미가 module responsibility / decision 에 있고 impl 문서는 module/decision 링크만 남기는지 본다. 구양식 Contract Ledger / Contract References 산출물은 기존 활성 프로젝트 유효성을 위해 남을 수 있으므로 형식만으로 FAIL 하지 않는다.
 8. 수용 기준은 실행 가능한 명령으로 닫히는지 확인한다. manual QA 항목은 명령 변환 불가 사유와 관찰 증거가 모두 있어야 하며, 단순 manual-only validation 은 `TASK_LOCAL` 후보로 본다.
 9. 확정 목업이 있는 UI epic 은 확정 목업 경로, node-id 매핑, docs/design.md 토큰이 architecture/impl 산출물에 대조 근거로 남았는지 확인한다. 산출물이 목업을 전혀 참조하지 않거나 핵심 node-id 를 구현 컴포넌트/상태로 연결하지 않으면 `TASK_LOCAL` finding 으로 보고한다. 목업 자체가 system boundary 변경을 요구하는데 system checkpoint 없이 task 로 흡수됐다면 `SYSTEM_BOUNDARY` 다.
 10. revision mode 이면 메인이 전달한 파생 drift 체크리스트 결과와 변경된 UX/system 산출물을 대조해 개정 후 전체 설계 pack 이 stale 참조 없이 구현 가능한지 본다.

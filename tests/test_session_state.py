@@ -462,7 +462,7 @@ class ActiveRunsTests(unittest.TestCase):
         os.chdir(self.base)
         self.addCleanup(os.chdir, old)
 
-    def _write_design_doc(self, rel: str = "docs/compact-plans/foo.md") -> Path:
+    def _write_design_doc(self, rel: str = "docs/epics/epic-01-x/impl/foo.md") -> Path:
         doc = self.base / rel
         doc.parent.mkdir(parents=True, exist_ok=True)
         doc.write_text("# design artifact\n", encoding="utf-8")
@@ -474,7 +474,7 @@ class ActiveRunsTests(unittest.TestCase):
         doc = self._write_design_doc()
         start_run(
             self.sid, self.run_id, "impl",
-            base_dir=self.base, design_doc="docs/compact-plans/foo.md",
+            base_dir=self.base, design_doc="docs/epics/epic-01-x/impl/foo.md",
         )
         slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
         self.assertEqual(slot["design_doc"], str(doc.resolve()))
@@ -492,11 +492,11 @@ class ActiveRunsTests(unittest.TestCase):
             start_run(
                 self.sid, self.run_id, "impl",
                 base_dir=self.base,
-                design_doc="docs/compact-plans/nope.md",
+                design_doc="docs/epics/epic-01-x/impl/nope.md",
             )
 
     def test_start_run_design_doc_non_design_path_raises(self) -> None:
-        # 설계 산출물 경로 규약(docs/epics|compact-plans) 밖 파일은
+        # 설계 산출물 경로 규약(docs/epics) 밖 파일은
         # 사전 조건 증거가 될 수 없다 — 임의 파일로 게이트 무력화 방지.
         self._chdir_base()
         readme = self.base / "README.md"
@@ -521,7 +521,7 @@ class ActiveRunsTests(unittest.TestCase):
             )
 
     def test_start_run_design_doc_non_md_raises(self) -> None:
-        doc = self.base / "docs" / "compact-plans" / "foo.txt"
+        doc = self.base / "docs" / "epics" / "epic-01-x" / "impl" / "foo.txt"
         doc.parent.mkdir(parents=True)
         doc.write_text("x\n", encoding="utf-8")
         with self.assertRaises(ValueError):
@@ -547,7 +547,7 @@ class ActiveRunsTests(unittest.TestCase):
         # repo 밖 절대경로는 marker 문자열을 포함해도 거부 (substring 매치 아님).
         self._chdir_base()
         with TemporaryDirectory() as td2:
-            outside = Path(td2) / "docs" / "compact-plans" / "fake.md"
+            outside = Path(td2) / "docs" / "epics" / "epic-01-x" / "impl" / "fake.md"
             outside.parent.mkdir(parents=True)
             outside.write_text("x\n", encoding="utf-8")
             with self.assertRaises(ValueError):
@@ -561,13 +561,13 @@ class ActiveRunsTests(unittest.TestCase):
         self._chdir_base()
         target = self.base / "secret.md"
         target.write_text("x\n", encoding="utf-8")
-        link_dir = self.base / "docs" / "compact-plans"
+        link_dir = self.base / "docs" / "epics" / "epic-01-x" / "impl"
         link_dir.mkdir(parents=True)
         (link_dir / "link.md").symlink_to(target)
         with self.assertRaises(ValueError):
             start_run(
                 self.sid, self.run_id, "impl",
-                base_dir=self.base, design_doc="docs/compact-plans/link.md",
+                base_dir=self.base, design_doc="docs/epics/epic-01-x/impl/link.md",
             )
 
     def test_start_run_design_doc_non_impl_entry_rejected(self) -> None:
@@ -578,7 +578,7 @@ class ActiveRunsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             start_run(
                 self.sid, self.run_id, "design",
-                base_dir=self.base, design_doc="docs/compact-plans/foo.md",
+                base_dir=self.base, design_doc="docs/epics/epic-01-x/impl/foo.md",
             )
 
     def test_start_run_design_doc_epics_impl_path_ok(self) -> None:
@@ -3129,9 +3129,9 @@ class NextTaskTransitionTests(unittest.TestCase):
         sid = "11111111-2222-4333-8444-555555555555"
         os.environ["DCNESS_SESSION_ID"] = sid
 
-        doc = Path("docs/compact-plans/foo.md")
+        doc = Path("docs/epics/epic-01-x/impl/foo.md")
         doc.parent.mkdir(parents=True)
-        doc.write_text("# compact plan\n", encoding="utf-8")
+        doc.write_text("# impl task\n", encoding="utf-8")
         resolved = str(doc.resolve())
 
         buf = StringIO()
@@ -3182,7 +3182,7 @@ class NextTaskTransitionTests(unittest.TestCase):
         with redirect_stdout(out), redirect_stderr(err):
             rc = _cli_next_task(SimpleNamespace(
                 entry_point="impl",
-                design_doc="docs/compact-plans/nope.md",
+                design_doc="docs/epics/epic-01-x/impl/nope.md",
             ))
         self.assertEqual(rc, 1)
         self.assertIn("begin-run FAIL", err.getvalue())
@@ -3219,10 +3219,10 @@ class DesignDocArgparseTests(unittest.TestCase):
     def test_begin_run_accepts_design_doc(self) -> None:
         from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
-            ["begin-run", "impl", "--design-doc", "docs/compact-plans/x.md"]
+            ["begin-run", "impl", "--design-doc", "docs/epics/epic-01-x/impl/x.md"]
         )
         self.assertEqual(ns.cmd, "begin-run")
-        self.assertEqual(ns.design_doc, "docs/compact-plans/x.md")
+        self.assertEqual(ns.design_doc, "docs/epics/epic-01-x/impl/x.md")
 
     def test_begin_run_design_doc_defaults_none(self) -> None:
         from harness.session_state import _build_arg_parser

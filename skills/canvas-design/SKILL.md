@@ -5,7 +5,7 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
 
 # canvas-design — 내부 UI 기준 확보 스킬
 
-> 이 스킬은 **공개 진입점이 아니다**. 사용자가 외우는 workflow 는 `/spec -> /design -> /impl -> /acceptance` 그대로이며, canvas-design 은 `/ux`, `/impl`, `/impl-loop` 이 UI 기준 확보나 선행 목업 탐색이 필요하다고 판정했을 때 호출하는 내부 wrapper 다. `compact-design` 과 같은 내부 skill 지위이며 `/canvas-design` 으로 노출하지 않는다.
+> 이 스킬은 **공개 진입점이 아니다**. 사용자가 외우는 workflow 는 `/spec -> /design -> /impl -> /acceptance` 그대로이며, canvas-design 은 `/ux`, `/impl`, `/impl-loop` 이 UI 기준 확보나 선행 목업 탐색이 필요하다고 판정했을 때 호출하는 내부 wrapper 다. `/canvas-design` 으로 노출하지 않는다.
 
 ## 목적
 
@@ -19,7 +19,7 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
   - `user-provided`: 사용자 제공 이미지, 스케치, HTML, 기존 외부 시안
   - `new-draft`: 신규 시각 구조 + 기준 없음
   - `skip`: 사용자가 "목업 없이"라고 했거나 시각 구조 불변
-- 구현 맥락 — 관련 issue, impl task/compact plan, ux-flow, design.md, 기존 제품 화면 포인터
+- 구현 맥락 — 관련 issue, impl task, ux-flow, design.md, 기존 제품 화면 포인터
 
 ## 산출물 규약
 
@@ -91,7 +91,7 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
 - `/impl` 은 진입 시 UI 기준 확보 분기를 한 줄로 echo 한 뒤 필요한 경우 이 스킬을 호출한다.
 - `/impl-loop` 은 UI task 에서 engine 무관하게 구현 step 앞에 이 스킬을 호출한다. build-worker 와 풀 4-agent 모두 같은 확정 목업 경로를 읽는다.
 - `/ux` 는 구현 없이 디자인만 먼저 탐색할 때 이 스킬을 얇게 감싼다. draft 반복, 사용자 PICK, 확정본 승격, canvas frame 등록 결과는 `/impl` 이 `기준 있음` 으로 이어받는다.
-- impl task 또는 compact plan 에 `design: required` 가 있으면 `## 디자인 참조` 섹션에 이 스킬이 반환한 확정 목업 경로와 핵심 node-id 매핑을 적는다.
+- impl task 에 `design: required` 가 있으면 `## 디자인 참조` 섹션에 이 스킬이 반환한 확정 목업 경로와 핵심 node-id 매핑을 적는다.
 
 ## 참조
 

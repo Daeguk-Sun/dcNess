@@ -215,7 +215,7 @@ class BoundarySuggestionsTests(unittest.TestCase):
     def test_helper_cli_accepts_impl_plan(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
-            plan = root / "docs" / "compact-plans" / "bootstrap.md"
+            plan = root / "docs" / "epics" / "epic-01-x" / "impl" / "bootstrap.md"
             self._write(
                 plan,
                 "## Scope\n\n"
