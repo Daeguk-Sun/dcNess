@@ -7,7 +7,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from harness.story_runner import build_state, mark_story, mark_task, next_task
+from harness.story_runner import build_state, mark_story, mark_task, next_action, next_task
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -103,6 +103,9 @@ class StoryRunnerTests(unittest.TestCase):
         mark_task(state, "2", "completed", commit="def456")
 
         self.assertIsNone(next_task(state))
+        action = next_action(state)
+        self.assertEqual(action["action"], "story-pr")
+        self.assertEqual(action["story"]["story"], "1")
         self.assertEqual(state["status"], "ready_for_pr")
         self.assertEqual(state["stories"][0]["status"], "ready_for_pr")
 
@@ -119,11 +122,29 @@ class StoryRunnerTests(unittest.TestCase):
         mark_task(state, "2", "completed", commit="def456")
 
         self.assertIsNone(next_task(state))
+        action = next_action(state)
+        self.assertEqual(action["action"], "story-pr")
+        self.assertEqual(action["story"]["story"], "1")
         self.assertEqual(state["stories"][0]["status"], "ready_for_pr")
         self.assertEqual(state["tasks"][2]["status"], "pending")
 
         mark_story(state, "1", "completed", pr="https://github.test/pr/1")
         self.assertEqual(next_task(state)["id"], 3)
+        self.assertEqual(next_action(state)["task"]["id"], 3)
+
+    def test_mark_story_is_story_pr_boundary_only(self) -> None:
+        state = build_state([str(self.impl_dir / "01-ui.md"), str(self.impl_dir / "02-api.md")], cwd=self.root)
+
+        with self.assertRaisesRegex(ValueError, "invalid story status"):
+            mark_story(state, "1", "ready_for_pr")
+        with self.assertRaisesRegex(ValueError, "requires all story tasks completed"):
+            mark_story(state, "1", "completed", pr="https://github.test/pr/1")
+
+        mark_task(state, "1", "completed", commit="abc123")
+        mark_task(state, "2", "completed", commit="def456")
+
+        with self.assertRaisesRegex(ValueError, "requires --pr"):
+            mark_story(state, "1", "completed")
 
     def test_script_init_next_mark_round_trip(self) -> None:
         state_path = self.root / ".dcness-work" / "story-run.json"
@@ -207,6 +228,18 @@ class StoryRunnerTests(unittest.TestCase):
         self.assertEqual(ready["status"], "ready_for_pr")
         self.assertEqual(ready["stories"][0]["status"], "ready_for_pr")
 
+        action = subprocess.run(
+            [str(SCRIPT), "next-action", "--state", str(state_path), "--json"],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        action_payload = json.loads(action.stdout)
+        self.assertEqual(action_payload["action"], "story-pr")
+        self.assertEqual(action_payload["story"]["story"], "1")
+
         subprocess.run(
             [
                 str(SCRIPT),
@@ -229,6 +262,72 @@ class StoryRunnerTests(unittest.TestCase):
         done = json.loads(state_path.read_text(encoding="utf-8"))
         self.assertEqual(done["status"], "completed")
         self.assertEqual(done["stories"][0]["pr"], "https://github.test/pr/1")
+
+        reinit = subprocess.run(
+            [
+                str(SCRIPT),
+                "init",
+                str(self.impl_dir / "01-ui.md"),
+                str(self.impl_dir / "02-api.md"),
+                "--cwd",
+                str(self.root),
+                "--state",
+                str(state_path),
+                "--json",
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+        reinit_payload = json.loads(reinit.stdout)
+        self.assertEqual(reinit_payload["status"], "pending")
+        archives = list(state_path.parent.glob("story-run.completed-*.json"))
+        self.assertEqual(len(archives), 1)
+        archived = json.loads(archives[0].read_text(encoding="utf-8"))
+        self.assertEqual(archived["status"], "completed")
+
+    def test_script_init_refuses_active_state_without_force(self) -> None:
+        state_path = self.root / ".dcness-work" / "story-run.json"
+        env = {**os.environ, "PYTHONPATH": str(ROOT)}
+
+        subprocess.run(
+            [
+                str(SCRIPT),
+                "init",
+                str(self.impl_dir / "01-ui.md"),
+                "--cwd",
+                str(self.root),
+                "--state",
+                str(state_path),
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=True,
+        )
+
+        duplicate = subprocess.run(
+            [
+                str(SCRIPT),
+                "init",
+                str(self.impl_dir / "01-ui.md"),
+                "--cwd",
+                str(self.root),
+                "--state",
+                str(state_path),
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(duplicate.returncode, 1)
+        self.assertIn("state exists with status=pending", duplicate.stderr)
 
 
 if __name__ == "__main__":

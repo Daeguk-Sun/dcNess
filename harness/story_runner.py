@@ -18,6 +18,8 @@ from typing import Any, Iterable, Sequence
 VALID_SCOPES = {"auto", "story", "epic"}
 VALID_STATUSES = {"pending", "running", "completed", "error", "blocked"}
 VALID_STORY_STATUSES = {"pending", "running", "ready_for_pr", "completed", "error", "blocked"}
+VALID_STORY_MARK_STATUSES = {"completed", "error", "blocked"}
+STOP_STORY_STATUSES = {"ready_for_pr", "error", "blocked"}
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,10 @@ class ImplTask:
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def _now_compact() -> str:
+    return datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def parse_frontmatter(path: Path) -> dict[str, str]:
@@ -188,6 +194,38 @@ def load_state(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def archive_completed_state(path: Path) -> Path:
+    stamp = _now_compact()
+    for index in range(1, 1000):
+        suffix = "" if index == 1 else f"-{index}"
+        archive = path.with_name(f"{path.stem}.completed-{stamp}{suffix}{path.suffix}")
+        if not archive.exists():
+            os.replace(path, archive)
+            return archive
+    raise ValueError(f"could not allocate archive path for completed state: {path}")
+
+
+def prepare_init_state(path: Path, *, force: bool) -> Path | None:
+    if not path.exists() or force:
+        return None
+    try:
+        existing = load_state(path)
+    except json.JSONDecodeError as exc:
+        raise ValueError(
+            f"state exists but is not valid JSON: {path}; use --force to replace it"
+        ) from exc
+    except OSError as exc:
+        raise ValueError(
+            f"state exists but cannot be read: {path}; use --force to replace it"
+        ) from exc
+    if existing.get("status") == "completed":
+        return archive_completed_state(path)
+    status = existing.get("status") or "unknown"
+    raise ValueError(
+        f"state exists with status={status}: {path}; resume it or use --force"
+    )
+
+
 def save_state(path: Path, state: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     state["updated_at"] = _now_iso()
@@ -211,16 +249,55 @@ def find_story(state: dict[str, Any], ref: str) -> dict[str, Any]:
     raise ValueError(f"story not found: {ref}")
 
 
+def _tasks_for_story(state: dict[str, Any], story: dict[str, Any]) -> list[dict[str, Any]]:
+    task_by_id = {task.get("id"): task for task in state.get("tasks", [])}
+    return [
+        task_by_id[task_id]
+        for task_id in story.get("task_ids", [])
+        if task_id in task_by_id
+    ]
+
+
+def _first_story_with_status(
+    state: dict[str, Any],
+    statuses: set[str],
+) -> dict[str, Any] | None:
+    for story in state.get("stories", []):
+        if story.get("status") in statuses:
+            return story
+    return None
+
+
 def next_task(state: dict[str, Any]) -> dict[str, Any] | None:
     for task in state.get("tasks", []):
         if task.get("status") == "running":
             return task
-    if any(story.get("status") == "ready_for_pr" for story in state.get("stories", [])):
+    if _first_story_with_status(state, STOP_STORY_STATUSES) is not None:
         return None
     for task in state.get("tasks", []):
         if task.get("status") == "pending":
             return task
     return None
+
+
+def next_action(state: dict[str, Any]) -> dict[str, Any]:
+    state_status = state.get("status")
+    for task in state.get("tasks", []):
+        if task.get("status") == "running":
+            return {"action": "task", "state_status": state_status, "task": task}
+
+    for story in state.get("stories", []):
+        status = story.get("status")
+        if status == "ready_for_pr":
+            return {"action": "story-pr", "state_status": state_status, "story": story}
+        if status in {"blocked", "error"}:
+            return {"action": status, "state_status": state_status, "story": story}
+
+    for task in state.get("tasks", []):
+        if task.get("status") == "pending":
+            return {"action": "task", "state_status": state_status, "task": task}
+
+    return {"action": "done", "state_status": state_status}
 
 
 def _refresh_story_statuses(state: dict[str, Any]) -> None:
@@ -306,19 +383,22 @@ def mark_story(
     pr: str | None = None,
     note: str | None = None,
 ) -> dict[str, Any]:
-    if status not in VALID_STORY_STATUSES:
+    if status not in VALID_STORY_MARK_STATUSES:
         raise ValueError(f"invalid story status: {status}")
     story = find_story(state, ref)
+    story_tasks = _tasks_for_story(state, story)
+    if not story_tasks:
+        raise ValueError(f"story has no tasks: {ref}")
+    if not all(task.get("status") == "completed" for task in story_tasks):
+        raise ValueError("mark-story requires all story tasks completed")
+    if status == "completed" and not pr:
+        raise ValueError("mark-story completed requires --pr")
     story["status"] = status
     if pr is not None:
         story["pr"] = pr
     if note is not None:
         story["note"] = note
     _refresh_story_statuses(state)
-    if status == "completed":
-        story["status"] = "completed"
-        if all(item.get("status") == "completed" for item in state.get("stories", [])):
-            state["status"] = "completed"
     state["updated_at"] = _now_iso()
     return story
 
@@ -365,6 +445,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_next.add_argument("--state", required=True)
     p_next.add_argument("--json", action="store_true")
 
+    p_next_action = sub.add_parser("next-action")
+    p_next_action.add_argument("--state", required=True)
+    p_next_action.add_argument("--json", action="store_true")
+
     p_mark = sub.add_parser("mark")
     p_mark.add_argument("--state", required=True)
     p_mark.add_argument("--task", required=True)
@@ -377,7 +461,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_mark_story = sub.add_parser("mark-story")
     p_mark_story.add_argument("--state", required=True)
     p_mark_story.add_argument("--story", required=True)
-    p_mark_story.add_argument("--status", required=True, choices=sorted(VALID_STORY_STATUSES))
+    p_mark_story.add_argument("--status", required=True, choices=sorted(VALID_STORY_MARK_STATUSES))
     p_mark_story.add_argument("--pr", default=None)
     p_mark_story.add_argument("--note", default=None)
     p_mark_story.add_argument("--json", action="store_true")
@@ -395,8 +479,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.cmd == "init":
             state_path = Path(args.state)
-            if state_path.exists() and not args.force:
-                parser.exit(1, f"story-runner: state exists: {state_path}\n")
+            prepare_init_state(state_path, force=args.force)
             state = build_state(args.paths, cwd=cwd, scope=args.scope)
             save_state(state_path, state)
             _print(state, as_json=args.json)
@@ -404,6 +487,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.cmd == "next":
             state = load_state(Path(args.state))
             _print(next_task(state), as_json=args.json)
+            return 0
+        if args.cmd == "next-action":
+            state = load_state(Path(args.state))
+            _print(next_action(state), as_json=args.json)
             return 0
         if args.cmd == "mark":
             state_path = Path(args.state)

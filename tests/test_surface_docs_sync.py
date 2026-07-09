@@ -794,8 +794,11 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertTrue(script.stat().st_mode & 0o111)
         for needle in (
             "dcness-story-runner",
+            "next-action",
             "task commit",
             "story PR",
+            "story-run.completed-<UTC>.json",
+            "직렬 chain driver 전용",
             "code-validator/pr-reviewer/review 출력은 story PR 경계에서 1회",
         ):
             with self.subTest(needle=needle):

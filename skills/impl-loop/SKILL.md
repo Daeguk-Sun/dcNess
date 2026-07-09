@@ -382,6 +382,7 @@ acceptance FAIL 미해소 상태로 pr-finalize 강행 금지 — close 발동 s
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-story-runner" init <impl-file-or-dir...> \
   --state .dcness-work/story-run.json --scope auto
+"$PLUGIN_ROOT/scripts/dcness-story-runner" next-action --state .dcness-work/story-run.json
 "$PLUGIN_ROOT/scripts/dcness-story-runner" next --state .dcness-work/story-run.json
 "$PLUGIN_ROOT/scripts/dcness-story-runner" mark --state .dcness-work/story-run.json \
   --task <id|slug|path> --status running|completed|error|blocked \
@@ -390,7 +391,11 @@ acceptance FAIL 미해소 상태로 pr-finalize 강행 금지 — close 발동 s
   --story <story> --status completed --pr <url-or-number>
 ```
 
-실행 단위는 **task commit** 과 **story PR** 이다. story 안의 task 는 순차로 구현·검증해 commit 으로 누적하고, story 의 모든 task 가 completed 되면 story 상태는 `ready_for_pr` 이 된다. `code-validator` / `pr-reviewer` / PR 생성·머지는 이 story 경계에서 1회 수행하고, PR 머지 후 `mark-story --status completed --pr <url>` 로 닫는다. epic 입력은 story run 을 순서대로 반복하며, epic 을 단일 PR 로 묶지 않는다. provider chain step 이 `claude-main` 으로 떨어지면 해당 task 는 메인 루프 위임으로 기록하고 계속 같은 state 를 쓴다.
+실행 단위는 **task commit** 과 **story PR** 이다. story 안의 task 는 순차로 구현·검증해 commit 으로 누적하고, story 의 모든 task 가 completed 되면 story 상태는 `ready_for_pr` 이 된다. 다음 진행은 `next-action` 의 `action=task|story-pr|blocked|error|done` 결과를 따른다. `action=story-pr` 이면 payload 의 `story` 를 닫아야 하며, 다음 story/task 로 건너뛰지 않는다. `code-validator` / `pr-reviewer` / PR 생성·머지는 이 story 경계에서 1회 수행하고, PR 머지 후 `mark-story --status completed --pr <url>` 로 닫는다. epic 입력은 story run 을 순서대로 반복하며, epic 을 단일 PR 로 묶지 않는다. provider chain step 이 `claude-main` 으로 떨어지면 해당 task 는 메인 루프 위임으로 기록하고 계속 같은 state 를 쓴다.
+
+완료된 run 의 `.dcness-work/story-run.json` 이 남아 있으면 다음 `init` 은 기존 파일을 `.dcness-work/story-run.completed-<UTC>.json` 으로 archive 한 뒤 새 state 를 만든다. completed 가 아닌 state 가 있으면 `init` 은 실패한다. 그 경우 resume 하거나, 사용자가 명시적으로 폐기 지시한 때만 `--force` 로 교체한다.
+
+이 state 파일은 직렬 chain driver 전용이다. 병렬 peer opt-in 세션은 같은 `.dcness-work/story-run.json` 을 공유 write 하지 않고 `wave-claim` / merge-lock evidence 경로를 따른다. 후속 driver 가 병렬 peer 에서 story-run state 공유 write 를 도입하려면 별도 lock/read-modify-write 계약을 먼저 추가한다.
 
 ## chain 모드 (story/epic task 오케스트레이션)
 
@@ -472,11 +477,11 @@ merge lock 이 보존하는 것:
 
 ### task 경계 — state mark + next
 
-각 task 종료 시 `dcness-story-runner mark --status completed --commit <sha>` 로 state 를 갱신하고, 다음 task 는 `dcness-story-runner next` 로만 고른다. 메인이 path glob 를 다시 정렬하거나 frontmatter 를 재해석하지 않는다. `begin-run impl --design-doc <task impl 문서>` 는 task 구현 step 시작 시 여전히 사용한다 — engineer/build-worker gate 의 설계 산출물 사전 조건이기 때문이다. story 의 마지막 task 가 completed 가 되면 다음 구현 task 로 가지 않고 story PR 경계(`code-validator` → `pr-reviewer` → PR 생성/머지)로 진입한다.
+각 task 종료 시 `dcness-story-runner mark --status completed --commit <sha>` 로 state 를 갱신하고, 다음 분기는 `dcness-story-runner next-action` 으로만 고른다. 메인이 path glob 를 다시 정렬하거나 frontmatter 를 재해석하지 않는다. `begin-run impl --design-doc <task impl 문서>` 는 task 구현 step 시작 시 여전히 사용한다 — engineer/build-worker gate 의 설계 산출물 사전 조건이기 때문이다. story 의 마지막 task 가 completed 가 되면 `next-action` 이 `action=story-pr` 과 닫을 story 를 반환하므로 다음 구현 task 로 가지 않고 story PR 경계(`code-validator` → `pr-reviewer` → PR 생성/머지)로 진입한다.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-story-runner" mark --state .dcness-work/story-run.json --task <id> --status completed --commit <sha>
-"$PLUGIN_ROOT/scripts/dcness-story-runner" next --state .dcness-work/story-run.json
+"$PLUGIN_ROOT/scripts/dcness-story-runner" next-action --state .dcness-work/story-run.json
 ```
 
 ### enum 별 분기
