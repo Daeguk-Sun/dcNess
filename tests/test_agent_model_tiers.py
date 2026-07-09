@@ -22,7 +22,6 @@ class AgentModelTierTests(unittest.TestCase):
         expected_opus = {
             "module-architect",
             "architecture-validator",
-            "engineer",
             "product-acceptance",
             "build-worker",
             "system-architect",
@@ -37,7 +36,6 @@ class AgentModelTierTests(unittest.TestCase):
         expected_sonnet = {
             "ux-architect",
             "designer",
-            "test-engineer",
             "impl-validator",
         }
 

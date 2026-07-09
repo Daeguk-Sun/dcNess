@@ -22,12 +22,10 @@ const EXPECTED = {
     'build-worker',
     'impl-validator',
     'designer',
-    'engineer',
     'module-architect',
     'product-acceptance',
     'system-architect',
     'tech-reviewer',
-    'test-engineer',
     'ux-architect',
   ],
 };

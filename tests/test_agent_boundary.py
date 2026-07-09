@@ -891,7 +891,7 @@ class AllowMatrixCoverageTests(unittest.TestCase):
 
     def test_all_agents_have_allow_matrix_key(self):
         names = self._agent_names()
-        self.assertGreaterEqual(len(names), 11, "agents/*.md 파싱 실패 의심")
+        self.assertGreaterEqual(len(names), 9, "agents/*.md 파싱 실패 의심")
         missing = [n for n in names if n not in ALLOW_MATRIX]
         self.assertEqual(
             missing, [],
