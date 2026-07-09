@@ -133,7 +133,7 @@ claude plugin install dcness@dcness
 
 `/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 설계 문서가 없고 파일·이슈 같은 구체적 단서가 명확하면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(Lite), 설계도가 있으면 그 설계도대로 구현한다(Standard). 새 기능이나 위험이 큰 작업은 `/impl` 안에서 처리하지 않고 `/spec`·`/design` 으로 먼저 돌린 뒤, 나온 설계도를 들고 다시 들어온다.
 
-`/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)와 review provider 를 고른다. 일반 `/impl` 구현은 메인이 맡고, 격리되는 것은 `pr-reviewer` 검토다.
+`/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)와 review provider 를 고른다. 일반 `/impl` 구현은 메인이 맡고, 격리되는 것은 `impl-validator` 검토다.
 
 보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next-work`(issue/label 에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름·디자인 시스템/토큰 베이스라인 먼저).
 
@@ -147,7 +147,7 @@ claude plugin install dcness@dcness
 
 검증·리뷰 단계를 어느 provider 로 돌릴지는 프로젝트별로 고를 수 있다(Claude 서브에이전트 / Codex headless / Claude headless). provider 를 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. 일반 `/impl` 구현은 메인이 맡고, story/epic deep task runner 인 `/impl-loop` 만 구현 worker provider 를 사용한다. provider 구성을 새로 켜거나 바꿀 때만 `/init-dcness` 를 다시 실행한다.
 
-`/impl-loop` deep task 의 기본은 `build-worker → pr-reviewer` 이고, 풀 4-agent 는 task frontmatter, 구현 시점 위험, 사용자 엄정 override 때만 승격한다. 각 run의 단계 완료는 `ledger.jsonl`에 기록되며, prose 파일과 sha256 receipt로 검증 가능한 작업 기록을 남긴다.
+`/impl-loop` deep task 의 기본은 `build-worker → impl-validator` 이고, 풀 경로는 task frontmatter, 구현 시점 위험, 사용자 엄정 override 때만 승격한다. 각 run의 단계 완료는 `ledger.jsonl`에 기록되며, prose 파일과 sha256 receipt로 검증 가능한 작업 기록을 남긴다.
 
 ## 핵심 특징
 

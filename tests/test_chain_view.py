@@ -54,30 +54,29 @@ class TestSubsteps(unittest.TestCase):
     def test_build_worker_two_substeps(self):
         self.assertEqual(
             substeps_for(_task("m", "build-worker")),
-            ["build-worker", "pr-reviewer"],
+            ["build-worker", "impl-validator"],
         )
 
     def test_build_worker_deep_three_substeps(self):
         self.assertEqual(
             substeps_for(_task("m", "build-worker-deep")),
-            ["module-architect", "build-worker", "pr-reviewer"],
+            ["module-architect", "build-worker", "impl-validator"],
         )
 
-    def test_full_four_substeps(self):
+    def test_full_engine_substeps(self):
         self.assertEqual(
             substeps_for(_task("m", "full-4")),
-            ["test-engineer", "engineer:IMPL", "code-validator", "pr-reviewer"],
+            ["test-engineer", "engineer:IMPL", "impl-validator"],
         )
 
-    def test_advanced_five_substeps(self):
+    def test_advanced_substeps(self):
         self.assertEqual(
             substeps_for(_task("m", "advanced")),
             [
                 "module-architect",
                 "test-engineer",
                 "engineer:IMPL",
-                "code-validator",
-                "pr-reviewer",
+                "impl-validator",
             ],
         )
 
@@ -102,8 +101,7 @@ class TestSubsteps(unittest.TestCase):
                 "canvas-design",
                 "test-engineer",
                 "engineer:IMPL",
-                "code-validator",
-                "pr-reviewer",
+                "impl-validator",
             ],
         )
 
@@ -114,7 +112,7 @@ class TestSubsteps(unittest.TestCase):
             [
                 "canvas-design",
                 "build-worker",
-                "pr-reviewer",
+                "impl-validator",
             ],
         )
 
@@ -125,7 +123,7 @@ class TestSubsteps(unittest.TestCase):
                 "module-architect",
                 "canvas-design",
                 "build-worker",
-                "pr-reviewer",
+                "impl-validator",
             ],
         )
 
@@ -138,8 +136,7 @@ class TestSubsteps(unittest.TestCase):
                 "canvas-design",
                 "test-engineer",
                 "engineer:IMPL",
-                "code-validator",
-                "pr-reviewer",
+                "impl-validator",
             ],
         )
 
@@ -174,7 +171,7 @@ class TestSubsteps(unittest.TestCase):
     def test_story_closing_appends_one_acceptance(self):
         steps = substeps_for(_task("m", "build-worker", closes="story"))
         self.assertEqual(
-            steps, ["build-worker", "pr-reviewer", "product-acceptance"]
+            steps, ["build-worker", "impl-validator", "product-acceptance"]
         )
 
     def test_epic_closing_appends_two_acceptance(self):
@@ -184,8 +181,7 @@ class TestSubsteps(unittest.TestCase):
             [
                 "test-engineer",
                 "engineer:IMPL",
-                "code-validator",
-                "pr-reviewer",
+                "impl-validator",
                 "product-acceptance:STORY",
                 "product-acceptance:EPIC",
             ],
@@ -233,7 +229,7 @@ class TestRenderView(unittest.TestCase):
         view = render_view(self.tasks, current=1)
         self.assertIn("▾ task2 · beta", view)
         self.assertIn("   ㄴ test-engineer", view)
-        self.assertIn("   ㄴ pr-reviewer", view)
+        self.assertIn("   ㄴ impl-validator", view)
 
     def test_pending_waiting_line(self):
         view = render_view(self.tasks, current=1)
@@ -425,7 +421,7 @@ class TestBuildChainViewAndParse(unittest.TestCase):
         self.assertIn("▾ task2 · beta", payload["view"])
         self.assertEqual(
             payload["current_substeps"],
-            ["test-engineer", "engineer:IMPL", "code-validator", "pr-reviewer"],
+            ["test-engineer", "engineer:IMPL", "impl-validator"],
         )
         self.assertTrue(payload["operations"])
 

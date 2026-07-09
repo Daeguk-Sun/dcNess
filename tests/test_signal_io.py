@@ -37,14 +37,14 @@ class WriteReadProseTests(unittest.TestCase):
     def test_write_then_read_round_trip(self) -> None:
         prose = "## 검증 결과\n\n전체 통과.\n\n## 결론\n\nPASS\n"
         path = write_prose(
-            "code-validator", "run_001", prose, mode=None, base_dir=self.base
+            "impl-validator", "run_001", prose, mode=None, base_dir=self.base
         )
         self.assertTrue(path.exists())
         self.assertEqual(path.suffix, ".md")
-        self.assertIn("code-validator.md", path.name)
+        self.assertIn("impl-validator.md", path.name)
 
         result = read_prose(
-            "code-validator", "run_001", mode=None, base_dir=self.base
+            "impl-validator", "run_001", mode=None, base_dir=self.base
         )
         self.assertEqual(result, prose)
 
@@ -66,7 +66,7 @@ class WriteReadProseTests(unittest.TestCase):
 
     def test_write_rejects_non_string(self) -> None:
         with self.assertRaises(TypeError):
-            write_prose("code-validator", "r", 123, base_dir=self.base)  # type: ignore[arg-type]
+            write_prose("impl-validator", "r", 123, base_dir=self.base)  # type: ignore[arg-type]
 
     def test_read_not_found(self) -> None:
         with self.assertRaises(MissingSignal) as cm:

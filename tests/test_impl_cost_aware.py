@@ -130,7 +130,7 @@ class TestImplLoopRiskPreview(unittest.TestCase):
         routing = read_impl_routing()
         self.assertIn("frontmatter 에 `risk`/`engine`/`risk_reason` 이 유효한 단일 값", skill)
         self.assertIn("frontmatter 우선", skill)
-        self.assertIn("`engine: 4agent` → 풀 4-agent", routing)
+        self.assertIn("`engine: 4agent` → 풀 경로", routing)
 
     def test_placeholder_risk_metadata_treated_as_absent(self):
         # #703 codex P1 — 템플릿 미작성 잔재(normal|high|low)를 부재로 간주, 추론 fallback.
@@ -150,7 +150,7 @@ class TestImplLoopRiskPreview(unittest.TestCase):
             self.assertIn("개수와 무관", body)
             self.assertIn("디폴트 근거", body)
             self.assertIn("engine 미지정 + 고위험 trigger 없음", body)
-        self.assertNotIn("`single` → 풀 4-agent", skill)
+        self.assertNotIn("`single` → 풀 경로", skill)
         self.assertNotIn("default = single", routing)
 
     def test_high_risk_routes_to_full_agent_from_build_worker_default(self):
@@ -161,7 +161,7 @@ class TestImplLoopRiskPreview(unittest.TestCase):
             self.assertIn("frontmatter `risk: high`", body)
             self.assertIn("frontmatter `engine: 4agent`", body)
             self.assertIn("사용자 엄정", body)
-            self.assertIn("풀 4-agent", body)
+            self.assertIn("풀 경로", body)
             self.assertIn("reason", body)
 
     def test_engine_risk_uses_implementation_time_criteria_not_design_router_table(self):

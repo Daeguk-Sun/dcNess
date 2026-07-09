@@ -239,7 +239,7 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(WRAPPER),
-                    "code-validator",
+                    "impl-validator",
                     "--prompt-file",
                     str(prompt_file),
                     "--project-root",
@@ -339,7 +339,7 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(WRAPPER),
-                    "code-validator",
+                    "impl-validator",
                     "--prompt-file",
                     str(prompt_file),
                     "--project-root",
@@ -444,7 +444,7 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(WRAPPER),
-                    "code-validator",
+                    "impl-validator",
                     "--prompt-file",
                     str(prompt_file),
                     "--project-root",
@@ -546,7 +546,7 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(WRAPPER),
-                    "pr-reviewer",
+                    "impl-validator",
                     "--prompt-file",
                     str(prompt_file),
                     "--project-root",
@@ -568,7 +568,7 @@ class CodexValidatorWrapperTests(unittest.TestCase):
                 helper_args.read_text(encoding="utf-8")
                 .strip()
                 .startswith(
-                    "end-step pr-reviewer --provider codex-headless --prose-file "
+                    "end-step impl-validator --provider codex-headless --prose-file "
                 ),
             )
             prose = prose_capture.read_text(encoding="utf-8")
@@ -1180,7 +1180,7 @@ class CodexValidatorWrapperMktempTests(unittest.TestCase):
             wrapper_tmpdir.mkdir()
             # Residue a prior SIGKILLed run could leave under the broken
             # embedded-suffix template; the wrapper must not collide with it.
-            seed = wrapper_tmpdir / "dcness-codex-pr-reviewer.XXXXXX"
+            seed = wrapper_tmpdir / "dcness-codex-impl-validator.XXXXXX"
             seed.write_text("stale", encoding="utf-8")
 
             prompt_file = tmp / "prompt.md"
@@ -1256,7 +1256,7 @@ class CodexValidatorWrapperMktempTests(unittest.TestCase):
                 result = subprocess.run(
                     [
                         str(WRAPPER),
-                        "pr-reviewer",
+                        "impl-validator",
                         "--prompt-file",
                         str(prompt_file),
                         "--project-root",
@@ -1278,7 +1278,7 @@ class CodexValidatorWrapperMktempTests(unittest.TestCase):
             leftovers = sorted(p.name for p in wrapper_tmpdir.iterdir())
             self.assertEqual(
                 leftovers,
-                ["dcness-codex-pr-reviewer.XXXXXX"],
+                ["dcness-codex-impl-validator.XXXXXX"],
                 f"wrapper left unexpected temp residue: {leftovers}",
             )
 

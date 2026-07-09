@@ -162,8 +162,8 @@ def _begin_step_order_gate(
     mode: str | None = None,
     lane: str | None = None,
     engineer_output: bool = False,
-    code_validator_pass: bool = False,
-    code_validator_mode_pass: bool = False,
+    impl_validator_pass: bool = False,
+    impl_validator_mode_pass: bool = False,
 ) -> Probe:
     def probe() -> tuple[Decision, str]:
         sid = "eval-sid"
@@ -175,12 +175,12 @@ def _begin_step_order_gate(
             rd = base / ".sessions" / sid / "runs" / rid
             if engineer_output:
                 _write_file(rd, "engineer.md", "implementation\n\nPASS\n")
-            if code_validator_pass:
-                _write_file(rd, "code-validator.md", "validated\n\nPASS\n")
-            if code_validator_mode_pass:
+            if impl_validator_pass:
+                _write_file(rd, "impl-validator.md", "validated\n\nPASS\n")
+            if impl_validator_mode_pass:
                 _write_file(
                     rd,
-                    "code-validator-CODE_VALIDATION.md",
+                    "impl-validator-VERIFY_ONLY.md",
                     "validated\n\nPASS\n",
                 )
             message = evaluate_order_gate_for_step(
@@ -520,21 +520,21 @@ def build_cases() -> list[GuardCase]:
             "order-gate",
             "block",
             "strict impl runs require begin-step before Agent calls.",
-            _order_gate("code-validator"),
+            _order_gate("impl-validator"),
         ),
         GuardCase(
             "order_gate_allows_matching_begin_step",
             "order-gate",
             "allow",
             "Agent call matching current_step is allowed.",
-            _order_gate("code-validator", current_step="code-validator"),
+            _order_gate("impl-validator", current_step="impl-validator"),
         ),
         GuardCase(
             "order_gate_blocks_step_mismatch",
             "order-gate",
             "block",
             "Agent call cannot jump away from current_step.",
-            _order_gate("pr-reviewer", current_step="code-validator"),
+            _order_gate("impl-validator", current_step="engineer"),
         ),
         GuardCase(
             "begin_step_blocks_engineer_without_design_artifact",
@@ -551,11 +551,11 @@ def build_cases() -> list[GuardCase]:
             _begin_step_order_gate("build-worker"),
         ),
         GuardCase(
-            "begin_step_blocks_pr_reviewer_without_code_validator_pass",
+            "begin_step_allows_impl_validator_after_engineer_output",
             "provider-agnostic-order-gate",
-            "block",
-            "headless begin-step blocks pr-reviewer after engineer output without code-validator PASS.",
-            _begin_step_order_gate("pr-reviewer", engineer_output=True),
+            "allow",
+            "merged impl-validator starts directly after implementation output.",
+            _begin_step_order_gate("impl-validator", engineer_output=True),
         ),
         GuardCase(
             "begin_step_allows_engineer_lite_lane",
@@ -579,25 +579,25 @@ def build_cases() -> list[GuardCase]:
             _begin_step_order_gate("engineer", mode="POLISH"),
         ),
         GuardCase(
-            "begin_step_allows_pr_reviewer_after_code_validator_pass",
+            "begin_step_allows_impl_validator_after_prior_pass",
             "provider-agnostic-order-gate",
             "allow",
-            "pr-reviewer starts after code-validator PASS in headless path.",
+            "impl-validator can be re-entered after a prior PASS in headless path.",
             _begin_step_order_gate(
-                "pr-reviewer",
+                "impl-validator",
                 engineer_output=True,
-                code_validator_pass=True,
+                impl_validator_pass=True,
             ),
         ),
         GuardCase(
-            "begin_step_allows_pr_reviewer_after_code_validator_mode_pass",
+            "begin_step_allows_impl_validator_after_mode_pass",
             "provider-agnostic-order-gate",
             "allow",
-            "pr-reviewer starts after mode-suffixed code-validator PASS in headless path.",
+            "impl-validator starts after mode-suffixed impl-validator PASS in headless path.",
             _begin_step_order_gate(
-                "pr-reviewer",
+                "impl-validator",
                 engineer_output=True,
-                code_validator_mode_pass=True,
+                impl_validator_mode_pass=True,
             ),
         ),
         GuardCase(

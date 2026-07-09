@@ -59,15 +59,14 @@ __all__ = [
 # `expected_steps` 가 진본. 모두 그대로 옮긴다(새 라벨 발명 X). 여기에 없는
 # 변종은 task 입력의 `substeps` 명시 override 로 표현한다([`substeps_for`]).
 ENGINE_SUBSTEPS: Dict[str, List[str]] = {
-    "build-worker": ["build-worker", "pr-reviewer"],
-    "build-worker-deep": ["module-architect", "build-worker", "pr-reviewer"],
-    "full-4": ["test-engineer", "engineer:IMPL", "code-validator", "pr-reviewer"],
+    "build-worker": ["build-worker", "impl-validator"],
+    "build-worker-deep": ["module-architect", "build-worker", "impl-validator"],
+    "full-4": ["test-engineer", "engineer:IMPL", "impl-validator"],
     "advanced": [
         "module-architect",
         "test-engineer",
         "engineer:IMPL",
-        "code-validator",
-        "pr-reviewer",
+        "impl-validator",
     ],
     # impl-ui-design-loop (UI + full-4, 선두 canvas-design) — 5 step.
     # 사용자 PICK 은 canvas-design 내부 조건부 절차다. 기존 확정본/목업 없이 분기에는
@@ -76,21 +75,20 @@ ENGINE_SUBSTEPS: Dict[str, List[str]] = {
         "canvas-design",
         "test-engineer",
         "engineer:IMPL",
-        "code-validator",
-        "pr-reviewer",
+        "impl-validator",
     ],
     # UI + build-worker, engine 무관 canvas-design 선두 — 3 step.
     "ui-build-worker": [
         "canvas-design",
         "build-worker",
-        "pr-reviewer",
+        "impl-validator",
     ],
     # UI + build-worker deep task 보강 — module-architect 후 같은 canvas baseline.
     "ui-build-worker-deep": [
         "module-architect",
         "canvas-design",
         "build-worker",
-        "pr-reviewer",
+        "impl-validator",
     ],
     # UI + deep task 보강 (canvas-design 앞 module-architect) — 6 step.
     "ui-advanced": [
@@ -98,8 +96,7 @@ ENGINE_SUBSTEPS: Dict[str, List[str]] = {
         "canvas-design",
         "test-engineer",
         "engineer:IMPL",
-        "code-validator",
-        "pr-reviewer",
+        "impl-validator",
     ],
 }
 

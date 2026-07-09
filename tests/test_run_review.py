@@ -157,10 +157,10 @@ class ProseFileTests(unittest.TestCase):
         """prose_file 있을 때 must_fix 재계산 (negation-aware retro accuracy)."""
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
-            prose_path = tmp / "pr-reviewer.md"
+            prose_path = tmp / "impl-validator.md"
             prose_path.write_text("MUST FIX 0, NICE TO HAVE 6 (let tree: any / dead code).\nPASS\n")
             rd = _make_run_dir(tmp, "sid1", "rid1", [
-                {"ts": "2026-04-30T10:00:00", "agent": "pr-reviewer", "mode": None,
+                {"ts": "2026-04-30T10:00:00", "agent": "impl-validator", "mode": None,
                  "enum": "PASS", "must_fix": True,
                  "prose_excerpt": "MUST FIX 0, NICE TO HAVE 6\nPASS",
                  "prose_file": str(prose_path)},
@@ -366,7 +366,7 @@ class WasteDetectionTests(unittest.TestCase):
     def test_must_fix_ghost_gate_pass_with_must_fix(self):
         # #770 — 게이트(reviewer)가 PASS/LGTM 결론인데 must_fix 남김 = 진짜 모순 → GHOST.
         steps = [
-            StepRecord(idx=0, ts="t1", agent="pr-reviewer", mode=None,
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=True, conclusion_enum="LGTM",
                        prose_excerpt="a"),
             StepRecord(idx=1, ts="t2", agent="engineer", mode="POLISH",
@@ -379,7 +379,7 @@ class WasteDetectionTests(unittest.TestCase):
     def test_must_fix_ghost_not_fired_on_normal_fix_loop(self):
         # #770 — reviewer FAIL + must_fix → 다음 step(fix)은 정상 conveyor, GHOST 아님.
         steps = [
-            StepRecord(idx=0, ts="t1", agent="pr-reviewer", mode=None,
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=True, conclusion_enum="FAIL",
                        prose_excerpt="MUST FIX: x"),
             StepRecord(idx=1, ts="t2", agent="engineer", mode="POLISH",
@@ -395,7 +395,7 @@ class WasteDetectionTests(unittest.TestCase):
             StepRecord(idx=0, ts="t1", agent="engineer", mode="POLISH",
                        enum="PROSE_LOGGED", must_fix=True, conclusion_enum="POLISH_DONE",
                        prose_excerpt="## MUST FIX 1 (전면 예외 래핑)"),
-            StepRecord(idx=1, ts="t2", agent="pr-reviewer", mode=None,
+            StepRecord(idx=1, ts="t2", agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=False, conclusion_enum="PASS",
                        prose_excerpt="ok"),
         ]
@@ -406,7 +406,7 @@ class WasteDetectionTests(unittest.TestCase):
         # #771 — PROSE_LOGGED 게이트의 prose 가 "tests PASS … FAIL" 로 끝나면 실제 실패.
         # conclusion_enum 이 PASS 로 오파싱돼도 위치상 마지막 결론(FAIL)이 이겨 GHOST 아님.
         steps = [
-            StepRecord(idx=0, ts="t1", agent="pr-reviewer", mode=None,
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
                        prose_excerpt="",
                        prose_full="검토함.\ntests PASS 증거 참고.\n\nMUST FIX: x\n\nFAIL"),
@@ -420,7 +420,7 @@ class WasteDetectionTests(unittest.TestCase):
     def test_must_fix_ghost_mixed_conclusion_line_fail_wins(self):
         # #771 — 혼합 결론줄 "PASS / FAIL 중 FAIL" 도 fail 우선 → GHOST 아님.
         steps = [
-            StepRecord(idx=0, ts="t1", agent="pr-reviewer", mode=None,
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
                        prose_excerpt="",
                        prose_full="tests PASS 참고.\nMUST FIX: x\n\nPASS / FAIL 중 FAIL"),
@@ -435,7 +435,7 @@ class WasteDetectionTests(unittest.TestCase):
         # #771 — 혼합줄이 PASS 로 *끝나면* 진짜 PASS 결론 → must_fix 와 모순이라 GHOST 유지
         # (round5: fail 토큰 존재만으로 over-suppress 하지 않음 — 위치상 마지막 토큰이 결론).
         steps = [
-            StepRecord(idx=0, ts="t1", agent="pr-reviewer", mode=None,
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
                        prose_excerpt="",
                        prose_full="검토.\nMUST FIX: x\n\nPASS / FAIL 중 PASS"),
@@ -450,7 +450,7 @@ class WasteDetectionTests(unittest.TestCase):
         # #770/#771 — legacy stored enum(CHANGES_REQUESTED)이 prose 오파싱(LGTM)을 이김
         # → 거부된 리뷰가 PASS-class 로 오인돼 거짓 GHOST 나는 회귀 차단.
         steps = [
-            StepRecord(idx=0, ts="t1", agent="pr-reviewer", mode=None,
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
                        enum="CHANGES_REQUESTED", must_fix=True, conclusion_enum="LGTM",
                        prose_excerpt="MUST FIX: x\nLGTM 후보 X"),
             StepRecord(idx=1, ts="t2", agent="engineer", mode="POLISH",
@@ -572,13 +572,13 @@ class WasteDetectionTests(unittest.TestCase):
             trace = rd / "agent-trace.jsonl"
             entries = [
                 {"ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
-                 "agent": "pr-reviewer", "tool": "Read",
+                 "agent": "impl-validator", "tool": "Read",
                  "input": "apps/mobile/src/screens/S11PreviewScreen.tsx"}
                 for i in range(4)
             ]
             trace.write_text("\n".join(json.dumps(e) for e in entries))
             steps = [
-                StepRecord(idx=0, ts="2026-05-23T02:20:00Z", agent="pr-reviewer",
+                StepRecord(idx=0, ts="2026-05-23T02:20:00Z", agent="impl-validator",
                            mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
             ]
             wastes = detect_wastes(steps, run_dir=rd)
@@ -735,7 +735,7 @@ class ReportRenderTests(unittest.TestCase):
                 [
                     {
                         "ts": "2026-06-05T10:00:00+00:00",
-                        "agent": "code-validator",
+                        "agent": "impl-validator",
                         "mode": "VERIFY_ONLY",
                         "enum": "PROSE_LOGGED",
                         "must_fix": False,
@@ -743,7 +743,7 @@ class ReportRenderTests(unittest.TestCase):
                     },
                 ],
                 {
-                    "code-validator-VERIFY_ONLY.md": (
+                    "impl-validator-VERIFY_ONLY.md": (
                         "검증 명령: lint-imports\n"
                         "exit code: 0\n"
                         "git status --porcelain: empty\n\n"
@@ -756,16 +756,16 @@ class ReportRenderTests(unittest.TestCase):
             self.assertEqual(len(report.steps), 1)
             self.assertEqual(report.final_enum, "PASS")
             self.assertTrue(report.final_clean)
-            self.assertIn("code-validator [VERIFY_ONLY]", text)
+            self.assertIn("impl-validator [VERIFY_ONLY]", text)
             self.assertIn("| clean 판정 | ✅ |", text)
 
 
 class RecurrenceReportTests(unittest.TestCase):
     def _retry_run(self, tmp: Path, rid: str) -> Path:
         return _make_run_dir(tmp, "sid1", rid, [
-            {"ts": "2026-04-30T10:00:00", "agent": "code-validator", "mode": None,
+            {"ts": "2026-04-30T10:00:00", "agent": "impl-validator", "mode": None,
              "enum": "FAIL", "must_fix": False, "prose_excerpt": "same fail\nFAIL"},
-            {"ts": "2026-04-30T10:01:00", "agent": "code-validator", "mode": None,
+            {"ts": "2026-04-30T10:01:00", "agent": "impl-validator", "mode": None,
              "enum": "FAIL", "must_fix": False, "prose_excerpt": "same fail\nFAIL"},
         ])
 
@@ -823,7 +823,7 @@ class ContextAuditTests(unittest.TestCase):
                 encoding="utf-8",
             )
             rd = _make_run_dir(tmp, "sid1", "rid1", [
-                {"ts": "2026-04-30T10:00:00", "agent": "pr-reviewer", "mode": None,
+                {"ts": "2026-04-30T10:00:00", "agent": "impl-validator", "mode": None,
                  "enum": "PASS", "must_fix": False, "prose_excerpt": "PASS"},
             ])
 
@@ -937,7 +937,7 @@ class ContextAuditTests(unittest.TestCase):
                         pattern="MUST_FIX_GHOST",
                         severity="HIGH",
                         step_idx=11,
-                        agent="pr-reviewer",
+                        agent="impl-validator",
                         detail="must fix leaked",
                         fix="fix gate",
                     )
@@ -1211,7 +1211,7 @@ class WindowPaddingTests(unittest.TestCase):
             rd = _make_run_dir(tmp, "sid_pad", "rid_pad", [
                 {"ts": "2026-04-30T10:05:00+00:00", "agent": "engineer", "mode": "IMPL",
                  "enum": "IMPL_DONE", "must_fix": False, "prose_excerpt": "x"},
-                {"ts": "2026-04-30T10:15:00+00:00", "agent": "pr-reviewer", "mode": None,
+                {"ts": "2026-04-30T10:15:00+00:00", "agent": "impl-validator", "mode": None,
                  "enum": "LGTM", "must_fix": False, "prose_excerpt": "y"},
             ])
             # CC session JSONL — 첫 TUR 는 first_ts (10:05:00) 보다 8초 *이전*
@@ -1231,7 +1231,7 @@ class WindowPaddingTests(unittest.TestCase):
                 json.dumps({
                     "timestamp": "2026-04-30T10:14:50.000Z",
                     "toolUseResult": {
-                        "agentType": "dcness:pr-reviewer",
+                        "agentType": "dcness:impl-validator",
                         "totalTokens": 4000, "totalDurationMs": 100000,
                         "usage": {"output_tokens": 1000, "input_tokens": 3000},
                         "totalToolUseCount": 15,
@@ -1256,40 +1256,40 @@ class DcnessAgentNamesCompletenessTests(unittest.TestCase):
         self.assertIn("module-architect", DCNESS_AGENT_NAMES)
         self.assertIn("system-architect", DCNESS_AGENT_NAMES)
 
-    def test_validator_alias_normalizes_to_code_validator(self):
+    def test_validator_alias_normalizes_to_impl_validator(self):
         # 0.2.16 시절 메인 Claude 의 잔재 호출 `dcness:validator` 흡수.
         # backward compat — 옛 데이터 review 회복용.
-        self.assertEqual(_normalize_agent_type("dcness:validator"), "code-validator")
-        self.assertEqual(_normalize_agent_type("validator"), "code-validator")
+        self.assertEqual(_normalize_agent_type("dcness:validator"), "impl-validator")
+        self.assertEqual(_normalize_agent_type("validator"), "impl-validator")
         self.assertIn("validator", LEGACY_AGENT_ALIASES)
-        self.assertEqual(LEGACY_AGENT_ALIASES["validator"], "code-validator")
+        self.assertEqual(LEGACY_AGENT_ALIASES["validator"], "impl-validator")
 
 
 class MustFixLeakTests(unittest.TestCase):
     """B3 — 마지막 step must_fix=True 면 wastes 1+ 박혀야 함 (caveat 통지 회귀 차단).
 
     MUST_FIX_GHOST 는 *다음 step 진행* 케이스만 검사. 마지막 step 은 다음 없음으로
-    skip → wastes 비어있는 회귀 (jajang run-459cce99 pr-reviewer 케이스).
+    skip → wastes 비어있는 회귀 (jajang run-459cce99 impl-validator 케이스).
     """
 
     def test_must_fix_true_on_last_step_emits_waste(self):
         steps = [
             StepRecord(idx=0, ts="2026-04-30T10:05:00+00:00", agent="engineer", mode="IMPL",
                        enum="IMPL_DONE", must_fix=False, prose_excerpt="x"),
-            StepRecord(idx=1, ts="2026-04-30T10:15:00+00:00", agent="pr-reviewer", mode=None,
+            StepRecord(idx=1, ts="2026-04-30T10:15:00+00:00", agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=True, prose_excerpt="y"),
         ]
         wastes = detect_wastes(steps)
         leak = [w for w in wastes if w.pattern == "MUST_FIX_LEAK"]
         self.assertEqual(len(leak), 1, "마지막 step must_fix=True 면 MUST_FIX_LEAK 1+ 필수")
         self.assertEqual(leak[0].severity, "HIGH")
-        self.assertEqual(leak[0].agent, "pr-reviewer")
+        self.assertEqual(leak[0].agent, "impl-validator")
 
     def test_no_leak_when_last_step_clean(self):
         steps = [
             StepRecord(idx=0, ts="2026-04-30T10:05:00+00:00", agent="engineer", mode="IMPL",
                        enum="IMPL_DONE", must_fix=False, prose_excerpt="x"),
-            StepRecord(idx=1, ts="2026-04-30T10:15:00+00:00", agent="pr-reviewer", mode=None,
+            StepRecord(idx=1, ts="2026-04-30T10:15:00+00:00", agent="impl-validator", mode=None,
                        enum="LGTM", must_fix=False, prose_excerpt="y"),
         ]
         wastes = detect_wastes(steps)
@@ -1301,7 +1301,7 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
     """B4 — 자유서술 방식 후 enum 컬럼이 PROSE_LOGGED 그대로 박히는 회귀.
 
     agent prose 마지막 단락에 PASS/LGTM/FAIL/ESCALATE 결론 박혀있음
-    (agents/code-validator.md 의 결론 + 권장 다음 단계 등 강제). 표시 단계에서 그 결론 추출 의무.
+    (agents/impl-validator.md 의 결론 + 권장 다음 단계 등 강제). 표시 단계에서 그 결론 추출 의무.
     """
 
     def test_extracts_pass_from_prose_tail(self):
@@ -1333,7 +1333,7 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
 
     def test_extracts_impl_done(self):
         # engineer IMPL 결론
-        prose = "구현 완료.\n\nIMPL_DONE — code-validator 검증 권고."
+        prose = "구현 완료.\n\nIMPL_DONE — impl-validator 검증 권고."
         self.assertEqual(_extract_conclusion_enum(prose), "IMPL_DONE")
 
     def test_extracts_impl_partial(self):
@@ -1395,13 +1395,13 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
             sid, rid = "sid_b4", "rid_b4"
             run_dir = tmp / ".claude" / "harness-state" / ".sessions" / sid / "runs" / rid
             run_dir.mkdir(parents=True, exist_ok=True)
-            prose_path = run_dir / "pr-reviewer.md"
+            prose_path = run_dir / "impl-validator.md"
             prose_path.write_text("리뷰 진행.\n\nLGTM — merge 권고.", encoding="utf-8")
             jsonl = run_dir / ".steps.jsonl"
             jsonl.write_text(
                 json.dumps({
                     "ts": "2026-04-30T10:15:00+00:00",
-                    "agent": "pr-reviewer", "mode": None,
+                    "agent": "impl-validator", "mode": None,
                     "enum": "PROSE_LOGGED", "must_fix": False,
                     "prose_excerpt": "리뷰 진행", "prose_file": str(prose_path),
                 }) + "\n",
@@ -1445,7 +1445,7 @@ class MissingConclusionEnumTests(unittest.TestCase):
         self.assertEqual(missing[0].agent, "engineer")
 
     def test_no_missing_when_enum_present(self):
-        prose = "구현 완료.\n\nIMPL_DONE — code-validator 권고."
+        prose = "구현 완료.\n\nIMPL_DONE — impl-validator 권고."
         s = StepRecord(
             idx=0, ts="2026-04-30T10:05:00+00:00",
             agent="engineer", mode="IMPL",
@@ -1458,15 +1458,15 @@ class MissingConclusionEnumTests(unittest.TestCase):
         self.assertEqual(len(missing), 0)
 
     def test_missing_skips_non_engineer(self):
-        # validator / pr-reviewer / architect 류는 자율 영역 — skip
+        # validator / impl-validator / architect 류는 자율 영역 — skip
         prose = "검증 진행.\n\n특별한 enum 박지 않음."
         steps = [
             StepRecord(idx=0, ts="2026-04-30T10:05:00+00:00",
-                       agent="code-validator", mode="CODE_VALIDATION",
+                       agent="impl-validator", mode="CODE_VALIDATION",
                        enum="PROSE_LOGGED", must_fix=False,
                        prose_excerpt="x", prose_full=prose, conclusion_enum=""),
             StepRecord(idx=1, ts="2026-04-30T10:15:00+00:00",
-                       agent="pr-reviewer", mode=None,
+                       agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=False,
                        prose_excerpt="y", prose_full=prose, conclusion_enum=""),
         ]
@@ -1511,26 +1511,26 @@ class ToolHistogramTableTests(unittest.TestCase):
         from harness.run_review import _build_tool_histogram_table
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
-            # step 2개 — 마지막은 pr-reviewer
+            # step 2개 — 마지막은 impl-validator
             rd = self._make_run_with_trace(tmp, [
                 {"ts": "2026-05-12T14:54:00+00:00", "agent": "engineer", "mode": "IMPL",
                  "enum": "IMPL_DONE", "must_fix": False, "prose_excerpt": "x"},
-                {"ts": "2026-05-12T14:59:00+00:00", "agent": "pr-reviewer", "mode": None,
+                {"ts": "2026-05-12T14:59:00+00:00", "agent": "impl-validator", "mode": None,
                  "enum": "LGTM", "must_fix": False, "prose_excerpt": "y"},
             ], [
                 # engineer trace (step 0 윈도우 = ~ 14:54:00)
                 {"phase": "pre", "agent": "engineer", "ts": "2026-05-12T14:53:00+00:00", "tool": "Edit"},
                 {"phase": "pre", "agent": "engineer", "ts": "2026-05-12T14:53:30+00:00", "tool": "Edit"},
-                # pr-reviewer trace (step 1 윈도우 = 14:54:00 ~ 14:59:00)
-                {"phase": "pre", "agent": "pr-reviewer", "ts": "2026-05-12T14:57:00+00:00", "tool": "Read"},
-                {"phase": "pre", "agent": "pr-reviewer", "ts": "2026-05-12T14:58:00+00:00", "tool": "Read"},
+                # impl-validator trace (step 1 윈도우 = 14:54:00 ~ 14:59:00)
+                {"phase": "pre", "agent": "impl-validator", "ts": "2026-05-12T14:57:00+00:00", "tool": "Read"},
+                {"phase": "pre", "agent": "impl-validator", "ts": "2026-05-12T14:58:00+00:00", "tool": "Read"},
             ])
             report = build_report(rd, tmp)
             lines = _build_tool_histogram_table(report)
             # 표 lines: header(2) + step0 + step1
             self.assertGreater(len(lines), 2)
-            # step 1 (pr-reviewer) 가 표에 포함 — last step 누락 회귀 차단
-            pr_line = [ln for ln in lines if "pr-reviewer" in ln]
+            # step 1 (impl-validator) 가 표에 포함 — last step 누락 회귀 차단
+            pr_line = [ln for ln in lines if "impl-validator" in ln]
             self.assertEqual(len(pr_line), 1)
             # Read 2 박힘
             self.assertIn(" 2 ", pr_line[0])
@@ -1610,7 +1610,7 @@ class ListRunsLedgerTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             _make_run_dir(tmp, "sidL", "ridLegacy", [
-                {"ts": "2026-05-01T08:00:00", "agent": "code-validator", "mode": None,
+                {"ts": "2026-05-01T08:00:00", "agent": "impl-validator", "mode": None,
                  "enum": "PROSE_LOGGED", "must_fix": False, "prose_excerpt": "y"},
             ])
             sessions_root = tmp / ".claude" / "harness-state" / ".sessions"

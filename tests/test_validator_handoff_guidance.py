@@ -17,8 +17,8 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
             ROOT / "docs" / "plugin" / "init-dcness.md"
         ).read_text(encoding="utf-8")
         self.claude_agents = {
-            "code-validator": (
-                ROOT / "docs" / "plugin" / "agents" / "code-validator" / "code-validator-agent.md"
+            "impl-validator": (
+                ROOT / "docs" / "plugin" / "agents" / "impl-validator" / "impl-validator-agent.md"
             ).read_text(encoding="utf-8"),
             "architecture-validator": (
                 ROOT
@@ -26,13 +26,10 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
                 / "architecture-validator"
                 / "architecture-validator-agent.md"
             ).read_text(encoding="utf-8"),
-            "pr-reviewer": (
-                ROOT / "docs" / "plugin" / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
-            ).read_text(encoding="utf-8"),
         }
         self.codex_skills = {
-            "dcness-code-validator": (
-                ROOT / "codex" / "skills" / "dcness-code-validator" / "SKILL.md"
+            "dcness-impl-validator": (
+                ROOT / "codex" / "skills" / "dcness-impl-validator" / "SKILL.md"
             ).read_text(encoding="utf-8"),
             "dcness-architecture-validator": (
                 ROOT
@@ -40,9 +37,6 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
                 / "skills"
                 / "dcness-architecture-validator"
                 / "SKILL.md"
-            ).read_text(encoding="utf-8"),
-            "dcness-pr-reviewer": (
-                ROOT / "codex" / "skills" / "dcness-pr-reviewer" / "SKILL.md"
             ).read_text(encoding="utf-8"),
         }
 

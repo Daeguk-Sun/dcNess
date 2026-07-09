@@ -58,7 +58,7 @@ hook/function 의 결정적 allow/block 성능을 대신하지 않는다.
 | 지표 | 의미 | 산출 근거 |
 |---|---|---|
 | cost / turn reduction | 메인 turn, token, cost 가 얼마나 줄었는가 | Claude Code session JSONL + `measure_main_turns.py` / `run_review.py` |
-| review rejection | `pr-reviewer` 가 실제로 반려한 비율 | `pr-reviewer` verdict: `FAIL / (PASS + LGTM + FAIL)` |
+| review rejection | `impl-validator` 가 실제로 반려한 비율 | `impl-validator` verdict: `FAIL / (PASS + FAIL)` (legacy LGTM 는 집계 호환만 유지) |
 | blocked events | run 이 안전하게 멈춘 횟수 | `ledger.jsonl` 의 `blocked` event |
 | escalate | agent 가 자동 진행을 거부하고 사용자/상위 설계로 올린 횟수 | step verdict 에 `ESCALATE` 포함 |
 | waste | 반복 실패, 도구 반복, gate 모순 등 비용 낭비 finding | `run_review.py` 의 waste detector |
@@ -124,7 +124,7 @@ dcNess loop(`begin-run` ~ `end-run` 사이클)을 한 번이라도 돌린 run �
 
 | 지표 | 값 | 비고 |
 |---|---|---|
-| baseline (옛 4-agent 모델) | ~280 turn/task | 외부 활성 프로젝트 impl 1-task 세션 3개 평균 (n=3) |
+| baseline (옛 다단계 모델) | ~280 turn/task | 외부 활성 프로젝트 impl 1-task 세션 3개 평균 (n=3) |
 | Hybrid A (build-worker 2-step) | 121 turn/task | impl 1-task 측정 (n=1) |
 | 절감 | ~57% | 121 / 280 기준, anecdote |
 
@@ -217,13 +217,13 @@ done
 | 지표 | 값 | 비고 |
 |---|---|---|
 | 총 run | 44 | impl 40 / design 3 / architect-loop 1 |
-| pr-reviewer FAIL 비율 | 42.6% | PASS 35 / FAIL 29 / LGTM 4 — 리뷰 게이트가 실제로 반려 |
+| impl-validator FAIL 비율 | 42.6% | PASS 35 / FAIL 29 / legacy LGTM 4 — 리뷰 게이트가 실제로 반려 |
 | escalate 결론 | 2 | 주로 architecture-validator |
 | blocked 이벤트 | 1 | |
 | waste top | TOOL_REPEAT_HIGH 39 / MUST_FIX_LEAK 11 / MISSING_CONCLUSION_ENUM 2 | `/run-review` 가 잡는 낭비 패턴 |
 | PR 머지 성공률 | 측정 불가 | legacy snapshot: `pr_created` denominator 없음 |
 
-해석: pr-reviewer 의 ~42% FAIL 은 "리뷰가 형식적으로 통과만 시키지 않고 실제로
+해석: impl-validator 의 ~42% FAIL 은 "리뷰가 형식적으로 통과만 시키지 않고 실제로
 반려한다"는 뜻이다 — 가드가 동작한다는 신호. waste top 은 어디를 개선하면 비용이
 주는지 가리킨다.
 

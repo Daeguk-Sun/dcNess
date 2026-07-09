@@ -18,7 +18,7 @@ from typing import Optional
 # `validator` 표현 학습으로 메인 Claude 가 `dcness:validator` 호출한 잔재
 # (jajang 21건 trace 확인). backward compat + 옛 데이터 review 회복 위해 정식 이름 흡수.
 LEGACY_AGENT_ALIASES: dict[str, str] = {
-    "validator": "code-validator",
+    "validator": "impl-validator",
 }
 
 
@@ -26,7 +26,7 @@ def normalize_agent_type(agent_type: Optional[str]) -> Optional[str]:
     """`dcness:architect:system-design` → `architect`. None / 비-dcness → 원형 그대로.
 
     `dcness:` namespace prefix 제거 후 `LEGACY_AGENT_ALIASES` 적용. boundary /
-    trace / histogram 매칭 전 호출해 namespaced(`dcness:code-validator`) 가 ALLOW_MATRIX 미정의
+    trace / histogram 매칭 전 호출해 namespaced(`dcness:impl-validator`) 가 ALLOW_MATRIX 미정의
     pass-through 로 새는 것을 차단 (issue #598).
     """
     if not agent_type:

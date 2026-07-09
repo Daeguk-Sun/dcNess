@@ -220,9 +220,8 @@ class CiWorkflowTests(unittest.TestCase):
 
 class CodexValidatorSkillsTests(unittest.TestCase):
     SKILLS = (
-        "dcness-code-validator",
+        "dcness-impl-validator",
         "dcness-architecture-validator",
-        "dcness-pr-reviewer",
     )
 
     def _skill_path(self, base: Path, name: str) -> Path:
@@ -252,16 +251,11 @@ class CodexValidatorSkillsTests(unittest.TestCase):
             for name in self.SKILLS:
                 _write(self._plugin_skill_path(plugin_root, name), f"# {name}\n")
 
-            _write(self._skill_path(codex_home, "dcness-code-validator"), "# stale\n")
-            _write(
-                self._skill_path(codex_home, "dcness-architecture-validator"),
-                "# dcness-architecture-validator\n",
-            )
+            _write(self._skill_path(codex_home, "dcness-impl-validator"), "# stale\n")
 
             result = _check_codex_validator_skills(plugin_root, codex_home)
-            self.assertEqual(result["dcness-code-validator"], "stale")
-            self.assertEqual(result["dcness-architecture-validator"], "ok")
-            self.assertEqual(result["dcness-pr-reviewer"], "missing")
+            self.assertEqual(result["dcness-impl-validator"], "stale")
+            self.assertEqual(result["dcness-architecture-validator"], "missing")
 
 
 class CollectSelfRepoTests(unittest.TestCase):
@@ -310,7 +304,7 @@ class CollectExternalRepoTests(unittest.TestCase):
                     f"# {name}\n",
                 )
             _write(
-                codex_home / "skills" / "dcness-code-validator" / "SKILL.md",
+                codex_home / "skills" / "dcness-impl-validator" / "SKILL.md",
                 "# stale\n",
             )
 

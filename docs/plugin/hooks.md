@@ -86,13 +86,12 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 
 **시점**: 메인 Claude 가 `Agent` tool 로 sub-agent 를 호출하기 직전, 그리고 `dcness-helper begin-step` 이 step 시작을 기록하기 직전. Claude Agent provider 는 전자를 타고, Codex/headless provider 는 후자를 탄다.
 
-**역할**: 작업 순서 보호와 active run 의 `begin-step -> Agent/headless worker -> end-step` 물리 순서를 강제한다. engineer/build-worker / pr-reviewer 순서 불변식과 impl entry pre-flight 는 provider 와 무관하게 같은 판정 함수를 쓴다.
+**역할**: 작업 순서 보호와 active run 의 `begin-step -> Agent/headless worker -> end-step` 물리 순서를 강제한다. engineer/build-worker 사전 조건, impl-validator step 순서, impl entry pre-flight 는 provider 와 무관하게 같은 판정 함수를 쓴다.
 
 PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉 `<agent>.md`, 재호출 occurrence 인 `<agent>-1.md`, mode-suffix 인 `<agent>-MODE.md`, mode 재호출인 `<agent>-MODE-1.md` 안의 `PASS` 모두 같은 agent 의 완료 증거로 인정한다.
 
 | Gate | 차단 조건 |
 |---|---|
-| pr-reviewer gate | engineer 산출물이 있는데 code-validator PASS 없이 pr-reviewer 호출 |
 | engineer gate | 설계 산출물 없이 engineer/build-worker 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* `begin-run --lane lite` 로 기록된 Lite 구현 경로(#714), 셋 중 하나로 충족 |
 | impl boundary pre-flight | `begin-run --design-doc` 이 가리키는 impl 문서의 `### 수정 허용` 경로가 engineer boundary(`ALLOW_MATRIX ∪ .dcness/boundary.json`)로 커버되지 않음 |
 | impl TDD pre-flight | 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated TDD hook 이 등록되지 않았거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않음 |
@@ -100,15 +99,15 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 
 **진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사를 탄다. module-architect 는 `/design` 기본 선두 진입, greenfield thin bootstrap 이후 진입, opt-in system checkpoint 이후 재진입 모두 별도 validator 게이트 없이 허용한다. checkpoint 필요 여부와 재진입 흐름은 `skills/design/design-routing.md` 의 agent enum(`SYSTEM_CHECKPOINT_REQUIRED`)과 `begin-step` 물리 순서 검사로만 다룬다.
 
-**engineer gate 의 design_doc 경로**: 설계(impl 문서)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 engineer gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
+**engineer gate 의 design_doc 경로**: 설계(impl 문서)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 경로)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 engineer gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
 
 **impl entry pre-flight**: `engineer` / `build-worker` 의 구현 step 시작 직전에 추가로 확인한다. `--design-doc` 이 있으면 해당 impl 문서의 `### 수정 허용` 경로를 `ALLOW_MATRIX ∪ .dcness/boundary.json` 과 대조한다. 미커버 경로가 있으면 `[순서 차단 훅: impl pre-flight boundary]` 로 STOP 하며, 사람 승인 후 `.dcness/boundary.json` override 가 필요하다. 또한 프로젝트 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated hook 이 없거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않았으면 `[순서 차단 훅: impl pre-flight TDD]` 로 STOP 한다. in-place 실행은 hook 파일이 디스크에 실존·등록돼 있으면 생성 파일 커밋 없이 통과한다. 빈 프로젝트·미지원 플랫폼·dcNess self repo 는 no-op 이다.
 
-**engineer gate 의 구현 경로 면제 (#714)**: `/impl` 2축 모델의 Lite 구현 경로(설계도 없음)에 sub-agent 엔진(풀4 / 경량 build-worker)을 붙이는 4번째 조합용 면제 경로다. Lite 는 정의상 설계도가 없어 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 engineer gate 가 그 기록을 engineer/build-worker 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(impl-loop 풀4 / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구(면제 누수 차단), (4) 면제는 engineer gate *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 그대로 강제된다(풀4 경로의 중대 차단 보호 불변).
+**engineer gate 의 구현 경로 면제 (#714)**: `/impl` 2축 모델의 Lite 구현 경로(설계도 없음)에 sub-agent 엔진(풀 경로 / 경량 build-worker)을 붙이는 4번째 조합용 면제 경로다. Lite 는 정의상 설계도가 없어 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 engineer gate 가 그 기록을 engineer/build-worker 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(impl-loop 풀 경로 / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구한다.
 
 **tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. /design 도중 미검증 새 외부 의존이 발견되면 design 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
 
-**차단**: Claude Code PreToolUse 에서는 위반 시 `exit 2` + stderr, helper `begin-step` 에서는 비-0 종료 + stderr. engineer / pr-reviewer / impl pre-flight 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다. 게이트 자체 예외는 fail-open 계측으로 남기고 과차단하지 않는다.
+**차단**: Claude Code PreToolUse 에서는 위반 시 `exit 2` + stderr, helper `begin-step` 에서는 비-0 종료 + stderr. engineer / impl pre-flight / 진행 순서 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다. 게이트 자체 예외는 fail-open 계측으로 남기고 과차단하지 않는다.
 차단이 발생하면 `guard-telemetry.jsonl` 에 `guard=catastrophic-gate` 로 기록된다.
 
 ### file-guard.sh
@@ -154,7 +153,7 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 
 - **INFRA 경로** (`DCNESS_INFRA_PATTERNS` — `hooks/`, `harness/*.py` 등) 는 `add` 로 열 수 없다. INFRA 검사가 ALLOW(코어+add) 검사보다 *먼저* 발화하기 때문.
 - **`.dcness/boundary.json` 자신**(과 `.dcness/` 디렉토리 전체) 은 sub-agent write 차단 영역 (자기 경계 셀프 확장/축소 금지). INFRA 로 보호되며 `remove` 로도 풀 수 없고, 디렉토리 타깃 write 우회도 닫힌다.
-- **판정/검증 전용 agent**(`code-validator` / `pr-reviewer` / `architecture-validator` / `product-acceptance` / `plan-reviewer` — 코어 ALLOW 가 빈 `()`) 는 `add` 로도 write 를 열 수 없다. "검증자는 자기가 검증하는 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는 경계 — `add` 로 mutation agent 로 승격시킬 수 없다.
+- **판정/검증 전용 agent**(`impl-validator` / `architecture-validator` / `product-acceptance` / `plan-reviewer` — 코어 ALLOW 가 빈 `()`) 는 `add` 로도 write 를 열 수 없다. "검증자는 자기가 검증하는 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는 경계 — `add` 로 mutation agent 로 승격시킬 수 없다.
 - **guard self-disable 마커** (`.no-dcness-guard` = file-guard 임시 우회 / `.claude-plugin/` = `is_infra_project` self-repo 신호) 도 INFRA 로 보호된다. broad `add`(예 `.*`)로도 sub-agent 가 file guard 자체를 끄는 통제 파일을 쓸 수 없다.
 - 그 외 기본값(예: engineer 의 `tests/` 제외 = self-grading 방어)은 **강제 가드가 아니라 권고** 다. 프로젝트가 `add` 로 풀 수 있고, 그 경우 self-grading drift(구현자가 자기 코드를 통과시키도록 테스트를 편향) 위험은 프로젝트가 감수한다.
 
@@ -189,7 +188,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **중앙 fallback 역할**: generated hook 이 없는 프로젝트에서는 TS/JS 구현 파일에 대응하는 test/spec 파일이 *존재하는지* 확인한다. 없으면 구현 파일 작성을 막는다. **test 의 존재만 검사하고, test 를 실행하지는 않는다** — green/red 판정이 아니라 "작성 전 test 가 먼저 있는가" 강제다.
 
-**파일 단위 override marker**: 테스트가 구조적으로 불필요한 파일은 파일 내용 또는 이번 `Write` / `Edit` / `apply_patch` payload 에 `tdd-exempt: <사유>` 를 남기면 해당 파일의 test 부재 차단만 통과한다. 콜론 뒤 사유는 같은 줄에 최소 1단어 이상 있어야 하며, 빈 `tdd-exempt:` 는 통과하지 않는다. 주석 형태를 권장한다. 마커는 코드에 커밋되므로 `rg "tdd-exempt:"` 로 사용 빈도를 확인하고 pr-reviewer 가 남용 여부를 검토할 수 있다.
+**파일 단위 override marker**: 테스트가 구조적으로 불필요한 파일은 파일 내용 또는 이번 `Write` / `Edit` / `apply_patch` payload 에 `tdd-exempt: <사유>` 를 남기면 해당 파일의 test 부재 차단만 통과한다. 콜론 뒤 사유는 같은 줄에 최소 1단어 이상 있어야 하며, 빈 `tdd-exempt:` 는 통과하지 않는다. 주석 형태를 권장한다. 마커는 코드에 커밋되므로 `rg "tdd-exempt:"` 로 사용 빈도를 확인하고 impl-validator 가 남용 여부를 검토할 수 있다.
 
 **skip 대상**:
 
@@ -248,7 +247,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 - 마지막 step 이 완료됐고 run 이 미finalized 상태면 `end-run` 을 자동 수행
 - 마지막 step 결론이 다음 step 으로 이어져야 하는 enum 이고 종료 agent 가 아니면 continuation signal 을 내보내 메인 turn 재발화
-- `begin-run impl --acceptance-required` 로 기록된 마감 task run 에서는 `pr-reviewer` 를 종료 agent 로 취급하지 않는다. `pr-reviewer` 결론이 `PASS`/`LGTM` 이면 Stop hook 이 `product-acceptance` 진입용 continuation signal 을 내보내며, marker 가 없는 중간 task / `--no-acceptance` run / verify-only run 은 기존 종료 동작을 유지한다.
+- `begin-run impl --acceptance-required` 로 기록된 마감 task run 에서는 `impl-validator` 를 종료 agent 로 취급하지 않는다. `impl-validator` 결론이 `PASS` 이면 Stop hook 이 `product-acceptance` 진입용 continuation signal 을 내보내며, marker 가 없는 중간 task / `--no-acceptance` run / verify-only run 은 기존 종료 동작을 유지한다.
 - 같은 step 에서 반복 block 횟수가 한도를 넘으면 사용자/메인의 종료 의도를 존중하고 skip
 
 **차단**: tool 차단은 아니다. 필요 시 stdout JSON 으로 메인 turn 을 재발화한다.

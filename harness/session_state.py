@@ -573,7 +573,7 @@ def start_run(
 
     design_doc — 이 run 이 참조하는 머지된 설계 문서 경로 (#701). 기록 시
     engineer 게이트가 같은-run module-architect PASS 의 등가 사전 조건
-    증거로 인정한다 (impl-loop 풀 4-agent 처럼 설계가 별도 run 에서 머지된
+    증거로 인정한다 (impl-loop 풀 경로처럼 설계가 별도 run 에서 머지된
     뒤 진입하는 경우).
 
     lane — /impl 2축 모델의 lane(설계도 유무: "lite" / "standard", #714).
@@ -583,9 +583,9 @@ def start_run(
     허용한다 — design/architect-loop run 의 module-architect PASS 강제는 코드
     보장으로 유지된다.
 
-    acceptance_required — story/epic 마감 task 로, pr-reviewer PASS 뒤 inline
+    acceptance_required — story/epic 마감 task 로, impl-validator PASS 뒤 inline
     product-acceptance 를 거쳐야 정상 종료되는 run 이라는 신호 (#722).
-    Stop hook 이 이 marker 를 읽어 pr-reviewer 를 종료 agent 로 취급하지 않는다.
+    Stop hook 이 이 marker 를 읽어 impl-validator 를 종료 agent 로 취급하지 않는다.
 
     stage — /design 내부 durable stage 기록(#958). 공개 entry_point 는 design 으로
     유지하고, design-runs.jsonl 에서 UX PR run 과 system PR run 을 구분한다.
@@ -1219,15 +1219,6 @@ def evaluate_order_gate_for_step(
         )
         if tdd_message:
             return tdd_message
-
-    if norm_agent == "pr-reviewer":
-        if _run_has_engineer_output(rd) and not _run_prose_has_pass(rd, "code-validator"):
-            return (
-                "[순서 차단 훅: pr-reviewer 게이트] engineer 산출물 이후 "
-                "pr-reviewer 호출은 code-validator PASS 후만. 충족 방법: "
-                "`begin-step code-validator` → code-validator PASS → "
-                "`end-step code-validator` 를 먼저 완료하세요."
-            )
 
     return None
 

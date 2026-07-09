@@ -28,7 +28,7 @@ class AgentRoutingTests(unittest.TestCase):
         self._td.cleanup()
 
     def test_missing_config_defaults_to_claude(self) -> None:
-        self.assertEqual(agent_routing.resolve_provider("code-validator"), "claude")
+        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "claude")
         self.assertEqual(agent_routing.resolve_provider("engineer"), "headless-chain")
         self.assertEqual(agent_routing.resolve_provider("unknown-agent"), "claude")
         self.assertFalse(self.path.exists())
@@ -46,12 +46,12 @@ class AgentRoutingTests(unittest.TestCase):
             self.assertEqual(agent_routing.resolve_provider(agent), "claude")
 
     def test_set_provider_validates_agent_and_provider(self) -> None:
-        agent_routing.set_provider("pr-reviewer", "codex")
-        self.assertEqual(agent_routing.resolve_provider("pr-reviewer"), "codex")
+        agent_routing.set_provider("impl-validator", "codex")
+        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "codex")
         with self.assertRaises(ValueError):
             agent_routing.set_provider("engineer", "codex")
         with self.assertRaises(ValueError):
-            agent_routing.set_provider("pr-reviewer", "openai")
+            agent_routing.set_provider("impl-validator", "openai")
 
     def test_implementation_routes_can_disable_and_enable_headless_chain(self) -> None:
         agent_routing.disable_codex_implementation()
@@ -73,8 +73,7 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertEqual(agent_routing.resolve_provider("engineer"), "headless-chain")
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
         self.assertEqual(agent_routing.resolve_provider("test-engineer"), "claude")
-        self.assertEqual(agent_routing.resolve_provider("code-validator"), "claude")
-        self.assertEqual(agent_routing.resolve_provider("pr-reviewer"), "claude")
+        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "claude")
         self.assertEqual(agent_routing.resolve_provider("architecture-validator"), "codex")
         self.assertEqual(agent_routing.doctor(), [])
 
@@ -86,7 +85,7 @@ class AgentRoutingTests(unittest.TestCase):
         agent_routing.set_implementation_provider("build-worker", "headless-chain")
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
         with self.assertRaises(ValueError):
-            agent_routing.set_implementation_provider("pr-reviewer", "claude")
+            agent_routing.set_implementation_provider("impl-validator", "claude")
         with self.assertRaises(ValueError):
             agent_routing.set_implementation_provider("build-worker", "codex")
 
@@ -97,9 +96,9 @@ class AgentRoutingTests(unittest.TestCase):
                 {
                     "version": 999,
                     "routes": {
-                        "code-validator": "codex",
+                        "impl-validator": "codex",
                         "engineer": "codex",
-                        "pr-reviewer": "other",
+                        "legacy-reviewer": "other",
                     },
                     "implementation_routes": {
                         "build-worker": "codex",
@@ -115,7 +114,7 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertTrue(
             any("unknown validation agent route: engineer" in p for p in problems)
         )
-        self.assertTrue(any("invalid provider for pr-reviewer" in p for p in problems))
+        self.assertTrue(any("unknown validation agent route: legacy-reviewer" in p for p in problems))
         self.assertTrue(
             any("invalid implementation provider for build-worker" in p for p in problems)
         )
@@ -134,7 +133,7 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("[dcness routing] validation:", text)
         self.assertIn("[dcness routing] implementation:", text)
         self.assertIn("architecture-validator: codex", text)
-        self.assertIn("code-validator: claude", text)
+        self.assertIn("impl-validator: claude", text)
         self.assertIn("build-worker: claude", text)
         self.assertIn("engineer: headless-chain", text)
 
@@ -145,14 +144,14 @@ class AgentRoutingTests(unittest.TestCase):
                 {
                     "version": 1,
                     "routes": {
-                        "code-validator": "codex",
+                        "impl-validator": "codex",
                     },
                 }
             ),
             encoding="utf-8",
         )
         self.assertEqual(agent_routing.doctor(), [])
-        self.assertEqual(agent_routing.resolve_provider("code-validator"), "codex")
+        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "codex")
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
 
     def test_v2_explicit_codex_first_keeps_legacy_chain(self) -> None:
@@ -189,10 +188,10 @@ class AgentRoutingCliTests(unittest.TestCase):
         from harness.session_state import _build_arg_parser
 
         parser = _build_arg_parser()
-        ns = parser.parse_args(["routing", "resolve", "code-validator"])
+        ns = parser.parse_args(["routing", "resolve", "impl-validator"])
         self.assertEqual(ns.cmd, "routing")
         self.assertEqual(ns.routing_cmd, "resolve")
-        self.assertEqual(ns.agent, "code-validator")
+        self.assertEqual(ns.agent, "impl-validator")
 
         ns = parser.parse_args(["routing", "enable-role-split-routing"])
         self.assertEqual(ns.routing_cmd, "enable-role-split-routing")
@@ -216,7 +215,7 @@ class AgentRoutingCliTests(unittest.TestCase):
         out = StringIO()
         with redirect_stdout(out):
             rc = _cli_routing(
-                SimpleNamespace(routing_cmd="resolve", agent="code-validator")
+                SimpleNamespace(routing_cmd="resolve", agent="impl-validator")
             )
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "codex")
@@ -290,8 +289,7 @@ class AgentRoutingCliTests(unittest.TestCase):
         text = out.getvalue()
         self.assertIn("enabled role-split routing", text)
         self.assertIn("architecture-validator: codex", text)
-        self.assertIn("code-validator: claude", text)
-        self.assertIn("pr-reviewer: claude", text)
+        self.assertIn("impl-validator: claude", text)
         self.assertIn("test-engineer: claude", text)
         self.assertIn("engineer: headless-chain", text)
         self.assertIn("build-worker: headless-chain", text)
@@ -328,7 +326,7 @@ class InitRoleSplitRoutingDocsTests(unittest.TestCase):
             with self.subTest(text=text[:40]):
                 self.assertIn("enable-role-split-routing", text)
                 self.assertIn("engineer/build-worker=headless-chain", text)
-                self.assertIn("test-engineer/code-validator/pr-reviewer=claude", text)
+                self.assertIn("test-engineer/impl-validator=claude", text)
                 self.assertIn("architecture-validator=codex", text)
                 self.assertIn("기존 활성 프로젝트", text)
                 self.assertIn("routing doctor", text)

@@ -9,7 +9,7 @@ impl 문서가 정한 범위 안에서 제품 코드를 구현한다. engineer�
 - impl 계획 파일 경로
 - 수정 대상 파일 목록
 - 재시도라면 실패 finding과 시도 횟수
-- POLISH 모드라면 pr-reviewer의 변경 요청
+- POLISH 모드라면 impl-validator의 변경 요청
 
 ## 먼저 읽을 문서
 

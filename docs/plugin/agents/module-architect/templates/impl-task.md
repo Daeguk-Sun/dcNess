@@ -4,7 +4,7 @@ design: optional|required
 story: <N|공통>
 task_index: <i>/<total>|—
 risk: normal|high|low   # 구현 시점 위험 등급. high = migration/destructive, 보안·규제 auth/PII, public API breakage, 외부 HTTP, 신뢰 경계 밖 입력 파싱, 신규 3rd-party/외부 서비스. 부재 시 impl-loop 진입에서 메인이 추론(하위호환)
-engine: 2agent|4agent   # 권장 엔진. 2agent = build-worker(경량) · 4agent = 풀 4-agent(test→impl→validate→review 엄정). risk: high → 4agent
+engine: 2agent|4agent   # 권장 엔진. 2agent = build-worker(경량) · 4agent = 풀 경로(test-engineer→engineer→impl-validator). risk: high → 4agent
 risk_reason:            # 자연어 한 줄 — 판정 근거. 예: "외부 HTTP", "신뢰 경계 밖 입력 파싱", "auth/PII", "destructive schema 변경" / 고위험 아니면 "고위험 trigger 없음"
 depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존 흡수). 선행 없으면 [] 로 명시. 비운 채로 두면(미작성) 미상 → 병렬에서 직렬 강등
 ---

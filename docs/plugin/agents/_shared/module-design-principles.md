@@ -73,12 +73,12 @@
 
 ### 강제 수준 — 소프트 신호
 
-본 절은 hard gate 가 아니다. 빌드나 머지를 막지 않는다. pr-reviewer 의 finding 과 module-architect 의 분할 선호로 들어가며, 발견 시 자율 루프가 *이번 변경이 손대는 범위 한정* 으로 분해를 수렴시키고, 그 범위 밖 기존 누적은 후속 이슈로 분리한다. 사용자 개입은 스펙이 모호하거나 루프가 수렴하지 않을 때로 한정한다 — 소프트 신호는 "빌드를 차단하지 않는다 + PASS 로 수렴 가능하다" 라는 뜻이지 "사람이 매 finding 마다 개입한다" 가 아니다.
+본 절은 hard gate 가 아니다. 빌드나 머지를 막지 않는다. impl-validator 의 finding 과 module-architect 의 분할 선호로 들어가며, 발견 시 자율 루프가 *이번 변경이 손대는 범위 한정* 으로 분해를 수렴시키고, 그 범위 밖 기존 누적은 후속 이슈로 분리한다. 사용자 개입은 스펙이 모호하거나 루프가 수렴하지 않을 때로 한정한다 — 소프트 신호는 "빌드를 차단하지 않는다 + PASS 로 수렴 가능하다" 라는 뜻이지 "사람이 매 finding 마다 개입한다" 가 아니다.
 
 ### 적용 영역
 
 - module-architect — 기존 대형 파일을 건드리는 task 에서 append 대신 흐름 / 섹션 모듈 신설을 선호한다. 이번 task 가 손대는 seam 까지만 분해하고 무관한 흐름은 후속으로 남긴다.
-- pr-reviewer — 이번 diff 가 이미 여러 흐름을 떠안은 파일에 또 다른 흐름을 더하는지 본다. footprint 밖 기존 누적은 MUST FIX 가 아니라 후속 권고로 둔다.
+- impl-validator — 이번 diff 가 이미 여러 흐름을 떠안은 파일에 또 다른 흐름을 더하는지 본다. footprint 밖 기존 누적은 MUST FIX 가 아니라 후속 권고로 둔다.
 
 ## Agent Operability
 
@@ -108,7 +108,7 @@ Agent Operability 는 하드 임계나 라인 수 게이트가 아니다. UI 라
 
 - system-architect — THIN_BOOTSTRAP 에서는 root architecture 에 큰 모듈 경계와 의존 방향만 얇게 남기고, CHECKPOINT 에서 epic architecture 모듈 목록의 책임/공개 인터페이스/검증 경로에 flow 별 owner module, entrypoint role, state owner, forbidden append, validation path 를 연결한다.
 - module-architect — epic architecture 모듈 목록과 impl task 의 owner/entrypoint 요약을 남기고, entrypoint 를 건드리기 전에 flow owner 를 확정한다. owner 가 없으면 seam extraction task 를 앞세운다.
-- pr-reviewer — 이번 diff 가 edit target 을 불명확하게 만들거나 state owner 를 entrypoint/session 에 흩뜨리거나 overly broad entrypoint touch 를 요구하는지 본다. owner module 없이 entrypoint append + render/helper/session/global state 흡수 + owner 근처 validation path 부재가 한 diff 에 겹치면 소프트 신호가 아니라 MUST FIX 로 승격한다 — 크기가 아니라 작업성 악화 조합이 기준이다. footprint 밖 기존 누적은 후속 권고로 둔다.
+- impl-validator — 이번 diff 가 edit target 을 불명확하게 만들거나 state owner 를 entrypoint/session 에 흩뜨리거나 overly broad entrypoint touch 를 요구하는지 본다. owner module 없이 entrypoint append + render/helper/session/global state 흡수 + owner 근처 validation path 부재가 한 diff 에 겹치면 소프트 신호가 아니라 MUST FIX 로 승격한다 — 크기가 아니라 작업성 악화 조합이 기준이다. footprint 밖 기존 누적은 후속 권고로 둔다.
 
 ## Interface Design for Testability — 테스트 가능성 위한 인터페이스 설계
 
@@ -251,8 +251,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 | [`test-engineer`](../../../../agents/test-engineer.md) | 테스트 보고의 REQ 연결, 의존 mock 경계, 구현 독립성 |
 | [`build-worker`](../../../../agents/build-worker.md) | phase 보고의 RED/GREEN/self-validate 증거 |
 | [`architecture-validator`](../../../../agents/architecture-validator.md) | 설계 표준, 계약과 인터페이스, 구현 가능성 축의 finding 또는 PASS 근거 |
-| [`code-validator`](../../../../agents/code-validator.md) | 의존 계약, 도메인/디자인 정합, 구현 위험 축의 finding 또는 PASS 근거 |
-| [`pr-reviewer`](../../../../agents/pr-reviewer.md) | diff 가 Agent Operability 를 악화시키는지에 대한 finding 또는 후속 권고 |
+| [`impl-validator`](../../../../agents/impl-validator.md) | merge candidate diff 의 의존 계약, 도메인/디자인 정합, 구현 위험, Agent Operability finding 또는 PASS 근거 |
 
 ## validator 의 검증 연결
 

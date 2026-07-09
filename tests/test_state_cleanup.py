@@ -65,7 +65,7 @@ class CleanupStaleRunDirsTests(unittest.TestCase):
         # 디렉토리 mtime 은 오래됐어도 직계 파일에 7일 내 쓰기가 있으면 보존.
         rdir = self._make_run_dir(SID, "run-cccccccc")
         self._age_run_dir(rdir, DEFAULT_RUN_DIR_TTL_SEC + 3600)
-        (rdir / "pr-reviewer.md").write_text("late prose\n", encoding="utf-8")
+        (rdir / "impl-validator.md").write_text("late prose\n", encoding="utf-8")
 
         removed = cleanup_stale_run_dirs(base_dir=self.base)
 

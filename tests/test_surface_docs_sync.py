@@ -90,7 +90,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             encoding="utf-8"
         )
         self.pr_reviewer = (
-            ROOT / "docs" / "plugin" / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "impl-validator" / "impl-validator-agent.md"
         ).read_text(encoding="utf-8")
         self.architecture_validator = (
             ROOT / "docs" / "plugin" / "agents" / "architecture-validator" / "architecture-validator-agent.md"
@@ -420,7 +420,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.router,
         )
         self.assertIn("일반 `/impl` 의 구현 주체는 메인", self.positioning)
-        self.assertIn("격리되는 단계는 `pr-reviewer`", self.positioning)
+        self.assertIn("격리되는 단계는 `impl-validator`", self.positioning)
 
     def test_internal_routing_docs_prefer_lifecycle_names(self) -> None:
         # #711 — high-risk 선행은 impl 밖. impl 문서가 lifecycle 진입점을 가리킨다.
@@ -799,7 +799,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "story PR",
             "story-run.completed-<UTC>.json",
             "직렬 chain driver 전용",
-            "code-validator/pr-reviewer/review 출력은 story PR 경계에서 1회",
+            "impl-validator review 출력은 merge candidate 경계에서 1회",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_loop_skill)

@@ -37,7 +37,7 @@ def _ghost_run(tmp: Path, rid: str) -> Path:
         / rid
     )
     run_dir.mkdir(parents=True, exist_ok=True)
-    reviewer = run_dir / "pr-reviewer.md"
+    reviewer = run_dir / "impl-validator.md"
     reviewer.write_text("MUST FIX: blocker remains\n\nPASS\n", encoding="utf-8")
     engineer = run_dir / "engineer-IMPL.md"
     engineer.write_text("follow-up step\n\nIMPL_DONE\n", encoding="utf-8")
@@ -48,7 +48,7 @@ def _ghost_run(tmp: Path, rid: str) -> Path:
             {
                 "event": "step_completed",
                 "ts": "2026-07-05T00:01:00Z",
-                "agent": "pr-reviewer",
+                "agent": "impl-validator",
                 "mode": None,
                 "enum": "PROSE_LOGGED",
                 "must_fix": True,
@@ -87,11 +87,11 @@ class LoopLessonsPathTests(unittest.TestCase):
             worktree.mkdir(parents=True)
 
             with patch("harness.loop_lessons._resolve_project_root", return_value=main):
-                p = lessons_path("pr-reviewer", None, cwd=worktree)
+                p = lessons_path("impl-validator", None, cwd=worktree)
 
             self.assertEqual(
                 p,
-                main.resolve() / ".claude" / "loop-lessons" / "pr-reviewer.md",
+                main.resolve() / ".claude" / "loop-lessons" / "impl-validator.md",
             )
 
 
@@ -103,16 +103,16 @@ class LoopLessonsSyncTests(unittest.TestCase):
 
             changed = sync_from_run(runs[-1], repo_path=tmp, recurrence_threshold=3)
 
-            p = tmp.resolve() / ".claude" / "loop-lessons" / "pr-reviewer.md"
+            p = tmp.resolve() / ".claude" / "loop-lessons" / "impl-validator.md"
             self.assertEqual(changed, [p])
             content = p.read_text(encoding="utf-8")
             self.assertIn("### MUST_FIX_GHOST", content)
             self.assertIn("- status: active", content)
             self.assertIn("- hits: 3", content)
             self.assertIn("run_id=run-ghost2", content)
-            self.assertIn("pr-reviewer.md", content)
+            self.assertIn("impl-validator.md", content)
 
-            injected = read("pr-reviewer", cwd=tmp)
+            injected = read("impl-validator", cwd=tmp)
             self.assertIn("MUST_FIX_GHOST", injected)
             self.assertIn("hits=3", injected)
 
@@ -130,7 +130,7 @@ class LoopLessonsSyncTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             p = upsert_entry(
-                "pr-reviewer",
+                "impl-validator",
                 None,
                 "MUST_FIX_GHOST",
                 hits=3,
@@ -139,7 +139,7 @@ class LoopLessonsSyncTests(unittest.TestCase):
                 cwd=tmp,
             )
             upsert_entry(
-                "pr-reviewer",
+                "impl-validator",
                 None,
                 "MUST_FIX_GHOST",
                 hits=4,
@@ -153,11 +153,11 @@ class LoopLessonsSyncTests(unittest.TestCase):
             self.assertIn("- hits: 4", content)
             self.assertIn("run_id=run-a", content)
             self.assertIn("run_id=run-b", content)
-            self.assertIn("# Loop Lessons: pr-reviewer", content)
+            self.assertIn("# Loop Lessons: impl-validator", content)
             self.assertNotIn("# Loop Lessons: pr / reviewer", content)
 
             active = list_active_lessons(tmp)
-            self.assertEqual(active[0]["agent"], "pr-reviewer")
+            self.assertEqual(active[0]["agent"], "impl-validator")
             self.assertIsNone(active[0]["mode"])
 
     def test_evidence_is_capped_to_recent_items(self) -> None:
@@ -204,7 +204,7 @@ class LoopLessonsSyncTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             p = upsert_entry(
-                "pr-reviewer",
+                "impl-validator",
                 None,
                 "MUST_FIX_GHOST",
                 hits=3,
@@ -213,7 +213,7 @@ class LoopLessonsSyncTests(unittest.TestCase):
                 cwd=tmp,
             )
 
-            self.assertEqual(read("pr-reviewer", cwd=tmp, active_patterns=set()), "")
+            self.assertEqual(read("impl-validator", cwd=tmp, active_patterns=set()), "")
             content = p.read_text(encoding="utf-8")
             self.assertIn("- status: archived", content)
             self.assertEqual(list_active_lessons(tmp, active_patterns=set()), [])

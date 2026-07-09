@@ -65,9 +65,8 @@ EXPECTED_FINAL_ENUMS = {
     "module-architect": {None: "PASS"},
     "test-engineer": {None: "PASS"},
     "engineer": {"IMPL": "IMPL_DONE", "POLISH": "POLISH_DONE"},
-    "code-validator": {None: "PASS"},
+    "impl-validator": {None: "PASS"},
     "architecture-validator": {None: "PASS"},
-    "pr-reviewer": {None: "PASS"},
     "product-acceptance": {None: "PASS"},
     "plan-reviewer": {None: "PASS"},
     "designer": {None: "PASS"},
@@ -88,8 +87,12 @@ INFRA_PATH_PATTERNS = [
     "harness-memory.md", "harness.config.json", "/.claude/harness/",
 ]
 
-READONLY_AGENTS = {"code-validator", "architecture-validator", "pr-reviewer",
-                    "plan-reviewer", "product-acceptance"}
+READONLY_AGENTS = {
+    "impl-validator",
+    "architecture-validator",
+    "plan-reviewer",
+    "product-acceptance",
+}
 
 # #917 — lesson 대상 WasteFinding 패턴의 코드 SSOT.
 # NoteFinding(THINKING_LOOP / TOOL_USE_OVERFLOW)은 의도적으로 제외한다.
@@ -115,9 +118,8 @@ EXPECTED_AGENT_BUDGETS: dict[str, dict[str, int]] = {
     "system-architect": {"elapsed_s": 600, "min_output_tokens": 1500},
     "engineer":        {"elapsed_s": 900, "min_output_tokens": 2000},
     "test-engineer":   {"elapsed_s": 600, "min_output_tokens": 1500},
-    "code-validator":  {"elapsed_s": 300, "min_output_tokens": 800},
+    "impl-validator":  {"elapsed_s": 420, "min_output_tokens": 1000},
     "architecture-validator": {"elapsed_s": 300, "min_output_tokens": 800},
-    "pr-reviewer":     {"elapsed_s": 180, "min_output_tokens": 600},
     "product-acceptance": {"elapsed_s": 300, "min_output_tokens": 800},
     "plan-reviewer":   {"elapsed_s": 300, "min_output_tokens": 1000},
     "designer":        {"elapsed_s": 600, "min_output_tokens": 1000},
@@ -141,7 +143,7 @@ WINDOW_TS_PADDING = timedelta(seconds=60)
 # 게이트 = PASS/FAIL/(LGTM) 결론으로 진행을 막는 read-only 검증/리뷰/검수 agent.
 # hardcode 대신 권한 metadata 에서 *파생* — agent_boundary.ALLOW_MATRIX 의 *빈 허용*
 # (Write 권한 0 = read-only) agent 가 곧 게이트다 (code/architecture-validator,
-# pr-reviewer, product-acceptance, plan-reviewer 자동 포함). tech-reviewer 는 자기
+# impl-validator, product-acceptance, plan-reviewer 자동 포함). tech-reviewer 는 자기
 # 보고서를 쓰므로 빈 허용은 아니지만 PASS/FAIL/ESCALATE 게이트라 명시 추가.
 # 이렇게 단일 SSOT 에서 파생하면 게이트가 늘어도 본 집합이 자동으로 따라간다 (#771
 # whack-a-mole 종료 — 게이트 하나씩 누락되던 hardcode 회귀 차단).
@@ -151,8 +153,10 @@ def _derive_gate_agents() -> set[str]:
         read_only = {a for a, paths in ALLOW_MATRIX.items() if not paths}
     except Exception:
         read_only = {
-            "code-validator", "architecture-validator", "pr-reviewer",
-            "product-acceptance", "plan-reviewer",
+            "impl-validator",
+            "architecture-validator",
+            "product-acceptance",
+            "plan-reviewer",
         }
     return read_only | {"tech-reviewer"}
 
@@ -248,7 +252,7 @@ class StepRecord:
     # issue #383 B4 — prose 본문 끝 결론 enum (PASS/LGTM/FAIL/ESCALATE).
     # 옛 enum mode 는 helper stdout 에서 enum 직접 씀. prose-only mode
     # (이슈 #284) 이후 helper sentinel = `PROSE_LOGGED` 통일 → agent prose
-    # 마지막 단락 결론 (agents/code-validator.md 의 결론 + 권장 다음 단계 "PASS / FAIL / ESCALATE")
+    # 마지막 단락 결론 (agents/impl-validator.md 의 결론 + 권장 다음 단계 "PASS / FAIL / ESCALATE")
     # 을 표시 단계에서 추출. 부재 시 빈 문자열 (= sentinel 그대로 표시 fallback).
     conclusion_enum: str = ""
     # #917 — recurrent lesson evidence. ledger 의 prose_file 절대경로를 보존한다.
@@ -615,17 +619,17 @@ def _parse_iso(ts: str) -> Optional[datetime]:
 
 
 # issue #383 B4 — prose 본문 결론 enum 추출.
-# agents/code-validator.md 의 결론 + 권장 다음 단계 등: "prose 마지막 단락에 결론 (PASS / FAIL / ESCALATE)".
-# pr-reviewer 는 LGTM 도 사용. 마지막 N줄에서 단어 단위 매칭 — 부정문 (예: "FAIL 없음",
+# agents/impl-validator.md 의 결론 + 권장 다음 단계 등: "prose 마지막 단락에 결론 (PASS / FAIL / ESCALATE)".
+# impl-validator 는 LGTM 도 사용. 마지막 N줄에서 단어 단위 매칭 — 부정문 (예: "FAIL 없음",
 # "0 FAIL") 회피 위해 같은 줄에 부정 마커 있으면 skip.
 _CONCLUSION_ENUMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # issue #383 follow-up — agent 별 결론 enum 12개 매트릭스 (agents/*.md 실측):
     #   engineer (IMPL): IMPL_DONE / IMPL_PARTIAL / TESTS_FAIL
     #   engineer (POLISH): POLISH_DONE / IMPLEMENTATION_ESCALATE
     #   test-engineer: TESTS_WRITTEN
-    #   code-validator / architecture-validator / module-architect / system-architect
+    #   impl-validator / architecture-validator / module-architect / system-architect
     #     / plan-reviewer: PASS / FAIL / ESCALATE
-    #   pr-reviewer: LGTM / FAIL / ESCALATE
+    #   impl-validator: LGTM / FAIL / ESCALATE
     #   ux-architect: UX_FLOW_DONE / UX_FLOW_ESCALATE
     #   designer: PASS
     # 우선순위 — 구체적 enum 먼저 (TESTS_FAIL 이 FAIL 보다 먼저 매칭).
@@ -649,7 +653,7 @@ _CONCLUSION_ENUMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("UX_FLOW_DONE", re.compile(r"\bUX_FLOW_DONE\b")),
     ("UX_FLOW_ESCALATE", re.compile(r"\bUX_FLOW_ESCALATE\b")),
     # 일반 (PR #361 enum 통일 — code/architecture-validator / system/module-architect
-    # / plan-reviewer / pr-reviewer / designer 공통)
+    # / plan-reviewer / impl-validator / designer 공통)
     ("PASS", re.compile(r"\bPASS\b")),
     ("FAIL", re.compile(r"\bFAIL\b")),
     ("ESCALATE", re.compile(r"\bESCALATE\b")),
@@ -745,7 +749,7 @@ def parse_steps(run_dir: Path) -> list[StepRecord]:
     for idx, rec in enumerate(raw):
         agent = rec.get("agent", "?")
         # issue #383 B2 — step.agent 도 alias normalize. jajang `.steps.jsonl`
-        # 의 `validator` (0.2.16 잔재) 를 `code-validator` 로 흡수해야
+        # 의 `validator` (0.2.16 잔재) 를 `impl-validator` 로 흡수해야
         # assign_invocations_to_steps 의 `inv.agent != step.agent` 비교가
         # 정합 일치 (invocation 측은 _normalize_agent_type 에서 이미 normalize).
         agent = LEGACY_AGENT_ALIASES.get(agent, agent)
@@ -879,9 +883,9 @@ def detect_wastes(
     # 또한 같은 (agent, mode) 가 N task 순회 정상 호출 (예: architect MODULE_PLAN × 4)
     # 시 동일 enum 반복은 *retry 가 아닌 정상 호출* — prose 내용이 다르면 다른 step.
     ADVANCE_ENUMS = {
-        "PASS",  # 8 agent enum 통일 (code-validator / architecture-validator /
+        "PASS",  # 8 agent enum 통일 (impl-validator / architecture-validator /
                  # plan-reviewer / system-architect / module-architect /
-                 # test-engineer / pr-reviewer / designer 공통)
+                 # test-engineer / impl-validator / designer 공통)
         "IMPL_DONE", "POLISH_DONE",  # engineer 분기 enum (통일 부적합)
         "PRODUCT_PLAN_READY",  # old product-planner trace enum
         "UX_FLOW_READY", "UX_FLOW_PATCHED", "UX_REFINE_READY",  # ux-architect 분기
@@ -989,7 +993,7 @@ def detect_wastes(
 
     # issue #383 B3 — MUST_FIX_LEAK. 마지막 step 의 must_fix=True (= caveat 신호)
     # 는 MUST_FIX_GHOST 룰이 *다음 step 없음* 으로 skip → wastes 비어있는
-    # 회귀 발생 (jajang run-459cce99 pr-reviewer 케이스). 사용자에게 caveat
+    # 회귀 발생 (jajang run-459cce99 impl-validator 케이스). 사용자에게 caveat
     # 통지 누락 회피 위해 wastes 1+ 써서 회귀 차단.
     last = steps[-1] if steps else None
     if last and last.must_fix:

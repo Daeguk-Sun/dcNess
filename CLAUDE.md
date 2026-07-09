@@ -51,7 +51,7 @@
 
 ### 작업 모드
 
-- **메인 Claude 직접 작업** — architect / code-validator / engineer 위임 강제 **없음**.
+- **메인 Claude 직접 작업** — architect / impl-validator / engineer 위임 강제 **없음**.
 - **Document Sync 거버넌스만 강제** — 외부 배포 경로([추가한 기능은 반드시 배포 경로에도 포함](#추가한-기능은-반드시-배포-경로에도-포함)) 정합 검증은 필수.
 
 ### dcness 강제 원칙 (룰 추가·설계 시 가드레일)
@@ -60,7 +60,7 @@
 
 > 🔴 **대 원칙** (외부 활성 프로젝트엔 hook 이 그 자리에서 강제 — SessionStart 는 슬림 활성 안내만 inject, 설계 원칙 전문은 본 SSOT):
 > **harness 가 강제하는 것은 단 2가지 — (1) 작업 순서, (2) 접근 영역. 그 외 모두 agent 자율.**
-> - **작업 순서** = 시퀀스 (code-validator → engineer → pr-reviewer 등) + retry 정책
+> - **작업 순서** = 시퀀스 (설계/구현/검증 단계의 선후관계) + retry 정책
 > - **접근 영역** = file path 경계 (agent-boundary ALLOW/READ_DENY) + 외부 상태 변경 차단 (push, gh issue, plugin 디렉토리)
 > - **출력 형식 / handoff 형식 / preamble / marker / status JSON / Flag = agent 자율, harness 강제 X.**
 

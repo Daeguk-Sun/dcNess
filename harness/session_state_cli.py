@@ -224,7 +224,7 @@ def _cli_end_run(args: Any) -> int:
 def _cli_post_task_begin(args: Any) -> int:
     """issue #472 — `/impl-loop` 종료 후 메인 자율 작업 영역 진입 marker.
 
-    /impl-loop task 영역 (begin-run → build-worker → pr-reviewer → end-run) *외*
+    /impl-loop task 영역 (begin-run → build-worker → impl-validator → end-run) *외*
     자율 작업 (이슈 등록 / cleanup / 분석) 의 turn 을 task ROI 측정과 분리하기
     위한 marker. 본 호출 후 JSONL parser / run_review 가 marker timestamp 이후
     turn 을 *post-task 영역* 으로 분리 측정 → task당 평균 turn 왜곡 (jajang #446
@@ -399,7 +399,7 @@ def _cli_insight(args: Any) -> int:
 
     예시:
         dcness-helper insight engineer-IMPL "🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X"
-        dcness-helper insight code-validator "PR 후 prose 결론 enum 빠뜨림 — 다음엔 IMPL_DONE 명시"
+        dcness-helper insight impl-validator "PR 후 prose 결론 enum 빠뜨림 — 다음엔 IMPL_DONE 명시"
     """
     from harness.loop_insights import append_insight
 
@@ -410,7 +410,7 @@ def _cli_insight(args: Any) -> int:
 
     # "agent-mode" 또는 "agent" 분리
     if "-" in raw:
-        # 정식 agent 이름에 - 있을 수 있음 (code-validator / module-architect 등).
+        # 정식 agent 이름에 - 있을 수 있음 (impl-validator / module-architect 등).
         # 매트릭스 매칭: 정식 이름 prefix 시도.
         from harness.run_review import DCNESS_AGENT_NAMES, LEGACY_AGENT_ALIASES
         agent = None
@@ -786,9 +786,8 @@ _CI_WORKFLOWS = (
     "github-project-lifecycle.yml",
 )
 _CODEX_VALIDATOR_SKILLS = (
-    "dcness-code-validator",
+    "dcness-impl-validator",
     "dcness-architecture-validator",
-    "dcness-pr-reviewer",
 )
 
 
@@ -825,7 +824,7 @@ def _cli_impl_preview(args: Any) -> int:
     from harness import impl_preview
 
     argv: list[str] = []
-    review_provider = args.review_provider or agent_routing.resolve_provider("pr-reviewer")
+    review_provider = args.review_provider or agent_routing.resolve_provider("impl-validator")
     for opt, value in (
         ("--design-doc", args.design_doc),
         ("--cwd", args.cwd),
@@ -996,7 +995,7 @@ def _build_arg_parser() -> Any:
     )
     p_br.add_argument(
         "--acceptance-required", action="store_true",
-        help="story/epic 마감 task run marker (#722) — pr-reviewer PASS 뒤 "
+        help="story/epic 마감 task run marker (#722) — impl-validator PASS 뒤 "
              "product-acceptance 전 Stop hook auto end-run 방지. entry_point=impl 전용",
     )
     p_br.set_defaults(func=_cli_begin_run)
@@ -1347,7 +1346,7 @@ def _build_arg_parser() -> Any:
 
     rt_enable = rt_sub.add_parser(
         "enable-codex-validation",
-        help="code-validator / architecture-validator / pr-reviewer 를 Codex 로 보냄",
+        help="impl-validator / architecture-validator 를 Codex 로 보냄",
     )
     rt_enable.set_defaults(func=_cli_routing)
 
@@ -1355,7 +1354,7 @@ def _build_arg_parser() -> Any:
         "enable-role-split-routing",
         help=(
             "추천 role split: engineer/build-worker=headless-chain, "
-            "test-engineer/code-validator/pr-reviewer=claude, "
+            "test-engineer/impl-validator=claude, "
             "architecture-validator=codex"
         ),
     )
@@ -1435,7 +1434,7 @@ def _build_arg_parser() -> Any:
     )
     p_ar.add_argument(
         "agent_mode",
-        help='"ux-architect:UX_FLOW_ESCALATE", "code-validator:FAIL", "*:AMBIGUOUS" 등',
+        help='"ux-architect:UX_FLOW_ESCALATE", "impl-validator:FAIL", "*:AMBIGUOUS" 등',
     )
     p_ar.set_defaults(func=_cli_auto_resolve)
 

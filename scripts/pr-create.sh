@@ -3,7 +3,7 @@
 #
 # build-worker prose 의 PR body + commit message 초안을 임시 파일로 받아
 # git branch 생성 + add + commit + push + gh pr create 까지 한 명령으로 처리.
-# 머지는 pr-reviewer LGTM 후 별 명령 (scripts/pr-finalize.sh) 호출.
+# 머지는 impl-validator PASS 후 별 명령 (scripts/pr-finalize.sh) 호출.
 #
 # 사용:
 #   scripts/pr-create.sh \

@@ -732,7 +732,7 @@ class ActiveRunsTests(unittest.TestCase):
         self.assertIn("engineer", err.getvalue())
         # 새 current_step 박힘 (동작 정상)
         slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.run_id]
-        self.assertEqual(slot["current_step"]["agent"], "code-validator")
+        self.assertEqual(slot["current_step"]["agent"], "impl-validator")
 
     def test_update_step_no_warn_when_prev_fresh(self) -> None:
         # last_confirmed_at 가 30min 이내면 WARN 없음 (정상 워크플로우 — 빠른 step 전환).
@@ -1072,7 +1072,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         live = read_live(self.sid)
         slot = live["active_runs"][self.rid]
-        self.assertEqual(slot["current_step"]["agent"], "code-validator")
+        self.assertEqual(slot["current_step"]["agent"], "impl-validator")
         self.assertEqual(slot["current_step"]["mode"], "PLAN_VALIDATION")
 
     def test_begin_step_action_run_emits_prompt_slot_check(self) -> None:
@@ -1235,11 +1235,11 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         out = StringIO()
         with patch("harness.loop_lessons.read", return_value="- `MUST_FIX_GHOST`: stop on blockers"):
             with redirect_stdout(out):
-                rc = _cli_begin_step(SimpleNamespace(agent="pr-reviewer", mode=None))
+                rc = _cli_begin_step(SimpleNamespace(agent="impl-validator", mode=None))
 
         self.assertEqual(rc, 0)
         stdout = out.getvalue()
-        self.assertIn("[LESSONS: pr-reviewer]", stdout)
+        self.assertIn("[LESSONS: impl-validator]", stdout)
         self.assertIn("MUST_FIX_GHOST", stdout)
 
     def test_run_dir_cli_outputs_absolute_path(self) -> None:
@@ -1282,7 +1282,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertIn("ok", out.getvalue())
         live = read_live(self.sid)
         slot = live["active_runs"][self.rid]
-        self.assertEqual(slot["current_step"]["agent"], "code-validator")
+        self.assertEqual(slot["current_step"]["agent"], "impl-validator")
         self.assertEqual(slot["current_step"]["mode"], "CODE_VALIDATION")
 
         out = StringIO()
@@ -1310,7 +1310,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertIn(self.rid, out.getvalue())
 
     def test_step_reentry_after_finalize_resolves_same_run_without_pointer(self) -> None:
-        """issue #730 — pr-reviewer FAIL 후 fix round begin-step 재진입 회귀."""
+        """issue #730 — impl-validator FAIL 후 fix round begin-step 재진입 회귀."""
         from harness.session_state import (
             _cli_begin_step,
             _cli_end_step,
@@ -1341,14 +1341,14 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertEqual(rc, 0)
 
         with redirect_stdout(StringIO()):
-            rc = _cli_begin_step(SimpleNamespace(agent="pr-reviewer", mode=None))
+            rc = _cli_begin_step(SimpleNamespace(agent="impl-validator", mode=None))
         self.assertEqual(rc, 0)
 
         review_prose = self.base / "review_prose.md"
         review_prose.write_text("MUST FIX: 보강 필요\n\nFAIL\n", encoding="utf-8")
         with redirect_stdout(StringIO()):
             rc = _cli_end_step(SimpleNamespace(
-                agent="pr-reviewer",
+                agent="impl-validator",
                 mode=None,
                 prose_file=str(review_prose),
             ))
@@ -1406,14 +1406,14 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertEqual(rc, 0)
 
         with redirect_stdout(StringIO()):
-            rc = _cli_begin_step(SimpleNamespace(agent="pr-reviewer", mode=None))
+            rc = _cli_begin_step(SimpleNamespace(agent="impl-validator", mode=None))
         self.assertEqual(rc, 0)
 
         review_prose = self.base / "review_prose_global.md"
         review_prose.write_text("MUST FIX: 보강 필요\n\nFAIL\n", encoding="utf-8")
         with redirect_stdout(StringIO()):
             rc = _cli_end_step(SimpleNamespace(
-                agent="pr-reviewer",
+                agent="impl-validator",
                 mode=None,
                 prose_file=str(review_prose),
             ))
@@ -1727,7 +1727,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         # prose 저장 확인 (메인이 직접 읽고 분기 판단)
         prose_md = (
             session_dir(self.sid) / "runs" / self.rid /
-            "code-validator-PLAN_VALIDATION.md"
+            "impl-validator-PLAN_VALIDATION.md"
         )
         self.assertTrue(prose_md.exists())
 
@@ -1805,22 +1805,22 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         err = StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             rc = _cli_end_step(SimpleNamespace(
-                agent="code-validator",
+                agent="impl-validator",
                 mode="",
                 prose_file=str(prose_path),
             ))
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
         # prose 자체는 저장됨 (메인이 직접 읽고 분기 판단)
-        prose_md = session_dir(self.sid) / "runs" / self.rid / "code-validator.md"
+        prose_md = session_dir(self.sid) / "runs" / self.rid / "impl-validator.md"
         self.assertTrue(prose_md.exists())
         self.assertIn("자연어", prose_md.read_text(encoding="utf-8"))
-        # stderr 에 [code-validator = PROSE_LOGGED] 헤더 (모든 skill 자동 요약 수혜)
-        self.assertIn("[code-validator = PROSE_LOGGED]", err.getvalue())
+        # stderr 에 [impl-validator = PROSE_LOGGED] 헤더 (모든 skill 자동 요약 수혜)
+        self.assertIn("[impl-validator = PROSE_LOGGED]", err.getvalue())
         # .steps.jsonl 에 PROSE_LOGGED row append (finalize-run / run-review 입력)
         steps = _read_steps_jsonl(self.sid, self.rid)
         self.assertTrue(steps)
-        self.assertEqual(steps[-1]["agent"], "code-validator")
+        self.assertEqual(steps[-1]["agent"], "impl-validator")
         self.assertEqual(steps[-1]["enum"], "PROSE_LOGGED")
 
     def test_end_step_prose_only_does_not_extract_enum_word(self) -> None:
@@ -1828,14 +1828,14 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from harness.session_state import _cli_end_step
         from types import SimpleNamespace
         prose_path = self.base / "enum_word_prose.md"
-        prose_path.write_text("## 결론\n\nPASS — pr-reviewer 권고\n", encoding="utf-8")
+        prose_path.write_text("## 결론\n\nPASS — impl-validator 권고\n", encoding="utf-8")
 
         from io import StringIO
         from contextlib import redirect_stdout
         out = StringIO()
         with redirect_stdout(out):
             rc = _cli_end_step(SimpleNamespace(
-                agent="code-validator",
+                agent="impl-validator",
                 mode="",
                 prose_file=str(prose_path),
             ))
@@ -1873,11 +1873,11 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from contextlib import redirect_stdout, redirect_stderr
 
         # begin-step 으로 current_step 설정
-        _cli_begin_step(SimpleNamespace(agent="code-validator", mode=""))
+        _cli_begin_step(SimpleNamespace(agent="impl-validator", mode=""))
 
         # hook 이 staged 한 것처럼 prose_file 을 live.json.current_step 에 삽입
         prose_text = "## 결론\nPASS\n"
-        staged_path = session_dir(self.sid) / "runs" / self.rid / "code-validator.md"
+        staged_path = session_dir(self.sid) / "runs" / self.rid / "impl-validator.md"
         staged_path.parent.mkdir(parents=True, exist_ok=True)
         staged_path.write_text(prose_text, encoding="utf-8")
 
@@ -1894,7 +1894,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         err = StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             rc = _cli_end_step(SimpleNamespace(
-                agent="code-validator",
+                agent="impl-validator",
                 mode="",
                 prose_file=None,
             ))
@@ -1911,12 +1911,12 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from io import StringIO
         from contextlib import redirect_stdout, redirect_stderr
 
-        _cli_begin_step(SimpleNamespace(agent="code-validator", mode=""))
+        _cli_begin_step(SimpleNamespace(agent="impl-validator", mode=""))
         out = StringIO()
         err = StringIO()
         with redirect_stdout(out), redirect_stderr(err):
             rc = _cli_end_step(SimpleNamespace(
-                agent="code-validator",
+                agent="impl-validator",
                 mode="",
                 prose_file=None,
             ))
@@ -1928,10 +1928,10 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from harness.session_state import _build_arg_parser
         parser = _build_arg_parser()
         ns = parser.parse_args(
-            ["end-step", "code-validator", "--prose-file", "/tmp/x.md"]
+            ["end-step", "impl-validator", "--prose-file", "/tmp/x.md"]
         )
         self.assertEqual(ns.cmd, "end-step")
-        self.assertEqual(ns.agent, "code-validator")
+        self.assertEqual(ns.agent, "impl-validator")
         self.assertEqual(ns.prose_file, "/tmp/x.md")
         self.assertFalse(hasattr(ns, "allowed_enums"))
 
@@ -1944,7 +1944,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         err = StringIO()
         with redirect_stderr(err), self.assertRaises(SystemExit):
             parser.parse_args(
-                ["end-step", "code-validator", "--allowed-enums", "PASS,FAIL"]
+                ["end-step", "impl-validator", "--allowed-enums", "PASS,FAIL"]
             )
 
     def test_end_step_argparse_accepts_provider_receipt_hint(self) -> None:
@@ -2410,7 +2410,7 @@ PASS — 빈 문자열 가드 추가.
         rid = "run-deadbeef"
         run_dir(sid, rid, create=True)
         self._append_step_status_with_prose(
-            sid, rid, "code-validator", None, "PASS", "code-validator prose body"
+            sid, rid, "impl-validator", None, "PASS", "impl-validator prose body"
         )
         self._append_step_status_with_prose(
             sid, rid, "module-architect", None, "PASS",
@@ -2418,7 +2418,7 @@ PASS — 빈 문자열 가드 추가.
         )
         records = _read_steps_jsonl(sid, rid)
         self.assertEqual(len(records), 2)
-        self.assertEqual(records[0]["agent"], "code-validator")
+        self.assertEqual(records[0]["agent"], "impl-validator")
         self.assertEqual(records[0]["enum"], "PASS")
         self.assertIsNone(records[1]["mode"])
         self.assertFalse(records[0]["must_fix"])
@@ -2434,16 +2434,16 @@ PASS — 빈 문자열 가드 추가.
         _clear_default_base_cache()
         run_dir("sid", "run-aaaa1111", create=True)
         self._append_step_status_with_prose(
-            "sid", "run-aaaa1111", "pr-reviewer", None, "CHANGES_REQUESTED",
+            "sid", "run-aaaa1111", "impl-validator", None, "CHANGES_REQUESTED",
             "## 결론\nCHANGES_REQUESTED\n## MUST FIX\n- src/foo.py:10 race condition\n",
         )
         records = _read_steps_jsonl("sid", "run-aaaa1111")
         self.assertTrue(records[0]["must_fix"])
 
     def test_must_fix_negation_no_false_positive(self) -> None:
-        """DCN-CHG-20260501-09 — pr-reviewer 의 'MUST FIX 0' / 'MUST FIX 없음' 부정문은 must_fix=False.
+        """DCN-CHG-20260501-09 — impl-validator 의 'MUST FIX 0' / 'MUST FIX 없음' 부정문은 must_fix=False.
 
-        자장 run-ef6c2c00 회귀 — 6 pr-reviewer step 모두 'MUST FIX 0, NICE TO HAVE 6' 패턴 →
+        자장 run-ef6c2c00 회귀 — 6 impl-validator step 모두 'MUST FIX 0, NICE TO HAVE 6' 패턴 →
         단순 단어경계 regex 가 매칭 → MUST_FIX_GHOST 6건 false positive.
         """
         from harness.session_state import (
@@ -2457,15 +2457,15 @@ PASS — 빈 문자열 가드 추가.
         run_dir("sid", "run-bbbb2222", create=True)
         # 자장 실 케이스 그대로
         self._append_step_status_with_prose(
-            "sid", "run-bbbb2222", "pr-reviewer", None, "LGTM",
+            "sid", "run-bbbb2222", "impl-validator", None, "LGTM",
             "MUST FIX 0, NICE TO HAVE 6 (let tree: any / dead code).\nLGTM\n",
         )
         self._append_step_status_with_prose(
-            "sid", "run-bbbb2222", "pr-reviewer", None, "LGTM",
+            "sid", "run-bbbb2222", "impl-validator", None, "LGTM",
             "MUST FIX: 0\n결론: LGTM\n",
         )
         self._append_step_status_with_prose(
-            "sid", "run-bbbb2222", "pr-reviewer", None, "LGTM",
+            "sid", "run-bbbb2222", "impl-validator", None, "LGTM",
             "검토 결과: MUST FIX 없음. NICE TO HAVE 3.\nLGTM\n",
         )
         records = _read_steps_jsonl("sid", "run-bbbb2222")
@@ -2475,7 +2475,7 @@ PASS — 빈 문자열 가드 추가.
     def test_must_fix_negation_kr_label_form(self) -> None:
         """DCN-CHG-20260523 (#484 Case 2) — `**MUST FIX 항목**: 없음` 한국어 라벨 형태 부정 인식.
 
-        jajang run-e630af3a pr-reviewer 회귀 — `**MUST FIX 항목**: 없음`
+        jajang run-e630af3a impl-validator 회귀 — `**MUST FIX 항목**: 없음`
         라인이 `[\\s:=]*` between 영역에 `**`, `항목`, `:` 가 끼어 못 매치 →
         `_has_positive_must_fix` 가 True 반환 → MUST_FIX_LEAK false positive.
         """
@@ -2488,24 +2488,24 @@ PASS — 빈 문자열 가드 추가.
         os.chdir(repo)
         _clear_default_base_cache()
         run_dir("sid", "run-dddd4444", create=True)
-        # 자장 task2 pr-reviewer 실 prose 형태
+        # 자장 task2 impl-validator 실 prose 형태
         self._append_step_status_with_prose(
-            "sid", "run-dddd4444", "pr-reviewer", None, "LGTM",
+            "sid", "run-dddd4444", "impl-validator", None, "LGTM",
             "**MUST FIX 항목**: 없음\n**NICE TO HAVE 항목**:\n- D 데드코드\n",
         )
         # 변형 — 라벨 + 콜론 + 부정
         self._append_step_status_with_prose(
-            "sid", "run-dddd4444", "pr-reviewer", None, "LGTM",
+            "sid", "run-dddd4444", "impl-validator", None, "LGTM",
             "MUST FIX 항목: 없음\nNICE TO HAVE: 3건\n",
         )
         # 변형 — 해당 없음
         self._append_step_status_with_prose(
-            "sid", "run-dddd4444", "pr-reviewer", None, "LGTM",
+            "sid", "run-dddd4444", "impl-validator", None, "LGTM",
             "MUST FIX: 해당 없음\n",
         )
         # 변형 — bold + `:` 없이 직접 부정
         self._append_step_status_with_prose(
-            "sid", "run-dddd4444", "pr-reviewer", None, "LGTM",
+            "sid", "run-dddd4444", "impl-validator", None, "LGTM",
             "**MUST FIX** 없음\n",
         )
         records = _read_steps_jsonl("sid", "run-dddd4444")
@@ -2527,16 +2527,16 @@ PASS — 빈 문자열 가드 추가.
         _clear_default_base_cache()
         run_dir("sid", "run-cccc3333", create=True)
         self._append_step_status_with_prose(
-            "sid", "run-cccc3333", "pr-reviewer", None, "CHANGES_REQUESTED",
+            "sid", "run-cccc3333", "impl-validator", None, "CHANGES_REQUESTED",
             "## MUST FIX\n- audio buffer underflow on iOS\n",
         )
         self._append_step_status_with_prose(
-            "sid", "run-cccc3333", "pr-reviewer", None, "CHANGES_REQUESTED",
+            "sid", "run-cccc3333", "impl-validator", None, "CHANGES_REQUESTED",
             "MUST FIX: storage 키 충돌 가능\nLGTM 후보 X\n",
         )
         # mixed — 부정 라인 + positive 라인 → True (positive 우선)
         self._append_step_status_with_prose(
-            "sid", "run-cccc3333", "pr-reviewer", None, "CHANGES_REQUESTED",
+            "sid", "run-cccc3333", "impl-validator", None, "CHANGES_REQUESTED",
             "MUST FIX 0\nMUST FIX: 실제 이슈 발견\n",
         )
         records = _read_steps_jsonl("sid", "run-cccc3333")
@@ -2570,7 +2570,7 @@ PASS — 빈 문자열 가드 추가.
         write_pid_current_run(cc_pid, rid)
 
         self._append_step_status_with_prose(
-            sid, rid, "code-validator", None, "PASS", "ok"
+            sid, rid, "impl-validator", None, "PASS", "ok"
         )
         self._append_step_status_with_prose(
             sid, rid, "module-architect", None, "PASS", "ok"
@@ -2582,7 +2582,7 @@ PASS — 빈 문자열 가드 추가.
             sid, rid, "validator", "BUGFIX_VALIDATION", "PASS", "verified"
         )
         self._append_step_status_with_prose(
-            sid, rid, "pr-reviewer", None, "LGTM", "looks good"
+            sid, rid, "impl-validator", None, "LGTM", "looks good"
         )
 
         out = StringIO()
@@ -2598,7 +2598,7 @@ PASS — 빈 문자열 가드 추가.
         self.assertEqual(len(payload["steps"]), 5)
 
     def test_finalize_run_must_fix_resolved_by_polish_lgtm(self) -> None:
-        """#272 W4 — pr-reviewer CHANGES_REQUESTED → POLISH → pr-reviewer LGTM 시
+        """#272 W4 — impl-validator CHANGES_REQUESTED → POLISH → impl-validator LGTM 시
         has_must_fix=False (sticky 미발생). latest-per-role 평가 회귀."""
         from harness.session_state import (
             _cli_finalize_run,
@@ -2623,10 +2623,10 @@ PASS — 빈 문자열 가드 추가.
         run_dir(sid, rid, create=True)
         write_pid_current_run(cc_pid, rid)
 
-        # impl-task-loop fallback 전형 시퀀스 — pr-reviewer CHANGES_REQUESTED →
-        # engineer POLISH → pr-reviewer LGTM. 첫 pr-reviewer prose 에 MUST FIX 포함.
+        # impl-task-loop fallback 전형 시퀀스 — impl-validator CHANGES_REQUESTED →
+        # engineer POLISH → impl-validator LGTM. 첫 impl-validator prose 에 MUST FIX 포함.
         self._append_step_status_with_prose(
-            sid, rid, "code-validator", None, "PASS", "ok"
+            sid, rid, "impl-validator", None, "PASS", "ok"
         )
         self._append_step_status_with_prose(
             sid, rid, "module-architect", None, "PASS", "ok"
@@ -2638,14 +2638,14 @@ PASS — 빈 문자열 가드 추가.
             sid, rid, "validator", "BUGFIX_VALIDATION", "PASS", "verified",
         )
         self._append_step_status_with_prose(
-            sid, rid, "pr-reviewer", None, "CHANGES_REQUESTED",
+            sid, rid, "impl-validator", None, "CHANGES_REQUESTED",
             "## MUST FIX\n- 1번 항목 고치자\n",
         )
         self._append_step_status_with_prose(
             sid, rid, "engineer", "POLISH", "POLISH_DONE", "fixed",
         )
         self._append_step_status_with_prose(
-            sid, rid, "pr-reviewer", None, "LGTM",
+            sid, rid, "impl-validator", None, "LGTM",
             "## 결론\nLGTM\nMUST FIX 없음\n",
         )
 
@@ -2655,7 +2655,7 @@ PASS — 빈 문자열 가드 추가.
         self.assertEqual(rc, 0)
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["step_count"], 7)
-        # latest pr-reviewer = LGTM (must_fix=False) → has_must_fix False 여야 함
+        # latest impl-validator = LGTM (must_fix=False) → has_must_fix False 여야 함
         self.assertFalse(
             payload["has_must_fix"],
             msg="POLISH 후 LGTM 으로 해소된 must_fix 가 sticky 됨 (#272 W4 회귀)",
@@ -2663,7 +2663,7 @@ PASS — 빈 문자열 가드 추가.
         self.assertFalse(payload["has_ambiguous"])
 
     def test_finalize_run_must_fix_unresolved_still_sticky(self) -> None:
-        """final pr-reviewer 가 여전히 CHANGES_REQUESTED 면 has_must_fix True."""
+        """final impl-validator 가 여전히 CHANGES_REQUESTED 면 has_must_fix True."""
         from harness.session_state import (
             _cli_finalize_run,
             run_dir, _clear_default_base_cache, write_pid_session,
@@ -2688,13 +2688,13 @@ PASS — 빈 문자열 가드 추가.
         write_pid_current_run(cc_pid, rid)
 
         self._append_step_status_with_prose(
-            sid, rid, "code-validator", None, "PASS", "ok"
+            sid, rid, "impl-validator", None, "PASS", "ok"
         )
         self._append_step_status_with_prose(
             sid, rid, "engineer", "IMPL", "IMPL_DONE", "ok"
         )
         self._append_step_status_with_prose(
-            sid, rid, "pr-reviewer", None, "CHANGES_REQUESTED",
+            sid, rid, "impl-validator", None, "CHANGES_REQUESTED",
             "## MUST FIX\n- 미해소 항목\n",
         )
 
@@ -2703,7 +2703,7 @@ PASS — 빈 문자열 가드 추가.
             rc = _cli_finalize_run(SimpleNamespace())
         self.assertEqual(rc, 0)
         payload = json.loads(out.getvalue())
-        # 후속 LGTM 이 없으니 latest pr-reviewer = CHANGES_REQUESTED → must_fix True
+        # 후속 LGTM 이 없으니 latest impl-validator = CHANGES_REQUESTED → must_fix True
         self.assertTrue(payload["has_must_fix"])
 
     def test_latest_step_per_role(self) -> None:
@@ -2711,15 +2711,15 @@ PASS — 빈 문자열 가드 추가.
         from harness.session_state import _latest_step_per_role
         steps = [
             {"agent": "engineer", "mode": "IMPL", "must_fix": False},
-            {"agent": "pr-reviewer", "mode": None, "must_fix": True, "enum": "CHANGES_REQUESTED"},
+            {"agent": "impl-validator", "mode": None, "must_fix": True, "enum": "CHANGES_REQUESTED"},
             {"agent": "engineer", "mode": "POLISH", "must_fix": False},
-            {"agent": "pr-reviewer", "mode": None, "must_fix": False, "enum": "LGTM"},
+            {"agent": "impl-validator", "mode": None, "must_fix": False, "enum": "LGTM"},
         ]
         latest = _latest_step_per_role(steps)
         # engineer:IMPL, engineer:POLISH 는 다른 mode → 둘 다 살아남음.
-        # pr-reviewer:None 은 마지막 (LGTM, must_fix=False) 만.
+        # impl-validator:None 은 마지막 (LGTM, must_fix=False) 만.
         self.assertEqual(len(latest), 3)
-        pr = next(s for s in latest if s["agent"] == "pr-reviewer")
+        pr = next(s for s in latest if s["agent"] == "impl-validator")
         self.assertEqual(pr["enum"], "LGTM")
         self.assertFalse(pr["must_fix"])
 

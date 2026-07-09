@@ -21,9 +21,8 @@ _CI_WORKFLOWS = (
     "github-project-lifecycle.yml",
 )
 _CODEX_VALIDATOR_SKILLS = (
-    "dcness-code-validator",
+    "dcness-impl-validator",
     "dcness-architecture-validator",
-    "dcness-pr-reviewer",
 )
 
 def _is_self_repo(project_root: Path) -> bool:

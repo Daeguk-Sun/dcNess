@@ -351,14 +351,14 @@ class ReadStepCompletedTests(unittest.TestCase):
             rows = [
                 {"agent": "engineer", "mode": "IMPL", "enum": "PROSE_LOGGED",
                  "prose_excerpt": "a", "must_fix": False, "prose_file": "/tmp/e.md"},
-                {"agent": "code-validator", "mode": None, "enum": "PROSE_LOGGED",
+                {"agent": "impl-validator", "mode": None, "enum": "PROSE_LOGGED",
                  "prose_excerpt": "b", "must_fix": True, "prose_file": "/tmp/cv.md"},
             ]
             legacy.write_text(
                 "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8"
             )
             steps = ledger.read_step_completed(_SID, _RID, base_dir=base)
-            self.assertEqual([s["agent"] for s in steps], ["engineer", "code-validator"])
+            self.assertEqual([s["agent"] for s in steps], ["engineer", "impl-validator"])
             self.assertTrue(steps[1]["must_fix"])
 
 
@@ -381,7 +381,7 @@ class CountStepCompletedTests(unittest.TestCase):
             self.assertEqual(
                 ledger.count_step_completed(_SID, _RID, "engineer", "POLISH", base_dir=base), 1)
             self.assertEqual(
-                ledger.count_step_completed(_SID, _RID, "code-validator", None, base_dir=base), 0)
+                ledger.count_step_completed(_SID, _RID, "impl-validator", None, base_dir=base), 0)
 
     def test_count_includes_legacy_fallback(self) -> None:
         with TemporaryDirectory() as d:
@@ -430,7 +430,7 @@ class ExtractEvidenceTests(unittest.TestCase):
 
 class InferNextActionTests(unittest.TestCase):
     def test_validator_must_fix_hint(self) -> None:
-        hint = ledger.infer_next_action("code-validator", None, must_fix=True, enum="PROSE_LOGGED")
+        hint = ledger.infer_next_action("impl-validator", None, must_fix=True, enum="PROSE_LOGGED")
         self.assertTrue(hint)  # 비어있지 않음
         self.assertIn("engineer", hint.lower())
 
@@ -451,12 +451,12 @@ class InferNextActionTests(unittest.TestCase):
 
 class BuildReceiptTests(unittest.TestCase):
     def test_receipt_fields(self) -> None:
-        prose = "## 결론\ncode-validator PASS. MUST FIX 없음.\n수용 기준 충족."
-        prose_path = "/tmp/code-validator.md"
+        prose = "## 결론\nimpl-validator PASS. MUST FIX 없음.\n수용 기준 충족."
+        prose_path = "/tmp/impl-validator.md"
         r = ledger.build_receipt(
-            "code-validator", None, "PROSE_LOGGED", prose, prose_path
+            "impl-validator", None, "PROSE_LOGGED", prose, prose_path
         )
-        self.assertEqual(r["agent"], "code-validator")
+        self.assertEqual(r["agent"], "impl-validator")
         self.assertEqual(r["prose_file"], prose_path)
         self.assertEqual(r["sha256"], ledger.sha256_text(prose))
         self.assertIn("prose_excerpt", r)
@@ -558,14 +558,14 @@ class ReadAtPathTests(unittest.TestCase):
             _seed_run(base)
             rd = run_dir(_SID, _RID, base_dir=base)
             (rd / ".steps.jsonl").write_text(
-                json.dumps({"agent": "code-validator", "mode": None, "enum": "PROSE_LOGGED",
+                json.dumps({"agent": "impl-validator", "mode": None, "enum": "PROSE_LOGGED",
                             "prose_excerpt": "z", "must_fix": False, "prose_file": "/tmp/q.md"})
                 + "\n",
                 encoding="utf-8",
             )
             steps = ledger.read_step_completed_at(rd)
             self.assertEqual(len(steps), 1)
-            self.assertEqual(steps[0]["agent"], "code-validator")
+            self.assertEqual(steps[0]["agent"], "impl-validator")
             self.assertEqual(steps[0]["event"], "step_completed")
 
 
@@ -575,14 +575,14 @@ class RenderStatusTests(unittest.TestCase):
             base = Path(d)
             _seed_run(base)
             ledger.append_event(_SID, _RID, "run_started", base_dir=base, entry_point="impl", issue_num=587)
-            prose_path = _write_prose_file(base, "code-validator.md", "## 결론\nPASS")
+            prose_path = _write_prose_file(base, "impl-validator.md", "## 결론\nPASS")
             ledger.append_step_completed(
-                _SID, _RID, "code-validator", None, "PROSE_LOGGED",
+                _SID, _RID, "impl-validator", None, "PROSE_LOGGED",
                 "## 결론\nPASS", prose_path, base_dir=base,
             )
             out = ledger.render_status(_SID, _RID, base_dir=base)
             self.assertIn(_RID, out)
-            self.assertIn("code-validator", out)
+            self.assertIn("impl-validator", out)
             # phase 또는 last event 정보 포함
             self.assertTrue(len(out.strip()) > 0)
 

@@ -350,7 +350,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(CLAUDE_VALIDATOR),
-                    "code-validator",
+                    "impl-validator",
                     "--prompt-file",
                     str(prompt_file),
                     "--project-root",
@@ -603,7 +603,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(CLAUDE_VALIDATOR),
-                    "pr-reviewer",
+                    "impl-validator",
                     "--prompt-file",
                     str(prompt_file),
                     "--project-root",

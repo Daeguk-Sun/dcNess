@@ -89,7 +89,7 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
 ## 호출 측 계약
 
 - `/impl` 은 진입 시 UI 기준 확보 분기를 한 줄로 echo 한 뒤 필요한 경우 이 스킬을 호출한다.
-- `/impl-loop` 은 UI task 에서 engine 무관하게 구현 step 앞에 이 스킬을 호출한다. build-worker 와 풀 4-agent 모두 같은 확정 목업 경로를 읽는다.
+- `/impl-loop` 은 UI task 에서 engine 무관하게 구현 step 앞에 이 스킬을 호출한다. build-worker 와 풀 경로 모두 같은 확정 목업 경로를 읽는다.
 - `/ux` 는 구현 없이 디자인만 먼저 탐색할 때 이 스킬을 얇게 감싼다. draft 반복, 사용자 PICK, 확정본 승격, canvas frame 등록 결과는 `/impl` 이 `기준 있음` 으로 이어받는다.
 - impl task 에 `design: required` 가 있으면 `## 디자인 참조` 섹션에 이 스킬이 반환한 확정 목업 경로와 핵심 node-id 매핑을 적는다.
 

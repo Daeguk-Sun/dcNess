@@ -87,12 +87,12 @@ class TestAggregateBasic(unittest.TestCase):
             tmp = Path(d)
             r1 = _make_run_dir_ledger(
                 tmp, "s1", "run-aaa11111",
-                _run_events("impl", [_step("pr-reviewer", "pr.md")]),
+                _run_events("impl", [_step("impl-validator", "pr.md")]),
                 {"pr.md": "리뷰 결과\n중대 결함\nFAIL\n"},
             )
             r2 = _make_run_dir_ledger(
                 tmp, "s1", "run-bbb22222",
-                _run_events("design", [_step("pr-reviewer", "pr.md")]),
+                _run_events("design", [_step("impl-validator", "pr.md")]),
                 {"pr.md": "리뷰 결과\n문제 없음\nPASS\n"},
             )
             rep = aggregate_runs([r1, r2])
@@ -103,16 +103,16 @@ class TestAggregateBasic(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             runs = []
-            # 3 pr-reviewer FAIL + 1 PASS → fail ratio = 0.75
+            # 3 impl-validator FAIL + 1 PASS → fail ratio = 0.75
             for i, verdict in enumerate(["FAIL", "FAIL", "FAIL", "PASS"]):
                 runs.append(_make_run_dir_ledger(
                     tmp, "s1", f"run-c{i:07d}",
-                    _run_events("impl", [_step("pr-reviewer", "pr.md")]),
+                    _run_events("impl", [_step("impl-validator", "pr.md")]),
                     {"pr.md": f"리뷰\n결론\n{verdict}\n"},
                 ))
             rep = aggregate_runs(runs)
-            self.assertEqual(rep.agent_conclusions["pr-reviewer"]["FAIL"], 3)
-            self.assertEqual(rep.agent_conclusions["pr-reviewer"]["PASS"], 1)
+            self.assertEqual(rep.agent_conclusions["impl-validator"]["FAIL"], 3)
+            self.assertEqual(rep.agent_conclusions["impl-validator"]["PASS"], 1)
             self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 0.75)
 
     def test_legacy_steps_jsonl_enum_fallback(self):
@@ -120,19 +120,19 @@ class TestAggregateBasic(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             r = _make_run_dir_steps(tmp, "s1", "run-leg00001", [
-                {"agent": "pr-reviewer", "mode": None, "enum": "FAIL",
+                {"agent": "impl-validator", "mode": None, "enum": "FAIL",
                  "ts": "2026-06-01T00:01:00Z"},
             ])
             rep = aggregate_runs([r])
-            self.assertEqual(rep.agent_conclusions["pr-reviewer"]["FAIL"], 1)
+            self.assertEqual(rep.agent_conclusions["impl-validator"]["FAIL"], 1)
             self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
 
     def test_legacy_changes_requested_counts_as_fail(self):
-        # 옛 pr-reviewer CHANGES_REQUESTED 도 FAIL 버킷 + 분모에 포함 → ratio 1.0.
+        # 옛 impl-validator CHANGES_REQUESTED 도 FAIL 버킷 + 분모에 포함 → ratio 1.0.
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
             r = _make_run_dir_steps(tmp, "s1", "run-cr000001", [
-                {"agent": "pr-reviewer", "mode": None,
+                {"agent": "impl-validator", "mode": None,
                  "enum": "CHANGES_REQUESTED", "ts": "2026-06-01T00:01:00Z"},
             ])
             rep = aggregate_runs([r])
@@ -146,12 +146,12 @@ class TestAggregateBasic(unittest.TestCase):
             r = _make_run_dir_ledger(
                 tmp, "s1", "run-pv000001",
                 _run_events("impl", [
-                    _step("pr-reviewer", "pr.md", enum="CHANGES_REQUESTED"),
+                    _step("impl-validator", "pr.md", enum="CHANGES_REQUESTED"),
                 ]),
                 {"pr.md": "MUST FIX: 보강 필요\nLGTM 후보 X\n"},
             )
             rep = aggregate_runs([r])
-            dist = rep.agent_conclusions["pr-reviewer"]
+            dist = rep.agent_conclusions["impl-validator"]
             self.assertEqual(dist.get("LGTM", 0), 0)
             self.assertEqual(dist.get("CHANGES_REQUESTED"), 1)
             self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
@@ -333,9 +333,9 @@ class TestWasteTop(unittest.TestCase):
                 runs.append(_make_run_dir_ledger(
                     tmp, "s1", f"run-w{i:07d}",
                     _run_events("impl", [
-                        _step("code-validator", "v.md", enum="FAIL",
+                        _step("impl-validator", "v.md", enum="FAIL",
                               ts="2026-06-01T00:01:00Z"),
-                        _step("code-validator", "v.md", enum="FAIL",
+                        _step("impl-validator", "v.md", enum="FAIL",
                               ts="2026-06-01T00:02:00Z"),
                     ]),
                     {"v.md": same},
@@ -363,9 +363,9 @@ class TestImprovementCandidates(unittest.TestCase):
         return _make_run_dir_ledger(
             tmp, "s1", rid,
             _run_events("impl", [
-                _step("code-validator", "v.md", enum="FAIL",
+                _step("impl-validator", "v.md", enum="FAIL",
                       ts="2026-06-01T00:01:00Z"),
-                _step("code-validator", "v.md", enum="FAIL",
+                _step("impl-validator", "v.md", enum="FAIL",
                       ts="2026-06-01T00:02:00Z"),
             ]),
             {"v.md": same},
@@ -455,11 +455,11 @@ class TestRenderAndCli(unittest.TestCase):
             tmp = Path(d)
             r = _make_run_dir_ledger(
                 tmp, "s1", "run-k0000001",
-                _run_events("impl", [_step("pr-reviewer", "pr.md")]),
+                _run_events("impl", [_step("impl-validator", "pr.md")]),
                 {"pr.md": "리뷰\nFAIL\n"},
             )
             md = render_markdown(aggregate_runs([r]))
-            self.assertIn("pr-reviewer", md)
+            self.assertIn("impl-validator", md)
             self.assertIn("1", md)  # run count
             # 성공률 미측정 정직 표기 — 합성 placeholder 금지.
             self.assertRegex(md, r"(측정 불가|미측정|이벤트)")
@@ -470,7 +470,7 @@ class TestRenderAndCli(unittest.TestCase):
             tmp = Path(d)
             r = _make_run_dir_ledger(
                 tmp, "s1", "run-k1000001",
-                _run_events("impl", [_step("pr-reviewer", "pr.md")],
+                _run_events("impl", [_step("impl-validator", "pr.md")],
                             extra=[
                                 {"event": "pr_created", "pr_number": 7,
                                  "url": "https://github.com/o/r/pull/7",
@@ -490,7 +490,7 @@ class TestRenderAndCli(unittest.TestCase):
             tmp = Path(d)
             _make_run_dir_ledger(
                 tmp, "s1", "run-l0000001",
-                _run_events("impl", [_step("pr-reviewer", "pr.md")]),
+                _run_events("impl", [_step("impl-validator", "pr.md")]),
                 {"pr.md": "리뷰\nFAIL\n"},
             )
             sessions_root = tmp / ".claude" / "harness-state" / ".sessions"
@@ -503,7 +503,7 @@ class TestRenderAndCli(unittest.TestCase):
             tmp = Path(d)
             _make_run_dir_ledger(
                 tmp, "s1", "run-r0000001",
-                _run_events("impl", [_step("pr-reviewer", "pr.md")]),
+                _run_events("impl", [_step("impl-validator", "pr.md")]),
                 {"pr.md": "리뷰\nPASS\n"},
             )
             sessions_root = tmp / ".claude" / "harness-state" / ".sessions"
@@ -518,7 +518,7 @@ class TestRenderAndCli(unittest.TestCase):
             tmp = Path(d)
             _make_run_dir_ledger(
                 tmp, "s1", "run-m0000001",
-                _run_events("impl", [_step("pr-reviewer", "pr.md")]),
+                _run_events("impl", [_step("impl-validator", "pr.md")]),
                 {"pr.md": "리뷰\nPASS\n"},
             )
             sessions_root = tmp / ".claude" / "harness-state" / ".sessions"

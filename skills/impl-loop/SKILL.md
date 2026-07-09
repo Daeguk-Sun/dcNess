@@ -1,6 +1,6 @@
 ---
 name: impl-loop
-description: Story/공통 impl task 파일(design 산출물)을 받아 provider-agnostic headless story/epic runner 로 구현한다. task 1개(single) 또는 여러 개(chain/story/epic) 를 처리하며, 각 task 는 task commit 으로 누적되고 story 단위 PR 1개로 닫힌다. 엔진 미지정 시 기본은 build-worker이고, 풀 4-agent(test-engineer → engineer → code-validator → pr-reviewer)는 frontmatter/고위험/사용자 엄정 승격 전용이다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록/story/epic 을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
+description: Story/공통 impl task 파일(design 산출물)을 받아 provider-agnostic headless story/epic runner 로 구현한다. task 1개(single) 또는 여러 개(chain/story/epic) 를 처리하며, 각 task 는 task commit 으로 누적되고 merge candidate 는 impl-validator 1회 통합 리뷰로 닫힌다. 엔진 미지정 시 기본은 build-worker이고, 풀 경로(test-engineer → engineer → impl-validator)는 frontmatter/고위험/사용자 엄정 승격 전용이다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록/story/epic 을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
 ---
 
 # Impl Loop Skill — story/epic headless impl runner
@@ -13,14 +13,14 @@ description: Story/공통 impl task 파일(design 산출물)을 받아 provider-
 
 - **loop**: `impl-task-loop` (UI 감지 시 `impl-ui-design-loop` — engine 무관 `canvas-design` 선두 추가, 아래 `## UI 작업 시 canvas-design 선두`)
 - **entry_point**: `impl`
-- **task_list** (Step 1): task 구현 step = (build-worker, 기본) build-worker · (풀 4-agent, 승격 전용) test-engineer → engineer:IMPL · story PR 경계 = code-validator → pr-reviewer · (advanced fallback: deep task 보강 필요 시 module-architect 선두 추가) · (impl-ui-design-loop) canvas-design 선두
-- **advance**: task step 은 `PASS` 또는 `IMPL_DONE` → task commit/mark · story PR 경계는 `PASS` → `PASS` → merge · `PASS`(canvas-design) → 각 엔진 구현 step (impl-ui-design-loop)
-- **expected_steps**: task 구현 1 (build-worker) / 2 (풀) / +1 (advanced fallback) · story PR 경계 2 (`code-validator`/`pr-reviewer`) · UI 는 `canvas-design` checkpoint +1 · story close PR +1 / epic close PR +2 (`product-acceptance`, 아래 `## 마감 acceptance`)
+- **task_list** (Step 1): task 구현 step = (build-worker, 기본) build-worker · (풀 경로, 승격 전용) test-engineer → engineer:IMPL · merge review 경계 = impl-validator 1회 · (advanced fallback: deep task 보강 필요 시 module-architect 선두 추가) · (impl-ui-design-loop) canvas-design 선두
+- **advance**: task step 은 `PASS` 또는 `IMPL_DONE` → task commit/mark · merge review 경계는 `impl-validator PASS` → merge 또는 acceptance · `PASS`(canvas-design) → 각 엔진 구현 step (impl-ui-design-loop)
+- **expected_steps**: task 구현 1 (build-worker) / 2 (풀) / +1 (advanced fallback) · merge review 경계 1 (`impl-validator`) · UI 는 `canvas-design` checkpoint +1 · story close PR +1 / epic close PR +2 (`product-acceptance`, 아래 `## 마감 acceptance`)
 - **분기 규칙**: [`impl-loop-routing.md`](impl-loop-routing.md)
 
 UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint 이며 helper ledger 의 `begin-step` 대상이 아니다. draft 가 필요할 때 ledger 에 기록되는 실제 Agent step 은 `designer` 다.
 
-본 skill 본문 = impl-task-loop / impl-ui-design-loop 풀스펙 진본. 순서 차단 훅 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh). chain (N task) 은 `dcness-story-runner` state 가 task 순서와 story PR 경계를 소유한다. 각 task 는 구현 후 commit/mark 로 누적하고, code-validator/pr-reviewer/review 출력은 story PR 경계에서 1회 수행한다. 절차 mechanics = [`loop-procedure.md`](../../docs/plugin/loop-procedure.md).
+본 skill 본문 = impl-task-loop / impl-ui-design-loop 풀스펙 진본. 순서 차단 훅 보존 = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh). chain (N task) 은 `dcness-story-runner` state 가 task 순서와 merge review 경계를 소유한다. 각 task 는 구현 후 commit/mark 로 누적하고, impl-validator review 출력은 merge candidate 경계에서 1회 수행한다. 다중 story/통합 브랜치 invocation 은 개별 story PR 순차 리뷰가 아니라 합쳐진 diff 1회 리뷰로 해석한다. 절차 mechanics = [`loop-procedure.md`](../../docs/plugin/loop-procedure.md).
 
 ## Inputs (메인이 사용자에게 받아야 할 정보)
 
@@ -45,36 +45,36 @@ UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint �
 - **glob / 복수 / epic 경로** → `chain` (impl-task-loop × N run)
 
 **엔진 축** — 각 run 안의 시퀀스를 정한다.
-- **frontmatter 우선 (진본, #703)**: impl 문서 frontmatter 의 `risk` / `engine` 이 **유효한 단일 값일 때만** 추론하지 말고 그 값을 쓴다 — frontmatter `engine: 4agent` → 풀 4-agent · `engine: 2agent` → build-worker, frontmatter `risk: high` → 풀 4-agent 승격(아래 자동 승격과 동치). 🔴 **placeholder 가드 (MUST)**: 유효한 단일 값 = `risk` ∈ {`normal`,`high`,`low`} / `engine` ∈ {`2agent`,`4agent`} 정확히 하나. 템플릿 미작성 잔재(`risk: normal|high|low`·`engine: 2agent|4agent` 처럼 `|` 포함)·빈 값·`<…>`·미해석 토큰은 **값이 아니라 부재로 간주**해 아래 추론 fallback 으로 떨어진다. 안 그러면 안 채운 고위험 task 가 placeholder 때문에 `normal`/경량/병렬로 새어 `_parse_risk_marker` 직렬 강등도 우회한다. 유효 값이 박혔으면 설계자(module-architect)가 이미 판정한 진본이라 진입마다 재추론하지 않는다. frontmatter 필드가 **없거나 placeholder 일 때만** 아래 디폴트·추론 fallback(하위호환).
+- **frontmatter 우선 (진본, #703)**: impl 문서 frontmatter 의 `risk` / `engine` 이 **유효한 단일 값일 때만** 추론하지 말고 그 값을 쓴다 — frontmatter `engine: 4agent` → 풀 경로 · `engine: 2agent` → build-worker, frontmatter `risk: high` → 풀 경로 승격(아래 자동 승격과 동치). 🔴 **placeholder 가드 (MUST)**: 유효한 단일 값 = `risk` ∈ {`normal`,`high`,`low`} / `engine` ∈ {`2agent`,`4agent`} 정확히 하나. 템플릿 미작성 잔재(`risk: normal|high|low`·`engine: 2agent|4agent` 처럼 `|` 포함)·빈 값·`<…>`·미해석 토큰은 **값이 아니라 부재로 간주**해 아래 추론 fallback 으로 떨어진다. 안 그러면 안 채운 고위험 task 가 placeholder 때문에 `normal`/경량/병렬로 새어 `_parse_risk_marker` 직렬 강등도 우회한다. 유효 값이 박혔으면 설계자(module-architect)가 이미 판정한 진본이라 진입마다 재추론하지 않는다. frontmatter 필드가 **없거나 placeholder 일 때만** 아래 디폴트·추론 fallback(하위호환).
 - **디폴트**: frontmatter 부재 시 기본 엔진 = build-worker, 개수와 무관. single 도 chain 도 engine 미지정이면 build-worker 로 시작하고, dry preview 의 `reason` 에 디폴트 근거(`engine 미지정 + 고위험 trigger 없음`)를 남긴다.
-- **고위험 task 자동 승격** (frontmatter `risk` 부재 시 추론 fallback): 기본이 build-worker 여도 task 가 **구현 시점 위험** trigger 를 포함하면 그 task만 풀 4-agent로 올린다 — frontmatter `risk: high` 가 명시돼 있으면 추론 없이 그 값으로 승격하고, frontmatter `engine: 4agent` 도 풀 4-agent 로 간다. 엔진 판정 기준은 [`module-architect`](../../docs/plugin/agents/module-architect/module-architect-agent.md) 의 구현 시점 위험 기준이다. [`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표는 설계 선행 판정 전용이며, 이미 full `/design` 산출물로 내려온 impl-task 의 엔진 판정 기준이 아니다. 구현 시점 위험 = migration/destructive change, auth/security/PII/compliance(규제·보안 의미 한정), public API breakage, 외부 HTTP·네트워크 어댑터, URL·파일·사용자 입력 등 신뢰 경계 밖 입력 파싱, 신규 3rd-party dependency·외부 서비스 도입. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 플랫폼 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이 있으면 `engine: 4agent`. self-grading drift 비용이 과승격 비용보다 크지만, 설계 소화분을 이중 계상하지 않는다. 단순 UI/문구/순수 내부 도메인 task는 경량 유지한다.
-- **override (사용자 발화)**: 사용자 엄정 발화(`엄정|꼼꼼|제대로|풀|rigor`) 매치 → **풀 4-agent 강제** · `빠르게|경량|worker|가볍게` 매치 → **build-worker 선호**. 개수와 무관하게 적용 (1개를 worker 로 빠르게, N개를 풀로 엄정하게도 가능). 단, 구현 시점 위험 trigger 는 build-worker 선호보다 우선한다. 사용자가 고위험 사유를 인지하고도 경량 강행을 명시한 경우에만 `reason` 에 그 결정을 남긴다.
+- **고위험 task 자동 승격** (frontmatter `risk` 부재 시 추론 fallback): 기본이 build-worker 여도 task 가 **구현 시점 위험** trigger 를 포함하면 그 task만 풀 경로로 올린다 — frontmatter `risk: high` 가 명시돼 있으면 추론 없이 그 값으로 승격하고, frontmatter `engine: 4agent` 도 풀 경로 로 간다. 엔진 판정 기준은 [`module-architect`](../../docs/plugin/agents/module-architect/module-architect-agent.md) 의 구현 시점 위험 기준이다. [`workflow-router.md`](../../docs/plugin/workflow-router.md) high-risk trigger 표는 설계 선행 판정 전용이며, 이미 full `/design` 산출물로 내려온 impl-task 의 엔진 판정 기준이 아니다. 구현 시점 위험 = migration/destructive change, auth/security/PII/compliance(규제·보안 의미 한정), public API breakage, 외부 HTTP·네트워크 어댑터, URL·파일·사용자 입력 등 신뢰 경계 밖 입력 파싱, 신규 3rd-party dependency·외부 서비스 도입. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 플랫폼 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이 있으면 `engine: 4agent`. self-grading drift 비용이 과승격 비용보다 크지만, 설계 소화분을 이중 계상하지 않는다. 단순 UI/문구/순수 내부 도메인 task는 경량 유지한다.
+- **override (사용자 발화)**: 사용자 엄정 발화(`엄정|꼼꼼|제대로|풀|rigor`) 매치 → **풀 경로 강제** · `빠르게|경량|worker|가볍게` 매치 → **build-worker 선호**. 개수와 무관하게 적용 (1개를 worker 로 빠르게, N개를 풀로 엄정하게도 가능). 단, 구현 시점 위험 trigger 는 build-worker 선호보다 우선한다. 사용자가 고위험 사유를 인지하고도 경량 강행을 명시한 경우에만 `reason` 에 그 결정을 남긴다.
 
-| 개수 \ 엔진 | 풀 4-agent | build-worker |
+| 개수 \ 엔진 | 풀 경로 | build-worker |
 |---|---|---|
 | **single (1 task)** | frontmatter `risk: high`/`engine: 4agent`, 구현 시점 위험 trigger, 사용자 엄정 override | 디폴트 |
 | **chain (N task)** | frontmatter `risk: high`/`engine: 4agent`, 구현 시점 위험 trigger, 사용자 엄정 override | 디폴트 |
 
-판정 결과를 진입 시 사용자에게 1줄 echo (예: `single · build-worker (디폴트 — engine 미지정 + 고위험 trigger 없음)` / `chain 7 task · build-worker (디폴트)` / `chain 7 task · 일부 task 풀 4-agent 승격 (외부 HTTP)`). chain 은 아래 dry preview 표에도 task 별 `risk / engine / reason` 을 남긴다. 풀 4-agent 승격 세 경로(frontmatter `risk: high`/`engine: 4agent`, 구현 시점 위험 trigger, 사용자 엄정 override)는 모두 echo 와 dry preview `reason` 에 남긴다.
+판정 결과를 진입 시 사용자에게 1줄 echo (예: `single · build-worker (디폴트 — engine 미지정 + 고위험 trigger 없음)` / `chain 7 task · build-worker (디폴트)` / `chain 7 task · 일부 task 풀 경로 승격 (외부 HTTP)`). chain 은 아래 dry preview 표에도 task 별 `risk / engine / reason` 을 남긴다. 풀 경로 승격 세 경로(frontmatter `risk: high`/`engine: 4agent`, 구현 시점 위험 trigger, 사용자 엄정 override)는 모두 echo 와 dry preview `reason` 에 남긴다.
 
 ### verify-only task
 
 impl frontmatter 나 본문이 `task_type: verify-only`, `pr: not_required`, "코드 신규 작성 없음", "BROKEN 시에만 수정"처럼 검증 산출물 자체를 목표로 하면 verify-only 로 판정한다.
 
 - 검증 명령을 먼저 실행한다. exit 0 이고 `git status --porcelain` 이 비어 있으면 PR을 만들지 않는다.
-- 그래도 run 기록은 남긴다: `begin-step code-validator VERIFY_ONLY` → 검증 결과 prose 작성 → `end-step code-validator VERIFY_ONLY --prose-file <file>` → `end-run`.
+- 그래도 run 기록은 남긴다: `begin-step impl-validator VERIFY_ONLY` → 검증 결과 prose 작성 → `end-step impl-validator VERIFY_ONLY --prose-file <file>` → `end-run`.
 - prose 에 검증 명령, exit code, 핵심 결과, `git status --porcelain` 빈 상태를 적고 마지막 단락에 `PASS`를 쓴다. 이 경우 step 1개 + PR 0개가 정상 clean 이다.
 - 검증 명령이 실패하거나 BROKEN 이 확인되면 verify-only 를 종료하고 해당 위반을 수정하는 일반 impl task 로 분기한다. 수정이 생겼으면 기존 PR 경로를 탄다.
 - verify-only 에서는 `scripts/pr-create.sh`를 호출하지 않는다. 변경 0 abort는 실패가 아니라 PR 불필요 신호다.
 
 ## UI 작업 시 canvas-design 선두 (impl-ui-design-loop)
 
-UI 작업 감지 시 engine 무관하게 구현 시퀀스 선두에 내부 [`canvas-design`](../canvas-design/SKILL.md) 절차를 둔다. build-worker, build-worker-deep, 풀 4-agent 모두 같은 확정 목업을 읽고 구현한다.
+UI 작업 감지 시 engine 무관하게 구현 시퀀스 선두에 내부 [`canvas-design`](../canvas-design/SKILL.md) 절차를 둔다. build-worker, build-worker-deep, 풀 경로 모두 같은 확정 목업을 읽고 구현한다.
 
 - **canvas-design** (`PASS,ESCALATE`) — main-owned checkpoint 이며 helper begin/end-step 비대상이다. canvas-design 자체를 helper step 으로 열지 않는다. 기준 있음 / 신규 시각 구조 + 기준 없음 / 시각 구조 불변을 판정하고, 필요한 경우 별도 `begin-step designer` 로 designer Agent 를 호출해 draft 생성 → 사용자 PICK → 확정본 승격 → `docs/design-variants/canvas.html` frame 등록을 수행한다. 반환값은 `docs/design-variants/<screen-id>.html` 확정 목업 경로와 핵심 node-id 매핑이다.
 - **사용자 PICK** — draft 가 실제로 생성된 경우에만 canvas-design 내부에서 수행한다. helper begin/end-step 비대상이며 chain sub-step 으로 세지 않는다. 기존 확정본 재사용, 사용자 제공 확정본 참조, 시각 구조 불변, 사용자의 "목업 없이" 분기에는 별도 PICK 대기 없이 구현 step 으로 진행한다. NG 시 canvas-design 내부에서 designer draft 를 재생성한다. round 한도 X.
 
-이후 구현 step 은 선택된 엔진을 따른다. build-worker 엔진이면 build-worker → pr-reviewer, build-worker-deep 엔진이면 module-architect → canvas-design → build-worker → pr-reviewer, 풀 4-agent 엔진이면 test-engineer → engineer:IMPL → code-validator → pr-reviewer 다. deep task 보강이 필요하면 canvas-design 앞에 module-architect 1 step. canvas-design `ESCALATE` → 사용자 위임.
+이후 구현 step 은 선택된 엔진을 따른다. build-worker 엔진이면 build-worker → impl-validator, build-worker-deep 엔진이면 module-architect → canvas-design → build-worker → impl-validator, 풀 경로면 test-engineer → engineer:IMPL → impl-validator 다. deep task 보강이 필요하면 canvas-design 앞에 module-architect 1 step. canvas-design `ESCALATE` → 사용자 위임.
 
 확정본 승격과 canvas 등록은 canvas-design 단일 경로에서만 수행한다. 본 skill 은 승격 로직을 중복 기술하지 않고, 확정 목업 경로와 node-id 매핑을 구현 agent prompt 의 `대상 + 읽을 진본` 슬롯에 전달한다.
 
@@ -98,7 +98,7 @@ UI 작업 감지 시 engine 무관하게 구현 시퀀스 선두에 내부 [`can
 
 이 check 는 PR 생성 시점이 아니라 single 진입 초기에 둔다. branch 중복을 PR 생성에서 발견하면 이미 build 비용을 쓴 뒤라 늦다.
 
-**prev-tasks 초기화 (#525, build-worker 엔진 한정)**: `[PREVIOUS_TASKS]` 는 build-worker 진입 시 직전 task 산출을 주입(인접 task 인터페이스 정합용)한다. `begin-step build-worker` 가 *그 시점에* prev-tasks 파일을 읽어 stdout 으로 emit 하므로 ([`session_state.py`](../../harness/session_state.py) — single/chain 구분 안 함) — **reset 은 반드시 `begin-step build-worker` *호출 전* 에 해야 한다** (begin-step 후 reset 은 이미 emit 된 stdout 에 늦음). 따라서: **build-worker 진입이 (a) chain 의 첫 task 거나 (b) single 모드(`빠르게`/`worker` override 포함) 이면 `begin-step build-worker` 직전에 `dcness-helper prev-tasks-reset` 1회 호출 의무**. 안 하면 직전 chain 의 `[PREVIOUS_TASKS]` 잔재가 새 worker prompt 에 주입돼 stale 인터페이스에 맞출 위험. **chain 의 2번째+ task 는 reset 안 함** (직전 task 누적이 정합 입력). 까먹어도 FIFO cap(10) 안전망이나 명시 호출 권장. 풀 4-agent 엔진은 build-worker 미사용 → 본 룰 비대상.
+**prev-tasks 초기화 (#525, build-worker 엔진 한정)**: `[PREVIOUS_TASKS]` 는 build-worker 진입 시 직전 task 산출을 주입(인접 task 인터페이스 정합용)한다. `begin-step build-worker` 가 *그 시점에* prev-tasks 파일을 읽어 stdout 으로 emit 하므로 ([`session_state.py`](../../harness/session_state.py) — single/chain 구분 안 함) — **reset 은 반드시 `begin-step build-worker` *호출 전* 에 해야 한다** (begin-step 후 reset 은 이미 emit 된 stdout 에 늦음). 따라서: **build-worker 진입이 (a) chain 의 첫 task 거나 (b) single 모드(`빠르게`/`worker` override 포함) 이면 `begin-step build-worker` 직전에 `dcness-helper prev-tasks-reset` 1회 호출 의무**. 안 하면 직전 chain 의 `[PREVIOUS_TASKS]` 잔재가 새 worker prompt 에 주입돼 stale 인터페이스에 맞출 위험. **chain 의 2번째+ task 는 reset 안 함** (직전 task 누적이 정합 입력). 까먹어도 FIFO cap(10) 안전망이나 명시 호출 권장. 풀 경로 엔진은 build-worker 미사용 → 본 룰 비대상.
 
 **Base ref 분기 (MUST, #424)**: epic 단위 stories.md (impl task 경로의 `epic-NN-<slug>/stories.md`) 상단 `**Base Branch:** feature/<slug>` 마커 매치 시 = 통합 브랜치 모드. outer worktree base ref 도 integration branch 와 정합 필요 (chain 은 `git worktree add -b <new> <path> origin/<integration>` + `EnterWorktree(path=<path>)` 패턴). 절차 = [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#base-ref-분기-통합-브랜치-모드-424).
 
@@ -159,7 +159,7 @@ retry / POLISH 시 기존 sub-step 재활용 — 신규 TaskCreate X.
 
 ### Sub-agent prompt 작성 checkpoint (#780)
 
-`test-engineer` / `engineer` / `build-worker` / `code-validator` / `pr-reviewer` / fallback `module-architect` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
+`test-engineer` / `engineer` / `build-worker` / `impl-validator` / fallback `module-architect` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
 - **대상 + 읽을 진본**: impl 파일 경로, 부모 epic/story 이슈, 검토 대상 diff 같은 SSOT 포인터만 둔다. impl 파일 본문에 이미 있는 Scope·수용 기준·인터페이스를 호출마다 복사하지 않는다.
 - **worktree**: chain 직렬 outer worktree 를 포함해 worktree 활성 시 worktree 절대경로를 넣는다. 상대경로만 넘겨 sub-agent write 가 main repo 로 새는 재발을 막는다.
@@ -215,7 +215,7 @@ worktree branch 안 commit / push / PR 생성·머지 = **메인 Claude 전담**
 
 ### validation provider resolve (Codex opt-in)
 
-`code-validator` / `pr-reviewer` (또는 build-worker self-validate 후 pr-reviewer) 호출 직전 provider 를 local 분기 config 로 resolve 한다. config = `~/.claude/plugins/data/dcness-dcness/routing.json`.
+`impl-validator` 호출 직전 provider 를 local 분기 config 로 resolve 한다. config = `~/.claude/plugins/data/dcness-dcness/routing.json`.
 
 ```bash
 PLUGIN_ROOT=""
@@ -272,34 +272,34 @@ fi
 
 ---
 
-## 엔진 A — 풀 4-agent (승격 전용)
+## 엔진 A — 풀 경로 (승격 전용)
 
-승격 시퀀스 = task 구현에서 **test-engineer → engineer (IMPL)**, story PR 경계에서 **code-validator → pr-reviewer**. story 를 닫기 전 4 단계 *모두 호출* 의무 (MUST — false-clean 차단, #431).
+승격 시퀀스 = task 구현에서 **test-engineer → engineer (IMPL)**, merge review 경계에서 **impl-validator**. merge candidate 를 닫기 전 구현 단계와 리뷰 단계를 모두 호출해야 한다 (MUST — false-clean 차단, #431).
 
-🔴 **task 구현 step 에 `--design-doc` 필수**: 엔진 A 는 설계(impl 문서)가 별도 run 에서 머지된 *뒤* 진입하므로 같은 run 안에 module-architect prose 가 없다 — `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 머지된 설계 문서를 run 에 기록해야 engineer 게이트(순서 차단 훅)가 IMPL 진입을 허용한다 ([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). 같은 기록은 impl entry pre-flight 의 boundary 대조 입력이기도 하다. story/epic close 발동 PR 이고 acceptance 기본 ON 이면 story PR 경계 run 에 `--acceptance-required` 를 붙인다. 이 marker 는 Stop hook 이 pr-reviewer 직후 run 을 자동 종료하지 않고 product-acceptance 진입 turn 을 재발화하게 하는 신호다. advanced fallback 으로 module-architect 를 선두 추가한 run 은 같은-run PASS prose 가 생기므로 생략 가능하나, task 의 impl 문서가 이미 있으면 기록을 권장한다.
+🔴 **task 구현 step 에 `--design-doc` 필수**: 엔진 A 는 설계(impl 문서)가 별도 run 에서 머지된 *뒤* 진입하므로 같은 run 안에 module-architect prose 가 없다 — `begin-run impl --design-doc <task 의 impl 문서 경로>` 로 머지된 설계 문서를 run 에 기록해야 engineer 게이트(순서 차단 훅)가 IMPL 진입을 허용한다 ([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). 같은 기록은 impl entry pre-flight 의 boundary 대조 입력이기도 하다. story/epic close 발동 PR 이고 acceptance 기본 ON 이면 merge review run 에 `--acceptance-required` 를 붙인다. 이 marker 는 Stop hook 이 impl-validator 직후 run 을 자동 종료하지 않고 product-acceptance 진입 turn 을 재발화하게 하는 신호다. advanced fallback 으로 module-architect 를 선두 추가한 run 은 같은-run PASS prose 가 생기므로 생략 가능하나, task 의 impl 문서가 이미 있으면 기록을 권장한다.
 
 ✅ 정상 흐름:
 1. **test-engineer** (TESTS_WRITTEN) → 테스트 선작성
 2. **engineer:IMPL** (IMPL_DONE) → 구현 + 테스트 PASS
 3. **메인 Claude (task commit)** — lint/build/test green 뒤 task commit 작성 → `dcness-story-runner mark --status completed --commit <sha>`.
-4. **story PR 경계** — 해당 story 의 모든 task 가 completed 이면 `code-validator`(impl 계획 ↔ 누적 구현 정합) → 메인 PR 생성 → `pr-reviewer`(LGTM, read-only) 1회. `tools: Read, Glob, Grep` — *commit/push/PR 생성·머지 권한 없음*.
-5. **메인 Claude (merge)** — pr-reviewer PASS 후, **engineer/code-validator prose (변경 요약·의도) + [`git-spec.md`](../../docs/plugin/git-spec.md#pr-본문) 템플릿 기반으로 메인이 PR 본문 작성**. PR 트레일러 `Closes/Part of` 는 story PR 생성 직전 [git-spec PR 트레일러](../../docs/plugin/git-spec.md#pr-트레일러-part-of-closes) 적용 → **story/epic close 발동 PR 이면 [마감 acceptance](#마감-acceptance) PASS 후에만** `$PLUGIN_ROOT/scripts/pr-finalize.sh` 머지
+4. **merge review 경계** — merge candidate PR 을 만든 뒤 `impl-validator`가 계획 정합과 merge risk 를 1회 통합 리뷰한다. 단일 story 는 그 PR diff, 다중 story/통합 브랜치는 합쳐진 diff 가 대상이다. `tools: Read, Glob, Grep` — *commit/push/PR 생성·머지 권한 없음*.
+5. **메인 Claude (merge)** — impl-validator PASS 후, **engineer/impl-validator prose (변경 요약·의도) + [`git-spec.md`](../../docs/plugin/git-spec.md#pr-본문) 템플릿 기반으로 메인이 PR 본문 작성**. PR 트레일러 `Closes/Part of` 는 story PR 생성 직전 [git-spec PR 트레일러](../../docs/plugin/git-spec.md#pr-트레일러-part-of-closes) 적용 → **story/epic close 발동 PR 이면 [마감 acceptance](#마감-acceptance) PASS 후에만** `$PLUGIN_ROOT/scripts/pr-finalize.sh` 머지
 
-❌ 안티패턴 (#431 실측 회귀): test-engineer + engineer 만 호출하고 task commit/mark 또는 story PR 검증 없이 prose "PASS" 박고 종료. story PR 경계의 validator/reviewer 보장이 깨진다.
+❌ 안티패턴 (#431 실측 회귀): test-engineer + engineer 만 호출하고 task commit/mark 또는 merge candidate impl-validator 리뷰 없이 prose "PASS" 박고 종료. merge review 보장이 깨진다.
 
-story PR 경계 skip 차단: story 를 clean 표기 *전*, code-validator 가 PASS 를 냈고 pr-reviewer 가 실행된 뒤 *메인 Claude 가* PR 생성·머지까지 마쳤는지 직접 확인. 흔적 부재 시 → false-clean 의심 → `blocked` 강등 + 사용자 개입.
+merge review 경계 skip 차단: merge candidate 를 clean 표기 *전*, impl-validator 가 PASS 를 냈고 *메인 Claude 가* PR 생성·머지까지 마쳤는지 직접 확인. 흔적 부재 시 → false-clean 의심 → `blocked` 강등 + 사용자 개입.
 
 - advanced fallback (deep task 보강 필요) → 시퀀스 선두에 module-architect 1 step 추가.
 - UI 감지 → 선두에 canvas-design (사용자 PICK 은 draft 생성 시 canvas-design 내부 조건부 절차, 위 `## UI 작업 시 canvas-design 선두`).
 
 ## 엔진 B — build-worker (default = chain)
 
-시퀀스 = task 구현에서 **build-worker (test+impl+self-validate 통합)**, story PR 경계에서 **code-validator → pr-reviewer**. deep task 보강 필요 시 module-architect 선두.
+시퀀스 = task 구현에서 **build-worker (test+impl+self-validate 통합)**, merge review 경계에서 **impl-validator**. deep task 보강 필요 시 module-architect 선두.
 
 1. **begin-run + (reset) + build-worker step** — `begin-run impl --design-doc <task 의 impl 문서 경로>` (마감 acceptance 대상이면 `--acceptance-required` 추가) → **(chain 의 첫 task 또는 single 모드면 `dcness-helper prev-tasks-reset` — `begin-step` *전*, prev-tasks 초기화)** → `begin-step build-worker` → `dcness-helper run-dir` 로 `<run_dir>` 확인 → `Agent(build-worker, prompt=<impl 경로 + task slug + RUN_ID + run_dir + (begin-step stdout 의 [PREVIOUS_TASKS] 섹션 있으면 그대로 포함, #525)>)` → 반환 prose 결론 분기 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). 이후 `end-step build-worker`. worker 안 phase 별 prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 는 worker 자체 Write — [`loop-procedure.md` build-worker phase prose](../../docs/plugin/loop-procedure.md#build-worker-phase-prose-impl-loop-hybrid-a-한정). `<run_dir>` 는 harness-state run_dir 그대로이며 `phases/<RUN_ID>/` 별도 경로가 아니다.
    `--design-doc` 은 build-worker 자체를 위한 값이 아니라, worker self-validate 실패나 마감 acceptance FAIL 뒤 `engineer:IMPL` 로 재진입할 때 engineer gate 의 설계 산출물 사전 조건을 만족시키고, impl entry pre-flight 가 `### 수정 허용` boundary 를 대조할 수 있게 하는 기록이다. deep task 구현은 항상 impl 문서가 입력이므로 엔진 B 에서도 기록한다.
-2. **task commit (메인)** — worker prose 의 commit message 초안을 참고해 메인이 task commit 을 작성하고 `dcness-story-runner mark --status completed --commit <sha>` 로 state 를 갱신한다. story 의 남은 task 가 있으면 다음 task 로 진행한다. story 의 마지막 task 가 completed 이면 story PR 경계로 진입한다.
-3. **story PR 생성 + 리뷰 (메인)** — story 누적 commit 을 대상으로 `code-validator` PASS 를 받은 뒤 PR 본문을 임시 파일로 박고 `scripts/pr-create.sh` 통합 호출:
+2. **task commit (메인)** — worker prose 의 commit message 초안을 참고해 메인이 task commit 을 작성하고 `dcness-story-runner mark --status completed --commit <sha>` 로 state 를 갱신한다. story 의 남은 task 가 있으면 다음 task 로 진행한다. story 의 마지막 task 가 completed 이면 merge review 경계로 진입한다.
+3. **story PR 생성 + 리뷰 (메인)** — story 누적 commit 을 대상으로 `impl-validator` PASS 를 받은 뒤 PR 본문을 임시 파일로 박고 `scripts/pr-create.sh` 통합 호출:
    ```bash
    cat > /tmp/pr-body-<slug>.md <<'PR'
    <story 누적 변경 요약 + Test Plan + issue trailer>
@@ -309,7 +309,7 @@ story PR 경계 skip 차단: story 를 clean 표기 *전*, code-validator 가 PA
      --title "<...>" --body-file /tmp/pr-body-<slug>.md
    ```
    분리 명령 (`git checkout -b` / `push` / `gh pr create` 각각) 은 *비권장* — 메인 turn 누적 영역.
-4. **pr-reviewer step + 머지** — `begin-step pr-reviewer` → `Agent(pr-reviewer, ...)` → `PASS` 시 `end-step pr-reviewer` 로 step 을 닫고, **story/epic close 발동 PR 이면 그 다음 [마감 acceptance](#마감-acceptance) PASS 를 받은 후에만** `bash "$PLUGIN_ROOT/scripts/pr-finalize.sh" <PR>` (gh pr merge --auto + watch + default worktree sync 자동). `FAIL` 시 engineer POLISH 단발 진입 → **POLISH_DONE 후 메인이 POLISH 변경을 PR 브랜치에 `git add`/`commit`/`push` 1회** → pr-reviewer 재리뷰 (cycle ≤ 2) 후 `end-step pr-reviewer`.
+4. **impl-validator step + 머지** — `begin-step impl-validator` → `Agent(impl-validator, prompt=<merge candidate diff>)` → `PASS` 시 `end-step impl-validator` 로 step 을 닫고, **story/epic close 발동 PR 이면 그 다음 [마감 acceptance](#마감-acceptance) PASS 를 받은 후에만** `bash "$PLUGIN_ROOT/scripts/pr-finalize.sh" <PR>` (gh pr merge --auto + watch + default worktree sync 자동). 단일 story 는 해당 PR diff 를, 다중 story/통합 브랜치는 합쳐진 diff 를 넘긴다. `FAIL` 시 finding class 에 따라 구현 수정 또는 품질 수정 → **메인이 변경을 PR 브랜치에 commit/push 하거나 fix PR 을 생성** → impl-validator 재리뷰 (cycle ≤ 2) 후 `end-step impl-validator`.
 
 > **advanced fallback — deep task 보강 필요 시 module-architect 선두** — build-worker 직전에 `begin-step module-architect` → `Agent(module-architect, prompt=<task 컨텍스트 + impl 파일 생성 위치>)` → `PASS` 시 impl 파일 생성 확인 후 `end-step module-architect` → 정상 build-worker 진입. 이것은 Lite direct 구현이 아니라 deep task 보강 경로다. `ESCALATE` 시 사용자 위임.
 >
@@ -317,7 +317,7 @@ story PR 경계 skip 차단: story 를 clean 표기 *전*, code-validator 가 PA
 >
 > **검증 대행 폴백** — build-worker 가 환경 제약으로 검증 명령을 실행하지 못해 `VALIDATION_BLOCKED` 를 보고하면, 메인이 worker 가 남긴 검증 명령을 같은 cwd(worktree)에서 직접 실행해 종료코드로 판정을 복원한다 (= [`impl-loop-routing.md`](impl-loop-routing.md#결론-다음-호출-매핑)). 검증 미실행 상태로 git/PR 진행 금지.
 
-❌ build-worker 안티패턴: phase 2 종료 전 GREEN 미확인 (false-clean) / 검증 실행 불가를 정적 분석 PASS 로 흡수 (실행 불가면 `VALIDATION_BLOCKED` — 메인이 게이트 대행) / build-worker 가 `Agent(pr-reviewer)` 또는 `git commit` 직접 호출 (권한 경계 위반 — 메인이 별 turn 처리) / phase prose 자체 Write 확인 skip (`build-{test,impl,validate}.md` 3개 실존 검증 의무, 부재 시 `blocked` 강등).
+❌ build-worker 안티패턴: phase 2 종료 전 GREEN 미확인 (false-clean) / 검증 실행 불가를 정적 분석 PASS 로 흡수 (실행 불가면 `VALIDATION_BLOCKED` — 메인이 게이트 대행) / build-worker 가 `Agent(impl-validator)` 또는 `git commit` 직접 호출 (권한 경계 위반 — 메인이 별 turn 처리) / phase prose 자체 Write 확인 skip (`build-{test,impl,validate}.md` 3개 실존 검증 의무, 부재 시 `blocked` 강등).
 
 ---
 
@@ -332,11 +332,11 @@ story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후
 - 중간 task (`Part of`) / 공통 task / verify-only task → 비대상
 - **통합 브랜치 모드 (sub-PR base ≠ main)** — sub-PR 의 `Closes` 는 머지해도 발동하지 않으므로 **sub-PR 단계에서는 acceptance 를 발동하지 않는다**. 검수는 *마지막 main 머지 PR* (`Closes #story×N + #epic` 일괄) 의 머지 전에 story×N → epic 순으로 일괄 수행한다 — 발동 기준은 "task_index" 가 아니라 "이 PR 머지로 issue close 가 실제 발동하는가"다.
 
-**run marker**: 위 판정 결과가 acceptance 대상이고 `--no-acceptance` 가 아니면 story PR 경계 run 시작 시 `begin-run impl --acceptance-required` 를 기록한다. 이 marker 는 Stop hook 이 `pr-reviewer` 를 종료 agent 로 보지 않게 하는 신호다. marker 없는 run 은 `pr-reviewer` 직후 기존처럼 auto end-run 후보가 된다.
+**run marker**: 위 판정 결과가 acceptance 대상이고 `--no-acceptance` 가 아니면 merge review run 시작 시 `begin-run impl --acceptance-required` 를 기록한다. 이 marker 는 Stop hook 이 `impl-validator` 를 종료 agent 로 보지 않게 하는 신호다. marker 없는 run 은 `impl-validator` 직후 기존처럼 auto end-run 후보가 된다.
 
-**시점 — pr-reviewer PASS 후 · `pr-finalize.sh`(머지) *전*, 단 story 구현 증거가 모두 모인 뒤**. `Closes #story` auto-close 는 머지 시 발동하므로, 머지 전에 검수해야 (1) story/epic issue close = 검수 통과와 동기화되고 (2) gap 수정이 *열려 있는 같은 PR* 에 commit 추가로 들어간다 (gap fix PR 난립 X). 엔진별 삽입점은 동일하게 story PR 이 열린 뒤 pr-finalize 전이다. **병렬 peer 세션의 close 발동 PR 은 같은 story 의 prior sibling task 가 모두 completed/merged evidence 를 갖췄음을 `wave-status` 로 먼저 확인한 후** acceptance 를 수행하고, 그 다음 `pr-finalize.sh`(merge lock + order gate) 를 호출한다 — sibling 미완료 상태의 검수는 불완전 증거 검수라 금지. sibling 이 아직 진행 중이면 완료를 기다렸다가 검수한다 (직렬 chain 은 순서상 자동 충족).
+**시점 — impl-validator PASS 후 · `pr-finalize.sh`(머지) *전*, 단 story 구현 증거가 모두 모인 뒤**. `Closes #story` auto-close 는 머지 시 발동하므로, 머지 전에 검수해야 (1) story/epic issue close = 검수 통과와 동기화되고 (2) gap 수정이 *열려 있는 같은 PR* 에 commit 추가로 들어간다 (gap fix PR 난립 X). 엔진별 삽입점은 동일하게 story PR 이 열린 뒤 pr-finalize 전이다. **병렬 peer 세션의 close 발동 PR 은 같은 story 의 prior sibling task 가 모두 completed/merged evidence 를 갖췄음을 `wave-status` 로 먼저 확인한 후** acceptance 를 수행하고, 그 다음 `pr-finalize.sh`(merge lock + order gate) 를 호출한다 — sibling 미완료 상태의 검수는 불완전 증거 검수라 금지. sibling 이 아직 진행 중이면 완료를 기다렸다가 검수한다 (직렬 chain 은 순서상 자동 충족).
 
-**책임 소재**: code-validator 는 계획 대비 구현 정합, pr-reviewer 는 이번 PR diff 위험을 본다. 여러 PR 이 모인 story 동작과 여러 story 가 모인 epic 동작은 이 마감 product-acceptance 가 맡는다. product-acceptance prompt 에는 핵심 AC별 동작 증거(정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등)와 mock/stub/fake 경계를 메인이 직접 넣는다. UI story/epic 이면 메인은 impl 문서의 `## 디자인 참조` 에서 확정 목업 경로와 핵심 `data-node-id` 매핑을 수집하고, 실제 구현 화면 스크린샷 또는 동등한 화면 증거 경로를 함께 넣는다. 증거 생성 수단은 각 프로젝트 몫이며 dcNess 는 자동 스크린샷 생성 도구를 배포하지 않는다.
+**책임 소재**: impl-validator 는 계획 대비 구현 정합과 merge candidate diff 위험을 함께 본다. 여러 PR 이 모인 story 동작과 여러 story 가 모인 epic 동작은 이 마감 product-acceptance 가 맡는다. product-acceptance prompt 에는 핵심 AC별 동작 증거(정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등)와 mock/stub/fake 경계를 메인이 직접 넣는다. UI story/epic 이면 메인은 impl 문서의 `## 디자인 참조` 에서 확정 목업 경로와 핵심 `data-node-id` 매핑을 수집하고, 실제 구현 화면 스크린샷 또는 동등한 화면 증거 경로를 함께 넣는다. 증거 생성 수단은 각 프로젝트 몫이며 dcNess 는 자동 스크린샷 생성 도구를 배포하지 않는다.
 
 **UI 화면 증거 수집**: 마감 acceptance 호출 직전에 메인은 UI task 여부를 확인한다. `design: required`, `## 디자인 참조` 의 확정 목업 경로, 또는 `docs/design-variants/<screen-id>.html` 참조가 있으면 UI 검수 대상으로 본다. 이때 product-acceptance prompt 에 아래를 명시한다.
 
@@ -346,7 +346,7 @@ story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후
 - 화면 증거가 없으면 `화면 증거 부재` gap 후보라고 명시
 - 확정 목업과 화면 증거가 레이아웃 계층·상태(default/empty/error 등)·토큰 대응에서 어긋나면 `목업 불일치` gap 후보라고 명시
 
-**호출** (conveyor step 기록 — harness 는 `product-acceptance` 를 read-only validator 로 이미 인지. mode 를 positional 로 기록해 STORY/EPIC step 을 분리한다). `current_step` 은 1개뿐이므로 **직전 step(pr-reviewer)을 `end-step` 으로 닫은 뒤에** `begin-step product-acceptance` 를 연다 — 안 닫으면 pr-reviewer step 기록이 덮여 clean 게이트의 pr-reviewer PASS 흔적이 깨진다:
+**호출** (conveyor step 기록 — harness 는 `product-acceptance` 를 read-only validator 로 이미 인지. mode 를 positional 로 기록해 STORY/EPIC step 을 분리한다). `current_step` 은 1개뿐이므로 **직전 step(impl-validator)을 `end-step` 으로 닫은 뒤에** `begin-step product-acceptance` 를 연다 — 안 닫으면 impl-validator step 기록이 덮여 clean 게이트의 impl-validator PASS 흔적이 깨진다:
 
 ```
 begin-step product-acceptance STORY_ACCEPTANCE    # epic 마감 2회차 = EPIC_ACCEPTANCE
@@ -368,7 +368,7 @@ product-acceptance 는 read-only(Read/Glob/Grep) 라 `gh` 호출 불가 — PR �
 **결론 분기** (상세 = 분기 규칙 SSOT):
 
 - `PASS` → `pr-finalize.sh` 머지 진행 (epic 마감은 STORY → EPIC 2회 모두 PASS 후).
-- `FAIL` → **gap 수정 루프** (자동, round ≤ 3): auto-fixable gap(PRD/AC 미충족 · 검수 증거 부족 · 스모크 실패 · mock-only green / 동작 증거 부족 · 화면 증거 부재 · 구현 누락이 명확한 목업 불일치 · 명확한 구현 보강으로 닫히는 사용자 동선 부적합)을 **`engineer:IMPL` 재진입**으로 수정한다 — POLISH 가 아니다 (POLISH 는 pr-reviewer finding 전용·로직 변경 금지 모드라 AC gap 수정에 부적합). engineer 입력 = story 의 impl 문서 + acceptance prose 의 gap 목록. 엔진 B 도 run 시작 때 `--design-doc <task 의 impl 문서 경로>` 를 기록하므로 이 `engineer:IMPL` 재진입은 engineer gate 를 통과한다. `IMPL_DONE` → code-validator `PASS` → lint/build/test green → 메인이 변경을 PR 브랜치에 commit/push → pr-reviewer 재리뷰 → product-acceptance 재검수. **gap 수정 commit 이 생겼으면 재검수는 마감 시퀀스 처음부터** — epic 마감에서 EPIC FAIL 수정 후엔 이전 STORY PASS 가 stale 이므로 `STORY_ACCEPTANCE` 부터 다시 돌린다. round 초과, 또는 설계 결함·범위 재정의·사용자/UX 선택 필요·보안/권한/데이터 리스크 gap → 정지 + 사용자 위임 (gap 분류 기준 = [`acceptance-routing.md`](../acceptance/acceptance-routing.md) gap taxonomy).
+- `FAIL` → **gap 수정 루프** (자동, round ≤ 3): auto-fixable gap(PRD/AC 미충족 · 검수 증거 부족 · 스모크 실패 · mock-only green / 동작 증거 부족 · 화면 증거 부재 · 구현 누락이 명확한 목업 불일치 · 명확한 구현 보강으로 닫히는 사용자 동선 부적합)을 **`engineer:IMPL` 재진입**으로 수정한다 — POLISH 가 아니다 (POLISH 는 impl-validator finding 전용·로직 변경 금지 모드라 AC gap 수정에 부적합). engineer 입력 = story 의 impl 문서 + acceptance prose 의 gap 목록. 엔진 B 도 run 시작 때 `--design-doc <task 의 impl 문서 경로>` 를 기록하므로 이 `engineer:IMPL` 재진입은 engineer gate 를 통과한다. `IMPL_DONE` → impl-validator `PASS` → lint/build/test green → 메인이 변경을 PR 브랜치에 commit/push → impl-validator 재리뷰 → product-acceptance 재검수. **gap 수정 commit 이 생겼으면 재검수는 마감 시퀀스 처음부터** — epic 마감에서 EPIC FAIL 수정 후엔 이전 STORY PASS 가 stale 이므로 `STORY_ACCEPTANCE` 부터 다시 돌린다. round 초과, 또는 설계 결함·범위 재정의·사용자/UX 선택 필요·보안/권한/데이터 리스크 gap → 정지 + 사용자 위임 (gap 분류 기준 = [`acceptance-routing.md`](../acceptance/acceptance-routing.md) gap taxonomy).
 - `ESCALATE` (기준 문서·구현 증거·사용자 결정 부족) → 정지 + 사용자 위임.
 
 acceptance FAIL 미해소 상태로 pr-finalize 강행 금지 — close 발동 story PR 의 `clean` 판정 게이트에 product-acceptance PASS 흔적이 포함된다 ([chain 모드 task 경계 분기](impl-loop-routing.md#chain-모드-task-경계-분기)). 진행 뷰에는 close 발동 story PR 의 sub-step 으로 `product-acceptance` 를 추가한다 (epic close 는 `product-acceptance:STORY` / `product-acceptance:EPIC` 2개).
@@ -377,7 +377,7 @@ acceptance FAIL 미해소 상태로 pr-finalize 강행 금지 — close 발동 s
 
 ## story/epic runner state (#1019)
 
-`/impl-loop` 은 story/epic run state 를 자연어로 암기하지 않는다. 진입 직후 `dcness-story-runner` 가 impl task 목록을 정렬하고, story PR 경계와 task 상태(pending/running/completed/error/blocked)를 JSON 으로 남긴다. 이 파일이 resume 기준이다.
+`/impl-loop` 은 story/epic run state 를 자연어로 암기하지 않는다. 진입 직후 `dcness-story-runner` 가 impl task 목록을 정렬하고, PR/merge review 경계와 task 상태(pending/running/completed/error/blocked)를 JSON 으로 남긴다. 이 파일이 resume 기준이다.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-story-runner" init <impl-file-or-dir...> \
@@ -390,7 +390,7 @@ acceptance FAIL 미해소 상태로 pr-finalize 강행 금지 — close 발동 s
   --story <story> --status completed --pr <url-or-number>
 ```
 
-실행 단위는 **task commit** 과 **story PR** 이다. story 안의 task 는 순차로 구현·검증해 commit 으로 누적하고, story 의 모든 task 가 completed 되면 story 상태는 `ready_for_pr` 이 된다. 다음 진행은 `next-action` 의 `action=task|story-pr|blocked|error|done` 결과를 따른다. `action=story-pr` 이면 payload 의 `story` 를 닫아야 하며, 다음 story/task 로 건너뛰지 않는다. `code-validator` / `pr-reviewer` / PR 생성·머지는 이 story 경계에서 1회 수행하고, PR 머지 후 `mark-story --status completed --pr <url>` 로 닫는다. epic 입력은 story run 을 순서대로 반복하며, epic 을 단일 PR 로 묶지 않는다. provider chain step 이 `claude-main` 으로 떨어지면 해당 task 는 메인 루프 위임으로 기록하고 계속 같은 state 를 쓴다.
+실행 단위는 **task commit** 과 **story PR** 이다. story 안의 task 는 순차로 구현·검증해 commit 으로 누적하고, story 의 모든 task 가 completed 되면 story 상태는 `ready_for_pr` 이 된다. 다음 진행은 `next-action` 의 `action=task|story-pr|blocked|error|done` 결과를 따른다. `action=story-pr` 이면 payload 의 `story` 를 닫아야 하며, 다음 story/task 로 건너뛰지 않는다. `impl-validator` 리뷰 / PR 생성·머지는 merge review 경계에서 1회 수행하고, PR 머지 후 `mark-story --status completed --pr <url>` 로 닫는다. epic 입력은 story run 을 순서대로 반복하며, epic 을 단일 PR 로 묶지 않는다. provider chain step 이 `claude-main` 으로 떨어지면 해당 task 는 메인 루프 위임으로 기록하고 계속 같은 state 를 쓴다.
 
 완료된 run 의 `.dcness-work/story-run.json` 이 남아 있으면 다음 `init` 은 기존 파일을 `.dcness-work/story-run.completed-<UTC>.json` 으로 archive 한 뒤 새 state 를 만든다. completed 가 아닌 state 가 있으면 `init` 은 실패한다. 그 경우 resume 하거나, 사용자가 명시적으로 폐기 지시한 때만 `--force` 로 교체한다.
 
@@ -402,12 +402,12 @@ chain = 위 공통 골격 + 엔진을 **task 한 개씩** 실행하되, task 완
 
 ### 실행 전 계획 확인 (dry preview)
 
-`impl/NN-*.md` prefix 기준 직렬 순서 확정 후, **task1 진입 *전* 실행 계획을 1회 표로 echo** (사용자 가시성 + 잘못된 순서·범위 사전 포착, #526). 각 task frontmatter (`story:` / `task_index:` / `risk:` / `engine:` / `risk_reason:`) 파싱과 story PR 경계 계산은 `dcness-story-runner plan/init` 이 맡는다. PR 트레일러 최종 적용은 story PR 생성 직전 [`git-spec.md`](../../docs/plugin/git-spec.md#적용-절차-pr-생성-직전-사전-체크-impl-파일-frontmatter-기반) 기준으로 메인이 확인한다.
+`impl/NN-*.md` prefix 기준 직렬 순서 확정 후, **task1 진입 *전* 실행 계획을 1회 표로 echo** (사용자 가시성 + 잘못된 순서·범위 사전 포착, #526). 각 task frontmatter (`story:` / `task_index:` / `risk:` / `engine:` / `risk_reason:`) 파싱과 PR/merge review 경계 계산은 `dcness-story-runner plan/init` 이 맡는다. PR 트레일러 최종 적용은 story PR 생성 직전 [`git-spec.md`](../../docs/plugin/git-spec.md#적용-절차-pr-생성-직전-사전-체크-impl-파일-frontmatter-기반) 기준으로 메인이 확인한다.
 
-각 task 는 dry preview 단계에서 `risk` / `engine` / `reason` 을 남긴다. **frontmatter 에 `risk`/`engine`/`risk_reason` 이 유효한 단일 값으로 채워져 있으면 추론하지 말고 그 값을 그대로 옮긴다 (#703)**: `risk` ∈ `normal`/`high`/`low`, `engine` = `2agent`(build-worker) / `4agent`(풀 4-agent), `reason` = frontmatter `risk_reason`. **placeholder 가드 (위 진입 분기와 동일, MUST)**: 템플릿 미작성 잔재(`|` 포함된 `normal|high|low`)·빈 값·`<…>` 는 부재로 간주해 추론으로 떨어진다. frontmatter risk 가 **없거나 placeholder 인 task 만** 메인이 본문에서 추론한다 — 이 fallback 도 위 진입 분기의 구현 시점 위험 기준을 쓴다. 고위험 trigger 가 없으면 `engine=build-worker`, `reason=engine 미지정 + 고위험 trigger 없음`, 고위험이면 `engine=4agent`, `reason=외부 HTTP`/`신뢰 경계 밖 입력 파싱`/`auth`/`PII`/`destructive schema 변경` 처럼 task 본문에서 확인한 승격 근거를 적는다. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 판정 예시: 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이면 `engine: 4agent`. 어느 경로든 `reason` 은 비워 두지 않는다 (frontmatter `risk_reason` 또는 추론 근거 중 하나는 항상 채운다). `risk: high` row 의 기본 `engine` 은 `4agent`(풀 4-agent) 이며, chain 전체 기본이 build-worker 여도 해당 row 만 승격한다. (verify-only task 는 risk 와 별개로 `task_type` 으로 판정 — 위 `### verify-only task`.)
+각 task 는 dry preview 단계에서 `risk` / `engine` / `reason` 을 남긴다. **frontmatter 에 `risk`/`engine`/`risk_reason` 이 유효한 단일 값으로 채워져 있으면 추론하지 말고 그 값을 그대로 옮긴다 (#703)**: `risk` ∈ `normal`/`high`/`low`, `engine` = `2agent`(build-worker) / `4agent`(풀 경로), `reason` = frontmatter `risk_reason`. **placeholder 가드 (위 진입 분기와 동일, MUST)**: 템플릿 미작성 잔재(`|` 포함된 `normal|high|low`)·빈 값·`<…>` 는 부재로 간주해 추론으로 떨어진다. frontmatter risk 가 **없거나 placeholder 인 task 만** 메인이 본문에서 추론한다 — 이 fallback 도 위 진입 분기의 구현 시점 위험 기준을 쓴다. 고위험 trigger 가 없으면 `engine=build-worker`, `reason=engine 미지정 + 고위험 trigger 없음`, 고위험이면 `engine=4agent`, `reason=외부 HTTP`/`신뢰 경계 밖 입력 파싱`/`auth`/`PII`/`destructive schema 변경` 처럼 task 본문에서 확인한 승격 근거를 적는다. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 판정 예시: 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이면 `engine: 4agent`. 어느 경로든 `reason` 은 비워 두지 않는다 (frontmatter `risk_reason` 또는 추론 근거 중 하나는 항상 채운다). `risk: high` row 의 기본 `engine` 은 `4agent`(풀 경로) 이며, chain 전체 기본이 build-worker 여도 해당 row 만 승격한다. (verify-only task 는 risk 와 별개로 `task_type` 으로 판정 — 위 `### verify-only task`.)
 
 ```
-📋 실행 계획 (K task · 엔진 <풀 4-agent | build-worker | mixed>)
+📋 실행 계획 (K task · 엔진 <풀 경로 | build-worker | mixed>)
 | # | 모듈 | impl 파일 | task_index | PR 트레일러 | risk | engine | reason | sub-step |
 |---|------|----------|-----------|-----------|------|--------|--------|----------|
 | 1 | <slug> | `NN-<slug>.md` | <i/total 또는 —> | story #<M> PR 에 누적 | normal | build-worker | engine 미지정 + 고위험 trigger 없음 | <sub-step> |
@@ -454,8 +454,8 @@ bash "${CLAUDE_PLUGIN_ROOT}/scripts/dcness-helper" wave-plan --register <impl-gl
 
 ```text
 병렬 peer mode 등록 완료 — 각 터미널에서 실행:
-1. /impl-loop <canonical-impl-path-1>   # engine: build-worker|풀 4-agent
-2. /impl-loop <canonical-impl-path-2>   # engine: build-worker|풀 4-agent
+1. /impl-loop <canonical-impl-path-1>   # engine: build-worker|풀 경로
+2. /impl-loop <canonical-impl-path-2>   # engine: build-worker|풀 경로
 
 의존 task / high-risk task 는 직렬 순서 유지.
 ```
@@ -476,7 +476,7 @@ merge lock 이 보존하는 것:
 
 ### task 경계 — state mark + next
 
-각 task 종료 시 `dcness-story-runner mark --status completed --commit <sha>` 로 state 를 갱신하고, 다음 분기는 `dcness-story-runner next-action` 으로만 고른다. 메인이 path glob 를 다시 정렬하거나 frontmatter 를 재해석하지 않는다. `begin-run impl --design-doc <task impl 문서>` 는 task 구현 step 시작 시 여전히 사용한다 — engineer/build-worker gate 의 설계 산출물 사전 조건이기 때문이다. story 의 마지막 task 가 completed 가 되면 `next-action` 이 `action=story-pr` 과 닫을 story 를 반환하므로 다음 구현 task 로 가지 않고 story PR 경계(`code-validator` → `pr-reviewer` → PR 생성/머지)로 진입한다.
+각 task 종료 시 `dcness-story-runner mark --status completed --commit <sha>` 로 state 를 갱신하고, 다음 분기는 `dcness-story-runner next-action` 으로만 고른다. 메인이 path glob 를 다시 정렬하거나 frontmatter 를 재해석하지 않는다. `begin-run impl --design-doc <task impl 문서>` 는 task 구현 step 시작 시 여전히 사용한다 — engineer/build-worker gate 의 설계 산출물 사전 조건이기 때문이다. story 의 마지막 task 가 completed 가 되면 `next-action` 이 `action=story-pr` 과 닫을 story 를 반환하므로 다음 구현 task 로 가지 않고 merge review 경계(`PR 생성 → impl-validator → 머지/acceptance`)로 진입한다.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-story-runner" mark --state .dcness-work/story-run.json --task <id> --status completed --commit <sha>
@@ -485,7 +485,7 @@ merge lock 이 보존하는 것:
 
 ### enum 별 분기
 
-- `clean` → mark completed → 다음 task 또는 story PR 경계
+- `clean` → mark completed → 다음 task 또는 merge review 경계
 - `error` → 자동 재시도 (한도 `--retry-limit`, default 3). 한도 초과 시 정지 + 사용자 위임.
 - `blocked` → 즉시 정지 + 사용자 위임.
 - **전체 완료** → 보고 (처리 N/N + 각 PR URL). 본 시점 *이후* 메인이 자율 작업 (이슈 등록 / cleanup / 측정) 진입 시 진입 *전* `dcness-helper post-task-begin --reason "<사유>"` 호출 의무 (task ROI 측정 분리 marker, #472).
@@ -502,13 +502,13 @@ commit <sha> · story #<MMM> 누적
 next: <다음 task slug 진입 | 정지 사유>
 ```
 
-story PR 경계에서는 별도 5줄 요약을 붙인다. 이때 PR 머지 줄은 `PR <#NNN> merged · closes #<MMM>` 형식을 유지한다.
+merge review 경계에서는 별도 5줄 요약을 붙인다. 이때 PR 머지 줄은 `PR <#NNN> merged · closes #<MMM>` 형식을 유지한다.
 
-**2번째 줄 = 엔진별 (chain 은 build-worker / 풀 4-agent 둘 다 가능 — 엔진에 맞춰 채운다)**:
-- **build-worker 엔진**: `build-worker: N tests RED→GREEN · M files +X -Y · validate PASS|FAIL · pr-reviewer: LGTM|FAIL` (impl 부재로 module-architect 선두면 앞에 `module-architect: PASS|ESCALATE · ` 추가)
-- **풀 4-agent 엔진** (chain + `엄정하게` override): `test-engineer: N tests · engineer: M files +X -Y · code-validator: PASS|FAIL · pr-reviewer: LGTM|FAIL` (advanced fallback 으로 module-architect 선두면 앞에 `module-architect: PASS · ` 추가)
+**2번째 줄 = 엔진별 (chain 은 build-worker / 풀 경로 둘 다 가능 — 엔진에 맞춰 채운다)**:
+- **build-worker 엔진**: `build-worker: N tests RED→GREEN · M files +X -Y · validate PASS|FAIL · impl-validator: PASS|FAIL` (impl 부재로 module-architect 선두면 앞에 `module-architect: PASS|ESCALATE · ` 추가)
+- **풀 경로 엔진** (chain + `엄정하게` override): `test-engineer: N tests · engineer: M files +X -Y · impl-validator: PASS|FAIL` (advanced fallback 으로 module-architect 선두면 앞에 `module-architect: PASS · ` 추가)
 
-**5줄 작성 책임 = 메인 (task commit 또는 PR 머지 완료 후)** — task commit 해시와 story PR 번호·merged 상태는 메인 git/PR 단계 이후에야 확정된다. 따라서 pr-reviewer 는 자기 결론(LGTM/FAIL) + 엔진별 메트릭 *재료* 만 prose 에 제공하고 ([`pr-reviewer-agent.md` 결론과 보고](../../docs/plugin/agents/pr-reviewer/pr-reviewer-agent.md#결론과-보고) 정합), **메인이 task commit 또는 story PR 머지 후 위 5줄을 종합해 chat 에 echo** 한다 — 자유 형식 단축 금지 (외부 사용자 [F8 실측](https://github.com/alruminum/dcNess/issues/507)).
+**5줄 작성 책임 = 메인 (task commit 또는 PR 머지 완료 후)** — task commit 해시와 PR 번호·merged 상태는 메인 git/PR 단계 이후에야 확정된다. 따라서 impl-validator 는 자기 결론(PASS/FAIL) + 엔진별 메트릭 *재료* 만 prose 에 제공하고 ([`impl-validator-agent.md` 결론과 보고](../../docs/plugin/agents/impl-validator/impl-validator-agent.md#결론과-보고) 정합), **메인이 task commit 또는 merge 완료 후 위 5줄을 종합해 chat 에 echo** 한다 — 자유 형식 단축 금지 (외부 사용자 [F8 실측](https://github.com/alruminum/dcNess/issues/507)).
 
 **close 발동 story PR 은 acceptance 줄 1개 추가 (6줄)** — `PR <#NNN> merged` 줄 *앞* 에 `acceptance: story #<M> PASS (round <n>)` (epic close 는 ` · epic #<E> PASS (round <n>)` 덧붙임). FAIL 정지 시에는 `acceptance: story #<M> FAIL — gap <요약>` + next 줄에 정지 사유.
 
@@ -522,11 +522,11 @@ story PR 경계에서는 별도 5줄 요약을 붙인다. 이때 PR 머지 줄�
 ✓ task1 · <모듈명>
 ▾ task2 · <모듈명>          ← 현재 (in_progress)
    ㄴ build-worker          ← sub-step (엔진별)
-   ㄴ pr-reviewer
+   ㄴ impl-validator
 ○ task3 · <모듈명>          ← 예정 (pending)
 ```
 
-- sub-step 수 = 엔진별. task 구현 단계는 build-worker: 1 (`build-worker`), deep task 보강 시 2 (`module-architect` 선두), 풀 4-agent: 2 (`test-engineer` / `engineer:IMPL`) 이다. story PR 경계는 `code-validator` / `pr-reviewer` 2개를 별도 표시한다. UI 감지 시 진행 뷰용 `canvas-design` main-owned checkpoint 가 추가된다. story close PR 은 `product-acceptance` sub-step +1, epic close PR 은 +2 (`product-acceptance:STORY` / `product-acceptance:EPIC` — [마감 acceptance](#마감-acceptance)).
+- sub-step 수 = 엔진별. task 구현 단계는 build-worker: 1 (`build-worker`), deep task 보강 시 2 (`module-architect` 선두), 풀 경로: 2 (`test-engineer` / `engineer:IMPL`) 이다. merge review 경계는 `impl-validator` 1개를 표시한다. UI 감지 시 진행 뷰용 `canvas-design` main-owned checkpoint 가 추가된다. story close PR 은 `product-acceptance` sub-step +1, epic close PR 은 +2 (`product-acceptance:STORY` / `product-acceptance:EPIC` — [마감 acceptance](#마감-acceptance)).
 - **task 완료 → 다음 (다시 그리기 — task 수 별 분기)**:
 
 | 총 task 수 | 절차 | sub-step 펼침 | 비용 |
@@ -600,6 +600,6 @@ PR merge 직후 *반드시* 실행 (issue #396):
 - 권한 경계: [`agent_boundary.py`](../../harness/agent_boundary.py)
 - 브랜치·커밋·PR 네이밍: [`git-spec.md`](../../docs/plugin/git-spec.md)
 - 기본 구현 진입점: [`/impl`](../impl/SKILL.md)
-- agent 정의: [`test-engineer.md`](../../agents/test-engineer.md) / [`engineer.md`](../../agents/engineer.md) / [`code-validator.md`](../../agents/code-validator.md) / [`pr-reviewer.md`](../../agents/pr-reviewer.md) / [`build-worker.md`](../../agents/build-worker.md) / [`module-architect.md`](../../agents/module-architect.md) / [`designer.md`](../../agents/designer.md) / [`product-acceptance.md`](../../agents/product-acceptance.md)
+- agent 정의: [`test-engineer.md`](../../agents/test-engineer.md) / [`engineer.md`](../../agents/engineer.md) / [`impl-validator.md`](../../agents/impl-validator.md) / [`build-worker.md`](../../agents/build-worker.md) / [`module-architect.md`](../../agents/module-architect.md) / [`designer.md`](../../agents/designer.md) / [`product-acceptance.md`](../../agents/product-acceptance.md)
 - 제품 검수 standalone 진입점: [`/acceptance`](../acceptance/SKILL.md) (입력 정형·판단 기대 재사용 — [마감 acceptance](#마감-acceptance))
 - 트랙 SSOT (Hybrid A): [issue #446](https://github.com/alruminum/dcNess/issues/446)

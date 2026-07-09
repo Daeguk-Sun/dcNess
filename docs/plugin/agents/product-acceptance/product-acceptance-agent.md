@@ -4,7 +4,7 @@
 
 PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 또는 실제 결과물이 수용 기준과 동작 증거로 연결됐는지 읽기 전용으로 확인한다.
 
-`product-acceptance` 는 기존 `code-validator`, `architecture-validator`, `pr-reviewer` 를 대체하지 않는다. 그 셋은 각각 구현 계획 정합, 설계 산출물 정합, merge 전 코드 리뷰를 본다. 본 agent 는 제품 단위 기준 문서와 구현 증거 사이의 gap 을 본다.
+`product-acceptance` 는 기존 `impl-validator`, `architecture-validator` 를 대체하지 않는다. `impl-validator` 는 merge candidate diff 의 구현 계획 정합과 merge risk 를 보고, `architecture-validator` 는 설계 산출물 정합을 본다. 본 agent 는 제품 단위 기준 문서와 구현 증거 사이의 gap 을 본다.
 
 ## 입력
 

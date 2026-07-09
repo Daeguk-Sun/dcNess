@@ -10,7 +10,7 @@ N run 을 한 번에 집계한다 — public benchmark (성공률/FAIL/escalate/
 --------
 - run 수 (entry_point 별 분포)
 - agent 별 결론(conclusion enum) 분포
-- pr-reviewer FAIL 비율 (= review rejection = FAIL / (PASS+FAIL+LGTM))
+- impl-validator FAIL 비율 (= review rejection = FAIL / (PASS+FAIL+LGTM))
 - escalate 결론 수 (전 agent)
 - `blocked` 이벤트 수
 - PR 머지 성공률 (= pr_created 중 pr_merged 로 확인된 PR 비율, 이벤트 있을 때만)
@@ -46,7 +46,7 @@ if str(_REPO_ROOT) not in sys.path:
 from harness import ledger  # noqa: E402
 from harness import run_review  # noqa: E402
 
-# pr-reviewer FAIL 비율 — 실패로 세는 verdict (FAIL + 옛 CHANGES_REQUESTED).
+# impl-validator FAIL 비율 — 실패로 세는 verdict (FAIL + 옛 CHANGES_REQUESTED).
 # CHANGES_REQUESTED 는 현 파서가 FAIL 로 흡수했으나 legacy .steps.jsonl enum 폴백
 # 경로에서 원형으로 등장할 수 있어 fail 버킷에 포함한다.
 _PR_REVIEWER_FAIL = {"FAIL", "CHANGES_REQUESTED"}
@@ -254,8 +254,8 @@ def aggregate_runs(
         for w in report.wastes:
             waste_counter[w.pattern] += 1
 
-    # pr-reviewer FAIL 비율 (FAIL + 옛 CHANGES_REQUESTED) / (PASS+FAIL+LGTM+CR)
-    pr = agent_conclusions.get("pr-reviewer", {})
+    # impl-validator FAIL 비율 (FAIL + 옛 CHANGES_REQUESTED) / (PASS+FAIL+LGTM+CR)
+    pr = agent_conclusions.get("impl-validator", {})
     denom = sum(c for v, c in pr.items() if v in _PR_REVIEWER_VERDICTS)
     fail_n = sum(c for v, c in pr.items() if v in _PR_REVIEWER_FAIL)
     fail_ratio = (fail_n / denom) if denom else None
@@ -327,7 +327,7 @@ def render_markdown(report: FleetReport) -> str:
                                key=lambda kv: -kv[1]))
         lines.append(f"- entry_point 분포: {ep}")
     lines.append(
-        f"- review rejection(pr-reviewer FAIL) 비율: "
+        f"- review rejection(impl-validator FAIL) 비율: "
         f"**{_fmt_ratio(report.pr_reviewer_fail_ratio)}** "
         f"({report.pr_reviewer_rejection_count}/{report.pr_reviewer_review_count})"
     )
