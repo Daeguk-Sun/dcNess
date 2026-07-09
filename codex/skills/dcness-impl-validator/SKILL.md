@@ -29,6 +29,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 - merge candidate 의 changed code와 diff
 - 계획 문서가 있으면 Must contract, public interface, scope boundary
 - 관련 local convention, architecture, domain-model, design token, DB schema
+- design:required UI 작업이면 impl 계획의 `## 디자인 참조`, `docs/design.md`, 확정 목업 경로, 구현 diff 의 theme/component/style 상수
 - 호출자가 제공한 test evidence
 - 이전 impl-validator 결과가 있으면 재검증 delta
 
@@ -41,6 +42,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 - 구현이 요청 scope와 맞고 unrelated behavior를 추가하지 않았는가.
 - Public API, data shape, config key, import boundary가 plan과 맞는가.
 - Async ordering, null/empty input, error propagation, stale state, resource cleanup, security-sensitive handling, user-visible edge case 같은 hidden regression을 고려했는가.
+- design:required UI 작업에서 구현이 목업 디자인 토큰을 실제로 적용했는가. build-worker self-report 와 분리해서 토큰 참조 유무, 스캐폴딩 기본 테마 상수, boilerplate 색 상수 잔존을 정적으로 본다.
 - `any`, ignored error, placeholder branch, dead code, fake test 같은 명백한 bypass가 들어오지 않았는가.
 
 ### quality 렌즈
@@ -53,6 +55,14 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 - 테스트가 credible하고 merely superficial하지 않은가.
 - Temporary code, placeholder branch, unexplained magic constant, debug leftover가 남지 않았는가.
 - Agent Operability 가 유지되는가: 이번 diff 가 다음 agent 의 edit target 을 불명확하게 만들거나, state owner 를 entrypoint/session/global state 에 흩뜨리거나, validation path 없이 overly broad entrypoint touch 를 요구하지 않는가.
+
+### design:required UI 토큰 적용 정적 축
+
+확정 목업과 `docs/design.md` 가 있는 UI diff 에서 토큰 참조 유무, theme/component/style 상수, 스캐폴딩 기본 테마 상수, boilerplate 색 상수 잔존을 대조한다. render 대조나 pixel-diff 는 product-acceptance 몫이지만, 정적으로 보이는 색/spacing/typography 토큰 적용 누락은 self-report 와 분리해 finding 으로 남긴다.
+
+- 계획의 `## 디자인 참조` 가 색/spacing/typography 토큰 적용 지점을 요구하는데 diff 가 해당 토큰이나 프로젝트 theme 연결 없이 스캐폴딩 기본 테마 상수를 유지하면 `[spec-gap]` 이다.
+- 계획이 느슨하거나 direct 경로라도 이번 diff 안에 목업과 다른 boilerplate 색 상수 잔존, 임시 hardcode, default primary palette 잔존이 merge risk 로 보이면 `[quality-gap]` 이다.
+- 의도적 목업-구현 차이가 PR/impl 문서에 이유와 영향으로 설명돼 있고 토큰 적용 지점이 대체 기준과 연결되면 gap 으로 과장하지 않는다.
 
 ## 작업 흐름
 

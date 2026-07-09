@@ -21,6 +21,7 @@
 - 필수: [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)
 - 계획 파일이 있으면 필수: 해당 impl 계획, architecture, domain-model, design reference 중 계획이 지시한 문서
 - 상황별: project convention, DB schema, API contract, design token
+- design:required UI 작업 상황별 필수: impl 계획의 `## 디자인 참조`, `docs/design.md`, 확정 목업 경로, 구현 diff 의 theme/component/style 상수
 - 상황별: 용어·공개 진입점·분기 표현을 검증할 때만 [`docs/plugin/terms.md`](../../terms.md)
 - 참고: [`references/finding-classes.md`](references/finding-classes.md)
 
@@ -34,6 +35,7 @@
 - 범위 통제: 계획 밖 파일이나 기능이 섞이지 않았는가.
 - 의존 계약: 외부 API, 모듈 내부 import, DB schema, design token 계약을 어기지 않는가.
 - 도메인/디자인 정합: domain invariant와 design token 참조가 깨지지 않았는가.
+- 디자인 토큰 적용: design:required UI 작업에서 구현이 목업 디자인 토큰을 실제로 적용했는가. 이 축은 build-worker self-report 와 분리해 정적으로 본다.
 - 구현 위험: race, leak, 타입 우회, 부적절한 side effect처럼 실제 결함 가능성이 있는가.
 - bugfix 회귀: 원인이 제거됐고 주변 동작을 불필요하게 바꾸지 않았는가.
 
@@ -50,6 +52,15 @@
 - 테스트 신뢰도: 호출자가 제공한 테스트 결과가 변경 contract를 실제로 뒷받침하는가. 테스트 결과를 꾸며 쓰지 않는다.
 - 문서 영향: 이번 diff 가 PRD / stories / architecture / decisions / module responsibility / 사용자-facing 문서의 기존 진술을 stale 하게 만들었는가. 이번 diff 가 기존 장기 문서를 무효화했는지 확인한다.
 - Agent Operability: 다음 agent 의 edit target, state owner, validation path 를 흐리게 만들지 않는가.
+
+### design:required UI 토큰 적용 정적 축
+
+확정 목업과 `docs/design.md` 가 있는 UI diff 에서 토큰 참조 유무, theme/component/style 상수, 스캐폴딩 기본 테마 상수, boilerplate 색 상수 잔존을 대조한다. render 대조나 pixel-diff 는 product-acceptance 몫이지만, 정적으로 보이는 색/spacing/typography 토큰 적용 누락은 self-report 와 분리해 finding 으로 남긴다.
+
+- 계획의 `## 디자인 참조` 가 색/spacing/typography 토큰 적용 지점을 요구하는데 diff 가 해당 토큰이나 프로젝트 theme 연결 없이 스캐폴딩 기본 테마 상수를 유지하면 `spec-gap` 이다.
+- 계획이 느슨하거나 direct 경로라도 이번 diff 안에 목업과 다른 boilerplate 색 상수 잔존, 임시 hardcode, default primary palette 잔존이 merge risk 로 보이면 `quality-gap` 이다.
+- 의도적 목업-구현 차이가 PR/impl 문서에 이유와 영향으로 설명돼 있고 토큰 적용 지점이 대체 기준과 연결되면 gap 으로 과장하지 않는다.
+- FAIL finding 에는 `[spec-gap]`/`[quality-gap]` 를 붙인다. 최종 재진입 분류는 `spec-gap`/`quality-gap` 의미를 유지하고, 어떤 파일/라인의 토큰 참조 유무 또는 상수 잔존이 근거인지 적는다.
 
 ## 작업 흐름
 
