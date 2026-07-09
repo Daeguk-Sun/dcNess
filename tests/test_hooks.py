@@ -19,7 +19,7 @@ Coverage matrix:
         - engineer 게이트 — run 에 기록된 design_doc 실존 시 module-architect 없이 통과
         - engineer 게이트 — design_doc 기록됐지만 디스크 부재면 차단 (fail-strict)
         - engineer 게이트 — 상대경로 기록 후 cwd 가 달라도 통과 (기록 시점 resolve)
-        - engineer 게이트 — mode-suffixed prose(module-architect-COMPACT_PLAN.md) PASS 인정
+        - engineer 게이트 — mode-suffixed prose(module-architect-REVISION.md) PASS 인정
         - 그 외 agent (architect MODULE_PLAN, code-validator 등) — run 외부에서도 통과
         - sid 없음 → silent allow
         - tool_input 비정상 → silent allow
@@ -409,10 +409,10 @@ class CatastrophicEngineerTests(_PreToolBase):
         self.assertEqual(rc, 0)
 
     def test_allowed_with_mode_suffixed_module_architect_pass(self) -> None:
-        # /impl Standard — module-architect:COMPACT_PLAN 의 prose 는
-        # module-architect-COMPACT_PLAN.md 에 기록된다. 같은-run PASS 로 인정
+        # module-architect mode prose 는 module-architect-<MODE>.md 에 기록된다.
+        # 같은-run PASS 로 인정
         # 해야 engineer(IMPL) 가 진입 가능 (mode-suffixed 파일명 인식).
-        (self.run_path / "module-architect-COMPACT_PLAN.md").write_text(
+        (self.run_path / "module-architect-REVISION.md").write_text(
             "## 결론\nPASS\n", encoding="utf-8",
         )
         rc = handle_pretooluse_agent(

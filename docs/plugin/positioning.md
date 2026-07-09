@@ -8,10 +8,10 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 |---|---|---|
 | `/spec` | 새 제품 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 | PRD 초안/최종화 / stories / 필요한 tech-review preflight + `SPEC_ACCEPTANCE` |
 | `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때 | UX / 시스템 / 모듈 / 기술 선택 설계. 구현 없이 visual design 만 먼저 탐색하려면 `/ux` |
-| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | 구현 경로(설계도 유무 — Lite / Standard) + 엔진(풀4/경량)을 내부 판정 |
+| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | 구현 경로(설계도 유무 — Lite / Standard) + review provider 를 내부 판정 |
 | `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 | story/epic acceptance. 핵심 AC별 동작 증거와 mock-only gap 을 구분한다. 사람 full E2E 는 MVP 범위 밖 |
 
-사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 **설계도를 보고 구현만** 하며, 구현 경로(설계도 유무)와 엔진(풀4/경량)을 직교로 고른다. sub-agent 엔진 미지정 기본은 build-worker 이고, 풀4는 high-risk trigger 나 사용자 엄정 override 같은 승격 전용이다. high-risk trigger 나 새 epic/product feature 는 impl 내부 구현 경로가 아니라 impl 진입 전 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기된다. Lite / Standard 조건, high-risk 선행, 되돌림 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 경량 build-worker 엔진을 선택해도 `pr-reviewer` gate 는 유지한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
+사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 **설계도를 보고 구현만** 하며, 구현 경로(설계도 유무)와 review provider 를 고른다. 일반 `/impl` 의 구현 주체는 메인이고, 격리되는 단계는 `pr-reviewer` 검토다. high-risk trigger 나 새 epic/product feature 는 impl 내부 구현 경로가 아니라 impl 진입 전 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기된다. Lite / Standard 조건, high-risk 선행, 되돌림 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
 
 ## Support Entrypoints
 
@@ -28,7 +28,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 | 고급 진입점 | 위치 |
 |---|---|
 | `/tech-review` | high-risk 설계 선행에서 `/spec` 내부 preflight 로 쓰는 선행 기술 검증 |
-| `/impl-loop` | deep impl task 파일용 legacy/advanced runner |
+| `/impl-loop` | story/epic 단위 headless 구현 runner |
 
 ## Utility 공개 노출 범위
 
@@ -52,13 +52,10 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 | 내부 skill | 역할 |
 |---|---|
 | `canvas-design` | `/ux`, `/impl`, `/impl-loop` 이 UI 기준 확보나 선행 목업 탐색이 필요하다고 판정했을 때 호출하는 내부 wrapper. designer draft 생성, 사용자 PICK, 확정본 승격, `docs/design-variants/canvas.html` frame 등록을 한 경로로 수행하며 공개 진입점으로 노출하지 않음 |
-| `compact-design` | `/impl` 이 "구현 전 경량 설계가 필요하다" 고 판단했을 때 되돌아오는 경량 모듈 설계 목적지. 새 agent 를 만들지 않고 `module-architect` 를 COMPACT_PLAN 모드로 호출하는 wrapper. full 설계 public 진입점은 `/design` 으로 유지 |
 | `design-ux` | `/design` dispatcher 가 UI epic 의 UX 산출물이 아직 durable 하지 않다고 판정했을 때 호출하는 내부 stage 1. `ux-flow.md` / `docs/design.md` / `docs/design-variants/` 확정본을 자체 PR 로 머지하며 공개 진입점으로 노출하지 않음 |
 | `design-system` | `/design` dispatcher 가 UI-less epic 이거나 UX stage 완료 epic 이라고 판정했을 때 호출하는 내부 stage 2. 기존 system/module 설계 pack 계약을 자체 PR 로 머지하며 공개 진입점으로 노출하지 않음 |
 
 `canvas-design` 은 시각 기준 확보를 각 workflow 안에 중복 기술하지 않기 위한 내부 wrapper 다. 확정본 SSOT 는 `docs/design-variants/` 이며, designer 는 `drafts/` 만 쓰고 메인이 확정본과 canvas 를 갱신한다. `/ux` 는 이 경로를 얇게 감싸 선행 탐색 결과를 확정본으로 남기고, `/impl` 과 `/impl-loop` 은 이 경로를 호출해 확정 목업 경로와 node-id 매핑을 구현자에게 전달한다.
-
-`compact-design` 은 경량 설계를 impl 레이어 *안* 에서 직접 생성·소비하던 구조를 impl 밖 독립 skill 로 옮긴 것이다. 설계 산출 주체는 종전과 같은 `module-architect` 이고, 산출물은 `docs/compact-plans/<slug>.md` 한 파일이다. 되돌림 원리 SSOT 는 [`workflow-router.md` 되돌림 원리](workflow-router.md#되돌림backpressure-원리)다.
 
 `design-ux` 와 `design-system` 은 `/design` 의 내부 stage 다. 사용자가 stage 이름을 호출하지 않고, `/design` 이 durable 산출물 실존 판정으로 자동 선택한다. `ux-flow.md` 존재 + 설계 pack 부재이면 `docs/index.md` 와 `/next-work` 가 "`/design` (ux 완료 · system 미완)" 을 표시해 다음 `/design` 진입이 system stage 로 이어진다.
 
@@ -66,11 +63,11 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-validator`, `build-worker`, `code-validator`, `designer`, `engineer`, `module-architect`, `pr-reviewer`, `product-acceptance`, `system-architect`, `tech-reviewer`, `test-engineer`, `ux-architect` 는 workflow 내부에서 호출되는 gate/worker/reviewer 로 분류한다.
 
-특히 `code-validator`, `architecture-validator`, `pr-reviewer` 는 read-only validation provider 분기 대상이고, `test-engineer`, `engineer`, `build-worker` 는 implementation provider 분기 대상이다. provider 가 Claude 든 Codex 든 사용자-facing 단계 이름은 `pr-reviewer` / `build-worker` 같은 agent 이름으로 유지한다.
+특히 `code-validator`, `architecture-validator`, `pr-reviewer` 는 read-only validation provider 분기 대상이다. `test-engineer`, `engineer`, `build-worker` 는 `/impl-loop` 같은 deep task runner 의 implementation provider 분기 대상이지 일반 `/impl` 구현자가 아니다. provider 가 Claude 든 Codex 든 사용자-facing 단계 이름은 `pr-reviewer` / `build-worker` 같은 agent 이름으로 유지한다.
 
 ## Contract Gate
 
-기본/support/고급/유틸리티/내부 agent 목록(과 내부 skill `internalSkills`)과 skill/command/agent 의 frontmatter name 대 path 정합은 [`scripts/check_public_surface.mjs`](../../scripts/check_public_surface.mjs) 가 검사한다. 새 기본 workflow 를 추가하려면 이 문서와 gate 기대값을 함께 수정해야 한다. `canvas-design`, `compact-design`, `design-ux`, `design-system` 같은 내부 skill 은 `internalSkills` 카테고리로 분류돼 `/` 공개 진입점에 추가되지 않는다.
+기본/support/고급/유틸리티/내부 agent 목록(과 내부 skill `internalSkills`)과 skill/command/agent 의 frontmatter name 대 path 정합은 [`scripts/check_public_surface.mjs`](../../scripts/check_public_surface.mjs) 가 검사한다. 새 기본 workflow 를 추가하려면 이 문서와 gate 기대값을 함께 수정해야 한다. `canvas-design`, `design-ux`, `design-system` 같은 내부 skill 은 `internalSkills` 카테고리로 분류돼 `/` 공개 진입점에 추가되지 않는다.
 
 ### 신규 공개 진입점 justification (왜 작게 유지하나)
 

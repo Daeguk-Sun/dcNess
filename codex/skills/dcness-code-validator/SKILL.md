@@ -15,7 +15,7 @@ Claude-side `code-validator` prompt의 clone이 아니다. 구현, 테스트, �
 
 ## 입력
 
-- implementation plan 또는 compact plan 경로
+- implementation plan 경로
 - 변경 파일 목록 또는 PR diff 맥락
 - 호출자가 제공한 테스트 실행 결과
 - 필요하면 retry count, scope note, known constraint

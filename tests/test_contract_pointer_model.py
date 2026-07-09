@@ -80,7 +80,7 @@ class ModuleDecisionContractModelTests(unittest.TestCase):
                 self.assertIn("구양식", text)
 
         self.assertIn("module responsibility 한 줄과 decision 문서", module_architect)
-        self.assertIn("impl/compact plan 은 module/decision 참조", module_architect)
+        self.assertIn("impl 문서는 module/decision 참조", module_architect)
         self.assertIn("task 내부 한정 private interface", module_architect)
         self.assertIn("형식만으로 FAIL 하지 않는다", validator)
         self.assertIn("Should finding", validator)

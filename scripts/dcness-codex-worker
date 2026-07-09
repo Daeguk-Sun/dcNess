@@ -22,6 +22,8 @@ Options:
 
 Environment:
   DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 1200.
+  DCNESS_CODEX_IDLE_TIMEOUT  Seconds without stdout/prose/workspace progress
+                         before early kill. Default: 180.
   DCNESS_CODEX_MODEL    Optional Codex model override. Default: inherit user config.
   DCNESS_CODEX_EFFORT   Optional reasoning effort override. Default: inherit user config.
 
@@ -74,6 +76,7 @@ PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
 CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-1200}"
+CODEX_IDLE_TIMEOUT="${DCNESS_CODEX_IDLE_TIMEOUT:-180}"
 CODEX_MODEL="${DCNESS_CODEX_MODEL:-}"
 CODEX_EFFORT="${DCNESS_CODEX_EFFORT:-}"
 
@@ -139,6 +142,16 @@ case "$CODEX_TIMEOUT" in
 esac
 if [ "$CODEX_TIMEOUT" -lt 1 ]; then
   echo "[dcness-codex-worker] DCNESS_CODEX_TIMEOUT must be >= 1" >&2
+  exit 2
+fi
+case "$CODEX_IDLE_TIMEOUT" in
+  ''|*[!0-9]*)
+    echo "[dcness-codex-worker] DCNESS_CODEX_IDLE_TIMEOUT must be a positive integer: $CODEX_IDLE_TIMEOUT" >&2
+    exit 2
+    ;;
+esac
+if [ "$CODEX_IDLE_TIMEOUT" -lt 1 ]; then
+  echo "[dcness-codex-worker] DCNESS_CODEX_IDLE_TIMEOUT must be >= 1" >&2
   exit 2
 fi
 
@@ -257,13 +270,59 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 timeout = int(sys.argv[1])
-prompt = sys.argv[2]
-log = sys.argv[3]
-cmd = sys.argv[4:]
+idle_timeout = int(sys.argv[2])
+project_root = sys.argv[3]
+prompt = sys.argv[4]
+log = sys.argv[5]
+prose = sys.argv[6]
+cmd = sys.argv[7:]
+
+def git_status() -> str:
+    try:
+        proc = subprocess.run(
+            ["git", "-C", project_root, "status", "--porcelain=v1", "-uall"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1,
+            check=False,
+        )
+    except Exception:
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return "\n".join(
+        line for line in proc.stdout.splitlines()
+        if not line[3:].startswith(".claude/harness-state/")
+    )
+
+def file_size(path: str) -> int:
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+def terminate(exit_code: int) -> None:
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+    sys.exit(exit_code)
+
 with open(prompt, "rb") as stdin, open(log, "ab") as raw:
     raw.write(("COMMAND: " + " ".join(cmd) + "\n").encode("utf-8", "replace"))
+    raw.flush()
     proc = subprocess.Popen(
         cmd,
         stdin=stdin,
@@ -271,24 +330,46 @@ with open(prompt, "rb") as stdin, open(log, "ab") as raw:
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
-    try:
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            proc.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            proc.wait()
-        sys.exit(124)
-    sys.exit(proc.returncode)
-' "$CODEX_TIMEOUT" "$TMP_PROMPT" "$RAW_LOG" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}"
+    started = time.monotonic()
+    deadline = started + timeout
+    last_progress = started
+    last_log_size = file_size(log)
+    last_prose_size = file_size(prose)
+    last_status = git_status()
+
+    while True:
+        rc = proc.poll()
+        if rc is not None:
+            sys.exit(rc)
+
+        now = time.monotonic()
+        log_size = file_size(log)
+        prose_size = file_size(prose)
+        status = git_status()
+        if (
+            log_size != last_log_size
+            or prose_size != last_prose_size
+            or status != last_status
+        ):
+            last_progress = now
+            last_log_size = log_size
+            last_prose_size = prose_size
+            last_status = status
+
+        if now >= deadline:
+            raw.write(f"\n[dcness-codex-worker] total timeout after {timeout}s\n".encode())
+            raw.flush()
+            terminate(124)
+        if now - last_progress >= idle_timeout:
+            raw.write(
+                f"\n[dcness-codex-worker] idle timeout after {idle_timeout}s "
+                "(no stdout/prose/workspace progress)\n".encode()
+            )
+            raw.flush()
+            terminate(124)
+        sleep_for = min(1.0, max(0.05, deadline - now), max(0.05, idle_timeout - (now - last_progress)))
+        time.sleep(sleep_for)
+' "$CODEX_TIMEOUT" "$CODEX_IDLE_TIMEOUT" "$PROJECT_ROOT" "$TMP_PROMPT" "$RAW_LOG" "$TMP_PROSE" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}"
 }
 
 workspace_changed() {

@@ -8,7 +8,7 @@ merge 전에 변경된 코드가 코드베이스의 장기 유지보수성을 �
 
 - PR URL 또는 로컬 diff 맥락
 - 변경 파일 목록
-- impl 계획 경로, compact plan 경로, 또는 계획 파일이 없는 Lite 구현 경로 사유
+- impl 계획 경로, 또는 계획 파일이 없는 Lite 구현 경로 사유
 - 필요하면 code-validator 결과
 
 ## 먼저 읽을 문서

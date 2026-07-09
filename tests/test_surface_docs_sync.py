@@ -419,6 +419,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "concrete signal 로 보고 `/impl`, `/design`, `/spec`, `/ux` 등",
             self.router,
         )
+        self.assertIn("일반 `/impl` 의 구현 주체는 메인", self.positioning)
+        self.assertIn("격리되는 단계는 `pr-reviewer`", self.positioning)
 
     def test_internal_routing_docs_prefer_lifecycle_names(self) -> None:
         # #711 — high-risk 선행은 impl 밖. impl 문서가 lifecycle 진입점을 가리킨다.
@@ -427,6 +429,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("`/design` 으로 설계한다", self.impl_skill)
         self.assertIn('OUT["impl 밖 — 설계 선행: /spec 또는 /design"]', self.impl_routing)
         self.assertIn("없으면 `/spec` / `/tech-review` / `/design` 선행", self.impl_routing)
+        self.assertIn("일반 `/impl` 의 구현 주체는 항상 메인", self.impl_routing)
         self.assertIn(
             "spec / design 단계 → `/spec` (PRD) 또는 `/design` (설계)",
             self.impl_loop_skill,
@@ -760,6 +763,54 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("read-only", self.init_reference)
         self.assertIn("표준 레이아웃·빈 프로젝트", self.impl_skill)
 
+    def test_issue_1019_impl_uses_deterministic_preview_helper(self) -> None:
+        """#1019 — /impl keeps route/review preview in helper code."""
+        self.assertIn('"$HELPER" impl-preview', self.impl_skill)
+        self.assertIn("--workflow-risk normal|high", self.impl_skill)
+        self.assertIn("--natural-language-only", self.impl_skill)
+        self.assertIn("route=issue-intake", self.impl_skill)
+        self.assertIn("review_provider", self.impl_skill)
+
+    def test_issue_1019_impl_external_copy_avoids_internal_nickname(self) -> None:
+        """#1019 — external-facing impl docs do not expose the internal harness nickname."""
+        self.assertNotIn("꼼꼼구현", self.impl_skill)
+        self.assertNotIn("꼼꼼구현", self.router)
+        self.assertIn("구현을 진행할까요?", self.impl_skill)
+
+    def test_issue_1019_general_impl_does_not_expose_headless_engine_axis(self) -> None:
+        """#1019 — general /impl is main-owned; headless worker engines belong to /impl-loop."""
+        for text in (self.impl_skill, self.impl_routing, self.positioning, self.readme):
+            with self.subTest(source=text[:40]):
+                self.assertIn("메인", text)
+                self.assertNotIn("Standard · 경량 build-worker", text)
+                self.assertNotIn("구현 경로(설계도 유무)와 엔진", text)
+        self.assertIn("story/epic deep task runner", self.readme)
+        self.assertIn("일반 `/impl` 구현은 메인이 맡고", self.readme)
+
+    def test_issue_1019_impl_loop_uses_story_runner_boundaries(self) -> None:
+        """#1019 — impl-loop uses deterministic state, task commits, and story PRs."""
+        script = ROOT / "scripts" / "dcness-story-runner"
+        self.assertTrue(script.exists())
+        self.assertTrue(script.stat().st_mode & 0o111)
+        for needle in (
+            "dcness-story-runner",
+            "next-action",
+            "task commit",
+            "story PR",
+            "story-run.completed-<UTC>.json",
+            "직렬 chain driver 전용",
+            "code-validator/pr-reviewer/review 출력은 story PR 경계에서 1회",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.impl_loop_skill)
+        for stale in (
+            "PR 1개 = task 1개",
+            "N task = N run = N review.md",
+            "예상 PR K개",
+        ):
+            with self.subTest(stale=stale):
+                self.assertNotIn(stale, self.impl_loop_skill)
+
     def test_issue_885_claude_md_seed_and_audit_stays_inside_existing_surfaces(self) -> None:
         """#885 — CLAUDE.md seed/migration and audit wire into init/run-review only."""
         helper = "scripts/dcness-context-docs"
@@ -862,36 +913,35 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("## 되돌림(backpressure) 원리", self.router)
         self.assertIn("정상 루프", self.router)
         self.assertIn("`/spec` 재진입", self.router)
-        self.assertIn("compact-design", self.router)
+        self.assertIn("`/design`", self.router)
         self.assertIn("단계 내부 되돌림", self.router)
 
-        # impl 의 1차 분기 = 설계 문서 유무 + 설계 부족 시 되돌림 경로
+        # impl 의 1차 분기 = 설계 문서 유무 + 설계 부족 시 /design 또는 사용자 위임
         self.assertIn("설계 산출물이 이미 있는가", self.impl_skill)
-        self.assertIn("compact-design", self.impl_skill)
+        self.assertIn("/design", self.impl_skill)
         self.assertIn("--design-doc", self.impl_skill)
-        self.assertIn("compact-design", self.impl_routing)
+        self.assertNotIn("compact-design", self.impl_routing)
 
         # design → spec 되돌림이 동일 원리로 참조됨
         self.assertIn("되돌림", self.design_skill)
 
-    def test_compact_design_is_internal_skill_not_public_surface(self) -> None:
-        """#702 — 경량 모듈 설계는 module-architect:COMPACT_PLAN wrapper 내부 skill 이다."""
-        skill_path = ROOT / "skills" / "compact-design" / "SKILL.md"
-        self.assertTrue(skill_path.exists())
-        compact_design = skill_path.read_text(encoding="utf-8")
-
-        # 설계 산출 주체 = module-architect COMPACT_PLAN, 산출 경로 = docs/compact-plans/
-        self.assertIn("COMPACT_PLAN", compact_design)
-        self.assertIn("module-architect", compact_design)
-        self.assertIn("docs/compact-plans/", compact_design)
-        # engineer 게이트 사전 조건 두 경로 (같은-run PASS / --design-doc) 명시
-        self.assertIn("--design-doc", compact_design)
-
-        # positioning: internal 분류로만 노출 — 기본/고급 public 진입점 표에 추가되지 않는다
-        self.assertIn("## Internal Skills", self.positioning)
-        self.assertIn("`compact-design`", self.positioning)
-        self.assertNotIn("| `/compact-design` |", self.positioning)
+    def test_compact_design_surface_is_removed(self) -> None:
+        """#1019 — compact-design is no longer an internal skill or design_doc path."""
+        self.assertFalse((ROOT / "skills" / "compact-design" / "SKILL.md").exists())
+        self.assertFalse(
+            (
+                ROOT
+                / "docs"
+                / "plugin"
+                / "agents"
+                / "module-architect"
+                / "templates"
+                / "compact-plan.md"
+            ).exists()
+        )
+        self.assertNotIn("`compact-design`", self.positioning)
         self.assertNotIn("/compact-design", self.readme)
+        self.assertNotIn("docs/compact-plans", self.hooks_doc)
 
     def test_action_loop_prompt_slot_template_is_shared(self) -> None:
         """#780 — 3-slot prompt form is a template and action loops surface it."""

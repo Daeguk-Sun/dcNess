@@ -1,6 +1,6 @@
 ---
 name: impl
-description: 구현 요청을 받아 가장 작은 안전 workflow 로 PR 까지 끝내는 기본 구현 진입점. 사용자가 "구현해줘", "수정해줘", "고쳐줘", "버그픽스", "한 줄 수정", "꼼꼼구현", "꼼꼼하게 구현", "리뷰까지 돌려", "/impl" 등을 말할 때 사용한다. 내부적으로 구현 경로(설계도 유무 — Lite/Standard)와 엔진(풀4/경량 build-worker)을 직교로 판정하며, 사용자는 구현 경로별 command 를 외우지 않는다.
+description: 구현 요청을 받아 메인이 직접 구현하고 격리 리뷰까지 거쳐 PR 로 끝내는 기본 구현 진입점. 사용자가 "구현해줘", "수정해줘", "고쳐줘", "버그픽스", "한 줄 수정", "리뷰까지 돌려", "/impl" 등을 말할 때 사용한다. 내부적으로 구현 경로(설계도 유무 — Lite/Standard)와 review provider 만 판정하며, 일반 구현을 별도 구현 worker 로 넘기지 않는다.
 ---
 
 # Impl Skill — 기본 구현 진입점
@@ -9,34 +9,20 @@ description: 구현 요청을 받아 가장 작은 안전 workflow 로 PR 까지
 
 > 🔴 **분기 규칙 SSOT** — 구현 경로 판정 / 각 경로의 다음 호출 / retry / escalate 는 [`impl-routing.md`](impl-routing.md) 가 본 skill 의 단일 진본. 본 파일은 진행 절차만 담는다.
 
-## 2축 모델 — 구현 경로(설계도 유무) × 엔진
+## 구현 모델 — 메인 구현 + 격리 리뷰
 
-`/impl` 은 설계를 하지 않는다 — 설계도(설계 문서)를 보고 **구현만** 한다. 진입은 직교 2축으로 판정한다.
+`/impl` 은 설계를 하지 않는다 — 설계도(설계 문서)가 있으면 보고 구현만 하고, 없으면 concrete signal 기준으로 메인이 직접 구현한다. 일반 `/impl` 구현 주체는 **항상 메인**이다. 격리되는 것은 review step 이며, review provider 는 local routing 으로 `claude` sub-agent 또는 `codex` headless wrapper 중 하나를 쓴다.
 
-**축 1 — 구현 경로 = 설계도 유무**
+구현 경로 = 설계도 유무:
 
 | 구현 경로 | 쓰는 경우 | 실행 |
 |---|---|---|
-| Lite | 설계 문서 없음 + concrete signal 충분 + high-risk 0개 + 구현 경계/테스트 기준 명확 | 메인 직접 구현 + `pr-reviewer` |
-| Standard | 설계 문서(경로)가 들어옴 | 받은 설계도를 충실히 구현 (설계 생성 X) |
+| Lite | 설계 문서 없음 + concrete signal 충분 + high-risk 0개 + 구현 경계/테스트 기준 명확 | 메인 직접 구현 + 격리 `pr-reviewer` |
+| Standard | 설계 문서(경로)가 들어옴 | 메인이 받은 설계도를 충실히 구현 + 격리 `pr-reviewer` |
 
 구현 경로는 진입 시 미리 고르는 게 아니라 **설계도 유무**로 갈린다 — 설계 문서 경로가 들어오면 Standard, 없으면 Lite. 설계가 없는데 메인이 "설계 필요" 로 판단하면 impl *밖*으로 되돌려(빠꾸) 설계를 산출하고, 그 경로를 들고 Standard 로 (재)진입한다. impl 은 설계를 *어떻게* 만드는지 모른다 — "설계도 있다/없다" 만 본다. 단, 사용자가 "설계 건너뛰고 빨리 고쳐" 류로 지시하면 메인의 "Standard 판단" 보다 사용자 지시가 우선이라 곧장 Lite 다.
 
-**축 2 — 엔진 (구현 경로와 직교 · 4조합 모두 유효)**
-
-| 엔진 | 시퀀스 | 언제 |
-|---|---|---|
-| 경량 build-worker | build-worker 1 step (테스트·구현·자체검증) → `pr-reviewer` | sub-agent 엔진 미지정 시 디폴트 |
-| 풀 4-agent | `test-engineer → engineer:IMPL → code-validator → pr-reviewer` | 승격 전용 |
-
-엔진 선택은 **사용자 우선, 미지정 시 build-worker 기본**이고 구현 경로와 직교다 — 구현 경로 × 엔진 4조합이 모두 유효하다. 풀 4-agent 는 승격 전용이며 다음 세 경우에만 들어간다: `risk: high` 또는 `engine: 4agent` frontmatter, 구현 시점 위험 trigger 자동 승격, 사용자 엄정 발화 override(`엄정|꼼꼼|제대로|풀|rigor`). 경량 발화(`빠르게|경량|worker|가볍게`)는 build-worker 선호지만 고위험 trigger 는 build-worker 선호보다 우선한다. 메인은 판정 echo 에 엔진과 디폴트 근거 또는 승격 근거 1줄을 남긴다. 구현 경로별로 engineer 게이트 사전 조건 충족 메커니즘이 다르다:
-
-엔진 판정의 고위험 trigger 는 **구현 시점 위험** 기준이다. [`workflow-router`](../../docs/plugin/workflow-router.md) high-risk trigger 표는 impl 진입 전 설계 선행 판정 전용이고, 설계도(impl task 또는 compact plan)가 들어온 Standard 엔진 판정 기준이 아니다. 구현 시점 위험 = migration/destructive change, auth/security/PII/compliance(규제·보안 의미 한정), public API breakage, 외부 HTTP·네트워크 어댑터, URL·파일·사용자 입력 등 신뢰 경계 밖 입력 파싱, 신규 3rd-party dependency·외부 서비스 도입. cross-module / cross-story interface, 플랫폼 SDK 표준 사용, 런타임 권한 요청 흐름, decision 으로 이미 합의된 invariant 구현은 단독 승격 사유가 아니다. 수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청 흐름만 있으면 `engine: 2agent`; destructive schema 변경 또는 신뢰 경계 밖 입력 파싱이면 `engine: 4agent`.
-
-- **Standard + sub-agent 엔진**: 설계도(`begin-run impl --design-doc <경로>`)가 engineer 게이트 사전 조건이다.
-- **Lite + sub-agent 엔진**: Lite 는 정의상 설계도가 없으므로 `begin-run impl --lane lite` 로 구현 경로를 기록해 engineer 게이트의 설계 산출물 사전 조건을 면제한다(#714). 면제 경계는 *명시적으로 기록된* `lane=lite` 한정이며, 뒤따르는 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 그대로 강제된다([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)).
-
-Lite 의 기본 경로는 여전히 **메인 직접 구현**이고(engineer sub-agent 미호출 → 게이트 무관), sub-agent 엔진은 사용자/메인이 명시 선택할 때의 옵션이다.
+일반 `/impl` 은 `test-engineer` / `engineer` / `build-worker` 를 구현자로 호출하지 않는다. `dcness-implementation-chain` 은 story/epic impl task 를 돌리는 `/impl-loop` headless runner 또는 사용자가 명시한 특수 실행용이다. CC 에서 `/impl` 을 호출하면 메인 Claude 가 구현하고, review provider 가 `codex` 로 설정돼 있으면 `pr-reviewer` 만 Codex headless 로 간다. Codex 에서 같은 흐름을 운용할 때도 구현은 현재 메인 agent 가 맡고, 상대 provider review 만 격리한다.
 
 **high-risk 는 impl 밖**: 새 product feature/epic, 외부 dependency/API/SDK/model 선택, auth/security/PII/compliance, migration/destructive change, public API breakage, cross-module/cross-story interface 같은 high-risk trigger 는 impl 의 관심사가 아니다. impl 진입 *전* [`workflow-router`](../../docs/plugin/workflow-router.md) 가 이를 설계 선행(`/spec`·`/design`)으로 보내고, 설계도 확보 후 그 경로로 Standard 진입한다.
 
@@ -44,26 +30,9 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
 
 ## Loop
 
-- **Lite 구현 경로 — 메인 직접 (기본)**: 코드/문서 변경은 메인이 수행하고, review step 만 `begin-run impl` 안에서 `pr-reviewer` 로 기록한다. `code-validator` 는 호출하지 않는다.
-- **Lite 구현 경로 — sub-agent 엔진 (#714)**: 사용자/메인이 sub-agent 엔진을 명시 선택하거나 메인이 추천하면 `begin-run impl --lane lite` 로 진입한다. 미지정 기본은 build-worker 이고, 풀4는 `risk: high` / `engine: 4agent` / 구현 시점 위험 trigger / 사용자 엄정 override 때만 승격한다. `lane=lite` 기록이 engineer 게이트 설계 산출물 사전 조건을 면제한다. 엔진 시퀀스는 Standard 와 동일(풀4: test-engineer → engineer:IMPL → code-validator → pr-reviewer / 경량: build-worker 1 step → pr-reviewer). 잔존 보호(`pr-reviewer ← code-validator PASS`)는 그대로 강제된다.
-- **Standard 구현 경로 — 경량 build-worker 엔진 (디폴트)**
-  - **loop**: `impl-standard`
-  - **entry_point**: `impl`
-  - **사전 조건**: 설계 문서 경로 — `begin-run impl --design-doc <경로>` 로 기록 (engineer 게이트 사전 조건, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh))
-  - **task_list**: build-worker → pr-reviewer
-  - **advance**: `PASS` → `PASS`
-  - **expected_steps**: 2
-  - **분기 규칙**: [`impl-routing.md`](impl-routing.md)
-- **Standard 구현 경로 — 풀 4-agent 엔진 (승격 전용)**
-  - **loop**: `impl-standard`
-  - **entry_point**: `impl`
-  - **사전 조건**: 설계 문서 경로 — `begin-run impl --design-doc <경로>` 로 기록 (engineer 게이트 사전 조건, [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh))
-  - **task_list**: test-engineer → engineer:IMPL → code-validator → pr-reviewer
-  - **advance**: `TESTS_WRITTEN` → `IMPL_DONE` → `PASS` → `PASS`
-  - **expected_steps**: 4
-  - **분기 규칙**: [`impl-routing.md`](impl-routing.md)
-- **풀 4-agent 승격 사유**: `risk: high` 또는 `engine: 4agent` frontmatter, 구현 시점 위험 trigger 자동 승격, 사용자 엄정 발화 override. 세 경로 모두 판정 echo 에 사유를 남긴다.
-- **경량 build-worker 엔진도 `build-worker → pr-reviewer`** 순서이며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다.
+- **Lite 구현 경로 — 메인 직접**: 코드/문서 변경은 메인이 수행하고, review step 만 `begin-run impl` 안에서 `pr-reviewer` 로 기록한다. `code-validator` 는 호출하지 않는다.
+- **Standard 구현 경로 — 메인 직접**: `begin-run impl --design-doc <경로>` 로 설계 문서를 기록한 뒤 메인이 구현한다. 설계 문서는 boundary pre-flight 입력과 review 근거로 쓰며, 구현 주체를 바꾸는 신호가 아니다.
+- **Review**: `pr-reviewer` 는 read-only provider 분기 대상이다. `claude` 면 sub-agent, `codex` 면 headless wrapper 로 local diff 를 검토한다. PASS 전 commit/PR 로 가지 않는다.
 - **high-risk → impl 밖**: high-risk trigger 가 있으면 impl 이 직접 처리하지 않는다. impl 진입 *전* 분기 규칙([`workflow-router`](../../docs/plugin/workflow-router.md))이 설계 선행(`/spec`·`/design`)으로 보내고, deep impl task 파일이 이미 있으면 `/impl-loop <task>` 로 위임한다.
 
 ## Step 0 — 실존 검증
@@ -86,12 +55,12 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 ```bash
 "$HELPER" boundary-suggestions
 # 설계 문서 경로가 이미 있으면:
-"$HELPER" boundary-suggestions --impl-plan <docs/compact-plans/...md 또는 docs/epics/.../impl/...md>
+"$HELPER" boundary-suggestions --impl-plan <docs/epics/.../impl/...md>
 ```
 
 코어 `ALLOW_MATRIX` 로 커버되지 않는 비표준 소스 디렉터리가 있으면 `.dcness/boundary.json` 의 `engineer.add` 후보만 출력한다. 설계 문서가 있는 Standard 경로에서는 설계 문서의 `### 수정 허용` 경로도 같은 기준으로 대조한다. 후보가 있으면 사람 승인 후에만 메인이 boundary 파일을 작성한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다.
 
-이 pre-flight 는 `begin-step engineer/build-worker` 에서도 provider-independent 로 강제된다. Standard run 의 `--design-doc` 이 가리키는 impl/compact plan 안 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되지 않으면 구현 step 시작이 차단된다. Lite 기본 경로는 계획 파일 없이 메인 직접 구현이므로 plan-specific boundary 대조 대상이 아니다.
+이 pre-flight 는 `/impl-loop` 같은 deep task runner 가 `begin-step engineer/build-worker` 를 여는 경우에도 provider-independent 로 강제된다. Standard run 의 `--design-doc` 이 가리키는 impl 문서 안 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되지 않으면 구현 step 시작이 차단된다. Lite 기본 경로는 계획 파일 없이 메인 직접 구현이므로 plan-specific boundary 대조 대상이 아니다.
 
 ## Step 0.3 — generated TDD hook 부재 확인
 
@@ -131,53 +100,75 @@ UI 기준: 신규 시각 구조 + 기준 없음 — canvas-design 으로 draft/P
 UI 기준: 시각 구조 불변 — 목업 없이 구현
 ```
 
-`canvas-design` 이 반환한 확정 목업 경로는 impl task 또는 compact plan 의 `## 디자인 참조` 섹션에 기록한다. `design: required` 는 UI 감지 신호이며, `design: optional` 이라도 신규 시각 구조면 이 분기를 탄다. 단, 시각 구조 불변이면 `design: optional` + `해당 없음` 으로 남길 수 있다.
+`canvas-design` 이 반환한 확정 목업 경로는 impl task 의 `## 디자인 참조` 섹션에 기록한다. `design: required` 는 UI 감지 신호이며, `design: optional` 이라도 신규 시각 구조면 이 분기를 탄다. 단, 시각 구조 불변이면 `design: optional` + `해당 없음` 으로 남길 수 있다.
 
 ## Step 0.5 — 설계 산출물 유무 분기 (되돌림 1차 기준)
 
 > impl 이 보는 **1차 분기는 "설계 문서 유무"** 다. 설계 깊이(경량/full) 판단은 impl 이 직접 하지 않고 설계 레이어로 내려보낸다. 원리 SSOT = [`workflow-router.md` 되돌림 원리](../../docs/plugin/workflow-router.md#되돌림backpressure-원리).
 
-구현 경로를 고르기 전에 먼저 묻는다 — **이 작업을 닫을 설계 산출물이 이미 있는가?** (머지된 `docs/epics/**/impl/*.md` / `docs/compact-plans/<slug>.md`).
+구현 경로를 고르기 전에 먼저 묻는다 — **이 작업을 닫을 설계 산출물이 이미 있는가?** (머지된 `docs/epics/**/impl/*.md`).
 
-- **있음** → **Standard**. 그 설계도를 기준으로 구현만 한다. `begin-run impl --design-doc <설계 문서 경로>` 로 산출물을 기록해 engineer 게이트 사전 조건을 충족한다([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). 엔진(풀4/경량)은 직교로 별도 판정한다.
+- **있음** → **Standard**. 그 설계도를 기준으로 메인이 구현한다. `begin-run impl --design-doc <설계 문서 경로>` 로 산출물을 기록해 boundary pre-flight 와 review 근거로 사용한다.
 - **없음** → 메인이 "직접 고칠 수준인가 / 설계가 필요한가" 를 판단한다. 단, 사용자가 "설계 생략·빨리 고쳐" 로 지시하면 사용자 지시가 우선이라 곧장 Lite 다.
   - 직접 고칠 수준(concrete signal 충분, high-risk 0개) → **Lite** 로 직접 구현.
-  - 경량 설계 필요(구현 경계·테스트 기준·작은 contract 가 애매) → 메인이 내부 [`compact-design`](../../skills/compact-design/SKILL.md) skill 을 호출해 compact plan(`docs/compact-plans/<slug>.md`)을 산출한 뒤, **그 경로를 `begin-run impl --design-doc <경로>` 로 기록하고 Standard 로 (재)진입**한다. impl 은 설계를 직접 만들지 않는다 — compact-design 은 impl 밖 호출이고, Standard 는 same-run module-architect step 없이 그 설계도를 받아 구현만 한다.
+  - 설계 필요(구현 경계·테스트 기준·작은 contract 가 애매) → impl *밖*으로. `/design` 을 선행해 설계도를 확보한 뒤 그 경로로 Standard 진입한다. impl 은 설계를 직접 만들지 않는다.
   - full 설계 필요(high-risk trigger 있음) → impl *밖*으로. `/design`(또는 PRD 부재 시 `/spec`)을 선행해 설계도를 확보한 뒤 그 경로로 Standard 진입한다.
 
-이 되돌림은 한 번으로 끝나지 않는다. 구현 중 설계가 또 부족하면 다시 `compact-design`/`/design` 으로 되돌릴 수 있다 — 되돌림은 정상 루프다.
+이 되돌림은 한 번으로 끝나지 않는다. 구현 중 설계가 또 부족하면 다시 `/design` 으로 되돌릴 수 있다 — 되돌림은 정상 루프다.
 
 ## Step 1 — 구현 경로 판정
+
+메인이 실존 검증으로 얻은 신호를 먼저 정규화한 뒤, 결정론 preview 를 실행한다. 자연어 해석(모호함/설계 필요/high-risk 여부)은 메인이 책임지고, route/begin-run/review provider 후보 산출은 helper 에 맡긴다.
+
+```bash
+"$HELPER" impl-preview \
+  [--design-doc <docs/epics/.../impl/...md>] \
+  [--concrete | --natural-language-only | --ambiguous | --needs-design] \
+  [--workflow-risk normal|high] \
+  [--review-provider claude|codex] \
+  [--skip-design]
+```
+
+출력의 `route`, `begin-run`, `implementation_owner`, `review_provider`, `reasons` 를 판정 echo 의 근거로 사용한다. 모호한 신호를 helper 플래그로 숨기지 않는다 — 먼저 사용자 확인, issue intake, 또는 `/spec` 로 보낸다.
+
+`route=issue-intake` 이면 바로 구현하지 않는다. 사용자에게 먼저 묻는다.
+
+```text
+지금까지 이야기한 내용을 GitHub issue로 등록하고, 그 이슈 번호 기준으로 구현을 진행할까요?
+```
+
+사용자가 OK 하면 `/to-issue` 를 호출해 issue 를 생성하고, 생성된 issue 번호를 concrete signal 로 삼아 `/impl #<issue>` 와 같은 흐름으로 재진입한다. 이 issue 본문은 간단한 설계도, AC, 히스토리 기준 역할을 하므로 자연어-only 요청을 바로 코드 수정으로 밀지 않는다. 사용자가 issue 생성을 거부하면 빠진 파일/범위/AC를 짧게 확인하거나, 사용자가 명시적으로 "이슈 없이 진행"을 선택했을 때만 Lite 로 진행한다.
 
 판정 순서:
 
 1. GitHub issue 초안/등록 요청인가? → `/to-issue`
 2. UI 작업인가? → **UI 기준 확보 분기** echo. 기준이 필요하면 `canvas-design` 으로 확정 목업 경로를 확보한다. 사용자의 "목업 없이" 는 우선한다.
-3. 설계 문서(경로)가 들어왔는가? → **Standard** (받은 설계도로 구현, 엔진 직교 판정)
+3. 설계 문서(경로)가 들어왔는가? → **Standard** (받은 설계도로 메인이 구현)
 4. high-risk trigger 가 있는가? → impl *밖* — `/design`(또는 `/spec`) 선행으로 설계도 확보 후 Standard 재진입 (impl 진입 전 분기 규칙은 [`workflow-router`](../../docs/plugin/workflow-router.md))
-5. 목표/범위/성공 기준이 모호한가? → 사용자에게 명확화 또는 `/spec`
-6. concrete signal 이 있고 즉시 구현 경계가 명확한가? → **Lite**
-7. 경량 설계 필요(구현 경계·테스트 기준 애매)? → `compact-design` 으로 되돌려 설계도 산출 후 **Standard**
+5. concrete signal 없이 자연어뿐인가? → **issue-intake**. `/to-issue` 로 이슈 등록 후 그 번호 기준으로 진행할지 묻는다.
+6. 목표/범위/성공 기준이 모호한가? → issue intake, 사용자 명확화, 또는 `/spec`
+7. concrete signal 이 있고 즉시 구현 경계가 명확한가? → **Lite**
+8. 설계 필요(구현 경계·테스트 기준 애매)? → `/design` 으로 되돌려 설계도 산출 후 **Standard**
 
 메인은 사용자에게 한 줄로 echo 한다.
 
 ```
-구현 경로: Lite — 설계도 없음, concrete signal = <파일/이슈/테스트>, 엔진 = 메인 직접, 검증 gate = test + pr-reviewer
-구현 경로: Standard — 설계도 = <경로>, 엔진 = build-worker(디폴트), 근거 = engine 미지정 + 고위험 trigger 없음, 검증 gate = test + build-worker self-validate + pr-reviewer
-구현 경로: Standard — 설계도 = <경로>, 엔진 = 풀4(승격), 근거 = <risk: high|engine: 4agent|고위험 trigger|사용자 엄정>, 검증 gate = test + code-validator + pr-reviewer
+구현 경로: issue-intake — concrete signal 없음, next = /to-issue 등록 여부 확인
+구현 경로: Lite — 설계도 없음, concrete signal = <파일/이슈/테스트>, 구현 = 메인 직접, review_provider = <claude|codex>
+구현 경로: Standard — 설계도 = <경로>, 구현 = 메인 직접, review_provider = <claude|codex>
 ```
 
 ## Sub-agent prompt 작성 checkpoint (#780)
 
-sub-agent 호출 경로(Lite sub-agent 엔진 / Standard 풀4·build-worker / pr-reviewer review)에 들어가면 `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
+`pr-reviewer` review 를 격리 provider 로 호출하면 `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
 - **대상 + 읽을 진본**: 이슈·설계도·task 파일·diff 등 agent 가 자체 read 할 SSOT 포인터만 둔다. 이미 진본에 있는 수용 기준·인터페이스·구현 결정을 prompt 에 재나열하지 않는다.
 - **worktree**: worktree 활성 시 worktree 절대경로를 넣는다. main repo 절대경로를 worktree 경로처럼 넘기지 않는다.
 - **이 호출 특유**: 진본에 없는 제약·신호만 둔다. 정규식·구현 단계·알고리즘·테스트 assert 방식 같은 방법 처방은 넣지 않는다.
 
-## Lite 구현 경로 — 꼼꼼 직접 구현 (기본)
+## Lite 구현 경로 — 메인 직접 구현 (기본)
 
-Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메인이 직접 구현하는 single PR 경로다. 아래는 **메인 직접 구현** 기본 경로이며, sub-agent 엔진을 붙이는 변형은 바로 다음 절에서 다룬다(#714).
+Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메인이 직접 구현하는 single PR 경로다.
 
 실행:
 
@@ -209,51 +200,22 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
    - 3회 안에 수렴하지 않으면 남은 finding, follow-up 분리 후보, 보류/진행 판단 지점을 사용자에게 보고하고 멈춘다.
 7. 단위 commit + PR 생성
    - 의미 있는 단위로 commit 한다. hook 우회 금지.
+   - 변경량이 크면 리뷰어가 단계별로 따라갈 수 있게 테스트/결정적 helper/문서 surface/후속 cleanup 처럼 독립적으로 검토 가능한 커밋으로 쪼갠다. 단, 각 커밋은 hook 을 통과할 수 있는 일관된 상태여야 한다.
    - PR body 는 template, 관련 issue trailer, 배경/문제, 근본원인, 작업내용, 결정근거, Test Plan 을 포함한다.
    - dcNess plugin 배포물 변경이면 PR body 에 배포 경로 검증을 적는다.
 8. CI / merge policy
    - PR 생성 후 CI 를 확인한다.
    - 머지는 host repo 정책을 따른다. dcNess self 작업은 [`CLAUDE.md`](../../CLAUDE.md) 절차에 따라 `scripts/pr-finalize.sh` 로 진행한다. 사용자 승인 대기가 정책인 repo 에서는 임의 머지하지 않는다.
 
-메인 직접 경로에서 `code-validator` 를 호출하지 않는 이유: 검증 대상인 impl/compact 계획 파일이 없다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, `pr-reviewer`, 단위 commit/PR, CI, false-clean 방지다.
-
-Implementation routing 이 headless 계열이면 Lite 기본 구현도 메인이 직접 Edit 하기 전에 구현 provider 를 확인할 수 있다. 메인이 headless 실행을 선택하면 `build-worker` step 으로 기록하고 `dcness-implementation-chain build-worker` 를 호출한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패하면 다음 provider 로 넘어가고, Claude main handoff 는 메인 직접 구현 또는 Claude sub-agent 엔진으로 처리한다. Headless provider 가 파일을 바꾼 뒤 실패하면 자동 폴백하지 않고 현재 diff 를 보고 정지한다.
-
-## Lite 구현 경로 — sub-agent 엔진 (#714)
-
-메인 직접 구현 대신 sub-agent 엔진(풀4 / 경량 build-worker)으로 Lite 를 돌리는 변형이다. 사용자가 "에이전트로/풀4로/경량 엔진으로" 류로 명시 선택하거나 메인이 추천할 때 쓴다. sub-agent 엔진 미지정 시 기본은 build-worker 이고, 풀 4-agent 는 승격 전용이다. Lite 는 정의상 설계도가 없으므로 Standard 의 `--design-doc` 대신 **구현 경로 기록**으로 engineer 게이트를 충족한다.
-
-진입 시 `begin-run impl --lane lite` 로 구현 경로를 기록한다 — 이 기록이 engineer 게이트의 설계 산출물 사전 조건 면제 신호다([`hooks.md` engineer gate](../../docs/plugin/hooks.md#catastrophic-gatesh)). 면제 경계는 *명시적으로 기록된* `lane=lite` 한정이고, 구현 경로 값은 `entry_point=impl` 에서만 기록되므로 design/architect-loop 의 module-architect PASS 강제는 영향받지 않는다.
-
-- **풀 4-agent**: `test-engineer → engineer:IMPL → code-validator → pr-reviewer`. Standard 풀4 와 동일 시퀀스이며, 설계도가 없으므로 engineer/code-validator 는 이슈 본문·concrete signal·테스트 기준을 근거로 구현·검증한다.
-- **경량 build-worker**: `build-worker` 1 step (테스트·구현·자체검증) 후 `pr-reviewer`.
-
-면제는 engineer 게이트 *하나만* 푼다 — engineer 산출물 이후 `pr-reviewer ← code-validator PASS` 잔존 보호는 구현 경로와 무관하게 그대로 강제된다(풀4 경로). 변경이 작지 않거나 high-risk 가 드러나면 Lite 가 아니라 설계 선행(Standard 재진입 / impl 밖)으로 되돌린다 — `lane=lite` 면제를 무분별하게 넓히지 않는다.
+메인 직접 경로에서 `code-validator` 를 호출하지 않는 이유: 검증 대상인 impl 계획 파일이 없다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, `pr-reviewer`, 단위 commit/PR, CI, false-clean 방지다.
 
 ## Standard 구현 경로 — 설계도 기반 구현
 
-Standard 는 **설계 문서(경로)가 들어온** 구현 경로다. impl 은 설계를 만들지 않는다 — 받은 설계도(`docs/compact-plans/<slug>.md` / `docs/epics/**/impl/*.md`)를 충실히 구현만 한다. 경량 설계 산출 자체는 impl 밖 내부 skill [`compact-design`](../../skills/compact-design/SKILL.md)(= `module-architect:COMPACT_PLAN` wrapper) 또는 full `/design` 이 담당하고, 그 산출물 경로가 Standard 진입의 사전 조건이다.
+Standard 는 **설계 문서(경로)가 들어온** 구현 경로다. impl 은 설계를 만들지 않는다 — 받은 설계도(`docs/epics/**/impl/*.md`)를 충실히 구현만 한다. 설계 산출 자체는 impl 밖 `/design` 이 담당하고, 그 산출물 경로가 Standard 진입의 사전 조건이다.
 
-진입 시 `begin-run impl --design-doc <설계 문서 경로>` 로 설계도를 기록한다 — 이것이 engineer 게이트의 설계 산출물 사전 조건 증거다([`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh)). 설계도가 (a) 이전에 머지된 설계 문서든 (b) `compact-design` 이 방금 산출한 compact plan 이든, impl 은 같은 run 에서 설계를 생성하지 않으므로 Standard 는 **항상 `--design-doc` 기록 하나로** 진입한다 (same-run module-architect step 없음). 이 경로가 기록되면 begin-step 게이트가 `### 수정 허용` boundary 대조도 자동 수행한다.
+진입 시 `begin-run impl --design-doc <설계 문서 경로>` 로 설계도를 기록한다. impl 은 같은 run 에서 설계를 생성하지 않으므로 Standard 는 **항상 `--design-doc` 기록 하나로** 진입한다 (same-run module-architect step 없음). 이 경로가 기록되면 begin-step 게이트가 `### 수정 허용` boundary 대조도 자동 수행한다. 구현은 여전히 메인이 직접 수행하고, review 만 격리 provider 로 보낸다.
 
-엔진(풀4/경량)은 구현 경로와 직교로 별도 판정한다 — 사용자 우선, 미지정 시 build-worker 기본이다.
-
-**경량 build-worker 엔진 (디폴트) 실행:** 동일하게 `--design-doc` 으로 설계도를 기록한 뒤 build-worker 가 테스트·구현·자체검증을 한 step 으로 수행한다. 그 다음 `pr-reviewer` 가 local diff 를 읽기 전용으로 리뷰하며, Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다. worker 가 commit message·PR body 초안을 남겨도 실제 commit/PR/merge 는 메인이 pr-reviewer PASS 뒤 수행한다.
-
-**풀 4-agent 엔진 (승격 전용) 실행:** `risk: high` 또는 `engine: 4agent` frontmatter, 구현 시점 위험 trigger 자동 승격, 사용자 엄정 발화 override 일 때만 사용한다. 메인은 판정 echo 에 승격 사유를 남긴다.
-
-1. `test-engineer`
-   - 설계도의 테스트 기준을 실패 테스트로 만든다.
-2. `engineer:IMPL`
-   - 설계도 기준으로 구현한다.
-3. `code-validator`
-   - 설계도와 구현 diff 정합을 읽기 전용으로 검증한다.
-4. `pr-reviewer`
-   - local diff 를 리뷰한다.
-5. 단위 commit + PR 생성
-6. CI / merge policy
-
-구현 중 설계가 또 부족하면 `compact-design`/`/design` 으로 되돌려 설계도를 보강한다 — 되돌림은 정상 루프다. 새 외부 의존·high-risk 가 드러나면 impl *밖* 설계 선행으로 escalate 한다(경량 범위를 넘어섰다는 신호).
+구현 중 설계가 또 부족하면 `/design` 으로 되돌려 설계도를 보강한다 — 되돌림은 정상 루프다. 새 외부 의존·high-risk 가 드러나면 impl *밖* 설계 선행으로 escalate 한다.
 
 ## impl 밖 — high-risk 선행 (impl 내부 구현 경로 아님)
 
@@ -264,7 +226,7 @@ high-risk trigger 가 있거나 사전 설계 합의가 필요한 작업은 impl
 - PRD/stories 는 있으나 architecture/impl task 가 없다 → `/design` 으로 설계한다.
 - 외부 의존 검증이 필요하면 `/tech-review` 를 선행한다.
 
-위 경로가 설계도를 산출하면 그 경로를 들고 **Standard 로 (재)진입**한다. `/impl-loop` 는 일반 구현 진입점이 아니라 deep impl task 파일용 legacy/advanced runner 다.
+위 경로가 설계도를 산출하면 그 경로를 들고 **Standard 로 (재)진입**한다. `/impl-loop` 는 일반 구현 진입점이 아니라 story/epic impl task 파일용 headless runner 다.
 
 ## Review Provider
 
@@ -290,41 +252,9 @@ fi
 
 Codex 분기는 review provider 구현일 뿐 별도 public workflow 가 아니다. Codex wrapper 가 저장하는 receipt 는 실제 provider 를 `codex-headless` 로 기록한다.
 
-## Implementation Provider
-
-`test-engineer` / `engineer` / `build-worker` 는 implementation provider 분기 대상이다. 기본값은 `headless-chain`(Codex headless → Claude headless → Claude main)이고, Claude-only 사용자는 `/init-dcness` custom 또는 중간 CLI 로 `claude` 로 바꿀 수 있다.
-
-```bash
-PLUGIN_ROOT=""
-if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
-  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
-else
-  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
-fi
-[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
-HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
-
-PROVIDER=$("$HELPER" routing resolve build-worker)   # 또는 test-engineer / engineer
-if [ "$PROVIDER" = "claude" ]; then
-  Agent(subagent_type="build-worker", ...)
-  "$HELPER" end-step build-worker --provider claude-main
-else
-  rc=0
-  "$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker --provider "$PROVIDER" --prompt-file "$PROMPT_FILE" || rc=$?
-  if [ "$rc" -eq 75 ]; then
-    Agent(subagent_type="build-worker", ...)
-    "$HELPER" end-step build-worker --provider claude-main
-  elif [ "$rc" -ne 0 ]; then
-    exit "$rc"
-  fi
-fi
-```
-
-Headless wrapper 가 성공하면 마지막 응답을 `end-step` 으로 저장하고 실제 provider(`codex-headless` / `claude-headless`)를 ledger receipt 에 남긴다. Headless provider 가 workspace 를 변경한 뒤 실패한 경우에는 chain 이 non-zero 로 멈추며 자동 Claude 폴백 금지다. 메인이 diff 를 확인하고 계속 진행/수정/폐기 여부를 판단한다. workspace 변경 전 인프라 실패만 다음 provider 로 넘어가며, Claude main handoff 는 `FALLBACK_TO_CLAUDE_MAIN`/exit 75 로 표시된다.
-
 ## 종료 보고
 
-최종 보고에는 구현 경로, 엔진, 변경 요약, 검증 명령 결과, review round 수, PR URL 을 포함한다. 실패 시에는 남은 finding 과 다음 판단 지점을 명확히 쓴다.
+최종 보고에는 구현 경로, review provider, 변경 요약, 검증 명령 결과, review round 수, PR URL 을 포함한다. 실패 시에는 남은 finding 과 다음 판단 지점을 명확히 쓴다.
 
 helper 기반 `begin-run impl` 이 열린 경로에서는 대표 workflow 종료 시 `"$HELPER" end-run` 으로 review.md 를 만들며, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션이 포함된다. 이 섹션은 제안만 출력하고 CLAUDE.md/AGENTS.md 를 자동 수정하지 않는다.
 
@@ -335,4 +265,3 @@ helper 기반 `begin-run impl` 이 열린 경로에서는 대표 workflow 종료
 - 진입점 분기 규칙: [`docs/plugin/workflow-router.md`](../../docs/plugin/workflow-router.md)
 - 구현 경로 분기 규칙: [`impl-routing.md`](impl-routing.md)
 - branch / commit / PR: [`docs/plugin/git-spec.md`](../../docs/plugin/git-spec.md)
-- compact plan template: [`docs/plugin/agents/module-architect/templates/compact-plan.md`](../../docs/plugin/agents/module-architect/templates/compact-plan.md)

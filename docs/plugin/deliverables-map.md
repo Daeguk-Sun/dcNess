@@ -8,7 +8,7 @@
 - 전역 사실은 전역 anchor 한 곳에 둔다. 같은 결정이 여러 epic 문서에 복제되어 drift 되는 구조를 만들지 않는다.
 - role 입력은 결정론적인 최소 세트다. 각 agent 는 자기 역할에 필요한 전역 최소 문서와 대상 epic 고정 문서만 읽는다.
 - downstream agent 가 읽어야 하는 산출물은 git-tracked 문서다. 실측 evidence, HTML report, handoff scratch 처럼 재현 가능한 임시물은 `.dcness-work/` 에 둔다.
-- 새 프로젝트 산출물은 `docs/epics/`, `docs/modules/`, `docs/decisions/`, `docs/compact-plans/`, `docs/metrics/` 아래로만 증식한다. `docs/modules/` 는 모노레포·모듈화 프로젝트에서만 쓰는 opt-in 축이며, milestone 은 경로가 아니라 epic frontmatter 의 `milestone: vNN` 값이다.
+- 새 프로젝트 산출물은 `docs/epics/`, `docs/modules/`, `docs/decisions/`, `docs/metrics/` 아래로만 증식한다. `docs/modules/` 는 모노레포·모듈화 프로젝트에서만 쓰는 opt-in 축이며, milestone 은 경로가 아니라 epic frontmatter 의 `milestone: vNN` 값이다.
 
 ## 문서 총량 예산
 
@@ -47,8 +47,6 @@ docs/
 │       ├── architecture.md          # 모듈 국소 architecture / boundary
 │       ├── conventions.md           # 모듈 특수 stack/tooling/style delta
 │       └── tech-review.md           # 선택: 모듈 한정 기술 검토 결론
-├── compact-plans/
-│   └── <slug>.md                    # 경량 구현 설계
 └── epics/
     └── epic-NN-<slug>/
         ├── stories.md               # epic/story 요구사항
@@ -88,7 +86,7 @@ docs/
 
 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 과 legacy `## Contract Ledger` 를 읽어 인간용 전역 요약을 `.dcness-work/reports/architecture-map.md` 에 온디맨드로 생성할 수 있다. 이 결과는 checked-in 유지 의무나 CI drift gate 대상이 아니다. 필요한 보고 시점에 실행하고 PR 산출물 본문에는 복제하지 않는다.
 
-Cross-task 계약 의미는 epic `architecture.md` 의 `## 모듈 목록` 책임/공개 인터페이스/검증 경로 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl/compact 산출물은 module id 와 decision id/link 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 나 compact plan 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다. 구양식 Contract Ledger / Contract References 는 기존 활성 프로젝트 호환을 위해 유효하지만, 신규 산출물이나 이번에 수정하는 산출물은 module/decision 참조로 축소한다.
+Cross-task 계약 의미는 epic `architecture.md` 의 `## 모듈 목록` 책임/공개 인터페이스/검증 경로 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 산출물은 module id 와 decision id/link 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다. 구양식 Contract Ledger / Contract References 는 기존 활성 프로젝트 호환을 위해 유효하지만, 신규 산출물이나 이번에 수정하는 산출물은 module/decision 참조로 축소한다.
 
 기술 스택, naming, formatter, runtime, package manager, dependency policy 같은 반복 입력은 `docs/conventions.md` 에 둔다. 전역 architecture 는 시스템 topology 와 cross-epic map 에 집중한다.
 
@@ -180,14 +178,6 @@ epic `domain-model.md` 는 조건부 산출물이다. entity, value object, aggr
 
 epic `tech-review.md` 는 `/design` 중 `NEW_DEP_ESCALATE` option 4 로 새 외부 의존을 해당 epic 범위에서 검토할 때만 만든다. 전역 PRD preflight 결과와 섞지 않는다.
 
-## 작업용 산출물
-
-| 산출물 | 경로 | 생성 주체 | 양식 |
-|---|---|---|---|
-| compact plan | `docs/compact-plans/<slug>.md` | module-architect | `docs/plugin/agents/module-architect/templates/compact-plan.md` |
-
-compact plan 은 `/impl` Standard 진입 전 경량 설계 산출물이다. 구현자가 읽어야 하므로 git-tracked 문서로 남긴다.
-
 ## Volatile 작업 영역
 
 `.dcness-work/` 는 agent 가 참고할 수 있지만 장기 진본이 아닌 작업 흔적을 둔다.
@@ -229,10 +219,10 @@ agent prompt 는 문서 전문 재기입 대신 아래 포인터 세트를 넘�
 |---|---|---|---|---|
 | ux-architect | `docs/index.md`, `docs/prd.md`, `docs/conventions.md` | 해당 화면이 특정 모듈에 닫히면 `docs/modules/<module-id>/conventions.md` | `stories.md`, 대상 `ux-flow.md` | `docs/design.md`, 기존 화면 코드 |
 | system-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, 선택 `tech-review.md` | `stories.md`, `architecture.md`, 선택 `domain-model.md` | thin bootstrap, opt-in system checkpoint, `docs/tech-review.md`, epic `tech-review.md`, `ux-flow.md`, 코드 계약 표면 |
-| module-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, validation path | `stories.md`, `architecture.md`, 선택 `domain-model.md`, `impl/` | `docs/design.md`, `docs/compact-plans/<slug>.md`, 코드 계약 표면 |
+| module-architect | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | affected module 의 `architecture.md`, `conventions.md`, validation path | `stories.md`, `architecture.md`, 선택 `domain-model.md`, `impl/` | `docs/design.md`, 코드 계약 표면 |
 | tech-reviewer | `docs/index.md`, `docs/prd.md`, `docs/conventions.md` | 새 의존·runtime 이 특정 모듈에 닫히면 해당 module docs | option 4 때 대상 epic `stories.md` | `.dcness-work/reviews/` |
 
-impl task 와 compact plan 은 `## 사전 준비` 아래에 `읽을 문서`와 `읽을 코드`를 명시한다. 이 두 목록은 downstream 구현 agent 의 deterministic input 이며, 문서 탐험을 대신하지 않는다. 모듈 작업이면 affected module 문서만 이 목록에 넣는다.
+impl task 는 `## 사전 준비` 아래에 `읽을 문서`와 `읽을 코드`를 명시한다. 이 두 목록은 downstream 구현 agent 의 deterministic input 이며, 문서 탐험을 대신하지 않는다. 모듈 작업이면 affected module 문서만 이 목록에 넣는다.
 
 ## 시드 양식 = 산출 양식
 
@@ -253,4 +243,3 @@ dcNess 저장소 자기 자신의 `docs/` 는 활성 프로젝트 구조를 그�
 - `docs/plugin/**` — 외부 활성 프로젝트가 받는 plug-in SSOT 문서.
 - `docs/internal/**` — self 운영 문서.
 - `docs/archive/**` — 폐기/역사 자료.
-- `docs/compact-plans/**` — self 작업 중 생기는 compact plan.

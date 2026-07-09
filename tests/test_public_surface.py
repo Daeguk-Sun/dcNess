@@ -49,7 +49,7 @@ class PublicSurfaceGateTests(unittest.TestCase):
         self.assertIn("next-work", utility_commands)
         self.assertNotIn("next", utility_commands)
         self.assertEqual(
-            ["canvas-design", "compact-design", "design-system", "design-ux"],
+            ["canvas-design", "design-system", "design-ux"],
             internal_skills,
         )
         self.assertNotIn("qa", internal_agents)

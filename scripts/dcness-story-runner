@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Thin wrapper for deterministic `/impl-loop` story/epic runner state.
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
+export PYTHONPATH="${PLUGIN_ROOT}:${PYTHONPATH:-}"
+
+exec python3 -m harness.story_runner "$@"

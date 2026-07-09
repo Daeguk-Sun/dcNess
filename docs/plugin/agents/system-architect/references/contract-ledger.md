@@ -21,6 +21,6 @@ Contract Ledger는 과거 `/design` 이 cross-task public contract 전문을 모
 
 - caller가 올바르게 쓰기 위해 알아야 하는 의미를 module responsibility 와 decision 문서로 옮긴다.
 - private helper 이름이나 내부 loop 흐름은 쓰지 않는다.
-- impl/compact plan, validator finding, prompt 에 invariant/ordering/error mode/config/forbidden alternative 사본을 만들지 않는다. 필요한 곳은 module id 와 decision id/link 를 가리킨다.
+- impl 문서, validator finding, prompt 에 invariant/ordering/error mode/config/forbidden alternative 사본을 만들지 않는다. 필요한 곳은 module id 와 decision id/link 를 가리킨다.
 - task 내부 한정 private interface 는 사본 문제가 없으므로 impl 문서의 `## 인터페이스` 에 남길 수 있다.
 - architecture-validator는 구양식 Ledger/References 의 존재만으로 FAIL 하지 않는다. 이번 변경이 실제 계약 의미를 수정할 때 stale 사본이 되는지만 Should finding 으로 보고한다.
