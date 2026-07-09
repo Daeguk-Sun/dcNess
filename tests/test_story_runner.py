@@ -24,24 +24,18 @@ class StoryRunnerTests(unittest.TestCase):
             "02-api.md",
             story="1",
             task_index="2/2",
-            engine="4agent",
-            risk="high",
             title="API slice",
         )
         self._write_task(
             "01-ui.md",
             story="1",
             task_index="1/2",
-            engine="2agent",
-            risk="normal",
             title="UI slice",
         )
         self._write_task(
             "03-common.md",
             story="공통",
             task_index="",
-            engine="2agent",
-            risk="normal",
             title="Common",
         )
 
@@ -54,8 +48,6 @@ class StoryRunnerTests(unittest.TestCase):
         *,
         story: str,
         task_index: str,
-        engine: str,
-        risk: str,
         title: str,
     ) -> Path:
         path = self.impl_dir / name
@@ -66,9 +58,6 @@ class StoryRunnerTests(unittest.TestCase):
                     f"title: {title}",
                     f"story: {story}",
                     f"task_index: {task_index}",
-                    f"risk: {risk}",
-                    f"engine: {engine}",
-                    "risk_reason: fixture",
                     "---",
                     "",
                     "# Task",
@@ -90,6 +79,10 @@ class StoryRunnerTests(unittest.TestCase):
         self.assertEqual([story["story"] for story in state["stories"]], ["1", "공통"])
         self.assertEqual(state["stories"][0]["task_ids"], [1, 2])
         self.assertEqual(state["stories"][1]["task_ids"], [3])
+        for task in state["tasks"]:
+            self.assertNotIn("risk", task)
+            self.assertNotIn("engine", task)
+            self.assertNotIn("risk_reason", task)
 
     def test_mark_resume_transitions(self) -> None:
         state = build_state([str(self.impl_dir / "01-ui.md"), str(self.impl_dir / "02-api.md")], cwd=self.root)
@@ -104,39 +97,33 @@ class StoryRunnerTests(unittest.TestCase):
 
         self.assertIsNone(next_task(state))
         action = next_action(state)
-        self.assertEqual(action["action"], "story-pr")
-        self.assertEqual(action["story"]["story"], "1")
-        self.assertEqual(state["status"], "ready_for_pr")
-        self.assertEqual(state["stories"][0]["status"], "ready_for_pr")
+        self.assertEqual(action["action"], "batch-review")
+        self.assertEqual([story["story"] for story in action["stories"]], ["1"])
+        self.assertEqual(state["status"], "ready_for_review")
+        self.assertEqual(state["stories"][0]["status"], "implemented")
 
         mark_story(state, "1", "completed", pr="https://github.test/pr/1")
         self.assertEqual(state["status"], "completed")
         self.assertEqual(state["stories"][0]["status"], "completed")
         self.assertEqual(state["stories"][0]["pr"], "https://github.test/pr/1")
 
-    def test_next_stops_at_story_pr_boundary_before_later_story(self) -> None:
+    def test_next_continues_across_story_without_story_pr_boundary(self) -> None:
         state = build_state([str(self.impl_dir)], cwd=self.root, scope="epic")
 
         mark_task(state, "1", "completed", commit="abc123")
         self.assertEqual(next_task(state)["id"], 2)
         mark_task(state, "2", "completed", commit="def456")
 
-        self.assertIsNone(next_task(state))
-        action = next_action(state)
-        self.assertEqual(action["action"], "story-pr")
-        self.assertEqual(action["story"]["story"], "1")
-        self.assertEqual(state["stories"][0]["status"], "ready_for_pr")
-        self.assertEqual(state["tasks"][2]["status"], "pending")
-
-        mark_story(state, "1", "completed", pr="https://github.test/pr/1")
         self.assertEqual(next_task(state)["id"], 3)
         self.assertEqual(next_action(state)["task"]["id"], 3)
+        self.assertEqual(state["stories"][0]["status"], "implemented")
+        self.assertEqual(state["status"], "running")
 
     def test_mark_story_is_story_pr_boundary_only(self) -> None:
         state = build_state([str(self.impl_dir / "01-ui.md"), str(self.impl_dir / "02-api.md")], cwd=self.root)
 
         with self.assertRaisesRegex(ValueError, "invalid story status"):
-            mark_story(state, "1", "ready_for_pr")
+            mark_story(state, "1", "ready_for_review")
         with self.assertRaisesRegex(ValueError, "requires all story tasks completed"):
             mark_story(state, "1", "completed", pr="https://github.test/pr/1")
 
@@ -225,8 +212,8 @@ class StoryRunnerTests(unittest.TestCase):
             check=True,
         )
         ready = json.loads(state_path.read_text(encoding="utf-8"))
-        self.assertEqual(ready["status"], "ready_for_pr")
-        self.assertEqual(ready["stories"][0]["status"], "ready_for_pr")
+        self.assertEqual(ready["status"], "ready_for_review")
+        self.assertEqual(ready["stories"][0]["status"], "implemented")
 
         action = subprocess.run(
             [str(SCRIPT), "next-action", "--state", str(state_path), "--json"],
@@ -237,8 +224,8 @@ class StoryRunnerTests(unittest.TestCase):
             check=True,
         )
         action_payload = json.loads(action.stdout)
-        self.assertEqual(action_payload["action"], "story-pr")
-        self.assertEqual(action_payload["story"]["story"], "1")
+        self.assertEqual(action_payload["action"], "batch-review")
+        self.assertEqual([story["story"] for story in action_payload["stories"]], ["1"])
 
         subprocess.run(
             [
