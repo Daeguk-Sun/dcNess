@@ -2058,6 +2058,26 @@ class DefaultBaseWorktreeTests(unittest.TestCase):
         b2 = _default_base()
         self.assertEqual(b1, b2)
 
+    def test_show_toplevel_probe_cached_for_prompt_helpers(self) -> None:
+        """#1019 — begin-step prompt helpers share one git show-toplevel probe."""
+        from harness import session_state as state
+
+        repo = Path(self._tmp.name) / "repo"
+        self._init_git_repo(repo)
+        os.chdir(repo)
+
+        with patch("harness.session_state.subprocess.run", wraps=subprocess.run) as spy:
+            self.assertEqual(state._repo_root_for_prompt_check(cwd=repo), repo.resolve())
+            self.assertIsNone(state._active_worktree_root_for_prompt(cwd=repo))
+            self.assertEqual(state._repo_root_for_prompt_check(cwd=repo), repo.resolve())
+
+        show_toplevel_calls = [
+            call for call in spy.call_args_list
+            if call.args
+            and list(call.args[0]) == ["git", "rev-parse", "--show-toplevel"]
+        ]
+        self.assertEqual(1, len(show_toplevel_calls))
+
     def test_pid_session_consistent_main_and_worktree(self) -> None:
         """main repo 에서 write 한 by-pid 를 worktree cwd 에서도 read — γ 정합 핵심."""
         from harness.session_state import (

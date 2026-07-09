@@ -122,6 +122,7 @@ _CONFIRMED_MOCKUP_DIR_REL = Path("docs/design-variants")
 
 
 _DEFAULT_BASE_CACHE: Dict[str, Path] = {}
+_REPO_ROOT_CACHE: Dict[str, Path] = {}
 
 
 def _resolve_state_root_for_cwd(cwd_str: str) -> Path:
@@ -169,12 +170,42 @@ def _resolve_state_root_for_cwd(cwd_str: str) -> Path:
 
 
 def _clear_default_base_cache() -> None:
-    """테스트 보조 — _DEFAULT_BASE_CACHE 무력화."""
+    """테스트 보조 — git path probe cache 무력화."""
     _DEFAULT_BASE_CACHE.clear()
+    _REPO_ROOT_CACHE.clear()
 
 
 def _default_base() -> Path:
     return _resolve_state_root_for_cwd(str(Path.cwd().resolve()))
+
+
+def _git_show_toplevel_cached(cwd: Path) -> Optional[Path]:
+    """Return git repo root for cwd, caching the rev-parse probe per process."""
+    cwd_key = str(cwd.resolve())
+    if cwd_key in _REPO_ROOT_CACHE:
+        return _REPO_ROOT_CACHE[cwd_key]
+    try:
+        result = subprocess.run(  # nosec B603, B607
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=cwd_key,
+            timeout=_PPID_LOOKUP_TIMEOUT_SEC,
+        )
+    except (
+        subprocess.CalledProcessError,
+        subprocess.TimeoutExpired,
+        FileNotFoundError,
+        OSError,
+    ):
+        return None
+    root = result.stdout.strip()
+    if not root:
+        return None
+    root_path = Path(root).resolve()
+    _REPO_ROOT_CACHE[cwd_key] = root_path
+    return root_path
 
 
 def _resolve_base(base_dir: Optional[Path]) -> Path:
@@ -1216,50 +1247,16 @@ def _active_worktree_root_for_prompt(*, cwd: Optional[Path] = None) -> Optional[
     never blocks the loop for an advisory reminder.
     """
     probe_cwd = Path(cwd or Path.cwd()).resolve()
-    try:
-        result = subprocess.run(  # nosec B603, B607
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=str(probe_cwd),
-            timeout=_PPID_LOOKUP_TIMEOUT_SEC,
-        )
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-        OSError,
-    ):
+    root_path = _git_show_toplevel_cached(probe_cwd)
+    if root_path is None:
         return None
-    root = result.stdout.strip()
-    if not root:
-        return None
-    root_path = Path(root).resolve()
     return str(root_path) if _is_dcness_worktree_path(root_path) else None
 
 
 def _repo_root_for_prompt_check(*, cwd: Optional[Path] = None) -> Path:
     """Return repo root for advisory prompt checks, falling back to cwd."""
     probe_cwd = Path(cwd or Path.cwd()).resolve()
-    try:
-        result = subprocess.run(  # nosec B603, B607
-            ["git", "rev-parse", "--show-toplevel"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=str(probe_cwd),
-            timeout=_PPID_LOOKUP_TIMEOUT_SEC,
-        )
-    except (
-        subprocess.CalledProcessError,
-        subprocess.TimeoutExpired,
-        FileNotFoundError,
-        OSError,
-    ):
-        return probe_cwd
-    root = result.stdout.strip()
-    return Path(root).resolve() if root else probe_cwd
+    return _git_show_toplevel_cached(probe_cwd) or probe_cwd
 
 
 def _confirmed_mockup_paths_for_prompt(*, cwd: Optional[Path] = None) -> tuple[str, ...]:
