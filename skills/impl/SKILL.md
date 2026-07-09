@@ -200,6 +200,7 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
    - 3회 안에 수렴하지 않으면 남은 finding, follow-up 분리 후보, 보류/진행 판단 지점을 사용자에게 보고하고 멈춘다.
 7. 단위 commit + PR 생성
    - 의미 있는 단위로 commit 한다. hook 우회 금지.
+   - 변경량이 크면 리뷰어가 단계별로 따라갈 수 있게 테스트/결정적 helper/문서 surface/후속 cleanup 처럼 독립적으로 검토 가능한 커밋으로 쪼갠다. 단, 각 커밋은 hook 을 통과할 수 있는 일관된 상태여야 한다.
    - PR body 는 template, 관련 issue trailer, 배경/문제, 근본원인, 작업내용, 결정근거, Test Plan 을 포함한다.
    - dcNess plugin 배포물 변경이면 PR body 에 배포 경로 검증을 적는다.
 8. CI / merge policy

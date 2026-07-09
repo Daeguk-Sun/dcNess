@@ -787,6 +787,27 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("story/epic deep task runner", self.readme)
         self.assertIn("일반 `/impl` 구현은 메인이 맡고", self.readme)
 
+    def test_issue_1019_impl_loop_uses_story_runner_boundaries(self) -> None:
+        """#1019 — impl-loop uses deterministic state, task commits, and story PRs."""
+        script = ROOT / "scripts" / "dcness-story-runner"
+        self.assertTrue(script.exists())
+        self.assertTrue(script.stat().st_mode & 0o111)
+        for needle in (
+            "dcness-story-runner",
+            "task commit",
+            "story PR",
+            "code-validator/pr-reviewer/review 출력은 story PR 경계에서 1회",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.impl_loop_skill)
+        for stale in (
+            "PR 1개 = task 1개",
+            "N task = N run = N review.md",
+            "예상 PR K개",
+        ):
+            with self.subTest(stale=stale):
+                self.assertNotIn(stale, self.impl_loop_skill)
+
     def test_issue_885_claude_md_seed_and_audit_stays_inside_existing_surfaces(self) -> None:
         """#885 — CLAUDE.md seed/migration and audit wire into init/run-review only."""
         helper = "scripts/dcness-context-docs"
