@@ -13,8 +13,6 @@ Usage:
   dcness-implementation-chain <agent> [MODE] --prompt-file <file> [--provider <provider>] [--project-root <dir>]
 
 Agents:
-  test-engineer
-  engineer
   build-worker
 
 Providers:
@@ -53,7 +51,7 @@ AGENT="$1"
 shift
 
 case "$AGENT" in
-  test-engineer|engineer|build-worker) ;;
+  build-worker) ;;
   *)
     echo "[dcness-implementation-chain] unsupported agent: $AGENT" >&2
     exit 2
@@ -230,6 +228,8 @@ run_headless_stage() {
   local wrapper=""
   local before_status=""
   local after_status=""
+  local before_head=""
+  local after_head=""
   local log=""
   local rc=0
   local cmd=()
@@ -249,6 +249,7 @@ run_headless_stage() {
 
   log="$RAW_LOG_DIR/chain-${stage}-${AGENT}${MODE:+-$MODE}-$$.log"
   before_status="$(git_status_without_harness_state)"
+  before_head="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
 
   cmd=("$wrapper" "$AGENT")
   if [ -n "$MODE" ]; then
@@ -267,11 +268,12 @@ run_headless_stage() {
   rc=$?
 
   after_status="$(git_status_without_harness_state)"
+  after_head="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
   if [ "$rc" -eq 0 ]; then
     return 0
   fi
 
-  if [ "$before_status" != "$after_status" ]; then
+  if [ "$before_status" != "$after_status" ] || [ "$before_head" != "$after_head" ]; then
     echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and failed; no fallback." >&2
     echo "[dcness-implementation-chain] raw log: $log" >&2
     git -C "$PROJECT_ROOT" status --short >&2 || true

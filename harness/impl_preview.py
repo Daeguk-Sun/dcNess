@@ -1,7 +1,7 @@
 """Deterministic `/impl` entry preview.
 
 The skill still owns natural-language judgment. This module owns the small,
-repeatable mapping from already-classified signals to lane, implementation
+repeatable mapping from already-classified signals to route, implementation
 owner, review provider, and begin-run command hints.
 """
 from __future__ import annotations
@@ -38,7 +38,7 @@ class ImplPreview:
 
 
 def validate_design_doc(value: str, *, cwd: Path | None = None) -> str:
-    """Validate the current Standard-entry design-doc surface."""
+    """Validate the current design-doc entry surface."""
     cwd = (cwd or Path.cwd()).resolve()
     raw = Path(value)
     path = raw if raw.is_absolute() else cwd / raw
@@ -78,10 +78,10 @@ def build_preview(
 
     if design_doc:
         normalized_doc = validate_design_doc(design_doc, cwd=cwd)
-        route = "standard"
-        lane = "standard"
+        route = "design-doc"
+        lane = None
         begin_run_args = ["begin-run", "impl", "--design-doc", normalized_doc]
-        next_action = "start Standard implementation with the supplied design doc"
+        next_action = "start design-doc implementation with the supplied design doc"
         reasons.append("design_doc present")
     elif workflow_risk == "high":
         route = "outside-design"
@@ -90,10 +90,10 @@ def build_preview(
         next_action = "run /design or /spec before /impl"
         reasons.append("workflow risk=high")
     elif skip_design:
-        route = "lite"
-        lane = "lite"
+        route = "direct"
+        lane = None
         begin_run_args = ["begin-run", "impl", "--lane", "lite"]
-        next_action = "start Lite implementation; user explicitly skipped design"
+        next_action = "start direct implementation; user explicitly skipped design"
         reasons.append("user skip-design override")
     elif natural_language_only:
         route = "issue-intake"
@@ -114,10 +114,10 @@ def build_preview(
         next_action = "clarify target, scope, and success criteria"
         reasons.append("target or success criteria ambiguous")
     elif concrete:
-        route = "lite"
-        lane = "lite"
+        route = "direct"
+        lane = None
         begin_run_args = ["begin-run", "impl", "--lane", "lite"]
-        next_action = "start Lite implementation"
+        next_action = "start direct implementation"
         reasons.append("concrete signal present and no design_doc")
     else:
         route = "issue-intake"

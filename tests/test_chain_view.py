@@ -1,14 +1,14 @@
 """test_chain_view — impl-loop chain 진행 뷰 자동 렌더 코어 단위 테스트 (#755).
 
 진행 뷰 규칙 SSOT = skills/impl-loop/SKILL.md "진행 뷰 (task 리스트)" 절.
-본 테스트는 그 규칙(엔진별 sub-step / 마감 acceptance / task 총수 분기 /
+본 테스트는 그 규칙(단일 구현 sub-step / 마감 acceptance / task 총수 분기 /
 완료-현재-예정 마킹)이 코드에 동일하게 옮겨졌는지 검증한다 (새 규칙 도입 X).
 
 검증 축:
 
-    substeps_for (AC: 현재 sub-step 펼침 — 엔진별):
-        - build-worker(2) / build-worker-deep(3) / full-4(4) / advanced(5)
-        - 엔진 별칭 정규화 (2agent/4agent 등)
+    substeps_for (AC: 현재 sub-step 펼침):
+        - build-worker(2)
+        - UI 기준 확보 시 canvas-design 선두
         - 마감 acceptance: story +1 / epic +2 / None +0
 
     redraw_strategy (AC: task 총수별 분기):
@@ -49,7 +49,7 @@ def _task(name, engine="build-worker", closes=None):
 
 
 class TestSubsteps(unittest.TestCase):
-    """엔진별 sub-step 펼침 + 마감 acceptance (SKILL line 435)."""
+    """단일 build-worker sub-step 펼침 + 마감 acceptance."""
 
     def test_build_worker_two_substeps(self):
         self.assertEqual(
@@ -57,85 +57,19 @@ class TestSubsteps(unittest.TestCase):
             ["build-worker", "impl-validator"],
         )
 
-    def test_build_worker_deep_three_substeps(self):
-        self.assertEqual(
-            substeps_for(_task("m", "build-worker-deep")),
-            ["module-architect", "build-worker", "impl-validator"],
-        )
-
-    def test_full_engine_substeps(self):
-        self.assertEqual(
-            substeps_for(_task("m", "full-4")),
-            ["test-engineer", "engineer:IMPL", "impl-validator"],
-        )
-
-    def test_advanced_substeps(self):
-        self.assertEqual(
-            substeps_for(_task("m", "advanced")),
-            [
-                "module-architect",
-                "test-engineer",
-                "engineer:IMPL",
-                "impl-validator",
-            ],
-        )
-
     def test_engine_aliases(self):
-        self.assertEqual(normalize_engine("2agent"), "build-worker")
-        self.assertEqual(normalize_engine("4agent"), "full-4")
-        self.assertEqual(normalize_engine("3agent"), "build-worker-deep")
-        self.assertEqual(normalize_engine("advanced-fallback"), "advanced")
-        self.assertEqual(normalize_engine("impl-ui-design-loop"), "ui")
+        self.assertEqual(normalize_engine("bw"), "build-worker")
+        self.assertEqual(normalize_engine("impl-ui-design-loop"), "ui-build-worker")
         self.assertEqual(normalize_engine("ui-build-worker"), "ui-build-worker")
-        self.assertEqual(normalize_engine("ui-3agent"), "ui-build-worker-deep")
-        self.assertEqual(normalize_engine("ui-advanced"), "ui-advanced")
         # case-insensitive + whitespace
         self.assertEqual(normalize_engine("  Build-Worker "), "build-worker")
 
-    def test_ui_loop_substeps(self):
-        # impl-ui-design-loop — canvas-design 선두 + full-4.
-        # 사용자 PICK 은 draft 생성 시 canvas-design 내부 조건부 절차다.
-        self.assertEqual(
-            substeps_for(_task("m", "ui")),
-            [
-                "canvas-design",
-                "test-engineer",
-                "engineer:IMPL",
-                "impl-validator",
-            ],
-        )
-
     def test_ui_build_worker_substeps(self):
-        # UI 기준 확보는 engine 무관 — build-worker 앞에도 같은 canvas-design 절차가 붙는다.
         self.assertEqual(
             substeps_for(_task("m", "ui-build-worker")),
             [
                 "canvas-design",
                 "build-worker",
-                "impl-validator",
-            ],
-        )
-
-    def test_ui_build_worker_deep_substeps(self):
-        self.assertEqual(
-            substeps_for(_task("m", "ui-build-worker-deep")),
-            [
-                "module-architect",
-                "canvas-design",
-                "build-worker",
-                "impl-validator",
-            ],
-        )
-
-    def test_ui_advanced_substeps(self):
-        # UI + deep 보강 — canvas-design 앞 module-architect.
-        self.assertEqual(
-            substeps_for(_task("m", "ui-advanced")),
-            [
-                "module-architect",
-                "canvas-design",
-                "test-engineer",
-                "engineer:IMPL",
                 "impl-validator",
             ],
         )
@@ -146,18 +80,18 @@ class TestSubsteps(unittest.TestCase):
 
     def test_explicit_substeps_override(self):
         # engine preset 이 enum 하지 않은 변종을 명시 라벨로 표현 (escape hatch).
-        t = ChainTask(name="m", substeps=("designer", "사용자 PICK", "engineer:IMPL"))
+        t = ChainTask(name="m", substeps=("designer", "사용자 PICK", "build-worker"))
         self.assertEqual(
-            substeps_for(t), ["designer", "사용자 PICK", "engineer:IMPL"]
+            substeps_for(t), ["designer", "사용자 PICK", "build-worker"]
         )
 
     def test_explicit_substeps_with_closing_appends_acceptance(self):
         t = ChainTask(
-            name="m", substeps=("designer", "engineer:IMPL"), closes="story"
+            name="m", substeps=("designer", "build-worker"), closes="story"
         )
         self.assertEqual(
             substeps_for(t),
-            ["designer", "engineer:IMPL", "product-acceptance"],
+            ["designer", "build-worker", "product-acceptance"],
         )
 
     def test_empty_substeps_override_rejected(self):
@@ -175,12 +109,11 @@ class TestSubsteps(unittest.TestCase):
         )
 
     def test_epic_closing_appends_two_acceptance(self):
-        steps = substeps_for(_task("m", "full-4", closes="epic"))
+        steps = substeps_for(_task("m", "build-worker", closes="epic"))
         self.assertEqual(
             steps,
             [
-                "test-engineer",
-                "engineer:IMPL",
+                "build-worker",
                 "impl-validator",
                 "product-acceptance:STORY",
                 "product-acceptance:EPIC",
@@ -214,7 +147,7 @@ class TestRenderView(unittest.TestCase):
     def setUp(self):
         self.tasks = [
             _task("alpha", "build-worker"),
-            _task("beta", "full-4"),
+            _task("beta", "ui-build-worker"),
             _task("gamma", "build-worker"),
         ]
 
@@ -223,12 +156,13 @@ class TestRenderView(unittest.TestCase):
         lines = view.splitlines()
         self.assertEqual(lines[0], "✓ task1 · alpha")
         # 완료 task 는 sub-step 펼치지 않는다
-        self.assertNotIn("test-engineer", lines[0])
+        self.assertNotIn("build-worker", lines[0])
 
     def test_current_expanded(self):
         view = render_view(self.tasks, current=1)
         self.assertIn("▾ task2 · beta", view)
-        self.assertIn("   ㄴ test-engineer", view)
+        self.assertIn("   ㄴ canvas-design", view)
+        self.assertIn("   ㄴ build-worker", view)
         self.assertIn("   ㄴ impl-validator", view)
 
     def test_pending_waiting_line(self):
@@ -397,8 +331,8 @@ class TestBuildChainViewAndParse(unittest.TestCase):
 
     SAMPLE = {
         "tasks": [
-            {"name": "alpha", "engine": "2agent"},
-            {"name": "beta", "engine": "4agent"},
+            {"name": "alpha", "engine": "build-worker"},
+            {"name": "beta", "engine": "ui-build-worker"},
             {"name": "gamma", "engine": "build-worker", "closes": "story"},
         ],
         "current": 1,
@@ -408,7 +342,7 @@ class TestBuildChainViewAndParse(unittest.TestCase):
         tasks = parse_tasks(self.SAMPLE["tasks"])
         self.assertEqual([t.name for t in tasks], ["alpha", "beta", "gamma"])
         self.assertEqual(tasks[0].engine, "build-worker")
-        self.assertEqual(tasks[1].engine, "full-4")
+        self.assertEqual(tasks[1].engine, "ui-build-worker")
         self.assertEqual(tasks[2].closes, "story")
 
     def test_build_transition_payload(self):
@@ -421,7 +355,7 @@ class TestBuildChainViewAndParse(unittest.TestCase):
         self.assertIn("▾ task2 · beta", payload["view"])
         self.assertEqual(
             payload["current_substeps"],
-            ["test-engineer", "engineer:IMPL", "impl-validator"],
+            ["canvas-design", "build-worker", "impl-validator"],
         )
         self.assertTrue(payload["operations"])
 
@@ -481,24 +415,24 @@ class TestBuildChainViewAndParse(unittest.TestCase):
 
     def test_parse_rejects_missing_name(self):
         with self.assertRaises(ValueError):
-            parse_tasks([{"engine": "2agent"}])
+            parse_tasks([{"engine": "build-worker"}])
 
     def test_parse_rejects_bad_closes(self):
         with self.assertRaises(ValueError):
-            parse_tasks([{"name": "x", "engine": "2agent", "closes": "release"}])
+            parse_tasks([{"name": "x", "engine": "build-worker", "closes": "release"}])
 
     def test_parse_ui_engine(self):
         tasks = parse_tasks([{"name": "screen", "engine": "impl-ui-design-loop"}])
-        self.assertEqual(tasks[0].engine, "ui")
+        self.assertEqual(tasks[0].engine, "ui-build-worker")
         self.assertIn("canvas-design", substeps_for(tasks[0]))
         self.assertNotIn("사용자 PICK", substeps_for(tasks[0]))
 
     def test_parse_substeps_override_without_engine(self):
         tasks = parse_tasks(
-            [{"name": "screen", "substeps": ["designer", "engineer:IMPL"]}]
+            [{"name": "screen", "substeps": ["designer", "build-worker"]}]
         )
         self.assertIsNone(tasks[0].engine)
-        self.assertEqual(substeps_for(tasks[0]), ["designer", "engineer:IMPL"])
+        self.assertEqual(substeps_for(tasks[0]), ["designer", "build-worker"])
 
     def test_parse_rejects_neither_engine_nor_substeps(self):
         with self.assertRaises(ValueError):
@@ -511,8 +445,8 @@ class TestBuildChainViewAndParse(unittest.TestCase):
     def test_ui_task_renders_substeps_in_full_tier(self):
         tasks = parse_tasks(
             [
-                {"name": "a", "engine": "2agent"},
-                {"name": "screen", "engine": "ui"},
+                {"name": "a", "engine": "build-worker"},
+                {"name": "screen", "engine": "ui-build-worker"},
             ]
         )
         payload = build_chain_view(tasks, current=1, prev=0)

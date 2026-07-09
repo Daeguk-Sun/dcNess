@@ -253,7 +253,7 @@ def collect_impl_plan_boundary_suggestions(
     cwd: Optional[Path],
     impl_plan: Path,
 ) -> BoundarySuggestionReport:
-    """Detect `### 수정 허용` paths not covered by the engineer boundary."""
+    """Detect `### 수정 허용` paths not covered by the build-worker boundary."""
     root = _project_root(cwd)
     if _is_dcness_self_repo(root):
         return BoundarySuggestionReport(
@@ -269,7 +269,7 @@ def collect_impl_plan_boundary_suggestions(
     uncovered: list[str] = []
     blocking_reasons: dict[str, str] = {}
     for rel in scope_paths:
-        reason = check_write_allowed("engineer", rel, cwd=root)
+        reason = check_write_allowed("build-worker", rel, cwd=root)
         if reason is None:
             continue
         blocking_reasons[rel] = reason
@@ -298,7 +298,7 @@ def collect_boundary_suggestions(
     *,
     impl_plan: Optional[Path] = None,
 ) -> BoundarySuggestionReport:
-    """Detect source directories not covered by the effective engineer boundary."""
+    """Detect source directories not covered by the effective build-worker boundary."""
     if impl_plan is not None:
         return collect_impl_plan_boundary_suggestions(cwd, impl_plan)
 
@@ -315,7 +315,7 @@ def collect_boundary_suggestions(
     source_files = sorted(_iter_source_candidates(root), key=lambda p: p.as_posix())
     uncovered: list[Path] = []
     for rel in source_files:
-        reason = check_write_allowed("engineer", rel.as_posix(), cwd=root)
+        reason = check_write_allowed("build-worker", rel.as_posix(), cwd=root)
         if reason is not None and "ALLOW_MATRIX" in reason:
             uncovered.append(rel)
 
@@ -342,7 +342,7 @@ def format_boundary_suggestions(report: BoundarySuggestionReport) -> str:
     if not report.suggestions:
         if report.blocking_reasons:
             lines = [
-                "[dcness boundary] engineer/build-worker boundary 차단 경로:",
+                "[dcness boundary] build-worker boundary 차단 경로:",
             ]
             for path, reason in sorted(report.blocking_reasons.items()):
                 lines.append(f"- `{path}`: {reason}")
@@ -350,7 +350,7 @@ def format_boundary_suggestions(report: BoundarySuggestionReport) -> str:
                 [
                     "",
                     "ALLOW_MATRIX 미커버 경로는 사람 승인 후 `.dcness/boundary.json` "
-                    "engineer.add override 가 필요합니다.",
+                    "build-worker.add override 가 필요합니다.",
                     "INFRA/docs 등 되돌릴 수 없는 deny 경로는 impl 계획 scope 를 수정하세요.",
                 ]
             )
@@ -364,7 +364,7 @@ def format_boundary_suggestions(report: BoundarySuggestionReport) -> str:
         return f"[dcness boundary] no-op - {detail}."
 
     add_patterns = [item.pattern for item in report.suggestions]
-    sample = {"engineer": {"add": add_patterns}}
+    sample = {"build-worker": {"add": add_patterns}}
     lines = [
         "[dcness boundary] 코어 ALLOW_MATRIX 미커버 경로 후보:",
     ]
@@ -392,7 +392,7 @@ def format_boundary_suggestions(report: BoundarySuggestionReport) -> str:
         [
             "",
             "사람 승인 후에만 `.dcness/boundary.json` 에 add override 를 작성하세요.",
-            "build-worker 는 engineer add override 를 자동 상속합니다.",
+            "legacy engineer/test-engineer override 도 build-worker 에 자동 상속됩니다.",
             "",
             json.dumps(sample, ensure_ascii=False, indent=2),
         ]

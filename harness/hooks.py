@@ -14,7 +14,7 @@ bash 훅 (`hooks/*.sh`) 이 stdin payload + cc_pid 를 본 모듈의 핸들러�
 옛 merge-gate (LGTM 없이 merge) / impl-task-loop 3-commit 룰은 *메인 영역*
 (skill 안 Pre-flight) 또는 다른 흐름 (`/design` 의 impl 미리 머지 등)
 으로 이전 — 코드 강제 폐기. 본 hook 코드 강제는 begin-step/current-step 일치와
-engineer/build-worker 게이트(직전 module-architect PASS 또는 동등 설계 산출물)다.
+implementation gate(직전 module-architect PASS 또는 동등 설계 산출물)다.
 
 규약:
     - 모든 실패 케이스 silent (exit 0) — CC 동작 방해 최소화
@@ -1291,7 +1291,7 @@ def _run_lane(
     """현재 run 슬롯에 기록된 lane(설계도 유무) 반환 (#714).
 
     /impl 2축 모델의 lane 은 begin-run `--lane lite|standard` 로 start_run 슬롯에
-    기록된다. engineer 게이트는 lane="lite"(설계도 없는 Lite lane) 를 설계 산출물
+    기록된다. implementation gate 는 lane="lite"(설계도 없는 direct 경로) 를 설계 산출물
     사전 조건 면제 신호로 인정한다. 기록 부재 / state 읽기 실패는 None 반환 →
     종전 차단 경로(설계 산출물 요구)로 떨어진다 (면제 누수 차단, fail-strict).
     """

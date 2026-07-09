@@ -23,11 +23,11 @@ class ImplPreviewTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._td.cleanup()
 
-    def test_design_doc_selects_standard(self) -> None:
+    def test_design_doc_selects_design_doc(self) -> None:
         preview = build_preview(design_doc=str(self.impl_doc), cwd=self.root)
 
-        self.assertEqual(preview.route, "standard")
-        self.assertEqual(preview.lane, "standard")
+        self.assertEqual(preview.route, "design-doc")
+        self.assertIsNone(preview.lane)
         self.assertEqual(
             preview.begin_run_args,
             [
@@ -38,10 +38,10 @@ class ImplPreviewTests(unittest.TestCase):
             ],
         )
 
-    def test_concrete_without_design_doc_selects_lite(self) -> None:
+    def test_concrete_without_design_doc_selects_direct(self) -> None:
         preview = build_preview(concrete=True, cwd=self.root)
 
-        self.assertEqual(preview.route, "lite")
+        self.assertEqual(preview.route, "direct")
         self.assertEqual(preview.begin_run_args, ["begin-run", "impl", "--lane", "lite"])
 
     def test_needs_design_stays_outside_impl(self) -> None:
@@ -67,7 +67,7 @@ class ImplPreviewTests(unittest.TestCase):
     def test_user_skip_design_overrides_missing_design_doc(self) -> None:
         preview = build_preview(needs_design=True, skip_design=True, cwd=self.root)
 
-        self.assertEqual(preview.route, "lite")
+        self.assertEqual(preview.route, "direct")
         self.assertIn("skip-design", " ".join(preview.reasons))
 
     def test_high_risk_beats_skip_design_override(self) -> None:
@@ -113,7 +113,7 @@ class ImplPreviewTests(unittest.TestCase):
         )
 
         payload = json.loads(result.stdout)
-        self.assertEqual(payload["route"], "standard")
+        self.assertEqual(payload["route"], "design-doc")
         self.assertEqual(payload["implementation_owner"], "main")
         self.assertIn(payload["review_provider"], {"claude", "codex"})
 

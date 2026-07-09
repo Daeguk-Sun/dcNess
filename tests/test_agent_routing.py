@@ -29,7 +29,7 @@ class AgentRoutingTests(unittest.TestCase):
 
     def test_missing_config_defaults_to_claude(self) -> None:
         self.assertEqual(agent_routing.resolve_provider("impl-validator"), "claude")
-        self.assertEqual(agent_routing.resolve_provider("engineer"), "headless-chain")
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
         self.assertEqual(agent_routing.resolve_provider("unknown-agent"), "claude")
         self.assertFalse(self.path.exists())
 
@@ -37,7 +37,7 @@ class AgentRoutingTests(unittest.TestCase):
         agent_routing.enable_codex_validation()
         for agent in agent_routing.ROUTABLE_VALIDATION_AGENTS:
             self.assertEqual(agent_routing.resolve_provider(agent), "codex")
-        self.assertEqual(agent_routing.resolve_provider("engineer"), "headless-chain")
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
 
     def test_disable_codex_validation_returns_validators_to_claude(self) -> None:
         agent_routing.enable_codex_validation()
@@ -49,7 +49,7 @@ class AgentRoutingTests(unittest.TestCase):
         agent_routing.set_provider("impl-validator", "codex")
         self.assertEqual(agent_routing.resolve_provider("impl-validator"), "codex")
         with self.assertRaises(ValueError):
-            agent_routing.set_provider("engineer", "codex")
+            agent_routing.set_provider("build-worker", "codex")
         with self.assertRaises(ValueError):
             agent_routing.set_provider("impl-validator", "openai")
 
@@ -70,9 +70,7 @@ class AgentRoutingTests(unittest.TestCase):
     def test_role_split_preset_routes_implementation_and_contract_roles(self) -> None:
         agent_routing.enable_role_split_routing()
 
-        self.assertEqual(agent_routing.resolve_provider("engineer"), "headless-chain")
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
-        self.assertEqual(agent_routing.resolve_provider("test-engineer"), "claude")
         self.assertEqual(agent_routing.resolve_provider("impl-validator"), "claude")
         self.assertEqual(agent_routing.resolve_provider("architecture-validator"), "codex")
         self.assertEqual(agent_routing.doctor(), [])
@@ -97,12 +95,12 @@ class AgentRoutingTests(unittest.TestCase):
                     "version": 999,
                     "routes": {
                         "impl-validator": "codex",
-                        "engineer": "codex",
+                        "build-worker": "codex",
                         "legacy-reviewer": "other",
                     },
                     "implementation_routes": {
-                        "build-worker": "codex",
                         "engineer": "unknown-chain",
+                        "test-engineer": "claude",
                         "designer": "codex-first",
                     },
                 }
@@ -112,17 +110,17 @@ class AgentRoutingTests(unittest.TestCase):
         problems = agent_routing.doctor()
         self.assertTrue(any("unsupported version" in p for p in problems))
         self.assertTrue(
-            any("unknown validation agent route: engineer" in p for p in problems)
+            any("unknown validation agent route: build-worker" in p for p in problems)
         )
         self.assertTrue(any("unknown validation agent route: legacy-reviewer" in p for p in problems))
-        self.assertTrue(
-            any("invalid implementation provider for build-worker" in p for p in problems)
-        )
         self.assertTrue(
             any("unknown implementation agent route: designer" in p for p in problems)
         )
         self.assertTrue(
-            any("invalid implementation provider for engineer" in p for p in problems)
+            any("unknown implementation agent route: engineer" in p for p in problems)
+        )
+        self.assertTrue(
+            any("unknown implementation agent route: test-engineer" in p for p in problems)
         )
 
     def test_status_includes_effective_routes(self) -> None:
@@ -135,7 +133,6 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("architecture-validator: codex", text)
         self.assertIn("impl-validator: claude", text)
         self.assertIn("build-worker: claude", text)
-        self.assertIn("engineer: headless-chain", text)
 
     def test_v1_config_is_supported_and_defaults_implementation_to_headless_chain(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -290,8 +287,6 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertIn("enabled role-split routing", text)
         self.assertIn("architecture-validator: codex", text)
         self.assertIn("impl-validator: claude", text)
-        self.assertIn("test-engineer: claude", text)
-        self.assertIn("engineer: headless-chain", text)
         self.assertIn("build-worker: headless-chain", text)
 
         out = StringIO()
@@ -325,8 +320,8 @@ class InitRoleSplitRoutingDocsTests(unittest.TestCase):
         for text in (command, doc):
             with self.subTest(text=text[:40]):
                 self.assertIn("enable-role-split-routing", text)
-                self.assertIn("engineer/build-worker=headless-chain", text)
-                self.assertIn("test-engineer/impl-validator=claude", text)
+                self.assertIn("build-worker=headless-chain", text)
+                self.assertIn("impl-validator=claude", text)
                 self.assertIn("architecture-validator=codex", text)
                 self.assertIn("기존 활성 프로젝트", text)
                 self.assertIn("routing doctor", text)

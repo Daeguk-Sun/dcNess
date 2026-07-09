@@ -504,7 +504,7 @@ def _resolve_run_dir_str(
 
 # design_doc 으로 인정하는 설계 산출물 표준 경로 prefix (impl 문서).
 # 기록 시점에 repo-root 상대 prefix 앵커로 검증해 임의
-# .md(README 등)·traversal(`..`)·repo 밖 경로가 engineer 게이트 사전 조건
+# .md(README 등)·traversal(`..`)·repo 밖 경로가 implementation gate 사전 조건
 # 증거가 되지 못하게 한다 (#701).
 _DESIGN_DOC_DIR_MARKERS = (
     "docs/epics/",
@@ -514,7 +514,7 @@ _DESIGN_DOC_DIR_MARKERS = (
 def _validate_design_doc(design_doc: str) -> str:
     """begin-run `--design-doc` 경로 fail-fast 검증 (#701) — resolve 절대경로 반환.
 
-    engineer 게이트의 사전 조건 증거로 쓰이므로 기록 시점에 (1) .md 파일,
+    implementation gate 의 사전 조건 증거로 쓰이므로 기록 시점에 (1) .md 파일,
     (2) repo root(= helper 호출 cwd) 기준 설계 산출물 규약 경로 *안*, (3)
     디스크 실존을 확인한다. 게이트는 호출 시점에 실존을 재확인한다 (기록 후
     삭제 방어).
@@ -547,8 +547,8 @@ def _validate_design_doc(design_doc: str) -> str:
     return str(resolved)
 
 
-# /impl 2축 모델의 lane(설계도 유무) 닫힌 enum (#714). lite = 설계도 없음,
-# standard = 설계도 있음. engineer 게이트가 lane=lite 를 설계 산출물
+# /impl legacy lane(설계도 유무) 닫힌 enum (#714). lite = 설계도 없음,
+# standard = 설계도 있음. implementation gate 가 lane=lite 를 설계 산출물
 # 사전 조건 면제 신호로 인정하므로, 임의 문자열이 면제를 유발하지 못하게
 # 기록 시점에 이 집합으로 fail-fast 검증한다.
 _VALID_LANES = ("lite", "standard")
@@ -572,12 +572,12 @@ def start_run(
     이미 존재하면 ValueError (중복 run_id 방어).
 
     design_doc — 이 run 이 참조하는 머지된 설계 문서 경로 (#701). 기록 시
-    engineer 게이트가 같은-run module-architect PASS 의 등가 사전 조건
-    증거로 인정한다 (impl-loop 풀 경로처럼 설계가 별도 run 에서 머지된
+    implementation gate 가 같은-run module-architect PASS 의 등가 사전 조건
+    증거로 인정한다 (`/impl-loop` story/epic runner 처럼 설계가 별도 run 에서 머지된
     뒤 진입하는 경우).
 
-    lane — /impl 2축 모델의 lane(설계도 유무: "lite" / "standard", #714).
-    lane="lite" 는 설계도 없는 Lite 구현 경로로, engineer 게이트가 설계 산출물
+    lane — /impl legacy lane(설계도 유무: "lite" / "standard", #714).
+    lane="lite" 는 설계도 없는 direct 구현 경로로, implementation gate 가 설계 산출물
     사전 조건을 면제하는 신호다. 면제 누수 방지를 위해 (1) 닫힌 enum 만
     수용하고 (2) design_doc 과 동일하게 entry_point=impl run 에서만 기록을
     허용한다 — design/architect-loop run 의 module-architect PASS 강제는 코드
@@ -621,7 +621,7 @@ def start_run(
         )
     if design_doc is not None:
         # design_doc 은 impl 구현 run 전용 — design/architect-loop run 의
-        # engineer ← module-architect PASS 강제가 코드 보장으로 유지되도록
+        # build-worker ← module-architect PASS 강제가 코드 보장으로 유지되도록
         # 다른 entry_point 의 기록 자체를 거부한다.
         if entry_point != "impl":
             raise ValueError(
@@ -1036,9 +1036,9 @@ def _impl_plan_boundary_preflight_message(
         return None
     return (
         "[순서 차단 훅: impl pre-flight boundary] impl 계획의 `### 수정 허용` "
-        "경로 중 engineer/build-worker boundary 로 커버되지 않거나 차단되는 항목이 "
+        "경로 중 build-worker boundary 로 커버되지 않거나 차단되는 항목이 "
         "있습니다. ALLOW_MATRIX 미커버 경로는 사람 승인 후 `.dcness/boundary.json` "
-        "engineer.add override 를 기록하고, INFRA/docs 등 되돌릴 수 없는 deny 경로는 "
+        "build-worker.add override 를 기록하고, INFRA/docs 등 되돌릴 수 없는 deny 경로는 "
         "계획 scope 를 수정하기 전까지 구현 step 을 시작할 수 없습니다.\n"
         f"{format_boundary_suggestions(report)}"
     )
@@ -1201,13 +1201,13 @@ def evaluate_order_gate_for_step(
             and not _run_design_doc_exists(session_id, run_id, base_dir=base_dir)
         ):
             return (
-                "[순서 차단 훅: engineer 게이트] engineer/build-worker 호출은 "
+                "[순서 차단 훅: implementation gate] build-worker 호출은 "
                 "설계 산출물 확보 후만 — "
                 "같은 run 의 module-architect PASS prose (module-architect*.md 안 "
                 "PASS 마커) 또는 begin-run --design-doc 으로 기록된 설계 문서 실존. "
                 "충족 방법: module-architect step 을 PASS 로 완료하거나, 구현 run 을 "
                 "시작할 때 `begin-run impl --design-doc <설계문서>` 를 기록하세요. "
-                "명시적 Lite 구현 경로라면 `begin-run impl --lane lite` 로 시작하세요."
+                "명시적 direct 구현 경로라면 `begin-run impl --lane lite` 로 시작하세요."
             )
         boundary_message = _impl_plan_boundary_preflight_message(
             session_id, run_id, base_dir=base_dir,

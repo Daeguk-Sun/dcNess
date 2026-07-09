@@ -979,13 +979,13 @@ def _build_arg_parser() -> Any:
     p_br.add_argument("--issue-num", type=int, default=None)
     p_br.add_argument(
         "--design-doc", default=None, dest="design_doc",
-        help="이 run 이 참조하는 머지된 설계 문서 경로 — engineer 게이트가 "
+        help="이 run 이 참조하는 머지된 설계 문서 경로 — implementation gate 가 "
              "같은-run module-architect PASS 의 등가 사전 조건으로 인정",
     )
     p_br.add_argument(
         "--lane", default=None, choices=_VALID_LANES,
-        help="/impl 2축 구현 경로(설계도 유무: lite / standard, #714) — lane=lite 는 "
-             "설계도 없는 Lite 구현 경로로 engineer 게이트 설계 산출물 사전 조건 "
+        help="/impl legacy 구현 경로(설계도 유무: lite / standard, #714) — lane=lite 는 "
+             "설계도 없는 direct 구현 경로로 implementation gate 설계 산출물 사전 조건 "
              "면제 신호. entry_point=impl 에서만 수용",
     )
     p_br.add_argument(
@@ -1353,8 +1353,8 @@ def _build_arg_parser() -> Any:
     rt_role_split = rt_sub.add_parser(
         "enable-role-split-routing",
         help=(
-            "추천 role split: engineer/build-worker=headless-chain, "
-            "test-engineer/impl-validator=claude, "
+            "추천 role split: build-worker=headless-chain, "
+            "impl-validator=claude, "
             "architecture-validator=codex"
         ),
     )
@@ -1373,7 +1373,7 @@ def _build_arg_parser() -> Any:
 
     rt_enable_impl = rt_sub.add_parser(
         "enable-codex-implementation",
-        help="legacy: test-engineer / engineer / build-worker 를 Codex-first 로 보냄",
+        help="legacy: build-worker 를 Codex-first 로 보냄",
     )
     rt_enable_impl.set_defaults(func=_cli_routing)
 

@@ -65,7 +65,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             rid = "run-0badc0de"
             state_base = project / ".claude" / "harness-state"
             start_run(sid, rid, "impl", base_dir=state_base, lane="lite")
-            update_current_step(sid, rid, "engineer", "IMPL", base_dir=state_base)
+            update_current_step(sid, rid, "build-worker", None, base_dir=state_base)
 
             prompt_file = tmp / "prompt.md"
             prompt_file.write_text("Implement this task.\n", encoding="utf-8")
@@ -92,8 +92,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(wrapper),
-                    "engineer",
-                    "IMPL",
+                    "build-worker",
                     "--prompt-file",
                     str(prompt_file),
                     "--project-root",
@@ -107,7 +106,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 1)
-            self.assertIn("changed files outside engineer boundary", result.stderr)
+            self.assertIn("changed files outside build-worker boundary", result.stderr)
             self.assertFalse(helper_args.exists())
 
             events = ledger.read_events(sid, rid, base_dir=state_base)
@@ -117,8 +116,8 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
                 and event.get("category") == "engineer_boundary"
             ]
             self.assertEqual(len(blocked_events), 1)
-            self.assertEqual(blocked_events[0].get("agent"), "engineer")
-            self.assertEqual(blocked_events[0].get("mode"), "IMPL")
+            self.assertEqual(blocked_events[0].get("agent"), "build-worker")
+            self.assertIsNone(blocked_events[0].get("mode"))
             self.assertEqual(blocked_events[0].get("provider"), provider)
             self.assertIn("hooks/catastrophic-gate.sh", blocked_events[0].get("reason", ""))
             self.assertTrue(blocked_events[0].get("raw_log", "").endswith(".log"))
@@ -223,6 +222,78 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             )
             self.assertEqual(len(logs), 1)
             self.assertIn("Claude worker prose", logs[0].read_text(encoding="utf-8"))
+
+    def test_worker_boundary_checks_committed_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=project, check=True)
+            subprocess.run(["git", "config", "user.name", "Test User"], cwd=project, check=True)
+            (project / "src").mkdir()
+            (project / "src" / "base.py").write_text("print('base')\n", encoding="utf-8")
+            subprocess.run(["git", "add", "src/base.py"], cwd=project, check=True)
+            subprocess.run(["git", "commit", "-q", "-m", "base"], cwd=project, check=True)
+
+            sid = "sid-committed-boundary"
+            rid = "run-c0ffee00"
+            state_base = project / ".claude" / "harness-state"
+            start_run(sid, rid, "impl", base_dir=state_base, lane="lite")
+            update_current_step(sid, rid, "build-worker", None, base_dir=state_base)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement and commit this task.\n", encoding="utf-8")
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                cat >/dev/null
+                mkdir -p hooks
+                printf 'outside boundary\\n' > hooks/catastrophic-gate.sh
+                git add hooks/catastrophic-gate.sh
+                git commit -q -m "[feature] committed boundary escape"
+                printf 'Committed worker prose\\n\\nPASS\\n'
+                """,
+            )
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_RUN_ID": rid,
+                    "DCNESS_SESSION_ID": sid,
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertIn("hooks/catastrophic-gate.sh", result.stderr)
+            self.assertFalse(helper_args.exists())
 
     def test_worker_cleans_nested_claude_session_env_but_keeps_dcness_context(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -757,8 +828,7 @@ class ImplementationChainTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(CHAIN),
-                    "engineer",
-                    "IMPL",
+                    "build-worker",
                     "--provider",
                     "headless-chain",
                     "--prompt-file",

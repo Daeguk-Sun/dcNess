@@ -10,8 +10,6 @@ Usage:
   dcness-codex-worker <agent> [MODE] --prompt-file <file> [--project-root <dir>]
 
 Agents:
-  test-engineer
-  engineer
   build-worker
 
 Options:
@@ -58,7 +56,7 @@ AGENT="$1"
 shift
 
 case "$AGENT" in
-  test-engineer|engineer|build-worker) ;;
+  build-worker) ;;
   *)
     echo "[dcness-codex-worker] unsupported agent: $AGENT" >&2
     exit 2
@@ -210,6 +208,7 @@ git_status_without_harness_state() {
 }
 
 BEFORE_STATUS="$(git_status_without_harness_state)"
+BEFORE_HEAD="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
 
 TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-${AGENT}.XXXXXX")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-prompt-${AGENT}.XXXXXX")"
@@ -232,7 +231,8 @@ AGENT_DETAIL="$SCRIPT_DIR/../docs/plugin/agents/$AGENT/$AGENT-agent.md"
   echo
   echo "You are executing this dcNess implementation worker step through Codex headless."
   echo "You may edit files in the project/worktree only within the embedded agent boundary."
-  echo "Do not run git commit, git push, gh pr create, gh pr merge, gh issue mutation, or call other agents."
+  echo "You may run git status/diff/add/commit for local task commits after the task gates pass."
+  echo "Do not run git push, gh pr create, gh pr merge, gh issue mutation, or call other agents."
   echo "Return prose only. Use the conclusion enum required by the embedded agent instructions."
   echo
   if [ -f "$AGENT_DOC" ]; then
@@ -374,7 +374,8 @@ with open(prompt, "rb") as stdin, open(log, "ab") as raw:
 
 workspace_changed() {
   AFTER_STATUS="$(git_status_without_harness_state)"
-  [ "$BEFORE_STATUS" != "$AFTER_STATUS" ]
+  AFTER_HEAD="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
+  [ "$BEFORE_STATUS" != "$AFTER_STATUS" ] || [ "$BEFORE_HEAD" != "$AFTER_HEAD" ]
 }
 
 record_boundary_block() {
@@ -450,7 +451,8 @@ if [ ! -s "$TMP_PROSE" ]; then
 fi
 
 BOUNDARY_PROBLEMS="$(
-  PYTHONPATH="$SCRIPT_DIR/.." python3 - "$AGENT" "$PROJECT_ROOT" <<'PY'
+  BEFORE_HEAD="$BEFORE_HEAD" PYTHONPATH="$SCRIPT_DIR/.." python3 - "$AGENT" "$PROJECT_ROOT" <<'PY'
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -459,6 +461,7 @@ from harness.agent_boundary import check_write_allowed
 
 agent = sys.argv[1]
 root = Path(sys.argv[2])
+before_head = os.environ.get("BEFORE_HEAD", "").strip()
 
 paths = set()
 commands = [
@@ -466,6 +469,18 @@ commands = [
     ["git", "-C", str(root), "diff", "--cached", "--name-only", "--diff-filter=ACMRTD"],
     ["git", "-C", str(root), "ls-files", "--others", "--exclude-standard"],
 ]
+if before_head:
+    commands.append(
+        [
+            "git",
+            "-C",
+            str(root),
+            "diff",
+            "--name-only",
+            "--diff-filter=ACMRTD",
+            f"{before_head}..HEAD",
+        ]
+    )
 for cmd in commands:
     proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     if proc.returncode == 0:
@@ -494,6 +509,9 @@ TDD_CHANGED_PATHS="$(
     git -C "$PROJECT_ROOT" diff --name-only --diff-filter=ACMRT 2>/dev/null || true
     git -C "$PROJECT_ROOT" diff --cached --name-only --diff-filter=ACMRT 2>/dev/null || true
     git -C "$PROJECT_ROOT" ls-files --others --exclude-standard 2>/dev/null || true
+    if [ -n "$BEFORE_HEAD" ]; then
+      git -C "$PROJECT_ROOT" diff --name-only --diff-filter=ACMRT "$BEFORE_HEAD..HEAD" 2>/dev/null || true
+    fi
   } | grep -v '^\.claude/harness-state/' | sort -u
 )"
 TDD_PROBLEMS="$(
