@@ -383,7 +383,6 @@ acceptance FAIL 미해소 상태로 pr-finalize 강행 금지 — close 발동 s
 "$PLUGIN_ROOT/scripts/dcness-story-runner" init <impl-file-or-dir...> \
   --state .dcness-work/story-run.json --scope auto
 "$PLUGIN_ROOT/scripts/dcness-story-runner" next-action --state .dcness-work/story-run.json
-"$PLUGIN_ROOT/scripts/dcness-story-runner" next --state .dcness-work/story-run.json
 "$PLUGIN_ROOT/scripts/dcness-story-runner" mark --state .dcness-work/story-run.json \
   --task <id|slug|path> --status running|completed|error|blocked \
   [--commit <sha>] [--provider codex-headless|claude-headless|claude-main]
