@@ -35,10 +35,14 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 
 ## 디자인 참조
 
-> UI task 한정. `design: required` 이거나 UI 기준 확보 분기가 `기준 있음` / `신규 시각 구조 + 기준 없음` 으로 판정된 task 는 확정 목업 경로와 핵심 node-id 매핑을 적는다. non-UI task 는 이 섹션 전체를 삭제한다.
+> UI task 한정. `design: required` 이거나 UI 기준 확보 분기가 `기준 있음` / `신규 시각 구조 + 기준 없음` 으로 판정된 task 는 확정 목업 경로, 핵심 디자인 토큰, 핵심 node-id 매핑을 적는다. 핵심 디자인 토큰은 색/spacing/typography 를 node-id 매핑과 나란히 남긴다. non-UI task 는 이 섹션 전체를 삭제한다.
 
 - 확정 목업 경로: `docs/design-variants/<screen-id>.html` 또는 해당 없음
 - canvas 경로: `docs/design-variants/canvas.html` 또는 해당 없음
+- 핵심 디자인 토큰:
+  - 색 토큰: `<docs/design.md colors.* token>` → `<앱 theme/component 적용 지점>`
+  - spacing 토큰: `<docs/design.md spacing.* token>` → `<앱 layout/component 적용 지점>`
+  - typography 토큰: `<docs/design.md typography.* token>` → `<앱 text style 적용 지점>`
 - 핵심 `data-node-id` → 구현 컴포넌트/상태:
   - `<screen-id>.<node>` → `<component or state>`
 - 목업 대비 의도적 차이:

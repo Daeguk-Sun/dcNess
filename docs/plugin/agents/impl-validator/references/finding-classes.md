@@ -9,6 +9,7 @@
 - 계획한 public interface, data shape, error behavior 와 구현이 다름
 - 계획 밖 기능이나 파일이 섞임
 - domain invariant, architecture, design token, DB schema 계약 위반
+- design:required UI 계획이 요구한 디자인 토큰 적용 누락 또는 boilerplate 색 상수 잔존
 - bugfix 원인이 남아 있거나 주변 동작을 깨뜨림
 - 테스트가 계획한 contract 를 검증하지 못하고 구현이 그 gap 에 의존함
 
@@ -18,6 +19,7 @@
 
 - 과한 추상화, 읽기 어려운 분기, 의미 있는 중복
 - debug 잔재, hardcode, cleanup 누락, async ordering 위험
+- 목업과 다른 default palette, boilerplate 색 상수 잔존, 정당화 없는 디자인 토큰 적용 누락
 - 코드 패턴으로 확인 가능한 보안 위험
 - owner module 없이 entrypoint/session/global state 에 새 흐름을 흡수
 - PR 범위 안에서 기존 장기 문서를 stale 하게 만듦

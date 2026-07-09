@@ -7,11 +7,12 @@
 agent 가 자체 read 할 SSOT 경로를 적는다.
 진본(task 파일 Scope·수용기준·인터페이스 · 이슈)에 이미 있으면 prompt 에 재기입하지 않는다.
 예) direct `/impl`=이슈 #NN · impl-loop(build-worker)=task 파일
+    · impl-loop(build-worker) design:required=task 파일 + build-worker 읽을 진본에 `docs/design.md` 토큰 필수 포함
     · impl-validator=검토 대상(merge candidate diff + 계획 파일 유무 + 테스트 증거)
     · system-architect(thin bootstrap)=docs/index.md + PRD + root architecture/conventions/decisions + stories
     · system-architect(checkpoint)=docs/index.md + 전역/epic SSOT + affected module docs + 코드 계약 표면
     · module-architect=epic-batch + docs/index.md + 전역 decisions + affected module docs + epic architecture·선택 domain-model·전체 stories + 코드 계약 표면
-      + 확정 목업 존재 UI epic 이면 docs/design.md + 확정 목업 파일 + docs/design-variants/canvas.html + node-id 매핑
+      + 확정 목업 존재 UI epic 이면 docs/design.md + 확정 목업 파일 + docs/design-variants/canvas.html + node-id 매핑 + 핵심 디자인 토큰
     · architecture-validator=검토 대상 산출물
       + 확정 목업 존재 UI epic 이면 docs/design.md + 확정 목업 파일 + docs/design-variants/canvas.html + node-id 매핑}}
 

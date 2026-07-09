@@ -23,7 +23,7 @@ epic-batch, `/design` revision mode, 보강 요청, legacy contract sync 단위�
 - 상황별: 대상 epic의 `domain-model.md`, 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint)
 - 상황별: `docs/design.md`, 관련 기존 impl 문서
 - UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `docs/design-variants/canvas.html` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로
-- UI epic 확정 목업 존재 시 필수: `docs/design-variants/<screen-id>.html`, 확정 목업 경로와 node-id 매핑
+- UI epic 확정 목업 존재 시 필수: `docs/design-variants/<screen-id>.html`, 확정 목업 경로, node-id 매핑과 나란히 둘 핵심 디자인 토큰(색/spacing/typography)
 - 참고: [`references/implementation-boundary.md`](references/implementation-boundary.md), [`references/contract-amendment.md`](references/contract-amendment.md)
 
 ## 판단 축
@@ -43,7 +43,7 @@ epic-batch, `/design` revision mode, 보강 요청, legacy contract sync 단위�
 - 흐름 누적 분해: 기존 대형 파일을 건드리는 task 에서 append 대신 흐름 / 섹션 모듈 신설을 선호하고, 이번 task 가 손대는 seam 까지만 분해하는가. 기준 = [`module-design-principles.md` 단일 파일 다중 흐름 누적](../_shared/module-design-principles.md#단일-파일-다중-흐름-누적).
 - Agent Operability: 다음 agent 가 edit target, state owner, validation path 를 cold-start 로 찾을 수 있게 module responsibility / public interface 와 task-local owner/entrypoint 요약이 연결되는가.
 - drift 통제: 기존 결정의 stale 사본을 새 설계로 착각하지 않는가.
-- 디자인 기준 대조: 확정 목업이 있는 UI epic 에서 목업 미참조 설계 금지 원칙을 지키는가. epic architecture 와 impl task 가 확정 목업 경로, node-id 매핑, docs/design.md 토큰을 대조 근거로 남기는가.
+- 디자인 기준 대조: 확정 목업이 있는 UI epic 에서 목업 미참조 설계 금지 원칙을 지키는가. epic architecture 와 impl task 가 확정 목업 경로, 핵심 디자인 토큰, node-id 매핑을 대조 근거로 남기는가. 핵심 디자인 토큰은 색/spacing/typography 를 node-id 매핑과 나란히 두어 build-worker 가 앱 theme/component 적용 지점을 추적할 수 있어야 한다.
 - revision scope: 완료된 pack 개정에서 영향 산출물만 바꾸고 미변경 impl task 를 보존하는가. 화면 통합/분할/삭제 같은 UX revision 전파라면 변경된 `ux-flow.md` 화면 인벤토리와 확정 목업/node-id 보존 결정을 architecture/impl 에 필요한 만큼만 반영하는가.
 
 ## 작업 흐름
@@ -58,7 +58,7 @@ epic-batch, `/design` revision mode, 보강 요청, legacy contract sync 단위�
 8. 각 task 에 대해 템플릿으로 구현 문서를 작성한다. Story/공통 impl-task 산출물은 독립 `Story 동작 슬라이스` 섹션을 만들지 않고 `무엇을 만드나`/`왜 만드나` 에 Story 완료 시 실제 검증되는 동작, 이 task 또는 task 묶음이 연결하는 제품 경계, 첫 동작 증거 지점, 병렬성보다 동작 슬라이스를 우선한 결정을 1-2줄로 남긴다. entrypoint 를 만지는 task 는 독립 `Agent Workability` 섹션 대신 `인터페이스` 에 owner/entrypoint 요약만 남긴다(owner flow/module, entrypoint role, state owner, validation path). 비-entrypoint task 는 이 요약을 생략한다.
 9. impl task frontmatter 에는 `depends_on` 만 의존·순서 메타로 남긴다. `risk` / `engine` / `risk_reason` / `depth` 를 새로 쓰지 않는다. `/impl-loop` 구현 주체는 build-worker 하나이며, 설계 중 드러난 범위·보안·데이터·외부 의존 리스크는 엔진 선택 메타가 아니라 `SYSTEM_CHECKPOINT_REQUIRED`, `NEW_DEP_ESCALATE`, `/design` 보강, 또는 사용자 위임으로 처리한다.
 10. public contract를 만들거나 바꾸면 epic `architecture.md` 의 모듈 목록 책임/공개 인터페이스와 `docs/decisions/NNNN-slug.md` 를 갱신하고 impl 문서는 관련 module/decision 참조만 남긴다. 신규 epic-scope decision 기록은 module-architect 가 자율 처리하지만, 기존 전역 decision 변경은 `SYSTEM_CHECKPOINT_REQUIRED` 로 checkpoint 승격한다. impl 문서에 invariant/ordering/error mode/config/forbidden alternative 전문을 복제하지 않는다. task 내부 한정 private interface 는 사본 문제가 없으므로 `## 인터페이스` 에 남긴다.
-11. DB, 디자인 토큰, 외부 의존 같은 영향 축이 있으면 별도 증거를 남긴다. 확정 목업이 있는 UI epic 에서는 목업 미참조 설계 금지 원칙에 따라 `## 디자인 참조` 에 확정 목업 경로, node-id 매핑, docs/design.md 토큰 대응, 의도적 차이를 남긴다. non-UI task 는 `## 디자인 참조` 섹션을 삭제한다.
+11. DB, 디자인 토큰, 외부 의존 같은 영향 축이 있으면 별도 증거를 남긴다. 확정 목업이 있는 UI epic 에서는 목업 미참조 설계 금지 원칙에 따라 `## 디자인 참조` 에 확정 목업 경로, 핵심 디자인 토큰(색/spacing/typography), node-id 매핑, docs/design.md 토큰 대응, 의도적 차이를 남긴다. non-UI task 는 `## 디자인 참조` 섹션을 삭제한다.
 12. 수용 기준은 기본적으로 실행 가능한 명령을 적는다. manual QA 는 명령 변환 불가 사유와 관찰 증거가 함께 있을 때만 허용한다.
 13. 완료 전에 구현 세부 유출, 수용 기준 검증 가능성, Story 동작 슬라이스 증거, Agent Operability 증거, 코드 SSOT drift 를 다시 본다.
 
@@ -76,7 +76,7 @@ epic-batch, `/design` revision mode, 보강 요청, legacy contract sync 단위�
 - task 분할이 있는 경우 각 impl 문서의 `depends_on`(선행 있으면 목록, 없으면 명시적 `[]`)과 `수정 허용`(기본 owner module directory grant, 같은 owner directory 분할 시에만 file-level path, 테스트 grant 는 test root 전체가 아니라 owner module 에 대응하는 하위 경로)이 채워진다. 넓은 테스트 grant 는 공통 기반 task 에서만 허용되고 사유를 주석으로 남긴다. 비운 채/placeholder 잔존은 미상이고, normalizer 이후에도 남은 산문/다중 경로 bullet 은 병렬에서 직렬 강등된다.
 - 각 impl 문서 frontmatter 에 `depends_on` 이 채워진다. 선행 task 가 없으면 명시적 `[]` 를 쓴다. `risk` / `engine` / `risk_reason` / `depth` frontmatter 는 새로 쓰지 않는다.
 - 계약 표면 코드 SSOT 대조 증거가 있다. 포트, 도메인 타입, 공개 entrypoint 를 바꾸는 task 는 module responsibility 또는 decision 으로 근거가 연결된다.
-- 확정 목업이 있는 UI epic 은 epic architecture 또는 impl task 의 `## 디자인 참조` 에 확정 목업 경로, node-id 매핑, docs/design.md 토큰 대조 근거가 있고, 목업 미참조 설계 금지 원칙을 어기지 않는다.
+- 확정 목업이 있는 UI epic 은 epic architecture 또는 impl task 의 `## 디자인 참조` 에 확정 목업 경로, 핵심 디자인 토큰(색/spacing/typography), node-id 매핑, docs/design.md 토큰 대조 근거가 있고, 목업 미참조 설계 금지 원칙을 어기지 않는다.
 - cross-task contract가 있으면 module responsibility 한 줄과 decision 문서에 의미가 있고 impl 문서는 module/decision 참조만 가리킨다. 구양식 Contract Ledger / Contract References 산출물은 기존 활성 프로젝트 호환을 위해 유효하지만, 이번에 새로 쓰거나 수정하는 신규 산출물은 사본 표를 만들지 않는다.
 - 수용 기준의 검증은 실행 가능한 명령이다. manual QA 가 있으면 명령 변환 불가 사유와 관찰 증거가 남는다.
 - `주의사항` 의 모듈 설계 주의 또는 동등한 문구로 모듈 설계 원칙 적용 증거가 남는다.
