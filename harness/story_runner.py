@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -190,7 +191,10 @@ def load_state(path: Path) -> dict[str, Any]:
 def save_state(path: Path, state: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     state["updated_at"] = _now_iso()
-    path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
+    tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}")
+    tmp.write_text(payload, encoding="utf-8")
+    os.replace(tmp, path)
 
 
 def find_task(state: dict[str, Any], ref: str) -> dict[str, Any]:
@@ -211,6 +215,8 @@ def next_task(state: dict[str, Any]) -> dict[str, Any] | None:
     for task in state.get("tasks", []):
         if task.get("status") == "running":
             return task
+    if any(story.get("status") == "ready_for_pr" for story in state.get("stories", [])):
+        return None
     for task in state.get("tasks", []):
         if task.get("status") == "pending":
             return task

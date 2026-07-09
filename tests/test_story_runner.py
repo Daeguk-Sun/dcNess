@@ -111,6 +111,20 @@ class StoryRunnerTests(unittest.TestCase):
         self.assertEqual(state["stories"][0]["status"], "completed")
         self.assertEqual(state["stories"][0]["pr"], "https://github.test/pr/1")
 
+    def test_next_stops_at_story_pr_boundary_before_later_story(self) -> None:
+        state = build_state([str(self.impl_dir)], cwd=self.root, scope="epic")
+
+        mark_task(state, "1", "completed", commit="abc123")
+        self.assertEqual(next_task(state)["id"], 2)
+        mark_task(state, "2", "completed", commit="def456")
+
+        self.assertIsNone(next_task(state))
+        self.assertEqual(state["stories"][0]["status"], "ready_for_pr")
+        self.assertEqual(state["tasks"][2]["status"], "pending")
+
+        mark_story(state, "1", "completed", pr="https://github.test/pr/1")
+        self.assertEqual(next_task(state)["id"], 3)
+
     def test_script_init_next_mark_round_trip(self) -> None:
         state_path = self.root / ".dcness-work" / "story-run.json"
         env = {**os.environ, "PYTHONPATH": str(ROOT)}

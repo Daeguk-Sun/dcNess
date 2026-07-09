@@ -83,18 +83,18 @@ def build_preview(
         begin_run_args = ["begin-run", "impl", "--design-doc", normalized_doc]
         next_action = "start Standard implementation with the supplied design doc"
         reasons.append("design_doc present")
-    elif skip_design:
-        route = "lite"
-        lane = "lite"
-        begin_run_args = ["begin-run", "impl", "--lane", "lite"]
-        next_action = "start Lite implementation; user explicitly skipped design"
-        reasons.append("user skip-design override")
     elif workflow_risk == "high":
         route = "outside-design"
         lane = None
         begin_run_args = []
         next_action = "run /design or /spec before /impl"
         reasons.append("workflow risk=high")
+    elif skip_design:
+        route = "lite"
+        lane = "lite"
+        begin_run_args = ["begin-run", "impl", "--lane", "lite"]
+        next_action = "start Lite implementation; user explicitly skipped design"
+        reasons.append("user skip-design override")
     elif natural_language_only:
         route = "issue-intake"
         lane = None

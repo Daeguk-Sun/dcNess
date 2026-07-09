@@ -70,6 +70,13 @@ class ImplPreviewTests(unittest.TestCase):
         self.assertEqual(preview.route, "lite")
         self.assertIn("skip-design", " ".join(preview.reasons))
 
+    def test_high_risk_beats_skip_design_override(self) -> None:
+        preview = build_preview(workflow_risk="high", skip_design=True, cwd=self.root)
+
+        self.assertEqual(preview.route, "outside-design")
+        self.assertEqual(preview.begin_run_args, [])
+        self.assertIn("workflow risk=high", " ".join(preview.reasons))
+
     def test_impl_always_uses_main_implementation_owner(self) -> None:
         preview = build_preview(concrete=True, cwd=self.root, review_provider="codex")
 
