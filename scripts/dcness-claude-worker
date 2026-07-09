@@ -21,6 +21,8 @@ Options:
 
 Environment:
   DCNESS_CLAUDE_TIMEOUT  Seconds per Claude attempt. Default: 1200.
+  DCNESS_CLAUDE_IDLE_TIMEOUT  Seconds without stdout/stderr/workspace progress
+                         before early kill. Default: 180.
 
 The wrapper runs Claude Code in print mode with hooks/plugins enabled:
   claude -p --permission-mode acceptEdits --output-format text
@@ -68,6 +70,7 @@ PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
 CLAUDE_TIMEOUT="${DCNESS_CLAUDE_TIMEOUT:-1200}"
+CLAUDE_IDLE_TIMEOUT="${DCNESS_CLAUDE_IDLE_TIMEOUT:-180}"
 
 abs_path() {
   case "$1" in
@@ -131,6 +134,17 @@ case "$CLAUDE_TIMEOUT" in
 esac
 if [ "$CLAUDE_TIMEOUT" -lt 1 ]; then
   echo "[dcness-claude-worker] DCNESS_CLAUDE_TIMEOUT must be >= 1" >&2
+  exit 2
+fi
+
+case "$CLAUDE_IDLE_TIMEOUT" in
+  ''|*[!0-9]*)
+    echo "[dcness-claude-worker] DCNESS_CLAUDE_IDLE_TIMEOUT must be a positive integer: $CLAUDE_IDLE_TIMEOUT" >&2
+    exit 2
+    ;;
+esac
+if [ "$CLAUDE_IDLE_TIMEOUT" -lt 1 ]; then
+  echo "[dcness-claude-worker] DCNESS_CLAUDE_IDLE_TIMEOUT must be >= 1" >&2
   exit 2
 fi
 
@@ -242,12 +256,15 @@ import os
 import signal
 import subprocess
 import sys
+import time
 
 timeout = int(sys.argv[1])
-prompt = sys.argv[2]
-output = sys.argv[3]
-log = sys.argv[4]
-cmd = sys.argv[5:]
+idle_timeout = int(sys.argv[2])
+project_root = sys.argv[3]
+prompt = sys.argv[4]
+output = sys.argv[5]
+log = sys.argv[6]
+cmd = sys.argv[7:]
 
 def child_env_without_nested_session_markers():
     env = os.environ.copy()
@@ -282,6 +299,46 @@ def child_env_without_nested_session_markers():
             env.pop(key, None)
     return env, sorted(removed)
 
+def git_status():
+    try:
+        proc = subprocess.run(
+            ["git", "-C", project_root, "status", "--porcelain=v1", "-uall"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=1,
+            check=False,
+        )
+    except Exception:
+        return ""
+    if proc.returncode != 0:
+        return ""
+    return "\n".join(
+        line for line in proc.stdout.splitlines()
+        if not line[3:].startswith(".claude/harness-state/")
+    )
+
+def file_size(path):
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+def terminate(exit_code):
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+    sys.exit(exit_code)
+
 with open(prompt, "rb") as stdin, open(output, "wb") as stdout, open(log, "ab") as raw:
     raw.write(("COMMAND: " + " ".join(cmd) + "\n").encode("utf-8", "replace"))
     child_env, removed_env = child_env_without_nested_session_markers()
@@ -295,24 +352,47 @@ with open(prompt, "rb") as stdin, open(output, "wb") as stdout, open(log, "ab") 
         env=child_env,
         start_new_session=True,
     )
-    try:
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            proc.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            proc.wait()
-        sys.exit(124)
-    sys.exit(proc.returncode)
-' "$CLAUDE_TIMEOUT" "$TMP_PROMPT" "$TMP_PROSE" "$RAW_LOG" "${CLAUDE_CMD[@]}"
+    raw.flush()
+    started = time.monotonic()
+    deadline = started + timeout
+    last_progress = started
+    last_output_size = file_size(output)
+    last_log_size = file_size(log)
+    last_status = git_status()
+
+    while True:
+        rc = proc.poll()
+        if rc is not None:
+            sys.exit(rc)
+
+        now = time.monotonic()
+        output_size = file_size(output)
+        log_size = file_size(log)
+        status = git_status()
+        if (
+            output_size != last_output_size
+            or log_size != last_log_size
+            or status != last_status
+        ):
+            last_progress = now
+            last_output_size = output_size
+            last_log_size = log_size
+            last_status = status
+
+        if now >= deadline:
+            raw.write(f"\n[dcness-claude-worker] total timeout after {timeout}s\n".encode())
+            raw.flush()
+            terminate(124)
+        if now - last_progress >= idle_timeout:
+            raw.write(
+                f"\n[dcness-claude-worker] idle timeout after {idle_timeout}s "
+                "(no stdout/stderr/workspace progress)\n".encode()
+            )
+            raw.flush()
+            terminate(124)
+        sleep_for = min(1.0, max(0.05, deadline - now), max(0.05, idle_timeout - (now - last_progress)))
+        time.sleep(sleep_for)
+' "$CLAUDE_TIMEOUT" "$CLAUDE_IDLE_TIMEOUT" "$PROJECT_ROOT" "$TMP_PROMPT" "$TMP_PROSE" "$RAW_LOG" "${CLAUDE_CMD[@]}"
 }
 
 workspace_changed() {
