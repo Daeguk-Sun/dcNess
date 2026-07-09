@@ -168,6 +168,23 @@ class ToIssueSkillTests(unittest.TestCase):
         self.assertIn("fallback", text)
         self.assertIn("기본값(major)", text)
 
+    def test_ui_issues_include_visual_reference_contract(self) -> None:
+        """#1023 — UI issues must carry the baseline /impl will use."""
+        skill = self.skill_path.read_text(encoding="utf-8")
+        template = self.template_path.read_text(encoding="utf-8")
+
+        for text in (skill, template):
+            self.assertIn("UI 성격", text)
+            self.assertIn("UI 기준", text)
+            self.assertIn("canvas / 목업 / flow", text)
+            self.assertIn("목업 없이", text)
+
+        self.assertIn("후속 `/impl`", skill)
+        self.assertIn("docs/design-variants/<screen-id>.html", skill)
+        self.assertIn("docs/design-variants/canvas.html", skill)
+        self.assertIn("docs/epics/.../ux-flow.md", skill)
+        self.assertIn("나중에 정함", skill)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,7 +47,7 @@ class BoundarySuggestionsTests(unittest.TestCase):
             self.assertEqual([], report.suggestions)
             self.assertEqual("covered", report.reason)
 
-    def test_nonstandard_source_directory_suggests_engineer_add(self) -> None:
+    def test_nonstandard_source_directory_suggests_build_worker_add(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             self._write(root / "remotion" / "shorts-types.ts", "export {}\n")
@@ -68,7 +68,7 @@ class BoundarySuggestionsTests(unittest.TestCase):
             formatted = format_boundary_suggestions(report)
             self.assertIn(".dcness/boundary.json", formatted)
             self.assertIn("사람 승인", formatted)
-            self.assertIn('"engineer"', formatted)
+            self.assertIn('"build-worker"', formatted)
             self.assertIn(r'"^remotion/"', formatted)
             self.assertFalse((root / ".dcness" / "boundary.json").exists())
 

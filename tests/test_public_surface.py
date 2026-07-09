@@ -54,6 +54,9 @@ class PublicSurfaceGateTests(unittest.TestCase):
         )
         self.assertNotIn("qa", internal_agents)
         self.assertIn("impl-validator", internal_agents)
+        self.assertIn("build-worker", internal_agents)
+        self.assertNotIn("engineer", internal_agents)
+        self.assertNotIn("test-engineer", internal_agents)
         self.assertNotIn("code-validator", internal_agents)
         self.assertNotIn("pr-reviewer", internal_agents)
 

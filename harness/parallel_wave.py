@@ -66,7 +66,7 @@ class ImplTask:
     depends_on: Optional[tuple[str, ...]]
     scope_paths: frozenset[str]
     scope_ambiguous: bool
-    # frontmatter `parallel: serial|false` 또는 고위험 명시 → 강제 직렬.
+    # frontmatter `parallel: serial|false` 또는 경로 safety backstop → 강제 직렬.
     force_serial: bool = False
 
     @property
@@ -83,7 +83,7 @@ class ImplTask:
     def serial_reason(self) -> Optional[str]:
         """직렬 강등 사유 (병렬 불가일 때). 병렬 가능이면 None."""
         if self.force_serial:
-            return "강제 직렬 (parallel: serial / 고위험)"
+            return "강제 직렬 (parallel: serial / 경로 safety backstop)"
         if self.depends_on is None:
             return "depends_on 미상(미작성)"
         if self.scope_ambiguous or not self.scope_paths:
@@ -98,7 +98,7 @@ class ImplTask:
         None/non-None. 소비측(dry preview)·검증측이 "형식 미정규화(교정 가능)"와
         "의도/의존(정상)"을 구분하는 입력이다.
 
-        - `forced`             = parallel: serial / 고위험 → 의도적 직렬.
+        - `forced`             = parallel: serial / 경로 safety backstop → 의도적 직렬.
         - `unknown_deps`       = depends_on 미작성/placeholder → 작성 누락.
         - `scope_unnormalized` = `수정 허용` 자유서술/빈값 → 형식 미정규화(교정 가능).
         """
@@ -317,16 +317,6 @@ def _parse_parallel_marker(fm_lines: list[str]) -> bool:
     return False
 
 
-def _parse_risk_marker(fm_lines: list[str]) -> bool:
-    """frontmatter `risk:` 가 high-risk 류면 강제 직렬 (architect 명시 시)."""
-    for line in fm_lines:
-        m = re.match(r"^risk\s*:\s*(.+)$", line)
-        if m:
-            val = _strip_inline_comment(m.group(1)).strip().strip("'\"").lower()
-            return val in {"high", "high-risk", "highrisk", "critical"}
-    return False
-
-
 # 정책 §4 — 경로만으로 명백히 고위험인 패턴 (DB 마이그레이션 / 비밀·자격증명).
 # 보수적·고정밀 safety net. 도메인 invariant·auth 로직 등 *의미* 기반 고위험은
 # 경로로 신뢰성 있게 못 잡으므로 메인 dry-preview 판정(compute_waves high_risk_slugs)이
@@ -524,7 +514,6 @@ def parse_impl_task(path: str | Path) -> ImplTask:
     scope_paths, scope_ambiguous = _parse_scope(text)
     force_serial = (
         _parse_parallel_marker(fm_lines)
-        or _parse_risk_marker(fm_lines)
         or _scope_inherent_high_risk(scope_paths)
     )
     return ImplTask(

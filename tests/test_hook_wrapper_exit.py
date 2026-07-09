@@ -88,7 +88,7 @@ class CatastrophicGateWrapperExitTests(unittest.TestCase):
             result.returncode, 2,
             f"위반은 exit 2 여야 차단됨. stdout={result.stdout!r} stderr={result.stderr!r}",
         )
-        self.assertIn("순서 차단 훅: engineer", result.stderr)
+        self.assertIn("순서 차단 훅: implementation gate", result.stderr)
         events = read_events(base_dir=self.base)
         self.assertTrue(
             any(

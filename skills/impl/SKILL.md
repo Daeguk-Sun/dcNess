@@ -1,11 +1,11 @@
 ---
 name: impl
-description: 구현 요청을 받아 메인이 직접 구현하고 격리 리뷰까지 거쳐 PR 로 끝내는 기본 구현 진입점. 사용자가 "구현해줘", "수정해줘", "고쳐줘", "버그픽스", "한 줄 수정", "리뷰까지 돌려", "/impl" 등을 말할 때 사용한다. 내부적으로 구현 경로(설계도 유무 — Lite/Standard)와 review provider 만 판정하며, 일반 구현을 별도 구현 worker 로 넘기지 않는다.
+description: 구현 요청을 받아 메인이 직접 구현하고 격리 리뷰까지 거쳐 PR 로 끝내는 기본 구현 진입점. 사용자가 "구현해줘", "수정해줘", "고쳐줘", "버그픽스", "한 줄 수정", "리뷰까지 돌려", "/impl" 등을 말할 때 사용한다. 설계 문서가 있으면 그 design-doc 을 기준으로 구현하고, 없으면 concrete signal 로 직접 구현한다. 일반 구현을 별도 구현 worker 로 넘기지 않는다.
 ---
 
 # Impl Skill — 기본 구현 진입점
 
-> `/impl` 은 사용자-facing 구현 진입점이다. 구현 경로는 내부 분기이며 command 로 노출하지 않는다. 기본 공개 진입점 계약은 [`docs/plugin/positioning.md`](../../docs/plugin/positioning.md), 진입점 판정은 [`docs/plugin/workflow-router.md`](../../docs/plugin/workflow-router.md) 가 진본이다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때는 [`docs/plugin/terms.md`](../../docs/plugin/terms.md) 를 확인한다.
+> `/impl` 은 사용자-facing 구현 진입점이다. 공개 command 는 하나이고, 설계 문서 유무와 구현 경계 명확성만 내부에서 판정한다. 기본 공개 진입점 계약은 [`docs/plugin/positioning.md`](../../docs/plugin/positioning.md), 진입점 판정은 [`docs/plugin/workflow-router.md`](../../docs/plugin/workflow-router.md) 가 진본이다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때는 [`docs/plugin/terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
 > 🔴 **분기 규칙 SSOT** — 구현 경로 판정 / 각 경로의 다음 호출 / retry / escalate 는 [`impl-routing.md`](impl-routing.md) 가 본 skill 의 단일 진본. 본 파일은 진행 절차만 담는다.
 
@@ -13,25 +13,25 @@ description: 구현 요청을 받아 메인이 직접 구현하고 격리 리뷰
 
 `/impl` 은 설계를 하지 않는다 — 설계도(설계 문서)가 있으면 보고 구현만 하고, 없으면 concrete signal 기준으로 메인이 직접 구현한다. 일반 `/impl` 구현 주체는 **항상 메인**이다. 격리되는 것은 review step 이며, review provider 는 local routing 으로 `claude` sub-agent 또는 `codex` headless wrapper 중 하나를 쓴다.
 
-구현 경로 = 설계도 유무:
+판정 결과:
 
-| 구현 경로 | 쓰는 경우 | 실행 |
+| 판정 | 쓰는 경우 | 실행 |
 |---|---|---|
-| Lite | 설계 문서 없음 + concrete signal 충분 + high-risk 0개 + 구현 경계/테스트 기준 명확 | 메인 직접 구현 + 격리 `impl-validator` |
-| Standard | 설계 문서(경로)가 들어옴 | 메인이 받은 설계도를 충실히 구현 + 격리 `impl-validator` |
+| 직접 구현 | 설계 문서 없음 + concrete signal 충분 + high-risk 0개 + 구현 경계/테스트 기준 명확 | 메인 직접 구현 + 격리 `impl-validator` |
+| design-doc 기반 구현 | 설계 문서(경로)가 들어옴 | 메인이 받은 설계도를 충실히 구현 + 격리 `impl-validator` |
 
-구현 경로는 진입 시 미리 고르는 게 아니라 **설계도 유무**로 갈린다 — 설계 문서 경로가 들어오면 Standard, 없으면 Lite. 설계가 없는데 메인이 "설계 필요" 로 판단하면 impl *밖*으로 되돌려(빠꾸) 설계를 산출하고, 그 경로를 들고 Standard 로 (재)진입한다. impl 은 설계를 *어떻게* 만드는지 모른다 — "설계도 있다/없다" 만 본다. 단, 사용자가 "설계 건너뛰고 빨리 고쳐" 류로 지시하면 메인의 "Standard 판단" 보다 사용자 지시가 우선이라 곧장 Lite 다.
+진입 시 미리 내부 등급을 고르지 않는다. **설계도 유무**로 갈린다 — 설계 문서 경로가 들어오면 design-doc 기반 구현, 없으면 직접 구현 가능 여부를 본다. 설계가 없는데 메인이 "설계 필요" 로 판단하면 impl *밖*으로 되돌려(빠꾸) 설계를 산출하고, 그 경로를 들고 다시 `/impl --design-doc` 흐름으로 들어온다. impl 은 설계를 *어떻게* 만드는지 모른다 — "설계도 있다/없다" 만 본다. 단, 사용자가 "설계 건너뛰고 빨리 고쳐" 류로 지시하면 사용자 지시가 우선이라 직접 구현한다.
 
-일반 `/impl` 은 `test-engineer` / `engineer` / `build-worker` 를 구현자로 호출하지 않는다. `dcness-implementation-chain` 은 story/epic impl task 를 돌리는 `/impl-loop` headless runner 또는 사용자가 명시한 특수 실행용이다. CC 에서 `/impl` 을 호출하면 메인 Claude 가 구현하고, review provider 가 `codex` 로 설정돼 있으면 `impl-validator` 만 Codex headless 로 간다. Codex 에서 같은 흐름을 운용할 때도 구현은 현재 메인 agent 가 맡고, 상대 provider review 만 격리한다.
+일반 `/impl` 은 별도 구현 agent 를 구현자로 호출하지 않는다. `dcness-implementation-chain` 은 story/epic impl task 를 돌리는 `/impl-loop` headless runner 또는 사용자가 명시한 특수 실행용이다. CC 에서 `/impl` 을 호출하면 메인 Claude 가 구현하고, review provider 가 `codex` 로 설정돼 있으면 `impl-validator` 만 Codex headless 로 간다. Codex 에서 같은 흐름을 운용할 때도 구현은 현재 메인 agent 가 맡고, 상대 provider review 만 격리한다.
 
-**high-risk 는 impl 밖**: 새 product feature/epic, 외부 dependency/API/SDK/model 선택, auth/security/PII/compliance, migration/destructive change, public API breakage, cross-module/cross-story interface 같은 high-risk trigger 는 impl 의 관심사가 아니다. impl 진입 *전* [`workflow-router`](../../docs/plugin/workflow-router.md) 가 이를 설계 선행(`/spec`·`/design`)으로 보내고, 설계도 확보 후 그 경로로 Standard 진입한다.
+**high-risk 는 impl 밖**: 새 product feature/epic, 외부 dependency/API/SDK/model 선택, auth/security/PII/compliance, migration/destructive change, public API breakage, cross-module/cross-story interface 같은 high-risk trigger 는 impl 의 관심사가 아니다. impl 진입 *전* [`workflow-router`](../../docs/plugin/workflow-router.md) 가 이를 설계 선행(`/spec`·`/design`)으로 보내고, 설계도 확보 후 그 경로로 design-doc 기반 구현에 진입한다.
 
 concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 issue/PR 번호, 명시 테스트 명령, 작은 docs-only 변경, 작은 refactor, 요구사항과 수용 기준이 이미 충분히 구체적인 bugfix.
 
 ## Loop
 
-- **Lite 구현 경로 — 메인 직접**: 코드/문서 변경은 메인이 수행하고, review step 은 `begin-run impl` 안에서 `impl-validator` 로 기록한다. 계획 파일이 없으므로 spec 렌즈는 끄고 quality 렌즈만 본다.
-- **Standard 구현 경로 — 메인 직접**: `begin-run impl --design-doc <경로>` 로 설계 문서를 기록한 뒤 메인이 구현한다. 설계 문서는 boundary pre-flight 입력과 review 근거로 쓰며, 구현 주체를 바꾸는 신호가 아니다.
+- **직접 구현 — 메인 직접**: 코드/문서 변경은 메인이 수행하고, review step 은 `begin-run impl` 안에서 `impl-validator` 로 기록한다. 계획 파일이 없으므로 spec 렌즈는 끄고 quality 렌즈만 본다.
+- **design-doc 기반 구현 — 메인 직접**: `begin-run impl --design-doc <경로>` 로 설계 문서를 기록한 뒤 메인이 구현한다. 설계 문서는 boundary pre-flight 입력과 review 근거로 쓰며, 구현 주체를 바꾸는 신호가 아니다.
 - **Review**: `impl-validator` 는 read-only provider 분기 대상이다. `claude` 면 sub-agent, `codex` 면 headless wrapper 로 local diff 를 검토한다. PASS 전 commit/PR 로 가지 않는다.
 - **high-risk → impl 밖**: high-risk trigger 가 있으면 impl 이 직접 처리하지 않는다. impl 진입 *전* 분기 규칙([`workflow-router`](../../docs/plugin/workflow-router.md))이 설계 선행(`/spec`·`/design`)으로 보내고, deep impl task 파일이 이미 있으면 `/impl-loop <task>` 로 위임한다.
 
@@ -58,9 +58,9 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 "$HELPER" boundary-suggestions --impl-plan <docs/epics/.../impl/...md>
 ```
 
-코어 `ALLOW_MATRIX` 로 커버되지 않는 비표준 소스 디렉터리가 있으면 `.dcness/boundary.json` 의 `engineer.add` 후보만 출력한다. 설계 문서가 있는 Standard 경로에서는 설계 문서의 `### 수정 허용` 경로도 같은 기준으로 대조한다. 후보가 있으면 사람 승인 후에만 메인이 boundary 파일을 작성한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다.
+코어 `ALLOW_MATRIX` 로 커버되지 않는 비표준 소스 디렉터리가 있으면 `.dcness/boundary.json` 의 implementation add 후보만 출력한다. 설계 문서가 있는 design-doc 기반 구현에서는 설계 문서의 `### 수정 허용` 경로도 같은 기준으로 대조한다. 후보가 있으면 사람 승인 후에만 메인이 boundary 파일을 작성한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다.
 
-이 pre-flight 는 `/impl-loop` 같은 deep task runner 가 `begin-step engineer/build-worker` 를 여는 경우에도 provider-independent 로 강제된다. Standard run 의 `--design-doc` 이 가리키는 impl 문서 안 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되지 않으면 구현 step 시작이 차단된다. Lite 기본 경로는 계획 파일 없이 메인 직접 구현이므로 plan-specific boundary 대조 대상이 아니다.
+이 pre-flight 는 `/impl-loop` 같은 deep task runner 가 `begin-step build-worker` 를 여는 경우에도 provider-independent 로 강제된다. `--design-doc` 이 가리키는 impl 문서 안 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되지 않으면 구현 step 시작이 차단된다. 직접 구현은 계획 파일 없이 메인 직접 구현이므로 plan-specific boundary 대조 대상이 아니다.
 
 ## Step 0.3 — generated TDD hook 부재 확인
 
@@ -82,7 +82,7 @@ GitHub issue 번호가 대상이면 구현 실행 전 [`docs/plugin/issue-lifecy
 
 ## Step 0.4 — UI 기준 확보 분기
 
-UI 작업이면 구현 경로(Lite/Standard) 판정과 별도로 **UI 기준 확보 분기**를 먼저 판정한다. 목업은 무조건 만들지 않는다. 강제되는 불변식은 "신규 시각 구조 작업은 기대 고정 기준을 확보하고, 기준이 존재하면 구현까지 배선된다" 이다.
+UI 작업이면 구현 판정과 별도로 **UI 기준 확보 분기**를 먼저 판정한다. 목업은 무조건 만들지 않는다. 강제되는 불변식은 "신규 시각 구조 작업은 기대 고정 기준을 확보하고, 기준이 존재하면 구현까지 배선된다" 이다.
 
 사용자의 "목업 없이" 지시는 항상 우선한다.
 
@@ -108,11 +108,11 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 
 구현 경로를 고르기 전에 먼저 묻는다 — **이 작업을 닫을 설계 산출물이 이미 있는가?** (머지된 `docs/epics/**/impl/*.md`).
 
-- **있음** → **Standard**. 그 설계도를 기준으로 메인이 구현한다. `begin-run impl --design-doc <설계 문서 경로>` 로 산출물을 기록해 boundary pre-flight 와 review 근거로 사용한다.
-- **없음** → 메인이 "직접 고칠 수준인가 / 설계가 필요한가" 를 판단한다. 단, 사용자가 "설계 생략·빨리 고쳐" 로 지시하면 사용자 지시가 우선이라 곧장 Lite 다.
-  - 직접 고칠 수준(concrete signal 충분, high-risk 0개) → **Lite** 로 직접 구현.
-  - 설계 필요(구현 경계·테스트 기준·작은 contract 가 애매) → impl *밖*으로. `/design` 을 선행해 설계도를 확보한 뒤 그 경로로 Standard 진입한다. impl 은 설계를 직접 만들지 않는다.
-  - full 설계 필요(high-risk trigger 있음) → impl *밖*으로. `/design`(또는 PRD 부재 시 `/spec`)을 선행해 설계도를 확보한 뒤 그 경로로 Standard 진입한다.
+- **있음** → **design-doc 기반 구현**. 그 설계도를 기준으로 메인이 구현한다. `begin-run impl --design-doc <설계 문서 경로>` 로 산출물을 기록해 boundary pre-flight 와 review 근거로 사용한다.
+- **없음** → 메인이 "직접 고칠 수준인가 / 설계가 필요한가" 를 판단한다. 단, 사용자가 "설계 생략·빨리 고쳐" 로 지시하면 사용자 지시가 우선이라 직접 구현한다.
+  - 직접 고칠 수준(concrete signal 충분, high-risk 0개) → 직접 구현.
+  - 설계 필요(구현 경계·테스트 기준·작은 contract 가 애매) → impl *밖*으로. `/design` 을 선행해 설계도를 확보한 뒤 그 경로로 design-doc 기반 구현에 진입한다. impl 은 설계를 직접 만들지 않는다.
+  - full 설계 필요(high-risk trigger 있음) → impl *밖*으로. `/design`(또는 PRD 부재 시 `/spec`)을 선행해 설계도를 확보한 뒤 그 경로로 design-doc 기반 구현에 진입한다.
 
 이 되돌림은 한 번으로 끝나지 않는다. 구현 중 설계가 또 부족하면 다시 `/design` 으로 되돌릴 수 있다 — 되돌림은 정상 루프다.
 
@@ -137,25 +137,25 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 지금까지 이야기한 내용을 GitHub issue로 등록하고, 그 이슈 번호 기준으로 구현을 진행할까요?
 ```
 
-사용자가 OK 하면 `/to-issue` 를 호출해 issue 를 생성하고, 생성된 issue 번호를 concrete signal 로 삼아 `/impl #<issue>` 와 같은 흐름으로 재진입한다. 이 issue 본문은 간단한 설계도, AC, 히스토리 기준 역할을 하므로 자연어-only 요청을 바로 코드 수정으로 밀지 않는다. 사용자가 issue 생성을 거부하면 빠진 파일/범위/AC를 짧게 확인하거나, 사용자가 명시적으로 "이슈 없이 진행"을 선택했을 때만 Lite 로 진행한다.
+사용자가 OK 하면 `/to-issue` 를 호출해 issue 를 생성하고, 생성된 issue 번호를 concrete signal 로 삼아 `/impl #<issue>` 와 같은 흐름으로 재진입한다. 이 issue 본문은 간단한 설계도, AC, 히스토리 기준 역할을 하므로 자연어-only 요청을 바로 코드 수정으로 밀지 않는다. 사용자가 issue 생성을 거부하면 빠진 파일/범위/AC를 짧게 확인하거나, 사용자가 명시적으로 "이슈 없이 진행"을 선택했을 때만 직접 구현으로 진행한다.
 
 판정 순서:
 
 1. GitHub issue 초안/등록 요청인가? → `/to-issue`
 2. UI 작업인가? → **UI 기준 확보 분기** echo. 기준이 필요하면 `canvas-design` 으로 확정 목업 경로를 확보한다. 사용자의 "목업 없이" 는 우선한다.
-3. 설계 문서(경로)가 들어왔는가? → **Standard** (받은 설계도로 메인이 구현)
-4. high-risk trigger 가 있는가? → impl *밖* — `/design`(또는 `/spec`) 선행으로 설계도 확보 후 Standard 재진입 (impl 진입 전 분기 규칙은 [`workflow-router`](../../docs/plugin/workflow-router.md))
+3. 설계 문서(경로)가 들어왔는가? → **design-doc 기반 구현** (받은 설계도로 메인이 구현)
+4. high-risk trigger 가 있는가? → impl *밖* — `/design`(또는 `/spec`) 선행으로 설계도 확보 후 design-doc 기반 구현 재진입 (impl 진입 전 분기 규칙은 [`workflow-router`](../../docs/plugin/workflow-router.md))
 5. concrete signal 없이 자연어뿐인가? → **issue-intake**. `/to-issue` 로 이슈 등록 후 그 번호 기준으로 진행할지 묻는다.
 6. 목표/범위/성공 기준이 모호한가? → issue intake, 사용자 명확화, 또는 `/spec`
-7. concrete signal 이 있고 즉시 구현 경계가 명확한가? → **Lite**
-8. 설계 필요(구현 경계·테스트 기준 애매)? → `/design` 으로 되돌려 설계도 산출 후 **Standard**
+7. concrete signal 이 있고 즉시 구현 경계가 명확한가? → **직접 구현**
+8. 설계 필요(구현 경계·테스트 기준 애매)? → `/design` 으로 되돌려 설계도 산출 후 **design-doc 기반 구현**
 
 메인은 사용자에게 한 줄로 echo 한다.
 
 ```
 구현 경로: issue-intake — concrete signal 없음, next = /to-issue 등록 여부 확인
-구현 경로: Lite — 설계도 없음, concrete signal = <파일/이슈/테스트>, 구현 = 메인 직접, review_provider = <claude|codex>
-구현 경로: Standard — 설계도 = <경로>, 구현 = 메인 직접, review_provider = <claude|codex>
+구현 경로: direct — 설계도 없음, concrete signal = <파일/이슈/테스트>, 구현 = 메인 직접, review_provider = <claude|codex>
+구현 경로: design-doc — 설계도 = <경로>, 구현 = 메인 직접, review_provider = <claude|codex>
 ```
 
 ## Sub-agent prompt 작성 checkpoint (#780)
@@ -166,9 +166,9 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 - **worktree**: worktree 활성 시 worktree 절대경로를 넣는다. main repo 절대경로를 worktree 경로처럼 넘기지 않는다.
 - **이 호출 특유**: 진본에 없는 제약·신호만 둔다. 정규식·구현 단계·알고리즘·테스트 assert 방식 같은 방법 처방은 넣지 않는다.
 
-## Lite 구현 경로 — 메인 직접 구현 (기본)
+## 직접 구현 — 메인 직접 구현 (기본)
 
-Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메인이 직접 구현하는 single PR 경로다.
+직접 구현은 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메인이 직접 구현하는 single PR 경로다.
 
 실행:
 
@@ -183,7 +183,7 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
    - 테스트 가능한 코드 변경은 구현 전에 실패 테스트를 먼저 쓴다.
    - docs-only / 단순 설정 변경은 TDD skip 사유를 명시한다.
 3. 구현
-   - 메인 Claude 가 직접 Edit/Write 한다. `engineer` sub-agent 를 호출하지 않는다.
+   - 메인 Claude 가 직접 Edit/Write 한다. 별도 구현 agent 를 호출하지 않는다.
 4. lint/build/test green
    - 프로젝트에 실제 존재하는 명령만 실행한다.
    - lint/build/test 단계가 없으면 skip 사유를 명시한다.
@@ -191,7 +191,7 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
 5. `impl-validator` review
    - `begin-run impl` → `begin-step impl-validator` 로 local diff 를 리뷰한다.
    - provider 분기가 `codex` 이면 기존 `dcness-codex-validator impl-validator` wrapper 를 사용한다. 그래도 사용자-facing 단계 이름은 `impl-validator` 다.
-   - Lite 는 quality 렌즈만, Standard 는 spec 렌즈 + quality 렌즈를 모두 사용한다.
+   - 직접 구현은 quality 렌즈만, design-doc 기반 구현은 spec 렌즈 + quality 렌즈를 모두 사용한다.
    - review-only 다. 코드 수정은 메인이 한다.
    - `PASS` 전 commit/PR 로 가지 않는다.
 6. finding 수정 루프
@@ -200,21 +200,21 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
    - 각 round 마다 lint/build/test 재통과 후 `impl-validator` 재호출.
    - 3회 안에 수렴하지 않으면 남은 finding, follow-up 분리 후보, 보류/진행 판단 지점을 사용자에게 보고하고 멈춘다.
 7. 단위 commit + PR 생성
-   - 의미 있는 단위로 commit 한다. hook 우회 금지.
-   - 변경량이 크면 리뷰어가 단계별로 따라갈 수 있게 테스트/결정적 helper/문서 surface/후속 cleanup 처럼 독립적으로 검토 가능한 커밋으로 쪼갠다. 단, 각 커밋은 hook 을 통과할 수 있는 일관된 상태여야 한다.
+   - 의미 단위 커밋 분할은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)이 SSOT 다. hook 우회 금지.
+   - `/impl` 메인 직접 구현도 독립 검토 가능한 의미 단위로 commit 을 쪼갠다. 각 커밋은 hook 을 통과할 수 있는 일관된 상태여야 한다.
    - PR body 는 template, 관련 issue trailer, 배경/문제, 근본원인, 작업내용, 결정근거, Test Plan 을 포함한다.
    - dcNess plugin 배포물 변경이면 PR body 에 배포 경로 검증을 적는다.
 8. CI / merge policy
    - PR 생성 후 CI 를 확인한다.
    - 머지는 host repo 정책을 따른다. dcNess self 작업은 [`CLAUDE.md`](../../CLAUDE.md) 절차에 따라 `scripts/pr-finalize.sh` 로 진행한다. 사용자 승인 대기가 정책인 repo 에서는 임의 머지하지 않는다.
 
-메인 직접 경로에서도 `impl-validator` 를 호출한다. Lite 는 검증 대상 impl 계획 파일이 없으므로 spec 렌즈를 비활성화하고 quality 렌즈만 적용한다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.
+메인 직접 경로에서도 `impl-validator` 를 호출한다. 직접 구현은 검증 대상 impl 계획 파일이 없으므로 spec 렌즈를 비활성화하고 quality 렌즈만 적용한다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.
 
-## Standard 구현 경로 — 설계도 기반 구현
+## design-doc 기반 구현 — 설계도 기반 구현
 
-Standard 는 **설계 문서(경로)가 들어온** 구현 경로다. impl 은 설계를 만들지 않는다 — 받은 설계도(`docs/epics/**/impl/*.md`)를 충실히 구현만 한다. 설계 산출 자체는 impl 밖 `/design` 이 담당하고, 그 산출물 경로가 Standard 진입의 사전 조건이다.
+design-doc 기반 구현은 **설계 문서(경로)가 들어온** 구현 흐름이다. impl 은 설계를 만들지 않는다 — 받은 설계도(`docs/epics/**/impl/*.md`)를 충실히 구현만 한다. 설계 산출 자체는 impl 밖 `/design` 이 담당하고, 그 산출물 경로가 이 흐름의 사전 조건이다.
 
-진입 시 `begin-run impl --design-doc <설계 문서 경로>` 로 설계도를 기록한다. impl 은 같은 run 에서 설계를 생성하지 않으므로 Standard 는 **항상 `--design-doc` 기록 하나로** 진입한다 (same-run module-architect step 없음). 이 경로가 기록되면 begin-step 게이트가 `### 수정 허용` boundary 대조도 자동 수행한다. 구현은 여전히 메인이 직접 수행하고, review 만 격리 provider 로 보낸다.
+진입 시 `begin-run impl --design-doc <설계 문서 경로>` 로 설계도를 기록한다. impl 은 같은 run 에서 설계를 생성하지 않으므로 이 흐름은 **항상 `--design-doc` 기록 하나로** 진입한다 (same-run module-architect step 없음). 이 경로가 기록되면 begin-step 게이트가 `### 수정 허용` boundary 대조도 자동 수행한다. 구현은 여전히 메인이 직접 수행하고, review 만 격리 provider 로 보낸다.
 
 구현 중 설계가 또 부족하면 `/design` 으로 되돌려 설계도를 보강한다 — 되돌림은 정상 루프다. 새 외부 의존·high-risk 가 드러나면 impl *밖* 설계 선행으로 escalate 한다.
 
@@ -227,7 +227,7 @@ high-risk trigger 가 있거나 사전 설계 합의가 필요한 작업은 impl
 - PRD/stories 는 있으나 architecture/impl task 가 없다 → `/design` 으로 설계한다.
 - 외부 의존 검증이 필요하면 `/tech-review` 를 선행한다.
 
-위 경로가 설계도를 산출하면 그 경로를 들고 **Standard 로 (재)진입**한다. `/impl-loop` 는 일반 구현 진입점이 아니라 story/epic impl task 파일용 headless runner 다.
+위 경로가 설계도를 산출하면 그 경로를 들고 **design-doc 기반 구현으로 (재)진입**한다. `/impl-loop` 는 일반 구현 진입점이 아니라 story/epic impl task 파일용 headless runner 다.
 
 ## Review Provider
 
@@ -258,6 +258,8 @@ Codex 분기는 review provider 구현일 뿐 별도 public workflow 가 아니�
 최종 보고에는 구현 경로, review provider, 변경 요약, 검증 명령 결과, review round 수, PR URL 을 포함한다. 실패 시에는 남은 finding 과 다음 판단 지점을 명확히 쓴다.
 
 helper 기반 `begin-run impl` 이 열린 경로에서는 대표 workflow 종료 시 `"$HELPER" end-run` 으로 review.md 를 만들며, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션이 포함된다. 이 섹션은 제안만 출력하고 CLAUDE.md/AGENTS.md 를 자동 수정하지 않는다.
+
+대표 구현 workflow 완료 후 메인이 이슈 등록, cleanup, 측정 같은 자율 작업으로 이어갈 때는 진입 전 `dcness-helper post-task-begin --reason "<사유>"` 를 호출한다. 이 marker 는 task ROI 측정 분리를 위한 #472 계약이다.
 
 ## 참조
 

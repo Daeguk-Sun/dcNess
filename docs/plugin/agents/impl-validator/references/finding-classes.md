@@ -4,7 +4,7 @@
 
 ## spec-gap
 
-구현 로직이나 범위가 계획 계약과 어긋난 경우다. 하나라도 있으면 `engineer:IMPL` 이 우선이다.
+구현 로직이나 범위가 계획 계약과 어긋난 경우다. 하나라도 있으면 build-worker rework 또는 설계 보강이 우선이다.
 
 - 계획한 public interface, data shape, error behavior 와 구현이 다름
 - 계획 밖 기능이나 파일이 섞임
@@ -14,7 +14,7 @@
 
 ## quality-gap
 
-계획 계약은 대체로 맞지만 merge blocker 수준의 유지보수·운영 위험이 있는 경우다. quality-gap 만 있으면 `engineer:POLISH` 로 보낸다.
+계획 계약은 대체로 맞지만 merge blocker 수준의 유지보수·운영 위험이 있는 경우다. quality-gap 만 있으면 메인 root-cause 수정 또는 build-worker rework 로 보낸다.
 
 - 과한 추상화, 읽기 어려운 분기, 의미 있는 중복
 - debug 잔재, hardcode, cleanup 누락, async ordering 위험
@@ -32,4 +32,4 @@ entrypoint 파일 자체는 owner module 로 인정하지 않는다. 함수명 p
 
 ## mixed
 
-`spec-gap` 과 `quality-gap` 이 섞이면 `spec-gap` 우선이다. POLISH 는 로직 변경 금지 모드라 spec 수정에 맞지 않는다.
+`spec-gap` 과 `quality-gap` 이 섞이면 `spec-gap` 우선이다. 설계 계약과 어긋난 변경은 단순 품질 보정으로 닫지 않는다.

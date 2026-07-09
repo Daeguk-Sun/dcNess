@@ -55,6 +55,15 @@
 
 > 상세 컨텍스트 (배경 / 원인 / 결정 근거) 는 PR body 가 SSOT — [PR 본문](#pr-본문) 참조. 1 commit = 1 PR 빈도가 높은 dcness 패턴 정합 — 중복 작성 방지.
 
+## 의미 단위 커밋 분할
+
+모든 구현 흐름은 독립 검토 가능한 의미 단위로 commit 을 쪼갠다. 적용 대상은 `/impl` 메인 직접 구현, `/impl-loop` build-worker task local commit, review finding 대응 commit, fix PR commit 을 모두 포함한다.
+
+- 각 commit 은 hook 을 통과할 수 있는 일관된 상태여야 한다. 테스트가 깨진 중간 저장용 commit 은 금지한다.
+- 변경량이 크면 테스트/결정적 helper/문서 surface/후속 cleanup 처럼 리뷰어가 단계별로 따라갈 수 있는 단위로 나눈다.
+- 서로 다른 이슈, story, public surface 변경, generated deploy 경로를 한 commit 에 섞지 않는다. 불가피하면 PR body 에 묶은 이유를 적는다.
+- push, PR 생성, merge, issue mutation 의 소유 경계는 각 workflow 규칙을 따른다. commit 분할 규칙이 build-worker 에게 외부 상태 변경 권한을 주지 않는다.
+
 ## PR 제목
 
 | 타입 | 형식 | 예시 |
@@ -321,4 +330,4 @@ $cur"
 - system-architect (모듈 토폴로지 + 공통 task 목록 SSOT): [`../../agents/system-architect.md`](../../agents/system-architect.md)
 - module-architect (Story 안 task 분할 + impl 파일 N 개 산출 SSOT): [`../../agents/module-architect.md`](../../agents/module-architect.md)
 - module-architect (impl 본문 detail per task): [`../../agents/module-architect.md`](../../agents/module-architect.md)
-- engineer: [`../../docs/plugin/agents/engineer/engineer-agent.md`](../../docs/plugin/agents/engineer/engineer-agent.md#권한-경계) 1 task = 1 PR
+- build-worker: [`../../docs/plugin/agents/build-worker/build-worker-agent.md`](../../docs/plugin/agents/build-worker/build-worker-agent.md#권한-경계) task local commit

@@ -8,6 +8,7 @@
 - build-impl:
 - build-validate:
 - phase prose ls:
+- commit:
 
 ## 핵심 finding
 
@@ -19,28 +20,12 @@
 - mock/stub/fake 경계:
 - typecheck/compile warning:
 
-## PR 본문 초안
+## 메인 인계
 
-### 관련 이슈 번호
-
-Part of #N
-
-task-index: <i>/<total>
-
-### 배경 및 문제
-
--
-
-### 작업내용
-
--
-
-### Test Plan
-
-- [ ] 새 테스트 RED->GREEN 확인
-- [ ] 핵심 AC 동작 증거 확인
-- [ ] typecheck/compile 필요 시 확인
-- [ ] 회귀 검증
+- commit sha:
+- 변경 단위:
+- 메인이 다음에 할 일: `dcness-story-runner mark --status completed --commit <sha>` 또는 finding 처리
+- PR trailer 판단에 필요한 정보:
 
 ## phase prose 파일
 

@@ -195,4 +195,4 @@ story 이슈 부재 시 동일 패턴:
 - spec skill (메인 직접): [`../../skills/spec/SKILL.md`](../../skills/spec/SKILL.md)
 - system-architect (impl 목차 표 SSOT): [`../../agents/system-architect.md`](../../agents/system-architect.md)
 - module-architect (impl 본문 detail per task): [`../../agents/module-architect.md`](../../agents/module-architect.md)
-- engineer: [`../../agents/engineer.md`](../../agents/engineer.md) — task = 1 PR
+- build-worker: [`../../agents/build-worker.md`](../../agents/build-worker.md) — task = 1 local commit

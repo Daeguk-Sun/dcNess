@@ -10,7 +10,7 @@
 
 - PR URL, 로컬 diff 맥락, 또는 다중 PR/통합 브랜치의 합쳐진 diff 맥락
 - 변경 파일 목록
-- impl 계획 경로. Lite 구현처럼 계획 파일이 없으면 그 사유
+- impl 계획 경로. direct 구현처럼 계획 파일이 없으면 그 사유
 - 호출자가 제공한 lint/build/test 실행 결과
 - 필요하면 이전 impl-validator 결과와 retry round
 - 다중 story/epic invocation 이면 포함된 story PR/fix PR 목록과 최종 merge target
@@ -28,7 +28,7 @@
 
 ### spec 렌즈
 
-계획 파일이 있을 때만 켠다. 계획 파일이 없는 Lite 경로에서는 계획 부재 자체를 `spec-gap` 으로 만들지 않고 quality 렌즈만 본다.
+계획 파일이 있을 때만 켠다. 계획 파일이 없는 direct 경로에서는 계획 부재 자체를 `spec-gap` 으로 만들지 않고 quality 렌즈만 본다.
 
 - 스펙 충실도: 계획한 생성/수정 파일, public interface, error behavior가 실제 코드와 맞는가.
 - 범위 통제: 계획 밖 파일이나 기능이 섞이지 않았는가.
@@ -54,10 +54,10 @@
 ## 작업 흐름
 
 1. 변경 파일과 diff 중심으로 실제 검증 범위를 확정한다. 다중 story/epic invocation 에서 개별 PR 조각이 아니라 합쳐진 merge candidate diff 를 우선한다.
-2. 계획 파일이 있으면 spec 렌즈를 먼저 적용한다. 계획 파일이 없으면 Lite 경로로 보고 spec 렌즈를 건너뛴다.
+2. 계획 파일이 있으면 spec 렌즈를 먼저 적용한다. 계획 파일이 없으면 direct 경로로 보고 spec 렌즈를 건너뛴다.
 3. quality 렌즈로 유지보수성, merge risk, 보안·운영 risk, 테스트 신뢰도를 본다.
 4. finding 은 `MUST FIX`와 `NICE TO HAVE`로 나누고, `MUST FIX`마다 `[spec-gap]` 또는 `[quality-gap]` 를 붙인다.
-5. `[spec-gap]` 이 하나라도 있으면 다음 재진입은 구현 로직 수정이 가능한 `engineer:IMPL` 이다. `[quality-gap]` 만 있으면 다음 재진입은 `engineer:POLISH` 다.
+5. `[spec-gap]` 이 하나라도 있으면 build-worker rework 또는 설계 보강으로 돌린다. `[quality-gap]` 만 있으면 메인 root-cause 수정 또는 build-worker rework 로 돌린다.
 6. 같은 영역 반복 FAIL이면 "점 수정 금지, 근본 재설계 또는 escalate"를 finding에 명시한다.
 7. PASS이면 총평만 짧게 쓴다.
 
@@ -70,7 +70,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - PASS이면 spec 렌즈와 quality 렌즈에서 Must급 blocker가 없다.
 - FAIL이면 모든 blocker가 재현 가능한 파일/라인 근거와 finding-class를 갖는다.
 - ESCALATE이면 어떤 입력, 권한, diff, 테스트 결과, repo context가 부족한지 명확하다.
-- 계획 파일이 필요하다고 호출자가 명시했는데 실제로 없으면 ESCALATE할 수 있다. 단 Lite 경로의 계획 부재는 ESCALATE 사유가 아니다.
+- 계획 파일이 필요하다고 호출자가 명시했는데 실제로 없으면 ESCALATE할 수 있다. 단 direct 경로의 계획 부재는 ESCALATE 사유가 아니다.
 - 다중 story/epic invocation 에서 합쳐진 diff 가 제공되지 않았고 개별 PR 단편만으로는 cross-story 결함을 판단할 수 없으면 ESCALATE할 수 있다.
 
 ## 권한 경계

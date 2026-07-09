@@ -42,9 +42,9 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         self.build_worker = (
             ROOT / "docs" / "plugin" / "agents" / "build-worker" / "build-worker-agent.md"
         ).read_text(encoding="utf-8")
-        self.test_engineer = (
-            ROOT / "docs" / "plugin" / "agents" / "test-engineer" / "test-engineer-agent.md"
-        ).read_text(encoding="utf-8")
+        self.git_spec = (ROOT / "docs" / "plugin" / "git-spec.md").read_text(
+            encoding="utf-8"
+        )
         self.init_doc = (ROOT / "commands" / "init-dcness.md").read_text(
             encoding="utf-8"
         )
@@ -55,7 +55,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         for needle in (
             "일반 `/impl` 구현 주체는 **항상 메인**",
             "격리되는 것은 review step",
-            "일반 `/impl` 은 `test-engineer` / `engineer` / `build-worker` 를 구현자로 호출하지 않는다",
+            "일반 `/impl` 은 별도 구현 agent 를 구현자로 호출하지 않는다",
             "review provider",
             "impl-validator",
         ):
@@ -65,24 +65,24 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         for needle in (
             "일반 `/impl` 의 구현 주체는 항상 메인",
             "격리되는 것은 review step",
-            "Lite · 메인 직접",
-            "Standard · 메인 직접",
+            "direct · 메인 직접",
+            "design-doc · 메인 직접",
             "review provider",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_routing)
 
-    def test_impl_loop_escalated_four_agent_sequence_keeps_order(self) -> None:
-        """/impl-loop full escalation path preserves test → impl → merged validation.
+    def test_impl_loop_single_build_worker_sequence_keeps_order(self) -> None:
+        """/impl-loop preserves build-worker task commits → merged validation.
 
         구현 또는 merged validation 이 빠지거나 순서가 바뀌면 false-clean 회귀(#431)로 직결된다.
         """
-        # impl-loop 엔진 A — 단계가 이 순서로 + "모두 호출" 의무 키워드 보존.
         self.assertRegex(
             self.impl_loop_skill,
-            r"test-engineer.*engineer.*impl-validator",
+            r"build-worker.*impl-validator",
         )
-        self.assertIn("모두 호출", self.impl_loop_skill)
+        self.assertIn("단일 구현 엔진 `build-worker`", self.impl_loop_skill)
+        self.assertIn("batch-review", self.impl_loop_skill)
 
     # ----- 시나리오 2a — build-worker phase prose 3개 -----
     def test_build_worker_requires_three_phase_prose_files(self) -> None:
@@ -114,10 +114,8 @@ class SkillScenarioRegressionTests(unittest.TestCase):
 
     def test_test_agents_do_not_close_core_ac_with_mock_only_green(self) -> None:
         """테스트 생성/경량 구현 단계가 mock-only green 을 핵심 AC 증거로 남기지 않도록 닻을 둔다."""
-        for text in (self.test_engineer, self.build_worker):
-            self.assertIn("동작 증거", text)
-            self.assertIn("mock-only", text)
-            self.assertIn("핵심 AC", text)
+        for needle in ("동작 증거", "mock-only", "핵심 AC"):
+            self.assertIn(needle, self.build_worker)
 
     # ----- 시나리오 2b — /impl-loop chain review 5줄 echo -----
     def test_impl_loop_chain_review_echo_is_five_line(self) -> None:
@@ -135,13 +133,13 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         self.assertRegex(self.impl_loop_skill, r"false-clean.*blocked")
         # impl-loop routing: clean 판정 게이트에서도 false-clean → blocked.
         self.assertRegex(self.impl_loop_routing, r"false-clean.*blocked")
-        # impl Lite 최소 gate 에도 false-clean 방지 명시.
+        # impl 직접 구현 최소 gate 에도 false-clean 방지 명시.
         self.assertIn("false-clean", self.impl_skill)
 
-    def test_impl_standard_main_path_keeps_pr_reviewer_gate(self) -> None:
-        """#851/#1019 — Standard main-owned path keeps the impl-validator gate."""
+    def test_impl_design_doc_main_path_keeps_pr_reviewer_gate(self) -> None:
+        """#851/#1019 — design-doc main-owned path keeps the impl-validator gate."""
         for needle in (
-            "Standard 구현 경로 — 설계도 기반 구현",
+            "design-doc 기반 구현 — 설계도 기반 구현",
             "구현은 여전히 메인이 직접 수행",
             "review 만 격리 provider",
             "PASS 전 commit/PR 로 가지 않는다",
@@ -150,7 +148,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
                 self.assertIn(needle, self.impl_skill)
 
         self.assertIn(
-            "Standard · 메인 직접",
+            "design-doc · 메인 직접",
             (ROOT / "skills" / "impl" / "impl-routing.md").read_text(encoding="utf-8"),
         )
         for relpath in (
@@ -163,15 +161,60 @@ class SkillScenarioRegressionTests(unittest.TestCase):
                 self.assertIn("impl-validator", text)
 
     def test_impl_large_changes_use_reviewable_unit_commits(self) -> None:
-        """#1019 follow-up — large /impl changes should be split for review."""
+        """#1019/#1023 — every implementation path uses the git-spec commit split SSOT."""
         for needle in (
-            "변경량이 크면",
-            "리뷰어가 단계별로 따라갈 수 있게",
-            "독립적으로 검토 가능한 커밋",
+            "## 의미 단위 커밋 분할",
+            "모든 구현 흐름",
+            "`/impl` 메인 직접 구현",
+            "`/impl-loop` build-worker task local commit",
+            "각 commit 은 hook 을 통과",
+            "push, PR 생성, merge, issue mutation",
+        ):
+            with self.subTest(doc="git-spec", needle=needle):
+                self.assertIn(needle, self.git_spec)
+
+        for needle in (
+            "git-spec.md#의미-단위-커밋-분할",
+            "독립 검토 가능한 의미 단위",
             "각 커밋은 hook 을 통과",
         ):
-            with self.subTest(needle=needle):
+            with self.subTest(doc="impl", needle=needle):
                 self.assertIn(needle, self.impl_skill)
+            with self.subTest(doc="impl-loop", needle=needle):
+                self.assertIn(needle, self.impl_loop_skill)
+
+        self.assertIn("git-spec.md#의미-단위-커밋-분할", self.build_worker)
+
+    def test_impl_paths_preserve_post_task_begin_marker(self) -> None:
+        """#472 — after-task autonomous work must be separated from task ROI."""
+        for doc_name, doc in (
+            ("impl", self.impl_skill),
+            ("impl-loop", self.impl_loop_skill),
+            ("impl-loop-routing", self.impl_loop_routing),
+        ):
+            for needle in (
+                "post-task-begin",
+                "자율 작업",
+                "task ROI",
+                "#472",
+            ):
+                with self.subTest(doc=doc_name, needle=needle):
+                    self.assertIn(needle, doc)
+
+    def test_impl_loop_documents_multi_story_fix_pr_policy(self) -> None:
+        """#1023 — multi-story review fixes use one integrated fix PR, not rebase churn."""
+        for doc_name, doc in (
+            ("impl-loop", self.impl_loop_skill),
+            ("impl-loop-routing", self.impl_loop_routing),
+        ):
+            for needle in (
+                "story PR 이 2개 이상",
+                "downstream rebase 없이",
+                "통합 fix PR 1개",
+                "이미 머지된 뒤",
+            ):
+                with self.subTest(doc=doc_name, needle=needle):
+                    self.assertIn(needle, doc)
 
     def test_impl_loop_chain_confirms_when_issue_close_will_fire(self) -> None:
         """#851/#1019 — issue close 발동 story PR chain 은 1회 확인한다."""

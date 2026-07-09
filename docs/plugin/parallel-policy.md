@@ -39,7 +39,7 @@ dcness-helper wave-plan --register <impl-glob-or-dir> \
 - `wave-plan` 은 `depends_on` + Scope 파일집합 disjoint 로 후보 wave 를 계산한다.
 - `--register` 를 붙인 경우 computed `parallel` step 에 속한 impl 파일의 **canonical impl path** 만 claim board 에 등록한다. serial / high-risk / 의존 대기 task 는 등록하지 않는다. 이 등록이 peer mode activation 신호다.
 - 사용자에게 peer 세션 입력은 `wave-id` 가 아니라 `/impl-loop <canonical-impl-path>` 로 안내한다.
-- 안내에는 각 task 의 엔진을 명시한다: engine 미지정 기본은 single/chain 모두 build-worker, high-risk task 와 사용자 엄정 override 는 풀 경로 승격.
+- 안내에는 각 task 의 runner 를 명시한다: single/chain 모두 build-worker 이며, high-risk task 는 별도 엔진 승격이 아니라 직렬 실행 또는 설계 보강으로 처리한다.
 
 ## 4. task claim board
 
@@ -93,7 +93,7 @@ peer task 는 PR 생성까지 독립적으로 갈 수 있지만, merge 단계는
 - 명시적 `[]` = 선행 없음 선언 → Scope 도 disjoint 면 병렬 후보.
 - 목록 = 해당 선행 task 들에 의존.
 
-고위험 task 는 직렬 강등한다. 진본은 impl 문서 frontmatter `risk: high` (설계자 명시, #703) 이며, parser(`_parse_risk_marker`)가 이를 읽어 독립으로도 직렬화한다. dry preview 는 그 `risk: high` slug 를 `wave-plan --high-risk` 로 넘겨 driver 판정과 일치시킨다(frontmatter 부재 task 는 메인 추론으로 보완). 경로상 명백한 migration/secrets/.env 계열은 parser 가 또 다른 backstop 으로 직렬화한다.
+고위험 task 는 직렬 강등한다. 진본은 impl 문서의 `depends_on` 과 `수정 허용` Scope 이며, 설계 단계에서 migration/secrets/.env 계열처럼 병렬화하면 되돌리기 비싼 신호가 드러나면 같은 wave 에 넣지 않는다. 별도 `risk` frontmatter 나 구현 주체 분기는 쓰지 않는다.
 
 ## 7. 비용가드 / fallback
 

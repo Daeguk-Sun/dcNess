@@ -86,28 +86,28 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 
 **시점**: 메인 Claude 가 `Agent` tool 로 sub-agent 를 호출하기 직전, 그리고 `dcness-helper begin-step` 이 step 시작을 기록하기 직전. Claude Agent provider 는 전자를 타고, Codex/headless provider 는 후자를 탄다.
 
-**역할**: 작업 순서 보호와 active run 의 `begin-step -> Agent/headless worker -> end-step` 물리 순서를 강제한다. engineer/build-worker 사전 조건, impl-validator step 순서, impl entry pre-flight 는 provider 와 무관하게 같은 판정 함수를 쓴다.
+**역할**: 작업 순서 보호와 active run 의 `begin-step -> Agent/headless worker -> end-step` 물리 순서를 강제한다. build-worker 사전 조건, impl-validator step 순서, impl entry pre-flight 는 provider 와 무관하게 같은 판정 함수를 쓴다.
 
 PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉 `<agent>.md`, 재호출 occurrence 인 `<agent>-1.md`, mode-suffix 인 `<agent>-MODE.md`, mode 재호출인 `<agent>-MODE-1.md` 안의 `PASS` 모두 같은 agent 의 완료 증거로 인정한다.
 
 | Gate | 차단 조건 |
 |---|---|
-| engineer gate | 설계 산출물 없이 engineer/build-worker 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* `begin-run --lane lite` 로 기록된 Lite 구현 경로(#714), 셋 중 하나로 충족 |
-| impl boundary pre-flight | `begin-run --design-doc` 이 가리키는 impl 문서의 `### 수정 허용` 경로가 engineer boundary(`ALLOW_MATRIX ∪ .dcness/boundary.json`)로 커버되지 않음 |
+| implementation gate | 설계 산출물 없이 build-worker 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* direct 구현 경로 기록, 셋 중 하나로 충족 |
+| impl boundary pre-flight | `begin-run --design-doc` 이 가리키는 impl 문서의 `### 수정 허용` 경로가 build-worker boundary(`ALLOW_MATRIX ∪ .dcness/boundary.json`)로 커버되지 않음 |
 | impl TDD pre-flight | 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated TDD hook 이 등록되지 않았거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않음 |
 | 진행 순서 검사 | active run 안에서 직전 `begin-step` 과 다른 agent/mode 호출, `current_step` 부재, 이미 staged 된 stale step |
 
 **진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사를 탄다. module-architect 는 `/design` 기본 선두 진입, greenfield thin bootstrap 이후 진입, opt-in system checkpoint 이후 재진입 모두 별도 validator 게이트 없이 허용한다. checkpoint 필요 여부와 재진입 흐름은 `skills/design/design-routing.md` 의 agent enum(`SYSTEM_CHECKPOINT_REQUIRED`)과 `begin-step` 물리 순서 검사로만 다룬다.
 
-**engineer gate 의 design_doc 경로**: 설계(impl 문서)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 경로)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 engineer gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
+**implementation gate 의 design_doc 경로**: 설계(impl 문서)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` story/epic runner)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 implementation gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
 
-**impl entry pre-flight**: `engineer` / `build-worker` 의 구현 step 시작 직전에 추가로 확인한다. `--design-doc` 이 있으면 해당 impl 문서의 `### 수정 허용` 경로를 `ALLOW_MATRIX ∪ .dcness/boundary.json` 과 대조한다. 미커버 경로가 있으면 `[순서 차단 훅: impl pre-flight boundary]` 로 STOP 하며, 사람 승인 후 `.dcness/boundary.json` override 가 필요하다. 또한 프로젝트 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated hook 이 없거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않았으면 `[순서 차단 훅: impl pre-flight TDD]` 로 STOP 한다. in-place 실행은 hook 파일이 디스크에 실존·등록돼 있으면 생성 파일 커밋 없이 통과한다. 빈 프로젝트·미지원 플랫폼·dcNess self repo 는 no-op 이다.
+**impl entry pre-flight**: build-worker 의 구현 step 시작 직전에 추가로 확인한다. `--design-doc` 이 있으면 해당 impl 문서의 `### 수정 허용` 경로를 `ALLOW_MATRIX ∪ .dcness/boundary.json` 과 대조한다. 미커버 경로가 있으면 `[순서 차단 훅: impl pre-flight boundary]` 로 STOP 하며, 사람 승인 후 `.dcness/boundary.json` override 가 필요하다. 또한 프로젝트 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated hook 이 없거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않았으면 `[순서 차단 훅: impl pre-flight TDD]` 로 STOP 한다. in-place 실행은 hook 파일이 디스크에 실존·등록돼 있으면 생성 파일 커밋 없이 통과한다. 빈 프로젝트·미지원 플랫폼·dcNess self repo 는 no-op 이다.
 
-**engineer gate 의 구현 경로 면제 (#714)**: `/impl` 2축 모델의 Lite 구현 경로(설계도 없음)에 sub-agent 엔진(풀 경로 / 경량 build-worker)을 붙이는 4번째 조합용 면제 경로다. Lite 는 정의상 설계도가 없어 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 engineer gate 가 그 기록을 engineer/build-worker 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(impl-loop 풀 경로 / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구한다.
+**implementation gate 의 direct 경로 면제 (#714)**: `/impl` direct 경로(설계도 없음)는 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 implementation gate 가 그 기록을 build-worker 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 legacy enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(`/impl-loop` story/epic runner / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구한다.
 
 **tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. /design 도중 미검증 새 외부 의존이 발견되면 design 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
 
-**차단**: Claude Code PreToolUse 에서는 위반 시 `exit 2` + stderr, helper `begin-step` 에서는 비-0 종료 + stderr. engineer / impl pre-flight / 진행 순서 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다. 게이트 자체 예외는 fail-open 계측으로 남기고 과차단하지 않는다.
+**차단**: Claude Code PreToolUse 에서는 위반 시 `exit 2` + stderr, helper `begin-step` 에서는 비-0 종료 + stderr. implementation / impl pre-flight / 진행 순서 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다. 게이트 자체 예외는 fail-open 계측으로 남기고 과차단하지 않는다.
 차단이 발생하면 `guard-telemetry.jsonl` 에 `guard=catastrophic-gate` 로 기록된다.
 
 ### file-guard.sh
@@ -131,12 +131,11 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 
 #### 프로젝트별 write 경계 override — `.dcness/boundary.json`
 
-코어 `ALLOW_MATRIX` 는 흔한 언어·레이아웃의 합리적 기본값만 잡는다. 프로젝트 사정은 무한하므로(비표준 소스 디렉토리, 또는 코어 기본 제외를 의도적으로 완화하고 싶은 경우 — 예: engineer 의 `tests/` 제외를 "구현·테스트 한 호흡" 워크플로에서 열기), 프로젝트가 **루트의 `.dcness/boundary.json`** 으로 자기 사정을 직접 선언한다. 코어는 건드리지 않고, 예외는 프로젝트가 SSOT 로 가진다.
+코어 `ALLOW_MATRIX` 는 흔한 언어·레이아웃의 합리적 기본값만 잡는다. 프로젝트 사정은 무한하므로(비표준 소스 디렉토리, 또는 코어 기본 제외를 의도적으로 완화하고 싶은 경우), 프로젝트가 **루트의 `.dcness/boundary.json`** 으로 자기 사정을 직접 선언한다. 코어는 건드리지 않고, 예외는 프로젝트가 SSOT 로 가진다.
 
 ```json
 {
-  "engineer":      { "add": ["(^|/)remotion/", "(^|/)tests?/"], "remove": ["^app/"] },
-  "test-engineer": { "add": ["(^|/)custom-e2e/"] }
+  "build-worker": { "add": ["(^|/)remotion/", "(^|/)custom-e2e/"], "remove": ["^app/"] }
 }
 ```
 
@@ -144,8 +143,8 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 - **`add`**: 코어 `ALLOW_MATRIX` 에 없는 경로를 그 agent 에 허용 (비표준 레이아웃 / 의도적 기본 제외 완화).
 - **`remove`**: 코어 기본 허용 경로를 이 프로젝트에서 제거 (ALLOW 보다 우선하는 DENY 오버레이).
 - **탐색**: `harness/agent_boundary.py` 가 cwd 에서 **working tree top-level(`git rev-parse --show-toplevel`)까지만** 조상을 거슬러 이 파일을 찾는다. nested·linked worktree 와 하위 디렉토리에서도 worktree 루트 설정이 적용되지만, 그 *위* 상위 워크스페이스·home 디렉토리의 `.dcness/boundary.json` 은 무시된다 (무관한 상위 설정이 경계를 약화하지 못하도록).
-- **제안 트리거**: `/init-dcness` 와 `/impl` 시작 시 `dcness-helper boundary-suggestions` 가 비표준 소스 디렉터리의 `engineer.add` 후보를 read-only 로 출력한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이며, 실제 파일 작성은 사람 승인 뒤 메인이 수행한다.
-- **build-worker 전파**: 코어 `ALLOW_MATRIX["build-worker"]` 가 `engineer ∪ test-engineer` 합집합이듯, `engineer` / `test-engineer` 의 `add`·`remove` 는 `build-worker`(`/impl-loop` 의 실제 mutation agent)에도 합쳐 전파된다. 즉 `"engineer": {"remove": ["^app/"]}` 만 선언해도 build-worker 의 `app/` write 가 함께 막힌다 (별도 `build-worker` 키 불필요).
+- **제안 트리거**: `/init-dcness` 와 `/impl` 시작 시 `dcness-helper boundary-suggestions` 가 비표준 소스 디렉터리의 `build-worker.add` 후보를 read-only 로 출력한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이며, 실제 파일 작성은 사람 승인 뒤 메인이 수행한다.
+- **build-worker override**: `/impl-loop` 의 실제 mutation agent 는 build-worker 이므로 신규 프로젝트는 `build-worker` 키로 `add`·`remove` 를 선언한다. 과거 역할 override 키가 남아 있으면 호환성 레이어가 build-worker override 로 합쳐 전파한다.
 - **안전 degrade**: 파일 부재·깨진 JSON·형식 위반·컴파일 불가 정규식은 조용히 무시하고 코어 기본값을 유지한다 (잘못된 설정이 경계를 깨뜨리지 않는다).
 - **배포**: 읽는 로직은 plugin 본체(`harness/`)라 plugin 버전업으로 자동 적용 (cp 0). 설정 파일은 프로젝트가 직접 작성한다.
 
@@ -155,7 +154,7 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 - **`.dcness/boundary.json` 자신**(과 `.dcness/` 디렉토리 전체) 은 sub-agent write 차단 영역 (자기 경계 셀프 확장/축소 금지). INFRA 로 보호되며 `remove` 로도 풀 수 없고, 디렉토리 타깃 write 우회도 닫힌다.
 - **판정/검증 전용 agent**(`impl-validator` / `architecture-validator` / `product-acceptance` / `plan-reviewer` — 코어 ALLOW 가 빈 `()`) 는 `add` 로도 write 를 열 수 없다. "검증자는 자기가 검증하는 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는 경계 — `add` 로 mutation agent 로 승격시킬 수 없다.
 - **guard self-disable 마커** (`.no-dcness-guard` = file-guard 임시 우회 / `.claude-plugin/` = `is_infra_project` self-repo 신호) 도 INFRA 로 보호된다. broad `add`(예 `.*`)로도 sub-agent 가 file guard 자체를 끄는 통제 파일을 쓸 수 없다.
-- 그 외 기본값(예: engineer 의 `tests/` 제외 = self-grading 방어)은 **강제 가드가 아니라 권고** 다. 프로젝트가 `add` 로 풀 수 있고, 그 경우 self-grading drift(구현자가 자기 코드를 통과시키도록 테스트를 편향) 위험은 프로젝트가 감수한다.
+- 그 외 기본값은 **강제 가드가 아니라 권고** 다. 프로젝트가 `add` 로 풀 수 있고, 그 경우 self-grading drift(구현자가 자기 코드를 통과시키도록 테스트를 편향) 위험은 프로젝트가 감수한다.
 
 GitHub issue 외부 상태 변경은 경로에 따라 다르게 처리한다 — 같은 "issue 변경"이라도 차단 여부가 갈린다.
 
@@ -206,7 +205,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **Bash write target 정책**: `Bash` payload 는 [`harness.agent_boundary.extract_bash_paths`](../../harness/agent_boundary.py) 가 추출하는 명시적 write target 에 한해 검사한다. 예: redirect(`>`, `>>`), `tee`, in-place edit(`sed/perl/awk -i`), `cp`/`mv`/`rm` target. 추출된 target 이 TS/JS 구현 파일이면 직접 `Edit`/`Write`/`NotebookEdit` 와 동일한 skip 규칙 및 6-tier matching-test 존재 검사를 탄다. write target 이 없거나 TS/JS 구현 파일이 아니면 silent skip 한다.
 
-**Headless worker 정책**: [`scripts/dcness-codex-worker`](../../scripts/dcness-codex-worker) 와 [`scripts/dcness-claude-worker`](../../scripts/dcness-claude-worker) 는 성공 prose 생성 후 file-boundary 검사를 먼저 수행하고, 그 다음 changed path(`git diff`/staged diff/untracked) 중 삭제가 아닌 파일을 synthetic `Edit` payload 로 `tdd-guard.sh` 에 다시 넣는다. 중앙 `tdd-guard.sh` 가 generated hook 을 위임하므로 headless lane 도 non-TS/JS 플랫폼에서 같은 project-local **TDD 계약**을 재사용한다. 단, 이 재사용은 generated hook 파일들이 Git 에 커밋되어 해당 worktree 에 존재할 때만 성립한다. `exit 2` 는 step 성공 종료를 차단하고 위반 파일 목록을 출력한다. guard 자체 오류는 `headless-tdd-guard` fail-open event 로 기록하고 작업을 과차단하지 않는다.
+**Headless worker 정책**: [`scripts/dcness-codex-worker`](../../scripts/dcness-codex-worker) 와 [`scripts/dcness-claude-worker`](../../scripts/dcness-claude-worker) 는 성공 prose 생성 후 file-boundary 검사를 먼저 수행하고, 그 다음 changed path(`git diff`/staged diff/untracked) 중 삭제가 아닌 파일을 synthetic `Edit` payload 로 `tdd-guard.sh` 에 다시 넣는다. 중앙 `tdd-guard.sh` 가 generated hook 을 위임하므로 headless worker 도 non-TS/JS 플랫폼에서 같은 project-local **TDD 계약**을 재사용한다. 단, 이 재사용은 generated hook 파일들이 Git 에 커밋되어 해당 worktree 에 존재할 때만 성립한다. `exit 2` 는 step 성공 종료를 차단하고 위반 파일 목록을 출력한다. guard 자체 오류는 `headless-tdd-guard` fail-open event 로 기록하고 작업을 과차단하지 않는다.
 
 **차단**: test 부재 시 `exit 2` + 한국어 안내. Bash write target 차단 메시지는 `TDD GUARD[Bash]` 로 시작해 어떤 target 이 matching-test enforcement 에 실패했는지 함께 표시한다. Headless worker 차단 메시지는 `[dcness-codex-worker] BLOCKED: TDD GUARD ...` 또는 `[dcness-claude-worker] BLOCKED: TDD GUARD ...` 로 시작하고 위반 파일 목록을 포함한다.
 

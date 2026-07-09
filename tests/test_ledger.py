@@ -432,7 +432,7 @@ class InferNextActionTests(unittest.TestCase):
     def test_validator_must_fix_hint(self) -> None:
         hint = ledger.infer_next_action("impl-validator", None, must_fix=True, enum="PROSE_LOGGED")
         self.assertTrue(hint)  # 비어있지 않음
-        self.assertIn("engineer", hint.lower())
+        self.assertIn("build-worker", hint.lower())
 
     def test_product_acceptance_fail_hint_without_must_fix_marker(self) -> None:
         hint = ledger.infer_next_action(

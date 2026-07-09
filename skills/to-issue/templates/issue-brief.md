@@ -19,6 +19,7 @@
 **Key interfaces / Contracts:**
 - {{사용자가 보게 되는 command, API, 문서 공개 노출 범위, config shape, type/field 이름 같은 안정적인 계약을 쓴다.}}
 - {{현재 파일 위치가 아니라 바뀌어야 하는 인터페이스나 행동 계약을 쓴다.}}
+- {{UI 성격 이슈면 `UI 기준:` 으로 기준 canvas / 목업 / flow 문서, 사용자 제공 이미지·스케치 링크, 또는 `목업 없이(시각 구조 불변 사유=<reason>)` 를 쓴다. non-UI 면 생략한다.}}
 - {{모르면 추측하지 말고 비워두거나 명확화 질문으로 남긴다.}}
 
 **Acceptance criteria:**

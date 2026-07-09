@@ -138,8 +138,6 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         for rel_path in (
             "docs/plugin/agents/system-architect/system-architect-agent.md",
             "docs/plugin/agents/module-architect/module-architect-agent.md",
-            "docs/plugin/agents/engineer/engineer-agent.md",
-            "docs/plugin/agents/test-engineer/test-engineer-agent.md",
             "docs/plugin/agents/build-worker/build-worker-agent.md",
             "docs/plugin/agents/architecture-validator/architecture-validator-agent.md",
         ):
@@ -205,8 +203,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.spec_delivery_reference,
         )
 
-    def test_workflow_router_owns_impl_lane_conditions(self) -> None:
-        """#853 — positioning owns public surface; workflow-router owns Lite/Standard conditions."""
+    def test_workflow_router_owns_impl_conditions(self) -> None:
+        """#853/#1023 — positioning owns public surface; workflow-router owns impl conditions."""
         self.assertIn("## 구현 경로 표", self.router)
         self.assertIn("concrete signal", self.router)
         self.assertNotIn("| 내부 구현 경로 | 조건 | 실행 |", self.positioning)
@@ -274,9 +272,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("기본/support/고급/유틸리티/내부 agent 분류", self.readme)
         self.assertNotIn("호환 workflow", self.readme)
         self.assertNotIn("호환 alias", self.readme)
-        # #711 — impl 내부 구현 경로 = Lite/Standard (설계도 유무), Deep 제거
+        # #1023 — impl 내부 구현 경로 = direct/design-doc, worker engine axis 제거
         self.assertIn(
-            "`/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)", self.readme
+            "`/impl` 이 내부적으로 direct/design-doc",
+            self.readme,
         )
         self.assertNotIn("Lite / Standard / Deep lane", self.readme)
 
@@ -395,7 +394,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 msg=f"{workflow_path} missing from CI/CD summary table",
             )
 
-    def test_workflow_router_uses_design_surface_without_breaking_lite_impl(self) -> None:
+    def test_workflow_router_uses_design_surface_without_breaking_direct_impl(self) -> None:
         self.assertIn("/spec -> /design -> /impl -> /acceptance", self.router)
         self.assertIn("/spec -> /design -> /impl -> /acceptance", self.positioning)
         for text in (self.router, self.positioning):
@@ -413,8 +412,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)",
             self.positioning,
         )
-        self.assertIn("Lite: /impl direct PR", self.router)
-        self.assertIn("Lite (`/impl` 직접)", self.router)
+        self.assertIn("direct: /impl direct PR", self.router)
+        self.assertIn("direct (`/impl` 직접)", self.router)
         self.assertIn(
             "concrete signal 로 보고 `/impl`, `/design`, `/spec`, `/ux` 등",
             self.router,
@@ -771,10 +770,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("route=issue-intake", self.impl_skill)
         self.assertIn("review_provider", self.impl_skill)
 
-    def test_issue_1019_impl_external_copy_avoids_internal_nickname(self) -> None:
-        """#1019 — external-facing impl docs do not expose the internal harness nickname."""
-        self.assertNotIn("꼼꼼구현", self.impl_skill)
-        self.assertNotIn("꼼꼼구현", self.router)
+    def test_issue_1019_impl_external_copy_uses_current_naming(self) -> None:
+        """#1019/#1023 — external-facing impl docs use current route names."""
+        self.assertIn("direct", self.impl_skill)
+        self.assertIn("design-doc", self.impl_skill)
         self.assertIn("구현을 진행할까요?", self.impl_skill)
 
     def test_issue_1019_general_impl_does_not_expose_headless_engine_axis(self) -> None:
@@ -788,7 +787,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("일반 `/impl` 구현은 메인이 맡고", self.readme)
 
     def test_issue_1019_impl_loop_uses_story_runner_boundaries(self) -> None:
-        """#1019 — impl-loop uses deterministic state, task commits, and story PRs."""
+        """#1019/#1023 — impl-loop uses deterministic state, task commits, and batch review."""
         script = ROOT / "scripts" / "dcness-story-runner"
         self.assertTrue(script.exists())
         self.assertTrue(script.stat().st_mode & 0o111)
@@ -796,7 +795,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "dcness-story-runner",
             "next-action",
             "task commit",
-            "story PR",
+            "batch review PR",
+            "action=batch-review",
             "story-run.completed-<UTC>.json",
             "직렬 chain driver 전용",
             "impl-validator review 출력은 merge candidate 경계에서 1회",

@@ -30,7 +30,7 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 - 계약 표면 코드 SSOT 대조: brownfield 에서 기존 포트, 도메인 타입, 공개 entrypoint 와 새 설계/impl task 가 어긋나지 않는가.
 - 제품 동작 슬라이스: Story 완료 시 실제로 검증되는 동작, 각 task 또는 task 묶음이 연결하는 제품 경계, 첫 동작 증거 지점이 impl 산출물에 남았는가. 옛 섹션명 부재만으로 FAIL 하지 않는다.
 - Agent Operability: module responsibility / public interface 와 impl 문서의 owner/entrypoint 요약(또는 구 Agent Workability)이 edit target, state owner, validation path 를 복구할 수 있게 연결되는가. 옛 섹션명 부재만으로 FAIL 하지 않는다.
-- 구현 가능성: 맥락 없는 engineer가 impl 문서만 보고 임의 결정을 하지 않아도 되는가.
+- 구현 가능성: 맥락 없는 build-worker가 impl 문서만 보고 임의 결정을 하지 않아도 되는가.
 - 비규범 서술 drift: ux-flow, stories 동작 prose, legacy Contract Ledger / Contract References 같은 구양식·요약 층이 module responsibility / decision 과 표현만 어긋나는가. 이 층은 형식만으로 Must/FAIL 하지 않고 Should finding 또는 후속 정리로 보고한다.
 - revision 정합: revision mode 에서는 개정분만 보지 않고 개정 후 전체 설계 pack 정합을 본다. 메인이 전달한 파생 drift 체크리스트(`ux-flow.md`, 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호, domain-model/ADR 잔존 표현)는 증거 포인터로 사용하되, 항목 이름 부재만으로 Must finding 을 만들지 않는다.
 - 표현 수준: impl 문서가 contract를 설명하되 내부 구현을 선점하지 않는가.

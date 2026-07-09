@@ -1131,7 +1131,7 @@ class CodexWorkerWrapperTests(unittest.TestCase):
             result = subprocess.run(
                 [
                     str(WORKER),
-                    "engineer",
+                    "build-worker",
                     "--prompt-file",
                     str(prompt_file),
                     "--project-root",

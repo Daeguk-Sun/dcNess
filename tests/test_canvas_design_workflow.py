@@ -45,9 +45,6 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.ux_flow_template = (
             ROOT / "docs" / "plugin" / "agents" / "ux-architect" / "templates" / "ux-flow.md"
         ).read_text(encoding="utf-8")
-        self.engineer = (
-            ROOT / "docs" / "plugin" / "agents" / "engineer" / "engineer-agent.md"
-        ).read_text(encoding="utf-8")
         self.build_worker = (
             ROOT / "docs" / "plugin" / "agents" / "build-worker" / "build-worker-agent.md"
         ).read_text(encoding="utf-8")
@@ -248,19 +245,18 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
                 self.assertIn("사용자 제공 이미지", text)
                 self.assertIn("기존 확정본", text)
 
-    def test_impl_loop_uses_canvas_design_independent_of_engine(self) -> None:
+    def test_impl_loop_uses_canvas_design_with_build_worker(self) -> None:
         for needle in (
-            "engine 무관",
             "canvas-design",
-            "build-worker-deep",
             "docs/design-variants/<screen-id>.html",
             "build-worker",
-            "풀 경로",
             "확정본 승격",
+            "단일 구현 엔진",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_loop)
-        self.assertNotIn("풀 경로 엔진 한정", self.impl_loop)
+        self.assertNotIn("test-engineer", self.impl_loop)
+        self.assertNotIn("engineer:IMPL", self.impl_loop)
 
     def test_design_reference_contract_is_in_impl_template(self) -> None:
         self.assertIn("design: optional|required", self.impl_template)
@@ -270,14 +266,16 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertIn("구현 컴포넌트", self.impl_template)
 
     def test_agents_use_confirmed_mockup_as_design_alignment_axis(self) -> None:
-        for text in (self.engineer, self.build_worker):
-            with self.subTest(agent=text[:30]):
-                self.assertIn("디자인 정합", text)
-                self.assertIn("docs/design-variants/<screen-id>.html", text)
-                self.assertIn("레이아웃 계층", text)
-                self.assertIn("상태", text)
-                self.assertIn("토큰", text)
-                self.assertIn("의도적 차이", text)
+        for needle in (
+            "디자인 정합",
+            "docs/design-variants/<screen-id>.html",
+            "레이아웃 계층",
+            "상태",
+            "토큰",
+            "의도적 차이",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.build_worker)
 
         self.assertIn("docs/design-variants/drafts/", self.designer)
         self.assertNotIn("design-variants/<screen>-v<N>.html", self.designer)

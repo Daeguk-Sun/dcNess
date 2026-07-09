@@ -117,5 +117,5 @@ acceptance gap issue 는 제품 검수 후속이다. 이미 기준 문서와 구
 ## Non-goals
 
 - 사람 full E2E 검증은 MVP 범위 밖이다.
-- Lite `/impl` 단발 작업을 `/acceptance` 로 강제하지 않는다.
+- direct `/impl` 단발 작업을 `/acceptance` 로 강제하지 않는다.
 - 기존 `impl-validator`, `architecture-validator` 를 대체하지 않는다.

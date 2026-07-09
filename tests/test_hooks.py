@@ -378,7 +378,7 @@ class CatastrophicEngineerTests(_PreToolBase):
                 base_dir=self.base,
             )
         self.assertEqual(rc, 1)
-        self.assertIn("[순서 차단 훅: engineer 게이트]", err.getvalue())
+        self.assertIn("[순서 차단 훅: implementation gate]", err.getvalue())
 
     def test_other_run_design_doc_does_not_unlock_current_run(self) -> None:
         # design_doc 은 *자기 run* 의 사전 조건만 충족 — design_doc 없는 기존
@@ -454,7 +454,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
             base_dir=self.base,
         )
         self.assertIsNotNone(message)
-        self.assertIn("[순서 차단 훅: engineer 게이트]", message or "")
+        self.assertIn("[순서 차단 훅: implementation gate]", message or "")
         self.assertIn("begin-run --design-doc", message or "")
 
     def test_begin_step_blocks_build_worker_without_design_artifact(self) -> None:
@@ -466,8 +466,8 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
             base_dir=self.base,
         )
         self.assertIsNotNone(message)
-        self.assertIn("[순서 차단 훅: engineer 게이트]", message or "")
-        self.assertIn("engineer/build-worker", message or "")
+        self.assertIn("[순서 차단 훅: implementation gate]", message or "")
+        self.assertIn("build-worker", message or "")
 
     def test_begin_step_cli_exits_nonzero_on_order_violation(self) -> None:
         project = self.base / "project"
@@ -499,7 +499,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         )
 
         self.assertEqual(result.returncode, 1)
-        self.assertIn("[순서 차단 훅: engineer 게이트]", result.stderr)
+        self.assertIn("[순서 차단 훅: implementation gate]", result.stderr)
         live = read_live(self.sid, base_dir=state_base)
         slot = live["active_runs"]["run-99999999"]
         self.assertIsNone(slot["current_step"])

@@ -5,8 +5,9 @@ projects opt in via /init-dcness, which writes:
 
     ~/.claude/plugins/data/dcness-dcness/routing.json
 
-Validation agents can be sent to Codex read-only. Implementation agents default
-to a headless chain: Codex headless, Claude headless, then Claude main fallback.
+Validation agents can be sent to Codex read-only. The single implementation
+agent defaults to a headless chain: Codex headless, Claude headless, then Claude
+main fallback.
 """
 from __future__ import annotations
 
@@ -49,8 +50,6 @@ ROUTABLE_VALIDATION_AGENTS = (
     "architecture-validator",
 )
 ROUTABLE_IMPLEMENTATION_AGENTS = (
-    "test-engineer",
-    "engineer",
     "build-worker",
 )
 VALID_VALIDATION_PROVIDERS = ("claude", "codex")
@@ -248,15 +247,13 @@ def set_implementation_provider(
 
 
 def enable_role_split_routing(*, path: Optional[Path] = None) -> Path:
-    """Enable the recommended role-split routing preset."""
+    """Enable the recommended validation/worker routing preset."""
     cfg = load_routing(path=path)
     cfg["routes"] = {
         "impl-validator": "claude",
         "architecture-validator": "codex",
     }
     cfg["implementation_routes"] = {
-        "test-engineer": "claude",
-        "engineer": DEFAULT_IMPLEMENTATION_PROVIDER,
         "build-worker": DEFAULT_IMPLEMENTATION_PROVIDER,
     }
     return save_routing(cfg, path=path)

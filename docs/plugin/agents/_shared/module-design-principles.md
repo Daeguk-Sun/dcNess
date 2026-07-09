@@ -1,6 +1,6 @@
 # Agent 공통 모듈 설계 원칙
 
-> 모듈 설계 시 system-architect / module-architect / engineer / test-engineer / build-worker / architecture-validator 가 공유하는 agent 내부 기준. 호출 시 본 문서 read 의무.
+> 모듈 설계 시 system-architect / module-architect / build-worker / architecture-validator 가 공유하는 agent 내부 기준. 호출 시 본 문서 read 의무.
 
 본 문서는 모듈 설계 원칙을 한 곳에 모은 SSOT 다. 각 agent 본문에서 같은 룰을 반복해 박지 않고, 본 문서를 참조한다.
 
@@ -45,7 +45,7 @@
 ### 적용 영역
 
 - module-architect 의 모듈 안 인터페이스 결정 시
-- engineer 의 함수 / 클래스 시그니처 결정 시
+- build-worker 의 함수 / 클래스 시그니처 구현 시
 
 ## 단일 파일 다중 흐름 누적
 
@@ -156,8 +156,7 @@ function applyDiscount(cart): void {
 ### 적용 영역
 
 - module-architect 의 함수 / 클래스 시그니처 결정 시
-- engineer 의 인터페이스 구현 시
-- test-engineer 의 테스트 작성 시 — 인터페이스가 위 세 룰 위반이면 SPEC_GAP_FOUND emit
+- build-worker 의 인터페이스 구현 및 테스트 작성 시 — 인터페이스가 위 세 룰 위반이면 SPEC_GAP_FOUND emit
 
 ## Product Behavior Slices — 제품 동작 수직 슬라이스
 
@@ -174,12 +173,12 @@ Story 설계의 기본 단위는 레이어나 파일 묶음이 아니라 사용�
 
 - module-architect — Story 완료 시 검증되는 동작과 첫 동작 증거 지점을 impl 문서에 남긴다.
 - architecture-validator — impl 문서가 레이어별 부품 task만 만들고 실제 Story 동작 책임을 비워두면 finding 으로 드러낸다.
-- engineer / build-worker — 핵심 AC를 mock-only green 이 아니라 제품 경계의 동작 증거로 연결한다.
+- build-worker — 핵심 AC를 mock-only green 이 아니라 제품 경계의 동작 증거로 연결한다.
 - `/spec` stories.md — Story 분할·순서 자체가 동작 증분 단위가 되도록 같은 원칙을 Story 수준에 적용한다. 상세 기준은 [`skills/spec/spec-stories-reference.md`](../../../../skills/spec/spec-stories-reference.md).
 
 ## 동작 증거 기준
 
-핵심 AC 의 완료 증거를 판정하는 단일 기준이다. test-engineer / engineer / build-worker / product-acceptance 등 역할별 지침은 이 기준을 자기 단계에 적용할 뿐, 기준 자체를 다시 정의하지 않는다.
+핵심 AC 의 완료 증거를 판정하는 단일 기준이다. build-worker / product-acceptance 등 역할별 지침은 이 기준을 자기 단계에 적용할 뿐, 기준 자체를 다시 정의하지 않는다.
 
 - 핵심 AC 는 "코드가 있다" 또는 "테스트가 green 이다"가 아니라, 사용자에게 약속한 동작이 실제 제품 경계(API/CLI/UI/통합 wiring/compile-time contract)에서 확인됐는지로 본다.
 - 인정하는 동작 증거 — AC 성격에 맞으면: 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행. 사람 수동 E2E 만 뜻하지 않는다.
@@ -187,7 +186,7 @@ Story 설계의 기본 단위는 레이어나 파일 묶음이 아니라 사용�
 - 핵심 AC 가 mock-only green 으로만 뒷받침되고 위 실제 경계가 한 번도 확인되지 않았으면 gap 이다.
 - 실데이터(non-mock) 통합 테스트는 실제 parser, renderer, DB/schema, filesystem, network adapter wrapper, local fixture 같은 제품 경계를 통과하면 된다 — 외부 서비스 live 호출을 강제하는 뜻이 아니다.
 
-역할별 적용 시점: test-engineer 는 테스트 작성 시 mock-only 로만 닫히는 AC 를 risk 로 보고하고, engineer / build-worker 는 구현 검증에서 AC 성격에 맞는 증거를 남기고, product-acceptance 는 검수에서 이 기준으로 gap 을 판정한다.
+역할별 적용 시점: build-worker 는 테스트·구현·검증에서 AC 성격에 맞는 증거를 남기고, product-acceptance 는 검수에서 이 기준으로 gap 을 판정한다.
 
 ## 의존성 강제 — 빌드 시점 차단
 
@@ -237,7 +236,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 
 - system-architect — THIN_BOOTSTRAP 에서는 큰 모듈 의존 방향만 남기고, CHECKPOINT 에서 의존성 강제 도구 선정 + architecture/docs decision 보강
 - module-architect — 모듈 공개 인터페이스 영역 명시 + DI 패턴 적용
-- engineer — 빌드 시점 강제 도구 설정 + 의존 작성
+- build-worker — 빌드 시점 강제 도구 설정 + 의존 작성
 
 ## 산출물 evidence 연결
 
@@ -247,9 +246,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 |---|---|
 | [`system-architect`](../../../../agents/system-architect.md) | THIN_BOOTSTRAP 의 큰 모듈 topology 또는 CHECKPOINT 보고의 system boundary 결정, module responsibility 보강, 의존성 차단 도구, DI 패턴 |
 | [`module-architect`](../../../../agents/module-architect.md) | epic architecture 모듈 목록, impl 템플릿 `주의사항` 의 모듈 설계 주의, owner/entrypoint 요약, 작은 공개 노출 범위, module/decision 링크, Story 동작 수직 슬라이스, 검증 가능한 수용 기준 |
-| [`engineer`](../../../../agents/engineer.md) | 구현 보고의 계약 준수, 의존 주입 또는 wrapper 사용, 검증 결과 |
-| [`test-engineer`](../../../../agents/test-engineer.md) | 테스트 보고의 REQ 연결, 의존 mock 경계, 구현 독립성 |
-| [`build-worker`](../../../../agents/build-worker.md) | phase 보고의 RED/GREEN/self-validate 증거 |
+| [`build-worker`](../../../../agents/build-worker.md) | phase 보고의 RED/GREEN/self-validate 증거, 계약 준수, 의존 주입 또는 wrapper 사용 |
 | [`architecture-validator`](../../../../agents/architecture-validator.md) | 설계 표준, 계약과 인터페이스, 구현 가능성 축의 finding 또는 PASS 근거 |
 | [`impl-validator`](../../../../agents/impl-validator.md) | merge candidate diff 의 의존 계약, 도메인/디자인 정합, 구현 위험, Agent Operability finding 또는 PASS 근거 |
 
@@ -259,7 +256,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 
 - **설계 표준**: 모듈 공개 노출 범위, 의존 방향, DI 판단, 차단 도구가 산출물에 남았는가.
 - **계약과 인터페이스**: module responsibility 와 decision 문서가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 를 담는가.
-- **구현 가능성**: engineer 와 test-engineer 가 의존을 주입하고 결과를 관찰할 수 있는가.
+- **구현 가능성**: build-worker 가 의존을 주입하고 결과를 관찰할 수 있는가.
 - **제품 동작 슬라이스**: Story 완료 시 실제로 검증되는 동작과 첫 제품 경계 증거가 산출물에 남았는가.
 - **Agent Operability**: module responsibility / public interface 와 owner/entrypoint 요약으로 edit target, state owner, validation path 를 복구할 수 있는가.
 - **drift 통제**: 같은 계약의 사본이 서로 다른 의미로 남지 않았는가.

@@ -17,9 +17,16 @@ from typing import Any, Iterable, Sequence
 
 VALID_SCOPES = {"auto", "story", "epic"}
 VALID_STATUSES = {"pending", "running", "completed", "error", "blocked"}
-VALID_STORY_STATUSES = {"pending", "running", "ready_for_pr", "completed", "error", "blocked"}
+VALID_STORY_STATUSES = {
+    "pending",
+    "running",
+    "implemented",
+    "completed",
+    "error",
+    "blocked",
+}
 VALID_STORY_MARK_STATUSES = {"completed", "error", "blocked"}
-STOP_STORY_STATUSES = {"ready_for_pr", "error", "blocked"}
+STOP_STORY_STATUSES = {"error", "blocked"}
 
 
 @dataclass(frozen=True)
@@ -28,9 +35,6 @@ class ImplTask:
     slug: str
     story: str
     task_index: str
-    risk: str
-    engine: str
-    risk_reason: str
     title: str
 
     def to_state(self, task_id: int) -> dict[str, Any]:
@@ -41,9 +45,6 @@ class ImplTask:
             "title": self.title,
             "story": self.story,
             "task_index": self.task_index,
-            "risk": self.risk,
-            "engine": self.engine,
-            "risk_reason": self.risk_reason,
             "status": "pending",
             "attempts": 0,
             "commit": None,
@@ -142,9 +143,6 @@ def task_from_path(path: Path, *, cwd: Path | None = None) -> ImplTask:
         title=title,
         story=fm.get("story") or "unknown",
         task_index=fm.get("task_index") or "",
-        risk=fm.get("risk") or "",
-        engine=fm.get("engine") or "",
-        risk_reason=fm.get("risk_reason") or "",
     )
 
 
@@ -288,14 +286,24 @@ def next_action(state: dict[str, Any]) -> dict[str, Any]:
 
     for story in state.get("stories", []):
         status = story.get("status")
-        if status == "ready_for_pr":
-            return {"action": "story-pr", "state_status": state_status, "story": story}
         if status in {"blocked", "error"}:
             return {"action": status, "state_status": state_status, "story": story}
 
     for task in state.get("tasks", []):
         if task.get("status") == "pending":
             return {"action": "task", "state_status": state_status, "task": task}
+
+    implemented_stories = [
+        story
+        for story in state.get("stories", [])
+        if story.get("status") == "implemented"
+    ]
+    if implemented_stories:
+        return {
+            "action": "batch-review",
+            "state_status": state_status,
+            "stories": implemented_stories,
+        }
 
     return {"action": "done", "state_status": state_status}
 
@@ -321,7 +329,7 @@ def _refresh_story_statuses(state: dict[str, Any]) -> None:
             story["status"] = "error"
         elif all(status == "completed" for status in statuses):
             if story.get("status") != "completed":
-                story["status"] = "ready_for_pr"
+                story["status"] = "implemented"
         elif "running" in statuses or "completed" in statuses:
             story["status"] = "running"
         else:
@@ -334,9 +342,11 @@ def _refresh_story_statuses(state: dict[str, Any]) -> None:
         state["status"] = "error"
     elif story_statuses and all(status == "completed" for status in story_statuses):
         state["status"] = "completed"
-    elif "ready_for_pr" in story_statuses:
-        state["status"] = "ready_for_pr"
-    elif "running" in story_statuses:
+    elif story_statuses and all(
+        status in {"implemented", "completed"} for status in story_statuses
+    ):
+        state["status"] = "ready_for_review"
+    elif "running" in story_statuses or "implemented" in story_statuses:
         state["status"] = "running"
     else:
         state["status"] = "pending"
@@ -412,7 +422,7 @@ def _print(payload: Any, *, as_json: bool) -> None:
     elif isinstance(payload, dict) and payload.get("tasks"):
         print(
             f"{payload['scope']} story-run: "
-            f"{len(payload['tasks'])} task(s), {len(payload['stories'])} story PR(s)"
+            f"{len(payload['tasks'])} task(s), {len(payload['stories'])} story(s)"
         )
         for task in payload["tasks"]:
             print(

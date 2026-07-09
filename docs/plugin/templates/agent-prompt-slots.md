@@ -6,7 +6,7 @@
 **대상 + 읽을 진본:** {{이번 호출이 다룰 단위 + 그 진본 경로.
 agent 가 자체 read 할 SSOT 경로를 적는다.
 진본(task 파일 Scope·수용기준·인터페이스 · 이슈)에 이미 있으면 prompt 에 재기입하지 않는다.
-예) Lite=이슈 #NN · impl(test-engineer·engineer)=task 파일
+예) direct `/impl`=이슈 #NN · impl-loop(build-worker)=task 파일
     · impl-validator=검토 대상(merge candidate diff + 계획 파일 유무 + 테스트 증거)
     · system-architect(thin bootstrap)=docs/index.md + PRD + root architecture/conventions/decisions + stories
     · system-architect(checkpoint)=docs/index.md + 전역/epic SSOT + affected module docs + 코드 계약 표면
