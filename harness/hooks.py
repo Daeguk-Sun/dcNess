@@ -13,9 +13,8 @@ bash 훅 (`hooks/*.sh`) 이 stdin payload + cc_pid 를 본 모듈의 핸들러�
 
 옛 merge-gate (LGTM 없이 merge) / impl-task-loop 3-commit 룰은 *메인 영역*
 (skill 안 Pre-flight) 또는 다른 흐름 (`/design` 의 impl 미리 머지 등)
-으로 이전 — 코드 강제 폐기. 본 hook 코드 강제는 2 게이트:
-pr-reviewer 게이트 (engineer 산출물 이후 code-validator PASS) / engineer 게이트 (직전
-module-architect PASS).
+으로 이전 — 코드 강제 폐기. 본 hook 코드 강제는 begin-step/current-step 일치와
+engineer/build-worker 게이트(직전 module-architect PASS 또는 동등 설계 산출물)다.
 
 규약:
     - 모든 실패 케이스 silent (exit 0) — CC 동작 방해 최소화
@@ -370,7 +369,7 @@ def _resolve_acting_agent(
     단일 슬롯 폴백 (구버전 CC / payload 미탑재 케이스). 둘 다 없으면 "" = 메인 Claude.
 
     issue #598 (codex P1) — 반환 전 `normalize_agent_type` 으로 정규화. namespaced
-    payload(`dcness:code-validator`) 가 ALLOW_MATRIX 미정의 → check_*_allowed pass-through 로
+    payload(`dcness:impl-validator`) 가 ALLOW_MATRIX 미정의 → check_*_allowed pass-through 로
     경계를 우회하던 결함 차단. 정규화 후 boundary + trace 가 canonical 이름 사용.
     """
     payload_agent = stdin_data.get("agent_type")
@@ -495,7 +494,7 @@ def handle_pretooluse_agent(
     # #700 — 게이트 비교는 canonical 이름으로 일관화. namespaced(`dcness:engineer`) / legacy
     # alias 가 raw 비교에서 진행 순서 검사 불일치로 차단되던 것을 정규화로 해소(A). 그리고
     # 진행 순서 검사가 namespaced 를 통과시키는 이상, 뒤따르는 catastrophic 게이트(engineer/
-    # pr-reviewer/module-architect)도 norm 으로 비교해야 namespaced 우회를 막는다(codex P1).
+    # impl-validator/module-architect)도 norm 으로 비교해야 namespaced 우회를 막는다(codex P1).
     # active_agent / pending 기록은 raw subagent 유지(식별 원본 보존). 단 게이트의 *판정 로직*
     # (module-architect PASS 요구)은 main 그대로 — engineer 게이트의 lane-aware 면제 + effective
     # mode(POLISH) 판정은 #701(Finding C).
@@ -1430,9 +1429,9 @@ def handle_stop(
             return 0  # begin-step 후 end-step 미호출 — 진행 중
 
     # === issue #469 결함 A — 중간 step PASS 후 메인 turn 자동 발화 부재 fix ===
-    # build-worker / engineer / code-validator 같은 중간 step 종료 후 메인이
+    # build-worker / engineer / impl-validator 같은 중간 step 종료 후 메인이
     # 다음 step 진입 안 한 상태로 Stop 받으면 decision:block 으로 메인 turn
-    # 재 발화 강제. pr-reviewer 는 종료 agent (run 끝 = 정상 침묵).
+    # 재 발화 강제. impl-validator 는 종료 agent (run 끝 = 정상 침묵).
     if _maybe_emit_continuation_signal(
         sid=sid, rid=rid, slot=slot, active=active,
         last_agent=last_agent, last_mode=last_mode,
@@ -1463,7 +1462,7 @@ _CONTINUE_ENUMS: frozenset[str] = frozenset({
     "VALIDATION_BLOCKED",
 })
 # 종료 agent — 본 agent 의 PASS/LGTM 은 run 끝 = block 안 함.
-_TERMINAL_AGENTS: frozenset[str] = frozenset({"pr-reviewer"})
+_TERMINAL_AGENTS: frozenset[str] = frozenset({"impl-validator"})
 # 무한 루프 가드 — 같은 step 에서 block 쓴 횟수 상한.
 _STOP_BLOCK_COUNT_MAX = 2
 
@@ -1481,8 +1480,8 @@ def _maybe_emit_continuation_signal(
     """issue #469 결함 A — 중간 step PASS 후 메인 turn 발화 강제 신호 박기.
 
     조건:
-    1. 마지막 step agent 가 종료 agent (pr-reviewer) 아님. 단
-       acceptance_required run 의 pr-reviewer 는 product-acceptance 전 단계라 종료 agent
+    1. 마지막 step agent 가 종료 agent (impl-validator) 아님. 단
+       acceptance_required run 의 impl-validator 는 product-acceptance 전 단계라 종료 agent
        로 취급하지 않음 (#722).
     2. 마지막 step prose 파일 존재 + 결론 enum 이 다음 step 진입 가능 enum
     3. stop_block_count[step_key] < _STOP_BLOCK_COUNT_MAX (무한 루프 가드)
@@ -1494,7 +1493,7 @@ def _maybe_emit_continuation_signal(
     if not last_agent:
         return False
     acceptance_after_pr = (
-        last_agent == "pr-reviewer" and slot.get("acceptance_required") is True
+        last_agent == "impl-validator" and slot.get("acceptance_required") is True
     )
     if last_agent in _TERMINAL_AGENTS and not acceptance_after_pr:
         return False
@@ -1552,7 +1551,7 @@ def _maybe_emit_continuation_signal(
             "git/PR, FAIL 이면 engineer 재시도 분기. "
             if enum == "VALIDATION_BLOCKED"
             else "정의된 다음 agent 호출 또는 PR/review/merge 영역 "
-            "(예: begin-step pr-reviewer + Agent pr-reviewer + end-step + PR 머지). "
+            "(예: begin-step impl-validator + Agent impl-validator + end-step + PR 머지). "
         )
     reason = (
         f"[dcness Stop hook · issue #469 결함 A] sub-step "

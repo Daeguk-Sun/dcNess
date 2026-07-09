@@ -71,9 +71,9 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
 
     def test_prompt_distinguishes_acceptance_from_existing_validators(self) -> None:
         text = self.prompt.read_text(encoding="utf-8")
-        self.assertIn("code-validator", text)
+        self.assertIn("impl-validator", text)
         self.assertIn("architecture-validator", text)
-        self.assertIn("pr-reviewer", text)
+        self.assertIn("impl-validator", text)
         self.assertIn("대체하지 않는다", text)
 
     def test_prompt_keeps_full_e2e_out_of_mvp(self) -> None:
@@ -133,8 +133,8 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
 
     def test_pipeline_assigns_cross_pr_story_behavior_to_product_acceptance(self) -> None:
         text = self.impl_loop_routing.read_text(encoding="utf-8")
-        self.assertIn("code-validator 는 계획 대비 구현 정합", text)
-        self.assertIn("pr-reviewer 는 이번 PR diff 위험", text)
+        self.assertIn("impl-validator 는 계획 대비 구현 정합", text)
+        self.assertIn("impl-validator 는 계획 대비 구현 정합과 merge candidate diff 위험", text)
         self.assertIn("여러 PR 이 합쳐진 story 동작", text)
         self.assertIn("여러 story 가 합쳐진 epic 동작", text)
         self.assertIn("마감 product-acceptance 가 맡는다", text)

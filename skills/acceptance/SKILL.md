@@ -36,7 +36,7 @@ description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행�
 - GitHub issue 초안/등록 → `/to-issue`
 - release readiness, 배포, migration, 사람 full E2E 검증 → MVP 범위 밖. 후속 release/product acceptance 고도화에서 다룬다. 단, 자동 동작 증거 판정은 story/epic acceptance 범위다.
 
-Lite `/impl` 단발 작업은 불필요하게 `/acceptance` 로 강제하지 않는다. 파일/symbol이 명확한 작은 수정은 기존 test + pr-reviewer + CI gate 로 끝날 수 있다.
+Lite `/impl` 단발 작업은 불필요하게 `/acceptance` 로 강제하지 않는다. 파일/symbol이 명확한 작은 수정은 기존 test + impl-validator + CI gate 로 끝날 수 있다.
 
 ## 동작 증거 원칙
 

@@ -53,6 +53,9 @@ class PublicSurfaceGateTests(unittest.TestCase):
             internal_skills,
         )
         self.assertNotIn("qa", internal_agents)
+        self.assertIn("impl-validator", internal_agents)
+        self.assertNotIn("code-validator", internal_agents)
+        self.assertNotIn("pr-reviewer", internal_agents)
 
         for name in defaults:
             self.assertIn(f"`/{name}`", positioning)

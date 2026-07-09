@@ -18,7 +18,7 @@ description: dcness loop run (begin-run / end-run 사이클) 사후 분석 스�
 
 - 진행 중 run 분석 → 끝난 run 만 (`ledger.jsonl` 의 `run_finished` 후)
 - 토큰 / 캐시 효율 전체 측정 → `/efficiency` (세션 단위 집계)
-- 단일 PR 코드 리뷰 → `pr-reviewer` agent
+- 단일 PR 코드 리뷰 → `impl-validator` agent
 
 ## 핵심 동작
 

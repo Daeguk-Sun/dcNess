@@ -254,10 +254,10 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
                 check_write_allowed("architect", "docs/architecture.md", cwd=cwd)
             )
 
-    def test_code_validator_readonly(self):
+    def test_impl_validator_readonly(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            reason = check_write_allowed("code-validator", "src/foo.ts", cwd=cwd)
+            reason = check_write_allowed("impl-validator", "src/foo.ts", cwd=cwd)
             self.assertIsNotNone(reason)
             # write-zero agent (빈 ALLOW) — #696 이후 전용 차단 reason.
             self.assertIn("write-zero", reason)
@@ -891,7 +891,7 @@ class AllowMatrixCoverageTests(unittest.TestCase):
 
     def test_all_agents_have_allow_matrix_key(self):
         names = self._agent_names()
-        self.assertGreaterEqual(len(names), 12, "agents/*.md 파싱 실패 의심")
+        self.assertGreaterEqual(len(names), 11, "agents/*.md 파싱 실패 의심")
         missing = [n for n in names if n not in ALLOW_MATRIX]
         self.assertEqual(
             missing, [],
@@ -1032,7 +1032,7 @@ class RunDirProseCarveOutTests(unittest.TestCase):
             cwd = Path(td)
             for marker in (
                 "module-architect.md",
-                "code-validator.md",
+                "impl-validator.md",
                 "architecture-validator.md",
             ):
                 p = f".claude/harness-state/.sessions/SID/runs/run-x/{marker}"
@@ -1045,7 +1045,7 @@ class RunDirProseCarveOutTests(unittest.TestCase):
         # build-worker 라도 build-*.md 외 run_dir 파일(validator 마커)은 차단.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            p = ".claude/harness-state/.sessions/SID/runs/run-x/code-validator.md"
+            p = ".claude/harness-state/.sessions/SID/runs/run-x/impl-validator.md"
             reason = check_write_allowed("build-worker", p, cwd=cwd)
             self.assertIsNotNone(reason)
 
@@ -1266,13 +1266,13 @@ class PluginReadCarveoutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd, root = self._dirs(td)
             target = str(
-                root / "docs/plugin/agents/pr-reviewer/pr-reviewer-agent.md"
+                root / "docs/plugin/agents/impl-validator/impl-validator-agent.md"
             )
             with patch.dict(
                 os.environ, {"CLAUDE_PLUGIN_ROOT": str(root)}, clear=False
             ):
                 self.assertIsNone(
-                    check_read_allowed("pr-reviewer", target, cwd=cwd)
+                    check_read_allowed("impl-validator", target, cwd=cwd)
                 )
 
     # ── block: plugin 안 개별 인프라는 계속 차단 (원 동기 보존) ────────
@@ -2569,7 +2569,7 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         # #696 codex P2 — 판정/검증 전용 agent(빈 ALLOW)는 add 로도 write 못 연다.
         # 검증자 역할 격리는 catastrophic gate 신뢰의 근간 (되돌릴 수 없는 경계).
         readonly = (
-            "code-validator", "pr-reviewer", "architecture-validator",
+            "impl-validator", "architecture-validator",
             "product-acceptance", "plan-reviewer",
         )
         with tempfile.TemporaryDirectory() as td:

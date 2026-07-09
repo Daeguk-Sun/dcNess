@@ -11,7 +11,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 | `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | 구현 경로(설계도 유무 — Lite / Standard) + review provider 를 내부 판정 |
 | `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 | story/epic acceptance. 핵심 AC별 동작 증거와 mock-only gap 을 구분한다. 사람 full E2E 는 MVP 범위 밖 |
 
-사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 **설계도를 보고 구현만** 하며, 구현 경로(설계도 유무)와 review provider 를 고른다. 일반 `/impl` 의 구현 주체는 메인이고, 격리되는 단계는 `pr-reviewer` 검토다. high-risk trigger 나 새 epic/product feature 는 impl 내부 구현 경로가 아니라 impl 진입 전 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기된다. Lite / Standard 조건, high-risk 선행, 되돌림 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
+사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 **설계도를 보고 구현만** 하며, 구현 경로(설계도 유무)와 review provider 를 고른다. 일반 `/impl` 의 구현 주체는 메인이고, 격리되는 단계는 `impl-validator` 검토다. high-risk trigger 나 새 epic/product feature 는 impl 내부 구현 경로가 아니라 impl 진입 전 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기된다. Lite / Standard 조건, high-risk 선행, 되돌림 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
 
 ## Support Entrypoints
 
@@ -61,9 +61,9 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 ## Internal Agents
 
-agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-validator`, `build-worker`, `code-validator`, `designer`, `engineer`, `module-architect`, `pr-reviewer`, `product-acceptance`, `system-architect`, `tech-reviewer`, `test-engineer`, `ux-architect` 는 workflow 내부에서 호출되는 gate/worker/reviewer 로 분류한다.
+agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-validator`, `build-worker`, `impl-validator`, `designer`, `engineer`, `module-architect`, `product-acceptance`, `system-architect`, `tech-reviewer`, `test-engineer`, `ux-architect` 는 workflow 내부에서 호출되는 gate/worker/reviewer 로 분류한다.
 
-특히 `code-validator`, `architecture-validator`, `pr-reviewer` 는 read-only validation provider 분기 대상이다. `test-engineer`, `engineer`, `build-worker` 는 `/impl-loop` 같은 deep task runner 의 implementation provider 분기 대상이지 일반 `/impl` 구현자가 아니다. provider 가 Claude 든 Codex 든 사용자-facing 단계 이름은 `pr-reviewer` / `build-worker` 같은 agent 이름으로 유지한다.
+특히 `impl-validator`, `architecture-validator` 는 read-only validation provider 분기 대상이다. `test-engineer`, `engineer`, `build-worker` 는 `/impl-loop` 같은 deep task runner 의 implementation provider 분기 대상이지 일반 `/impl` 구현자가 아니다. provider 가 Claude 든 Codex 든 사용자-facing 단계 이름은 `impl-validator` / `build-worker` 같은 agent 이름으로 유지한다.
 
 ## Contract Gate
 
@@ -74,7 +74,7 @@ agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-val
 운영 원칙상 사용자-facing 공개 노출 범위는 작게 유지가 기본이다 (내부 정책은 정교해도 외부 UX 는 단순하게). 따라서 새 skill/command/agent/gate 를 추가하려면 PR 에서 **왜 기존 공개 진입점으로 부족한지**를 먼저 설명한다 — 구체적으로:
 
 - 기존 위험 분기([`workflow-router.md`](workflow-router.md))의 구현 경로로 흡수 안 되는가?
-- 기존 validator/reviewer(`code-validator` / `architecture-validator` / `pr-reviewer`)로 검증이 안 되는가?
+- 기존 validator(`impl-validator` / `architecture-validator`)로 검증이 안 되는가?
 - 기존 utility/agent 의 내부 단계로 둘 수 없고 *새 public 발화*가 꼭 필요한가?
 
 세 질문에 모두 "그렇다(기존으론 부족)"가 서지 않으면 새 공개 진입점 대신 기존 구현 경로/agent 내부 단계로 흡수한다. 이 justification 은 [`CLAUDE.md` 안티패턴 5](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) 의 self 가드레일이자 PR 템플릿 체크 항목이다.

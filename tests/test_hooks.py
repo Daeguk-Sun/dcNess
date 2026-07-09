@@ -9,9 +9,8 @@ Coverage matrix:
         - 기존 live.json 보존 (재호출 안전)
 
     handle_pretooluse_agent:
-        - pr-reviewer 게이트 — engineer 산출물 이후 CODE_VALIDATION 없으면 차단
-        - pr-reviewer 게이트 — engineer 변경 후 CODE_VALIDATION PASS 있으면 통과
-        - pr-reviewer 게이트 — Lite 직접 구현처럼 engineer 산출물이 없으면 통과
+        - begin-step/current-step 일치 검사
+        - impl-validator — engineer 산출물 이후 단일 merged validator 로 직접 호출 가능
         - engineer 게이트 — engineer 직전 module-architect PASS 없으면 차단
         - engineer 게이트 — module-architect.md 안 PASS 있으면 통과
         - engineer 게이트 — module-architect-N.md (occurrence) 안 PASS 도 인정
@@ -20,7 +19,7 @@ Coverage matrix:
         - engineer 게이트 — design_doc 기록됐지만 디스크 부재면 차단 (fail-strict)
         - engineer 게이트 — 상대경로 기록 후 cwd 가 달라도 통과 (기록 시점 resolve)
         - engineer 게이트 — mode-suffixed prose(module-architect-REVISION.md) PASS 인정
-        - 그 외 agent (architect MODULE_PLAN, code-validator 등) — run 외부에서도 통과
+        - 그 외 agent (architect MODULE_PLAN, impl-validator 등) — run 외부에서도 통과
         - sid 없음 → silent allow
         - tool_input 비정상 → silent allow
 
@@ -331,7 +330,7 @@ class CatastrophicEngineerTests(_PreToolBase):
         """begin-run --design-doc + begin-step engineer 경로 모사.
 
         entry_point=impl run 은 진행 순서 검사가 begin-step 을 강제하므로
-        실제 풀 4-agent 시퀀스대로 current_step 까지 세팅 — 차단/통과가
+        실제 풀 경로 시퀀스대로 current_step 까지 세팅 — 차단/통과가
         engineer 게이트에서 판정되도록 한다.
         """
         rid2 = "run-87654321"
@@ -350,7 +349,7 @@ class CatastrophicEngineerTests(_PreToolBase):
         return doc
 
     def test_allowed_with_merged_design_doc(self) -> None:
-        # #701 — impl-loop 풀 4-agent: 설계(impl 문서)는 별도 run 에서 머지된 뒤
+        # #701 — impl-loop 풀 경로: 설계(impl 문서)는 별도 run 에서 머지된 뒤
         # 진입하므로, run 에 기록된 design_doc 실존이 같은-run module-architect
         # PASS 없이도 engineer(IMPL) 사전 조건을 충족해야 한다.
         doc = self._write_design_doc()
@@ -537,48 +536,46 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         )
         self.assertIsNone(message)
 
-    def test_begin_step_blocks_pr_reviewer_without_code_validator_pass(self) -> None:
+    def test_begin_step_allows_impl_validator_after_engineer_output(self) -> None:
         (self.run_path / "engineer.md").write_text(
             "구현 완료\n\nPASS\n", encoding="utf-8",
         )
         message = evaluate_order_gate_for_step(
             self.sid,
             self.rid,
-            "pr-reviewer",
-            None,
-            base_dir=self.base,
-        )
-        self.assertIsNotNone(message)
-        self.assertIn("[순서 차단 훅: pr-reviewer 게이트]", message or "")
-        self.assertIn("code-validator PASS", message or "")
-
-    def test_begin_step_allows_pr_reviewer_after_code_validator_pass(self) -> None:
-        (self.run_path / "engineer.md").write_text(
-            "구현 완료\n\nPASS\n", encoding="utf-8",
-        )
-        (self.run_path / "code-validator.md").write_text(
-            "검증 완료\n\nPASS\n", encoding="utf-8",
-        )
-        message = evaluate_order_gate_for_step(
-            self.sid,
-            self.rid,
-            "pr-reviewer",
+            "impl-validator",
             None,
             base_dir=self.base,
         )
         self.assertIsNone(message)
 
-    def test_begin_step_allows_pr_reviewer_after_mode_suffixed_code_validator_pass(self) -> None:
+    def test_begin_step_allows_impl_validator_after_prior_pass(self) -> None:
         (self.run_path / "engineer.md").write_text(
             "구현 완료\n\nPASS\n", encoding="utf-8",
         )
-        (self.run_path / "code-validator-CODE_VALIDATION.md").write_text(
+        (self.run_path / "impl-validator.md").write_text(
             "검증 완료\n\nPASS\n", encoding="utf-8",
         )
         message = evaluate_order_gate_for_step(
             self.sid,
             self.rid,
-            "pr-reviewer",
+            "impl-validator",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNone(message)
+
+    def test_begin_step_allows_impl_validator_after_mode_suffixed_prior_pass(self) -> None:
+        (self.run_path / "engineer.md").write_text(
+            "구현 완료\n\nPASS\n", encoding="utf-8",
+        )
+        (self.run_path / "impl-validator-CODE_VALIDATION.md").write_text(
+            "검증 완료\n\nPASS\n", encoding="utf-8",
+        )
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "impl-validator",
             None,
             base_dir=self.base,
         )
@@ -874,7 +871,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         message = evaluate_order_gate_for_step(
             self.sid,
             self.rid,
-            "code-validator",
+            "impl-validator",
             None,
             base_dir=self.base,
         )
@@ -898,7 +895,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         message = evaluate_order_gate_for_step(
             self.sid,
             self.rid,
-            "pr-reviewer",
+            "impl-validator",
             None,
             base_dir=self.base,
         )
@@ -916,8 +913,8 @@ class CatastrophicEngineerLiteLaneTests(_PreToolBase):
 
     Lite lane 은 정의상 설계도가 없어 module-architect PASS / design_doc 둘 다
     없다. 면제 경계는 *명시적으로 기록된* lane=lite 한정 — lane 미기록(impl-loop
-    풀4 / 기본) 과 lane=standard 는 종전 차단 유지(면제 누수 차단). pr-reviewer ←
-    code-validator 잔존 보호는 lane 무관 불변.
+    풀4 / 기본) 과 lane=standard 는 종전 차단 유지(면제 누수 차단). impl-validator ←
+    impl-validator 잔존 보호는 lane 무관 불변.
     """
 
     def setUp(self) -> None:
@@ -962,74 +959,78 @@ class CatastrophicEngineerLiteLaneTests(_PreToolBase):
         )
         self.assertEqual(rc, 1)
 
-    def test_lite_lane_does_not_weaken_pr_reviewer_gate(self) -> None:
-        # 면제가 catastrophic 보호를 약화하지 않음 — Lite + 풀4 라도 engineer 산출물
-        # 이후 pr-reviewer 는 code-validator PASS 없이는 여전히 차단(잔존 보호 불변).
+    def test_lite_lane_allows_impl_validator_after_engineer_output(self) -> None:
+        # #1020 — impl-validator 병합 후 old validator->reviewer 순서 게이트는 collapse.
+        # Lite lane 면제는 engineer gate 에만 관여하고, impl-validator 는 단일 경계로 바로 호출된다.
         self._set_slot(lane="lite")
         (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
-        self._begin_step("pr-reviewer")
+        self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("pr-reviewer", ""),
+            stdin_data=self._payload("impl-validator", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
 
 
 # ---------------------------------------------------------------------------
-# pr-reviewer 게이트 — pr-reviewer 직전 validator PASS 검사
+# impl-validator — merged story boundary validator
 # ---------------------------------------------------------------------------
 
 
-class CatastrophicPrReviewerTests(_PreToolBase):
+class CatastrophicImplValidatorTests(_PreToolBase):
     def test_no_engineer_write_allows(self) -> None:
         # engineer 호출 흔적 없으면 통과
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("pr-reviewer", ""),
+            stdin_data=self._payload("impl-validator", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
 
-    def test_engineer_write_without_validator_blocks(self) -> None:
+    def test_engineer_write_without_prior_validator_allows(self) -> None:
         (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
+        self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("pr-reviewer", ""),
+            stdin_data=self._payload("impl-validator", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
 
-    def test_namespaced_pr_reviewer_does_not_bypass_gate(self) -> None:
-        # #700 (codex P1) — namespaced pr-reviewer 도 정규화 후 게이트 발동(우회 차단).
+    def test_namespaced_impl_validator_matches_bare_begin_step(self) -> None:
+        # #700 (codex P1) — namespaced impl-validator 도 정규화 후 current_step 매칭.
         (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
+        self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("dcness:pr-reviewer", ""),
+            stdin_data=self._payload("dcness:impl-validator", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)
+        self.assertEqual(rc, 0)
 
-    def test_engineer_write_with_code_validator_pass_allows(self) -> None:
+    def test_engineer_write_with_prior_impl_validator_pass_still_allows(self) -> None:
         (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
-        (self.run_path / "code-validator.md").write_text(
+        (self.run_path / "impl-validator.md").write_text(
             "## 결론\nPASS\n", encoding="utf-8",
         )
+        self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("pr-reviewer", ""),
+            stdin_data=self._payload("impl-validator", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
 
-    def test_engineer_write_with_code_validator_occurrence_pass_allows(self) -> None:
+    def test_engineer_write_with_prior_impl_validator_occurrence_pass_allows(self) -> None:
         # occurrence (재호출) 도 인정
         (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
-        (self.run_path / "code-validator-2.md").write_text(
+        (self.run_path / "impl-validator-2.md").write_text(
             "## 결론\nPASS\n", encoding="utf-8",
         )
+        self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("pr-reviewer", ""),
+            stdin_data=self._payload("impl-validator", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -1083,8 +1084,8 @@ class HasPassOccurrenceTests(unittest.TestCase):
     """#797 — `_has_pass` 의 occurrence PASS 탐색이 첫 재호출(`-1.md`)부터
     빠짐없이 포함하는지 헬퍼 단위로 고정.
 
-    이 헬퍼는 pr-reviewer 게이트(code-validator PASS)와 여러 PASS 판정에서
-    공유하므로, occurrence off-by-one 회귀는 게이트를 오염시킨다.
+    이 헬퍼는 여러 PASS 판정에서 공유하므로, occurrence off-by-one 회귀는
+    clean/acceptance 판단을 오염시킨다.
     """
 
     def setUp(self) -> None:
@@ -1107,16 +1108,16 @@ class HasPassOccurrenceTests(unittest.TestCase):
 
     def test_pass_in_later_occurrence_md(self) -> None:
         # `-2.md` 등 후속 occurrence 도 그대로 인정 — 공유 헬퍼 회귀 방지.
-        (self.rd / "code-validator-2.md").write_text("PASS", encoding="utf-8")
-        self.assertTrue(_has_pass(self.rd, "code-validator"))
+        (self.rd / "impl-validator-2.md").write_text("PASS", encoding="utf-8")
+        self.assertTrue(_has_pass(self.rd, "impl-validator"))
 
     def test_pass_in_mode_suffix_md(self) -> None:
         # end-step mode 저장 규칙: `<agent>-<MODE>.md`.
         # occurrence 와 같은 공통 PASS 판정 함수가 이 파일명도 인정해야 한다.
-        (self.rd / "code-validator-CODE_VALIDATION.md").write_text(
+        (self.rd / "impl-validator-CODE_VALIDATION.md").write_text(
             "PASS", encoding="utf-8",
         )
-        self.assertTrue(_has_pass(self.rd, "code-validator"))
+        self.assertTrue(_has_pass(self.rd, "impl-validator"))
 
     def test_no_pass_when_all_occurrences_fail(self) -> None:
         # 모든 호출 FAIL 이면 False — 통과 누수 없음.
@@ -1308,16 +1309,16 @@ class StrictConveyorGateTests(_PreToolBase):
         update_live(self.sid, base_dir=self.base, active_runs=active)
 
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("pr-reviewer"),
+            stdin_data=self._payload("impl-validator"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 1)
 
     def test_impl_lite_pr_reviewer_allows_without_code_validator_when_no_engineer_step(self) -> None:
-        self._begin_step("pr-reviewer")
+        self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("pr-reviewer"),
+            stdin_data=self._payload("impl-validator"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -1330,7 +1331,7 @@ class StrictConveyorGateTests(_PreToolBase):
         update_live(self.sid, base_dir=self.base, active_runs=active)
 
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("pr-reviewer"),
+            stdin_data=self._payload("impl-validator"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -1366,11 +1367,11 @@ class StrictConveyorGateTests(_PreToolBase):
 
     def test_allows_moded_step_when_agent_omits_mode(self) -> None:
         # #700 Finding B — Agent 도구는 mode 를 실을 수 없어 항상 None. begin-step
-        # code-validator VERIFY_ONLY 후 Agent(code-validator, mode 미지정)가 통과해야 한다.
-        # (engineer 대신 catastrophic 게이트 없는 code-validator 로 진행 순서 검사 순수 검증.)
-        self._begin_step("code-validator", "VERIFY_ONLY")
+        # impl-validator VERIFY_ONLY 후 Agent(impl-validator, mode 미지정)가 통과해야 한다.
+        # (engineer 대신 catastrophic 게이트 없는 impl-validator 로 진행 순서 검사 순수 검증.)
+        self._begin_step("impl-validator", "VERIFY_ONLY")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("code-validator", ""),
+            stdin_data=self._payload("impl-validator", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -1401,9 +1402,9 @@ class StrictConveyorGateTests(_PreToolBase):
         # #700 AC3 (진행 순서 검사 부분) — namespaced + moded step + mode 미지정 Agent 가
         # 진행 순서 검사를 추가 우회 없이 통과해야 한다. engineer catastrophic 게이트의
         # lane-aware 화(풀4 engineer:IMPL)는 별개 작업 — Finding C follow-up.
-        self._begin_step("code-validator", "VERIFY_ONLY")
+        self._begin_step("impl-validator", "VERIFY_ONLY")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("dcness:code-validator", ""),
+            stdin_data=self._payload("dcness:impl-validator", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -1670,15 +1671,15 @@ class FileOpAgentRecordTests(_PreToolBase):
     """PreToolUse Agent 통과 시 live.json.active_agent 기록 확인."""
 
     def test_active_agent_recorded_on_pass(self) -> None:
-        # code-validator = HARNESS_ONLY 외 + run 컨텍스트 있음 → 통과
+        # impl-validator = HARNESS_ONLY 외 + run 컨텍스트 있음 → 통과
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("code-validator"),
+            stdin_data=self._payload("impl-validator"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
         live = read_live(self.sid, base_dir=self.base)
-        self.assertEqual(live.get("active_agent"), "code-validator")
+        self.assertEqual(live.get("active_agent"), "impl-validator")
 
     def test_active_agent_with_mode(self) -> None:
         # validator + DESIGN_VALIDATION = HARNESS_ONLY 아님 (DESIGN_VALIDATION 미포함)
@@ -1827,7 +1828,7 @@ class FileOpHookTests(_PreToolBase):
 
     def test_mcp_github_issue_mutation_exempt(self) -> None:
         # codex P1 (round4) — issue mutation 은 per-agent tools gate 예외 → 통과.
-        update_live(self.sid, base_dir=self.base, active_agent="code-validator")
+        update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_pretooluse_file_op(
             stdin_data={
                 "sessionId": self.sid,
@@ -1904,7 +1905,7 @@ class FileOpHookTests(_PreToolBase):
 
     def test_mcp_tool_passes_boundary_and_records_trace(self) -> None:
         # #255 W5 — mcp__* 도구는 boundary 검사 skip + trace pre append.
-        # designer / code-validator false positive (자유서술 방식 의심) 차단 의도.
+        # designer / impl-validator false positive (자유서술 방식 의심) 차단 의도.
         from harness.session_state import (
             start_run, generate_run_id, write_pid_current_run, write_pid_session,
         )
@@ -2140,9 +2141,9 @@ class FileOpSelfAttributionTests(FileOpHookTests):
         return d
 
     def test_payload_agent_type_overrides_active_agent_allow(self):
-        # active_agent 가 다른 sub(code-validator: write 전면 불가)로 덮어써져 있어도
+        # active_agent 가 다른 sub(impl-validator: write 전면 불가)로 덮어써져 있어도
         # payload agent_type=engineer → engineer 매트릭스로 판정 → src 허용.
-        update_live(self.sid, base_dir=self.base, active_agent="code-validator")
+        update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
                 "Edit", "engineer", file_path="src/foo.ts"
@@ -2150,14 +2151,14 @@ class FileOpSelfAttributionTests(FileOpHookTests):
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 0)  # code-validator 로 판정됐다면 차단(rc 1)됐을 것
+        self.assertEqual(rc, 0)  # impl-validator 로 판정됐다면 차단(rc 1)됐을 것
 
     def test_payload_agent_type_overrides_active_agent_block(self):
-        # active_agent=engineer(src 허용) 인데 payload agent_type=code-validator → code-validator 로 판정 → src 차단.
+        # active_agent=engineer(src 허용) 인데 payload agent_type=impl-validator → impl-validator 로 판정 → src 차단.
         update_live(self.sid, base_dir=self.base, active_agent="engineer")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
-                "Edit", "code-validator", file_path="src/foo.ts"
+                "Edit", "impl-validator", file_path="src/foo.ts"
             ),
             cc_pid=self.cc_pid,
             base_dir=self.base,
@@ -2197,7 +2198,7 @@ class FileOpSelfAttributionTests(FileOpHookTests):
 
     def test_pre_trace_uses_payload_agent_type(self):
         # 통과한 file-op 의 pre-trace agent 도 payload agent_type 로 귀속.
-        update_live(self.sid, base_dir=self.base, active_agent="code-validator")
+        update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
                 "Read", "engineer", file_path="src/foo.ts"
@@ -2212,16 +2213,16 @@ class FileOpSelfAttributionTests(FileOpHookTests):
         self.assertEqual(pre[-1]["agent"], "engineer")
 
     def test_namespaced_payload_agent_type_enforced(self):
-        # issue #598 codex P1 — namespaced agent_type(dcness:code-validator)도 정규화되어 경계 강제.
-        # 정규화 없으면 ALLOW_MATRIX 미정의 → pass-through bypass (code-validator 가 src write).
+        # issue #598 codex P1 — namespaced agent_type(dcness:impl-validator)도 정규화되어 경계 강제.
+        # 정규화 없으면 ALLOW_MATRIX 미정의 → pass-through bypass (impl-validator 가 src write).
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
-                "Edit", "dcness:code-validator", file_path="src/foo.ts"
+                "Edit", "dcness:impl-validator", file_path="src/foo.ts"
             ),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)  # dcness:code-validator → code-validator → src write 불가
+        self.assertEqual(rc, 1)  # dcness:impl-validator → impl-validator → src write 불가
 
     def test_namespaced_payload_agent_type_allow(self):
         rc = handle_pretooluse_file_op(
@@ -2253,7 +2254,7 @@ class PostFileOpSelfAttributionTests(PostToolUseFileOpTests):
     """post trace 의 agent 귀속도 payload agent_type 우선 (issue #598)."""
 
     def test_post_trace_uses_payload_agent_type(self):
-        update_live(self.sid, base_dir=self.base, active_agent="code-validator")
+        update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         d = self._post_payload(
             "Bash", {"exit_code": 0, "stdout": "x"}, command="echo x"
         )
@@ -2264,7 +2265,7 @@ class PostFileOpSelfAttributionTests(PostToolUseFileOpTests):
         )
         self.assertEqual(rc, 0)
         entries = read_trace(self.sid, self.rid, base_dir=self.base)
-        self.assertEqual(entries[-1]["agent"], "engineer")  # active_agent(code-validator) 아님
+        self.assertEqual(entries[-1]["agent"], "engineer")  # active_agent(impl-validator) 아님
 
     def test_post_trace_records_with_payload_only(self):
         # active_agent 미설정이라도 payload agent_type 있으면 trace 기록.
@@ -2367,11 +2368,11 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         # 시각 진행 보장 — _now_iso 1초 단위라 sleep 1.1s 면 충분
         import time
         time.sleep(1.1)
-        # 이제 메인이 pr-reviewer (자유서술 방식) 호출 — PreToolUse Agent 박음
-        self._simulate_pre("pr-reviewer", tool_use_id="toolu_pr1")
-        # pr-reviewer 가 file-op 안 함 (자유서술 방식)
+        # 이제 메인이 impl-validator (자유서술 방식) 호출 — PreToolUse Agent 박음
+        self._simulate_pre("impl-validator", tool_use_id="toolu_pr1")
+        # impl-validator 가 file-op 안 함 (자유서술 방식)
         rc = handle_posttooluse_agent(
-            stdin_data=self._post_payload("pr-reviewer", tool_use_id="toolu_pr1"),
+            stdin_data=self._post_payload("impl-validator", tool_use_id="toolu_pr1"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -2384,7 +2385,7 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         self.assertNotIn("pending_agents", slot)
 
     def test_histogram_filters_by_matched_agent(self):
-        # issue #598 finding1 — 동시 sub 환경: since_ts 이후 다른 agent(code-validator)의 trace 가
+        # issue #598 finding1 — 동시 sub 환경: since_ts 이후 다른 agent(impl-validator)의 trace 가
         # 끝난 agent(engineer)의 histogram 에 섞이지 않음 (시각 범위 + agent 필터).
         import io
         import contextlib
@@ -2398,7 +2399,7 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         for tool in ["Bash", "Bash", "Grep"]:
             trace_append(
                 self.sid, self.rid,
-                {"phase": "pre", "agent": "code-validator", "tool": tool},
+                {"phase": "pre", "agent": "impl-validator", "tool": tool},
                 base_dir=self.base,
             )
         out = io.StringIO()
@@ -2411,7 +2412,7 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         ctx = out.getvalue()
         self.assertIn("Read:1", ctx)
         self.assertIn("Edit:1", ctx)
-        # 동시 code-validator 행동(Bash/Grep)은 engineer histogram 에 누설 안 됨.
+        # 동시 impl-validator 행동(Bash/Grep)은 engineer histogram 에 누설 안 됨.
         self.assertNotIn("Grep", ctx)
         self.assertNotIn("Bash", ctx)
 
@@ -2477,14 +2478,14 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
             base_dir=self.base,
         )
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t2", sub_type="code-validator",
+            self.sid, self.rid, tool_use_id="t2", sub_type="impl-validator",
             base_dir=self.base,
         )
         slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.rid]
         self.assertIn("pending_agents", slot)
         self.assertEqual(set(slot["pending_agents"]), {"t1", "t2"})
         self.assertEqual(slot["pending_agents"]["t1"]["sub_type"], "engineer")
-        self.assertEqual(slot["pending_agents"]["t2"]["sub_type"], "code-validator")
+        self.assertEqual(slot["pending_agents"]["t2"]["sub_type"], "impl-validator")
 
     def test_clear_by_tool_use_id_pops_only_match(self):
         from harness.session_state import set_pending_agent, clear_pending_agent
@@ -2493,7 +2494,7 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
             base_dir=self.base,
         )
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t2", sub_type="code-validator",
+            self.sid, self.rid, tool_use_id="t2", sub_type="impl-validator",
             base_dir=self.base,
         )
         popped = clear_pending_agent(
@@ -2534,7 +2535,7 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
             base_dir=self.base,
         )
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t2", sub_type="code-validator",
+            self.sid, self.rid, tool_use_id="t2", sub_type="impl-validator",
             base_dir=self.base,
         )
         popped = clear_pending_agent(self.sid, self.rid, base_dir=self.base)
@@ -2550,7 +2551,7 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
             base_dir=self.base,
         )
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t2", sub_type="code-validator",
+            self.sid, self.rid, tool_use_id="t2", sub_type="impl-validator",
             base_dir=self.base,
         )
         popped = clear_pending_agent(
@@ -2594,7 +2595,7 @@ class PreAgentConcurrencyWarnTests(_PreToolBase):
         buf1 = io.StringIO()
         with contextlib.redirect_stderr(buf1):
             rc1 = handle_pretooluse_agent(
-                stdin_data=self._agent_payload("code-validator", "toolu_a"),
+                stdin_data=self._agent_payload("impl-validator", "toolu_a"),
                 cc_pid=self.cc_pid, base_dir=self.base,
             )
         self.assertEqual(rc1, 0)
@@ -2603,7 +2604,7 @@ class PreAgentConcurrencyWarnTests(_PreToolBase):
         buf2 = io.StringIO()
         with contextlib.redirect_stderr(buf2):
             rc2 = handle_pretooluse_agent(
-                stdin_data=self._agent_payload("code-validator", "toolu_b"),
+                stdin_data=self._agent_payload("impl-validator", "toolu_b"),
                 cc_pid=self.cc_pid, base_dir=self.base,
             )
         self.assertEqual(rc2, 0)
@@ -2617,21 +2618,21 @@ class PreAgentConcurrencyWarnTests(_PreToolBase):
         import io
         import contextlib
         handle_pretooluse_agent(
-            stdin_data=self._agent_payload("code-validator", "toolu_a"),
+            stdin_data=self._agent_payload("impl-validator", "toolu_a"),
             cc_pid=self.cc_pid, base_dir=self.base,
         )
         handle_posttooluse_agent(
             stdin_data={
                 "sessionId": self.sid, "tool_use_id": "toolu_a",
                 "tool_name": "Agent",
-                "tool_input": {"subagent_type": "code-validator"},
+                "tool_input": {"subagent_type": "impl-validator"},
             },
             cc_pid=self.cc_pid, base_dir=self.base,
         )
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
             handle_pretooluse_agent(
-                stdin_data=self._agent_payload("code-validator", "toolu_b"),
+                stdin_data=self._agent_payload("impl-validator", "toolu_b"),
                 cc_pid=self.cc_pid, base_dir=self.base,
             )
         self.assertNotIn("동시 sub-agent", buf.getvalue())
@@ -2682,15 +2683,15 @@ class SubagentStopClearTests(_PreToolBase):
         self.assertNotIn("active_agent", live)
 
     def test_no_clobber_on_mismatch(self):
-        # 동시 sub: active_agent=code-validator 인데 engineer 의 SubagentStop → code-validator 슬롯 보존.
+        # 동시 sub: active_agent=impl-validator 인데 engineer 의 SubagentStop → impl-validator 슬롯 보존.
         from harness.hooks import handle_subagent_stop
-        update_live(self.sid, base_dir=self.base, active_agent="code-validator")
+        update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_subagent_stop(
             self._payload(agent_type="engineer"), base_dir=self.base
         )
         self.assertEqual(rc, 0)
         live = read_live(self.sid, base_dir=self.base)
-        self.assertEqual(live.get("active_agent"), "code-validator")
+        self.assertEqual(live.get("active_agent"), "impl-validator")
 
     def test_noop_when_no_active_agent(self):
         from harness.hooks import handle_subagent_stop
@@ -2748,20 +2749,20 @@ class PostToolUseAgentProseAutoStageTests(_PreToolBase):
         update_current_step(self.sid, self.rid, agent, mode, base_dir=self.base)
 
     def test_prose_staged_to_run_dir(self) -> None:
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         prose = "## 결과\nPASS\n"
         rc = handle_posttooluse_agent(
-            stdin_data=self._payload_with_prose("code-validator", "code-validator", None, prose),
+            stdin_data=self._payload_with_prose("impl-validator", "impl-validator", None, prose),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertTrue(expected.exists())
         self.assertEqual(expected.read_text(encoding="utf-8"), prose)
 
     def test_prose_staged_with_mode(self) -> None:
-        # #700 — legacy alias `validator` 는 begin-step 정규화로 canonical `code-validator`
+        # #700 — legacy alias `validator` 는 begin-step 정규화로 canonical `impl-validator`
         # 가 돼 prose 도 canonical 파일명으로 staging 된다(게이트 _has_pass 와 일치). mode
         # suffix 는 그대로 유지.
         self._set_current_step("validator", "PLAN_VALIDATION")
@@ -2774,7 +2775,7 @@ class PostToolUseAgentProseAutoStageTests(_PreToolBase):
         self.assertEqual(rc, 0)
         expected = (
             session_dir(self.sid, base_dir=self.base) / "runs" / self.rid
-            / "code-validator-PLAN_VALIDATION.md"
+            / "impl-validator-PLAN_VALIDATION.md"
         )
         self.assertTrue(expected.exists())
 
@@ -2793,90 +2794,90 @@ class PostToolUseAgentProseAutoStageTests(_PreToolBase):
         self.assertTrue(cur_step["prose_file"].endswith("module-architect.md"))
 
     def test_empty_prose_no_staging(self) -> None:
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         rc = handle_posttooluse_agent(
-            stdin_data=self._payload_with_prose("code-validator", "code-validator", None, "   "),
+            stdin_data=self._payload_with_prose("impl-validator", "impl-validator", None, "   "),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertFalse(expected.exists())
 
     def test_tool_response_dict_format_fallback(self) -> None:
         """dict 포맷 ({\"text\": ...}) 하위호환 — CC 포맷 변경 전 방어."""
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         prose = "## 결론\nPASS\n"
         rc = handle_posttooluse_agent(
             stdin_data={
                 "sessionId": self.sid,
                 "tool_name": "Agent",
-                "tool_input": {"subagent_type": "code-validator"},
+                "tool_input": {"subagent_type": "impl-validator"},
                 "tool_response": {"type": "text", "text": prose},
             },
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertTrue(expected.exists())
         self.assertEqual(expected.read_text(encoding="utf-8"), prose)
 
     def test_tool_response_string_format_fallback(self) -> None:
         """string 포맷 하위호환."""
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         prose = "## 결론\nPASS\n"
         rc = handle_posttooluse_agent(
             stdin_data={
                 "sessionId": self.sid,
                 "tool_name": "Agent",
-                "tool_input": {"subagent_type": "code-validator"},
+                "tool_input": {"subagent_type": "impl-validator"},
                 "tool_response": prose,
             },
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertTrue(expected.exists())
 
     def test_tool_response_empty_list_no_staging(self) -> None:
         """빈 list → prose 없음."""
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         rc = handle_posttooluse_agent(
             stdin_data={
                 "sessionId": self.sid,
                 "tool_name": "Agent",
-                "tool_input": {"subagent_type": "code-validator"},
+                "tool_input": {"subagent_type": "impl-validator"},
                 "tool_response": [],
             },
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertFalse(expected.exists())
 
     def test_no_tool_response_no_staging(self) -> None:
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         rc = handle_posttooluse_agent(
             stdin_data={"sessionId": self.sid, "tool_name": "Agent"},
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertFalse(expected.exists())
 
     def test_no_current_step_no_staging(self) -> None:
         prose = "## 결론\nPASS\n"
         rc = handle_posttooluse_agent(
-            stdin_data=self._payload_with_prose("code-validator", "code-validator", None, prose),
+            stdin_data=self._payload_with_prose("impl-validator", "impl-validator", None, prose),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertFalse(expected.exists())
 
     def test_no_current_step_emits_diagnostic_stderr(self) -> None:
@@ -2892,7 +2893,7 @@ class PostToolUseAgentProseAutoStageTests(_PreToolBase):
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
             rc = handle_posttooluse_agent(
-                stdin_data=self._payload_with_prose("code-validator", "code-validator", None, prose),
+                stdin_data=self._payload_with_prose("impl-validator", "impl-validator", None, prose),
                 cc_pid=self.cc_pid,
                 base_dir=self.base,
             )
@@ -2905,58 +2906,58 @@ class PostToolUseAgentProseAutoStageTests(_PreToolBase):
         """#272 W2 진짜 fix — list of dict 인데 type 이 'text' 아닌 'tool_result'
         같은 변형도 robust 추출. issue-232 1차 fix 가 type=='text' 한 형식만 본
         한계 회복."""
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         prose = "## 결론\nPASS\n"
         rc = handle_posttooluse_agent(
             stdin_data={
                 "sessionId": self.sid,
                 "tool_name": "Agent",
-                "tool_input": {"subagent_type": "code-validator"},
+                "tool_input": {"subagent_type": "impl-validator"},
                 "tool_response": [{"type": "tool_result", "content": prose}],
             },
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertTrue(expected.exists(), msg="content 키 변형도 추출돼야 함")
         self.assertEqual(expected.read_text(encoding="utf-8"), prose)
 
     def test_robust_extraction_nested_dict(self) -> None:
         """nested dict 구조 — `{"result": {"text": prose}}` 같은 wrapping 도 cover."""
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         prose = "## 결론\nPASS\n"
         rc = handle_posttooluse_agent(
             stdin_data={
                 "sessionId": self.sid,
                 "tool_name": "Agent",
-                "tool_input": {"subagent_type": "code-validator"},
+                "tool_input": {"subagent_type": "impl-validator"},
                 "tool_response": {"result": {"text": prose}, "meta": {"n": 1}},
             },
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertTrue(expected.exists(), msg="nested dict 도 추출돼야 함")
         self.assertEqual(expected.read_text(encoding="utf-8"), prose)
 
     def test_robust_extraction_value_key(self) -> None:
         """`value` 키 변형 — 일부 SDK 가 사용."""
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         prose = "## 결론\nPASS\n"
         rc = handle_posttooluse_agent(
             stdin_data={
                 "sessionId": self.sid,
                 "tool_name": "Agent",
-                "tool_input": {"subagent_type": "code-validator"},
+                "tool_input": {"subagent_type": "impl-validator"},
                 "tool_response": {"value": prose},
             },
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "code-validator.md"
+        expected = session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "impl-validator.md"
         self.assertTrue(expected.exists())
 
     def test_unextractable_emits_diagnostic_stderr(self) -> None:
@@ -2964,14 +2965,14 @@ class PostToolUseAgentProseAutoStageTests(_PreToolBase):
         import io
         import contextlib
 
-        self._set_current_step("code-validator", None)
+        self._set_current_step("impl-validator", None)
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
             rc = handle_posttooluse_agent(
                 stdin_data={
                     "sessionId": self.sid,
                     "tool_name": "Agent",
-                    "tool_input": {"subagent_type": "code-validator"},
+                    "tool_input": {"subagent_type": "impl-validator"},
                     # text-like 키 (text/content/value/output) 전무 + 모든 값이 비-문자열
                     "tool_response": [{"type": "tool_result", "exit_code": 0}],
                 },
@@ -3147,7 +3148,7 @@ class StopHookGuardTests(unittest.TestCase):
             start_run(sid, rid, "impl", base_dir=base)
             steps_path = run_dir(sid, rid, base_dir=base) / ".steps.jsonl"
             steps_path.write_text(
-                json.dumps({"agent": "pr-reviewer", "mode": None}) + "\n",
+                json.dumps({"agent": "impl-validator", "mode": None}) + "\n",
                 encoding="utf-8",
             )
 
@@ -3174,10 +3175,10 @@ class StopHookGuardTests(unittest.TestCase):
             base = Path(td)
             update_live(sid, base_dir=base)
             start_run(sid, rid, "impl", base_dir=base)
-            prose_path = run_dir(sid, rid, base_dir=base) / "pr-reviewer.md"
+            prose_path = run_dir(sid, rid, base_dir=base) / "impl-validator.md"
             prose_path.write_text("ok", encoding="utf-8")
             ledger.append_step_completed(
-                sid, rid, "pr-reviewer", None, "PROSE_LOGGED", "ok", prose_path, base_dir=base)
+                sid, rid, "impl-validator", None, "PROSE_LOGGED", "ok", prose_path, base_dir=base)
             # finalize-run 흉내 — finalized_at 세팅, run_finished 는 없음
             live = read_live(sid, base_dir=base)
             slot = dict(live["active_runs"][rid])
@@ -3208,10 +3209,10 @@ class StopHookGuardTests(unittest.TestCase):
             base = Path(td)
             update_live(sid, base_dir=base)
             start_run(sid, rid, "impl", base_dir=base)
-            prose_path = run_dir(sid, rid, base_dir=base) / "pr-reviewer.md"
+            prose_path = run_dir(sid, rid, base_dir=base) / "impl-validator.md"
             prose_path.write_text("ok", encoding="utf-8")
             ledger.append_step_completed(
-                sid, rid, "pr-reviewer", None, "PROSE_LOGGED", "ok", prose_path, base_dir=base)
+                sid, rid, "impl-validator", None, "PROSE_LOGGED", "ok", prose_path, base_dir=base)
             ledger.append_event(sid, rid, "run_finished", base_dir=base)
             live = read_live(sid, base_dir=base)
             slot = dict(live["active_runs"][rid])
@@ -3303,19 +3304,19 @@ class StopHookContinuationSignalTests(unittest.TestCase):
         self.assertIn("PASS", payload["reason"])
 
     def test_pr_reviewer_terminal_skips(self):
-        # pr-reviewer 는 종료 agent — PASS/LGTM 박혀있어도 block 안 박음
-        self._write_prose("pr-reviewer", "LGTM — merge 권고")
+        # impl-validator 는 종료 agent — PASS/LGTM 박혀있어도 block 안 박음
+        self._write_prose("impl-validator", "LGTM — merge 권고")
         slot = self._slot()
-        result, stdout = self._invoke(slot=slot, last_agent="pr-reviewer")
+        result, stdout = self._invoke(slot=slot, last_agent="impl-validator")
         self.assertFalse(result)
         self.assertEqual(stdout, "")
 
     def test_pr_reviewer_blocks_when_acceptance_required(self):
-        # #722 — 마감 acceptance 대상 run 에서는 pr-reviewer 가 종료 agent 가 아니다.
-        self._write_prose("pr-reviewer", "LGTM — product acceptance 전 merge 금지")
+        # #722 — 마감 acceptance 대상 run 에서는 impl-validator 가 종료 agent 가 아니다.
+        self._write_prose("impl-validator", "LGTM — product acceptance 전 merge 금지")
         slot = self._slot()
         slot["acceptance_required"] = True
-        result, stdout = self._invoke(slot=slot, last_agent="pr-reviewer")
+        result, stdout = self._invoke(slot=slot, last_agent="impl-validator")
         self.assertTrue(result)
         payload = json.loads(stdout)
         self.assertEqual(payload["decision"], "block")
@@ -3323,7 +3324,7 @@ class StopHookContinuationSignalTests(unittest.TestCase):
         self.assertIn("LGTM", payload["reason"])
 
     def test_stop_hook_does_not_auto_end_run_before_required_acceptance(self):
-        # #722 — pr-reviewer 직후 메인 turn 이 멈춰도 acceptance 전 auto end-run 금지.
+        # #722 — impl-validator 직후 메인 turn 이 멈춰도 acceptance 전 auto end-run 금지.
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
 
@@ -3336,11 +3337,11 @@ class StopHookContinuationSignalTests(unittest.TestCase):
             base = Path(td)
             update_live(sid, base_dir=base)
             start_run(sid, rid, "impl", base_dir=base, acceptance_required=True)
-            prose_path = run_dir(sid, rid, base_dir=base) / "pr-reviewer.md"
+            prose_path = run_dir(sid, rid, base_dir=base) / "impl-validator.md"
             prose = "LGTM — product acceptance 전 merge 금지\n"
             prose_path.write_text(prose, encoding="utf-8")
             ledger.append_step_completed(
-                sid, rid, "pr-reviewer", None, "PROSE_LOGGED", prose, prose_path, base_dir=base)
+                sid, rid, "impl-validator", None, "PROSE_LOGGED", prose, prose_path, base_dir=base)
 
             live = read_live(sid, base_dir=base)
             slot = dict(live["active_runs"][rid])
@@ -3359,9 +3360,9 @@ class StopHookContinuationSignalTests(unittest.TestCase):
 
     def test_fail_enum_skips(self):
         # FAIL → 메인 사용자 위임 영역 — block 안 박음
-        self._write_prose("code-validator", "전반적 FAIL — 4 항목 위반")
+        self._write_prose("impl-validator", "전반적 FAIL — 4 항목 위반")
         slot = self._slot()
-        result, stdout = self._invoke(slot=slot, last_agent="code-validator")
+        result, stdout = self._invoke(slot=slot, last_agent="impl-validator")
         self.assertFalse(result)
         self.assertEqual(stdout, "")
 
@@ -3493,7 +3494,7 @@ class PostToolUseStagingDiagnosticsTests(_PreToolBase):
     def test_no_output_when_staging_ok_and_no_histogram(self) -> None:
         # current_step 정상 + staging 성공 + histogram 없음 → additionalContext 미출력.
         from harness.session_state import update_current_step
-        update_current_step(self.sid, self.rid, "code-validator", None, base_dir=self.base)
+        update_current_step(self.sid, self.rid, "impl-validator", None, base_dir=self.base)
         stdin = {
             "sessionId": self.sid,
             "tool_name": "Agent",

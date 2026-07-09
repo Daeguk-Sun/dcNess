@@ -119,7 +119,7 @@ def append_insight(
     """issue #396 — 메인 자율 인사이트 1줄 append. FIFO cap (가장 오래된 자동 제거).
 
     Args:
-        agent: subagent_type (engineer / code-validator / ...)
+        agent: subagent_type (engineer / impl-validator / ...)
         mode: optional mode (IMPL / POLISH / CODE_VALIDATION / ...)
         text: 자연어 한 줄. 줄바꿈 strip, 빈 텍스트면 noop.
         cwd: main repo root (worktree 자동 정규화).

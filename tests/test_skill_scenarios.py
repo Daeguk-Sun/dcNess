@@ -51,13 +51,13 @@ class SkillScenarioRegressionTests(unittest.TestCase):
 
     # ----- 시나리오 1 — /impl 메인 구현 + 격리 리뷰 -----
     def test_impl_uses_main_implementation_and_isolated_review(self) -> None:
-        """/impl keeps implementation on main and isolates only pr-reviewer."""
+        """/impl keeps implementation on main and isolates only impl-validator."""
         for needle in (
             "일반 `/impl` 구현 주체는 **항상 메인**",
             "격리되는 것은 review step",
             "일반 `/impl` 은 `test-engineer` / `engineer` / `build-worker` 를 구현자로 호출하지 않는다",
             "review provider",
-            "pr-reviewer",
+            "impl-validator",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_skill)
@@ -73,14 +73,14 @@ class SkillScenarioRegressionTests(unittest.TestCase):
                 self.assertIn(needle, self.impl_routing)
 
     def test_impl_loop_escalated_four_agent_sequence_keeps_order(self) -> None:
-        """/impl-loop 풀 4-agent escalation path preserves test → impl → validate → review.
+        """/impl-loop full escalation path preserves test → impl → merged validation.
 
-        4 단계 중 하나라도 빠지거나 순서가 바뀌면 false-clean 회귀(#431)로 직결된다.
+        구현 또는 merged validation 이 빠지거나 순서가 바뀌면 false-clean 회귀(#431)로 직결된다.
         """
-        # impl-loop 엔진 A — 4 단계가 이 순서로 + "모두 호출" 의무 키워드 보존.
+        # impl-loop 엔진 A — 단계가 이 순서로 + "모두 호출" 의무 키워드 보존.
         self.assertRegex(
             self.impl_loop_skill,
-            r"test-engineer.*engineer.*code-validator.*pr-reviewer",
+            r"test-engineer.*engineer.*impl-validator",
         )
         self.assertIn("모두 호출", self.impl_loop_skill)
 
@@ -139,7 +139,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         self.assertIn("false-clean", self.impl_skill)
 
     def test_impl_standard_main_path_keeps_pr_reviewer_gate(self) -> None:
-        """#851/#1019 — Standard main-owned path keeps the pr-reviewer gate."""
+        """#851/#1019 — Standard main-owned path keeps the impl-validator gate."""
         for needle in (
             "Standard 구현 경로 — 설계도 기반 구현",
             "구현은 여전히 메인이 직접 수행",
@@ -160,7 +160,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
             with self.subTest(relpath=relpath):
                 text = (ROOT / relpath).read_text(encoding="utf-8")
                 self.assertIn("메인", text)
-                self.assertIn("pr-reviewer", text)
+                self.assertIn("impl-validator", text)
 
     def test_impl_large_changes_use_reviewable_unit_commits(self) -> None:
         """#1019 follow-up — large /impl changes should be split for review."""

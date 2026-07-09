@@ -624,24 +624,24 @@ class CatastrophicRuleE2eTests(unittest.TestCase):
             f"기대 통과, stderr: {result.stderr}",
         )
 
-    def test_pr_reviewer_without_validator_blocks_e2e(self) -> None:
+    def test_impl_validator_after_engineer_output_passes_e2e(self) -> None:
         run_path = (
             self.cwd / ".claude" / "harness-state"
             / ".sessions" / self.sid / "runs" / self.rid
         )
-        # engineer 흔적은 있는데 validator 검증 없음
+        # #1020 — impl-validator is the merged read-only reviewer; there is no
+        # separate pre-review validator PASS gate before it.
         (run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
         result = _run_python_hook(
             "pretooluse-agent",
             {
                 "sessionId": self.sid,
-                "tool_input": {"subagent_type": "pr-reviewer", "mode": ""},
+                "tool_input": {"subagent_type": "impl-validator", "mode": ""},
             },
             self.cc_pid,
             cwd=self.cwd,
         )
-        self.assertEqual(result.returncode, 2)
-        self.assertIn("순서 차단 훅: pr-reviewer", result.stderr)
+        self.assertEqual(result.returncode, 0, f"stderr: {result.stderr}")
 
 if __name__ == "__main__":
     unittest.main()

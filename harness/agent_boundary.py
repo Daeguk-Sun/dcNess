@@ -95,8 +95,8 @@ DCNESS_INFRA_PATTERNS: tuple[str, ...] = (
 # 🔴 반드시 (agent == build-worker) AND (파일명 = build-{test,impl,validate,polish}.md)
 #    둘 다 좁힌다.
 #    넓게(임의 agent, 임의 .md) 열면 engineer 같은 agent 가 run_dir 에 module-architect.md /
-#    code-validator.md / architecture-validator.md 를 `PASS` 로 *위조* → `_has_pass` 가 신뢰 →
-#    catastrophic gate (pr-reviewer / engineer 게이트) 우회 (codex review P1). build-* 파일명은 어떤
+#    impl-validator.md / architecture-validator.md 를 `PASS` 로 *위조* → `_has_pass` 가 신뢰 →
+#    catastrophic gate (engineer 게이트) 우회 (codex review P1). build-* 파일명은 어떤
 #    gate 도 신뢰하지 않으므로 forge 불가.
 RUN_DIR_PROSE_ALLOW: tuple[str, ...] = (
     r'(^|/)\.claude/harness-state/\.sessions/[^/]+/runs/[^/]+/build-(test|impl|validate|polish)\.md$',
@@ -198,9 +198,8 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
         r'(^|/)\.dcness-work/reviews/',
     ),
     # 판정/검증 전용 agent — Write 0.
-    "code-validator": (),
+    "impl-validator": (),
     "architecture-validator": (),
-    "pr-reviewer": (),
     "product-acceptance": (),
     "plan-reviewer": (),
 }
@@ -693,8 +692,8 @@ def check_write_allowed(
     if allowed is None:
         # 미정의 agent — false positive 회피로 통과.
         return None
-    # write-zero agent (판정/검증 전용 — code-validator / pr-reviewer /
-    # architecture-validator / product-acceptance / plan-reviewer 의 빈 ALLOW) 는
+    # write-zero agent (판정/검증 전용 — impl-validator / architecture-validator /
+    # product-acceptance / plan-reviewer 의 빈 ALLOW) 는
     # 프로젝트 add 로도 write 를 열 수 없다 (#696 codex P2). "검증자는 자기가 검증하는
     # 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는
     # 경계다 — add 로 mutation agent 로 승격시키면 gate forge 위험. 이슈가 "프로젝트

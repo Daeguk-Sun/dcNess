@@ -26,13 +26,13 @@ class AgentOperabilityContractTests(unittest.TestCase):
             ROOT / "docs" / "plugin" / "agents" / "system-architect" / "system-architect-agent.md"
         ).read_text(encoding="utf-8")
         self.pr_reviewer = (
-            ROOT / "docs" / "plugin" / "agents" / "pr-reviewer" / "pr-reviewer-agent.md"
+            ROOT / "docs" / "plugin" / "agents" / "impl-validator" / "impl-validator-agent.md"
         ).read_text(encoding="utf-8")
-        self.pr_review_axes = (
-            ROOT / "docs" / "plugin" / "agents" / "pr-reviewer" / "references" / "review-axes.md"
+        self.impl_validator_classes = (
+            ROOT / "docs" / "plugin" / "agents" / "impl-validator" / "references" / "finding-classes.md"
         ).read_text(encoding="utf-8")
         self.codex_pr_reviewer = (
-            ROOT / "codex" / "skills" / "dcness-pr-reviewer" / "SKILL.md"
+            ROOT / "codex" / "skills" / "dcness-impl-validator" / "SKILL.md"
         ).read_text(encoding="utf-8")
         self.architecture_validator = (
             ROOT
@@ -117,7 +117,7 @@ class AgentOperabilityContractTests(unittest.TestCase):
     def test_pr_reviewers_share_agent_operability_review_axis(self) -> None:
         for text_name, text in (
             ("claude", self.pr_reviewer),
-            ("axes", self.pr_review_axes),
+            ("classes", self.impl_validator_classes),
             ("codex", self.codex_pr_reviewer),
         ):
             for needle in (
@@ -135,7 +135,7 @@ class AgentOperabilityContractTests(unittest.TestCase):
     def test_pr_reviewers_promote_owner_less_append_to_must_fix(self) -> None:
         for text_name, text in (
             ("claude", self.pr_reviewer),
-            ("axes", self.pr_review_axes),
+            ("classes", self.impl_validator_classes),
             ("codex", self.codex_pr_reviewer),
         ):
             for needle in (
@@ -152,7 +152,7 @@ class AgentOperabilityContractTests(unittest.TestCase):
     def test_pr_reviewers_do_not_accept_entrypoint_file_as_owner(self) -> None:
         for text_name, text in (
             ("claude", self.pr_reviewer),
-            ("axes", self.pr_review_axes),
+            ("classes", self.impl_validator_classes),
             ("codex", self.codex_pr_reviewer),
         ):
             for needle in (

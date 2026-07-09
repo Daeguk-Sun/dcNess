@@ -7,7 +7,7 @@
 
 분기 규칙은 권고다. hard safety gate 는 branch/PR/test/review/CI 와 기존 순서 차단 훅이 보존한다. 사용자는 구현 경로를 외우지 않고 `/impl <작업>`만 말하면 된다. impl 은 설계를 하지 않는다 — 설계도가 있으면 보고 구현만 하고, 없으면 concrete signal 로 메인이 직접 고칠 수 있는지 판단한다.
 
-일반 `/impl` 의 구현 주체는 항상 메인이다. `test-engineer` / `engineer` / `build-worker` 같은 구현 agent 는 일반 `/impl` 구현자로 호출하지 않는다. 격리되는 것은 review step 이며, `pr-reviewer` provider 만 local routing 으로 Claude sub-agent 또는 Codex headless wrapper 중 하나를 쓴다. deep task 파일을 headless story/epic runner 로 돌리는 흐름은 [`/impl-loop`](../impl-loop/SKILL.md) 의 영역이다.
+일반 `/impl` 의 구현 주체는 항상 메인이다. `test-engineer` / `engineer` / `build-worker` 같은 구현 agent 는 일반 `/impl` 구현자로 호출하지 않는다. 격리되는 것은 review step 이며, `impl-validator` provider 만 local routing 으로 Claude sub-agent 또는 Codex headless wrapper 중 하나를 쓴다. deep task 파일을 headless story/epic runner 로 돌리는 흐름은 [`/impl-loop`](../impl-loop/SKILL.md) 의 영역이다.
 
 ## 구현 경로 판정 그래프
 
@@ -21,7 +21,7 @@ flowchart TB
   UI -->|시각 구조 불변 / 목업 없이| DOC
   CDES1 --> DOC{"설계 산출물 있음?<br/>(머지된 impl 문서)"}
   CDES2 --> DOC
-  DOC -->|예| ST["Standard: 설계도 기반<br/>메인 구현 + pr-reviewer"]
+  DOC -->|예| ST["Standard: 설계도 기반<br/>메인 구현 + impl-validator"]
   DOC -->|아니오| HR{"high-risk trigger?"}
   HR -->|예| OUT["impl 밖 — 설계 선행: /spec 또는 /design"]
   HR -->|아니오| NL{"자연어뿐이고 concrete signal 0개?"}
@@ -29,7 +29,7 @@ flowchart TB
   NL -->|아니오| AM{"목표/범위/성공 기준 모호?"}
   AM -->|예| CL["명확화 또는 /spec"]
   AM -->|아니오| CS{"concrete signal + 즉시 구현 경계?"}
-  CS -->|예| LT["Lite: 메인 직접 구현 + pr-reviewer"]
+  CS -->|예| LT["Lite: 메인 직접 구현 + impl-validator"]
   CS -->|아니오| CL2["명확화 또는 /design 선행"]
   OUT -->|deep impl task 있음| IL["/impl-loop <task>"]
   OUT -->|설계도 산출| ST
@@ -75,19 +75,19 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 | 경로 | 다음 |
 |---|---|
 | issue-intake | `/to-issue` 등록 여부 확인 → 생성된 issue 번호로 `/impl` 재진입 |
-| Lite · 메인 직접 | 메인 직접 `test -> impl -> test pass` 후 `begin-run impl --lane lite` → `pr-reviewer` local diff |
-| Standard · 메인 직접 | `begin-run impl --design-doc <경로>` 기록 후 받은 설계도로 메인 직접 `test -> impl -> test pass` → `pr-reviewer` local diff |
+| Lite · 메인 직접 | 메인 직접 `test -> impl -> test pass` 후 `begin-run impl --lane lite` → `impl-validator` local diff |
+| Standard · 메인 직접 | `begin-run impl --design-doc <경로>` 기록 후 받은 설계도로 메인 직접 `test -> impl -> test pass` → `impl-validator` local diff |
 | high-risk → 설계 선행 | impl 밖 `/spec` / `/tech-review` / `/design` 선행. 산출된 설계도를 들고 Standard 재진입 |
 | deep impl task list | `/impl-loop <task>` story/epic headless runner 로 위임 |
 
-`code-validator` 는 일반 `/impl` 에서 호출하지 않는다. 검증 대상인 impl 계획 파일이 없기 때문이다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `pr-reviewer`, 단위 commit/PR, CI, false-clean 방지다.
+일반 `/impl` 도 `impl-validator` 를 호출한다. Lite 에서는 계획 파일이 없으므로 spec 렌즈를 끄고 quality 렌즈만 보며, Standard 에서는 설계 문서가 있으므로 spec 렌즈와 quality 렌즈를 모두 본다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.
 
 ## 결론 → 다음 호출
 
 | 단계 | 결론 → 다음 |
 |---|---|
-| Lite `pr-reviewer` | `PASS` → commit/PR/CI · `FAIL` → 메인 root-cause 수정 + test 재통과 + pr-reviewer 재호출(≤3) |
-| Standard `pr-reviewer` | `PASS` → commit/PR/CI · `FAIL` → 메인 root-cause 수정 + test 재통과 + pr-reviewer 재호출(≤3) |
+| Lite `impl-validator` | `PASS` → commit/PR/CI · `FAIL`(`[quality-gap]`) → 메인 root-cause 수정 + test 재통과 + impl-validator 재호출(≤3) |
+| Standard `impl-validator` | `PASS` → commit/PR/CI · `FAIL`(`[spec-gap]` 포함) → 메인 로직 수정 · `FAIL`(`[quality-gap]`만) → 메인 polish 수정 · 이후 test 재통과 + impl-validator 재호출(≤3) |
 | issue-intake | 사용자 OK → `/to-issue` 후 issue 번호 기준 재진입 · 거부 → 명확화 또는 명시적 Lite 진행 |
 | outside-design | 설계 산출물 확보 → Standard 재진입 · deep task list 있음 → `/impl-loop` |
 
@@ -95,8 +95,8 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 
 | 경로 | 한도 | 초과 시 |
 |---|---|---|
-| Lite pr-reviewer FAIL → 메인 root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
-| Standard pr-reviewer FAIL → 메인 root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
+| Lite impl-validator FAIL(`[quality-gap]`) → 메인 root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
+| Standard impl-validator FAIL(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
 | SPEC_GAP / 설계 부족 → 설계 선행 | 1 | `/design` 또는 사용자 |
 
 finding 수용 원칙은 `/impl-loop` 와 같다. 같은 영역 finding 이 반복되면 줄 단위 점 패치가 아니라 root cause 를 재검토한다.
@@ -116,6 +116,6 @@ finding 수용 원칙은 `/impl-loop` 와 같다. 같은 영역 finding 이 반�
 
 이 판정은 진입 시점뿐 아니라 **구현 도중** 위 신호가 뒤늦게 드러난 경우에도 같다. 이미 Lite/Standard 로 시작했더라도 무리하게 계속 진행하지 않고, 사용자에게 구체 신호와 영향 범위를 보고한 뒤 설계 선행 또는 Standard 로 승격한다. 승격은 ceremony(설계·planning) 크기를 올리는 것이지 PR/test/review/CI safety gate 를 약화하는 근거가 아니다([`workflow-router.md`](../../docs/plugin/workflow-router.md) — risk 는 escalation·ceremony sizing 근거). concrete signal 없이 low-risk 작업을 Standard 로 끌어올리지는 않는다.
 
-## pr-reviewer provider
+## impl-validator provider
 
-`pr-reviewer` 가 Claude 로 돌든 Codex 로 분기되든 `/impl` 의 단계 이름은 `pr-reviewer` 하나다. Codex companion 같은 별도 공개 review command 를 만들지 않는다. review provider 는 격리 검토 구현 방식일 뿐, 구현 주체를 바꾸는 신호가 아니다.
+`impl-validator` 가 Claude 로 돌든 Codex 로 분기되든 `/impl` 의 단계 이름은 `impl-validator` 하나다. Codex companion 같은 별도 공개 review command 를 만들지 않는다. review provider 는 격리 검토 구현 방식일 뿐, 구현 주체를 바꾸는 신호가 아니다.

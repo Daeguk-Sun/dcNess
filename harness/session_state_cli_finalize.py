@@ -542,12 +542,12 @@ _YOLO_FALLBACKS: Dict[str, Dict[str, Optional[str]]] = {
         "hint": "SPEC_GAP cycle 진입 (architect SPEC_GAP) 또는 사용자 위임",
         "next_enum": "SPEC_GAP_RESOLVED",
     },
-    "code-validator:FAIL": {
+    "impl-validator:FAIL": {
         "action": "re-invoke-prev",
         "hint": "engineer 재호출 (FAIL 본문 보고) — attempt < 3",
         "next_enum": None,
     },
-    "code-validator:ESCALATE": {
+    "impl-validator:ESCALATE": {
         "action": "escalate-or-architect-spec-gap",
         "hint": "본문 사유 prose 확인: spec 부재면 architect SPEC_GAP, 그 외면 사용자 위임",
         "next_enum": None,
@@ -582,7 +582,7 @@ def _cli_auto_resolve(args: Any) -> int:
 
     catastrophic 룰 우회 X — yolo 는 skill-level 확인 prompt 자동화만.
     """
-    key = args.agent_mode  # 예: "ux-architect:UX_FLOW_ESCALATE" 또는 "code-validator:FAIL"
+    key = args.agent_mode  # 예: "ux-architect:UX_FLOW_ESCALATE" 또는 "impl-validator:FAIL"
     fallback = _YOLO_FALLBACKS.get(key)
     if fallback is None:
         # AMBIGUOUS 통합 케이스 — 어떤 agent 든 동일 권장

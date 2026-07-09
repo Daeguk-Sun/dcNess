@@ -23,7 +23,7 @@
 |---|---|---|---|---|
 | 중대 차단 | `catastrophic` | dcNess 가 코드로 막는 최소 위반 범주. 작업 순서와 접근 영역처럼 되돌리기 비용이 큰 경계만 뜻한다. | 중대 차단은 형식 위반이나 비용 경고를 자동으로 막지 않는다. | [`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일), [`hooks.md`](hooks.md) |
 | 순서 차단 훅 | `catastrophic gate`, `catastrophic-gate` | sub-agent 호출 순서와 진행 step 순서를 막는 Claude Code hook. 파일명은 `catastrophic-gate.sh` 를 유지한다. | engineer 는 설계 산출물 확보 후에만 순서 차단 훅을 통과한다. | [`hooks.md`](hooks.md#catastrophic-gatesh) |
-| 작업 순서 보호 | `catastrophic 시퀀스` | validator, engineer, reviewer 같은 단계의 선후관계를 보존하는 목적 설명. | 작업 순서 보호는 `pr-reviewer ← code-validator PASS` 순서를 보존한다. | [`hooks.md`](hooks.md#catastrophic-gatesh), [`loop-procedure.md`](loop-procedure.md) |
+| 작업 순서 보호 | `catastrophic 시퀀스` | validator, engineer, reviewer 같은 단계의 선후관계를 보존하는 목적 설명. | 작업 순서 보호는 engineer/build-worker 설계 사전 조건과 begin-step 순서를 보존한다. | [`hooks.md`](hooks.md#catastrophic-gatesh), [`loop-procedure.md`](loop-procedure.md) |
 | 외부 상태 변경 | `mutation`, `mutating` | repo 밖 또는 원격 상태를 바꾸는 행동. `git push`, PR 생성/머지/리뷰 제출, GitHub issue 생성/수정/닫기 등이 포함된다. | sub-agent 의 `gh pr merge` 는 외부 상태 변경이라 메인 영역이다. | [`harness/agent_boundary.py`](../../harness/agent_boundary.py), [`hooks.md`](hooks.md#file-guardsh) |
 | 외부 변경 차단 목록 | `mutation denylist` | sub-agent Bash/MCP 호출에서 흔한 외부 상태 변경 명령을 막는 실수 방지 목록. 보안 경계가 아니라 best-effort guard 다. | 외부 변경 차단 목록은 `git push` 와 `gh pr create` 를 차단한다. | [`harness/agent_boundary.py`](../../harness/agent_boundary.py), [`hooks.md`](hooks.md#file-guardsh) |
 | 공개 진입점 | `public surface`, `workflow surface` | 사용자가 `/` command 로 기억하고 호출하는 workflow 이름. | 기본 공개 진입점은 `/spec`, `/design`, `/impl`, `/acceptance` 다. | [`positioning.md`](positioning.md) |

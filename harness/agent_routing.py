@@ -45,9 +45,8 @@ __all__ = [
 CONFIG_VERSION = 3
 SUPPORTED_CONFIG_VERSIONS = (1, 2, 3)
 ROUTABLE_VALIDATION_AGENTS = (
-    "code-validator",
+    "impl-validator",
     "architecture-validator",
-    "pr-reviewer",
 )
 ROUTABLE_IMPLEMENTATION_AGENTS = (
     "test-engineer",
@@ -252,9 +251,8 @@ def enable_role_split_routing(*, path: Optional[Path] = None) -> Path:
     """Enable the recommended role-split routing preset."""
     cfg = load_routing(path=path)
     cfg["routes"] = {
-        "code-validator": "claude",
+        "impl-validator": "claude",
         "architecture-validator": "codex",
-        "pr-reviewer": "claude",
     }
     cfg["implementation_routes"] = {
         "test-engineer": "claude",

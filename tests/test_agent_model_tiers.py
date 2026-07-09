@@ -38,8 +38,7 @@ class AgentModelTierTests(unittest.TestCase):
             "ux-architect",
             "designer",
             "test-engineer",
-            "code-validator",
-            "pr-reviewer",
+            "impl-validator",
         }
 
         for agent in expected_sonnet:

@@ -255,12 +255,12 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "build-worker-deep",
             "docs/design-variants/<screen-id>.html",
             "build-worker",
-            "풀 4-agent",
+            "풀 경로",
             "확정본 승격",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_loop)
-        self.assertNotIn("풀 4-agent 엔진 한정", self.impl_loop)
+        self.assertNotIn("풀 경로 엔진 한정", self.impl_loop)
 
     def test_design_reference_contract_is_in_impl_template(self) -> None:
         self.assertIn("design: optional|required", self.impl_template)

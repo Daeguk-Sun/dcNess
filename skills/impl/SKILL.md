@@ -17,12 +17,12 @@ description: 구현 요청을 받아 메인이 직접 구현하고 격리 리뷰
 
 | 구현 경로 | 쓰는 경우 | 실행 |
 |---|---|---|
-| Lite | 설계 문서 없음 + concrete signal 충분 + high-risk 0개 + 구현 경계/테스트 기준 명확 | 메인 직접 구현 + 격리 `pr-reviewer` |
-| Standard | 설계 문서(경로)가 들어옴 | 메인이 받은 설계도를 충실히 구현 + 격리 `pr-reviewer` |
+| Lite | 설계 문서 없음 + concrete signal 충분 + high-risk 0개 + 구현 경계/테스트 기준 명확 | 메인 직접 구현 + 격리 `impl-validator` |
+| Standard | 설계 문서(경로)가 들어옴 | 메인이 받은 설계도를 충실히 구현 + 격리 `impl-validator` |
 
 구현 경로는 진입 시 미리 고르는 게 아니라 **설계도 유무**로 갈린다 — 설계 문서 경로가 들어오면 Standard, 없으면 Lite. 설계가 없는데 메인이 "설계 필요" 로 판단하면 impl *밖*으로 되돌려(빠꾸) 설계를 산출하고, 그 경로를 들고 Standard 로 (재)진입한다. impl 은 설계를 *어떻게* 만드는지 모른다 — "설계도 있다/없다" 만 본다. 단, 사용자가 "설계 건너뛰고 빨리 고쳐" 류로 지시하면 메인의 "Standard 판단" 보다 사용자 지시가 우선이라 곧장 Lite 다.
 
-일반 `/impl` 은 `test-engineer` / `engineer` / `build-worker` 를 구현자로 호출하지 않는다. `dcness-implementation-chain` 은 story/epic impl task 를 돌리는 `/impl-loop` headless runner 또는 사용자가 명시한 특수 실행용이다. CC 에서 `/impl` 을 호출하면 메인 Claude 가 구현하고, review provider 가 `codex` 로 설정돼 있으면 `pr-reviewer` 만 Codex headless 로 간다. Codex 에서 같은 흐름을 운용할 때도 구현은 현재 메인 agent 가 맡고, 상대 provider review 만 격리한다.
+일반 `/impl` 은 `test-engineer` / `engineer` / `build-worker` 를 구현자로 호출하지 않는다. `dcness-implementation-chain` 은 story/epic impl task 를 돌리는 `/impl-loop` headless runner 또는 사용자가 명시한 특수 실행용이다. CC 에서 `/impl` 을 호출하면 메인 Claude 가 구현하고, review provider 가 `codex` 로 설정돼 있으면 `impl-validator` 만 Codex headless 로 간다. Codex 에서 같은 흐름을 운용할 때도 구현은 현재 메인 agent 가 맡고, 상대 provider review 만 격리한다.
 
 **high-risk 는 impl 밖**: 새 product feature/epic, 외부 dependency/API/SDK/model 선택, auth/security/PII/compliance, migration/destructive change, public API breakage, cross-module/cross-story interface 같은 high-risk trigger 는 impl 의 관심사가 아니다. impl 진입 *전* [`workflow-router`](../../docs/plugin/workflow-router.md) 가 이를 설계 선행(`/spec`·`/design`)으로 보내고, 설계도 확보 후 그 경로로 Standard 진입한다.
 
@@ -30,9 +30,9 @@ concrete signal: 파일 path, 함수/클래스/symbol, 이미 분류·승인된 
 
 ## Loop
 
-- **Lite 구현 경로 — 메인 직접**: 코드/문서 변경은 메인이 수행하고, review step 만 `begin-run impl` 안에서 `pr-reviewer` 로 기록한다. `code-validator` 는 호출하지 않는다.
+- **Lite 구현 경로 — 메인 직접**: 코드/문서 변경은 메인이 수행하고, review step 은 `begin-run impl` 안에서 `impl-validator` 로 기록한다. 계획 파일이 없으므로 spec 렌즈는 끄고 quality 렌즈만 본다.
 - **Standard 구현 경로 — 메인 직접**: `begin-run impl --design-doc <경로>` 로 설계 문서를 기록한 뒤 메인이 구현한다. 설계 문서는 boundary pre-flight 입력과 review 근거로 쓰며, 구현 주체를 바꾸는 신호가 아니다.
-- **Review**: `pr-reviewer` 는 read-only provider 분기 대상이다. `claude` 면 sub-agent, `codex` 면 headless wrapper 로 local diff 를 검토한다. PASS 전 commit/PR 로 가지 않는다.
+- **Review**: `impl-validator` 는 read-only provider 분기 대상이다. `claude` 면 sub-agent, `codex` 면 headless wrapper 로 local diff 를 검토한다. PASS 전 commit/PR 로 가지 않는다.
 - **high-risk → impl 밖**: high-risk trigger 가 있으면 impl 이 직접 처리하지 않는다. impl 진입 *전* 분기 규칙([`workflow-router`](../../docs/plugin/workflow-router.md))이 설계 선행(`/spec`·`/design`)으로 보내고, deep impl task 파일이 이미 있으면 `/impl-loop <task>` 로 위임한다.
 
 ## Step 0 — 실존 검증
@@ -160,7 +160,7 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 
 ## Sub-agent prompt 작성 checkpoint (#780)
 
-`pr-reviewer` review 를 격리 provider 로 호출하면 `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
+`impl-validator` review 를 격리 provider 로 호출하면 `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
 - **대상 + 읽을 진본**: 이슈·설계도·task 파일·diff 등 agent 가 자체 read 할 SSOT 포인터만 둔다. 이미 진본에 있는 수용 기준·인터페이스·구현 결정을 prompt 에 재나열하지 않는다.
 - **worktree**: worktree 활성 시 worktree 절대경로를 넣는다. main repo 절대경로를 worktree 경로처럼 넘기지 않는다.
@@ -188,15 +188,16 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
    - 프로젝트에 실제 존재하는 명령만 실행한다.
    - lint/build/test 단계가 없으면 skip 사유를 명시한다.
    - 하나라도 red 면 commit/PR 로 가지 않는다.
-5. `pr-reviewer` review
-   - `begin-run impl` → `begin-step pr-reviewer` 로 local diff 를 리뷰한다.
-   - provider 분기가 `codex` 이면 기존 `dcness-codex-validator pr-reviewer` wrapper 를 사용한다. 그래도 사용자-facing 단계 이름은 `pr-reviewer` 다.
+5. `impl-validator` review
+   - `begin-run impl` → `begin-step impl-validator` 로 local diff 를 리뷰한다.
+   - provider 분기가 `codex` 이면 기존 `dcness-codex-validator impl-validator` wrapper 를 사용한다. 그래도 사용자-facing 단계 이름은 `impl-validator` 다.
+   - Lite 는 quality 렌즈만, Standard 는 spec 렌즈 + quality 렌즈를 모두 사용한다.
    - review-only 다. 코드 수정은 메인이 한다.
    - `PASS` 전 commit/PR 로 가지 않는다.
 6. finding 수정 루프
    - 최대 3회.
    - finding 의 줄만 고치지 말고 왜 그 지적이 나왔는지 root cause 를 보고 같은 계열 결함을 함께 정리한다.
-   - 각 round 마다 lint/build/test 재통과 후 `pr-reviewer` 재호출.
+   - 각 round 마다 lint/build/test 재통과 후 `impl-validator` 재호출.
    - 3회 안에 수렴하지 않으면 남은 finding, follow-up 분리 후보, 보류/진행 판단 지점을 사용자에게 보고하고 멈춘다.
 7. 단위 commit + PR 생성
    - 의미 있는 단위로 commit 한다. hook 우회 금지.
@@ -207,7 +208,7 @@ Lite 는 `/impl-loop` 경량 모드가 아니다. impl 계획 파일 없이 메�
    - PR 생성 후 CI 를 확인한다.
    - 머지는 host repo 정책을 따른다. dcNess self 작업은 [`CLAUDE.md`](../../CLAUDE.md) 절차에 따라 `scripts/pr-finalize.sh` 로 진행한다. 사용자 승인 대기가 정책인 repo 에서는 임의 머지하지 않는다.
 
-메인 직접 경로에서 `code-validator` 를 호출하지 않는 이유: 검증 대상인 impl 계획 파일이 없다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, `pr-reviewer`, 단위 commit/PR, CI, false-clean 방지다.
+메인 직접 경로에서도 `impl-validator` 를 호출한다. Lite 는 검증 대상 impl 계획 파일이 없으므로 spec 렌즈를 비활성화하고 quality 렌즈만 적용한다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.
 
 ## Standard 구현 경로 — 설계도 기반 구현
 
@@ -230,7 +231,7 @@ high-risk trigger 가 있거나 사전 설계 합의가 필요한 작업은 impl
 
 ## Review Provider
 
-`pr-reviewer` 는 read-only validation provider 분기 대상이다. 메인은 호출 직전 provider 를 resolve 한다.
+`impl-validator` 는 read-only validation provider 분기 대상이다. 메인은 호출 직전 provider 를 resolve 한다.
 
 ```bash
 PLUGIN_ROOT=""
@@ -242,11 +243,11 @@ fi
 [ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
 HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
 
-PROVIDER=$("$HELPER" routing resolve pr-reviewer)
+PROVIDER=$("$HELPER" routing resolve impl-validator)
 if [ "$PROVIDER" = "codex" ]; then
-  "$PLUGIN_ROOT/scripts/dcness-codex-validator" pr-reviewer --prompt-file "$PROMPT_FILE"
+  "$PLUGIN_ROOT/scripts/dcness-codex-validator" impl-validator --prompt-file "$PROMPT_FILE"
 else
-  Agent(subagent_type="pr-reviewer", ...)
+  Agent(subagent_type="impl-validator", ...)
 fi
 ```
 

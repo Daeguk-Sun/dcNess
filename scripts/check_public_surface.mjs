@@ -20,11 +20,10 @@ const EXPECTED = {
   internalAgents: [
     'architecture-validator',
     'build-worker',
-    'code-validator',
+    'impl-validator',
     'designer',
     'engineer',
     'module-architect',
-    'pr-reviewer',
     'product-acceptance',
     'system-architect',
     'tech-reviewer',

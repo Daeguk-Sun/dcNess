@@ -46,7 +46,7 @@ flowchart TB
 
 Story acceptance 는 가볍게 AC / PR / test evidence 중심으로 돈다. 단, 핵심 AC는 단순 파일/테스트 존재가 아니라 동작 증거와 연결돼야 하며, 대상 사용자의 입력/진행 동선으로도 닫혀야 한다. mock-only green 과 사용자 동선 부적합은 gap 으로 분리한다. story마다 full product/security/performance audit 을 강제하지 않는다.
 
-Epic acceptance 는 PRD Must, cross-story gap, security/ops risk 를 포함한다. 여러 story가 합쳐질 때 생기는 흐름, 권한, 데이터, 운영 위험을 보며, PR/story 경계를 넘는 통합 동작과 사용자 동선 검증의 책임은 이 epic acceptance 에 있다. code-validator / pr-reviewer 가 PR diff 범위를 보는 동안, product-acceptance 는 story/epic 마감 경계에서 사용자 약속이 실제 동작 증거와 대상 사용자에게 맞는 진행 흐름으로 닫혔는지 확인한다.
+Epic acceptance 는 PRD Must, cross-story gap, security/ops risk 를 포함한다. 여러 story가 합쳐질 때 생기는 흐름, 권한, 데이터, 운영 위험을 보며, PR/story 경계를 넘는 통합 동작과 사용자 동선 검증의 책임은 이 epic acceptance 에 있다. impl-validator 가 merge candidate diff 를 보는 동안, product-acceptance 는 story/epic 마감 경계에서 사용자 약속이 실제 동작 증거와 대상 사용자에게 맞는 진행 흐름으로 닫혔는지 확인한다.
 
 ## 동작 증거 판정
 
@@ -118,4 +118,4 @@ acceptance gap issue 는 제품 검수 후속이다. 이미 기준 문서와 구
 
 - 사람 full E2E 검증은 MVP 범위 밖이다.
 - Lite `/impl` 단발 작업을 `/acceptance` 로 강제하지 않는다.
-- 기존 `code-validator`, `architecture-validator`, `pr-reviewer` 를 대체하지 않는다.
+- 기존 `impl-validator`, `architecture-validator` 를 대체하지 않는다.

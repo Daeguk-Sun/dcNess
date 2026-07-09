@@ -55,9 +55,9 @@ echo "[<entry>] run started: $RUN_ID"
 
 `<entry_point>` = 해당 skill 의 `## Loop` 의 `entry_point` 필드 (예: `impl`, `design`, `ux`). begin-run 동작: sid auto-detect + run_id 발급 + `live.json.active_runs` 슬롯 + `.by-pid-current-run/{cc_pid}` 씀.
 
-`--design-doc <path>` — 이 run 이 참조하는 **머지된 설계 문서**(impl task 문서) 경로. 설계가 별도 run 에서 머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 4-agent)에서 기록하면, engineer 게이트가 같은-run module-architect PASS 의 등가 사전 조건으로 인정한다 ([`hooks.md` 순서 차단 훅](hooks.md#catastrophic-gatesh)). `entry_point=impl` 전용이며, 설계 산출물 규약 경로(`docs/epics/**`)의 실존 `.md` 만 허용 — 아니면 begin-run 이 fail-fast 거부한다. 기록값은 resolve 된 절대경로(hook 프로세스와 cwd 가 달라도 안전). chain 의 다음 task 진입은 `next-task --design-doc <path>` 로 동일 기록.
+`--design-doc <path>` — 이 run 이 참조하는 **머지된 설계 문서**(impl task 문서) 경로. 설계가 별도 run 에서 머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 경로)에서 기록하면, engineer 게이트가 같은-run module-architect PASS 의 등가 사전 조건으로 인정한다 ([`hooks.md` 순서 차단 훅](hooks.md#catastrophic-gatesh)). `entry_point=impl` 전용이며, 설계 산출물 규약 경로(`docs/epics/**`)의 실존 `.md` 만 허용 — 아니면 begin-run 이 fail-fast 거부한다. 기록값은 resolve 된 절대경로(hook 프로세스와 cwd 가 달라도 안전). chain 의 다음 task 진입은 `next-task --design-doc <path>` 로 동일 기록.
 
-`--acceptance-required` — story/epic 마감 task 처럼 `pr-reviewer` 뒤 inline `product-acceptance` 를 거쳐야 run 이 정상 종료되는 경우에만 기록한다. Stop hook 은 이 marker 가 있는 `entry_point=impl` run 에서 `pr-reviewer` 를 종료 agent 로 취급하지 않고 product-acceptance 진입 turn 을 재발화한다. 중간 task / `--no-acceptance` run / verify-only run 은 이 플래그를 주지 않는다. chain 의 다음 task 진입은 `next-task --acceptance-required` 로 동일 기록한다.
+`--acceptance-required` — story/epic 마감 task 처럼 `impl-validator` 뒤 inline `product-acceptance` 를 거쳐야 run 이 정상 종료되는 경우에만 기록한다. Stop hook 은 이 marker 가 있는 `entry_point=impl` run 에서 `impl-validator` 를 종료 agent 로 취급하지 않고 product-acceptance 진입 turn 을 재발화한다. 중간 task / `--no-acceptance` run / verify-only run 은 이 플래그를 주지 않는다. chain 의 다음 task 진입은 `next-task --acceptance-required` 로 동일 기록한다.
 
 > `/impl-loop` 의 **chain 모드(N task)** 는 자기 run 을 갖지 않는 driver 다 — `impl-task-loop × N` 이므로 각 task 가 독립 `begin-run impl` … `end-run` run 1개씩 (N task = N run = N review.md). **single 모드(1 task)** 는 `impl` entry_point 로 run 1개. 자세히 = [`/impl-loop`](../../skills/impl-loop/SKILL.md).
 
@@ -97,7 +97,7 @@ active run(`entry_point=design|impl|ux`) 안에서 `begin-step` 없이 `Agent` �
 
 메인이 prose를 직접 Write 할 필요 없음 — PostToolUse Agent hook 이 sub 종료 시 `tool_response.text` 에서 prose 를 자동으로 `<run_dir>/<agent>[-<mode>].md` 에 저장하고 `live.json.current_step.prose_file` 에 경로 기록. `end-step` 이 이 경로를 자동 읽는다.
 
-**validation provider 분기 (local opt-in)**: `code-validator` / `architecture-validator` / `pr-reviewer` 는 호출 직전 provider 를 resolve 한다.
+**validation provider 분기 (local opt-in)**: `impl-validator` / `architecture-validator` 는 호출 직전 provider 를 resolve 한다.
 
 ```bash
 PLUGIN_ROOT=""
@@ -268,7 +268,7 @@ phase prose 실제 기록 디렉토리 = `dcness-helper run-dir` 이 출력하�
 |---|---|---|
 | `TESTS_FAIL` → engineer 재시도 | 직전 engineer IMPL task | `TaskUpdate(<task>, in_progress)` |
 | `FAIL` → engineer POLISH | 직전 engineer IMPL task | `TaskUpdate(<task>, in_progress)` |
-| POLISH 후 pr-reviewer 재실행 | 직전 pr-reviewer task | `TaskUpdate(<task>, in_progress)` |
+| POLISH 후 impl-validator 재실행 | 직전 impl-validator task | `TaskUpdate(<task>, in_progress)` |
 | `IMPL_PARTIAL` → engineer 재호출 | 직전 engineer IMPL task | `TaskUpdate(<task>, in_progress)` |
 | architecture-validator final `FAIL: SYSTEM_BOUNDARY` → system checkpoint | 직전 system-architect task 또는 새 opt-in checkpoint task | `TaskUpdate(<task>, in_progress)` 또는 checkpoint task 생성 |
 | architecture-validator final `FAIL: TASK_LOCAL` → module-architect 재진입 | 직전 module-architect task | `TaskUpdate(<task>, in_progress)` |
@@ -290,7 +290,7 @@ TaskUpdate(<기존 task>, completed)
 
 ### finding 수용 원칙: 점 패치 금지, 근본 수정
 
-validator (`code-validator` / `architecture-validator` / `pr-reviewer`) 의 FAIL finding·수정 권고는 **"그 점/그 줄만 고쳐라"가 아니다.** 권고가 나온 *의미* = finding 이 가리키는 **근본 원인을 파악해 그 영역을 재설계하라** 이다.
+validator (`impl-validator` / `architecture-validator`) 의 FAIL finding·수정 권고는 **"그 점/그 줄만 고쳐라"가 아니다.** 권고가 나온 *의미* = finding 이 가리키는 **근본 원인을 파악해 그 영역을 재설계하라** 이다.
 
 - **메인 (relay)**: 재진입 prompt 에 finding 을 "이 점만 고쳐"로 좁게 전달 금지. finding 이 구조적 누수의 *증상*인지 먼저 판단 → 증상이면 "근본 원인 + 증상 패턴 전체"를 주고 "이 접근을 재설계하라"로 프레이밍한다. **같은 영역 finding 이 2회+ 반복 = 점 패치 신호 → 즉시 근본 재설계로 전환** (위 REDO 분류의 `REDO_DIFF` 와 정합 — 같은 접근 재시도가 아니라 접근 자체 교체). 해법 메커니즘은 메인이 처방하지 말 것 — 증상·사실관계만 넘기고 설계 소유는 producer agent 가 갖는다.
 - **producer (architect / engineer)**: finding 수신 시 점 패치 전에 "더 깊은 설계 문제의 신호인가?"를 먼저 본다. 신호면 점이 아니라 접근을 재설계한다. 재설계가 상위 산출물 (architecture / decisions / conventions / domain-model 등) 을 건드리면 직접 편집하지 말고 변경점을 prose 로 보고 → 메인이 상위 agent 로 분기 (각 `<skill>-routing.md` 의 retry 경로).
@@ -304,7 +304,7 @@ validator (`code-validator` / `architecture-validator` / `pr-reviewer`) 의 FAIL
 |---|---|---|
 | soft `*_ESCALATE` / `AMBIGUOUS` | 사용자 위임 | `auto-resolve` 적용 |
 | `SPEC_GAP_FOUND` | 사용자 위임 | module-architect (보강 케이스) cycle (≤2) |
-| `TESTS_FAIL` / code-validator `FAIL` | 재시도 (≤3) | 동일 |
+| `TESTS_FAIL` / impl-validator `FAIL` | 재시도 (≤3) | 동일 |
 | `IMPL_PARTIAL` | engineer 재호출 (split ≤3) | 동일 — 새 context window |
 | `FAIL` | 사용자 위임 | engineer POLISH (cycle ≤2) |
 | 승인-gated 산출물 최종 승인 (`/design`, `/ux`) | 사용자 승인 | 동일 (yolo 우회 X) |
@@ -326,7 +326,7 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 
 | 시점 | 내용 |
 |---|---|
-| code-validator (또는 build-worker) PASS 직후 | branch 새로 + `src/**` commit + push + PR create |
+| impl-validator (또는 build-worker) PASS 직후 | branch 새로 + `src/**` commit + push + PR create |
 | PR 생성 직후 | merge ([Step 7a](#step-7a-impl-task-loop)) |
 
 > `docs/.../impl/NN-*.md` 는 `/design` 산출물이 *미리 머지* 된 상태 — impl-task-loop 안에서 별도 commit X. fallback 모드 (정식 위치 부재) 는 module-architect 산출물을 본 PR src commit 에 같이 포함.
@@ -380,7 +380,7 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 2. step enum 이 해당 skill `## Loop` 의 advance/expected_steps 와 정합
 3. git 안전 가드: `git status --porcelain` 에 `.env` / `secrets.*` / `credentials.*` 없음 · unstaged + untracked ≤ 10 · submodule 변경 없음
 
-**verify-only 예외 (`/impl-loop`)**: `code-validator:VERIFY_ONLY` prose 가 `PASS`이고 prose 안에 검증 명령 exit 0 + `git status --porcelain` 변경 0 증거가 있으면, step 1개 + PR 0개도 clean 이다. 이 예외에서는 `pr-create.sh` 를 호출하지 않는다.
+**verify-only 예외 (`/impl-loop`)**: `impl-validator:VERIFY_ONLY` prose 가 `PASS`이고 prose 안에 검증 명령 exit 0 + `git status --porcelain` 변경 0 증거가 있으면, step 1개 + PR 0개도 clean 이다. 이 예외에서는 `pr-create.sh` 를 호출하지 않는다.
 
 ### 7a — Clean commit/PR
 
@@ -404,7 +404,7 @@ worktree 진입 시 [worktree 분기](#worktree-분기-action-루프-한정) 의
 📝 메모리 후보 (#149):
 - <주의사항 발생 사유의 회고 — feedback / project type 후보. 다음 세션 회귀 방지용>
 - <waste finding 의 반복 패턴 (예: ECHO_VIOLATION 2회+, MISSING_SELF_VERIFY 등)>
-- <pr-reviewer NICE TO HAVE 중 자주 등장하는 항목>
+- <impl-validator NICE TO HAVE 중 자주 등장하는 항목>
 - 후보 없음 시 "없음" 1줄
 
 커밋/PR 진행할까요? (branch → PR → regular merge 자동) + 메모리 저장 진행?
@@ -483,7 +483,7 @@ dcNess run 밖에서 호출되면 ledger 기록은 경고만 내고 PR 작업 �
 
 ## 순서 차단 훅 정합
 
-각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): code-validator → pr-reviewer 직전 PASS / engineer·build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물. `/design` greenfield thin bootstrap 이후 module-architect 진입과 opt-in system checkpoint 이후 module-architect 재진입은 별도 validator 게이트 없이 `skills/design/design-routing.md` 의 thin bootstrap / `SYSTEM_CHECKPOINT_REQUIRED` 흐름과 begin-step 물리 순서 검사로만 다룬다. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): engineer·build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물, 그리고 active run 의 begin-step/current-step 물리 순서. `/design` greenfield thin bootstrap 이후 module-architect 진입과 opt-in system checkpoint 이후 module-architect 재진입은 별도 validator 게이트 없이 `skills/design/design-routing.md` 의 thin bootstrap / `SYSTEM_CHECKPOINT_REQUIRED` 흐름과 begin-step 물리 순서 검사로만 다룬다. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 ---
 

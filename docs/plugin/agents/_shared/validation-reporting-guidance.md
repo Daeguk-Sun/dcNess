@@ -1,6 +1,6 @@
 # 검증 보고 가이드
 
-검증 agent 의 stdout prose 는 harness-state 에 저장되어 메인 오케스트레이터가 다음 행동을 고르는 run-local 판단 자료가 된다. 이 문서는 `code-validator`, `architecture-validator`, `pr-reviewer` 같은 검증/reviewer 계열이 실패, 중단, 재검증 결과를 짧고 판정 가능하게 쓰기 위한 shared agent 문서다.
+검증 agent 의 stdout prose 는 harness-state 에 저장되어 메인 오케스트레이터가 다음 행동을 고르는 run-local 판단 자료가 된다. 이 문서는 `impl-validator`, `architecture-validator` 같은 검증/reviewer 계열이 실패, 중단, 재검증 결과를 짧고 판정 가능하게 쓰기 위한 shared agent 문서다.
 
 dcNess 는 자유서술 방식이다. 아래 항목은 형식이 아니라 의미 요구다. heading 은 권장 카테고리일 뿐 필수 schema 가 아니다.
 

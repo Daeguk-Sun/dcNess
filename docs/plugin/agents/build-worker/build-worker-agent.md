@@ -44,7 +44,7 @@
 - 메인이 전달한 `<run_dir>`는 `.claude/harness-state/.sessions/<sid>/runs/<run-id>` 경로이며, phase prose를 실제로 쓰는 디렉토리도 이 경로다.
 - `phases/<RUN_ID>/` 같은 별도 worktree 경로를 만들거나 보고하지 않는다.
 - `build-test.md`, `build-impl.md`, `build-validate.md`를 쓴 뒤 `ls <run_dir>/build-test.md <run_dir>/build-impl.md <run_dir>/build-validate.md`로 3개 실존을 확인한다.
-- pr-reviewer finding 대응 등 별도 polish 기록이 필요하면 `build-polish.md`도 같은 `<run_dir>`에만 쓴다. 이 파일은 선택 기록이며 clean 게이트의 필수 3개에는 포함하지 않는다.
+- impl-validator finding 대응 등 별도 polish 기록이 필요하면 `build-polish.md`도 같은 `<run_dir>`에만 쓴다. 이 파일은 선택 기록이며 clean 게이트의 필수 3개에는 포함하지 않는다.
 - 하나라도 없으면 PASS를 내지 말고 즉시 재기록하거나 `TESTS_FAIL`/`IMPLEMENTATION_ESCALATE`로 보고한다.
 
 ## 고위험 task self-check
@@ -53,7 +53,7 @@
 
 - SSRF, path traversal, placeholder attribution, 실패를 성공처럼 반환하는 계약 위반을 테스트에 포함한다.
 - 외부 데이터가 누락되거나 실패했을 때 도메인 모델을 날조하지 않는다.
-- 이 범위를 build-worker 한 호출로 신뢰하기 어렵다고 판단하면 구현을 억지로 끝내지 말고 `IMPLEMENTATION_ESCALATE` 또는 `SPEC_GAP_FOUND`로 메인에게 풀 4-agent 승격을 요구한다.
+- 이 범위를 build-worker 한 호출로 신뢰하기 어렵다고 판단하면 구현을 억지로 끝내지 말고 `IMPLEMENTATION_ESCALATE` 또는 `SPEC_GAP_FOUND`로 메인에게 풀 경로 승격을 요구한다.
 
 ## 검증 실행 불가 시 — 정적 분석 PASS 금지
 
@@ -84,7 +84,7 @@
 ## 권한 경계
 
 - Write 허용: 코드와 테스트 경로, phase prose 파일
-- 금지: `docs/**` 수정, git 명령, PR 생성/머지, pr-reviewer 호출, 다른 sub-agent 호출
+- 금지: `docs/**` 수정, git 명령, PR 생성/머지, impl-validator 호출, 다른 sub-agent 호출
 - build-test phase에서는 구현 source를 읽지 않는다.
 - Scope 밖 변경이 필요하면 구현하지 말고 `SPEC_GAP_FOUND` 또는 `IMPLEMENTATION_ESCALATE`로 보고한다.
 

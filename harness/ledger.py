@@ -104,7 +104,7 @@ MANUAL_EVENT_TYPES = EVENT_TYPES - LIFECYCLE_EVENT_TYPES
 
 # step_completed 에서 validator pass/fail 을 *파생* 할 때 쓰는 validator agent 집합.
 _VALIDATOR_AGENTS = frozenset(
-    {"code-validator", "pr-reviewer", "architecture-validator", "product-acceptance"}
+    {"impl-validator", "architecture-validator", "product-acceptance"}
 )
 
 # phase 추론 — entry_point + 마지막 step agent 로 "지금 어느 단계인가" best-effort.
@@ -114,9 +114,8 @@ _PHASE_BY_AGENT = {
     "engineer": "implement",
     "build-impl": "implement",
     "build-worker": "implement",
-    "code-validator": "validate",
+    "impl-validator": "validate",
     "build-validate": "validate",
-    "pr-reviewer": "review",
     "system-architect": "design",
     "module-architect": "design",
     "architecture-validator": "design-review",
@@ -477,10 +476,8 @@ def infer_next_action(
         return "acceptance gap 후속 분기(`/impl`/`/design`/`/spec`/`/ux`/`/to-issue`) 예상"
     if not must_fix:
         return ""
-    if agent == "code-validator":
-        return "engineer 재호출 (FAIL 본문 반영) 예상"
-    if agent == "pr-reviewer":
-        return "지적 근본원인 수정 후 재리뷰 예상 (engineer 경유)"
+    if agent == "impl-validator":
+        return "finding-class에 따라 engineer:IMPL 또는 engineer:POLISH 재호출 예상"
     if agent == "architecture-validator":
         return "finding 분류로 architect 분기 예상 (engineer 단계 아님)"
     return ""

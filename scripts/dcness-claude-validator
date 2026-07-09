@@ -11,9 +11,8 @@ Usage:
   dcness-claude-validator <agent> [MODE] --prompt-file <file> [--project-root <dir>]
 
 Agents:
-  code-validator
+  impl-validator
   architecture-validator
-  pr-reviewer
 
 Options:
   --prompt-file, -p   File containing the caller prompt.
@@ -46,7 +45,7 @@ AGENT="$1"
 shift
 
 case "$AGENT" in
-  code-validator|architecture-validator|pr-reviewer) ;;
+  impl-validator|architecture-validator) ;;
   *)
     echo "[dcness-claude-validator] unsupported agent: $AGENT" >&2
     exit 2
