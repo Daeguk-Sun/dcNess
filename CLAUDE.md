@@ -182,6 +182,8 @@ PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality
 | `DCNESS_FORCE_ENABLE` | is-active 게이트 임시 활성 (디버깅) | 미설정 | X |
 | `DCNESS_CODEX_TIMEOUT` | `dcness-codex-validator` / `dcness-codex-worker` Codex attempt timeout | validator `600`, worker `1200` | X |
 | `DCNESS_CODEX_IDLE_TIMEOUT` | `dcness-codex-worker` Codex attempt 의 stdout/prose/workspace 무진행 조기 kill timeout | `180` | X |
+| `DCNESS_CLAUDE_TIMEOUT` | `dcness-claude-worker` Claude headless attempt timeout | `1200` | X |
+| `DCNESS_CLAUDE_IDLE_TIMEOUT` | `dcness-claude-worker` Claude attempt 의 stdout/stderr/workspace 무진행 조기 kill timeout (codex worker 와 패리티) | `180` | X |
 | `DCNESS_CODEX_MODEL` / `DCNESS_CODEX_EFFORT` | Codex headless wrapper model / reasoning effort opt-in override. 미설정 시 사용자 Codex config 상속 | 미설정 | X |
 | `DCNESS_PROJECTS_FILE` | `scripts/loop_diagnose.py` 의 활성 프로젝트 whitelist 경로 override (테스트용) | `~/.claude/plugins/data/dcness-dcness/projects.json` | X |
 | `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` | git hook telemetry 히트의 active run 귀속 (headless worker 컨텍스트) | 미설정 | X |

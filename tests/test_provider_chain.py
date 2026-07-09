@@ -618,6 +618,90 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             self.assertEqual(len(logs), 1)
             self.assertIn("idle timeout after 1s", logs[0].read_text(encoding="utf-8"))
 
+    def test_claude_worker_idle_timeout_kills_zero_progress_hang(self) -> None:
+        """#1028 — zero-output Claude headless hangs are killed before the full timeout."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            sid = "sid-claude-idle"
+            rid = "run-00badbad"
+            state_base = project / ".claude" / "harness-state"
+            start_run(sid, rid, "impl", base_dir=state_base, lane="lite")
+            update_current_step(sid, rid, "build-worker", None, base_dir=state_base)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement this task.\n", encoding="utf-8")
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                if [ "$1" = "--help" ]; then
+                  echo "Usage: claude"
+                  exit 0
+                fi
+                cat >/dev/null
+                sleep 5
+                """,
+            )
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_CLAUDE_IDLE_TIMEOUT": "1",
+                    "DCNESS_CLAUDE_TIMEOUT": "10",
+                    "DCNESS_RUN_ID": rid,
+                    "DCNESS_SESSION_ID": sid,
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+                timeout=5,
+            )
+
+            self.assertEqual(result.returncode, 124)
+            self.assertIn("failed before workspace mutation (exit 124)", result.stderr)
+            self.assertFalse(helper_args.exists())
+            logs = list(
+                (
+                    project
+                    / ".claude"
+                    / "harness-state"
+                    / ".sessions"
+                    / sid
+                    / "runs"
+                    / rid
+                    / "headless-logs"
+                ).glob("claude-headless-build-worker-*.log")
+            )
+            self.assertEqual(len(logs), 1)
+            self.assertIn("idle timeout after 1s", logs[0].read_text(encoding="utf-8"))
+
     def test_claude_worker_records_boundary_block_in_ledger_and_live_marker(self) -> None:
         self._assert_worker_records_boundary_block(
             wrapper=CLAUDE_WORKER,
