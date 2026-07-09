@@ -10,6 +10,23 @@
 
 ---
 
+## v0.20.0 (2026-07-10)
+
+**커밋 범위**: `v0.19.0..v0.20.0` (머지 PR 1개, #1029)
+**핵심 변경**: **헤드리스 `claude` 구현 worker 에 idle timeout 을 추가해 codex worker 와 패리티를 맞춘** minor 릴리즈. 무진행(stdout/stderr/workspace 무변화) 시 하드 타임아웃(1200s)까지 기다리지 않고 조기 종료한다.
+
+### 무엇이 바뀌나
+
+1. **`dcness-claude-worker` idle timeout — codex worker 패리티** ([#1029](https://github.com/Daeguk-Sun/dcNess/pull/1029) Closes [#1028](https://github.com/Daeguk-Sun/dcNess/issues/1028)) — 헤드리스 `claude` 구현 worker 가 하드 타임아웃(`DCNESS_CLAUDE_TIMEOUT` 기본 1200s)만 있어, 멈추거나 헛돌면 최대 20분 낭비 후에야 종료됐다. codex worker(`DCNESS_CODEX_IDLE_TIMEOUT`)와 동일한 폴링 루프로 `run_claude_once` 를 교체해 output/raw-log/git-status 무진행이 `DCNESS_CLAUDE_IDLE_TIMEOUT`(기본 180s) 이상 지속되면 `exit 124` 로 조기 종료한다. claude -p 의 progress 신호 차이로 인한 정상 세션 false-kill 을 완화하려 다중 신호를 함께 추적한다. correctness/boundary 강제(post-hoc git-diff 담당)와 무관한 순수 낭비 시간 방지다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 본 릴리즈는 worker timeout 파리티 단일 fix (guard/hook/agent/skill 미변경) 라 guard-efficacy·행동 eval 트리거 대상이 아니다.
+- Decide: 소멸 후보 없음. follow-up 없음.
+- Verify: `test_provider_chain` 13/13 (신규 idle 회귀 포함) 통과.
+
+---
+
 ## v0.19.0 (2026-07-09)
 
 **커밋 범위**: `v0.18.0..v0.19.0` (머지 PR 2개, #1018 · #1021)
