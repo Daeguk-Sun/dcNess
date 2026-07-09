@@ -1,6 +1,6 @@
 # 구현 경계 참고
 
-impl 문서는 planner 문서다. engineer에게 무엇을 만족해야 하는지 알려야 하지만, 내부 구현을 대신 써서는 안 된다.
+impl 문서는 planner 문서다. build-worker에게 무엇을 만족해야 하는지 알려야 하지만, 내부 구현을 대신 써서는 안 된다.
 
 ## 써야 하는 것
 
@@ -20,4 +20,4 @@ impl 문서는 planner 문서다. engineer에게 무엇을 만족해야 하는�
 
 ## 예외
 
-파서, 상태 머신, 정렬, 매칭처럼 알고리즘 자체가 contract인 경우에는 public behavior 흐름을 짧게 설명할 수 있다. 그래도 private 구조는 engineer 재량으로 남긴다.
+파서, 상태 머신, 정렬, 매칭처럼 알고리즘 자체가 contract인 경우에는 public behavior 흐름을 짧게 설명할 수 있다. 그래도 private 구조는 build-worker 재량으로 남긴다.

@@ -2,7 +2,7 @@
 
 ## 목적
 
-`/impl-loop` 경량 엔진에서 한 impl task의 테스트 작성, 구현, 자체 검증을 한 호출 안에서 끝낸다. 비용을 줄이되 검증 증거를 생략하지 않는다.
+`/impl-loop` 단일 구현 엔진으로 한 impl task의 테스트 작성, 구현, 자체 검증, 로컬 커밋을 한 호출 안에서 끝낸다. 비용을 줄이되 검증 증거와 커밋 가능 상태를 생략하지 않는다.
 
 ## 입력
 
@@ -28,7 +28,8 @@
 - 동작 증거: 핵심 AC 를 mock-only green 으로 닫지 않고, 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 중 AC 성격에 맞는 증거를 남겼는가. 기준 정의 = [`module-design-principles.md` 동작 증거 기준](../_shared/module-design-principles.md#동작-증거-기준).
 - 디자인 정합: 확정 목업이 있으면 레이아웃 계층, 상태, 토큰 대응이 `docs/design-variants/<screen-id>.html` 의 `data-node-id` 의도와 맞는가.
 - 신뢰 경계: 외부 HTTP, 파일/URL 입력, 보안, 도메인 invariant를 바꾸면 self-test가 놓친 실패 경로를 별도로 적발했는가.
-- handoff 품질: 메인이 PR과 커밋을 만들 수 있는 최소 정보를 남겼는가.
+- commit 품질: task가 green이 된 뒤 독립 검토 가능한 의미 단위로 로컬 커밋됐는가.
+- handoff 품질: 메인이 push/PR/merge를 소유할 수 있도록 commit sha, 검증 명령, 남은 판단 지점을 남겼는가.
 - 도구 경제성: 같은 파일과 같은 명령을 반복하지 않고 읽은 내용과 편집 계획을 재사용했는가.
 
 ## 작업 흐름
@@ -37,7 +38,8 @@
 2. build-impl: 허용된 코드 경로만 수정하고 GREEN을 확인한다.
 3. build-validate: 계획, 코드, 계약, lint 또는 프로젝트 표준 검증을 확인한다. 테스트/lint/build/typecheck/compile 게이트는 명령을 실제로 실행해 종료코드 기반으로 판정한다. 핵심 AC가 mock-only green이면 가능한 자동 동작 증거를 보강하고, 보강 불가 시 gap 으로 보고한다. 확정 목업이 있는 UI 작업은 구현 컴포넌트와 핵심 `data-node-id` 매핑을 대조하고, 목업 대비 의도적 차이가 있으면 이유와 영향을 보고한다.
 4. 각 phase 결과를 phase prose 파일로 남긴다.
-5. PASS일 때만 다음 task를 위한 한 줄 요약을 남긴다.
+5. PASS 조건을 만족하면 `git status`, `git diff --check`, 필요한 `git add`, `git commit`을 실행해 task 변경을 로컬 커밋으로 닫는다. 커밋은 의미 단위로 쪼개되 각 커밋은 hook을 통과하는 일관 상태여야 한다.
+6. PASS일 때만 다음 task를 위한 한 줄 요약과 commit sha를 남긴다.
 
 ## phase prose 경로
 
@@ -47,13 +49,22 @@
 - impl-validator finding 대응 등 별도 polish 기록이 필요하면 `build-polish.md`도 같은 `<run_dir>`에만 쓴다. 이 파일은 선택 기록이며 clean 게이트의 필수 3개에는 포함하지 않는다.
 - 하나라도 없으면 PASS를 내지 말고 즉시 재기록하거나 `TESTS_FAIL`/`IMPLEMENTATION_ESCALATE`로 보고한다.
 
-## 고위험 task self-check
+## 로컬 커밋 소유
 
-외부 HTTP/네트워크 어댑터, URL·파일·사용자 입력 같은 신뢰 경계 밖 입력 파싱, 인증/보안, PII, 도메인 invariant 변경은 build-worker self-grading drift가 가장 잘 나는 영역이다. 이 self-check 는 엔진 승격 기준과 별개이며, decision 으로 합의된 invariant 구현에도 적용된다. 이런 task를 맡은 경우:
+- build-worker 는 task green 이후 종료 전에 로컬 커밋을 만든다.
+- 허용 git 명령은 `git status`, `git diff`, `git diff --check`, `git add`, `git commit`, `git rev-parse HEAD` 정도의 로컬 작업이다.
+- 금지되는 외부 상태 변경은 계속 메인 영역이다: `git push`, `gh pr create`, `gh pr merge`, `gh issue` mutation, `gh api` mutation.
+- 커밋 메시지는 repo 의 git-spec 를 따른다. 모르면 임의 close keyword 를 넣지 말고 메인에게 확인 요청을 남긴다.
+- 커밋 후 `git status --short` 가 harness-state 외 clean 인지 확인한다. clean 이 아니면 PASS 하지 않는다.
+- commit sha 를 완료 보고와 `dcness-story-runner mark --status completed --commit <sha>` 인계에 쓸 수 있게 명시한다.
+
+## self-check
+
+외부 HTTP/네트워크 어댑터, URL·파일·사용자 입력 같은 신뢰 경계 밖 입력 파싱, 인증/보안, PII, 도메인 invariant 변경은 build-worker self-grading drift가 가장 잘 나는 영역이다. 이 self-check 는 build-worker 단일 실행 안에서도 적용되며, decision 으로 합의된 invariant 구현에도 적용된다. 이런 task를 맡은 경우:
 
 - SSRF, path traversal, placeholder attribution, 실패를 성공처럼 반환하는 계약 위반을 테스트에 포함한다.
 - 외부 데이터가 누락되거나 실패했을 때 도메인 모델을 날조하지 않는다.
-- 이 범위를 build-worker 한 호출로 신뢰하기 어렵다고 판단하면 구현을 억지로 끝내지 말고 `IMPLEMENTATION_ESCALATE` 또는 `SPEC_GAP_FOUND`로 메인에게 풀 경로 승격을 요구한다.
+- 이 범위를 build-worker 한 호출로 신뢰하기 어렵다고 판단하면 구현을 억지로 끝내지 말고 `IMPLEMENTATION_ESCALATE` 또는 `SPEC_GAP_FOUND`로 메인에게 design-doc 보강이나 사용자 판단을 요구한다.
 
 ## 검증 실행 불가 시 — 정적 분석 PASS 금지
 
@@ -77,6 +88,7 @@
 - RED와 GREEN 결과가 보고된다.
 - 변경 파일이 impl Scope와 권한 경계 안에 있다.
 - 자체 검증 결과가 실제 실행 증거(명령 + 종료코드)와 함께 `PASS` 또는 finding으로 남는다. 실행 불가였다면 `VALIDATION_BLOCKED` 로 보고했다.
+- green task 변경이 로컬 커밋으로 닫혔고 commit sha가 보고된다.
 - 핵심 AC별 동작 증거와 mock/stub/fake 사용 경계가 보고된다. TypeScript 등 정적 타입검사가 의미 있는 stack 에서 typecheck/compile 이 빠졌다면 품질 게이트 warning 또는 보강 필요성을 쓴다.
 - 확정 목업이 있는 UI 작업에서는 디자인 정합(레이아웃 계층·상태·토큰 대응)과 의도적 차이가 보고된다.
 - PR 본문 초안에 close keyword가 불확실하면 메인 검토 요청을 남긴다.
@@ -84,8 +96,10 @@
 ## 권한 경계
 
 - Write 허용: 코드와 테스트 경로, phase prose 파일
-- 금지: `docs/**` 수정, git 명령, PR 생성/머지, impl-validator 호출, 다른 sub-agent 호출
+- git 허용: task-local `status`/`diff`/`add`/`commit`/`rev-parse HEAD`
+- 금지: `docs/**` 수정, push, PR 생성/머지, issue mutation, impl-validator 호출, 다른 sub-agent 호출
 - build-test phase에서는 구현 source를 읽지 않는다.
+- 파일 부재만으로 `SPEC_GAP_FOUND` 하지 않는다. 필요한 파일이 Scope 안에서 새로 만들어질 구현 대상이면 생성하고, Scope 밖 계약 변경이 필요할 때만 gap 으로 보고한다.
 - Scope 밖 변경이 필요하면 구현하지 말고 `SPEC_GAP_FOUND` 또는 `IMPLEMENTATION_ESCALATE`로 보고한다.
 
 ### 병렬 peer 세션 경계

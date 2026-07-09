@@ -116,7 +116,7 @@ class AcceptanceSkillContractTests(unittest.TestCase):
 
     def test_lite_impl_is_not_forced_into_acceptance(self) -> None:
         text = self.skill.read_text(encoding="utf-8")
-        self.assertIn("Lite `/impl`", text)
+        self.assertIn("direct `/impl`", text)
         self.assertIn("강제하지 않는다", text)
 
     def test_acceptance_prefers_design_surface_and_valid_mermaid(self) -> None:

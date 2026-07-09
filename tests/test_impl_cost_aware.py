@@ -102,133 +102,53 @@ class TestPreReadCostAware(unittest.TestCase):
         self.assertIn("cost-aware", body)
 
 
-class TestImplLoopRiskPreview(unittest.TestCase):
-    """chain dry preview 가 task 별 risk/engine 판정 증거를 남기는지 검증."""
+class TestImplLoopSingleEngine(unittest.TestCase):
+    """#1023 — impl-loop uses a single build-worker engine and batch review."""
 
-    def test_chain_plan_table_has_risk_engine_reason_columns(self):
-        body = read_impl_skill()
-        self.assertIn(
-            "| # | 모듈 | impl 파일 | task_index | PR 트레일러 | risk | engine | reason | sub-step |",
-            body,
-        )
-        self.assertIn(
-            "|---|------|----------|-----------|-----------|------|--------|--------|----------|",
-            body,
-        )
-
-    def test_risk_reason_is_required_before_task_execution(self):
-        body = read_impl_skill()
-        self.assertIn("task1 진입 *전* 실행 계획", body)
-        # #703 — risk enum = frontmatter canonical 값 (normal/high/low), engine = 2agent/4agent.
-        self.assertIn("`risk` ∈ `normal`/`high`/`low`", body)
-        self.assertIn("`reason` 은 비워 두지 않는다", body)
-        self.assertIn("고위험 trigger 없음", body)
-
-    def test_risk_engine_read_from_frontmatter_first(self):
-        # #703 — dry preview / 진입 분기가 frontmatter risk/engine 을 추론보다 우선.
-        skill = read_impl_skill()
-        routing = read_impl_routing()
-        self.assertIn("frontmatter 에 `risk`/`engine`/`risk_reason` 이 유효한 단일 값", skill)
-        self.assertIn("frontmatter 우선", skill)
-        self.assertIn("`engine: 4agent` → 풀 경로", routing)
-
-    def test_placeholder_risk_metadata_treated_as_absent(self):
-        # #703 codex P1 — 템플릿 미작성 잔재(normal|high|low)를 부재로 간주, 추론 fallback.
-        skill = read_impl_skill()
-        routing = read_impl_routing()
-        self.assertIn("placeholder 가드", skill)
-        # 진입 분기 + dry preview 양쪽 모두 placeholder 가드 명시 (소비 지점 2곳).
-        self.assertGreaterEqual(skill.count("placeholder"), 2)
-        self.assertIn("placeholder", routing)
-
-    def test_unspecified_engine_defaults_to_build_worker_for_single_and_chain(self):
-        # #861 — 개수(single/chain)와 무관하게 engine 미지정 기본값은 build-worker.
+    def test_impl_loop_declares_single_build_worker_engine(self):
         skill = read_impl_skill()
         routing = read_impl_routing()
         for body in (skill, routing):
-            self.assertIn("frontmatter 부재 시 기본 엔진 = build-worker", body)
-            self.assertIn("개수와 무관", body)
-            self.assertIn("디폴트 근거", body)
-            self.assertIn("engine 미지정 + 고위험 trigger 없음", body)
-        self.assertNotIn("`single` → 풀 경로", skill)
-        self.assertNotIn("default = single", routing)
-
-    def test_high_risk_routes_to_full_agent_from_build_worker_default(self):
-        skill = read_impl_skill()
-        routing = read_impl_routing()
-        for body in (skill, routing):
-            self.assertIn("구현 시점 위험 trigger 는 build-worker 선호보다 우선", body)
-            self.assertIn("frontmatter `risk: high`", body)
-            self.assertIn("frontmatter `engine: 4agent`", body)
-            self.assertIn("사용자 엄정", body)
-            self.assertIn("풀 경로", body)
-            self.assertIn("reason", body)
-
-    def test_engine_risk_uses_implementation_time_criteria_not_design_router_table(self):
-        module_architect = read_module_architect()
-        impl_loop = read_impl_skill()
-        impl_loop_routing = read_impl_routing()
-        router = read_workflow_router()
-
-        for body in (module_architect, impl_loop, impl_loop_routing):
             with self.subTest(body=body[:60]):
-                self.assertIn("구현 시점 위험", body)
-                self.assertIn("workflow-router", body)
-                self.assertIn("설계 선행 판정 전용", body)
-                self.assertIn("엔진 판정", body)
-                self.assertIn("cross-module / cross-story interface", body)
-                self.assertIn("단독 승격 사유가 아니다", body)
-                self.assertIn("플랫폼 SDK 표준 사용", body)
-                self.assertIn("런타임 권한 요청", body)
-                self.assertIn("decision 으로 이미 합의", body)
-                for trigger in (
-                    "migration",
-                    "destructive",
-                    "auth",
-                    "security",
-                    "PII",
-                    "compliance",
-                    "public API breakage",
-                    "외부 HTTP",
-                    "네트워크 어댑터",
-                    "신뢰 경계 밖 입력 파싱",
-                    "신규 3rd-party",
-                    "외부 서비스",
-                ):
-                    self.assertIn(trigger, body)
+                self.assertIn("build-worker", body)
+                self.assertIn("impl-validator", body)
+                self.assertIn("product-acceptance", body)
+                self.assertNotIn("test-engineer", body)
+                self.assertNotIn("engineer:IMPL", body)
+                self.assertNotIn("2agent", body)
+                self.assertNotIn("4agent", body)
 
-        self.assertIn("high-risk trigger 표는 설계 선행 판정 전용", router)
-        self.assertIn("impl-task 엔진 판정", router)
-        self.assertIn("module-architect", router)
+    def test_batch_review_boundary_replaces_story_pr_stop(self):
+        skill = read_impl_skill()
+        for needle in (
+            "batch-review",
+            "ready_for_review",
+            "그 전에는 story PR 로 멈추지 않고 다음 task 로 진행",
+            "impl-validator review 출력은 merge candidate 경계에서 1회",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, skill)
 
-        impl = read_impl_skill_default()
-        impl_routing = read_impl_routing_default()
-        for body in (impl, impl_routing):
-            with self.subTest(general_impl=body[:60]):
-                self.assertIn("일반 `/impl`", body)
-                self.assertIn("구현 주체", body)
-                self.assertIn("메인", body)
-                self.assertNotIn("엔진 판정의 고위험 trigger", body)
-                self.assertNotIn("Standard · 경량 build-worker", body)
+    def test_impl_task_template_does_not_emit_engine_taxonomy(self):
+        template = (
+            ROOT / "docs" / "plugin" / "agents" / "module-architect" / "templates" / "impl-task.md"
+        ).read_text(encoding="utf-8")
+        for stale in ("risk:", "engine:", "risk_reason:", "depth:"):
+            self.assertNotIn(stale, template)
+        self.assertIn("depends_on:", template)
+
+    def test_module_architect_documents_depends_on_only_metadata(self):
+        module_architect = read_module_architect()
+        self.assertIn("frontmatter 에는 `depends_on` 만", module_architect)
+        self.assertIn("build-worker 하나", module_architect)
+        self.assertIn("`risk` / `engine` / `risk_reason` / `depth` 를 새로 쓰지 않는다", module_architect)
 
     def test_build_worker_self_check_keeps_invariant_drift_warning(self):
         body = read_build_worker()
         self.assertIn("도메인 invariant 변경은 build-worker self-grading drift", body)
-        self.assertIn("엔진 승격 기준과 별개", body)
+        self.assertIn("build-worker 단일 실행", body)
         self.assertIn("decision 으로 합의된 invariant 구현에도 적용", body)
-        self.assertNotIn("decision 합의 없는 도메인 invariant 변경은", body)
-
-    def test_engine_risk_examples_match_issue_acceptance(self):
-        module_architect = read_module_architect()
-        impl_loop = read_impl_skill()
-
-        for body in (module_architect, impl_loop):
-            with self.subTest(body=body[:60]):
-                self.assertIn("수직 슬라이스 + 플랫폼 SDK 표준 사용 + 런타임 권한 요청", body)
-                self.assertIn("engine: 2agent", body)
-                self.assertIn("destructive schema 변경", body)
-                self.assertIn("신뢰 경계 밖 입력 파싱", body)
-                self.assertIn("engine: 4agent", body)
+        self.assertNotIn("풀 경로 승격", body)
 
 
 if __name__ == "__main__":

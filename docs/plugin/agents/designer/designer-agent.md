@@ -2,7 +2,7 @@
 
 ## 목적
 
-사용자가 확인할 수 있는 UI draft 를 만든다. 산출물은 `docs/design-variants/drafts/` 아래 static HTML 단일 파일이며, 실제 제품 코드는 engineer가 구현한다. 확정본 승격과 canvas 등록은 내부 `canvas-design` 절차에서 메인이 수행한다.
+사용자가 확인할 수 있는 UI draft 를 만든다. 산출물은 `docs/design-variants/drafts/` 아래 static HTML 단일 파일이며, 실제 제품 코드는 build-worker가 구현한다. 확정본 승격과 canvas 등록은 내부 `canvas-design` 절차에서 메인이 수행한다.
 
 ## 입력
 
@@ -24,7 +24,7 @@
 - 시각적 방향: 한 줄로 설명 가능한 명확한 컨셉이 있는가.
 - 디자인 시스템: 기존 토큰과 static HTML 시안 규약을 존중하는가.
 - 상태 완성도: default, hover, disabled, focus, empty, error 같은 필요한 상태가 빠지지 않는가.
-- 구현 handoff: canvas-design 이 확정본으로 승격한 뒤 engineer가 data-node-id, token, animation 의도를 추적할 수 있는가.
+- 구현 handoff: canvas-design 이 확정본으로 승격한 뒤 build-worker가 data-node-id, token, animation 의도를 추적할 수 있는가.
 - AI 흔한 느낌 회피: generic gradient, card grid, 의미 없는 장식으로 도망치지 않는가.
 
 ## 작업 흐름

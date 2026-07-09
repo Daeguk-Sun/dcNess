@@ -1,6 +1,6 @@
 ---
 name: acceptance
-description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행하는 MVP skill. 사용자가 "/acceptance story", "/acceptance epic", "story 검수", "epic 검수", "AC 기준으로 완료됐는지 봐줘" 등을 말할 때 사용한다. full E2E 검증은 MVP 범위 밖이지만, 핵심 AC가 mock-only green이나 대상 사용자에게 부적합한 입력/진행 동선으로만 닫히는 것은 gap으로 분리한다. Lite `/impl` 단발 작업에 자동 강제하지 않는다.
+description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행하는 MVP skill. 사용자가 "/acceptance story", "/acceptance epic", "story 검수", "epic 검수", "AC 기준으로 완료됐는지 봐줘" 등을 말할 때 사용한다. full E2E 검증은 MVP 범위 밖이지만, 핵심 AC가 mock-only green이나 대상 사용자에게 부적합한 입력/진행 동선으로만 닫히는 것은 gap으로 분리한다. direct `/impl` 단발 작업에 자동 강제하지 않는다.
 ---
 
 # Acceptance Skill — story/epic 제품 검수 MVP
@@ -36,7 +36,7 @@ description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행�
 - GitHub issue 초안/등록 → `/to-issue`
 - release readiness, 배포, migration, 사람 full E2E 검증 → MVP 범위 밖. 후속 release/product acceptance 고도화에서 다룬다. 단, 자동 동작 증거 판정은 story/epic acceptance 범위다.
 
-Lite `/impl` 단발 작업은 불필요하게 `/acceptance` 로 강제하지 않는다. 파일/symbol이 명확한 작은 수정은 기존 test + impl-validator + CI gate 로 끝날 수 있다.
+direct `/impl` 단발 작업은 불필요하게 `/acceptance` 로 강제하지 않는다. 파일/symbol이 명확한 작은 수정은 기존 test + impl-validator + CI gate 로 끝날 수 있다.
 
 ## 동작 증거 원칙
 

@@ -140,8 +140,8 @@ class DesignSurfaceContractTests(unittest.TestCase):
         codex_validator = (
             ROOT / "codex" / "skills" / "dcness-architecture-validator" / "SKILL.md"
         ).read_text(encoding="utf-8")
-        test_engineer = (
-            ROOT / "docs" / "plugin" / "agents" / "test-engineer" / "test-engineer-agent.md"
+        build_worker = (
+            ROOT / "docs" / "plugin" / "agents" / "build-worker" / "build-worker-agent.md"
         ).read_text(encoding="utf-8")
 
         for needle in (
@@ -152,7 +152,7 @@ class DesignSurfaceContractTests(unittest.TestCase):
             "생략 판단 근거",
             "계약 표면 코드 SSOT 대조",
             "포트, 도메인 타입, 공개 entrypoint",
-            "risk / engine / depends_on",
+            "depends_on",
             "수정 허용",
             "규모 preflight",
             "target 1,500줄 / hard warning 2,000줄",
@@ -209,7 +209,7 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision", module_architect)
         self.assertIn("신규 epic-scope decision 기록은 자율", module_architect)
         self.assertIn("기존 전역 decision 변경은 `SYSTEM_CHECKPOINT_REQUIRED`", module_architect)
-        self.assertIn("파일 부재만으로 `SPEC_GAP_FOUND` 하지 않는다", test_engineer)
+        self.assertIn("파일 부재만으로 `SPEC_GAP_FOUND` 하지 않는다", build_worker)
 
         for text in (validator, codex_validator):
             with self.subTest(domain_validator=text[:60]):
