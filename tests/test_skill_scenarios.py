@@ -42,6 +42,9 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         self.build_worker = (
             ROOT / "docs" / "plugin" / "agents" / "build-worker" / "build-worker-agent.md"
         ).read_text(encoding="utf-8")
+        self.git_spec = (ROOT / "docs" / "plugin" / "git-spec.md").read_text(
+            encoding="utf-8"
+        )
         self.init_doc = (ROOT / "commands" / "init-dcness.md").read_text(
             encoding="utf-8"
         )
@@ -158,15 +161,60 @@ class SkillScenarioRegressionTests(unittest.TestCase):
                 self.assertIn("impl-validator", text)
 
     def test_impl_large_changes_use_reviewable_unit_commits(self) -> None:
-        """#1019 follow-up — large /impl changes should be split for review."""
+        """#1019/#1023 — every implementation path uses the git-spec commit split SSOT."""
         for needle in (
-            "변경량이 크면",
-            "리뷰어가 단계별로 따라갈 수 있게",
-            "독립적으로 검토 가능한 커밋",
+            "## 의미 단위 커밋 분할",
+            "모든 구현 흐름",
+            "`/impl` 메인 직접 구현",
+            "`/impl-loop` build-worker task local commit",
+            "각 commit 은 hook 을 통과",
+            "push, PR 생성, merge, issue mutation",
+        ):
+            with self.subTest(doc="git-spec", needle=needle):
+                self.assertIn(needle, self.git_spec)
+
+        for needle in (
+            "git-spec.md#의미-단위-커밋-분할",
+            "독립 검토 가능한 의미 단위",
             "각 커밋은 hook 을 통과",
         ):
-            with self.subTest(needle=needle):
+            with self.subTest(doc="impl", needle=needle):
                 self.assertIn(needle, self.impl_skill)
+            with self.subTest(doc="impl-loop", needle=needle):
+                self.assertIn(needle, self.impl_loop_skill)
+
+        self.assertIn("git-spec.md#의미-단위-커밋-분할", self.build_worker)
+
+    def test_impl_paths_preserve_post_task_begin_marker(self) -> None:
+        """#472 — after-task autonomous work must be separated from task ROI."""
+        for doc_name, doc in (
+            ("impl", self.impl_skill),
+            ("impl-loop", self.impl_loop_skill),
+            ("impl-loop-routing", self.impl_loop_routing),
+        ):
+            for needle in (
+                "post-task-begin",
+                "자율 작업",
+                "task ROI",
+                "#472",
+            ):
+                with self.subTest(doc=doc_name, needle=needle):
+                    self.assertIn(needle, doc)
+
+    def test_impl_loop_documents_multi_story_fix_pr_policy(self) -> None:
+        """#1023 — multi-story review fixes use one integrated fix PR, not rebase churn."""
+        for doc_name, doc in (
+            ("impl-loop", self.impl_loop_skill),
+            ("impl-loop-routing", self.impl_loop_routing),
+        ):
+            for needle in (
+                "story PR 이 2개 이상",
+                "downstream rebase 없이",
+                "통합 fix PR 1개",
+                "이미 머지된 뒤",
+            ):
+                with self.subTest(doc=doc_name, needle=needle):
+                    self.assertIn(needle, doc)
 
     def test_impl_loop_chain_confirms_when_issue_close_will_fire(self) -> None:
         """#851/#1019 — issue close 발동 story PR chain 은 1회 확인한다."""

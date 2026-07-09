@@ -44,7 +44,7 @@ canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-ste
 |---|---|
 | **build-worker** | `PASS` + local commit sha + clean status → `dcness-story-runner mark --status completed --commit <sha>` 후 `next-action` · `TESTS_FAIL` → build-worker rework(≤3) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` → 메인이 같은 worktree cwd 에서 worker 가 남긴 검증 명령 실행, exit 0 이면 PASS 와 동일, 실패면 build-worker rework(≤3), 메인도 실행 불가면 사용자 위임 · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `batch-review` → 메인 push + PR 생성 + impl-validator · `blocked` / `error` → retry 한도 내 재시도 또는 사용자 위임 · `done` → 완료 보고 |
-| **impl-validator** | merged diff `PASS` → close 발동 여부 확인 · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정 + commit append 또는 fix PR + 재리뷰(≤3) · `ESCALATE` → 사용자 |
+| **impl-validator** | merged diff `PASS` → close 발동 여부 확인 · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정. 단일 story PR 은 commit append, story PR 이 2개 이상이거나 이미 머지된 뒤라면 downstream rebase 없이 통합 fix PR 1개 + 재리뷰(≤3) · `ESCALATE` → 사용자 |
 | **product-acceptance** | `PASS` → merge 진행. story×N 과 epic 대상이면 모두 PASS 필요 · `FAIL` auto-fixable gap → build-worker rework + commit append + impl-validator 재리뷰 + acceptance 재검수(≤3) · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
 
 ## retry 한도
@@ -89,4 +89,4 @@ false-clean 의심 시 blocked. 예: phase prose 부재, commit sha 부재, 검�
 
 ## 후속
 
-clean → 5줄 요약 + 전체 완료 보고. error/blocked → 남은 finding, 실패 명령, 다음 판단 지점을 보고한다.
+clean → 5줄 요약 + 전체 완료 보고. 전체 완료 뒤 자율 작업(이슈 등록 / cleanup / 분석)으로 이어가면 진입 전 `post-task-begin` marker 를 호출해 task ROI 측정을 분리한다 (#472). error/blocked → 남은 finding, 실패 명령, 다음 판단 지점을 보고한다.

@@ -200,8 +200,8 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
    - 각 round 마다 lint/build/test 재통과 후 `impl-validator` 재호출.
    - 3회 안에 수렴하지 않으면 남은 finding, follow-up 분리 후보, 보류/진행 판단 지점을 사용자에게 보고하고 멈춘다.
 7. 단위 commit + PR 생성
-   - 의미 있는 단위로 commit 한다. hook 우회 금지.
-   - 변경량이 크면 리뷰어가 단계별로 따라갈 수 있게 테스트/결정적 helper/문서 surface/후속 cleanup 처럼 독립적으로 검토 가능한 커밋으로 쪼갠다. 단, 각 커밋은 hook 을 통과할 수 있는 일관된 상태여야 한다.
+   - 의미 단위 커밋 분할은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)이 SSOT 다. hook 우회 금지.
+   - `/impl` 메인 직접 구현도 독립 검토 가능한 의미 단위로 commit 을 쪼갠다. 각 커밋은 hook 을 통과할 수 있는 일관된 상태여야 한다.
    - PR body 는 template, 관련 issue trailer, 배경/문제, 근본원인, 작업내용, 결정근거, Test Plan 을 포함한다.
    - dcNess plugin 배포물 변경이면 PR body 에 배포 경로 검증을 적는다.
 8. CI / merge policy
@@ -258,6 +258,8 @@ Codex 분기는 review provider 구현일 뿐 별도 public workflow 가 아니�
 최종 보고에는 구현 경로, review provider, 변경 요약, 검증 명령 결과, review round 수, PR URL 을 포함한다. 실패 시에는 남은 finding 과 다음 판단 지점을 명확히 쓴다.
 
 helper 기반 `begin-run impl` 이 열린 경로에서는 대표 workflow 종료 시 `"$HELPER" end-run` 으로 review.md 를 만들며, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션이 포함된다. 이 섹션은 제안만 출력하고 CLAUDE.md/AGENTS.md 를 자동 수정하지 않는다.
+
+대표 구현 workflow 완료 후 메인이 이슈 등록, cleanup, 측정 같은 자율 작업으로 이어갈 때는 진입 전 `dcness-helper post-task-begin --reason "<사유>"` 를 호출한다. 이 marker 는 task ROI 측정 분리를 위한 #472 계약이다.
 
 ## 참조
 

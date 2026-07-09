@@ -104,8 +104,9 @@ retry 시 기존 sub-step 을 재활용하고 신규 TaskCreate 를 만들지 �
 2. `begin-step build-worker` 로 step 을 열고 implementation provider 를 resolve 한다. 기본 provider 는 `headless-chain` 이다.
 3. `dcness-implementation-chain build-worker --provider <provider> --prompt-file <file>` 를 실행한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다.
 4. build-worker 는 test → impl → self-validate 를 한 task 안에서 수행하고, gates 가 green 이면 로컬 task commit 을 만든다.
-5. build-worker 는 `git status`, `git diff`, `git diff --check`, `git add`, `git commit`, `git rev-parse HEAD` 만 사용할 수 있다. `git push`, `gh pr create`, `gh pr merge`, `gh issue` mutation 은 금지다.
-6. build-worker report 에 commit sha, 검증 명령, clean status 가 없으면 task clean 으로 보지 않는다.
+5. task local commit 은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)을 따른다. build-worker 는 한 task 안에서도 독립 검토 가능한 의미 단위로 쪼개되, 각 커밋은 hook 을 통과할 수 있는 일관 상태여야 한다.
+6. build-worker 는 `git status`, `git diff`, `git diff --check`, `git add`, `git commit`, `git rev-parse HEAD` 만 사용할 수 있다. `git push`, `gh pr create`, `gh pr merge`, `gh issue` mutation 은 금지다.
+7. build-worker report 에 commit sha, 검증 명령, clean status 가 없으면 task clean 으로 보지 않는다.
 
 provider wrapper:
 
@@ -172,7 +173,7 @@ issue close 가 실제 발동되는 story PR 또는 epic 마감 PR 을 포함한
 5. `PASS` 후 close 발동 여부에 따라 product-acceptance 를 수행한다.
 6. merge 는 `$PLUGIN_ROOT/scripts/pr-finalize.sh <PR>` 로 진행한다. 사용자 merge 결정이 필요한 repo 에서는 여기서 멈춘다.
 
-`impl-validator FAIL` 이면 메인이 root cause 를 고친 뒤 새 commit 을 PR branch 에 append 하거나, 이미 머지된 뒤라면 fix PR 을 만든다. 같은 finding 을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
+`impl-validator FAIL` 이면 메인이 root cause 를 고친 뒤 새 commit 을 PR branch 에 append 하거나, 이미 머지된 뒤라면 fix PR 을 만든다. 단일 story PR 은 해당 PR branch 에 append 한다. story PR 이 2개 이상인 run 에서 FAIL 보정이 필요하면 downstream rebase 없이 통합 fix PR 1개를 만든다. 같은 finding 을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
 
 ## 마감 acceptance
 
@@ -232,6 +233,8 @@ close 발동 PR 은 acceptance 줄을 `PR <#NNN> merged` 앞에 추가한다. �
 
 이 중 하나라도 없는데 clean 이라고 쓰면 false-clean → blocked.
 
+전체 완료 보고 뒤 메인이 이슈 등록, cleanup, 측정 같은 자율 작업으로 이어갈 때는 진입 전 `dcness-helper post-task-begin --reason "<사유>"` 를 호출한다. 이 marker 는 task ROI 측정 분리를 위한 #472 계약이다.
+
 ## 안티패턴
 
 - task N 개를 한 build-worker 호출에 묶어 한 번에 처리.
@@ -240,6 +243,7 @@ close 발동 PR 은 acceptance 줄을 `PR <#NNN> merged` 앞에 추가한다. �
 - impl-validator batch review 없이 PR 생성·머지.
 - story/epic close 발동 PR 에서 acceptance 생략 또는 FAIL 미해소 상태로 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 강행.
 - TaskCreate / TaskUpdate skip.
+- chain 전체 완료 후 자율 작업 (이슈 등록 / cleanup / 분석) 진입 시 `post-task-begin` marker 누락.
 
 ## 참조
 

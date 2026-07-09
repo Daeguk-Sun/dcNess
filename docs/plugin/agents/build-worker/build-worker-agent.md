@@ -28,7 +28,7 @@
 - 동작 증거: 핵심 AC 를 mock-only green 으로 닫지 않고, 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 중 AC 성격에 맞는 증거를 남겼는가. 기준 정의 = [`module-design-principles.md` 동작 증거 기준](../_shared/module-design-principles.md#동작-증거-기준).
 - 디자인 정합: 확정 목업이 있으면 레이아웃 계층, 상태, 토큰 대응이 `docs/design-variants/<screen-id>.html` 의 `data-node-id` 의도와 맞는가.
 - 신뢰 경계: 외부 HTTP, 파일/URL 입력, 보안, 도메인 invariant를 바꾸면 self-test가 놓친 실패 경로를 별도로 적발했는가.
-- commit 품질: task가 green이 된 뒤 독립 검토 가능한 의미 단위로 로컬 커밋됐는가.
+- commit 품질: task가 green이 된 뒤 [`git-spec.md#의미-단위-커밋-분할`](../../git-spec.md#의미-단위-커밋-분할)에 맞게 독립 검토 가능한 의미 단위로 로컬 커밋됐는가.
 - handoff 품질: 메인이 push/PR/merge를 소유할 수 있도록 commit sha, 검증 명령, 남은 판단 지점을 남겼는가.
 - 도구 경제성: 같은 파일과 같은 명령을 반복하지 않고 읽은 내용과 편집 계획을 재사용했는가.
 
@@ -38,7 +38,7 @@
 2. build-impl: 허용된 코드 경로만 수정하고 GREEN을 확인한다.
 3. build-validate: 계획, 코드, 계약, lint 또는 프로젝트 표준 검증을 확인한다. 테스트/lint/build/typecheck/compile 게이트는 명령을 실제로 실행해 종료코드 기반으로 판정한다. 핵심 AC가 mock-only green이면 가능한 자동 동작 증거를 보강하고, 보강 불가 시 gap 으로 보고한다. 확정 목업이 있는 UI 작업은 구현 컴포넌트와 핵심 `data-node-id` 매핑을 대조하고, 목업 대비 의도적 차이가 있으면 이유와 영향을 보고한다.
 4. 각 phase 결과를 phase prose 파일로 남긴다.
-5. PASS 조건을 만족하면 `git status`, `git diff --check`, 필요한 `git add`, `git commit`을 실행해 task 변경을 로컬 커밋으로 닫는다. 커밋은 의미 단위로 쪼개되 각 커밋은 hook을 통과하는 일관 상태여야 한다.
+5. PASS 조건을 만족하면 `git status`, `git diff --check`, 필요한 `git add`, `git commit`을 실행해 task 변경을 로컬 커밋으로 닫는다. 커밋은 git-spec 의 의미 단위 커밋 분할 규칙으로 쪼개되 각 커밋은 hook을 통과하는 일관 상태여야 한다.
 6. PASS일 때만 다음 task를 위한 한 줄 요약과 commit sha를 남긴다.
 
 ## phase prose 경로
@@ -54,7 +54,7 @@
 - build-worker 는 task green 이후 종료 전에 로컬 커밋을 만든다.
 - 허용 git 명령은 `git status`, `git diff`, `git diff --check`, `git add`, `git commit`, `git rev-parse HEAD` 정도의 로컬 작업이다.
 - 금지되는 외부 상태 변경은 계속 메인 영역이다: `git push`, `gh pr create`, `gh pr merge`, `gh issue` mutation, `gh api` mutation.
-- 커밋 메시지는 repo 의 git-spec 를 따른다. 모르면 임의 close keyword 를 넣지 말고 메인에게 확인 요청을 남긴다.
+- 커밋 메시지와 의미 단위 분할은 repo 의 git-spec 를 따른다. 모르면 임의 close keyword 를 넣지 말고 메인에게 확인 요청을 남긴다.
 - 커밋 후 `git status --short` 가 harness-state 외 clean 인지 확인한다. clean 이 아니면 PASS 하지 않는다.
 - commit sha 를 완료 보고와 `dcness-story-runner mark --status completed --commit <sha>` 인계에 쓸 수 있게 명시한다.
 
