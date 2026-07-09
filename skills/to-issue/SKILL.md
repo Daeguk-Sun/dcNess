@@ -24,6 +24,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 - Acceptance criteria 는 각각 독립적으로 검증 가능해야 한다.
 - 큰 계획을 여러 issue 로 나누는 경우 horizontal layer 가 아니라 end-to-end vertical slice 로 나눈다. 완료된 slice 는 독립적으로 demo 또는 검증 가능해야 한다.
 - parent issue 가 있더라도 `/to-issue` 는 parent issue 를 닫거나 임의 수정하지 않는다.
+- UI 성격 issue 는 기준 canvas / 목업 / flow 문서를 본문에 명시한다. 후속 `/impl` 이 이슈만 보고 UI 기준 확보 분기를 통과할 수 있어야 한다.
 
 ## 기준 파일
 
@@ -42,6 +43,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 - 현재 동작 또는 배경
 - 원하는 동작 또는 만들 결과
 - 사용자가 보게 되는 command, API, 문서 공개 노출 범위, config shape, type/field 이름 같은 안정적인 계약
+- UI 성격이면 기준 canvas / 목업 / flow 문서 또는 사용자 제공 이미지·스케치 링크. 시각 구조 불변이면 `목업 없이` 사유
 - 독립적으로 검증 가능한 acceptance criteria
 - IssueType: [`issue-fields.md`](issue-fields.md)의 `IssueType` 값
 - Priority: [`issue-fields.md`](issue-fields.md)의 `Priority` 값. 단발 등록은 기본값 없이 맥락에서 추론한다 ([`issue-fields.md`](issue-fields.md)의 Priority 추론 가이드).
@@ -73,12 +75,15 @@ gh issue list --state open --search "<핵심 키워드>" --json number,title,lab
 - HITL/AFK 분류가 맞는가?
 - IssueType label 값이 맞는가?
 - Priority 는 맥락에서 추론한다 — 매번 되묻지 않는다. 추론 신호가 상충하거나 사용자가 특정 우선순위를 의도한 정황이 있을 때만 확인한다.
+- UI 성격 issue 인데 기준 canvas / 목업 / flow 문서, 사용자 제공 이미지·스케치 링크, 또는 `목업 없이` 사유가 없는가? 없으면 등록 전 한 번만 확인한다.
 
 여러 issue 로 나눠야 하면 end-to-end vertical slice 로 나눠 각 slice 를 바로 등록하고, 분할 기준은 등록 안내에 함께 밝힌다.
 
 ### Step 3 — 본문 구성과 바로 등록
 
 [`templates/issue-brief.md`](templates/issue-brief.md)를 읽고, [`issue-fields.md`](issue-fields.md)의 선택값으로 `{{IssueType}}`, `{{Priority}}` 를 채운다. `{{Priority}}` 는 [`issue-fields.md`](issue-fields.md)의 Priority 추론 가이드로 맥락에서 추론해 채우고, default `major` 로 조용히 수렴시키지 않는다. 템플릿의 섹션 구조를 임의로 축약하지 않는다. 안정적인 계약을 모르면 추측하지 말고 비워두거나 명확화 질문으로 남긴다.
+
+UI 성격 issue 는 `Key interfaces / Contracts` 에 `UI 기준:` 항목을 둔다. 값은 `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, `docs/epics/.../ux-flow.md`, 사용자 제공 이미지·스케치 링크, 또는 `목업 없이(시각 구조 불변 사유=<reason>)` 중 하나다. "나중에 정함" 으로 등록하지 않는다.
 
 초안을 미리 보여주거나 승인을 기다리지 않는다. 추론한 IssueType/Priority 와 그에 대응하는 repo label 을 그대로 적용해 바로 등록한다. 사용자는 등록된 issue 를 GitHub web 에서 확인하고 수정 요청으로 교정한다.
 
