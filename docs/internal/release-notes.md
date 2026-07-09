@@ -10,6 +10,38 @@
 
 ---
 
+## v0.19.0 (2026-07-09)
+
+**커밋 범위**: `v0.18.0..v0.19.0` (머지 PR 2개, #1018 · #1021)
+**핵심 변경**: **기본 구현 진입점 `/impl` 을 경량화하고 `/impl-loop` 을 story 단위 결정적 runner 로 재편한** minor 릴리즈. (1) `/impl` 을 메인 직접 구현 + 격리 pr-reviewer 모델로 단순화해 내부 worker/headless 엔진 축을 외부 사용자에게서 숨기고, 자연어-only 요청은 `/to-issue` 등록 여부 확인으로 보내는 결정적 impl-preview helper 를 추가, (2) `/impl-loop` 에 task commit·ready-for-PR·story PR mark 상태를 관리하는 deterministic story-runner state helper 와 `scripts/dcness-story-runner` wrapper 를 추가하고 task commit + story PR 경계(code-validator/pr-reviewer 1회) 기준으로 문서를 정리, (3) 더 이상 쓰지 않는 compact-design surface 를 제거, (4) Codex headless worker 에 stdout/prose/git status 기반 idle timeout 을 추가, (5) no-trace 외부 활성 프로젝트가 in-place 구현 진입에서 generated TDD hook 미커밋으로 오차단되던 문제를 해소.
+
+### 무엇이 바뀌나
+
+1. **`/impl` 경량화 — 엔진 축 은폐 + 자연어-only preview** ([#1021](https://github.com/Daeguk-Sun/dcNess/pull/1021) Part of [#1019](https://github.com/Daeguk-Sun/dcNess/issues/1019)) — 기본 구현 진입점 `/impl` 이 일반 구현에서도 worker/headless 엔진 축을 노출하고 자연어-only 요청을 바로 구현으로 밀 수 있던 문제를 해소. `/impl` 을 메인 직접 구현 + 격리 pr-reviewer 모델로 정리해 내부 엔진 축을 외부 사용자에게서 숨기고, `harness/impl_preview.py` 결정적 helper 를 추가해 자연어-only 요청을 `/to-issue` 선등록(issue body 가 AC·히스토리 기준) 흐름으로 보낸다. 큰 `/impl` 변경은 리뷰 가능한 의미 단위 커밋으로 쪼갠다는 원칙을 추가했다.
+
+2. **`/impl-loop` story-runner 결정적 상태 모델** ([#1021](https://github.com/Daeguk-Sun/dcNess/pull/1021) Part of [#1019](https://github.com/Daeguk-Sun/dcNess/issues/1019)) — `/impl-loop` 이 task 마다 PR/review/pre-flight 를 반복하던 오래된 모델을 story 단위 runner 방향으로 재편. `harness/story_runner.py` deterministic state helper 와 `scripts/dcness-story-runner` executable wrapper 를 추가해 task commit, ready-for-PR, story PR mark 상태를 LLM 기억이 아니라 JSON state 로 결정하고, `/impl-loop` 문서를 task commit + story PR 경계(code-validator/pr-reviewer 1회) 기준으로 정리했다. `dcness-story-runner` 는 `/impl-loop` 내부 deterministic helper 로 새 public skill/command 는 아니다.
+
+3. **compact-design surface 제거** ([#1021](https://github.com/Daeguk-Sun/dcNess/pull/1021)) — 더 이상 쓰지 않는 `compact-design` SKILL 과 `compact-plan` 템플릿, 관련 문서·테스트 참조를 제거했다. `check_public_surface` / `check_design_artifact_structure` 및 문서 sync 테스트로 회귀 검증한다. 경량 모듈 설계 되돌림 목적지는 유지되던 잔재였고 새 product feature/epic 설계는 `/design` 이 담당한다.
+
+4. **Codex headless worker idle timeout** ([#1021](https://github.com/Daeguk-Sun/dcNess/pull/1021)) — headless worker 가 출력/파일 변화 없이 오래 멈추면 전체 wall-clock timeout 중심 판정이 idle 을 조기 감지하지 못하던 문제를 해소. `dcness-codex-worker` 에 stdout/prose/git status 기반 idle timeout(`DCNESS_CODEX_IDLE_TIMEOUT`, 기본 180초)을 추가하고 session_state prompt probe cache 를 보강했다.
+
+5. **no-trace 프로젝트 in-place TDD preflight 허용** ([#1018](https://github.com/Daeguk-Sun/dcNess/pull/1018) [#1017](https://github.com/Daeguk-Sun/dcNess/issues/1017)) — 0.18 impl pre-flight TDD 게이트가 generated TDD hook 파일의 Git 커밋을 항상 요구해, `.claude/`·`.dcness/`·`.codex/` 를 로컬 전용으로 두는 no-trace 외부 활성 프로젝트가 in-place 구현 진입에서 구조적으로 차단되던 문제를 해소. generated TDD hook 상태에 `linked_worktree`·`generated_files_commit_required` 를 추가하고 게이트 통과 조건을 `CC+Codex registered` 이며 `committed OR !commit_required` 로 조정했다. in-place 는 uncommitted 여도 디스크 실존·등록으로 통과하고, 새 checkout 으로 guard 전파가 필요한 linked worktree 의 missing/uncommitted hook 은 계속 차단한다.
+
+### 자기개선 점검 기록
+
+| 날짜 | 입력 | 판정 |
+|---|---|---|
+| 2026-07-09 | `python3.11 evals/guard_efficacy.py` (42/42) | 사용자 지시 빠른 minor 배포. 이번 diff 가 TDD pre-flight 게이트(#1018)·headless worker·order gate 인접 영역(`harness/tdd_hooks.py`·`harness/session_state.py`·`scripts/dcness-codex-worker`)을 건드려 결정적 guard-efficacy 를 재실행 — **42/42 PASS**, 회귀 없음. LLM 기반 행동 eval 은 이번 diff 가 결정적 gate/상태 helper 중심이라 각 머지 PR CI(pytest·static-quality·public-surface·cross-ref·index-map)로 검증됨 — 생략(advisory). loop_diagnose 심화 점검은 빠른 배포 지시로 생략. **소멸 후보 없음.** |
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `/impl` 경량화, `/impl-loop` story-runner 상태 모델, compact-design 제거, headless idle timeout, in-place TDD preflight 등 `skills/impl*/**`·`harness/**`·`scripts/**`·`docs/plugin/**`·`commands/init-dcness.md` 변경.
+- **`/impl` 사용 프로젝트** — 일반 구현에서 내부 worker/headless 엔진 축이 노출되지 않고, 자연어-only 요청은 바로 구현되지 않고 `/to-issue` 선등록 여부 확인으로 이어진다. 큰 변경은 의미 단위 커밋으로 쪼개진다.
+- **`/impl-loop` deep task 사용 프로젝트** — task commit + story PR 경계(code-validator/pr-reviewer 1회)로 정리되고, task 순서·resume·story PR 경계는 `dcness-story-runner` deterministic state 가 결정한다. `compact-design` 되돌림 경로는 더 이상 존재하지 않는다.
+- **`.claude`/`.dcness`/`.codex` 를 로컬 전용으로 두는 no-trace 프로젝트** — in-place 구현 진입 시 generated TDD hook 미커밋으로 오차단되지 않고 디스크 실존·등록으로 통과한다. linked worktree 의 미전파 hook 은 계속 차단된다.
+
+---
+
 ## v0.18.0 (2026-07-08)
 
 **커밋 범위**: `v0.17.0..v0.18.0` (머지 PR 4개, #1012 · #1013 · #1014 · #1015)
