@@ -122,7 +122,7 @@ grep -qxF '.claude/harness-state/' "$PROJECT_ROOT/.gitignore" || { printf '%s\n'
 
 ### Core Step 5 - Codex skill 배포와 provider routing 상태 확인
 
-`impl-validator` / `architecture-validator` 는 Codex read-only 또는 Claude 검증 실행으로 보낼 수 있다. `test-engineer` / `engineer` / `build-worker` 는 Claude 또는 headless-chain implementation 실행으로 보낼 수 있다. 사용자 repo 에 provider config 를 만들지 않는다. Validator wrapper 는 wrapper parent 의 `codex/skills/dcness-*` 원본을 먼저 prompt 에 주입하고, 필요하면 `CLAUDE_PLUGIN_ROOT` 를 plugin root fallback 으로 확인한다. `$CODEX_HOME/skills` 배포본이 원본과 다르면 stale copy 로 보고 무시하며, plugin 원본을 찾을 수 없을 때만 배포본으로 fallback 한다.
+`impl-validator` / `architecture-validator` 는 Codex read-only 또는 Claude 검증 실행으로 보낼 수 있다. `build-worker` 는 Claude 또는 headless-chain implementation 실행으로 보낼 수 있다. 사용자 repo 에 provider config 를 만들지 않는다. Validator wrapper 는 wrapper parent 의 `codex/skills/dcness-*` 원본을 먼저 prompt 에 주입하고, 필요하면 `CLAUDE_PLUGIN_ROOT` 를 plugin root fallback 으로 확인한다. `$CODEX_HOME/skills` 배포본이 원본과 다르면 stale copy 로 보고 무시하며, plugin 원본을 찾을 수 없을 때만 배포본으로 fallback 한다.
 
 ```bash
 CODEX_HOME="${CODEX_HOME:-$HOME/.codex}"
@@ -134,7 +134,7 @@ for DIR in dcness-impl-validator dcness-architecture-validator; do
 done
 ```
 
-Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bundle 의 role-split preset 은 `engineer/build-worker=headless-chain`, `test-engineer/impl-validator=claude`, `architecture-validator=codex` 이며, core completion 뒤 선택형 확장에서 `enable-role-split-routing` 으로만 적용한다.
+Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bundle 의 role-split preset 은 `build-worker=headless-chain`, `impl-validator=claude`, `architecture-validator=codex` 이며, core completion 뒤 선택형 확장에서 `enable-role-split-routing` 으로만 적용한다.
 
 ```bash
 "$HELPER" routing status
@@ -186,7 +186,7 @@ core 작업 뒤 `status` 를 재실행한다. FAIL 이 0 이면 INFO·NA 행과 
 기본 workflow:
 - /spec — PRD / Epic / Story / AC 정의
 - /design — product/technical design
-- /impl — 구현 진입 통합 (구현 경로: 설계도 유무 — Lite / Standard + 엔진 내부 판정)
+- /impl — 구현 진입 통합 (direct/design-doc 판정 + review provider)
 - /acceptance — story/epic 제품 검수 MVP
 
 support:
@@ -194,7 +194,7 @@ support:
 
 고급 workflow:
 - /tech-review — high-risk 설계 선행 기술 검증
-- /impl-loop — deep impl task 파일용 advanced runner
+- /impl-loop — story/epic impl task 파일용 build-worker runner
 
 유틸리티:
 - /ux — 구현 없이 목업과 흐름을 먼저 탐색
@@ -228,7 +228,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 - `.gitignore` 에 `.dcness-work/` 가 없으면 추천 ON. `.claude/harness-state/` 는 core activation 에서 이미 보장한다.
 - UI 흔적이 있어도 `docs/design-variants/` 는 기본 skip. 특히 단일 `app/page.tsx` 정도만으로 design kit 를 설치하지 않는다.
 - GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
-- Provider routing 추천 bundle 은 `enable-role-split-routing` 단일 entrypoint 로 역할 분리 preset 을 적용한다: `engineer/build-worker=headless-chain`, `test-engineer/impl-validator=claude`, `architecture-validator=codex`. 기존 활성 프로젝트가 추천 preset 만 소급 적용하려면 `"$HELPER" routing enable-role-split-routing` 뒤 `"$HELPER" routing doctor` 로 PASS 를 확인한다.
+- Provider routing 추천 bundle 은 `enable-role-split-routing` 단일 entrypoint 로 역할 분리 preset 을 적용한다: `build-worker=headless-chain`, `impl-validator=claude`, `architecture-validator=codex`. 기존 활성 프로젝트가 추천 preset 만 소급 적용하려면 `"$HELPER" routing enable-role-split-routing` 뒤 `"$HELPER" routing doctor` 로 PASS 를 확인한다.
 - custom 에서는 기존 선택지를 유지한다: all-codex validation 은 `enable-codex-validation`, legacy Codex-first implementation 은 `enable-codex-implementation`, Claude-only implementation 은 `disable-codex-implementation`.
 - workflow 변경 PR 은 GitHub remote 가 있고, `gh auth status` 가 통과하고, `.github/workflows/*.yml` 변경이 있고, 현재 branch 가 `main` 이면 추천 ON. Y 선택 시 별도 질문 없이 branch 생성, workflow 파일만 stage, commit, push, PR 생성까지 진행한다. `gh` 미설치/미인증이면 자동 PR 은 skip 하고 custom/manual 안내만 남긴다.
 
@@ -241,7 +241,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
  - docs: root architecture.md 감지로 docs/architecture.md skip
  - design kit: skip
  - Project lifecycle: skip
- - Provider routing: role-split preset (engineer/build-worker=headless-chain, test-engineer/impl-validator=claude, architecture-validator=codex)
+ - Provider routing: role-split preset (build-worker=headless-chain, impl-validator=claude, architecture-validator=codex)
  - workflow PR: gh 인증 + main branch + workflow 변경 시 자동 생성
 적용할까요? (Y/n/custom)
 ```
@@ -308,7 +308,7 @@ done
 #### Provider routing
 
 ```bash
-"$HELPER" routing enable-role-split-routing      # 추천 bundle: engineer/build-worker=headless-chain, test-engineer/impl-validator=claude, architecture-validator=codex
+"$HELPER" routing enable-role-split-routing      # 추천 bundle: build-worker=headless-chain, impl-validator=claude, architecture-validator=codex
 "$HELPER" routing enable-codex-validation        # custom: validation agent 를 모두 Codex 로 보낼 때
 "$HELPER" routing disable-codex-validation       # custom: validation agent 를 모두 Claude 로 되돌릴 때
 "$HELPER" routing enable-headless-implementation   # custom 에서 3단 headless-chain 복귀 시

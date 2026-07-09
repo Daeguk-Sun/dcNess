@@ -8,17 +8,17 @@
 
 > 🟢 **운영 원칙 — 기본은 가볍게, 무거운 절차는 필요할 때만.** 모든 요청을 같은 full chain(`/spec -> /design -> /impl -> /acceptance`)으로 보내지 않는다. low-risk 는 *가장 작은 구현 경로* 로 직행하고, spec / tech-review / design / consensus 같은 무거운 절차는 **high-risk trigger 가 있을 때만** 조건부로 호출한다. 상위 SSOT = [`CLAUDE.md` dcness 강제 원칙](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일).
 
-분기 규칙은 **권고**다 — 강제 hook 이 아니다. 메인 Claude 가 자유 형식 작업 요청을 받으면, 먼저 이 표로 리스크를 판정해 *요청을 만족하는 가장 작은 workflow* 를 고른다. 최종 결정은 메인/사용자. 모호하면 clarify 또는 Standard 가 기본이다. **명령명을 외우는 게 아니라 리스크로 고른다.**
+분기 규칙은 **권고**다 — 강제 hook 이 아니다. 메인 Claude 가 자유 형식 작업 요청을 받으면, 먼저 이 표로 리스크를 판정해 *요청을 만족하는 가장 작은 workflow* 를 고른다. 최종 결정은 메인/사용자. 모호하면 clarify 또는 design-doc 보강이 기본이다. **명령명을 외우는 게 아니라 리스크로 고른다.**
 
 ## 판정 규칙 — 공개 진입점과 구현 경로는 다르다
 
-기본 공개 진입점은 `/spec -> /design -> /impl -> /acceptance` 다. 이 네 단계는 제품 생명주기 이름이고, Lite / Standard 는 `/impl` 안의 내부 구현 경로다. high-risk 작업은 `/impl` 내부 구현 경로가 아니라 `/impl` 진입 *전* 설계 선행(`/spec`·`/design`)으로 분기된다. 구현 경로별 command 를 공개 진입점으로 늘리지 않는다. 기본 공개 진입점 계약은 [`positioning.md`](positioning.md) 가 진본이다.
+기본 공개 진입점은 `/spec -> /design -> /impl -> /acceptance` 다. 이 네 단계는 제품 생명주기 이름이고, direct / design-doc 은 `/impl` 안의 내부 구현 판정명이다. high-risk 작업은 `/impl` 내부 구현 경로가 아니라 `/impl` 진입 *전* 설계 선행(`/spec`·`/design`)으로 분기된다. 구현 경로별 command 를 공개 진입점으로 늘리지 않는다. 기본 공개 진입점 계약은 [`positioning.md`](positioning.md) 가 진본이다.
 
 구현 경로는 작업 크기보다 **되돌리기 비용과 불확실성**으로 나눈다.
 
-- **Lite** (`/impl` 내부): high-risk 가 없고, 구현 경계와 테스트 기준이 이미 충분히 concrete 하다. 설계 문서·계획 파일 없이 메인이 직접 구현한다.
-- **Standard** (`/impl` 내부): 설계 문서(경로)가 들어온 구현 경로다. impl 은 설계를 만들지 않고 받은 설계도로 메인이 구현만 한다. 설계 문서가 없고 직접 구현 판단이 안 서면 `/impl` 안에서 새 설계도를 만들지 않고 `/design` 선행 또는 사용자 명확화로 올린다. review provider 는 구현 경로와 별도로 고르며 `impl-validator` gate 를 생략하지 않는다.
-- **high-risk → 설계 선행** (`/impl` 내부 구현 경로 아님): high-risk trigger 가 있거나 새 epic/product feature 처럼 사전 설계 합의가 필요하다. impl 진입 *전* `/spec` 내부 tech-review preflight 필요 시 / `/design` / `/impl` / `/acceptance` 흐름으로 설계를 선행하고, 산출된 설계도를 들고 `/impl` Standard 로 진입한다.
+- **direct** (`/impl` 내부): high-risk 가 없고, 구현 경계와 테스트 기준이 이미 충분히 concrete 하다. 설계 문서·계획 파일 없이 메인이 직접 구현한다.
+- **design-doc** (`/impl` 내부): 설계 문서(경로)가 들어온 구현 흐름이다. impl 은 설계를 만들지 않고 받은 설계도로 메인이 구현만 한다. 설계 문서가 없고 직접 구현 판단이 안 서면 `/impl` 안에서 새 설계도를 만들지 않고 `/design` 선행 또는 사용자 명확화로 올린다. review provider 는 구현 경로와 별도로 고르며 `impl-validator` gate 를 생략하지 않는다.
+- **high-risk → 설계 선행** (`/impl` 내부 구현 경로 아님): high-risk trigger 가 있거나 새 epic/product feature 처럼 사전 설계 합의가 필요하다. impl 진입 *전* `/spec` 내부 tech-review preflight 필요 시 / `/design` / `/impl` / `/acceptance` 흐름으로 설계를 선행하고, 산출된 설계도를 들고 `/impl` design-doc 으로 진입한다.
 
 경량화 대상은 사전 ceremony 와 구현 step 수다. branch / PR / test / review / CI / false-clean 방지 같은 safety gate 는 약화하지 않는다.
 
@@ -29,14 +29,14 @@
 3. high-risk trigger 가 있나? → 설계 선행 (`/spec`·`/design`, `/impl` 밖)
 4. 구현 요청이 자연어뿐이고 concrete signal 이 0개인가? → `/to-issue` 로 issue 등록 후 그 번호 기준으로 구현할지 확인
 5. 목표/범위/성공 기준이 모호한가? → issue intake, clarify 또는 `/spec`
-6. 설계 문서(경로)가 들어왔거나 concrete signal 이 있고 즉시 구현 경계가 명확한가? → `/impl` (설계도 있으면 Standard, 없으면 Lite)
+6. 설계 문서(경로)가 들어왔거나 concrete signal 이 있고 즉시 구현 경계가 명확한가? → `/impl` (설계도 있으면 design-doc, 없으면 direct)
 7. high-risk 는 없지만 구현 경계나 테스트 기준이 애매한가? → 사용자 명확화 또는 `/design` 선행
 
 **shape 축** (gate 통과 후 — 구현을 어떻게 실행할지):
 
 - 단일 PR 이면 single.
 - 여러 task/PR 로 나뉘면 chain.
-- chain 은 deep impl task list 가 있어야 시작한다. 모호한 multi-PR 요청은 chain 으로 직행하지 말고 먼저 clarify/Standard/설계 선행 gate 로 보낸다.
+- chain 은 deep impl task list 가 있어야 시작한다. 모호한 multi-PR 요청은 chain 으로 직행하지 말고 먼저 clarify/design-doc 보강/설계 선행 gate 로 보낸다.
 - chain 은 기본 직렬이다. 서로 독립인 task 의 opt-in 병렬은 [`parallel-policy.md`](parallel-policy.md) 가 정의하는 별도 peer 세션 모델로만 진행한다 (독립 interactive 세션 + claim board + merge lock).
 
 > 깨진 동작 신고라도 사용자가 "고쳐줘"를 원하면 `/impl`, "issue 로 만들어줘"를 원하면 `/to-issue`, 의도와 성공 기준이 불명확하면 메인이 짧게 명확화한다. 이미 분류·승인된 GitHub issue/PR 번호를 "구현/수정해줘"는 concrete signal 이므로 곧장 `/impl` 판정으로 들어간다.
@@ -54,11 +54,11 @@ flowchart TB
   NL -->|아니오| AM{"목표·범위 모호?"}
   AM -->|예| CL["issue intake / clarify / spec"]
   AM -->|아니오| CS{"설계도 있음 or concrete signal?"}
-  CS -->|예| LT["Lite: /impl direct PR"]
+  CS -->|예| LT["direct: /impl direct PR"]
   CS -->|아니오| ST["설계 부족: 명확화 또는 /design 선행"]
   ST -.->|설계 중 high-risk 발견| DP
   ST -.->|너무 단순| LT
-  DP -.->|deep task list| SHAPE["/impl-loop chain (advanced)"]
+  DP -.->|deep task list| SHAPE["/impl-loop story/epic runner"]
 
   classDef gate fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef shape fill:#fff3e0,stroke:#f57c00,color:#e65100
@@ -80,14 +80,14 @@ flowchart TB
 | 구현 경로 | 트리거 | 진입점 | 왜 이 경로 |
 |---|---|---|---|
 | **issue-intake** | 구현 요청이 자연어뿐이고 concrete signal 이 없음 | `/impl` 이 사용자에게 `/to-issue` 등록 후 구현 진행 여부 확인 | issue 본문이 간단한 AC·맥락·히스토리 기준이 되어 바로 코드 수정으로 밀지 않음 |
-| **Lite** | concrete signal(파일 path · 함수/클래스/symbol · 이미 분류·승인된 issue/PR 번호 · 명시 테스트 명령 · 작은 docs-only · 작은 refactor) 1개 이상 AND high-risk trigger 0개 AND 구현 경계/테스트 기준 명확 | `/impl` — 메인 직접 `test -> impl -> test pass -> impl-validator -> PR` | 의도·범위·수용 기준이 신호로 이미 명확 → 사전 계획 gate 만 비용. `impl-validator` 는 계획 파일이 없으므로 spec 렌즈를 끄고 quality 렌즈만 본다 |
-| **Standard** | 설계 문서(경로)가 들어옴 | `/impl` — `--design-doc` 기록 후 받은 설계도로 메인이 구현 + 격리 `impl-validator` | impl 은 설계 생성 X — 설계도 충실 구현. review gate 는 유지 |
+| **direct** | concrete signal(파일 path · 함수/클래스/symbol · 이미 분류·승인된 issue/PR 번호 · 명시 테스트 명령 · 작은 docs-only · 작은 refactor) 1개 이상 AND high-risk trigger 0개 AND 구현 경계/테스트 기준 명확 | `/impl` — 메인 직접 `test -> impl -> test pass -> impl-validator -> PR` | 의도·범위·수용 기준이 신호로 이미 명확 → 사전 계획 gate 만 비용. `impl-validator` 는 계획 파일이 없으므로 spec 렌즈를 끄고 quality 렌즈만 본다 |
+| **design-doc** | 설계 문서(경로)가 들어옴 | `/impl` — `--design-doc` 기록 후 받은 설계도로 메인이 구현 + 격리 `impl-validator` | impl 은 설계 생성 X — 설계도 충실 구현. review gate 는 유지 |
 | **high-risk → 설계 선행** (impl 내부 구현 경로 아님) | high-risk trigger 1개 이상 또는 새 epic/product feature | impl 진입 *전* `/spec` 내부 tech-review preflight 필요 시 → `/design` → `/impl` → `/acceptance` (deep task 파일이 있으면 `/impl-loop` story/epic runner 위임) | 되돌리기 비싼 결정 → 설계·검증 consensus 필요 |
 | **shape: chain** | 구현 경로 판정 후 여러 task/PR 로 분할 · resume/handoff/audit · long-running | deep task list 는 `/impl-loop` story/epic run | 실행 형태. risk 구현 경로가 아님 |
 
 ### high-risk trigger — 각각 왜 사전 설계가 필요한가
 
-> **용도 경계**: 이 high-risk trigger 표는 설계 선행 판정 전용이다. impl-task 엔진 판정(`risk` / `engine` / `risk_reason`)은 [`module-architect`](agents/module-architect/module-architect-agent.md) 의 구현 시점 위험 기준이 SSOT 다. full `/design` 산출물의 cross-module / cross-story interface 처럼 설계 단계에서 이미 architecture와 validator가 소화한 위험을 풀 경로 승격 사유로 다시 계상하지 않는다.
+> **용도 경계**: 이 high-risk trigger 표는 설계 선행 판정 전용이다. `/impl-loop` 구현 runner 는 build-worker 하나라서 별도 frontmatter 분류 메타를 쓰지 않는다. full `/design` 산출물의 cross-module / cross-story interface 처럼 설계 단계에서 이미 architecture와 validator가 소화한 위험을 구현 분기 사유로 다시 계상하지 않는다.
 
 | high-risk trigger | 왜 설계 선행 |
 |---|---|
@@ -117,14 +117,14 @@ high-risk trigger 판정은 메인의 prose 판단이라 놓칠 수 있다. 진�
 
 | 조건 | 처리 |
 |---|---|
-| 새 외부 dependency / API / SDK / model 선택이 없고 비용 / 라이선스 / 성능 / 품질 / 실현성 trigger 도 없음 | Lite / Standard 에서 `/tech-review` 생략 |
+| 새 외부 dependency / API / SDK / model 선택이 없고 비용 / 라이선스 / 성능 / 품질 / 실현성 trigger 도 없음 | direct / design-doc 에서 `/tech-review` 생략 |
 | 새 외부 dependency / API / SDK / model 선택이 필요함 | 설계 선행으로 (impl 밖) `/spec` 내부 `/tech-review` preflight |
 | 비용 / 라이선스 / 성능 / 품질이 MVP 성패를 좌우하거나 "이게 되는지"가 기능 정의를 바꿈 | 설계 선행으로 (impl 밖) `/spec` 내부 `/tech-review` preflight |
 | auth / security / PII / compliance, migration, public API breakage, cross-module / cross-story interface 영향 | 설계 선행으로 (impl 밖) `/design` + 필요 시 system checkpoint + final epic 검증 |
 | high-risk 0개지만 구현 경계나 테스트 기준이 애매함 | `/impl` 안에서 설계도를 만들지 않는다. 사용자에게 빠진 결정/테스트 기준을 짧게 묻거나 `/design` 선행으로 올린다 |
-| high-risk 0개이고 설계도 없이 concrete signal 이 충분함 | Lite: 계획 파일 없이 직접 구현 + `impl-validator` quality 렌즈. architecture-validator 호출 없음 |
+| high-risk 0개이고 설계도 없이 concrete signal 이 충분함 | direct: 계획 파일 없이 직접 구현 + `impl-validator` quality 렌즈. architecture-validator 호출 없음 |
 
-즉 필요 시 system checkpoint + final epic 검증은 high-risk 설계 선행(`/design`)의 설계 검증이다. `/impl` 은 새 설계 산출물을 만들지 않고 설계 문서가 있으면 구현, 없으면 Lite 또는 상위 설계 선행으로만 판정한다.
+즉 필요 시 system checkpoint + final epic 검증은 high-risk 설계 선행(`/design`)의 설계 검증이다. `/impl` 은 새 설계 산출물을 만들지 않고 설계 문서가 있으면 design-doc, 없으면 direct 또는 상위 설계 선행으로만 판정한다.
 
 ## low-risk regression scenario (full chain 빨림 방지)
 
@@ -132,11 +132,11 @@ high-risk trigger 판정은 메인의 prose 판단이라 놓칠 수 있다. 진�
 
 | # | 요청 예시 | 올바른 구현 경로 | 회귀 (이러면 안 됨) |
 |---|---|---|---|
-| R1 | 파일/symbol 명시한 "이 함수 버그 고쳐줘" | Lite (`/impl` 직접) | `/spec` 내부 tech-review preflight → `/design` → `/impl` → `/acceptance` full chain |
-| R2 | 작은 docs-only 오타/문구 수정 | Lite | full architect 검증 / consensus 호출 |
-| R3 | 이미 분류·승인된 issue/PR 번호 "구현해줘" | Lite | `/spec` 재기획으로 우회 |
-| R4 | high-risk 0개지만 수정 범위·테스트 기준이 애매 | 짧은 명확화 후 Lite 또는 `/design` 선행 | `/impl` 안에서 새 설계 산출물 생성 |
-| R5 | 새 외부 API/SDK/model 도입이 필요 | 설계 선행 (`/spec` 내부 `/tech-review` preflight, impl 밖) | Lite 직행으로 검증 생략 |
+| R1 | 파일/symbol 명시한 "이 함수 버그 고쳐줘" | direct (`/impl` 직접) | `/spec` 내부 tech-review preflight → `/design` → `/impl` → `/acceptance` full chain |
+| R2 | 작은 docs-only 오타/문구 수정 | direct | full architect 검증 / consensus 호출 |
+| R3 | 이미 분류·승인된 issue/PR 번호 "구현해줘" | direct | `/spec` 재기획으로 우회 |
+| R4 | high-risk 0개지만 수정 범위·테스트 기준이 애매 | 짧은 명확화 후 direct 또는 `/design` 선행 | `/impl` 안에서 새 설계 산출물 생성 |
+| R5 | 새 외부 API/SDK/model 도입이 필요 | 설계 선행 (`/spec` 내부 `/tech-review` preflight, impl 밖) | direct 직행으로 검증 생략 |
 
 R5 는 **반대 방향** 가드다 — high-risk 를 light 구현 경로로 *내리는 것*도 회귀다. regression 은 "무거운 걸 가볍게(R5)" 와 "가벼운 걸 무겁게(R1~R4)" **양방향**을 모두 막는다. low-risk → light, high-risk → escalation 이 동시에 성립해야 운영 원칙이 지켜진다. 경량화 대상은 사전 ceremony 이지 safety gate(branch / PR / test / review / CI / false-clean 방지)가 아니다 — R1~R4 도 PR·review·CI 는 그대로 탄다.
 
@@ -150,9 +150,9 @@ dcNess 는 단계 *내부* 되돌림 루프는 이미 일급으로 갖췄다. �
 |---|---|---|---|
 | **design → spec** | design 중 PRD/요구사항 부족 발견 → 메인 `/spec` 재진입 권고 | architect 가 PRD 충돌/누락(`ESCALATE`) 또는 미검증 새 외부 의존(`NEW_DEP_ESCALATE`) 보고 | 진본 = [`design-routing.md` escalate 처리](../../skills/design/design-routing.md#escalate-처리) |
 | **impl → 설계** | impl 진입 시 설계 산출물 부족 발견 → `/design` 또는 사용자 명확화 | 설계 문서가 없고 메인이 "직접 고칠 수준 아님 / 설계 필요" 로 판정 | `/impl` 은 새 설계 산출물을 만들지 않는다 |
-| **review → 구현** (단계 내부) | impl-validator FAIL → finding-class 에 따라 구현 재시도(`spec-gap` → IMPL, `quality-gap` → POLISH) | finding 발생 | **이미 존재** — 단계 내부 되돌림. 단계 간 되돌림과 동일 원리 |
+| **review → 구현** (단계 내부) | impl-validator FAIL → finding-class 에 따라 메인 root-cause 수정 | finding 발생 | **이미 존재** — 단계 내부 되돌림. 단계 간 되돌림과 동일 원리 |
 
-**단계 내부 되돌림** (impl-validator finding-class → 구현 재진입 또는 POLISH, 격리 review provider finding → 근본원인 재수정)과 **단계 간 되돌림** (design→spec, impl→설계)은 *같은 원리의 다른 반경*일 뿐이다 — 둘 다 "downstream 이 upstream 부족을 판단하면 upstream 으로 되돌려 보강한다". retry 한도와 escalate 는 각 `<skill>-routing.md` 가 소유한다([impl](../../skills/impl/impl-routing.md) · [design](../../skills/design/design-routing.md)).
+**단계 내부 되돌림** (impl-validator finding-class → 구현 재진입, 격리 review provider finding → 근본원인 재수정)과 **단계 간 되돌림** (design→spec, impl→설계)은 *같은 원리의 다른 반경*일 뿐이다 — 둘 다 "downstream 이 upstream 부족을 판단하면 upstream 으로 되돌려 보강한다". retry 한도와 escalate 는 각 `<skill>-routing.md` 가 소유한다([impl](../../skills/impl/impl-routing.md) · [design](../../skills/design/design-routing.md)).
 
 되돌림이 무한 추격이 되지 않도록 한도가 붙는다 — 같은 영역 부족이 반복되면 점 패치 retry 로 한도를 소진하지 말고 한 단계 더 upstream 에서 근본을 본다. cycle 한도 초과 시 사용자 위임이 기본이다([`loop-procedure.md` finding 수용 원칙](loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정)).
 

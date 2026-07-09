@@ -118,7 +118,7 @@ claude plugin install dcness@dcness
 
 > 갱신: `claude plugin update dcness@dcness` (문서·skill·hook 만 받는 경우 `/init-dcness` 재실행 불필요)
 
-작은 작업은 가볍게 지나가고, 위험이 큰 작업만 절차가 올라간다. 문서 수정이나 명확한 한 줄 버그픽스는 Lite 경로로 짧게 끝내고, 새 기능·공개 contract·복잡한 설계 변경은 `/spec`·`/design` 쪽으로 올린다.
+작은 작업은 가볍게 지나가고, 위험이 큰 작업만 절차가 올라간다. 문서 수정이나 명확한 한 줄 버그픽스는 direct 구현으로 짧게 끝내고, 새 기능·공개 contract·복잡한 설계 변경은 `/spec`·`/design` 쪽으로 올린다.
 
 ## 작업 흐름
 
@@ -131,9 +131,9 @@ claude plugin install dcness@dcness
 | `/impl` | 구현·수정·버그픽스를 실제 PR 로 끝낼 때 |
 | `/acceptance` | PRD / Epic / Story 기준으로 "정말 다 됐는지" 제품 검수할 때 |
 
-`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 설계 문서가 없고 파일·이슈 같은 구체적 단서가 명확하면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(Lite), 설계도가 있으면 그 설계도대로 구현한다(Standard). 새 기능이나 위험이 큰 작업은 `/impl` 안에서 처리하지 않고 `/spec`·`/design` 으로 먼저 돌린 뒤, 나온 설계도를 들고 다시 들어온다.
+`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 설계 문서가 없고 파일·이슈 같은 구체적 단서가 명확하면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(direct), 설계도가 있으면 그 설계도대로 구현한다(design-doc). 새 기능이나 위험이 큰 작업은 `/impl` 안에서 처리하지 않고 `/spec`·`/design` 으로 먼저 돌린 뒤, 나온 설계도를 들고 다시 들어온다.
 
-`/impl` 이 내부적으로 구현 경로(설계도 유무 — Lite / Standard)와 review provider 를 고른다. 일반 `/impl` 구현은 메인이 맡고, 격리되는 것은 `impl-validator` 검토다.
+`/impl` 이 내부적으로 direct/design-doc 판정과 review provider 를 고른다. 일반 `/impl` 구현은 메인이 맡고, 격리되는 것은 `impl-validator` 검토다.
 
 보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next-work`(issue/label 에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름·디자인 시스템/토큰 베이스라인 먼저).
 
@@ -143,11 +143,11 @@ claude plugin install dcness@dcness
 
 다음 릴리즈 후보 이슈는 GitHub Issue와 Project board를 기준으로 갱신한다.
 
-## 엔진과 기록
+## Provider와 기록
 
 검증·리뷰 단계를 어느 provider 로 돌릴지는 프로젝트별로 고를 수 있다(Claude 서브에이전트 / Codex headless / Claude headless). provider 를 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. 일반 `/impl` 구현은 메인이 맡고, story/epic deep task runner 인 `/impl-loop` 만 구현 worker provider 를 사용한다. provider 구성을 새로 켜거나 바꿀 때만 `/init-dcness` 를 다시 실행한다.
 
-`/impl-loop` deep task 의 기본은 `build-worker → impl-validator` 이고, 풀 경로는 task frontmatter, 구현 시점 위험, 사용자 엄정 override 때만 승격한다. 각 run의 단계 완료는 `ledger.jsonl`에 기록되며, prose 파일과 sha256 receipt로 검증 가능한 작업 기록을 남긴다.
+`/impl-loop` deep task 는 `build-worker → impl-validator` 흐름을 사용한다. build-worker 는 task 별 로컬 커밋까지 만들고, 모든 대상 task 구현 뒤 merge candidate diff 를 impl-validator 가 1회 통합 리뷰한다. 각 run의 단계 완료는 `ledger.jsonl`에 기록되며, prose 파일과 sha256 receipt로 검증 가능한 작업 기록을 남긴다.
 
 ## 핵심 특징
 
@@ -167,7 +167,7 @@ claude plugin install dcness@dcness
 |---|---|---|
 | 기본 workflow | `/spec` | 새 기능 spec + 검수 체크포인트 |
 | 기본 workflow | `/design` | 화면·시스템·모듈 설계 |
-| 기본 workflow | `/impl` | 구현 진입 — 경로(Lite/Standard)와 review provider 를 내부 판정 |
+| 기본 workflow | `/impl` | 구현 진입 — direct/design-doc 판정과 review provider 를 내부 판정 |
 | 기본 workflow | `/acceptance` | story/epic 제품 검수 |
 | support | `/to-issue` | 자연어 → Issue Brief → 승인 대기 없이 GitHub 선등록 (web 에서 확인·수정) |
 | 고급 | `/tech-review` | 위험한 설계의 사전 기술 검증 |
@@ -179,7 +179,7 @@ claude plugin install dcness@dcness
 | 유틸 | `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 생성 |
 | 유틸 | `/efficiency` | 세션 토큰·비용 분석 + HTML 대시보드 |
 
-Sub-agent(`agents/`, architect / validator / engineer / reviewer / acceptance 계열)는 사용자가 직접 부르는 게 아니라 workflow 안에서 gate·worker·reviewer 로 호출된다.
+Sub-agent(`agents/`, architect / validator / worker / reviewer / acceptance 계열)는 사용자가 직접 부르는 게 아니라 workflow 안에서 gate·worker·reviewer 로 호출된다.
 
 ## 거버넌스 (dcNess 저장소 자체 작업 기준)
 

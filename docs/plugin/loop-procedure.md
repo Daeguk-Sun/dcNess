@@ -55,7 +55,7 @@ echo "[<entry>] run started: $RUN_ID"
 
 `<entry_point>` = 해당 skill 의 `## Loop` 의 `entry_point` 필드 (예: `impl`, `design`, `ux`). begin-run 동작: sid auto-detect + run_id 발급 + `live.json.active_runs` 슬롯 + `.by-pid-current-run/{cc_pid}` 씀.
 
-`--design-doc <path>` — 이 run 이 참조하는 **머지된 설계 문서**(impl task 문서) 경로. 설계가 별도 run 에서 머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` 풀 경로)에서 기록하면, engineer 게이트가 같은-run module-architect PASS 의 등가 사전 조건으로 인정한다 ([`hooks.md` 순서 차단 훅](hooks.md#catastrophic-gatesh)). `entry_point=impl` 전용이며, 설계 산출물 규약 경로(`docs/epics/**`)의 실존 `.md` 만 허용 — 아니면 begin-run 이 fail-fast 거부한다. 기록값은 resolve 된 절대경로(hook 프로세스와 cwd 가 달라도 안전). chain 의 다음 task 진입은 `next-task --design-doc <path>` 로 동일 기록.
+`--design-doc <path>` — 이 run 이 참조하는 **머지된 설계 문서**(impl task 문서) 경로. 설계가 별도 run 에서 머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` story/epic runner)에서 기록하면, implementation gate 가 같은-run module-architect PASS 의 등가 사전 조건으로 인정한다 ([`hooks.md` 순서 차단 훅](hooks.md#catastrophic-gatesh)). `entry_point=impl` 전용이며, 설계 산출물 규약 경로(`docs/epics/**`)의 실존 `.md` 만 허용 — 아니면 begin-run 이 fail-fast 거부한다. 기록값은 resolve 된 절대경로(hook 프로세스와 cwd 가 달라도 안전). chain 의 다음 task 진입은 `next-task --design-doc <path>` 로 동일 기록.
 
 `--acceptance-required` — story/epic 마감 task 처럼 `impl-validator` 뒤 inline `product-acceptance` 를 거쳐야 run 이 정상 종료되는 경우에만 기록한다. Stop hook 은 이 marker 가 있는 `entry_point=impl` run 에서 `impl-validator` 를 종료 agent 로 취급하지 않고 product-acceptance 진입 turn 을 재발화한다. 중간 task / `--no-acceptance` run / verify-only run 은 이 플래그를 주지 않는다. chain 의 다음 task 진입은 `next-task --acceptance-required` 로 동일 기록한다.
 
@@ -120,7 +120,7 @@ fi
 
 Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직접 포함한 뒤 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행한다. 마지막 응답은 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --provider codex-headless --prose-file ...` 로 저장한다. 따라서 Codex 분기 경로에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. Claude Agent 와 Codex wrapper 모두 메인이 집계한다. Codex wrapper 는 end-step 까지 수행하지만 counter 소유자가 아니다. `DCNESS_CODEX_MODEL` 을 설정하면 wrapper 가 `-m` 모델 override 를, `DCNESS_CODEX_EFFORT` 를 설정하면 `-c model_reasoning_effort=...` override 를 전달한다. 둘 다 미설정이면 사용자 Codex config 를 그대로 상속하며, dcNess 는 특정 Codex 모델명을 하드코딩하지 않는다. 분기 config 파일명은 `routing.json` 이고 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 에 있으며, validation 비활성/미설정 기본값은 Claude 다.
 
-**implementation provider 분기 (headless-chain 기본)**: `test-engineer` / `engineer` / `build-worker` 는 호출 직전 provider 를 resolve 한다.
+**implementation provider 분기 (headless-chain 기본)**: `build-worker` 는 호출 직전 provider 를 resolve 한다.
 
 ```bash
 PLUGIN_ROOT=""
@@ -163,12 +163,12 @@ fi
 
 ##### 권장 슬롯 템플릿
 
-호출 prompt 는 [`agent-prompt-slots.md`](templates/agent-prompt-slots.md) 의 3슬롯으로 쓴다 (강제 아님 — 권고). lane(Lite/std/deep)·stage(impl/design) 무관하게 동형이고, 슬롯 1 의 *내용물* 만 호출마다 바뀐다.
+호출 prompt 는 [`agent-prompt-slots.md`](templates/agent-prompt-slots.md) 의 3슬롯으로 쓴다 (강제 아님 — 권고). entrypoint·stage(impl/design) 무관하게 동형이고, 슬롯 1 의 *내용물* 만 호출마다 바뀐다.
 
 - 슬롯 1 ↔ 4요소 (1)(2)(4), 슬롯 2 ↔ worktree MUST(아래), 슬롯 3 ↔ 4요소 (3) + 미기록 결정 예외. 4요소를 줄인 게 아니라 *담는 칸* 을 고정한 것이다.
 - `이 호출 특유` 칸이 방법 처방을 막는 가드다 — 채울 게 없으면 비우고, 채워도 "무엇" 까지만 적는다.
 - **진본 충실 시 수렴**: module-architect 산출물(impl task 파일)이 인터페이스·수용기준 통과조건·테스트 스켈레톤·Scope 까지 담으면, 호출은 포인터+worktree(+미기록 사실 한 줄)로 수렴한다. agent 본업(RED·lint·결론 형식)이나 진본 사본(AC 통과조건·Scope·인터페이스 시그니처)을 prompt 에 다시 적으면 슬림 포인터 규약 위반이다 — 진본이 진본임을 prompt 가 명시하면서 그 사본을 욱여넣는 자기모순.
-- Lite 기본 경로(메인 직접 구현)는 sub-agent 호출 자체가 없어 본 슬롯 대상이 아니다. 슬롯이 적용되는 곳은 *sub-agent 에 prompt 가 나가는* 경로다 (Lite sub-agent 엔진 · std/deep impl · design 의 architect 호출).
+- direct 기본 경로(메인 직접 구현)는 sub-agent 호출 자체가 없어 본 슬롯 대상이 아니다. 슬롯이 적용되는 곳은 *sub-agent 에 prompt 가 나가는* 경로다 (`/impl-loop` build-worker · design 의 architect 호출).
 
 **worktree 활성 시 worktree 절대 경로 prompt 에 추가 명시 — MUST**: cwd 가 `.claude/worktrees/<name>/` 안이면 sub-agent prompt 에 worktree 절대 경로 명시. main repo abs path 사용 금지 — 머지 전 옛 코드 read 로 false positive (CC #31546 / #48096). 근거: CC Task tool 에 cwd parameter 부재 (#12748), subagent frontmatter cwd field 부재 (#31940) — 메인이 명시 책임.
 
@@ -230,7 +230,7 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 
 - `agent` — 소문자·하이픈만 (`^[a-z][a-z0-9-]{0,63}$`)
 - `mode` — legacy 대문자·숫자·언더스코어(`^[A-Z][A-Z0-9_]{0,63}$`) 또는 skill 라벨용 소문자·숫자·하이픈(`^[a-z][a-z0-9-]{0,63}$`, 단 occurrence suffix 와 충돌하는 `-<숫자>` 끝맺음 제외)
-- 콜론 표기 금지 — `"engineer:POLISH-1"` 형식은 `_validate_agent` 거부 → prose 미기록
+- 콜론 표기 금지 — `"build-worker:retry-1"` 형식은 `_validate_agent` 거부 → prose 미기록
 
 **prose 파일 자동 명명** (PostToolUse hook 이 `signal_io.signal_path` 기준 결정):
 - 단순: `<run_dir>/<agent>.md`
@@ -239,14 +239,14 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 
 | 상황 | begin/end-step | 생성 파일 |
 |---|---|---|
-| POLISH 1회 | `begin-step engineer POLISH` | `engineer-POLISH.md` |
-| POLISH 2회 | `begin-step engineer POLISH` | `engineer-POLISH-1.md` |
-| IMPL 재시도 | `begin-step engineer IMPL` | `engineer-IMPL-1.md` |
+| build-worker 재시도 1회 | `begin-step build-worker retry` | `build-worker-retry.md` |
+| build-worker 재시도 2회 | `begin-step build-worker retry` | `build-worker-retry-1.md` |
+| impl-validator 재리뷰 | `begin-step impl-validator retry` | `impl-validator-retry.md` |
 | `/design` epic batch | `begin-step module-architect epic-batch` | `module-architect-epic-batch.md` |
 
 재호출마다 별도 begin/end-step 1쌍 필수 (DCN-30-25 안전망). `--prose-file` 명시적 전달은 legacy/override 용도로 여전히 허용.
 
-**안티패턴** (begin/end-step 쌍 누락): ❌ engineer commit/PR 후 git status 확인 → end-step skip / ❌ FAIL 후 POLISH Agent 호출 시 begin/end-step 미포함 / ❌ end-step 보류 중 다음 step 진입으로 망각 / ❌ task 간 보고 작성 후 begin-step 재호출 누락.
+**안티패턴** (begin/end-step 쌍 누락): ❌ build-worker local commit 후 git status 확인 → end-step skip / ❌ FAIL 후 build-worker rework 호출 시 begin/end-step 미포함 / ❌ end-step 보류 중 다음 step 진입으로 망각 / ❌ task 간 보고 작성 후 begin-step 재호출 누락.
 
 ### build-worker phase prose (`/impl-loop` Hybrid A 한정)
 
@@ -260,25 +260,25 @@ phase prose 실제 기록 디렉토리 = `dcness-helper run-dir` 이 출력하�
 
 **공통 골격만 본 문서 책임** — agent 결론이 그 loop 의 advance enum (해당 skill `## Loop` 의 `advance`) 이면 다음 step 진행, **마지막 step 이면 사용자 대기 없이 즉시 Step 7 (end-run)**. 그 외 결론 (`FAIL` / `*_ESCALATE` / `SPEC_GAP_FOUND` / `TESTS_FAIL` / `AMBIGUOUS` 등) → 다음 호출·재시도·cycle 한도·escalate 판정은 **각 loop skill 의 `<skill>-routing.md` 가 진본** ([`impl-routing.md`](../../skills/impl/impl-routing.md) / [`design-routing.md`](../../skills/design/design-routing.md) / [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md) / [`ux-routing.md`](../../skills/ux/ux-routing.md) / [`tech-review-routing.md`](../../skills/tech-review/tech-review-routing.md)). loop-procedure 는 enum→처리 표를 재서술하지 않는다.
 
-### retry / POLISH 분기 시 task 재활용 (MUST)
+### retry / rework 분기 시 task 재활용 (MUST)
 
-**재시도 / 재호출 / cycle / POLISH** 분기 (각 `<skill>-routing.md`) 로 진입할 때, 신규 `TaskCreate` 금지 — *기존 task 를 `in_progress` 로 되돌린다*.
+**재시도 / 재호출 / cycle / rework** 분기 (각 `<skill>-routing.md`) 로 진입할 때, 신규 `TaskCreate` 금지 — *기존 task 를 `in_progress` 로 되돌린다*.
 
 | 분기 | 재활용 대상 task | 행동 |
 |---|---|---|
-| `TESTS_FAIL` → engineer 재시도 | 직전 engineer IMPL task | `TaskUpdate(<task>, in_progress)` |
-| `FAIL` → engineer POLISH | 직전 engineer IMPL task | `TaskUpdate(<task>, in_progress)` |
-| POLISH 후 impl-validator 재실행 | 직전 impl-validator task | `TaskUpdate(<task>, in_progress)` |
-| `IMPL_PARTIAL` → engineer 재호출 | 직전 engineer IMPL task | `TaskUpdate(<task>, in_progress)` |
+| `TESTS_FAIL` → build-worker rework | 직전 build-worker task | `TaskUpdate(<task>, in_progress)` |
+| impl-validator `FAIL` → root-cause 수정 | 직전 impl-validator task 또는 main fix task | `TaskUpdate(<task>, in_progress)` |
+| rework 후 impl-validator 재실행 | 직전 impl-validator task | `TaskUpdate(<task>, in_progress)` |
+| `VALIDATION_BLOCKED` → 메인 검증 대행 후 build-worker rework | 직전 build-worker task | `TaskUpdate(<task>, in_progress)` |
 | architecture-validator final `FAIL: SYSTEM_BOUNDARY` → system checkpoint | 직전 system-architect task 또는 새 opt-in checkpoint task | `TaskUpdate(<task>, in_progress)` 또는 checkpoint task 생성 |
 | architecture-validator final `FAIL: TASK_LOCAL` → module-architect 재진입 | 직전 module-architect task | `TaskUpdate(<task>, in_progress)` |
 | ux-architect self-check FAIL → ux-architect 재진입 | 직전 ux-architect task | `TaskUpdate(<task>, in_progress)` (prose 내부 cycle — 별도 task X) |
 | `AMBIGUOUS` 재호출 1회 | 직전 동일 agent task | `TaskUpdate(<task>, in_progress)` |
 | `SPEC_GAP_FOUND` → module-architect (보강) | 신규 task (다른 agent) | `TaskCreate` 가능 |
 
-이유: retry / POLISH 는 *동일 step 의 재실행*. 신규 TaskCreate 시 같은 step 이 task list 에 중복 등장 → 진행 추적 오염. cycle 카운터는 step occurrence (`<agent>[-<mode>]-N.md`) 로 보존되므로 task 는 1개로 유지. provider wrapper 가 `end-step` 을 대신 호출해도 retry counter 의 소유자는 메인이다. 메인은 해당 loop 의 `<skill>-routing.md` counter key 로 세며, finding 분류·파일·provider 변경만으로 같은 retry 경로의 counter 를 나누거나 리셋하지 않는다.
+이유: retry / rework 는 *동일 step 의 재실행*. 신규 TaskCreate 시 같은 step 이 task list 에 중복 등장 → 진행 추적 오염. cycle 카운터는 step occurrence (`<agent>[-<mode>]-N.md`) 로 보존되므로 task 는 1개로 유지. provider wrapper 가 `end-step` 을 대신 호출해도 retry counter 의 소유자는 메인이다. 메인은 해당 loop 의 `<skill>-routing.md` counter key 로 세며, finding 분류·파일·provider 변경만으로 같은 retry 경로의 counter 를 나누거나 리셋하지 않는다.
 
-**MUST 순서** (retry / POLISH 진입 시):
+**MUST 순서** (retry / rework 진입 시):
 
 ```
 TaskUpdate(<기존 task>, in_progress)   # 신규 TaskCreate 금지
@@ -293,7 +293,7 @@ TaskUpdate(<기존 task>, completed)
 validator (`impl-validator` / `architecture-validator`) 의 FAIL finding·수정 권고는 **"그 점/그 줄만 고쳐라"가 아니다.** 권고가 나온 *의미* = finding 이 가리키는 **근본 원인을 파악해 그 영역을 재설계하라** 이다.
 
 - **메인 (relay)**: 재진입 prompt 에 finding 을 "이 점만 고쳐"로 좁게 전달 금지. finding 이 구조적 누수의 *증상*인지 먼저 판단 → 증상이면 "근본 원인 + 증상 패턴 전체"를 주고 "이 접근을 재설계하라"로 프레이밍한다. **같은 영역 finding 이 2회+ 반복 = 점 패치 신호 → 즉시 근본 재설계로 전환** (위 REDO 분류의 `REDO_DIFF` 와 정합 — 같은 접근 재시도가 아니라 접근 자체 교체). 해법 메커니즘은 메인이 처방하지 말 것 — 증상·사실관계만 넘기고 설계 소유는 producer agent 가 갖는다.
-- **producer (architect / engineer)**: finding 수신 시 점 패치 전에 "더 깊은 설계 문제의 신호인가?"를 먼저 본다. 신호면 점이 아니라 접근을 재설계한다. 재설계가 상위 산출물 (architecture / decisions / conventions / domain-model 등) 을 건드리면 직접 편집하지 말고 변경점을 prose 로 보고 → 메인이 상위 agent 로 분기 (각 `<skill>-routing.md` 의 retry 경로).
+- **producer (architect / build-worker)**: finding 수신 시 점 패치 전에 "더 깊은 설계 문제의 신호인가?"를 먼저 본다. 신호면 점이 아니라 접근을 재설계한다. 재설계가 상위 산출물 (architecture / decisions / conventions / domain-model 등) 을 건드리면 직접 편집하지 말고 변경점을 prose 로 보고 → 메인이 상위 agent 로 분기 (각 `<skill>-routing.md` 의 retry 경로).
 - **이유**: 점 패치는 finding cascade 를 부른다 — 좁은 수정이 다음 결함을 드러내 같은 영역 FAIL 이 N 라운드 반복. 한 번의 근본 재설계 < N 번 점 패치 + N 번 재검증. 같은 영역을 점 패치로 retry 한도 ([design-routing](../../skills/design/design-routing.md#retry-한도) / [impl-loop-routing](../../skills/impl-loop/impl-loop-routing.md#retry-한도)) 까지 소진하지 말 것.
 
 ### yolo 모드
@@ -305,8 +305,8 @@ validator (`impl-validator` / `architecture-validator`) 의 FAIL finding·수정
 | soft `*_ESCALATE` / `AMBIGUOUS` | 사용자 위임 | `auto-resolve` 적용 |
 | `SPEC_GAP_FOUND` | 사용자 위임 | module-architect (보강 케이스) cycle (≤2) |
 | `TESTS_FAIL` / impl-validator `FAIL` | 재시도 (≤3) | 동일 |
-| `IMPL_PARTIAL` | engineer 재호출 (split ≤3) | 동일 — 새 context window |
-| `FAIL` | 사용자 위임 | engineer POLISH (cycle ≤2) |
+| build-worker `TESTS_FAIL` | build-worker rework (≤3) | 동일 — 새 context window 가능 |
+| impl-validator `FAIL` | 사용자 위임 또는 root-cause 수정 | root-cause 수정 + 재리뷰 (≤3) |
 | 승인-gated 산출물 최종 승인 (`/design`, `/ux`) | 사용자 승인 | 동일 (yolo 우회 X) |
 | Step 7 주의사항 (NICE TO HAVE only, MUST FIX 0) | 사용자 위임 | 7a 자동 |
 | 중대 차단 룰 | hard safety | hard safety (yolo 우회 X) |
@@ -322,16 +322,17 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 
 ## impl-task-loop commit 구조
 
-`impl-task-loop` / `impl-ui-design-loop` 은 루프 종료 전 src commit + PR create 를 **메인 Claude 가 전담**한다 (engineer / build-worker / test-engineer 는 코드 변경만 — race 회피). 본 절은 *시점·포함 파일* 만 정의하고, **브랜치·커밋·PR 네이밍 + 트레일러 판정 규칙은 [`git-spec.md`](git-spec.md) 가 SSOT** 다.
+`impl-task-loop` / `impl-ui-design-loop` 은 task 단위 local commit 을 **build-worker** 가 만들고, push / PR 생성 / PR merge / issue mutation 은 **메인 Claude** 가 전담한다. 본 절은 *시점·포함 파일* 만 정의하고, **브랜치·커밋·PR 네이밍 + 트레일러 판정 규칙은 [`git-spec.md`](git-spec.md) 가 SSOT** 다.
 
 | 시점 | 내용 |
 |---|---|
-| impl-validator (또는 build-worker) PASS 직후 | branch 새로 + `src/**` commit + push + PR create |
-| PR 생성 직후 | merge ([Step 7a](#step-7a-impl-task-loop)) |
+| build-worker PASS 직후 | task local commit sha 확인 + `dcness-story-runner mark --status completed --commit <sha>` |
+| 모든 target task completed 뒤 | batch review PR body 작성 + push + PR create |
+| impl-validator / product-acceptance PASS 뒤 | merge 또는 사용자 merge 결정 대기 |
 
 > `docs/.../impl/NN-*.md` 는 `/design` 산출물이 *미리 머지* 된 상태 — impl-task-loop 안에서 별도 commit X. fallback 모드 (정식 위치 부재) 는 module-architect 산출물을 본 PR src commit 에 같이 포함.
 
-> **commit = `src/**` only** — 이 invariant 의 진본은 *권한 경계* 다: impl 루프 worktree 의 변경은 engineer / build-worker 권한 경계([`agent_boundary.py`](../../harness/agent_boundary.py) ALLOW_MATRIX = `src/**` 계열)상 src 계열뿐이라, stories.md / backlog.md 등은 애초에 worktree 에 안 들어온다. 진행 추적은 PR body 트레일러 (Part of / Closes) + GitHub sub-issue API 가 SSOT.
+> **task commit = build-worker boundary only** — 이 invariant 의 진본은 *권한 경계* 다: impl 루프 worktree 의 변경은 build-worker 권한 경계([`agent_boundary.py`](../../harness/agent_boundary.py) ALLOW_MATRIX = `src/**` / test 계열)상 구현·테스트 파일뿐이라, stories.md / backlog.md 등은 애초에 worktree 에 안 들어온다. 진행 추적은 task commit sha + PR body 트레일러 (Part of / Closes) + GitHub sub-issue API 가 SSOT.
 
 규칙은 전부 git-spec 위임 — loop-procedure 는 판정 로직(브랜치명·base·트레일러)을 재서술하지 않는다:
 
@@ -483,7 +484,7 @@ dcNess run 밖에서 호출되면 ledger 기록은 경고만 내고 PR 작업 �
 
 ## 순서 차단 훅 정합
 
-각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): engineer·build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물, 그리고 active run 의 begin-step/current-step 물리 순서. `/design` greenfield thin bootstrap 이후 module-architect 진입과 opt-in system checkpoint 이후 module-architect 재진입은 별도 validator 게이트 없이 `skills/design/design-routing.md` 의 thin bootstrap / `SYSTEM_CHECKPOINT_REQUIRED` 흐름과 begin-step 물리 순서 검사로만 다룬다. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
+각 loop 의 entry_point / task_list / advance / expected_steps 진본 = 해당 skill 의 `## Loop` contract. 그 시퀀스가 중대 차단 룰을 자연 충족한다 — 순서 차단 훅 진본 = [`hooks.md`](hooks.md#catastrophic-gatesh) (`hooks/catastrophic-gate.sh` 강제): build-worker 직전 module-architect `PASS` enum 또는 동등 설계 산출물, 그리고 active run 의 begin-step/current-step 물리 순서. `/design` greenfield thin bootstrap 이후 module-architect 진입과 opt-in system checkpoint 이후 module-architect 재진입은 별도 validator 게이트 없이 `skills/design/design-routing.md` 의 thin bootstrap / `SYSTEM_CHECKPOINT_REQUIRED` 흐름과 begin-step 물리 순서 검사로만 다룬다. (tech-review 진입 gate = PRD 변경 후 사용자 2 차 OK · `/design` 진입 후 tech-reviewer 재호출 비권장 = 코드 강제 아닌 자연어 관례.) hook 전체 시점·차단·우회 = [`hooks.md`](hooks.md).
 
 ---
 
