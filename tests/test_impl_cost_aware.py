@@ -168,11 +168,9 @@ class TestImplLoopRiskPreview(unittest.TestCase):
         module_architect = read_module_architect()
         impl_loop = read_impl_skill()
         impl_loop_routing = read_impl_routing()
-        impl = read_impl_skill_default()
-        impl_routing = read_impl_routing_default()
         router = read_workflow_router()
 
-        for body in (module_architect, impl_loop, impl_loop_routing, impl, impl_routing):
+        for body in (module_architect, impl_loop, impl_loop_routing):
             with self.subTest(body=body[:60]):
                 self.assertIn("구현 시점 위험", body)
                 self.assertIn("workflow-router", body)
@@ -202,6 +200,16 @@ class TestImplLoopRiskPreview(unittest.TestCase):
         self.assertIn("high-risk trigger 표는 설계 선행 판정 전용", router)
         self.assertIn("impl-task 엔진 판정", router)
         self.assertIn("module-architect", router)
+
+        impl = read_impl_skill_default()
+        impl_routing = read_impl_routing_default()
+        for body in (impl, impl_routing):
+            with self.subTest(general_impl=body[:60]):
+                self.assertIn("일반 `/impl`", body)
+                self.assertIn("구현 주체", body)
+                self.assertIn("메인", body)
+                self.assertNotIn("엔진 판정의 고위험 trigger", body)
+                self.assertNotIn("Standard · 경량 build-worker", body)
 
     def test_build_worker_self_check_keeps_invariant_drift_warning(self):
         body = read_build_worker()

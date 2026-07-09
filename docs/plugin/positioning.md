@@ -8,10 +8,10 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 |---|---|---|
 | `/spec` | 새 제품 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 | PRD 초안/최종화 / stories / 필요한 tech-review preflight + `SPEC_ACCEPTANCE` |
 | `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때 | UX / 시스템 / 모듈 / 기술 선택 설계. 구현 없이 visual design 만 먼저 탐색하려면 `/ux` |
-| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | 구현 경로(설계도 유무 — Lite / Standard) + 엔진(풀4/경량)을 내부 판정 |
+| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | 구현 경로(설계도 유무 — Lite / Standard) + review provider 를 내부 판정 |
 | `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 | story/epic acceptance. 핵심 AC별 동작 증거와 mock-only gap 을 구분한다. 사람 full E2E 는 MVP 범위 밖 |
 
-사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 **설계도를 보고 구현만** 하며, 구현 경로(설계도 유무)와 엔진(풀4/경량)을 직교로 고른다. sub-agent 엔진 미지정 기본은 build-worker 이고, 풀4는 high-risk trigger 나 사용자 엄정 override 같은 승격 전용이다. high-risk trigger 나 새 epic/product feature 는 impl 내부 구현 경로가 아니라 impl 진입 전 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기된다. Lite / Standard 조건, high-risk 선행, 되돌림 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 경량 build-worker 엔진을 선택해도 `pr-reviewer` gate 는 유지한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
+사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 **설계도를 보고 구현만** 하며, 구현 경로(설계도 유무)와 review provider 를 고른다. 일반 `/impl` 의 구현 주체는 메인이고, 격리되는 단계는 `pr-reviewer` 검토다. high-risk trigger 나 새 epic/product feature 는 impl 내부 구현 경로가 아니라 impl 진입 전 설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)으로 분기된다. Lite / Standard 조건, high-risk 선행, 되돌림 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
 
 ## Support Entrypoints
 
@@ -63,7 +63,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-validator`, `build-worker`, `code-validator`, `designer`, `engineer`, `module-architect`, `pr-reviewer`, `product-acceptance`, `system-architect`, `tech-reviewer`, `test-engineer`, `ux-architect` 는 workflow 내부에서 호출되는 gate/worker/reviewer 로 분류한다.
 
-특히 `code-validator`, `architecture-validator`, `pr-reviewer` 는 read-only validation provider 분기 대상이고, `test-engineer`, `engineer`, `build-worker` 는 implementation provider 분기 대상이다. provider 가 Claude 든 Codex 든 사용자-facing 단계 이름은 `pr-reviewer` / `build-worker` 같은 agent 이름으로 유지한다.
+특히 `code-validator`, `architecture-validator`, `pr-reviewer` 는 read-only validation provider 분기 대상이다. `test-engineer`, `engineer`, `build-worker` 는 `/impl-loop` 같은 deep task runner 의 implementation provider 분기 대상이지 일반 `/impl` 구현자가 아니다. provider 가 Claude 든 Codex 든 사용자-facing 단계 이름은 `pr-reviewer` / `build-worker` 같은 agent 이름으로 유지한다.
 
 ## Contract Gate
 

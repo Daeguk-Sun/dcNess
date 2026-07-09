@@ -49,45 +49,34 @@ class SkillScenarioRegressionTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-    # ----- 시나리오 1 — /impl 기본 build-worker + 풀4 승격 시퀀스 -----
-    def test_impl_default_engine_is_build_worker(self) -> None:
-        """/impl Standard engine unspecified path defaults to build-worker, not 풀 4-agent."""
+    # ----- 시나리오 1 — /impl 메인 구현 + 격리 리뷰 -----
+    def test_impl_uses_main_implementation_and_isolated_review(self) -> None:
+        """/impl keeps implementation on main and isolates only pr-reviewer."""
         for needle in (
-            "엔진 = build-worker(디폴트)",
-            "디폴트 근거",
-            "풀 4-agent 는 승격 전용",
-            "risk: high",
-            "engine: 4agent",
-            "고위험 trigger",
-            "사용자 엄정",
+            "일반 `/impl` 구현 주체는 **항상 메인**",
+            "격리되는 것은 review step",
+            "일반 `/impl` 은 `test-engineer` / `engineer` / `build-worker` 를 구현자로 호출하지 않는다",
+            "review provider",
+            "pr-reviewer",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_skill)
 
         for needle in (
-            "Standard · 경량 build-worker (디폴트)",
-            "풀 4-agent 승격",
-            "고위험 trigger",
-            "사용자 엄정",
+            "일반 `/impl` 의 구현 주체는 항상 메인",
+            "격리되는 것은 review step",
+            "Lite · 메인 직접",
+            "Standard · 메인 직접",
+            "review provider",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_routing)
 
-    def test_escalated_four_agent_sequence_keeps_order(self) -> None:
-        """/impl 풀 4-agent escalation path preserves test → impl → validate → review.
+    def test_impl_loop_escalated_four_agent_sequence_keeps_order(self) -> None:
+        """/impl-loop 풀 4-agent escalation path preserves test → impl → validate → review.
 
         4 단계 중 하나라도 빠지거나 순서가 바뀌면 false-clean 회귀(#431)로 직결된다.
         """
-        # impl SKILL task_list — 정확한 시퀀스 (화살표 →)
-        self.assertIn(
-            "test-engineer → engineer:IMPL → code-validator → pr-reviewer",
-            self.impl_skill,
-        )
-        # impl-routing 표 — 정확한 시퀀스 (화살표 ->)
-        self.assertIn(
-            "test-engineer -> engineer:IMPL -> code-validator -> pr-reviewer",
-            self.impl_routing,
-        )
         # impl-loop 엔진 A — 4 단계가 이 순서로 + "모두 호출" 의무 키워드 보존.
         self.assertRegex(
             self.impl_loop_skill,
@@ -149,18 +138,19 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         # impl Lite 최소 gate 에도 false-clean 방지 명시.
         self.assertIn("false-clean", self.impl_skill)
 
-    def test_impl_standard_lightweight_path_keeps_pr_reviewer_gate(self) -> None:
-        """#851 — Standard 경량 build-worker 경로도 pr-reviewer 게이트를 명시한다."""
+    def test_impl_standard_main_path_keeps_pr_reviewer_gate(self) -> None:
+        """#851/#1019 — Standard main-owned path keeps the pr-reviewer gate."""
         for needle in (
-            "경량 build-worker 엔진도 `build-worker → pr-reviewer`",
-            "Standard 경량 경로도 pr-reviewer PASS 전 commit/PR/merge 로 가지 않는다",
-            "검증 gate = test + build-worker self-validate + pr-reviewer",
+            "Standard 구현 경로 — 설계도 기반 구현",
+            "구현은 여전히 메인이 직접 수행",
+            "review 만 격리 provider",
+            "PASS 전 commit/PR 로 가지 않는다",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_skill)
 
         self.assertIn(
-            "Standard 경량 build-worker",
+            "Standard · 메인 직접",
             (ROOT / "skills" / "impl" / "impl-routing.md").read_text(encoding="utf-8"),
         )
         for relpath in (
@@ -169,7 +159,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         ):
             with self.subTest(relpath=relpath):
                 text = (ROOT / relpath).read_text(encoding="utf-8")
-                self.assertIn("경량 build-worker", text)
+                self.assertIn("메인", text)
                 self.assertIn("pr-reviewer", text)
 
     def test_impl_loop_chain_confirms_when_issue_close_will_fire(self) -> None:

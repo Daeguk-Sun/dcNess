@@ -419,6 +419,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "concrete signal 로 보고 `/impl`, `/design`, `/spec`, `/ux` 등",
             self.router,
         )
+        self.assertIn("일반 `/impl` 의 구현 주체는 메인", self.positioning)
+        self.assertIn("격리되는 단계는 `pr-reviewer`", self.positioning)
 
     def test_internal_routing_docs_prefer_lifecycle_names(self) -> None:
         # #711 — high-risk 선행은 impl 밖. impl 문서가 lifecycle 진입점을 가리킨다.
@@ -427,6 +429,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("`/design` 으로 설계한다", self.impl_skill)
         self.assertIn('OUT["impl 밖 — 설계 선행: /spec 또는 /design"]', self.impl_routing)
         self.assertIn("없으면 `/spec` / `/tech-review` / `/design` 선행", self.impl_routing)
+        self.assertIn("일반 `/impl` 의 구현 주체는 항상 메인", self.impl_routing)
         self.assertIn(
             "spec / design 단계 → `/spec` (PRD) 또는 `/design` (설계)",
             self.impl_loop_skill,
@@ -759,6 +762,30 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 self.assertIn("사람 승인", text)
         self.assertIn("read-only", self.init_reference)
         self.assertIn("표준 레이아웃·빈 프로젝트", self.impl_skill)
+
+    def test_issue_1019_impl_uses_deterministic_preview_helper(self) -> None:
+        """#1019 — /impl keeps route/review preview in helper code."""
+        self.assertIn('"$HELPER" impl-preview', self.impl_skill)
+        self.assertIn("--workflow-risk normal|high", self.impl_skill)
+        self.assertIn("--natural-language-only", self.impl_skill)
+        self.assertIn("route=issue-intake", self.impl_skill)
+        self.assertIn("review_provider", self.impl_skill)
+
+    def test_issue_1019_impl_external_copy_avoids_internal_nickname(self) -> None:
+        """#1019 — external-facing impl docs do not expose the internal harness nickname."""
+        self.assertNotIn("꼼꼼구현", self.impl_skill)
+        self.assertNotIn("꼼꼼구현", self.router)
+        self.assertIn("구현을 진행할까요?", self.impl_skill)
+
+    def test_issue_1019_general_impl_does_not_expose_headless_engine_axis(self) -> None:
+        """#1019 — general /impl is main-owned; headless worker engines belong to /impl-loop."""
+        for text in (self.impl_skill, self.impl_routing, self.positioning, self.readme):
+            with self.subTest(source=text[:40]):
+                self.assertIn("메인", text)
+                self.assertNotIn("Standard · 경량 build-worker", text)
+                self.assertNotIn("구현 경로(설계도 유무)와 엔진", text)
+        self.assertIn("story/epic deep task runner", self.readme)
+        self.assertIn("일반 `/impl` 구현은 메인이 맡고", self.readme)
 
     def test_issue_885_claude_md_seed_and_audit_stays_inside_existing_surfaces(self) -> None:
         """#885 — CLAUDE.md seed/migration and audit wire into init/run-review only."""
