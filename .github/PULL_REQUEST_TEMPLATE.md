@@ -4,9 +4,9 @@
 ## 관련 이슈 번호
 
 <!-- 트레일러 룰 (git-spec 의 PR 트레일러 기본 룰):
-     - 중간 task → Part of #N
-     - 마지막 task → Closes #N
-     - epic 마지막 task → Closes #story + Closes #epic
+     - 단일 story → Closes #story (epic 마지막이면 Closes #epic 동봉)
+     - 통합 브랜치 story sub-PR → Part of #story + main bulk-close exception
+     - 통합 → main → 모든 story + epic 을 Closes
      - issue 없는 infra/follow-up → Document-Exception-PR-Close: <사유> -->
 Part of #N
 

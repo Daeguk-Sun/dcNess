@@ -14,9 +14,9 @@ description: Story/공통 impl task 파일(SDD 설계도)을 받아 단일 build
 - **loop**: `impl-task-loop` (UI 감지 시 `impl-ui-design-loop`)
 - **entry_point**: `impl`
 - **implementation**: `build-worker` 하나. `build-worker` 는 test + impl + self-validate + task local commit 을 수행한다.
-- **review**: 모든 대상 task 가 implemented/completed 된 뒤 merge candidate diff 를 대상으로 `impl-validator` 1회 통합 리뷰.
+- **review**: 모든 대상 task 가 completed 된 뒤 merge candidate diff 를 대상으로 `impl-validator` 1회 통합 리뷰.
 - **main-owned**: push / PR 생성 / PR merge / issue mutation 은 메인 전담.
-- **state**: `dcness-story-runner` 가 task 순서, task commit, story status, batch review 경계를 소유한다.
+- **state**: `dcness-story-runner` 가 task 순서와 task commit 상태만 저장하고 story PR/run 종결은 task 에서 계산한다.
 - **분기 규칙**: [`impl-loop-routing.md`](impl-loop-routing.md)
 
 UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint 이며 helper begin/end-step 비대상이다. draft 가 필요할 때 ledger 에 기록되는 실제 Agent step 은 `begin-step designer` 다.
@@ -136,11 +136,20 @@ phase prose:
 - build-worker 가 환경 제약으로 검증 명령을 실행하지 못해 `VALIDATION_BLOCKED` 를 보고하면, 메인이 같은 worktree cwd 에서 worker 가 남긴 명령을 직접 실행한다.
 - 검증 미실행 상태로 commit/push/PR 진행 금지.
 
-## story/epic runner state (#1019)
+## story/epic runner task 단일 상태 (#1019, #1041)
 
-`/impl-loop` 은 story/epic run state 를 자연어로 암기하지 않는다. 진입 직후 `dcness-story-runner plan/init` 이 impl task 목록을 정렬하고, task 상태와 batch-review 경계를 만든다. 실행 중에는 `dcness-story-runner mark` 와 `dcness-story-runner next-action` 만으로 다음 행동을 고른다.
+`/impl-loop` 은 story/epic 진행을 자연어로 암기하지 않는다. 진입 직후 `dcness-story-runner plan/init` 이 impl task 목록을 정렬한다. state file 에는 각 task 의 `pending / running / completed / error / blocked` 와 `attempts / commit / provider / note` 만 저장한다. story/run status 와 PR 번호는 저장하지 않는다.
 
-실행 단위는 **task commit** 과 **batch review PR** 이다. build-worker 가 각 task local commit 을 만든 뒤 `dcness-story-runner mark --status completed --commit <sha>` 로 state 를 갱신한다. story 의 모든 task 가 completed 되면 story status 는 `implemented` 가 된다. 모든 target story/task 가 implemented/completed 되면 `next-action` 은 `action=batch-review` 를 반환하고 run status 는 `ready_for_review` 가 된다. 그 전에는 story PR 로 멈추지 않고 다음 task 로 진행한다.
+실행 단위는 **task commit** 과 **story sub-PR** 이다. build-worker 가 각 task local commit 을 만든 뒤 `dcness-story-runner mark --status completed --commit <sha>` 로 state 를 갱신한다. `error` / `blocked` 는 서로 다른 task 상태로 기록하고 `--note <사유>` 를 반드시 남긴다.
+
+`next-action` 의 파생 결과만 다음 행동을 정한다.
+
+- `action=task`: 미완 task 를 build-worker 로 실행한다.
+- `action=story-pr`: 직전 story 의 task commit 이 모두 완료됐다. 응답의 `story` 로 story sub-PR 을 만들고, `next_task` 는 그 PR 반영 뒤 시작할 task 다.
+- `action=done`: 모든 task commit 이 완료됐다. `final_story` 로 마지막 story PR 을 만든 뒤 invocation 전체 merge candidate 를 리뷰한다.
+- `action=error` / `action=blocked`: 해당 task 의 note 를 근거로 retry 또는 사용자 위임한다.
+
+task 가 모두 completed 면 run 은 PR 생성·머지 여부와 무관하게 종결된 것이다. 다음 `init` 은 기존 state 를 `story-run.completed-<UTC>.json` 으로 자동 보관하고 `--force` 없이 새 run 을 시작한다.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-story-runner" plan <impl-glob-or-dir>
@@ -151,27 +160,34 @@ phase prose:
 
 완료 state 는 `story-run.completed-<UTC>.json` 으로 보관한다. 이 state file 은 직렬 chain driver 전용이며, 메인이 path glob 를 다시 정렬하거나 frontmatter 를 재해석하지 않는다.
 
+story PR 경계:
+
+- 단일 story run: `final_story` PR 1개, base=`main`. review/acceptance 뒤 사람 merge 결정을 기다린다.
+- 다중 story/epic run: story 별 branch 와 sub-PR 의 base는 `stories.md`의 통합 브랜치다. `action=story-pr`마다 메인이 sub-PR을 만들고 통합 브랜치로 즉시 머지한다. 다음 story branch는 **갱신된 통합 브랜치에서 재분기**한다.
+- 마지막 `action=done`: 마지막 story sub-PR까지 통합한 뒤 통합→main PR 1개를 만든다. 사람 머지 게이트는 이 PR 한 곳이다. epic을 단일 구현 PR로 묶지 않는다.
+
 dry preview echo:
 
 ```text
-전체: K task commit · batch review PR 1개
+전체: K task commit · S story sub-PR · 다중 story 면 통합→main PR 1개
 acceptance 경계: story #<M>…#<N> · epic #<E>   ← 머지 전 검수 대상 (기본 ON, --no-acceptance 시 생략)
 ```
 
 issue close 가 실제 발동되는 story PR 또는 epic 마감 PR 을 포함한 chain 은 task 수와 무관하게 계획 표 echo + `진행할까요? (Y/n)` 1회 확인 후 진입한다. 확인 응답 전에는 task1 또는 마감 PR 머지로 진입하지 않는다. 통합 브랜치 sub-PR(base ≠ default) 의 `Closes` 는 그 시점에 실제 close 를 발동하지 않으므로 sub-PR chain 진입 확인 기준에서는 제외하고, 마지막 main 머지 PR 직전에 1회 확인한다. yolo 모드에서는 생략한다.
 
-## Batch review / PR / merge
+## Story PR / integrated review / merge
 
-모든 target task 가 implemented/completed 된 뒤 메인이 push 하고 PR 을 만든다. `impl-validator review 출력은 merge candidate 경계에서 1회` 수행한다. 단일 story 는 해당 PR diff 를, 다중 story/통합 브랜치는 합쳐진 diff 를 넘긴다.
+story 의 target task 가 completed 될 때마다 메인이 story PR 을 만든다. 다중 story run 은 story sub-PR 을 통합 브랜치에 누적하되, `impl-validator review 출력은 merge candidate 경계에서 1회`만 수행한다. 단일 story 는 열린 story→main PR diff 를, 다중 story/epic 은 모든 sub-PR 이 반영된 통합→main diff 를 넘긴다.
 
 정상 순서:
 
-1. build-worker task commit 들이 worktree branch 에 누적되어 있고 `git status --porcelain` 이 clean 인지 확인한다.
-2. PR body 를 `.github/PULL_REQUEST_TEMPLATE.md` 에 맞춰 작성한다.
-3. `scripts/pr-create.sh` 또는 repo git-spec 절차로 push/PR 생성은 메인이 수행한다.
-4. `begin-step impl-validator` → build-worker provider 의 반대편으로 review provider 를 resolve 하고, `impl-validator` 가 merged diff 를 1회 리뷰한다.
-5. `PASS` 후 close 발동 여부에 따라 product-acceptance 를 수행한다.
-6. merge 는 `$PLUGIN_ROOT/scripts/pr-finalize.sh <PR>` 로 진행한다. 사용자 merge 결정이 필요한 repo 에서는 여기서 멈춘다.
+1. 한 story 의 build-worker task commit 들과 `git status --porcelain` clean 을 확인한다.
+2. `scripts/pr-create.sh` 또는 repo git-spec 절차로 story PR 을 만든다.
+3. 다중 story/epic 이면 story sub-PR 을 통합 브랜치로 머지하고 remote 통합 ref 를 갱신한 뒤, 다음 story branch 를 그 ref 에서 새로 만든다. 단일 story PR 은 열린 채 유지한다.
+4. 모든 story PR 경계를 처리한 뒤 다중 story/epic 은 통합→main PR 을 만든다.
+5. `begin-step impl-validator` → build-worker provider 의 반대편으로 review provider 를 resolve 하고, `impl-validator` 가 merged diff 를 1회 리뷰한다.
+6. `PASS` 후 `STORY_ACCEPTANCE` × N, epic close 시 `EPIC_ACCEPTANCE` 를 수행한다.
+7. 단일 story→main 또는 통합→main PR 은 사용자 merge 결정이 필요한 repo 에서 멈춘다.
 
 `impl-validator FAIL` 이면 메인이 root cause 를 고친 뒤 새 commit 을 PR branch 에 append 하거나, 이미 머지된 뒤라면 fix PR 을 만든다. 단일 story PR 은 해당 PR branch 에 append 한다. story PR 이 2개 이상인 run 에서 FAIL 보정이 필요하면 downstream rebase 없이 통합 fix PR 1개를 만든다. 같은 finding 을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
 
@@ -188,7 +204,7 @@ REVIEW_PROVIDER=$("$HELPER" routing resolve impl-validator --implementation-prov
 
 story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후에만 마감 PR 을 머지**한다. 기본 ON — `--no-acceptance` 또는 "검수 없이" 발화 시에만 생략한다.
 
-batch review PR 이 여러 story 를 닫으면 `product-acceptance:STORY_ACCEPTANCE` 를 story × N 으로 수행한 뒤, epic close 가 실제 발동되면 `product-acceptance:EPIC_ACCEPTANCE` 를 1회 수행한다. gap 수정 commit 이 생기면 이전 STORY PASS 는 stale 이므로 STORY_ACCEPTANCE 부터 다시 돌린다.
+최종 main 대상 PR 이 여러 story 를 닫으면 `product-acceptance:STORY_ACCEPTANCE` 를 story × N 으로 수행한 뒤, epic close 가 실제 발동되면 `product-acceptance:EPIC_ACCEPTANCE` 를 1회 수행한다. gap 수정 commit 이 생기면 이전 STORY PASS 는 stale 이므로 STORY_ACCEPTANCE 부터 다시 돌린다.
 
 product-acceptance 는 read-only 라 `gh` 호출 불가다. PR 목록·검증 결과·동작 증거·UI 목업 정합 증거는 메인이 prompt 에 직접 담는다. UI task 는 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 함께 넣어 목업 불일치와 화면 증거 부재를 판정할 수 있게 한다. 핵심 AC 증거가 mock-only green 이거나 대상 사용자에게 부적합한 입력/진행 동선이면 gap 이다.
 
@@ -225,14 +241,14 @@ chain 안에서는 매 task 전수 review.md 출력을 하지 않는다. 메인 
 build-worker: N tests RED→GREEN · M files +X -Y · validate PASS|FAIL · commit <sha>
 finding: <PASS 시 "없음" / FAIL·NICE TO HAVE 시 1-2 문장>
 PR <#NNN> merged · closes #<MMM>
-next: <다음 task slug 진입 | batch-review | 정지 사유>
+next: <다음 task slug 진입 | story-pr | integrated-review | 정지 사유>
 ```
 
 close 발동 PR 은 acceptance 줄을 `PR <#NNN> merged` 앞에 추가한다. 디스크의 `<run_dir>/review.md` 는 원본 그대로 저장한다.
 
 ## 종료 조건
 
-전체 완료 후 메인은 처리 N/N, task commit sha, batch review PR URL, impl-validator round, acceptance 결과를 보고한다. clean 판정 전에는 다음 흔적을 확인한다.
+전체 완료 후 메인은 처리 N/N, task commit sha, story sub-PR URL, 최종 main 대상 PR URL, impl-validator round, acceptance 결과를 보고한다. clean 판정 전에는 다음 흔적을 확인한다.
 
 - build-worker phase prose 3개.
 - build-worker local commit sha.
@@ -249,7 +265,8 @@ close 발동 PR 은 acceptance 줄을 `PR <#NNN> merged` 앞에 추가한다. �
 - task N 개를 한 build-worker 호출에 묶어 한 번에 처리.
 - task commit/mark 전 다음 task 진입.
 - build-worker 가 push / PR 생성 / merge / issue mutation 수행.
-- impl-validator batch review 없이 PR 생성·머지.
+- story sub-PR 을 건너뛰고 epic 구현을 단일 PR 로 묶기.
+- 모든 구현 뒤 impl-validator 통합 리뷰 없이 최종 main 대상 PR 을 머지하기.
 - story/epic close 발동 PR 에서 acceptance 생략 또는 FAIL 미해소 상태로 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 강행.
 - TaskCreate / TaskUpdate skip.
 - chain 전체 완료 후 자율 작업 (이슈 등록 / cleanup / 분석) 진입 시 `post-task-begin` marker 누락.

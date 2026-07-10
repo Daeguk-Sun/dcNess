@@ -6,13 +6,15 @@
 ## 이슈 계층
 
 ```
-epic issue ─┬─ story issue ── (task: PR 기반, 이슈 없음)
-            └─ story issue ── (task: PR 기반, 이슈 없음)
+epic issue ─┬─ story issue ── (task: local commit, 이슈 없음)
+            └─ story issue ── (task: local commit, 이슈 없음)
 ```
 
 - **epic** = 1 개 `docs/epics/epic-NN-<slug>/stories.md` 영역 (epic 단위 stories.md 1 개 = 1 epic)
 - **story** = epic 단위 stories.md 안의 Story N 단위
-- **task** = `docs/epics/epic-NN-*/impl/NN-*.md` 단위. PR 1 개 = task 1 개. GitHub 이슈 X — PR 자체가 추적 단위
+- **task** = `docs/epics/epic-NN-*/impl/NN-*.md` 단위. 완료 경계는 local commit 이며 GitHub 이슈 X
+- **story** = task commit 묶음의 PR 경계. 단일 story 는 base=`main` PR 1개, 다중 story/epic 은 story 별 통합 브랜치 sub-PR
+- **epic** = story sub-PR × N + 마지막 통합→main PR. epic 구현을 단일 PR로 묶지 않는다.
 
 `epic-NN` 은 프로젝트 전역 번호다. milestone 은 path segment 가 아니라 stories frontmatter `milestone: vNN` 로 남긴다.
 
@@ -33,7 +35,7 @@ gh api -X POST repos/{owner}/{repo}/issues/{epic_number}/sub_issues \
 
 멱등성: 재호출 전 `gh api repos/{owner}/{repo}/issues/{epic_number} --jq '.sub_issues_summary.total'` 로 연결 상태 조회. 누락 story 만 추가 (이미 연결된 story 재추가 시 422).
 
-task 는 GitHub 이슈 X — [`git-spec.md`](git-spec.md#pr-트레일러-part-of-closes) PR 트레일러로만 추적.
+task 는 GitHub 이슈 X — local commit sha 로 추적하고, story/epic 연결·close 는 [`git-spec.md`](git-spec.md#pr-트레일러-part-of-closes) PR 트레일러를 따른다.
 
 ## Issue pre-create validation
 

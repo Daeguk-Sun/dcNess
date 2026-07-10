@@ -82,7 +82,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
             r"build-worker.*impl-validator",
         )
         self.assertIn("단일 구현 엔진 `build-worker`", self.impl_loop_skill)
-        self.assertIn("batch-review", self.impl_loop_skill)
+        self.assertIn("action=story-pr", self.impl_loop_skill)
 
     # ----- 시나리오 2a — build-worker phase prose 3개 -----
     def test_build_worker_requires_three_phase_prose_files(self) -> None:

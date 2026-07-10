@@ -1,9 +1,10 @@
 #!/bin/bash
-# dcness pr-trailer — impl task 파일 frontmatter 기반 PR body 트레일러 자동 생성
+# dcness pr-trailer — impl task 의 story key 기반 PR body 트레일러 자동 생성
 #
 # 룰 SSOT = docs/plugin/git-spec.md 의 "PR 트레일러 (Part of / Closes)" 절.
 # 본 스크립트는 그 적용 절차(수동 bash recipe)의 한 명령 구현이다 — 메인이 PR body
-# 작성 직전 frontmatter 를 손으로 읽고 분기하던 수작업을 대체한다.
+# 작성 직전 frontmatter 와 stories.md 를 손으로 읽고 분기하던 수작업을 대체한다.
+# task 파일은 story grouping key 를 찾는 입력이며 task_index 는 PR 경계가 아니다.
 #
 # 사용:
 #   scripts/pr-trailer.sh <impl-task-file>          # 트레일러 블록을 stdout 출력
@@ -14,14 +15,14 @@
 #   - stderr = 판정 근거 / WARN / ERROR.
 #
 # 분기 (git-spec 기본 룰):
-#   - story: 공통           → Part of #<epic>            (task-index omit)
-#   - task_index i < total  → Part of #<story> + task-index
-#   - task_index i == total → Closes #<story> (+ epic 마지막 story 면 Closes #<epic>) + task-index
-#   - malformed (숫자 story 인데 i/total 형식 아님) → exit 1 (PR 생성 정지 — git-spec MUST 가드)
+#   - story: 공통 → Part of #<epic>
+#   - story PR, base=main → Closes #<story> (+ epic 마지막 story 면 Closes #<epic>)
+#   - story sub-PR, base=통합 브랜치 → Part of #<story> + final main bulk-close exception
+#   - malformed (숫자 story 인데 task_index 가 i/total 형식 아님) → exit 1
 #
 # 통합 브랜치: stories.md 상단 `**Base Branch:** feature/<slug>` 마커가 있으면
-# base = 그 값. base ≠ main 이면 Closes 는 머지 시 미발동(GitHub 은 default branch
-# 머지만 auto-close) — pr-finalize.sh 가 머지 후 close 보정한다.
+# base = 그 값. sub-PR 은 story 를 조기 close 하지 않고 마지막 통합→main PR 이
+# 모든 story + epic 을 일괄 close 한다.
 
 set -e
 
@@ -81,23 +82,25 @@ if [ "$STORY_NUM" != "공통" ] && [ -n "$STORY_NUM" ]; then
 fi
 
 if [ "$STORY_NUM" = "공통" ]; then
-  # 공통 task — Part of #<epic>, task-index omit (git-spec 기본 룰)
+  # 공통 task group — 별도 story issue 가 없으므로 epic 에 연결한다.
   if [ -z "$EPIC_ISSUE" ]; then
     echo "[pr-trailer] ERROR: 공통 task 인데 $STORIES 에 '**GitHub Epic Issue:** #N' 마커 미해결 — 빈 'Part of #' 방지 위해 정지" >&2
     exit 1
   fi
   TRAILER="Part of #${EPIC_ISSUE}"
-  echo "[pr-trailer] 공통 task → Part of #${EPIC_ISSUE} (task-index omit)" >&2
+  echo "[pr-trailer] 공통 task group → Part of #${EPIC_ISSUE}" >&2
 elif printf '%s' "$TASK_INDEX" | grep -qE '^[0-9]+/[0-9]+$'; then
   if [ -z "$STORY_ISSUE" ]; then
     echo "[pr-trailer] ERROR: story $STORY_NUM 의 '**GitHub Issue:** #N' 마커를 $STORIES 에서 못 찾음 — 이슈 미등록이면 등록 후 재시도" >&2
     exit 1
   fi
-  I="${TASK_INDEX%/*}"
-  TOTAL="${TASK_INDEX#*/}"
-  if [ "$I" = "$TOTAL" ]; then
+  if [ "$BASE" != "main" ]; then
+    TRAILER="Part of #${STORY_ISSUE}
+Document-Exception-PR-Close: 통합 브랜치 story sub-PR — main 머지 시 일괄 close"
+    echo "[pr-trailer] 통합 브랜치 story $STORY_NUM sub-PR → Part of #${STORY_ISSUE}; 마지막 통합→main PR 에서 일괄 close" >&2
+  else
     TRAILER="Closes #${STORY_ISSUE}"
-    echo "[pr-trailer] story $STORY_NUM 마지막 task (${TASK_INDEX}) → Closes #${STORY_ISSUE}" >&2
+    echo "[pr-trailer] story $STORY_NUM PR → Closes #${STORY_ISSUE}" >&2
     # epic 마지막 story 판정 — epic 라벨은 stories.md 디렉토리명(epic-NN-<slug>) 우선,
     # 없으면 epic 이슈의 라벨에서 조회. OPEN story 가 본 story 뿐이면 epic 도 동봉.
     EPIC_LABEL=$(basename "$(dirname "$STORIES")" | grep -E '^epic-[0-9]+-' || true)
@@ -116,19 +119,10 @@ Closes #${EPIC_ISSUE}"
     elif [ -n "$EPIC_ISSUE" ]; then
       echo "[pr-trailer] WARN: epic 라벨(epic-NN-<slug>) 미해결 — epic 마지막 story 판정 skip" >&2
     fi
-  else
-    TRAILER="Part of #${STORY_ISSUE}"
-    echo "[pr-trailer] story $STORY_NUM 중간 task (${TASK_INDEX}) → Part of #${STORY_ISSUE}" >&2
   fi
-  TRAILER="${TRAILER}
-task-index: ${TASK_INDEX}"
 else
   echo "[pr-trailer] ERROR: story=$STORY_NUM 인데 task_index='$TASK_INDEX' 가 i/total 도 공통(—)도 아님 — malformed/누락 가드, PR 생성 정지 (git-spec PR 트레일러 MUST)" >&2
   exit 1
-fi
-
-if [ "$BASE" != "main" ]; then
-  echo "[pr-trailer] base=$BASE (통합 브랜치) — GitHub auto-close 는 default branch 머지만 인식하므로 Closes 는 머지 시 미발동. pr-finalize.sh 가 머지 후 close 보정." >&2
 fi
 
 echo "$TRAILER"

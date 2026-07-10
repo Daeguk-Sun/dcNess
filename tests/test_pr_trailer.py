@@ -1,7 +1,7 @@
-"""pr-trailer.sh 행동 테스트 — impl frontmatter 기반 PR 트레일러 자동 생성.
+"""pr-trailer.sh 행동 테스트 — story PR 트레일러 자동 생성.
 
-git-spec "PR 트레일러 (Part of / Closes)" 적용 절차의 한 명령 구현이 분기표대로
-동작하는지 fixture 저장소 + 가짜 gh 스텁으로 검증한다.
+task 파일은 story grouping key 를 찾는 입력일 뿐이며 task_index 는 PR 경계를
+결정하지 않는다.
 """
 from __future__ import annotations
 
@@ -83,25 +83,24 @@ class PrTrailerTests(unittest.TestCase):
             cwd=self.root,
         )
 
-    def test_middle_task_part_of_story(self) -> None:
+    def test_any_story_task_selects_story_close_trailer(self) -> None:
         task = self._task("01-first.md", "1", "1/2")
         result = self._run(str(task))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "Part of #11\ntask-index: 1/2")
+        self.assertEqual(result.stdout.strip(), "Closes #11")
+        self.assertNotIn("task-index", result.stdout)
 
     def test_last_task_closes_story_only_when_epic_has_open_stories(self) -> None:
         task = self._task("02-last.md", "1", "2/2")
         result = self._run(str(task), open_story_count="2")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "Closes #11\ntask-index: 2/2")
+        self.assertEqual(result.stdout.strip(), "Closes #11")
 
     def test_last_task_of_last_story_closes_epic_too(self) -> None:
         task = self._task("02-last.md", "2", "2/2")
         result = self._run(str(task), open_story_count="1")
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(
-            result.stdout.strip(), "Closes #12\nCloses #10\ntask-index: 2/2"
-        )
+        self.assertEqual(result.stdout.strip(), "Closes #12\nCloses #10")
 
     def test_common_task_part_of_epic_without_task_index(self) -> None:
         task = self._task("00-common.md", "공통", "—")
@@ -142,7 +141,7 @@ class PrTrailerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "main")
 
-    def test_integration_base_warns_autoclose_not_firing(self) -> None:
+    def test_integration_story_sub_pr_defers_close_to_main(self) -> None:
         (self.epic_dir / "stories.md").write_text(
             "**Base Branch:** feature/shorts-template\n\n" + STORIES_BODY,
             encoding="utf-8",
@@ -150,9 +149,13 @@ class PrTrailerTests(unittest.TestCase):
         task = self._task("01-first.md", "1", "1/2")
         result = self._run(str(task))
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "Part of #11\ntask-index: 1/2")
+        self.assertEqual(
+            result.stdout.strip(),
+            "Part of #11\n"
+            "Document-Exception-PR-Close: 통합 브랜치 story sub-PR — main 머지 시 일괄 close",
+        )
         self.assertIn("통합 브랜치", result.stderr)
-        self.assertIn("pr-finalize", result.stderr)
+        self.assertIn("일괄 close", result.stderr)
 
 
 if __name__ == "__main__":
