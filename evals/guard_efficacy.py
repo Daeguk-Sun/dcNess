@@ -534,7 +534,7 @@ def build_cases() -> list[GuardCase]:
             "order-gate",
             "block",
             "Agent call cannot jump away from current_step.",
-            _order_gate("impl-validator", current_step="engineer"),
+            _order_gate("impl-validator", current_step="build-worker"),
         ),
         GuardCase(
             "begin_step_blocks_build_worker_without_design_artifact",

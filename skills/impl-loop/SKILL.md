@@ -169,11 +169,20 @@ issue close 가 실제 발동되는 story PR 또는 epic 마감 PR 을 포함한
 1. build-worker task commit 들이 worktree branch 에 누적되어 있고 `git status --porcelain` 이 clean 인지 확인한다.
 2. PR body 를 `.github/PULL_REQUEST_TEMPLATE.md` 에 맞춰 작성한다.
 3. `scripts/pr-create.sh` 또는 repo git-spec 절차로 push/PR 생성은 메인이 수행한다.
-4. `begin-step impl-validator` → `impl-validator` 가 merged diff 를 1회 리뷰한다.
+4. `begin-step impl-validator` → build-worker provider 의 반대편으로 review provider 를 resolve 하고, `impl-validator` 가 merged diff 를 1회 리뷰한다.
 5. `PASS` 후 close 발동 여부에 따라 product-acceptance 를 수행한다.
 6. merge 는 `$PLUGIN_ROOT/scripts/pr-finalize.sh <PR>` 로 진행한다. 사용자 merge 결정이 필요한 repo 에서는 여기서 멈춘다.
 
 `impl-validator FAIL` 이면 메인이 root cause 를 고친 뒤 새 commit 을 PR branch 에 append 하거나, 이미 머지된 뒤라면 fix PR 을 만든다. 단일 story PR 은 해당 PR branch 에 append 한다. story PR 이 2개 이상인 run 에서 FAIL 보정이 필요하면 downstream rebase 없이 통합 fix PR 1개를 만든다. 같은 finding 을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
+
+review provider resolve:
+
+```bash
+IMPLEMENTATION_PROVIDER="${DCNESS_IMPLEMENTATION_PROVIDER:-headless-chain}"
+REVIEW_PROVIDER=$("$HELPER" routing resolve impl-validator --implementation-provider "$IMPLEMENTATION_PROVIDER")
+```
+
+`routing.json` 에 `impl-validator` 가 명시되어 있으면 그 값이 우선한다. 명시값이 없으면 headless-chain/codex-first build-worker 의 리뷰는 Claude, claude-headless/claude build-worker 의 리뷰는 Codex 가능 시 Codex·불가 시 Claude 다.
 
 ## 마감 acceptance
 

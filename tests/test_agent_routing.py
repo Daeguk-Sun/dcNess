@@ -214,9 +214,23 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(ns.cmd, "routing")
         self.assertEqual(ns.routing_cmd, "resolve")
         self.assertEqual(ns.agent, "impl-validator")
+        self.assertIsNone(ns.implementation_provider)
 
         ns = parser.parse_args(["routing", "enable-role-split-routing"])
         self.assertEqual(ns.routing_cmd, "enable-role-split-routing")
+
+        ns = parser.parse_args(
+            [
+                "routing",
+                "resolve",
+                "impl-validator",
+                "--implementation-provider",
+                "headless-chain",
+            ]
+        )
+        self.assertEqual(ns.routing_cmd, "resolve")
+        self.assertEqual(ns.agent, "impl-validator")
+        self.assertEqual(ns.implementation_provider, "headless-chain")
 
         ns = parser.parse_args(
             ["routing", "set-implementation", "build-worker", "claude-headless"]
@@ -241,6 +255,35 @@ class AgentRoutingCliTests(unittest.TestCase):
             )
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "codex")
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(
+                SimpleNamespace(
+                    routing_cmd="resolve",
+                    agent="impl-validator",
+                    implementation_provider="headless-chain",
+                    main_provider="claude",
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().strip(), "codex")
+
+    def test_cli_resolve_impl_validator_crosses_impl_loop_provider(self) -> None:
+        from harness.session_state import _cli_routing
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(
+                SimpleNamespace(
+                    routing_cmd="resolve",
+                    agent="impl-validator",
+                    implementation_provider="headless-chain",
+                    main_provider="claude",
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().strip(), "claude")
 
     def test_cli_implementation_modes_and_resolve(self) -> None:
         from harness.session_state import _cli_routing
