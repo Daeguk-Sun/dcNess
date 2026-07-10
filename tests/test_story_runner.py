@@ -85,6 +85,159 @@ class StoryRunnerTests(unittest.TestCase):
             self.assertNotIn("engine", task)
             self.assertNotIn("risk_reason", task)
 
+    def test_plan_preserves_contiguous_story_blocks_in_path_order(self) -> None:
+        common = self._write_task(
+            "00-common.md",
+            story="공통",
+            task_index="",
+            title="Shared setup",
+        )
+        story_two = self._write_task(
+            "04-story-two.md",
+            story="2",
+            task_index="1/1",
+            title="Story two",
+        )
+
+        state = build_state(
+            [
+                str(story_two),
+                str(self.impl_dir / "02-api.md"),
+                str(common),
+                str(self.impl_dir / "01-ui.md"),
+            ],
+            cwd=self.root,
+            scope="epic",
+        )
+
+        self.assertEqual(
+            [Path(task["path"]).name for task in state["tasks"]],
+            ["00-common.md", "01-ui.md", "02-api.md", "04-story-two.md"],
+        )
+        self.assertEqual(
+            [task["story"] for task in state["tasks"]],
+            ["공통", "1", "1", "2"],
+        )
+
+    def test_plan_applies_contiguity_rule_to_common_story(self) -> None:
+        common_start = self._write_task(
+            "00-common-start.md",
+            story="공통",
+            task_index="",
+            title="Shared setup",
+        )
+        common_again = self._write_task(
+            "02-common-again.md",
+            story="공통",
+            task_index="",
+            title="Shared follow-up",
+        )
+
+        with self.assertRaisesRegex(ValueError, "story=공통") as raised:
+            build_state(
+                [
+                    str(common_again),
+                    str(self.impl_dir / "01-ui.md"),
+                    str(common_start),
+                ],
+                cwd=self.root,
+                scope="epic",
+            )
+
+        self.assertIn("00-common-start.md", str(raised.exception))
+        self.assertIn("01-ui.md", str(raised.exception))
+        self.assertIn("02-common-again.md", str(raised.exception))
+
+    def test_script_plan_and_init_reject_non_contiguous_story_without_touching_state(
+        self,
+    ) -> None:
+        crossing = self._write_task(
+            "03-story-one-again.md",
+            story="1",
+            task_index="3/3",
+            title="Story one again",
+        )
+        story_two = self._write_task(
+            "02-story-two.md",
+            story="2",
+            task_index="1/1",
+            title="Story two",
+        )
+        paths = [
+            str(self.impl_dir / "01-ui.md"),
+            str(story_two),
+            str(crossing),
+        ]
+        env = {**os.environ, "PYTHONPATH": str(ROOT)}
+
+        plan = subprocess.run(
+            [str(SCRIPT), "plan", *paths, "--cwd", str(self.root)],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(plan.returncode, 1)
+        self.assertIn("non-contiguous story group", plan.stderr)
+        self.assertIn("story=1", plan.stderr)
+        for name in ("01-ui.md", "02-story-two.md", "03-story-one-again.md"):
+            self.assertIn(name, plan.stderr)
+
+        state_path = self.root / ".dcness-work" / "story-run.json"
+        init_without_state = subprocess.run(
+            [
+                str(SCRIPT),
+                "init",
+                *paths,
+                "--cwd",
+                str(self.root),
+                "--state",
+                str(state_path),
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(init_without_state.returncode, 1)
+        self.assertFalse(state_path.exists())
+
+        existing = build_state(
+            [str(self.impl_dir / "01-ui.md")], cwd=self.root, scope="story"
+        )
+        existing["tasks"][0]["status"] = "completed"
+        existing["tasks"][0]["commit"] = "abc123"
+        state_path.parent.mkdir(parents=True)
+        state_path.write_text(json.dumps(existing, ensure_ascii=False), encoding="utf-8")
+        original = state_path.read_bytes()
+
+        init_with_completed_state = subprocess.run(
+            [
+                str(SCRIPT),
+                "init",
+                *paths,
+                "--cwd",
+                str(self.root),
+                "--state",
+                str(state_path),
+            ],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(init_with_completed_state.returncode, 1)
+        self.assertIn("non-contiguous story group", init_with_completed_state.stderr)
+        self.assertEqual(state_path.read_bytes(), original)
+        self.assertEqual(
+            list(state_path.parent.glob("story-run.completed-*.json")), []
+        )
+
     def test_mark_resume_transitions(self) -> None:
         state = build_state([str(self.impl_dir / "01-ui.md"), str(self.impl_dir / "02-api.md")], cwd=self.root)
 

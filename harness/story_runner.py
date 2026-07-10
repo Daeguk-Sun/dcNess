@@ -136,6 +136,30 @@ def task_from_path(path: Path, *, cwd: Path | None = None) -> ImplTask:
     )
 
 
+def _validate_story_contiguity(tasks: Sequence[ImplTask]) -> None:
+    story_indexes: dict[str, list[int]] = {}
+    for index, task in enumerate(tasks):
+        story_indexes.setdefault(task.story, []).append(index)
+
+    violations: list[str] = []
+    for story, indexes in story_indexes.items():
+        if all(right == left + 1 for left, right in zip(indexes, indexes[1:])):
+            continue
+        crossing = " -> ".join(
+            f"{task.path} (story={task.story})"
+            for task in tasks[indexes[0] : indexes[-1] + 1]
+        )
+        violations.append(f"story={story}: {crossing}")
+
+    if violations:
+        details = "; ".join(violations)
+        raise ValueError(
+            "non-contiguous story group(s) after path sorting: "
+            f"{details}; rename or relocate task paths so each story forms one "
+            "contiguous block; the runner will not reorder tasks automatically"
+        )
+
+
 def build_state(
     inputs: Sequence[str],
     *,
@@ -145,10 +169,12 @@ def build_state(
     if scope not in VALID_SCOPES:
         raise ValueError(f"invalid scope: {scope}")
     root = (cwd or Path.cwd()).resolve()
-    tasks = [
-        task_from_path(path, cwd=root).to_state(idx)
-        for idx, path in enumerate(discover_tasks(inputs, cwd=root), start=1)
+    impl_tasks = [
+        task_from_path(path, cwd=root)
+        for path in discover_tasks(inputs, cwd=root)
     ]
+    _validate_story_contiguity(impl_tasks)
+    tasks = [task.to_state(idx) for idx, task in enumerate(impl_tasks, start=1)]
     story_ids = sorted({str(task["story"]) for task in tasks})
     resolved_scope = "story" if scope == "auto" and len(story_ids) == 1 else scope
     if resolved_scope == "auto":
@@ -417,8 +443,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             return 0
         if args.cmd == "init":
             state_path = Path(args.state)
-            prepare_init_state(state_path, force=args.force)
             state = build_state(args.paths, cwd=cwd, scope=args.scope)
+            prepare_init_state(state_path, force=args.force)
             save_state(state_path, state)
             _print(state, as_json=args.json)
             return 0

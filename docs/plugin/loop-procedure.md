@@ -326,6 +326,7 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 
 | 시점 | 내용 |
 |---|---|
+| runner `plan/init` | path 정렬 뒤 동일 frontmatter `story` 값의 비연속 재등장을 state 변경 전에 차단하고 관련 task 경로를 보고한다. runner 는 story 순서를 임의 재정렬하지 않는다. |
 | build-worker PASS 직후 | task local commit sha 확인 + `dcness-story-runner mark --status completed --commit <sha>` |
 | 한 story 의 task 전부 completed | story PR body 작성 + push + PR create. 다중 story/epic 은 통합 브랜치로 머지하고 갱신된 ref 에서 다음 story branch 재분기 |
 | 모든 target task completed | 단일 story PR 또는 통합→main PR 의 merge candidate diff 에 impl-validator 통합 리뷰 1회 |
