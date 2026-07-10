@@ -19,6 +19,7 @@ node_modules/
 
 # 하네스 런타임 상태 (agent prose 파일 등)
 .claude/harness-state/
+.dcness-work/
 
 # heuristic enum 추출 telemetry (DCN-CHG-20260430-04 정착 — heuristic-only)
 .metrics/
