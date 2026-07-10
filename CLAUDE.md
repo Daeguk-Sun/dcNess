@@ -83,6 +83,8 @@
 3. **branch → PR → regular merge** (직접 `main` push 금지). CI PASS 후 메인이 즉시 머지 — *사용자 수동 승인 대기 X*.
 4. **종료 시 ExitWorktree** — squash 흡수 검사 후 자동 `keep`/`remove` ([`docs/plugin/loop-procedure.md` worktree 분기](docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정)).
 
+GitHub issue 를 대상으로 하는 dcness self 구현은 진입 때 읽은 본문을 target GitHub issue AC snapshot 으로 보관하고, 항목별 구현·검증 증거를 대조한다. close 전 자동 판정 가능한 AC 를 모두 충족·체크한 body 가 `node scripts/check_issue_body.mjs --body-file <issue-body.md> --acceptance-only --require-complete` 를 통과해야 한다. 미충족·미체크 상태로 clean 마감하거나 merge하지 않는다. 사람 확인이 남으면 agent 가 체크하지 않고 `human verification 대기`로 보고한다.
+
 ## 게이트 요약
 
 - **main-block**: `scripts/hooks/pre-commit` — main 직접 commit 차단

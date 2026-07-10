@@ -31,7 +31,9 @@ flowchart TB
   FIX --> IV
   ACC -->|아니오| MERGE[메인 merge]
   ACC -->|예| PA[product-acceptance story x N + epic]
-  PA -->|PASS| MERGE
+  PA -->|PASS| AC[Target GitHub issue AC close audit]
+  AC -->|require-complete PASS| MERGE
+  AC -.->|미충족·미체크| USER
   PA -->|FAIL auto-fixable| RETRY
   BW -.->|IMPLEMENTATION_ESCALATE| USER((사용자))
   IV -.->|ESCALATE| USER
@@ -48,7 +50,8 @@ canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-ste
 | **build-worker** | `PASS` + local commit sha + clean status → `dcness-story-runner mark --status completed --commit <sha>` 후 `next-action` · `TESTS_FAIL` → build-worker rework(≤3) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` → 메인이 같은 worktree cwd 에서 worker 가 남긴 검증 명령 실행, exit 0 이면 PASS 와 동일, 실패면 build-worker rework(≤3), 메인도 실행 불가면 사용자 위임 · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `story-pr` → 직전 story sub-PR 생성·통합 브랜치 merge 후 응답의 `next_task` 를 갱신된 통합 브랜치에서 재분기 · `done` → `final_story` PR 경계를 처리하고 최종 main 대상 PR 생성 + impl-validator · `blocked` / `error` → task note 를 근거로 retry 한도 내 재시도 또는 사용자 위임 |
 | **impl-validator** | merged diff `PASS` → close 발동 여부 확인 · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정. 단일 story PR 은 commit append, story PR 이 2개 이상이거나 이미 머지된 뒤라면 downstream rebase 없이 통합 fix PR 1개 + 재리뷰(≤3) · `ESCALATE` → 사용자 |
-| **product-acceptance** | `PASS` → merge 진행. story×N 과 epic 대상이면 모두 PASS 필요 · `FAIL` auto-fixable gap → build-worker rework + commit append + impl-validator 재리뷰 + acceptance 재검수(≤3) · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
+| **product-acceptance** | `PASS` → target GitHub issue AC close audit. story×N 과 epic 대상이면 모두 PASS 필요 · `FAIL` auto-fixable gap → build-worker rework + commit append + impl-validator 재리뷰 + acceptance 재검수(≤3) · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
+| **target GitHub issue AC close audit** | 자동 판정 가능한 AC 전항목 충족·체크 + `check_issue_body.mjs --acceptance-only --require-complete` PASS → merge · 미충족·미체크 → clean 마감 금지, 구현 보강 · human verification 잔여 → 목록 보고 후 merge 전 대기 (`blocked` 아님) |
 
 ## retry 한도
 
@@ -63,7 +66,7 @@ finding 수용 원칙: 같은 파일·주제·위험 클래스 finding 이 반�
 
 ## 마감 acceptance 분기
 
-story/epic close 를 실제 발동하는 PR 의 impl-validator `PASS` 후 · merge 전 product-acceptance 검수를 끼운다. 기본 ON, `--no-acceptance` 명시 run 만 비대상이다.
+story/epic close 를 실제 발동하는 PR 의 impl-validator `PASS` 후 · merge 전 product-acceptance 검수를 끼운다. 기본 ON, `--no-acceptance` 명시 run 만 비대상이다. product-acceptance 를 생략해도 target GitHub issue AC close audit 은 생략되지 않는다.
 
 impl-validator 는 계획 대비 구현 정합과 merge candidate diff 위험을 검토한다. 여러 PR 이 합쳐진 story 동작과 여러 story 가 합쳐진 epic 동작의 사용자 관찰 가능 동작은 마감 product-acceptance 가 맡는다.
 
@@ -82,10 +85,10 @@ auto-fixable gap: PRD/AC 미충족, 검수 증거 부족, 스모크 실패, mock
 - task clean = build-worker PASS + phase prose 3개 + local commit sha + clean status + story-runner mark.
 - story boundary clean = 해당 story 의 모든 task completed + story PR 생성. 다중 story 면 통합 브랜치 merge + 다음 branch 재분기까지 확인.
 - integrated review clean = 모든 target task completed + 모든 story PR 경계 처리 + 최종 main 대상 PR 생성 + impl-validator PASS.
-- close 발동 clean = integrated review clean + 필요한 product-acceptance PASS.
+- close 발동 clean = integrated review clean + 필요한 product-acceptance PASS + target GitHub issue AC 전항목 충족·체크 + `require-complete` PASS.
 - verify-only clean = 검증 명령 exit 0 + 변경 0 + validator PASS.
 
-false-clean 의심 시 blocked. 예: phase prose 부재, commit sha 부재, 검증 미실행, impl-validator PASS 부재, acceptance PASS 부재, PR/merge 흔적 부재.
+false-clean 의심 시 blocked. 예: phase prose 부재, commit sha 부재, 검증 미실행, impl-validator PASS 부재, acceptance PASS 부재, target GitHub issue AC 미충족·미체크, PR/merge 흔적 부재. 단, 자동 항목은 모두 끝났고 사람 판정만 남은 `human verification 대기`는 blocked 로 뭉뚱그리지 않는다.
 
 ## escalate 처리
 

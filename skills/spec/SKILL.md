@@ -90,7 +90,7 @@ PRD 초안의 기술 검토 필요 영역에 검토 항목이 있어 PRD 최종�
 
 최종 PRD 기준으로 epic 단위 `docs/epics/epic-NN-<slug>/stories.md` 를 작성한다.
 
-산출 형식은 [`spec-stories-reference.md`](spec-stories-reference.md)를 따른다. 각 Story 에 프로젝트 전역 불변 `AC-NNN` 목록을 만들고, 사람 판정 항목은 Story AC 가 아닌 별도 안내로 분리한다. Story 분할과 순서도 같은 reference 의 사용자 검증 가능한 동작 증분 / 얇은 골격 우선 기준을 따른다.
+산출 형식은 [`spec-stories-reference.md`](spec-stories-reference.md)를 따른다. 각 Story 에 프로젝트 전역 불변 `AC-NNN` 목록을 만들고, Epic 완료 기준과 Story AC 를 `[command]`/`[agent-read]` 로 분류한다. 사람 판정 항목은 AC 가 아닌 별도 안내로 분리한다. Story 분할과 순서도 같은 reference 의 사용자 검증 가능한 동작 증분 / 얇은 골격 우선 기준을 따른다.
 
 stories.md 작성 직후 메인은 활성 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 를 실행해 `docs/index.md` 의 `## 에픽` 생성 표를 갱신한다. 이 갱신이 빠지면 새 epic PR 이 doc-sync 게이트에서 stale 로 막힌다.
 

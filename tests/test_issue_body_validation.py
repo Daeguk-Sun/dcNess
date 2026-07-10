@@ -32,7 +32,11 @@ VALID_BODY = textwrap.dedent(
     - scripts/check_issue_body.mjs validates Issue Brief structure and labels.
 
     **Acceptance criteria:**
-    - [ ] Invalid bodies fail before issue creation.
+    - [ ] [command] Invalid bodies fail before issue creation when the validator exits non-zero.
+    - [ ] [agent-read] The issue brief describes the validation boundary without implementation details.
+
+    **Human verification / 사람 확인 안내:**
+    - None.
 
     **Blocked by:**
     None - can start immediately
@@ -174,6 +178,103 @@ class IssueBodyValidationTests(unittest.TestCase):
         result = run_validator(VALID_BODY, "--body-only")
 
         self.assertEqual(0, result.returncode, result.stderr)
+
+    def test_close_preflight_rejects_unchecked_acceptance_criteria(self) -> None:
+        result = run_validator(
+            VALID_BODY,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("unchecked acceptance criteria", result.stderr)
+
+    def test_close_preflight_accepts_checked_acceptance_criteria(self) -> None:
+        body = VALID_BODY.replace("- [ ]", "- [x]")
+
+        result = run_validator(
+            body,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("PASS", result.stdout)
+
+    def test_acceptance_criterion_requires_agent_verification_class(self) -> None:
+        body = VALID_BODY.replace(
+            "[command] Invalid bodies fail before issue creation when the validator exits non-zero.",
+            "Invalid bodies fail before issue creation.",
+        )
+
+        result = run_validator(body, "--labels", "feature")
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("[command] or [agent-read]", result.stderr)
+
+    def test_generic_acceptance_criterion_is_rejected(self) -> None:
+        body = VALID_BODY.replace(
+            "[agent-read] The issue brief describes the validation boundary without implementation details.",
+            "[agent-read] 구현이 완료된다.",
+        )
+
+        result = run_validator(body, "--labels", "feature")
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("generic acceptance criterion", result.stderr)
+
+    def test_human_verification_must_not_use_checkboxes(self) -> None:
+        body = VALID_BODY.replace(
+            "**Human verification / 사람 확인 안내:**\n- None.",
+            "**Human verification / 사람 확인 안내:**\n- [ ] A person approves the visual result.",
+        )
+
+        result = run_validator(body, "--labels", "feature")
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("human verification", result.stderr)
+
+    def test_acceptance_only_close_audit_supports_story_issue_format(self) -> None:
+        story_body = textwrap.dedent(
+            """
+            **As a** creator,
+            **I want** to render a video,
+            **So that** I can publish it.
+
+            **Acceptance criteria:**
+            - [x] AC-001 [command]: Given a prompt, When rendering finishes, Then the command exits zero.
+            - [x] AC-002 [agent-read]: Given the output, When metadata is read, Then provenance is present.
+            """
+        ).strip()
+
+        result = run_validator(
+            story_body,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("acceptance criteria complete (2)", result.stdout)
+
+    def test_story_human_verification_checkbox_is_rejected(self) -> None:
+        story_body = textwrap.dedent(
+            """
+            **Acceptance criteria:**
+            - [x] AC-001 [command]: Given input, When the test runs, Then it exits zero.
+
+            **사람 확인 안내:**
+            - [ ] 사람이 시각 결과를 승인한다.
+            """
+        ).strip()
+
+        result = run_validator(
+            story_body,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("human verification", result.stderr)
 
 
 class IssueBodyValidationDocsTests(unittest.TestCase):

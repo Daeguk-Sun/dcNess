@@ -39,7 +39,7 @@ task 는 GitHub 이슈 X — local commit sha 로 추적하고, story/epic 연�
 
 ## Issue pre-create validation
 
-에이전트 workflow 가 `gh issue create` 를 실행하기 전에는 Issue Brief 본문과 repo label 매핑을 로컬에서 먼저 검증한다. 이 검증은 사람의 GitHub UI issue 생성을 막는 hard gate 가 아니다. 목적은 dcNess/Codex/Claude workflow 가 issue 생성 전에 같은 문서 형식과 IssueType/Priority/label 계약을 따르도록 하는 것이다.
+에이전트 workflow 가 `gh issue create` 를 실행하기 전에는 Issue Brief 본문과 repo label 매핑을 로컬에서 먼저 검증한다. 이 검증은 사람의 GitHub UI issue 생성을 막는 hard gate 가 아니다. 목적은 dcNess/Codex/Claude workflow 가 issue 생성 전에 같은 문서 형식과 IssueType/Priority/label 계약을 따르도록 하는 것이다. Acceptance criteria 체크박스는 `[command]` 또는 `[agent-read]` 로 분류된 agent-verifiable 항목만 허용하고, human verification 은 별도 안내에 체크박스 없이 둔다.
 
 ```bash
 node scripts/check_issue_body.mjs \
@@ -50,6 +50,8 @@ gh issue create --title "<title>" --body-file <brief.md> --label "<IssueType>"
 ```
 
 `scripts/check_issue_body.mjs` 가 실패하면 `gh issue create` 를 실행하지 않는다. 실제 issue 생성 preflight 는 `--labels` 를 함께 넘겨 label 계약까지 검증하고, 본문 초안만 점검할 때만 `--body-only` 를 명시한다. GitHub issue 생성·등록은 직접 `gh issue create` 대신 `/to-issue` 를 기본 경로로 사용한다 (작업 흐름 중 자발적으로 남기는 후속 이슈 포함). `/to-issue` 외 대화나 agent workflow 가 issue 를 생성하는 경우에도 같은 pre-create validation 을 통과하고 IssueType 라벨을 붙여야 한다.
+
+`--require-complete` 는 새 CI hard gate 가 아니라 close 직전 메인이 같은 validator 를 재사용하는 로컬 감사 옵션이다. `--acceptance-only` 와 함께 쓰면 Issue Brief 와 Story/Epic issue body 에 공통으로 적용되며, target GitHub issue AC 에 미체크 항목이 하나라도 있으면 실패한다.
 
 ## Issue/label Status lifecycle
 
@@ -99,6 +101,17 @@ node scripts/github_project_lifecycle.mjs start-work \
 Project 미러까지 원하면 `--owner` / `--project` 를 명시하거나 repo variable `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` 를 둔다. `--apply` 없이 실행하면 `in-progress` label 잔존 여부와, Project 좌표가 있는 경우 Status drift warning 을 함께 보고한다. 이때 명령의 실패 판정은 label 상태만 본다.
 
 ### PR merge 후처리 — close + label cleanup
+
+close 를 발동하는 PR 의 CI와 최종 review 증거가 확정된 뒤, merge 전 메인은 진입 preflight 에서 한 번 읽어 보관한 target GitHub issue AC snapshot 과 구현·검증 증거를 완료 후보 issue 별로 전수 대조한다. task/story 진행 중 issue 를 다시 조회하거나 수정하지 않는다. close 경계의 기존 GitHub 조회가 있으면 최신 body 확인을 그 호출에 얹고, 자동 판정 가능한 AC 를 모두 충족한 뒤 체크박스 write 를 issue 별로 이 경계에서 한 번 수행한다. 갱신 body 는 각각 다음 명령이 PASS 해야 한다.
+
+```bash
+node scripts/check_issue_body.mjs \
+  --body-file <issue-body.md> \
+  --acceptance-only \
+  --require-complete
+```
+
+사람 판정 항목이 기존 AC 체크박스에 남아 있으면 agent 가 체크하지 않는다. 자동 항목을 모두 충족·체크한 뒤 잔여 human verification 목록을 보고 merge 전에 정지한다. 이는 구현 실패인 `blocked` 가 아니라 `human verification 대기`다.
 
 default branch 로 PR merge 가 끝난 뒤 GitHub closing reference 가 issue close 를 발동한다. 후처리 경로는 PR body 또는 GitHub closing issue reference 에서 완료 후보 issue 를 찾고, `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 label 제거 뒤에 Project item `Status=Done` 이동을 best-effort 로 1회 시도한다. 보드 미러 실패는 warning 으로만 보고하고 label cleanup 성공을 실패로 바꾸지 않는다.
 

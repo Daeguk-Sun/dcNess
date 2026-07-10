@@ -24,6 +24,8 @@ PRD 작성과 필요한 tech-review preflight 완료 후 메인이 epic 단위 `
 
 Story AC 가 검증 체인의 origin 이다. module-architect 는 제품 REQ 마다 `(from AC-NNN)` 출처를 적고, architecture-validator 는 Story AC 전항목이 하나 이상의 REQ 로 커버되는지와 무출처 REQ 가 없는지 대조한다.
 
+Epic 완료 기준도 같은 검증 주체 분류를 사용한다. `scripts/create_epic_story_issues.sh` 는 신규 `[command]`/`[agent-read]` Epic 완료 기준과 Story AC 를 GitHub issue body 에서만 미체크 checklist 로 materialize 한다. stories.md 의 안정 ID·목록 형태는 바꾸지 않으며, 검증 주체가 없는 legacy 기준은 소급 추론하지 않는다.
+
 ## Story 크기 가이드
 
 module-architect 의 `/design` epic-batch 호출은 전체 Story 를 한 컨텍스트에서 읽고, 각 Story 를 구현 가능한 impl 파일 묶음으로 산출한다.
@@ -64,8 +66,8 @@ milestone: vNN
 **목표**: <epic 의 비즈니스 목적 한 단락>
 **선행 조건**: <있으면>
 **완료 기준** (epic 단위 수용 기준):
-1. <검증 가능한 조건 1>
-2. <검증 가능한 조건 2>
+1. [command] <실행 명령과 종료코드로 검증 가능한 조건 1>
+2. [agent-read] <산출물·화면·로그·문서를 읽어 검증 가능한 조건 2>
 3. ...
 
 **GitHub Epic Issue:** (이슈 등록 후 `[#NNN]`, 보류 시 `미등록 (사유: …)`)

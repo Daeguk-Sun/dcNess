@@ -79,6 +79,9 @@ milestone: v01
 
 에픽 본문 설명.
 
+**완료 기준** (epic 단위 수용 기준):
+1. [command] Given 두 Story 완료, When 전체 smoke를 실행, Then 종료코드가 0이다.
+
 ### Story 1 — 첫 스토리
 
 스토리 1 본문.
@@ -175,8 +178,9 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         self.assertEqual(2, node_log.count("--issue-type story"))
         # fresh 경로(새 이슈)는 strict 등록 — preserve 안 함 (Todo/major 강제 + 검증).
         self.assertEqual(0, node_log.count("--preserve-existing"))
-        self.assertIn("AC-001 [command]", gh_log)
-        self.assertIn("AC-002 [agent-read]", gh_log)
+        self.assertIn("- [ ] [command] Given 두 Story 완료", gh_log)
+        self.assertIn("- [ ] AC-001 [command]", gh_log)
+        self.assertIn("- [ ] AC-002 [agent-read]", gh_log)
 
     def test_skips_board_when_no_coords_but_still_creates_issues(self):
         result, gh_log, node_log, _ = self._run(STORIES_NEW, {})

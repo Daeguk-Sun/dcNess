@@ -40,7 +40,7 @@
 | 계층 | 역할 | 다음 계층과의 관계 | 소유 SSOT |
 |---|---|---|---|
 | PRD 유저 시나리오 | 기능 나열과 사용자의 정상·실패·복구 흐름을 제품 언어로 설명한다. Story 수용 기준은 두지 않는다. | `/spec` 이 시나리오를 Story 로 나누고 검증 약속을 붙인다. | [`skills/spec/spec-prd-reference.md`](../../skills/spec/spec-prd-reference.md) |
-| Epic 완료 기준 | 여러 Story 가 함께 달성해야 할 epic 단위 결과를 정의한다. | Story 전체가 합쳐졌을 때 product-acceptance 가 통합 증거를 대조한다. | [`skills/spec/spec-stories-reference.md`](../../skills/spec/spec-stories-reference.md) |
+| Epic 완료 기준 | 여러 Story 가 함께 달성해야 할 epic 단위 결과를 `[command]`/`[agent-read]` 로 정의한다. | Story 전체가 합쳐졌을 때 product-acceptance 가 통합 증거를 대조하고, GitHub issue 에서는 close 감사용 체크리스트로 materialize 된다. | [`skills/spec/spec-stories-reference.md`](../../skills/spec/spec-stories-reference.md) |
 | Story AC | `AC-NNN` Given/When/Then 으로 사용자에게 약속한 Story 단위 결과를 정의한다. 프로젝트 전역에서 ID가 불변인 검증 origin 이다. | module-architect 가 task REQ 로 번역한다. | [`skills/spec/spec-stories-reference.md`](../../skills/spec/spec-stories-reference.md) |
 | task REQ | Story AC 를 task가 실행·관찰할 검증 언어로 번역한다. 제품 REQ 는 `(from AC-NNN)`, 소수 기술 REQ 는 `(technical: 이유)`를 쓴다. | build-worker가 실행하고 validator가 출처·증거를 대조한다. | [`docs/plugin/agents/module-architect/templates/impl-task.md`](agents/module-architect/templates/impl-task.md) |
 

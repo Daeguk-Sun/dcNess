@@ -24,7 +24,7 @@ UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint �
 ## Inputs
 
 - deep task 경로 (필수): 단일 task, task list, glob, 또는 epic impl 디렉터리.
-- 이슈 번호 (있으면): parent epic/story 본문 read 에 사용한다.
+- 이슈 번호 (있으면): parent epic/story 본문과 target GitHub issue AC read 에 사용한다.
 - 선택 `--retry-limit N`: task 당 자동 재시도 한도. 기본 3.
 - 선택 `--no-acceptance`: story/epic 마감 acceptance 비활성. 미지정 시 기본 ON.
 
@@ -51,7 +51,7 @@ UI 작업이면 구현 전 **UI 기준 확보 분기**를 먼저 본다. 내부 
 ## Pre-flight
 
 1. `docs/epics/**/stories.md` 상단의 `**GitHub Epic Issue:** [#N]` 또는 `미등록 (사유: …)` 를 확인한다. 없으면 STOP.
-2. parent epic/story issue 본문을 read 한다. task 자체는 GitHub issue 가 아니라 impl 파일 + task commit 으로 추적한다.
+2. parent epic/story issue 본문을 진입 preflight 에서 한 번 read 하고 target GitHub issue AC snapshot 을 만든다. task 자체는 GitHub issue 가 아니라 impl 파일 + task commit 으로 추적한다. snapshot 은 task/story 진행 전체에서 재사용하며 반복 issue 조회를 추가하지 않는다. 검증 주체가 없는 legacy AC 는 `[command]`/`[agent-read]` 로 분류하고, 일반론 AC 는 snapshot 에서 구체화해 구현 계약으로 쓴다. body 반영은 close 경계의 1회 write 에 포함하며, 사용자 판단 없이는 구체화할 수 없으면 추측하지 않는다.
 3. task 가 이미 머지됐는지 `git log --grep <task-slug>` 와 task tail 로 확인한다.
 4. `begin-run impl --design-doc <task impl 문서>` 로 설계 문서를 기록한다. 이 값은 build-worker gate, boundary pre-flight, impl-validator review 근거다.
 5. `boundary-suggestions --impl-plan <task>` 로 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되는지 확인한다. 미커버 경로는 사람 승인 후 boundary override 가 필요하다.
@@ -77,7 +77,7 @@ retry 시 기존 sub-step 을 재활용하고 신규 TaskCreate 를 만들지 �
 
 `build-worker` / `impl-validator` / `product-acceptance` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
-- **대상 + 읽을 진본**: impl 파일 경로, parent epic/story issue, 검토 대상 diff 같은 SSOT 포인터만 둔다.
+- **대상 + 읽을 진본**: impl 파일 경로, preflight 에서 확보한 parent epic/story target GitHub issue AC snapshot, 검토 대상 diff 같은 SSOT 포인터만 둔다.
 - **worktree**: worktree 활성 시 worktree 절대경로를 넣는다.
 - **이 호출 특유**: 재호출 finding, wave-plan 신호, 검증 대행 결과처럼 진본에 아직 없는 신호만 둔다.
 - agent 본업의 구현 방식, 테스트 assert 방식, 알고리즘 같은 방법 처방은 prompt 에 넣지 않는다.
@@ -102,7 +102,7 @@ retry 시 기존 sub-step 을 재활용하고 신규 TaskCreate 를 만들지 �
 
 1. `dcness-helper prev-tasks-reset` 은 chain 첫 task 또는 single 모드에서 `begin-step build-worker` 전에 1회 호출한다. chain 2번째+ task 는 직전 task 산출이 `[PREVIOUS_TASKS]` 로 들어가므로 reset 하지 않는다.
 2. `begin-step build-worker` 로 step 을 열고 implementation provider 를 resolve 한다. 기본 provider 는 `headless-chain` 이다.
-3. `dcness-implementation-chain build-worker --provider <provider> --prompt-file <file>` 를 실행한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다.
+3. `dcness-implementation-chain build-worker --provider <provider> --prompt-file <file>` 를 실행한다. prompt 에는 target GitHub issue AC snapshot 을 진본 포인터로 포함한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다.
 4. build-worker 는 test → impl → self-validate 를 한 task 안에서 수행하고, gates 가 green 이면 로컬 task commit 을 만든다.
 5. task local commit 은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)을 따른다. build-worker 는 한 task 안에서도 독립 검토 가능한 의미 단위로 쪼개되, 각 커밋은 hook 을 통과할 수 있는 일관 상태여야 한다.
 6. build-worker 는 `git status`, `git diff`, `git diff --check`, `git add`, `git commit`, `git rev-parse HEAD` 만 사용할 수 있다. `git push`, `gh pr create`, `gh pr merge`, `gh issue` mutation 은 금지다.
@@ -185,9 +185,20 @@ story 의 target task 가 completed 될 때마다 메인이 story PR 을 만든�
 2. `scripts/pr-create.sh` 또는 repo git-spec 절차로 story PR 을 만든다.
 3. 다중 story/epic 이면 story sub-PR 을 통합 브랜치로 머지하고 remote 통합 ref 를 갱신한 뒤, 다음 story branch 를 그 ref 에서 새로 만든다. 단일 story PR 은 열린 채 유지한다.
 4. 모든 story PR 경계를 처리한 뒤 다중 story/epic 은 통합→main PR 을 만든다.
-5. `begin-step impl-validator` → build-worker provider 의 반대편으로 review provider 를 resolve 하고, `impl-validator` 가 merged diff 를 1회 리뷰한다.
+5. `begin-step impl-validator` → build-worker provider 의 반대편으로 review provider 를 resolve 하고, `impl-validator` 가 merged diff 를 plan ∪ target GitHub issue AC 기준으로 1회 리뷰한다.
 6. `PASS` 후 `STORY_ACCEPTANCE` × N, epic close 시 `EPIC_ACCEPTANCE` 를 수행한다.
 7. 단일 story→main 또는 통합→main PR 은 사용자 merge 결정이 필요한 repo 에서 멈춘다.
+
+close 를 발동하는 최종 PR 은 CI green, product-acceptance 와 impl-validator PASS 만으로 clean 이 아니다. 이 최종 증거가 확정된 뒤 메인이 `Closes` 대상 story/epic issue 각각의 target GitHub issue AC 전항목 증거를 대조하고 자동 판정 가능한 체크박스를 모두 check 한 뒤, 이슈 본문 write 를 issue 별 close 경계에서 한 번 수행한다. 진행 중 task/story 경계에서는 issue mutation 이나 재조회를 추가하지 않는다. 각 최종 body 는 다음 감사가 PASS 해야 한다.
+
+```bash
+node scripts/check_issue_body.mjs \
+  --body-file <issue-body.md> \
+  --acceptance-only \
+  --require-complete
+```
+
+미충족·미체크 target GitHub issue AC 가 하나라도 있으면 clean 마감과 merge 를 금지한다. 기존 이슈 체크박스에 사람 판정 항목이 남아 있으면 agent 는 자동 항목만 충족·체크하고 잔여 human verification 목록을 보고 정지한다. 이는 자동 구현 실패인 `blocked` 가 아니라 `human verification 대기`다.
 
 `impl-validator FAIL` 이면 메인이 root cause 를 고친 뒤 새 commit 을 PR branch 에 append 하거나, 이미 머지된 뒤라면 fix PR 을 만든다. 단일 story PR 은 해당 PR branch 에 append 한다. story PR 이 2개 이상인 run 에서 FAIL 보정이 필요하면 downstream rebase 없이 통합 fix PR 1개를 만든다. 같은 finding 을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
 
@@ -217,7 +228,7 @@ begin-step product-acceptance EPIC_ACCEPTANCE
 end-step product-acceptance EPIC_ACCEPTANCE --prose-file <file>
 ```
 
-`PASS` → merge 진행. `FAIL` → auto-fixable gap 은 build-worker rework 로 수정하고 impl-validator 재리뷰 후 재검수한다. `ESCALATE` → 사용자 위임. acceptance FAIL 미해소 상태로 `pr-finalize.sh` 강행 금지.
+`PASS` → target GitHub issue AC close audit 로 진행한다. `FAIL` → auto-fixable gap 은 build-worker rework 로 수정하고 impl-validator 재리뷰 후 재검수한다. `ESCALATE` → 사용자 위임. acceptance FAIL 또는 AC close audit 미해소 상태로 `pr-finalize.sh` 강행 금지.
 
 ## 진행 뷰 task 리스트
 
@@ -248,13 +259,14 @@ close 발동 PR 은 acceptance 줄을 `PR <#NNN> merged` 앞에 추가한다. �
 
 ## 종료 조건
 
-전체 완료 후 메인은 처리 N/N, task commit sha, story sub-PR URL, 최종 main 대상 PR URL, impl-validator round, acceptance 결과를 보고한다. clean 판정 전에는 다음 흔적을 확인한다.
+전체 완료 후 메인은 처리 N/N, task commit sha, story sub-PR URL, 최종 main 대상 PR URL, impl-validator round, acceptance 결과, target GitHub issue AC close audit 결과를 보고한다. clean 판정 전에는 다음 흔적을 확인한다.
 
 - build-worker phase prose 3개.
 - build-worker local commit sha.
 - `dcness-story-runner` state mark.
 - merge candidate impl-validator PASS.
 - 필요한 product-acceptance PASS.
+- target issue 가 있으면 자동 판정 가능한 AC 전항목 충족·체크 + `require-complete` PASS.
 
 이 중 하나라도 없는데 clean 이라고 쓰면 false-clean → blocked.
 
