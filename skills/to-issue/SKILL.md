@@ -18,6 +18,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 ## 원칙
 
 - Issue Brief 는 agent 나 사람이 작업할 계약이다. 원래 대화와 코멘트는 context 이고, 작업 기준은 brief 다.
+- 이슈를 등록한 세션이 아닌 다른 세션이 처리·구현하는 것이 기본이다. 그래서 등록 세션이 이미 아는 배경·제약·의도는 대화에만 두고 생략하지 말고 Issue Brief(특히 Context)에 옮겨, 이슈 하나만 읽어도 자족적으로 착수할 수 있게 한다. 옮기는 대상은 목표와 판단 근거이지 구현 방법이 아니다.
 - 오래 살아도 유효해야 하므로 구현 파일 경로, line number, 현재 코드 구조에 의존하지 않는다.
 - 무엇을 만들지와 어떤 동작이 되어야 하는지를 쓴다. 어떻게 구현할지는 `/impl` 또는 작업자가 판단한다.
 - 코드 조각, 해결책 지시, layer-by-layer 작업 계획은 기본적으로 넣지 않는다. prototype 의 state machine, schema, type shape 가 prose 보다 결정을 정확히 담는 경우만 짧게 포함하고 prototype 출처를 명시한다.
