@@ -272,9 +272,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("기본/support/고급/유틸리티/내부 agent 분류", self.readme)
         self.assertNotIn("호환 workflow", self.readme)
         self.assertNotIn("호환 alias", self.readme)
-        # #1023 — impl 내부 구현 경로 = direct/design-doc, worker engine axis 제거
+        # #1032 — impl internal echo includes issue-intake/direct/design-doc, worker engine axis removed.
         self.assertIn(
-            "`/impl` 이 내부적으로 direct/design-doc",
+            "`/impl` 이 내부적으로 issue-intake/direct/design-doc",
             self.readme,
         )
         self.assertNotIn("Lite / Standard / Deep lane", self.readme)
@@ -402,33 +402,26 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertNotIn("`/product-plan` 호환", text)
             self.assertNotIn("architect-loop", text)
 
-        # #711 — Deep 는 impl 내부 lane 이 아니라 impl 진입 전 high-risk 설계 선행 분기
-        self.assertIn(
-            "high-risk → 설계 선행: /spec 내부 tech-review preflight? → /design → /impl → /acceptance",
-            self.router,
-        )
+        # #1032 — high-risk is warn-don't-block when the user explicitly asks for /impl.
+        self.assertIn("high-risk 신호는 설계 선행 권장 근거이지 자동 차단 근거가 아니다", self.router)
         self.assertNotIn("Deep: /spec 내부 tech-review", self.router)
+        self.assertIn("설계 선행을 권장하는 신호", self.positioning)
+        self.assertIn("`/impl` direct", self.router)
+        self.assertIn("high-risk 신호는 권고로 표시하되 차단하지 않음", self.router)
         self.assertIn(
-            "설계 선행(`/spec` 내부 tech-review preflight 필요 시 / `/design`)",
-            self.positioning,
-        )
-        self.assertIn("direct: /impl direct PR", self.router)
-        self.assertIn("direct (`/impl` 직접)", self.router)
-        self.assertIn(
-            "concrete signal 로 보고 `/impl`, `/design`, `/spec`, `/ux` 등",
+            "concrete signal 이라 곧장 `/impl`",
             self.router,
         )
         self.assertIn("일반 `/impl` 의 구현 주체는 메인", self.positioning)
         self.assertIn("격리되는 단계는 `impl-validator`", self.positioning)
 
     def test_internal_routing_docs_prefer_lifecycle_names(self) -> None:
-        # #711 — high-risk 선행은 impl 밖. impl 문서가 lifecycle 진입점을 가리킨다.
-        self.assertIn("deep impl task 파일이 이미 있다 → `/impl-loop <task>`", self.impl_skill)
-        self.assertIn("`/spec` 부터 시작한다", self.impl_skill)
-        self.assertIn("`/design` 으로 설계한다", self.impl_skill)
-        self.assertIn('OUT["impl 밖 — 설계 선행: /spec 또는 /design"]', self.impl_routing)
-        self.assertIn("없으면 `/spec` / `/tech-review` / `/design` 선행", self.impl_routing)
+        # #1032 — /impl no longer auto-routes high-risk work back to spec/design.
+        self.assertIn("warn-don't-block", self.impl_routing)
+        self.assertIn("권고 → 강제 자동 승격 금지", self.impl_routing)
         self.assertIn("일반 `/impl` 의 구현 주체는 항상 메인", self.impl_routing)
+        self.assertNotIn("impl 밖 — 설계 선행", self.impl_routing)
+        self.assertNotIn("없으면 `/spec` / `/tech-review` / `/design` 선행", self.impl_routing)
         self.assertIn(
             "spec / design 단계 → `/spec` (PRD) 또는 `/design` (설계)",
             self.impl_loop_skill,
@@ -767,7 +760,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn('"$HELPER" impl-preview', self.impl_skill)
         self.assertIn("--workflow-risk normal|high", self.impl_skill)
         self.assertIn("--natural-language-only", self.impl_skill)
-        self.assertIn("route=issue-intake", self.impl_skill)
+        self.assertIn("issue-intake", self.impl_skill)
         self.assertIn("review_provider", self.impl_skill)
 
     def test_issue_1019_impl_external_copy_uses_current_naming(self) -> None:
@@ -916,8 +909,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("`/design`", self.router)
         self.assertIn("단계 내부 되돌림", self.router)
 
-        # impl 의 1차 분기 = 설계 문서 유무 + 설계 부족 시 /design 또는 사용자 위임
-        self.assertIn("설계 산출물이 이미 있는가", self.impl_skill)
+        # impl records design-doc when supplied, but does not auto-return to design.
+        self.assertIn("LLM 판단만으로 `/spec`·`/design` 으로 되돌리지 않는다", self.impl_skill)
         self.assertIn("/design", self.impl_skill)
         self.assertIn("--design-doc", self.impl_skill)
         self.assertNotIn("compact-design", self.impl_routing)

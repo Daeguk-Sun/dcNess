@@ -1354,7 +1354,7 @@ def _build_arg_parser() -> Any:
         "enable-role-split-routing",
         help=(
             "추천 role split: build-worker=headless-chain, "
-            "impl-validator=claude, "
+            "impl-validator=codex, "
             "architecture-validator=codex"
         ),
     )

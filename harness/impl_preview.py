@@ -76,6 +76,14 @@ def build_preview(
     reasons: list[str] = []
     normalized_doc: str | None = None
 
+    advisory: list[str] = []
+    if workflow_risk == "high":
+        advisory.append("workflow risk=high; recommend design first")
+    if needs_design:
+        advisory.append("design would clarify boundary or acceptance")
+    if ambiguous:
+        advisory.append("target or success criteria ambiguous")
+
     if design_doc:
         normalized_doc = validate_design_doc(design_doc, cwd=cwd)
         route = "design-doc"
@@ -83,12 +91,6 @@ def build_preview(
         begin_run_args = ["begin-run", "impl", "--design-doc", normalized_doc]
         next_action = "start design-doc implementation with the supplied design doc"
         reasons.append("design_doc present")
-    elif workflow_risk == "high":
-        route = "outside-design"
-        lane = None
-        begin_run_args = []
-        next_action = "run /design or /spec before /impl"
-        reasons.append("workflow risk=high")
     elif skip_design:
         route = "direct"
         lane = None
@@ -101,18 +103,6 @@ def build_preview(
         begin_run_args = []
         next_action = "ask whether to create a GitHub issue via /to-issue before implementation"
         reasons.append("natural language only; no concrete signal")
-    elif needs_design:
-        route = "outside-design"
-        lane = None
-        begin_run_args = []
-        next_action = "run /design before /impl"
-        reasons.append("implementation boundary or acceptance is not concrete")
-    elif ambiguous:
-        route = "clarify"
-        lane = None
-        begin_run_args = []
-        next_action = "clarify target, scope, and success criteria"
-        reasons.append("target or success criteria ambiguous")
     elif concrete:
         route = "direct"
         lane = None
@@ -126,6 +116,10 @@ def build_preview(
         next_action = "ask whether to create a GitHub issue via /to-issue before implementation"
         reasons.append("no design_doc and no concrete signal")
 
+    if advisory:
+        reasons.extend(advisory)
+        if route == "direct":
+            next_action = f"{next_action}; recommend design first but do not block"
     reasons.append("implementation owner=main")
     reasons.append(f"review provider={review_provider}")
     return ImplPreview(

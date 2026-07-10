@@ -161,7 +161,7 @@ def _begin_step_order_gate(
     *,
     mode: str | None = None,
     lane: str | None = None,
-    engineer_output: bool = False,
+    build_worker_output: bool = False,
     impl_validator_pass: bool = False,
     impl_validator_mode_pass: bool = False,
 ) -> Probe:
@@ -173,8 +173,8 @@ def _begin_step_order_gate(
             update_live(sid, base_dir=base)
             start_run(sid, rid, "impl", base_dir=base, lane=lane)
             rd = base / ".sessions" / sid / "runs" / rid
-            if engineer_output:
-                _write_file(rd, "engineer.md", "implementation\n\nPASS\n")
+            if build_worker_output:
+                _write_file(rd, "build-worker.md", "implementation\n\nPASS\n")
             if impl_validator_pass:
                 _write_file(rd, "impl-validator.md", "validated\n\nPASS\n")
             if impl_validator_mode_pass:
@@ -537,13 +537,6 @@ def build_cases() -> list[GuardCase]:
             _order_gate("impl-validator", current_step="engineer"),
         ),
         GuardCase(
-            "begin_step_blocks_engineer_without_design_artifact",
-            "provider-agnostic-order-gate",
-            "block",
-            "headless begin-step blocks engineer without design artifact or Lite lane.",
-            _begin_step_order_gate("engineer", mode="IMPL"),
-        ),
-        GuardCase(
             "begin_step_blocks_build_worker_without_design_artifact",
             "provider-agnostic-order-gate",
             "block",
@@ -551,18 +544,11 @@ def build_cases() -> list[GuardCase]:
             _begin_step_order_gate("build-worker"),
         ),
         GuardCase(
-            "begin_step_allows_impl_validator_after_engineer_output",
+            "begin_step_allows_impl_validator_after_build_worker_output",
             "provider-agnostic-order-gate",
             "allow",
             "merged impl-validator starts directly after implementation output.",
-            _begin_step_order_gate("impl-validator", engineer_output=True),
-        ),
-        GuardCase(
-            "begin_step_allows_engineer_lite_lane",
-            "provider-agnostic-order-gate",
-            "allow",
-            "Lite lane exemption is preserved in headless begin-step.",
-            _begin_step_order_gate("engineer", mode="IMPL", lane="lite"),
+            _begin_step_order_gate("impl-validator", build_worker_output=True),
         ),
         GuardCase(
             "begin_step_allows_build_worker_lite_lane",
@@ -572,20 +558,13 @@ def build_cases() -> list[GuardCase]:
             _begin_step_order_gate("build-worker", lane="lite"),
         ),
         GuardCase(
-            "begin_step_allows_engineer_polish",
-            "provider-agnostic-order-gate",
-            "allow",
-            "POLISH mode remains exempt from engineer design precondition.",
-            _begin_step_order_gate("engineer", mode="POLISH"),
-        ),
-        GuardCase(
             "begin_step_allows_impl_validator_after_prior_pass",
             "provider-agnostic-order-gate",
             "allow",
             "impl-validator can be re-entered after a prior PASS in headless path.",
             _begin_step_order_gate(
                 "impl-validator",
-                engineer_output=True,
+                build_worker_output=True,
                 impl_validator_pass=True,
             ),
         ),
@@ -596,7 +575,7 @@ def build_cases() -> list[GuardCase]:
             "impl-validator starts after mode-suffixed impl-validator PASS in headless path.",
             _begin_step_order_gate(
                 "impl-validator",
-                engineer_output=True,
+                build_worker_output=True,
                 impl_validator_mode_pass=True,
             ),
         ),

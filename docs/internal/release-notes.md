@@ -6,7 +6,8 @@
 
 ## Unreleased
 
-- (없음)
+- **`/impl`·`/impl-loop` 2진입점 간소화 + cross-provider review 기본화** ([#1032](https://github.com/Daeguk-Sun/dcNess/issues/1032)) — `/impl` 이 설계도 유무 1차 분기와 high-risk 자동 되돌림을 하지 않고, concrete signal 이 있으면 메인 직접 구현으로 진행한다. high-risk 는 설계 선행 권고 한 줄만 출력하고, 사용자가 진행을 택하면 구현한다. 자연어-only 요청은 GitHub issue 1개 등록 여부를 한 번 확인한다. `/impl-loop` 은 SDD story/epic 설계도 입력 → build-worker headless → merge candidate `impl-validator` 통합 리뷰 모델로 설명을 정리한다.
+- **기존 role-split 저장값 사용자 안내** — 과거 `enable-role-split-routing` 으로 `routing.json` 에 `impl-validator=claude` 가 명시 저장된 프로젝트는 override 존중 원칙 때문에 새 cross-provider 기본을 자동으로 받지 않는다. 추천값을 다시 적용하려면 `dcness-helper routing enable-role-split-routing` 실행 후 `dcness-helper routing doctor` 로 확인한다. 수동으로 Claude 고정을 원하면 기존 저장값을 그대로 두면 된다.
 
 ---
 

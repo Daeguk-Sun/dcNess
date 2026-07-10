@@ -10,15 +10,14 @@ Coverage matrix:
 
     handle_pretooluse_agent:
         - begin-step/current-step 일치 검사
-        - impl-validator — engineer 산출물 이후 단일 merged validator 로 직접 호출 가능
-        - engineer 게이트 — engineer 직전 module-architect PASS 없으면 차단
-        - engineer 게이트 — module-architect.md 안 PASS 있으면 통과
-        - engineer 게이트 — module-architect-N.md (occurrence) 안 PASS 도 인정
-        - engineer 게이트 — engineer POLISH 모드는 plan 검사 skip
-        - engineer 게이트 — run 에 기록된 design_doc 실존 시 module-architect 없이 통과
-        - engineer 게이트 — design_doc 기록됐지만 디스크 부재면 차단 (fail-strict)
-        - engineer 게이트 — 상대경로 기록 후 cwd 가 달라도 통과 (기록 시점 resolve)
-        - engineer 게이트 — mode-suffixed prose(module-architect-REVISION.md) PASS 인정
+        - impl-validator — build-worker 산출물 이후 단일 merged validator 로 직접 호출 가능
+        - build-worker 게이트 — build-worker 직전 module-architect PASS 없으면 차단
+        - build-worker 게이트 — module-architect.md 안 PASS 있으면 통과
+        - build-worker 게이트 — module-architect-N.md (occurrence) 안 PASS 도 인정
+        - build-worker 게이트 — run 에 기록된 design_doc 실존 시 module-architect 없이 통과
+        - build-worker 게이트 — design_doc 기록됐지만 디스크 부재면 차단 (fail-strict)
+        - build-worker 게이트 — 상대경로 기록 후 cwd 가 달라도 통과 (기록 시점 resolve)
+        - build-worker 게이트 — mode-suffixed prose(module-architect-REVISION.md) PASS 인정
         - 그 외 agent (architect MODULE_PLAN, impl-validator 등) — run 외부에서도 통과
         - sid 없음 → silent allow
         - tool_input 비정상 → silent allow
@@ -192,14 +191,14 @@ class _PreToolBase(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# engineer 게이트 — engineer 직전 plan READY 검사
+# build-worker 게이트 — build-worker 직전 plan READY 검사
 # ---------------------------------------------------------------------------
 
 
-class CatastrophicEngineerTests(_PreToolBase):
+class CatastrophicBuildWorkerOrderGateTests(_PreToolBase):
     def test_blocked_without_plan(self) -> None:
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -210,81 +209,39 @@ class CatastrophicEngineerTests(_PreToolBase):
             "## 계획\n...\n## 결론\nPASS\n", encoding="utf-8",
         )
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-
-    def test_polish_mode_skips_plan_check(self) -> None:
-        rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "POLISH"),
-            cc_pid=self.cc_pid,
-            base_dir=self.base,
-        )
-        self.assertEqual(rc, 0)
-
-    # -- #709 — POLISH 면제의 effective mode 는 tool_input.mode ∪ current_step.mode --
 
     def _strict_impl_run(self, rid: str = "run-87650001") -> Path:
-        # effective-mode fallback 은 strict entry_point(impl) 에서만 신뢰되므로
-        # current_step.mode 의존 테스트는 strict impl run 으로 세팅한다.
         start_run(self.sid, rid, "impl", base_dir=self.base)
         write_pid_current_run(self.cc_pid, rid, base_dir=self.base)
         return run_dir(self.sid, rid, base_dir=self.base)
 
-    def test_polish_via_current_step_when_toolinput_mode_absent(self) -> None:
-        # impl-loop engine B 실전 — Agent 도구 스키마에 mode 파라미터가 없는 CC 빌드에선
-        # tool_input.mode 가 안 실린다. begin-step 이 기록한 current_step.mode=POLISH 를
-        # effective mode 로 봐야 POLISH 면제가 환경 무관하게 작동한다.
-        rd = self._strict_impl_run()
-        (rd / "build-worker.md").write_text("PASS\n", encoding="utf-8")
-        update_current_step(
-            self.sid, "run-87650001", "engineer", "POLISH", base_dir=self.base,
-        )
-        rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer"),  # tool_input.mode 빈값 (실전 payload)
-            cc_pid=self.cc_pid,
-            base_dir=self.base,
-        )
-        self.assertEqual(rc, 0)
-
-    def test_impl_still_blocked_when_current_step_mode_impl_and_no_artifact(self) -> None:
-        # 회귀 가드 — current_step.mode=IMPL 이고 설계 산출물 없으면 여전히 차단.
-        # effective-mode fallback 이 IMPL 까지 면제로 새지 않는다.
+    def test_polish_step_mode_no_longer_skips_build_worker_gate(self) -> None:
+        # #1032 — engineer 전용 POLISH 우회는 dead reference 였다. build-worker 는
+        # lane=lite 또는 설계 산출물로만 gate 를 통과한다.
         self._strict_impl_run()
         update_current_step(
-            self.sid, "run-87650001", "engineer", "IMPL", base_dir=self.base,
+            self.sid, "run-87650001", "build-worker", "POLISH", base_dir=self.base,
         )
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer"),  # tool_input.mode 빈값
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 1)
 
     def test_blocked_when_no_mode_anywhere_and_no_artifact(self) -> None:
-        # 회귀 가드 — tool_input.mode 도 current_step.mode(부재) 도 POLISH 가 아니고
-        # 설계 산출물도 없으면 차단. begin-step engineer(mode 없음) → current_step.mode=None.
+        # 회귀 가드 — 설계 산출물 없으면 build-worker 는 차단.
         self._strict_impl_run()
         update_current_step(
-            self.sid, "run-87650001", "engineer", None, base_dir=self.base,
+            self.sid, "run-87650001", "build-worker", None, base_dir=self.base,
         )
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer"),
-            cc_pid=self.cc_pid,
-            base_dir=self.base,
-        )
-        self.assertEqual(rc, 1)
-
-    def test_polish_step_mode_ignored_in_nonstrict_run(self) -> None:
-        # 게이트 약화 방향 방어 — 비-strict entry_point 에서는 current_step.mode 정합이
-        # 진행 순서 검사로 보장되지 않으므로 step_mode fallback 을 쓰지 않는다.
-        # setUp 의 run 은 entry_point="test"(비-strict). current_step.mode=POLISH 여도
-        # 산출물 없으면 차단(POLISH 누수 차단).
-        self._begin_step("engineer", "POLISH")
-        rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer"),  # tool_input.mode 빈값
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -296,17 +253,16 @@ class CatastrophicEngineerTests(_PreToolBase):
             "## 결론\nPASS\n", encoding="utf-8",
         )
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
 
-    def test_namespaced_engineer_does_not_bypass_gate(self) -> None:
-        # #700 (codex P1) — 진행 순서 검사가 namespaced 를 통과시키므로 engineer 게이트도
-        # 정규화 비교한다. dcness:engineer 가 module-architect PASS 게이트를 우회하면 안 된다.
+    def test_namespaced_build_worker_does_not_bypass_gate(self) -> None:
+        # #700 (codex P1) — namespaced build-worker 도 정규화 비교한다.
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("dcness:engineer", "IMPL"),
+            stdin_data=self._payload("dcness:build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -327,17 +283,17 @@ class CatastrophicEngineerTests(_PreToolBase):
             os.chdir(old_cwd)
 
     def _start_run_with_design_doc(self, design_doc: str) -> None:
-        """begin-run --design-doc + begin-step engineer 경로 모사.
+        """begin-run --design-doc + begin-step build-worker 경로 모사.
 
         entry_point=impl run 은 진행 순서 검사가 begin-step 을 강제하므로
         실제 풀 경로 시퀀스대로 current_step 까지 세팅 — 차단/통과가
-        engineer 게이트에서 판정되도록 한다.
+        build-worker 게이트에서 판정되도록 한다.
         """
         rid2 = "run-87654321"
         self._record_run_with_design_doc(rid2, design_doc)
         write_pid_current_run(self.cc_pid, rid2, base_dir=self.base)
         update_current_step(
-            self.sid, rid2, "engineer", "IMPL", base_dir=self.base,
+            self.sid, rid2, "build-worker", None, base_dir=self.base,
         )
 
     def _write_design_doc(self) -> Path:
@@ -351,11 +307,11 @@ class CatastrophicEngineerTests(_PreToolBase):
     def test_allowed_with_merged_design_doc(self) -> None:
         # #701 — impl-loop 풀 경로: 설계(impl 문서)는 별도 run 에서 머지된 뒤
         # 진입하므로, run 에 기록된 design_doc 실존이 같은-run module-architect
-        # PASS 없이도 engineer(IMPL) 사전 조건을 충족해야 한다.
+        # PASS 없이도 build-worker 사전 조건을 충족해야 한다.
         doc = self._write_design_doc()
         self._start_run_with_design_doc(str(doc))
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -363,7 +319,7 @@ class CatastrophicEngineerTests(_PreToolBase):
 
     def test_blocked_when_design_doc_gone_from_disk(self) -> None:
         # 기록 시점엔 실존했지만 게이트 시점에 삭제된 design_doc → fail-strict 차단.
-        # 차단 주체가 진행 순서 검사가 아닌 engineer 게이트임을 stderr 로 확정.
+        # 차단 주체가 진행 순서 검사가 아닌 build-worker 게이트임을 stderr 로 확정.
         from io import StringIO
         from contextlib import redirect_stderr
 
@@ -373,7 +329,7 @@ class CatastrophicEngineerTests(_PreToolBase):
         err = StringIO()
         with redirect_stderr(err):
             rc = handle_pretooluse_agent(
-                stdin_data=self._payload("engineer", "IMPL"),
+                stdin_data=self._payload("build-worker"),
                 cc_pid=self.cc_pid,
                 base_dir=self.base,
             )
@@ -387,7 +343,7 @@ class CatastrophicEngineerTests(_PreToolBase):
         self._record_run_with_design_doc("run-87654321", str(doc))
         # current run 은 여전히 setUp 의 design_doc 없는 run
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -401,7 +357,7 @@ class CatastrophicEngineerTests(_PreToolBase):
         self._start_run_with_design_doc(str(rel))
         # 게이트는 테스트 프로세스 cwd(레포 루트, self.base 아님)에서 실행된다.
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -410,12 +366,12 @@ class CatastrophicEngineerTests(_PreToolBase):
     def test_allowed_with_mode_suffixed_module_architect_pass(self) -> None:
         # module-architect mode prose 는 module-architect-<MODE>.md 에 기록된다.
         # 같은-run PASS 로 인정
-        # 해야 engineer(IMPL) 가 진입 가능 (mode-suffixed 파일명 인식).
+        # 해야 build-worker 가 진입 가능 (mode-suffixed 파일명 인식).
         (self.run_path / "module-architect-REVISION.md").write_text(
             "## 결론\nPASS\n", encoding="utf-8",
         )
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -445,7 +401,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         active[self.rid] = slot
         update_live(self.sid, base_dir=self.base, active_runs=active)
 
-    def test_begin_step_blocks_engineer_without_design_artifact(self) -> None:
+    def test_begin_step_allows_dead_engineer_reference_without_design_artifact(self) -> None:
         message = evaluate_order_gate_for_step(
             self.sid,
             self.rid,
@@ -453,9 +409,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
             "IMPL",
             base_dir=self.base,
         )
-        self.assertIsNotNone(message)
-        self.assertIn("[순서 차단 훅: implementation gate]", message or "")
-        self.assertIn("begin-run --design-doc", message or "")
+        self.assertIsNone(message)
 
     def test_begin_step_blocks_build_worker_without_design_artifact(self) -> None:
         message = evaluate_order_gate_for_step(
@@ -483,8 +437,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
                 "-m",
                 "harness.session_state",
                 "begin-step",
-                "engineer",
-                "IMPL",
+                "build-worker",
             ],
             cwd=project,
             capture_output=True,
@@ -504,17 +457,6 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         slot = live["active_runs"]["run-99999999"]
         self.assertIsNone(slot["current_step"])
 
-    def test_begin_step_allows_engineer_lite_lane(self) -> None:
-        self._set_slot(lane="lite")
-        message = evaluate_order_gate_for_step(
-            self.sid,
-            self.rid,
-            "engineer",
-            "IMPL",
-            base_dir=self.base,
-        )
-        self.assertIsNone(message)
-
     def test_begin_step_allows_build_worker_lite_lane(self) -> None:
         self._set_slot(lane="lite")
         message = evaluate_order_gate_for_step(
@@ -526,18 +468,8 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         )
         self.assertIsNone(message)
 
-    def test_begin_step_allows_engineer_polish_without_design_artifact(self) -> None:
-        message = evaluate_order_gate_for_step(
-            self.sid,
-            self.rid,
-            "engineer",
-            "POLISH",
-            base_dir=self.base,
-        )
-        self.assertIsNone(message)
-
-    def test_begin_step_allows_impl_validator_after_engineer_output(self) -> None:
-        (self.run_path / "engineer.md").write_text(
+    def test_begin_step_allows_impl_validator_after_build_worker_output(self) -> None:
+        (self.run_path / "build-worker.md").write_text(
             "구현 완료\n\nPASS\n", encoding="utf-8",
         )
         message = evaluate_order_gate_for_step(
@@ -550,7 +482,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         self.assertIsNone(message)
 
     def test_begin_step_allows_impl_validator_after_prior_pass(self) -> None:
-        (self.run_path / "engineer.md").write_text(
+        (self.run_path / "build-worker.md").write_text(
             "구현 완료\n\nPASS\n", encoding="utf-8",
         )
         (self.run_path / "impl-validator.md").write_text(
@@ -566,7 +498,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         self.assertIsNone(message)
 
     def test_begin_step_allows_impl_validator_after_mode_suffixed_prior_pass(self) -> None:
-        (self.run_path / "engineer.md").write_text(
+        (self.run_path / "build-worker.md").write_text(
             "구현 완료\n\nPASS\n", encoding="utf-8",
         )
         (self.run_path / "impl-validator-CODE_VALIDATION.md").write_text(
@@ -904,17 +836,15 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
 
 
 # ---------------------------------------------------------------------------
-# #714 — engineer 게이트 lane-aware 면제 (Lite lane + sub-agent 엔진)
+# #714/#1032 — build-worker 게이트 lane-aware 면제
 # ---------------------------------------------------------------------------
 
 
-class CatastrophicEngineerLiteLaneTests(_PreToolBase):
-    """기록된 lane=lite 가 engineer 게이트의 설계 산출물 사전 조건을 면제한다.
+class CatastrophicBuildWorkerLiteLaneTests(_PreToolBase):
+    """기록된 lane=lite 가 build-worker 게이트의 설계 산출물 사전 조건을 면제한다.
 
     Lite lane 은 정의상 설계도가 없어 module-architect PASS / design_doc 둘 다
-    없다. 면제 경계는 *명시적으로 기록된* lane=lite 한정 — lane 미기록(impl-loop
-    풀4 / 기본) 과 lane=standard 는 종전 차단 유지(면제 누수 차단). impl-validator ←
-    impl-validator 잔존 보호는 lane 무관 불변.
+    없다. 면제 경계는 *명시적으로 기록된* lane=lite 한정이다.
     """
 
     def setUp(self) -> None:
@@ -927,12 +857,12 @@ class CatastrophicEngineerLiteLaneTests(_PreToolBase):
         active[self.rid].update(fields)
         update_live(self.sid, base_dir=self.base, active_runs=active)
 
-    def test_lite_lane_allows_engineer_without_design_artifact(self) -> None:
-        # 핵심 — lane=lite 면 설계 산출물 없이도 sub-agent engineer:IMPL 가 통과.
+    def test_lite_lane_allows_build_worker_without_design_artifact(self) -> None:
+        # 핵심 — lane=lite 면 설계 산출물 없이도 build-worker 가 통과.
         self._set_slot(lane="lite")
-        self._begin_step("engineer", "IMPL")
+        self._begin_step("build-worker")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -941,29 +871,29 @@ class CatastrophicEngineerLiteLaneTests(_PreToolBase):
     def test_lane_standard_still_requires_design_artifact(self) -> None:
         # 회귀 — lane=standard 는 설계 산출물 없으면 종전대로 차단(면제는 lite 한정).
         self._set_slot(lane="standard")
-        self._begin_step("engineer", "IMPL")
+        self._begin_step("build-worker")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 1)
 
     def test_lane_none_still_requires_design_artifact(self) -> None:
-        # 회귀 — lane 미기록(impl-loop 풀4 / 기본) impl run 은 설계 산출물 요구 유지.
-        self._begin_step("engineer", "IMPL")
+        # 회귀 — lane 미기록 impl run 은 설계 산출물 요구 유지.
+        self._begin_step("build-worker")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "IMPL"),
+            stdin_data=self._payload("build-worker", ""),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         self.assertEqual(rc, 1)
 
-    def test_lite_lane_allows_impl_validator_after_engineer_output(self) -> None:
+    def test_lite_lane_allows_impl_validator_after_build_worker_output(self) -> None:
         # #1020 — impl-validator 병합 후 old validator->reviewer 순서 게이트는 collapse.
-        # Lite lane 면제는 engineer gate 에만 관여하고, impl-validator 는 단일 경계로 바로 호출된다.
+        # Lite lane 면제는 build-worker gate 에만 관여하고, impl-validator 는 단일 경계로 바로 호출된다.
         self._set_slot(lane="lite")
-        (self.run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
+        (self.run_path / "build-worker.md").write_text("PASS", encoding="utf-8")
         self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("impl-validator", ""),
@@ -1400,8 +1330,7 @@ class StrictConveyorGateTests(_PreToolBase):
 
     def test_allows_namespaced_moded_agent_full_cycle(self) -> None:
         # #700 AC3 (진행 순서 검사 부분) — namespaced + moded step + mode 미지정 Agent 가
-        # 진행 순서 검사를 추가 우회 없이 통과해야 한다. engineer catastrophic 게이트의
-        # lane-aware 화(풀4 engineer:IMPL)는 별개 작업 — Finding C follow-up.
+        # 진행 순서 검사를 추가 우회 없이 통과해야 한다.
         self._begin_step("impl-validator", "VERIFY_ONLY")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("dcness:impl-validator", ""),
@@ -1411,12 +1340,12 @@ class StrictConveyorGateTests(_PreToolBase):
         self.assertEqual(rc, 0)
 
     def test_namespaced_agent_passing_strict_does_not_bypass_catastrophic_gate(self) -> None:
-        # #700 (codex P1) — active impl run 에서 begin-step engineer 후 dcness:engineer 가
-        # 진행 순서 검사를 통과해도 engineer catastrophic 게이트(module-architect PASS)를
+        # #700 (codex P1) — active impl run 에서 begin-step build-worker 후
+        # dcness:build-worker 가 진행 순서 검사를 통과해도 implementation gate 를
         # 우회하면 안 된다 (strict norm 과 게이트 norm 의 연계 검증).
-        self._begin_step("engineer", "IMPL")
+        self._begin_step("build-worker")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("dcness:engineer", "IMPL"),
+            stdin_data=self._payload("dcness:build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
