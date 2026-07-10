@@ -5,6 +5,7 @@ dcness_resolve_headless_context() {
   local project_root="$2"
   local script_dir="$3"
   local context=""
+  local err_file=""
   local rc=0
 
   DCNESS_HEADLESS_CONTEXT_DEGRADED=0
@@ -12,6 +13,7 @@ dcness_resolve_headless_context() {
   RESOLVED_SID=""
   RESOLVED_RID=""
 
+  err_file="$(mktemp "${TMPDIR:-/tmp}/dcness-headless-context.XXXXXX")"
   context="$(
     PYTHONPATH="$script_dir/.." python3 -c '
 import sys
@@ -27,11 +29,16 @@ if not sid or not rid:
     print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
     sys.exit(1)
 print(f"{sid}\t{rid}")
-' 2>&1
+' 2>"$err_file"
   )"
   rc=$?
+  DCNESS_HEADLESS_CONTEXT_DIAGNOSTIC="$(cat "$err_file" 2>/dev/null || true)"
+  rm -f "$err_file"
 
   if [ "$rc" -eq 0 ]; then
+    if [ -n "$DCNESS_HEADLESS_CONTEXT_DIAGNOSTIC" ]; then
+      printf '%s\n' "$DCNESS_HEADLESS_CONTEXT_DIAGNOSTIC" >&2
+    fi
     IFS="$(printf '\t')" read -r RESOLVED_SID RESOLVED_RID <<EOF
 $context
 EOF
@@ -47,7 +54,6 @@ PY
     )"
   else
     DCNESS_HEADLESS_CONTEXT_DEGRADED=1
-    DCNESS_HEADLESS_CONTEXT_DIAGNOSTIC="$context"
     unset DCNESS_SESSION_ID
     unset DCNESS_RUN_ID
     DCNESS_SESSION_ID=""

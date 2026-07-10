@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -70,6 +71,100 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             }
         )
         return env
+
+    def test_worker_context_resolution_ignores_python_stderr_on_success(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement with noisy Python stderr.\n", encoding="utf-8")
+            env_capture = tmp / "claude-env.txt"
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "python3",
+                """\
+                #!/bin/sh
+                if [ "${1:-}" = "-c" ]; then
+                  printf 'RuntimeWarning: noisy Python startup\\n' >&2
+                fi
+                exec "$REAL_PYTHON" "$@"
+                """,
+            )
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                cat >/dev/null
+                {
+                  printf 'DCNESS_SESSION_ID=%s\\n' "${DCNESS_SESSION_ID-}"
+                  printf 'DCNESS_RUN_ID=%s\\n' "${DCNESS_RUN_ID-}"
+                } > "$ENV_CAPTURE"
+                printf 'Claude worker noisy Python prose\\n\\nPASS\\n'
+                """,
+            )
+
+            sid = "sid-python-warning"
+            rid = "run-1a2b3c4d"
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_RUN_ID": rid,
+                    "DCNESS_SESSION_ID": sid,
+                    "ENV_CAPTURE": str(env_capture),
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                    "REAL_PYTHON": sys.executable,
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("RuntimeWarning: noisy Python startup", result.stderr)
+            self.assertNotIn("sid/rid unresolved", result.stderr)
+            captured = env_capture.read_text(encoding="utf-8")
+            self.assertIn(f"DCNESS_SESSION_ID={sid}\n", captured)
+            self.assertIn(f"DCNESS_RUN_ID={rid}\n", captured)
+            logs = list(
+                (
+                    project
+                    / ".claude"
+                    / "harness-state"
+                    / ".sessions"
+                    / sid
+                    / "runs"
+                    / rid
+                    / "headless-logs"
+                ).glob("claude-headless-build-worker-*.log")
+            )
+            self.assertEqual(len(logs), 1)
+            self.assertFalse(
+                (project / ".dcness-work" / "headless-logs" / "unattributed").exists()
+            )
 
     def test_claude_worker_degraded_context_runs_provider(self) -> None:
         with tempfile.TemporaryDirectory() as td:
