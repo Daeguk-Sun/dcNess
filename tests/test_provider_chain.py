@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
 import textwrap
 import unittest
@@ -14,6 +15,7 @@ from harness.session_state import start_run, update_current_step
 
 ROOT = Path(__file__).resolve().parents[1]
 CLAUDE_VALIDATOR = ROOT / "scripts" / "dcness-claude-validator"
+CODEX_VALIDATOR = ROOT / "scripts" / "dcness-codex-validator"
 CLAUDE_WORKER = ROOT / "scripts" / "dcness-claude-worker"
 CODEX_WORKER = ROOT / "scripts" / "dcness-codex-worker"
 CHAIN = ROOT / "scripts" / "dcness-implementation-chain"
@@ -46,7 +48,414 @@ def _write_helper(path: Path, helper_args: Path, prose_capture: Path) -> None:
     os.environ["PROSE_CAPTURE"] = str(prose_capture)
 
 
+def _write_failing_helper(path: Path) -> None:
+    _write_executable(
+        path,
+        """\
+        #!/bin/sh
+        printf '%s\\n' "$*" > "$HELPER_ARGS"
+        exit 1
+        """,
+    )
+
+
 class ClaudeHeadlessWrapperTests(unittest.TestCase):
+    def _degraded_base_env(self, bin_dir: Path, helper_args: Path) -> dict[str, str]:
+        env = os.environ.copy()
+        env.pop("DCNESS_RUN_ID", None)
+        env.pop("DCNESS_SESSION_ID", None)
+        env.update(
+            {
+                "HELPER_ARGS": str(helper_args),
+                "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+            }
+        )
+        return env
+
+    def test_worker_context_resolution_ignores_python_stderr_on_success(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement with noisy Python stderr.\n", encoding="utf-8")
+            env_capture = tmp / "claude-env.txt"
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "python3",
+                """\
+                #!/bin/sh
+                if [ "${1:-}" = "-c" ]; then
+                  printf 'RuntimeWarning: noisy Python startup\\n' >&2
+                fi
+                exec "$REAL_PYTHON" "$@"
+                """,
+            )
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                cat >/dev/null
+                {
+                  printf 'DCNESS_SESSION_ID=%s\\n' "${DCNESS_SESSION_ID-}"
+                  printf 'DCNESS_RUN_ID=%s\\n' "${DCNESS_RUN_ID-}"
+                } > "$ENV_CAPTURE"
+                printf 'Claude worker noisy Python prose\\n\\nPASS\\n'
+                """,
+            )
+
+            sid = "sid-python-warning"
+            rid = "run-1a2b3c4d"
+            env = os.environ.copy()
+            env.update(
+                {
+                    "DCNESS_RUN_ID": rid,
+                    "DCNESS_SESSION_ID": sid,
+                    "ENV_CAPTURE": str(env_capture),
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                    "REAL_PYTHON": sys.executable,
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("RuntimeWarning: noisy Python startup", result.stderr)
+            self.assertNotIn("sid/rid unresolved", result.stderr)
+            captured = env_capture.read_text(encoding="utf-8")
+            self.assertIn(f"DCNESS_SESSION_ID={sid}\n", captured)
+            self.assertIn(f"DCNESS_RUN_ID={rid}\n", captured)
+            logs = list(
+                (
+                    project
+                    / ".claude"
+                    / "harness-state"
+                    / ".sessions"
+                    / sid
+                    / "runs"
+                    / rid
+                    / "headless-logs"
+                ).glob("claude-headless-build-worker-*.log")
+            )
+            self.assertEqual(len(logs), 1)
+            self.assertFalse(
+                (project / ".dcness-work" / "headless-logs" / "unattributed").exists()
+            )
+
+    def test_claude_worker_degraded_context_runs_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement without run context.\n", encoding="utf-8")
+            provider_called = tmp / "claude-called.txt"
+            env_capture = tmp / "claude-env.txt"
+            helper_args = tmp / "helper-args.txt"
+            helper = tmp / "dcness-helper"
+            _write_failing_helper(helper)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                printf called > "$PROVIDER_CALLED"
+                cat >/dev/null
+                {
+                  printf 'DCNESS_SESSION_ID=%s\\n' "${DCNESS_SESSION_ID-}"
+                  printf 'DCNESS_RUN_ID=%s\\n' "${DCNESS_RUN_ID-}"
+                } > "$ENV_CAPTURE"
+                printf 'Claude worker degraded prose\\n\\nPASS\\n'
+                """,
+            )
+
+            env = self._degraded_base_env(bin_dir, helper_args)
+            env.update(
+                {
+                    "ENV_CAPTURE": str(env_capture),
+                    "PROVIDER_CALLED": str(provider_called),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(provider_called.exists())
+            self.assertIn("sid/rid unresolved", result.stderr)
+            self.assertIn("degraded", result.stderr)
+            captured = env_capture.read_text(encoding="utf-8")
+            self.assertIn("DCNESS_SESSION_ID=\n", captured)
+            self.assertIn("DCNESS_RUN_ID=\n", captured)
+            self.assertTrue(helper_args.exists())
+            logs = list(
+                (
+                    project / ".dcness-work" / "headless-logs" / "unattributed"
+                ).glob("claude-headless-build-worker-*.log")
+            )
+            self.assertEqual(len(logs), 1)
+            raw_log = logs[0].read_text(encoding="utf-8")
+            self.assertIn("UNATTRIBUTED", raw_log)
+            self.assertIn("Claude worker degraded prose", raw_log)
+
+    def test_codex_worker_degraded_context_runs_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement without run context.\n", encoding="utf-8")
+            provider_called = tmp / "codex-called.txt"
+            env_capture = tmp / "codex-env.txt"
+            helper_args = tmp / "helper-args.txt"
+            helper = tmp / "dcness-helper"
+            _write_failing_helper(helper)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "codex",
+                """\
+                #!/bin/sh
+                if [ "$1" = "--help" ]; then
+                  echo "Usage: codex"
+                  exit 0
+                fi
+                out=""
+                while [ "$#" -gt 0 ]; do
+                  if [ "$1" = "--output-last-message" ]; then
+                    out="$2"
+                    shift 2
+                    continue
+                  fi
+                  shift
+                done
+                printf called > "$PROVIDER_CALLED"
+                cat >/dev/null
+                {
+                  printf 'DCNESS_SESSION_ID=%s\\n' "${DCNESS_SESSION_ID-}"
+                  printf 'DCNESS_RUN_ID=%s\\n' "${DCNESS_RUN_ID-}"
+                } > "$ENV_CAPTURE"
+                printf 'Codex worker degraded prose\\n\\nPASS\\n' > "$out"
+                """,
+            )
+
+            env = self._degraded_base_env(bin_dir, helper_args)
+            env.update(
+                {
+                    "ENV_CAPTURE": str(env_capture),
+                    "PROVIDER_CALLED": str(provider_called),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CODEX_WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(provider_called.exists())
+            self.assertIn("sid/rid unresolved", result.stderr)
+            self.assertIn("degraded", result.stderr)
+            captured = env_capture.read_text(encoding="utf-8")
+            self.assertIn("DCNESS_SESSION_ID=\n", captured)
+            self.assertIn("DCNESS_RUN_ID=\n", captured)
+            self.assertTrue(helper_args.exists())
+            logs = list(
+                (
+                    project / ".dcness-work" / "headless-logs" / "unattributed"
+                ).glob("codex-headless-build-worker-*.log")
+            )
+            self.assertEqual(len(logs), 1)
+            raw_log = logs[0].read_text(encoding="utf-8")
+            self.assertIn("UNATTRIBUTED", raw_log)
+            self.assertIn("Codex worker degraded prose", raw_log)
+
+    def test_claude_validator_degraded_context_runs_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Validate without run context.\n", encoding="utf-8")
+            provider_called = tmp / "claude-validator-called.txt"
+            helper_args = tmp / "helper-args.txt"
+            helper = tmp / "dcness-helper"
+            _write_failing_helper(helper)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                printf called > "$PROVIDER_CALLED"
+                cat >/dev/null
+                printf 'Claude validator degraded prose\\n\\nPASS\\n'
+                """,
+            )
+
+            env = self._degraded_base_env(bin_dir, helper_args)
+            env["PROVIDER_CALLED"] = str(provider_called)
+
+            result = subprocess.run(
+                [
+                    str(CLAUDE_VALIDATOR),
+                    "impl-validator",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(provider_called.exists())
+            self.assertIn("sid/rid unresolved", result.stderr)
+            self.assertTrue(helper_args.exists())
+            logs = list(
+                (
+                    project / ".dcness-work" / "headless-logs" / "unattributed"
+                ).glob("claude-headless-impl-validator-*.log")
+            )
+            self.assertEqual(len(logs), 1)
+            raw_log = logs[0].read_text(encoding="utf-8")
+            self.assertIn("UNATTRIBUTED", raw_log)
+            self.assertIn("Claude validator degraded prose", raw_log)
+
+    def test_codex_validator_degraded_context_runs_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Validate without run context.\n", encoding="utf-8")
+            provider_called = tmp / "codex-validator-called.txt"
+            helper_args = tmp / "helper-args.txt"
+            helper = tmp / "dcness-helper"
+            _write_failing_helper(helper)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "codex",
+                """\
+                #!/bin/sh
+                if [ "$1" = "--help" ]; then
+                  echo "Usage: codex"
+                  exit 0
+                fi
+                out=""
+                while [ "$#" -gt 0 ]; do
+                  if [ "$1" = "--output-last-message" ]; then
+                    out="$2"
+                    shift 2
+                    continue
+                  fi
+                  shift
+                done
+                printf called > "$PROVIDER_CALLED"
+                cat >/dev/null
+                printf 'Codex validator degraded prose\\n\\nPASS\\n' > "$out"
+                """,
+            )
+
+            env = self._degraded_base_env(bin_dir, helper_args)
+            env["PROVIDER_CALLED"] = str(provider_called)
+
+            result = subprocess.run(
+                [
+                    str(CODEX_VALIDATOR),
+                    "impl-validator",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(provider_called.exists())
+            self.assertIn("sid/rid unresolved", result.stderr)
+            self.assertTrue(helper_args.exists())
+            logs = list(
+                (
+                    project / ".dcness-work" / "headless-logs" / "unattributed"
+                ).glob("codex-headless-impl-validator-*.log")
+            )
+            self.assertEqual(len(logs), 1)
+            raw_log = logs[0].read_text(encoding="utf-8")
+            self.assertIn("UNATTRIBUTED", raw_log)
+            self.assertIn("Codex validator degraded prose", raw_log)
+
     def _assert_worker_records_boundary_block(
         self,
         *,
@@ -777,6 +1186,73 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
 
 
 class ImplementationChainTests(unittest.TestCase):
+    def test_chain_degraded_context_runs_headless_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement through chain without run context.\n", encoding="utf-8")
+            provider_called = tmp / "claude-called.txt"
+            helper_args = tmp / "helper-args.txt"
+            helper = tmp / "dcness-helper"
+            _write_failing_helper(helper)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                printf called > "$PROVIDER_CALLED"
+                cat >/dev/null
+                printf 'Claude chain degraded prose\\n\\nPASS\\n'
+                """,
+            )
+
+            env = os.environ.copy()
+            env.pop("DCNESS_RUN_ID", None)
+            env.pop("DCNESS_SESSION_ID", None)
+            env.update(
+                {
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROVIDER_CALLED": str(provider_called),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CHAIN),
+                    "build-worker",
+                    "--provider",
+                    "claude-headless",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue(provider_called.exists())
+            self.assertIn("sid/rid unresolved", result.stderr)
+            self.assertTrue(helper_args.exists())
+            log_dir = project / ".dcness-work" / "headless-logs" / "unattributed"
+            self.assertTrue(list(log_dir.glob("chain-claude-headless-build-worker-*.log")))
+            worker_logs = list(log_dir.glob("claude-headless-build-worker-*.log"))
+            self.assertEqual(len(worker_logs), 1)
+            raw_log = worker_logs[0].read_text(encoding="utf-8")
+            self.assertIn("UNATTRIBUTED", raw_log)
+            self.assertIn("Claude chain degraded prose", raw_log)
+
     def test_codex_missing_falls_back_to_claude_headless(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)

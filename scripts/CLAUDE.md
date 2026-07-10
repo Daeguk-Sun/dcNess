@@ -23,7 +23,7 @@ helper, 배포용 wrapper를 고칠 때의 컴퍼스다.
 - [dcness-helper](dcness-helper), [dcness-context-docs](dcness-context-docs),
   [dcness-codex-validator](dcness-codex-validator), [dcness-codex-worker](dcness-codex-worker):
   사용자-facing CLI wrapper.
-- [lib/](../scripts/lib/): 여러 Node checker가 공유하는 helper.
+- [lib/](../scripts/lib/): 여러 Node checker와 shell wrapper가 공유하는 helper.
 
 ## 수정 시 주의점
 

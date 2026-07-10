@@ -66,6 +66,7 @@ if [ $# -gt 0 ] && [[ "${1:-}" != -* ]]; then
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/lib/headless_context.sh"
 PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
@@ -160,46 +161,12 @@ fi
 
 cd "$PROJECT_ROOT"
 
-CONTEXT="$(
-  PYTHONPATH="$SCRIPT_DIR/.." python3 -c '
-import sys
-from harness.session_state import (
-    auto_detect_run_id,
-    auto_detect_session_id,
-    diagnose_sid_rid_resolution,
-)
-
-sid = auto_detect_session_id()
-rid = auto_detect_run_id()
-if not sid or not rid:
-    print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
-    sys.exit(1)
-print(f"{sid}\t{rid}")
-'
-)"
-if [ $? -ne 0 ]; then
-  echo "[dcness-claude-worker] sid/rid resolve failed before Claude launch" >&2
-  exit 1
-fi
-IFS="$(printf '\t')" read -r RESOLVED_SID RESOLVED_RID <<EOF
-$CONTEXT
-EOF
-export DCNESS_SESSION_ID="$RESOLVED_SID"
-export DCNESS_RUN_ID="$RESOLVED_RID"
-
-RAW_LOG_DIR="$(
-  PYTHONPATH="$SCRIPT_DIR/.." python3 - "$RESOLVED_SID" "$RESOLVED_RID" <<'PY'
-import sys
-from harness.session_state import run_dir
-
-print(run_dir(sys.argv[1], sys.argv[2]) / "headless-logs")
-PY
-)"
-mkdir -p "$RAW_LOG_DIR"
+dcness_resolve_headless_context "dcness-claude-worker" "$PROJECT_ROOT" "$SCRIPT_DIR"
 
 git_status_without_harness_state() {
   git -C "$PROJECT_ROOT" status --porcelain=v1 -uall 2>/dev/null \
-    | sed '/^.. \.claude\/harness-state\//d' || true
+    | sed '/^.. \.claude\/harness-state\//d' \
+    | sed '/^.. \.dcness-work\/headless-logs\//d' || true
 }
 
 BEFORE_STATUS="$(git_status_without_harness_state)"
@@ -208,6 +175,7 @@ BEFORE_HEAD="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
 TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-worker-${AGENT}.XXXXXX")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-worker-prompt-${AGENT}.XXXXXX")"
 RAW_LOG="$RAW_LOG_DIR/claude-headless-${AGENT}${MODE:+-$MODE}-$$.log"
+dcness_write_headless_context_header "dcness-claude-worker" "$RAW_LOG"
 trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
 
 AGENT_DOC="$SCRIPT_DIR/../agents/$AGENT.md"
@@ -221,8 +189,8 @@ AGENT_DETAIL="$SCRIPT_DIR/../docs/plugin/agents/$AGENT/$AGENT-agent.md"
     echo "dcNess implementation mode: default"
   fi
   echo "project/worktree root: $PROJECT_ROOT"
-  echo "session id: $DCNESS_SESSION_ID"
-  echo "run id: $DCNESS_RUN_ID"
+  echo "session id: ${DCNESS_SESSION_ID:-UNATTRIBUTED}"
+  echo "run id: ${DCNESS_RUN_ID:-UNATTRIBUTED}"
   echo
   echo "You are executing this dcNess implementation worker step through Claude headless."
   echo "Run with hooks and plugins enabled; do not use safe-mode, bare mode, or hook-skipping modes."
@@ -520,6 +488,8 @@ for cmd in commands:
 for path in sorted(paths):
     if path.startswith(".claude/harness-state/"):
         continue
+    if path.startswith(".dcness-work/headless-logs/"):
+        continue
     reason = check_write_allowed(agent, path, cwd=root)
     if reason:
         print(f"{path}: {reason}")
@@ -541,7 +511,7 @@ TDD_CHANGED_PATHS="$(
     if [ -n "$BEFORE_HEAD" ]; then
       git -C "$PROJECT_ROOT" diff --name-only --diff-filter=ACMRT "$BEFORE_HEAD..HEAD" 2>/dev/null || true
     fi
-  } | grep -v '^\.claude/harness-state/' | sort -u
+  } | grep -v '^\.claude/harness-state/' | grep -v '^\.dcness-work/headless-logs/' | sort -u
 )"
 TDD_PROBLEMS="$(
   _tdd_found=0
@@ -591,8 +561,4 @@ if [ "$TDD_RC" -eq 1 ]; then
   exit 1
 fi
 
-if [ -n "$MODE" ]; then
-  "$HELPER" end-step "$AGENT" "$MODE" --provider claude-headless --prose-file "$TMP_PROSE"
-else
-  "$HELPER" end-step "$AGENT" --provider claude-headless --prose-file "$TMP_PROSE"
-fi
+dcness_record_end_step "dcness-claude-worker" "claude-headless" "$HELPER" "$AGENT" "$MODE" "$TMP_PROSE" "$RAW_LOG"
