@@ -74,7 +74,7 @@ UI story 인데 실제 실행 화면을 확인할 화면 증거가 없으면 `�
 
 | gap 종류 | 후속 |
 |---|---|
-| PRD / AC 미충족 | `/to-issue` 후보 + `/impl` |
+| PRD 유저 시나리오 / Story AC 미충족 | `/to-issue` 후보 + `/impl` |
 | 설계 결함 / 범위 재정의 필요 | `/design` 또는 `/spec` |
 | 검수 증거 부족 / 스모크 실패 | gap 또는 bug `/to-issue` 후보 + `/impl` |
 | mock-only green / 동작 증거 부족 | gap 또는 bug `/to-issue` 후보 + `/impl` |
@@ -85,7 +85,7 @@ UI story 인데 실제 실행 화면을 확인할 화면 증거가 없으면 `�
 | 성능 병목 / 리팩토링 필요 | `/to-issue` 후보 + `/impl` 또는 `/design` |
 | 보안 / 권한 / 데이터 리스크 | `/to-issue` 후보 + `/design` 또는 사용자 위임 |
 
-story acceptance 는 주로 PRD / AC 미충족, 검수 증거 부족 / 스모크 실패, mock-only green / 동작 증거 부족, 화면 증거 부재, 목업 불일치, 사용자 동선 부적합 / 내부 계약 노출을 만든다. epic acceptance 는 cross-story gap, 화면 증거 부재, cross-story 목업 불일치, cross-story 사용자 동선 부적합, 성능 병목 / 리팩토링 필요, 보안 / 권한 / 데이터 리스크까지 같이 본다.
+story acceptance 는 주로 PRD 유저 시나리오 / Story AC 미충족, 검수 증거 부족 / 스모크 실패, mock-only green / 동작 증거 부족, 화면 증거 부재, 목업 불일치, 사용자 동선 부적합 / 내부 계약 노출을 만든다. epic acceptance 는 cross-story gap, 화면 증거 부재, cross-story 목업 불일치, cross-story 사용자 동선 부적합, 성능 병목 / 리팩토링 필요, 보안 / 권한 / 데이터 리스크까지 같이 본다.
 
 품질 게이트 warning 은 gap 과 별개로 남길 수 있다. 예를 들어 TypeScript 프로젝트에 `tsc --noEmit` 또는 그에 준하는 compile/typecheck 증거가 전혀 없으면 warning 으로 보고하고, 핵심 AC 검증에도 영향을 주는 경우에만 위 gap taxonomy 로 승격한다.
 

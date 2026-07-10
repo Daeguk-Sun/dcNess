@@ -18,7 +18,7 @@ class AcceptanceGapRoutingContractTests(unittest.TestCase):
     def test_gap_taxonomy_routes_to_follow_up_loops(self) -> None:
         text = self.acceptance_routing.read_text(encoding="utf-8")
         expected_rows = {
-            "PRD / AC 미충족": "`/to-issue` 후보 + `/impl`",
+            "PRD 유저 시나리오 / Story AC 미충족": "`/to-issue` 후보 + `/impl`",
             "설계 결함 / 범위 재정의 필요": "`/design` 또는 `/spec`",
             "검수 증거 부족 / 스모크 실패": "gap 또는 bug `/to-issue` 후보 + `/impl`",
             "mock-only green / 동작 증거 부족": "gap 또는 bug `/to-issue` 후보 + `/impl`",

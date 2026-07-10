@@ -78,6 +78,15 @@ class IssueAcceptanceCloseContractTests(unittest.TestCase):
         self.assertIn("target GitHub issue AC", repo_contract)
         self.assertIn("require-complete", repo_contract)
 
+    def test_impl_validator_eval_prompts_declare_issue_absence(self) -> None:
+        prompts = (
+            self.read("evals/cases/flow-ownership-entrypoint-bad/prompt.md"),
+            self.read("evals/cases/flow-ownership-owner-good/prompt.md"),
+        )
+
+        for prompt in prompts:
+            self.assertIn("대상 GitHub issue: 없음", prompt)
+
 
 if __name__ == "__main__":
     unittest.main()

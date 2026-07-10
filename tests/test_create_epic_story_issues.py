@@ -94,7 +94,7 @@ milestone: v01
 스토리 2 본문.
 
 **Acceptance criteria:**
-- AC-002 [agent-read]: Given 결과 파일, When 메타데이터 확인, Then 출처 기록.
+- AC-1002 [agent-read]: Given 결과 파일, When 메타데이터 확인, Then 출처 기록.
 """
 
 STORIES_REGISTERED = """---
@@ -180,7 +180,7 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         self.assertEqual(0, node_log.count("--preserve-existing"))
         self.assertIn("- [ ] [command] Given 두 Story 완료", gh_log)
         self.assertIn("- [ ] AC-001 [command]", gh_log)
-        self.assertIn("- [ ] AC-002 [agent-read]", gh_log)
+        self.assertIn("- [ ] AC-1002 [agent-read]", gh_log)
 
     def test_skips_board_when_no_coords_but_still_creates_issues(self):
         result, gh_log, node_log, _ = self._run(STORIES_NEW, {})

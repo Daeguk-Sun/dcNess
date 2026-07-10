@@ -52,13 +52,15 @@ export function parseStoryAcceptance(markdown) {
     }
     if (!currentStory) continue;
 
-    const acIds = line.match(/\bAC-\d{3,}\b/g) ?? [];
-    for (const acId of acIds) {
-      const previousOwner = ownerByAc.get(acId);
-      if (previousOwner && previousOwner !== currentStory) duplicateIds.add(acId);
-      ownerByAc.set(acId, currentStory);
-      stories.get(currentStory).add(acId);
-    }
+    const declaration = line.match(
+      /^\s*-\s+(AC-\d{3,})\s+\[(?:command|agent-read)\]\s*:/i,
+    );
+    if (!declaration) continue;
+
+    const acId = declaration[1];
+    if (ownerByAc.has(acId)) duplicateIds.add(acId);
+    else ownerByAc.set(acId, currentStory);
+    stories.get(currentStory).add(acId);
   }
 
   return { stories, duplicateIds: sortedIds(duplicateIds) };
@@ -111,19 +113,18 @@ export function parseImplRequirements(implDir) {
 
     for (const line of markdown.split(/\r?\n/)) {
       if (!line.trimStart().startsWith('|')) continue;
-      const reqIds = line.match(/\bREQ(?:-[A-Z]+)*-\d{3,}\b/g) ?? [];
-      if (reqIds.length === 0) continue;
+      const firstCell = line.split('|')[1]?.trim().replace(/^`|`$/g, '');
+      const reqId = firstCell?.match(/^REQ(?:-[A-Z]+)*-\d{3,}$/)?.[0];
+      if (!reqId) continue;
       const sources = sourceIds(line);
       const technical = /\(technical:\s*[^)]+\)/i.test(line);
-      for (const reqId of reqIds) {
-        requirements.push({
-          id: reqId,
-          story,
-          path,
-          sources,
-          technical,
-        });
-      }
+      requirements.push({
+        id: reqId,
+        story,
+        path,
+        sources,
+        technical,
+      });
     }
   }
 

@@ -201,6 +201,44 @@ class IssueBodyValidationTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("PASS", result.stdout)
 
+    def test_close_audit_accepts_checked_legacy_unclassified_criteria(self) -> None:
+        legacy_body = textwrap.dedent(
+            """
+            **Acceptance criteria:**
+            - [x] 기존 자동 검증 결과를 확인한다.
+            - [x] 사용자가 최종 시각 결과를 확인한다.
+            """
+        ).strip()
+
+        result = run_validator(
+            legacy_body,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("acceptance criteria complete (2)", result.stdout)
+
+    def test_close_audit_allows_legacy_issue_without_acceptance_section(self) -> None:
+        legacy_story_body = textwrap.dedent(
+            """
+            **As a** user,
+            **I want** the old story format,
+            **So that** existing projects remain valid.
+
+            **완료 시 확인 가능한 동작**: 기존 smoke 결과를 확인한다.
+            """
+        ).strip()
+
+        result = run_validator(
+            legacy_story_body,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("legacy/no AC", result.stdout)
+
     def test_acceptance_criterion_requires_agent_verification_class(self) -> None:
         body = VALID_BODY.replace(
             "[command] Invalid bodies fail before issue creation when the validator exits non-zero.",
@@ -243,7 +281,7 @@ class IssueBodyValidationTests(unittest.TestCase):
 
             **Acceptance criteria:**
             - [x] AC-001 [command]: Given a prompt, When rendering finishes, Then the command exits zero.
-            - [x] AC-002 [agent-read]: Given the output, When metadata is read, Then provenance is present.
+            - [x] AC-1002 [agent-read]: Given the output, When metadata is read, Then provenance is present.
             """
         ).strip()
 

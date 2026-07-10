@@ -82,7 +82,7 @@ export function parseFieldSection(body, fieldName) {
 
 const ACCEPTANCE_CHECKBOX = /^\s*-\s+\[([ xX])\]\s+(.+?)\s*$/;
 const VERIFICATION_CLASS = /^\[(command|agent-read)\]\s+(.+)$/i;
-const STORY_VERIFICATION_CLASS = /^(AC-\d{3})\s+\[(command|agent-read)\]:?\s+(.+)$/i;
+const STORY_VERIFICATION_CLASS = /^(AC-\d{3,})\s+\[(command|agent-read)\]:?\s+(.+)$/i;
 const GENERIC_ACCEPTANCE = /^(?:구현(?:이|은)?\s*완료(?:된다|되어야 한다)|정상(?:적으로)?\s*동작(?:한다|해야 한다)|문제없이\s*동작(?:한다|해야 한다)|works?\s+(?:correctly|as expected)|implementation\s+is\s+complete)[.!。]?$/i;
 
 export function parseAcceptanceCriteria(body) {
@@ -170,11 +170,11 @@ export function validateIssueBody({
   }
 
   const acceptanceCriteria = parseAcceptanceCriteria(text);
-  if (acceptanceCriteria.length === 0) {
+  if (!acceptanceOnly && acceptanceCriteria.length === 0) {
     failures.push('Acceptance criteria must contain at least one checklist item');
   }
   for (const criterion of acceptanceCriteria) {
-    if (!criterion.verificationClass) {
+    if (!acceptanceOnly && !criterion.verificationClass) {
       failures.push(
         `acceptance criterion must declare [command] or [agent-read]: ${criterion.text}`,
       );
@@ -235,7 +235,11 @@ async function main() {
   });
   if (result.ok) {
     if (args['acceptance-only']) {
-      console.log(`[issue-body] PASS — acceptance criteria complete (${result.acceptanceCriteria.length})`);
+      if (result.acceptanceCriteria.length === 0) {
+        console.log('[issue-body] PASS — legacy/no AC issue; no acceptance checklist to close');
+      } else {
+        console.log(`[issue-body] PASS — acceptance criteria complete (${result.acceptanceCriteria.length})`);
+      }
     } else {
       console.log(`[issue-body] PASS — IssueType=${result.issueType}, Priority=${result.priority}`);
     }

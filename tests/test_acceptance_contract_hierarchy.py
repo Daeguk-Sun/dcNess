@@ -130,6 +130,11 @@ class AcceptanceHierarchySurfaceTests(unittest.TestCase):
         ):
             self.assertIn(needle, template)
 
+        impl_loop = (ROOT / "skills/impl-loop/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("Story 마지막 task", impl_loop)
+        self.assertIn("Story AC 전항목", impl_loop)
+        self.assertIn("SPEC_GAP_FOUND", impl_loop)
+
     def test_validators_and_acceptance_use_story_ac_as_origin(self) -> None:
         paths = (
             ROOT / "docs/plugin/agents/architecture-validator/architecture-validator-agent.md",
@@ -205,6 +210,28 @@ class AcceptanceCoverageReporterTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("Legacy stories format", result.stdout)
         self.assertIn("no retroactive conversion", result.stdout)
+
+    def test_duplicate_ac_declaration_inside_one_story_is_reported(self) -> None:
+        duplicate = STORIES.replace(
+            "- AC-002 [agent-read]: Given the report, When its metadata is read, Then the source is recorded.",
+            "- AC-001 [agent-read]: Given the report, When its metadata is read, Then the source is recorded.",
+        )
+
+        result = _run_report(duplicate, {"02-verify.md": FINAL_TASK})
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("Duplicate AC IDs: AC-001", result.stdout)
+
+    def test_req_mentions_outside_the_id_column_are_not_parsed_as_rows(self) -> None:
+        mentioning_other_req = FINAL_TASK.replace(
+            "report 생성 검증",
+            "report 생성 검증 (REQ-999 참고)",
+        )
+
+        result = _run_report(STORIES, {"02-verify.md": mentioning_other_req})
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertNotIn("REQ-999", result.stdout)
 
 
 if __name__ == "__main__":
