@@ -131,7 +131,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
    - `begin-run impl` 또는 `begin-run impl --design-doc <경로>` → `begin-step impl-validator` 로 local diff 를 리뷰한다.
    - provider 가 `codex` 이면 `dcness-codex-validator impl-validator` wrapper 를 사용한다.
    - Codex CLI 부재나 wrapper 비정상 종료 시 Claude `impl-validator` 로 폴백하고 폴백 사실을 보고한다.
-   - review-only 다. 코드 수정은 메인이 한다. `PASS` 전 commit/PR 로 가지 않는다. PASS 전 commit/PR 로 가지 않는다.
+   - review-only 다. 코드 수정은 메인이 한다. PASS 전 commit/PR 로 가지 않는다.
 6. finding 수정 루프
    - 최대 3회. finding 의 줄만 고치지 말고 root cause 와 같은 계열 결함을 함께 확인한다.
    - 각 round 마다 lint/build/test 재통과 후 `impl-validator` 재호출.
