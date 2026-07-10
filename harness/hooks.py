@@ -226,6 +226,15 @@ def _mode_or_none(mode: Any) -> Optional[str]:
     return str(mode) if isinstance(mode, str) and mode else None
 
 
+def _step_count_or_none(raw: Any) -> Optional[int]:
+    if raw is None:
+        return None
+    try:
+        return int(str(raw))
+    except ValueError:
+        return None
+
+
 def _agent_mode_label(agent: str, mode: Optional[str]) -> str:
     return f"{agent}:{mode}" if mode else agent
 
@@ -308,13 +317,7 @@ def _strict_conveyor_gate_message(
         last_agent = last.get("agent")
         last_mode = _mode_or_none(last.get("mode"))
         if last_agent == step_agent and last_mode == step_mode:
-            raw_count_at_begin = cur_step.get("steps_count_at_begin")
-            count_at_begin = None
-            if raw_count_at_begin is not None:
-                try:
-                    count_at_begin = int(str(raw_count_at_begin))
-                except ValueError:
-                    count_at_begin = None
+            count_at_begin = _step_count_or_none(cur_step.get("steps_count_at_begin"))
             current_count = len(records)
             if (
                 count_at_begin is not None
@@ -1318,9 +1321,9 @@ def handle_stop(
     1. stop_hook_active=true → 무한 루프 방지, skip
     2. active_runs[rid] 슬롯 부재 → skip. finalized-only 상태는 run_finished 가
        없으면 end-run 후보로 유지하고, run_finished 가 있으면 이미 종료로 skip
-    3. `.steps.jsonl` 마지막 row 의 (agent, mode) 가 live.json.current_step.
-       (agent, mode) 와 일치 → end-step 완료 상태 = 종료 후보 / 불일치 →
-       begin-step 후 end-step 미호출 진행 중 → skip (false positive 회피)
+    3. live.json.current_step 이 마지막 step 이후 새 begin-step 을 가리키면
+       진행 중 → skip. 새 begin-step 판정은 begin 당시 step_completed 개수와
+       현재 개수의 짝 매칭을 우선하고, legacy 슬롯은 agent/mode 비교로 폴백한다.
     4. 위 모두 통과 → in-process `_cli_end_run` 호출.
        session_state.py:1001 안전망 → finalize-run --auto-review 자동 →
        `<run_dir>/review.md` 생성 + stderr `[REVIEW_READY]` 신호
@@ -1402,9 +1405,10 @@ def handle_stop(
         # run_finished 부재 → 아래 end-run 발사로 finalize-only run 복구
 
     # end-step 완료 매칭 검사 (false positive 회피)
-    # _read_steps_jsonl 마지막 row.(agent, mode) vs live.current_step.(agent, mode).
-    # 일치 = end-step 호출됨 (step 종료 상태) / 불일치 = begin-step 후 end-step
-    # 미호출 (sub-agent 진행 중 응답 종료 케이스 — end-run 발사 false positive).
+    # begin-step 은 current_step.steps_count_at_begin 에 당시 완료 step 개수를 기록한다.
+    # 이 값이 현재 완료 step 개수 이상이면 해당 begin-step 이 아직 end-step 으로
+    # 닫히지 않은 상태다. 동일 agent 재라운드는 agent/mode 가 같으므로 개수 짝
+    # 매칭을 먼저 봐야 한다 (#1035).
     try:
         steps = _read_steps_jsonl(sid, rid, base_dir=base_dir)
     except Exception:
@@ -1419,7 +1423,10 @@ def handle_stop(
     if isinstance(cur_step, dict):
         cur_agent = cur_step.get("agent")
         cur_mode = cur_step.get("mode")
-        # 정확 일치 검사 (mode None 도 비교)
+        steps_count_at_begin = _step_count_or_none(cur_step.get("steps_count_at_begin"))
+        if steps_count_at_begin is not None and steps_count_at_begin >= len(steps):
+            return 0  # begin-step 후 end-step 미호출 — 진행 중
+        # legacy current_step 슬롯은 정확 일치 검사로 폴백 (mode None 도 비교)
         if cur_agent != last_agent or cur_mode != last_mode:
             return 0  # begin-step 후 end-step 미호출 — 진행 중
 
