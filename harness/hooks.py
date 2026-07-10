@@ -226,6 +226,15 @@ def _mode_or_none(mode: Any) -> Optional[str]:
     return str(mode) if isinstance(mode, str) and mode else None
 
 
+def _step_count_or_none(raw: Any) -> Optional[int]:
+    if raw is None:
+        return None
+    try:
+        return int(str(raw))
+    except ValueError:
+        return None
+
+
 def _agent_mode_label(agent: str, mode: Optional[str]) -> str:
     return f"{agent}:{mode}" if mode else agent
 
@@ -308,13 +317,7 @@ def _strict_conveyor_gate_message(
         last_agent = last.get("agent")
         last_mode = _mode_or_none(last.get("mode"))
         if last_agent == step_agent and last_mode == step_mode:
-            raw_count_at_begin = cur_step.get("steps_count_at_begin")
-            count_at_begin = None
-            if raw_count_at_begin is not None:
-                try:
-                    count_at_begin = int(str(raw_count_at_begin))
-                except ValueError:
-                    count_at_begin = None
+            count_at_begin = _step_count_or_none(cur_step.get("steps_count_at_begin"))
             current_count = len(records)
             if (
                 count_at_begin is not None
@@ -1420,19 +1423,7 @@ def handle_stop(
     if isinstance(cur_step, dict):
         cur_agent = cur_step.get("agent")
         cur_mode = cur_step.get("mode")
-        steps_count_at_begin_raw = cur_step.get("steps_count_at_begin")
-        steps_count_at_begin: Optional[int]
-        if isinstance(steps_count_at_begin_raw, int) and not isinstance(
-            steps_count_at_begin_raw, bool
-        ):
-            steps_count_at_begin = steps_count_at_begin_raw
-        elif isinstance(steps_count_at_begin_raw, str):
-            try:
-                steps_count_at_begin = int(steps_count_at_begin_raw)
-            except ValueError:
-                steps_count_at_begin = None
-        else:
-            steps_count_at_begin = None
+        steps_count_at_begin = _step_count_or_none(cur_step.get("steps_count_at_begin"))
         if steps_count_at_begin is not None and steps_count_at_begin >= len(steps):
             return 0  # begin-step 후 end-step 미호출 — 진행 중
         # legacy current_step 슬롯은 정확 일치 검사로 폴백 (mode None 도 비교)
