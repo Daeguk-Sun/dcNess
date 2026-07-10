@@ -3090,6 +3090,54 @@ class StopHookGuardTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         end_run.assert_called_once()
 
+    def test_same_agent_new_begin_step_after_end_step_skips_auto_end_run(self):
+        """#1035 — 동일 agent 재라운드 begin-step 은 진행 중으로 보호한다."""
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+
+        from harness import ledger
+        from harness.session_state import (
+            clear_current_step,
+            run_dir,
+            start_run,
+            update_current_step,
+            update_live,
+        )
+
+        sid = "sid-stop-same-agent-round"
+        rid = "run-1035abcd"
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            update_live(sid, base_dir=base)
+            start_run(sid, rid, "impl", base_dir=base)
+
+            update_current_step(sid, rid, "impl-validator", None, base_dir=base)
+            prose_path = run_dir(sid, rid, base_dir=base) / "impl-validator.md"
+            prose = "round 1 validation complete\nLGTM\n"
+            prose_path.write_text(prose, encoding="utf-8")
+            ledger.append_step_completed(
+                sid,
+                rid,
+                "impl-validator",
+                None,
+                "PROSE_LOGGED",
+                prose,
+                prose_path,
+                base_dir=base,
+            )
+            clear_current_step(sid, rid, agent="impl-validator", mode=None, base_dir=base)
+
+            update_current_step(sid, rid, "impl-validator", None, base_dir=base)
+
+            env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
+            with patch.dict(os.environ, env, clear=False), patch(
+                "harness.session_state._cli_end_run", return_value=0
+            ) as end_run:
+                rc = handle_stop(stdin_data={}, base_dir=base)
+
+        self.assertEqual(rc, 0)
+        end_run.assert_not_called()
+
     def test_finalized_without_run_finished_is_end_run_candidate(self):
         """이슈 #587 (codex review) — finalize-run 후 end-run 까먹어 run_finished 없으면 Stop 이 복구."""
         from tempfile import TemporaryDirectory
