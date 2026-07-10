@@ -5,8 +5,8 @@
 - PRD: {{CASE_DIR}}/prd.md
 - stories: {{CASE_DIR}}/stories.md
 - epic architecture: {{CASE_DIR}}/architecture.md
-- decisions: {{CASE_DIR}}/decisions/
-- impl 산출물: {{CASE_DIR}}/impl/
+- decisions: {{CASE_DIR}}/decisions/0001-provider-mirror-reconcile.md
+- impl 산출물: {{CASE_DIR}}/impl/01-mirror-sync.md, {{CASE_DIR}}/impl/02-send-status.md
 
 목적: 이 epic 설계 pack 이 구현 전에 깨질 축이 있는지 검증한다. eval fixture 라 conventions / domain-model / 전역 architecture 는 없다 — 그 부재만으로 ESCALATE 하지 않는다.
 
