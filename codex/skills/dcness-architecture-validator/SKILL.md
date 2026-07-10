@@ -17,13 +17,14 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 
 - architecture 또는 epic 디렉터리 경로
 - PRD, story, ADR/decision, architecture, 선택 domain-model, implementation task 경로
+- 메인이 `scripts/report_ac_coverage.mjs` 로 생성한 Story AC ↔ REQ advisory report
 - final epic validation인지, system boundary opt-in checkpoint 이후 검증인지에 대한 호출 맥락
 - revision mode 이면 사용자 개정 의도, 변경된 UX 산출물 포인터(해당 시), 파생 drift 체크리스트 결과
 - 필요하면 이전 finding과 재검토 맥락
 
 ## 먼저 볼 기준
 
-- 원 요구사항: PRD, story, acceptance criteria
+- 원 요구사항: PRD 유저 시나리오, Story AC, epic 완료 기준
 - 현재 설계 산출물: architecture, decisions, 선택 domain-model, implementation tasks
 - 모듈 설계 원칙: `docs/plugin/agents/_shared/module-design-principles.md`
 - Claude-side validator와 공유하는 Must finding 분류: `SYSTEM_BOUNDARY`, `TASK_LOCAL`
@@ -33,7 +34,9 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 아래는 빠짐없이 채우는 검사표가 아니라 finding을 탐색하는 방향이다.
 
 - Engineer가 정책을 새로 만들지 않고 구현할 수 있을 만큼 concrete interface, ownership boundary, state transition, data contract가 충분한가.
-- Acceptance criteria가 원 PRD/story intent에 붙어 있고 실행 가능한 명령으로 검증되는가. manual QA 는 명령 변환 불가 사유와 관찰 증거가 있을 때만 허용되는가.
+- Story AC가 원 PRD 유저 시나리오에 붙어 있고, 제품 REQ마다 `(from AC-NNN)` 출처가 있으며 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 검증되는가.
+- `report_ac_coverage.mjs` 결과와 실제 산출물을 대조했을 때 미커버 AC, 무출처 REQ, 존재하지 않는 AC 참조가 없는가. 소수 기술 REQ만 `(technical: 이유)`로 분리되는가.
+- Story 마지막 task가 해당 Story AC 전항목을 실제 실행·관찰하는 종합 검증을 소유하는가.
 - Cross-story 또는 cross-module producer/consumer contract가 서로 같은 의미를 가리키는가.
 - Placeholder, TODO, "decide later", 미구현 branch가 Must behavior를 막지 않는가.
 - Dependency direction, public API boundary, shared domain model 변경이 명시되어 있는가.
@@ -59,15 +62,16 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 4. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 epic architecture 의 구현 순서가 의존만이 아니라 제품 경계 동작을 앞당기는지 확인한다. 부품-먼저 순서가 남아 있으면 epic architecture 의 `Story -> 모듈 매핑` 또는 stories.md epic 완료 기준 근처에 경고와 사유가 있는지 본다.
 5. final epic 검증에서 entrypoint 를 만지는 implementation task 는 owner/entrypoint 요약 또는 동등한 증거가 owner flow/module, entrypoint role, state owner, validation path 를 남겼는지 본다. 구 `Agent Workability` 섹션도 하위호환 증거로 인정하지만, 옛 섹션명 부재만으로 FAIL 하지 않는다.
 6. final epic 검증에서는 domain-model 작성/생략 근거가 impl 계약과 모순되지 않는지, 계약 표면 코드 SSOT 대조 증거가 있는지 확인한다. 포트, 도메인 타입, 공개 entrypoint 를 바꾸는 task 가 기존 코드와 충돌하거나 module/decision 근거 없이 새 계약을 전제하면 finding 으로 보고한다.
-7. 수용 기준은 실행 가능한 명령으로 닫히는지 확인한다. manual QA 항목은 명령 변환 불가 사유와 관찰 증거가 모두 있어야 하며, 단순 manual-only validation 은 `TASK_LOCAL` 후보로 본다.
-8. `### 수정 허용` 형식은 normalizer 가 먼저 처리한 뒤 남은 `unresolved_slugs` / `format_unnormalized_slugs` 만 검토한다. 볼드/라벨/괄호처럼 단일 경로 후보가 분명한 항목은 기계 교정 범위라 Must finding 으로 반복하지 않는다.
-9. revision mode 이면 메인이 전달한 파생 drift 체크리스트 결과와 변경된 UX/system 산출물을 대조해 개정 후 전체 설계 pack 이 stale 참조 없이 구현 가능한지 본다.
-10. Must finding마다 파일 경로, 라인, 구체적 사실, 영향, 권장 다음 행동을 쓴다.
-11. Must finding은 다음 중 하나로 분류한다.
+7. `report_ac_coverage.mjs` 결과와 실제 stories/impl 문서를 함께 읽어 미커버 AC, 무출처 REQ, 존재하지 않는 AC 참조, Story 마지막 task 전수 검증 누락을 확인한다. report 는 advisory 이므로 출력만으로 자동 FAIL 하지 않지만 실제 gap 이 확인되면 `TASK_LOCAL` finding 으로 드러낸다. Story AC 가 없는 구양식 산출물은 소급 변환하지 않는다.
+8. 수용 기준은 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 닫히는지 확인한다. 사람 판정 항목이 task REQ 로 들어오면 `TASK_LOCAL` 후보로 본다.
+9. `### 수정 허용` 형식은 normalizer 가 먼저 처리한 뒤 남은 `unresolved_slugs` / `format_unnormalized_slugs` 만 검토한다. 볼드/라벨/괄호처럼 단일 경로 후보가 분명한 항목은 기계 교정 범위라 Must finding 으로 반복하지 않는다.
+10. revision mode 이면 메인이 전달한 파생 drift 체크리스트 결과와 변경된 UX/system 산출물을 대조해 개정 후 전체 설계 pack 이 stale 참조 없이 구현 가능한지 본다.
+11. Must finding마다 파일 경로, 라인, 구체적 사실, 영향, 권장 다음 행동을 쓴다.
+12. Must finding은 다음 중 하나로 분류한다.
    - `SYSTEM_BOUNDARY`: 기존 모듈 경계, ownership, domain invariant, storage policy, public API boundary, 전역 decision 이 틀려 system checkpoint 승격 또는 system architecture 재검토가 필요하다.
    - `TASK_LOCAL`: 단일 implementation task 문서 또는 epic-batch 산출물 보강으로 충분하다.
-12. Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준은 보통 `TASK_LOCAL` 이다.
-13. 예시에 없는 문제라도 설계 실패 가능성이 evidence로 보이면 finding으로 남긴다.
+13. 미커버 AC, 무출처 REQ, 마지막 task 전수 검증 누락, Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준은 보통 `TASK_LOCAL` 이다.
+14. 예시에 없는 문제라도 설계 실패 가능성이 evidence로 보이면 finding으로 남긴다.
 
 ## FAIL / ESCALATE 판단 노트와 재검증 delta-first 보고
 
@@ -89,7 +93,8 @@ retry 또는 재검증 호출이어도 Codex validator 는 retry counter 를 증
 - final epic 검증이면 Story별 첫 제품 경계 동작 증거와 compose/wiring 책임, edit target 책임을 검토했다.
 - final epic 검증이면 `domain-model.md` 작성 또는 생략 판단 근거가 impl 계약과 모순되지 않는지 검토했다.
 - 적용 가능한 경우 계약 표면 코드 SSOT 대조 증거를 검토했다.
-- 수용 기준의 검증 명령을 검토했고, manual QA 가 있으면 명령 변환 불가 사유와 관찰 증거를 확인했다.
+- Story AC ↔ REQ coverage report와 실제 산출물을 대조해 미커버 AC, 무출처 REQ, 마지막 task 전수 검증 누락을 확인했다.
+- 수용 기준의 실행 명령 또는 `(AGENT READ)` 관찰 증거를 검토했다.
 - revision mode 이면 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 증거를 검토했다.
 - legacy Contract Ledger / Contract References, ux-flow, stories prose stale 을 형식만으로 Must finding 으로 올리지 않았다.
 - `### 수정 허용` 형식 신호가 주어졌다면 normalizer 이후에도 남은 미해결 slug 인지 구분했다.

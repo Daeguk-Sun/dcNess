@@ -39,14 +39,14 @@ flowchart TB
 | `product-acceptance:STORY_ACCEPTANCE` `PASS` | story 완료 후보로 보고. 자동 close 는 하지 않는다. |
 | `product-acceptance:STORY_ACCEPTANCE` `FAIL` | AC / PR / test evidence gap, 동작 증거 부족, mock-only green, 화면 증거 부재, 목업 불일치, 사용자 동선 부적합을 보고하고 `/impl`, `/design`, `/ux` 회수 후보를 제안한다. |
 | `product-acceptance:EPIC_ACCEPTANCE` `PASS` | epic 완료 후보로 보고. 자동 close 는 하지 않는다. |
-| `product-acceptance:EPIC_ACCEPTANCE` `FAIL` | PRD Must, cross-story 동작 gap, mock-only green, 화면 증거 부재, 목업 불일치, cross-story 사용자 동선 부적합, security/ops risk 를 보고하고 후속 분기를 제안한다. |
+| `product-acceptance:EPIC_ACCEPTANCE` `FAIL` | Epic 완료 기준·Story AC, cross-story 동작 gap, mock-only green, 화면 증거 부재, 목업 불일치, cross-story 사용자 동선 부적합, security/ops risk 를 보고하고 후속 분기를 제안한다. |
 | `ESCALATE` | 기준 문서, 구현 PR 목록, 권한, 사용자 결정 부족을 보고하고 대기한다. |
 
 ## 깊이 차이
 
 Story acceptance 는 가볍게 AC / PR / test evidence 중심으로 돈다. 단, 핵심 AC는 단순 파일/테스트 존재가 아니라 동작 증거와 연결돼야 하며, 대상 사용자의 입력/진행 동선으로도 닫혀야 한다. mock-only green 과 사용자 동선 부적합은 gap 으로 분리한다. story마다 full product/security/performance audit 을 강제하지 않는다.
 
-Epic acceptance 는 PRD Must, cross-story gap, security/ops risk 를 포함한다. 여러 story가 합쳐질 때 생기는 흐름, 권한, 데이터, 운영 위험을 보며, PR/story 경계를 넘는 통합 동작과 사용자 동선 검증의 책임은 이 epic acceptance 에 있다. impl-validator 가 merge candidate diff 를 보는 동안, product-acceptance 는 story/epic 마감 경계에서 사용자 약속이 실제 동작 증거와 대상 사용자에게 맞는 진행 흐름으로 닫혔는지 확인한다.
+Epic acceptance 는 Epic 완료 기준과 Story AC 전항목, cross-story gap, security/ops risk 를 포함한다. 여러 story가 합쳐질 때 생기는 흐름, 권한, 데이터, 운영 위험을 보며, PR/story 경계를 넘는 통합 동작과 사용자 동선 검증의 책임은 이 epic acceptance 에 있다. impl-validator 가 merge candidate diff 를 보는 동안, product-acceptance 는 story/epic 마감 경계에서 사용자 약속이 실제 동작 증거와 대상 사용자에게 맞는 진행 흐름으로 닫혔는지 확인한다.
 
 ## 동작 증거 판정
 

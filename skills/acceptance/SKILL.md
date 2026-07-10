@@ -91,7 +91,7 @@ mode: STORY_ACCEPTANCE
 판단 기대:
 
 - story 목적과 구현 PR 이 연결됐는가.
-- story AC / REQ 가 구현 파일, 테스트, smoke 증거 중 하나 이상과 연결됐는가.
+- stories.md 또는 story issue 의 Story AC 전항목과 파생 REQ 가 구현 파일, 테스트, smoke 증거 중 하나 이상과 연결됐는가.
 - 핵심 AC 가 동작 증거와 연결됐는가, 아니면 mock-only green 인가.
 - UI story 이면 확정 목업과 구현 화면 증거가 주입됐는가, 그리고 레이아웃 계층·상태(default/empty/error 등)·토큰 수준의 UI 목업 정합이 맞는가.
 - UI story 인데 화면 증거가 없으면 화면 증거 부재 gap 으로, 확정 목업과 화면 증거가 어긋나면 목업 불일치 gap 으로 드러나는가.
@@ -101,7 +101,7 @@ mode: STORY_ACCEPTANCE
 
 ## Epic Acceptance
 
-epic 단위는 story보다 깊게 본다. 핵심은 PRD Must, cross-story gap, cross-PR/story 통합 동작 증거, security/ops risk 다.
+epic 단위는 story보다 깊게 본다. 핵심은 Epic 완료 기준과 Story AC 전항목, cross-story gap, cross-PR/story 통합 동작 증거, security/ops risk 다.
 
 호출:
 
@@ -124,7 +124,7 @@ mode: EPIC_ACCEPTANCE
 
 판단 기대:
 
-- PRD Must 가 story/PR/test evidence 로 닫혔는가.
+- Epic 완료 기준과 Story AC 전항목이 story/PR/test evidence 로 닫혔는가.
 - story 사이 상태, 권한, 데이터 흐름이 어긋나 cross-story gap 을 만들지 않는가.
 - 여러 PR/story 를 합쳤을 때 핵심 사용자 흐름이 동작 증거로 닫혔는가, 아니면 각 PR의 mock-only green만 남았는가.
 - UI epic 이면 story별 확정 목업과 최종 구현 화면 증거의 구조적 흐름이 이어지는가, 아니면 화면 증거 부재나 목업 불일치가 남았는가.

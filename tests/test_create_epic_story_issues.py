@@ -83,13 +83,15 @@ milestone: v01
 
 스토리 1 본문.
 
-**완료 시 확인 가능한 동작**: CLI 한 줄 실행으로 입력→결과 골격 동선 확인.
+**Acceptance criteria:**
+- AC-001 [command]: Given 입력, When CLI 실행, Then 결과 파일 생성.
 
 ### Story 2 — 둘째 스토리
 
 스토리 2 본문.
 
-**완료 시 확인 가능한 동작**: Story 1 골격 위에서 둘째 증분 동작 확인.
+**Acceptance criteria:**
+- AC-002 [agent-read]: Given 결과 파일, When 메타데이터 확인, Then 출처 기록.
 """
 
 STORIES_REGISTERED = """---
@@ -173,6 +175,8 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         self.assertEqual(2, node_log.count("--issue-type story"))
         # fresh 경로(새 이슈)는 strict 등록 — preserve 안 함 (Todo/major 강제 + 검증).
         self.assertEqual(0, node_log.count("--preserve-existing"))
+        self.assertIn("AC-001 [command]", gh_log)
+        self.assertIn("AC-002 [agent-read]", gh_log)
 
     def test_skips_board_when_no_coords_but_still_creates_issues(self):
         result, gh_log, node_log, _ = self._run(STORIES_NEW, {})
