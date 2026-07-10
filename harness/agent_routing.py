@@ -5,14 +5,16 @@ projects opt in via /init-dcness, which writes:
 
     ~/.claude/plugins/data/dcness-dcness/routing.json
 
-Validation agents can be sent to Codex read-only. The single implementation
-agent defaults to a headless chain: Codex headless, Claude headless, then Claude
-main fallback.
+Validation agents can be sent to Codex read-only. impl-validator defaults to
+the implementation camp's opposite provider when no explicit local override
+exists. The single implementation agent defaults to a headless chain: Codex
+headless, Claude headless, then Claude main fallback.
 """
 from __future__ import annotations
 
 import json
 import os
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -101,6 +103,43 @@ def _default_config() -> Dict[str, Any]:
     }
 
 
+def _codex_cli_available(codex_available: Optional[bool] = None) -> bool:
+    if codex_available is not None:
+        return codex_available
+    return shutil.which("codex") is not None
+
+
+def _implementation_camp(
+    *,
+    implementation_provider: Optional[str] = None,
+    main_provider: str = "claude",
+) -> str:
+    """Return the model camp that is expected to implement the change."""
+    if implementation_provider in {"headless-chain", "codex-first"}:
+        return "codex"
+    if implementation_provider in {"claude", "claude-headless"}:
+        return "claude"
+    return "codex" if main_provider == "codex" else "claude"
+
+
+def _default_validation_provider(
+    agent: str,
+    *,
+    implementation_provider: Optional[str] = None,
+    main_provider: str = "claude",
+    codex_available: Optional[bool] = None,
+) -> str:
+    if agent != "impl-validator":
+        return DEFAULT_VALIDATION_PROVIDER
+    camp = _implementation_camp(
+        implementation_provider=implementation_provider,
+        main_provider=main_provider,
+    )
+    if camp == "codex":
+        return "claude"
+    return "codex" if _codex_cli_available(codex_available) else "claude"
+
+
 def _atomic_write_json(target: Path, payload: Dict[str, Any]) -> None:
     target.parent.mkdir(parents=True, exist_ok=True)
     data = json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True)
@@ -179,19 +218,37 @@ def save_routing(config: Dict[str, Any], *, path: Optional[Path] = None) -> Path
     return target
 
 
-def resolve_provider(agent: str, *, path: Optional[Path] = None) -> str:
+def resolve_provider(
+    agent: str,
+    *,
+    path: Optional[Path] = None,
+    implementation_provider: Optional[str] = None,
+    main_provider: str = "claude",
+    codex_available: Optional[bool] = None,
+) -> str:
     """Resolve provider for an agent.
 
-    Validation agents default to Claude for backward compatibility.
-    Implementation agents default to the 3-stage headless chain. Explicit legacy
-    values keep their previous meaning.
+    impl-validator defaults to the implementation camp's opposite provider when
+    no explicit local override exists. If the opposite provider is Codex but the
+    Codex CLI is unavailable, the default safely falls back to Claude.
+    Other validation agents default to Claude. Implementation agents default to
+    the 3-stage headless chain. Explicit legacy values keep their previous
+    meaning.
     Unknown agents always resolve to Claude.
     """
     if agent not in ROUTABLE_VALIDATION_AGENTS + ROUTABLE_IMPLEMENTATION_AGENTS:
         return SAFE_FALLBACK_PROVIDER
     cfg = load_routing(path=path)
     if agent in ROUTABLE_VALIDATION_AGENTS:
-        provider = cfg.get("routes", {}).get(agent, DEFAULT_VALIDATION_PROVIDER)
+        routes = cfg.get("routes", {})
+        provider = routes.get(agent)
+        if provider is None:
+            provider = _default_validation_provider(
+                agent,
+                implementation_provider=implementation_provider,
+                main_provider=main_provider,
+                codex_available=codex_available,
+            )
         return (
             provider
             if provider in VALID_VALIDATION_PROVIDERS
@@ -250,7 +307,7 @@ def enable_role_split_routing(*, path: Optional[Path] = None) -> Path:
     """Enable the recommended validation/worker routing preset."""
     cfg = load_routing(path=path)
     cfg["routes"] = {
-        "impl-validator": "claude",
+        "impl-validator": "codex",
         "architecture-validator": "codex",
     }
     cfg["implementation_routes"] = {
@@ -371,11 +428,14 @@ def format_status(*, path: Optional[Path] = None) -> str:
     if not target.exists():
         lines.append(
             "[dcness routing] file: missing "
-            "(default validation Claude, implementation headless-chain)"
+            "(default impl-validator cross-provider, implementation headless-chain)"
         )
     lines.append("[dcness routing] validation:")
+    routes = cfg.get("routes", {})
     for agent in ROUTABLE_VALIDATION_AGENTS:
-        provider = cfg.get("routes", {}).get(agent, DEFAULT_VALIDATION_PROVIDER)
+        provider = routes.get(agent)
+        if provider is None:
+            provider = _default_validation_provider(agent)
         if provider not in VALID_VALIDATION_PROVIDERS:
             provider = f"{provider} (invalid, resolves claude)"
         lines.append(f"  {agent}: {provider}")

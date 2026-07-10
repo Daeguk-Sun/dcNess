@@ -917,16 +917,6 @@ def _run_prose_has_pass(rd: Path, agent: str) -> bool:
     return run_prose_has_pass(rd, agent)
 
 
-def _run_has_engineer_output(rd: Path) -> bool:
-    """engineer 계열 prose 산출물 실존 여부."""
-    if (rd / "engineer.md").exists():
-        return True
-    try:
-        return any(rd.glob("engineer-*.md"))
-    except OSError:
-        return False
-
-
 def _run_has_module_architect_pass(rd: Path) -> bool:
     """module-architect prose PASS — end-step 파일명 표기 전체 인정."""
     return run_prose_has_pass(rd, "module-architect")
@@ -1165,7 +1155,7 @@ def _boundary_block_gate_message(marker: Dict[str, Any]) -> str:
     )
 
 
-_IMPLEMENTATION_ORDER_GATE_AGENTS = frozenset({"engineer", "build-worker"})
+_IMPLEMENTATION_ORDER_GATE_AGENTS = frozenset({"build-worker"})
 
 
 def evaluate_order_gate_for_step(
@@ -1184,7 +1174,6 @@ def evaluate_order_gate_for_step(
     from harness.agent_names import normalize_agent_type
 
     norm_agent = normalize_agent_type(agent) or agent
-    effective_mode = mode if isinstance(mode, str) and mode else None
     rd = run_dir(session_id, run_id, base_dir=base_dir)
 
     boundary_block = _run_engineer_boundary_block_marker(
@@ -1193,7 +1182,7 @@ def evaluate_order_gate_for_step(
     if boundary_block:
         return _boundary_block_gate_message(boundary_block)
 
-    if norm_agent in _IMPLEMENTATION_ORDER_GATE_AGENTS and effective_mode != "POLISH":
+    if norm_agent in _IMPLEMENTATION_ORDER_GATE_AGENTS:
         lane_lite = _run_lane(session_id, run_id, base_dir=base_dir) == "lite"
         if (
             not lane_lite

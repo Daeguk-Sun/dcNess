@@ -27,11 +27,36 @@ class AgentRoutingTests(unittest.TestCase):
             os.environ["DCNESS_ROUTING_PATH"] = self._old_env
         self._td.cleanup()
 
-    def test_missing_config_defaults_to_claude(self) -> None:
-        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "claude")
+    def test_missing_config_defaults_impl_validator_to_cross_provider(self) -> None:
+        self.assertEqual(
+            agent_routing.resolve_provider("impl-validator", codex_available=True),
+            "codex",
+        )
+        self.assertEqual(
+            agent_routing.resolve_provider("impl-validator", codex_available=False),
+            "claude",
+        )
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
         self.assertEqual(agent_routing.resolve_provider("unknown-agent"), "claude")
         self.assertFalse(self.path.exists())
+
+    def test_impl_validator_default_crosses_build_worker_implementation_camp(self) -> None:
+        self.assertEqual(
+            agent_routing.resolve_provider(
+                "impl-validator",
+                implementation_provider="headless-chain",
+                codex_available=True,
+            ),
+            "claude",
+        )
+        self.assertEqual(
+            agent_routing.resolve_provider(
+                "impl-validator",
+                implementation_provider="claude-headless",
+                codex_available=True,
+            ),
+            "codex",
+        )
 
     def test_enable_codex_validation_routes_only_validators(self) -> None:
         agent_routing.enable_codex_validation()
@@ -71,7 +96,7 @@ class AgentRoutingTests(unittest.TestCase):
         agent_routing.enable_role_split_routing()
 
         self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
-        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "claude")
+        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "codex")
         self.assertEqual(agent_routing.resolve_provider("architecture-validator"), "codex")
         self.assertEqual(agent_routing.doctor(), [])
 
@@ -131,7 +156,7 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("[dcness routing] validation:", text)
         self.assertIn("[dcness routing] implementation:", text)
         self.assertIn("architecture-validator: codex", text)
-        self.assertIn("impl-validator: claude", text)
+        self.assertIn("impl-validator:", text)
         self.assertIn("build-worker: claude", text)
 
     def test_v1_config_is_supported_and_defaults_implementation_to_headless_chain(self) -> None:
@@ -189,9 +214,23 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(ns.cmd, "routing")
         self.assertEqual(ns.routing_cmd, "resolve")
         self.assertEqual(ns.agent, "impl-validator")
+        self.assertIsNone(ns.implementation_provider)
 
         ns = parser.parse_args(["routing", "enable-role-split-routing"])
         self.assertEqual(ns.routing_cmd, "enable-role-split-routing")
+
+        ns = parser.parse_args(
+            [
+                "routing",
+                "resolve",
+                "impl-validator",
+                "--implementation-provider",
+                "headless-chain",
+            ]
+        )
+        self.assertEqual(ns.routing_cmd, "resolve")
+        self.assertEqual(ns.agent, "impl-validator")
+        self.assertEqual(ns.implementation_provider, "headless-chain")
 
         ns = parser.parse_args(
             ["routing", "set-implementation", "build-worker", "claude-headless"]
@@ -216,6 +255,35 @@ class AgentRoutingCliTests(unittest.TestCase):
             )
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "codex")
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(
+                SimpleNamespace(
+                    routing_cmd="resolve",
+                    agent="impl-validator",
+                    implementation_provider="headless-chain",
+                    main_provider="claude",
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().strip(), "codex")
+
+    def test_cli_resolve_impl_validator_crosses_impl_loop_provider(self) -> None:
+        from harness.session_state import _cli_routing
+
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(
+                SimpleNamespace(
+                    routing_cmd="resolve",
+                    agent="impl-validator",
+                    implementation_provider="headless-chain",
+                    main_provider="claude",
+                )
+            )
+        self.assertEqual(rc, 0)
+        self.assertEqual(out.getvalue().strip(), "claude")
 
     def test_cli_implementation_modes_and_resolve(self) -> None:
         from harness.session_state import _cli_routing
@@ -286,7 +354,7 @@ class AgentRoutingCliTests(unittest.TestCase):
         text = out.getvalue()
         self.assertIn("enabled role-split routing", text)
         self.assertIn("architecture-validator: codex", text)
-        self.assertIn("impl-validator: claude", text)
+        self.assertIn("impl-validator: codex", text)
         self.assertIn("build-worker: headless-chain", text)
 
         out = StringIO()
@@ -321,7 +389,7 @@ class InitRoleSplitRoutingDocsTests(unittest.TestCase):
             with self.subTest(text=text[:40]):
                 self.assertIn("enable-role-split-routing", text)
                 self.assertIn("build-worker=headless-chain", text)
-                self.assertIn("impl-validator=claude", text)
+                self.assertIn("impl-validator=codex", text)
                 self.assertIn("architecture-validator=codex", text)
                 self.assertIn("기존 활성 프로젝트", text)
                 self.assertIn("routing doctor", text)

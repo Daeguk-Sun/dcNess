@@ -1,11 +1,11 @@
 ---
 name: impl-loop
-description: Story/공통 impl task 파일(design 산출물)을 받아 단일 build-worker headless runner 로 구현한다. task 1개(single) 또는 여러 개(chain/story/epic) 를 처리하며, build-worker 가 task 별 로컬 커밋까지 소유하고, 모든 대상 task 구현 후 merge candidate diff 를 impl-validator 가 1회 통합 리뷰한다. push/PR/merge 는 메인만 수행한다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록/story/epic 을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
+description: Story/공통 impl task 파일(SDD 설계도)을 받아 단일 build-worker headless runner 로 구현한다. task 1개(single) 또는 여러 개(chain/story/epic) 를 처리하며, build-worker 가 task 별 로컬 커밋까지 소유하고, 모든 대상 task 구현 후 merge candidate diff 를 impl-validator 가 1회 통합 리뷰한다. push/PR/merge 는 메인만 수행한다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록/story/epic 을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
 ---
 
 # Impl Loop Skill — story/epic build-worker runner
 
-> 본 스킬 = `/design` 이 만든 `docs/epics/**/impl/NN-*.md` task 를 단일 구현 엔진 `build-worker` 로 처리한다. 일반 구현 요청은 [`/impl`](../impl/SKILL.md) 이 맡는다.
+> 본 스킬 = `/design` 이 만든 SDD story/epic 설계도(`docs/epics/**/impl/NN-*.md`)를 단일 구현 엔진 `build-worker` headless runner 로 처리한다. 일반 구현 요청은 [`/impl`](../impl/SKILL.md) 이 맡는다.
 
 > 🔴 **분기 규칙 SSOT** — build-worker 결론 → 다음 호출 / retry 한도 / acceptance gap 처리는 [`impl-loop-routing.md`](impl-loop-routing.md) 가 본 skill 의 단일 진본. 본 파일은 진행 절차만 담는다.
 
@@ -32,7 +32,7 @@ UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint �
 
 - 일반 구현 / 버그픽스 / 한 줄 수정 / 설계 문서 없는 작은 구현 → `/impl`
 - spec / design 단계 → `/spec` (PRD) 또는 `/design` (설계)
-- deep task 부재 → `/impl` 이 issue-intake / direct / design-doc 구현 여부를 판정
+- deep task 부재 → 기본 진입점 `/impl`
 
 ## UI 작업 시 canvas-design 선두
 
@@ -169,11 +169,20 @@ issue close 가 실제 발동되는 story PR 또는 epic 마감 PR 을 포함한
 1. build-worker task commit 들이 worktree branch 에 누적되어 있고 `git status --porcelain` 이 clean 인지 확인한다.
 2. PR body 를 `.github/PULL_REQUEST_TEMPLATE.md` 에 맞춰 작성한다.
 3. `scripts/pr-create.sh` 또는 repo git-spec 절차로 push/PR 생성은 메인이 수행한다.
-4. `begin-step impl-validator` → `impl-validator` 가 merged diff 를 1회 리뷰한다.
+4. `begin-step impl-validator` → build-worker provider 의 반대편으로 review provider 를 resolve 하고, `impl-validator` 가 merged diff 를 1회 리뷰한다.
 5. `PASS` 후 close 발동 여부에 따라 product-acceptance 를 수행한다.
 6. merge 는 `$PLUGIN_ROOT/scripts/pr-finalize.sh <PR>` 로 진행한다. 사용자 merge 결정이 필요한 repo 에서는 여기서 멈춘다.
 
 `impl-validator FAIL` 이면 메인이 root cause 를 고친 뒤 새 commit 을 PR branch 에 append 하거나, 이미 머지된 뒤라면 fix PR 을 만든다. 단일 story PR 은 해당 PR branch 에 append 한다. story PR 이 2개 이상인 run 에서 FAIL 보정이 필요하면 downstream rebase 없이 통합 fix PR 1개를 만든다. 같은 finding 을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
+
+review provider resolve:
+
+```bash
+IMPLEMENTATION_PROVIDER="${DCNESS_IMPLEMENTATION_PROVIDER:-headless-chain}"
+REVIEW_PROVIDER=$("$HELPER" routing resolve impl-validator --implementation-provider "$IMPLEMENTATION_PROVIDER")
+```
+
+`routing.json` 에 `impl-validator` 가 명시되어 있으면 그 값이 우선한다. 명시값이 없으면 headless-chain/codex-first build-worker 의 리뷰는 Claude, claude-headless/claude build-worker 의 리뷰는 Codex 가능 시 Codex·불가 시 Claude 다.
 
 ## 마감 acceptance
 

@@ -78,10 +78,10 @@ class CatastrophicGateWrapperExitTests(unittest.TestCase):
         }
 
     def test_violation_exits_2_with_stderr(self) -> None:
-        # engineer 직전 module-architect PASS 부재 → engineer 게이트 위반 → handler return 1.
+        # build-worker 직전 module-architect PASS 부재 → implementation gate 위반.
         result = _run_wrapper(
             "catastrophic-gate.sh",
-            self._agent_payload("engineer", "IMPL"),
+            self._agent_payload("build-worker"),
             cwd=self.cwd,
         )
         self.assertEqual(
@@ -108,7 +108,7 @@ class CatastrophicGateWrapperExitTests(unittest.TestCase):
         )
         result = _run_wrapper(
             "catastrophic-gate.sh",
-            self._agent_payload("engineer", "IMPL"),
+            self._agent_payload("build-worker"),
             cwd=self.cwd,
         )
         self.assertEqual(

@@ -44,12 +44,12 @@ class ImplPreviewTests(unittest.TestCase):
         self.assertEqual(preview.route, "direct")
         self.assertEqual(preview.begin_run_args, ["begin-run", "impl", "--lane", "lite"])
 
-    def test_needs_design_stays_outside_impl(self) -> None:
+    def test_needs_design_warns_but_stays_direct_for_concrete_signal(self) -> None:
         preview = build_preview(needs_design=True, concrete=True, cwd=self.root)
 
-        self.assertEqual(preview.route, "outside-design")
-        self.assertEqual(preview.begin_run_args, [])
-        self.assertIn("/design", preview.next_action)
+        self.assertEqual(preview.route, "direct")
+        self.assertEqual(preview.begin_run_args, ["begin-run", "impl", "--lane", "lite"])
+        self.assertIn("recommend design first", preview.next_action)
 
     def test_natural_language_only_selects_issue_intake(self) -> None:
         preview = build_preview(natural_language_only=True, cwd=self.root)
@@ -70,12 +70,22 @@ class ImplPreviewTests(unittest.TestCase):
         self.assertEqual(preview.route, "direct")
         self.assertIn("skip-design", " ".join(preview.reasons))
 
-    def test_high_risk_beats_skip_design_override(self) -> None:
+    def test_high_risk_warns_without_blocking_user_skip_design(self) -> None:
         preview = build_preview(workflow_risk="high", skip_design=True, cwd=self.root)
 
-        self.assertEqual(preview.route, "outside-design")
-        self.assertEqual(preview.begin_run_args, [])
+        self.assertEqual(preview.route, "direct")
+        self.assertEqual(preview.begin_run_args, ["begin-run", "impl", "--lane", "lite"])
         self.assertIn("workflow risk=high", " ".join(preview.reasons))
+
+    def test_preview_no_longer_emits_outside_design_or_clarify_routes(self) -> None:
+        cases = [
+            build_preview(workflow_risk="high", concrete=True, cwd=self.root),
+            build_preview(needs_design=True, concrete=True, cwd=self.root),
+            build_preview(ambiguous=True, cwd=self.root),
+        ]
+
+        self.assertNotIn("outside-design", {case.route for case in cases})
+        self.assertNotIn("clarify", {case.route for case in cases})
 
     def test_impl_always_uses_main_implementation_owner(self) -> None:
         preview = build_preview(concrete=True, cwd=self.root, review_provider="codex")

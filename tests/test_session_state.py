@@ -454,7 +454,7 @@ class ActiveRunsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             start_run(self.sid, self.run_id, "impl", base_dir=self.base)
 
-    # -- design_doc 기록 — engineer 게이트 사전 조건 증거 --
+    # -- design_doc 기록 — build-worker gate 사전 조건 증거 --
 
     def _chdir_base(self) -> None:
         # design_doc 검증은 repo root(= helper 호출 cwd) 기준 — base 를 root 로 모사.
@@ -606,7 +606,7 @@ class ActiveRunsTests(unittest.TestCase):
                 design_doc="docs/milestones/v01/epics/epic-01-x/impl/03-foo.md",
             )
 
-    # -- #714 — lane 기록 (engineer 게이트 lane-aware 사전 조건) --
+    # -- #714 — lane 기록 (build-worker gate lane-aware 사전 조건) --
 
     def test_start_run_records_lane(self) -> None:
         start_run(self.sid, self.run_id, "impl", base_dir=self.base, lane="lite")

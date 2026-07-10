@@ -581,14 +581,14 @@ class CatastrophicRuleE2eTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._td.cleanup()
 
-    def test_engineer_without_plan_blocks_e2e(self) -> None:
+    def test_build_worker_without_plan_blocks_e2e(self) -> None:
         result = _run_python_hook(
             "pretooluse-agent",
             {
                 "sessionId": self.sid,
                 "tool_input": {
-                    "subagent_type": "engineer",
-                    "mode": "IMPL",
+                    "subagent_type": "build-worker",
+                    "mode": "",
                 },
             },
             self.cc_pid,
@@ -598,7 +598,7 @@ class CatastrophicRuleE2eTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, f"stdout: {result.stdout}")
         self.assertIn("순서 차단 훅: implementation gate", result.stderr)
 
-    def test_engineer_with_plan_passes_e2e(self) -> None:
+    def test_build_worker_with_plan_passes_e2e(self) -> None:
         # module-architect.md 작성
         run_path = (
             self.cwd / ".claude" / "harness-state"
@@ -612,8 +612,8 @@ class CatastrophicRuleE2eTests(unittest.TestCase):
             {
                 "sessionId": self.sid,
                 "tool_input": {
-                    "subagent_type": "engineer",
-                    "mode": "IMPL",
+                    "subagent_type": "build-worker",
+                    "mode": "",
                 },
             },
             self.cc_pid,
@@ -624,14 +624,14 @@ class CatastrophicRuleE2eTests(unittest.TestCase):
             f"기대 통과, stderr: {result.stderr}",
         )
 
-    def test_impl_validator_after_engineer_output_passes_e2e(self) -> None:
+    def test_impl_validator_after_build_worker_output_passes_e2e(self) -> None:
         run_path = (
             self.cwd / ".claude" / "harness-state"
             / ".sessions" / self.sid / "runs" / self.rid
         )
         # #1020 — impl-validator is the merged read-only reviewer; there is no
         # separate pre-review validator PASS gate before it.
-        (run_path / "engineer-IMPL.md").write_text("IMPL_DONE", encoding="utf-8")
+        (run_path / "build-worker.md").write_text("PASS", encoding="utf-8")
         result = _run_python_hook(
             "pretooluse-agent",
             {

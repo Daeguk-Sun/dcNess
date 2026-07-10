@@ -948,7 +948,11 @@ def _cli_routing(args: Any) -> int:
         return 0
     if action == "resolve":
         try:
-            provider = agent_routing.resolve_provider(args.agent)
+            provider = agent_routing.resolve_provider(
+                args.agent,
+                implementation_provider=getattr(args, "implementation_provider", None),
+                main_provider=getattr(args, "main_provider", "claude") or "claude",
+            )
         except ValueError as exc:
             print(f"[dcness routing] {exc}", file=sys.stderr)
             return 1
@@ -1354,7 +1358,7 @@ def _build_arg_parser() -> Any:
         "enable-role-split-routing",
         help=(
             "추천 role split: build-worker=headless-chain, "
-            "impl-validator=claude, "
+            "impl-validator=codex, "
             "architecture-validator=codex"
         ),
     )
@@ -1408,6 +1412,18 @@ def _build_arg_parser() -> Any:
 
     rt_resolve = rt_sub.add_parser("resolve", help="agent provider resolve")
     rt_resolve.add_argument("agent")
+    rt_resolve.add_argument(
+        "--implementation-provider",
+        choices=("claude", "codex-first", "claude-headless", "headless-chain"),
+        default=None,
+        help="impl-validator 기본값을 계산할 때 구현 provider camp 를 반영",
+    )
+    rt_resolve.add_argument(
+        "--main-provider",
+        choices=("claude", "codex"),
+        default="claude",
+        help="implementation provider 가 없을 때 main 구현 provider camp",
+    )
     rt_resolve.set_defaults(func=_cli_routing)
 
     p_fr = sub.add_parser(

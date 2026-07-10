@@ -493,11 +493,10 @@ def handle_pretooluse_agent(
     mode = tool_input.get("mode", "") or ""
     # #700 — 게이트 비교는 canonical 이름으로 일관화. namespaced(`dcness:engineer`) / legacy
     # alias 가 raw 비교에서 진행 순서 검사 불일치로 차단되던 것을 정규화로 해소(A). 그리고
-    # 진행 순서 검사가 namespaced 를 통과시키는 이상, 뒤따르는 catastrophic 게이트(engineer/
+    # 진행 순서 검사가 namespaced 를 통과시키는 이상, 뒤따르는 catastrophic 게이트(build-worker/
     # impl-validator/module-architect)도 norm 으로 비교해야 namespaced 우회를 막는다(codex P1).
     # active_agent / pending 기록은 raw subagent 유지(식별 원본 보존). 단 게이트의 *판정 로직*
-    # (module-architect PASS 요구)은 main 그대로 — engineer 게이트의 lane-aware 면제 + effective
-    # mode(POLISH) 판정은 #701(Finding C).
+    # (module-architect PASS 또는 design_doc 요구)은 build-worker order gate 로 유지한다.
     norm_subagent = normalize_agent_type(subagent) or subagent
 
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
@@ -1247,10 +1246,6 @@ def _has_pass(rd: Path, agent: str) -> bool:
     return run_prose_has_pass(rd, agent)
 
 
-def _has_engineer_write(rd: Path) -> bool:
-    return (rd / "engineer-IMPL.md").exists() or (rd / "engineer-POLISH.md").exists()
-
-
 def _has_module_architect_pass(rd: Path) -> bool:
     """module-architect prose PASS — end-step 파일명 표기 전체 인정 (#701/#870)."""
     return run_prose_has_pass(rd, "module-architect")
@@ -1264,7 +1259,7 @@ def _run_design_doc_exists(
 ) -> bool:
     """현재 run 슬롯에 기록된 design_doc 이 디스크에 실존하는지 (#701).
 
-    begin-run `--design-doc` 으로 기록된 머지된 설계 문서는 engineer 게이트의
+    begin-run `--design-doc` 으로 기록된 머지된 설계 문서는 build-worker gate 의
     같은-run module-architect PASS 등가 사전 조건 증거다. 경로 규약 검증은
     기록 시점(start_run fail-fast)에 끝났고, 여기서는 실존만 재확인한다 (기록
     후 삭제 방어). 기록 부재 / state 읽기 실패는 종전과 동일하게 차단 측
