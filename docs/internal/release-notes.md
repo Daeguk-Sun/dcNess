@@ -6,8 +6,38 @@
 
 ## Unreleased
 
-- **`/impl`·`/impl-loop` 2진입점 간소화 + cross-provider review 기본화** ([#1032](https://github.com/Daeguk-Sun/dcNess/issues/1032)) — `/impl` 이 설계도 유무 1차 분기와 high-risk 자동 되돌림을 하지 않고, concrete signal 이 있으면 메인 직접 구현으로 진행한다. high-risk 는 설계 선행 권고 한 줄만 출력하고, 사용자가 진행을 택하면 구현한다. 자연어-only 요청은 GitHub issue 1개 등록 여부를 한 번 확인한다. `/impl-loop` 은 SDD story/epic 설계도 입력 → build-worker headless → merge candidate `impl-validator` 통합 리뷰 모델로 설명을 정리한다.
-- **기존 role-split 저장값 사용자 안내** — 과거 `enable-role-split-routing` 으로 `routing.json` 에 `impl-validator=claude` 가 명시 저장된 프로젝트는 override 존중 원칙 때문에 새 cross-provider 기본을 자동으로 받지 않는다. 추천값을 다시 적용하려면 `dcness-helper routing enable-role-split-routing` 실행 후 `dcness-helper routing doctor` 로 확인한다. 수동으로 Claude 고정을 원하면 기존 저장값을 그대로 두면 된다.
+_(없음)_
+
+---
+
+## v0.21.0 (2026-07-10)
+
+**커밋 범위**: `v0.20.0..v0.21.0` (머지 PR 3개, #1033 · #1037 · #1038)
+**핵심 변경**: **`/impl`·`/impl-loop` 2진입점을 간소화하고, Stop hook 의 동일 agent 재라운드 오작동과 headless wrapper 의 telemetry 전제조건 hard-fail 을 함께 고친** minor 릴리즈. (1) `/impl` 이 설계도 유무 1차 분기·high-risk 자동 되돌림을 하지 않고 concrete signal 이 있으면 메인 직접 구현으로 진행하며 cross-provider review 를 기본화, (2) Stop hook 자동 end-run 이 동일 agent 재라운드에서 진행 중 라운드를 완료로 오인해 조기 `end-run` 하던 문제를 라운드 진행 감지로 보호, (3) headless wrapper 5종이 `sid/rid` telemetry 메타 미해결을 provider 실행 전제조건처럼 hard-fail 하던 것을 degraded 실행 경로로 바꿔 timeout/idle-timeout/raw log 보호를 유지, (4) `/to-issue` Issue Brief 자족성의 전제(등록 세션과 처리 세션이 다르다)를 명시.
+
+### 무엇이 바뀌나
+
+1. **`/impl`·`/impl-loop` 2진입점 간소화 + cross-provider review 기본화** ([#1033](https://github.com/Daeguk-Sun/dcNess/pull/1033) [#1032](https://github.com/Daeguk-Sun/dcNess/issues/1032)) — `/impl` 이 설계도 유무 1차 분기와 high-risk 자동 되돌림을 하지 않고, concrete signal 이 있으면 메인 직접 구현으로 진행한다. high-risk 는 설계 선행 권고 한 줄만 출력하고, 사용자가 진행을 택하면 구현한다. 자연어-only 요청은 GitHub issue 1개 등록 여부를 한 번 확인한다. `/impl-loop` 은 SDD story/epic 설계도 입력 → build-worker headless → merge candidate `impl-validator` 통합 리뷰 모델로 설명을 정리한다. 과거 `enable-role-split-routing` 으로 `routing.json` 에 `impl-validator=claude` 가 명시 저장된 프로젝트는 override 존중 원칙 때문에 새 cross-provider 기본을 자동으로 받지 않으며, 추천값을 다시 적용하려면 `dcness-helper routing enable-role-split-routing` 실행 후 `dcness-helper routing doctor` 로 확인한다.
+
+2. **Stop hook 동일 agent 재라운드 진행 보호** ([#1037](https://github.com/Daeguk-Sun/dcNess/pull/1037) Closes [#1035](https://github.com/Daeguk-Sun/dcNess/issues/1035)) — Stop hook 자동 `end-run` 은 메인 응답 종료 시 마지막 완료 step 상태를 보고 run 종료 누락을 막는다. 하지만 동일 agent 가 여러 라운드를 도는 흐름에서 `end-step` 직후 같은 agent 의 새 `begin-step` 이 열려도, 기존 가드가 마지막 완료 step 과 `live.json.current_step` 의 `(agent, mode)` 일치만 비교해 진행 중 라운드를 완료로 오인하고 조기 `end-run` 할 수 있었다. 라운드 진행 감지를 추가해 진행 중 라운드를 종료하지 않도록 보호하고, step count 파싱 helper 를 정리했다.
+
+3. **headless wrapper degraded 실행 경로** ([#1038](https://github.com/Daeguk-Sun/dcNess/pull/1038) Closes [#1036](https://github.com/Daeguk-Sun/dcNess/issues/1036)) — headless wrapper 5종이 telemetry 귀속용 `sid/rid` 해석 실패를 provider launch 전제조건처럼 취급해 hard-fail 하던 문제를 해소. `sid/rid` 는 로그·ledger 귀속 메타데이터이므로, 미해결만으로 본작업 실행을 차단하면 wrapper 의 timeout·idle-timeout·raw log 보존 보호까지 함께 사라졌다. 각 wrapper 가 중복 보유하던 `auto_detect_session_id`/`auto_detect_run_id` preflight 를 공통 `scripts/lib/headless_context.sh` 로 모으고, 미해결 시 hard-fail 대신 degraded 로 진행하되 timeout/idle-timeout/raw log 보호는 유지한다. headless context 진단 출력은 stderr 로 분리했다.
+
+4. **`/to-issue` cross-session handoff 원칙 명시** ([#1033](https://github.com/Daeguk-Sun/dcNess/pull/1033)) — `/to-issue` 로 이슈를 등록하는 세션과 그 이슈를 처리·구현하는 세션은 기본적으로 다르다. 기존 원칙 섹션이 "Issue Brief 는 계약이고 대화는 context 다" 라고만 하고 *왜 자족적이어야 하는가* 의 전제(다른 세션이 처리한다)를 명시하지 않아 컨텍스트 이관이 약하게만 암시됐다. 등록 세션이 대화에서 이미 아는 배경·제약·의도를 Issue Brief 본문으로 옮겨 이슈가 자족적이어야 함을 명시했다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 diff 가 Stop hook(`harness/hooks.py`·`hooks/stop-end-run.sh`·`harness/session_state.py`)·headless wrapper(`scripts/dcness-*`·`scripts/lib/headless_context.sh`)·`skills/impl*`·order gate 인접 영역과 `evals/guard_efficacy.py` 자체를 건드려 결정적 guard-efficacy 를 재실행 — **39/39 PASS**, 회귀 없음. LLM 기반 행동 eval 은 사용자 지시 빠른 minor 배포라 생략(advisory)하고 각 머지 PR CI(pytest·static-quality·public-surface·cross-ref·index-map)로 검증됨.
+- Decide: 소멸 후보 없음. follow-up 없음.
+- Verify: `test_provider_chain`(headless degraded 회귀 포함 신규)·`test_hooks`(Stop hook 재라운드)·`test_agent_routing`·`test_impl_preview` 및 각 머지 PR CI PASS.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `/impl` 경량화·`/impl-loop` runner, Stop hook 재라운드 보호, headless wrapper degraded 실행, `/to-issue` 원칙 강화 등 `skills/impl*/**`·`skills/to-issue/**`·`harness/**`·`hooks/**`·`scripts/**`·`docs/plugin/**` 변경.
+- **`/impl`·`/impl-loop` 사용 프로젝트** — `/impl` 이 concrete signal 이 있으면 메인 직접 구현으로 진행하고 high-risk 는 권고 한 줄만 출력하며, 자연어-only 요청은 `/to-issue` 등록 여부 확인으로 이어진다. review 는 cross-provider 기본이다.
+- **headless worker(Codex/Claude) 사용 프로젝트** — `sid/rid` telemetry 메타 미해결이어도 구현이 hard-fail 되지 않고 degraded 로 진행하며, timeout·idle-timeout·raw log 보호는 유지된다.
+- **여러 라운드를 도는 impl 흐름** — Stop hook 자동 `end-run` 이 진행 중 라운드를 완료로 오인해 조기 종료하지 않는다.
+- **`/to-issue` 사용 프로젝트** — 등록 세션의 배경·제약·의도가 Issue Brief 본문으로 옮겨져 다른 세션이 처리해도 이슈가 자족적이어야 함이 지침에 명시됐다.
 
 ---
 
