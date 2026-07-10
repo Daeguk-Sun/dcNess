@@ -103,7 +103,7 @@ class TestPreReadCostAware(unittest.TestCase):
 
 
 class TestImplLoopSingleEngine(unittest.TestCase):
-    """#1023 — impl-loop uses a single build-worker engine and batch review."""
+    """#1023/#1041 — one build-worker, story PRs, one integrated review."""
 
     def test_impl_loop_declares_single_build_worker_engine(self):
         skill = read_impl_skill()
@@ -118,16 +118,19 @@ class TestImplLoopSingleEngine(unittest.TestCase):
                 self.assertNotIn("2agent", body)
                 self.assertNotIn("4agent", body)
 
-    def test_batch_review_boundary_replaces_story_pr_stop(self):
+    def test_story_pr_boundary_keeps_one_integrated_review(self):
         skill = read_impl_skill()
         for needle in (
-            "batch-review",
-            "ready_for_review",
-            "그 전에는 story PR 로 멈추지 않고 다음 task 로 진행",
+            "action=story-pr",
+            "story sub-PR",
+            "갱신된 통합 브랜치에서 재분기",
             "impl-validator review 출력은 merge candidate 경계에서 1회",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, skill)
+        for stale in ("batch-review", "ready_for_review", "mark-story"):
+            with self.subTest(stale=stale):
+                self.assertNotIn(stale, skill)
 
     def test_impl_task_template_does_not_emit_engine_taxonomy(self):
         template = (

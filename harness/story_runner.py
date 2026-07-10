@@ -17,16 +17,6 @@ from typing import Any, Iterable, Sequence
 
 VALID_SCOPES = {"auto", "story", "epic"}
 VALID_STATUSES = {"pending", "running", "completed", "error", "blocked"}
-VALID_STORY_STATUSES = {
-    "pending",
-    "running",
-    "implemented",
-    "completed",
-    "error",
-    "blocked",
-}
-VALID_STORY_MARK_STATUSES = {"completed", "error", "blocked"}
-STOP_STORY_STATUSES = {"error", "blocked"}
 
 
 @dataclass(frozen=True)
@@ -165,26 +155,14 @@ def build_state(
         resolved_scope = "epic"
     if resolved_scope == "story" and len(story_ids) > 1:
         raise ValueError("scope=story requires tasks from exactly one story")
-    stories = [
-        {
-            "story": story,
-            "status": "pending",
-            "task_ids": [task["id"] for task in tasks if str(task["story"]) == story],
-            "pr": None,
-        }
-        for story in story_ids
-    ]
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "kind": "dcness-story-run",
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
         "scope": resolved_scope,
-        "status": "pending",
         "project_root": str(root),
-        "current_task": None,
         "tasks": tasks,
-        "stories": stories,
     }
 
 
@@ -216,16 +194,33 @@ def prepare_init_state(path: Path, *, force: bool) -> Path | None:
         raise ValueError(
             f"state exists but cannot be read: {path}; use --force to replace it"
         ) from exc
-    if existing.get("status") == "completed":
+    tasks = existing.get("tasks")
+    if isinstance(tasks, list) and tasks and all(
+        task.get("status") == "completed" for task in tasks
+    ):
+        # Normalize schema-v1 states that were stranded at ready_for_review.
+        # PR metadata never participates in the task-state lifetime.
+        save_state(path, existing)
         return archive_completed_state(path)
-    status = existing.get("status") or "unknown"
+    if not isinstance(tasks, list) or not tasks:
+        raise ValueError(
+            f"state has no task records: {path}; inspect it or use --force"
+        )
+    incomplete = ", ".join(
+        f"#{task.get('id', '?')}={task.get('status', 'unknown')}"
+        for task in tasks
+        if task.get("status") != "completed"
+    )
     raise ValueError(
-        f"state exists with status={status}: {path}; resume it or use --force"
+        f"state has incomplete task(s): {incomplete}; resume it or use --force"
     )
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    state["schema_version"] = 2
+    for derived_key in ("status", "current_task", "stories"):
+        state.pop(derived_key, None)
     state["updated_at"] = _now_iso()
     payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
     tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}")
@@ -240,116 +235,87 @@ def find_task(state: dict[str, Any], ref: str) -> dict[str, Any]:
     raise ValueError(f"task not found: {ref}")
 
 
-def find_story(state: dict[str, Any], ref: str) -> dict[str, Any]:
-    for story in state.get("stories", []):
-        if str(story.get("story")) == str(ref):
-            return story
-    raise ValueError(f"story not found: {ref}")
-
-
-def _tasks_for_story(state: dict[str, Any], story: dict[str, Any]) -> list[dict[str, Any]]:
-    task_by_id = {task.get("id"): task for task in state.get("tasks", [])}
+def _tasks_for_story(state: dict[str, Any], story: str) -> list[dict[str, Any]]:
     return [
-        task_by_id[task_id]
-        for task_id in story.get("task_ids", [])
-        if task_id in task_by_id
+        task
+        for task in state.get("tasks", [])
+        if str(task.get("story")) == story
     ]
 
 
-def _first_story_with_status(
+def _story_summary(state: dict[str, Any], story: str) -> dict[str, Any]:
+    tasks = _tasks_for_story(state, story)
+    return {
+        "story": story,
+        "task_ids": [task.get("id") for task in tasks],
+        "commits": [task.get("commit") for task in tasks],
+    }
+
+
+def _progress(state: dict[str, Any]) -> dict[str, int]:
+    tasks = state.get("tasks", [])
+    return {
+        "completed": sum(task.get("status") == "completed" for task in tasks),
+        "total": len(tasks),
+    }
+
+
+def _story_boundary_before(
     state: dict[str, Any],
-    statuses: set[str],
-) -> dict[str, Any] | None:
-    for story in state.get("stories", []):
-        if story.get("status") in statuses:
-            return story
+    pending_index: int,
+) -> str | None:
+    tasks = state.get("tasks", [])
+    if pending_index <= 0:
+        return None
+    previous_story = str(tasks[pending_index - 1].get("story"))
+    next_story = str(tasks[pending_index].get("story"))
+    if previous_story == next_story:
+        return None
+    story_tasks = _tasks_for_story(state, previous_story)
+    if story_tasks and all(task.get("status") == "completed" for task in story_tasks):
+        return previous_story
     return None
 
 
 def next_task(state: dict[str, Any]) -> dict[str, Any] | None:
-    for task in state.get("tasks", []):
-        if task.get("status") == "running":
-            return task
-    if _first_story_with_status(state, STOP_STORY_STATUSES) is not None:
-        return None
-    for task in state.get("tasks", []):
-        if task.get("status") == "pending":
-            return task
+    action = next_action(state)
+    if action.get("action") == "task":
+        return action.get("task")
     return None
 
 
 def next_action(state: dict[str, Any]) -> dict[str, Any]:
-    state_status = state.get("status")
+    tasks = state.get("tasks", [])
+
+    for task in tasks:
+        if task.get("status") in {"blocked", "error"}:
+            return {"action": task["status"], "task": task, "progress": _progress(state)}
+
     for task in state.get("tasks", []):
         if task.get("status") == "running":
-            return {"action": "task", "state_status": state_status, "task": task}
+            return {"action": "task", "task": task, "progress": _progress(state)}
 
-    for story in state.get("stories", []):
-        status = story.get("status")
-        if status in {"blocked", "error"}:
-            return {"action": status, "state_status": state_status, "story": story}
-
-    for task in state.get("tasks", []):
+    for index, task in enumerate(tasks):
         if task.get("status") == "pending":
-            return {"action": "task", "state_status": state_status, "task": task}
+            boundary_story = _story_boundary_before(state, index)
+            if boundary_story is not None:
+                return {
+                    "action": "story-pr",
+                    "story": _story_summary(state, boundary_story),
+                    "next_task": task,
+                    "progress": _progress(state),
+                }
+            return {"action": "task", "task": task, "progress": _progress(state)}
 
-    implemented_stories = [
-        story
-        for story in state.get("stories", [])
-        if story.get("status") == "implemented"
-    ]
-    if implemented_stories:
+    if tasks and all(task.get("status") == "completed" for task in tasks):
+        final_story = str(tasks[-1].get("story"))
         return {
-            "action": "batch-review",
-            "state_status": state_status,
-            "stories": implemented_stories,
+            "action": "done",
+            "final_story": _story_summary(state, final_story),
+            "progress": _progress(state),
         }
 
-    return {"action": "done", "state_status": state_status}
-
-
-def _refresh_story_statuses(state: dict[str, Any]) -> None:
-    task_by_id = {task.get("id"): task for task in state.get("tasks", [])}
-    for story in state.get("stories", []):
-        story_tasks = [
-            task_by_id[task_id]
-            for task_id in story.get("task_ids", [])
-            if task_id in task_by_id
-        ]
-        if not story_tasks:
-            continue
-        statuses = {task.get("status") for task in story_tasks}
-        if story.get("status") in {"completed", "blocked", "error"} and all(
-            status == "completed" for status in statuses
-        ):
-            continue
-        if "blocked" in statuses:
-            story["status"] = "blocked"
-        elif "error" in statuses:
-            story["status"] = "error"
-        elif all(status == "completed" for status in statuses):
-            if story.get("status") != "completed":
-                story["status"] = "implemented"
-        elif "running" in statuses or "completed" in statuses:
-            story["status"] = "running"
-        else:
-            story["status"] = "pending"
-
-    story_statuses = {story.get("status") for story in state.get("stories", [])}
-    if "blocked" in story_statuses:
-        state["status"] = "blocked"
-    elif "error" in story_statuses:
-        state["status"] = "error"
-    elif story_statuses and all(status == "completed" for status in story_statuses):
-        state["status"] = "completed"
-    elif story_statuses and all(
-        status in {"implemented", "completed"} for status in story_statuses
-    ):
-        state["status"] = "ready_for_review"
-    elif "running" in story_statuses or "implemented" in story_statuses:
-        state["status"] = "running"
-    else:
-        state["status"] = "pending"
+    return {"action": "error", "note": "invalid or empty task state", "progress": _progress(state)}
 
 
 def mark_task(
@@ -364,53 +330,21 @@ def mark_task(
     if status not in VALID_STATUSES:
         raise ValueError(f"invalid task status: {status}")
     task = find_task(state, ref)
+    if status == "completed" and not (commit or task.get("commit")):
+        raise ValueError("mark completed requires --commit")
+    if status in {"error", "blocked"} and not (note and note.strip()):
+        raise ValueError(f"mark {status} requires --note")
     task["status"] = status
     if status == "running":
         task["attempts"] = int(task.get("attempts") or 0) + 1
-        state["current_task"] = task["id"]
-        state["status"] = "running"
-    elif status in {"completed", "error", "blocked"}:
-        if state.get("current_task") == task.get("id"):
-            state["current_task"] = None
-        if status in {"error", "blocked"}:
-            state["status"] = status
     if commit is not None:
         task["commit"] = commit
     if provider is not None:
         task["provider"] = provider
     if note is not None:
         task["note"] = note
-    _refresh_story_statuses(state)
     state["updated_at"] = _now_iso()
     return task
-
-
-def mark_story(
-    state: dict[str, Any],
-    ref: str,
-    status: str,
-    *,
-    pr: str | None = None,
-    note: str | None = None,
-) -> dict[str, Any]:
-    if status not in VALID_STORY_MARK_STATUSES:
-        raise ValueError(f"invalid story status: {status}")
-    story = find_story(state, ref)
-    story_tasks = _tasks_for_story(state, story)
-    if not story_tasks:
-        raise ValueError(f"story has no tasks: {ref}")
-    if not all(task.get("status") == "completed" for task in story_tasks):
-        raise ValueError("mark-story requires all story tasks completed")
-    if status == "completed" and not pr:
-        raise ValueError("mark-story completed requires --pr")
-    story["status"] = status
-    if pr is not None:
-        story["pr"] = pr
-    if note is not None:
-        story["note"] = note
-    _refresh_story_statuses(state)
-    state["updated_at"] = _now_iso()
-    return story
 
 
 def _print(payload: Any, *, as_json: bool) -> None:
@@ -420,9 +354,10 @@ def _print(payload: Any, *, as_json: bool) -> None:
     if payload is None:
         print("next: none")
     elif isinstance(payload, dict) and payload.get("tasks"):
+        story_count = len({str(task.get("story")) for task in payload["tasks"]})
         print(
             f"{payload['scope']} story-run: "
-            f"{len(payload['tasks'])} task(s), {len(payload['stories'])} story(s)"
+            f"{len(payload['tasks'])} task(s), {story_count} story(s)"
         )
         for task in payload["tasks"]:
             print(
@@ -468,13 +403,6 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_mark.add_argument("--note", default=None)
     p_mark.add_argument("--json", action="store_true")
 
-    p_mark_story = sub.add_parser("mark-story")
-    p_mark_story.add_argument("--state", required=True)
-    p_mark_story.add_argument("--story", required=True)
-    p_mark_story.add_argument("--status", required=True, choices=sorted(VALID_STORY_MARK_STATUSES))
-    p_mark_story.add_argument("--pr", default=None)
-    p_mark_story.add_argument("--note", default=None)
-    p_mark_story.add_argument("--json", action="store_true")
     return parser
 
 
@@ -515,19 +443,6 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             save_state(state_path, state)
             _print(task, as_json=args.json)
-            return 0
-        if args.cmd == "mark-story":
-            state_path = Path(args.state)
-            state = load_state(state_path)
-            story = mark_story(
-                state,
-                args.story,
-                args.status,
-                pr=args.pr,
-                note=args.note,
-            )
-            save_state(state_path, state)
-            _print(story, as_json=args.json)
             return 0
     except ValueError as exc:
         parser.exit(1, f"story-runner: {exc}\n")

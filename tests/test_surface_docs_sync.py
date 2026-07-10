@@ -780,7 +780,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("일반 `/impl` 구현은 메인이 맡고", self.readme)
 
     def test_issue_1019_impl_loop_uses_story_runner_boundaries(self) -> None:
-        """#1019/#1023 — impl-loop uses deterministic state, task commits, and batch review."""
+        """#1019/#1023/#1041 — task state, story PRs, and one integrated review."""
         script = ROOT / "scripts" / "dcness-story-runner"
         self.assertTrue(script.exists())
         self.assertTrue(script.stat().st_mode & 0o111)
@@ -788,8 +788,11 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "dcness-story-runner",
             "next-action",
             "task commit",
-            "batch review PR",
-            "action=batch-review",
+            "story sub-PR",
+            "action=story-pr",
+            "final_story",
+            "task 단일 상태",
+            "갱신된 통합 브랜치에서 재분기",
             "story-run.completed-<UTC>.json",
             "직렬 chain driver 전용",
             "impl-validator review 출력은 merge candidate 경계에서 1회",
@@ -800,6 +803,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "PR 1개 = task 1개",
             "N task = N run = N review.md",
             "예상 PR K개",
+            "batch review PR 1개",
+            "ready_for_review",
+            "mark-story",
         ):
             with self.subTest(stale=stale):
                 self.assertNotIn(stale, self.impl_loop_skill)
