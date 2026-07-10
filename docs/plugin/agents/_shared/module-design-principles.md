@@ -188,6 +188,52 @@ Story 설계의 기본 단위는 레이어나 파일 묶음이 아니라 사용�
 
 역할별 적용 시점: build-worker 는 테스트·구현·검증에서 AC 성격에 맞는 증거를 남기고, product-acceptance 는 검수에서 이 기준으로 gap 을 판정한다.
 
+## 고위험 상태 계약
+
+저장·identity·sync/reconcile·cross-story mutable state·권한 handoff·lifecycle 처럼 상태성이 높은 계약은 "observer 가 수렴한다", "repository 가 처리한다" 같은 추상 문구만으로 닫히지 않는다. 설계와 검증 모두 계약을 실제 전이로 추적한다. 추적은 고정 표나 JSON 산출물이 아니라 의미 요구다 — durable 의미는 기존 원칙대로 module responsibility / public interface 와 decision 에 둔다.
+
+### 위험 신호
+
+다음 중 하나라도 있으면 고위험 상태 계약으로 본다.
+
+- DB·파일·외부 Provider·외부 시스템이 진본(SSOT) 또는 mirror/read model 이다.
+- 같은 identity 를 유지한 채 가변 상태가 바뀐다.
+- sync·reconcile·eventual consistency 가 있다.
+- 여러 source·tenant·account 를 합친다.
+- producer 와 consumer 가 다른 Story·task·module 에 있다.
+- retry·중복 이벤트·동시 실행이 가능하다.
+- 권한 handoff·지속 signal·lifecycle(foreground/background 포함)이 동작을 바꾼다.
+- route/input 값과 화면 내부 live state 가 달라질 수 있다.
+
+### 적용 가능한 전이
+
+각 계약에서 적용 가능한 전이를 확인한다. 해당 없는 전이를 억지로 채우지 않는다.
+
+1. 최초 생성·bootstrap
+2. 동일 identity 의 가변 필드 변경 (mutable projection update)
+3. 삭제
+4. empty 와 read failure 구분
+5. source 일부 실패와 기존 상태 보존
+6. 같은 입력 반복 시 no-change/idempotence
+7. retry·중복 이벤트·동시 호출
+8. foreground/background·resume/pause
+9. route/input 값과 화면 내부 live state 가 달라지는 전이
+
+각 전이는 trigger → producer → state owner → mutation/write → persistence/read model → consumer → 제품 경계에서 관찰되는 결과 로 끝까지 연결한다. 중간 단계가 산출물에 없거나 impl scope 가 그 단계를 수정하지 못하면 설계 gap 이다.
+
+### 상태성 작업의 코드 SSOT 표면
+
+계약 표면 코드 SSOT 는 공개 포트·도메인 타입·공개 entrypoint 만 뜻하지 않는다. Story 가 저장·동기화·상태 전이를 변경하면 그 전이에 참여하는 내부 구현 표면도 계약 대조 입력이다 — 저장 schema·entity·mapper, DAO·repository, sync/reconcile·state reducer, 외부 adapter·receiver·observer·worker·lifecycle producer, 관련 기존 테스트.
+
+### 확정 결정 처리
+
+사용자가 확정한 기술 선택 자체를 취향으로 재논쟁하지 않는다. 그러나 확정 결정은 검증 면제 대상이 아니다 — 그 선택의 downstream 완결성, 다른 Story·decision 과의 충돌, state transition·error mode·consumer 존재 여부, impl scope 안 구현 가능성은 계속 설계·검증 대상이다. "재논쟁 금지"는 선택을 다른 선택으로 교체하지 말라는 뜻이지, 선택의 완결성과 모순을 검증하지 말라는 뜻이 아니다.
+
+### 적용 영역
+
+- module-architect — task 를 자르기 전에 Story 간 공유 identity·state·producer/consumer·transition 을 추적하고, 뒤 Story 가 요구하는 전이 능력이 앞 Story 의 저장·동기화 계약과 task scope 에 실제로 존재하는지 확인한다.
+- architecture-validator — final epic 검증에서 고위험 상태 계약을 식별하고 적용 가능한 전이를 실제 제품 경계까지 추적한다. 추상 계약 문구는 실제 update 경로 증거를 대신하지 못한다.
+
 ## 의존성 강제 — 빌드 시점 차단
 
 모듈 간 의존을 *명시 선언* 하고, 빌드 시점에 규칙 위반을 차단한다. *코드 작성 후 회귀 검증* 영역이 아니라 *작성 시점에 차단* 영역.
@@ -258,10 +304,11 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 - **계약과 인터페이스**: module responsibility 와 decision 문서가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 를 담는가.
 - **구현 가능성**: build-worker 가 의존을 주입하고 결과를 관찰할 수 있는가.
 - **제품 동작 슬라이스**: Story 완료 시 실제로 검증되는 동작과 첫 제품 경계 증거가 산출물에 남았는가.
+- **고위험 상태 계약**: 상태성 계약의 적용 가능한 전이가 producer → state owner → consumer 경로로 닫혔는가 ([고위험 상태 계약](#고위험-상태-계약)).
 - **Agent Operability**: module responsibility / public interface 와 owner/entrypoint 요약으로 edit target, state owner, validation path 를 복구할 수 있는가.
 - **drift 통제**: 같은 계약의 사본이 서로 다른 의미로 남지 않았는가.
 
-자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이 필요한 영역은 finding 이 아니라 수동 review 권고로 분리해 사용자에게 보여준다.
+자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이라는 이유만으로 finding 에서 제외하지 않는다 — 구체적인 위치, 깨지는 시나리오, 방치 시 영향이 입증되면 Must finding 으로 올리고, 근거가 부족한 우려만 advisory 또는 수동 review 권고로 남긴다.
 
 **Module/Decision contract 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 신규 `/design` 에서 이 계약들은 epic architecture.md 의 `## 모듈 목록` 책임/공개 인터페이스 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 문서는 module id 와 decision id/link 만 참조한다. module-architect 가 public contract 변경 시 두 진본을 갱신하며, architecture-validator 는 구양식 사본의 존재만으로 FAIL 하지 않고 module/decision 과 충돌하는 구현 차단 위험만 Must finding 으로 본다. 분류·분기 상세 = [`design-routing.md`](../../../../skills/design/design-routing.md#finding-분류-분기).
 

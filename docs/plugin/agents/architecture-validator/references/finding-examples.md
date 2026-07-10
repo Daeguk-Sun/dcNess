@@ -24,6 +24,14 @@
 - 신규 산출물의 impl 문서가 module/decision 참조 대신 invariant/ordering/error mode 전문 사본을 다시 적음
 - 구양식 Contract Ledger / Contract References 가 남아 있지만 이번 변경과 무관한 형식 잔존뿐임 (Should, Must 아님)
 
+## 고위험 상태 계약
+
+- 진본(외부 Provider/시스템)과 mirror 의 reconcile 이 identity 존재 여부와 일부 필드만 비교해, 같은 identity 의 가변 상태 변경(예: 발신 상태 전이)이 mirror 에 반영되지 않음
+- "observer 가 수렴한다" 같은 추상 문구만 있고 그 수렴을 구현하는 update 경로, owner, task scope 가 어디에도 없음
+- 뒤 Story 가 소비하는 상태 전이를 앞 Story 의 저장·동기화 계약이 수용하지 못하는데 어느 task 도 그 gap 을 수정할 scope 가 없음
+- source 일부 read 실패를 empty 와 같게 취급해 기존 mirror 상태가 삭제됨
+- 같은 snapshot 반복 실행이 no-change 로 닫히는지 어디에도 없음
+
 ## 구현 가능성
 
 - impl 문서가 실패 경로를 설명하지 않아 build-worker가 임의 정책을 정해야 함
