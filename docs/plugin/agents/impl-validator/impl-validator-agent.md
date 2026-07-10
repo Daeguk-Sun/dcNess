@@ -11,6 +11,7 @@
 - PR URL, 로컬 diff 맥락, 또는 다중 PR/통합 브랜치의 합쳐진 diff 맥락
 - 변경 파일 목록
 - impl 계획 경로. direct 구현처럼 계획 파일이 없으면 그 사유
+- 대상 GitHub issue 와 진입 시 확보한 target GitHub issue AC snapshot. issue 없는 작업이면 그 사유
 - 호출자가 제공한 lint/build/test 실행 결과
 - 필요하면 이전 impl-validator 결과와 retry round
 - 다중 story/epic invocation 이면 포함된 story PR/fix PR 목록과 최종 merge target
@@ -20,6 +21,7 @@
 - 필수: merge candidate 의 변경된 파일과 관련 diff
 - 필수: [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)
 - 계획 파일이 있으면 필수: 해당 impl 계획, architecture, domain-model, design reference 중 계획이 지시한 문서
+- 대상 issue 가 있으면 필수: target GitHub issue AC snapshot 과 호출자가 제시한 항목별 검증 증거
 - 상황별: project convention, DB schema, API contract, design token
 - design:required UI 작업 상황별 필수: impl 계획의 `## 디자인 참조`, `docs/design.md`, 확정 목업 경로, 구현 diff 의 theme/component/style 상수
 - 상황별: 용어·공개 진입점·분기 표현을 검증할 때만 [`docs/plugin/terms.md`](../../terms.md)
@@ -29,9 +31,10 @@
 
 ### spec 렌즈
 
-계획 파일이 있을 때만 켠다. 계획 파일이 없는 direct 경로에서는 계획 부재 자체를 `spec-gap` 으로 만들지 않고 quality 렌즈만 본다.
+계획 파일 또는 대상 issue 가 있으면 켠다. 대조 기준은 **plan ∪ target GitHub issue AC** 다. 계획 파일 없는 direct 경로도 대상 issue 가 있으면 target GitHub issue AC 로 spec 렌즈를 켠다. 계획과 대상 issue 가 모두 없는 direct 경로에서만 계획 부재 자체를 `spec-gap` 으로 만들지 않고 quality 렌즈만 본다.
 
 - 스펙 충실도: 계획한 생성/수정 파일, public interface, error behavior가 실제 코드와 맞는가.
+- 이슈 충실도: target GitHub issue AC 전항목이 diff 와 실행·관찰 증거로 충족되는가. 계획이 AC 를 빠뜨렸거나 다르게 컴파일했어도 target issue 를 상위 계약으로 판정한다.
 - 범위 통제: 계획 밖 파일이나 기능이 섞이지 않았는가.
 - 의존 계약: 외부 API, 모듈 내부 import, DB schema, design token 계약을 어기지 않는가.
 - 도메인/디자인 정합: domain invariant와 design token 참조가 깨지지 않았는가.
@@ -65,7 +68,7 @@
 ## 작업 흐름
 
 1. 변경 파일과 diff 중심으로 실제 검증 범위를 확정한다. 다중 story/epic invocation 에서 개별 PR 조각이 아니라 합쳐진 merge candidate diff 를 우선한다.
-2. 계획 파일이 있으면 spec 렌즈를 먼저 적용한다. 계획 파일이 없으면 direct 경로로 보고 spec 렌즈를 건너뛴다.
+2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. 계획 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
 3. quality 렌즈로 유지보수성, merge risk, 보안·운영 risk, 테스트 신뢰도를 본다.
 4. finding 은 `MUST FIX`와 `NICE TO HAVE`로 나누고, `MUST FIX`마다 `[spec-gap]` 또는 `[quality-gap]` 를 붙인다.
 5. `[spec-gap]` 이 하나라도 있으면 build-worker rework 또는 설계 보강으로 돌린다. `[quality-gap]` 만 있으면 메인 root-cause 수정 또는 build-worker rework 로 돌린다.

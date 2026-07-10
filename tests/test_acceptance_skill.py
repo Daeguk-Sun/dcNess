@@ -49,7 +49,8 @@ class AcceptanceSkillContractTests(unittest.TestCase):
             self.assertIn("AC / PR / test evidence", text)
             self.assertIn("동작 증거", text)
             self.assertIn("mock-only green", text)
-            self.assertIn("PRD Must", text)
+            self.assertIn("Epic 완료 기준", text)
+            self.assertIn("Story AC", text)
             self.assertIn("cross-story gap", text)
             self.assertIn("security/ops risk", text)
 

@@ -4,9 +4,11 @@
 
 ## 요구사항 출처 충실도
 
-- PRD Must AC가 impl REQ에 인용되지 않음
-- PRD의 경로, 파일명, 포맷 리터럴이 impl에서 바뀜
-- 문서끼리는 일치하지만 PRD와 다른 self-consistent wrong 상태
+- Story AC가 어떤 impl REQ에도 인용되지 않은 미커버 AC
+- 제품 REQ에 `(from AC-NNN)`이 없는 무출처 REQ
+- Story AC에 없는 ID를 REQ가 인용함
+- Story 마지막 task가 해당 Story AC 전항목을 다시 실행·관찰하지 않음
+- 문서끼리는 일치하지만 Story AC와 다른 self-consistent wrong 상태
 
 ## 설계 표준
 

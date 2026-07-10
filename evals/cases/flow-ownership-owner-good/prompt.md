@@ -4,6 +4,7 @@
 - 검수 단위: 로컬 PR diff
 - 구현 계획: {{CASE_DIR}}/impl.md
 - 변경 diff: {{CASE_DIR}}/diff.md
+- 대상 GitHub issue: 없음 (synthetic plan/diff case)
 
 목적: merge 전에 diff 의 유지보수성, flow ownership, agent 작업성을 확인한다. 스펙 자체가 좋은지 평가하지 않는다.
 

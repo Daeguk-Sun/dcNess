@@ -217,7 +217,8 @@ class SpecSurfaceContractTests(unittest.TestCase):
         self.assertIn("맥락을 누적", self.prd_ref)
         self.assertIn("객관식 후보", self.prd_ref)
         self.assertIn("기술 검토 필요 영역 작성 기준", self.prd_ref)
-        self.assertIn("AC-ID", self.prd_ref)
+        self.assertIn("기능 나열과 유저 시나리오 작성", self.prd_ref)
+        self.assertIn("PRD 에 Story 수용 기준을 두지 않는다", self.prd_ref)
 
         for section in (
             "# PRD —",
@@ -234,7 +235,8 @@ class SpecSurfaceContractTests(unittest.TestCase):
             self.assertIn(section, self.prd_template)
 
         self.assertEqual(9, len(re.findall(r"(?m)^## ", self.prd_template)))
-        self.assertIn("AC-001", self.prd_template)
+        self.assertNotIn("AC-001", self.prd_template)
+        self.assertNotIn("- 수용 기준:", self.prd_template)
         self.assertIn('검토 항목 0 개면 "해당 없음"', self.prd_template)
         self.assertIn("stories.md 산출물", self.stories_ref)
         self.assertIn("Story 크기 가이드", self.stories_ref)
