@@ -55,17 +55,20 @@ class SpecStorySliceContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.stories_reference)
 
-    def test_stories_reference_template_has_observable_behavior_line(self) -> None:
-        self.assertIn(
-            "**완료 시 확인 가능한 동작**: <이 Story 머지 후 사용자가 제품 경계에서 "
-            "직접 실행/확인할 수 있는 것>",
-            self.stories_reference,
-        )
+    def test_stories_reference_template_has_story_acceptance_criteria(self) -> None:
+        for needle in (
+            "**Acceptance criteria:**",
+            "AC-001 [command]",
+            "AC-002 [agent-read]",
+            "Given <상황>, When <행동>, Then <검증 가능한 결과>",
+        ):
+            self.assertIn(needle, self.stories_reference)
 
     def test_stories_reference_keeps_backward_compatibility(self) -> None:
         for needle in (
-            "`**완료 시 확인 가능한 동작**:` 줄이 없는 기존 stories.md 도 그대로 허용",
-            "parser 의무 매치는 여전히 `As a / I want / So that` 만이다",
+            "기존 외부 활성 프로젝트의 옛 양식 stories.md 와 PRD AC 는 그대로 허용",
+            "read 시 parser 는 `As a / I want / So that` 매치만 의무로 본다",
+            "소급 변환하지 않는다",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.stories_reference)
@@ -128,12 +131,10 @@ class SpecStorySliceContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.shared_principles)
 
-    def test_git_spec_story_issue_body_includes_observable_behavior_line(self) -> None:
+    def test_git_spec_story_issue_body_includes_story_acceptance_criteria(self) -> None:
         git_spec = (ROOT / "docs" / "plugin" / "git-spec.md").read_text(encoding="utf-8")
-        self.assertIn(
-            "`As a / I want / So that` + `**완료 시 확인 가능한 동작**:` 한 줄",
-            git_spec,
-        )
+        self.assertIn("`As a / I want / So that` + Story AC 목록", git_spec)
+        self.assertIn("AC-NNN", git_spec)
 
     def test_spec_acceptance_axes_keep_documented_exceptions(self) -> None:
         for needle in (
@@ -148,9 +149,10 @@ class SpecStorySliceContractTests(unittest.TestCase):
             "../../skills/spec/spec-stories-reference.md", self.product_acceptance
         )
 
-    def test_story_acceptance_consumes_observable_behavior_line(self) -> None:
+    def test_story_acceptance_consumes_story_ac_with_legacy_fallback(self) -> None:
+        self.assertIn("Story AC 전항목", self.product_acceptance)
         self.assertIn(
-            "`완료 시 확인 가능한 동작` 줄이 있으면, 그 동작이 실제 동작 증거로 닫혔는지 대조한다",
+            "Story AC 가 없는 구양식에서 `완료 시 확인 가능한 동작` 줄이 있으면",
             self.product_acceptance,
         )
 
@@ -163,11 +165,12 @@ class SpecStorySliceContractTests(unittest.TestCase):
             self.stories_reference,
         )
 
-    def test_migrate_script_guides_new_line(self) -> None:
+    def test_migrate_script_does_not_force_legacy_conversion(self) -> None:
         migrate = (ROOT / "scripts" / "migrate_stories_to_new_format.sh").read_text(
             encoding="utf-8"
         )
-        self.assertIn("완료 시 확인 가능한 동작", migrate)
+        self.assertIn("소급 변환하지 않음", migrate)
+        self.assertIn("Story AC", migrate)
 
 
 if __name__ == "__main__":

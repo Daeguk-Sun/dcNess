@@ -32,7 +32,12 @@ function readStdin() {
 
 function parseArgs(argv) {
   const args = { _: [] };
-  const booleanFlags = new Set(['stdin', 'body-only']);
+  const booleanFlags = new Set([
+    'stdin',
+    'body-only',
+    'acceptance-only',
+    'require-complete',
+  ]);
   for (let i = 0; i < argv.length; i += 1) {
     const token = argv[i];
     if (!token.startsWith('--')) {
@@ -64,6 +69,47 @@ export function parseField(body, fieldName) {
   return match[1].trim();
 }
 
+export function parseFieldSection(body, fieldName) {
+  const text = String(body ?? '');
+  const match = fieldRegex(fieldName).exec(text);
+  if (!match) return null;
+
+  const start = match.index + match[0].length;
+  const remainder = text.slice(start);
+  const nextField = remainder.search(/^[ \t]*\*\*[^\n:]+:\*\*/m);
+  return (nextField === -1 ? remainder : remainder.slice(0, nextField)).trim();
+}
+
+const ACCEPTANCE_CHECKBOX = /^\s*-\s+\[([ xX])\]\s+(.+?)\s*$/;
+const VERIFICATION_CLASS = /^\[(command|agent-read)\]\s+(.+)$/i;
+const STORY_VERIFICATION_CLASS = /^(AC-\d{3,})\s+\[(command|agent-read)\]:?\s+(.+)$/i;
+const GENERIC_ACCEPTANCE = /^(?:구현(?:이|은)?\s*완료(?:된다|되어야 한다)|정상(?:적으로)?\s*동작(?:한다|해야 한다)|문제없이\s*동작(?:한다|해야 한다)|works?\s+(?:correctly|as expected)|implementation\s+is\s+complete)[.!。]?$/i;
+
+export function parseAcceptanceCriteria(body) {
+  const section = parseFieldSection(body, 'Acceptance criteria') ?? '';
+  return section
+    .split(/\r?\n/)
+    .map((line, index) => ({ line: index + 1, text: line.trim() }))
+    .filter(({ text }) => ACCEPTANCE_CHECKBOX.test(text))
+    .map(({ line, text }) => {
+      const checkbox = text.match(ACCEPTANCE_CHECKBOX);
+      const criterion = checkbox[2].trim();
+      const classified = criterion.match(VERIFICATION_CLASS);
+      const storyClassified = criterion.match(STORY_VERIFICATION_CLASS);
+      return {
+        line,
+        checked: checkbox[1].toLowerCase() === 'x',
+        text: criterion,
+        verificationClass: (
+          classified?.[1]?.toLowerCase()
+          ?? storyClassified?.[2]?.toLowerCase()
+          ?? null
+        ),
+        statement: classified?.[2]?.trim() ?? storyClassified?.[3]?.trim() ?? criterion,
+      };
+    });
+}
+
 function parseLabels(value) {
   if (!value || value === true) return [];
   return String(value)
@@ -72,37 +118,47 @@ function parseLabels(value) {
     .filter(Boolean);
 }
 
-export function validateIssueBody({ body, labels = [], requireLabels = false }) {
+export function validateIssueBody({
+  body,
+  labels = [],
+  requireLabels = false,
+  requireComplete = false,
+  acceptanceOnly = false,
+}) {
   const text = String(body ?? '');
   const failures = [];
 
-  if (!/^##\s+Issue Brief\s*$/im.test(text)) {
-    failures.push('missing required heading: ## Issue Brief');
-  }
+  if (!acceptanceOnly) {
+    if (!/^##\s+Issue Brief\s*$/im.test(text)) {
+      failures.push('missing required heading: ## Issue Brief');
+    }
 
-  for (const fieldName of REQUIRED_FIELDS) {
-    if (!fieldRegex(fieldName).test(text)) {
-      failures.push(`missing required Issue Brief field: ${fieldName}`);
+    for (const fieldName of REQUIRED_FIELDS) {
+      if (!fieldRegex(fieldName).test(text)) {
+        failures.push(`missing required Issue Brief field: ${fieldName}`);
+      }
     }
   }
 
   const issueType = parseField(text, 'IssueType');
   const priority = parseField(text, 'Priority');
 
-  if (issueType === '') {
-    failures.push(`invalid IssueType=<empty>; expected one of ${PROJECT_FIELDS.IssueType.join(', ')}`);
-  } else if (issueType && !PROJECT_FIELDS.IssueType.includes(issueType)) {
-    failures.push(`invalid IssueType=${issueType}; expected one of ${PROJECT_FIELDS.IssueType.join(', ')}`);
-  }
+  if (!acceptanceOnly) {
+    if (issueType === '') {
+      failures.push(`invalid IssueType=<empty>; expected one of ${PROJECT_FIELDS.IssueType.join(', ')}`);
+    } else if (issueType && !PROJECT_FIELDS.IssueType.includes(issueType)) {
+      failures.push(`invalid IssueType=${issueType}; expected one of ${PROJECT_FIELDS.IssueType.join(', ')}`);
+    }
 
-  if (priority === '') {
-    failures.push(`invalid Priority=<empty>; expected one of ${PROJECT_FIELDS.Priority.join(', ')}`);
-  } else if (priority && !PROJECT_FIELDS.Priority.includes(priority)) {
-    failures.push(`invalid Priority=${priority}; expected one of ${PROJECT_FIELDS.Priority.join(', ')}`);
+    if (priority === '') {
+      failures.push(`invalid Priority=<empty>; expected one of ${PROJECT_FIELDS.Priority.join(', ')}`);
+    } else if (priority && !PROJECT_FIELDS.Priority.includes(priority)) {
+      failures.push(`invalid Priority=${priority}; expected one of ${PROJECT_FIELDS.Priority.join(', ')}`);
+    }
   }
 
   const issueTypeLabels = labels.filter((label) => ISSUE_TYPE_LABELS.includes(label));
-  if (labels.length > 0 || requireLabels) {
+  if (!acceptanceOnly && (labels.length > 0 || requireLabels)) {
     if (issueTypeLabels.length !== 1) {
       failures.push(
         `expected exactly one IssueType label, actual=${issueTypeLabels.length || 0} `
@@ -113,12 +169,42 @@ export function validateIssueBody({ body, labels = [], requireLabels = false }) 
     }
   }
 
+  const acceptanceCriteria = parseAcceptanceCriteria(text);
+  if (!acceptanceOnly && acceptanceCriteria.length === 0) {
+    failures.push('Acceptance criteria must contain at least one checklist item');
+  }
+  for (const criterion of acceptanceCriteria) {
+    if (!acceptanceOnly && !criterion.verificationClass) {
+      failures.push(
+        `acceptance criterion must declare [command] or [agent-read]: ${criterion.text}`,
+      );
+    }
+    if (GENERIC_ACCEPTANCE.test(criterion.statement)) {
+      failures.push(`generic acceptance criterion is not verifiable: ${criterion.statement}`);
+    }
+  }
+
+  const humanVerification = (
+    parseFieldSection(text, 'Human verification / 사람 확인 안내')
+    ?? parseFieldSection(text, '사람 확인 안내')
+  );
+  if (humanVerification && humanVerification.split(/\r?\n/).some((line) => ACCEPTANCE_CHECKBOX.test(line))) {
+    failures.push('human verification items must not use checkboxes');
+  }
+
+  const uncheckedCriteria = acceptanceCriteria.filter((criterion) => !criterion.checked);
+  if (requireComplete && uncheckedCriteria.length > 0) {
+    failures.push(`unchecked acceptance criteria remain: ${uncheckedCriteria.length}`);
+  }
+
   return {
     ok: failures.length === 0,
     failures,
     issueType: issueType || null,
     priority: priority || null,
     issueTypeLabels,
+    acceptanceCriteria,
+    uncheckedCriteria,
   };
 }
 
@@ -133,21 +219,38 @@ async function main() {
   } else if (args.body) {
     body = String(args.body);
   } else {
-    console.error('[issue-body] 사용법: --stdin | --body-file FILE | --body TEXT (--labels feature | --body-only)');
+    console.error(
+      '[issue-body] 사용법: --stdin | --body-file FILE | --body TEXT '
+      + '(--labels feature | --body-only | --acceptance-only) [--require-complete]',
+    );
     return 1;
   }
 
   const result = validateIssueBody({
     body,
     labels: parseLabels(args.labels),
-    requireLabels: !args['body-only'],
+    requireLabels: !args['body-only'] && !args['acceptance-only'],
+    requireComplete: Boolean(args['require-complete']),
+    acceptanceOnly: Boolean(args['acceptance-only']),
   });
   if (result.ok) {
-    console.log(`[issue-body] PASS — IssueType=${result.issueType}, Priority=${result.priority}`);
+    if (args['acceptance-only']) {
+      if (result.acceptanceCriteria.length === 0) {
+        console.log('[issue-body] PASS — legacy/no AC issue; no acceptance checklist to close');
+      } else {
+        console.log(`[issue-body] PASS — acceptance criteria complete (${result.acceptanceCriteria.length})`);
+      }
+    } else {
+      console.log(`[issue-body] PASS — IssueType=${result.issueType}, Priority=${result.priority}`);
+    }
     return 0;
   }
 
-  console.error('[issue-body] FAIL — issue body pre-create validation failed.');
+  console.error(
+    args['acceptance-only']
+      ? '[issue-body] FAIL — issue acceptance close audit failed.'
+      : '[issue-body] FAIL — issue body pre-create validation failed.',
+  );
   for (const failure of result.failures) {
     console.error(`  - ${failure}`);
   }

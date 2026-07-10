@@ -31,7 +31,8 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 ## 왜 만드나
 
 - PRD/Story 근거와 병렬성보다 동작 슬라이스를 우선한 결정 (1-2줄):
-- Story 마지막 task까지 밀리면 warning / 불가피한 이유 / 후속 검증:
+- 첫 제품 동작 증거가 Story 마지막 task까지 밀리면 warning / 불가피한 이유:
+- Story 마지막 task 한정 — Story AC 전항목 실행 검증 책임과 검증 동선:
 
 ## 디자인 참조
 
@@ -74,12 +75,15 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 
 ## 수용 기준
 
-> 검증은 기본적으로 실행 가능한 명령이다. manual QA 는 명령 변환 불가 사유와 관찰 증거를 같이 적을 때만 허용한다.
+> 제품 REQ 는 Story AC 를 task 실행 언어로 번역하고 출처에 `(from AC-NNN)` 을 반드시 적는다. Story AC 로 환원되지 않는 스키마·인터페이스 형태 같은 소수 기술 계약만 `기술 REQ` + `(technical: <환원 불가 이유>)`로 구분한다. 검증은 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 닫고, 사람 판정 항목은 REQ 에 넣지 않는다.
 
-| REQ | 내용 | 검증 명령 | 통과 조건 |
-|---|---|---|---|
-| REQ-001 |  | `(TEST) <command>` |  |
-| REQ-UI-001 |  | `(MANUAL QA: 명령 변환 불가 사유=<reason>) <관찰 증거>` |  |
+| REQ | 유형 | 내용 | 출처 | 검증 명령 | 통과 조건 |
+|---|---|---|---|---|---|
+| REQ-001 | Story AC |  | `(from AC-001)` | `(TEST) <command>` |  |
+| REQ-002 | Story AC |  | `(from AC-002)` | `(AGENT READ) <관찰 대상과 방법>` |  |
+| REQ-TECH-001 | 기술 REQ |  | `(technical: <Story AC로 환원 불가한 이유>)` | `(TEST) <command>` |  |
+
+> `task_index: i/total` 에서 `i == total` 인 Story 마지막 task 는 해당 Story AC 전항목을 이 표에서 다시 인용하고 실제 실행·관찰하는 종합 검증 REQ 를 둔다. 앞 task 에서 검증한 항목도 마지막 task 전수 검증에서 생략하지 않는다. `story: 공통` task 에는 이 의무를 적용하지 않는다.
 
 ## 주의사항
 

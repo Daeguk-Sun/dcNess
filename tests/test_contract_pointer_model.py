@@ -51,8 +51,8 @@ class ModuleDecisionContractModelTests(unittest.TestCase):
                 self.assertIn("같은 owner directory", text)
                 self.assertIn("file-level", text)
                 self.assertIn("실행 가능한 명령", text)
-                self.assertIn("manual QA", text)
-                self.assertIn("명령 변환 불가 사유", text)
+                self.assertIn("(AGENT READ)", text)
+                self.assertIn("사람 판정", text)
 
     def test_impl_task_scope_narrows_test_grants_to_owner_module_subdir(self) -> None:
         template = read("docs/plugin/agents/module-architect/templates/impl-task.md")

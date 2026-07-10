@@ -219,6 +219,13 @@ case "$EPIC_HEADER_LINE" in
     ;;
 esac
 
+# stories.md 의 안정적인 Story/Epic 수용 기준은 문서에서는 일반 목록으로 유지하고,
+# GitHub issue body 에서만 close 시 체크 가능한 checklist 로 materialize 한다.
+# 검증 주체가 명시된 신규 양식만 변환하며 legacy 기준은 소급 추론하지 않는다.
+EPIC_BODY=$(printf '%s\n' "$EPIC_BODY" | sed -E \
+  -e 's/^\*\*완료 기준\*\* \(epic 단위 수용 기준\):$/**Acceptance criteria:**/' \
+  -e 's/^[0-9]+\.[[:space:]]+(\[(command|agent-read)\].*)$/- [ ] \1/')
+
 # **Base Branch:** 마커 read — stories.md 상단에 있으면 epic issue body 첫 줄로 미러링
 BASE_BRANCH_LINE=$(grep -m1 -E '^\*\*Base Branch:\*\*[[:space:]]+' "$STORIES" || true)
 if [ -n "$BASE_BRANCH_LINE" ]; then
@@ -273,6 +280,8 @@ while IFS= read -r STORY_LINE; do
     $0 ~ next_re && flag { flag=0 }
     flag { print }
   ' "$STORIES")
+  STORY_BODY=$(printf '%s\n' "$STORY_BODY" | sed -E \
+    's/^- (AC-[0-9]{3,} \[(command|agent-read)\]:)/- [ ] \1/')
 
   echo "[issue-create] story $STORY_N 생성 — '$STORY_TITLE'"
   STORY_LABELS=( -l story -l "$VNN" )

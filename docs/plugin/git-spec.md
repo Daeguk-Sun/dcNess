@@ -161,7 +161,7 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
   - `epic-NN-<slug>` = 에픽 풀네임 라벨 (예: `epic-11-design-review`). 미존재 시 GitHub 자동 생성
 - **마일스톤**: `Epics`
 - **제목**: `[epic] <epic 한 줄 요약>`
-- **본문**: 목표 + 선행조건 + **완료 기준 (epic 단위 수용 기준 — 검증 가능한 조건, 사용자가 GitHub UI 에서 확인)**. 진척 체크리스트 X (stories.md 가 SSOT)
+- **본문**: 목표 + 선행조건 + **완료 기준** (epic 단위 수용 기준, `[command]`/`[agent-read]`). stories.md 가 계약 SSOT 이고, 생성 스크립트가 GitHub issue body 에서만 close 감사용 체크리스트로 materialize 한다.
 - **stories.md 기록 (상단)**:
   ```
   **GitHub Epic Issue:** [#NNN](https://github.com/{owner}/{repo}/issues/NNN)
@@ -172,7 +172,7 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
 - **레이블**: `story` + `vNN` + `epic-NN-<slug>` (3중, epic 과 `epic-NN-<slug>` 공유)
 - **마일스톤**: `Story`
 - **제목**: `[story] <story 한 줄 요약>`
-- **본문**: `As a / I want / So that` + `**완료 시 확인 가능한 동작**:` 한 줄 (user story — 줄이 없는 구양식 stories.md 는 그대로 허용). 수용 기준 (Story 단위) / 대상 화면 / 동작 명세 박지 않음 — architecture.md + impl 파일 영역. 태스크 체크리스트 X (stories.md 가 SSOT)
+- **본문**: `As a / I want / So that` + Story AC 목록(`AC-NNN`, Given/When/Then, 검증 주체 `[command]` 또는 `[agent-read]`). `AC-NNN` 은 프로젝트 전역 순번이며 한번 부여하면 불변이다. 생성 스크립트는 GitHub issue body 의 Story AC 에만 미체크 체크박스를 붙여 close 감사를 가능하게 하고, stories.md 원문은 바꾸지 않는다. 사람 판정 항목은 AC 체크박스가 아닌 `사람 확인 안내`로 분리한다. 대상 화면 / 상세 동작 명세 / task 체크리스트는 넣지 않는다 — architecture.md + impl 파일 영역. Story AC 가 없는 구양식 stories.md 는 소급 변환하지 않고 그대로 허용한다.
 - **순서**: epic 생성 완료 후 story 1, 2, … 순차
 - **stories.md 기록**:
   - 각 story 헤더 직하: `**GitHub Issue:** [#MMM](url)`
@@ -238,9 +238,12 @@ stories.md 상단에 `**Base Branch:** feature/<slug>` 마커 박힌 epic (= 통
 
 ## 이슈 완료 규칙
 
+`Closes` 가 발동할 target issue 는 plan이나 Story AC 와 별개의 **target GitHub issue AC** 마감 계약을 가진다. 구현 경로는 plan ∪ target GitHub issue AC 를 충족해야 하며, close 직전 자동 판정 가능한 체크박스를 모두 check 한 body 가 `check_issue_body.mjs --acceptance-only --require-complete` 를 통과해야 한다. 미충족·미체크 AC 가 있으면 PR 을 clean 으로 마감하거나 merge 하지 않는다. 사람 판정 항목은 agent 가 체크하지 않고 human verification 대기로 보고한다.
+
 ### Story 완료
 
 - **구현 완료 조건**: story 의 모든 impl task가 local commit으로 `completed`. PR 생성·머지는 runner state 수명에 영향을 주지 않는다.
+- **close 완료 조건**: task 완료와 별도로 target GitHub issue AC 전항목 충족·체크 감사가 PASS. Story AC 는 REQ 설계 trace 의 원천이고, target GitHub issue AC 는 실제 issue close 계약이다.
 - **단일 story close**: base=`main` story PR body `Closes #story-issue` → merge 시 GitHub 자동 close.
 - **통합 브랜치 close**: story sub-PR은 `Part of`로 누적하고 마지막 통합→main PR에서 story 전부를 일괄 close.
 - 메인 Claude 사후 작업 없음 — stories.md `[x]` 체크 룰 폐기 (2026-05-12, 옛 Step 4.5 동기화 step 폐기, 상세는 git history)

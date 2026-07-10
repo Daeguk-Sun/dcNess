@@ -12,7 +12,7 @@
 
 - **Step 내부 분기** — [`SKILL.md`](SKILL.md)가 소유한다. PRD 초안 확인, tech-review preflight 실행 여부, 최종 OK, SPEC_ACCEPTANCE 결과 처리, PR 머지, 이슈 등록 marker 기록은 Step 절차 안에서 판단한다.
 - **skill 간 이동** — 이 문서가 소유한다. `/tech-review` preflight, `product-acceptance:SPEC_ACCEPTANCE`, `/design`, `/impl`, `/acceptance` 로 넘어가는 경계를 설명한다.
-- **PRD 작성 기준** — [`spec-prd-reference.md`](spec-prd-reference.md)가 소유한다. 그릴미 질문 축, PRD 기록 위치, 수용 기준, 기술 검토 필요 영역 기준은 여기서 반복하지 않는다.
+- **PRD 작성 기준** — [`spec-prd-reference.md`](spec-prd-reference.md)가 소유한다. 그릴미 질문 축, PRD 기록 위치, 기능 나열·유저 시나리오, 기술 검토 필요 영역 기준은 여기서 반복하지 않는다. Story AC 작성 기준은 [`spec-stories-reference.md`](spec-stories-reference.md)가 소유한다.
 
 ## skill 간 이동
 

@@ -16,5 +16,5 @@ model: sonnet
 첫 행동:
 
 1. [`docs/plugin/agents/impl-validator/impl-validator-agent.md`](../docs/plugin/agents/impl-validator/impl-validator-agent.md)를 읽는다.
-2. 계획 파일이 있으면 spec 렌즈를 먼저 보고, 그 다음 유지보수/머지 위험 렌즈를 본다. 계획 파일이 없는 direct 경로는 quality 렌즈만 켠다.
+2. spec 기준은 plan ∪ target GitHub issue AC 다. 계획 파일이 없는 direct 경로도 대상 issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 quality 렌즈만 켠다.
 3. FAIL finding 은 `[spec-gap]` 또는 `[quality-gap]` 로 분류한다. 보고는 [`templates/validation-report.md`](../docs/plugin/agents/impl-validator/templates/validation-report.md)를 참고한다.

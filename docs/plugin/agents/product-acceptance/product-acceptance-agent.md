@@ -10,7 +10,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 
 - mode: `SPEC_ACCEPTANCE`, `STORY_ACCEPTANCE`, `EPIC_ACCEPTANCE`, `RELEASE_ACCEPTANCE` 중 하나
 - 검수 단위: spec / story / epic / release 식별자
-- 기준 문서: `docs/index.md`, `docs/prd.md`, `docs/decisions/`, `docs/epics/<epic>/stories.md`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
+- 기준 문서: `docs/index.md`, 기능·유저 시나리오를 담은 `docs/prd.md`, Story AC·Epic 완료 기준을 담은 `docs/epics/<epic>/stories.md`, `docs/decisions/`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
 - UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
@@ -70,15 +70,16 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 
 `/spec` 완료 직후 호출된다. 좋은 아이디어인지 평가하지 않고, 이후 설계/구현/검수가 가능한 spec 인지 확인한다.
 
-- PRD Must 수용 기준이 binary 로 판단 가능한가.
-- AC-ID 또는 그에 준하는 안정 참조가 있어 구현 문서가 원점을 인용할 수 있는가.
+- PRD 의 기능 나열과 유저 시나리오가 Story 분할의 입력으로 충분히 명확한가. PRD 에 별도 Story 수용 기준을 요구하지 않는다.
+- 각 Story AC 가 binary 로 판단 가능하고 프로젝트 전역 불변 `AC-NNN` 을 가져 구현 문서가 원점을 인용할 수 있는가.
+- Story AC 는 명령 판정 또는 agent 읽기 판정 가능하고, 사람 판정 항목은 `사람 확인 안내`로 분리됐는가.
 - 사용자 또는 reviewer 가 무엇을 확인하면 되는지 검수 증거 기준이 있다.
 - 외부 의존, 권한, 데이터, 보안 질문이 미래 약속으로만 남아 있지 않다.
 - Story / Epic 분할이 acceptance loop 로 회수 가능할 만큼 작고 명확하다.
 - 각 Story 가 완료 시 사용자가 확인 가능한 동작 증분을 명시하는가. 합쳐야만 동작이 나오는 부품 Story 묶음(기능 영역/레이어 분할)은 gap 으로 식별한다. 단, 불가피한 부품 Story(공통 인프라 등)가 어느 후행 Story 에서 그 동작이 확인되는지 명시했으면 gap 이 아니다.
 - Story 순서가 얇은 end-to-end 골격을 앞당기는가. 사용자 확인 가능한 동작이 마지막 Story 까지 밀리는 순서는 gap 으로 식별한다. 단, 불가피한 사유가 epic 완료 기준 근처에 기록돼 있으면 gap 대신 warning 으로 보고한다.
-- PRD 목표와 Must AC 에서 핵심 제품 약속을 먼저 식별하고, 핵심 제품 약속의 첫 end-to-end 동작 검증이 어느 Story 에서 닫히는지 본다. 첫 Story 또는 가능한 한 앞 Story 가 아니라 뒤 Story 로 밀리면 순서 gap 으로 식별한다.
-- 핵심 제품 약속은 PRD가 사용자에게 약속한 최종 산출·전달 경계까지 포함한다. export, upload, publish, download, delivery 같은 최종 사용자 가치 경계가 Must AC에 있으면, 중간 렌더나 미리보기만으로 핵심 제품 약속이 닫혔다고 보지 않는다.
+- PRD 목표·유저 시나리오와 Story AC 에서 핵심 제품 약속을 먼저 식별하고, 핵심 제품 약속의 첫 end-to-end 동작 검증이 어느 Story 에서 닫히는지 본다. 첫 Story 또는 가능한 한 앞 Story 가 아니라 뒤 Story 로 밀리면 순서 gap 으로 식별한다.
+- 핵심 제품 약속은 Story AC 가 사용자에게 약속한 최종 산출·전달 경계까지 포함한다. export, upload, publish, download, delivery 같은 최종 사용자 가치 경계가 Story AC 에 있으면, 중간 렌더나 미리보기만으로 핵심 제품 약속이 닫혔다고 보지 않는다.
 - 각 Story 에 독립적인 하위 동작 증분이 있어도 이 순서 gap 이 자동 해소되지 않는다. 하위 동작 증분은 Story 자체의 증거로 별도 평가하고, 핵심 제품 약속의 end-to-end 검증 위치와 분리해서 판단한다.
 
 ### STORY_ACCEPTANCE
@@ -86,9 +87,10 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 story 구현 완료 직후 호출된다. 해당 story 의 수용 기준이 구현 증거와 연결됐는지 가볍게 확인한다.
 
 - story issue 또는 stories.md 의 story 목적이 구현 PR 과 연결된다.
-- story 에 대응하는 AC / REQ 가 구현 파일, 테스트, smoke 증거 중 하나 이상과 연결된다.
+- stories.md 또는 story issue 의 Story AC 전항목과 그 AC 에서 파생된 REQ 가 구현 파일, 테스트, smoke 증거 중 하나 이상과 연결된다.
 - 핵심 AC 가 동작 증거와 연결된다.
-- stories.md 또는 story issue 에 `완료 시 확인 가능한 동작` 줄이 있으면, 그 동작이 실제 동작 증거로 닫혔는지 대조한다. 줄이 없는 구양식이면 AC 기준으로 본다.
+- Story 마지막 task 가 Story AC 전항목을 실제 실행·관찰한 증거를 대조한다.
+- Story AC 가 없는 구양식에서 `완료 시 확인 가능한 동작` 줄이 있으면, 그 동작이 실제 동작 증거로 닫혔는지 하위호환 기준으로 대조한다.
 - 핵심 AC 의 입력/진행 동선이 대상 사용자에게 적합한 제품 언어로 닫힌다.
 - 테스트나 smoke 증거가 실제 실행 결과로 남아 있다.
 - mock-only green 으로만 닫힌 핵심 AC 를 gap 으로 분리한다.
@@ -100,9 +102,9 @@ story 구현 완료 직후 호출된다. 해당 story 의 수용 기준이 구�
 
 ### EPIC_ACCEPTANCE
 
-epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 PRD Must, cross-story gap, security/ops risk 를 확인한다.
+epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완료 기준과 Story AC 전항목, cross-story gap, security/ops risk 를 확인한다.
 
-- PRD Must AC 가 하나 이상의 story/PR/test evidence 로 닫혔다.
+- Epic 완료 기준과 Story AC 전항목이 하나 이상의 story/PR/test evidence 로 닫혔다.
 - story 사이의 흐름, 상태, 권한, 데이터 ownership 이 서로 어긋나지 않는다.
 - 여러 PR/story 경계를 넘는 통합 동작이 동작 증거로 닫혔다. 각 PR 의 mock-only green 이 모여 있어도 실제 사용자 흐름이 한 번도 검증되지 않았으면 cross-story gap 이다.
 - UI epic 이면 story 별 확정 목업과 최종 구현 화면 증거가 서로 이어지는지 보고, 화면 증거 부재나 cross-story 목업 불일치를 gap 으로 분리한다.
@@ -124,7 +126,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 PRD Must,
 ## 작업 흐름
 
 1. mode 와 검수 단위를 확인한다.
-2. 기준 문서에서 Must AC, 완료 기준, story 목적, release readiness 기준을 추출한다.
+2. 기준 문서에서 Story AC, Epic 완료 기준, PRD 유저 시나리오, release readiness 기준을 추출한다.
 3. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다.
 4. 대상 사용자를 식별하고 핵심 입력/진행 동선이 제품 언어인지, 내부 구현 계약을 사용자에게 떠넘기는지 대조한다.
 5. 충족된 기준, mock-only green 인 기준, 화면 증거 부재 기준, 목업 불일치 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.

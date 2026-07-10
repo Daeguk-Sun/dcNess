@@ -1,6 +1,6 @@
 ---
 name: dcness-impl-validator
-description: Use when dcNess routes impl-validator merge-review work to Codex after implementation to review the merge candidate diff, verify plan fidelity when a plan exists, classify findings as spec-gap or quality-gap, and report PASS/FAIL/ESCALATE read-only.
+description: Use when dcNess routes impl-validator merge-review work to Codex after implementation to review the merge candidate diff, verify plan and target GitHub issue AC fidelity when either exists, classify findings as spec-gap or quality-gap, and report PASS/FAIL/ESCALATE read-only.
 ---
 
 # dcness-impl-validator
@@ -19,6 +19,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 
 - PR 번호, URL, 로컬 diff 맥락, 또는 다중 PR/통합 브랜치의 합쳐진 diff 맥락
 - implementation plan 경로. Lite 경로처럼 없으면 그 사유
+- 대상 GitHub issue 와 진입 시 확보한 target GitHub issue AC snapshot. issue 없는 작업이면 그 사유
 - 변경 파일 목록
 - 호출자가 제공한 테스트 실행 결과
 - 필요하면 retry count, scope note, known constraint
@@ -28,6 +29,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 
 - merge candidate 의 changed code와 diff
 - 계획 문서가 있으면 Must contract, public interface, scope boundary
+- 대상 issue 가 있으면 target GitHub issue AC 와 호출자가 제시한 항목별 실행·관찰 증거
 - 관련 local convention, architecture, domain-model, design token, DB schema
 - design:required UI 작업이면 impl 계획의 `## 디자인 참조`, `docs/design.md`, 확정 목업 경로, 구현 diff 의 theme/component/style 상수
 - 호출자가 제공한 test evidence
@@ -37,9 +39,10 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 
 ### spec 렌즈
 
-계획 파일이 있을 때만 켠다. 계획 파일 없는 Lite 경로에서는 계획 부재 자체를 blocker로 만들지 않고 quality 렌즈만 본다.
+계획 파일 또는 대상 issue 가 있으면 켠다. 대조 기준은 **plan ∪ target GitHub issue AC** 다. 계획 파일 없는 direct 경로도 target issue 가 있으면 spec 렌즈를 켠다. 계획과 대상 issue 가 모두 없는 direct 에서만 계획 부재 자체를 blocker로 만들지 않고 quality 렌즈만 본다.
 
 - 구현이 요청 scope와 맞고 unrelated behavior를 추가하지 않았는가.
+- target GitHub issue AC 전항목이 diff 와 실행·관찰 증거로 충족되는가. plan 이 AC 를 누락하거나 다르게 해석해도 target issue 를 상위 계약으로 판정하는가.
 - Public API, data shape, config key, import boundary가 plan과 맞는가.
 - Async ordering, null/empty input, error propagation, stale state, resource cleanup, security-sensitive handling, user-visible edge case 같은 hidden regression을 고려했는가.
 - design:required UI 작업에서 구현이 목업 디자인 토큰을 실제로 적용했는가. build-worker self-report 와 분리해서 토큰 참조 유무, 스캐폴딩 기본 테마 상수, boilerplate 색 상수 잔존을 정적으로 본다.
@@ -67,7 +70,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 ## 작업 흐름
 
 1. changed code와 diff를 먼저 읽고 merge candidate 범위를 확정한다. 다중 story/epic invocation 에서는 개별 PR 단편보다 합쳐진 diff 를 우선한다.
-2. plan이 있으면 spec 렌즈를 먼저 적용한다. plan이 없으면 Lite 경로로 보고 spec 렌즈를 건너뛴다.
+2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. plan 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
 3. quality 렌즈로 merge blocker를 찾는다.
 4. finding은 `MUST FIX`와 `NICE TO HAVE`로 나눈다.
 5. `MUST FIX`마다 `[spec-gap]` 또는 `[quality-gap]` 를 붙인다. spec-gap 이 하나라도 있으면 IMPL 우선이고, quality-gap 만 있으면 POLISH 경로다.

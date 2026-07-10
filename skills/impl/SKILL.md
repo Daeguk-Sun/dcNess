@@ -46,6 +46,8 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 - 이 repo 의 실제 lint/build/test 명령, PR helper, hook 존재 여부를 확인한다.
 - GitHub issue 번호가 대상이면 구현 실행 전 [`issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#issuelabel-status-lifecycle)에 따라 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 Project `Status=In progress` 도 best-effort 로 미러한다.
 
+GitHub issue 가 대상이면 이 진입 preflight 에서 한 번 읽은 본문을 run 전체의 **target GitHub issue AC** snapshot 으로 재사용한다. 각 AC 에 구현 범위와 검증 증거를 대응시키고, task/commit/validator 단계마다 issue 를 반복 조회하지 않는다. `[command]` 는 명령과 종료코드, `[agent-read]` 는 읽은 산출물·diff·계약과 관찰 사실로 판정한다. 검증 주체 표기가 없는 기존 AC 도 같은 두 부류로 분류해 다룬다. `구현이 완료된다`나 `정상 동작한다` 같은 일반론은 snapshot 에서 구체적인 관측 조건으로 교체해 구현 계약으로 쓰고, issue body 반영은 close 경계의 1회 write 에 포함한다. 구체화에 사용자 판단이 필요하면 추측하지 않는다.
+
 ## Step 0.2 — 파일 경계 override 후보 확인
 
 구현 전 한 번 실행한다.
@@ -111,6 +113,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 - **경계**: 변경 파일이 impl scope / 권한 경계 안에 있어야 한다.
 - **커밋**: green 변경은 독립 검토 가능한 단위 commit 으로 닫는다.
 - **UI**: 확정 목업이 있으면 레이아웃·상태·`design:required` 토큰 정합을 대조하고 보고한다.
+- **target issue AC**: 대상 GitHub issue 가 있으면 target GitHub issue AC 전항목 충족과 자동 판정 가능한 체크박스 전부 check 가 공통 종료 조건이다. 하나라도 미충족·미체크면 `require-complete` 감사가 실패하므로 clean 마감, `Closes` PR 머지, 완료 보고를 금지한다. 이 계약은 계획 파일 유무와 무관하다.
 
 ## Step 3 — 실행 절차
 
@@ -142,9 +145,12 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
    - dcNess plugin 배포물 변경이면 PR body 에 배포 경로 검증을 적는다.
 8. CI / merge policy
    - PR 생성 후 CI 를 확인한다.
+   - CI green 과 최종 review 증거가 확정된 뒤, target issue 를 `Closes` 하는 PR 경계에서 메인이 보관한 AC 증거를 전수 대조한다. `Closes` 대상이 여러 개면 issue 별로 모두 수행한다. 자동 판정 가능한 항목을 모두 충족한 뒤 이슈 본문 체크박스 write 를 issue 별 close 경계에서 한 번 수행하고, 같은 body 를 `node scripts/check_issue_body.mjs --body-file <issue-body.md> --acceptance-only --require-complete` 로 감사한다. 진행 중에는 issue mutation 을 하지 않는다.
    - 머지는 host repo 정책을 따른다. 사용자 승인 대기 정책 repo 에서는 임의 머지하지 않는다.
 
 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다. TDD 게이트는 삭제하지 않는다.
+
+사람이 직접 판정해야 하는 항목은 `Human verification / 사람 확인 안내`에 체크박스 없이 있어야 한다. 기존 이슈의 AC 체크박스에 사람 판정 항목이 남아 있으면 agent 가 체크하지 않는다. 자동 항목을 모두 충족·체크한 뒤 잔여 human verification 목록을 보고하고 merge 전에 정지한다. 이 상태는 구현·자동 검증 실패를 뜻하는 `blocked` 가 아니라 `human verification 대기`다.
 
 ## Sub-agent prompt 작성 checkpoint (#780)
 

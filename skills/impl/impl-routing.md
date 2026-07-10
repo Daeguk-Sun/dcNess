@@ -63,7 +63,9 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 | direct · 메인 직접 | concrete signal 을 읽고 메인 직접 `test -> impl -> test pass` 후 `begin-run impl` → `impl-validator` local diff |
 | design-doc · 메인 직접 | `begin-run impl --design-doc <경로>` 기록 후 받은 설계도로 메인 직접 `test -> impl -> test pass` → `impl-validator` local diff |
 
-일반 `/impl` 도 `impl-validator` 를 호출한다. direct 에서는 계획 파일이 없으므로 quality 렌즈를 중심으로 보고, design-doc 에서는 설계 문서 정합과 quality 렌즈를 모두 본다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.
+일반 `/impl` 도 `impl-validator` 를 호출한다. direct 에 대상 issue 가 있으면 계획 파일이 없어도 spec 렌즈를 켜고 **target GitHub issue AC** 를 대조한다. design-doc 경로의 spec 기준은 plan ∪ target GitHub issue AC 이며, 대상 issue 가 없는 direct 만 quality 렌즈로 검토한다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.
+
+대상 issue 가 있는 경로는 target GitHub issue AC 전항목 충족과 자동 판정 가능한 체크박스 전부 check 후 `check_issue_body.mjs --acceptance-only --require-complete` PASS 까지가 clean 조건이다. 미충족·미체크 AC 가 남으면 clean 마감과 close 발동을 금지한다. agent 가 체크할 수 없는 human verification 은 목록을 보고 merge 전에 정지하며, 이 대기 상태를 `blocked` 로 분류하지 않는다.
 
 ## high-risk warn-don't-block
 
@@ -95,7 +97,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 
 | 단계 | 결론 → 다음 |
 |---|---|
-| direct `impl-validator` | `PASS` → commit/PR/CI · `FAIL`(`[quality-gap]`) → 메인 root-cause 수정 + test 재통과 + impl-validator 재호출(≤3) |
+| direct `impl-validator` | `PASS` → commit/PR/CI · target issue 가 있으면 AC close audit · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정 + test 재통과 + impl-validator 재호출(≤3) |
 | design-doc `impl-validator` | `PASS` → commit/PR/CI · `FAIL`(`[spec-gap]` 포함) → 메인 로직 수정 · `FAIL`(`[quality-gap]`만) → 메인 polish 수정 · 이후 test 재통과 + impl-validator 재호출(≤3) |
 | issue-intake | 사용자 OK → `/to-issue` 후 issue 번호 기준 재진입 · 거부 → 명확화 또는 명시적 direct 진행 |
 

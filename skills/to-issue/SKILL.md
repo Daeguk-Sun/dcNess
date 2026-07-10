@@ -22,7 +22,9 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 - 오래 살아도 유효해야 하므로 구현 파일 경로, line number, 현재 코드 구조에 의존하지 않는다.
 - 무엇을 만들지와 어떤 동작이 되어야 하는지를 쓴다. 어떻게 구현할지는 `/impl` 또는 작업자가 판단한다.
 - 코드 조각, 해결책 지시, layer-by-layer 작업 계획은 기본적으로 넣지 않는다. prototype 의 state machine, schema, type shape 가 prose 보다 결정을 정확히 담는 경우만 짧게 포함하고 prototype 출처를 명시한다.
-- Acceptance criteria 는 각각 독립적으로 검증 가능해야 한다.
+- Acceptance criteria 는 에이전트가 독립적으로 검증하고 완료할 수 있는 항목만 체크박스로 쓴다. command/eval/test 실행으로 판정하면 `[command]`, 산출물·diff·계약을 읽어 판정하면 `[agent-read]` 를 각 항목 앞에 붙인다.
+- 사람의 시각·취향·운영 승인이 필요한 항목은 `Human verification / 사람 확인 안내`에 체크박스 없이 쓴다. agent 가 이 항목을 대신 체크하지 않는다.
+- `구현이 완료된다`, `정상 동작한다`, `works correctly` 같은 일반론은 acceptance criterion 으로 쓰지 않는다. 관측 대상과 통과 조건을 구체적으로 적는다.
 - 큰 계획을 여러 issue 로 나누는 경우 horizontal layer 가 아니라 end-to-end vertical slice 로 나눈다. 완료된 slice 는 독립적으로 demo 또는 검증 가능해야 한다.
 - parent issue 가 있더라도 `/to-issue` 는 parent issue 를 닫거나 임의 수정하지 않는다.
 - UI 성격 issue 는 기준 canvas / 목업 / flow 문서를 본문에 명시한다. 후속 `/impl` 이 이슈만 보고 UI 기준 확보 분기를 통과할 수 있어야 한다.
@@ -45,7 +47,8 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 - 원하는 동작 또는 만들 결과
 - 사용자가 보게 되는 command, API, 문서 공개 노출 범위, config shape, type/field 이름 같은 안정적인 계약
 - UI 성격이면 기준 canvas / 목업 / flow 문서 또는 사용자 제공 이미지·스케치 링크. 시각 구조 불변이면 `목업 없이` 사유
-- 독립적으로 검증 가능한 acceptance criteria
+- 독립적으로 검증 가능한 acceptance criteria 와 `[command]` / `[agent-read]` 분류
+- 필요한 human verification. 사람 확인 항목은 체크박스를 쓰지 않는다.
 - IssueType: [`issue-fields.md`](issue-fields.md)의 `IssueType` 값
 - Priority: [`issue-fields.md`](issue-fields.md)의 `Priority` 값. 단발 등록은 기본값 없이 맥락에서 추론한다 ([`issue-fields.md`](issue-fields.md)의 Priority 추론 가이드).
 - Blocked by: 없음 또는 blocking issue 링크
@@ -85,6 +88,8 @@ gh issue list --state open --search "<핵심 키워드>" --json number,title,lab
 [`templates/issue-brief.md`](templates/issue-brief.md)를 읽고, [`issue-fields.md`](issue-fields.md)의 선택값으로 `{{IssueType}}`, `{{Priority}}` 를 채운다. `{{Priority}}` 는 [`issue-fields.md`](issue-fields.md)의 Priority 추론 가이드로 맥락에서 추론해 채우고, default `major` 로 조용히 수렴시키지 않는다. 템플릿의 섹션 구조를 임의로 축약하지 않는다. 안정적인 계약을 모르면 추측하지 말고 비워두거나 명확화 질문으로 남긴다.
 
 UI 성격 issue 는 `Key interfaces / Contracts` 에 `UI 기준:` 항목을 둔다. 값은 `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, `docs/epics/.../ux-flow.md`, 사용자 제공 이미지·스케치 링크, 또는 `목업 없이(시각 구조 불변 사유=<reason>)` 중 하나다. "나중에 정함" 으로 등록하지 않는다.
+
+Acceptance criteria 체크박스는 agent-verifiable 항목만 두고 각 항목을 `[command]` 또는 `[agent-read]` 로 분류한다. human verification 은 별도 안내 섹션에 체크박스 없이 둔다. 분류를 고를 수 없거나 일반론으로만 쓸 수 있는 항목은 criterion 을 구체화하거나 사람 확인 안내로 옮긴다.
 
 초안을 미리 보여주거나 승인을 기다리지 않는다. 추론한 IssueType/Priority 와 그에 대응하는 repo label 을 그대로 적용해 바로 등록한다. 사용자는 등록된 issue 를 GitHub web 에서 확인하고 수정 요청으로 교정한다.
 
