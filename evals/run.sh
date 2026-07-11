@@ -108,7 +108,13 @@ for case_dir in "$ROOT"/evals/cases/*/; do
     report_file="$case_output/run-$i-report.md"
     judge_file="$case_output/run-$i-judge.md"
 
-    if ! report="$(claude -p "$prompt" --model "$MODEL" --allowedTools "Read" --add-dir "$sandbox" 2>/dev/null)"; then
+    # 하네스 무주입 격리 (#1073) — --safe-mode 가 CLAUDE.md·skills·hooks·MCP·user settings
+    # customization 을 전부 끄고(OAuth 인증은 유지), --tools 가 도구 schema 를 제한한다.
+    # 검수자는 {{REPO_ROOT}} agent 지침을 Read 하고 일부 케이스는 {{CASE_DIR}} fixture 를
+    # 파일명 없이 열거(Glob)해야 하므로 --tools Read Glob + --add-dir "$ROOT"(지침) +
+    # --add-dir "$sandbox"(fixture) 로 repo·fixture 접근만 유지한다. baseline 43,455 → ~3,067.
+    # (--bare 는 OAuth/keychain 을 못 읽어 "Not logged in" 이라 쓰지 않는다.)
+    if ! report="$(claude -p "$prompt" --model "$MODEL" --safe-mode --tools Read Glob --add-dir "$ROOT" --add-dir "$sandbox" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 검수 실행 실패"
       record_eval_result "failed" "report" "" "" 1 0 0 0
       continue
@@ -127,7 +133,10 @@ $expected
 [검수 보고]
 $report"
 
-    if ! grade="$(claude -p "$judge_prompt" --model "$MODEL" 2>/dev/null)"; then
+    # 채점자는 정답표+보고가 프롬프트에 인라인 — repo 접근 0 필요. --safe-mode + --tools ""
+    # 로 customization·도구를 전부 끈다. baseline 실측 43,455 → ~1,857.
+    # (--allowedTools "" 는 permission 만 비우고 tool schema 는 남으므로 쓰지 않는다.)
+    if ! grade="$(claude -p "$judge_prompt" --model "$MODEL" --safe-mode --tools "" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 채점 실행 실패"
       report_chars="${#report}"
       report_bytes="$(byte_len "$report")"
