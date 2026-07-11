@@ -1,4 +1,4 @@
-"""고위험 상태 계약 추적 문서 계약 테스트 (#1046)."""
+"""고위험 상태 계약 추적 문서 계약 테스트 (#1046, #1048)."""
 from __future__ import annotations
 
 import unittest
@@ -113,6 +113,121 @@ class ArchitectureValidatorStateContractTests(unittest.TestCase):
     def test_finding_examples_include_state_contract_false_pass(self) -> None:
         self.assertIn("## 고위험 상태 계약", self.examples)
         self.assertIn("mirror 에 반영되지 않음", self.examples)
+
+
+class ModuleArchitectStateContractTests(unittest.TestCase):
+    """#1048 — module-architect 가 task 분할 전에 상태 계약을 닫는다."""
+
+    def setUp(self) -> None:
+        self.module_architect = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "module-architect"
+            / "module-architect-agent.md"
+        ).read_text(encoding="utf-8")
+        self.impl_template = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "module-architect"
+            / "templates"
+            / "impl-task.md"
+        ).read_text(encoding="utf-8")
+        self.design_skill = (ROOT / "skills" / "design" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        self.parallel_policy = (ROOT / "docs" / "plugin" / "parallel-policy.md").read_text(
+            encoding="utf-8"
+        )
+
+    def test_tracks_cross_story_state_contracts_before_task_split(self) -> None:
+        for needle in (
+            "module-design-principles.md#고위험-상태-계약",
+            "task 를 자르기 전에",
+            "그 절의 적용 가능한 전이",
+            "producer → state owner → persistence/read model → consumer → 제품 증거",
+        ):
+            self.assertIn(needle, self.module_architect)
+
+    def test_reads_stateful_code_surface_and_expands_entrypoints(self) -> None:
+        for needle in (
+            "schema·entity·mapper",
+            "DAO·repository",
+            "sync/reconcile",
+            "관련 테스트",
+            "receiver·observer·worker",
+            "scheduler/job",
+            "system callback",
+            "application/activity lifecycle",
+            "navigation destination",
+        ):
+            self.assertIn(needle, self.module_architect)
+
+    def test_handoff_summary_keeps_semantics_outside_depends_on(self) -> None:
+        self.assertIn(
+            "owner/entrypoint 요약 (entrypoint task 한정 또는 cross-task state producer/consumer task)",
+            self.impl_template,
+        )
+        for needle in (
+            "produced transition",
+            "consumer / consumed state",
+            "validation path",
+        ):
+            self.assertIn(needle, self.impl_template)
+        self.assertIn("`depends_on` 은 순서의 단일 SSOT", self.module_architect)
+        self.assertIn("semantic produces/consumes", self.module_architect)
+        self.assertIn("task 실행 선후의 단일 SSOT", self.parallel_policy)
+        self.assertIn("owner/entrypoint 요약에서 복구", self.parallel_policy)
+        self.assertNotIn(
+            "contract produces/consumes 와 ordering 을 흡수한 단일 SSOT",
+            self.parallel_policy,
+        )
+        self.assertIn(
+            "계약 전문 복제 금지는 task-specific transition·실패 책임·acceptance 생략을 뜻하지 않는다",
+            self.module_architect,
+        )
+
+    def test_revision_audits_preserved_producers_and_consumers(self) -> None:
+        for needle in (
+            "shared state 계약이 바뀌면",
+            "보존 예정 task",
+            "producer/consumer 영향 감사",
+            "영향이 없으면 원문을 보존",
+        ):
+            self.assertIn(needle, self.module_architect)
+
+    def test_design_prompt_requires_the_same_pre_split_pass(self) -> None:
+        self.assertIn("task 분할 전 high-risk cross-story state contract pass", self.design_skill)
+        self.assertIn("producer/consumer 영향 감사", self.design_skill)
+
+    def test_module_architect_behavior_eval_pair_exists(self) -> None:
+        cases = ROOT / "evals" / "cases"
+        bad_prompt = (cases / "module-state-contract-bad" / "prompt.md").read_text(
+            encoding="utf-8"
+        )
+        bad_expected = (
+            cases / "module-state-contract-bad" / "expected.md"
+        ).read_text(encoding="utf-8")
+        good_prompt = (cases / "module-state-contract-good" / "prompt.md").read_text(
+            encoding="utf-8"
+        )
+        good_expected = (
+            cases / "module-state-contract-good" / "expected.md"
+        ).read_text(encoding="utf-8")
+        fixture_text = "\n".join(
+            (cases / case / "fixture.md").read_text(encoding="utf-8")
+            for case in ("module-state-contract-bad", "module-state-contract-good")
+        )
+        self.assertIn("module-architect-agent.md", bad_prompt)
+        self.assertIn("module-architect-agent.md", good_prompt)
+        self.assertIn("same-identity", bad_expected)
+        self.assertIn("producer/consumer scope", bad_expected)
+        self.assertIn("불필요하게 재설계", good_expected)
+        self.assertNotIn("owner/state handoff", fixture_text)
+        self.assertIn("owner/entrypoint 요약", fixture_text)
 
 
 if __name__ == "__main__":

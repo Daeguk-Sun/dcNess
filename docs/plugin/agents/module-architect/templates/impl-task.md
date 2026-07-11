@@ -2,7 +2,7 @@
 design: optional|required
 story: <N|공통>
 task_index: <i>/<total>|—
-depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존 흡수). 선행 없으면 [] 로 명시. 비운 채로 두면(미작성) 미상 → 병렬에서 직렬 강등
+depends_on:             # [<NN-slug>, ...] 선행 task 순서의 단일 SSOT. semantic produces/consumes 는 아래 owner/entrypoint 요약에 기록. 선행 없으면 [] 로 명시. 비운 채로 두면(미작성) 미상 → 병렬에서 직렬 강등
 ---
 
 # <NN-task-slug>
@@ -20,7 +20,7 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 - 읽을 코드:
   -
 
-> 전역 고정 문서 목록을 복제하지 않는다. 단, `docs/conventions.md` 는 코드 변경 task 의 전역 코딩 규약 전달 경로이므로 기본으로 둔다. 선행 task 는 frontmatter `depends_on` 이 단일 SSOT 다 (병렬 독립성 판정 입력).
+> 전역 고정 문서 목록을 복제하지 않는다. 단, `docs/conventions.md` 는 코드 변경 task 의 전역 코딩 규약 전달 경로이므로 기본으로 둔다. 선행 task 순서는 frontmatter `depends_on` 이 단일 SSOT 다 (병렬 독립성 판정 입력). 생산·소비하는 상태 의미는 아래 owner/entrypoint 요약에서 복구한다.
 
 ## 무엇을 만드나
 
@@ -67,10 +67,12 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
   - module: `<module-id>` (`docs/epics/<epic>/architecture.md` 모듈 목록)
   - decision: `docs/decisions/NNNN-slug.md` 또는 해당 없음
 - task 내부 한정 private interface:
-- owner/entrypoint 요약 (entrypoint task 한정; 비-entrypoint task 는 생략):
+- owner/entrypoint 요약 (entrypoint task 한정 또는 cross-task state producer/consumer task):
   - owner flow/module:
-  - entrypoint role:
+  - entrypoint role: # 해당 시
   - state owner:
+  - produced transition:
+  - consumer / consumed state:
   - validation path:
 
 ## 수용 기준
@@ -89,4 +91,5 @@ depends_on:             # [<NN-slug>, ...] 선행 task (contract/ordering 의존
 
 - 모듈 설계 주의: Deep module / DI·의존 주입 / 공개 노출 범위 / 의존 차단 중 이 task 가 반드시 지킬 제약만 적는다.
 - public contract 의미는 module responsibility / public interface 와 decision 문서에 두고, impl 문서에는 링크만 남긴다.
+- 계약 전문을 복제하지 않더라도 이 task가 담당하는 transition, 실패 책임, 검증 acceptance는 생략하지 않는다.
 - 구현 세부(pseudo-code, private helper name, forced test-function name)를 선점하지 않는다.
