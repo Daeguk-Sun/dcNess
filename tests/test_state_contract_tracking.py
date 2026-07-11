@@ -208,11 +208,17 @@ class ModuleArchitectStateContractTests(unittest.TestCase):
         good_expected = (
             cases / "module-state-contract-good" / "expected.md"
         ).read_text(encoding="utf-8")
+        fixture_text = "\n".join(
+            (cases / case / "fixture.md").read_text(encoding="utf-8")
+            for case in ("module-state-contract-bad", "module-state-contract-good")
+        )
         self.assertIn("module-architect-agent.md", bad_prompt)
         self.assertIn("module-architect-agent.md", good_prompt)
         self.assertIn("same-identity", bad_expected)
         self.assertIn("producer/consumer scope", bad_expected)
         self.assertIn("불필요하게 재설계", good_expected)
+        self.assertNotIn("owner/state handoff", fixture_text)
+        self.assertIn("owner/entrypoint 요약", fixture_text)
 
 
 if __name__ == "__main__":

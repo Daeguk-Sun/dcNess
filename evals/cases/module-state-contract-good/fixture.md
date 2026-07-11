@@ -17,7 +17,7 @@
 ## impl task
 
 1. `mirror-sync` (`src/mirror-store/`, `src/provider-gateway/`, `src/timeline-ui/`): source별 insert/full update/delete, failure preservation, duplicate/concurrent idempotence와 최초 import의 timeline 표시를 연결한다. owner/entrypoint 요약과 import→mirror→timeline integration acceptance가 위 decision을 가리킨다.
-2. `status-badge` (`src/timeline-ui/`, `depends_on: [mirror-sync]`): mirror-store가 생산한 same-identity status transition을 소비한다. owner/state handoff와 actual observer→mirror→timeline integration test가 있다.
+2. `status-badge` (`src/timeline-ui/`, `depends_on: [mirror-sync]`): mirror-store가 생산한 same-identity status transition을 소비한다. owner/entrypoint 요약과 actual observer→mirror→timeline integration test가 있다.
 3. `multi-source` (`src/provider-gateway/`, `src/mirror-store/`, `depends_on: [mirror-sync]`): source partition, partial failure preservation, repeated no-change를 검증한다.
 
 각 task scope는 필요한 producer/owner/consumer wiring을 허용하며 module/decision 링크와 실행 가능한 validation path가 있다.
