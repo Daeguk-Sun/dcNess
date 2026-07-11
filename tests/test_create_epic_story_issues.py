@@ -182,6 +182,24 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         self.assertIn("- [ ] AC-001 [command]", gh_log)
         self.assertIn("- [ ] AC-1002 [agent-read]", gh_log)
 
+    def test_story_acceptance_materialize_tolerates_case_and_spacing(self):
+        stories = STORIES_NEW.replace(
+            "- AC-001 [command]:",
+            "-  AC-001 [COMMAND] :",
+        ).replace(
+            "- AC-1002 [agent-read]:",
+            "-   AC-1002   [Agent-Read]  ",
+        )
+
+        result, gh_log, _, _ = self._run(stories, {})
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("- [ ] AC-001 [COMMAND] :", gh_log)
+        self.assertRegex(
+            gh_log,
+            r"- \[ \] AC-1002\s+\[Agent-Read\]\s+Given",
+        )
+
     def test_skips_board_when_no_coords_but_still_creates_issues(self):
         result, gh_log, node_log, _ = self._run(STORIES_NEW, {})
         self.assertEqual(0, result.returncode, result.stderr)

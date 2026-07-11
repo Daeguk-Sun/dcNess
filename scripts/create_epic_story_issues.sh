@@ -281,7 +281,7 @@ while IFS= read -r STORY_LINE; do
     flag { print }
   ' "$STORIES")
   STORY_BODY=$(printf '%s\n' "$STORY_BODY" | sed -E \
-    's/^- (AC-[0-9]{3,} \[(command|agent-read)\]:)/- [ ] \1/')
+    's/^[[:space:]]*-[[:space:]]+(AC-[0-9]{3,}[[:space:]]+\[([Cc][Oo][Mm][Mm][Aa][Nn][Dd]|[Aa][Gg][Ee][Nn][Tt]-[Rr][Ee][Aa][Dd])\])([[:space:]]*:?[[:space:]]+)(.+)$/- [ ] \1\3\4/')
 
   echo "[issue-create] story $STORY_N 생성 — '$STORY_TITLE'"
   STORY_LABELS=( -l story -l "$VNN" )

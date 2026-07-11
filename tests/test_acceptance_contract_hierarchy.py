@@ -177,6 +177,21 @@ class AcceptanceCoverageReporterTests(unittest.TestCase):
         self.assertIn("Unknown AC references: none", result.stdout)
         self.assertIn("Technical REQ: REQ-TECH-001", result.stdout)
 
+    def test_story_ac_inventory_tolerates_case_spacing_and_optional_colon(self) -> None:
+        variant = STORIES.replace(
+            "AC-001 [command]:",
+            "AC-001 [COMMAND] ",
+        ).replace(
+            "AC-002 [agent-read]:",
+            "AC-002   [Agent-Read] :",
+        )
+
+        result = _run_report(variant, {"02-verify.md": FINAL_TASK})
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("Coverage: 2/2 (100.0%)", result.stdout)
+        self.assertIn("Final task coverage: 2/2 (100.0%)", result.stdout)
+
     def test_gaps_are_reported_without_turning_advisory_into_a_blocking_gate(self) -> None:
         incomplete = FINAL_TASK.replace(
             "| REQ-004 | Story AC | source 기록 관찰 | `(from AC-002)` | "
