@@ -199,6 +199,18 @@ class ModuleArchitectStateContractTests(unittest.TestCase):
         ):
             self.assertIn(needle, self.module_architect)
 
+    def test_task_local_interface_detail_does_not_force_system_checkpoint(self) -> None:
+        for needle in (
+            "task-local producer/consumer wiring",
+            "이 보강만으로 `SYSTEM_CHECKPOINT_REQUIRED`를 emit하지 않는다",
+            "바꿔야 하는 **기존** boundary/policy/global decision",
+            "지목할 수 없으면 그 결론을 쓰지 않는다",
+            "identity key, delete namespace, 실패 시 보존 의미",
+            "열린 gap을 둔 채 PASS한다는 뜻이 아니며",
+            "`SPEC_GAP_FOUND`로 보고한다",
+        ):
+            self.assertIn(needle, self.module_architect)
+
     def test_design_prompt_requires_the_same_pre_split_pass(self) -> None:
         self.assertIn("task 분할 전 high-risk cross-story state contract pass", self.design_skill)
         self.assertIn("producer/consumer 영향 감사", self.design_skill)
@@ -226,6 +238,8 @@ class ModuleArchitectStateContractTests(unittest.TestCase):
         self.assertIn("same-identity", bad_expected)
         self.assertIn("producer/consumer scope", bad_expected)
         self.assertIn("불필요하게 재설계", good_expected)
+        self.assertIn("SPEC_GAP_FOUND", bad_prompt)
+        self.assertIn("SPEC_GAP_FOUND", good_prompt)
         self.assertNotIn("owner/state handoff", fixture_text)
         self.assertIn("owner/entrypoint 요약", fixture_text)
 

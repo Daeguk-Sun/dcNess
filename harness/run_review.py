@@ -65,7 +65,7 @@ EXPECTED_FINAL_ENUMS = {
     "module-architect": {None: "PASS"},
     "test-engineer": {None: "PASS"},
     "engineer": {"IMPL": "IMPL_DONE", "POLISH": "POLISH_DONE"},
-    "impl-validator": {None: "PASS"},
+    "impl-validator": {None: "PASS", "CODEBASE_SANITY": "PASS"},
     "architecture-validator": {None: "PASS"},
     "product-acceptance": {None: "PASS"},
     "plan-reviewer": {None: "PASS"},

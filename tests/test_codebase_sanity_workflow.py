@@ -1,0 +1,205 @@
+"""Epic-boundary Codebase Sanity contracts for issue #1062."""
+
+from pathlib import Path
+from tempfile import TemporaryDirectory
+import json
+import unittest
+
+from harness.chain_view import ChainTask, substeps_for
+from harness.hooks import _maybe_emit_continuation_signal
+
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
+class CodebaseSanityWorkflowTests(unittest.TestCase):
+    def test_epic_close_progress_puts_sanity_before_merge_review(self) -> None:
+        task = ChainTask(name="final", engine="build-worker", closes="epic")
+
+        self.assertEqual(
+            substeps_for(task),
+            [
+                "build-worker",
+                "impl-validator:CODEBASE_SANITY",
+                "impl-validator",
+                "product-acceptance:STORY",
+                "product-acceptance:EPIC",
+            ],
+        )
+
+    def test_sanity_pass_continues_to_merge_review_not_acceptance(self) -> None:
+        with TemporaryDirectory() as td:
+            run_dir = Path(td)
+            (run_dir / "impl-validator-CODEBASE_SANITY.md").write_text(
+                "Epic semantic scope clean.\n\nPASS\n", encoding="utf-8"
+            )
+            slot = {
+                "run_id": "run-1062abcd",
+                "run_dir": str(run_dir),
+                "acceptance_required": True,
+            }
+            active = {"run-1062abcd": slot}
+
+            from contextlib import redirect_stdout
+            from io import StringIO
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                blocked = _maybe_emit_continuation_signal(
+                    sid="sid-1062",
+                    rid="run-1062abcd",
+                    slot=slot,
+                    active=active,
+                    last_agent="impl-validator",
+                    last_mode="CODEBASE_SANITY",
+                    base_dir=run_dir,
+                )
+
+        self.assertTrue(blocked)
+        reason = json.loads(stdout.getvalue())["reason"]
+        self.assertIn("begin-step impl-validator", reason)
+        self.assertIn("merge review", reason)
+        self.assertNotIn("begin-step product-acceptance", reason)
+
+    def test_design_sanity_pass_continues_to_cartography_preflight(self) -> None:
+        with TemporaryDirectory() as td:
+            run_dir = Path(td)
+            (run_dir / "impl-validator-CODEBASE_SANITY.md").write_text(
+                "Affected scope clean.\n\nPASS\n", encoding="utf-8"
+            )
+            slot = {
+                "run_id": "run-1062dcba",
+                "run_dir": str(run_dir),
+                "entry_point": "design",
+            }
+            active = {"run-1062dcba": slot}
+
+            from contextlib import redirect_stdout
+            from io import StringIO
+
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                blocked = _maybe_emit_continuation_signal(
+                    sid="sid-1062-design",
+                    rid="run-1062dcba",
+                    slot=slot,
+                    active=active,
+                    last_agent="impl-validator",
+                    last_mode="CODEBASE_SANITY",
+                    base_dir=run_dir,
+                )
+
+        self.assertTrue(blocked)
+        reason = json.loads(stdout.getvalue())["reason"]
+        self.assertIn("Cartography freshness preflight", reason)
+        self.assertNotIn("merge review", reason)
+
+    def test_impl_loop_defines_epic_only_sanity_lifecycle(self) -> None:
+        skill = read("skills/impl-loop/SKILL.md")
+        routing = read("skills/impl-loop/impl-loop-routing.md")
+
+        for text in (skill, routing):
+            self.assertIn("impl-validator:CODEBASE_SANITY", text)
+            self.assertIn("Epic", text)
+            self.assertIn("affected dependency cone", text)
+            self.assertIn("build-worker rework", text)
+            self.assertIn("Sanity부터 재진입", text)
+            self.assertIn("coverage", text)
+            self.assertIn("UNKNOWN", text)
+            self.assertIn("code revision", text)
+            self.assertIn(".dcness-work/codebase-sanity", text)
+            self.assertIn("CARTOGRAPHY_REFRESH", text)
+            self.assertIn("product-acceptance", text)
+
+        self.assertIn("모든 Story/PR", skill)
+        self.assertIn("Epic당 최종 clean candidate 1회", skill)
+
+    def test_validator_modes_preserve_default_scope_and_read_only_boundary(self) -> None:
+        validators = (
+            read("docs/plugin/agents/impl-validator/impl-validator-agent.md"),
+            read("codex/skills/dcness-impl-validator/SKILL.md"),
+        )
+
+        for validator in validators:
+            self.assertIn("CODEBASE_SANITY", validator)
+            self.assertIn("기본 merge-review mode", validator)
+            self.assertIn("affected dependency cone", validator)
+            self.assertIn("framework-reachable", validator)
+            self.assertIn("intentional stub", validator)
+            self.assertIn("planned seam", validator)
+            self.assertIn("coverage", validator)
+            self.assertIn("UNKNOWN", validator)
+            self.assertIn("example/scaffold", validator)
+            self.assertIn("[quality-gap]", validator)
+            self.assertIn("Bash", validator)
+            self.assertIn("읽기 전용", validator)
+
+    def test_replacement_hygiene_is_owned_across_design_build_and_review(self) -> None:
+        architect = read(
+            "docs/plugin/agents/module-architect/module-architect-agent.md"
+        )
+        worker = read("docs/plugin/agents/build-worker/build-worker-agent.md")
+        validator = read(
+            "docs/plugin/agents/impl-validator/impl-validator-agent.md"
+        )
+
+        self.assertIn("replacement/refactor/migration", architect)
+        self.assertIn("제거 후보", architect)
+        self.assertIn("의도적으로 보존", architect)
+
+        for surface in (
+            "call site",
+            "DI binding/provider",
+            "route/deep link",
+            "manifest/framework registration",
+            "resource",
+            "test/fake/fixture",
+            "suppression/deprecation",
+        ):
+            self.assertIn(surface, worker)
+        self.assertIn("이유와 owner", worker)
+        self.assertIn("구현자 보고", validator)
+        self.assertIn("obsolete test/resource", validator)
+        self.assertIn("stale registration", validator)
+
+    def test_next_design_reuses_only_a_current_sanity_receipt(self) -> None:
+        for path in ("skills/design/SKILL.md", "skills/design-system/SKILL.md"):
+            text = read(path)
+            self.assertIn("Codebase Sanity receipt", text)
+            self.assertIn("code tree", text)
+            self.assertIn("affected scope", text)
+            self.assertIn("impl-validator:CODEBASE_SANITY", text)
+            self.assertIn("canonical Root refresh", text)
+            self.assertIn("대신하지", text)
+            self.assertIn("local-only/ignored", text)
+
+    def test_eval_suite_contains_all_sanity_scenarios(self) -> None:
+        cases = {
+            "sanity-lint-green-with-warning": ("exit 0", "warning-free"),
+            "sanity-coverage-unknown": ("UNKNOWN", "test count"),
+            "sanity-framework-entrypoint": ("framework-reachable", "registration"),
+            "sanity-planned-stub": ("planned seam", "자동 삭제"),
+            "sanity-stale-old-path": ("quality-gap", "old path"),
+            "sanity-clean-refactor": ("clean", "PASS"),
+            "sanity-next-design-stale-receipt": ("stale", "affected scope"),
+            "sanity-lifecycle-smoke": (
+                "Sanity PASS → Cartography refresh → 같은 diff+갱신 Root 재검증",
+                "제품 검수",
+            ),
+        }
+
+        for case, needles in cases.items():
+            case_dir = ROOT / "evals" / "cases" / case
+            with self.subTest(case=case):
+                self.assertTrue((case_dir / "prompt.md").is_file())
+                expected = (case_dir / "expected.md").read_text(encoding="utf-8")
+                for needle in needles:
+                    self.assertIn(needle, expected)
+
+
+if __name__ == "__main__":
+    unittest.main()

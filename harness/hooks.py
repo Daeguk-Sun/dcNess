@@ -1494,10 +1494,15 @@ def _maybe_emit_continuation_signal(
     """
     if not last_agent:
         return False
-    acceptance_after_pr = (
-        last_agent == "impl-validator" and slot.get("acceptance_required") is True
+    sanity_review = (
+        last_agent == "impl-validator" and last_mode == "CODEBASE_SANITY"
     )
-    if last_agent in _TERMINAL_AGENTS and not acceptance_after_pr:
+    acceptance_after_pr = (
+        last_agent == "impl-validator"
+        and not sanity_review
+        and slot.get("acceptance_required") is True
+    )
+    if last_agent in _TERMINAL_AGENTS and not acceptance_after_pr and not sanity_review:
         return False
     rdir = slot.get("run_dir")
     if not isinstance(rdir, str) or not rdir:
@@ -1542,7 +1547,19 @@ def _maybe_emit_continuation_signal(
     except Exception:  # nosec B110
         pass  # persist 실패해도 block 자체는 씀 (다음 호출 시 cur_count 만 미증가)
 
-    if acceptance_after_pr:
+    if sanity_review:
+        if slot.get("entry_point") == "design":
+            next_hint = (
+                "CODEBASE_SANITY PASS는 affected scope 재감사만 닫으므로 "
+                "design의 Cartography freshness preflight를 이어가야 함. "
+            )
+        else:
+            next_hint = (
+                "CODEBASE_SANITY PASS는 Epic 누적 코드 감사만 닫으므로 "
+                "`begin-step impl-validator`로 같은 final merge candidate의 일반 merge "
+                "review를 이어가야 함. "
+            )
+    elif acceptance_after_pr:
         next_hint = (
             "이 run 은 story/epic 마감 acceptance 대상이므로 "
             "begin-step product-acceptance 후 inline 검수를 진행해야 함. "

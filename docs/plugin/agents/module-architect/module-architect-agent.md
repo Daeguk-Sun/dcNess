@@ -47,6 +47,15 @@ write는 affected Root route/state/as-built edge만 허용한다. epic architect
 
 ## 판단 축
 
+### replacement/refactor/migration cleanup 계약
+
+module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/migration하는 설계를 만들 때만 cleanup 의미를 impl task에 포함한다. 일반 feature task마다 형식적인 removal 표를 만들지 않는다.
+
+- 기존 표면과 새 표면의 관계, 제거 후보, 의도적으로 보존할 compatibility seam 또는 planned seam을 구현 가능한 수준으로 남긴다.
+- old symbol의 call site 외에도 DI binding/provider, route/deep link, manifest/framework registration, resource, test/fake/fixture, suppression/deprecation 중 해당 표면을 impl scope와 수용 기준에 연결한다.
+- 보존 항목에는 이유와 owner를 남겨 build-worker와 impl-validator가 accidental stale path와 구분할 수 있게 한다.
+- framework reachability나 다음 Epic의 intentional stub 여부가 설계 증거로 판정되지 않으면 삭제를 지시하지 않고 unknown 또는 checkpoint로 올린다.
+
 - task 경계: 한 impl 문서가 한 논리 변경만 다루는가.
 - 자기완결성: 독립 세션이 필요한 파일, 맥락, 계약, 수용 기준을 모두 얻는가.
 - Story AC 추적성: 제품 REQ 마다 `(from AC-NNN)` 출처가 있고 모든 Story AC 가 하나 이상의 REQ 로 커버되는가. 기술 REQ 는 Story AC 로 환원되지 않는 소수 계약이며 이유가 명시되는가.
@@ -57,6 +66,7 @@ write는 affected Root route/state/as-built edge만 허용한다. epic architect
 - 계약 표면 코드 SSOT 대조: brownfield 에서 impl task 가 기존 포트, 도메인 타입, 공개 entrypoint 와 어긋난 새 계약을 전제하지 않는가.
 - 고위험 상태 계약: [`module-design-principles.md#고위험-상태-계약`](../_shared/module-design-principles.md#고위험-상태-계약)에 따라 task 를 자르기 전에 Story 간 공유 identity·state·producer/consumer·transition 을 제품 증거까지 닫았는가.
 - system checkpoint 필요성: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision 변경이 필요하면 module-architect 내부에서 임의로 큰 그림을 확정하지 않고 `SYSTEM_CHECKPOINT_REQUIRED` 로 보고하는가.
+- task-local producer/consumer wiring, 기존 경계 안의 신규 epic-scope interface 상세, 반환 형식, push/pull 같은 구현 선택의 보강만 필요하면 module-architect 자율 범위로 남기는가. 이 보강만으로 `SYSTEM_CHECKPOINT_REQUIRED`를 emit하지 않는다. 해당 결론을 emit하려면 바꿔야 하는 **기존** boundary/policy/global decision을 하나 이상 구체적으로 지목해야 하며, 지목할 수 없으면 그 결론을 쓰지 않는다. 반대로 앞 Story/task가 이미 확정한 identity key, delete namespace, 실패 시 보존 의미를 뒤 Story 때문에 바꿔야 하면 기존 domain invariant/storage policy 변경이므로 checkpoint 대상이다. 자율 보강이 필요하다는 말은 열린 gap을 둔 채 PASS한다는 뜻이 아니며, 현재 run에서 보강을 반영하고 gap이 닫힌 뒤에만 PASS한다. read-only 검토처럼 현재 run에서 보강할 수 없으면 `SPEC_GAP_FOUND`로 보고한다.
 - 구현 여지: 내부 구현을 선점하지 않고 public behavior와 invariant만 고정하는가.
 - 테스트 가능성: 수용 기준이 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 닫히고, 사람 판정 항목은 별도 안내로 분리되는가.
 - 모듈 설계 원칙: 작은 공개 노출 범위, 의존 주입, 의존 차단 증거가 보이는가.
@@ -122,7 +132,7 @@ write는 affected Root route/state/as-built edge만 허용한다. epic architect
 
 ## 결론과 보고
 
-마지막 단락에 `PASS`, `SYSTEM_CHECKPOINT_REQUIRED`, `ESCALATE`, `NEW_DEP_ESCALATE` 중 하나를 명확히 쓴다. 보고에는 작성 파일, task 수, 의존 순서, Story 완료 시 실제 검증되는 동작, 첫 동작 증거 지점, 계약 변경 여부(module/decision), owner/entrypoint 요약 여부, 모듈 설계 원칙 적용 증거를 포함한다. revision mode 보고에는 개정 의도, 영향 산출물, 보존한 impl task, 순서 변경 여부, 파생 drift 체크 결과를 함께 남긴다. `CARTOGRAPHY_REFRESH` mode 보고에는 변경 좌표·before/after·증거·보존 좌표·tracked/local-only 정책과 같은 merge candidate diff와 갱신 Root로 impl-validator 재검증 포인터를 남긴다. `SYSTEM_CHECKPOINT_REQUIRED` 일 때는 바꿔야 하는 기존 모듈 경계·도메인 invariant·storage policy·public API boundary·기존 전역 decision 과 그 근거를 함께 쓴다.
+마지막 단락에 `PASS`, `SYSTEM_CHECKPOINT_REQUIRED`, `SPEC_GAP_FOUND`, `ESCALATE`, `NEW_DEP_ESCALATE` 중 하나를 명확히 쓴다. module-architect 자율 범위의 architecture/decision/owner/scope/acceptance gap이 열린 채 남으면 `SPEC_GAP_FOUND`이며 PASS가 아니다. 보고에는 작성 파일, task 수, 의존 순서, Story 완료 시 실제 검증되는 동작, 첫 동작 증거 지점, 계약 변경 여부(module/decision), owner/entrypoint 요약 여부, 모듈 설계 원칙 적용 증거를 포함한다. revision mode 보고에는 개정 의도, 영향 산출물, 보존한 impl task, 순서 변경 여부, 파생 drift 체크 결과를 함께 남긴다. `CARTOGRAPHY_REFRESH` mode 보고에는 변경 좌표·before/after·증거·보존 좌표·tracked/local-only 정책과 같은 merge candidate diff와 갱신 Root로 impl-validator 재검증 포인터를 남긴다. `SYSTEM_CHECKPOINT_REQUIRED` 일 때는 바꿔야 하는 기존 모듈 경계·도메인 invariant·storage policy·public API boundary·기존 전역 decision 과 그 근거를 함께 쓴다.
 
 ## 템플릿과 참고 문서
 

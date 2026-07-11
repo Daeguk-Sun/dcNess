@@ -25,8 +25,13 @@ flowchart TB
   SEED_REV --> CANVAS_REV[canvas-design / 사용자 PICK]
   CANVAS_REV --> UXPR_REV
   UXPR_REV -->|DESIGN_UX_PR_MERGED| DSYS_REV
-  DSYS --> FRESH[affected capability/entrypoint 현재 코드 freshness preflight]
-  DSYS_REV --> FRESH
+  DSYS --> SANITY[Codebase Sanity receipt ↔ current code tree]
+  DSYS_REV --> SANITY
+  SANITY -->|current receipt| FRESH[affected capability/entrypoint 현재 코드 freshness preflight]
+  SANITY -->|missing/stale| CSA[impl-validator CODEBASE_SANITY affected scope]
+  CSA -->|PASS| FRESH
+  CSA -->|FAIL quality-gap| CLEANUP[/impl cleanup 후 design 재진입]
+  CSA -.->|ESCALATE| U
   FRESH --> TOPO[Step 1 topology 판정]
   TOPO -->|UI epic 또는 UI-less| BOOT{모듈 topology 부재?}
   DUX --> MU{목업 선행 여부}
@@ -61,8 +66,8 @@ flowchart TB
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class DUX,DUX_REV,DSYS,DSYS_REV,FRESH,UX,UX_REV,UXPR,UXPR_REV,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,SEED_REV,CANVAS_REV,MU,DSKIP produce
-  class AV_FINAL verify
+  class DUX,DUX_REV,DSYS,DSYS_REV,FRESH,UX,UX_REV,UXPR,UXPR_REV,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,SEED_REV,CANVAS_REV,MU,DSKIP,CLEANUP produce
+  class CSA,AV_FINAL verify
   class U user
 ```
 
@@ -78,6 +83,7 @@ flowchart TB
 |---|---|
 | **design-ux stage** | `DESIGN_UX_PR_MERGED` → `/design` dispatcher 재판정. 신규 UX stage 는 durable `ux-flow.md` 존재 + full design pack 부재이면 design-system stage, UX revision mode 는 stage 1 revision PR 뒤 design-system revision mode · `ESCALATE` → 사용자 |
 | **design-system stage** | `DESIGN_SYSTEM_PR_MERGED` → `/impl <epic-path>` 안내 · `ESCALATE` → 사용자 |
+| **impl-validator:CODEBASE_SANITY** | stale/missing receipt의 affected scope `PASS` → 메인이 현재 tree identity receipt를 local 경로에 보존하고 Cartography freshness preflight · `FAIL [quality-gap]` → `/impl` cleanup 뒤 새 code revision으로 `/design` preflight 재진입 · `ESCALATE` → 사용자 |
 | **ux-architect** | `UX_FLOW_READY` → 사용자 최종 설계 승인 후 stage 1 PR 생성 → `/design` dispatcher 재판정 · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
 | **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SYSTEM_CHECKPOINT_REQUIRED` → system-architect opt-in checkpoint · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **system-architect(thin bootstrap)** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
@@ -87,6 +93,7 @@ flowchart TB
 
 표만으로 안 풀리는 맥락:
 
+- **Codebase Sanity receipt freshness** — `.dcness-work/codebase-sanity/` local-only/ignored receipt의 code revision/tree identity를 현재 code tree와 대조한다. current면 재사용하고, 부재·stale이면 메인이 현재 명령·exit/warning을 수집한 뒤 `impl-validator:CODEBASE_SANITY`를 affected scope로 재감사한다. receipt는 canonical Root refresh 완료 또는 affected capability/entrypoint 현재 코드 대조를 대신하지 않는다.
 - **Cartography freshness preflight** — stories·Root·관련 global decision에서 affected capability/entrypoint를 식별하고 현재 코드의 runtime entrypoint와 wiring 증거에 대조한다. system boundary, storage policy, shared public boundary, global decision 변경이 명백하면 system checkpoint로 선승격한다. boundary 없는 route/state 갱신은 별도 Cartography 전용 system-architect로 우회하지 않고 module-architect가 bounded하게 처리한다. 놓친 영향은 기존 `SYSTEM_CHECKPOINT_REQUIRED`와 final `SYSTEM_BOUNDARY` finding으로 회수한다.
 - **system-architect(thin bootstrap)** 는 greenfield 첫 설계에서 모듈 topology 가 전혀 없을 때만 module-architect 앞에 1회 들어간다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 스택/전역 decision 기록으로 제한한다. bootstrap 뒤 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다.
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.
