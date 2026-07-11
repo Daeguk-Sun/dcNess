@@ -145,7 +145,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
    - dcNess plugin 배포물 변경이면 PR body 에 배포 경로 검증을 적는다.
 8. CI / merge policy
    - PR 생성 후 CI 를 확인한다.
-   - CI green 과 최종 review 증거가 확정된 뒤, target issue 를 `Closes` 하는 PR 경계에서 메인이 보관한 AC 증거를 전수 대조한다. `Closes` 대상이 여러 개면 issue 별로 모두 수행한다. 자동 판정 가능한 항목을 모두 충족한 뒤 이슈 본문 체크박스 write 를 issue 별 close 경계에서 한 번 수행하고, 같은 body 를 `node scripts/check_issue_body.mjs --body-file <issue-body.md> --acceptance-only --require-complete` 로 감사한다. 진행 중에는 issue mutation 을 하지 않는다.
+   - CI green 과 최종 review 증거가 확정된 뒤, target issue 를 `Closes` 하는 PR 경계에서 메인이 보관한 AC 증거를 전수 대조한다. `Closes` 대상이 여러 개면 issue 별로 모두 수행한다. 자동 판정 가능한 항목을 모두 충족한 뒤 이슈 본문 체크박스 write 를 issue 별 close 경계에서 한 번 수행하고, 같은 body 를 `node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" --body-file <issue-body.md> --acceptance-only --require-complete` 로 감사한다. 진행 중에는 issue mutation 을 하지 않는다.
    - 머지는 host repo 정책을 따른다. 사용자 승인 대기 정책 repo 에서는 임의 머지하지 않는다.
 
 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다. TDD 게이트는 삭제하지 않는다.

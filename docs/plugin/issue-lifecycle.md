@@ -42,7 +42,7 @@ task 는 GitHub 이슈 X — local commit sha 로 추적하고, story/epic 연�
 에이전트 workflow 가 `gh issue create` 를 실행하기 전에는 Issue Brief 본문과 repo label 매핑을 로컬에서 먼저 검증한다. 이 검증은 사람의 GitHub UI issue 생성을 막는 hard gate 가 아니다. 목적은 dcNess/Codex/Claude workflow 가 issue 생성 전에 같은 문서 형식과 IssueType/Priority/label 계약을 따르도록 하는 것이다. Acceptance criteria 체크박스는 `[command]` 또는 `[agent-read]` 로 분류된 agent-verifiable 항목만 허용하고, human verification 은 별도 안내에 체크박스 없이 둔다.
 
 ```bash
-node scripts/check_issue_body.mjs \
+node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
   --body-file <brief.md> \
   --labels "<IssueType>"
 
@@ -105,7 +105,7 @@ Project 미러까지 원하면 `--owner` / `--project` 를 명시하거나 repo 
 close 를 발동하는 PR 의 CI와 최종 review 증거가 확정된 뒤, merge 전 메인은 진입 preflight 에서 한 번 읽어 보관한 target GitHub issue AC snapshot 과 구현·검증 증거를 완료 후보 issue 별로 전수 대조한다. task/story 진행 중 issue 를 다시 조회하거나 수정하지 않는다. close 경계의 기존 GitHub 조회가 있으면 최신 body 확인을 그 호출에 얹고, 자동 판정 가능한 AC 를 모두 충족한 뒤 체크박스 write 를 issue 별로 이 경계에서 한 번 수행한다. 갱신 body 는 각각 다음 명령이 PASS 해야 한다.
 
 ```bash
-node scripts/check_issue_body.mjs \
+node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
   --body-file <issue-body.md> \
   --acceptance-only \
   --require-complete
