@@ -93,6 +93,36 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             self.assertIn("route-only drift가 남아 있으면 PASS하지 않는다", validator)
             self.assertIn("canonical local Root refresh", validator)
 
+    def test_module_architect_owns_the_bounded_refresh_producer_contract(self) -> None:
+        producer = read(
+            "docs/plugin/agents/module-architect/module-architect-agent.md"
+        )
+
+        for needle in (
+            "`CARTOGRAPHY_REFRESH` mode",
+            "affected Root Cartography 좌표",
+            "merge candidate diff",
+            "implementation Cartography impact",
+            "tracked/local-only",
+            "affected Root route/state/as-built edge만",
+            "epic architecture·impl task·system boundary·global decision 재설계 금지",
+            "실제 runtime entrypoint와 제품 동작·검증 증거가 모두 있을 때만 `landed`",
+            "`SYSTEM_CHECKPOINT_REQUIRED`",
+            "같은 merge candidate diff와 갱신 Root로 impl-validator 재검증",
+        ):
+            self.assertIn(needle, producer)
+
+        for workflow in (
+            read("skills/impl/SKILL.md"),
+            read("skills/impl-loop/SKILL.md"),
+        ):
+            self.assertIn(
+                "begin-step module-architect CARTOGRAPHY_REFRESH", workflow
+            )
+            self.assertIn(
+                "end-step module-architect CARTOGRAPHY_REFRESH --prose-file", workflow
+            )
+
     def test_standalone_acceptance_reports_the_next_freshness_producer(self) -> None:
         skill = read("skills/acceptance/SKILL.md")
         routing = read("skills/acceptance/acceptance-routing.md")
@@ -114,6 +144,10 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             "cartography-validator-drift": ("as-built", "route-only refresh"),
             "cartography-acceptance-stale-state": ("landed", "제품 동작"),
             "cartography-lifecycle-smoke": ("design(planned/stub)", "다음 design"),
+            "cartography-producer-contract": (
+                "prewritten refreshed Root fixture 없이",
+                "SYSTEM_CHECKPOINT_REQUIRED",
+            ),
         }
 
         for case, needles in cases.items():
@@ -128,6 +162,14 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
         self.assertTrue((lifecycle / "validation-after-refresh.md").is_file())
         lifecycle_expected = (lifecycle / "expected.md").read_text(encoding="utf-8")
         self.assertIn("bounded refresh → code revalidation → acceptance", lifecycle_expected)
+
+        producer = ROOT / "evals" / "cases" / "cartography-producer-contract"
+        producer_prompt = (producer / "prompt.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "docs/plugin/agents/module-architect/module-architect-agent.md",
+            producer_prompt,
+        )
+        self.assertNotIn("design-root-refreshed.md", producer_prompt)
 
 
 if __name__ == "__main__":

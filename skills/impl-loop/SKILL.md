@@ -193,6 +193,8 @@ story 의 target task 가 completed 될 때마다 메인이 story PR 을 만든�
 
 `CARTOGRAPHY_REFRESH`는 새 agent나 공개 진입점이 아니라 기존 bounded module-architect write 계약을 구현 종료 경계에서 재사용하는 workflow mode다. tracked docs는 현재 branch/PR 정책으로 반영한다. local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local Root를 갱신하거나 exact affected 좌표·상태 증거·다음 producer를 durable impact handoff로 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root refresh 확인 전에는 최종 clean이 아니다. build-worker와 읽기 전용 impl-validator는 docs write를 떠안지 않는다.
 
+producer 호출은 `begin-step module-architect CARTOGRAPHY_REFRESH`로 열고, module-architect prose를 `end-step module-architect CARTOGRAPHY_REFRESH --prose-file <cartography-refresh-prose>`로 기록한다. `PASS` 뒤에만 같은 merge candidate diff와 갱신 Root로 `begin-step impl-validator` 재검증을 열고, `SYSTEM_CHECKPOINT_REQUIRED`이면 Root patch 없이 `/design --revise` 또는 system checkpoint backpressure로 보낸다.
+
 close 를 발동하는 최종 PR 은 CI green, product-acceptance 와 impl-validator PASS 만으로 clean 이 아니다. 이 최종 증거가 확정된 뒤 메인이 `Closes` 대상 story/epic issue 각각의 target GitHub issue AC 전항목 증거를 대조하고 자동 판정 가능한 체크박스를 모두 check 한 뒤, 이슈 본문 write 를 issue 별 close 경계에서 한 번 수행한다. 진행 중 task/story 경계에서는 issue mutation 이나 재조회를 추가하지 않는다. 각 최종 body 는 다음 감사가 PASS 해야 한다.
 
 ```bash

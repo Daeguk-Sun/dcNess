@@ -150,6 +150,7 @@ standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-vali
 6. finding 및 Cartography freshness 수정 루프
    - 최대 3회. finding 의 줄만 고치지 말고 root cause 와 같은 계열 결함을 함께 확인한다.
    - route/state/as-built edge stale은 `module-architect:CARTOGRAPHY_REFRESH` 후 impl-validator 재검증하고, system boundary/global decision 변경은 `/design --revise` 또는 system checkpoint 사용자 backpressure에서 멈춘다.
+   - producer 실행은 `begin-step module-architect CARTOGRAPHY_REFRESH`로 열고, 결과 prose를 `end-step module-architect CARTOGRAPHY_REFRESH --prose-file <cartography-refresh-prose>`로 기록한다. `PASS`이면 같은 merge candidate diff와 갱신 Root로 `begin-step impl-validator` 재검증을 열며, `SYSTEM_CHECKPOINT_REQUIRED`이면 Root patch를 적용하지 않고 backpressure에서 멈춘다.
    - 각 round 마다 lint/build/test 재통과 후 `impl-validator` 재호출.
 7. 단위 commit + PR 생성
    - 의미 단위 커밋 분할은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)이 SSOT 다. hook 우회 금지.
