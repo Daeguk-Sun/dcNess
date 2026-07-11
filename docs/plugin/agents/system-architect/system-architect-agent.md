@@ -131,13 +131,13 @@
 `/migrate-dcness` 가 이미 활성화된 기존 프로젝트에서 전역 docs 공백을 메우려고 호출하는 모드다. 기본(epic) 모드가 PRD·stories·대상 epic 을 전제로 하는 것과 달리, BROWNFIELD 는 그 전제가 없는 상태에서 기존 코드를 진본으로 역설계한다. 아래가 위 절의 전제를 교체한다.
 
 - **입력 교체**: `docs/prd.md`·`stories.md`·대상 epic 경로·`ux-flow.md` 는 입력에서 뺀다. 대신 기존 코드 레이아웃, manifest(`package.json`/`pyproject.toml`/`go.mod`/`Cargo.toml` 등), `README`, 빌드·CI 설정, 실제 entrypoint/adapter 코드를 grep/Read 로 실측한다.
-- **산출물은 전역만**: 코드·manifest 에서 역추론한 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` 수동 섹션(모듈 topology·의존 방향·공개 entrypoint), 관측된 기술 결정을 `docs/decisions/NNNN-slug.md` 초안으로 남긴다. **epic 산출물(`docs/epics/**`), `stories.md`, epic `architecture.md`, `domain-model.md`, impl task 는 만들지 않는다.** epic/story 역분해는 이후 `/spec`·`/design` 이 담당한다.
+- **산출물은 전역만**: 코드·manifest 에서 역추론한 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` Cartography(모듈 topology·의존 방향·runtime entrypoint·stable capability owner·상태/증거·as-built wiring/gotcha), 관측된 기술 결정을 `docs/decisions/NNNN-slug.md` 초안으로 남긴다. 실제 repo-relative 코드 경로와 검증 증거가 있을 때만 `landed`, 자격/seam만 있으면 `stub`으로 기록한다. **epic 산출물(`docs/epics/**`), `stories.md`, epic `architecture.md`, `domain-model.md`, impl task 는 만들지 않는다.** epic/story 역분해는 이후 `/spec`·`/design` 이 담당한다.
 - **ESCALATE 억제**: PRD·stories 부재는 BROWNFIELD 의 정상 전제다. 부재를 이유로 `ESCALATE` 하거나 `NEW_DEP_ESCALATE` 하지 않는다 — 그 공백을 코드 역설계로 메우는 것이 목적이다. 코드에서 안전하게 역추론할 수 없는 실제 모순(예: 한 repo 안에 상충하는 두 스택/빌드 체계가 근거 없이 공존)만 `ESCALATE` 로 남기고 나머지는 최선 역추론으로 채운다.
 - **불확실성 = DRAFT**: 코드 증거로 확정되는 결정은 확정 기록한다. 역추론했으나 코드 근거가 약한 결정은 본문에 `DRAFT` 표기하고 확정 근거 부재를 명시한다. "왜/누구/비즈니스 의도" 처럼 코드에 없는 제품 맥락은 산출하지 않고 메인의 PRD 역추론 단계로 넘긴다(아래 PRD 경계 참조).
 - **채움 대상 vs 사용자 문서 구분**: `/init-dcness` 가 템플릿에서 만든 **빈 seed 문서**(내용 없는 골격 — 예: seed 그대로인 `docs/conventions.md`·`docs/architecture.md`)는 역설계 내용으로 채운다(그것이 목적이다). 반면 **사용자가 이미 쓴 내용이 있는 기존 문서**·산재 문서·비표준 ADR 은 덮어쓰거나 이동하지 않고, 규격 위치/양식으로의 정렬은 초안(diff)으로만 보고해 메인이 사용자 승인 후 적용하게 한다.
 - **PRD 경계 유지**: 권한 경계의 "PRD 수정 금지" 는 BROWNFIELD 에서도 유효하다. PRD 역추론 초안(DRAFT 표기 + 사용자 확인 게이트)은 `/migrate-dcness` 흐름의 메인 Claude 가 담당하고, 본 agent 는 `docs/prd.md` 를 쓰지 않는다.
-- **집계 파생 섹션**: 전역 `docs/index.md` 의 generated 섹션은 기본 모드와 동일하게 직접 편집하지 않고 메인이 `scripts/aggregate_index_map.mjs` 로 갱신하도록 보고한다. 전역 `docs/architecture.md` 요약은 온디맨드 산출물이라 BROWNFIELD 에서도 checked-in freshness 를 전제하지 않는다.
-- **결론**: 마지막 단락에 `PASS`(전역 docs 초안 작성 완료) 또는 코드 모순 시 `ESCALATE` 를 쓴다. 보고에는 작성한 전역 docs 파일, 역추론 근거(어떤 manifest/코드에서 무엇을 도출했는지), `DRAFT` 표기 결정, 기존 문서 충돌 diff 후보를 포함한다.
+- **집계 파생 섹션**: 전역 `docs/index.md` 의 generated 섹션은 기본 모드와 동일하게 직접 편집하지 않고 메인이 `scripts/aggregate_index_map.mjs` 로 갱신하도록 보고한다. 온디맨드 architecture report는 BROWNFIELD에서도 필수 입력이나 as-built 증거가 아니며 checked-in freshness를 전제하지 않는다.
+- **결론**: 마지막 단락에 `PASS`(전역 docs 초안 작성 완료) 또는 코드 모순 시 `ESCALATE` 를 쓴다. 보고에는 작성한 전역 docs 파일, 역추론 근거(어떤 manifest/entrypoint/lifecycle wiring에서 무엇을 도출했는지), Cartography 상태 증거, `DRAFT` 표기 결정, 기존 문서 충돌 diff 후보를 포함한다.
 
 ## 템플릿과 참고 문서
 

@@ -41,7 +41,7 @@ description: 이미 /init-dcness 로 활성화한 기존(brownfield) 프로젝�
 ### 1. system-architect BROWNFIELD — 코드 파생 전역 docs
 
 - Agent 로 `system-architect` 를 **BROWNFIELD 모드**로 호출한다. 지침은 [`system-architect` BROWNFIELD 모드](../docs/plugin/agents/system-architect/system-architect-agent.md#brownfield-모드-역설계-부트스트랩)가 SSOT 다.
-- 산출 대상은 Step 0 에서 (a)/(b) 로 분류된 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` 수동 섹션(모듈 topology·의존 방향·공개 entrypoint), `docs/decisions/NNNN-slug.md` 초안뿐이다. (c) 로 분류된 기존 문서는 채우지 않고 diff 후보로만 보고한다.
+- 산출 대상은 Step 0 에서 (a)/(b) 로 분류된 `docs/conventions.md`(스택·naming·tooling·style), 전역 `docs/architecture.md` Cartography(모듈 topology·의존 방향·runtime entrypoint·stable capability owner·`landed/stub` 상태와 실제 코드/검증 증거·as-built wiring/gotcha), `docs/decisions/NNNN-slug.md` 초안뿐이다. (c) 로 분류된 기존 문서는 채우지 않고 diff 후보로만 보고한다.
 - PRD·stories 가 없어도 ESCALATE 없이 채운다 (그 공백을 메우는 것이 목적). 코드 근거가 약한 결정은 `DRAFT` 로 표기된다.
 
 ### 2. PRD 역추론 초안 (메인) — 필수 사용자 확인 게이트

@@ -290,11 +290,10 @@ function buildSections(reportPath, epics) {
       ]);
       capabilityContractRows.push([
         'module',
-        rebaseMarkdownLinks(row.name, epic.architecturePath, reportPath),
-        rebaseMarkdownLinks(row.name, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.responsibility, epic.architecturePath, reportPath),
-        rebaseMarkdownLinks(row.dependencies, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.name, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.publicSurface, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.dependencies, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.validation, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.decision, epic.architecturePath, reportPath),
         epicLink,
@@ -308,7 +307,6 @@ function buildSections(reportPath, epics) {
         rebaseMarkdownLinks(row.owner, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.producer, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.consumer, epic.architecturePath, reportPath),
-        '-',
         rebaseMarkdownLinks(row.invariant, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.refs, epic.architecturePath, reportPath),
         epicLink,
@@ -338,16 +336,15 @@ function buildSections(reportPath, epics) {
           '종류',
           'Capability / Contract',
           'Owner',
-          '책임 / Producer',
+          '공개 인터페이스 / Producer',
           '의존 / Consumer',
-          '공개 인터페이스',
           '검증 / Invariant',
           '결정 / Refs',
           '소유 에픽',
         ],
         capabilityContractRows.length > 0
           ? capabilityContractRows
-          : [placeholderRow(9)]
+          : [placeholderRow(8)]
       ),
     ],
   ]);

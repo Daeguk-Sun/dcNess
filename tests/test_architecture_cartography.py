@@ -58,12 +58,16 @@ class ArchitectureCartographyContractTests(unittest.TestCase):
         self.assertIn("Application lifecycle이 data observer를 시작", self.root_map)
 
     def test_landed_transition_requires_code_evidence(self) -> None:
-        self.assertIn("Before: `stub`", self.transition)
+        self.assertIn("Before: `planned`", self.transition)
+        self.assertIn("Middle: `stub`", self.transition)
         self.assertIn("After: `landed`", self.transition)
         self.assertIn(
             "app/src/main/kotlin/example/mms/MmsWapPushReceiver.kt", self.transition
         )
         self.assertIn("`landed`로 올리지 않는다", self.transition)
+        self.assertIn(
+            "app/src/test/kotlin/example/sms/SmsReceiverTest.kt", self.root_map
+        )
 
     @unittest.skipUnless(NODE, "node not installed - cartography gates use node")
     def test_fixture_passes_design_and_repo_relative_path_gates(self) -> None:

@@ -4,11 +4,11 @@
 
 ## Runtime entrypoint routes
 
-| 변경 목적 / trigger | 시작 entrypoint (실제 repo-relative 경로) | flow owner | 다음 경계 | 상태 | 관련 상세 지도 | 전역 결정 |
-|---|---|---|---|---|---|---|
-| SMS 수신 | `app/src/main/kotlin/example/sms/SmsReceiver.kt` | SmsIngress | MessageStore | landed | [epic-01 seam](docs/epics/epic-01-sms/architecture.md) | [ADR-0001](docs/decisions/0001-message-routing.md) |
-| MMS WAP push 수신 | `app/src/main/kotlin/example/mms/MmsWapPushReceiver.kt` | MmsIngress | 기존 SmsIngress seam | stub | [epic-01 seam](docs/epics/epic-01-sms/architecture.md), [epic-02 detail](docs/epics/epic-02-mms/architecture.md) | [ADR-0001](docs/decisions/0001-message-routing.md), [ADR-0002](docs/decisions/0002-mms-transport.md) |
-| MMS 송신 | `app/src/main/kotlin/example/mms/MmsSender.kt` | MmsTransport | platform carrier API | planned | [epic-02 detail](docs/epics/epic-02-mms/architecture.md) | [ADR-0002](docs/decisions/0002-mms-transport.md) |
+| 변경 목적 / trigger | 시작 entrypoint (실제 repo-relative 경로) | flow owner | 다음 경계 | 상태 | 상태 증거 | 관련 상세 지도 | 전역 결정 |
+|---|---|---|---|---|---|---|---|
+| SMS 수신 | `app/src/main/kotlin/example/sms/SmsReceiver.kt` | SmsIngress | MessageStore | landed | `app/src/test/kotlin/example/sms/SmsReceiverTest.kt` dispatch contract | [epic-01 seam](docs/epics/epic-01-sms/architecture.md) | [ADR-0001](docs/decisions/0001-message-routing.md) |
+| MMS WAP push 수신 | `app/src/main/kotlin/example/mms/MmsWapPushReceiver.kt` | MmsIngress | 기존 SmsIngress seam | stub | class seam only | [epic-01 seam](docs/epics/epic-01-sms/architecture.md), [epic-02 detail](docs/epics/epic-02-mms/architecture.md) | [ADR-0001](docs/decisions/0001-message-routing.md), [ADR-0002](docs/decisions/0002-mms-transport.md) |
+| MMS 송신 | `app/src/main/kotlin/example/mms/MmsSender.kt` | MmsTransport | platform carrier API | stub | class seam only | [epic-02 detail](docs/epics/epic-02-mms/architecture.md) | [ADR-0002](docs/decisions/0002-mms-transport.md) |
 
 ## Capability routes
 

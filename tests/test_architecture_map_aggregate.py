@@ -67,6 +67,10 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
         self.assertIn("[epic-01-sms]", proc.stdout)
         self.assertIn("[epic-02-mms]", proc.stdout)
         self.assertNotIn("| SmsIngress | SMS receive owner | - | - |", proc.stdout)
+        self.assertIn(
+            "| module | SMS receive owner | SmsIngress | `receiveSms(intent)` | MessageStore | receiver contract test | [ADR-0001](../../docs/decisions/0001-message-routing.md) | [epic-01-sms](../../docs/epics/epic-01-sms/architecture.md) |",
+            proc.stdout,
+        )
 
     def test_generates_report_from_epic_architecture_tables(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -119,7 +123,7 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             )
             self.assertIn("## 공유 계약 인덱스", root_map)
             self.assertIn(
-                "| legacy Contract Ledger | AuthSession | AuthCore | LoginForm | AuthCore | - | session id stable | [ADR-0001](../../docs/decisions/0001-auth.md) | [epic-01-alpha](../../docs/epics/epic-01-alpha/architecture.md) |",
+                "| legacy Contract Ledger | AuthSession | AuthCore | LoginForm | AuthCore | session id stable | [ADR-0001](../../docs/decisions/0001-auth.md) | [epic-01-alpha](../../docs/epics/epic-01-alpha/architecture.md) |",
                 root_map,
             )
 
