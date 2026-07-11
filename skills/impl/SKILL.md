@@ -113,7 +113,18 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 - **경계**: 변경 파일이 impl scope / 권한 경계 안에 있어야 한다.
 - **커밋**: green 변경은 독립 검토 가능한 단위 commit 으로 닫는다.
 - **UI**: 확정 목업이 있으면 레이아웃·상태·`design:required` 토큰 정합을 대조하고 보고한다.
+- **Cartography impact**: 구현 결과에서 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after와 증거, 관련 epic/decision의 변화 여부를 자유 prose로 남긴다. 영향이 없으면 `영향 없음`과 대조한 Root 좌표를 명시한다.
 - **target issue AC**: 대상 GitHub issue 가 있으면 target GitHub issue AC 전항목 충족과 자동 판정 가능한 체크박스 전부 check 가 공통 종료 조건이다. 하나라도 미충족·미체크면 `require-complete` 감사가 실패하므로 clean 마감, `Closes` PR 머지, 완료 보고를 금지한다. 이 계약은 계획 파일 유무와 무관하다.
+
+### Cartography freshness boundary
+
+direct와 design-doc 구현 모두 메인이 작성한 Cartography impact, merge candidate diff, affected Root Cartography 좌표, 관련 epic/decision을 `impl-validator` 입력에 전달한다. `impl-validator`는 읽기 전용이므로 직접 문서를 수정하지 않으며, 메인이 prose를 읽어 다음 세 결과로 분기한다.
+
+- **영향 없음 또는 Root와 일치**: 기존 review/PR 경로를 계속한다.
+- **system boundary는 유지되지만 route/state/as-built edge가 stale**: 기존 `module-architect`를 workflow 내부 `CARTOGRAPHY_REFRESH` producer로 호출한다. affected Root 좌표만 bounded하게 갱신하고 system boundary나 impl task를 재설계하지 않는다. tracked docs는 현재 branch/PR 정책으로 반영하고, local-only/ignored 문서는 code PR에 강제 포함하지 않은 채 canonical local Root를 갱신하거나 exact affected 좌표·상태 증거를 durable impact handoff로 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으며, 그 뒤 같은 merge candidate diff와 갱신된 Root를 `impl-validator`가 재검증해야 한다.
+- **system boundary·global decision 변경**: route-only patch로 흡수하지 않는다. clean 진행을 멈추고 `/design --revise` 또는 system checkpoint backpressure와 영향 범위를 사용자에게 제시한다. 사용자의 구현 지시를 무시한 자동 재설계는 하지 않는다.
+
+standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-validator` 종료 경계가 최소 freshness 책임이다. 미해소 route-only stale이나 system backpressure가 있으면 commit/PR clean 판정으로 진행하지 않는다.
 
 ## Step 3 — 실행 절차
 
@@ -132,11 +143,13 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
    - 하나라도 red 면 commit/PR 로 가지 않는다.
 5. `impl-validator` review
    - `begin-run impl` 또는 `begin-run impl --design-doc <경로>` → `begin-step impl-validator` 로 local diff 를 리뷰한다.
+   - prompt에 merge candidate diff, 메인의 Cartography impact 자유 prose, affected Root Cartography 좌표, 관련 epic/decision을 필요한 만큼 넣는다.
    - provider 가 `codex` 이면 `dcness-codex-validator impl-validator` wrapper 를 사용한다.
    - Codex CLI 부재나 wrapper 비정상 종료 시 Claude `impl-validator` 로 폴백하고 폴백 사실을 보고한다.
    - review-only 다. 코드 수정은 메인이 한다. PASS 전 commit/PR 로 가지 않는다.
-6. finding 수정 루프
+6. finding 및 Cartography freshness 수정 루프
    - 최대 3회. finding 의 줄만 고치지 말고 root cause 와 같은 계열 결함을 함께 확인한다.
+   - route/state/as-built edge stale은 `module-architect:CARTOGRAPHY_REFRESH` 후 impl-validator 재검증하고, system boundary/global decision 변경은 `/design --revise` 또는 system checkpoint 사용자 backpressure에서 멈춘다.
    - 각 round 마다 lint/build/test 재통과 후 `impl-validator` 재호출.
 7. 단위 commit + PR 생성
    - 의미 단위 커밋 분할은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)이 SSOT 다. hook 우회 금지.
@@ -156,7 +169,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 
 `impl-validator` review 를 격리 provider 로 호출하면 `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
-- **대상 + 읽을 진본**: 이슈·설계도·task 파일·diff 등 agent 가 자체 read 할 SSOT 포인터만 둔다.
+- **대상 + 읽을 진본**: 이슈·설계도·task 파일·merge candidate diff·Cartography impact·affected Root Cartography 좌표·관련 epic/decision 등 agent 가 자체 read 할 SSOT 포인터만 둔다.
 - **worktree**: worktree 활성 시 worktree 절대경로를 넣는다.
 - **이 호출 특유**: 진본에 없는 제약·신호만 둔다.
 - **방법 처방 금지**: 구현 방식, 테스트 assert 방식, 알고리즘 같은 방법 처방은 넣지 않는다.

@@ -67,7 +67,7 @@
 - 상태 증거: `landed`는 class·manifest 존재가 아니라 실제 제품 동작과 검증 증거가 있을 때만 인정하는가. 증거가 없으면 기존 `planned/stub/deferred` 상태를 올리지 않는다.
 - route-only refresh: system boundary와 global decision은 그대로인데 affected Root 좌표만 stale하면 필요한 좌표, before/after, 증거를 finding에 남긴다. validator는 docs를 직접 수정하거나 refresh producer를 선택·호출하지 않는다.
 - system backpressure: 모듈 경계, invariant, storage policy, public API boundary, global decision이 바뀌면 route-only refresh로 흡수하지 않고 기존 system checkpoint 또는 `/design` backpressure가 필요하다고 보고한다.
-- 문서 정책: tracked 문서는 repo 계약대로 갱신 여부를 보되, local-only/ignored private docs를 code PR에 포함하라고 요구하지 않는다. 대신 local refresh 또는 durable impact handoff가 다음 경계까지 보존됐는지 확인한다.
+- 문서 정책: tracked 문서는 repo 계약대로 갱신 여부를 보되, local-only/ignored private docs를 code PR에 포함하라고 요구하지 않는다. 대신 canonical local Root refresh 또는 durable impact handoff가 다음 경계까지 보존됐는지 확인한다. durable impact handoff는 freshness 해소가 아니다. 아직 canonical local Root refresh가 적용·확인되지 않은 route-only drift는 producer routing에 필요한 증거가 갖춰진 상태일 뿐이며 PASS하지 않는다.
 
 ### design:required UI 토큰 적용 정적 축
 
@@ -100,7 +100,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - ESCALATE이면 어떤 입력, 권한, diff, 테스트 결과, repo context가 부족한지 명확하다.
 - 계획 파일이 필요하다고 호출자가 명시했는데 실제로 없으면 ESCALATE할 수 있다. 단 direct 경로의 계획 부재는 ESCALATE 사유가 아니다.
 - 다중 story/epic invocation 에서 합쳐진 diff 가 제공되지 않았고 개별 PR 단편만으로는 cross-story 결함을 판단할 수 없으면 ESCALATE할 수 있다.
-- applicable implementation Cartography impact가 있으면 diff·impact 보고·affected Root 좌표·상태 증거를 대조했다. route-only drift나 system backpressure가 남아 있으면 PASS하지 않는다.
+- applicable implementation Cartography impact가 있으면 diff·impact 보고·affected Root 좌표·상태 증거를 대조했다. route-only drift가 남아 있으면 PASS하지 않는다. local-only/ignored 정책에서도 canonical local Root refresh가 확인되지 않고 durable impact handoff만 존재하면 같은 미해소 상태다. system backpressure가 남아 있어도 PASS하지 않는다.
 
 ## 권한 경계
 

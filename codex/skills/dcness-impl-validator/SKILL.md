@@ -70,7 +70,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 - `landed`는 class·manifest만으로 인정하지 않고 실제 제품 동작과 검증 증거를 요구한다. 증거가 없으면 `planned/stub/deferred` 상태를 올리지 않는다.
 - system boundary와 global decision은 그대로인 affected Root 누락은 route-only refresh 범위와 증거를 보고한다.
 - 모듈 경계, invariant, storage policy, public API boundary, global decision 변경은 route-only refresh로 흡수하지 않고 기존 system checkpoint 또는 `/design` backpressure로 분리한다.
-- local-only/ignored private docs를 code PR에 넣으라고 요구하지 않는다. local refresh 또는 durable impact handoff가 다음 경계까지 보존됐는지를 본다.
+- local-only/ignored private docs를 code PR에 넣으라고 요구하지 않는다. canonical local Root refresh 또는 durable impact handoff가 다음 경계까지 보존됐는지를 본다. durable impact handoff는 freshness 해소가 아니다. canonical local Root refresh가 적용·확인되지 않은 route-only drift는 producer routing 증거만 준비된 미해소 상태이므로 PASS하지 않는다.
 
 ### design:required UI 토큰 적용 정적 축
 
@@ -111,7 +111,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - ESCALATE이면 어떤 입력, diff, 테스트 결과, repo context가 부족한지 명확하다.
 - 호출자가 제공하지 않은 테스트 실행 결과를 꾸며 쓰지 않는다.
 - 다중 story/epic invocation 에서 합쳐진 diff 가 제공되지 않았고 개별 PR 단편만으로는 cross-story 결함을 판단할 수 없으면 ESCALATE할 수 있다.
-- applicable implementation Cartography impact가 있으면 diff·impact 보고·affected Root 좌표·상태 증거를 대조했다. as-built drift, 증거 없는 `landed`, 미해소 system backpressure가 있으면 PASS하지 않는다.
+- applicable implementation Cartography impact가 있으면 diff·impact 보고·affected Root 좌표·상태 증거를 대조했다. as-built drift, 증거 없는 `landed`, route-only drift가 남아 있으면 PASS하지 않는다. local-only/ignored 정책에서도 canonical local Root refresh가 확인되지 않고 durable impact handoff만 있으면 같은 미해소 상태다. system backpressure가 남아 있어도 PASS하지 않는다.
 
 ## 권한 경계
 

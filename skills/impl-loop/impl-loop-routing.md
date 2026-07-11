@@ -26,7 +26,10 @@ flowchart TB
   REBRANCH --> BW
   NEXT -->|done + final_story| FPR[마지막 story PR + 최종 main 대상 PR]
   FPR --> IV[impl-validator merged diff review 1회]
-  IV -->|PASS| ACC{close 발동?}
+  IV -->|PASS + 영향 없음 또는 Root와 일치| ACC{close 발동?}
+  IV -->|route/state/as-built edge stale| CR[module-architect CARTOGRAPHY_REFRESH]
+  CR -->|bounded refresh| IV
+  IV -->|system boundary/global decision 변경| DESIGN["/design --revise 또는 system checkpoint backpressure"]
   IV -->|FAIL| FIX[메인 root-cause 수정 + commit append]
   FIX --> IV
   ACC -->|아니오| MERGE[메인 merge]
@@ -35,6 +38,8 @@ flowchart TB
   AC -->|require-complete PASS| MERGE
   AC -.->|미충족·미체크| USER
   PA -->|FAIL auto-fixable| RETRY
+  PA -->|capability 상태 drift route-only| CR
+  PA -->|system boundary/global decision gap| DESIGN
   BW -.->|IMPLEMENTATION_ESCALATE| USER((사용자))
   IV -.->|ESCALATE| USER
   PA -.->|ESCALATE / round 초과 / 비자동 gap| USER
@@ -50,7 +55,8 @@ canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-ste
 | **build-worker** | `PASS` + local commit sha + clean status → `dcness-story-runner mark --status completed --commit <sha>` 후 `next-action` · `TESTS_FAIL` → build-worker rework(≤3) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` → 메인이 같은 worktree cwd 에서 worker 가 남긴 검증 명령 실행, exit 0 이면 PASS 와 동일, 실패면 build-worker rework(≤3), 메인도 실행 불가면 사용자 위임 · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `story-pr` → 직전 story sub-PR 생성·통합 브랜치 merge 후 응답의 `next_task` 를 갱신된 통합 브랜치에서 재분기 · `done` → `final_story` PR 경계를 처리하고 최종 main 대상 PR 생성 + impl-validator · `blocked` / `error` → task note 를 근거로 retry 한도 내 재시도 또는 사용자 위임 |
 | **impl-validator** | merged diff `PASS` → close 발동 여부 확인 · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정. 단일 story PR 은 commit append, story PR 이 2개 이상이거나 이미 머지된 뒤라면 downstream rebase 없이 통합 fix PR 1개 + 재리뷰(≤3) · `ESCALATE` → 사용자 |
-| **product-acceptance** | `PASS` → target GitHub issue AC close audit. story×N 과 epic 대상이면 모두 PASS 필요 · `FAIL` auto-fixable gap → build-worker rework + commit append + impl-validator 재리뷰 + acceptance 재검수(≤3) · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
+| **Cartography freshness** | build-worker Cartography impact + merge candidate diff + affected Root Cartography + 관련 epic/decision이 `영향 없음 또는 Root와 일치` → 기존 경로 · route/state/as-built edge stale → `module-architect:CARTOGRAPHY_REFRESH` bounded refresh + impl-validator 재검증 · system boundary/global decision 변경 → `/design --revise` 또는 system checkpoint backpressure |
+| **product-acceptance** | `PASS` → target GitHub issue AC close audit. story×N 과 epic 대상이면 모두 PASS 필요 · `FAIL` auto-fixable gap → build-worker rework + commit append + impl-validator 재리뷰 + acceptance 재검수(≤3) · capability 상태 drift가 route-only stale → `CARTOGRAPHY_REFRESH` + impl-validator 재검증 + acceptance 재검수 · system boundary/global decision gap → `/design --revise`/checkpoint · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
 | **target GitHub issue AC close audit** | 자동 판정 가능한 AC 전항목 충족·체크 + `check_issue_body.mjs --acceptance-only --require-complete` PASS → merge · 미충족·미체크 → clean 마감 금지, 구현 보강 · human verification 잔여 → 목록 보고 후 merge 전 대기 (`blocked` 아님) |
 
 ## retry 한도
@@ -71,6 +77,8 @@ story/epic close 를 실제 발동하는 PR 의 impl-validator `PASS` 후 · mer
 impl-validator 는 계획 대비 구현 정합과 merge candidate diff 위험을 검토한다. 여러 PR 이 합쳐진 story 동작과 여러 story 가 합쳐진 epic 동작의 사용자 관찰 가능 동작은 마감 product-acceptance 가 맡는다.
 
 여러 task commit 이 합쳐진 story 동작은 story PR 과 acceptance 증거를 함께 보고 판정한다. 여러 story sub-PR 이 합쳐진 epic 동작도 같은 원칙으로 product-acceptance 가 맡는다. product-acceptance 는 개별 task green 이 아니라 story/epic close 시점의 사용자 동작 전체를 검수한다.
+
+Cartography freshness도 같은 close 경계의 Must다. capability 상태 drift, 미해소 route/state/as-built edge, system backpressure가 남으면 최종 clean과 merge로 진행하지 않는다. `CARTOGRAPHY_REFRESH`는 기존 module-architect의 bounded producer mode이며, local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local refresh 또는 durable impact handoff를 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root refresh 확인 전에는 최종 clean이 아니다. build-worker와 읽기 전용 validator가 docs를 직접 수정하지 않는다.
 
 - story close: `STORY_ACCEPTANCE`
 - 여러 story close: `STORY_ACCEPTANCE` 를 story × N

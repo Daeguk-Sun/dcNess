@@ -9,6 +9,8 @@
 
 일반 `/impl` 의 구현 주체는 항상 메인이다. 별도 구현 agent 는 일반 `/impl` 구현자로 호출하지 않는다. 격리되는 것은 review step 이며, `impl-validator` provider 만 local routing 으로 Claude sub-agent 또는 Codex headless wrapper 중 하나를 쓴다. deep task 파일을 headless story/epic runner 로 돌리는 흐름은 [`/impl-loop`](../impl-loop/SKILL.md) 의 영역이다.
 
+구현 후에는 메인의 자유 prose Cartography impact와 merge candidate diff, affected Root Cartography 좌표, 관련 epic/decision을 읽기 전용 `impl-validator`에 함께 전달한다. 이 freshness boundary는 direct와 design-doc 모두 동일하다.
+
 ## 구현 경로 판정 그래프
 
 UI 작업이면 구현 route echo 와 별도로 **UI 기준 확보 분기**를 먼저 본다. 기준 있음(사용자 제공 이미지·스케치·HTML 또는 기존 확정본), 신규 시각 구조 + 기준 없음, 시각 구조 불변의 3분기다. 신규 시각 구조면 목업 선행을 권장하고, 사용자가 동의하면 내부 `canvas-design` 으로 확정 목업을 만든다. 사용자가 "목업 없이" 또는 "그냥 가"라고 하면 `ux-flow` 정도만 참고해 구현한다.
@@ -100,6 +102,16 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 | direct `impl-validator` | `PASS` → commit/PR/CI · target issue 가 있으면 AC close audit · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정 + test 재통과 + impl-validator 재호출(≤3) |
 | design-doc `impl-validator` | `PASS` → commit/PR/CI · `FAIL`(`[spec-gap]` 포함) → 메인 로직 수정 · `FAIL`(`[quality-gap]`만) → 메인 polish 수정 · 이후 test 재통과 + impl-validator 재호출(≤3) |
 | issue-intake | 사용자 OK → `/to-issue` 후 issue 번호 기준 재진입 · 거부 → 명확화 또는 명시적 direct 진행 |
+
+Cartography freshness 결과는 위 PASS/FAIL 의미 안에서 다음처럼 결정적으로 연결한다.
+
+| 결과 | 다음 |
+|---|---|
+| 영향 없음 또는 Root와 일치 | 기존 commit/PR/CI 경로 계속 |
+| system boundary 유지 + route/state/as-built edge stale | `module-architect:CARTOGRAPHY_REFRESH`가 affected Root 좌표만 bounded refresh → 같은 merge candidate diff, 갱신 Root, 관련 epic/decision으로 impl-validator 재검증 |
+| system boundary·global decision 변경 | route-only patch 금지 → clean 진행 중지 → `/design --revise` 또는 system checkpoint backpressure를 사용자에게 제시 |
+
+`CARTOGRAPHY_REFRESH`는 새 공개 진입점이나 새 agent가 아니다. tracked docs는 branch/PR에 포함할 수 있지만 local-only/ignored private docs는 code PR에 강제 포함하지 않는다. canonical local Root 갱신이 불가능하면 affected 좌표, before/after 상태, 증거, 다음 producer를 durable impact handoff로 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으므로 canonical local Root refresh 확인 전에는 PASS하지 않는다. 읽기 전용 validator는 어느 경우에도 문서를 직접 수정하지 않는다.
 
 ## Retry 한도
 
