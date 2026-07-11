@@ -14,6 +14,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
 - UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
+- epic 구현에 대한 build-worker/impl-validator Cartography impact 보고, affected Root Cartography 좌표, tracked/local-only 문서 정책
 - 이전 acceptance 결과가 있으면 gap 재검수 맥락
 
 ## 먼저 읽을 문서
@@ -110,6 +111,9 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - UI epic 이면 story 별 확정 목업과 최종 구현 화면 증거가 서로 이어지는지 보고, 화면 증거 부재나 cross-story 목업 불일치를 gap 으로 분리한다.
 - 여러 story 가 합쳐진 사용자 흐름이 내부 schema/payload 조립이 아니라 대상 사용자의 자연스러운 입력/진행 동선으로 이어진다.
 - 보안/권한/데이터 리스크가 새로 생겼는데 별도 후속 없이 묻히지 않았다.
+- capability 상태 감사: epic이 인수한 `planned`, `stub`, `deferred` capability와 구현 후 `landed` 주장을 affected Root Cartography, 실제 runtime entrypoint, 제품 동작·검증 증거와 대조한다. class·manifest 존재만으로 `landed`를 허용하지 않는다.
+- freshness 분기: 제품 동작은 PASS해도 Root route/state만 stale하면 route-only refresh 범위와 durable impact handoff를 gap으로 남긴다. system boundary/global decision 변경이면 route-only refresh로 흡수하지 않고 기존 system checkpoint 또는 `/design` backpressure로 분리한다.
+- 문서 정책: local-only/ignored private docs를 code PR에 강제 포함하지 않고 local refresh 또는 durable impact handoff가 다음 경계까지 보존됐는지 확인한다.
 - 비용, 성능, migration, 배포 설정 같은 운영 리스크가 출시 판단을 막지 않는지 확인한다.
 - 남은 gap 은 `/impl`, `/design`, `/spec`, `/ux`, `/to-issue`, 사용자 위임 같은 후속으로 분기 가능하게 쓴다.
 - 성능 병목 / 리팩토링 필요는 `/to-issue` 후보 + `/impl` 또는 `/design` 으로 제안한다.
@@ -127,7 +131,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 
 1. mode 와 검수 단위를 확인한다.
 2. 기준 문서에서 Story AC, Epic 완료 기준, PRD 유저 시나리오, release readiness 기준을 추출한다.
-3. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다.
+3. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다. EPIC_ACCEPTANCE이면 epic이 인수한 capability의 상태 before/after, affected Root 좌표, 실제 동작·검증 증거도 함께 대조한다.
 4. 대상 사용자를 식별하고 핵심 입력/진행 동선이 제품 언어인지, 내부 구현 계약을 사용자에게 떠넘기는지 대조한다.
 5. 충족된 기준, mock-only green 인 기준, 화면 증거 부재 기준, 목업 불일치 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.
 6. gap 이 있으면 기준 문서, 증거, 누락 사실, 후속 분기를 함께 쓴다.
@@ -146,6 +150,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - 자동으로 issue 를 만들지 않는다. gap issue 생성이 필요하면 `/to-issue` 사용자 승인 후속으로 분기만 제안한다.
 - 사람 full E2E 는 MVP acceptance 범위 밖이다. 사람 E2E 부재만으로 story acceptance 를 FAIL 로 만들지 않는다. 대신 자동 동작 증거가 핵심 AC 를 닫는지 본다.
 - 파일/라인/링크 근거가 없으면 추측하지 않는다.
+- EPIC_ACCEPTANCE에서 증거 없는 `landed`, 미해소 route-only refresh, system boundary backpressure가 있으면 사용자 동작 PASS만으로 전체 PASS하지 않는다.
 
 ## 권한 경계
 
@@ -165,6 +170,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - gap 별 후속 분기
 - UI story/epic 이면 확정 목업 경로, 구현 화면 스크린샷 또는 화면 증거 경로, UI 목업 정합 판정 결과
 - STORY / EPIC 검수 보고에는 사용자가 지금 직접 확인할 수 있는 실행 동선(실행 명령, 화면 진입 경로 등) 안내. 호출자 제공 증거에서 확인된 동선만 쓰고, 불명이면 불명이라고 쓴다. 확인 가능한 동작이 아직 없으면 그 사실을 쓴다.
+- EPIC 검수 보고에는 epic이 인수한 capability 상태, affected Root 좌표, 상태 증거, route-only refresh 또는 system backpressure 여부를 포함한다.
 
 마지막 단락에는 `PASS`, `FAIL`, `ESCALATE` 중 하나를 쓴다.
 
