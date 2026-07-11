@@ -71,6 +71,8 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             "| module | SMS receive owner | SmsIngress | `receiveSms(intent)` | MessageStore | receiver contract test | [ADR-0001](../../docs/decisions/0001-message-routing.md) | [epic-01-sms](../../docs/epics/epic-01-sms/architecture.md) |",
             proc.stdout,
         )
+        epic_map = _section(proc.stdout, "에픽 간 지도")
+        self.assertEqual(epic_map.count("[ADR-0002]"), 1)
 
     def test_generates_report_from_epic_architecture_tables(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

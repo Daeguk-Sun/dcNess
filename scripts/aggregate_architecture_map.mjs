@@ -177,6 +177,20 @@ function uniqueNonBlank(values) {
   return [...new Set(values.filter((value) => !isBlankish(value)))];
 }
 
+function splitDecisionRefs(value) {
+  const text = String(value ?? '').trim();
+  if (isBlankish(text)) return [];
+
+  const markdownLinkPattern = /\[[^\]]+\]\([^)]+\)/g;
+  const links = [...text.matchAll(markdownLinkPattern)].map((match) => match[0]);
+  const remainder = text
+    .replace(markdownLinkPattern, '')
+    .split(/[,;]/)
+    .map((part) => part.trim())
+    .filter((part) => !isBlankish(part));
+  return [...links, ...remainder];
+}
+
 function parseEpicArchitecture(root, epicDirName) {
   const epicDir = join(root, 'docs', 'epics', epicDirName);
   const architecturePath = join(epicDir, 'architecture.md');
@@ -215,8 +229,8 @@ function parseEpicArchitecture(root, epicDirName) {
   const legacyDecisionRows = parseMarkdownTable(extractSection(content, 'Decisions'))
     .map((row) => pick(row, ['Decision', 'decision']));
   const decisionRows = uniqueNonBlank([
-    ...moduleRows.map((row) => row.decision),
-    ...legacyDecisionRows,
+    ...moduleRows.flatMap((row) => splitDecisionRefs(row.decision)),
+    ...legacyDecisionRows.flatMap(splitDecisionRefs),
   ]);
 
   return {
