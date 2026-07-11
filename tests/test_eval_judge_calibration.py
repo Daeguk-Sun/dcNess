@@ -15,6 +15,24 @@ SCRIPT = ROOT / "evals" / "calibrate_judge.py"
 
 
 class JudgeCalibrationTests(unittest.TestCase):
+    def _command(
+        self,
+        run_dir: Path,
+        *extra: str,
+        golden_version: str = "test-golden-v1",
+        subset_version: str = "test-subset-v1",
+    ) -> list[str]:
+        return [
+            sys.executable,
+            str(SCRIPT),
+            str(run_dir),
+            "--expect-golden-version",
+            golden_version,
+            "--expect-subset-version",
+            subset_version,
+            *extra,
+        ]
+
     def _golden(
         self,
         *,
@@ -74,13 +92,7 @@ class JudgeCalibrationTests(unittest.TestCase):
             )
 
             result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    str(run_dir),
-                    "--min-agreement",
-                    "1.0",
-                ],
+                self._command(run_dir, "--min-agreement", "1.0"),
                 cwd=str(ROOT),
                 capture_output=True,
                 text=True,
@@ -119,14 +131,7 @@ class JudgeCalibrationTests(unittest.TestCase):
             )
 
             result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    str(run_dir),
-                    "--json",
-                    "--min-agreement",
-                    "1.0",
-                ],
+                self._command(run_dir, "--json", "--min-agreement", "1.0"),
                 cwd=str(ROOT),
                 capture_output=True,
                 text=True,
@@ -163,7 +168,7 @@ class JudgeCalibrationTests(unittest.TestCase):
             golden.write_text(json.dumps(pending), encoding="utf-8")
 
             pending_result = subprocess.run(
-                [sys.executable, str(SCRIPT), str(run_dir)],
+                self._command(run_dir),
                 cwd=str(ROOT),
                 capture_output=True,
                 text=True,
@@ -171,7 +176,7 @@ class JudgeCalibrationTests(unittest.TestCase):
             del pending["golden_version"]
             golden.write_text(json.dumps(pending), encoding="utf-8")
             unversioned_result = subprocess.run(
-                [sys.executable, str(SCRIPT), str(run_dir)],
+                self._command(run_dir),
                 cwd=str(ROOT),
                 capture_output=True,
                 text=True,
@@ -207,7 +212,7 @@ class JudgeCalibrationTests(unittest.TestCase):
             report.write_text("different blind report\n", encoding="utf-8")
 
             result = subprocess.run(
-                [sys.executable, str(SCRIPT), str(run_dir), "--json"],
+                self._command(run_dir, "--json"),
                 cwd=str(ROOT),
                 capture_output=True,
                 text=True,
@@ -242,7 +247,7 @@ class JudgeCalibrationTests(unittest.TestCase):
             )
 
             result = subprocess.run(
-                [sys.executable, str(SCRIPT), str(run_dir), "--json"],
+                self._command(run_dir, "--json"),
                 cwd=str(ROOT),
                 capture_output=True,
                 text=True,
@@ -281,13 +286,7 @@ class JudgeCalibrationTests(unittest.TestCase):
             )
 
             result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    str(run_dir),
-                    "--expect-subset-version",
-                    "different-subset-v2",
-                ],
+                self._command(run_dir, subset_version="different-subset-v2"),
                 cwd=str(ROOT),
                 capture_output=True,
                 text=True,
@@ -295,6 +294,59 @@ class JudgeCalibrationTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("subset version mismatch", result.stderr)
+
+    def test_expected_versions_are_required(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "/tmp/not-used"],
+            cwd=str(ROOT),
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("--expect-golden-version", result.stderr)
+        self.assertIn("--expect-subset-version", result.stderr)
+
+    def test_incomplete_judge_output_is_unmeasured_even_at_zero_threshold(self) -> None:
+        with TemporaryDirectory() as td:
+            run_dir = Path(td)
+            case_dir = run_dir / "incident-case"
+            case_dir.mkdir()
+            report = case_dir / "run-1-report.md"
+            report.write_text("blind report\n", encoding="utf-8")
+            (case_dir / "run-1-judge.md").write_text(
+                "OK E1\n", encoding="utf-8"
+            )
+            (run_dir / "judge-golden.json").write_text(
+                json.dumps(
+                    self._golden(
+                        case="incident-case",
+                        run=1,
+                        report=report,
+                        expectations={"E1": "OK", "E2": "OK"},
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            result = subprocess.run(
+                self._command(run_dir, "--json", "--min-agreement", "0.0"),
+                cwd=str(ROOT),
+                capture_output=True,
+                text=True,
+            )
+
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        payload = json.loads(result.stdout)
+        self.assertEqual(payload["artifacts"][0]["status"], "판정 불가")
+        self.assertEqual(payload["artifacts"][0]["comparisons"], 0)
+        self.assertEqual(
+            payload["invalid_artifacts"][0]["reason"],
+            "judge_output_incomplete",
+        )
+        self.assertEqual(
+            payload["invalid_artifacts"][0]["missing"], ["E2", "RESULT"]
+        )
 
 
 if __name__ == "__main__":

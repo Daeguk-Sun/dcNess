@@ -18,9 +18,46 @@ CASE_FILTER="${EVAL_CASES:-}"
 
 command -v claude >/dev/null 2>&1 || { echo "[eval] claude CLI 가 필요하다"; exit 2; }
 
+case_is_available() {
+  local needle="$1"
+  local available_dir
+  for available_dir in "$ROOT"/evals/cases/*/; do
+    [ "$(basename "$available_dir")" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+if [ -n "$CASE_FILTER" ]; then
+  selected_count=0
+  for selected_case in $CASE_FILTER; do
+    selected_count=$((selected_count + 1))
+    case_is_available "$selected_case" || {
+      echo "[eval] 선택 케이스 없음: $selected_case" >&2
+      exit 2
+    }
+  done
+  [ "$selected_count" -gt 0 ] || {
+    echo "[eval] 선택 케이스가 비어 있음" >&2
+    exit 2
+  }
+fi
+
 overall_fail=0
 mkdir -p "$OUTPUT_DIR"
 echo "[eval] output: $OUTPUT_DIR"
+
+# Report agent에는 지침을 읽을 최소 snapshot만 노출한다. repo 전체를 --add-dir로 주면
+# evals/golden/**의 사람 판정과 이유를 탐색할 수 있어 blind report가 오염된다.
+instruction_root="$(mktemp -d "${TMPDIR:-/tmp}/dcness-eval-instructions-XXXXXX")"
+sandbox=""
+cleanup() {
+  [ -z "$sandbox" ] || rm -rf -- "$sandbox"
+  rm -rf -- "$instruction_root"
+}
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+cp -R "$ROOT/docs" "$ROOT/skills" "$ROOT/agents" "$instruction_root/"
 
 is_strict_case() {
   local needle="$1"
@@ -113,7 +150,7 @@ for case_dir in "$ROOT"/evals/cases/*/; do
     cp -R "$f" "$sandbox/"
   done
 
-  prompt="$(sed -e "s|{{REPO_ROOT}}|$ROOT|g" -e "s|{{CASE_DIR}}|$sandbox|g" "$case_path/prompt.md")"
+  prompt="$(sed -e "s|{{REPO_ROOT}}|$instruction_root|g" -e "s|{{CASE_DIR}}|$sandbox|g" "$case_path/prompt.md")"
   expected="$(cat "$case_path/expected.md")"
   pass=0
 
@@ -123,11 +160,11 @@ for case_dir in "$ROOT"/evals/cases/*/; do
 
     # 하네스 무주입 격리 (#1073) — --safe-mode 가 CLAUDE.md·skills·hooks·MCP·user settings
     # customization 을 전부 끄고(OAuth 인증은 유지), --tools 가 도구 schema 를 제한한다.
-    # 검수자는 {{REPO_ROOT}} agent 지침을 Read 하고 일부 케이스는 {{CASE_DIR}} fixture 를
-    # 파일명 없이 열거(Glob)해야 하므로 --tools Read Glob + --add-dir "$ROOT"(지침) +
-    # --add-dir "$sandbox"(fixture) 로 repo·fixture 접근만 유지한다. baseline 43,455 → ~3,067.
+    # 검수자는 격리된 instruction snapshot의 agent 지침을 Read 하고 일부 케이스는
+    # {{CASE_DIR}} fixture 를 파일명 없이 열거(Glob)해야 하므로 --tools Read Glob +
+    # --add-dir "$instruction_root"(지침) + --add-dir "$sandbox"(fixture)만 유지한다.
     # (--bare 는 OAuth/keychain 을 못 읽어 "Not logged in" 이라 쓰지 않는다.)
-    if ! report="$(claude -p "$prompt" --model "$MODEL" --safe-mode --tools Read Glob --add-dir "$ROOT" --add-dir "$sandbox" 2>/dev/null)"; then
+    if ! report="$(cd "$instruction_root" && claude -p "$prompt" --model "$MODEL" --safe-mode --tools Read Glob --add-dir "$instruction_root" --add-dir "$sandbox" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 검수 실행 실패"
       record_eval_result "failed" "report" "" "" 1 0 0 0
       continue
@@ -149,7 +186,7 @@ $report"
     # 채점자는 정답표+보고가 프롬프트에 인라인 — repo 접근 0 필요. --safe-mode + --tools ""
     # 로 customization·도구를 전부 끈다. baseline 실측 43,455 → ~1,857.
     # (--allowedTools "" 는 permission 만 비우고 tool schema 는 남으므로 쓰지 않는다.)
-    if ! grade="$(claude -p "$judge_prompt" --model "$MODEL" --safe-mode --tools "" 2>/dev/null)"; then
+    if ! grade="$(cd "$instruction_root" && claude -p "$judge_prompt" --model "$MODEL" --safe-mode --tools "" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 채점 실행 실패"
       report_chars="${#report}"
       report_bytes="$(byte_len "$report")"
@@ -179,6 +216,7 @@ $report"
   done
 
   rm -rf "$sandbox"
+  sandbox=""
   echo "[eval] $case_name — 정답 $pass/$RUNS"
   [ "$pass" -gt 0 ] || overall_fail=1
   if [ "$RELEASE_CHECK" = "1" ] && is_strict_case "$case_name" && [ "$pass" -ne "$RUNS" ]; then

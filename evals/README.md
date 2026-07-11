@@ -39,11 +39,11 @@ EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonne
 EVAL_OUTPUT_DIR=/tmp/dcness-evals bash evals/run.sh # 산출물 저장 위치 지정
 
 # judge 보정 — blind report 생성 후 사람이 versioned golden을 작성·확인한다
-python3 evals/calibrate_judge.py .metrics/evals/run-YYYYMMDDTHHMMSSZ-PID
-python3 evals/calibrate_judge.py /tmp/dcness-evals --golden /tmp/dcness-evals/judge-golden.json --min-agreement 0.9 --report-file /tmp/dcness-evals/judge-calibration.md
+python3 evals/calibrate_judge.py .metrics/evals/run-YYYYMMDDTHHMMSSZ-PID --expect-golden-version example-human-v1 --expect-subset-version example-subset-v1
+python3 evals/calibrate_judge.py /tmp/dcness-evals --golden /tmp/dcness-evals/judge-golden.json --expect-golden-version example-human-v1 --expect-subset-version example-subset-v1 --min-agreement 0.9 --report-file /tmp/dcness-evals/judge-calibration.md
 
 # 저장된 core 후보 — owner 확인 전에는 의도적으로 exit 2
-python3 evals/calibrate_judge.py evals/calibration/core-incidents-v1 --golden evals/golden/core-incidents-v1.json --expect-subset-version core-incidents-v1
+python3 evals/calibrate_judge.py evals/calibration/core-incidents-v1 --golden evals/golden/core-incidents-v1.json --expect-golden-version core-incidents-v1-human-v1 --expect-subset-version core-incidents-v1
 ```
 
 `guard_efficacy.py` 는 범주별 pass/fail count 를 출력한다. `provider-agnostic-order-gate`
@@ -90,14 +90,14 @@ Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
    소유자 확인 전 `verification_status`는 `pending_owner_confirmation`으로 두며 이 상태는 PASS할 수 없다.
    `result` 는 생략 가능하다. 생략하면 모든 기대가 `OK` 일 때 `PASS`, 하나라도 `MISS` 면
    `FAIL` 로 파생한다.
-3. `python3 evals/calibrate_judge.py <run-dir>` 를 실행한다. 기본 임계는 `--min-agreement 1.0`
+3. `python3 evals/calibrate_judge.py <run-dir> --expect-golden-version <version> --expect-subset-version <version>` 를 실행한다. 두 expected version은 필수이며, 기본 임계는 `--min-agreement 1.0`
    이며, 일치도가 임계 미만이면 `judge_review_candidate: YES` 로 표시하고 exit 1 을 반환한다.
    임계는 `--min-agreement 0.9` 처럼 조정할 수 있다.
 
 전체 schema 예시는 [`judge-golden.example.json`](judge-golden.example.json)에 있다. 필수 상위 필드는
 `schema_version: 2`, `golden_version`, `subset_version`, `verification_status`, `measurement`, `labels`다.
 각 label은 `report_sha256`, 기대별 `OK`/`MISS`, 같은 기대 ID의 사람 판단 이유를 가져야 한다.
-golden version이나 subset version이 기대값과 다르거나 report digest가 달라지면 calibration은
+필수 expected golden/subset version이 실제 값과 다르거나 report digest가 달라지면 calibration은
 `판정 불가`와 exit 2를 반환하며 PASS하지 않는다.
 
 `case` + `run` 은 `<run-dir>/<case>/run-<run>-judge.md` 를 가리킨다. 특수 경로를 비교할 때는
@@ -117,7 +117,10 @@ attempt 수를 보여준다. 사람이 report 자체에서 `MISS`로 판정한 �
 
 실행은 2단이다: (1) 블라인드 검수 — `prompt.md` 의 prompt 로 agent 를 실행하되 기대 결과를 누설하지 않는다. fixture 는 정답표를 뺀 불투명 이름의 sandbox 로 복사해 전달한다. (2) judge 채점 — 검수 보고와 정답표만 주고 기대별 OK/MISS 를 판정시킨다.
 
-블라인드의 한계: 검수 agent 는 지침 문서를 읽기 위해 repo 접근 권한을 가지므로, 일부러 `evals/cases/**` 의 정답표를 찾아가 읽는 것까지 막지는 않는다. 본 eval 의 위협 모델은 우리 자신의 지침 회귀 측정이지 적대 agent 방어가 아니다 — prompt 가 지시하지 않은 경로 탐색이 의심되면 judge 입력의 검수 보고에서 근거 인용을 확인한다.
+블라인드 검수 agent는 원본 repo가 아니라 `docs/`, `skills/`, `agents/`만 복제한 임시
+instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sandbox만 추가로 읽는다.
+따라서 `evals/cases/**`, `evals/golden/**`, calibration 산출물과 원본 repo는 Read/Glob
+접근 범위에 들어가지 않는다. judge는 정답표와 보고를 인라인으로 받고 도구를 쓰지 않는다.
 
 ## 케이스 추가 절차 — 사고 1건 = 케이스 1개
 

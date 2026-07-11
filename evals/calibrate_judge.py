@@ -241,7 +241,7 @@ def calibrate(
     comparisons = 0
     mismatches: list[dict[str, Any]] = []
     missing_artifacts: list[str] = []
-    invalid_artifacts: list[dict[str, str]] = []
+    invalid_artifacts: list[dict[str, Any]] = []
     behavior_regressions: list[dict[str, str]] = []
     artifacts: list[dict[str, Any]] = []
 
@@ -286,6 +286,30 @@ def calibrate(
             )
             continue
         actual = parse_judge_output(path.read_text(encoding="utf-8"))
+        missing_fields = sorted(set(label.expectations) - set(actual.expectations))
+        if actual.result is None:
+            missing_fields.append("RESULT")
+        if missing_fields:
+            invalid_artifacts.append(
+                {
+                    "artifact": name,
+                    "reason": "judge_output_incomplete",
+                    "missing": missing_fields,
+                    "report_file": str(report_path),
+                    "judge_file": str(path),
+                }
+            )
+            artifacts.append(
+                {
+                    "artifact": name,
+                    "report_file": str(report_path),
+                    "judge_file": str(path),
+                    "status": "판정 불가",
+                    "matches": 0,
+                    "comparisons": 0,
+                }
+            )
+            continue
         artifact_matches = 0
         artifact_comparisons = 0
 
@@ -463,8 +487,8 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON")
     parser.add_argument("--report-file", default="", help="also write a markdown report")
-    parser.add_argument("--expect-golden-version", default="")
-    parser.add_argument("--expect-subset-version", default="")
+    parser.add_argument("--expect-golden-version", required=True)
+    parser.add_argument("--expect-subset-version", required=True)
     return parser
 
 
@@ -478,12 +502,12 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         golden = load_golden_document(golden_path)
-        if args.expect_golden_version and golden.golden_version != args.expect_golden_version:
+        if golden.golden_version != args.expect_golden_version:
             raise ValueError(
                 f"golden version mismatch: expected {args.expect_golden_version}, "
                 f"got {golden.golden_version}"
             )
-        if args.expect_subset_version and golden.subset_version != args.expect_subset_version:
+        if golden.subset_version != args.expect_subset_version:
             raise ValueError(
                 f"subset version mismatch: expected {args.expect_subset_version}, "
                 f"got {golden.subset_version}"
