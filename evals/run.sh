@@ -5,6 +5,7 @@
 #   bash evals/run.sh                 # 전 케이스 1회씩
 #   EVAL_RUNS=3 bash evals/run.sh     # 케이스당 3회 (릴리즈 전 권장)
 #   EVAL_MODEL=opus bash evals/run.sh # 모델 변경 (기본 sonnet)
+#   EVAL_CASES="case-a case-b" bash evals/run.sh # 선택 케이스만 실행
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -13,6 +14,7 @@ MODEL="${EVAL_MODEL:-sonnet}"
 OUTPUT_DIR="${EVAL_OUTPUT_DIR:-$ROOT/.metrics/evals/run-$(date -u +%Y%m%dT%H%M%SZ)-$$}"
 RELEASE_CHECK="${EVAL_RELEASE_CHECK:-0}"
 STRICT_CASES="${EVAL_STRICT_CASES:-shorts-real-spec headless-prose-quality}"
+CASE_FILTER="${EVAL_CASES:-}"
 
 command -v claude >/dev/null 2>&1 || { echo "[eval] claude CLI 가 필요하다"; exit 2; }
 
@@ -24,6 +26,16 @@ is_strict_case() {
   local needle="$1"
   local item
   for item in $STRICT_CASES; do
+    [ "$item" = "$needle" ] && return 0
+  done
+  return 1
+}
+
+is_selected_case() {
+  local needle="$1"
+  local item
+  [ -z "$CASE_FILTER" ] && return 0
+  for item in $CASE_FILTER; do
     [ "$item" = "$needle" ] && return 0
   done
   return 1
@@ -83,6 +95,7 @@ record_eval_result() {
 
 for case_dir in "$ROOT"/evals/cases/*/; do
   case_name="$(basename "$case_dir")"
+  is_selected_case "$case_name" || continue
   case_path="${case_dir%/}"
   case_output="$OUTPUT_DIR/$case_name"
   mkdir -p "$case_output"

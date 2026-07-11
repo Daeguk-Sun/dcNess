@@ -1,0 +1,50 @@
+{
+  "schema_version": 2,
+  "golden_version": "core-incidents-v1-human-v1",
+  "subset_version": "core-incidents-v1",
+  "verification_status": "pending_owner_confirmation",
+  "measurement": {
+    "model": "sonnet",
+    "prompt_version": "release-0.12.0-eval-fixture-snapshot",
+    "measured_at": "2026-07-05T08:06:51Z"
+  },
+  "source": {
+    "run": ".metrics/evals/release-0.12.0",
+    "attempts_selected": 2,
+    "note": "저장된 blind report의 대표 attempt 1을 케이스별로 읽기 전용 정규화 복제했다. owner 확인 전 calibration PASS 금지."
+  },
+  "labels": [
+    {
+      "case": "shorts-real-spec",
+      "run": 1,
+      "report_sha256": "f5c57418b51eb360b6c643ec580fc9715c19cff7458d71dc1a1d838c273d5d12",
+      "expectations": {
+        "E1": "OK",
+        "E2": "OK"
+      },
+      "reasons": {
+        "E1": "보고가 핵심 완성 쇼츠의 첫 end-to-end 검증이 Story 4까지 밀린 순서 결함을 명시한다.",
+        "E2": "보고의 최종 결론이 FAIL이다."
+      }
+    },
+    {
+      "case": "headless-prose-quality",
+      "run": 1,
+      "report_sha256": "4bb3368a62ec8723450802be7059f25f15e4a4c0d806857bf4c0bdd50ef0d6e0",
+      "expectations": {
+        "HPQ-1": "OK",
+        "HPQ-2": "OK",
+        "HPQ-3": "OK",
+        "HPQ-4": "OK",
+        "HPQ-5": "OK"
+      },
+      "reasons": {
+        "HPQ-1": "worker-bad의 변경 파일·테스트·provider·미해결 gap 근거 부재를 구체적으로 지적한다.",
+        "HPQ-2": "validator-bad의 결론 enum과 검증 대상·근거 부재를 지적한다.",
+        "HPQ-3": "worker-good을 자유 prose라는 이유로 거부하지 않고 충분한 산출물로 판정한다.",
+        "HPQ-4": "raw headless log는 파일로 보존하고 메인 context에는 경로만 남기라고 설명한다.",
+        "HPQ-5": "status JSON, marker, fixed table/schema 같은 rigid 출력 형식을 요구하지 않는다."
+      }
+    }
+  ]
+}

@@ -32,14 +32,18 @@ python3 evals/guard_efficacy.py        # 결정적 guard-efficacy suite (LLM 호
 python3 evals/guard_efficacy.py --json # 범주별 pass/fail JSON
 
 bash evals/run.sh                    # 전 케이스 1회씩
+bash evals/run-core.sh               # versioned 핵심 실사고 subset만 1회씩
 EVAL_RUNS=3 bash evals/run.sh        # 케이스당 3회 반복 (릴리즈 전 권장)
 EVAL_RUNS=3 EVAL_RELEASE_CHECK=1 bash evals/run.sh  # 핵심 실사고 케이스 N/N 확인
 EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonnet)
 EVAL_OUTPUT_DIR=/tmp/dcness-evals bash evals/run.sh # 산출물 저장 위치 지정
 
-# judge 보정 — 먼저 run 출력 디렉터리에 사람이 judge-golden.json 을 작성한다
+# judge 보정 — blind report 생성 후 사람이 versioned golden을 작성·확인한다
 python3 evals/calibrate_judge.py .metrics/evals/run-YYYYMMDDTHHMMSSZ-PID
 python3 evals/calibrate_judge.py /tmp/dcness-evals --golden /tmp/dcness-evals/judge-golden.json --min-agreement 0.9 --report-file /tmp/dcness-evals/judge-calibration.md
+
+# 저장된 core 후보 — owner 확인 전에는 의도적으로 exit 2
+python3 evals/calibrate_judge.py evals/calibration/core-incidents-v1 --golden evals/golden/core-incidents-v1.json --expect-subset-version core-incidents-v1
 ```
 
 `guard_efficacy.py` 는 범주별 pass/fail count 를 출력한다. `provider-agnostic-order-gate`
@@ -48,10 +52,15 @@ python3 evals/calibrate_judge.py /tmp/dcness-evals --golden /tmp/dcness-evals/ju
 아니라 문서화된 한계가 실제로 한계로 남아 있음을 드러내는 항목이다.
 
 케이스마다 `정답 k/N` 표가 출력된다. 어떤 케이스든 정답 0회면 exit 1 — 방금 바꾼 지침이 보호를 깨먹었는지 확인한다.
-릴리즈 점검에서는 `EVAL_RELEASE_CHECK=1`을 함께 켜고 `shorts-real-spec`, `headless-prose-quality`
-같은 핵심 실사고 케이스가 N/N으로 통과해야 한다. 이 기준은 새 CI 게이트가 아니라
+릴리즈 기본 subset은 [`core-incident-subset.json`](core-incident-subset.json)의
+`shorts-real-spec`, `headless-prose-quality`다. 첫 케이스는 실제 제품 순서 사고를, 두 번째는
+근거 없는 headless PASS와 rigid output 회귀를 함께 잡는다. 나머지는 전체 suite의 합성 대조군,
+cartography 확장 회귀, 또는 중복 축으로 유지하되 개인 릴리즈 기본 calibration 비용에서는 뺀다.
+`bash evals/run-core.sh`는 manifest에서 case 목록을 읽고 N/N을 요구한다. 이 기준은 새 CI 게이트가 아니라
 [`docs/internal/self-improvement-loop.md`](../docs/internal/self-improvement-loop.md)의
 Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
+저장된 v1 사람 확인 후보와 report/judge 대조 순서는
+[`calibration/core-incidents-v1/README.md`](calibration/core-incidents-v1/README.md)에 있다.
 
 실행 산출물은 기본적으로 `.metrics/evals/run-<timestamp>-<pid>/`에 저장된다. 각 케이스
 디렉터리 아래 `run-<N>-report.md`는 블라인드 검수 보고, `run-<N>-judge.md`는 judge 채점
@@ -72,37 +81,32 @@ Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
 `run-N-judge.md` 자체가 맞는지도 소수 케이스에서 따로 확인한다. 절차는 표면화까지만 한다.
 `calibrate_judge.py` 는 judge 모델, prompt, eval 설정을 수정하지 않는다.
 
-1. `bash evals/run.sh` 를 실행해 `.metrics/evals/run-.../<case>/run-N-report.md` 와
+1. `bash evals/run.sh` 또는 `bash evals/run-core.sh`를 실행해 `.metrics/evals/run-.../<case>/run-N-report.md` 와
    `run-N-judge.md` 를 남긴다.
 2. `evals/judge-golden.example.json` 을 해당 run 디렉터리의 `judge-golden.json` 으로 복사한 뒤,
    사람이 `run-N-report.md` 를 읽고 각 기대 ID 의 정답 라벨을 `OK` / `MISS` 로 채운다.
+   각 라벨의 구체적 이유와 report SHA256을 함께 기록하고, golden/subset version, model,
+   prompt version, 측정일을 고정한다. 자동 judge 결과를 golden 작성 근거로 사용하지 않는다.
+   소유자 확인 전 `verification_status`는 `pending_owner_confirmation`으로 두며 이 상태는 PASS할 수 없다.
    `result` 는 생략 가능하다. 생략하면 모든 기대가 `OK` 일 때 `PASS`, 하나라도 `MISS` 면
    `FAIL` 로 파생한다.
 3. `python3 evals/calibrate_judge.py <run-dir>` 를 실행한다. 기본 임계는 `--min-agreement 1.0`
    이며, 일치도가 임계 미만이면 `judge_review_candidate: YES` 로 표시하고 exit 1 을 반환한다.
    임계는 `--min-agreement 0.9` 처럼 조정할 수 있다.
 
-golden 파일 형식:
-
-```json
-{
-  "labels": [
-    {
-      "case": "shorts-real-spec",
-      "run": 1,
-      "expectations": {
-        "E1": "OK",
-        "E2": "OK"
-      }
-    }
-  ]
-}
-```
+전체 schema 예시는 [`judge-golden.example.json`](judge-golden.example.json)에 있다. 필수 상위 필드는
+`schema_version: 2`, `golden_version`, `subset_version`, `verification_status`, `measurement`, `labels`다.
+각 label은 `report_sha256`, 기대별 `OK`/`MISS`, 같은 기대 ID의 사람 판단 이유를 가져야 한다.
+golden version이나 subset version이 기대값과 다르거나 report digest가 달라지면 calibration은
+`판정 불가`와 exit 2를 반환하며 PASS하지 않는다.
 
 `case` + `run` 은 `<run-dir>/<case>/run-<run>-judge.md` 를 가리킨다. 특수 경로를 비교할 때는
 `judge_file` 에 run 디렉터리 기준 상대 경로나 절대 경로를 넣을 수 있다. 리포트는 stdout 으로
 나오며, `--report-file <path>` 를 주면 같은 내용을 파일로도 남긴다. JSON 소비가 필요하면
-`--json` 을 사용한다.
+`--json` 을 사용한다. 출력은 케이스/attempt별 `일치`·`불일치`·`판정 불가`, 전체 분자·분모와
+attempt 수를 보여준다. 사람이 report 자체에서 `MISS`로 판정한 항목은
+`agent_behavior_regression`, 사람과 judge가 다르게 판정한 항목은
+`judge_or_criteria_disagreement`로 분리한다. 어느 결과도 model, prompt, 강제 규칙을 자동 변경하지 않는다.
 
 ## 채점 원리 — 정답표는 계약 수준으로만 쓴다
 

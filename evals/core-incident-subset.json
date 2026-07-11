@@ -1,0 +1,20 @@
+{
+  "schema_version": 1,
+  "subset_version": "core-incidents-v1",
+  "default_attempts_per_case": 1,
+  "selected_cases": [
+    {
+      "case": "shorts-real-spec",
+      "incident_risk": "실제 youTubeGenerator #214에서 완성 쇼츠의 첫 end-to-end 검증이 뒤 Story까지 밀려 런타임 gap이 발생했다.",
+      "regression_value": "합성 fixture가 아니라 실제 backlog에서 순서 결함과 비통과 결론을 함께 재검증한다."
+    },
+    {
+      "case": "headless-prose-quality",
+      "incident_risk": "근거 없는 headless PASS 또는 결론 없는 validator prose가 오케스트레이터의 잘못된 분기를 만들 수 있다.",
+      "regression_value": "worker·validator의 최소 분기 재료와 raw log 파일 보존을 검증하면서 rigid JSON/marker 회귀도 함께 막는다."
+    }
+  ],
+  "exclusion_policy": "나머지 케이스는 합성 대조군, cartography 전용 확장 회귀, 또는 두 핵심 사고와 중복되는 축이다. 전체 suite에서는 유지하지만 개인 릴리즈 기본 calibration subset에는 포함하지 않는다.",
+  "calibration_evidence": "evals/calibration/core-incidents-v1",
+  "human_golden": "evals/golden/core-incidents-v1.json"
+}
