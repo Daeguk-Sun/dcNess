@@ -226,6 +226,9 @@ async function main() {
     console.error(`[ac-coverage] stories file not found: ${args.stories}`);
     return 2;
   }
+  if (!existsSync(args['impl-dir'])) {
+    console.log(`[ac-coverage] impl directory not found: ${args['impl-dir']}`);
+  }
 
   const storyData = parseStoryAcceptance(readFileSync(args.stories, 'utf8'));
   const implData = parseImplRequirements(args['impl-dir']);

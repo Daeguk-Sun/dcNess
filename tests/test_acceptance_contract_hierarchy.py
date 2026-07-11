@@ -83,6 +83,27 @@ depends_on: [01-build]
 
 
 class AcceptanceHierarchySurfaceTests(unittest.TestCase):
+    def test_external_issue_validation_commands_use_plugin_root(self) -> None:
+        external_docs = [
+            *sorted((ROOT / "skills").rglob("*.md")),
+            *sorted((ROOT / "docs/plugin").rglob("*.md")),
+        ]
+        plugin_command = 'node "$PLUGIN_ROOT/scripts/check_issue_body.mjs"'
+        command_lines = [
+            (path, line)
+            for path in external_docs
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if "node " in line and "check_issue_body.mjs" in line
+        ]
+        offenders = [
+            str(path.relative_to(ROOT))
+            for path, line in command_lines
+            if plugin_command not in line
+        ]
+
+        self.assertTrue(command_lines)
+        self.assertEqual([], offenders)
+
     def test_prd_stops_before_acceptance_criteria(self) -> None:
         template = (ROOT / "skills/spec/templates/prd.md").read_text(encoding="utf-8")
         reference = (ROOT / "skills/spec/spec-prd-reference.md").read_text(
@@ -191,6 +212,14 @@ class AcceptanceCoverageReporterTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertIn("Coverage: 2/2 (100.0%)", result.stdout)
         self.assertIn("Final task coverage: 2/2 (100.0%)", result.stdout)
+
+    def test_missing_impl_directory_is_reported_without_blocking(self) -> None:
+        result = _run_report(STORIES, {})
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("impl directory not found:", result.stdout)
+        self.assertIn("Coverage: 0/2 (0.0%)", result.stdout)
+        self.assertIn("advisory report", result.stdout)
 
     def test_gaps_are_reported_without_turning_advisory_into_a_blocking_gate(self) -> None:
         incomplete = FINAL_TASK.replace(

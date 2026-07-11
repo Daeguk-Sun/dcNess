@@ -193,7 +193,7 @@ story 의 target task 가 completed 될 때마다 메인이 story PR 을 만든�
 close 를 발동하는 최종 PR 은 CI green, product-acceptance 와 impl-validator PASS 만으로 clean 이 아니다. 이 최종 증거가 확정된 뒤 메인이 `Closes` 대상 story/epic issue 각각의 target GitHub issue AC 전항목 증거를 대조하고 자동 판정 가능한 체크박스를 모두 check 한 뒤, 이슈 본문 write 를 issue 별 close 경계에서 한 번 수행한다. 진행 중 task/story 경계에서는 issue mutation 이나 재조회를 추가하지 않는다. 각 최종 body 는 다음 감사가 PASS 해야 한다.
 
 ```bash
-node scripts/check_issue_body.mjs \
+node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
   --body-file <issue-body.md> \
   --acceptance-only \
   --require-complete

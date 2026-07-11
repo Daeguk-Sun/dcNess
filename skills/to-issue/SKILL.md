@@ -96,7 +96,7 @@ Acceptance criteria 체크박스는 agent-verifiable 항목만 두고 각 항목
 등록 전 preflight 로 Issue Brief 본문과 repo label 이 실제 계약에 맞는지 확인한다. Project field/option 은 선택적 backfill 대상이다. 보드(Project)나 field/option 이 없거나 불완전하면 등록을 멈추지 말고, 사용자가 원할 때만 `node scripts/github_project_lifecycle.mjs bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 를 먼저) 로 셋업하고, 좌표를 `gh variable set DCNESS_PROJECT_NUMBER --body <number>` / `gh variable set DCNESS_PROJECT_OWNER --body <owner>` 로 저장한 뒤 Project 등록을 backfill 한다. 거부하면 보드 없이 issue 만 등록한다. 어떤 경우에도 Project 상태는 등록 자체를 막지 않는다.
 
 ```bash
-node scripts/check_issue_body.mjs \
+node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
   --body-file <brief.md> \
   --labels "<IssueType>"
 
