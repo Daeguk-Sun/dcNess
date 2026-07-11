@@ -5,7 +5,8 @@
  * Source of truth:
  * - docs/epics/epic-NN-<slug>/architecture.md
  * - "## 모듈 목록" markdown table
- * - "## Contract Ledger" markdown table
+ * - module responsibility / public interface / validation / decision columns
+ * - legacy "## Contract Ledger" and "## Decisions" tables
  *
  * Usage:
  *   node scripts/aggregate_architecture_map.mjs
@@ -172,6 +173,24 @@ function pick(row, names) {
   return '';
 }
 
+function uniqueNonBlank(values) {
+  return [...new Set(values.filter((value) => !isBlankish(value)))];
+}
+
+function splitDecisionRefs(value) {
+  const text = String(value ?? '').trim();
+  if (isBlankish(text)) return [];
+
+  const markdownLinkPattern = /\[[^\]]+\]\([^)]+\)/g;
+  const links = [...text.matchAll(markdownLinkPattern)].map((match) => match[0]);
+  const remainder = text
+    .replace(markdownLinkPattern, '')
+    .split(/[,;]/)
+    .map((part) => part.trim())
+    .filter((part) => !isBlankish(part));
+  return [...links, ...remainder];
+}
+
 function parseEpicArchitecture(root, epicDirName) {
   const epicDir = join(root, 'docs', 'epics', epicDirName);
   const architecturePath = join(epicDir, 'architecture.md');
@@ -182,7 +201,17 @@ function parseEpicArchitecture(root, epicDirName) {
       name: pick(row, ['모듈', 'module', 'Module']),
       responsibility: pick(row, ['책임', 'responsibility', 'Responsibility']),
       dependencies: pick(row, ['의존 모듈', '의존', 'dependencies', 'Dependencies']),
-      publicSurface: pick(row, ['공개 API', '공개 표면', 'public API', 'Public API']),
+      publicSurface: pick(row, [
+        '공개 인터페이스',
+        '공개 API',
+        '공개 표면',
+        'public interface',
+        'Public Interface',
+        'public API',
+        'Public API',
+      ]),
+      validation: pick(row, ['검증 경로', '검증', 'validation', 'Validation']),
+      decision: pick(row, ['결정', 'decision', 'Decision', 'refs', 'Refs']),
     }))
     .filter((row) => !isBlankish(row.name));
 
@@ -197,9 +226,12 @@ function parseEpicArchitecture(root, epicDirName) {
     }))
     .filter((row) => !isBlankish(row.contract));
 
-  const decisionRows = parseMarkdownTable(extractSection(content, 'Decisions'))
-    .map((row) => pick(row, ['Decision', 'decision']))
-    .filter((value) => !isBlankish(value));
+  const legacyDecisionRows = parseMarkdownTable(extractSection(content, 'Decisions'))
+    .map((row) => pick(row, ['Decision', 'decision']));
+  const decisionRows = uniqueNonBlank([
+    ...moduleRows.flatMap((row) => splitDecisionRefs(row.decision)),
+    ...legacyDecisionRows.flatMap(splitDecisionRefs),
+  ]);
 
   return {
     name: epicDirName,
@@ -258,7 +290,7 @@ function buildSections(reportPath, epics) {
   ]);
 
   const topologyRows = [];
-  const contractRows = [];
+  const capabilityContractRows = [];
 
   for (const epic of epics) {
     const epicLink = mdLink(epic.name, reportPath, epic.architecturePath);
@@ -270,10 +302,21 @@ function buildSections(reportPath, epics) {
         rebaseMarkdownLinks(row.publicSurface, epic.architecturePath, reportPath),
         epicLink,
       ]);
+      capabilityContractRows.push([
+        'module',
+        rebaseMarkdownLinks(row.responsibility, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.name, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.publicSurface, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.dependencies, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.validation, epic.architecturePath, reportPath),
+        rebaseMarkdownLinks(row.decision, epic.architecturePath, reportPath),
+        epicLink,
+      ]);
     }
 
     for (const row of epic.contractRows) {
-      contractRows.push([
+      capabilityContractRows.push([
+        'legacy Contract Ledger',
         rebaseMarkdownLinks(row.contract, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.owner, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.producer, epic.architecturePath, reportPath),
@@ -303,8 +346,19 @@ function buildSections(reportPath, epics) {
     [
       SECTION_CONTRACTS,
       table(
-        ['Contract', 'Owner', 'Producer', 'Consumer', 'Invariant', 'Refs', '소유 에픽'],
-        contractRows.length > 0 ? contractRows : [placeholderRow(7)]
+        [
+          '종류',
+          'Capability / Contract',
+          'Owner',
+          '공개 인터페이스 / Producer',
+          '의존 / Consumer',
+          '검증 / Invariant',
+          '결정 / Refs',
+          '소유 에픽',
+        ],
+        capabilityContractRows.length > 0
+          ? capabilityContractRows
+          : [placeholderRow(8)]
       ),
     ],
   ]);
@@ -331,7 +385,9 @@ function nextArchitectureReport(root, reportPath, epics = collectEpics(root)) {
   const content = [
     '# 전역 아키텍처 온디맨드 리포트',
     '',
-    '> docs/epics/*/architecture.md 에서 생성한 임시 리포트다. PR 본문이나 checked-in architecture anchor 에 복제하지 않는다.',
+    '> 여러 epic의 capability와 owner를 함께 볼 때 docs/epics/*/architecture.md에서 그 시점에 생성하는 임시 보조 뷰다.',
+    '> 필수 agent 입력이나 checked-in freshness 진본이 아니며, 생성되지 않아도 root Cartography와 각 epic architecture로 탐색할 수 있어야 한다.',
+    '> 설계 문서 topology만 집계하므로 as-built 코드 상태나 landed 증거로 사용하지 않고 PR 본문이나 checked-in architecture anchor에 복제하지 않는다.',
     '',
     ...Array.from(sections.entries()).map(([heading, body]) => generatedSection(heading, body).trimEnd()),
     '',
@@ -342,7 +398,10 @@ function nextArchitectureReport(root, reportPath, epics = collectEpics(root)) {
     content: `${content.trimEnd()}\n`,
     epicCount: epics.length,
     moduleCount: epics.reduce((sum, epic) => sum + epic.moduleRows.length, 0),
-    contractCount: epics.reduce((sum, epic) => sum + epic.contractRows.length, 0),
+    capabilityContractCount: epics.reduce(
+      (sum, epic) => sum + epic.moduleRows.length + epic.contractRows.length,
+      0
+    ),
   };
 }
 
@@ -369,7 +428,7 @@ function main() {
     writeFileSync(next.path, next.content, 'utf8');
   }
   console.log(
-    `[architecture-map] wrote ${slash(relative(args.root, next.path))} — ${next.epicCount} epic, ${next.moduleCount} module, ${next.contractCount} contract`
+    `[architecture-map] wrote ${slash(relative(args.root, next.path))} — ${next.epicCount} epic, ${next.moduleCount} module, ${next.capabilityContractCount} capability/contract`
   );
 }
 
