@@ -136,6 +136,9 @@ golden 파일 형식:
 | `flow-ownership-owner-good` | (합성) 새 flow owner module 을 만들고 entrypoint 는 dispatch 만 바꾸는 diff | owner module + dispatch 구조 자체를 결함으로 지적하면 안 된다 |
 | `module-state-contract-bad` | (합성) same-identity update·source failure 보존·idempotence·producer/consumer scope가 빠진 cross-story 설계 초안 | module-architect가 task 분할 전에 계약/owner/scope/acceptance gap을 보강하거나 적절히 escalate해야 한다 |
 | `module-state-contract-good` | (합성) full-state update·source failure 보존·반복 no-change와 producer/consumer scope가 닫힌 설계 초안 | module-architect가 상태성만으로 불필요하게 재설계하거나 checkpoint를 요구하면 안 된다 |
+| `cartography-validator-drift` | (합성) Application lifecycle이 data observer를 직접 wiring했지만 Root graph에는 edge가 없는 구현 diff | impl-validator가 as-built drift를 찾고 route-only refresh 범위를 보고하되 직접 문서를 수정하지 않아야 한다 |
+| `cartography-refresh` | (합성) system boundary 변화 없이 scheduler entrypoint가 `planned → landed`가 됐고 Root는 stale인 local-only docs 프로젝트 | route-only refresh와 durable handoff를 요구하되 private docs를 code PR에 강제 포함하지 않아야 한다 |
+| `cartography-system-checkpoint` | (합성) landed public REST boundary 제거와 capability owner 이동이 섞인 구현 diff | route-only refresh로 흡수하지 않고 system checkpoint 또는 `/design` backpressure를 요구해야 한다 |
 
 > L3 실사고 케이스의 축 한계 — 정직하게 기록한다:
 > - **순서 축은 깨끗하게 재현된다**: 핵심 약속(완성 쇼츠) 검증이 뒤 story 로 밀린 것을 지금 지침이 reliable 하게 잡는다(3/3). 이게 youTubeGenerator #214 의 설계단 원인이다.

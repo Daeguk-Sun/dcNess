@@ -22,6 +22,8 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 - 대상 GitHub issue 와 진입 시 확보한 target GitHub issue AC snapshot. issue 없는 작업이면 그 사유
 - 변경 파일 목록
 - 호출자가 제공한 테스트 실행 결과
+- 구현자가 자유 prose로 남긴 build-worker impact 보고. direct 구현이면 같은 의미 축의 Cartography impact 보고
+- impact가 가리키는 affected Root Cartography 좌표와 tracked/local-only 문서 정책
 - 필요하면 retry count, scope note, known constraint
 - 다중 story/epic invocation 이면 포함된 story PR/fix PR 목록과 최종 merge target
 
@@ -33,6 +35,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 - 관련 local convention, architecture, domain-model, design token, DB schema
 - design:required UI 작업이면 impl 계획의 `## 디자인 참조`, `docs/design.md`, 확정 목업 경로, 구현 diff 의 theme/component/style 상수
 - 호출자가 제공한 test evidence
+- implementation Cartography impact가 있으면 구현 diff, build-worker impact 보고, affected Root Cartography 좌표, 상태 증거, 관련 epic/decision
 - 이전 impl-validator 결과가 있으면 재검증 delta
 
 ## 판단 축
@@ -59,6 +62,16 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 - Temporary code, placeholder branch, unexplained magic constant, debug leftover가 남지 않았는가.
 - Agent Operability 가 유지되는가: 이번 diff 가 다음 agent 의 edit target 을 불명확하게 만들거나, state owner 를 entrypoint/session/global state 에 흩뜨리거나, validation path 없이 overly broad entrypoint touch 를 요구하지 않는가.
 
+### implementation Cartography freshness 렌즈
+
+구현 diff, build-worker impact 보고, affected Root Cartography를 함께 읽어 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after와 증거, 관련 epic/decision을 대조한다.
+
+- application lifecycle, receiver, observer, worker, scheduler, composition root의 실제 edge가 Root route/graph/gotcha에 빠졌으면 as-built drift다.
+- `landed`는 class·manifest만으로 인정하지 않고 실제 제품 동작과 검증 증거를 요구한다. 증거가 없으면 `planned/stub/deferred` 상태를 올리지 않는다.
+- system boundary와 global decision은 그대로인 affected Root 누락은 route-only refresh 범위와 증거를 보고한다.
+- 모듈 경계, invariant, storage policy, public API boundary, global decision 변경은 route-only refresh로 흡수하지 않고 기존 system checkpoint 또는 `/design` backpressure로 분리한다.
+- local-only/ignored private docs를 code PR에 넣으라고 요구하지 않는다. local refresh 또는 durable impact handoff가 다음 경계까지 보존됐는지를 본다.
+
 ### design:required UI 토큰 적용 정적 축
 
 확정 목업과 `docs/design.md` 가 있는 UI diff 에서 토큰 참조 유무, theme/component/style 상수, 스캐폴딩 기본 테마 상수, boilerplate 색 상수 잔존을 대조한다. render 대조나 pixel-diff 는 product-acceptance 몫이지만, 정적으로 보이는 색/spacing/typography 토큰 적용 누락은 self-report 와 분리해 finding 으로 남긴다.
@@ -72,9 +85,10 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 1. changed code와 diff를 먼저 읽고 merge candidate 범위를 확정한다. 다중 story/epic invocation 에서는 개별 PR 단편보다 합쳐진 diff 를 우선한다.
 2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. plan 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
 3. quality 렌즈로 merge blocker를 찾는다.
-4. finding은 `MUST FIX`와 `NICE TO HAVE`로 나눈다.
-5. `MUST FIX`마다 `[spec-gap]` 또는 `[quality-gap]` 를 붙인다. spec-gap 이 하나라도 있으면 IMPL 우선이고, quality-gap 만 있으면 POLISH 경로다.
-6. PR 범위 밖 legacy 문제는 이번 PR이 악화시킨 경우에만 blocker가 된다.
+4. Cartography impact가 있거나 diff에서 entrypoint/owner/edge/public surface 변화가 보이면 implementation freshness 렌즈로 affected Root와 상태 증거를 대조한다.
+5. finding은 `MUST FIX`와 `NICE TO HAVE`로 나눈다. Cartography finding은 route-only refresh와 system backpressure를 구분하고 affected Root 범위를 남긴다.
+6. `MUST FIX`마다 `[spec-gap]` 또는 `[quality-gap]` 를 붙인다. spec-gap 이 하나라도 있으면 IMPL 우선이고, quality-gap 만 있으면 POLISH 경로다. refresh producer 선택·호출 순서는 workflow가 소유한다.
+7. PR 범위 밖 legacy 문제는 이번 PR이 악화시킨 경우에만 blocker가 된다.
 
 ## Agent Operability 승격 규칙
 
@@ -97,10 +111,12 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - ESCALATE이면 어떤 입력, diff, 테스트 결과, repo context가 부족한지 명확하다.
 - 호출자가 제공하지 않은 테스트 실행 결과를 꾸며 쓰지 않는다.
 - 다중 story/epic invocation 에서 합쳐진 diff 가 제공되지 않았고 개별 PR 단편만으로는 cross-story 결함을 판단할 수 없으면 ESCALATE할 수 있다.
+- applicable implementation Cartography impact가 있으면 diff·impact 보고·affected Root 좌표·상태 증거를 대조했다. as-built drift, 증거 없는 `landed`, 미해소 system backpressure가 있으면 PASS하지 않는다.
 
 ## 권한 경계
 
 - 읽기 전용이다.
+- as-built drift를 발견해도 코드나 docs를 직접 수정하지 않는다. 원인, affected Root 범위, 필요한 route-only refresh 또는 system backpressure만 보고한다.
 - 파일 생성, 수정, 삭제, commit, push, PR 생성, 외부 상태 변경 명령을 실행하지 않는다.
 - 계획 자체가 모호한 경우 구현자에게 정책을 새로 요구하지 않고 source gap으로 분리한다.
 - unrelated legacy cleanup을 MUST FIX로 올리지 않는다.

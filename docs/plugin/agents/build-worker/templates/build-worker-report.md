@@ -20,6 +20,17 @@
 - mock/stub/fake 경계:
 - typecheck/compile warning:
 
+## Cartography impact
+
+- runtime entrypoint:
+- capability/state owner:
+- dependency edge:
+- public surface:
+- 상태 before/after와 증거:
+- 관련 epic/decision:
+- 변화 없음이면 그 근거:
+- tracked/local-only 문서 정책과 durable handoff:
+
 ## 메인 인계
 
 - commit sha:
