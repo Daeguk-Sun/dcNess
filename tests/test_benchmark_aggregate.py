@@ -356,6 +356,41 @@ class TestWasteTop(unittest.TestCase):
             rep = aggregate_runs([r])
             self.assertIsInstance(rep.waste_top, list)
 
+    def test_full_waste_counts_are_not_truncated_by_display_top_limit(self):
+        with tempfile.TemporaryDirectory() as d:
+            tmp = Path(d)
+            retry = _make_run_dir_ledger(
+                tmp,
+                "s1",
+                "run-wfull001",
+                _run_events(
+                    "impl",
+                    [
+                        _step("impl-validator", "v.md", enum="FAIL"),
+                        _step(
+                            "impl-validator",
+                            "v.md",
+                            enum="FAIL",
+                            ts="2026-06-01T00:02:00Z",
+                        ),
+                    ],
+                ),
+                {"v.md": "동일 실패 반복\nFAIL\n"},
+            )
+            missing = _make_run_dir_ledger(
+                tmp,
+                "s1",
+                "run-wfull002",
+                _run_events("impl", [_step("engineer", "e.md")]),
+                {"e.md": "결론 enum이 없는 보고\n"},
+            )
+
+            report = aggregate_runs([retry, missing], top=1)
+
+            self.assertEqual(len(report.waste_top), 1)
+            self.assertIn("RETRY_SAME_FAIL", report.waste_counts)
+            self.assertIn("MISSING_CONCLUSION_ENUM", report.waste_counts)
+
 
 class TestImprovementCandidates(unittest.TestCase):
     def _run_with_retry_waste(self, tmp: Path, rid: str) -> Path:

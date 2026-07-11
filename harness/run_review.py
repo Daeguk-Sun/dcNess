@@ -737,12 +737,23 @@ def _extract_conclusion_enum(prose: str) -> str:
     return ""
 
 
-def parse_steps(run_dir: Path) -> list[StepRecord]:
+def parse_steps(
+    run_dir: Path,
+    *,
+    event_cutoff: Optional[datetime] = None,
+) -> list[StepRecord]:
     # 이슈 #587 — ledger.jsonl 의 step_completed event 읽기 (옛 .steps.jsonl 폴백 내장).
     from harness import ledger
 
     steps: list[StepRecord] = []
     raw = ledger.read_step_completed_at(run_dir)
+    if event_cutoff is not None:
+        raw = [
+            rec
+            for rec in raw
+            if (parsed := _parse_iso(rec.get("ts", ""))) is not None
+            and parsed <= event_cutoff
+        ]
     if not raw:
         return steps
 
@@ -1678,8 +1689,9 @@ def build_report(
     *,
     include_recurrence: bool = False,
     recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
+    event_cutoff: Optional[datetime] = None,
 ) -> RunReport:
-    steps = parse_steps(run_dir)
+    steps = parse_steps(run_dir, event_cutoff=event_cutoff)
 
     # DCN-CHG-20260430-20: per-Agent invocation 매칭 — wastes 탐지 *전*에 enrichment.
     invocations: list[dict] = []

@@ -110,6 +110,7 @@ GitHub issue 를 대상으로 하는 dcness self 구현은 진입 때 읽은 본
 | [`docs/plugin/terms.md`](docs/plugin/terms.md) | 용어·공개 진입점·분기 표현·사용자 표시 메시지 수정/리뷰 시 |
 | [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | 공개 workflow 진입점의 기본/고급/유틸리티/내부 agent 분류 수정 시 |
 | [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 작업 요청을 어떤 workflow 로 보낼지 (구현 경로 — gate 축 × shape 축) 판단 시 |
+| [`docs/plugin/outcome-scorecard.md`](docs/plugin/outcome-scorecard.md) | process·Agent effectiveness·실제 제품 outcome의 비교 필드·denominator·주장 경계를 수정/리뷰 시 |
 | [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현·효율 benchmark 문구 수정 시 |
 | [`docs/plugin/design.md`](docs/plugin/design.md) | `design.md` 토큰 규격·Static HTML 시안 규약 수정 시 |
 | [`docs/plugin/git-spec.md`](docs/plugin/git-spec.md) | 브랜치·커밋·PR 네이밍 규칙 SSOT — 모든 커밋 작업에 적용 |

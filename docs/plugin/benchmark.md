@@ -14,6 +14,7 @@ dcNess 는 측정 인프라를 plug-in 본체에 같이 배포한다.
 | [`scripts/measure_main_turns.py`](../../scripts/measure_main_turns.py) | Claude Code 세션의 메인 assistant turn 분포 (tool / text-only / thinking-only) + tool histogram + sub-agent 호출 분포 | 직접 실행 |
 | [`harness/run_review.py`](../../harness/run_review.py) | run 1개의 step별 비용·토큰 + 낭비(waste) finding | `/run-review` skill |
 | [`harness/benchmark_aggregate.py`](../../harness/benchmark_aggregate.py) | 여러 run 가로질러 fleet 집계 (PR 머지 성공률 / review rejection / escalate / blocked / waste top-N / 재발 개선 후보) | 직접 실행 |
+| [`harness/outcome_scorecard.py`](../../harness/outcome_scorecard.py) | 활성 프로젝트를 가로질러 process, Agent effectiveness, 실제 제품 outcome을 분리하고 모든 집계에 denominator·source 수·측정일을 붙임 | 직접 실행 |
 
 guard 효능 재현은 별도다. dcNess 소스 checkout 에서만 제공되는
 `evals/guard_efficacy.py` 는 LLM 없이 hook/function 진입점을 직접 호출해 file boundary,
@@ -54,6 +55,10 @@ hook/function 의 결정적 allow/block 성능을 대신하지 않는다.
 ## 지표 구분
 
 한 표에 서로 다른 지표를 섞어 "좋아졌다"로 뭉개지 않는다.
+
+비교 단위와 측정 불가 처리, Agent effectiveness와 실제 제품 결과의 전체 의미 계약은
+[`outcome-scorecard.md`](outcome-scorecard.md)가 소유한다. 본 문서는 기존 측정 도구의
+재현 recipe와 공개 숫자 해석을 소유한다.
 
 | 지표 | 의미 | 산출 근거 |
 |---|---|---|
@@ -206,6 +211,17 @@ done
    `pr_merge_success_ratio`, `pr_reviewer_rejection_count/review_count`,
    `blocked_event_count`, `escalate_count`, `waste_top`, `improvement_candidates`,
    source count, 한계.
+
+여러 활성 프로젝트를 한 번에 같은 scorecard로 재현하려면 다음 명령을 쓴다. 현재 ledger에
+없는 제품 AC/journey와 탐색 효과는 다른 process 지표로 채우지 않고 `측정 불가`로 출력한다.
+
+```sh
+python3 "$DCN"/harness/outcome_scorecard.py --redact-paths
+python3 "$DCN"/harness/outcome_scorecard.py --redact-paths --json
+```
+
+시점 snapshot과 원천 registry 위치는 [`outcome-baseline.md`](../internal/outcome-baseline.md)에
+보존한다.
 
 ### fleet 실측 (외부 활성 프로젝트 1곳)
 

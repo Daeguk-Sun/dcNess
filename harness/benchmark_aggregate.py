@@ -35,6 +35,7 @@ import re
 import sys
 from collections import Counter, defaultdict
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -115,6 +116,7 @@ class FleetReport:
     pr_merge_orphan_count: int
     pr_merge_success_ratio: Optional[float]
     waste_top: list  # [(pattern, count), ...] count desc
+    waste_counts: dict  # complete, untruncated pattern -> count mapping
     success_measurable: bool
     recurrence_threshold: int
     improvement_candidates: list[ImprovementCandidate]
@@ -179,12 +181,32 @@ def _pr_event_key(event: dict, run_dir: Path, index: int) -> str:
     return f"event:{run_dir}:{index}"
 
 
-def _run_event_counts(run_dir: Path) -> tuple[int, set[str], set[str]]:
+def _event_at_or_before(event: dict, cutoff: Optional[datetime]) -> bool:
+    if cutoff is None:
+        return True
+    value = event.get("ts")
+    if not isinstance(value, str) or not value:
+        return False
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except ValueError:
+        return False
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc) <= cutoff.astimezone(timezone.utc)
+
+
+def _run_event_counts(
+    run_dir: Path,
+    event_cutoff: Optional[datetime] = None,
+) -> tuple[int, set[str], set[str]]:
     """(blocked 이벤트 수, pr_created keys, pr_merged keys) — 1회 스캔."""
     blocked = 0
     pr_created: set[str] = set()
     pr_merged: set[str] = set()
     for idx, ev in enumerate(ledger.read_events_at(run_dir)):
+        if not _event_at_or_before(ev, event_cutoff):
+            continue
         e = ev.get("event")
         if e == "blocked":
             blocked += 1
@@ -201,6 +223,7 @@ def aggregate_runs(
     top: int = 10,
     recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
     repo_override=None,
+    event_cutoff: Optional[datetime] = None,
 ) -> FleetReport:
     """run_dir 목록을 fleet 집계한다.
 
@@ -233,7 +256,7 @@ def aggregate_runs(
         if ep:
             by_entry_point[ep] += 1
 
-        blocked, created, merged = _run_event_counts(run_dir)
+        blocked, created, merged = _run_event_counts(run_dir, event_cutoff)
         blocked_event_count += blocked
         pr_created_keys.update(created)
         pr_merged_keys.update(merged)
@@ -242,7 +265,11 @@ def aggregate_runs(
         # detect_wastes 를 per-run review 와 동일하게 수행. 수동 parse_steps +
         # detect_wastes 만 하면 invocation 의존 waste(END_STEP_SKIP 등)가 누락된다.
         repo_path = repo_override or _repo_path_for_run(run_dir) or run_dir
-        report = run_review.build_report(run_dir, Path(repo_path))
+        report = run_review.build_report(
+            run_dir,
+            Path(repo_path),
+            event_cutoff=event_cutoff,
+        )
         for s in report.steps:
             verdict = _step_verdict(s)
             if verdict:
@@ -285,6 +312,7 @@ def aggregate_runs(
         pr_merge_orphan_count=pr_merge_orphan_count,
         pr_merge_success_ratio=pr_merge_success_ratio,
         waste_top=waste_counter.most_common(top),
+        waste_counts=dict(waste_counter),
         success_measurable=pr_merge_success_ratio is not None,
         recurrence_threshold=recurrence_threshold,
         improvement_candidates=_build_improvement_candidates(
@@ -298,7 +326,8 @@ def aggregate_runs(
 def aggregate_sessions(sessions_root, *, entry_point: Optional[str] = None,
                        top: int = 10,
                        recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
-                       repo_override=None) -> FleetReport:
+                       repo_override=None,
+                       event_cutoff: Optional[datetime] = None) -> FleetReport:
     """sessions-root 아래 모든 run 을 집계한다. entry_point 지정 시 그 진입점만."""
     sessions_root = Path(sessions_root)
     run_dirs = run_review.list_runs(sessions_root)
@@ -309,6 +338,7 @@ def aggregate_sessions(sessions_root, *, entry_point: Optional[str] = None,
         top=top,
         recurrence_threshold=recurrence_threshold,
         repo_override=repo_override,
+        event_cutoff=event_cutoff,
     )
 
 
@@ -447,6 +477,7 @@ def main(argv: Optional[list] = None) -> int:
             "pr_merge_orphan_count": report.pr_merge_orphan_count,
             "pr_merge_success_ratio": report.pr_merge_success_ratio,
             "waste_top": report.waste_top,
+            "waste_counts": report.waste_counts,
             "success_measurable": report.success_measurable,
             "recurrence_threshold": report.recurrence_threshold,
             "improvement_candidates": [
