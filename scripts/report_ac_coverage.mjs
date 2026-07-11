@@ -53,7 +53,7 @@ export function parseStoryAcceptance(markdown) {
     if (!currentStory) continue;
 
     const declaration = line.match(
-      /^\s*-\s+(AC-\d{3,})\s+\[(?:command|agent-read)\]\s*:/i,
+      /^\s*-\s+(AC-\d{3,})\s+\[(?:command|agent-read)\]\s*:?\s+.+$/i,
     );
     if (!declaration) continue;
 

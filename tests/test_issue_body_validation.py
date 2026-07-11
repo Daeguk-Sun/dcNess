@@ -349,6 +349,26 @@ class IssueBodyValidationTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("human verification", result.stderr)
 
+    def test_heading_human_verification_plus_checkbox_is_rejected(self) -> None:
+        story_body = textwrap.dedent(
+            """
+            ## Acceptance criteria
+            - [x] AC-001 [command]: Given input, When the test runs, Then it exits zero.
+
+            ## 사람 확인 안내
+            + [ ] 사람이 시각 결과를 승인한다.
+            """
+        ).strip()
+
+        result = run_validator(
+            story_body,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("human verification", result.stderr)
+
 
 class IssueBodyValidationDocsTests(unittest.TestCase):
     def test_issue_lifecycle_documents_pre_create_validation_not_hard_gate(self) -> None:

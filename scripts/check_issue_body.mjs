@@ -95,26 +95,30 @@ function parseHeadingSection(body, headingName) {
   return (nextHeading === -1 ? remainder : remainder.slice(0, nextHeading)).trim();
 }
 
-function parseAcceptanceSection(body) {
-  return (
-    parseFieldSection(body, 'Acceptance criteria')
-    ?? parseHeadingSection(body, 'Acceptance criteria')
-  );
+function parseNamedSection(body, ...sectionNames) {
+  for (const sectionName of sectionNames) {
+    const section = (
+      parseFieldSection(body, sectionName)
+      ?? parseHeadingSection(body, sectionName)
+    );
+    if (section !== null) return section;
+  }
+  return null;
 }
 
-const ACCEPTANCE_CHECKBOX = /^\s*[-*]\s+\[([ xX])\]\s+(.+?)\s*$/;
+const CHECKBOX_ITEM = /^\s*[-*+]\s+\[([ xX])\]\s+(.+?)\s*$/;
 const VERIFICATION_CLASS = /^\[(command|agent-read)\]\s+(.+)$/i;
 const STORY_VERIFICATION_CLASS = /^(AC-\d{3,})\s+\[(command|agent-read)\]:?\s+(.+)$/i;
 const GENERIC_ACCEPTANCE = /^(?:구현(?:이|은)?\s*완료(?:된다|되어야 한다)|정상(?:적으로)?\s*동작(?:한다|해야 한다)|문제없이\s*동작(?:한다|해야 한다)|works?\s+(?:correctly|as expected)|implementation\s+is\s+complete)[.!。]?$/i;
 
 export function parseAcceptanceCriteria(body) {
-  const section = parseAcceptanceSection(body) ?? '';
+  const section = parseNamedSection(body, 'Acceptance criteria') ?? '';
   return section
     .split(/\r?\n/)
     .map((line, index) => ({ line: index + 1, text: line.trim() }))
-    .filter(({ text }) => ACCEPTANCE_CHECKBOX.test(text))
+    .filter(({ text }) => CHECKBOX_ITEM.test(text))
     .map(({ line, text }) => {
-      const checkbox = text.match(ACCEPTANCE_CHECKBOX);
+      const checkbox = text.match(CHECKBOX_ITEM);
       const criterion = checkbox[2].trim();
       const classified = criterion.match(VERIFICATION_CLASS);
       const storyClassified = criterion.match(STORY_VERIFICATION_CLASS);
@@ -206,11 +210,13 @@ export function validateIssueBody({
     }
   }
 
-  const humanVerification = (
-    parseFieldSection(text, 'Human verification / 사람 확인 안내')
-    ?? parseFieldSection(text, '사람 확인 안내')
+  const humanVerification = parseNamedSection(
+    text,
+    'Human verification / 사람 확인 안내',
+    'Human verification',
+    '사람 확인 안내',
   );
-  if (humanVerification && humanVerification.split(/\r?\n/).some((line) => ACCEPTANCE_CHECKBOX.test(line))) {
+  if (humanVerification && humanVerification.split(/\r?\n/).some((line) => CHECKBOX_ITEM.test(line))) {
     failures.push('human verification items must not use checkboxes');
   }
 
