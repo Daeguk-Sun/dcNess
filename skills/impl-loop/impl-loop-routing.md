@@ -29,6 +29,7 @@ flowchart TB
   IV -->|PASS + 영향 없음 또는 Root와 일치| ACC{close 발동?}
   IV -->|route/state/as-built edge stale| CR[module-architect CARTOGRAPHY_REFRESH]
   CR -->|bounded refresh| IV
+  CR -->|SYSTEM_CHECKPOINT_REQUIRED| DESIGN
   IV -->|system boundary/global decision 변경| DESIGN["/design --revise 또는 system checkpoint backpressure"]
   IV -->|FAIL| FIX[메인 root-cause 수정 + commit append]
   FIX --> IV

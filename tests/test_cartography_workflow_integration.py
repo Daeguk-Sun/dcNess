@@ -81,6 +81,7 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             self.assertIn("durable impact handoff만으로 freshness가 해소되지는 않", text)
 
         self.assertIn("acceptance 재검수", routing)
+        self.assertIn("CR -->|SYSTEM_CHECKPOINT_REQUIRED| DESIGN", routing)
 
     def test_validator_does_not_treat_durable_handoff_as_refresh_completion(self) -> None:
         validators = (

@@ -1,6 +1,6 @@
 # Invocation B — system backpressure
 
-- affected Root Cartography 좌표: attachment export storage route
-- merge candidate diff and impact propose replacing the existing byte-store with a shared encrypted attachment store used by export, sync, and MMS receive.
-- this changes storage policy, shared public boundary, and global decision 0021.
-- no approved system checkpoint or replacement decision exists.
+- 영향받는 Root Cartography 좌표: attachment export storage route
+- merge candidate diff와 impact는 기존 byte-store를 export, sync, MMS receive가 함께 쓰는 encrypted attachment store로 교체하자고 제안한다.
+- 이 변경은 storage policy, shared public boundary, global decision 0021을 바꾼다.
+- 승인된 system checkpoint나 대체 decision은 없다.

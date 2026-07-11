@@ -918,8 +918,23 @@ def _run_prose_has_pass(rd: Path, agent: str) -> bool:
 
 
 def _run_has_module_architect_pass(rd: Path) -> bool:
-    """module-architect prose PASS — end-step 파일명 표기 전체 인정."""
-    return run_prose_has_pass(rd, "module-architect")
+    """설계 gate 를 충족하는 module-architect PASS 확인.
+
+    ``CARTOGRAPHY_REFRESH``는 구현 종료 뒤 Root Cartography를 갱신하는
+    bounded producer mode다. 설계 산출물을 만드는 step이 아니므로 해당 mode의
+    PASS는 build-worker implementation gate의 설계 증거로 인정하지 않는다.
+    """
+    agent = "module-architect"
+    refresh_stem = f"{agent}-CARTOGRAPHY_REFRESH"
+    for prose in _run_prose_paths_for_agent(rd, agent):
+        stem = prose.stem
+        if stem == refresh_stem or re.fullmatch(
+            rf"{re.escape(refresh_stem)}-[1-9][0-9]*", stem
+        ):
+            continue
+        if "PASS" in _read_or_empty(prose):
+            return True
+    return False
 
 
 def _slot_for_run(
@@ -1193,7 +1208,8 @@ def evaluate_order_gate_for_step(
                 "[순서 차단 훅: implementation gate] build-worker 호출은 "
                 "설계 산출물 확보 후만 — "
                 "같은 run 의 module-architect PASS prose (module-architect*.md 안 "
-                "PASS 마커) 또는 begin-run --design-doc 으로 기록된 설계 문서 실존. "
+                "PASS 마커, CARTOGRAPHY_REFRESH mode 제외) 또는 begin-run "
+                "--design-doc 으로 기록된 설계 문서 실존. "
                 "충족 방법: module-architect step 을 PASS 로 완료하거나, 구현 run 을 "
                 "시작할 때 `begin-run impl --design-doc <설계문서>` 를 기록하세요. "
                 "명시적 direct 구현 경로라면 `begin-run impl --lane lite` 로 시작하세요."
