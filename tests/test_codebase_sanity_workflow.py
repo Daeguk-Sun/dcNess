@@ -181,6 +181,7 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
         cases = {
             "sanity-lint-green-with-warning": ("exit 0", "warning-free"),
             "sanity-coverage-unknown": ("UNKNOWN", "test count"),
+            "sanity-example-test-scaffold": ("example/scaffold", "meaningful coverage"),
             "sanity-framework-entrypoint": ("framework-reachable", "registration"),
             "sanity-planned-stub": ("planned seam", "자동 삭제"),
             "sanity-stale-old-path": ("quality-gap", "old path"),
