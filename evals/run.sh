@@ -110,10 +110,11 @@ for case_dir in "$ROOT"/evals/cases/*/; do
 
     # 하네스 무주입 격리 (#1073) — --safe-mode 가 CLAUDE.md·skills·hooks·MCP·user settings
     # customization 을 전부 끄고(OAuth 인증은 유지), --tools 가 도구 schema 를 제한한다.
-    # 검수자는 {{REPO_ROOT}}/docs/plugin/agents/... 지침을 Read 하므로 --tools "Read" +
-    # --add-dir "$ROOT" 로 repo 접근만 유지한다. baseline 실측 43,455 → ~2,755.
+    # 검수자는 {{REPO_ROOT}} agent 지침을 Read 하고 일부 케이스는 {{CASE_DIR}} fixture 를
+    # 파일명 없이 열거(Glob)해야 하므로 --tools Read Glob + --add-dir "$ROOT"(지침) +
+    # --add-dir "$sandbox"(fixture) 로 repo·fixture 접근만 유지한다. baseline 43,455 → ~3,067.
     # (--bare 는 OAuth/keychain 을 못 읽어 "Not logged in" 이라 쓰지 않는다.)
-    if ! report="$(claude -p "$prompt" --model "$MODEL" --safe-mode --tools "Read" --add-dir "$ROOT" --add-dir "$sandbox" 2>/dev/null)"; then
+    if ! report="$(claude -p "$prompt" --model "$MODEL" --safe-mode --tools Read Glob --add-dir "$ROOT" --add-dir "$sandbox" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 검수 실행 실패"
       record_eval_result "failed" "report" "" "" 1 0 0 0
       continue
