@@ -139,6 +139,9 @@ class ModuleArchitectStateContractTests(unittest.TestCase):
         self.design_skill = (ROOT / "skills" / "design" / "SKILL.md").read_text(
             encoding="utf-8"
         )
+        self.parallel_policy = (ROOT / "docs" / "plugin" / "parallel-policy.md").read_text(
+            encoding="utf-8"
+        )
 
     def test_tracks_cross_story_state_contracts_before_task_split(self) -> None:
         for needle in (
@@ -176,6 +179,12 @@ class ModuleArchitectStateContractTests(unittest.TestCase):
             self.assertIn(needle, self.impl_template)
         self.assertIn("`depends_on` 은 순서의 단일 SSOT", self.module_architect)
         self.assertIn("semantic produces/consumes", self.module_architect)
+        self.assertIn("task 실행 선후의 단일 SSOT", self.parallel_policy)
+        self.assertIn("owner/entrypoint 요약에서 복구", self.parallel_policy)
+        self.assertNotIn(
+            "contract produces/consumes 와 ordering 을 흡수한 단일 SSOT",
+            self.parallel_policy,
+        )
         self.assertIn(
             "계약 전문 복제 금지는 task-specific transition·실패 책임·acceptance 생략을 뜻하지 않는다",
             self.module_architect,
