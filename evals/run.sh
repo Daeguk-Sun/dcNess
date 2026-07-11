@@ -94,6 +94,11 @@ for case_dir in "$ROOT"/evals/cases/*/; do
   # 블라인드 보장 — fixture 만 sandbox 로 복사 (정답표/프롬프트 제외). sandbox 이름은
   # 케이스명을 포함하지 않는다 — 검수 agent 가 repo 의 정답표 경로를 역추적하지 못하게.
   sandbox="$(mktemp -d "${TMPDIR:-/tmp}/dcness-eval-XXXXXX")"
+  # 하네스 무주입 격리 (#1073) — claude -p 를 CLAUDE.md 없는 빈 cwd 에서 실행해
+  # CLAUDE.md auto-discovery·hook·skills·tool schema 주입을 차단한다. 이 격리 없이
+  # repo cwd 에서 돌면 세션당 ~43k baseline 을 짊어져 fan-out 시 quota 를 폭식한다.
+  # --bare 는 구독 인증(OAuth/keychain)을 못 읽어 "Not logged in" 이므로 쓰지 않는다.
+  neutral_cwd="$(mktemp -d "${TMPDIR:-/tmp}/dcness-eval-cwd-XXXXXX")"
   for f in "$case_path"/*; do
     base="$(basename "$f")"
     case "$base" in prompt.md | expected.md) continue ;; esac
@@ -108,7 +113,9 @@ for case_dir in "$ROOT"/evals/cases/*/; do
     report_file="$case_output/run-$i-report.md"
     judge_file="$case_output/run-$i-judge.md"
 
-    if ! report="$(claude -p "$prompt" --model "$MODEL" --allowedTools "Read" --add-dir "$sandbox" 2>/dev/null)"; then
+    # 검수자는 {{REPO_ROOT}}/docs/plugin/agents/... 지침을 Read 해야 하므로 --add-dir "$ROOT"
+    # 로 repo 접근만 유지하고, cwd 는 중립(CLAUDE.md 없음) 으로 둔다.
+    if ! report="$(cd "$neutral_cwd" && claude -p "$prompt" --model "$MODEL" --allowedTools "Read" --add-dir "$ROOT" --add-dir "$sandbox" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 검수 실행 실패"
       record_eval_result "failed" "report" "" "" 1 0 0 0
       continue
@@ -127,7 +134,8 @@ $expected
 [검수 보고]
 $report"
 
-    if ! grade="$(claude -p "$judge_prompt" --model "$MODEL" 2>/dev/null)"; then
+    # 채점자는 정답표+보고가 프롬프트에 인라인 — repo 접근 0 필요. 도구까지 제거해 최소화.
+    if ! grade="$(cd "$neutral_cwd" && claude -p "$judge_prompt" --model "$MODEL" --allowedTools "" 2>/dev/null)"; then
       echo "[eval] $case_name run $i: 채점 실행 실패"
       report_chars="${#report}"
       report_bytes="$(byte_len "$report")"
@@ -156,7 +164,7 @@ $report"
     fi
   done
 
-  rm -rf "$sandbox"
+  rm -rf "$sandbox" "$neutral_cwd"
   echo "[eval] $case_name — 정답 $pass/$RUNS"
   [ "$pass" -gt 0 ] || overall_fail=1
   if [ "$RELEASE_CHECK" = "1" ] && is_strict_case "$case_name" && [ "$pass" -ne "$RUNS" ]; then
