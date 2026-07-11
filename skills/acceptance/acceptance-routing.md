@@ -42,6 +42,16 @@ flowchart TB
 | `product-acceptance:EPIC_ACCEPTANCE` `FAIL` | Epic 완료 기준·Story AC, cross-story 동작 gap, mock-only green, 화면 증거 부재, 목업 불일치, cross-story 사용자 동선 부적합, security/ops risk 를 보고하고 후속 분기를 제안한다. |
 | `ESCALATE` | 기준 문서, 구현 PR 목록, 권한, 사용자 결정 부족을 보고하고 대기한다. |
 
+Cartography freshness gap은 standalone `/acceptance`의 읽기 전용 경계를 유지하면서 다음 producer까지 비지 않게 한다.
+
+| Cartography 결과 | 다음 producer |
+|---|---|
+| 영향 없음 또는 Root와 일치 | 기존 story/epic 완료 후보 보고 |
+| system boundary 유지 + route/state/as-built edge 또는 capability 상태 drift | `module-architect:CARTOGRAPHY_REFRESH`가 affected Root Cartography만 bounded refresh. local-only/ignored이면 canonical local refresh 또는 durable impact handoff를 보존하고 private docs를 code PR에 강제 포함하지 않음. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root refresh 확인 전에는 PASS 금지 |
+| system boundary·global decision 변경 | route-only patch 금지. `/design --revise` 또는 system checkpoint backpressure 보고 |
+
+standalone `/acceptance`는 이 producer를 직접 호출하지 않고 gap과 근거를 보고한다. product-acceptance와 acceptance skill은 모두 읽기 전용이다.
+
 ## 깊이 차이
 
 Story acceptance 는 가볍게 AC / PR / test evidence 중심으로 돈다. 단, 핵심 AC는 단순 파일/테스트 존재가 아니라 동작 증거와 연결돼야 하며, 대상 사용자의 입력/진행 동선으로도 닫혀야 한다. mock-only green 과 사용자 동선 부적합은 gap 으로 분리한다. story마다 full product/security/performance audit 을 강제하지 않는다.
@@ -84,6 +94,8 @@ UI story 인데 실제 실행 화면을 확인할 화면 증거가 없으면 `�
 | UX 미완성 | `/ux` |
 | 성능 병목 / 리팩토링 필요 | `/to-issue` 후보 + `/impl` 또는 `/design` |
 | 보안 / 권한 / 데이터 리스크 | `/to-issue` 후보 + `/design` 또는 사용자 위임 |
+| Root route/state/as-built edge 또는 capability 상태 drift | `module-architect:CARTOGRAPHY_REFRESH` + affected Root Cartography + durable impact handoff |
+| system boundary / global decision Cartography gap | `/design --revise` 또는 system checkpoint backpressure |
 
 story acceptance 는 주로 PRD 유저 시나리오 / Story AC 미충족, 검수 증거 부족 / 스모크 실패, mock-only green / 동작 증거 부족, 화면 증거 부재, 목업 불일치, 사용자 동선 부적합 / 내부 계약 노출을 만든다. epic acceptance 는 cross-story gap, 화면 증거 부재, cross-story 목업 불일치, cross-story 사용자 동선 부적합, 성능 병목 / 리팩토링 필요, 보안 / 권한 / 데이터 리스크까지 같이 본다.
 

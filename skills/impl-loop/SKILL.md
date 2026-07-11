@@ -77,7 +77,7 @@ retry 시 기존 sub-step 을 재활용하고 신규 TaskCreate 를 만들지 �
 
 `build-worker` / `impl-validator` / `product-acceptance` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
-- **대상 + 읽을 진본**: impl 파일 경로, preflight 에서 확보한 parent epic/story target GitHub issue AC snapshot, 검토 대상 diff 같은 SSOT 포인터만 둔다.
+- **대상 + 읽을 진본**: impl 파일 경로, preflight 에서 확보한 parent epic/story target GitHub issue AC snapshot, merge candidate diff, build-worker Cartography impact 자유 prose, affected Root Cartography 좌표, 관련 epic/decision 같은 SSOT 포인터만 둔다.
 - **worktree**: worktree 활성 시 worktree 절대경로를 넣는다.
 - **이 호출 특유**: 재호출 finding, wave-plan 신호, 검증 대행 결과처럼 진본에 아직 없는 신호만 둔다.
 - agent 본업의 구현 방식, 테스트 assert 방식, 알고리즘 같은 방법 처방은 prompt 에 넣지 않는다.
@@ -186,9 +186,14 @@ story 의 target task 가 completed 될 때마다 메인이 story PR 을 만든�
 2. `scripts/pr-create.sh` 또는 repo git-spec 절차로 story PR 을 만든다.
 3. 다중 story/epic 이면 story sub-PR 을 통합 브랜치로 머지하고 remote 통합 ref 를 갱신한 뒤, 다음 story branch 를 그 ref 에서 새로 만든다. 단일 story PR 은 열린 채 유지한다.
 4. 모든 story PR 경계를 처리한 뒤 다중 story/epic 은 통합→main PR 을 만든다.
-5. `begin-step impl-validator` → build-worker provider 의 반대편으로 review provider 를 resolve 하고, `impl-validator` 가 merged diff 를 plan ∪ target GitHub issue AC 기준으로 1회 리뷰한다.
-6. `PASS` 후 `STORY_ACCEPTANCE` × N, epic close 시 `EPIC_ACCEPTANCE` 를 수행한다.
-7. 단일 story→main 또는 통합→main PR 은 사용자 merge 결정이 필요한 repo 에서 멈춘다.
+5. `begin-step impl-validator` → build-worker provider 의 반대편으로 review provider 를 resolve 하고, `impl-validator` 가 merge candidate diff, task별 build-worker Cartography impact, affected Root Cartography 좌표, 관련 epic/decision을 plan ∪ target GitHub issue AC와 함께 리뷰한다.
+6. 영향 없음 또는 Root와 일치하면 기존 경로를 계속한다. system boundary는 유지되지만 route/state/as-built edge가 stale이면 메인이 기존 `module-architect:CARTOGRAPHY_REFRESH`를 호출해 affected Root 좌표만 bounded refresh하고 impl-validator 재검증한다. system boundary·global decision 변경이면 route-only patch로 흡수하지 않고 `/design --revise` 또는 system checkpoint backpressure에서 멈춘다.
+7. `PASS` 후 `STORY_ACCEPTANCE` × N, epic close 시 `EPIC_ACCEPTANCE` 를 수행한다.
+8. 단일 story→main 또는 통합→main PR 은 사용자 merge 결정이 필요한 repo 에서 멈춘다.
+
+`CARTOGRAPHY_REFRESH`는 새 agent나 공개 진입점이 아니라 기존 bounded module-architect write 계약을 구현 종료 경계에서 재사용하는 workflow mode다. tracked docs는 현재 branch/PR 정책으로 반영한다. local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local Root를 갱신하거나 exact affected 좌표·상태 증거·다음 producer를 durable impact handoff로 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root refresh 확인 전에는 최종 clean이 아니다. build-worker와 읽기 전용 impl-validator는 docs write를 떠안지 않는다.
+
+producer 호출은 `begin-step module-architect CARTOGRAPHY_REFRESH`로 열고, module-architect prose를 `end-step module-architect CARTOGRAPHY_REFRESH --prose-file <cartography-refresh-prose>`로 기록한다. `PASS` 뒤에만 같은 merge candidate diff와 갱신 Root로 `begin-step impl-validator` 재검증을 열고, `SYSTEM_CHECKPOINT_REQUIRED`이면 Root patch 없이 `/design --revise` 또는 system checkpoint backpressure로 보낸다.
 
 close 를 발동하는 최종 PR 은 CI green, product-acceptance 와 impl-validator PASS 만으로 clean 이 아니다. 이 최종 증거가 확정된 뒤 메인이 `Closes` 대상 story/epic issue 각각의 target GitHub issue AC 전항목 증거를 대조하고 자동 판정 가능한 체크박스를 모두 check 한 뒤, 이슈 본문 write 를 issue 별 close 경계에서 한 번 수행한다. 진행 중 task/story 경계에서는 issue mutation 이나 재조회를 추가하지 않는다. 각 최종 body 는 다음 감사가 PASS 해야 한다.
 
@@ -218,7 +223,7 @@ story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후
 
 최종 main 대상 PR 이 여러 story 를 닫으면 `product-acceptance:STORY_ACCEPTANCE` 를 story × N 으로 수행한 뒤, epic close 가 실제 발동되면 `product-acceptance:EPIC_ACCEPTANCE` 를 1회 수행한다. gap 수정 commit 이 생기면 이전 STORY PASS 는 stale 이므로 STORY_ACCEPTANCE 부터 다시 돌린다.
 
-product-acceptance 는 read-only 라 `gh` 호출 불가다. PR 목록·검증 결과·동작 증거·UI 목업 정합 증거는 메인이 prompt 에 직접 담는다. UI task 는 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 함께 넣어 목업 불일치와 화면 증거 부재를 판정할 수 있게 한다. 핵심 AC 증거가 mock-only green 이거나 대상 사용자에게 부적합한 입력/진행 동선이면 gap 이다.
+product-acceptance 는 read-only 라 `gh` 호출 불가다. PR 목록·검증 결과·동작 증거·UI 목업 정합 증거와 build-worker Cartography impact, affected Root Cartography 좌표, 상태 증거, 관련 epic/decision을 메인이 prompt 에 직접 담는다. UI task 는 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 함께 넣어 목업 불일치와 화면 증거 부재를 판정할 수 있게 한다. 핵심 AC 증거가 mock-only green 이거나 대상 사용자에게 부적합한 입력/진행 동선이면 gap 이다.
 
 호출:
 
@@ -229,7 +234,7 @@ begin-step product-acceptance EPIC_ACCEPTANCE
 end-step product-acceptance EPIC_ACCEPTANCE --prose-file <file>
 ```
 
-`PASS` → target GitHub issue AC close audit 로 진행한다. `FAIL` → auto-fixable gap 은 build-worker rework 로 수정하고 impl-validator 재리뷰 후 재검수한다. `ESCALATE` → 사용자 위임. acceptance FAIL 또는 AC close audit 미해소 상태로 `pr-finalize.sh` 강행 금지.
+`PASS` → target GitHub issue AC close audit 로 진행한다. `FAIL` → auto-fixable gap 은 build-worker rework 로 수정하고 impl-validator 재리뷰 후 acceptance 재검수한다. capability 상태 drift가 route-only stale이면 `module-architect:CARTOGRAPHY_REFRESH` → impl-validator 재검증 → acceptance 재검수 순서로 닫는다. system boundary/global decision gap이면 `/design --revise` 또는 system checkpoint backpressure로 보낸다. `ESCALATE` → 사용자 위임. acceptance FAIL, Cartography freshness 미해소, AC close audit 미해소 상태로 `pr-finalize.sh` 강행 금지이며 최종 clean으로 진행하지 않는다.
 
 ## 진행 뷰 task 리스트
 
@@ -267,6 +272,7 @@ close 발동 PR 은 acceptance 줄을 `PR <#NNN> merged` 앞에 추가한다. �
 - `dcness-story-runner` state mark.
 - merge candidate impl-validator PASS.
 - 필요한 product-acceptance PASS.
+- build-worker Cartography impact가 affected Root Cartography 및 관련 epic/decision과 대조됐고 route-only stale 또는 system backpressure가 남지 않음.
 - target issue 가 있으면 자동 판정 가능한 AC 전항목 충족·체크 + `require-complete` PASS.
 
 이 중 하나라도 없는데 clean 이라고 쓰면 false-clean → blocked.

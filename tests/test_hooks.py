@@ -377,6 +377,33 @@ class CatastrophicBuildWorkerOrderGateTests(_PreToolBase):
         )
         self.assertEqual(rc, 0)
 
+    def test_cartography_refresh_pass_does_not_unlock_build_worker(self) -> None:
+        # CARTOGRAPHY_REFRESH 는 구현 종료 뒤 bounded Root refresh다. 설계 pack을
+        # 만들지 않으므로 같은 run에 있어도 implementation gate 증거가 아니다.
+        (self.run_path / "module-architect-CARTOGRAPHY_REFRESH.md").write_text(
+            "## 결론\nPASS\n", encoding="utf-8",
+        )
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("build-worker"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
+    def test_cartography_refresh_occurrence_pass_does_not_unlock_build_worker(
+        self,
+    ) -> None:
+        # 반복 refresh의 occurrence prose도 같은 이유로 설계 증거에서 제외한다.
+        (
+            self.run_path / "module-architect-CARTOGRAPHY_REFRESH-2.md"
+        ).write_text("## 결론\nPASS\n", encoding="utf-8")
+        rc = handle_pretooluse_agent(
+            stdin_data=self._payload("build-worker"),
+            cc_pid=self.cc_pid,
+            base_dir=self.base,
+        )
+        self.assertEqual(rc, 1)
+
 
 class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
     """#859 — begin-step itself blocks provider-independent order violations."""
@@ -422,6 +449,22 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         self.assertIsNotNone(message)
         self.assertIn("[순서 차단 훅: implementation gate]", message or "")
         self.assertIn("build-worker", message or "")
+
+    def test_begin_step_rejects_cartography_refresh_as_design_evidence(
+        self,
+    ) -> None:
+        (self.run_path / "module-architect-CARTOGRAPHY_REFRESH.md").write_text(
+            "## 결론\nPASS\n", encoding="utf-8",
+        )
+        message = evaluate_order_gate_for_step(
+            self.sid,
+            self.rid,
+            "build-worker",
+            None,
+            base_dir=self.base,
+        )
+        self.assertIsNotNone(message)
+        self.assertIn("CARTOGRAPHY_REFRESH mode 제외", message or "")
 
     def test_begin_step_cli_exits_nonzero_on_order_violation(self) -> None:
         project = self.base / "project"

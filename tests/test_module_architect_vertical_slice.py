@@ -149,6 +149,8 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             "final epic 검증에서는 Story별 첫 제품 경계 동작 증거",
             "앞에서 system checkpoint 가 있었다면 boundary 변경 뒤에도 그 순서가 유지되는지 확인한다",
             "epic 구현 순서가 사유 없이 부품-먼저로 남은 상태는 `SYSTEM_BOUNDARY` 다",
+            "의존 순서가 기술적으로 합리적이라는 이유만으로 순서 결함을 철회하지 않는다",
+            "그 약속의 첫 end-to-end 동작 검증",
         ):
             self.assertIn(needle, self.arch_validator)
 
@@ -158,7 +160,16 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             self.arch_validator,
         )
         self.assertIn(
-            "사유가 기록돼 있으면 finding 대신 warning 으로 보고한다",
+            "핵심 약속이 뒤 Story로 밀렸는데 더 이른 얇은 end-to-end 골격이 불가능한 이유가 "
+            "명시된 경우에만 finding 대신 warning 으로 보고한다",
+            self.arch_validator,
+        )
+        self.assertIn(
+            "`TASK_LOCAL`을 포함한 unresolved Must finding이 하나라도 남으면 `FAIL`이다",
+            self.arch_validator,
+        )
+        self.assertIn(
+            "system boundary 변경이 없다는 사실만으로 `PASS`하지 않는다",
             self.arch_validator,
         )
         self.assertIn("| 구현 순서 |", self.arch_validator_template)
@@ -191,8 +202,13 @@ class ModuleArchitectVerticalSliceContractTests(unittest.TestCase):
             "부품-먼저 순서면 epic architecture 의 "
             "`Story -> 모듈 매핑` 또는 stories.md epic 완료 기준 근처에 사유와 경고가 "
             "남았는지 확인한다",
-            "사유가 기록돼 있으면 finding 대신 warning 으로 보고한다",
+            "핵심 약속이 뒤 Story로 밀렸는데 더 이른 얇은 end-to-end 골격이 "
+            "불가능한 이유가 명시된 경우에만 finding 대신 warning 으로 보고한다",
             "epic 구현 순서가 사유 없이 부품-먼저로 남은 상태는 `SYSTEM_BOUNDARY` 다",
+            "의존 순서가 기술적으로 합리적이라는 이유만으로 순서 결함을 철회하지 않는다",
+            "그 약속의 첫 end-to-end 동작 검증",
+            "`TASK_LOCAL`을 포함한 unresolved Must finding이 하나라도 남으면 `FAIL`이다",
+            "system boundary 변경이 없다는 사실만으로 `PASS`하지 않는다",
         ):
             self.assertIn(needle, self.codex_arch_validator)
 

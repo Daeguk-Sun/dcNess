@@ -44,7 +44,7 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 - 병렬 wave 판정 가능성: impl 문서의 `### 수정 허용` 이 wave-plan 파서가 읽을 수 있는 경로 목록인가. 메인이 `dcness-helper normalize-scope <impl dir>` 후 `wave-plan` 결과의 `unresolved_slugs` 또는 `format_unnormalized_slugs` 를 전달했으면 그 slug 를 우선 확인한다. normalizer 가 고칠 수 있는 볼드/라벨/괄호 설명은 validator finding 이 아니라 기계 교정 영역이다. normalizer 이후에도 경로가 없거나 여러 경로/산문이 섞여 남은 task 만 `TASK_LOCAL` finding 으로 드러낸다.
 - 수용 기준 검증성: Story AC 에서 파생된 REQ 가 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 닫히는가. 사람 판정 항목이 REQ 에 섞이지 않았는가.
 - 수직 슬라이스 우선순위: 병렬 독립성이나 파일 경계를 맞추기 위해 Story 동작을 레이어별 부품 task로 찢어 실제 제품 경계 동작 책임이 비어 있지 않은가. 첫 동작 증거가 Story 마지막 task까지 밀렸는데 이유와 후속 검증이 없으면 `TASK_LOCAL` finding 으로 드러낸다.
-- 구현 순서: epic architecture 의 Story/모듈 구현 순서가 의존만이 아니라 첫 제품 경계 동작 증거를 앞당기는가. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 Story -> 모듈 매핑을 함께 보고, 앞에서 system checkpoint 가 있었다면 boundary 변경 뒤에도 그 순서가 유지되는지 확인한다.
+- 구현 순서: epic architecture 의 Story/모듈 구현 순서가 의존만이 아니라 첫 제품 경계 동작 증거를 앞당기는가. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 Story -> 모듈 매핑을 함께 보고, 앞에서 system checkpoint 가 있었다면 boundary 변경 뒤에도 그 순서가 유지되는지 확인한다. PRD 유저 시나리오·Story AC·epic 완료 기준에서 핵심 제품 약속을 먼저 식별하고, 그 약속의 첫 end-to-end 동작 검증이 어느 Story에서 닫히는지 별도로 추적한다. 앞 Story가 일부 하위 동작을 내거나 의존 순서가 기술적으로 합리적이라는 이유만으로 순서 결함을 철회하지 않는다. 핵심 약속이 뒤 Story로 밀렸는데 더 이른 얇은 end-to-end 골격이 불가능한 이유가 epic 완료 기준 근처에 명시된 경우에만 finding 대신 warning 으로 보고한다.
 - 시스템 경계 변경 신호: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 전역 decision 을 바꾸는 요구가 module-architect 산출물에서 새로 드러났는가. 있으면 `SYSTEM_BOUNDARY` 로 분류해 system checkpoint 승격을 권고한다.
 - 디자인 입력 강제: 확정 목업이 있는 UI epic 에서 목업 미참조 설계 금지 원칙을 지키는가. epic architecture 와 impl task 의 `## 디자인 참조` 가 확정 목업 경로, node-id 매핑, docs/design.md 토큰을 대조하고, 의도적 차이를 설명하는가. 메인이 `dcness-helper mockup-node-check --mockup-dir docs/design-variants <impl dir>` 결과를 전달했으면 `missing_node_ids` 를 우선 증거로 본다.
 
@@ -53,7 +53,7 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 1. 호출 시점에 실제로 존재하는 산출물만 읽는다.
 2. 위 판단 축별로 증거를 찾는다.
 3. final epic 검증에서는 모든 impl 문서가 `무엇을 만드나`/`왜 만드나` 또는 동등한 위치에 제품 동작 수직 슬라이스 증거를 남겼는지 확인한다. 섹션명만 보지 말고, Story 완료 시 실제 검증되는 동작, 제품 경계(UI/API/CLI/worker entrypoint/통합 wiring), 첫 동작 증거 지점, 병렬성보다 동작 슬라이스를 우선한 결정이 구체적인지 본다. 옛 `Story 동작 슬라이스` 섹션명 부재만으로 FAIL 하지 않는다.
-4. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 epic architecture 의 구현 순서가 의존만이 아니라 제품 경계 동작을 앞당기는지 확인한다. 부품-먼저 순서가 남아 있으면 epic architecture 의 `Story -> 모듈 매핑` 또는 stories.md epic 완료 기준 근처에 경고와 사유가 있는지 본다. 사유가 기록돼 있으면 finding 대신 warning 으로 보고한다. epic 구현 순서가 사유 없이 부품-먼저로 남은 상태는 `SYSTEM_BOUNDARY` 다.
+4. final epic 검증에서는 Story별 첫 제품 경계 동작 증거와 epic architecture 의 구현 순서가 의존만이 아니라 제품 경계 동작을 앞당기는지 확인한다. 부품-먼저 순서가 남아 있으면 epic architecture 의 `Story -> 모듈 매핑` 또는 stories.md epic 완료 기준 근처에 경고와 사유가 있는지 본다. 핵심 약속이 뒤 Story로 밀렸는데 더 이른 얇은 end-to-end 골격이 불가능한 이유가 명시된 경우에만 finding 대신 warning 으로 보고한다. epic 구현 순서가 사유 없이 부품-먼저로 남은 상태는 `SYSTEM_BOUNDARY` 다.
 5. final epic 검증에서 entrypoint 를 만지는 impl 문서는 owner/entrypoint 요약 또는 동등한 증거가 owner flow/module, entrypoint role, state owner, validation path 를 남겼는지 본다. 구 `Agent Workability` 섹션도 하위호환 증거로 인정하지만, 옛 섹션명 부재만으로 FAIL 하지 않는다.
 6. final epic 검증에서는 domain-model 작성/생략 근거가 impl 계약과 모순되지 않는지, 계약 표면 코드 SSOT 대조 증거가 있는지 확인한다. 포트, 도메인 타입, 공개 entrypoint 를 바꾸는 task 가 기존 코드와 충돌하거나 module/decision 근거 없이 새 계약을 전제하면 finding 으로 보고한다.
 7. final epic 검증에서 고위험 상태 계약 위험 신호가 있으면 적용 가능한 전이를 끝까지 추적하고, 앞 Story 가 만든 상태·identity 를 뒤 Story 가 소비하는 공유 계약을 별도로 대조한다. 전이의 중간 단계가 산출물에 없거나 어느 impl task 의 scope 도 그 단계를 수정하지 못하면 finding 으로 보고한다.
@@ -82,7 +82,8 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 - revision mode 이면 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 증거를 검토했다.
 - legacy Contract Ledger / Contract References, ux-flow, stories prose stale 을 형식만으로 Must finding 으로 올리지 않았다.
 - FAIL이면 모든 Must finding에 분류와 권장 다음 행동이 있다.
-- PASS이면 왜 system checkpoint 또는 module-architect 재진입이 필요 없는지 설명할 수 있다.
+- `TASK_LOCAL`을 포함한 unresolved Must finding이 하나라도 남으면 `FAIL`이다. system boundary 변경이 없다는 사실만으로 `PASS`하지 않는다.
+- PASS이면 unresolved Must finding이 없고 왜 system checkpoint 또는 module-architect 재진입이 필요 없는지 설명할 수 있다.
 - 정보 부족은 추측으로 메우지 않고 ESCALATE한다.
 
 ## 권한 경계
@@ -95,7 +96,7 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 
 ## 결론과 보고
 
-마지막 단락에 `PASS`, `FAIL`, `ESCALATE` 중 하나를 명확히 쓴다. 보고는 자유 prose지만 Must finding에는 위치, 영향, 분류, 다음 행동이 있어야 한다.
+마지막 단락에 `PASS`, `FAIL`, `ESCALATE` 중 하나를 명확히 쓴다. 보고는 자유 prose지만 Must finding에는 위치, 영향, 분류, 다음 행동이 있어야 한다. `SYSTEM_BOUNDARY`가 없더라도 `TASK_LOCAL` Must finding이 미해소면 결론은 `FAIL`이다.
 
 FAIL / ESCALATE 판단 노트와 재검증 delta-first 보고는 [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)를 따른다. 이 가이드는 출력 schema 가 아니라 메인이 다음 행동을 판단할 수 있게 실패 사실, 판단 근거, 재검증 변화량을 드러내는 의미 요구다.
 

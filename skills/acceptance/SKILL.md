@@ -24,6 +24,7 @@ description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행�
 - UI story/epic 이면 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - 대상 사용자와 핵심 입력/진행 동선
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제로 실행된 제품 경계
+- implementation Cartography impact, affected Root Cartography 좌표, 상태 before/after 증거, 관련 epic/decision, tracked 또는 local-only/ignored 문서 정책
 - 이전 acceptance gap 이 있으면 그 결과와 재검수 대상
 
 입력이 부족하면 추측으로 검수하지 않고 사용자에게 어떤 경로/PR/issue 가 필요한지 묻는다.
@@ -119,6 +120,7 @@ mode: EPIC_ACCEPTANCE
 - <UI epic 인 경우: story별 확정 목업 경로 + 최종 구현 화면 스크린샷 또는 화면 증거 경로>
 - <cross-story 통합 동작 증거: 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등>
 - <cross-story 사용자 입력/진행 동선: 대상 사용자에게 자연스러운 흐름인지>
+- <implementation Cartography impact + affected Root Cartography + 상태 증거 + 관련 epic/decision + 문서 정책>
 """)
 ```
 
@@ -130,13 +132,24 @@ mode: EPIC_ACCEPTANCE
 - UI epic 이면 story별 확정 목업과 최종 구현 화면 증거의 구조적 흐름이 이어지는가, 아니면 화면 증거 부재나 목업 불일치가 남았는가.
 - 여러 PR/story 를 합친 핵심 사용자 흐름이 내부 schema/payload 조립이 아니라 대상 사용자의 작업 언어로 진행되는가.
 - security/ops risk 가 새로 생겼는데 후속 없이 묻히지 않았는가.
+- epic이 인수한 `planned/stub/deferred` capability와 `landed` 주장을 실제 제품 동작·검증 증거 및 affected Root Cartography에 대조했는가.
+
+### Cartography freshness 후속
+
+standalone `/acceptance`는 읽기 전용을 유지하며 stale Root를 직접 수정하지 않는다. product-acceptance prose의 gap을 메인이 읽고 다음 producer를 명시한다.
+
+- 영향 없음 또는 Root와 일치: 기존 완료 후보 보고를 계속한다.
+- system boundary가 유지된 route/state/as-built edge 또는 capability 상태 drift: 기존 `module-architect:CARTOGRAPHY_REFRESH`가 affected Root Cartography 좌표만 bounded refresh해야 한다고 보고한다. local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local Root 갱신 또는 exact durable impact handoff를 다음 producer에 남긴다. durable impact handoff만으로 freshness가 해소되지는 않으므로 canonical local Root refresh 확인 전에는 PASS하지 않는다.
+- system boundary·global decision 변경: route-only refresh로 흡수하지 않고 `/design --revise` 또는 system checkpoint backpressure를 보고한다.
+
+standalone `/acceptance`는 producer를 직접 호출하거나 파일을 수정하지 않는다. direct `/impl`에서 acceptance가 생략되더라도 impl-validator 종료 경계가 최소 Cartography freshness 책임을 가진다.
 
 ## 절차
 
 1. 입력 단위가 story 인지 epic 인지 확인한다.
 2. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE` 를 호출한다.
 3. `PASS`면 완료 후보로 보고한다.
-4. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다.
+4. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `module-architect:CARTOGRAPHY_REFRESH` 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
 5. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
 6. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
 

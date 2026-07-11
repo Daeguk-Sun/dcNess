@@ -139,6 +139,11 @@ golden 파일 형식:
 | `cartography-validator-drift` | (합성) Application lifecycle이 data observer를 직접 wiring했지만 Root graph에는 edge가 없는 구현 diff | impl-validator가 as-built drift를 찾고 route-only refresh 범위를 보고하되 직접 문서를 수정하지 않아야 한다 |
 | `cartography-refresh` | (합성) system boundary 변화 없이 scheduler entrypoint가 `planned → landed`가 됐고 Root는 stale인 local-only docs 프로젝트 | route-only refresh와 durable handoff를 요구하되 private docs를 code PR에 강제 포함하지 않아야 한다 |
 | `cartography-system-checkpoint` | (합성) landed public REST boundary 제거와 capability owner 이동이 섞인 구현 diff | route-only refresh로 흡수하지 않고 system checkpoint 또는 `/design` backpressure를 요구해야 한다 |
+| `cartography-no-impact` | (합성) 기존 retry entrypoint 내부 계산만 고치고 route·owner·상태는 Root와 일치하는 diff | 불필요한 refresh 없이 PASS해야 한다 |
+| `cartography-mms-system-impact` | (합성) SMS-only topology에 MMS 수신·송신과 multipart storage policy를 추가하는 design 입력 | system checkpoint로 선승격하거나 기존 fallback에서 회수해야 한다 |
+| `cartography-acceptance-stale-state` | (합성) 제품 동작 증거는 capability의 landed를 입증하지만 Root에는 planned가 남은 epic acceptance | 사용자 동작 PASS만으로 끝내지 않고 route-only 상태 refresh를 요구해야 한다 |
+| `cartography-lifecycle-smoke` | (외부 활성 프로젝트 fixture) design planned/stub부터 impl landed, drift 검출, bounded refresh, acceptance, 다음 design 재대조까지의 전체 trace | #1058 agent 책임과 #1057 workflow 연결이 합쳐져 durable boundary를 순서대로 닫아야 한다 |
+| `cartography-producer-contract` | prewritten refreshed Root 없이 module-architect `CARTOGRAPHY_REFRESH`가 직접 bounded patch와 system backpressure를 생산 | workflow routing 문자열이 아니라 실제 producer mode의 입력·write 제한·landed 증거·재검증 handoff를 검증해야 한다 |
 
 > L3 실사고 케이스의 축 한계 — 정직하게 기록한다:
 > - **순서 축은 깨끗하게 재현된다**: 핵심 약속(완성 쇼츠) 검증이 뒤 story 로 밀린 것을 지금 지침이 reliable 하게 잡는다(3/3). 이게 youTubeGenerator #214 의 설계단 원인이다.
