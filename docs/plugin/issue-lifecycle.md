@@ -51,7 +51,7 @@ gh issue create --title "<title>" --body-file <brief.md> --label "<IssueType>"
 
 `scripts/check_issue_body.mjs` 가 실패하면 `gh issue create` 를 실행하지 않는다. 실제 issue 생성 preflight 는 `--labels` 를 함께 넘겨 label 계약까지 검증하고, 본문 초안만 점검할 때만 `--body-only` 를 명시한다. GitHub issue 생성·등록은 직접 `gh issue create` 대신 `/to-issue` 를 기본 경로로 사용한다 (작업 흐름 중 자발적으로 남기는 후속 이슈 포함). `/to-issue` 외 대화나 agent workflow 가 issue 를 생성하는 경우에도 같은 pre-create validation 을 통과하고 IssueType 라벨을 붙여야 한다.
 
-`--require-complete` 는 새 CI hard gate 가 아니라 close 직전 메인이 같은 validator 를 재사용하는 로컬 감사 옵션이다. `--acceptance-only` 와 함께 쓰면 Issue Brief 와 Story/Epic issue body 에 공통으로 적용되며, target GitHub issue AC 에 미체크 항목이 하나라도 있으면 실패한다. 신규 issue 의 `[command]`/`[agent-read]` 분류는 pre-create 에서 강제하고, 이미 존재하는 무분류 legacy AC 는 close 감사에서 소급 태깅하지 않는다. legacy 사람 판정 항목은 사용자가 직접 체크한 뒤에만 전항목 완료가 된다. Acceptance criteria 섹션 자체가 없는 구양식 issue 는 `legacy/no AC` 로 보고하며, 존재하지 않는 체크리스트를 소급 생성하지 않는다.
+`--require-complete` 는 새 CI hard gate 가 아니라 close 직전 메인이 같은 validator 를 재사용하는 로컬 감사 옵션이다. `--acceptance-only` 와 함께 쓰면 Issue Brief 와 Story/Epic issue body 에 공통으로 적용되며, target GitHub issue AC 에 미체크 항목이 하나라도 있으면 실패한다. close 감사는 bold field(`**Acceptance criteria:**`)와 Markdown heading(`## Acceptance criteria`) 섹션을 모두 인식하고, `-`와 `*` 체크박스 불릿을 같은 AC 목록으로 집계한다. 신규 issue 의 `[command]`/`[agent-read]` 분류는 pre-create 에서 강제하고, 이미 존재하는 무분류 legacy AC 는 close 감사에서 소급 태깅하지 않는다. legacy 사람 판정 항목은 사용자가 직접 체크한 뒤에만 전항목 완료가 된다. Acceptance criteria 섹션 자체가 없는 구양식 issue 는 `legacy/no AC` 로 보고하며, 존재하지 않는 체크리스트를 소급 생성하지 않는다.
 
 ## Issue/label Status lifecycle
 

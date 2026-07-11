@@ -189,6 +189,41 @@ class IssueBodyValidationTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("unchecked acceptance criteria", result.stderr)
 
+    def test_close_audit_rejects_unchecked_heading_acceptance_criteria(self) -> None:
+        body = textwrap.dedent(
+            """
+            ## Acceptance criteria
+
+            - [ ] [command] The close audit detects this unchecked criterion.
+            """
+        ).strip()
+
+        result = run_validator(
+            body,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("unchecked acceptance criteria remain: 1", result.stderr)
+
+    def test_close_audit_counts_asterisk_acceptance_checkbox(self) -> None:
+        body = textwrap.dedent(
+            """
+            **Acceptance criteria:**
+            * [ ] [command] The close audit counts an asterisk checklist item.
+            """
+        ).strip()
+
+        result = run_validator(
+            body,
+            "--acceptance-only",
+            "--require-complete",
+        )
+
+        self.assertEqual(1, result.returncode)
+        self.assertIn("unchecked acceptance criteria remain: 1", result.stderr)
+
     def test_close_preflight_accepts_checked_acceptance_criteria(self) -> None:
         body = VALID_BODY.replace("- [ ]", "- [x]")
 
