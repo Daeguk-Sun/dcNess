@@ -62,6 +62,8 @@
 - 결정 기록: 기술 스택과 외부 의존 결정이 `docs/conventions.md` 또는 `docs/decisions/NNNN-slug.md` 로 남는가.
 - 모듈 스코프: 모듈별 stack/build/validation delta 가 전역 문서에 섞이지 않고 `docs/modules/<module-id>/` 로 내려갔는가. 무관한 module docs 를 입력 세트에 넣지 않았는가.
 - 전역 문서 집계: epic 디렉토리와 `stories.md` 가 `scripts/aggregate_index_map.mjs` 로 파싱 가능한가. 인간용 전역 architecture 요약은 `scripts/aggregate_architecture_map.mjs` 온디맨드 산출물이며 checked-in drift gate 대상이 아니다.
+- Cartography freshness: root의 runtime entrypoint/capability route가 실제 repo-relative 코드 경로 또는 관련 epic/decision으로 이동하고, `landed/stub/planned/deferred` 상태가 코드·제품 검증 증거 수준과 일치하는가. 설계 graph만 보지 않고 application lifecycle, receiver/observer/worker wiring을 코드에서 실측해 as-built edge와 전역 gotcha를 반영하는가.
+- root 경계: root는 stable capability/entrypoint router만 소유하고 Story→모듈 매핑, 구현 순서, epic-local topology/계약 전문은 epic architecture에 남기는가.
 - 변경 안정성: opt-in checkpoint 뒤에도 module-architect 가 최소형 architecture 와 impl task 로 이어갈 수 있는가.
 - 구현 순서: 첫 제품 경계 동작 증거를 앞당기는 순서를 설명하는가. 부품을 다 만든 뒤에야 처음 동작하는 순서는 epic `architecture.md` 의 `Story -> 모듈 매핑` 또는 stories.md epic 완료 기준 근처에 경고와 사유로 남긴다.
 
@@ -71,7 +73,7 @@
 
 1. topology 부재 조건을 확인한다. 유효 모듈 topology 가 이미 있으면 새로 나누지 말고 `PASS` 로 "bootstrap 불필요" 를 보고한다.
 2. PRD와 대상 epic story를 읽고 첫 epic 이 건드릴 제품 경계와 예상 큰 모듈 후보만 뽑는다.
-3. `docs/architecture.md` root anchor 에 큰 모듈 목록과 의존 그래프를 남긴다. 각 모듈은 책임 + 공개 인터페이스 한 줄만 둔다.
+3. `docs/architecture.md` root anchor 에 큰 모듈 목록과 의존 그래프를 남긴다. 관측되거나 accepted 설계로 확정된 runtime entrypoint/capability route는 실제 repo-relative 경로 또는 epic/decision 포인터와 상태를 함께 기록한다. 각 모듈은 책임 + 공개 인터페이스 한 줄만 둔다.
 4. 기술 스택 또는 전역 의존 방향 결정이 필요하면 `docs/conventions.md` 또는 `docs/decisions/NNNN-slug.md` 에 기록한다.
 5. 여기서 멈춘다. domain-model.md 작성/생략 판단, 계약 표면 코드 SSOT 대조, flow/state owner 상세, Module Design Check evidence, impl task 작성은 module-architect 또는 CHECKPOINT 책임이다.
 6. `PASS` 로 module-architect(epic-batch) 진입에 필요한 root topology/decision 포인터를 보고한다.
@@ -81,12 +83,13 @@
 1. PRD와 epic story를 읽고 설계 범위를 확정한다.
 2. 도메인 복잡도를 먼저 판단한다. entity, value object, aggregate, domain service, invariant 가 설계 판단에 필요하면 `domain-model.md` 를 작성한다. 낮은 CRUD/문구/설정 흐름처럼 DDD 어휘가 의례가 되면 `domain-model.md` 생략 가능하며, 생략 판단 근거를 epic `architecture.md` 에 남긴다.
 3. 모듈 목록, 의존 그래프, 공개 API, flow/state owner, 공통 task 후보를 작성한다. 별도 Flow Ownership Map 을 만들지 않고 `## 모듈 목록` 의 책임/공개 인터페이스/검증 경로에 필요한 owner·forbidden append·validation path 를 압축한다.
-4. 기존 코드의 계약 표면 코드 SSOT 대조를 수행한다. 포트, 도메인 타입, 공개 entrypoint, adapter 계약이 있으면 grep/Read 로 실측하고, 설계가 그 표면을 변경하는지 유지하는지 산출물에 증거를 남긴다.
+4. 기존 코드의 계약 표면 코드 SSOT 대조를 수행한다. 포트, 도메인 타입, 공개 entrypoint, adapter 계약과 application/lifecycle/receiver/observer/worker wiring을 grep/Read 로 실측하고, 설계가 그 표면을 변경하는지 유지하는지 산출물에 증거를 남긴다. 설계 graph에 없는 as-built edge도 root 허용 방향 또는 전역 gotcha에 반영한다.
 5. cross-task 계약이 있으면 module responsibility 한 줄과 `docs/decisions/NNNN-slug.md` 에 의미와 사유를 배치한다.
 6. 기술 스택, 의존 차단 도구, DI 패턴을 `docs/conventions.md` 와 필요한 decision 문서에 남긴다. 특정 모듈에만 닫히는 delta 는 `docs/modules/<module-id>/conventions.md` 또는 module scope decision 으로 남긴다.
 7. `agents/_shared/module-design-principles.md` 적용 증거를 산출물에 남긴다.
 8. epic architecture 표와 필요한 module docs 를 채운 뒤 `docs/index.md` epic/module 표 갱신이 필요함을 보고한다. 메인은 활성 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 를 실행한다. 전역 architecture 요약이 필요할 때만 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 를 실행해 `.dcness-work/reports/architecture-map.md` 온디맨드 리포트를 만든다.
-9. 범위 충돌이나 새 외부 의존이 보이면 멈추고 ESCALATE한다.
+9. root 갱신 조건(runtime entrypoint, stable capability owner, global decision, 상태, 전역 의존 방향/용어/gotcha)을 전수 대조한다. 조건이 바뀌면 root Cartography만 얇게 갱신하고, `landed`는 실제 코드 entrypoint와 제품 동작·검증 증거가 있을 때만 사용한다.
+10. 범위 충돌이나 새 외부 의존이 보이면 멈추고 ESCALATE한다.
 
 ## 완료 기준
 
@@ -108,6 +111,7 @@
 - cross-task 계약 의미가 module responsibility 와 decision 문서에 있거나, cross-task 계약이 없음을 명시한다.
 - 계약 표면 코드 SSOT 대조 증거가 있다. brownfield 포트, 도메인 타입, 공개 entrypoint 와 설계가 불일치하면 PASS 하지 않는다.
 - `Module Design Check` 섹션이나 동등한 증거로 모듈 설계 원칙 적용이 보인다.
+- root 갱신 조건을 대조했고 변경된 stable route/state/as-built edge가 있으면 실제 경로와 증거를 가진 bounded Cartography로 반영했다.
 
 ## 권한 경계
 

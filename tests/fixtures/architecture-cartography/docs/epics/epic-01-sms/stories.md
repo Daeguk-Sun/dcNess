@@ -1,0 +1,3 @@
+# SMS stories
+
+Fixture only.

@@ -191,6 +191,19 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("## 큰 모듈 경계", root_template)
         self.assertIn("| 모듈 | 책임 | 공개 인터페이스 | 결정 |", root_template)
         self.assertIn("## 의존 그래프", root_template)
+        for needle in (
+            "## Runtime entrypoint routes",
+            "## Capability routes",
+            "landed",
+            "stub",
+            "planned",
+            "deferred",
+            "실제 repo-relative 경로",
+            "## 도메인 용어 포인터",
+            "## 전역 gotcha",
+            "## Root 갱신 조건",
+        ):
+            self.assertIn(needle, root_template)
 
         self.assertIn("## Domain Model", system_template)
         self.assertIn("생략 판단 근거 (생략 시 필수)", system_template)

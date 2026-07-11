@@ -12,6 +12,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "aggregate_architecture_map.mjs"
 NODE = shutil.which("node")
+CARTOGRAPHY_FIXTURE = ROOT / "tests" / "fixtures" / "architecture-cartography"
 
 
 def _write(path: Path, text: str) -> None:
@@ -55,6 +56,18 @@ def _table_cell_counts(section: str) -> list[int]:
 
 @unittest.skipUnless(NODE, "node not installed — architecture map tool is a node script")
 class ArchitectureMapAggregateTests(unittest.TestCase):
+    def test_latest_template_preserves_public_interface_decisions_and_epic_owner(self) -> None:
+        proc = _run(CARTOGRAPHY_FIXTURE, "--stdout")
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertIn("`receiveSms(intent)`", proc.stdout)
+        self.assertIn("`receiveMms(wapPush)`", proc.stdout)
+        self.assertIn("[ADR-0001]", proc.stdout)
+        self.assertIn("[ADR-0002]", proc.stdout)
+        self.assertIn("[epic-01-sms]", proc.stdout)
+        self.assertIn("[epic-02-mms]", proc.stdout)
+        self.assertNotIn("| SmsIngress | SMS receive owner | - | - |", proc.stdout)
+
     def test_generates_report_from_epic_architecture_tables(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
@@ -106,7 +119,7 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             )
             self.assertIn("## 공유 계약 인덱스", root_map)
             self.assertIn(
-                "| AuthSession | AuthCore | LoginForm | AuthCore | session id stable | [ADR-0001](../../docs/decisions/0001-auth.md) | [epic-01-alpha](../../docs/epics/epic-01-alpha/architecture.md) |",
+                "| legacy Contract Ledger | AuthSession | AuthCore | LoginForm | AuthCore | - | session id stable | [ADR-0001](../../docs/decisions/0001-auth.md) | [epic-01-alpha](../../docs/epics/epic-01-alpha/architecture.md) |",
                 root_map,
             )
 

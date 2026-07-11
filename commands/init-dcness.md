@@ -270,7 +270,7 @@ cp "$PLUGIN_ROOT/templates/github-workflows/doc-sync.yml" "$PROJECT_ROOT/.github
 
 `record_dcness_workflow_change` 는 실제 overwritten 된 workflow 에만 호출한다. skip 된 workflow 나 기존 dirty workflow 파일은 기록하지 않는다.
 
-기존 epic 또는 module docs 가 있는 프로젝트가 `doc-sync.yml` 을 새로 받으면 첫 PR 전에 현재 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 를 1회 실행해 index 파생 섹션을 재생성한다. stale 상태면 새 게이트가 의도대로 실패한다. 같은 doc-sync composite action 이 `node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs"` 도 실행하므로 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 경고도 외부 프로젝트 PR CI 에서 확인된다. 전역 architecture 요약은 필요할 때 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 로 온디맨드 생성한다.
+기존 epic 또는 module docs 가 있는 프로젝트가 `doc-sync.yml` 을 새로 받으면 첫 PR 전에 현재 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 를 1회 실행해 index 파생 섹션을 재생성한다. stale 상태면 새 게이트가 의도대로 실패한다. 같은 doc-sync composite action 이 `node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs"` 도 실행하므로 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 경고도 외부 프로젝트 PR CI 에서 확인된다. 여러 epic의 capability/owner 보조 뷰가 필요할 때만 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 로 온디맨드 생성한다. 이 임시 리포트는 필수 agent 입력이나 as-built 코드 상태 증거가 아니다.
 
 #### project docs seed
 
