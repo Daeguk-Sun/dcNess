@@ -15,6 +15,7 @@ Step 내부 분기는 본 파일이 소유한다. skill 간 이동·재진입은
 
 - PRD 템플릿: [`templates/prd.md`](templates/prd.md)
 - 그릴미 / AC / 기술 검토 필요 영역 작성 기준: [`spec-prd-reference.md`](spec-prd-reference.md)
+- 구현 전 결정 범위·근거 상태·질문/위임·완료 의미: [`decision-completeness.md`](../../docs/plugin/decision-completeness.md)
 - stories.md 형식 / Story 크기 가이드: [`spec-stories-reference.md`](spec-stories-reference.md)
 - branch / PR / issue 등록 명령 예시: [`spec-delivery-reference.md`](spec-delivery-reference.md)
 - skill 간 분기 / 재진입 / 단방향 관례: [`spec-routing.md`](spec-routing.md)
@@ -31,12 +32,15 @@ Step 내부 분기는 본 파일이 소유한다. skill 간 이동·재진입은
 메인이 사용자와 직접 대화한다. 목표는 핵심 분기에서 `shared understanding` 에 도달하는 것이다. 질문은 한 번에 하나씩 하고, 코드로 확인 가능한 것은 코드베이스에서 확인한다.
 
 그릴 강도와 PRD 템플릿 작성 기준은 [`spec-prd-reference.md`](spec-prd-reference.md)를 따른다.
+작업에 관련된 결정 범위와 근거 상태는 [`decision-completeness.md`](../../docs/plugin/decision-completeness.md)를 따른다. 중요한 선택을 사용자 확정·프로젝트 근거·도출 이유·명시적 위임 중 하나로 닫고, 근거 없는 가정과 중요한 미결정은 질문 또는 기존 검토 경로로 보낸다. 고정 표나 질문 개수는 만들지 않는다.
 
 ### Step 2 — PRD 초안 작성
 
 메인이 [`templates/prd.md`](templates/prd.md)를 문서 템플릿으로 사용해 `docs/prd.md` 를 초안으로 Write/Edit 한다. 변경은 섹션 단위 patch 로 한다.
 
 `docs/prd.md` 초안 작성 → 사용자 초안 확인 흐름을 반드시 거친다. 초안에는 PRD 작성 중 이미 판단한 **기술 검토 필요 영역**을 포함한다. 검토 항목 0 개면 "해당 없음" 으로 닫는다.
+
+초안은 결정 기록 전용 섹션을 강제하지 않는다. 다만 구현 방향을 바꿀 중요한 선택과 근거, 남은 미결정의 처리 위치가 PRD·기술 검토 필요 영역·후속 `/design` 범위 중 하나에서 downstream이 읽을 수 있어야 한다.
 
 ### Step 3 — 사용자 PRD 초안 확인
 
@@ -85,6 +89,7 @@ PRD 초안의 기술 검토 필요 영역에 검토 항목이 있어 PRD 최종�
 - tech-review preflight 가 없었으면 사용자 확인을 통과한 초안을 최종으로 취급한다.
 - tech-review preflight 가 있었으면 `docs/tech-review.md` 의 verdict / 스펙 조정 권고 / 사용자 2차 OK 내용을 PRD 에 반영한다.
 - 미해결 기술 질문이 남아 있으면 최종화하지 않는다.
+- [`decision-completeness.md`](../../docs/plugin/decision-completeness.md) 기준의 근거 없는 가정과 중요한 미결정이 남아 있으면 최종화하지 않는다. 단, 낮은 영향의 명시적 위임과 근거가 있는 `/design` 세부화는 미결정으로 세지 않는다.
 
 ### Step 6 — stories.md 작성
 
@@ -128,6 +133,8 @@ mode: SPEC_ACCEPTANCE
 좋은 아이디어인지 평가하지 말고, Story AC binary 여부, 검수 증거 기준,
 외부 의존/보안/권한/데이터 질문 누락, Story/Epic 분할 명확성,
 Story 분할·순서가 사용자 검증 가능한 동작 증분인지를 본다.
+결정 범위에 구현 방향을 바꿀 근거 없는 가정이나 중요한 미결정이 남았는지도 본다.
+고정 표나 출력 형식의 존재로 판정하지 않는다.
 full E2E 검증은 MVP /spec 이행 범위 밖이다.
 ```
 

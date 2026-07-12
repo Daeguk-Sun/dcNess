@@ -27,7 +27,22 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 - 원 요구사항: PRD 유저 시나리오, Story AC, epic 완료 기준
 - 현재 설계 산출물: architecture, decisions, 선택 domain-model, implementation tasks
 - 모듈 설계 원칙: `docs/plugin/agents/_shared/module-design-principles.md`
+- 구현 전 결정 완전성: dcNess 저장소의 진본은 `docs/plugin/decision-completeness.md`다. 외부 프로젝트에는 이 파일이 함께 배포되지 않으므로 아래 내장 계약을 skill 본문만으로 적용한다.
 - Claude-side validator와 공유하는 Must finding 분류: `SYSTEM_BOUNDARY`, `TASK_LOCAL`
+
+### 내장 결정 완전성 계약
+
+고정 검사표를 채우지 말고 현재 작업과 관련된 의미만 읽는다. 결정 범위는 actor, 데이터와 관계, 상태와 lifecycle, 실패와 복구, 권한과 보안, 외부 연동, 사용자 경험과 정책, 운영 제약이다. 이 목록은 질문 순서나 별도 출력 형식을 강제하지 않는다.
+
+구현 방향을 바꾸는 선택마다 다음 근거 상태 중 하나가 추적돼야 한다.
+
+- **사용자 확정** — 사용자가 선택하거나 승인했다.
+- **프로젝트 근거** — 코드, 기존 명세, 결정 기록, 운영 증거에서 확인된다.
+- **목표에서 도출** — 승인된 목표와 제약에서 이유를 설명하며 도출된다.
+- **명시적 위임** — 결과 영향이 낮은 구현 세부를 사용자가 구현자에게 맡겼다.
+- **미결정** — 아직 근거가 없으며 질문, 기술 검토, 또는 상위 소유자 판단이 필요하다.
+
+문서나 코드의 근거 없이 구현자가 채운 선택은 근거 없는 가정이다. 사용자 정책·권한·데이터 lifecycle처럼 제품 결과를 바꾸는 중요한 미결정은 `ESCALATE`하고, 이미 닫힌 결정을 설계가 누락하거나 왜곡한 경우에는 finding으로 보고한다. 낮은 영향의 위임이나 프로젝트에서 확인되는 사실을 다시 질문하지 않는다. 완료 조건은 관련 범위의 근거 없는 가정과 중요한 미결정이 0개인 상태이며, 결정 전용 고정 표·섹션·질문 개수를 요구하지 않는다.
 
 ## 판단 축
 
@@ -44,6 +59,8 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 - 대표 implementation task를 cold-read했을 때 숨은 assumption 없이 구현 가능한가. 단, 대표 task cold-read 만으로 final epic 을 통과시키지 않는다 — 전체 implementation task 를 읽고, 앞 Story 가 만든 상태·identity 를 뒤 Story 가 어떤 mutable projection 과 전이로 소비하는지 공유 계약을 별도로 대조한다.
 - 고위험 상태 계약(진본/mirror 저장, 동일 identity 가변 상태, sync/reconcile, multi-source 병합, 권한 handoff, lifecycle, cross-story mutable state)이 있으면 적용 가능한 전이(create/bootstrap, 동일 identity 가변 필드 변경, 삭제, empty vs read failure, source 일부 실패 보존, 반복 no-change/idempotence, retry/중복/동시, lifecycle, route→live state)를 trigger → producer → state owner → mutation/write → persistence/read model → consumer → 제품 경계 결과로 끝까지 추적했는가. "observer 가 수렴한다" 같은 추상 문구가 실제 update 경로 증거를 대신하지 않는가. 기준: `docs/plugin/agents/_shared/module-design-principles.md` 의 고위험 상태 계약.
 - 사용자가 확정한 기술 선택 자체를 취향으로 재논쟁하지 않되, 그 선택의 downstream 완결성·다른 Story/decision 충돌·실패 모드·consumer 존재는 계속 검증했는가. 재논쟁 금지는 검증 면제가 아니다.
+- `docs/plugin/decision-completeness.md`의 관련 범위에서 구현 방향을 바꾸는 설계 선택이 사용자 확정·프로젝트 근거·목표에서 도출한 이유·낮은 영향의 명시적 위임 중 하나로 추적되는가. 근거 없는 가정과 중요한 미결정이 남았는가. 사용자 정책·권한·데이터 lifecycle처럼 사용자 선택이 필요한 항목은 `ESCALATE`, 이미 닫힌 결정을 누락·왜곡한 설계 gap은 finding으로 보고하는가.
+- 결정 전용 고정 표나 섹션 이름을 요구하지 않고 PRD·Story AC·architecture·decision·implementation task 전반의 의미를 읽는가. 기술 선택의 근거와 낮은 영향의 명시적 위임을 불필요하게 되묻지 않는가.
 - 계약 의미가 module responsibility / public interface 와 `docs/decisions/` 에 있고 implementation task doc 은 module/decision 참조만 남기는가.
 - 계약 표면 코드 SSOT 대조가 있는가: brownfield 에서 기존 포트, 도메인 타입, 공개 entrypoint 와 새 설계/implementation task 가 어긋나지 않는가. 저장·동기화·상태 전이를 바꾸는 epic 이면 schema·entity·mapper·DAO·repository·sync/reconcile·adapter·lifecycle producer·관련 테스트까지 대조 입력으로 본다.
 - Implementation task doc이 contract/interface altitude를 지키고 pseudo-code, loop body, private helper name, forced test-function name 같은 private implementation을 과하게 선점하지 않는가.
@@ -65,6 +82,7 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 5. final epic 검증에서 entrypoint 를 만지는 implementation task 는 owner/entrypoint 요약 또는 동등한 증거가 owner flow/module, entrypoint role, state owner, validation path 를 남겼는지 본다. 구 `Agent Workability` 섹션도 하위호환 증거로 인정하지만, 옛 섹션명 부재만으로 FAIL 하지 않는다.
 6. final epic 검증에서는 domain-model 작성/생략 근거가 impl 계약과 모순되지 않는지, 계약 표면 코드 SSOT 대조 증거가 있는지 확인한다. 포트, 도메인 타입, 공개 entrypoint 를 바꾸는 task 가 기존 코드와 충돌하거나 module/decision 근거 없이 새 계약을 전제하면 finding 으로 보고한다.
 7. final epic 검증에서 고위험 상태 계약 위험 신호가 있으면 적용 가능한 전이를 끝까지 추적하고, 앞 Story 가 만든 상태·identity 를 뒤 Story 가 소비하는 공유 계약을 별도로 대조한다. 전이의 중간 단계가 산출물에 없거나 어느 implementation task 의 scope 도 그 단계를 수정하지 못하면 finding 으로 보고한다.
+7.1. final epic 검증에서 구현 방향을 바꾸는 설계 선택의 근거 상태를 대조한다. 근거 없는 가정과 중요한 미결정이 0개인지, 미결정 처리 결과가 제품 동작을 바꾸면 명세 또는 수용 기준까지 연결됐는지 확인한다.
 8. `report_ac_coverage.mjs` 결과와 실제 stories/impl 문서를 함께 읽어 미커버 AC, 무출처 REQ, 존재하지 않는 AC 참조, Story 마지막 task 전수 검증 누락을 확인한다. report 는 advisory 이므로 출력만으로 자동 FAIL 하지 않지만 실제 gap 이 확인되면 `TASK_LOCAL` finding 으로 드러낸다. Story AC 가 없는 구양식 산출물은 소급 변환하지 않는다.
 9. 수용 기준은 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 닫히는지 확인한다. 사람 판정 항목이 task REQ 로 들어오면 `TASK_LOCAL` 후보로 본다.
 10. `### 수정 허용` 형식은 normalizer 가 먼저 처리한 뒤 남은 `unresolved_slugs` / `format_unnormalized_slugs` 만 검토한다. 볼드/라벨/괄호처럼 단일 경로 후보가 분명한 항목은 기계 교정 범위라 Must finding 으로 반복하지 않는다.
@@ -99,6 +117,7 @@ retry 또는 재검증 호출이어도 Codex validator 는 retry counter 를 증
 - 적용 가능한 경우 계약 표면 코드 SSOT 대조 증거를 검토했다. 저장·동기화·상태 전이를 바꾸는 epic 이면 상태성 코드 SSOT 표면까지 대조했다.
 - 고위험 상태 계약 위험 신호가 있으면 적용 가능한 전이 추적과 Story 간 공유 상태 소비를 검토했고, PASS 보고가 검토한 고위험 계약과 핵심 상태 전이 근거를 설명한다. 고정 표나 JSON 은 요구하지 않는다.
 - Story AC ↔ REQ coverage report와 실제 산출물을 대조해 미커버 AC, 무출처 REQ, 마지막 task 전수 검증 누락을 확인했다.
+- 구현 방향을 바꿀 근거 없는 가정과 중요한 미결정을 검토했고, 남아 있으면 PASS하지 않았다. 고정 표 부재만으로 finding을 만들지 않았다.
 - 수용 기준의 실행 명령 또는 `(AGENT READ)` 관찰 증거를 검토했다.
 - revision mode 이면 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 증거를 검토했다.
 - legacy Contract Ledger / Contract References, ux-flow, stories prose stale 을 형식만으로 Must finding 으로 올리지 않았다.
