@@ -127,7 +127,7 @@ class DecisionCompletenessContractTests(unittest.TestCase):
         self.assertIn("[MUST]", ungrounded)
         self.assertIn("[MUST_NOT]", grounded)
 
-    def test_two_real_pilots_trace_decisions_and_keep_human_check_pending(self) -> None:
+    def test_two_real_pilots_trace_decisions_and_record_human_approval(self) -> None:
         pilots = (
             ROOT / "docs" / "internal" / "decision-completeness-pilots.md"
         ).read_text(encoding="utf-8")
@@ -143,10 +143,13 @@ class DecisionCompletenessContractTests(unittest.TestCase):
             "명시적 위임",
             "미결정 처리",
             "명세 또는 수용 기준",
-            "human verification 대기",
+            "human verification 승인 (2026-07-12)",
         ):
             with self.subTest(evidence=evidence):
                 self.assertIn(evidence, pilots)
+
+        self.assertNotIn("human verification 대기", pilots)
+        self.assertIn("추가로 빠진 구현 방향 선택은 보고되지 않았다", pilots)
 
         for source in (
             "실제 작업 fixture: 세로 영상 제작 기능",
