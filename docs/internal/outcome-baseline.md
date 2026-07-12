@@ -80,3 +80,21 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 ## 사용 가능한 주장
 
 이 snapshot은 source 2개와 finished run 26개라는 cross-project process baseline 조건은 충족한다. 그러나 비교 variant별 반복 trial과 실제 product outcome이 없으므로 공개 우위 주장은 할 수 없다. 같은 fixture의 1+1 paired screening은 개인 경량화 `keep` / `remove` / `hold` 판단에만 사용할 수 있다.
+
+## 2026-07 lean ablation pilot
+
+`TOOL_REPEAT_HIGH` 42건/finished run 26개/source 2곳과 직접 연결된 선택형
+`[LESSONS]`의 `hits/last/evidence` prompt metadata 축소를 평가했다. hard safety
+guard는 live disable하지 않았고 frozen read-only fixture의 deterministic 비교,
+shadow prompt 비교, 동일 `openai-codex` / `gpt-5.6-sol` 조건의 1+1 screening 순서를
+지켰다.
+
+| variant | trial | 제품 AC | MUST-FIX / 회귀 / 사람 개입 | input/output token | wall-clock | 결정 입력 |
+|---|---:|---:|---:|---:|---:|---|
+| baseline | 1 | 2/2 | 0 / 0 / 0 | 38,874 / 355 | 15.36s | full lesson metadata |
+| metadata 축소 | 1 | 2/2 | 0 / 0 / 0 | 40,659 / 366 | 13.81s | prompt 107 bytes 감소 |
+
+주지표 input token이 감소하지 않아 첫 pair에서 **keep**으로 종료했다. 실행 월
+`2026-07`, epic 공통 추가 LLM trial 누계 `2/4`, #1070 같은 달 screening 없음이다.
+단일 frozen fixture 결과이므로 공개 superiority 근거가 아니다. 재현 계약, fixture
+hash, evidence와 한계는 [`lean-ablation-2026-07.md`](lean-ablation-2026-07.md)에 있다.
