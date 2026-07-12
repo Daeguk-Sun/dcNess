@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import shutil
@@ -123,6 +124,68 @@ def _write_run(
             stream.write(json.dumps(event, ensure_ascii=False) + "\n")
 
 
+def _write_product_journey_receipt(
+    project: Path,
+    run_id: str,
+    *,
+    outcome: str,
+    measured_at: str = "2026-07-10T00:00:00Z",
+) -> None:
+    receipt_dir = project / ".dcness-work" / "product-journey" / run_id
+    receipt_dir.mkdir(parents=True, exist_ok=True)
+    passed = 1 if outcome == "PASS" else 0
+    evidence_paths = {
+        "receipt": f".dcness-work/product-journey/{run_id}/receipt.json"
+    }
+    evidence_sha256: dict[str, str] = {}
+    commands: dict[str, dict[str, object]] = {}
+    for phase in ("start", "health", "journey", "cleanup"):
+        content = f"{phase} fixture log\n"
+        log_path = receipt_dir / f"{phase}.log"
+        log_path.write_text(content, encoding="utf-8")
+        relative = f".dcness-work/product-journey/{run_id}/{phase}.log"
+        evidence_paths[phase] = relative
+        evidence_sha256[phase] = hashlib.sha256(content.encode("utf-8")).hexdigest()
+        commands[phase] = {
+            "argv": ["fixture", phase],
+            "exit_code": 0,
+            "timed_out": False,
+            "duration_ms": 1,
+            "log_path": relative,
+        }
+    (receipt_dir / "receipt.json").write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "receipt_type": "dcness.product-journey",
+                "run_id": run_id,
+                "journey_id": "fixture-non-ui",
+                "measured_at": measured_at,
+                "outcome": outcome,
+                "boundary": "cli",
+                "target_ac": ["AC-FIXTURE-1"],
+                "product_ac": {"passed": passed, "total": 1},
+                "human_intervention_count": 0,
+                "evidence_types": ["command", "cli", "log"],
+                "evidence_paths": evidence_paths,
+                "evidence_sha256": evidence_sha256,
+                "commands": commands,
+                "app_started": True,
+                "journey_executed": True,
+                "assertion": {
+                    "description": "fixture assertion",
+                    "source": "journey_exit",
+                    "evaluated": True,
+                    "passed": outcome == "PASS",
+                },
+                "failure_reasons": [] if outcome == "PASS" else ["journey_failed"],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
 class OutcomeScorecardAggregationTests(unittest.TestCase):
     def _fixture(self, root: Path) -> Path:
         project_a = root / "private-project-a"
@@ -189,6 +252,36 @@ class OutcomeScorecardAggregationTests(unittest.TestCase):
         serialized = json.dumps(report, ensure_ascii=False)
         self.assertNotIn("private-project-a", serialized)
         self.assertNotIn("private-project-b", serialized)
+
+    def test_product_journey_receipts_fill_outcome_without_process_substitution(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            projects_file = self._fixture(root)
+            project_a = root / "private-project-a"
+            _write_product_journey_receipt(project_a, "journey-pass", outcome="PASS")
+            _write_product_journey_receipt(project_a, "journey-fail", outcome="FAIL")
+
+            report = build_scorecard(
+                projects_file,
+                measured_at="2026-07-11T00:00:00Z",
+                as_of="2026-07-11T00:00:00Z",
+                redact_paths=True,
+            )
+
+        outcome = report["product_outcome"]
+        self.assertEqual(outcome["status"], "관측")
+        self.assertEqual(outcome["numerator"], 1)
+        self.assertEqual(outcome["denominator"], 2)
+        self.assertEqual(outcome["product_ac"], {"passed": 1, "total": 2})
+        self.assertEqual(outcome["source_project_count"], 1)
+        self.assertEqual(outcome["human_intervention_count"], 0)
+        self.assertEqual(outcome["evidence_types"], ["cli", "command", "log"])
+        self.assertEqual(len(outcome["journeys"]), 2)
+        serialized = json.dumps(outcome, ensure_ascii=False)
+        self.assertNotIn("private-project-a", serialized)
+        self.assertEqual(
+            report["process_evidence"]["pr_merge_success"]["denominator"], 1
+        )
 
     def test_pinned_source_refs_ignore_registry_reordering_and_new_projects(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -409,6 +502,22 @@ class OutcomeScorecardDocumentTests(unittest.TestCase):
         self.assertIn("TOOL_REPEAT_HIGH", baseline)
         self.assertIn("측정 불가", baseline)
         self.assertNotIn("제품 성공률 100%", baseline)
+
+    def test_baseline_records_non_ui_product_journey_pilot(self) -> None:
+        baseline = (ROOT / "docs" / "internal" / "outcome-baseline.md").read_text(
+            encoding="utf-8"
+        )
+        for evidence in (
+            "yt-make-intake-cli",
+            "source-d640b1b95d",
+            "journey PASS 1/1",
+            "제품 AC 1/1",
+            "사람 개입 0",
+            "cli, command, log",
+            "2026-07-12T07:36:43Z",
+        ):
+            self.assertIn(evidence, baseline)
+        self.assertNotIn("/Users/dc.kim/project/youTubeGenerator", baseline)
 
 
 if __name__ == "__main__":

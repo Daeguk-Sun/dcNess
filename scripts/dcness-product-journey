@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Execute a project-local non-UI product journey contract.
+
+set -uo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
+export PYTHONPATH="${PLUGIN_ROOT}:${PYTHONPATH:-}"
+PYTHON_BIN="${PYTHON_BIN:-python3.11}"
+
+exec "$PYTHON_BIN" -m harness.product_journey "$@"

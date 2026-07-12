@@ -111,6 +111,7 @@ GitHub issue 를 대상으로 하는 dcness self 구현은 진입 때 읽은 본
 | [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | 공개 workflow 진입점의 기본/고급/유틸리티/내부 agent 분류 수정 시 |
 | [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 작업 요청을 어떤 workflow 로 보낼지 (구현 경로 — gate 축 × shape 축) 판단 시 |
 | [`docs/plugin/outcome-scorecard.md`](docs/plugin/outcome-scorecard.md) | process·Agent effectiveness·실제 제품 outcome의 비교 필드·denominator·주장 경계를 수정/리뷰 시 |
+| [`docs/plugin/product-journey.md`](docs/plugin/product-journey.md) | 외부 활성 프로젝트의 non-UI 핵심 journey 실행 계약·receipt·scorecard 연결을 수정/리뷰 시 |
 | [`docs/plugin/decision-completeness.md`](docs/plugin/decision-completeness.md) | `/spec`·`/design`에서 구현 방향을 바꾸는 결정 범위·근거 상태·질문/위임·완료 의미를 수정/리뷰 시 |
 | [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현·효율 benchmark 문구 수정 시 |
 | [`docs/plugin/design.md`](docs/plugin/design.md) | `design.md` 토큰 규격·Static HTML 시안 규약 수정 시 |
@@ -149,6 +150,7 @@ cp scripts/hooks/post-checkout .git/hooks/post-checkout && chmod +x .git/hooks/p
 python3.11 -m unittest discover -s tests -v < /dev/null   # stdin 리다이렉트 필수 — 안 닫으면 stdin 읽는 테스트가 무한 hang (#723)
 python3.11 -m unittest tests.test_signal_io -v   # 단일 모듈
 node scripts/check_public_surface.mjs
+PYTHON_BIN=python3.11 scripts/dcness-product-journey run --project-root <external-project> --config <project-local-contract>
 
 # static-quality: system python 은 PEP 668 (externally-managed) 로 pip install 거부 — venv 사용
 python3.11 -m venv /tmp/dcness-quality-venv && /tmp/dcness-quality-venv/bin/pip install -q -r requirements-quality.txt
