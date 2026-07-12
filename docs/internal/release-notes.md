@@ -10,6 +10,43 @@ _(없음)_
 
 ---
 
+## v0.22.0 (2026-07-13)
+
+**커밋 범위**: `v0.21.0..v0.22.0` (머지 PR 24개)
+**핵심 변경**: **하네스가 "절차를 따랐다"가 아니라 "제품 outcome 과 agent 효과를 실측 증거로 남긴다"는 축을 세운** minor 릴리즈. (1) Epic 1064 로 agent 탐색·변경 효과를 실측 1+1 record 와 provenance 로 남기고, 공개 수치는 과장 대신 측정 계약 검증으로 하향하며, non-UI journey·lean ablation·공개 evidence freshness gate·close audit 까지 증거 사슬을 연결, (2) 제품 outcome scorecard 와 운영 baseline, 구현 전 결정 완전성 pilot 을 붙여 process 신호와 실제 제품 outcome 을 분리해 주장, (3) architecture cartography freshness lifecycle 을 연결해 설계 지도의 신선도 책임을 명시, (4) 수용 기준(AC) 계층과 이슈 마감 상태 계약을 정비해 미충족·표기 변형 우회로 clean close 되던 경로를 차단, (5) impl-loop story 경계·task 상태 복구, (6) 실사고 eval 사람 기준 보정과 claude -p 하네스 격리로 세션 baseline 을 43k→27k 로 낮췄다.
+
+### 무엇이 바뀌나
+
+1. **Epic 1064 — agent effectiveness 실측 측정 파이프라인** ([#1090](https://github.com/Daeguk-Sun/dcNess/pull/1090) · [#1086](https://github.com/Daeguk-Sun/dcNess/pull/1086) · [#1091](https://github.com/Daeguk-Sun/dcNess/pull/1091) · [#1083](https://github.com/Daeguk-Sun/dcNess/pull/1083) · [#1081](https://github.com/Daeguk-Sun/dcNess/pull/1081) · [#1082](https://github.com/Daeguk-Sun/dcNess/pull/1082) · [#1084](https://github.com/Daeguk-Sun/dcNess/pull/1084) Closes [#1064](https://github.com/Daeguk-Sun/dcNess/issues/1064) [#1070](https://github.com/Daeguk-Sun/dcNess/issues/1070)) — agent 의 탐색·변경 효과를 주장이 아니라 실측 record 로 남기는 측정 축을 세웠다. 실측 1+1 record 와 provenance 를 확보(`evals/agent_effectiveness_measure.py`)하고, 공개 수치는 과장 대신 측정 계약 검증으로 하향했다. non-UI journey evidence 계약(story 1067), lean ablation 실증 기록(story 1069), agent 탐색·변경 효과 측정(story 1070), 공개 evidence freshness gate(story 1071)를 연결하고, evidence close audit 로 증거 미충족 마감을 차단한다.
+
+2. **제품 outcome scorecard + 구현 전 결정 완전성 pilot** ([#1072](https://github.com/Daeguk-Sun/dcNess/pull/1072) · [#1076](https://github.com/Daeguk-Sun/dcNess/pull/1076) Closes [#1066](https://github.com/Daeguk-Sun/dcNess/issues/1066) [#1065](https://github.com/Daeguk-Sun/dcNess/issues/1065)) — process 신호(게이트 통과·절차 준수)와 실제 제품 outcome 을 분리해 주장하도록 outcome scorecard 와 운영 baseline 을 추가했다([`docs/plugin/outcome-scorecard.md`](../plugin/outcome-scorecard.md)). `/spec`·`/design` 에서 구현 방향을 바꾸는 결정의 완전성(결정 범위·근거 상태·질문/위임·완료 의미)을 pilot 으로 연결했다([`docs/plugin/decision-completeness.md`](../plugin/decision-completeness.md)).
+
+3. **architecture cartography freshness lifecycle** ([#1060](https://github.com/Daeguk-Sun/dcNess/pull/1060) · [#1061](https://github.com/Daeguk-Sun/dcNess/pull/1061) · [#1063](https://github.com/Daeguk-Sun/dcNess/pull/1063) Closes [#1059](https://github.com/Daeguk-Sun/dcNess/issues/1059) [#1058](https://github.com/Daeguk-Sun/dcNess/issues/1058) [#1057](https://github.com/Daeguk-Sun/dcNess/issues/1057)) — architecture cartography 계약을 정합화하고, 구현이 설계 지도의 freshness 를 책임지는 경로와 freshness lifecycle 을 연결해 설계 지도가 코드 현실과 어긋난 채 방치되지 않도록 했다.
+
+4. **수용 기준(AC) 계층 + 이슈 마감 상태 계약 정비** ([#1050](https://github.com/Daeguk-Sun/dcNess/pull/1050) · [#1049](https://github.com/Daeguk-Sun/dcNess/pull/1049) · [#1053](https://github.com/Daeguk-Sun/dcNess/pull/1053) · [#1054](https://github.com/Daeguk-Sun/dcNess/pull/1054) · [#1055](https://github.com/Daeguk-Sun/dcNess/pull/1055) · [#1079](https://github.com/Daeguk-Sun/dcNess/pull/1079) Closes [#1046](https://github.com/Daeguk-Sun/dcNess/issues/1046) [#1048](https://github.com/Daeguk-Sun/dcNess/issues/1048) [#1051](https://github.com/Daeguk-Sun/dcNess/issues/1051) [#1052](https://github.com/Daeguk-Sun/dcNess/issues/1052) [#1078](https://github.com/Daeguk-Sun/dcNess/issues/1078)) — 수용 기준 계층과 이슈 마감 계약을 정비해, 미충족·미체크 AC 로 clean close 되거나 AC 표기 변형으로 감사를 우회하던 경로를 차단했다. architecture-validator 고위험 상태 계약 추적, module-architect 상태 계약 선행 pass, close audit 실행 경로와 coverage 진단 정합화, module state idempotence 판정을 함께 보강했다.
+
+5. **impl-loop story 경계·task 상태 복구** ([#1042](https://github.com/Daeguk-Sun/dcNess/pull/1042) · [#1045](https://github.com/Daeguk-Sun/dcNess/pull/1045) Closes [#1041](https://github.com/Daeguk-Sun/dcNess/issues/1041) [#1043](https://github.com/Daeguk-Sun/dcNess/issues/1043)) — `/impl-loop` 이 story 경계와 task 상태를 복구하고, story 를 교차 배치(interleave)하던 경로를 차단해 story 단위 runner 경계를 결정적으로 유지한다.
+
+6. **eval 사람 기준 보정 + claude -p 하네스 격리 + codebase sanity 게이트** ([#1077](https://github.com/Daeguk-Sun/dcNess/pull/1077) · [#1074](https://github.com/Daeguk-Sun/dcNess/pull/1074) · [#1075](https://github.com/Daeguk-Sun/dcNess/pull/1075) Closes [#1068](https://github.com/Daeguk-Sun/dcNess/issues/1068) [#1073](https://github.com/Daeguk-Sun/dcNess/issues/1073) [#1062](https://github.com/Daeguk-Sun/dcNess/issues/1062)) — 실사고 기반 행동 eval 을 사람 기준으로 보정하고, eval 의 `claude -p` 하네스를 격리해 세션 baseline 을 43k→27k 로 낮췄다. Epic Codebase Sanity 마감 게이트를 연결했다.
+
+7. **init-dcness 비활성화 안내 정정** ([#1085](https://github.com/Daeguk-Sun/dcNess/pull/1085) Closes [#955](https://github.com/Daeguk-Sun/dcNess/issues/955)) — `/init-dcness` 의 비활성화 안내가 실존하지 않는 경로를 가리키던 문제를 실존 경로(`/disable-dcness`)로 정정했다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 diff 가 AC 상태 계약 validator·close audit·eval 하네스·architecture cartography·order gate 인접 영역을 건드려 결정적 guard-efficacy 를 재실행 — **39/39 PASS**, 회귀 없음. LLM 기반 행동 eval 은 사용자 지시 minor 배포라 생략(advisory)하고 각 머지 PR CI(pytest·static-quality·public-surface·cross-ref·index-map·doc-sync)로 검증됨.
+- Decide: 소멸 후보 없음. follow-up 없음.
+- Verify: 24개 머지 PR 각각 CI PASS. AC 계층·close audit·module state·story-runner·outcome scorecard·public evidence·product journey·lean ablation 신규/회귀 테스트 통과.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `docs/plugin/**`·`skills/**`·`agents/**`·`evals/**`·`harness/**`·`scripts/**` 변경.
+- **이슈 마감 규율이 강화된 프로젝트** — 미충족·미체크 AC 나 표기 변형으로 clean close 하던 경로가 차단된다. AC 를 모두 충족·체크해야 마감 계약을 통과한다.
+- **`/spec`·`/design` 사용 프로젝트** — 구현 방향을 바꾸는 결정의 완전성(범위·근거·질문/위임·완료 의미)이 pilot 으로 점검되고, 제품 outcome scorecard 로 process 신호와 실제 제품 outcome 을 분리해 본다.
+- **설계 지도(architecture) 를 쓰는 프로젝트** — cartography freshness lifecycle 로 지도의 신선도 책임이 명시되어 코드와 어긋난 채 방치되지 않는다.
+- **`/impl-loop` 로 story/epic 을 도는 프로젝트** — story 경계·task 상태가 결정적으로 복구되고 story 교차 배치가 차단된다.
+
+---
+
 ## v0.21.0 (2026-07-10)
 
 **커밋 범위**: `v0.20.0..v0.21.0` (머지 PR 3개, #1033 · #1037 · #1038)
