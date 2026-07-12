@@ -81,6 +81,8 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 
 `agent-effectiveness-2026-07`은 frozen synthetic repository fixture 1개에서 cold-start 탐색과 refactor/replacement 검증 task 2개를 baseline/current로 replay했다. 새 agent나 공개 command를 추가하지 않고 기존 scorecard에 record 입력만 연결했다.
 
+record의 tool/read/오경로/영향 집합 trace 값은 실제 agent 실행에서 유래하지 않고 record에 직접 저작된 synthetic 값이며, run ID·raw tool trace·생성 명령 같은 provenance가 없다. 따라서 본 절은 측정 계약과 계산이 fail-closed로 동작함을 검증하는 기록이지 실제 agent effectiveness의 관측이 아니다.
+
 ```sh
 printf '{"version":1,"projects":[]}' > /tmp/dcness-empty-projects.json
 python3.11 "$DCN"/harness/outcome_scorecard.py \
@@ -103,7 +105,7 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 | 두 task 합계 | context 기인 재작업 / cross-session 복구 | 2 / 0 | 0 / 2 | 개선 |
 | 두 task 품질 | 제품 AC / MUST-FIX / 회귀 / 사람 복구 | 4/4 / 0 / 0 / 0 | 4/4 / 0 / 0 / 0 | 비열화 없음 |
 
-탐색 tool은 `13→9`, read bytes는 `7,000→4,600`, 오경로는 `2→0`, 영향 누락은 `1→0`, context 기인 재작업은 `2→0`으로 줄었고 핵심 품질은 악화되지 않았다. 따라서 이 결정적 screening에서는 개선을 관측했다. 문서 수, map 크기, hook 수는 입력 설명일 뿐 effectiveness 대리값으로 사용하지 않았다.
+탐색 tool은 `13→9`, read bytes는 `7,000→4,600`, 오경로는 `2→0`, 영향 누락은 `1→0`, context 기인 재작업은 `2→0`으로 계산됐고, 계산기는 핵심 품질 비열화가 없을 때만 결과를 기록했다. 이 수치는 저작된 record 값에 대한 측정 계약 검증 결과이며 실제 agent의 effectiveness 개선 관측이 아니다. 실제 agent effectiveness는 동일 frozen task의 실측 baseline/current 1+1 record가 남을 때까지 `측정 불가`로 유지한다. 문서 수, map 크기, hook 수는 입력 설명일 뿐 effectiveness 대리값으로 사용하지 않았다.
 
 2026-07 epic 공통 추가 LLM trial 누계 `2/4`는 #1069 screening의 기존 2회뿐이며 이번 record의 새 LLM trial은 0회다. #1069와 같은 달 paired screening을 실행하지 않았다. 이 결과는 synthetic fixture 1개·task 2개와 저장 trace에 한정되고, live agent token/cost·실제 프로젝트 wall-clock·다중 model/provider·공개 우위는 측정 불가다.
 
