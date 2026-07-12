@@ -196,8 +196,6 @@ def _setup_contract(
         errors.append("monthly_cap_must_equal_four")
     if used_before < 0:
         errors.append("used_before_negative")
-    if budget.get("agent_effectiveness_screening_month") == execution_month:
-        errors.append("same_month_agent_effectiveness_screening")
     return baseline_bytes, variant_bytes, execution_month, cap, used_before
 
 

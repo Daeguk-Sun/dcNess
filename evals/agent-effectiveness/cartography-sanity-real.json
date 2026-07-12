@@ -1,0 +1,290 @@
+{
+  "schema_version": 1,
+  "measurement": {
+    "id": "agent-effectiveness-real-2026-07",
+    "measured_at": "2026-07-12T15:17:58Z",
+    "source": "live paired claude -p --safe-mode runs on the frozen notification fixture: baseline 1 trial + current-contract 1 trial, each trial executed as two task-isolated headless invocations",
+    "source_count": 1,
+    "limitations": [
+      "One frozen fixture and one paired run (1+1) give a single live measurement signal, not a statistical generalization.",
+      "Each trial consists of two task-isolated headless invocations, so the 1+1 screening used 4 LLM invocations counted as 2 trials.",
+      "visited only contains successful Read events on fixture files; Glob/Grep calls and failed reads remain in the raw traces referenced by provenance.",
+      "Cross-session resume was outside this measurement, so both variants record false.",
+      "Attempt 1 on 2026-07-13 (traces preserved under evidence/real-2026-07-attempt1/) was rejected by the fail-closed validator: both variants over-included two framework-route files in the refactor impact set. The current contract then gained an explicit impact-boundary rule and this attempt 2 with the amended contract is the adopted paired run; no same-setup rerun selection occurred.",
+      "Executed in the same month as the 2026-07 lean-ablation screening; the month-separation budget rule was retired by user decision on 2026-07-13.",
+      "The 2026-07 trial cap was raised from 4 to 6 by user decision on 2026-07-13 to fund attempt 2; attempt-1 trials stay counted in used_before."
+    ]
+  },
+  "conditions": {
+    "repo_type": "frozen synthetic Python application",
+    "provider": "claude -p --safe-mode (headless)",
+    "model": "claude-sonnet-4-6",
+    "harness_variants": [
+      "baseline",
+      "current"
+    ]
+  },
+  "budget": {
+    "execution_month": "2026-07",
+    "monthly_cap": 6,
+    "used_before": 4,
+    "new_llm_trials": 2,
+    "lean_ablation_screening_month": "2026-07"
+  },
+  "provenance": {
+    "generation_command": "python3.11 evals/agent_effectiveness_measure.py --model sonnet --output-dir evals/agent-effectiveness/evidence/real-2026-07-attempt2",
+    "runs": {
+      "cold-start.baseline": {
+        "session_id": "dab704ea-5651-4531-a4d7-8958b06a6646",
+        "trace_file": "evidence/real-2026-07-attempt2/cold-start-baseline.jsonl",
+        "trace_sha256": "042ef835ab4ec231d9e332977ac4688ae3ef16554e1f1f34afd4f489ac62aa7c",
+        "num_turns": 7,
+        "tool_calls_total": 6,
+        "failed_reads": 0
+      },
+      "cold-start.current": {
+        "session_id": "1927c612-1cd1-471f-90a3-5897f957f62b",
+        "trace_file": "evidence/real-2026-07-attempt2/cold-start-current.jsonl",
+        "trace_sha256": "6aeb96c9f52209b026e1a167ca3bd3cf992f51b30cc58889af2326169bc0b85d",
+        "num_turns": 5,
+        "tool_calls_total": 4,
+        "failed_reads": 0
+      },
+      "refactor.baseline": {
+        "session_id": "bd30527e-66c5-464e-9de9-74511af22a89",
+        "trace_file": "evidence/real-2026-07-attempt2/refactor-baseline.jsonl",
+        "trace_sha256": "8cdc8532176f6b4203f7ae008266e82af773cd9838e2cfefde2a758939862743",
+        "num_turns": 10,
+        "tool_calls_total": 9,
+        "failed_reads": 0
+      },
+      "refactor.current": {
+        "session_id": "218299f6-4ac0-4678-baca-33b1855f2055",
+        "trace_file": "evidence/real-2026-07-attempt2/refactor-current.jsonl",
+        "trace_sha256": "9d1c7a1a9d1f08c211419c4852b1ce864bc7788b37e1852c582829475821b984",
+        "num_turns": 10,
+        "tool_calls_total": 9,
+        "failed_reads": 0
+      }
+    }
+  },
+  "fixture_root": "fixture",
+  "fixtures": {
+    "README.md": "49b65ab5c741254c017139c12395bf79a9c39c48403e5622d4430437ea916a05",
+    "config/handlers.json": "c070a2c6f5e20a8b8babfb2c3b046d853b782c64f4a2ad5f3104975f6955e82e",
+    "docs/architecture.md": "8fc0f623af4be0a2ac1da1b49b58ec212b7b81bfef84e48242132d5ff321a59d",
+    "docs/decisions/0001-notification-routing.md": "08388fd5eef0a5b618ea1a3ebbaa32ab4289ed129ac3d69831d1ab2a5ec936d5",
+    "legacy/notification_router.py": "268d17135fd407f56fc11f5b76ffab6e99b9b6bcd0464e2b0c783af917be43bd",
+    "src/app.py": "834e2fc6981f4b82d7fdfa4ae3e3a15c3a3c689d997bada32190a294df94b66f",
+    "src/extension_port.py": "430acae23bfe59aa6812ca96af8ecd7f6cb6549671dc1210bf2afe5b8a7e8e01",
+    "src/notifications/dispatcher.py": "54f64bd838b1e30dc1705c2a444346c89f0e6124f801767ab259e1d60e4f554d",
+    "src/runtime_handler.py": "f70697be77224a443dc5fd811125305f45d659ab57dd7b61a29284785d00c896",
+    "tests/test_notifications.py": "374cdfa5182ac7d35088407f1f5bc1adf81cf41f3853e04581cd89fbde642617"
+  },
+  "tasks": [
+    {
+      "id": "cold-start-notification-route",
+      "type": "cold_start",
+      "expected_coordinates": {
+        "ssot": "docs/architecture.md",
+        "runtime_entrypoint": "src/app.py",
+        "capability_owner": "src/notifications/dispatcher.py",
+        "decision": "docs/decisions/0001-notification-routing.md"
+      },
+      "runs": [
+        {
+          "variant": "baseline",
+          "reported_coordinates": {
+            "ssot": "docs/architecture.md",
+            "runtime_entrypoint": "src/app.py",
+            "capability_owner": "src/notifications/dispatcher.py",
+            "decision": "docs/decisions/0001-notification-routing.md"
+          },
+          "visited": [
+            {
+              "path": "docs/architecture.md",
+              "tool": "Read",
+              "bytes": 339,
+              "elapsed_ms": 7222
+            },
+            {
+              "path": "docs/decisions/0001-notification-routing.md",
+              "tool": "Read",
+              "bytes": 294,
+              "elapsed_ms": 10963
+            },
+            {
+              "path": "src/app.py",
+              "tool": "Read",
+              "bytes": 180,
+              "elapsed_ms": 11076
+            },
+            {
+              "path": "src/notifications/dispatcher.py",
+              "tool": "Read",
+              "bytes": 110,
+              "elapsed_ms": 11189
+            },
+            {
+              "path": "src/runtime_handler.py",
+              "tool": "Read",
+              "bytes": 149,
+              "elapsed_ms": 11464
+            }
+          ],
+          "quality": {
+            "product_ac": {
+              "passed": 4,
+              "total": 4
+            },
+            "must_fix_count": 0,
+            "regression_count": 0,
+            "human_recovery_count": 0,
+            "context_rework_count": 0,
+            "cross_session_resume": false
+          },
+          "cost": {
+            "input_tokens": 4,
+            "output_tokens": 687,
+            "cost_usd": 0.026215449999999994,
+            "basis": "claude -p --safe-mode headless run; token counts and cost_usd are the stream-json result-event values (subscription-authenticated execution)"
+          }
+        },
+        {
+          "variant": "current",
+          "reported_coordinates": {
+            "ssot": "docs/architecture.md",
+            "runtime_entrypoint": "src/app.py",
+            "capability_owner": "src/notifications/dispatcher.py",
+            "decision": "docs/decisions/0001-notification-routing.md"
+          },
+          "visited": [
+            {
+              "path": "docs/architecture.md",
+              "tool": "Read",
+              "bytes": 339,
+              "elapsed_ms": 5848
+            },
+            {
+              "path": "src/app.py",
+              "tool": "Read",
+              "bytes": 180,
+              "elapsed_ms": 9065
+            },
+            {
+              "path": "src/notifications/dispatcher.py",
+              "tool": "Read",
+              "bytes": 110,
+              "elapsed_ms": 9444
+            },
+            {
+              "path": "docs/decisions/0001-notification-routing.md",
+              "tool": "Read",
+              "bytes": 294,
+              "elapsed_ms": 9638
+            }
+          ],
+          "quality": {
+            "product_ac": {
+              "passed": 4,
+              "total": 4
+            },
+            "must_fix_count": 0,
+            "regression_count": 0,
+            "human_recovery_count": 0,
+            "context_rework_count": 0,
+            "cross_session_resume": false
+          },
+          "cost": {
+            "input_tokens": 4,
+            "output_tokens": 648,
+            "cost_usd": 0.0255652,
+            "basis": "claude -p --safe-mode headless run; token counts and cost_usd are the stream-json result-event values (subscription-authenticated execution)"
+          }
+        }
+      ]
+    },
+    {
+      "id": "notification-router-replacement",
+      "type": "refactor_replacement",
+      "expected_classifications": {
+        "legacy/notification_router.py": "stale_old_path",
+        "src/runtime_handler.py": "framework_reachable",
+        "src/extension_port.py": "intentional_seam"
+      },
+      "expected_impact": [
+        "src/notifications/dispatcher.py",
+        "src/app.py",
+        "tests/test_notifications.py"
+      ],
+      "runs": [
+        {
+          "variant": "baseline",
+          "classifications": {
+            "legacy/notification_router.py": "stale_old_path",
+            "src/runtime_handler.py": "framework_reachable",
+            "src/extension_port.py": "intentional_seam"
+          },
+          "observed_impact": [
+            "config/handlers.json",
+            "src/app.py",
+            "src/notifications/dispatcher.py",
+            "src/runtime_handler.py",
+            "tests/test_notifications.py"
+          ],
+          "tool_calls": 9,
+          "read_bytes": 1188,
+          "quality": {
+            "product_ac": {
+              "passed": 3,
+              "total": 4
+            },
+            "must_fix_count": 0,
+            "regression_count": 0,
+            "human_recovery_count": 0,
+            "context_rework_count": 0,
+            "cross_session_resume": false
+          },
+          "cost": {
+            "input_tokens": 6,
+            "output_tokens": 1343,
+            "cost_usd": 0.04226985,
+            "basis": "claude -p --safe-mode headless run; token counts and cost_usd are the stream-json result-event values (subscription-authenticated execution)"
+          }
+        },
+        {
+          "variant": "current",
+          "classifications": {
+            "legacy/notification_router.py": "stale_old_path",
+            "src/runtime_handler.py": "framework_reachable",
+            "src/extension_port.py": "intentional_seam"
+          },
+          "observed_impact": [
+            "src/app.py",
+            "src/notifications/dispatcher.py",
+            "tests/test_notifications.py"
+          ],
+          "tool_calls": 9,
+          "read_bytes": 1233,
+          "quality": {
+            "product_ac": {
+              "passed": 4,
+              "total": 4
+            },
+            "must_fix_count": 0,
+            "regression_count": 0,
+            "human_recovery_count": 0,
+            "context_rework_count": 0,
+            "cross_session_resume": false
+          },
+          "cost": {
+            "input_tokens": 4,
+            "output_tokens": 1841,
+            "cost_usd": 0.0468824,
+            "basis": "claude -p --safe-mode headless run; token counts and cost_usd are the stream-json result-event values (subscription-authenticated execution)"
+          }
+        }
+      ]
+    }
+  ]
+}
