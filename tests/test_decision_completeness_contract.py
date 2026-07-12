@@ -150,10 +150,12 @@ class DecisionCompletenessContractTests(unittest.TestCase):
 
         for source in (
             "실제 작업 fixture: 세로 영상 제작 기능",
-            "작업 이슈 #1062",
-            "원본 갱신 시각",
+            "실제 외부 작업 — 기본 메시지 앱 목표",
+            "원본 확인 시각",
             "원본 위치",
-            "원본 본문 SHA-256",
+            "원본 PRD SHA-256",
+            "원본 Story SHA-256",
+            "첫 발신 전이 결정 SHA-256",
         ):
             with self.subTest(source=source):
                 self.assertIn(source, pilots)
@@ -164,6 +166,7 @@ class DecisionCompletenessContractTests(unittest.TestCase):
             "dcNess",
             "jajang",
             "youTubeGenerator",
+            "NexusMessenger",
             "BMAD",
         ):
             with self.subTest(external_name=external_name):
