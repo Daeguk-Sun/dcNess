@@ -93,7 +93,7 @@ flowchart TB
 
 표만으로 안 풀리는 맥락:
 
-- **Codebase Sanity receipt freshness** — `.dcness-work/codebase-sanity/` local-only/ignored receipt의 code revision/tree identity를 현재 code tree와 대조한다. current면 재사용하고, 부재·stale이면 메인이 현재 명령·exit/warning을 수집한 뒤 `impl-validator:CODEBASE_SANITY`를 affected scope로 재감사한다. receipt는 canonical Root refresh 완료 또는 affected capability/entrypoint 현재 코드 대조를 대신하지 않는다.
+- **Codebase Sanity receipt freshness** — `dcness-helper sanity-receipt-dir --project-root "$PROJECT_ROOT"`로 primary-worktree `.dcness-work/codebase-sanity/` local-only/ignored 경로를 해석해 `ExitWorktree` 뒤에도 남은 receipt의 code revision/tree identity를 현재 code tree와 대조한다. current면 재사용하고, 부재·stale이면 메인이 현재 명령·exit/warning을 수집한 뒤 `impl-validator:CODEBASE_SANITY`를 affected scope로 재감사한다. receipt는 canonical Root refresh 완료 또는 affected capability/entrypoint 현재 코드 대조를 대신하지 않는다.
 - **Cartography freshness preflight** — stories·Root·관련 global decision에서 affected capability/entrypoint를 식별하고 현재 코드의 runtime entrypoint와 wiring 증거에 대조한다. system boundary, storage policy, shared public boundary, global decision 변경이 명백하면 system checkpoint로 선승격한다. boundary 없는 route/state 갱신은 별도 Cartography 전용 system-architect로 우회하지 않고 module-architect가 bounded하게 처리한다. 놓친 영향은 기존 `SYSTEM_CHECKPOINT_REQUIRED`와 final `SYSTEM_BOUNDARY` finding으로 회수한다.
 - **system-architect(thin bootstrap)** 는 greenfield 첫 설계에서 모듈 topology 가 전혀 없을 때만 module-architect 앞에 1회 들어간다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 스택/전역 decision 기록으로 제한한다. bootstrap 뒤 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다.
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.

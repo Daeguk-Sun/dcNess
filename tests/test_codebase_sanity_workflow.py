@@ -3,6 +3,7 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import json
+import subprocess
 import unittest
 
 from harness.chain_view import ChainTask, substeps_for
@@ -176,6 +177,62 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
             self.assertIn("canonical Root refresh", text)
             self.assertIn("대신하지", text)
             self.assertIn("local-only/ignored", text)
+
+    def test_sanity_receipt_dir_survives_linked_worktree_cleanup(self) -> None:
+        with TemporaryDirectory() as td:
+            main_root = Path(td) / "main"
+            linked_root = Path(td) / "linked"
+            main_root.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=main_root, check=True)
+            subprocess.run(
+                ["git", "config", "user.email", "test@example.com"],
+                cwd=main_root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "config", "user.name", "Test User"],
+                cwd=main_root,
+                check=True,
+            )
+            (main_root / "seed.txt").write_text("seed\n", encoding="utf-8")
+            subprocess.run(["git", "add", "seed.txt"], cwd=main_root, check=True)
+            subprocess.run(
+                ["git", "commit", "-q", "-m", "seed"],
+                cwd=main_root,
+                check=True,
+            )
+            subprocess.run(
+                ["git", "worktree", "add", "-q", "-b", "feature/test", str(linked_root)],
+                cwd=main_root,
+                check=True,
+            )
+
+            result = subprocess.run(
+                [
+                    str(ROOT / "scripts" / "dcness-helper"),
+                    "sanity-receipt-dir",
+                    "--project-root",
+                    str(linked_root),
+                ],
+                cwd=linked_root,
+                text=True,
+                capture_output=True,
+                check=True,
+            )
+
+        self.assertEqual(
+            Path(result.stdout.strip()),
+            main_root.resolve() / ".dcness-work" / "codebase-sanity",
+        )
+
+        for path in (
+            "skills/impl-loop/SKILL.md",
+            "skills/design/SKILL.md",
+            "skills/design-system/SKILL.md",
+        ):
+            text = read(path)
+            self.assertIn("sanity-receipt-dir", text)
+            self.assertIn("ExitWorktree", text)
 
     def test_eval_suite_contains_all_sanity_scenarios(self) -> None:
         cases = {

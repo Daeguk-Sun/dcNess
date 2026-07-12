@@ -73,7 +73,7 @@ Step 0 진입 시 자동 `EnterWorktree(name="design-{ts_short}")`. 사용자 �
 
 ### Cartography freshness preflight
 
-`design-system` 진입에서는 먼저 `.dcness-work/codebase-sanity/`의 직전 Codebase Sanity receipt가 기록한 code revision/tree identity와 현재 code tree를 대조한다. 같은 code state를 덮는 receipt면 semantic audit 증거를 재사용한다. receipt가 없거나 구현·hotfix 등으로 stale이면 메인이 현재 프로젝트의 test/lint/build/typecheck/coverage 명령·exit/warning을 다시 수집하고 `impl-validator:CODEBASE_SANITY`를 이번 epic의 affected scope에 한정해 재감사한다. PASS이면 메인이 현재 tree identity의 receipt를 같은 local 경로에 보존한 뒤 진행한다. local-only/ignored receipt를 code PR에 포함시키지 않는다.
+`design-system` 진입에서는 먼저 `SANITY_RECEIPT_DIR="$("$HELPER" sanity-receipt-dir --project-root "$PROJECT_ROOT")"`로 linked worktree가 아닌 persistent primary-worktree의 `.dcness-work/codebase-sanity/`를 찾고, 그 안의 직전 Codebase Sanity receipt가 기록한 code revision/tree identity와 현재 code tree를 대조한다. 같은 code state를 덮는 receipt면 semantic audit 증거를 재사용한다. receipt가 없거나 구현·hotfix 등으로 stale이면 메인이 현재 프로젝트의 test/lint/build/typecheck/coverage 명령·exit/warning을 다시 수집하고 `impl-validator:CODEBASE_SANITY`를 이번 epic의 affected scope에 한정해 재감사한다. PASS이면 메인이 현재 tree identity의 receipt를 같은 persistent local 경로에 보존한 뒤 진행한다. `ExitWorktree`가 현재 design worktree를 제거해도 receipt는 남으며, local-only/ignored receipt를 code PR에 포함시키지 않는다.
 
 그 다음 stories, Root Cartography, 관련 global decision에서 이번 epic의 affected capability/entrypoint를 식별하고, Root의 `landed/stub/planned/deferred` 표기를 현재 코드의 runtime entrypoint와 wiring 증거에 대조한다. Codebase Sanity receipt는 canonical Root refresh 완료 증거나 이 현재 코드 대조를 대신하지 않는다. 이전 epic의 상태를 그대로 신뢰하지 않으며, 전체 코드를 스캔하는 새 hard gate가 아니라 이번 epic이 영향을 주는 좌표만 lazy-read 한다.
 
