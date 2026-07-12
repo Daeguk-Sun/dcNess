@@ -180,6 +180,8 @@ def _cold_metrics(
     )
     matched = [key for key in COORDINATE_KEYS if reported.get(key) == expected.get(key)]
     if run.get("variant") == "current":
+        if set(reported) != COORDINATE_KEYS:
+            errors.append("current_coordinate_keys_invalid")
         for key in sorted(COORDINATE_KEYS - set(matched)):
             errors.append(f"current_coordinate_mismatch:{key}")
 
@@ -190,6 +192,7 @@ def _cold_metrics(
     first_correct_ms: int | None = None
     first_correct_tool_count: int | None = None
     first_correct_read_bytes: int | None = None
+    previous_elapsed = -1
     for index, raw_event in enumerate(visited):
         event = _mapping(raw_event, f"{prefix}_visited_{index}", errors)
         path = _text(event.get("path"), f"{prefix}_visited_{index}_path", errors)
@@ -200,6 +203,9 @@ def _cold_metrics(
         elapsed = _integer(
             event.get("elapsed_ms"), f"{prefix}_visited_{index}_elapsed_ms", errors
         )
+        if run.get("variant") == "current" and elapsed < previous_elapsed:
+            errors.append("current_elapsed_not_monotonic")
+        previous_elapsed = elapsed
         visited_paths.append(path)
         if path not in fixture_paths:
             errors.append(f"{prefix}_visited_fixture_missing:{path}")
@@ -249,7 +255,10 @@ def _refactor_metrics(
         if path not in fixture_paths:
             errors.append(f"{prefix}_classification_fixture_missing:{path}")
     matches = sum(1 for path, value in expected.items() if reported.get(path) == value)
+    excess_classifications = sorted(set(reported) - set(expected))
     if run.get("variant") == "current":
+        if set(reported) != set(expected):
+            errors.append("current_classification_scope_mismatch")
         for path, value in sorted(expected.items()):
             if reported.get(path) != value:
                 errors.append(f"current_classification_mismatch:{path}")
@@ -272,6 +281,7 @@ def _refactor_metrics(
     quality = _quality(run.get("quality"), prefix, errors)
     return {
         "classification_accuracy": f"{matches}/{len(expected)}",
+        "excess_classifications": excess_classifications,
         "tool_calls": _integer(run.get("tool_calls"), f"{prefix}_tool_calls", errors),
         "read_bytes": _integer(run.get("read_bytes"), f"{prefix}_read_bytes", errors),
         "missed_impact": missed,

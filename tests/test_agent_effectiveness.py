@@ -271,6 +271,9 @@ class AgentEffectivenessContractTests(unittest.TestCase):
         self.assertEqual(refactor["current"]["excess_impact"], [])
         self.assertEqual(effectiveness["cost"]["input_tokens"], 0)
         self.assertEqual(effectiveness["cost"]["cost_usd"], 0)
+        trial_metadata = json.loads(result.stdout)["trial_metadata"]
+        self.assertEqual(trial_metadata["source_count"], 1)
+        self.assertNotIn("source_project_count", trial_metadata)
 
     def test_rejects_current_coordinate_mismatch(self) -> None:
         record = _record()
@@ -288,6 +291,29 @@ class AgentEffectivenessContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("fixture_sha256_mismatch:docs/architecture.md", result.stderr)
+
+    def test_rejects_extra_current_classification_outside_expected_set(self) -> None:
+        record = _record()
+        record["tasks"][1]["runs"][1]["classifications"]["README.md"] = (
+            "stale_old_path"
+        )
+
+        result = self._run(record)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("current_classification_scope_mismatch", result.stderr)
+
+    def test_rejects_extra_coordinate_key_or_nonmonotonic_trace(self) -> None:
+        record = _record()
+        current = record["tasks"][0]["runs"][1]
+        current["reported_coordinates"]["extra"] = "README.md"
+        current["visited"][2]["elapsed_ms"] = 5
+
+        result = self._run(record)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("current_coordinate_keys_invalid", result.stderr)
+        self.assertIn("current_elapsed_not_monotonic", result.stderr)
 
     def test_rejects_same_month_llm_trial_collision_and_budget_overrun(self) -> None:
         record = _record()

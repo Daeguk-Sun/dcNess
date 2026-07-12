@@ -407,7 +407,8 @@ def build_scorecard(
     trial_metadata = (
         {
             "status": "관측",
-            "source_project_count": effectiveness["source_count"],
+            "source_count": effectiveness["source_count"],
+            "source_kind": effectiveness["source"],
             "measured_at": effectiveness["measured_at"],
             "denominator": effectiveness["denominator"],
             "conditions": effectiveness["conditions"],
