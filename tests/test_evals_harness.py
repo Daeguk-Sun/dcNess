@@ -147,7 +147,7 @@ class EvalsHarnessContractTests(unittest.TestCase):
         self.assertIn('cp -R "$ROOT/docs" "$ROOT/skills"', runner)
         self.assertNotIn('s|{{REPO_ROOT}}|$ROOT|g', runner)
 
-    def test_core_incident_subset_and_versioned_golden_candidate_exist(self) -> None:
+    def test_core_incident_subset_and_verified_human_golden_exist(self) -> None:
         manifest = json.loads(
             (EVALS / "core-incident-subset.json").read_text(encoding="utf-8")
         )
@@ -169,9 +169,7 @@ class EvalsHarnessContractTests(unittest.TestCase):
         self.assertEqual(golden["schema_version"], 2)
         self.assertEqual(golden["golden_version"], "core-incidents-v1-human-v1")
         self.assertEqual(golden["subset_version"], manifest["subset_version"])
-        self.assertEqual(
-            golden["verification_status"], "pending_owner_confirmation"
-        )
+        self.assertEqual(golden["verification_status"], "verified")
         self.assertEqual(len(golden["labels"]), 2)
         for label in golden["labels"]:
             self.assertRegex(label["report_sha256"], r"^[0-9a-f]{64}$")

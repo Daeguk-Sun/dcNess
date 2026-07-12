@@ -2,7 +2,7 @@
   "schema_version": 2,
   "golden_version": "core-incidents-v1-human-v1",
   "subset_version": "core-incidents-v1",
-  "verification_status": "pending_owner_confirmation",
+  "verification_status": "verified",
   "measurement": {
     "model": "sonnet",
     "prompt_version": "release-0.12.0-eval-fixture-snapshot",
