@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import socket
 import sys
@@ -181,6 +182,41 @@ class ProductJourneyExecutionTests(unittest.TestCase):
             receipts = read_receipts(root)
 
         self.assertEqual(receipts, [])
+
+    def test_malformed_or_incomplete_pass_receipts_are_ignored(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = _write_config(root, self._base_config())
+            result = run_from_config(
+                root,
+                config_path=config_path,
+                run_id="malformed-check",
+                measured_at="2026-07-12T08:00:00Z",
+            )
+            original = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+            mutations = {
+                "missing-run-id": lambda receipt: receipt.pop("run_id"),
+                "non-string-ac": lambda receipt: receipt.update(target_ac=[1]),
+                "negative-human-intervention": lambda receipt: receipt.update(
+                    human_intervention_count=-1
+                ),
+                "pass-with-failure": lambda receipt: receipt.update(
+                    failure_reasons=["forged"]
+                ),
+                "pass-without-cleanup": lambda receipt: (
+                    receipt["commands"].pop("cleanup"),
+                    receipt["evidence_paths"].pop("cleanup"),
+                    receipt["evidence_sha256"].pop("cleanup"),
+                ),
+            }
+            for name, mutate in mutations.items():
+                with self.subTest(name=name):
+                    candidate = copy.deepcopy(original)
+                    mutate(candidate)
+                    result.receipt_path.write_text(
+                        json.dumps(candidate, ensure_ascii=False), encoding="utf-8"
+                    )
+                    self.assertEqual(read_receipts(root), [])
 
 
 class ProductJourneyContractDocumentTests(unittest.TestCase):

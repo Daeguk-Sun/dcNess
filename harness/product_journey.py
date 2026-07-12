@@ -486,31 +486,67 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
         return False
     if _parse_ts(payload.get("measured_at")) is None:
         return False
+    for key in ("run_id", "journey_id"):
+        value = payload.get(key)
+        if not isinstance(value, str) or not _ID_RE.fullmatch(value):
+            return False
+    boundary = payload.get("boundary")
+    if boundary not in _BOUNDARIES:
+        return False
     target_ac = payload.get("target_ac")
     product_ac = payload.get("product_ac")
     if not isinstance(target_ac, list) or not target_ac or not isinstance(product_ac, dict):
         return False
+    if any(not isinstance(item, str) or not item.strip() for item in target_ac):
+        return False
     passed = product_ac.get("passed")
     total = product_ac.get("total")
-    if not isinstance(passed, int) or not isinstance(total, int):
+    if (
+        not isinstance(passed, int)
+        or isinstance(passed, bool)
+        or not isinstance(total, int)
+        or isinstance(total, bool)
+    ):
         return False
     if total != len(target_ac) or passed < 0 or passed > total:
+        return False
+    intervention = payload.get("human_intervention_count")
+    if (
+        not isinstance(intervention, int)
+        or isinstance(intervention, bool)
+        or intervention < 0
+    ):
+        return False
+    evidence_types = payload.get("evidence_types")
+    if not isinstance(evidence_types, list) or any(
+        not isinstance(item, str) or not item for item in evidence_types
+    ):
+        return False
+    failure_reasons = payload.get("failure_reasons")
+    if not isinstance(failure_reasons, list) or any(
+        not isinstance(item, str) or not item for item in failure_reasons
+    ):
         return False
     required_bools = ("app_started", "journey_executed")
     if any(not isinstance(payload.get(key), bool) for key in required_bools):
         return False
     assertion = payload.get("assertion")
-    if not isinstance(assertion, dict) or any(
-        not isinstance(assertion.get(key), bool) for key in ("evaluated", "passed")
-    ):
+    if not isinstance(assertion, dict):
+        return False
+    if any(not isinstance(assertion.get(key), bool) for key in ("evaluated", "passed")):
+        return False
+    if not isinstance(assertion.get("description"), str) or not assertion["description"]:
+        return False
+    if assertion.get("source") not in _ASSERTION_SOURCES:
         return False
     if payload["outcome"] == "PASS" and not (
-        payload["boundary"] != "mock"
+        boundary != "mock"
         and payload["app_started"]
         and payload["journey_executed"]
         and assertion["evaluated"]
         and assertion["passed"]
         and passed == total
+        and not failure_reasons
     ):
         return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
@@ -535,6 +571,10 @@ def _evidence_matches_receipt(
         return False
     if set(commands) != set(evidence_sha256):
         return False
+    if not {"start", "cleanup"}.issubset(commands):
+        return False
+    if payload["outcome"] == "PASS" and set(commands) != set(_PHASES):
+        return False
     canonical_root = (project_root / EVIDENCE_ROOT_REL).resolve()
     for phase, result in commands.items():
         if phase not in _PHASES or not isinstance(result, dict):
@@ -555,8 +595,16 @@ def _evidence_matches_receipt(
             return False
         if result.get("log_path") != declared_log:
             return False
-        if _sha256_file(log_path) != declared_hash:
+        try:
+            actual_hash = _sha256_file(log_path)
+        except OSError:
             return False
+        if actual_hash != declared_hash:
+            return False
+    if payload["outcome"] == "PASS":
+        for phase in ("health", "journey", "cleanup"):
+            if commands[phase].get("exit_code") != 0:
+                return False
     return True
 
 
