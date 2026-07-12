@@ -11,7 +11,7 @@
   "source": {
     "run": ".metrics/evals/release-0.12.0",
     "attempts_selected": 2,
-    "note": "저장된 blind report의 대표 attempt 1을 케이스별로 읽기 전용 정규화 복제했다. owner 확인 전 calibration PASS 금지."
+    "note": "저장된 blind report의 대표 attempt 1을 케이스별로 읽기 전용 정규화 복제했다. 저장소 소유자가 2026-07-12에 자료 출처와 E1, E2, HPQ-1~5의 OK 판정을 확인했다."
   },
   "labels": [
     {
