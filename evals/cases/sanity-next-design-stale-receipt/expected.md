@@ -1,0 +1,4 @@
+- [E1][MUST] receipt tree와 현재 tree가 달라 stale임을 판정하고 같은 증거를 그대로 재사용하지 않는다.
+- [E2][MUST] 전체 repo hard scan이 아니라 hotfix와 다음 Epic의 affected scope를 `CODEBASE_SANITY`로 다시 감사한다.
+- [E3][MUST] local-only receipt를 code PR에 노출하라고 요구하지 않는다.
+- [E4][MUST] Sanity 재감사와 별도로 affected capability/entrypoint 현재 코드 ↔ Root freshness 대조를 수행한다.

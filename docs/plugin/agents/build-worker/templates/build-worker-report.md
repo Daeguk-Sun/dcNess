@@ -31,6 +31,13 @@
 - 변화 없음이면 그 근거:
 - tracked/local-only 문서 정책과 durable handoff:
 
+## replacement/refactor hygiene (해당 task만)
+
+- old/new surface 관계:
+- 제거한 call site / DI / route / registration / resource / test double / suppression:
+- 보존한 seam과 이유 / owner:
+- unknown 또는 후속 감사 필요 지점:
+
 ## 메인 인계
 
 - commit sha:

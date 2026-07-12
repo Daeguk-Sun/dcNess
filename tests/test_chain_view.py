@@ -9,7 +9,7 @@
     substeps_for (AC: 현재 sub-step 펼침):
         - build-worker(2)
         - UI 기준 확보 시 canvas-design 선두
-        - 마감 acceptance: story +1 / epic +2 / None +0
+        - 마감: story acceptance +1 / epic Codebase Sanity +1, acceptance +2
 
     redraw_strategy (AC: task 총수별 분기):
         - <=10 full / 11~20 partial / >20 minimal (경계 10/11/20/21)
@@ -114,6 +114,7 @@ class TestSubsteps(unittest.TestCase):
             steps,
             [
                 "build-worker",
+                "impl-validator:CODEBASE_SANITY",
                 "impl-validator",
                 "product-acceptance:STORY",
                 "product-acceptance:EPIC",

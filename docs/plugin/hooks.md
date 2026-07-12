@@ -248,6 +248,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 - 마지막 `end-step` 이후 새 `begin-step` 이 열린 run 은 동일 agent 재라운드여도 진행 중으로 보고 자동 `end-run` 대상에서 제외
 - 마지막 step 결론이 다음 step 으로 이어져야 하는 enum 이고 종료 agent 가 아니면 continuation signal 을 내보내 메인 turn 재발화
 - `begin-run impl --acceptance-required` 로 기록된 마감 task run 에서는 `impl-validator` 를 종료 agent 로 취급하지 않는다. `impl-validator` 결론이 `PASS` 이면 Stop hook 이 `product-acceptance` 진입용 continuation signal 을 내보내며, marker 가 없는 중간 task / `--no-acceptance` run / verify-only run 은 기존 종료 동작을 유지한다.
+- `impl-validator:CODEBASE_SANITY` `PASS`는 종료 결과가 아니다. impl run에서는 같은 final merge candidate의 일반 `impl-validator` merge review를, design run에서는 Cartography freshness preflight를 이어가도록 continuation signal을 낸다. Sanity mode 직후 acceptance로 건너뛰지 않는다.
 - 같은 step 에서 반복 block 횟수가 한도를 넘으면 사용자/메인의 종료 의도를 존중하고 skip
 
 **차단**: tool 차단은 아니다. 필요 시 stdout JSON 으로 메인 turn 을 재발화한다.

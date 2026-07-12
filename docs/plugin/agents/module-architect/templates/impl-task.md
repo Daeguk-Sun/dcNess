@@ -28,6 +28,12 @@ depends_on:             # [<NN-slug>, ...] 선행 task 순서의 단일 SSOT. se
 - 제품 경계(UI/API/CLI/worker entrypoint/통합 wiring):
 - 첫 동작 증거 지점:
 
+### replacement/refactor/migration cleanup (해당 task만, 일반 feature는 이 절 삭제)
+
+- 기존 표면 → 새 표면 관계:
+- 제거 후보 (call site / DI / route / registration / resource / test double / suppression 중 해당 항목):
+- 의도적으로 보존할 seam과 이유 / owner:
+
 ## 왜 만드나
 
 - PRD/Story 근거와 병렬성보다 동작 슬라이스를 우선한 결정 (1-2줄):

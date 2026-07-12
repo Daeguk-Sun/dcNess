@@ -21,7 +21,8 @@
     UI 감지 시 canvas-design progress checkpoint 선두:
     ui-build-worker 3 (`canvas-design` / `build-worker` / `impl-validator`).
     story 마감 task +1 (`product-acceptance`),
-    epic 마감 task +2 (`product-acceptance:STORY` / `product-acceptance:EPIC`).
+    epic 마감 task는 merge review 앞에 `impl-validator:CODEBASE_SANITY` +1,
+    뒤에 `product-acceptance:STORY` / `product-acceptance:EPIC` +2.
 - task 완료 → 다음 다시그리기 (SKILL 비용 분기): ≤10 full / 11~20 partial /
     >20 minimal. prev 헤더 완료(✓)는 **모든 tier 공통 불변식**(O(1), 생략 시
     in_progress 누적). 비용 분기가 제어하는 비싼 부분은 tail 재생성뿐이고,
@@ -153,6 +154,12 @@ def substeps_for(task: ChainTask) -> List[str]:
         if task.engine is None:
             raise ValueError("engine or substeps is required")
         steps = list(ENGINE_SUBSTEPS[task.engine])
+    if task.closes == "epic" and "impl-validator:CODEBASE_SANITY" not in steps:
+        try:
+            review_index = steps.index("impl-validator")
+        except ValueError:
+            review_index = len(steps)
+        steps.insert(review_index, "impl-validator:CODEBASE_SANITY")
     if task.closes:
         steps.extend(_CLOSE_ACCEPTANCE[task.closes])
     return steps

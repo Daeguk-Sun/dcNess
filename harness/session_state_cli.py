@@ -30,6 +30,7 @@ _ledger_run_started = _state._ledger_run_started
 _now_iso = _state._now_iso
 _prompt_slot_check_text = _state._prompt_slot_check_text
 _read_steps_jsonl = _state._read_steps_jsonl
+_resolve_state_root_for_cwd = _state._resolve_state_root_for_cwd
 _scan_recent_active_run_slot = _state._scan_recent_active_run_slot
 _validate_design_doc = _state._validate_design_doc
 auto_detect_run_id = _state.auto_detect_run_id
@@ -618,6 +619,15 @@ def _cli_run_dir(args: Any) -> int:
     return 0
 
 
+def _cli_sanity_receipt_dir(args: Any) -> int:
+    """Print the primary-worktree receipt dir for a repo or linked worktree."""
+    project_root = Path(args.project_root).expanduser().resolve()
+    state_root = _resolve_state_root_for_cwd(str(project_root))
+    persistent_project_root = state_root.parent.parent
+    print(persistent_project_root / ".dcness-work" / "codebase-sanity")
+    return 0
+
+
 def _cli_run_status(args: Any) -> int:
     """현재 (또는 --run-id) run 의 ledger 기반 진행 상태 요약 (이슈 #587).
 
@@ -1082,6 +1092,17 @@ def _build_arg_parser() -> Any:
 
     p_rd = sub.add_parser("run-dir", help="현재 active run 의 run_dir 절대 경로 (DCN-30-21)")
     p_rd.set_defaults(func=_cli_run_dir)
+
+    p_srd = sub.add_parser(
+        "sanity-receipt-dir",
+        help="linked worktree 정리 후에도 남는 primary-worktree Sanity receipt 경로",
+    )
+    p_srd.add_argument(
+        "--project-root",
+        default=".",
+        help="활성 project/worktree root (기본 cwd)",
+    )
+    p_srd.set_defaults(func=_cli_sanity_receipt_dir)
 
     p_rs = sub.add_parser(
         "run-status",
