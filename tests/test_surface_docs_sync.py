@@ -675,9 +675,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
 
     def test_init_doc_is_execution_runbook_not_hook_policy_reference(self) -> None:
         """#690 — /init-dcness 는 실행 절차만 두고 자동 hook 설명은 SSOT 링크로 내린다."""
+        # 예산 520: 비활성화 절차 섹션 추가(#955)로 실측 ~510줄 — reference 회귀 방지 가드는 유지
         self.assertLess(
             len(self.init_doc.splitlines()),
-            500,
+            520,
             msg="/init-dcness public entrypoint 가 다시 장황한 reference 문서가 됨",
         )
         for stale in (

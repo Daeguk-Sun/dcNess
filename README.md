@@ -104,7 +104,7 @@ claude plugin install dcness@dcness
 설치만으로는 아무것도 걸리지 않는다. 기본값은 **비활성**(그냥 통과)이다. 적용할 프로젝트에서 Claude Code 세션을 열고 활성화해야 한다.
 
 ```
-/init-dcness        # 현 프로젝트를 활성 대상에 등록 (+ 파일 읽기 권한 / git hook 자동 셋업)
+/init-dcness        # 현 프로젝트를 활성 대상에 등록 (+ 파일 읽기 권한 / git hook 자동 셋업). 비활성화("dcness 꺼줘")도 같은 스킬이 처리
 ```
 
 `/init-dcness` 가 출력하는 진단표에서 `whitelist 활성` 이 PASS 이고 FAIL 이 0 이면 정상이다(INFO·선택 WARN 은 정상).
@@ -173,7 +173,7 @@ claude plugin install dcness@dcness
 | 고급 | `/tech-review` | 위험한 설계의 사전 기술 검증 |
 | 고급 | `/impl-loop` | deep impl task 파일 단위 구현 러너 |
 | 유틸 | `/ux` | 구현 없이 목업·흐름·디자인 시스템/토큰 베이스라인 먼저 탐색, PICK 확정본은 canvas 에 등록 |
-| 유틸 | `/init-dcness` | 현 프로젝트를 활성 대상에 등록 |
+| 유틸 | `/init-dcness` | 현 프로젝트를 활성 대상에 등록·해제 |
 | 유틸 | `/next-work` | issue/label 기반 진행 중 / 다음 할 일 조회 |
 | 유틸 | `/run-review` | 끝난 run 을 되짚어 단계별 비용·차단 분석 |
 | 유틸 | `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 생성 |

@@ -205,6 +205,13 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 
 seed 문서는 사용자 프로젝트 내용물이므로 사용자가 별도 작업 PR 에 포함할지 직접 판단한다.
 
+## Deactivation
+
+비활성화는 별도 command 가 아니라 `/init-dcness` 스킬이 겸한다("dcness 꺼줘" 류 발화). 실행 절차와 잔존물 정리 목록은 [`commands/init-dcness.md`](../../commands/init-dcness.md#비활성화) 의 비활성화 섹션이 runbook 진본이다.
+
+- `dcness-helper disable` 은 whitelist 에서 현재 main repo 항목만 제거한다. plug-in 중앙 hook 은 매 호출 `is-active` 판정이므로 즉시 pass-through 된다 (`DCNESS_FORCE_ENABLE=1` 프로세스 제외).
+- project-local 설치물(CLAUDE.md 의 dcNess 안내, git hook shim 4종, generated TDD hook, CI workflow 템플릿)은 whitelist 와 무관하게 잔존한다. 완전 제거는 runbook 의 dcNess 소유물 한정 항목별 정리를 따른다.
+
 ## References
 
 - [`hooks.md`](hooks.md) - CC hook / git hook / CI layer policy

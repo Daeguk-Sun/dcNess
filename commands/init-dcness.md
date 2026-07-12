@@ -1,6 +1,6 @@
 ---
 name: init-dcness
-description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하는 부트스트랩 스킬. dcNess 는 디폴트로 모든 프로젝트에서 비활성 (hook pass-through). 본 스킬 호출 시 현재 cwd 의 main repo 를 plugin-scoped whitelist (`~/.claude/plugins/data/dcness-dcness/projects.json`) 에 추가해 SessionStart / PreToolUse Agent 훅이 발화하기 시작한다. 사용자가 "init-dcness", "dcness 활성화", "이 프로젝트에 dcness 켜", "dcness 시작", "/init-dcness" 등을 말할 때 사용. 비활성화는 `/disable-dcness` (또는 본 스킬에서 status 확인 후 안내).
+description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하는 부트스트랩 스킬. dcNess 는 디폴트로 모든 프로젝트에서 비활성 (hook pass-through). 본 스킬 호출 시 현재 cwd 의 main repo 를 plugin-scoped whitelist (`~/.claude/plugins/data/dcness-dcness/projects.json`) 에 추가해 SessionStart / PreToolUse Agent 훅이 발화하기 시작한다. 사용자가 "init-dcness", "dcness 활성화", "이 프로젝트에 dcness 켜", "dcness 시작", "/init-dcness" 등을 말할 때 사용. 비활성화 요청("dcness 꺼줘", "dcness 비활성화", "disable dcness")도 본 스킬이 처리한다 — 본문 비활성화 절차(helper `disable`)로 현재 프로젝트를 whitelist 에서 제거한다.
 ---
 
 # Init dcNess Skill - 프로젝트 활성화
@@ -10,6 +10,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 ## 언제 사용
 
 - 사용자 발화: "init-dcness", "dcness 활성화", "/init-dcness", "이 프로젝트에 dcness 켜"
+- 비활성화 발화: "dcness 꺼줘", "dcness 비활성화", "disable dcness" — core activation 대신 [비활성화](#비활성화) 절차만 수행
 - 새 프로젝트에 dcness plugin 사용 시작 시
 - 비활성 -> 활성 전환 시
 - project-local bootstrap 파일이나 provider routing preset 을 새로 설치/갱신할 때
@@ -488,6 +489,18 @@ FAIL 이 0 이면 core activation 은 완료 상태다. INFO·NA 행과 선택 W
 `claude plugin uninstall dcness@dcness && claude plugin install dcness@dcness` 시 `~/.claude/plugins/data/dcness-dcness/` 가 정리되어 whitelist 가 사라진다. 재설치 후 각 활성 프로젝트마다 `/init-dcness` 를 다시 실행한다.
 
 `~/.claude/settings.json` 의 Read 권한은 재설치 후에도 보존된다. `/init-dcness` 재실행 시 이미 있으면 skip 한다.
+
+## 비활성화
+
+사용자가 비활성화를 요청하면 core activation 절차 대신 아래만 수행한다. [공통 변수](#공통-변수)의 `PLUGIN_ROOT` / `HELPER` 정의를 먼저 실행한다.
+
+```bash
+"$HELPER" disable
+```
+
+whitelist 에서 현재 프로젝트 root 항목만 제거한다. plug-in 중앙 hook 은 매 호출 `is-active` 를 확인하므로 현재 세션에서도 즉시 pass-through 되고, SessionStart 가 이미 주입한 안내만 세션 재시작으로 사라진다. 단 `DCNESS_FORCE_ENABLE=1` 이 설정된 프로세스는 whitelist 와 무관하게 활성이 유지되므로, 설정돼 있으면 해제한 뒤 Claude Code 를 재시작해야 비활성이 완성된다. 상위 디렉토리의 활성 항목으로 상속 활성된 중첩 repo 도 현재 root 항목 제거만으로는 꺼지지 않는다 — 실행 후 `"$HELPER" status` 로 비활성을 확인한다. 중첩 repo 만 선별해서 끄는 것은 미지원이며, 상위 repo 에서 disable 을 실행하면 상위와 그 하위 전체가 함께 비활성화된다는 영향 범위를 사용자에게 안내한 뒤 진행한다.
+
+나머지 설치물은 whitelist 와 무관하게 남아 계속 동작하므로 완전 제거를 원하면 dcNess 가 설치한 파일만 항목별로 정리한다 — `CLAUDE.md` 의 dcNess 안내(기존 파일에 append 한 경우 `## dcNess Cold Start` 섹션 삭제, seed 가 파일을 새로 생성한 경우 Architecture·Workflow 섹션의 dcNess/워크플로 안내 줄까지 정리), dcNess shim 4종 `pre-commit`·`commit-msg`·`post-checkout`·`pre-push`(파일 삭제 — `git rev-parse --path-format=absolute --git-path hooks` 가 해석한 경로와 `.git/hooks` 양쪽에서 dcNess shim 인지 확인 후 삭제: linked worktree 는 common dir, `core.hooksPath` 구성은 두 위치에 사본이 있을 수 있음), generated TDD hook(`.claude/settings.json` / `.codex/hooks.json` 의 `dcness-tdd-guard.sh` 등록 제거 + `.claude/hooks/dcness-tdd-guard.sh` · `.codex/hooks/dcness-tdd-guard.sh` · `.dcness/tdd-hooks.json` 파일 삭제), 설치한 dcNess workflow 템플릿 `git-naming-validation.yml`·`pr-body-validation.yml`·`doc-path-integrity.yml`·`doc-sync.yml`·`github-project-lifecycle.yml`(remote 에서 PR 차단 지속 — PR 로 삭제). 프로젝트 자체 소유 hook/workflow 는 삭제 대상이 아니다. 재활성화는 core activation 재실행이다.
 
 ## 참조
 
