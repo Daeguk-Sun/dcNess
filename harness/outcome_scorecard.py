@@ -605,12 +605,24 @@ def render_markdown(report: dict[str, Any]) -> str:
     outcome = report["product_outcome"]
     effectiveness = report["agent_effectiveness"]
     if effectiveness["status"] != UNMEASURED:
+        baseline_context = effectiveness["baseline"]["context_rework"]
+        current_context = effectiveness["current"]["context_rework"]
+        context_comparison = (
+            f"{baseline_context}→{current_context}"
+            if baseline_context is not None and current_context is not None
+            else UNMEASURED
+        )
+        unmeasured_quality = effectiveness.get("unmeasured_quality_fields") or []
         lines[lines.index("## 실제 제품 outcome"):lines.index("## 실제 제품 outcome")] = [
             f"- 비교 trial: {effectiveness['denominator']}",
             f"- source fixture: {effectiveness['source_count']}",
             f"- task: {effectiveness['task_count']}",
             f"- 개선 관측: {'YES' if effectiveness['improved'] else 'NO'}",
-            f"- 품질 비열화: {'YES' if effectiveness['quality_worse'] else 'NO'}",
+            f"- 측정된 품질 축 비열화: {'YES' if effectiveness['quality_worse'] else 'NO'}",
+            (
+                "- 측정 불가 품질 축: "
+                + (", ".join(unmeasured_quality) if unmeasured_quality else "없음")
+            ),
             (
                 "- baseline → current: "
                 f"tool {effectiveness['baseline']['tool_calls']}→"
@@ -621,8 +633,7 @@ def render_markdown(report: dict[str, Any]) -> str:
                 f"{effectiveness['current']['wrong_paths']}, "
                 f"영향 누락 {effectiveness['baseline']['missed_impact']}→"
                 f"{effectiveness['current']['missed_impact']}, "
-                f"context 재작업 {effectiveness['baseline']['context_rework']}→"
-                f"{effectiveness['current']['context_rework']}"
+                f"context 재작업 {context_comparison}"
             ),
             (
                 "- token/cost: "

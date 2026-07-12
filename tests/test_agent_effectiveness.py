@@ -3,11 +3,18 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
+from argparse import Namespace
 from pathlib import Path
+from unittest import mock
+
+from evals import agent_effectiveness_measure as measure
+from harness.agent_effectiveness import evaluate_record
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -99,6 +106,7 @@ def _cold_run(variant: str) -> dict:
         "variant": variant,
         "reported_coordinates": expected,
         "visited": visited,
+        "tool_calls": len(visited),
         "quality": _quality(
             context_rework=1 if variant == "baseline" else 0,
             cross_session_resume=variant == "current",
@@ -333,6 +341,24 @@ class AgentEffectivenessContractTests(unittest.TestCase):
         # 결정으로 폐지됐다. 예산은 월 cap 초과만 차단한다.
         self.assertNotIn("same_month_lean_ablation_collision", result.stderr)
 
+    def test_rejects_self_declared_or_out_of_month_cap_exception(self) -> None:
+        record = _record()
+        record["budget"]["monthly_cap"] = 100
+
+        result = self._run(record)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("monthly_cap_policy_mismatch", result.stderr)
+
+        record = _record()
+        record["budget"].update(
+            {"execution_month": "2026-08", "monthly_cap": 6}
+        )
+        result = self._run(record)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("monthly_cap_policy_mismatch", result.stderr)
+
     def test_rejects_product_quality_regression_even_if_navigation_is_cheaper(self) -> None:
         record = _record()
         record["tasks"][1]["runs"][1]["quality"]["product_ac"]["passed"] = 1
@@ -401,6 +427,18 @@ class AgentEffectivenessContractTests(unittest.TestCase):
         self.assertEqual(effectiveness["new_llm_trials"], 2)
         self.assertEqual(effectiveness["monthly_llm_trial_total"], 6)
         self.assertTrue(effectiveness["improved"])
+        self.assertEqual(effectiveness["baseline"]["tool_calls"], 15)
+        self.assertEqual(effectiveness["current"]["tool_calls"], 13)
+        self.assertEqual(
+            effectiveness["unmeasured_quality_fields"],
+            [
+                "context_rework_count",
+                "cross_session_resume",
+                "human_recovery_count",
+                "must_fix_count",
+                "regression_count",
+            ],
+        )
         self.assertGreater(effectiveness["cost"]["cost_usd"], 0)
 
         record = json.loads(LIVE.read_text(encoding="utf-8"))
@@ -410,6 +448,8 @@ class AgentEffectivenessContractTests(unittest.TestCase):
         # provenance 계약: 실제 run 유래 증거(세션 ID, raw trace 파일, SHA-256, 생성 명령).
         provenance = record["provenance"]
         self.assertIn("agent_effectiveness_measure.py", provenance["generation_command"])
+        self.assertIn("--from-traces", provenance["rebuild_command"])
+        self.assertIn("account/runtime inventory", provenance["trace_redaction"])
         runs = provenance["runs"]
         self.assertEqual(len(runs), 4)
         session_ids = {run["session_id"] for run in runs.values()}
@@ -420,6 +460,66 @@ class AgentEffectivenessContractTests(unittest.TestCase):
             self.assertEqual(
                 hashlib.sha256(trace.read_bytes()).hexdigest(), run["trace_sha256"]
             )
+            trace_text = trace.read_text(encoding="utf-8")
+            self.assertNotIn("/Users/", trace_text)
+            self.assertNotIn('"plugins"', trace_text)
+            self.assertNotIn('"uuid"', trace_text)
+
+        with tempfile.TemporaryDirectory() as directory:
+            rebuilt_path = Path(directory) / "rebuilt.json"
+            rebuild = subprocess.run(
+                [
+                    "python3.11",
+                    str(ROOT / "evals" / "agent_effectiveness_measure.py"),
+                    "--model",
+                    "sonnet",
+                    "--output-dir",
+                    str(LIVE.parent / "evidence" / "real-2026-07-attempt2"),
+                    "--record-out",
+                    str(rebuilt_path),
+                    "--from-traces",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.assertEqual(rebuild.returncode, 0, rebuild.stderr)
+            self.assertEqual(
+                json.loads(rebuilt_path.read_text(encoding="utf-8")),
+                record,
+            )
+
+    def test_live_record_rejects_missing_provenance(self) -> None:
+        record = json.loads(LIVE.read_text(encoding="utf-8"))
+        record.pop("provenance")
+
+        _, errors = evaluate_record(record, record_root=LIVE.parent)
+
+        self.assertIn("provenance_must_be_object", errors)
+        self.assertIn("provenance_run_set_invalid", errors)
+
+    def test_live_runner_timeout_fires_without_stdout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "claude"
+            executable.write_text(
+                "#!/usr/bin/env python3\nimport time\ntime.sleep(5)\n",
+                encoding="utf-8",
+            )
+            executable.chmod(0o755)
+            output_dir = root / "evidence"
+            output_dir.mkdir()
+            args = Namespace(output_dir=output_dir, model="sonnet", timeout=0.1)
+            started = time.monotonic()
+
+            with mock.patch.dict(
+                "os.environ", {"PATH": f"{root}:{os.environ['PATH']}"}
+            ):
+                with self.assertRaisesRegex(RuntimeError, "timed out"):
+                    measure.run_agent("cold-start", "baseline", "prompt", args)
+
+            self.assertLess(time.monotonic() - started, 2)
 
     def test_scorecard_docs_record_replay_conditions_denominators_and_limits(self) -> None:
         contract = (ROOT / "docs" / "plugin" / "outcome-scorecard.md").read_text(

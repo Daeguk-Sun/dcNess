@@ -141,29 +141,26 @@ export function parseCompletionIssueRefs(body, defaultRepo = null) {
   const text = String(body ?? '');
   const refs = [];
   const seen = new Set();
-  const actionRegex = new RegExp(String.raw`\b(${COMPLETION_KEYWORD}|part\s+of)\b`, 'gi');
-  const completionRegex = new RegExp(String.raw`^${COMPLETION_KEYWORD}$`, 'i');
   const referenceRegex = new RegExp(ISSUE_REFERENCE, 'g');
+  const trailerRegex = new RegExp(
+    String.raw`^\s*(?:[-*+]\s+)?(?:${COMPLETION_KEYWORD})\b(.*)$`,
+    'i',
+  );
+  const partOfRegex = /\bpart\s+of\b/i;
 
   for (const line of text.split(/\r?\n/)) {
-    const actions = [...line.matchAll(actionRegex)];
-    for (let index = 0; index < actions.length; index += 1) {
-      const action = actions[index];
-      const keyword = action[1];
-      if (!completionRegex.test(keyword)) continue;
-
-      const segmentStart = action.index + action[0].length;
-      const segmentEnd = actions[index + 1]?.index ?? line.length;
-      const trailerText = line.slice(segmentStart, segmentEnd);
-      referenceRegex.lastIndex = 0;
-      for (const match of trailerText.matchAll(referenceRegex)) {
-        const repo = normalizeRepoName(match[1] || defaultRepo);
-        const number = Number(match[2]);
-        const key = `${repo ?? ''}#${number}`;
-        if (Number.isInteger(number) && !seen.has(key)) {
-          seen.add(key);
-          refs.push({ repo, number });
-        }
+    const trailer = line.match(trailerRegex);
+    if (!trailer) continue;
+    const partOf = trailer[1].search(partOfRegex);
+    const trailerText = partOf >= 0 ? trailer[1].slice(0, partOf) : trailer[1];
+    referenceRegex.lastIndex = 0;
+    for (const match of trailerText.matchAll(referenceRegex)) {
+      const repo = normalizeRepoName(match[1] || defaultRepo);
+      const number = Number(match[2]);
+      const key = `${repo ?? ''}#${number}`;
+      if (Number.isInteger(number) && !seen.has(key)) {
+        seen.add(key);
+        refs.push({ repo, number });
       }
     }
   }

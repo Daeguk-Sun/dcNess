@@ -430,6 +430,37 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
             result,
         )
 
+    def test_completion_refs_ignore_close_words_in_prose(self) -> None:
+        body = (
+            "- 머지 후 #1070 잔여 AC를 체크·close, "
+            "epic #1064 AC 재체크·close를 이어서 진행합니다."
+        )
+
+        result = run_node(
+            f"lifecycle.parseCompletionIssueRefs({json.dumps(body)}, "
+            "'Daeguk-Sun/dcNess')"
+        )
+
+        self.assertEqual({"refs": []}, result)
+
+    def test_completion_refs_accept_bulleted_formal_trailer(self) -> None:
+        body = "- Closes #1070, #1064"
+
+        result = run_node(
+            f"lifecycle.parseCompletionIssueRefs({json.dumps(body)}, "
+            "'Daeguk-Sun/dcNess')"
+        )
+
+        self.assertEqual(
+            {
+                "refs": [
+                    {"repo": "Daeguk-Sun/dcNess", "number": 1070},
+                    {"repo": "Daeguk-Sun/dcNess", "number": 1064},
+                ]
+            },
+            result,
+        )
+
     def test_project_item_lookup_matches_repo_and_issue_number(self) -> None:
         items = [
             {
