@@ -147,7 +147,7 @@ class SpecSurfaceContractTests(unittest.TestCase):
         self.assertIn("검토 항목 1 개 이상", step4_body)
         self.assertNotIn("trigger 기준은", step4_body)
 
-    def test_grillme_reference_defines_required_axes_exit_and_scaling(self) -> None:
+    def test_grillme_reference_defines_contextual_decisions_exit_and_scaling(self) -> None:
         for phrase in (
             "유저 저니·유즈케이스",
             "아키텍처 결정 지점",
@@ -157,19 +157,27 @@ class SpecSurfaceContractTests(unittest.TestCase):
             self.assertIn(phrase, self.prd_ref)
 
         for phrase in (
-            "질문으로 다루거나",
-            "해당 없음",
-            "판정 근거",
+            "예시 관점",
+            "관련된 관점만",
+            "결정 범위",
+            "프로젝트에서 확인",
             "PRD 기록 위치",
             "핵심 분기 목록",
-            "전 축 커버",
             "분기 해소",
             "신규 PRD",
             "기존 PRD 변경",
-            "영향 축 한정",
+            "영향 범위 한정",
             "구체 구조 설계는 `/design`",
         ):
             self.assertIn(phrase, self.prd_ref)
+
+        for fixed_questionnaire in (
+            "4개 질문 축이 전 축 커버",
+            "4개 축을 모두 질문으로 다루거나",
+            "각 축은 질문 답변 또는",
+            "전 축 커버",
+        ):
+            self.assertNotIn(fixed_questionnaire, self.prd_ref)
 
         self.assertIn("## 보안 · 법적 고려", self.prd_template)
         self.assertIn("검토 항목 0 개면", self.prd_template)

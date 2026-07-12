@@ -23,6 +23,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 필수: 호출자가 제공한 구현 PR, 테스트 결과, smoke 결과, 변경 파일 목록
 - 상황별: `docs/architecture.md`, `docs/decisions/`, epic architecture/impl 문서, tech-review 결과
 - 상황별 (SPEC_ACCEPTANCE): [`skills/spec/spec-stories-reference.md`](../../../../skills/spec/spec-stories-reference.md) 의 Story 분할·순서 기준과 예외
+- 상황별 (SPEC_ACCEPTANCE): [`decision-completeness.md`](../../decision-completeness.md) 의 결정 범위·근거 상태·질문/위임·완료 계약
 - 참고: 기존 acceptance 결과가 있으면 이전 gap 과 재검수 증거
 
 ## 판단 축
@@ -72,6 +73,11 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 `/spec` 완료 직후 호출된다. 좋은 아이디어인지 평가하지 않고, 이후 설계/구현/검수가 가능한 spec 인지 확인한다.
 
 - PRD 의 기능 나열과 유저 시나리오가 Story 분할의 입력으로 충분히 명확한가. PRD 에 별도 Story 수용 기준을 요구하지 않는다.
+- [`decision-completeness.md`](../../decision-completeness.md)의 관련 결정 범위를 의미적으로 대조한다. 중요한 선택이 사용자 확정·프로젝트 근거·목표에서 도출한 이유·낮은 영향의 명시적 위임 중 하나로 추적되는지 보고, 구현 방향을 바꿀 근거 없는 가정이나 중요한 미결정이 남으면 PASS 하지 않는다.
+- 구현·프레임워크·라이브러리·모듈의 기본값은 그 이름이 문서에 적혀 있다는 이유만으로 **프로젝트 근거로 세지 않는다**. 현재 코드, 승인된 SSOT·decision, 운영 증거 중 하나가 제품 선택의 근거로 연결돼야 하며, 구현 기본값을 그대로 제품 정책으로 올린 문장은 근거 없는 가정이다.
+- 보존·삭제 기간처럼 데이터 재검토·감사·복구 가능성을 바꾸는 값은 낮은 영향의 tuning이 아니다. 구현 기본값에서 가져왔으면 사용자 또는 도메인 소유자 결정, 기존 프로젝트 정책, 목표에서 도출한 이유 중 하나를 확정하고 그 결과를 명세 또는 수용 기준에 연결하기 전에는 PASS 하지 않는다.
+- 사용자 또는 도메인 소유자만 정할 선택은 사용자 결정으로 되돌리고, 기술 선택은 대안·trade-off·추천 근거가 있으면 인정한다. 낮은 영향의 명시적 위임은 질문으로 되돌리지 않는다.
+- 결정 전용 고정 표, 고정 questionnaire, 동일한 질문 개수나 출력 형식을 요구하지 않는다. 기존 PRD·Story AC·decision·기술 검토 산출물에서 같은 의미가 읽히면 충분하다.
 - 각 Story AC 가 binary 로 판단 가능하고 프로젝트 전역 불변 `AC-NNN` 을 가져 구현 문서가 원점을 인용할 수 있는가.
 - Story AC 는 명령 판정 또는 agent 읽기 판정 가능하고, 사람 판정 항목은 `사람 확인 안내`로 분리됐는가.
 - 사용자 또는 reviewer 가 무엇을 확인하면 되는지 검수 증거 기준이 있다.
@@ -131,6 +137,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 
 1. mode 와 검수 단위를 확인한다.
 2. 기준 문서에서 Story AC, Epic 완료 기준, PRD 유저 시나리오, release readiness 기준을 추출한다.
+   SPEC_ACCEPTANCE이면 작업에 관련된 결정 범위와 중요한 선택의 근거 상태도 함께 추출한다.
 3. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다. EPIC_ACCEPTANCE이면 epic이 인수한 capability의 상태 before/after, affected Root 좌표, 실제 동작·검증 증거도 함께 대조한다.
 4. 대상 사용자를 식별하고 핵심 입력/진행 동선이 제품 언어인지, 내부 구현 계약을 사용자에게 떠넘기는지 대조한다.
 5. 충족된 기준, mock-only green 인 기준, 화면 증거 부재 기준, 목업 불일치 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.
@@ -140,6 +147,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 ## 완료 기준
 
 - 증거 없이 PASS 하지 않는다.
+- SPEC_ACCEPTANCE에서 구현 방향을 바꿀 근거 없는 가정이나 중요한 미결정이 남으면 PASS 하지 않는다. 구현 기본값을 프로젝트 근거로 오인하거나 보존·삭제 정책을 낮은 영향 warning으로 내리지 않는다. 형식이나 섹션명 부재만으로 gap을 만들지 않는다.
 - 구현했다는 주장보다 문서 경로, PR, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명을 우선한다.
 - 핵심 AC가 mock-only green으로만 닫혔으면 PASS 하지 않는다.
 - UI story 에서 화면 증거 부재가 있으면 PASS 하지 않는다.

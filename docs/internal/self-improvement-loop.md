@@ -128,6 +128,11 @@ agent 결함인지 judge 결함인지 구분한다. 동시에 `guard-telemetry.j
 `eval_case_result` 이벤트에 pass/fail, LLM 호출 수, 추정 출력 token 을 남겨 정답률은
 같지만 비용이 커진 회귀도 Sense 단계에서 볼 수 있게 한다.
 
+구현 전 중요한 결정의 근거 상태를 실제 작업에 적용한 첫 기록은
+[`decision-completeness-pilots.md`](decision-completeness-pilots.md)에서 확인한다. 이 기록은
+질문 수나 출력 형식이 아니라, 구현 방향을 바꾸는 선택과 남은 사람 판단이 분리됐는지를
+Verify한다.
+
 ## 첫 실증
 
 첫 루프 실증은 [#877](https://github.com/alruminum/dcNess/issues/877)로 기록한다.
