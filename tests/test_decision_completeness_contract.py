@@ -127,6 +127,32 @@ class DecisionCompletenessContractTests(unittest.TestCase):
         self.assertIn("[MUST]", ungrounded)
         self.assertIn("[MUST_NOT]", grounded)
 
+        stories = [
+            (cases / name / "stories.md").read_text(encoding="utf-8")
+            for name in names
+        ]
+        self.assertEqual(stories[0], stories[1])
+        self.assertEqual(stories[1], stories[2])
+
+        unresolved_prd = (cases / names[0] / "prd.md").read_text(encoding="utf-8")
+        ungrounded_prd = (cases / names[1] / "prd.md").read_text(encoding="utf-8")
+        grounded_prd = (cases / names[2] / "prd.md").read_text(encoding="utf-8")
+        self.assertIn("구현하면서 정한다", unresolved_prd)
+        self.assertIn("파일 저장 모듈의 구현 기본값", ungrounded_prd)
+        self.assertIn("현행 기록 보존 정책", grounded_prd)
+
+        for prd in (unresolved_prd, ungrounded_prd, grounded_prd):
+            for closed_dimension in (
+                "PDF 또는 PNG 증빙 1개",
+                "상태와 lifecycle",
+                "실패와 복구",
+                "권한과 보안",
+                "외부 의존과 운영 제약",
+                "주입 가능한 시계",
+            ):
+                with self.subTest(closed_dimension=closed_dimension):
+                    self.assertIn(closed_dimension, prd)
+
     def test_two_real_pilots_trace_decisions_and_record_human_approval(self) -> None:
         pilots = (
             ROOT / "docs" / "internal" / "decision-completeness-pilots.md"
