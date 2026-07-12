@@ -462,6 +462,7 @@ class AgentEffectivenessContractTests(unittest.TestCase):
             )
             trace_text = trace.read_text(encoding="utf-8")
             self.assertNotIn("/Users/", trace_text)
+            self.assertNotIn("/home/", trace_text)
             self.assertNotIn('"plugins"', trace_text)
             self.assertNotIn('"uuid"', trace_text)
 
@@ -498,6 +499,38 @@ class AgentEffectivenessContractTests(unittest.TestCase):
 
         self.assertIn("provenance_must_be_object", errors)
         self.assertIn("provenance_run_set_invalid", errors)
+
+    def test_trace_sanitizer_redacts_linux_home_path(self) -> None:
+        sanitized = measure._sanitize_string(
+            "/home/alice/work/project/file.py",
+            "/tmp/dcness-sandbox/repo",
+        )
+
+        self.assertEqual(sanitized, "<HOME>/work/project/file.py")
+
+    def test_live_record_rejects_linux_home_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            record_root = Path(directory) / "agent-effectiveness"
+            shutil.copytree(LIVE.parent, record_root)
+            record = json.loads(
+                (record_root / LIVE.name).read_text(encoding="utf-8")
+            )
+            run = record["provenance"]["runs"]["cold-start.baseline"]
+            trace = record_root / run["trace_file"]
+            trace.write_text(
+                trace.read_text(encoding="utf-8").replace(
+                    "<SANDBOX>/repo", "/home/alice/work/repo"
+                ),
+                encoding="utf-8",
+            )
+            run["trace_sha256"] = hashlib.sha256(trace.read_bytes()).hexdigest()
+
+            _, errors = evaluate_record(record, record_root=record_root)
+
+        self.assertIn(
+            "provenance_cold-start_baseline_host_home_path_present",
+            errors,
+        )
 
     def test_live_runner_timeout_fires_without_stdout(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

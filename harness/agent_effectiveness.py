@@ -28,6 +28,7 @@ LIVE_PROVENANCE_RUNS = {
     "refactor.current",
 }
 PRIVATE_TRACE_INIT_FIELDS = {"agents", "plugins", "skills", "slash_commands", "uuid"}
+HOST_HOME_PATH_RE = re.compile(r"(?:/Users/|/home/|\\\\Users\\\\)")
 
 
 class AgentEffectivenessRecordInvalid(ValueError):
@@ -501,7 +502,7 @@ def _verify_live_provenance(
         if PRIVATE_TRACE_INIT_FIELDS & set(init):
             errors.append(f"{prefix}_private_init_metadata_present")
         serialized = json.dumps(events, ensure_ascii=False)
-        if "/Users/" in serialized or "\\Users\\" in serialized:
+        if HOST_HOME_PATH_RE.search(serialized):
             errors.append(f"{prefix}_host_home_path_present")
 
 
