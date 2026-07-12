@@ -39,7 +39,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 | 유틸리티 | 역할 |
 |---|---|
 | `/ux` | 구현 없이 목업과 흐름을 먼저 탐색한다. 디자인 시스템 / 디자인 토큰 / 베이스라인 요청도 ad-hoc 문서가 아니라 `docs/design.md` 기준 신호로 정리한다. 내부 `canvas-design` wrapper 를 통해 drafts 반복 → 사용자 PICK → 확정본 승격 + canvas 등록 규약을 따른다 |
-| `/init-dcness` | 프로젝트 활성화 |
+| `/init-dcness` | 프로젝트 활성화. 비활성화(whitelist 제거) 요청도 같은 진입점이 처리한다 |
 | `/migrate-dcness` | 기존 비-dcness 프로젝트를 코드 역설계로 전역 docs(`prd.md`/`architecture.md`/`conventions.md`/`decisions/`/`index.md`)를 채워 부트스트랩하는 일회성 유틸리티. `/init-dcness`(활성화)의 짝. epic/story 산출물은 만들지 않는다 |
 | `/next-work` | GitHub issue open/closed 상태, `in-progress` label, Issue Brief Priority 로 다음 작업 후보를 read-only 조회 |
 | `/run-review` | 끝난 run 사후 분석 |
