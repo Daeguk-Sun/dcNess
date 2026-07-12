@@ -149,9 +149,14 @@ class DecisionCompletenessContractTests(unittest.TestCase):
                 "권한과 보안",
                 "외부 의존과 운영 제약",
                 "주입 가능한 시계",
+                "제출 후 요청을 취소하지 않는다",
+                "지원하지 않는 증빙 형식",
+                "처리 근거를 재검토",
             ):
                 with self.subTest(closed_dimension=closed_dimension):
                     self.assertIn(closed_dimension, prd)
+
+        self.assertIn("유효기간이 만료된 대리자", stories[0])
 
     def test_two_real_pilots_trace_decisions_and_record_human_approval(self) -> None:
         pilots = (
