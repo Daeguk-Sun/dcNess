@@ -1,0 +1,116 @@
+{
+  "schema_version": 1,
+  "candidate": {
+    "id": "tool-repeat-lesson-metadata",
+    "component": "TOOL_REPEAT_HIGH lesson hits/last/evidence prompt metadata",
+    "optional_reason": "The metadata is advisory context appended after begin-step; it is not an order, file-boundary, external-state, or TDD guard.",
+    "telemetry": {
+      "pattern": "TOOL_REPEAT_HIGH",
+      "count": 42,
+      "finished_run_denominator": 26,
+      "source_project_count": 2,
+      "evidence": "docs/internal/outcome-baseline.md"
+    },
+    "expected_saving_metric": "input_tokens",
+    "meaningful_reduction": {
+      "absolute": 20,
+      "relative": 0.0005
+    }
+  },
+  "safety": {
+    "hard_guards_excluded": [
+      "order",
+      "file-boundary",
+      "external-state",
+      "tdd"
+    ],
+    "live_hard_guard_disabled": false
+  },
+  "deterministic": {
+    "passed": true,
+    "command": "python3.11 evals/lean_ablation.py evals/lean-ablation/tool-repeat-lesson-metadata.json --json",
+    "baseline_prompt_path": "evals/lean-ablation/baseline-prompt.md",
+    "variant_prompt_path": "evals/lean-ablation/variant-prompt.md",
+    "baseline_prompt_bytes": 683,
+    "variant_prompt_bytes": 576,
+    "baseline_prompt_sha256": "b819b208bac5adfb2e52958daa6503ab11e3bda63396aca35b2524446346295e",
+    "variant_prompt_sha256": "1d361468d8e2479ba44844e555bd6a107105e9a03c993f199b06472ccc6dfb51",
+    "fixture_hashes": {
+      "evals/lean-ablation/fixture/README.md": "968ac7c5cb34a819350c2db890c305b09576802d181d71475a7c12ebc75da6a8",
+      "evals/lean-ablation/fixture/registry.json": "3dbfcd5242c305f394c43e6a9f2fd51fa1e286770eb9f0adaecc69e1b2eab22c",
+      "evals/lean-ablation/fixture/src/runtime.py": "6a78a4b70319ec51133306a89ddafe5ad353a6a75d244389632230255f0ea223",
+      "evals/lean-ablation/fixture/legacy/router.py": "0a9895b6094b80b78f6f11a22e204e645789976ce368e6a880ef21aba9a0216a"
+    }
+  },
+  "shadow": {
+    "passed": true,
+    "live_product_affected": false,
+    "baseline_prompt_sha256": "b819b208bac5adfb2e52958daa6503ab11e3bda63396aca35b2524446346295e",
+    "variant_prompt_sha256": "1d361468d8e2479ba44844e555bd6a107105e9a03c993f199b06472ccc6dfb51",
+    "prompt_bytes_saved": 107,
+    "note": "Both conditions used identical read-only copies of the frozen fixture under /tmp; no activated-project run or live guard was changed."
+  },
+  "budget": {
+    "execution_month": "2026-07",
+    "monthly_cap": 4,
+    "used_before": 0,
+    "agent_effectiveness_screening_month": null,
+    "excluded_preflight": "A gpt-5.2-codex request failed with HTTP 400 before inference and is not counted as a trial."
+  },
+  "paired_screening": {
+    "trials": [
+      {
+        "variant": "baseline",
+        "task_id": "frozen-read-reuse-v1",
+        "input_sha256": "f8ef929c35dec53fde0e753908e7bc44e1dcadc9101f01a366ec53567e11dd70",
+        "model": "gpt-5.6-sol",
+        "provider": "openai-codex",
+        "product_ac": {
+          "passed": 2,
+          "total": 2
+        },
+        "must_fix_count": 0,
+        "regression_count": 0,
+        "human_intervention_count": 0,
+        "input_tokens": 38874,
+        "cached_input_tokens": 24064,
+        "output_tokens": 355,
+        "reasoning_output_tokens": 9,
+        "wall_clock_seconds": 15.36,
+        "identical_tool_input_repeats": 0,
+        "cost_usd": null,
+        "evidence": "evals/lean-ablation/evidence/baseline.md"
+      },
+      {
+        "variant": "variant",
+        "task_id": "frozen-read-reuse-v1",
+        "input_sha256": "f8ef929c35dec53fde0e753908e7bc44e1dcadc9101f01a366ec53567e11dd70",
+        "model": "gpt-5.6-sol",
+        "provider": "openai-codex",
+        "product_ac": {
+          "passed": 2,
+          "total": 2
+        },
+        "must_fix_count": 0,
+        "regression_count": 0,
+        "human_intervention_count": 0,
+        "input_tokens": 40659,
+        "cached_input_tokens": 26112,
+        "output_tokens": 366,
+        "reasoning_output_tokens": 13,
+        "wall_clock_seconds": 13.81,
+        "identical_tool_input_repeats": 0,
+        "cost_usd": null,
+        "evidence": "evals/lean-ablation/evidence/variant.md"
+      }
+    ]
+  },
+  "decision": "keep",
+  "follow_up": "Keep the existing TOOL_REPEAT_HIGH lesson metadata. Reconsider only after a future telemetry-selected candidate month; do not spend the remaining two July trials on an already negative input-token result.",
+  "limitations": [
+    "One frozen read-only fixture and one baseline/variant pair; this is a personal screening, not public superiority evidence.",
+    "Input token totals include shared Codex runtime context and cache behavior, so the deterministic 107-byte prompt delta did not translate into lower total input tokens.",
+    "Per-trial billed cost was unavailable from the ChatGPT-account Codex execution.",
+    "No activated-project product run or hard safety guard was disabled."
+  ]
+}
