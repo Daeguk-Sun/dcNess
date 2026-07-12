@@ -10,6 +10,8 @@
 
 마지막 단락: `PASS`
 
+`CODEBASE_SANITY` mode라면 merge diff 목록 대신 code revision/tree identity, repo 또는 affected dependency cone scope, 명령·exit/warning, coverage 값 또는 `UNKNOWN` 근거, dead-code 후보별 분류, 남은 warning/unknown을 자유 prose로 남긴다. 이 항목들도 고정 schema가 아니다.
+
 ## FAIL
 
 - `[spec-gap]` path:line — 깨진 계획/계약, 영향, 필요한 재진입 방향

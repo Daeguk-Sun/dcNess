@@ -35,6 +35,7 @@
 - commit 품질: task가 green이 된 뒤 [`git-spec.md#의미-단위-커밋-분할`](../../git-spec.md#의미-단위-커밋-분할)에 맞게 독립 검토 가능한 의미 단위로 로컬 커밋됐는가.
 - handoff 품질: 메인이 push/PR/merge를 소유할 수 있도록 commit sha, 검증 명령, 남은 판단 지점을 남겼는가.
 - Cartography impact: 구현 중 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after가 바뀌었는지 실제 diff와 검증 증거로 판정하고, 관련 epic/decision과 함께 refresh producer가 복구 가능한 자유 prose로 보고하는가. 특히 `stub/planned → landed`는 제품 동작·검증 증거가 있어야 한다.
+- replacement/refactor hygiene: 새 표면이 기존 구현을 대체하는 task이면 old symbol의 call site뿐 아니라 DI binding/provider, route/deep link, manifest/framework registration, resource, test/fake/fixture, suppression/deprecation까지 추적했는가. 대체된 표면은 제거하고, intentional stub/planned seam 또는 호환 경계로 보존한 표면은 이유와 owner를 보고했는가.
 - 도구 경제성: 같은 파일과 같은 명령을 반복하지 않고 읽은 내용과 편집 계획을 재사용했는가.
 
 ## 작업 흐름
@@ -42,6 +43,7 @@
 1. build-test: 계획·설계와 메인이 전달한 target GitHub issue AC snapshot 을 읽고, 이 task 의 REQ 및 테스트가 담당할 AC 를 대응시킨 뒤 테스트를 작성해 RED를 확인한다.
 2. build-impl: 허용된 코드 경로만 수정하고 GREEN을 확인한다.
 3. build-validate: 계획, 코드, 계약, lint 또는 프로젝트 표준 검증을 확인한다. 테스트/lint/build/typecheck/compile 게이트는 명령을 실제로 실행해 종료코드 기반으로 판정한다. 핵심 AC가 mock-only green이면 가능한 자동 동작 증거를 보강하고, 보강 불가 시 gap 으로 보고한다. 확정 목업이 있는 UI 작업은 구현 컴포넌트와 핵심 `data-node-id` 매핑을 대조하고, design:required 태스크는 `docs/design.md` 의 색·spacing·typography 토큰이 실제 앱 theme/component 상수에 반영됐는지 별도 self-check 로 보고한다. 목업 대비 의도적 차이가 있으면 이유와 영향을 보고한다. 같은 단계에서 구현 전후 diff를 읽어 affected capability, runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after와 증거, 관련 epic/decision을 자유 prose Cartography impact로 남긴다. 변화가 없으면 없다고 명시한다.
+   - impl 계획에 replacement/refactor/migration 신호가 있으면 old surface를 이름 검색 하나로 끝내지 않는다. call site, DI binding/provider, route/deep link, manifest/framework registration, resource, test/fake/fixture, suppression/deprecation을 전수 대조한다. 제거한 표면과 의도적으로 보존한 표면을 나누고, 보존 항목에는 이유와 owner를 남긴다. framework/runtime reachability 또는 후속 Epic의 intentional stub/planned seam 여부가 불명확하면 자동 삭제하지 않고 gap으로 보고한다.
 4. 각 phase 결과를 phase prose 파일로 남긴다.
 5. PASS 조건을 만족하면 `git status`, `git diff --check`, 필요한 `git add`, `git commit`을 실행해 task 변경을 로컬 커밋으로 닫는다. 커밋은 git-spec 의 의미 단위 커밋 분할 규칙으로 쪼개되 각 커밋은 hook을 통과하는 일관 상태여야 한다.
 6. PASS일 때만 다음 task를 위한 한 줄 요약, commit sha, 담당 target GitHub issue AC 별 충족 증거를 남긴다. build-worker 는 issue mutation 권한이 없으므로 체크박스를 직접 수정하지 않고 메인에게 증거만 인계한다.
@@ -100,6 +102,7 @@
 - design:required UI 작업에서는 node-id 매핑과 별개로 `docs/design.md` 토큰 적용 결과, 잔존 스캐폴딩 색 상수 여부, boilerplate 테마 잔존 금지 확인 결과가 보고된다.
 - PR 본문 초안에 close keyword가 불확실하면 메인 검토 요청을 남긴다.
 - Cartography impact 보고가 실제 diff와 검증 증거를 가리킨다. `landed`는 코드 경로와 제품 동작·검증 증거가 모두 있을 때만 주장한다.
+- replacement/refactor/migration task이면 old surface의 call site·registration·resource·test double·suppression까지 제거 또는 보존 근거가 있고, 보존한 표면의 이유와 owner가 보고된다.
 
 ## 권한 경계
 

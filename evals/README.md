@@ -151,6 +151,14 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 | `cartography-acceptance-stale-state` | (합성) 제품 동작 증거는 capability의 landed를 입증하지만 Root에는 planned가 남은 epic acceptance | 사용자 동작 PASS만으로 끝내지 않고 route-only 상태 refresh를 요구해야 한다 |
 | `cartography-lifecycle-smoke` | (외부 활성 프로젝트 fixture) design planned/stub부터 impl landed, drift 검출, bounded refresh, acceptance, 다음 design 재대조까지의 전체 trace | #1058 agent 책임과 #1057 workflow 연결이 합쳐져 durable boundary를 순서대로 닫아야 한다 |
 | `cartography-producer-contract` | prewritten refreshed Root 없이 module-architect `CARTOGRAPHY_REFRESH`가 직접 bounded patch와 system backpressure를 생산 | workflow routing 문자열이 아니라 실제 producer mode의 입력·write 제한·landed 증거·재검증 handoff를 검증해야 한다 |
+| `sanity-lint-green-with-warning` | lint exit 0이지만 unused resource와 redundant scaffold warning이 남은 final candidate | exit code와 warning-free를 구분하고 rework surface를 보고해야 한다 |
+| `sanity-coverage-unknown` | test green과 test count만 있고 coverage 도구·리포트가 없는 repo | coverage를 `UNKNOWN`으로 두고 test count로 추정하지 않아야 한다 |
+| `sanity-framework-entrypoint` | caller 검색에는 없지만 manifest와 runtime smoke로 도달되는 entrypoint | `framework-reachable`로 분류하고 자동 삭제하지 않아야 한다 |
+| `sanity-planned-stub` | 다음 Epic owner와 ADR이 보존 근거인 unused port | intentional stub/planned seam으로 분류하고 자동 삭제하지 않아야 한다 |
+| `sanity-stale-old-path` | 새 coordinator landing 뒤 old manifest/resource/test 경로가 남은 replacement | 구현자 self-report와 독립적으로 stale path를 찾아 quality-gap/rework로 연결해야 한다 |
+| `sanity-clean-refactor` | old surface 전부 제거, 현재 owner seam과 실제 coverage 근거가 있는 refactor | 근거 없는 dead-code finding 없이 clean PASS해야 한다 |
+| `sanity-next-design-stale-receipt` | 직전 receipt 이후 affected module hotfix가 들어온 다음 Epic design | stale receipt를 재사용하지 않고 affected scope Sanity와 별도 Cartography 현재 코드 대조를 수행해야 한다 |
+| `sanity-lifecycle-smoke` | Sanity PASS, bounded Cartography refresh/revalidation, acceptance 뒤 code commit이 추가된 trace | 정해진 순서를 인정하되 code change가 모든 code review evidence를 stale하게 만들어 Sanity부터 재진입시켜야 한다 |
 
 > L3 실사고 케이스의 축 한계 — 정직하게 기록한다:
 > - **순서 축은 깨끗하게 재현된다**: 핵심 약속(완성 쇼츠) 검증이 뒤 story 로 밀린 것을 지금 지침이 reliable 하게 잡는다(3/3). 이게 youTubeGenerator #214 의 설계단 원인이다.

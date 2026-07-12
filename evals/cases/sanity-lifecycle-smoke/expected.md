@@ -1,0 +1,4 @@
+- [E1][MUST] code tree `f19a`까지의 `Sanity PASS → Cartography refresh → 같은 diff+갱신 Root 재검증 → 제품 검수` 순서는 올바르다고 판정한다.
+- [E2][MUST] Cartography-only refresh는 code tree를 바꾸지 않으므로 `f19a` Sanity receipt를 유지할 수 있다고 판정한다.
+- [E3][MUST] code commit `f20b`가 생긴 순간 기존 Sanity와 일반 impl-validator 증거가 stale이므로 Sanity부터 재진입해야 한다고 판정한다.
+- [E4][MUST_NOT] stale evidence로 close audit 또는 merge 진행을 허용하지 않는다.
