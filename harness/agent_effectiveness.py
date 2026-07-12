@@ -369,8 +369,6 @@ def _budget(raw: Any, errors: list[str]) -> dict[str, Any]:
     used_before = _integer(budget.get("used_before"), "used_before", errors)
     new_trials = _integer(budget.get("new_llm_trials"), "new_llm_trials", errors)
     lean_month = budget.get("lean_ablation_screening_month")
-    if lean_month == execution_month and new_trials:
-        errors.append("same_month_lean_ablation_collision")
     total = used_before + new_trials
     if total > cap:
         errors.append("monthly_trial_cap_exceeded")

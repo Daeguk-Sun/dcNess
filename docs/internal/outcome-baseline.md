@@ -105,13 +105,43 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 | 두 task 합계 | context 기인 재작업 / cross-session 복구 | 2 / 0 | 0 / 2 | 개선 |
 | 두 task 품질 | 제품 AC / MUST-FIX / 회귀 / 사람 복구 | 4/4 / 0 / 0 / 0 | 4/4 / 0 / 0 / 0 | 비열화 없음 |
 
-탐색 tool은 `13→9`, read bytes는 `7,000→4,600`, 오경로는 `2→0`, 영향 누락은 `1→0`, context 기인 재작업은 `2→0`으로 계산됐고, 계산기는 핵심 품질 비열화가 없을 때만 결과를 기록했다. 이 수치는 저작된 record 값에 대한 측정 계약 검증 결과이며 실제 agent의 effectiveness 개선 관측이 아니다. 실제 agent effectiveness는 동일 frozen task의 실측 baseline/current 1+1 record가 남을 때까지 `측정 불가`로 유지한다. 문서 수, map 크기, hook 수는 입력 설명일 뿐 effectiveness 대리값으로 사용하지 않았다.
+탐색 tool은 `13→9`, read bytes는 `7,000→4,600`, 오경로는 `2→0`, 영향 누락은 `1→0`, context 기인 재작업은 `2→0`으로 계산됐고, 계산기는 핵심 품질 비열화가 없을 때만 결과를 기록했다. 이 수치는 저작된 record 값에 대한 측정 계약 검증 결과이며 실제 agent의 effectiveness 개선 관측이 아니다. 실제 agent effectiveness는 동일 frozen task의 실측 baseline/current 1+1 record가 남을 때까지 `측정 불가`로 유지했고, 그 실측 record는 아래 [2026-07-13 Agent effectiveness 실측 paired screening](#2026-07-13-agent-effectiveness-실측-paired-screening) 절에 남았다. 문서 수, map 크기, hook 수는 입력 설명일 뿐 effectiveness 대리값으로 사용하지 않았다.
 
-2026-07 epic 공통 추가 LLM trial 누계 `2/4`는 #1069 screening의 기존 2회뿐이며 이번 record의 새 LLM trial은 0회다. #1069와 같은 달 paired screening을 실행하지 않았다. 이 결과는 synthetic fixture 1개·task 2개와 저장 trace에 한정되고, live agent token/cost·실제 프로젝트 wall-clock·다중 model/provider·공개 우위는 측정 불가다.
+당시 2026-07 epic 공통 추가 LLM trial 누계 `2/4`는 #1069 screening의 기존 2회뿐이며 이번 record의 새 LLM trial은 0회다. #1069와 같은 달 paired screening을 실행하지 않았다. 이 결과는 synthetic fixture 1개·task 2개와 저장 trace에 한정되고, live agent token/cost·실제 프로젝트 wall-clock·다중 model/provider·공개 우위는 측정 불가다.
+
+## 2026-07-13 Agent effectiveness 실측 paired screening
+
+`agent-effectiveness-real-2026-07`은 위 절과 동일한 frozen fixture·task 2개를 실제 headless agent로 실행한 baseline 1 trial + current 1 trial(1+1) 실측이다. provider `claude -p --safe-mode (headless)`, model `claude-sonnet-4-6`, 동일 프롬프트·도구(Read/Glob/Grep)·격리 sandbox 조건에서 current에만 Cartography/Sanity 계약을 주입했다. record `evals/agent-effectiveness/cartography-sanity-real.json`의 provenance 블록에 각 run의 세션 ID(run ID), raw trace 파일, trace SHA-256, 생성 명령이 남아 있고, raw stream-json trace 전문은 `evals/agent-effectiveness/evidence/real-2026-07-attempt1/`과 `evals/agent-effectiveness/evidence/real-2026-07-attempt2/`에 보존된다.
+
+1차 시도(2026-07-13)는 두 variant 모두 refactor 영향 집합에 별도 framework 경로 2건(`config/handlers.json`, `src/runtime_handler.py`)을 과다 포함해 fail-closed 검증기가 record 등재를 거부했다. Cartography 계약에 영향 경계 규율(바뀌는 capability의 row 경계 유지, 별도 framework/manifest 등록 경로 미포함 — [`docs/plugin/deliverables-map.md`](../plugin/deliverables-map.md)에 동일 규율 반영)을 추가한 뒤 2차 paired run을 실행해 채택했다. 같은 설정의 재실행 선별은 하지 않았고 두 시도의 trace를 모두 보존했다. 2차의 baseline(계약 미주입)이 같은 과다 포함 2건을 재현하고 current(개정 계약)는 과다 0건이라, 이 규율이 해당 실패 모드를 실제로 제거했다는 paired 증거가 함께 남았다.
+
+```sh
+python3.11 "$DCN"/evals/agent_effectiveness_measure.py --from-traces \
+  --output-dir "$DCN"/evals/agent-effectiveness/evidence/real-2026-07-attempt2 \
+  --record-out "$DCN"/evals/agent-effectiveness/cartography-sanity-real.json
+printf '{"version":1,"projects":[]}' > /tmp/dcness-empty-projects.json
+python3.11 "$DCN"/harness/outcome_scorecard.py \
+  --projects-file /tmp/dcness-empty-projects.json \
+  --agent-effectiveness-record \
+  "$DCN"/evals/agent-effectiveness/cartography-sanity-real.json \
+  --measured-at 2026-07-12T15:17:58Z \
+  --json
+```
+
+| task | 지표 | baseline | current | 판정 |
+|---|---|---:|---:|---|
+| cold-start | 좌표 정확도 | 4/4 | 4/4 | 비열화 없음 |
+| cold-start | 방문 tool / read bytes / 오경로 | 5 / 1,072 / 1 | 4 / 923 / 0 | 감소 |
+| cold-start | 첫 owner까지 tool / read bytes / elapsed | 4 / 923 / 11,189ms | 3 / 629 / 9,444ms | 감소 |
+| refactor/replacement | stale/framework/seam 분류 | 3/3 | 3/3 | 비열화 없음 |
+| refactor/replacement | 영향 누락 / 과다 포함 | 0 / 2 | 0 / 0 | 개선 |
+| 두 task 품질 | 제품 AC / MUST-FIX / 회귀 / 사람 복구 | 7/8 / 0 / 0 / 0 | 8/8 / 0 / 0 / 0 | 개선 |
+
+합계는 탐색 tool `14→13`, read bytes `2,260→2,156`, 오경로 `1→0`, 영향 과다 포함 `2→0`이고 핵심 품질 비열화가 없어 계산기가 개선 관측을 기록했다. result-event usage 기준 input/output token `18/4,519`(cache 토큰 제외), cost `$0.14`다. 실행 월 `2026-07`, 새 LLM trial 2회, 2026-07-13 사용자 결정으로 개정된 한시 상한 6회 기준 epic 공통 누계 `6/6`이다(같은 결정으로 ablation과의 월 배분 분리 규칙 폐지 — 개정 기록은 epic 본문). 단일 frozen fixture의 1회 paired 실측이므로 통계적 일반화와 공개 우위 주장에는 사용할 수 없고, visited는 fixture 파일 Read 성공 이벤트만 포함하며 Glob/Grep 호출은 raw trace에만 남는다.
 
 ## 사용 가능한 주장
 
-이 snapshot은 source 2개와 finished run 26개라는 cross-project process baseline 조건은 충족한다. 그러나 비교 variant별 반복 trial과 실제 product outcome이 없으므로 공개 우위 주장은 할 수 없다. 같은 fixture의 1+1 paired screening은 개인 경량화 `keep` / `remove` / `hold` 판단에만 사용할 수 있다.
+이 snapshot은 source 2개와 finished run 26개라는 cross-project process baseline 조건은 충족한다. 그러나 비교 variant별 반복 trial과 실제 product outcome이 없으므로 공개 우위 주장은 할 수 없다. 같은 fixture의 1+1 paired screening은 개인 경량화 `keep` / `remove` / `hold` 판단에만 사용할 수 있다. 2026-07-13 Agent effectiveness 실측 paired screening도 같은 경계를 따른다: 단일 frozen fixture 1회 실측이므로 개인 effectiveness 신호로만 쓰고 공개 우위 주장에는 쓰지 않는다.
 
 ## 2026-07 lean ablation pilot
 
@@ -127,6 +157,6 @@ shadow prompt 비교, 동일 `openai-codex` / `gpt-5.6-sol` 조건의 1+1 screen
 | metadata 축소 | 1 | 2/2 | 0 / 0 / 0 | 40,659 / 366 | 13.81s | prompt 107 bytes 감소 |
 
 주지표 input token이 감소하지 않아 첫 pair에서 **keep**으로 종료했다. 실행 월
-`2026-07`, epic 공통 추가 LLM trial 누계 `2/4`, #1070 같은 달 screening 없음이다.
+`2026-07`, 당시 epic 공통 추가 LLM trial 누계 `2/4`, 당시 #1070 같은 달 screening 없음이다(이후 2026-07-13 사용자 결정으로 월 배분 분리 규칙 폐지·상한 한시 증액 — Agent effectiveness 실측 절 참조).
 단일 frozen fixture 결과이므로 공개 superiority 근거가 아니다. 재현 계약, fixture
 hash, evidence와 한계는 [`lean-ablation-2026-07.md`](lean-ablation-2026-07.md)에 있다.

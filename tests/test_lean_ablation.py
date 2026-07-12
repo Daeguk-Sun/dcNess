@@ -175,7 +175,7 @@ class LeanAblationProtocolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(json.loads(result.stdout)["decision"], "hold")
 
-    def test_rejects_budget_collision_or_live_hard_guard_ablation(self) -> None:
+    def test_rejects_live_hard_guard_ablation_even_with_same_month_screening(self) -> None:
         record = _record(
             [_trial("baseline", tokens=1000), _trial("variant", tokens=850)]
         )
@@ -185,7 +185,9 @@ class LeanAblationProtocolTests(unittest.TestCase):
         result = self._run(record)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("same_month_agent_effectiveness_screening", result.stderr)
+        # 월 배분 분리 규칙은 2026-07-13 사용자 결정으로 폐지됐다. 같은 달의
+        # agent effectiveness screening 은 더 이상 차단 사유가 아니다.
+        self.assertNotIn("same_month_agent_effectiveness_screening", result.stderr)
         self.assertIn("live_hard_guard_disabled", result.stderr)
 
     def test_rejects_empty_condition_identity_even_when_both_trials_match(self) -> None:

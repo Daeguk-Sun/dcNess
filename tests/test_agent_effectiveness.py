@@ -18,6 +18,12 @@ PILOT = (
     / "agent-effectiveness"
     / "cartography-sanity-replay.json"
 )
+LIVE = (
+    ROOT
+    / "evals"
+    / "agent-effectiveness"
+    / "cartography-sanity-real.json"
+)
 
 
 def _quality(*, context_rework: int, cross_session_resume: bool) -> dict:
@@ -315,15 +321,17 @@ class AgentEffectivenessContractTests(unittest.TestCase):
         self.assertIn("current_coordinate_keys_invalid", result.stderr)
         self.assertIn("current_elapsed_not_monotonic", result.stderr)
 
-    def test_rejects_same_month_llm_trial_collision_and_budget_overrun(self) -> None:
+    def test_rejects_monthly_trial_budget_overrun(self) -> None:
         record = _record()
         record["budget"]["new_llm_trials"] = 3
 
         result = self._run(record)
 
         self.assertEqual(result.returncode, 2)
-        self.assertIn("same_month_lean_ablation_collision", result.stderr)
         self.assertIn("monthly_trial_cap_exceeded", result.stderr)
+        # 월 배분 분리 규칙(ablation 과 같은 달 실행 금지)은 2026-07-13 사용자
+        # 결정으로 폐지됐다. 예산은 월 cap 초과만 차단한다.
+        self.assertNotIn("same_month_lean_ablation_collision", result.stderr)
 
     def test_rejects_product_quality_regression_even_if_navigation_is_cheaper(self) -> None:
         record = _record()
@@ -362,6 +370,57 @@ class AgentEffectivenessContractTests(unittest.TestCase):
         self.assertEqual(effectiveness["measured_at"], "2026-07-12T10:00:00Z")
         self.assertEqual(effectiveness["monthly_llm_trial_total"], 2)
 
+    def test_checked_in_live_record_is_reproducible_with_provenance(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            projects_file = Path(directory) / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": []}), encoding="utf-8"
+            )
+            result = subprocess.run(
+                [
+                    "python3.11",
+                    str(RUNNER),
+                    "--projects-file",
+                    str(projects_file),
+                    "--agent-effectiveness-record",
+                    str(LIVE),
+                    "--json",
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        effectiveness = json.loads(result.stdout)["agent_effectiveness"]
+        self.assertEqual(
+            effectiveness["measurement_id"], "agent-effectiveness-real-2026-07"
+        )
+        self.assertEqual(effectiveness["conditions"]["model"], "claude-sonnet-4-6")
+        self.assertEqual(effectiveness["new_llm_trials"], 2)
+        self.assertEqual(effectiveness["monthly_llm_trial_total"], 6)
+        self.assertTrue(effectiveness["improved"])
+        self.assertGreater(effectiveness["cost"]["cost_usd"], 0)
+
+        record = json.loads(LIVE.read_text(encoding="utf-8"))
+        # 동일 frozen task 증거: synthetic replay record와 fixture hash가 같아야 한다.
+        pilot = json.loads(PILOT.read_text(encoding="utf-8"))
+        self.assertEqual(record["fixtures"], pilot["fixtures"])
+        # provenance 계약: 실제 run 유래 증거(세션 ID, raw trace 파일, SHA-256, 생성 명령).
+        provenance = record["provenance"]
+        self.assertIn("agent_effectiveness_measure.py", provenance["generation_command"])
+        runs = provenance["runs"]
+        self.assertEqual(len(runs), 4)
+        session_ids = {run["session_id"] for run in runs.values()}
+        self.assertEqual(len(session_ids), 4)
+        for run in runs.values():
+            trace = LIVE.parent / run["trace_file"]
+            self.assertTrue(trace.is_file(), trace)
+            self.assertEqual(
+                hashlib.sha256(trace.read_bytes()).hexdigest(), run["trace_sha256"]
+            )
+
     def test_scorecard_docs_record_replay_conditions_denominators_and_limits(self) -> None:
         contract = (ROOT / "docs" / "plugin" / "outcome-scorecard.md").read_text(
             encoding="utf-8"
@@ -388,6 +447,9 @@ class AgentEffectivenessContractTests(unittest.TestCase):
             "2026-07 epic 공통 추가 LLM trial 누계 `2/4`",
             "문서 수",
             "synthetic",
+            "agent-effectiveness-real-2026-07",
+            "cartography-sanity-real.json",
+            "claude-sonnet-4-6",
         ):
             self.assertIn(evidence, baseline)
 
