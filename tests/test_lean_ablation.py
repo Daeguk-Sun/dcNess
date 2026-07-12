@@ -17,7 +17,7 @@ def _trial(variant: str, *, tokens: int, ac_passed: int = 2) -> dict:
     return {
         "variant": variant,
         "task_id": "frozen-read-reuse-v1",
-        "input_sha256": "a" * 64,
+        "input_sha256": "f8ef929c35dec53fde0e753908e7bc44e1dcadc9101f01a366ec53567e11dd70",
         "model": "gpt-5.2-codex",
         "provider": "openai-codex",
         "product_ac": {"passed": ac_passed, "total": 2},
@@ -27,7 +27,8 @@ def _trial(variant: str, *, tokens: int, ac_passed: int = 2) -> dict:
         "input_tokens": tokens,
         "output_tokens": 100,
         "wall_clock_seconds": 10.0,
-        "evidence": "evals/lean-ablation/evidence/example.jsonl",
+        "evidence": "evals/lean-ablation/task.md",
+        "evidence_sha256": "f8ef929c35dec53fde0e753908e7bc44e1dcadc9101f01a366ec53567e11dd70",
     }
 
 
@@ -74,7 +75,11 @@ def _record(trials: list[dict]) -> dict:
             "used_before": 0,
             "agent_effectiveness_screening_month": None,
         },
-        "paired_screening": {"trials": trials},
+        "paired_screening": {
+            "task_path": "evals/lean-ablation/task.md",
+            "task_sha256": "f8ef929c35dec53fde0e753908e7bc44e1dcadc9101f01a366ec53567e11dd70",
+            "trials": trials,
+        },
         "decision": "remove",
         "follow_up": "drop volatile metadata while retaining the lesson text",
         "limitations": ["single frozen fixture", "not public superiority evidence"],
@@ -182,6 +187,31 @@ class LeanAblationProtocolTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2)
         self.assertIn("same_month_agent_effectiveness_screening", result.stderr)
         self.assertIn("live_hard_guard_disabled", result.stderr)
+
+    def test_rejects_empty_condition_identity_even_when_both_trials_match(self) -> None:
+        trials = [_trial("baseline", tokens=1000), _trial("variant", tokens=850)]
+        for trial in trials:
+            trial["task_id"] = ""
+            trial["model"] = ""
+            trial["provider"] = ""
+        record = _record(trials)
+
+        result = self._run(record)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("trial_0_task_id_required", result.stderr)
+        self.assertIn("trial_0_model_required", result.stderr)
+        self.assertIn("trial_0_provider_required", result.stderr)
+
+    def test_rejects_reversed_variant_order(self) -> None:
+        record = _record(
+            [_trial("variant", tokens=850), _trial("baseline", tokens=1000)]
+        )
+
+        result = self._run(record)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("trial_sequence_invalid", result.stderr)
 
     def test_recorded_pilot_is_self_consistent(self) -> None:
         result = subprocess.run(

@@ -58,6 +58,8 @@
     "excluded_preflight": "A gpt-5.2-codex request failed with HTTP 400 before inference and is not counted as a trial."
   },
   "paired_screening": {
+    "task_path": "evals/lean-ablation/task.md",
+    "task_sha256": "f8ef929c35dec53fde0e753908e7bc44e1dcadc9101f01a366ec53567e11dd70",
     "trials": [
       {
         "variant": "baseline",
@@ -79,7 +81,8 @@
         "wall_clock_seconds": 15.36,
         "identical_tool_input_repeats": 0,
         "cost_usd": null,
-        "evidence": "evals/lean-ablation/evidence/baseline.md"
+        "evidence": "evals/lean-ablation/evidence/baseline.md",
+        "evidence_sha256": "e061b6ee6b05f11d9c56ead142e64da4cdab40c9793910c43698495689370015"
       },
       {
         "variant": "variant",
@@ -101,7 +104,8 @@
         "wall_clock_seconds": 13.81,
         "identical_tool_input_repeats": 0,
         "cost_usd": null,
-        "evidence": "evals/lean-ablation/evidence/variant.md"
+        "evidence": "evals/lean-ablation/evidence/variant.md",
+        "evidence_sha256": "76885a91a9dfd2f5e7a915a528499b2faf5aaaed89f9297dbe4cf23831f7b809"
       }
     ]
   },

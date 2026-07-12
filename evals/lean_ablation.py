@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -24,6 +25,7 @@ ALLOWED_METRICS = {
 }
 REQUIRED_HARD_GUARDS = {"order", "file-boundary", "external-state", "tdd"}
 ROOT = Path(__file__).resolve().parents[1]
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 def _mapping(value: Any, field: str, errors: list[str]) -> dict[str, Any]:
@@ -203,10 +205,24 @@ def _collect_trials(
     record: dict[str, Any], metric: str, errors: list[str]
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     screening = _mapping(record.get("paired_screening"), "paired_screening", errors)
+    task_sha = screening.get("task_sha256")
+    if not isinstance(task_sha, str) or not SHA256_RE.fullmatch(task_sha):
+        errors.append("paired_task_sha256_invalid")
+        task_sha = ""
+    _verify_artifact(
+        screening.get("task_path"),
+        task_sha,
+        None,
+        "paired_task",
+        errors,
+    )
     trials_raw = screening.get("trials")
     trials = trials_raw if isinstance(trials_raw, list) else []
     if not isinstance(trials_raw, list):
         errors.append("paired_screening_trials_must_be_array")
+    expected_sequence = ["baseline", "variant"] * (len(trials) // 2)
+    if [trial.get("variant") for trial in trials if isinstance(trial, dict)] != expected_sequence:
+        errors.append("trial_sequence_invalid")
     baselines: list[dict[str, Any]] = []
     variants: list[dict[str, Any]] = []
     conditions: set[tuple[Any, Any, Any, Any]] = set()
@@ -227,8 +243,28 @@ def _collect_trials(
                 trial.get("provider"),
             )
         )
-        if not str(trial.get("evidence") or "").strip():
+        for identity_field in ("task_id", "model", "provider"):
+            if not str(trial.get(identity_field) or "").strip():
+                errors.append(f"trial_{index}_{identity_field}_required")
+        input_sha = trial.get("input_sha256")
+        if not isinstance(input_sha, str) or not SHA256_RE.fullmatch(input_sha):
+            errors.append(f"trial_{index}_input_sha256_invalid")
+        elif task_sha and input_sha != task_sha:
+            errors.append(f"trial_{index}_input_sha256_mismatch")
+        evidence = trial.get("evidence")
+        evidence_sha = trial.get("evidence_sha256")
+        if not str(evidence or "").strip():
             errors.append(f"trial_{index}_evidence_required")
+        if not isinstance(evidence_sha, str) or not SHA256_RE.fullmatch(evidence_sha):
+            errors.append(f"trial_{index}_evidence_sha256_invalid")
+        else:
+            _verify_artifact(
+                evidence,
+                evidence_sha,
+                None,
+                f"trial_{index}_evidence",
+                errors,
+            )
         _trial_quality(trial, errors, index)
         _number(trial.get(str(metric)), f"trial_{index}_{metric}", errors)
     if len(conditions) != 1:
