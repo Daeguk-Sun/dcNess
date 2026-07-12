@@ -81,6 +81,9 @@ class DecisionCompletenessContractTests(unittest.TestCase):
             / "architecture-validator-agent.md"
         ).read_text(encoding="utf-8")
         self.assertIn("고정 표", product_acceptance)
+        self.assertIn("프로젝트 근거로 세지 않는다", product_acceptance)
+        self.assertIn("구현 기본값을 그대로 제품 정책", product_acceptance)
+        self.assertIn("데이터 재검토·감사·복구 가능성", product_acceptance)
         self.assertIn("고정 표", architecture_validator)
 
         codex_validator = (
@@ -152,11 +155,14 @@ class DecisionCompletenessContractTests(unittest.TestCase):
                 "제출 후 요청을 취소하지 않는다",
                 "지원하지 않는 증빙 형식",
                 "처리 근거를 재검토",
+                "실제 지급 실행과 조직 설정 관리는 이 epic 범위 밖",
             ):
                 with self.subTest(closed_dimension=closed_dimension):
                     self.assertIn(closed_dimension, prd)
 
         self.assertIn("유효기간이 만료된 대리자", stories[0])
+        self.assertIn("증빙 열람 동선", stories[0])
+        self.assertIn("증빙 원문만 삭제", stories[0])
 
     def test_two_real_pilots_trace_decisions_and_record_human_approval(self) -> None:
         pilots = (
