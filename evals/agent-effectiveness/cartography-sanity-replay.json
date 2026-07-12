@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "measurement": {
+    "id": "agent-effectiveness-2026-07",
+    "measured_at": "2026-07-12T10:00:00Z",
+    "source": "stored deterministic replay of two frozen repository tasks",
+    "source_count": 1,
+    "limitations": [
+      "Two synthetic frozen repository tasks are a deterministic screening, not a live-agent benchmark.",
+      "No new LLM trial was run because the 2026-07 lean-ablation screening already used that month.",
+      "Token and billed cost are zero because replay validation invokes no model.",
+      "The result supports a personal effectiveness signal, not a public superiority claim."
+    ]
+  },
+  "conditions": {
+    "repo_type": "frozen synthetic Python application",
+    "provider": "deterministic-replay",
+    "model": "none",
+    "harness_variants": [
+      "baseline",
+      "current"
+    ]
+  },
+  "budget": {
+    "execution_month": "2026-07",
+    "monthly_cap": 4,
+    "used_before": 2,
+    "new_llm_trials": 0,
+    "lean_ablation_screening_month": "2026-07"
+  },
+  "fixture_root": "fixture",
+  "fixtures": {
+    "README.md": "49b65ab5c741254c017139c12395bf79a9c39c48403e5622d4430437ea916a05",
+    "config/handlers.json": "c070a2c6f5e20a8b8babfb2c3b046d853b782c64f4a2ad5f3104975f6955e82e",
+    "docs/architecture.md": "8fc0f623af4be0a2ac1da1b49b58ec212b7b81bfef84e48242132d5ff321a59d",
+    "docs/decisions/0001-notification-routing.md": "08388fd5eef0a5b618ea1a3ebbaa32ab4289ed129ac3d69831d1ab2a5ec936d5",
+    "legacy/notification_router.py": "268d17135fd407f56fc11f5b76ffab6e99b9b6bcd0464e2b0c783af917be43bd",
+    "src/app.py": "834e2fc6981f4b82d7fdfa4ae3e3a15c3a3c689d997bada32190a294df94b66f",
+    "src/extension_port.py": "430acae23bfe59aa6812ca96af8ecd7f6cb6549671dc1210bf2afe5b8a7e8e01",
+    "src/notifications/dispatcher.py": "54f64bd838b1e30dc1705c2a444346c89f0e6124f801767ab259e1d60e4f554d",
+    "src/runtime_handler.py": "f70697be77224a443dc5fd811125305f45d659ab57dd7b61a29284785d00c896",
+    "tests/test_notifications.py": "374cdfa5182ac7d35088407f1f5bc1adf81cf41f3853e04581cd89fbde642617"
+  },
+  "tasks": [
+    {
+      "id": "cold-start-notification-route",
+      "type": "cold_start",
+      "expected_coordinates": {
+        "ssot": "docs/architecture.md",
+        "runtime_entrypoint": "src/app.py",
+        "capability_owner": "src/notifications/dispatcher.py",
+        "decision": "docs/decisions/0001-notification-routing.md"
+      },
+      "runs": [
+        {
+          "variant": "baseline",
+          "reported_coordinates": {
+            "ssot": "docs/architecture.md",
+            "runtime_entrypoint": "src/app.py",
+            "capability_owner": "src/notifications/dispatcher.py",
+            "decision": "docs/decisions/0001-notification-routing.md"
+          },
+          "visited": [
+            {"path": "README.md", "tool": "read", "bytes": 900, "elapsed_ms": 10},
+            {"path": "legacy/notification_router.py", "tool": "read", "bytes": 700, "elapsed_ms": 20},
+            {"path": "docs/architecture.md", "tool": "read", "bytes": 600, "elapsed_ms": 30},
+            {"path": "src/app.py", "tool": "read", "bytes": 500, "elapsed_ms": 40},
+            {"path": "src/notifications/dispatcher.py", "tool": "read", "bytes": 400, "elapsed_ms": 50},
+            {"path": "docs/decisions/0001-notification-routing.md", "tool": "read", "bytes": 300, "elapsed_ms": 60}
+          ],
+          "quality": {
+            "product_ac": {"passed": 2, "total": 2},
+            "must_fix_count": 0,
+            "regression_count": 0,
+            "human_recovery_count": 0,
+            "context_rework_count": 1,
+            "cross_session_resume": false
+          },
+          "cost": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0,
+            "basis": "deterministic replay; no LLM invocation"
+          }
+        },
+        {
+          "variant": "current",
+          "reported_coordinates": {
+            "ssot": "docs/architecture.md",
+            "runtime_entrypoint": "src/app.py",
+            "capability_owner": "src/notifications/dispatcher.py",
+            "decision": "docs/decisions/0001-notification-routing.md"
+          },
+          "visited": [
+            {"path": "docs/architecture.md", "tool": "read", "bytes": 600, "elapsed_ms": 10},
+            {"path": "src/app.py", "tool": "read", "bytes": 500, "elapsed_ms": 20},
+            {"path": "src/notifications/dispatcher.py", "tool": "read", "bytes": 400, "elapsed_ms": 30},
+            {"path": "docs/decisions/0001-notification-routing.md", "tool": "read", "bytes": 300, "elapsed_ms": 40}
+          ],
+          "quality": {
+            "product_ac": {"passed": 2, "total": 2},
+            "must_fix_count": 0,
+            "regression_count": 0,
+            "human_recovery_count": 0,
+            "context_rework_count": 0,
+            "cross_session_resume": true
+          },
+          "cost": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0,
+            "basis": "deterministic replay; no LLM invocation"
+          }
+        }
+      ]
+    },
+    {
+      "id": "notification-router-replacement",
+      "type": "refactor_replacement",
+      "expected_classifications": {
+        "legacy/notification_router.py": "stale_old_path",
+        "src/runtime_handler.py": "framework_reachable",
+        "src/extension_port.py": "intentional_seam"
+      },
+      "expected_impact": [
+        "src/notifications/dispatcher.py",
+        "src/app.py",
+        "tests/test_notifications.py"
+      ],
+      "runs": [
+        {
+          "variant": "baseline",
+          "classifications": {
+            "legacy/notification_router.py": "framework_reachable",
+            "src/runtime_handler.py": "framework_reachable"
+          },
+          "observed_impact": [
+            "src/notifications/dispatcher.py",
+            "src/app.py",
+            "README.md"
+          ],
+          "tool_calls": 7,
+          "read_bytes": 3600,
+          "quality": {
+            "product_ac": {"passed": 2, "total": 2},
+            "must_fix_count": 0,
+            "regression_count": 0,
+            "human_recovery_count": 0,
+            "context_rework_count": 1,
+            "cross_session_resume": false
+          },
+          "cost": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0,
+            "basis": "deterministic replay; no LLM invocation"
+          }
+        },
+        {
+          "variant": "current",
+          "classifications": {
+            "legacy/notification_router.py": "stale_old_path",
+            "src/runtime_handler.py": "framework_reachable",
+            "src/extension_port.py": "intentional_seam"
+          },
+          "observed_impact": [
+            "src/notifications/dispatcher.py",
+            "src/app.py",
+            "tests/test_notifications.py"
+          ],
+          "tool_calls": 5,
+          "read_bytes": 2800,
+          "quality": {
+            "product_ac": {"passed": 2, "total": 2},
+            "must_fix_count": 0,
+            "regression_count": 0,
+            "human_recovery_count": 0,
+            "context_rework_count": 0,
+            "cross_session_resume": true
+          },
+          "cost": {
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "cost_usd": 0,
+            "basis": "deterministic replay; no LLM invocation"
+          }
+        }
+      ]
+    }
+  ]
+}

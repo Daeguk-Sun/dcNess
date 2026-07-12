@@ -45,13 +45,19 @@ Agent effectiveness는 하네스 기능 보유 여부가 아니라 같은 조건
 | 관측 항목 | 의미 |
 |---|---|
 | SSOT·runtime entrypoint·capability owner 탐색 정확도 | 첫 선택이 현재 코드와 문서의 진짜 owner를 가리키는가 |
-| 첫 올바른 변경 대상까지의 비용 | 걸린 시간, tool/read 양, 불필요한 파일 읽기와 tool 반복 |
+| 첫 올바른 변경 대상까지의 비용 | 첫 올바른 대상까지의 tool/read 수·bytes·시간, 불필요한 파일 읽기와 tool 반복 |
 | 오경로 | stale 문서, 잘못된 owner/entrypoint, 폐기된 경로를 선택한 횟수 |
 | 영향 범위 누락 | 필요한 producer/consumer, 상태 전이, 테스트 또는 공개 경계를 빠뜨렸는가 |
+| 영향 범위 과다 포함 | 현재 변경과 무관한 파일·경계를 영향 범위에 넣었는가 |
 | context 기인 재작업 | 구현 결함이 아니라 필요한 맥락 누락 때문에 validator가 되돌린 횟수 |
 | cross-session 복구 | 다음 세션이 결정·현재 상태·다음 변경 대상을 정확히 복구했는가 |
+| 제품 AC와 품질 경계 | 제품 AC, MUST-FIX, regression, 사람 복구가 탐색 비용 절감과 함께 유지되는가 |
 
 Cartography freshness는 SSOT·entrypoint·owner 후보와 stale 여부의 입력 증거를 제공한다. Codebase Sanity는 code revision, 감사 scope, 경고·unknown·잔존 경로의 입력 증거를 제공한다. 두 기능이 존재하거나 PASS했다는 사실만으로 탐색 정확도·시간·재작업 감소가 입증되지는 않는다. 비교 trial의 before/after 또는 paired 관측이 없으면 effectiveness는 `측정 불가`다.
+
+결정적 screening은 `--agent-effectiveness-record <record.json>`으로 frozen baseline/current replay를 scorecard에 결합한다. record는 cold-start의 SSOT·runtime entrypoint·capability owner·decision 기대 좌표와 방문 trace, refactor/replacement의 stale old path·framework-reachable·intentional seam 기대 분류와 영향 기대 집합을 보존한다. fixture bundle은 record 위치 기준 상대 `fixture_root` 아래에 두고 각 repo-relative 파일의 SHA-256을 기록해야 하므로 checkout 절대경로에 묶이지 않는다. 측정기는 fixture 무결성, 동일 repo/model/provider/harness variant 조건, source/task/trial denominator, 월 LLM trial 예산, 제품 AC·MUST-FIX·regression·사람 복구 비열화를 함께 감사한다. current가 기대 좌표·분류·영향 집합을 충족하지 못하거나 품질이 악화되면 결과를 기록하지 않고 오류로 종료한다.
+
+개선은 탐색 tool/read 비용, 오경로, 영향 범위 누락, context 기인 재작업 중 하나 이상이 줄고 다른 핵심 항목이 악화되지 않을 때만 관측된다. 문서 수·map 크기·hook 수는 지표나 개선 대리값에 넣지 않는다. deterministic replay는 agent의 live 실행을 대신하는 공개 우위 근거가 아니며 표본·측정 조건·측정 불가 항목과 한계를 같은 결과에 둔다.
 
 ## 실제 제품 outcome 영역
 
@@ -87,7 +93,12 @@ non-UI journey 실행 계약과 receipt 필드는 [`product-journey.md`](product
 ```sh
 python3 "$DCN"/harness/outcome_scorecard.py --redact-paths
 python3 "$DCN"/harness/outcome_scorecard.py --redact-paths --json
+python3.11 "$DCN"/harness/outcome_scorecard.py \
+  --projects-file /path/to/empty-projects.json \
+  --agent-effectiveness-record /path/to/frozen-replay-record.json \
+  --measured-at 2026-07-12T10:00:00Z \
+  --json
 ```
 
-이 명령이 출력하는 제품 outcome과 Agent effectiveness의 `측정 불가`는 실패 판정이 아니라 해당 증거가 아직 ledger에 없다는 뜻이다.
+agent-effectiveness record를 지정하지 않은 명령이 출력하는 제품 outcome과 Agent effectiveness의 `측정 불가`는 실패 판정이 아니라 해당 증거가 아직 ledger에 없다는 뜻이다. record를 지정하면 process source가 없는 독립 fixture screening도 Agent effectiveness와 trial metadata 영역에만 기록되고 제품 outcome을 합성하지 않는다.
 시점 snapshot을 고정할 때는 `--measured-at <ISO-8601>`과 `--as-of <ISO-8601>`을 함께 쓰고, baseline에 포함한 stable ref마다 `--source-ref <ref>`를 반복한다. cutoff는 기존 run에 나중에 append된 event도 제외하고, source ref 고정은 registry 순서 변경이나 새 프로젝트 추가가 과거 source 집합을 바꾸지 못하게 한다. 고정한 ref가 registry에서 사라지거나 해당 runtime ledger를 읽을 수 없으면 재현기는 조용히 분모를 줄이지 않고 오류로 종료한다.
