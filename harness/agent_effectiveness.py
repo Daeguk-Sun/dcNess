@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ EXPECTED_TASK_TYPES = {"cold_start", "refactor_replacement"}
 EXPECTED_VARIANTS = ["baseline", "current"]
 COORDINATE_KEYS = {"ssot", "runtime_entrypoint", "capability_owner", "decision"}
 CLASSIFICATIONS = {"stale_old_path", "framework_reachable", "intentional_seam"}
+SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
 class AgentEffectivenessRecordInvalid(ValueError):
@@ -62,25 +64,38 @@ def _integer(value: Any, field: str, errors: list[str]) -> int:
     return int(number)
 
 
-def _verify_fixtures(fixtures: Any, errors: list[str]) -> None:
+def _verify_fixtures(
+    fixtures: Any, fixture_root: Path, errors: list[str]
+) -> set[str]:
     if not isinstance(fixtures, dict):
         errors.append("fixtures_must_be_object")
-        return
+        return set()
+    if not fixtures:
+        errors.append("fixtures_required")
+        return set()
+    verified: set[str] = set()
     for relative, expected_sha in fixtures.items():
         if not isinstance(relative, str) or not relative:
             errors.append("fixture_path_required")
             continue
-        if not isinstance(expected_sha, str) or len(expected_sha) != 64:
+        relative_path = Path(relative)
+        if relative_path.is_absolute() or ".." in relative_path.parts:
+            errors.append(f"fixture_path_must_be_relative:{relative}")
+            continue
+        if not isinstance(expected_sha, str) or not SHA256_RE.fullmatch(expected_sha):
             errors.append(f"fixture_sha256_invalid:{relative}")
             continue
         try:
-            content = (ROOT / relative).read_bytes()
+            content = (fixture_root / relative_path).read_bytes()
         except OSError:
             errors.append(f"fixture_unreadable:{relative}")
             continue
         actual_sha = hashlib.sha256(content).hexdigest()
         if actual_sha != expected_sha:
             errors.append(f"fixture_sha256_mismatch:{relative}")
+            continue
+        verified.add(relative)
+    return verified
 
 
 def _quality(raw: Any, prefix: str, errors: list[str]) -> dict[str, Any]:
@@ -149,7 +164,11 @@ def _quality_worse(baseline: dict[str, Any], current: dict[str, Any]) -> bool:
 
 
 def _cold_metrics(
-    task: dict[str, Any], run: dict[str, Any], prefix: str, errors: list[str]
+    task: dict[str, Any],
+    run: dict[str, Any],
+    prefix: str,
+    fixture_paths: set[str],
+    errors: list[str],
 ) -> dict[str, Any]:
     expected = _mapping(
         task.get("expected_coordinates"), f"{prefix}_expected_coordinates", errors
@@ -182,6 +201,8 @@ def _cold_metrics(
             event.get("elapsed_ms"), f"{prefix}_visited_{index}_elapsed_ms", errors
         )
         visited_paths.append(path)
+        if path not in fixture_paths:
+            errors.append(f"{prefix}_visited_fixture_missing:{path}")
         if path == expected.get("capability_owner") and first_correct_ms is None:
             first_correct_ms = elapsed
             first_correct_tool_count = index + 1
@@ -207,7 +228,11 @@ def _cold_metrics(
 
 
 def _refactor_metrics(
-    task: dict[str, Any], run: dict[str, Any], prefix: str, errors: list[str]
+    task: dict[str, Any],
+    run: dict[str, Any],
+    prefix: str,
+    fixture_paths: set[str],
+    errors: list[str],
 ) -> dict[str, Any]:
     expected = _mapping(
         task.get("expected_classifications"),
@@ -220,6 +245,9 @@ def _refactor_metrics(
     reported = _mapping(
         run.get("classifications"), f"{prefix}_classifications", errors
     )
+    for path in reported:
+        if path not in fixture_paths:
+            errors.append(f"{prefix}_classification_fixture_missing:{path}")
     matches = sum(1 for path, value in expected.items() if reported.get(path) == value)
     if run.get("variant") == "current":
         for path, value in sorted(expected.items()):
@@ -234,6 +262,9 @@ def _refactor_metrics(
         str(item)
         for item in _list(run.get("observed_impact"), f"{prefix}_observed_impact", errors)
     )
+    for path in observed_impact:
+        if path not in fixture_paths:
+            errors.append(f"{prefix}_impact_fixture_missing:{path}")
     missed = sorted(expected_impact - observed_impact)
     excess = sorted(observed_impact - expected_impact)
     if run.get("variant") == "current" and (missed or excess):
@@ -250,7 +281,9 @@ def _refactor_metrics(
     }
 
 
-def _task_report(raw: Any, index: int, errors: list[str]) -> dict[str, Any]:
+def _task_report(
+    raw: Any, index: int, fixture_paths: set[str], errors: list[str]
+) -> dict[str, Any]:
     task = _mapping(raw, f"task_{index}", errors)
     task_id = _text(task.get("id"), f"task_{index}_id", errors)
     task_type = task.get("type")
@@ -261,15 +294,48 @@ def _task_report(raw: Any, index: int, errors: list[str]) -> dict[str, Any]:
     if variants != EXPECTED_VARIANTS:
         errors.append(f"task_{index}_variant_sequence_invalid")
 
+    expected_paths: set[str] = set()
+    if task_type == "cold_start":
+        coordinates = _mapping(
+            task.get("expected_coordinates"),
+            f"task_{index}_expected_coordinates",
+            errors,
+        )
+        expected_paths.update(
+            value for value in coordinates.values() if isinstance(value, str)
+        )
+    elif task_type == "refactor_replacement":
+        classifications = _mapping(
+            task.get("expected_classifications"),
+            f"task_{index}_expected_classifications",
+            errors,
+        )
+        expected_paths.update(
+            path for path in classifications if isinstance(path, str)
+        )
+        expected_paths.update(
+            item
+            for item in _list(
+                task.get("expected_impact"), f"task_{index}_expected_impact", errors
+            )
+            if isinstance(item, str)
+        )
+    for path in sorted(expected_paths - fixture_paths):
+        errors.append(f"task_{index}_expected_fixture_missing:{path}")
+
     metrics: dict[str, dict[str, Any]] = {}
     for run_index, raw_run in enumerate(runs):
         run = _mapping(raw_run, f"task_{index}_run_{run_index}", errors)
         variant = str(run.get("variant") or f"run_{run_index}")
         prefix = f"task_{index}_{variant}"
         if task_type == "cold_start":
-            metrics[variant] = _cold_metrics(task, run, prefix, errors)
+            metrics[variant] = _cold_metrics(
+                task, run, prefix, fixture_paths, errors
+            )
         elif task_type == "refactor_replacement":
-            metrics[variant] = _refactor_metrics(task, run, prefix, errors)
+            metrics[variant] = _refactor_metrics(
+                task, run, prefix, fixture_paths, errors
+            )
     if "baseline" not in metrics or "current" not in metrics:
         return {"id": task_id, "type": task_type}
     quality_worse = _quality_worse(
@@ -308,7 +374,9 @@ def _budget(raw: Any, errors: list[str]) -> dict[str, Any]:
     }
 
 
-def evaluate_record(record: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+def evaluate_record(
+    record: dict[str, Any], *, record_root: Path = ROOT
+) -> tuple[dict[str, Any], list[str]]:
     """Derive scorecard-ready metrics and return any contract errors."""
     errors: list[str] = []
     if record.get("schema_version") != 1:
@@ -318,6 +386,8 @@ def evaluate_record(record: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     measured_at = _text(measurement.get("measured_at"), "measured_at", errors)
     source = _text(measurement.get("source"), "measurement_source", errors)
     source_count = _integer(measurement.get("source_count"), "source_count", errors)
+    if source_count <= 0:
+        errors.append("source_count_must_be_positive")
     limitations = _list(measurement.get("limitations"), "limitations", errors)
     if not limitations:
         errors.append("limitations_required")
@@ -334,17 +404,30 @@ def evaluate_record(record: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     if condition_report["harness_variants"] != EXPECTED_VARIANTS:
         errors.append("harness_variants_invalid")
     budget = _budget(record.get("budget"), errors)
-    _verify_fixtures(record.get("fixtures"), errors)
+    fixture_root_value = _text(record.get("fixture_root"), "fixture_root", errors)
+    fixture_root_path = Path(fixture_root_value)
+    resolved_record_root = record_root.resolve()
+    if fixture_root_path.is_absolute() or ".." in fixture_root_path.parts:
+        errors.append("fixture_root_must_be_record_relative")
+        resolved_fixture_root = resolved_record_root
+    else:
+        resolved_fixture_root = (resolved_record_root / fixture_root_path).resolve()
+    try:
+        resolved_fixture_root.relative_to(resolved_record_root)
+    except ValueError:
+        errors.append("fixture_root_escapes_record")
+        resolved_fixture_root = resolved_record_root
+    fixture_paths = _verify_fixtures(
+        record.get("fixtures"), resolved_fixture_root, errors
+    )
 
     tasks = [
-        _task_report(raw, index, errors)
+        _task_report(raw, index, fixture_paths, errors)
         for index, raw in enumerate(_list(record.get("tasks"), "tasks", errors))
     ]
     task_types = {task.get("type") for task in tasks}
     if task_types != EXPECTED_TASK_TYPES:
         errors.append("required_task_types_missing")
-    if source_count != len(tasks):
-        errors.append("source_count_task_denominator_mismatch")
 
     baseline_totals = {
         "tool_calls": 0,
@@ -394,6 +477,7 @@ def evaluate_record(record: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
         "measured_at": measured_at,
         "source": source,
         "source_count": source_count,
+        "task_count": len(tasks),
         "denominator": len(tasks) * 2,
         "conditions": condition_report,
         "tasks": tasks,
@@ -424,7 +508,7 @@ def load_record(path: Path | str) -> dict[str, Any]:
         raise AgentEffectivenessRecordInvalid([f"record_unreadable:{exc}"]) from exc
     if not isinstance(payload, dict):
         raise AgentEffectivenessRecordInvalid(["record_must_be_object"])
-    report, errors = evaluate_record(payload)
+    report, errors = evaluate_record(payload, record_root=record_path.parent)
     if errors:
         raise AgentEffectivenessRecordInvalid(errors)
     return report

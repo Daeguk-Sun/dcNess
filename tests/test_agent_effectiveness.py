@@ -1,7 +1,9 @@
 """Deterministic agent-effectiveness measurement contracts for issue #1070."""
 from __future__ import annotations
 
+import hashlib
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -147,7 +149,7 @@ def _record() -> dict:
             "id": "agent-effectiveness-fixture-v1",
             "measured_at": "2026-07-12T10:00:00Z",
             "source": "stored deterministic replay",
-            "source_count": 2,
+            "source_count": 1,
             "limitations": [
                 "synthetic repository fixture",
                 "no live LLM trial",
@@ -167,6 +169,7 @@ def _record() -> dict:
             "new_llm_trials": 0,
             "lean_ablation_screening_month": "2026-07",
         },
+        "fixture_root": "fixture",
         "fixtures": {},
         "tasks": [
             {
@@ -200,9 +203,27 @@ def _record() -> dict:
 
 
 class AgentEffectivenessContractTests(unittest.TestCase):
-    def _run(self, record: dict) -> subprocess.CompletedProcess[str]:
+    def _run(
+        self, record: dict, *, tamper_fixture: bool = False
+    ) -> subprocess.CompletedProcess[str]:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            fixture_root = root / "fixture"
+            shutil.copytree(
+                ROOT / "evals" / "agent-effectiveness" / "fixture", fixture_root
+            )
+            record["fixture_root"] = "fixture"
+            record["fixtures"] = {
+                str(path.relative_to(fixture_root)): hashlib.sha256(
+                    path.read_bytes()
+                ).hexdigest()
+                for path in sorted(fixture_root.rglob("*"))
+                if path.is_file()
+            }
+            if tamper_fixture:
+                (fixture_root / "docs" / "architecture.md").write_text(
+                    "tampered\n", encoding="utf-8"
+                )
             projects_file = root / "projects.json"
             projects_file.write_text(
                 json.dumps({"version": 1, "projects": []}), encoding="utf-8"
@@ -233,7 +254,8 @@ class AgentEffectivenessContractTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         effectiveness = json.loads(result.stdout)["agent_effectiveness"]
         self.assertEqual(effectiveness["status"], "관측")
-        self.assertEqual(effectiveness["source_count"], 2)
+        self.assertEqual(effectiveness["source_count"], 1)
+        self.assertEqual(effectiveness["task_count"], 2)
         self.assertEqual(effectiveness["denominator"], 4)
         self.assertTrue(effectiveness["improved"])
         self.assertFalse(effectiveness["quality_worse"])
@@ -260,6 +282,12 @@ class AgentEffectivenessContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 2)
         self.assertIn("current_coordinate_mismatch:capability_owner", result.stderr)
+
+    def test_rejects_tampered_fixture_bundle(self) -> None:
+        result = self._run(_record(), tamper_fixture=True)
+
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("fixture_sha256_mismatch:docs/architecture.md", result.stderr)
 
     def test_rejects_same_month_llm_trial_collision_and_budget_overrun(self) -> None:
         record = _record()
@@ -327,7 +355,8 @@ class AgentEffectivenessContractTests(unittest.TestCase):
             "agent-effectiveness-2026-07",
             "deterministic-replay",
             "비교 trial 4",
-            "source fixture 2",
+            "source fixture 1",
+            "task 2",
             "input/output token `0/0`",
             "cost `$0.00`",
             "2026-07 epic 공통 추가 LLM trial 누계 `2/4`",

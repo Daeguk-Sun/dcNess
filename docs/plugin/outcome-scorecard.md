@@ -55,7 +55,7 @@ Agent effectiveness는 하네스 기능 보유 여부가 아니라 같은 조건
 
 Cartography freshness는 SSOT·entrypoint·owner 후보와 stale 여부의 입력 증거를 제공한다. Codebase Sanity는 code revision, 감사 scope, 경고·unknown·잔존 경로의 입력 증거를 제공한다. 두 기능이 존재하거나 PASS했다는 사실만으로 탐색 정확도·시간·재작업 감소가 입증되지는 않는다. 비교 trial의 before/after 또는 paired 관측이 없으면 effectiveness는 `측정 불가`다.
 
-결정적 screening은 `--agent-effectiveness-record <record.json>`으로 frozen baseline/current replay를 scorecard에 결합한다. record는 cold-start의 SSOT·runtime entrypoint·capability owner·decision 기대 좌표와 방문 trace, refactor/replacement의 stale old path·framework-reachable·intentional seam 기대 분류와 영향 기대 집합을 보존한다. 측정기는 fixture SHA-256, 동일 repo/model/provider/harness variant 조건, 월 LLM trial 예산, 제품 AC·MUST-FIX·regression·사람 복구 비열화를 함께 감사한다. current가 기대 좌표·분류·영향 집합을 충족하지 못하거나 품질이 악화되면 결과를 기록하지 않고 오류로 종료한다.
+결정적 screening은 `--agent-effectiveness-record <record.json>`으로 frozen baseline/current replay를 scorecard에 결합한다. record는 cold-start의 SSOT·runtime entrypoint·capability owner·decision 기대 좌표와 방문 trace, refactor/replacement의 stale old path·framework-reachable·intentional seam 기대 분류와 영향 기대 집합을 보존한다. fixture bundle은 record 위치 기준 상대 `fixture_root` 아래에 두고 각 repo-relative 파일의 SHA-256을 기록해야 하므로 checkout 절대경로에 묶이지 않는다. 측정기는 fixture 무결성, 동일 repo/model/provider/harness variant 조건, source/task/trial denominator, 월 LLM trial 예산, 제품 AC·MUST-FIX·regression·사람 복구 비열화를 함께 감사한다. current가 기대 좌표·분류·영향 집합을 충족하지 못하거나 품질이 악화되면 결과를 기록하지 않고 오류로 종료한다.
 
 개선은 탐색 tool/read 비용, 오경로, 영향 범위 누락, context 기인 재작업 중 하나 이상이 줄고 다른 핵심 항목이 악화되지 않을 때만 관측된다. 문서 수·map 크기·hook 수는 지표나 개선 대리값에 넣지 않는다. deterministic replay는 agent의 live 실행을 대신하는 공개 우위 근거가 아니며 표본·측정 조건·측정 불가 항목과 한계를 같은 결과에 둔다.
 

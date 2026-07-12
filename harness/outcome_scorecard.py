@@ -607,6 +607,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         lines[lines.index("## 실제 제품 outcome"):lines.index("## 실제 제품 outcome")] = [
             f"- 비교 trial: {effectiveness['denominator']}",
             f"- source fixture: {effectiveness['source_count']}",
+            f"- task: {effectiveness['task_count']}",
             f"- 개선 관측: {'YES' if effectiveness['improved'] else 'NO'}",
             f"- 품질 비열화: {'YES' if effectiveness['quality_worse'] else 'NO'}",
             (

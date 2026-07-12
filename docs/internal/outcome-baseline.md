@@ -79,7 +79,7 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 
 ## 2026-07-12 Agent effectiveness deterministic screening
 
-`agent-effectiveness-2026-07`은 cold-start 탐색과 refactor/replacement 검증의 frozen synthetic fixture 2개를 baseline/current로 replay했다. 새 agent나 공개 command를 추가하지 않고 기존 scorecard에 record 입력만 연결했다.
+`agent-effectiveness-2026-07`은 frozen synthetic repository fixture 1개에서 cold-start 탐색과 refactor/replacement 검증 task 2개를 baseline/current로 replay했다. 새 agent나 공개 command를 추가하지 않고 기존 scorecard에 record 입력만 연결했다.
 
 ```sh
 printf '{"version":1,"projects":[]}' > /tmp/dcness-empty-projects.json
@@ -91,7 +91,7 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
   --json
 ```
 
-측정 조건은 provider `deterministic-replay`, model `none`, frozen synthetic Python repo, baseline/current 두 variant다. 비교 trial 4, source fixture 2, 측정일 `2026-07-12T10:00:00Z`이며 input/output token `0/0`, cost `$0.00`이다. 모델을 호출하지 않는 저장 replay라 wall-clock은 agent 수행 시간이 아닌 fixture trace의 첫 정답 elapsed 값만 비교한다.
+측정 조건은 provider `deterministic-replay`, model `none`, frozen synthetic Python repo, baseline/current 두 variant다. 비교 trial 4, source fixture 1, task 2, 측정일 `2026-07-12T10:00:00Z`이며 input/output token `0/0`, cost `$0.00`이다. 모델을 호출하지 않는 저장 replay라 wall-clock은 agent 수행 시간이 아닌 fixture trace의 첫 정답 elapsed 값만 비교한다.
 
 | task | 지표 | baseline | current | 판정 |
 |---|---|---:|---:|---|
@@ -105,7 +105,7 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 
 탐색 tool은 `13→9`, read bytes는 `7,000→4,600`, 오경로는 `2→0`, 영향 누락은 `1→0`, context 기인 재작업은 `2→0`으로 줄었고 핵심 품질은 악화되지 않았다. 따라서 이 결정적 screening에서는 개선을 관측했다. 문서 수, map 크기, hook 수는 입력 설명일 뿐 effectiveness 대리값으로 사용하지 않았다.
 
-2026-07 epic 공통 추가 LLM trial 누계 `2/4`는 #1069 screening의 기존 2회뿐이며 이번 record의 새 LLM trial은 0회다. #1069와 같은 달 paired screening을 실행하지 않았다. 이 결과는 synthetic fixture 2개와 저장 trace에 한정되고, live agent token/cost·실제 프로젝트 wall-clock·다중 model/provider·공개 우위는 측정 불가다.
+2026-07 epic 공통 추가 LLM trial 누계 `2/4`는 #1069 screening의 기존 2회뿐이며 이번 record의 새 LLM trial은 0회다. #1069와 같은 달 paired screening을 실행하지 않았다. 이 결과는 synthetic fixture 1개·task 2개와 저장 trace에 한정되고, live agent token/cost·실제 프로젝트 wall-clock·다중 model/provider·공개 우위는 측정 불가다.
 
 ## 사용 가능한 주장
 
