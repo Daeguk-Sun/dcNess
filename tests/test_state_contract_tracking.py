@@ -152,6 +152,15 @@ class ModuleArchitectStateContractTests(unittest.TestCase):
         ):
             self.assertIn(needle, self.module_architect)
 
+    def test_checks_partial_failure_and_repeated_input_independently(self) -> None:
+        """#1078 — failure preservation만으로 idempotence 점검을 갈음하지 않는다."""
+        for needle in (
+            "source 일부 실패 시 기존 state 보존",
+            "같은 입력 반복 시 no-change/idempotence",
+            "각각 독립적으로 판정",
+        ):
+            self.assertIn(needle, self.module_architect)
+
     def test_reads_stateful_code_surface_and_expands_entrypoints(self) -> None:
         for needle in (
             "schema·entity·mapper",
@@ -237,6 +246,22 @@ class ModuleArchitectStateContractTests(unittest.TestCase):
         self.assertIn("module-architect-agent.md", good_prompt)
         self.assertIn("same-identity", bad_expected)
         self.assertIn("producer/consumer scope", bad_expected)
+        expected_lines = bad_expected.splitlines()
+        self.assertTrue(
+            any("[E2][MUST]" in line and "partial failure" in line for line in expected_lines)
+        )
+        self.assertTrue(
+            any(
+                "[E3][MUST]" in line and "no-change/idempotence" in line
+                for line in expected_lines
+            )
+        )
+        self.assertTrue(
+            any(
+                "[E4][MUST]" in line and "producer/consumer scope" in line
+                for line in expected_lines
+            )
+        )
         self.assertIn("불필요하게 재설계", good_expected)
         self.assertIn("SPEC_GAP_FOUND", bad_prompt)
         self.assertIn("SPEC_GAP_FOUND", good_prompt)
