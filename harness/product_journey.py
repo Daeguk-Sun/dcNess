@@ -549,6 +549,8 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
         and not failure_reasons
     ):
         return False
+    if payload["outcome"] == "FAIL" and (passed != 0 or not failure_reasons):
+        return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
 
 

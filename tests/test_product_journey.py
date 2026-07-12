@@ -208,6 +208,15 @@ class ProductJourneyExecutionTests(unittest.TestCase):
                     receipt["evidence_paths"].pop("cleanup"),
                     receipt["evidence_sha256"].pop("cleanup"),
                 ),
+                "fail-with-passed-ac": lambda receipt: (
+                    receipt.update(outcome="FAIL", failure_reasons=["journey_failed"]),
+                    receipt["assertion"].update(passed=False),
+                ),
+                "fail-without-reason": lambda receipt: (
+                    receipt.update(outcome="FAIL"),
+                    receipt["product_ac"].update(passed=0),
+                    receipt["assertion"].update(passed=False),
+                ),
             }
             for name, mutate in mutations.items():
                 with self.subTest(name=name):
