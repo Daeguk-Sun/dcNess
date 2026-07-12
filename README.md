@@ -67,13 +67,35 @@ fail-open은 hook이 정책 판단을 못 해서 차단 대신 통과한 의심 
 
 [![guard-efficacy](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml/badge.svg)](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml)
 
-as of v0.12.0 + Unreleased (2026-07-05), 로컬 실측 기준:
+<!-- public-evidence-snapshot {"plugin_version":"0.21.0","measured_at":"2026-07-12","unit_tests":{"passed":1924,"total":1924},"guard":{"passed":39,"total":39},"source_project_count":2} -->
 
-| 항목 | 결과 | 재현 명령 |
-|---|---:|---|
-| 단위 테스트 | 1627 tests PASS | `python3.11 -m unittest discover -s tests -v < /dev/null` |
-| 결정적 guard eval | 33/33 PASS | `python3 evals/guard_efficacy.py --json` |
-| GitHub Actions gate | 11 workflows | `find .github/workflows -maxdepth 1 -type f -name '*.yml' \| wc -l` |
+현재 공개 snapshot은 **v0.21.0, 2026-07-12 측정**이다. 숫자마다 분모와 source 수를
+붙이고, 서로 다른 evidence 영역을 합산하거나 대신 쓰지 않는다.
+
+| evidence 영역 | 관측 결과 | denominator / source | 재현 명령 | 이 수치가 말하지 않는 것 |
+|---|---|---|---|---|
+| 하네스·기계적 guard | unittest 1,924/1,924 PASS, 결정적 guard 39/39 PASS | test 1,924, guard case 39 / dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 보안 증명이나 제품 성공률이 아니다 |
+| Agent effectiveness | 탐색 tool 13→9, read 7,000→4,600 bytes, 오경로 2→0, 영향 누락 1→0 | baseline/current trial 4, task 2 / synthetic fixture 1 | [`docs/internal/outcome-baseline.md`](docs/internal/outcome-baseline.md#2026-07-12-agent-effectiveness-deterministic-screening)의 고정 record 명령 | live agent·실제 프로젝트·다중 model 우위가 아니다 |
+| PR·validator 운영 | finished run 26/28, measurable PR merge 7/7, validator verdict 33건 | candidate run 28 / 외부 활성 프로젝트 2 | [`docs/internal/outcome-baseline.md`](docs/internal/outcome-baseline.md#재현-명령)의 source-ref 고정 명령 | merge와 validator FAIL은 과정 evidence이지 제품 outcome이 아니다 |
+| 실제 제품 outcome | non-UI journey 1/1 PASS, 제품 AC 1/1 | journey 1, AC 1 / 외부 활성 프로젝트 1 | [`docs/internal/outcome-baseline.md`](docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 pilot이며 일반 제품 성공률이나 공개 우위가 아니다 |
+| 비용·경량화 | prompt 107 bytes 축소에도 input token 38,874→40,659; **keep** | baseline/variant trial 2 / frozen fixture 1 | `python3.11 evals/lean_ablation.py evals/lean-ablation/tool-repeat-lesson-metadata.json --json` | 단일 pair의 wall-clock·token 변동을 일반 비용 우위로 쓰지 않는다 |
+
+결정 완전성 회고는 실제 작업 2건에서 불필요한 재질문 없이 구현 방향을 바꾸는 미결정
+각 1건을 드러냈고 사람이 확인했다. 행동 eval judge 보정은 고정 report 2건의 사람 판정과
+저장 judge 판정 9/9가 일치했다. 각각
+[`decision-completeness-pilots.md`](docs/internal/decision-completeness-pilots.md)와
+[`core-incidents-v1`](evals/calibration/core-incidents-v1/README.md)에 표본·재현 절차·한계를
+보존한다. 두 결과도 제품 outcome이나 다중 프로젝트 우위 근거로 승격하지 않는다.
+
+`node scripts/check_public_evidence.mjs`는 실제 전체 unittest와 guard eval을 실행하고,
+manifest version·test 수·guard 수가 이 표와
+[`benchmark.md`](docs/plugin/benchmark.md#현재-공개-evidence-snapshot)에서 어긋나면 실패한다.
+개별 원명령도 그대로 통과해야 한다.
+
+```sh
+python3.11 -m unittest discover -s tests -v < /dev/null
+python3.11 evals/guard_efficacy.py
+```
 
 최근 릴리즈별 변경 상세는 [`docs/internal/release-notes.md`](docs/internal/release-notes.md)에 남긴다.
 
@@ -91,7 +113,7 @@ dcNess의 file boundary와 mutation denylist는 보안 sandbox가 아니다. 목
 
 dcNess 는 무거운 절차를 항상 켜 두지 않는다. 문서 수정이나 한 줄 버그픽스는 가볍게 지나가고, 새 기능이나 위험이 큰 작업일 때만 설계·검토 절차를 끌어올린다. 그래서 작은 작업에는 부담이 적고, 큰 작업에는 안전하다.
 
-다른 스킬 기반 하네스([Superpowers](https://github.com/obra/superpowers), [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) 등)와 결이 다르다. 그쪽은 방법론과 다양한 도구 연동이 강점이다. dcNess 는 노출하는 표면을 작게 유지하는 대신, 작업 순서·파일 경계를 코드로 지키는 거버넌스와 run 단위 replay 에 집중한다. 실측 수치와 재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md)에 있다.
+다른 스킬 기반 하네스([Superpowers](https://github.com/obra/superpowers), [oh-my-claudecode](https://github.com/Yeachan-Heo/oh-my-claudecode) 등)와 비교할 때 기능 개수나 관심도 지표를 품질 대리값으로 쓰지 않는다. 강제 경계, Agent effectiveness, 실행 검수, eval, 운영 표본, 생태계를 서로 다른 축으로 비교해야 한다. dcNess 는 그중 작업 순서·파일 경계를 코드로 지키는 거버넌스와 run 단위 replay 에 집중한다. 실측 수치와 재현 명령은 [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md)에 있다.
 
 ## 설치 & 활성화
 
