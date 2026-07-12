@@ -190,6 +190,7 @@ epic `tech-review.md` 는 `/design` 중 `NEW_DEP_ESCALATE` option 4 로 새 외�
 | `.dcness-work/handoffs/` | run 간 임시 handoff + 세션 간 warm 인계 (`/handoff` 가 쓰는 활성 `next-session.md`, SessionStart 소비 후 `archive/<ts>.md`) |
 | `.dcness-work/reviews/` | tech-review evidence, HTML report, logs |
 | `.dcness-work/reports/` | 온디맨드 집계 리포트, 재생성 가능한 임시 요약 |
+| `.dcness-work/product-journey/` | project-local non-UI journey의 단계별 log와 sha256 receipt |
 
 `/init-dcness` 는 사용자 프로젝트 `.gitignore` 에 `.dcness-work/` 를 추가한다.
 

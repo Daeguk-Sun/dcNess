@@ -136,22 +136,29 @@ mode: EPIC_ACCEPTANCE
 
 ### Cartography freshness 후속
 
-standalone `/acceptance`는 읽기 전용을 유지하며 stale Root를 직접 수정하지 않는다. product-acceptance prose의 gap을 메인이 읽고 다음 producer를 명시한다.
+standalone `/acceptance`는 tracked 구현·설계에 대해 읽기 전용을 유지하며 stale Root를 직접 수정하지 않는다. 명시된 project-local journey 계약 실행이 만드는 ignored evidence만 예외다. product-acceptance prose의 gap을 메인이 읽고 다음 producer를 명시한다.
 
 - 영향 없음 또는 Root와 일치: 기존 완료 후보 보고를 계속한다.
 - system boundary가 유지된 route/state/as-built edge 또는 capability 상태 drift: 기존 `module-architect:CARTOGRAPHY_REFRESH`가 affected Root Cartography 좌표만 bounded refresh해야 한다고 보고한다. local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local Root 갱신 또는 exact durable impact handoff를 다음 producer에 남긴다. durable impact handoff만으로 freshness가 해소되지는 않으므로 canonical local Root refresh 확인 전에는 PASS하지 않는다.
 - system boundary·global decision 변경: route-only refresh로 흡수하지 않고 `/design --revise` 또는 system checkpoint backpressure를 보고한다.
 
-standalone `/acceptance`는 producer를 직접 호출하거나 파일을 수정하지 않는다. direct `/impl`에서 acceptance가 생략되더라도 impl-validator 종료 경계가 최소 Cartography freshness 책임을 가진다.
+standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을 수정하지 않는다. project-local journey 계약이 있으면 ignored `.dcness-work/product-journey/` evidence만 생성할 수 있다. direct `/impl`에서 acceptance가 생략되더라도 impl-validator 종료 경계가 최소 Cartography freshness 책임을 가진다.
 
 ## 절차
 
 1. 입력 단위가 story 인지 epic 인지 확인한다.
-2. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE` 를 호출한다.
-3. `PASS`면 완료 후보로 보고한다.
-4. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `module-architect:CARTOGRAPHY_REFRESH` 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
-5. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
-6. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
+2. non-UI 핵심 journey가 검수 대상이고 `.dcness/product-journey.json` 또는 호출자가 지정한 동등한 project-local 계약이 있으면, 메인이 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `dcness-product-journey`를 실행한다. 생성된 receipt와 log 경로를 다음 prompt에 넣는다. exit 1 receipt도 gap 증거로 전달하며 mock-only/app-not-started/journey 미실행/assertion 미평가를 PASS로 바꾸지 않는다.
+3. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE` 를 호출한다.
+4. `PASS`면 완료 후보로 보고한다.
+5. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `module-architect:CARTOGRAPHY_REFRESH` 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
+6. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
+7. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
+
+```bash
+"$PLUGIN_ROOT/scripts/dcness-product-journey" run \
+  --project-root "$PROJECT_ROOT" \
+  --config .dcness/product-journey.json
+```
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-review" --context-audit --repo "$PROJECT_ROOT"
@@ -162,7 +169,7 @@ standalone `/acceptance`는 producer를 직접 호출하거나 파일을 수정�
 
 ## 워크트리
 
-`/acceptance` 는 read-only 검수 skill 이므로 워크트리 자동 진입 없음. GitHub issue 생성, 코드 수정, PR 생성/머지는 수행하지 않는다.
+`/acceptance` 는 검수 skill 이므로 워크트리 자동 진입 없음. 메인이 명시된 project-local journey 계약을 실행할 때만 ignored `.dcness-work/product-journey/` evidence를 생성할 수 있다. `product-acceptance` agent는 계속 읽기 전용이며 GitHub issue 생성, 구현 코드 수정, PR 생성/머지는 수행하지 않는다.
 
 ## 참조
 
@@ -170,3 +177,4 @@ standalone `/acceptance`는 producer를 직접 호출하거나 파일을 수정�
 - agent: [`agents/product-acceptance.md`](../../agents/product-acceptance.md)
 - 공개 진입점: [`docs/plugin/positioning.md`](../../docs/plugin/positioning.md)
 - 용어 사전: [`docs/plugin/terms.md`](../../docs/plugin/terms.md)
+- 제품 journey 계약: [`docs/plugin/product-journey.md`](../../docs/plugin/product-journey.md)

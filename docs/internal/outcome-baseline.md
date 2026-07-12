@@ -50,6 +50,25 @@ python3 "$DCN"/harness/outcome_scorecard.py \
 
 `7/7` merge는 PR 운영 결과다. guard PASS나 validator FAIL도 과정 evidence다. 세 값 중 어느 것도 실제 제품 AC 성공률로 바꾸지 않으며, merge 비율을 제품 전체 성공으로 해석하는 결론을 두지 않는다.
 
+## 2026-07-12 non-UI 제품 journey pilot
+
+2026-07-11 process snapshot은 그대로 고정하고, 이후 처음 생성된 product outcome 표본을 별도 slice로 추가한다. active-project registry의 `source-d640b1b95d`에서 `yt-make-intake-cli`를 실제 CLI entrypoint와 filesystem session 경계로 실행했다. helper가 start, health, journey assertion, cleanup을 순서대로 실행했고 `2026-07-12T07:36:43Z` receipt를 남겼다.
+
+```sh
+python3.11 "$DCN"/harness/outcome_scorecard.py \
+  --redact-paths \
+  --measured-at 2026-07-12T07:37:00Z \
+  --as-of 2026-07-12T07:37:00Z \
+  --source-ref source-d640b1b95d \
+  --json
+```
+
+| 영역 | 결과 | denominator / source | 실행 증거 | 사람 개입 | 해석 경계 |
+|---|---|---|---|---:|---|
+| product outcome | journey PASS 1/1, 제품 AC 1/1 | journey 1, AC 1, source 1 | `cli, command, log` + sha256 receipt | 사람 개입 0 | 단일 외부 활성 프로젝트의 단일 non-UI pilot이며 공개 우위 근거가 아님 |
+
+대상 AC는 `AC-421`이고 assertion은 자연어 prompt intake가 실제 session 파일을 만들며 선택한 `history_culture` category와 원문 prompt를 보존하는지 확인했다. `mock` adapter를 쓰지 않았고 실행 후 생성 상태는 cleanup했다. receipt와 log는 해당 source 프로젝트의 ignored `.dcness-work/product-journey/yt-make-intake-pilot-20260712/`에 남아 있으며 공개 문서에는 절대경로를 기록하지 않는다.
+
 ## Agent effectiveness 입력 경계
 
 - Cartography freshness에서 얻을 수 있는 것: 현재 SSOT·runtime entrypoint·capability owner 후보, affected route의 stale 여부와 갱신·재검증 기록.

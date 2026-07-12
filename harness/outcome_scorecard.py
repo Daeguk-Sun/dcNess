@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
-"""Cross-project process/effectiveness/product-outcome scorecard.
+"""Cross-project process, effectiveness, and product-outcome scorecard.
 
-The current run ledger can reproduce process evidence. It does not contain enough
-information to synthesize product outcomes, agent-effectiveness outcomes, or complete
-trial metadata, so those axes stay explicitly unmeasured until their own evidence is
-provided.
+Run ledgers provide process evidence. Project-local journey receipts provide product
+outcomes. Agent-effectiveness and complete legacy trial metadata stay unmeasured until
+their own evidence exists; no axis substitutes for another.
 """
 
 from __future__ import annotations
@@ -23,7 +22,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from harness import ledger, run_review  # noqa: E402
+from harness import ledger, product_journey, run_review  # noqa: E402
 from harness.benchmark_aggregate import FleetReport, aggregate_runs  # noqa: E402
 
 
@@ -224,6 +223,11 @@ def build_scorecard(
         for index, (source_ref, _project) in enumerate(configured_with_refs, start=1)
     }
 
+    journey_receipts: list[tuple[str, dict[str, Any]]] = []
+    for source_ref, project in selected:
+        for receipt in product_journey.read_receipts(project, cutoff=cutoff):
+            journey_receipts.append((source_ref, receipt))
+
     sources: list[dict[str, Any]] = []
     fleets: list[FleetReport] = []
     candidate_run_count = 0
@@ -382,6 +386,11 @@ def build_scorecard(
         "measured_at": measured_at,
         "as_of": as_of,
     }
+    product_outcome = _product_outcome(
+        journey_receipts,
+        measured_at=measured_at,
+        as_of=as_of,
+    )
     return {
         "measured_at": measured_at,
         "as_of": as_of,
@@ -402,13 +411,7 @@ def build_scorecard(
                 "비교 가능한 trial로 기록하지 않는다."
             ),
         },
-        "product_outcome": {
-            **unmeasured_context,
-            "reason": (
-                "현재 ledger에는 실행된 제품 AC 또는 사용자 journey 결과가 없다. "
-                "guard·validator·PR evidence는 이를 대체하지 않는다."
-            ),
-        },
+        "product_outcome": product_outcome,
         "trial_metadata": {
             **unmeasured_context,
             "reason": (
@@ -428,6 +431,76 @@ def build_scorecard(
                 "주장할 수 없다."
             ),
         },
+    }
+
+
+def _product_outcome(
+    receipts: list[tuple[str, dict[str, Any]]],
+    *,
+    measured_at: str,
+    as_of: Optional[str],
+) -> dict[str, Any]:
+    if not receipts:
+        return {
+            "status": UNMEASURED,
+            "source_project_count": 0,
+            "measured_at": measured_at,
+            "as_of": as_of,
+            "reason": (
+                "project-local product journey receipt가 없다. guard·validator·PR "
+                "evidence는 실제 제품 outcome을 대체하지 않는다."
+            ),
+        }
+
+    passed_journeys = sum(
+        1 for _source_ref_value, receipt in receipts if receipt["outcome"] == "PASS"
+    )
+    ac_passed = sum(int(receipt["product_ac"]["passed"]) for _, receipt in receipts)
+    ac_total = sum(int(receipt["product_ac"]["total"]) for _, receipt in receipts)
+    human_interventions = sum(
+        int(receipt.get("human_intervention_count") or 0) for _, receipt in receipts
+    )
+    evidence_types = sorted(
+        {
+            evidence_type
+            for _, receipt in receipts
+            for evidence_type in receipt.get("evidence_types", [])
+            if isinstance(evidence_type, str)
+        }
+    )
+    source_count = len({source_ref_value for source_ref_value, _ in receipts})
+    journeys = [
+        {
+            "source_ref": source_ref_value,
+            "run_id": receipt["run_id"],
+            "journey_id": receipt["journey_id"],
+            "measured_at": receipt["measured_at"],
+            "outcome": receipt["outcome"],
+            "boundary": receipt["boundary"],
+            "target_ac": receipt["target_ac"],
+            "product_ac": receipt["product_ac"],
+            "human_intervention_count": receipt.get("human_intervention_count", 0),
+            "evidence_types": receipt.get("evidence_types", []),
+            "receipt_path": receipt["receipt_path"],
+        }
+        for source_ref_value, receipt in receipts
+    ]
+    return {
+        "status": "관측",
+        "source_project_count": source_count,
+        "measured_at": measured_at,
+        "as_of": as_of,
+        "numerator": passed_journeys,
+        "denominator": len(receipts),
+        "value": passed_journeys / len(receipts),
+        "product_ac": {"passed": ac_passed, "total": ac_total},
+        "human_intervention_count": human_interventions,
+        "evidence_types": evidence_types,
+        "journeys": journeys,
+        "reason": (
+            "helper-generated project-local receipt만 집계했다. 과정·merge 지표는 "
+            "분자나 분모에 포함하지 않았다."
+        ),
     }
 
 
@@ -508,6 +581,19 @@ def render_markdown(report: dict[str, Any]) -> str:
             "|---|---|---:|",
         ]
     )
+    outcome = report["product_outcome"]
+    if outcome["status"] != UNMEASURED:
+        lines[lines.index("## Trial metadata"):lines.index("## Trial metadata")] = [
+            f"- journey PASS: {outcome['numerator']}/{outcome['denominator']}",
+            (
+                "- 제품 AC: "
+                f"{outcome['product_ac']['passed']}/{outcome['product_ac']['total']}"
+            ),
+            f"- source 프로젝트: {outcome['source_project_count']}",
+            f"- 사람 개입: {outcome['human_intervention_count']}",
+            f"- 실행 증거 종류: {', '.join(outcome['evidence_types'])}",
+            "",
+        ]
     for source in report["sources"]:
         lines.append(
             f"| `{source['source_ref']}` | {source['source_location']} | "

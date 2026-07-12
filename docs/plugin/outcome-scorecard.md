@@ -62,6 +62,8 @@ Cartography freshness는 SSOT·entrypoint·owner 후보와 stale 여부의 입�
 - mock-only green, guard PASS, validator PASS, PR merge만으로 outcome PASS를 만들지 않는다.
 - regression은 이전에 통과한 제품 동작이 같은 조건에서 깨졌는지 별도 필드로 둔다.
 
+non-UI journey 실행 계약과 receipt 필드는 [`product-journey.md`](product-journey.md)가 소유한다. `harness/outcome_scorecard.py`는 해당 helper가 `.dcness-work/product-journey/`에 남긴 유효 receipt를 읽어 journey PASS/전체와 제품 AC passed/total, source 수, 사람 개입, 실행 증거 종류를 별도로 집계한다.
+
 ## 주장 가능 범위
 
 ### 개인 경량화 판단
