@@ -54,6 +54,7 @@
       "runs": [
         {
           "variant": "baseline",
+          "tool_calls": 6,
           "reported_coordinates": {
             "ssot": "docs/architecture.md",
             "runtime_entrypoint": "src/app.py",
@@ -85,6 +86,7 @@
         },
         {
           "variant": "current",
+          "tool_calls": 4,
           "reported_coordinates": {
             "ssot": "docs/architecture.md",
             "runtime_entrypoint": "src/app.py",

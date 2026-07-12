@@ -17,11 +17,13 @@ import datetime
 import hashlib
 import json
 import os
+import queue
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -105,13 +107,130 @@ RUNS = [
     ("refactor", "current", CURRENT_CONTRACT + REFACTOR_PROMPT),
 ]
 
-
 def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _utc_now() -> str:
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _sanitize_string(value: str, sandbox: str) -> str:
+    replacements = {
+        sandbox: "<SANDBOX>/repo",
+        os.path.realpath(sandbox): "<SANDBOX>/repo",
+        str(Path.home()): "<HOME>",
+        os.path.realpath(Path.home()): "<HOME>",
+    }
+    result = value
+    for source, target in sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True):
+        if source:
+            result = result.replace(source, target)
+    return result
+
+
+def _sanitize_trace_value(value: Any, sandbox: str) -> Any:
+    if isinstance(value, str):
+        return _sanitize_string(value, sandbox)
+    if isinstance(value, list):
+        return [_sanitize_trace_value(item, sandbox) for item in value]
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_trace_value(item, sandbox)
+            for key, item in value.items()
+            if key != "uuid"
+        }
+    return value
+
+
+def _evidence_event(raw: Any, sandbox: str) -> dict[str, Any] | None:
+    if not isinstance(raw, dict):
+        return None
+    event = _sanitize_trace_value(raw, sandbox)
+    event_type = event.get("type")
+    if event_type == "system" and event.get("subtype") == "init":
+        allowed = {
+            "type",
+            "subtype",
+            "cwd",
+            "session_id",
+            "tools",
+            "mcp_servers",
+            "model",
+            "permissionMode",
+            "apiKeySource",
+            "claude_code_version",
+        }
+        return {key: value for key, value in event.items() if key in allowed}
+    if event_type == "assistant":
+        message = event.get("message") or {}
+        content = [
+            block
+            for block in message.get("content") or []
+            if isinstance(block, dict) and block.get("type") == "tool_use"
+        ]
+        if not content:
+            return None
+        return {
+            "type": "assistant",
+            "message": {"content": content},
+            "session_id": event.get("session_id"),
+        }
+    if event_type == "user":
+        message = event.get("message") or {}
+        content = [
+            block
+            for block in message.get("content") or []
+            if isinstance(block, dict) and block.get("type") == "tool_result"
+        ]
+        if not content:
+            return None
+        return {
+            "type": "user",
+            "message": {"content": content},
+            "session_id": event.get("session_id"),
+        }
+    if event_type == "result":
+        allowed = {
+            "type",
+            "subtype",
+            "is_error",
+            "num_turns",
+            "result",
+            "session_id",
+            "total_cost_usd",
+            "usage",
+        }
+        return {key: value for key, value in event.items() if key in allowed}
+    return None
+
+
+def sanitize_trace_file(path: Path) -> None:
+    """Redact host-only metadata from a captured trace without changing agent evidence."""
+    entries = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    if not entries or not isinstance(entries[0].get("meta"), dict):
+        raise RuntimeError(f"trace missing metadata header: {path}")
+    sandbox = str(entries[0]["meta"].get("sandbox") or "")
+    sanitized: list[dict[str, Any]] = []
+    for entry in entries:
+        if "meta" in entry:
+            sanitized.append(_sanitize_trace_value(entry, sandbox))
+            continue
+        event = _evidence_event(entry.get("event"), sandbox)
+        if event is not None:
+            sanitized.append({"elapsed_ms": entry.get("elapsed_ms", 0), "event": event})
+    path.write_text(
+        "".join(json.dumps(entry, ensure_ascii=False) + "\n" for entry in sanitized),
+        encoding="utf-8",
+    )
+
+
+def _pump_stdout(stream: Any, output: queue.Queue[str | None]) -> None:
+    try:
+        for line in stream:
+            output.put(line)
+    finally:
+        output.put(None)
 
 
 def run_agent(task: str, variant: str, prompt: str, args: argparse.Namespace) -> Path:
@@ -143,49 +262,94 @@ def run_agent(task: str, variant: str, prompt: str, args: argparse.Namespace) ->
     started_at = _utc_now()
     start = time.monotonic()
     print(f"[run] {task}/{variant} sandbox={repo}", flush=True)
-    with trace_path.open("w", encoding="utf-8") as trace, stderr_path.open(
-        "w", encoding="utf-8"
-    ) as stderr:
-        meta = {
-            "meta": {
-                "task": task,
-                "variant": variant,
-                "sandbox": str(repo),
-                "command": command[:2] + ["<prompt omitted; see prompt_sha256>"] + command[3:],
-                "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
-                "started_at": started_at,
+    process: subprocess.Popen[str] | None = None
+    reader: threading.Thread | None = None
+    try:
+        with trace_path.open("w", encoding="utf-8") as trace, stderr_path.open(
+            "w", encoding="utf-8"
+        ) as stderr:
+            meta = {
+                "meta": {
+                    "task": task,
+                    "variant": variant,
+                    "sandbox": str(repo),
+                    "command": command[:2]
+                    + ["<prompt omitted; see prompt_sha256>"]
+                    + command[3:],
+                    "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+                    "started_at": started_at,
+                }
             }
-        }
-        trace.write(json.dumps(meta, ensure_ascii=False) + "\n")
-        process = subprocess.Popen(
-            command,
-            cwd=repo,
-            stdin=subprocess.DEVNULL,
-            stdout=subprocess.PIPE,
-            stderr=stderr,
-            text=True,
-        )
-        assert process.stdout is not None
-        for line in process.stdout:
-            elapsed_ms = int((time.monotonic() - start) * 1000)
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                event = json.loads(line)
-                trace.write(
-                    json.dumps({"elapsed_ms": elapsed_ms, "event": event}, ensure_ascii=False)
-                    + "\n"
-                )
-            except json.JSONDecodeError:
-                trace.write(json.dumps({"elapsed_ms": elapsed_ms, "raw": line}) + "\n")
-            if time.monotonic() - start > args.timeout:
-                process.kill()
-                raise RuntimeError(f"{task}/{variant} timed out after {args.timeout}s")
-        returncode = process.wait(timeout=60)
-    if returncode != 0:
-        raise RuntimeError(f"{task}/{variant} exited {returncode}; see {stderr_path}")
-    return trace_path
+            trace.write(
+                json.dumps(_sanitize_trace_value(meta, str(repo)), ensure_ascii=False) + "\n"
+            )
+            process = subprocess.Popen(
+                command,
+                cwd=repo,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=stderr,
+                text=True,
+            )
+            assert process.stdout is not None
+            output: queue.Queue[str | None] = queue.Queue()
+            reader = threading.Thread(
+                target=_pump_stdout,
+                args=(process.stdout, output),
+                daemon=True,
+            )
+            reader.start()
+            deadline = start + args.timeout
+            while True:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise RuntimeError(f"{task}/{variant} timed out after {args.timeout}s")
+                try:
+                    line = output.get(timeout=min(0.5, remaining))
+                except queue.Empty:
+                    if process.poll() is not None and not reader.is_alive():
+                        break
+                    continue
+                if line is None:
+                    break
+                elapsed_ms = int((time.monotonic() - start) * 1000)
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = _evidence_event(json.loads(line), str(repo))
+                    if event is None:
+                        continue
+                    trace.write(
+                        json.dumps(
+                            {"elapsed_ms": elapsed_ms, "event": event},
+                            ensure_ascii=False,
+                        )
+                        + "\n"
+                    )
+                except json.JSONDecodeError:
+                    trace.write(
+                        json.dumps(
+                            {
+                                "elapsed_ms": elapsed_ms,
+                                "raw": _sanitize_string(line, str(repo)),
+                            }
+                        )
+                        + "\n"
+                    )
+            returncode = process.wait(timeout=60)
+        if returncode != 0:
+            raise RuntimeError(f"{task}/{variant} exited {returncode}; see {stderr_path}")
+        return trace_path
+    finally:
+        if process is not None and process.poll() is None:
+            process.kill()
+            process.wait(timeout=60)
+        if reader is not None:
+            reader.join(timeout=1)
+        if process is not None and process.stdout is not None:
+            process.stdout.close()
+        shutil.rmtree(sandbox, ignore_errors=True)
 
 
 def _result_text_blocks(content: Any) -> str:
@@ -300,25 +464,14 @@ def _normalize(path: Any) -> str:
     return str(path or "").strip().lstrip("./").lstrip("/")
 
 
-def _rework_count(visits: list[dict[str, Any]]) -> int:
-    seen: set[str] = set()
-    rework = 0
-    for visit in visits:
-        if visit["path"] in seen:
-            rework += 1
-        else:
-            seen.add(visit["path"])
-    return rework
-
-
-def _quality(passed: int, total: int, rework: int) -> dict[str, Any]:
+def _quality(passed: int, total: int) -> dict[str, Any]:
     return {
         "product_ac": {"passed": passed, "total": total},
-        "must_fix_count": 0,
-        "regression_count": 0,
-        "human_recovery_count": 0,
-        "context_rework_count": rework,
-        "cross_session_resume": False,
+        "must_fix_count": None,
+        "regression_count": None,
+        "human_recovery_count": None,
+        "context_rework_count": None,
+        "cross_session_resume": None,
     }
 
 
@@ -348,7 +501,8 @@ def _cold_run(variant: str, parsed: dict[str, Any]) -> dict[str, Any]:
         "variant": variant,
         "reported_coordinates": reported,
         "visited": parsed["visits"],
-        "quality": _quality(passed, len(EXPECTED_COORDINATES), _rework_count(parsed["visits"])),
+        "tool_calls": parsed["tool_calls_total"],
+        "quality": _quality(passed, len(EXPECTED_COORDINATES)),
         "cost": _cost(parsed),
     }
 
@@ -376,7 +530,6 @@ def _refactor_run(variant: str, parsed: dict[str, Any]) -> dict[str, Any]:
         "quality": _quality(
             class_passed + (1 if impact_exact else 0),
             len(EXPECTED_CLASSIFICATIONS) + 1,
-            _rework_count(parsed["visits"]),
         ),
         "cost": _cost(parsed),
     }
@@ -414,6 +567,7 @@ def build_record(args: argparse.Namespace) -> dict[str, Any]:
         "measurement": {
             "id": "agent-effectiveness-real-2026-07",
             "measured_at": started[0] or _utc_now(),
+            "evidence_kind": "live_trace",
             "source": (
                 "live paired claude -p --safe-mode runs on the frozen notification "
                 "fixture: baseline 1 trial + current-contract 1 trial, each trial "
@@ -461,6 +615,16 @@ def build_record(args: argparse.Namespace) -> dict[str, Any]:
             "generation_command": (
                 "python3.11 evals/agent_effectiveness_measure.py --model "
                 f"{args.model} --output-dir evals/agent-effectiveness/{evidence_rel}"
+            ),
+            "rebuild_command": (
+                "python3.11 evals/agent_effectiveness_measure.py --model "
+                f"{args.model} --output-dir evals/agent-effectiveness/{evidence_rel} "
+                "--record-out evals/agent-effectiveness/cartography-sanity-real.json "
+                "--from-traces"
+            ),
+            "trace_redaction": (
+                "host paths and account/runtime inventory are omitted; the evidence trace "
+                "retains init identity, tool calls/results, elapsed time, and final result"
             ),
             "runs": provenance_runs,
         },
@@ -510,6 +674,11 @@ def main() -> int:
         action="store_true",
         help="rebuild the record from already-captured traces without running the agent",
     )
+    parser.add_argument(
+        "--sanitize-existing-traces",
+        action="store_true",
+        help="redact host-only metadata in the selected existing trace files before rebuild",
+    )
     args = parser.parse_args()
     args.output_dir = args.output_dir.resolve()
     args.record_out = args.record_out.resolve()
@@ -518,6 +687,9 @@ def main() -> int:
     if not args.from_traces:
         for task, variant, prompt in RUNS:
             run_agent(task, variant, prompt, args)
+    if args.sanitize_existing_traces:
+        for task, variant, _ in RUNS:
+            sanitize_trace_file(args.output_dir / f"{task}-{variant}.jsonl")
 
     record = build_record(args)
     args.record_out.write_text(
@@ -526,13 +698,12 @@ def main() -> int:
     print(f"[record] wrote {args.record_out}")
 
     sys.path.insert(0, str(ROOT))
-    from harness.agent_effectiveness import AgentEffectivenessRecordInvalid, load_record
+    from harness.agent_effectiveness import evaluate_record
 
-    try:
-        report = load_record(args.record_out)
-    except AgentEffectivenessRecordInvalid as exc:
+    report, errors = evaluate_record(record, record_root=RECORD_DIR)
+    if errors:
         print("[validate] record rejected:")
-        for error in exc.errors:
+        for error in errors:
             print(f"  - {error}")
         return 2
     print("[validate] PASS")

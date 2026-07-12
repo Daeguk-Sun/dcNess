@@ -111,7 +111,7 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 
 ## 2026-07-13 Agent effectiveness 실측 paired screening
 
-`agent-effectiveness-real-2026-07`은 위 절과 동일한 frozen fixture·task 2개를 실제 headless agent로 실행한 baseline 1 trial + current 1 trial(1+1) 실측이다. provider `claude -p --safe-mode (headless)`, model `claude-sonnet-4-6`, 동일 프롬프트·도구(Read/Glob/Grep)·격리 sandbox 조건에서 current에만 Cartography/Sanity 계약을 주입했다. record `evals/agent-effectiveness/cartography-sanity-real.json`의 provenance 블록에 각 run의 세션 ID(run ID), raw trace 파일, trace SHA-256, 생성 명령이 남아 있고, raw stream-json trace 전문은 `evals/agent-effectiveness/evidence/real-2026-07-attempt1/`과 `evals/agent-effectiveness/evidence/real-2026-07-attempt2/`에 보존된다.
+`agent-effectiveness-real-2026-07`은 위 절과 동일한 frozen fixture·task 2개를 실제 headless agent로 실행한 baseline 1 trial + current 1 trial(1+1) 실측이다. provider `claude -p --safe-mode (headless)`, model `claude-sonnet-4-6`, 동일 task prompt·도구(Read/Glob/Grep)·격리 sandbox 조건에서 current에만 Cartography/Sanity contract preamble을 주입했다. record `evals/agent-effectiveness/cartography-sanity-real.json`의 provenance 블록에 각 run의 세션 ID(run ID), trace 파일·SHA-256, capture/rebuild 명령이 남아 있다. tool/read evidence trace는 `evals/agent-effectiveness/evidence/real-2026-07-attempt1/`과 `evals/agent-effectiveness/evidence/real-2026-07-attempt2/`에 보존한다. 각 trace는 init identity, tool call/result, elapsed time, final result를 유지하되 host 경로, account rate-limit 상태, plugin·skill·agent·slash-command·event UUID 같은 account/runtime inventory는 제외한다. CI는 hash만 확인하지 않고 attempt 2 trace에서 record를 다시 조립해 checked-in JSON과 동일한지 대조한다.
 
 1차 시도(2026-07-13)는 두 variant 모두 refactor 영향 집합에 별도 framework 경로 2건(`config/handlers.json`, `src/runtime_handler.py`)을 과다 포함해 fail-closed 검증기가 record 등재를 거부했다. Cartography 계약에 영향 경계 규율(바뀌는 capability의 row 경계 유지, 별도 framework/manifest 등록 경로 미포함 — [`docs/plugin/deliverables-map.md`](../plugin/deliverables-map.md)에 동일 규율 반영)을 추가한 뒤 2차 paired run을 실행해 채택했다. 같은 설정의 재실행 선별은 하지 않았고 두 시도의 trace를 모두 보존했다. 2차의 baseline(계약 미주입)이 같은 과다 포함 2건을 재현하고 current(개정 계약)는 과다 0건이라, 이 규율이 해당 실패 모드를 실제로 제거했다는 paired 증거가 함께 남았다.
 
@@ -131,13 +131,14 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 | task | 지표 | baseline | current | 판정 |
 |---|---|---:|---:|---|
 | cold-start | 좌표 정확도 | 4/4 | 4/4 | 비열화 없음 |
-| cold-start | 방문 tool / read bytes / 오경로 | 5 / 1,072 / 1 | 4 / 923 / 0 | 감소 |
+| cold-start | 전체 tool / read bytes / 오경로 | 6 / 1,072 / 1 | 4 / 923 / 0 | 감소 |
 | cold-start | 첫 owner까지 tool / read bytes / elapsed | 4 / 923 / 11,189ms | 3 / 629 / 9,444ms | 감소 |
 | refactor/replacement | stale/framework/seam 분류 | 3/3 | 3/3 | 비열화 없음 |
 | refactor/replacement | 영향 누락 / 과다 포함 | 0 / 2 | 0 / 0 | 개선 |
-| 두 task 품질 | 제품 AC / MUST-FIX / 회귀 / 사람 복구 | 7/8 / 0 / 0 / 0 | 8/8 / 0 / 0 / 0 | 개선 |
+| 두 task 품질 | fixture task AC | 7/8 | 8/8 | 개선 |
+| downstream 품질 | MUST-FIX / 회귀 / 사람 복구 / context 재작업 / cross-session | 측정 불가 | 측정 불가 | 본 read-only fixture에서 미실행 |
 
-합계는 탐색 tool `14→13`, read bytes `2,260→2,156`, 오경로 `1→0`, 영향 과다 포함 `2→0`이고 핵심 품질 비열화가 없어 계산기가 개선 관측을 기록했다. result-event usage 기준 input/output token `18/4,519`(cache 토큰 제외), cost `$0.14`다. 실행 월 `2026-07`, 새 LLM trial 2회, 2026-07-13 사용자 결정으로 개정된 한시 상한 6회 기준 epic 공통 누계 `6/6`이다(같은 결정으로 ablation과의 월 배분 분리 규칙 폐지 — 개정 기록은 epic 본문). 단일 frozen fixture의 1회 paired 실측이므로 통계적 일반화와 공개 우위 주장에는 사용할 수 없고, visited는 fixture 파일 Read 성공 이벤트만 포함하며 Glob/Grep 호출은 raw trace에만 남는다.
+합계는 전체 탐색 tool `15→13`, read bytes `2,260→2,156`, 오경로 `1→0`, 영향 과다 포함 `2→0`이고 측정된 fixture task AC가 `7/8→8/8`로 악화되지 않아 계산기가 개선 관측을 기록했다. MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 실행하지 않았으므로 0으로 대체하지 않고 `측정 불가`로 둔다. result-event usage 기준 input/output token `18/4,519`(cache 토큰 제외), cost `$0.14`다. 실행 월 `2026-07`, 새 LLM trial 2회, 2026-07-13 사용자 결정으로 개정된 한시 상한 6회 기준 epic 공통 누계 `6/6`이다. validator는 기본 상한 4와 이 월의 6회 예외만 허용하고 record가 선언한 임의 cap은 거부한다. 단일 frozen fixture의 1회 paired 실측이므로 통계적 일반화와 공개 우위 주장에는 사용할 수 없다.
 
 ## 사용 가능한 주장
 
