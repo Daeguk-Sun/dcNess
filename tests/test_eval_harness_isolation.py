@@ -6,8 +6,9 @@ user settings / tool schema)를 주입당하지 않도록 격리하는 계약 �
 가 CLAUDE.md·skills·hooks·MCP·user settings 를 전부 끄면서(OAuth 인증 유지) baseline 을
 무너뜨리고, --tools 가 도구 schema 를 제한한다.
 
-- 검수자: {{REPO_ROOT}} agent 지침 Read + 일부 케이스의 {{CASE_DIR}} fixture 열거(Glob)
-  가 필요하므로 --tools Read Glob + --add-dir "$ROOT" + --add-dir "$sandbox" 로 접근 유지.
+- 검수자: golden/eval case를 제외한 instruction snapshot의 agent 지침 Read + 일부
+  케이스의 {{CASE_DIR}} fixture 열거(Glob)가 필요하므로 --tools Read Glob +
+  --add-dir "$instruction_root" + --add-dir "$sandbox" 로 접근 유지.
 - 채점자: 정답표+보고가 프롬프트에 인라인 → repo 접근 0, --tools "" 로 도구 전체 제거.
 
 실측 baseline: 43,455 → 검수자(--tools Read Glob) 3,067 / 채점자(--tools "") 1,857.
@@ -54,10 +55,18 @@ class EvalHarnessIsolationTest(unittest.TestCase):
         self.assertIn("--safe-mode", r, "검수자 customization 차단")
         # fixture 열거(Glob) + agent 지침 Read
         self.assertIn("--tools Read Glob", r)
-        self.assertIn('--add-dir "$ROOT"', r, "agent 지침 접근")
+        self.assertIn('$(cd "$instruction_root" && claude -p', r)
+        self.assertIn('--add-dir "$instruction_root"', r, "격리된 agent 지침 접근")
         self.assertIn('--add-dir "$sandbox"', r, "fixture 접근")
+        self.assertNotIn('--add-dir "$ROOT"', r, "golden을 포함한 repo 전체 접근 금지")
         self.assertNotIn("--allowedTools", r, "permission-only 플래그로 schema 못 줄임")
         self.assertNotIn("--bare", r, "구독 인증 유지")
+
+    def test_interrupts_exit_through_cleanup(self):
+        self.assertIn("trap cleanup EXIT", self.src)
+        self.assertIn("trap 'exit 130' INT", self.src)
+        self.assertIn("trap 'exit 143' TERM", self.src)
+        self.assertNotIn("trap cleanup EXIT INT TERM", self.src)
 
     def test_judge_isolation(self):
         j = self._judge()

@@ -37,7 +37,7 @@ Sense→Diagnose→Decide→Act→Verify 루프를 따른다. 새 CI 게이트�
   - 이미 판단한 후보는 `record-decision` 으로 `docs/internal/loop-decisions.jsonl` 에 남긴다. 다음 리포트에서 `fixed`/`rejected` 는 `--hide-decided` 로 숨길 수 있고, `hold` 는 계속 표시된다.
   - 장기 무발화 guard는 바로 제거하지 않고 **소멸 후보**로만 기록한다. 실제 제거는 별도 issue/PR에서 Decide→Act→Verify를 탄다.
 - Decide: 추가 전 제거 검토를 먼저 한다. 소멸 후보나 follow-up이 있으면 릴리즈 노트 `Unreleased`의 자기개선 점검 기록에 적고, 후보가 없으면 `소멸 후보 없음`이라고 적는다. 추적이 길어질 항목은 별도 GitHub issue로 분리한다.
-- Verify: 핵심 행동 eval(`shorts-real-spec`, `headless-prose-quality`)은 릴리즈 체크 모드에서 N/N 통과해야 한다. judge 판정이 의심스러우면 저장된 `run-<N>-report.md`와 `run-<N>-judge.md`를 [#894](https://github.com/alruminum/dcNess/issues/894) 보정 입력으로 남긴다.
+- Verify: [`evals/core-incident-subset.json`](../../evals/core-incident-subset.json)의 핵심 행동 eval은 `bash evals/run-core.sh`에서 N/N 통과해야 한다. judge 판정이 의심스러우면 저장된 `run-<N>-report.md`와 `run-<N>-judge.md`를 사람 golden 보정 입력으로 남기고, report digest·golden/subset version이 맞는지 확인한다.
 
 ```sh
 # 1. 브랜치 생성 — 브랜치명 버전은 . 대신 _ (0.13.0 → 0_13_0).

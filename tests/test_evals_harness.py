@@ -6,6 +6,7 @@ evals/ 의 러너·케이스·정답표가 구조 계약(계약 수준 정답표
 """
 from __future__ import annotations
 
+import json
 import os
 import stat
 import subprocess
@@ -20,12 +21,103 @@ EVALS = ROOT / "evals"
 
 class EvalsHarnessContractTests(unittest.TestCase):
     def test_runner_exists_and_parses(self) -> None:
-        run_sh = EVALS / "run.sh"
-        self.assertTrue(run_sh.is_file())
-        result = subprocess.run(
-            ["bash", "-n", str(run_sh)], capture_output=True, text=True
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        for name in ("run.sh", "run-core.sh"):
+            run_sh = EVALS / name
+            self.assertTrue(run_sh.is_file())
+            result = subprocess.run(
+                ["bash", "-n", str(run_sh)], capture_output=True, text=True
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+        core = (EVALS / "run-core.sh").read_text(encoding="utf-8")
+        self.assertIn("core-incident-subset.json", core)
+        self.assertIn("EVAL_CASES", core)
+
+    def test_runner_rejects_unknown_case_filter_without_llm_call(self) -> None:
+        for case_filter in ("does-not-exist", ".", "..", "   "):
+            with self.subTest(case_filter=case_filter), TemporaryDirectory() as td:
+                tmp = Path(td)
+                bin_dir = tmp / "bin"
+                bin_dir.mkdir()
+                marker = tmp / "claude-called"
+                fake_claude = bin_dir / "claude"
+                fake_claude.write_text(
+                    "#!/usr/bin/env bash\n"
+                    f"touch {marker}\n"
+                    "exit 0\n",
+                    encoding="utf-8",
+                )
+                fake_claude.chmod(fake_claude.stat().st_mode | stat.S_IEXEC)
+                env = os.environ.copy()
+                env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+                env["EVAL_CASES"] = case_filter
+                env["EVAL_OUTPUT_DIR"] = str(tmp / "output")
+
+                result = subprocess.run(
+                    ["bash", str(EVALS / "run.sh")],
+                    cwd=str(ROOT),
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+
+                self.assertEqual(
+                    result.returncode, 2, result.stderr + result.stdout
+                )
+                self.assertIn("선택 케이스", result.stderr)
+                self.assertFalse(marker.exists())
+
+    def test_runner_executes_report_from_blind_instruction_snapshot(self) -> None:
+        with TemporaryDirectory() as td:
+            tmp = Path(td)
+            bin_dir = tmp / "bin"
+            out_dir = tmp / "output"
+            bin_dir.mkdir()
+            fake_claude = bin_dir / "claude"
+            fake_claude.write_text(
+                "\n".join(
+                    [
+                        "#!/usr/bin/env bash",
+                        "set -euo pipefail",
+                        "prompt=''",
+                        "while [ \"$#\" -gt 0 ]; do",
+                        "  case \"$1\" in -p) shift; prompt=\"$1\" ;; esac",
+                        "  shift || true",
+                        "done",
+                        "if printf '%s' \"$prompt\" | grep -q '\\[정답표\\]'; then",
+                        "  printf 'RESULT: PASS\\n'",
+                        "else",
+                        "  printf 'PWD=%s\\n' \"$PWD\"",
+                        "  [ -d \"$PWD/docs\" ] && printf 'docs=yes\\n'",
+                        "  [ ! -e \"$PWD/evals\" ] && printf 'evals=no\\n'",
+                        "fi",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            fake_claude.chmod(fake_claude.stat().st_mode | stat.S_IEXEC)
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["EVAL_CASES"] = "headless-prose-quality"
+            env["EVAL_OUTPUT_DIR"] = str(out_dir)
+
+            result = subprocess.run(
+                ["bash", str(EVALS / "run.sh")],
+                cwd=str(ROOT),
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+            report = (
+                out_dir / "headless-prose-quality" / "run-1-report.md"
+            ).read_text(encoding="utf-8")
+            self.assertIn("dcness-eval-instructions-", report)
+            self.assertIn("docs=yes", report)
+            self.assertIn("evals=no", report)
+            self.assertNotIn(f"PWD={ROOT}", report)
 
     def test_judge_calibration_tool_is_documented(self) -> None:
         calibrate = EVALS / "calibrate_judge.py"
@@ -49,6 +141,39 @@ class EvalsHarnessContractTests(unittest.TestCase):
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, readme)
+        runner = (EVALS / "run.sh").read_text(encoding="utf-8")
+        self.assertNotIn("judge-golden", runner)
+        self.assertNotIn("core-incidents-v1.json", runner)
+        self.assertIn('cp -R "$ROOT/docs" "$ROOT/skills"', runner)
+        self.assertNotIn('s|{{REPO_ROOT}}|$ROOT|g', runner)
+
+    def test_core_incident_subset_and_verified_human_golden_exist(self) -> None:
+        manifest = json.loads(
+            (EVALS / "core-incident-subset.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(manifest["subset_version"], "core-incidents-v1")
+        selected = {item["case"]: item for item in manifest["selected_cases"]}
+        self.assertEqual(
+            set(selected), {"shorts-real-spec", "headless-prose-quality"}
+        )
+        for item in selected.values():
+            self.assertTrue(item["incident_risk"])
+            self.assertTrue(item["regression_value"])
+        self.assertIn("exclusion_policy", manifest)
+
+        golden = json.loads(
+            (EVALS / "golden" / "core-incidents-v1.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(golden["schema_version"], 2)
+        self.assertEqual(golden["golden_version"], "core-incidents-v1-human-v1")
+        self.assertEqual(golden["subset_version"], manifest["subset_version"])
+        self.assertEqual(golden["verification_status"], "verified")
+        self.assertEqual(len(golden["labels"]), 2)
+        for label in golden["labels"]:
+            self.assertRegex(label["report_sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual(set(label["expectations"]), set(label["reasons"]))
 
     def test_every_case_has_required_files(self) -> None:
         case_dirs = sorted((EVALS / "cases").iterdir())
