@@ -142,7 +142,9 @@ class DecisionCompletenessContractTests(unittest.TestCase):
         grounded_prd = (cases / names[2] / "prd.md").read_text(encoding="utf-8")
         self.assertIn("구현하면서 정한다", unresolved_prd)
         self.assertIn("파일 저장 모듈의 구현 기본값", ungrounded_prd)
-        self.assertIn("현행 기록 보존 정책", grounded_prd)
+        self.assertIn("조직 소유자가 승인한 프로젝트 기록 보존 결정", grounded_prd)
+        self.assertIn("data-retention-2026-06-30", grounded_prd)
+        self.assertNotIn("구현 기본값", grounded_prd)
 
         for prd in (unresolved_prd, ungrounded_prd, grounded_prd):
             for closed_dimension in (
@@ -161,8 +163,10 @@ class DecisionCompletenessContractTests(unittest.TestCase):
                     self.assertIn(closed_dimension, prd)
 
         self.assertIn("유효기간이 만료된 대리자", stories[0])
+        self.assertIn("배정된 유효 담당자가 없는", stories[0])
         self.assertIn("증빙 열람 동선", stories[0])
         self.assertIn("증빙 원문만 삭제", stories[0])
+        self.assertIn("오류·초안 보존 UI test", stories[0])
 
     def test_two_real_pilots_trace_decisions_and_record_human_approval(self) -> None:
         pilots = (
