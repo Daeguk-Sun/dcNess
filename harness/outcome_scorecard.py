@@ -22,7 +22,7 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from harness import ledger, product_journey, run_review  # noqa: E402
+from harness import agent_effectiveness, ledger, product_journey, run_review  # noqa: E402
 from harness.benchmark_aggregate import FleetReport, aggregate_runs  # noqa: E402
 
 
@@ -200,6 +200,7 @@ def build_scorecard(
     as_of: Optional[str] = None,
     source_refs: Optional[list[str]] = None,
     redact_paths: bool = False,
+    agent_effectiveness_record: Path | str | None = None,
 ) -> dict[str, Any]:
     """Aggregate finished runs from every configured project with observable data."""
     measured_at = measured_at or _now_iso()
@@ -391,6 +392,39 @@ def build_scorecard(
         measured_at=measured_at,
         as_of=as_of,
     )
+    effectiveness = (
+        agent_effectiveness.load_record(agent_effectiveness_record)
+        if agent_effectiveness_record is not None
+        else {
+            **unmeasured_context,
+            "reason": (
+                "현재 ledger는 SSOT·entrypoint·owner 탐색 정확도, 첫 올바른 대상까지의 "
+                "비용, 오경로, 영향 누락, context 기인 재작업, cross-session 복구를 "
+                "비교 가능한 trial로 기록하지 않는다."
+            ),
+        }
+    )
+    trial_metadata = (
+        {
+            "status": "관측",
+            "source_project_count": effectiveness["source_count"],
+            "measured_at": effectiveness["measured_at"],
+            "denominator": effectiveness["denominator"],
+            "conditions": effectiveness["conditions"],
+            "cost": effectiveness["cost"],
+            "new_llm_trials": effectiveness["new_llm_trials"],
+            "reason": "agent-effectiveness replay record의 frozen trial identity와 비용 근거",
+        }
+        if agent_effectiveness_record is not None
+        else {
+            **unmeasured_context,
+            "reason": (
+                "legacy run은 task/repo 유형, model/provider, harness variant, trial "
+                "identity, 사람 개입, wall-clock, token, cost를 하나의 비교 가능한 "
+                "record로 일관되게 보존하지 않는다."
+            ),
+        }
+    )
     return {
         "measured_at": measured_at,
         "as_of": as_of,
@@ -403,23 +437,9 @@ def build_scorecard(
         "source_project_count": source_count,
         "sources": sources,
         "process_evidence": process,
-        "agent_effectiveness": {
-            **unmeasured_context,
-            "reason": (
-                "현재 ledger는 SSOT·entrypoint·owner 탐색 정확도, 첫 올바른 대상까지의 "
-                "비용, 오경로, 영향 누락, context 기인 재작업, cross-session 복구를 "
-                "비교 가능한 trial로 기록하지 않는다."
-            ),
-        },
+        "agent_effectiveness": effectiveness,
         "product_outcome": product_outcome,
-        "trial_metadata": {
-            **unmeasured_context,
-            "reason": (
-                "legacy run은 task/repo 유형, model/provider, harness variant, trial "
-                "identity, 사람 개입, wall-clock, token, cost를 하나의 비교 가능한 "
-                "record로 일관되게 보존하지 않는다."
-            ),
-        },
+        "trial_metadata": trial_metadata,
         "claim_boundaries": {
             "personal_screening": (
                 "같은 task/fixture의 1+1 paired screening은 개인 keep/remove/hold "
@@ -582,6 +602,34 @@ def render_markdown(report: dict[str, Any]) -> str:
         ]
     )
     outcome = report["product_outcome"]
+    effectiveness = report["agent_effectiveness"]
+    if effectiveness["status"] != UNMEASURED:
+        lines[lines.index("## 실제 제품 outcome"):lines.index("## 실제 제품 outcome")] = [
+            f"- 비교 trial: {effectiveness['denominator']}",
+            f"- source fixture: {effectiveness['source_count']}",
+            f"- 개선 관측: {'YES' if effectiveness['improved'] else 'NO'}",
+            f"- 품질 비열화: {'YES' if effectiveness['quality_worse'] else 'NO'}",
+            (
+                "- baseline → current: "
+                f"tool {effectiveness['baseline']['tool_calls']}→"
+                f"{effectiveness['current']['tool_calls']}, "
+                f"read bytes {effectiveness['baseline']['read_bytes']}→"
+                f"{effectiveness['current']['read_bytes']}, "
+                f"오경로 {effectiveness['baseline']['wrong_paths']}→"
+                f"{effectiveness['current']['wrong_paths']}, "
+                f"영향 누락 {effectiveness['baseline']['missed_impact']}→"
+                f"{effectiveness['current']['missed_impact']}, "
+                f"context 재작업 {effectiveness['baseline']['context_rework']}→"
+                f"{effectiveness['current']['context_rework']}"
+            ),
+            (
+                "- token/cost: "
+                f"input {effectiveness['cost']['input_tokens']}, "
+                f"output {effectiveness['cost']['output_tokens']}, "
+                f"USD {effectiveness['cost']['cost_usd']:.2f}"
+            ),
+            "",
+        ]
     if outcome["status"] != UNMEASURED:
         lines[lines.index("## Trial metadata"):lines.index("## Trial metadata")] = [
             f"- journey PASS: {outcome['numerator']}/{outcome['denominator']}",
@@ -633,6 +681,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         action="store_true",
         help="project and registry absolute paths를 stable source ref로 대체",
     )
+    parser.add_argument(
+        "--agent-effectiveness-record",
+        default=None,
+        help="frozen agent-effectiveness replay record JSON",
+    )
     parser.add_argument("--json", action="store_true", help="JSON 출력")
     args = parser.parse_args(argv)
 
@@ -643,6 +696,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             as_of=args.as_of,
             source_refs=args.source_ref,
             redact_paths=args.redact_paths,
+            agent_effectiveness_record=args.agent_effectiveness_record,
         )
     except SourceRefNotFound as exc:
         print(json.dumps(
@@ -655,6 +709,10 @@ def main(argv: Optional[list[str]] = None) -> int:
             {"error": "source_data_unavailable", "unavailable": exc.unavailable},
             ensure_ascii=False,
         ))
+        return 2
+    except agent_effectiveness.AgentEffectivenessRecordInvalid as exc:
+        for error in exc.errors:
+            print(error, file=sys.stderr)
         return 2
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True))
