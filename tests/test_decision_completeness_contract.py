@@ -149,7 +149,7 @@ class DecisionCompletenessContractTests(unittest.TestCase):
                 self.assertIn(evidence, pilots)
 
         for source in (
-            "작업 이슈 #1064",
+            "실제 작업 fixture: 세로 영상 제작 기능",
             "작업 이슈 #1062",
             "원본 갱신 시각",
             "원본 위치",
