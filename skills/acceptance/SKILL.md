@@ -147,7 +147,7 @@ standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을
 ## 절차
 
 1. 입력 단위가 story 인지 epic 인지 확인한다.
-2. non-UI 핵심 journey가 검수 대상이고 `.dcness/product-journey.json` 또는 호출자가 지정한 동등한 project-local 계약이 있으면, 메인이 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `dcness-product-journey`를 실행한다. 생성된 receipt와 log 경로를 다음 prompt에 넣는다. exit 1 receipt도 gap 증거로 전달하며 mock-only/app-not-started/journey 미실행/assertion 미평가를 PASS로 바꾸지 않는다.
+2. 핵심 journey가 검수 대상이고 `.dcness/product-journey.json` 또는 호출자가 지정한 동등한 project-local 계약이 있으면, 메인이 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `dcness-product-journey`를 실행한다. 생성된 receipt와 log 경로를 다음 prompt에 넣고, UI boundary이면 단계별 screenshot/state/log 경로도 함께 넣는다. exit 1 receipt도 gap 증거로 전달하며 mock-only/app-not-started/journey 미실행/assertion 미평가/UI evidence 누락을 PASS로 바꾸지 않는다.
 3. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE` 를 호출한다.
 4. `PASS`면 완료 후보로 보고한다.
 5. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `module-architect:CARTOGRAPHY_REFRESH` 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.

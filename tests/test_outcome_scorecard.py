@@ -354,6 +354,38 @@ class OutcomeScorecardAggregationTests(unittest.TestCase):
 
         self.assertEqual(raised.exception.unavailable, [pinned[0]])
 
+    def test_product_receipt_only_source_can_be_pinned_without_run_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            project = root / "product-only-project"
+            project.mkdir()
+            _write_product_journey_receipt(
+                project,
+                "product-only-journey",
+                outcome="PASS",
+            )
+            projects_file = root / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": [str(project)]}),
+                encoding="utf-8",
+            )
+            source_ref = "source-" + hashlib.sha256(
+                str(project.resolve()).encode("utf-8")
+            ).hexdigest()[:10]
+
+            report = build_scorecard(
+                projects_file,
+                measured_at="2026-07-11T00:00:00Z",
+                as_of="2026-07-11T00:00:00Z",
+                source_refs=[source_ref],
+                redact_paths=True,
+            )
+
+        self.assertEqual(report["product_outcome"]["numerator"], 1)
+        self.assertEqual(report["product_outcome"]["denominator"], 1)
+        self.assertEqual(report["product_outcome"]["source_project_count"], 1)
+        self.assertEqual(report["process_evidence"]["finished_runs"]["status"], "측정 불가")
+
     def test_legacy_run_replay_ignores_steps_appended_after_cutoff(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -518,6 +550,24 @@ class OutcomeScorecardDocumentTests(unittest.TestCase):
         ):
             self.assertIn(evidence, baseline)
         self.assertNotIn("/Users/dc.kim/project/youTubeGenerator", baseline)
+
+    def test_baseline_records_ui_product_journey_pilot(self) -> None:
+        baseline = (ROOT / "docs" / "internal" / "outcome-baseline.md").read_text(
+            encoding="utf-8"
+        )
+        for evidence in (
+            "UI 제품 journey pilot",
+            "source-5509daf5ed",
+            "finsight-underage-ui",
+            "AC-001",
+            "journey PASS 1/1",
+            "제품 AC 1/1",
+            "ui, screenshot, command, log",
+            "실행 중 사람 개입 0",
+            "2026-07-13T03:00:00Z",
+        ):
+            self.assertIn(evidence, baseline)
+        self.assertNotIn("/Users/dc.kim/project/finsight", baseline)
 
 
 if __name__ == "__main__":

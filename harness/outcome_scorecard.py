@@ -228,6 +228,7 @@ def build_scorecard(
     for source_ref, project in selected:
         for receipt in product_journey.read_receipts(project, cutoff=cutoff):
             journey_receipts.append((source_ref, receipt))
+    journey_source_refs = {source_ref for source_ref, _receipt in journey_receipts}
 
     sources: list[dict[str, Any]] = []
     fleets: list[FleetReport] = []
@@ -242,7 +243,7 @@ def build_scorecard(
             if _started_by(run_dir, cutoff)
         ]
         if not candidate_dirs:
-            if source_refs is not None:
+            if source_refs is not None and source_ref not in journey_source_refs:
                 unavailable_sources.append(source_ref)
             continue
         finished_dirs = [
@@ -252,7 +253,7 @@ def build_scorecard(
         ]
         fleet = aggregate_runs(finished_dirs, event_cutoff=cutoff)
         if fleet.run_count == 0:
-            if source_refs is not None:
+            if source_refs is not None and source_ref not in journey_source_refs:
                 unavailable_sources.append(source_ref)
             continue
         candidates = len(candidate_dirs)

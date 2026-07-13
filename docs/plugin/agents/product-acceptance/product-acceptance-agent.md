@@ -12,7 +12,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 검수 단위: spec / story / epic / release 식별자
 - 기준 문서: `docs/index.md`, 기능·유저 시나리오를 담은 `docs/prd.md`, Story AC·Epic 완료 기준을 담은 `docs/epics/<epic>/stories.md`, `docs/decisions/`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
-- non-UI journey receipt: 호출자가 제공한 `receipt.json`과 단계별 log. `app_started`, `journey_executed`, assertion 평가·결과, 대상 AC, command exit, evidence sha256을 포함한다.
+- 제품 journey receipt: 호출자가 제공한 `receipt.json`과 단계별 log. `app_started`, `journey_executed`, assertion 평가·결과, 대상 AC, command exit, evidence sha256을 포함한다. UI boundary이면 `ui_evidence.steps`의 화면·상태·log path와 최종 단계 AC 대응도 함께 읽는다.
 - UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
 - epic 구현에 대한 build-worker/impl-validator Cartography impact 보고, affected Root Cartography 좌표, tracked/local-only 문서 정책
@@ -38,7 +38,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 실데이터(non-mock) 통합 테스트는 실제 parser, renderer, DB/schema, filesystem, network adapter wrapper, local fixture 같은 제품 경계를 통과해야 한다. 외부 서비스를 반드시 live 호출하라는 뜻은 아니다.
 - UI 자동화는 브라우저/앱 자동화, component interaction, screenshot/assertion, visual smoke 같은 증거를 포함한다. 사람의 수동 E2E만 요구하지 않는다.
 - mock/stub/fake 기반 unit test 는 보조 증거다. 핵심 AC가 mock-only green으로만 뒷받침되고 API/CLI/UI/통합 wiring/compile-time contract 중 어떤 실제 경계도 확인되지 않았으면 gap 이다.
-- project-local journey receipt가 있으면 `app_started=true`, `journey_executed=true`, assertion `evaluated=true`와 `passed=true`, non-mock boundary, 대상 AC 대응을 함께 확인한다. 하나라도 빠지거나 receipt outcome이 FAIL이면 제품 outcome PASS로 판정하지 않는다. receipt와 log는 읽기 전용으로 대조하며 검증자가 다시 실행하거나 수정하지 않는다.
+- project-local journey receipt가 있으면 `app_started=true`, `journey_executed=true`, assertion `evaluated=true`와 `passed=true`, non-mock boundary, 대상 AC 대응을 함께 확인한다. UI boundary이면 두 단계 이상의 `ui_evidence.steps`, 모든 대상 AC를 덮는 final 단계, 각 evidence의 `present=true`와 SHA-256, 실제 화면 상태 설명을 추가로 확인한다. 하나라도 빠지거나 receipt outcome이 FAIL이면 제품 outcome PASS로 판정하지 않는다. receipt와 log·screenshot은 읽기 전용으로 대조하며 검증자가 다시 실행하거나 수정하지 않는다.
 - TypeScript, typed Python, Rust, Go 처럼 정적 타입검사나 compile gate 가 의미 있는 stack 에서 typecheck/compile 증거가 전혀 없으면 품질 게이트 warning 으로 보고한다. warning 자체만으로 FAIL 을 만들지는 않지만, 그 부재 때문에 핵심 AC의 wiring/contract 동작을 증명할 수 없으면 FAIL gap 이다.
 
 ### UI 목업 정합 판정 (STORY / EPIC 공통)
