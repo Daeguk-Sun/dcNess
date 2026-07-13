@@ -2,7 +2,7 @@
 
 ## 목적
 
-PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 또는 실제 결과물이 수용 기준과 동작 증거로 연결됐는지 읽기 전용으로 확인한다.
+PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 또는 실제 결과물이 수용 기준과 동작 증거로 연결됐는지 확인한다. tracked 구현·설계 소스는 write-zero로 유지하되, `(JOURNEY)` REQ의 project-local 매니페스트가 있으면 tip에서 봉인된 러너를 조건부 실행해 검수 증거를 만든다.
 
 `product-acceptance` 는 기존 `impl-validator`, `architecture-validator` 를 대체하지 않는다. `impl-validator` 는 merge candidate diff 의 구현 계획 정합과 merge risk 를 보고, `architecture-validator` 는 설계 산출물 정합을 본다. 본 agent 는 제품 단위 기준 문서와 구현 증거 사이의 gap 을 본다.
 
@@ -13,6 +13,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 기준 문서: `docs/index.md`, 기능·유저 시나리오를 담은 `docs/prd.md`, Story AC·Epic 완료 기준을 담은 `docs/epics/<epic>/stories.md`, `docs/decisions/`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
 - 제품 journey receipt: 호출자가 제공한 `receipt.json`과 단계별 log. `app_started`, `journey_executed`, assertion 평가·결과, 대상 AC, command exit, evidence sha256을 포함한다. UI boundary이면 `ui_evidence.steps`의 화면·상태·log path와 최종 단계 AC 대응도 함께 읽는다.
+- `(JOURNEY)` REQ: 대상 AC, build-worker가 작성한 project-local e2e flow와 `.dcness/` 밖 owner module/소스 영역의 journey 매니페스트 경로. receipt가 없으면 이 매니페스트를 tip에서 실행 입력으로 사용한다.
 - UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
 - epic 구현에 대한 build-worker/impl-validator Cartography impact 보고, affected Root Cartography 좌표, tracked/local-only 문서 정책
@@ -23,6 +24,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 필수: 호출자가 지정한 `docs/index.md`, PRD, epic stories, issue, 또는 acceptance 기준 문서
 - 필수: 호출자가 제공한 구현 PR, 테스트 결과, smoke 결과, 변경 파일 목록
 - 상황별: `docs/architecture.md`, `docs/decisions/`, epic architecture/impl 문서, tech-review 결과
+- 상황별 (`(JOURNEY)` REQ): journey 매니페스트, 연결된 e2e flow, 필요한 setup/teardown/상태전이 스크립트
 - 상황별 (SPEC_ACCEPTANCE): [`skills/spec/spec-stories-reference.md`](../../../../skills/spec/spec-stories-reference.md) 의 Story 분할·순서 기준과 예외
 - 상황별 (SPEC_ACCEPTANCE): [`decision-completeness.md`](../../decision-completeness.md) 의 결정 범위·근거 상태·질문/위임·완료 계약
 - 참고: 기존 acceptance 결과가 있으면 이전 gap 과 재검수 증거
@@ -38,8 +40,14 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 실데이터(non-mock) 통합 테스트는 실제 parser, renderer, DB/schema, filesystem, network adapter wrapper, local fixture 같은 제품 경계를 통과해야 한다. 외부 서비스를 반드시 live 호출하라는 뜻은 아니다.
 - UI 자동화는 브라우저/앱 자동화, component interaction, screenshot/assertion, visual smoke 같은 증거를 포함한다. 사람의 수동 E2E만 요구하지 않는다.
 - mock/stub/fake 기반 unit test 는 보조 증거다. 핵심 AC가 mock-only green으로만 뒷받침되고 API/CLI/UI/통합 wiring/compile-time contract 중 어떤 실제 경계도 확인되지 않았으면 gap 이다.
-- project-local journey receipt가 있으면 `app_started=true`, `journey_executed=true`, assertion `evaluated=true`와 `passed=true`, non-mock boundary, 대상 AC 대응을 함께 확인한다. UI boundary이면 두 단계 이상의 `ui_evidence.steps`, 모든 대상 AC를 덮는 final 단계, 각 evidence의 `present=true`와 SHA-256, 실제 화면 상태 설명을 추가로 확인한다. 하나라도 빠지거나 receipt outcome이 FAIL이면 제품 outcome PASS로 판정하지 않는다. receipt와 log·screenshot은 읽기 전용으로 대조하며 검증자가 다시 실행하거나 수정하지 않는다.
+- project-local journey receipt가 있으면 `app_started=true`, `journey_executed=true`, assertion `evaluated=true`와 `passed=true`, non-mock boundary, 대상 AC 대응을 함께 확인한다. UI boundary이면 두 단계 이상의 `ui_evidence.steps`, 모든 대상 AC를 덮는 final 단계, 각 evidence의 `present=true`와 SHA-256, 실제 화면 상태 설명을 추가로 확인한다. 하나라도 빠지거나 receipt outcome이 FAIL이면 제품 outcome PASS로 판정하지 않는다. 매니페스트가 있으면 러너 호출로 receipt를 생성할 수 있고, 생성된 receipt·log·screenshot은 사후 수정하지 않는다.
 - TypeScript, typed Python, Rust, Go 처럼 정적 타입검사나 compile gate 가 의미 있는 stack 에서 typecheck/compile 증거가 전혀 없으면 품질 게이트 warning 으로 보고한다. warning 자체만으로 FAIL 을 만들지는 않지만, 그 부재 때문에 핵심 AC의 wiring/contract 동작을 증명할 수 없으면 FAIL gap 이다.
+
+### `(JOURNEY)` 실행 판정 (STORY / EPIC 공통)
+
+- 대상 AC가 `(JOURNEY)`인데 receipt가 없고 journey 매니페스트와 project-local e2e가 있으면 tip에서 `dcness-product-journey run --project-root <project-root> --config <매니페스트 경로>`를 직접 호출해 receipt를 만든 뒤 판정한다.
+- 매니페스트 또는 e2e flow가 없으면 실행할 수 없는 gap으로 보고하고 도입을 제안한다. 특정 e2e 도구 채택을 강제하지 않으며, fixable 코드 gap은 기존 routing대로 build-worker rework에 인계한다.
+- 러너가 생성하는 증거는 ignored `.dcness-work/product-journey/` 아래에만 둔다. tracked 구현·설계 소스, flow, 매니페스트를 수정하거나 receipt를 손으로 날조하지 않는다.
 
 ### UI 목업 정합 판정 (STORY / EPIC 공통)
 
@@ -103,6 +111,7 @@ story 구현 완료 직후 호출된다. 해당 story 의 수용 기준이 구�
 - 핵심 AC 의 입력/진행 동선이 대상 사용자에게 적합한 제품 언어로 닫힌다.
 - 테스트나 smoke 증거가 실제 실행 결과로 남아 있다.
 - project-local journey를 사용했다면 receipt가 Story AC와 command/log evidence를 연결하고 app_started·journey_executed·assertion 결과를 명시한다.
+- `(JOURNEY)` REQ에 receipt가 없고 매니페스트가 있으면 tip에서 직접 실행한 뒤 판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 남긴다.
 - mock-only green 으로만 닫힌 핵심 AC 를 gap 으로 분리한다.
 - UI story 이면 확정 목업과 구현 화면 증거를 Read 로 열어 대조하고, 화면 증거 부재와 목업 불일치를 gap 으로 분리한다.
 - 내부 계약을 사용자가 직접 조립해야만 수행되는 핵심 흐름을 gap 으로 분리한다.
@@ -117,6 +126,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - Epic 완료 기준과 Story AC 전항목이 하나 이상의 story/PR/test evidence 로 닫혔다.
 - story 사이의 흐름, 상태, 권한, 데이터 ownership 이 서로 어긋나지 않는다.
 - 여러 PR/story 경계를 넘는 통합 동작이 동작 증거로 닫혔다. 각 PR 의 mock-only green 이 모여 있어도 실제 사용자 흐름이 한 번도 검증되지 않았으면 cross-story gap 이다.
+- `(JOURNEY)` REQ에 receipt가 없고 매니페스트가 있으면 최종 tip에서 직접 실행한 뒤 cross-story 동작을 판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 남긴다.
 - UI epic 이면 story 별 확정 목업과 최종 구현 화면 증거가 서로 이어지는지 보고, 화면 증거 부재나 cross-story 목업 불일치를 gap 으로 분리한다.
 - 여러 story 가 합쳐진 사용자 흐름이 내부 schema/payload 조립이 아니라 대상 사용자의 자연스러운 입력/진행 동선으로 이어진다.
 - 보안/권한/데이터 리스크가 새로 생겼는데 별도 후속 없이 묻히지 않았다.
@@ -141,11 +151,12 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 1. mode 와 검수 단위를 확인한다.
 2. 기준 문서에서 Story AC, Epic 완료 기준, PRD 유저 시나리오, release readiness 기준을 추출한다.
    SPEC_ACCEPTANCE이면 작업에 관련된 결정 범위와 중요한 선택의 근거 상태도 함께 추출한다.
-3. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다. EPIC_ACCEPTANCE이면 epic이 인수한 capability의 상태 before/after, affected Root 좌표, 실제 동작·검증 증거도 함께 대조한다.
-4. 대상 사용자를 식별하고 핵심 입력/진행 동선이 제품 언어인지, 내부 구현 계약을 사용자에게 떠넘기는지 대조한다.
-5. 충족된 기준, mock-only green 인 기준, 화면 증거 부재 기준, 목업 불일치 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.
-6. gap 이 있으면 기준 문서, 증거, 누락 사실, 후속 분기를 함께 쓴다.
-7. 판단에 필요한 문서나 권한이 없으면 추측하지 않고 ESCALATE한다.
+3. `(JOURNEY)` REQ별 receipt를 찾는다. receipt가 없고 매니페스트/e2e가 있으면 tip에서 `dcness-product-journey run`을 호출하고, 없으면 실행 불가 gap으로 분리한다.
+4. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다. EPIC_ACCEPTANCE이면 epic이 인수한 capability의 상태 before/after, affected Root 좌표, 실제 동작·검증 증거도 함께 대조한다.
+5. 대상 사용자를 식별하고 핵심 입력/진행 동선이 제품 언어인지, 내부 구현 계약을 사용자에게 떠넘기는지 대조한다.
+6. 충족된 기준, mock-only green 인 기준, 화면 증거 부재 기준, 목업 불일치 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.
+7. gap 이 있으면 기준 문서, 증거, 누락 사실, 후속 분기를 함께 쓴다.
+8. 판단에 필요한 문서나 권한이 없으면 추측하지 않고 ESCALATE한다.
 
 ## 완료 기준
 
@@ -160,14 +171,15 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - gap 은 제품 기준에서 Must 인지, 후속으로 분리 가능한지 구분한다.
 - 자동으로 issue 를 만들지 않는다. gap issue 생성이 필요하면 `/to-issue` 사용자 승인 후속으로 분기만 제안한다.
 - 사람 full E2E 는 MVP acceptance 범위 밖이다. 사람 E2E 부재만으로 story acceptance 를 FAIL 로 만들지 않는다. 대신 자동 동작 증거가 핵심 AC 를 닫는지 본다.
+- `(JOURNEY)`를 직접 실행했다면 메인에는 receipt 경로, 판정, 사람 확인 잔여 목록만 반환하고 화면 dump 원본은 싣지 않는다.
 - 파일/라인/링크 근거가 없으면 추측하지 않는다.
 - EPIC_ACCEPTANCE에서 증거 없는 `landed`, 미해소 route-only refresh, system boundary backpressure가 있으면 사용자 동작 PASS만으로 전체 PASS하지 않는다.
 
 ## 권한 경계
 
-- 읽기 전용이다.
-- Bash를 쓰지 않는다.
-- 파일을 수정하지 않는다.
+- 조건부 실행 허용: `(JOURNEY)` REQ 대상 AC이고 project-local journey 매니페스트/e2e가 있으면 Bash로 `dcness-product-journey run`을 tip에서 호출해 receipt를 생성한다.
+- tracked 구현·설계 소스는 수정하지 않는다. `ALLOW_MATRIX["product-acceptance"] = ()` write-zero를 유지하며, 증거 write는 러너가 봉인한 `.dcness-work/product-journey/`에만 생성된다.
+- 특정 e2e 도구를 강제하거나 receipt·log·screenshot을 손으로 만들거나 사후 수정하지 않는다.
 - GitHub issue 생성, PR 수정, merge 같은 외부 상태 변경을 하지 않는다.
 
 ## 결론과 보고
@@ -182,6 +194,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - UI story/epic 이면 확정 목업 경로, 구현 화면 스크린샷 또는 화면 증거 경로, UI 목업 정합 판정 결과
 - STORY / EPIC 검수 보고에는 사용자가 지금 직접 확인할 수 있는 실행 동선(실행 명령, 화면 진입 경로 등) 안내. 호출자 제공 증거에서 확인된 동선만 쓰고, 불명이면 불명이라고 쓴다. 확인 가능한 동작이 아직 없으면 그 사실을 쓴다.
 - EPIC 검수 보고에는 epic이 인수한 capability 상태, affected Root 좌표, 상태 증거, route-only refresh 또는 system backpressure 여부를 포함한다.
+- journey를 직접 실행했으면 receipt 경로, 판정, 사람 확인 잔여 목록만 포함하고 화면 dump 원본은 메인 보고에 싣지 않는다.
 
 마지막 단락에는 `PASS`, `FAIL`, `ESCALATE` 중 하나를 쓴다.
 

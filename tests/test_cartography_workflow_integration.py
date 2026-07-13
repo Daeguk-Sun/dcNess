@@ -134,7 +134,8 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             self.assertIn("module-architect", text)
             self.assertIn("durable impact handoff", text)
             self.assertIn("/design --revise", text)
-            self.assertIn("읽기 전용", text)
+            self.assertIn("write-zero", text)
+            self.assertIn(".dcness-work/product-journey/", text)
             self.assertIn("durable impact handoff만으로 freshness가 해소되지는 않", text)
 
     def test_eval_suite_covers_all_integration_outcomes(self) -> None:

@@ -69,6 +69,8 @@ canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-ste
 | **product-acceptance** | `PASS` → target GitHub issue AC close audit. story×N 과 epic 대상이면 모두 PASS 필요 · `FAIL` auto-fixable gap → build-worker rework + commit append. Epic code 변경은 완료된 Sanity/impl-validator 증거를 stale 처리하고 Sanity부터 재진입, Story-only는 impl-validator 재리뷰 + acceptance 재검수(≤3) · capability 상태 drift가 route-only stale → `CARTOGRAPHY_REFRESH` + 같은 diff+갱신 Root impl-validator 재검증 + acceptance 재검수 · system boundary/global decision gap → `/design --revise`/checkpoint · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
 | **target GitHub issue AC close audit** | 자동 판정 가능한 AC 전항목 충족·체크 + `check_issue_body.mjs --acceptance-only --require-complete` PASS → merge · 미충족·미체크 → clean 마감 금지, 구현 보강 · human verification 잔여 → 목록 보고 후 merge 전 대기 (`blocked` 아님) |
 
+`(JOURNEY)` REQ는 PASS 블로커가 아니다. build-worker가 flow 대본, `.dcness/` 밖 journey 매니페스트, 필요한 setup/teardown/상태전이 스크립트를 작성하고 acceptance 인계를 보고하면 `PASS`로 진행한다. 이 경로는 메인 게이트 대행용 `VALIDATION_BLOCKED`와 다르다.
+
 ## retry 한도
 
 | 재시도 경로 | 한도 | 초과 시 |
@@ -90,6 +92,8 @@ story/epic close 를 실제 발동하는 PR 의 impl-validator `PASS` 후 · mer
 impl-validator 는 계획 대비 구현 정합과 merge candidate diff 위험을 검토한다. 여러 PR 이 합쳐진 story 동작과 여러 story 가 합쳐진 epic 동작의 사용자 관찰 가능 동작은 마감 product-acceptance 가 맡는다.
 
 여러 task commit 이 합쳐진 story 동작은 story PR 과 acceptance 증거를 함께 보고 판정한다. 여러 story sub-PR 이 합쳐진 epic 동작도 같은 원칙으로 product-acceptance 가 맡는다. product-acceptance 는 개별 task green 이 아니라 story/epic close 시점의 사용자 동작 전체를 검수한다.
+
+STORY/EPIC_ACCEPTANCE는 대상 AC의 `(JOURNEY)` receipt가 없고 매니페스트/e2e가 있으면 최종 tip에서 flow를 실행해 receipt를 생성·판정한다. 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 보고하며 특정 e2e 도구를 강제하지 않는다.
 
 Cartography freshness도 같은 close 경계의 Must다. capability 상태 drift, 미해소 route/state/as-built edge, system backpressure가 남으면 최종 clean과 merge로 진행하지 않는다. `CARTOGRAPHY_REFRESH`는 기존 module-architect의 bounded producer mode이며, local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local refresh 또는 durable impact handoff를 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root refresh 확인 전에는 최종 clean이 아니다. build-worker와 읽기 전용 validator가 docs를 직접 수정하지 않는다.
 

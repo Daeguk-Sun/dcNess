@@ -91,7 +91,6 @@ READONLY_AGENTS = {
     "impl-validator",
     "architecture-validator",
     "plan-reviewer",
-    "product-acceptance",
 }
 
 # #917 — lesson 대상 WasteFinding 패턴의 코드 SSOT.

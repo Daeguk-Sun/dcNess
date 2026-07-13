@@ -42,7 +42,7 @@ flowchart TB
 | `product-acceptance:EPIC_ACCEPTANCE` `FAIL` | Epic 완료 기준·Story AC, cross-story 동작 gap, mock-only green, 화면 증거 부재, 목업 불일치, cross-story 사용자 동선 부적합, security/ops risk 를 보고하고 후속 분기를 제안한다. |
 | `ESCALATE` | 기준 문서, 구현 PR 목록, 권한, 사용자 결정 부족을 보고하고 대기한다. |
 
-Cartography freshness gap은 standalone `/acceptance`의 tracked 구현·설계 읽기 전용 경계를 유지하면서 다음 producer까지 비지 않게 한다. project-local journey 계약 실행이 만드는 ignored evidence는 이 경계를 바꾸지 않는다.
+Cartography freshness gap은 standalone `/acceptance`의 tracked 구현·설계 write-zero 경계를 유지하면서 다음 producer까지 비지 않게 한다. project-local journey 계약 실행이 ignored `.dcness-work/product-journey/`에 만드는 evidence는 이 경계를 바꾸지 않는다.
 
 | Cartography 결과 | 다음 producer |
 |---|---|
@@ -50,7 +50,7 @@ Cartography freshness gap은 standalone `/acceptance`의 tracked 구현·설계 
 | system boundary 유지 + route/state/as-built edge 또는 capability 상태 drift | `module-architect:CARTOGRAPHY_REFRESH`가 affected Root Cartography만 bounded refresh. local-only/ignored이면 canonical local refresh 또는 durable impact handoff를 보존하고 private docs를 code PR에 강제 포함하지 않음. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root refresh 확인 전에는 PASS 금지 |
 | system boundary·global decision 변경 | route-only patch 금지. `/design --revise` 또는 system checkpoint backpressure 보고 |
 
-standalone `/acceptance`는 이 producer를 직접 호출하지 않고 gap과 근거를 보고한다. product-acceptance는 완전한 읽기 전용이고, acceptance 메인은 명시된 journey 계약의 ignored evidence만 생성하며 tracked 구현·설계는 수정하지 않는다.
+standalone `/acceptance`는 이 producer를 직접 호출하지 않고 gap과 근거를 보고한다. product-acceptance가 receipt 없는 `(JOURNEY)` REQ의 journey 매니페스트를 tip에서 실행해 ignored evidence를 생성·판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 보고한다. tracked 구현·설계는 write-zero로 유지한다.
 
 ## 깊이 차이
 

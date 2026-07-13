@@ -33,11 +33,40 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.impl_loop_routing = (
             ROOT / "skills" / "impl-loop" / "impl-loop-routing.md"
         )
+        self.acceptance_skill = ROOT / "skills" / "acceptance" / "SKILL.md"
+        self.impl_loop_skill = ROOT / "skills" / "impl-loop" / "SKILL.md"
+        self.module_architect_prompt = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "module-architect"
+            / "module-architect-agent.md"
+        )
+        self.impl_task_template = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "module-architect"
+            / "templates"
+            / "impl-task.md"
+        )
+        self.build_worker_prompt = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "build-worker"
+            / "build-worker-agent.md"
+        )
+        self.product_journey = ROOT / "docs" / "plugin" / "product-journey.md"
+        self.init_dcness = ROOT / "docs" / "plugin" / "init-dcness.md"
 
     def test_agent_entrypoint_exists_and_points_to_prompt(self) -> None:
         text = self.entry.read_text(encoding="utf-8")
         self.assertRegex(text, r"(?m)^name:\s*product-acceptance$")
-        self.assertIn("tools: Read, Glob, Grep", text)
+        self.assertIn("tools: Read, Glob, Grep, Bash", text)
         self.assertIn("product-acceptance-agent.md", text)
 
     def test_prompt_defines_four_modes_and_final_enums(self) -> None:
@@ -139,9 +168,49 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.assertIn("여러 story 가 합쳐진 epic 동작", text)
         self.assertIn("마감 product-acceptance 가 맡는다", text)
 
-    def test_read_only_boundary_and_no_codex_route(self) -> None:
+    def test_write_zero_boundary_and_no_codex_route(self) -> None:
         self.assertEqual(ALLOW_MATRIX["product-acceptance"], ())
         self.assertNotIn("product-acceptance", ROUTABLE_VALIDATION_AGENTS)
+
+    def test_prompt_executes_declared_journey_without_modifying_tracked_sources(self) -> None:
+        text = self.prompt.read_text(encoding="utf-8")
+        for needle in (
+            "dcness-product-journey run",
+            "tracked 구현·설계 소스",
+            ".dcness-work/product-journey/",
+            "receipt 경로",
+            "사람 확인 잔여 목록",
+        ):
+            self.assertIn(needle, text)
+
+    def test_journey_taxonomy_build_handoff_and_acceptance_execution_align(self) -> None:
+        module_prompt = self.module_architect_prompt.read_text(encoding="utf-8")
+        template = self.impl_task_template.read_text(encoding="utf-8")
+        build_worker = self.build_worker_prompt.read_text(encoding="utf-8")
+        product_journey = self.product_journey.read_text(encoding="utf-8")
+        init_dcness = self.init_dcness.read_text(encoding="utf-8")
+        acceptance_skill = self.acceptance_skill.read_text(encoding="utf-8")
+        acceptance_routing = self.acceptance_routing.read_text(encoding="utf-8")
+        impl_loop_skill = self.impl_loop_skill.read_text(encoding="utf-8")
+        impl_loop_routing = self.impl_loop_routing.read_text(encoding="utf-8")
+
+        self.assertIn("(JOURNEY) <flow/매니페스트 경로>", template)
+        self.assertIn("양성 프록시", module_prompt)
+        self.assertIn("sub-second", module_prompt)
+        self.assertIn("setup/teardown/상태전이 스크립트", build_worker)
+        self.assertIn("PASS 블로커에서 제외", build_worker)
+        self.assertIn("acceptance 인계", build_worker)
+        self.assertIn("owner module/소스 영역", product_journey)
+        self.assertIn("build-worker", product_journey)
+        self.assertIn("product-acceptance", product_journey)
+        self.assertIn("owner module/소스 영역", init_dcness)
+        self.assertNotIn("project-local 계약 `.dcness/product-journey.json`", init_dcness)
+        self.assertIn("product-acceptance가", acceptance_skill)
+        self.assertIn("journey 매니페스트", acceptance_skill)
+        self.assertIn("product-acceptance가", acceptance_routing)
+        self.assertIn("journey 매니페스트", acceptance_routing)
+        self.assertIn("외부 상태 변경", impl_loop_skill)
+        self.assertIn("`(JOURNEY)` REQ는 PASS 블로커가 아니다", impl_loop_routing)
 
     def test_public_surface_contract_mentions_internal_agent(self) -> None:
         script = (ROOT / "scripts" / "check_public_surface.mjs").read_text(
@@ -157,7 +226,7 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.assertEqual(EXPECTED_FINAL_ENUMS["product-acceptance"], {None: "PASS"})
         self.assertIn("product-acceptance", EXPECTED_AGENT_BUDGETS)
         self.assertIn("product-acceptance", DCNESS_AGENT_NAMES)
-        self.assertIn("product-acceptance", READONLY_AGENTS)
+        self.assertNotIn("product-acceptance", READONLY_AGENTS)
         self.assertEqual(
             infer_phase("acceptance", "product-acceptance", "STORY_ACCEPTANCE"),
             "acceptance",

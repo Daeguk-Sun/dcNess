@@ -83,13 +83,18 @@ depends_on:             # [<NN-slug>, ...] 선행 task 순서의 단일 SSOT. se
 
 ## 수용 기준
 
-> 제품 REQ 는 Story AC 를 task 실행 언어로 번역하고 출처에 `(from AC-NNN)` 을 반드시 적는다. Story AC 로 환원되지 않는 스키마·인터페이스 형태 같은 소수 기술 계약만 `기술 REQ` + `(technical: <환원 불가 이유>)`로 구분한다. 검증은 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 닫고, 사람 판정 항목은 REQ 에 넣지 않는다.
+> 제품 REQ 는 Story AC 를 task 실행 언어로 번역하고 출처에 `(from AC-NNN)` 을 반드시 적는다. Story AC 로 환원되지 않는 스키마·인터페이스 형태 같은 소수 기술 계약만 `기술 REQ` + `(technical: <환원 불가 이유>)`로 구분한다. 검증은 실행 가능한 명령, `(AGENT READ)` 관찰 증거, 또는 실제 앱 실행이 필요한 `(JOURNEY)` flow로 닫고, 사람 판정 항목은 REQ 에 넣지 않는다.
 
 | REQ | 유형 | 내용 | 출처 | 검증 명령 | 통과 조건 |
 |---|---|---|---|---|---|
 | REQ-001 | Story AC |  | `(from AC-001)` | `(TEST) <command>` |  |
 | REQ-002 | Story AC |  | `(from AC-002)` | `(AGENT READ) <관찰 대상과 방법>` |  |
+| REQ-003 | Story AC | 로그인→홈 진입 | `(from AC-003)` | `(JOURNEY) <flow/매니페스트 경로>` | receipt outcome=PASS, app_started·journey_executed·assertion.passed=true, 대상 AC 전부 덮음 |
 | REQ-TECH-001 | 기술 REQ |  | `(technical: <Story AC로 환원 불가한 이유>)` | `(TEST) <command>` |  |
+
+> `(JOURNEY)`는 실제 앱/디바이스를 띄워야 하는 자동화 검증이다. build-worker 환경에서는 실행하지 않고 product-acceptance가 tip에서 실행한다. flow 대본과 journey 매니페스트는 build-worker 산출물이다. 사람 눈이 반드시 필요한 항목은 `(JOURNEY)`가 아니라 기존대로 REQ 밖 `사람 확인 안내`로 분리한다.
+>
+> negative 동작 계약은 대응하는 양성 프록시 event를 REQ 통과 조건에 명시한다. 양성 프록시가 없거나 관찰 창이 sub-second인 상태, 순수 위치·픽셀 판정은 flaky한 `(JOURNEY)`로 만들지 않고 `사람 확인 안내`로 분리한다.
 
 > `task_index: i/total` 에서 `i == total` 인 Story 마지막 task 는 해당 Story AC 전항목을 이 표에서 다시 인용하고 실제 실행·관찰하는 종합 검증 REQ 를 둔다. 앞 task 에서 검증한 항목도 마지막 task 전수 검증에서 생략하지 않는다. `story: 공통` task 에는 이 의무를 적용하지 않는다.
 

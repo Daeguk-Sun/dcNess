@@ -560,7 +560,7 @@ class ProductJourneyExecutionTests(unittest.TestCase):
 
 
 class ProductJourneyContractDocumentTests(unittest.TestCase):
-    def test_contract_and_main_workflows_define_execution_and_read_only_handoff(
+    def test_contract_and_workflows_define_acceptance_execution_and_write_zero_handoff(
         self,
     ) -> None:
         contract = (ROOT / "docs/plugin/product-journey.md").read_text(encoding="utf-8")
@@ -598,7 +598,9 @@ class ProductJourneyContractDocumentTests(unittest.TestCase):
         self.assertIn("assertion", product_acceptance)
         self.assertIn("ui_evidence.steps", product_acceptance)
         self.assertIn("present=true", product_acceptance)
-        self.assertIn("읽기 전용", product_acceptance)
+        self.assertIn("dcness-product-journey run", product_acceptance)
+        self.assertIn("write-zero", product_acceptance)
+        self.assertIn("tracked 구현·설계 소스", product_acceptance)
         self.assertIn("사용자 repo에 복사하지", init_contract)
         self.assertIn("dcness-product-journey", init_contract)
         self.assertIn(".dcness-work/product-journey/", deliverables)

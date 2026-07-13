@@ -68,7 +68,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 - system checkpoint 필요성: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision 변경이 필요하면 module-architect 내부에서 임의로 큰 그림을 확정하지 않고 `SYSTEM_CHECKPOINT_REQUIRED` 로 보고하는가.
 - task-local producer/consumer wiring, 기존 경계 안의 신규 epic-scope interface 상세, 반환 형식, push/pull 같은 구현 선택의 보강만 필요하면 module-architect 자율 범위로 남기는가. 이 보강만으로 `SYSTEM_CHECKPOINT_REQUIRED`를 emit하지 않는다. 해당 결론을 emit하려면 바꿔야 하는 **기존** boundary/policy/global decision을 하나 이상 구체적으로 지목해야 하며, 지목할 수 없으면 그 결론을 쓰지 않는다. 반대로 앞 Story/task가 이미 확정한 identity key, delete namespace, 실패 시 보존 의미를 뒤 Story 때문에 바꿔야 하면 기존 domain invariant/storage policy 변경이므로 checkpoint 대상이다. 자율 보강이 필요하다는 말은 열린 gap을 둔 채 PASS한다는 뜻이 아니며, 현재 run에서 보강을 반영하고 gap이 닫힌 뒤에만 PASS한다. read-only 검토처럼 현재 run에서 보강할 수 없으면 `SPEC_GAP_FOUND`로 보고한다.
 - 구현 여지: 내부 구현을 선점하지 않고 public behavior와 invariant만 고정하는가.
-- 테스트 가능성: 수용 기준이 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 닫히고, 사람 판정 항목은 별도 안내로 분리되는가.
+- 테스트 가능성: 수용 기준이 실행 가능한 명령, `(AGENT READ)` 관찰 증거, 또는 실앱 실행이 필요한 AC의 `(JOURNEY)` flow로 닫히고, 사람 판정 항목은 별도 안내로 분리되는가. negative 동작 계약은 대응하는 양성 프록시 event를 REQ에 명시하며, 프록시가 없거나 관찰 창이 sub-second인 상태·순수 위치/픽셀 판정은 `(JOURNEY)`가 아니라 `사람 확인 안내`로 분리하는가.
 - 모듈 설계 원칙: 작은 공개 노출 범위, 의존 주입, 의존 차단 증거가 보이는가.
 - 모듈 스코프 입력: impl task 의 `## 사전 준비` 가 `docs/conventions.md` 와 task-specific docs 만 포함하고, 그 밖의 전역 고정 문서 목록이나 module-local delta 를 중복시키지 않는가.
 - 흐름 누적 분해: 기존 대형 파일을 건드리는 task 에서 append 대신 흐름 / 섹션 모듈 신설을 선호하고, 이번 task 가 손대는 seam 까지만 분해하는가. 기준 = [`module-design-principles.md` 단일 파일 다중 흐름 누적](../_shared/module-design-principles.md#단일-파일-다중-흐름-누적).
@@ -90,7 +90,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 9. impl task frontmatter 에는 `depends_on` 만 의존·순서 메타로 남긴다. `risk` / `engine` / `risk_reason` / `depth` 를 새로 쓰지 않는다. `/impl-loop` 구현 주체는 build-worker 하나이며, 설계 중 드러난 범위·보안·데이터·외부 의존 리스크는 엔진 선택 메타가 아니라 `SYSTEM_CHECKPOINT_REQUIRED`, `NEW_DEP_ESCALATE`, `/design` 보강, 또는 사용자 위임으로 처리한다.
 10. public contract를 만들거나 바꾸면 epic `architecture.md` 의 모듈 목록 책임/공개 인터페이스와 `docs/decisions/NNNN-slug.md` 를 갱신하고 impl 문서는 관련 module/decision 참조만 남긴다. 신규 epic-scope decision 기록은 module-architect 가 자율 처리하지만, 기존 전역 decision 변경은 `SYSTEM_CHECKPOINT_REQUIRED` 로 checkpoint 승격한다. impl 문서에 invariant/ordering/error mode/config/forbidden alternative 전문을 복제하지 않는다. 계약 전문 복제 금지는 task-specific transition·실패 책임·acceptance 생략을 뜻하지 않는다. task 내부 한정 private interface 는 사본 문제가 없으므로 `## 인터페이스` 에 남긴다.
 11. DB, 디자인 토큰, 외부 의존 같은 영향 축이 있으면 별도 증거를 남긴다. 확정 목업이 있는 UI epic 에서는 목업 미참조 설계 금지 원칙에 따라 `## 디자인 참조` 에 확정 목업 경로, 핵심 디자인 토큰(색/spacing/typography), node-id 매핑, docs/design.md 토큰 대응, 의도적 차이를 남긴다. non-UI task 는 `## 디자인 참조` 섹션을 삭제한다.
-12. 제품 REQ 는 Story AC 를 task 실행 언어로 번역하고 `(from AC-NNN)` 출처를 필수로 적는다. 어느 AC 에도 대응하지 않는 제품 REQ 를 만들지 않는다. 스키마·인터페이스 형태처럼 Story AC 로 환원되지 않는 검증만 소수 `기술 REQ` 로 두고 `(technical: 이유)`를 남긴다. 검증은 실행 가능한 명령 또는 `(AGENT READ)` 관찰 대상과 통과 조건으로 닫는다.
+12. 제품 REQ 는 Story AC 를 task 실행 언어로 번역하고 `(from AC-NNN)` 출처를 필수로 적는다. 어느 AC 에도 대응하지 않는 제품 REQ 를 만들지 않는다. 스키마·인터페이스 형태처럼 Story AC 로 환원되지 않는 검증만 소수 `기술 REQ` 로 두고 `(technical: 이유)`를 남긴다. 검증은 실행 가능한 명령, `(AGENT READ)` 관찰 대상과 통과 조건, 또는 실앱 동작이 필요한 Story AC의 `(JOURNEY)` flow로 닫는다. `(JOURNEY)`에 특정 e2e 도구를 강제하지 않고 프로젝트 기존 도구로 build-worker가 flow를 작성하게 한다. negative 동작 계약에는 양성 프록시 event를 명시하고, 프록시가 없거나 관찰 창이 sub-second인 상태·순수 위치/픽셀 판정은 REQ 밖 `사람 확인 안내`로 분리한다.
 13. 각 Story 의 `task_index: total/total` 마지막 task 에 Story AC 전항목의 종합 검증 REQ 를 둔다. 앞 task에서 개별 AC를 검증했더라도 마지막 task 전수 실행에서 생략하지 않는다. `story: 공통` task 는 제외한다.
 14. 완료 전에 구현 세부 유출, Story AC ↔ REQ 커버리지, 무출처 REQ, 마지막 task 전수 검증, Story 동작 슬라이스 증거, 고위험 shared state producer/owner/consumer/transition 완결성, Agent Operability 증거, 코드 SSOT drift 를 다시 본다.
 
@@ -114,7 +114,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 - Root 갱신 조건을 대조했고 stable route/state가 바뀌면 실제 repo-relative 경로와 관련 epic/decision만 bounded Cartography에 반영했다. 상세 Story/impl topology는 epic에 남는다.
 - 확정 목업이 있는 UI epic 은 epic architecture 또는 impl task 의 `## 디자인 참조` 에 확정 목업 경로, 핵심 디자인 토큰(색/spacing/typography), node-id 매핑, docs/design.md 토큰 대조 근거가 있고, 목업 미참조 설계 금지 원칙을 어기지 않는다.
 - cross-task contract가 있으면 module responsibility 한 줄과 decision 문서에 의미가 있고 impl 문서는 module/decision 참조만 가리킨다. 구양식 Contract Ledger / Contract References 산출물은 기존 활성 프로젝트 호환을 위해 유효하지만, 이번에 새로 쓰거나 수정하는 신규 산출물은 사본 표를 만들지 않는다.
-- 수용 기준의 검증은 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거이며, 사람 판정 항목은 REQ 에 섞이지 않는다.
+- 수용 기준의 검증은 실행 가능한 명령, `(AGENT READ)` 관찰 증거, 또는 도구 중립 `(JOURNEY)` flow이며, 사람 판정 항목은 REQ 에 섞이지 않는다. negative 동작의 양성 프록시와 sub-second·순수 시각 판정의 사람 확인 분기도 명시된다.
 - `주의사항` 의 모듈 설계 주의 또는 동등한 문구로 모듈 설계 원칙 적용 증거가 남는다.
 - owner/entrypoint 요약 또는 동등한 문구로 다음 agent 의 edit target, state owner, produced/consumed transition, validation path 증거가 남는다.
 - legacy contract sync 요청에서는 신규 진본 module/decision, 구양식 사본을 참조로 줄인 patch 위치, 남은 stale 위치를 보고한다.
