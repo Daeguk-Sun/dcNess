@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -198,8 +200,8 @@ class ReleaseArtifactContractTests(unittest.TestCase):
 
         pre_push = (ROOT / "scripts/hooks/pre-push").read_text(encoding="utf-8")
         git_spec = (ROOT / "docs/plugin/git-spec.md").read_text(encoding="utf-8")
-        self.assertIn("main|master|HEAD|develop|release", pre_push)
-        self.assertIn("`release`", git_spec)
+        self.assertIn("is_dcness_release_remote", pre_push)
+        self.assertNotIn("scripts/sync_release.sh", git_spec)
         subprocess.run(
             [
                 "node",
@@ -213,16 +215,85 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             text=True,
             timeout=10,
         )
-        release_push = subprocess.run(
-            ["sh", str(ROOT / "scripts/hooks/pre-push")],
+        push_input = f"refs/heads/release {'a' * 40} refs/heads/release {'b' * 40}\n"
+        external_release_push = subprocess.run(
+            [
+                "sh",
+                str(ROOT / "scripts/hooks/pre-push"),
+                "origin",
+                "https://github.com/example/project.git",
+            ],
             cwd=ROOT,
-            input=f"refs/heads/release {'a' * 40} refs/heads/release {'b' * 40}\n",
+            input=push_input,
             check=False,
             capture_output=True,
             text=True,
             timeout=10,
         )
-        self.assertEqual(release_push.returncode, 0, release_push.stderr)
+        self.assertNotEqual(external_release_push.returncode, 0)
+        self.assertIn("브랜치명 형식 위반", external_release_push.stderr)
+
+        dcness_release_push = subprocess.run(
+            [
+                "sh",
+                str(ROOT / "scripts/hooks/pre-push"),
+                "origin",
+                "https://github.com/Daeguk-Sun/dcNess.git",
+            ],
+            cwd=ROOT,
+            input=push_input,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        self.assertEqual(dcness_release_push.returncode, 0, dcness_release_push.stderr)
+
+    def test_sync_release_fails_closed_when_contract_command_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            repo = tmp_path / "repo"
+            remote = tmp_path / "remote.git"
+            fake_bin = tmp_path / "bin"
+            (repo / "scripts").mkdir(parents=True)
+            fake_bin.mkdir()
+            shutil.copy2(ROOT / "scripts/sync_release.sh", repo / "scripts/sync_release.sh")
+            (repo / "runtime.txt").write_text("runtime\n", encoding="utf-8")
+            fake_python = fake_bin / "python3"
+            fake_python.write_text("#!/bin/sh\nexit 17\n", encoding="utf-8")
+            fake_python.chmod(0o755)
+
+            subprocess.run(["git", "init", "-q", "--bare", remote], check=True)
+            subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+            subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "test@example.com"],
+                check=True,
+            )
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "fixture"], check=True)
+            subprocess.run(["git", "-C", repo, "remote", "add", "origin", str(remote)], check=True)
+            subprocess.run(["git", "-C", repo, "push", "-q", "-u", "origin", "main"], check=True)
+
+            result = subprocess.run(
+                ["bash", "scripts/sync_release.sh", "--yes"],
+                cwd=repo,
+                env={**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"},
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=20,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("artifact 제외 계약을 읽지 못해 release sync를 중단합니다", result.stderr)
+            remote_release = subprocess.run(
+                ["git", "--git-dir", str(remote), "show-ref", "--verify", "refs/heads/release"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(remote_release.returncode, 0)
 
     def test_current_candidate_passes_runtime_smoke(self) -> None:
         result = _run(

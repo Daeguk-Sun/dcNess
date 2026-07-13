@@ -75,12 +75,20 @@ fi
 
 echo "→ dcness self 경로 제거..."
 REMOVED=()
+if ! EXCLUDED_PATHS=$(python3 scripts/release_artifact.py excluded-paths); then
+    echo "ERROR: artifact 제외 계약을 읽지 못해 release sync를 중단합니다." >&2
+    exit 1
+fi
+if [ -z "$EXCLUDED_PATHS" ]; then
+    echo "ERROR: artifact 제외 계약이 비어 있어 release sync를 중단합니다." >&2
+    exit 1
+fi
 while IFS= read -r p; do
     if [ -n "$(git ls-files "$p")" ]; then
         git rm -r --quiet "$p"
         REMOVED+=("$p")
     fi
-done < <(python3 scripts/release_artifact.py excluded-paths)
+done <<< "$EXCLUDED_PATHS"
 
 if [ ${#REMOVED[@]} -eq 0 ]; then
     echo "  제거 대상 없음 (이미 동기화 상태)."

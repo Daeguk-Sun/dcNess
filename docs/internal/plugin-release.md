@@ -37,6 +37,11 @@ transport/runtime metadata는 GitHub source update용 `.git`과 활성 사용 �
 payload footprint는 이 둘을 제외해 candidate와 비교하고, 실제 cache disk footprint를 보고할 때는
 metadata 크기를 별도로 병기한다.
 
+`release`는 사람이 작업하는 외부 프로젝트 브랜치 예외가 아니다. dcNess self의
+`sync_release.sh`가 공식 저장소 원격(`Daeguk-Sun/dcNess`, 이전 redirect `alruminum/dcNess`)에
+push할 때만 pre-push naming gate에서 기계 생성 배포 ref로 인정한다. artifact 제외 계약 조회가
+실패하거나 빈 결과를 내면 sync는 push 전에 fail-closed 한다.
+
 ```sh
 # 현재 ref의 비파괴 candidate + runtime smoke + footprint/context 분리 측정
 python3 scripts/release_artifact.py smoke --repo-root . --ref HEAD
