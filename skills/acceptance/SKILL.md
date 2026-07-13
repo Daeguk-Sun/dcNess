@@ -104,6 +104,18 @@ mode: STORY_ACCEPTANCE
 
 epic 단위는 story보다 깊게 본다. 핵심은 Epic 완료 기준과 Story AC 전항목, cross-story gap, cross-PR/story 통합 동작 증거, security/ops risk 다.
 
+### Epic 종료 실제 제품 확인
+
+모든 Story가 통합된 뒤 EPIC_ACCEPTANCE를 호출하기 직전에만 실제 제품 확인을 준비한다. 메인은 Epic 목표·완료 기준·Story AC·최신 결정을 함께 읽고 cross-story 사용자 가치를 가장 많이 통과하는 대표 흐름을 기본 1개 선정한다. 한 흐름으로 대표할 수 없는 독립 핵심 약속이 있을 때만 최대 2개를 제안한다. 특정 Story 번호를 공통 규칙으로 하드코딩하지 않는다.
+
+사용자에게는 다음 세 항목만 제품 언어로 보여주고 실제 제품 실행 전에 승인받는다.
+
+- 실행할 내용
+- 성공으로 볼 결과
+- 정리할 테스트 데이터
+
+사용자에게 JSON, 내부 helper 명령, journey/contract 같은 내부 용어를 요구하거나 학습시키지 않는다. 승인 전에는 설정 파일을 만들거나 앱을 실행하지 않는다. 승인 뒤 메인이 ignored `.dcness-work/product-journey-contracts/<epic>/`에 흐름별 내부 설정을 만들며, 각 설정은 Epic·대표 Story·대상 AC·현재 code revision·실행 환경·테스트 데이터 정리를 보존한다. receipt는 `.dcness-work/product-journey/<epic>/`에 격리해 다른 Epic 결과와 섞지 않는다.
+
 호출:
 
 ```
@@ -121,6 +133,7 @@ mode: EPIC_ACCEPTANCE
 - <cross-story 통합 동작 증거: 타입검사/compile, 실데이터 통합 테스트, UI 자동화, API/CLI smoke 등>
 - <cross-story 사용자 입력/진행 동선: 대상 사용자에게 자연스러운 흐름인지>
 - <implementation Cartography impact + affected Root Cartography + 상태 증거 + 관련 epic/decision + 문서 정책>
+- <승인된 대표 흐름별 receipt + Epic/대표 Story/대상 AC/code revision/실행 환경 + 단계별 화면·상태·log 증거>
 """)
 ```
 
@@ -133,31 +146,34 @@ mode: EPIC_ACCEPTANCE
 - 여러 PR/story 를 합친 핵심 사용자 흐름이 내부 schema/payload 조립이 아니라 대상 사용자의 작업 언어로 진행되는가.
 - security/ops risk 가 새로 생겼는데 후속 없이 묻히지 않았는가.
 - epic이 인수한 `planned/stub/deferred` capability와 `landed` 주장을 실제 제품 동작·검증 증거 및 affected Root Cartography에 대조했는가.
+- 대표 흐름이 실제 앱 경계에서 실행됐고 receipt의 Epic·대표 Story·대상 AC·code revision·실행 환경이 현재 검수 대상과 일치하는가.
 
 ### Cartography freshness 후속
 
-standalone `/acceptance`는 tracked 구현·설계에 대해 읽기 전용을 유지하며 stale Root를 직접 수정하지 않는다. 명시된 project-local journey 계약 실행이 만드는 ignored evidence만 예외다. product-acceptance prose의 gap을 메인이 읽고 다음 producer를 명시한다.
+standalone `/acceptance`는 tracked 구현·설계에 대해 읽기 전용을 유지하며 stale Root를 직접 수정하지 않는다. 사용자 승인 뒤 만드는 ignored Epic별 내부 확인 설정과 명시된 project-local journey 계약 실행이 만드는 ignored evidence만 예외다. product-acceptance prose의 gap을 메인이 읽고 다음 producer를 명시한다.
 
 - 영향 없음 또는 Root와 일치: 기존 완료 후보 보고를 계속한다.
 - system boundary가 유지된 route/state/as-built edge 또는 capability 상태 drift: 기존 `module-architect:CARTOGRAPHY_REFRESH`가 affected Root Cartography 좌표만 bounded refresh해야 한다고 보고한다. local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local Root 갱신 또는 exact durable impact handoff를 다음 producer에 남긴다. durable impact handoff만으로 freshness가 해소되지는 않으므로 canonical local Root refresh 확인 전에는 PASS하지 않는다.
 - system boundary·global decision 변경: route-only refresh로 흡수하지 않고 `/design --revise` 또는 system checkpoint backpressure를 보고한다.
 
-standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을 수정하지 않는다. project-local journey 계약이 있으면 ignored `.dcness-work/product-journey/` evidence만 생성할 수 있다. direct `/impl`에서 acceptance가 생략되더라도 impl-validator 종료 경계가 최소 Cartography freshness 책임을 가진다.
+standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을 수정하지 않는다. 승인된 Epic이면 ignored `.dcness-work/product-journey-contracts/` 설정과 `.dcness-work/product-journey/` evidence만 생성할 수 있다. direct `/impl`에서 acceptance가 생략되더라도 impl-validator 종료 경계가 최소 Cartography freshness 책임을 가진다.
 
 ## 절차
 
 1. 입력 단위가 story 인지 epic 인지 확인한다.
-2. 핵심 journey가 검수 대상이고 `.dcness/product-journey.json` 또는 호출자가 지정한 동등한 project-local 계약이 있으면, 메인이 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `dcness-product-journey`를 실행한다. 생성된 receipt와 log 경로를 다음 prompt에 넣고, UI boundary이면 단계별 screenshot/state/log 경로도 함께 넣는다. exit 1 receipt도 gap 증거로 전달하며 mock-only/app-not-started/journey 미실행/assertion 미평가/UI evidence 누락을 PASS로 바꾸지 않는다.
-3. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE` 를 호출한다.
-4. `PASS`면 완료 후보로 보고한다.
-5. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `module-architect:CARTOGRAPHY_REFRESH` 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
-6. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
-7. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
+2. epic이면 모든 Story 통합을 확인하고 위 규칙으로 대표 흐름을 제안해 사용자 승인을 받는다. story이면 기존 단일 journey 계약만 본다.
+3. 승인된 Epic별 계약, `.dcness/product-journey.json`, 또는 호출자가 지정한 동등한 project-local 계약을 메인이 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 실행한다. 생성된 receipt와 log 경로를 다음 prompt에 넣고, UI boundary이면 단계별 screenshot/state/log 경로도 함께 넣는다. exit 1 receipt도 gap 증거로 전달하며 mock-only/app-not-started/journey 미실행/assertion 미평가/UI evidence 누락을 PASS로 바꾸지 않는다.
+4. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE` 를 호출한다.
+5. 검수 뒤 대표 흐름 결과·전체 Story AC evidence·회귀·사람 확인·남은 gap·Epic 종료 가능 여부를 제품 언어의 Epic 결과 요약으로 자동 보고한다. Python 원시 scorecard, JSON, 내부 helper 명령을 기본 출력으로 보여주지 않는다.
+6. `PASS`면 완료 후보로 보고한다.
+7. `FAIL`이면 관련 Story·AC와 다음 구현 경로를 포함해 close 보류를 보고한다. 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 남긴다. Cartography gap이면 affected Root Cartography, `module-architect:CARTOGRAPHY_REFRESH` 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
+8. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
+9. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-product-journey" run \
   --project-root "$PROJECT_ROOT" \
-  --config .dcness/product-journey.json
+  --config .dcness-work/product-journey-contracts/<epic>/<flow>.json
 ```
 
 ```bash
@@ -169,7 +185,7 @@ standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을
 
 ## 워크트리
 
-`/acceptance` 는 검수 skill 이므로 워크트리 자동 진입 없음. 메인이 명시된 project-local journey 계약을 실행할 때만 ignored `.dcness-work/product-journey/` evidence를 생성할 수 있다. `product-acceptance` agent는 계속 읽기 전용이며 GitHub issue 생성, 구현 코드 수정, PR 생성/머지는 수행하지 않는다.
+`/acceptance` 는 검수 skill 이므로 워크트리 자동 진입 없음. 메인이 사용자 승인 뒤 Epic별 내부 확인 설정과 실행 evidence를 ignored `.dcness-work/product-journey-contracts/`, `.dcness-work/product-journey/`에 만들 수 있다. `product-acceptance` agent는 계속 읽기 전용이며 GitHub issue 생성, 구현 코드 수정, PR 생성/머지는 수행하지 않는다.
 
 ## 참조
 

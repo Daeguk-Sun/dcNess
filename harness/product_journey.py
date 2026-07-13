@@ -19,10 +19,12 @@ from typing import Any, BinaryIO, Optional
 
 
 CONFIG_REL = Path(".dcness/product-journey.json")
+EPIC_CONFIG_ROOT_REL = Path(".dcness-work/product-journey-contracts")
 EVIDENCE_ROOT_REL = Path(".dcness-work/product-journey")
 SCHEMA_VERSION = 1
 RECEIPT_TYPE = "dcness.product-journey"
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
+_REVISION_RE = re.compile(r"^[0-9a-f]{40,64}$")
 _BOUNDARIES = {"api", "cli", "integration", "mock", "ui"}
 _ASSERTION_SOURCES = {"journey_exit", "none"}
 _PHASES = ("start", "health", "journey", "cleanup")
@@ -122,6 +124,98 @@ def _resolve_evidence_root(project_root: Path, raw: object) -> Path:
             f"evidence_dir must stay under {EVIDENCE_ROOT_REL.as_posix()}"
         ) from exc
     return resolved
+
+
+def _current_code_revision(project_root: Path) -> str:
+    try:
+        completed = subprocess.run(  # nosec B603, B607
+            ["git", "-C", str(project_root), "rev-parse", "HEAD"],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise JourneyConfigError(f"cannot read current code_revision: {exc}") from exc
+    revision = completed.stdout.strip().lower()
+    if completed.returncode != 0 or not _REVISION_RE.fullmatch(revision):
+        raise JourneyConfigError("current code_revision is unavailable")
+    try:
+        status = subprocess.run(  # nosec B603, B607
+            [
+                "git",
+                "-C",
+                str(project_root),
+                "status",
+                "--porcelain",
+                "--untracked-files=all",
+                "--",
+                ".",
+                ":(exclude).dcness-work",
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise JourneyConfigError(f"cannot inspect product working tree: {exc}") from exc
+    if status.returncode != 0:
+        raise JourneyConfigError("product working tree status is unavailable")
+    if status.stdout.strip():
+        raise JourneyConfigError(
+            "product working tree has uncommitted changes outside .dcness-work"
+        )
+    return revision
+
+
+def _validated_epic_scope(
+    project_root: Path,
+    config_path: Path,
+    config: dict[str, Any],
+    evidence_root: Path,
+) -> None:
+    raw_epic = config.get("epic")
+    if raw_epic is None:
+        return
+    if not isinstance(raw_epic, dict):
+        raise JourneyConfigError("epic must be an object")
+    epic_id = _require_text(raw_epic, "id")
+    if not _ID_RE.fullmatch(epic_id):
+        raise JourneyConfigError("epic.id must be a valid id")
+    representative_story = _require_text(raw_epic, "representative_story")
+    if not _ID_RE.fullmatch(representative_story):
+        raise JourneyConfigError("epic.representative_story must be a valid id")
+    revision = _require_text(raw_epic, "code_revision").lower()
+    if not _REVISION_RE.fullmatch(revision):
+        raise JourneyConfigError("epic.code_revision must be a full git revision")
+    execution_environment = _require_text(raw_epic, "execution_environment")
+    test_data_cleanup = _require_text(raw_epic, "test_data_cleanup")
+
+    expected_config_root = (project_root / EPIC_CONFIG_ROOT_REL / epic_id).resolve()
+    try:
+        config_path.relative_to(expected_config_root)
+    except ValueError as exc:
+        raise JourneyConfigError(
+            f"epic config must stay under {EPIC_CONFIG_ROOT_REL.as_posix()}/{epic_id}"
+        ) from exc
+    expected_evidence_root = (project_root / EVIDENCE_ROOT_REL / epic_id).resolve()
+    if evidence_root != expected_evidence_root:
+        raise JourneyConfigError(
+            f"epic evidence_dir must be {EVIDENCE_ROOT_REL.as_posix()}/{epic_id}"
+        )
+    actual_revision = _current_code_revision(project_root)
+    if revision != actual_revision:
+        raise JourneyConfigError(
+            "epic.code_revision does not match the current product revision"
+        )
+    config["epic"] = {
+        "id": epic_id,
+        "representative_story": representative_story,
+        "code_revision": revision,
+        "execution_environment": execution_environment,
+        "test_data_cleanup": test_data_cleanup,
+    }
 
 
 def _validated_ui_evidence(config: dict[str, Any]) -> None:
@@ -242,6 +336,7 @@ def _validated_config(
     evidence_root = _resolve_evidence_root(
         project_root, config.get("evidence_dir", EVIDENCE_ROOT_REL.as_posix())
     )
+    _validated_epic_scope(project_root, config_path, config, evidence_root)
     return config, evidence_root
 
 
@@ -580,12 +675,17 @@ def run_from_config(
     }
     if ui_evidence is not None:
         receipt["ui_evidence"] = ui_evidence
+    if "epic" in config:
+        receipt["epic"] = dict(config["epic"])
     _write_receipt(receipt_path, receipt)
     return JourneyRunResult(0 if outcome == "PASS" else 1, receipt_path, receipt)
 
 
 def read_receipts(
-    project_root: Path | str, *, cutoff: Optional[datetime] = None
+    project_root: Path | str,
+    *,
+    cutoff: Optional[datetime] = None,
+    epic_id: Optional[str] = None,
 ) -> list[dict[str, Any]]:
     """Read structurally valid helper-generated receipts for scorecard aggregation."""
     root = Path(project_root).expanduser().resolve()
@@ -604,6 +704,11 @@ def read_receipts(
             continue
         measured = _parse_ts(payload.get("measured_at"))
         if cutoff is not None and (measured is None or measured > cutoff):
+            continue
+        epic = payload.get("epic")
+        if epic_id is not None and (
+            not isinstance(epic, dict) or epic.get("id") != epic_id
+        ):
             continue
         normalized = dict(payload)
         normalized["receipt_path"] = _relative(path, root)
@@ -687,12 +792,50 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
         return False
     if payload["outcome"] == "FAIL" and (passed != 0 or not failure_reasons):
         return False
+    epic = payload.get("epic")
+    if epic is not None and not _valid_epic_receipt(epic, project_root, receipt_path):
+        return False
     if boundary == "ui":
         if not _valid_ui_receipt(payload, project_root, receipt_path):
             return False
     elif "ui_evidence" in payload:
         return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
+
+
+def _valid_epic_receipt(
+    epic: object, project_root: Path, receipt_path: Path
+) -> bool:
+    if not isinstance(epic, dict):
+        return False
+    if set(epic) != {
+        "id",
+        "representative_story",
+        "code_revision",
+        "execution_environment",
+        "test_data_cleanup",
+    }:
+        return False
+    epic_id = epic.get("id")
+    representative_story = epic.get("representative_story")
+    revision = epic.get("code_revision")
+    if not isinstance(epic_id, str) or not _ID_RE.fullmatch(epic_id):
+        return False
+    if not isinstance(representative_story, str) or not _ID_RE.fullmatch(
+        representative_story
+    ):
+        return False
+    if not isinstance(revision, str) or not _REVISION_RE.fullmatch(revision):
+        return False
+    for key in ("execution_environment", "test_data_cleanup"):
+        if not isinstance(epic.get(key), str) or not epic[key].strip():
+            return False
+    expected_root = (project_root / EVIDENCE_ROOT_REL / epic_id).resolve()
+    try:
+        receipt_path.resolve().relative_to(expected_root)
+    except ValueError:
+        return False
+    return True
 
 
 def _valid_ui_receipt(

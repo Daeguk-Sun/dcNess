@@ -68,7 +68,7 @@ Cartography freshness는 SSOT·entrypoint·owner 후보와 stale 여부의 입�
 - mock-only green, guard PASS, validator PASS, PR merge만으로 outcome PASS를 만들지 않는다.
 - regression은 이전에 통과한 제품 동작이 같은 조건에서 깨졌는지 별도 필드로 둔다.
 
-제품 journey 실행 계약과 receipt 필드는 [`product-journey.md`](product-journey.md)가 소유한다. `harness/outcome_scorecard.py`는 해당 helper가 `.dcness-work/product-journey/`에 남긴 유효 receipt를 읽어 journey PASS/전체와 제품 AC passed/total, source 수, 사람 개입, 실행 증거 종류를 별도로 집계한다. `--source-ref`로 고정한 source가 process run ledger 없이 유효 product journey receipt만 가진 경우에도 제품 outcome source로 재현할 수 있으며, process 축은 `측정 불가`로 남긴다. ledger와 receipt가 모두 없을 때만 `source_data_unavailable`이다.
+제품 journey 실행 계약과 receipt 필드는 [`product-journey.md`](product-journey.md)가 소유한다. `harness/outcome_scorecard.py`는 해당 helper가 `.dcness-work/product-journey/`에 남긴 유효 receipt를 읽어 journey PASS/전체와 제품 AC passed/total, source 수, 사람 개입, 실행 증거 종류를 별도로 집계한다. Epic 종료 workflow는 현재 Epic 경로의 receipt만 제품 언어 요약에 사용해 다른 Epic 결과를 섞지 않으며, 전체 fleet scorecard 원시값을 사용자 승인·종료 판단 UI로 노출하지 않는다. `--source-ref`로 고정한 source가 process run ledger 없이 유효 product journey receipt만 가진 경우에도 제품 outcome source로 재현할 수 있으며, process 축은 `측정 불가`로 남긴다. ledger와 receipt가 모두 없을 때만 `source_data_unavailable`이다.
 
 ## 주장 가능 범위
 

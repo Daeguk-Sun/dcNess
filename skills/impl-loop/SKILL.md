@@ -229,9 +229,15 @@ story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후
 
 최종 main 대상 PR 이 여러 story 를 닫으면 `product-acceptance:STORY_ACCEPTANCE` 를 story × N 으로 수행한 뒤, epic close 가 실제 발동되면 `product-acceptance:EPIC_ACCEPTANCE` 를 1회 수행한다. gap 수정 commit 이 생기면 이전 STORY PASS 는 stale 이므로 STORY_ACCEPTANCE 부터 다시 돌린다.
 
+Epic close에서는 모든 Story가 통합된 최종 merge candidate가 준비된 뒤에만 Epic 목표·완료 기준·Story AC·최신 결정을 읽어 cross-story 사용자 가치를 가장 많이 통과하는 대표 흐름을 기본 1개 선정한다. 한 흐름으로 대표할 수 없는 독립 핵심 약속이 있을 때만 최대 2개를 제안하며, 특정 Story 번호를 공통 규칙으로 하드코딩하지 않는다.
+
+사용자에게 실행할 내용·성공으로 볼 결과·정리할 테스트 데이터를 자연어로 보여주고 실제 제품 실행 전에 승인받는다. JSON, 내부 helper 명령, journey/contract 같은 내부 용어를 사용자에게 요구하지 않는다. 승인 전에는 설정 생성과 제품 실행을 하지 않는다. 승인 뒤 메인이 ignored `.dcness-work/product-journey-contracts/<epic>/`에 흐름별 설정을 만들고 Epic·대표 Story·대상 AC·현재 code revision·실행 환경·테스트 데이터 정리를 고정한다. receipt는 `.dcness-work/product-journey/<epic>/`에 격리해 다른 Epic 결과와 섞지 않는다.
+
 product-acceptance 는 read-only 라 `gh` 호출 불가다. PR 목록·검증 결과·동작 증거·UI 목업 정합 증거와 build-worker Cartography impact, affected Root Cartography 좌표, 상태 증거, 관련 epic/decision을 메인이 prompt 에 직접 담는다. UI task 는 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 함께 넣어 목업 불일치와 화면 증거 부재를 판정할 수 있게 한다. 핵심 AC 증거가 mock-only green 이거나 대상 사용자에게 부적합한 입력/진행 동선이면 gap 이다.
 
-핵심 journey가 마감 AC이고 project-local 계약이 있으면, 메인이 product-acceptance 호출 직전에 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `"$PLUGIN_ROOT/scripts/dcness-product-journey" run --project-root "$PROJECT_ROOT" --config <contract>`를 실행한다. 생성된 receipt와 log를 prompt에 넣고 UI boundary이면 단계별 screenshot/state/log 경로도 함께 넣는다. exit 1은 구현 gap 증거이며 mock-only, app-not-started, journey 미실행, assertion 미평가, UI evidence 누락을 PASS로 세지 않는다. helper가 쓰는 영역은 ignored `.dcness-work/product-journey/`로 한정되고 product-acceptance agent는 수정하지 않는다.
+핵심 journey가 마감 AC이고 승인된 Epic별 계약 또는 기존 project-local 계약이 있으면, 메인이 product-acceptance 호출 직전에 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `"$PLUGIN_ROOT/scripts/dcness-product-journey" run --project-root "$PROJECT_ROOT" --config <contract>`를 실행한다. 생성된 receipt와 log를 prompt에 넣고 UI boundary이면 단계별 screenshot/state/log 경로도 함께 넣는다. exit 1은 구현 gap 증거이며 mock-only, app-not-started, journey 미실행, assertion 미평가, UI evidence 누락을 PASS로 세지 않는다. helper가 쓰는 영역은 ignored `.dcness-work/product-journey/`로 한정되고 product-acceptance agent는 수정하지 않는다.
+
+product-acceptance 뒤에는 Python 원시 scorecard 대신 대표 흐름 결과·전체 Story AC evidence·회귀·사람 확인·남은 gap·Epic 종료 가능 여부를 제품 언어의 Epic 결과 요약으로 자동 보고한다. 실제 제품 확인 또는 product-acceptance가 FAIL이면 관련 Story·AC와 다음 구현 경로를 명시하고 close를 보류한다.
 
 호출:
 

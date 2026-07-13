@@ -70,7 +70,7 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 
 `docs/index.md` 의 epic/module 표와 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. 전역 architecture 인간용 요약은 필요할 때 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 로 `.dcness-work/reports/architecture-map.md` 에 온디맨드 생성한다. `/design` 산출물 구조 감사도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
 
-제품 journey runner도 사용자 repo에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/dcness-product-journey`)로 제공한다. project-local 계약 `.dcness/product-journey.json`은 opt-in이며 `/init-dcness`가 자동 생성하거나 덮어쓰지 않는다. UI journey도 같은 계약과 helper를 재사용하고 project-owned command가 단계별 화면 증거를 생성한다. 실행 receipt와 log는 기존 ignored `.dcness-work/product-journey/`에 남고 [`outcome-scorecard.md`](outcome-scorecard.md)가 집계한다. 계약과 판정 경계는 [`product-journey.md`](product-journey.md)가 소유한다.
+제품 journey runner도 사용자 repo에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/dcness-product-journey`)로 제공한다. project-local 계약 `.dcness/product-journey.json`은 opt-in이며 `/init-dcness`가 자동 생성하거나 덮어쓰지 않는다. 모든 Story가 통합된 Epic 종료 검수에서만 메인 workflow가 사용자 승인 뒤 ignored `.dcness-work/product-journey-contracts/<epic>/`에 Epic별 내부 확인 설정을 만든다. UI journey도 같은 계약과 helper를 재사용하고 project-owned command가 단계별 화면 증거를 생성한다. 실행 receipt와 log는 Epic별 `.dcness-work/product-journey/<epic>/`에 남고 [`outcome-scorecard.md`](outcome-scorecard.md)가 집계한다. 빈 프로젝트는 `실행 가능한 Epic 없음`이 정상 상태이며 `/init-dcness`가 대표 흐름이나 제품 확인 설정을 묻지 않는다. 계약과 판정 경계는 [`product-journey.md`](product-journey.md)가 소유한다.
 
 ## Provider Mirror Sync
 
