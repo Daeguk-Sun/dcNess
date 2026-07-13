@@ -169,6 +169,8 @@ Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bun
 
 core 작업 뒤 `status` 를 재실행한다. FAIL 이 0 이면 INFO·NA 행과 선택 WARN 이 남아도 즉시 완료를 먼저 출력한다.
 
+활성화 직후에는 제품 검수를 구성하지 않는다. `docs/epics/**/stories.md`에 모든 Story가 통합된 실행 가능 Epic이 없으면 `실행 가능한 Epic 없음 — 구현할 Epic이 준비되면 종료 검수에서 실제 제품 흐름을 제안합니다`를 정상 INFO로 설명한다. 특히 빈 프로젝트에서는 대표 흐름이나 제품 확인 설정을 묻지 않는다. 이 상태는 활성화 실패나 미완료 설정이 아니다.
+
 ```bash
 "$HELPER" status
 ```

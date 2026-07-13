@@ -39,6 +39,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - UI 자동화는 브라우저/앱 자동화, component interaction, screenshot/assertion, visual smoke 같은 증거를 포함한다. 사람의 수동 E2E만 요구하지 않는다.
 - mock/stub/fake 기반 unit test 는 보조 증거다. 핵심 AC가 mock-only green으로만 뒷받침되고 API/CLI/UI/통합 wiring/compile-time contract 중 어떤 실제 경계도 확인되지 않았으면 gap 이다.
 - project-local journey receipt가 있으면 `app_started=true`, `journey_executed=true`, assertion `evaluated=true`와 `passed=true`, non-mock boundary, 대상 AC 대응을 함께 확인한다. UI boundary이면 두 단계 이상의 `ui_evidence.steps`, 모든 대상 AC를 덮는 final 단계, 각 evidence의 `present=true`와 SHA-256, 실제 화면 상태 설명을 추가로 확인한다. 하나라도 빠지거나 receipt outcome이 FAIL이면 제품 outcome PASS로 판정하지 않는다. receipt와 log·screenshot은 읽기 전용으로 대조하며 검증자가 다시 실행하거나 수정하지 않는다.
+- Epic별 receipt가 있으면 Epic·대표 Story·대상 AC·code revision·실행 환경이 현재 검수 대상과 일치하고 다른 Epic evidence가 섞이지 않았는지 확인한다.
 - TypeScript, typed Python, Rust, Go 처럼 정적 타입검사나 compile gate 가 의미 있는 stack 에서 typecheck/compile 증거가 전혀 없으면 품질 게이트 warning 으로 보고한다. warning 자체만으로 FAIL 을 만들지는 않지만, 그 부재 때문에 핵심 AC의 wiring/contract 동작을 증명할 수 없으면 FAIL gap 이다.
 
 ### UI 목업 정합 판정 (STORY / EPIC 공통)
@@ -125,6 +126,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - 문서 정책: local-only/ignored private docs를 code PR에 강제 포함하지 않고 local refresh 또는 durable impact handoff가 다음 경계까지 보존됐는지 확인한다.
 - 비용, 성능, migration, 배포 설정 같은 운영 리스크가 출시 판단을 막지 않는지 확인한다.
 - 남은 gap 은 `/impl`, `/design`, `/spec`, `/ux`, `/to-issue`, 사용자 위임 같은 후속으로 분기 가능하게 쓴다.
+- 실제 제품 확인 또는 본 검수가 FAIL이면 관련 Story·AC와 다음 구현 경로를 구체적으로 제시하고 Epic close 보류를 명시한다.
 - 성능 병목 / 리팩토링 필요는 `/to-issue` 후보 + `/impl` 또는 `/design` 으로 제안한다.
 - 보안 / 권한 / 데이터 리스크는 `/to-issue` 후보 + `/design` 또는 사용자 위임으로 제안한다.
 
@@ -182,6 +184,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - UI story/epic 이면 확정 목업 경로, 구현 화면 스크린샷 또는 화면 증거 경로, UI 목업 정합 판정 결과
 - STORY / EPIC 검수 보고에는 사용자가 지금 직접 확인할 수 있는 실행 동선(실행 명령, 화면 진입 경로 등) 안내. 호출자 제공 증거에서 확인된 동선만 쓰고, 불명이면 불명이라고 쓴다. 확인 가능한 동작이 아직 없으면 그 사실을 쓴다.
 - EPIC 검수 보고에는 epic이 인수한 capability 상태, affected Root 좌표, 상태 증거, route-only refresh 또는 system backpressure 여부를 포함한다.
+- EPIC 검수 보고에는 대표 흐름 결과, 전체 Story AC evidence, 회귀, 사람 확인, 남은 gap, Epic 종료 가능 여부를 제품 언어로 포함한다. JSON, Python 원시 scorecard, 내부 helper 명령은 기본 보고에 노출하지 않는다.
 
 마지막 단락에는 `PASS`, `FAIL`, `ESCALATE` 중 하나를 쓴다.
 
