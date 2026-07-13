@@ -88,7 +88,7 @@ non-UI journey 실행 계약과 receipt 필드는 [`product-journey.md`](product
 
 ## 현재 baseline 재현
 
-외부 활성 프로젝트의 현재 process baseline은 [`outcome-baseline.md`](../internal/outcome-baseline.md)에 시점 snapshot으로 남긴다. 재현기는 기존 fleet 집계기를 재사용한다.
+외부 활성 프로젝트의 현재 process baseline은 [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md)에 시점 snapshot으로 남긴다. 재현기는 기존 fleet 집계기를 재사용한다.
 
 ```sh
 python3 "$DCN"/harness/outcome_scorecard.py --redact-paths

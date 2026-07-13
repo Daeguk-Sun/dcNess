@@ -21,18 +21,18 @@
 
 | 공식 용어 | 피할 표현 | 정의 | 예시 | 소유 SSOT |
 |---|---|---|---|---|
-| 중대 차단 | `catastrophic` | dcNess 가 코드로 막는 최소 위반 범주. 작업 순서와 접근 영역처럼 되돌리기 비용이 큰 경계만 뜻한다. | 중대 차단은 형식 위반이나 비용 경고를 자동으로 막지 않는다. | [`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일), [`hooks.md`](hooks.md) |
+| 중대 차단 | `catastrophic` | dcNess 가 코드로 막는 최소 위반 범주. 작업 순서와 접근 영역처럼 되돌리기 비용이 큰 경계만 뜻한다. | 중대 차단은 형식 위반이나 비용 경고를 자동으로 막지 않는다. | [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일), [`hooks.md`](hooks.md) |
 | 순서 차단 훅 | `catastrophic gate`, `catastrophic-gate` | sub-agent 호출 순서와 진행 step 순서를 막는 Claude Code hook. 파일명은 `catastrophic-gate.sh` 를 유지한다. | build-worker 는 설계 산출물 확보 후에만 순서 차단 훅을 통과한다. | [`hooks.md`](hooks.md#catastrophic-gatesh) |
 | 작업 순서 보호 | `catastrophic 시퀀스` | validator, worker, reviewer 같은 단계의 선후관계를 보존하는 목적 설명. | 작업 순서 보호는 build-worker 설계 사전 조건과 begin-step 순서를 보존한다. | [`hooks.md`](hooks.md#catastrophic-gatesh), [`loop-procedure.md`](loop-procedure.md) |
 | 외부 상태 변경 | `mutation`, `mutating` | repo 밖 또는 원격 상태를 바꾸는 행동. `git push`, PR 생성/머지/리뷰 제출, GitHub issue 생성/수정/닫기 등이 포함된다. | sub-agent 의 `gh pr merge` 는 외부 상태 변경이라 메인 영역이다. | [`harness/agent_boundary.py`](../../harness/agent_boundary.py), [`hooks.md`](hooks.md#file-guardsh) |
 | 외부 변경 차단 목록 | `mutation denylist` | sub-agent Bash/MCP 호출에서 흔한 외부 상태 변경 명령을 막는 실수 방지 목록. 보안 경계가 아니라 best-effort guard 다. | 외부 변경 차단 목록은 `git push` 와 `gh pr create` 를 차단한다. | [`harness/agent_boundary.py`](../../harness/agent_boundary.py), [`hooks.md`](hooks.md#file-guardsh) |
 | 공개 진입점 | `public surface`, `workflow surface` | 사용자가 `/` command 로 기억하고 호출하는 workflow 이름. | 기본 공개 진입점은 `/spec`, `/design`, `/impl`, `/acceptance` 다. | [`positioning.md`](positioning.md) |
-| 공개 노출 범위 | `surface` | command 외에도 사용자에게 안정 계약처럼 보이는 문서, API, config, field 이름까지 포함하는 넓은 표현. | 새 공개 노출 범위를 추가하면 PR 에 justification 을 적는다. | [`positioning.md`](positioning.md), [`scripts/check_public_surface.mjs`](../../scripts/check_public_surface.mjs) |
+| 공개 노출 범위 | `surface` | command 외에도 사용자에게 안정 계약처럼 보이는 문서, API, config, field 이름까지 포함하는 넓은 표현. | 새 공개 노출 범위를 추가하면 PR 에 justification 을 적는다. | [`positioning.md`](positioning.md), [`scripts/check_public_surface.mjs`](https://github.com/Daeguk-Sun/dcNess/blob/main/scripts/check_public_surface.mjs) |
 | 구현 경로 | `lane` | `/impl` 안에서 사용자에게 echo 하는 내부 처리 이름. 현재 값은 issue-intake / direct / design-doc 다. | 파일·이슈·테스트 같은 concrete signal 이 있으면 direct 구현 경로다. | [`workflow-router.md`](workflow-router.md), [`skills/impl/impl-routing.md`](../../skills/impl/impl-routing.md) |
 | 분기 규칙 | `routing` | 자유 형식 요청, agent 결론, retry/escalate 를 다음 단계로 보내는 판단 기준. | `/impl` 의 high-risk 신호는 설계 선행 권고이지 자동 차단이 아니다. | [`workflow-router.md`](workflow-router.md), 각 skill 의 `<skill>-routing.md` |
 | 다음 호출 판단 | `agent routing` | agent 결론 prose 를 읽고 어떤 agent/step 을 다음에 호출할지 정하는 좁은 의미. | `FAIL` 이면 다음 호출 판단은 해당 skill 의 분기 규칙 문서가 소유한다. | [`loop-procedure.md`](loop-procedure.md#enum-분기), 각 skill 의 `<skill>-routing.md` |
 | 사전 조건 | `prerequisite` | 특정 gate 나 workflow 진입 전에 이미 충족되어야 하는 조건. | design-doc 구현 경로는 설계 산출물 사전 조건을 `--design-doc` 으로 기록한다. | [`hooks.md`](hooks.md#catastrophic-gatesh), [`skills/impl/SKILL.md`](../../skills/impl/SKILL.md) |
-| 자유서술 방식 | `prose-only` | agent 가 고정 JSON/schema/marker 없이 prose 로 보고하고, 메인 Claude 가 prose 를 직접 읽어 판단하는 방식. | 자유서술 방식에서도 마지막 단락의 결론 단어와 근거는 명확해야 한다. | [`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일), [`loop-procedure.md`](loop-procedure.md#표준-1-step-시퀀스-per-agent-의무) |
+| 자유서술 방식 | `prose-only` | agent 가 고정 JSON/schema/marker 없이 prose 로 보고하고, 메인 Claude 가 prose 를 직접 읽어 판단하는 방식. | 자유서술 방식에서도 마지막 단락의 결론 단어와 근거는 명확해야 한다. | [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일), [`loop-procedure.md`](loop-procedure.md#표준-1-step-시퀀스-per-agent-의무) |
 | 진행 순서 검사 | `strict conveyor`, `strict-conveyor`, `conveyor` | active run 안에서 `begin-step -> Agent -> end-step` 물리 순서를 검사하는 hook 영역. | 진행 순서 검사는 `begin-step` 없이 Agent 를 직접 호출하면 차단한다. | [`hooks.md`](hooks.md#catastrophic-gatesh), [`loop-procedure.md`](loop-procedure.md#표준-1-step-시퀀스-per-agent-의무) |
 
 ## 수용 기준 계층

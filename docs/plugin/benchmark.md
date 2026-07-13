@@ -16,16 +16,16 @@ process, Agent effectiveness, product outcome, 비용을 합산한 단일 성공
 | evidence 영역 | 관측값 | denominator | source 수 | 재현 명령 | 한계 |
 |---|---|---:|---:|---|---|
 | 하네스 정의·기계적 guard | unittest 1,932/1,932 PASS; guard fixture 39/39 PASS | test 1,932; guard 39 | dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 테스트와 fixture 계약의 과정 evidence다. 보안 증명·제품 성공률이 아니다 |
-| Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 | 실측 fixture 1 | `printf '{"version":1,"projects":[]}' > /tmp/dcness-empty-projects.json && python3.11 harness/outcome_scorecard.py --projects-file /tmp/dcness-empty-projects.json --agent-effectiveness-record evals/agent-effectiveness/cartography-sanity-real.json --measured-at 2026-07-12T15:17:58Z --json` | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1)이다. downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 측정 불가다. 1차 거부→계약 개선→2차 채택 경위와 host metadata를 비식별화한 trace, 세션 ID·SHA-256·capture/rebuild 명령 provenance가 [`outcome-baseline.md`](../internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)에 공개된다. 공개 우위 주장이 아니다 |
-| PR·validator 운영 | finished 26/28; PR merge 7/7; validator verdict 33/26 finished run | candidate run 28; measurable PR 7; finished run 26 | 외부 활성 프로젝트 2 | [`outcome-baseline.md`](../internal/outcome-baseline.md#재현-명령)의 두 source-ref 고정 명령 | merge·validator FAIL은 제품 성공률이 아니다. 선택한 legacy ledger의 guard와 regression은 측정 불가 |
-| 실제 제품 outcome | non-UI journey 1/1 PASS; 제품 AC 1/1 | journey 1; AC 1 | 외부 활성 프로젝트 1 | [`outcome-baseline.md`](../internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 CLI/filesystem pilot이다. UI·다른 제품·공개 우위로 일반화할 수 없다 |
+| Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 | 실측 fixture 1 | `printf '{"version":1,"projects":[]}' > /tmp/dcness-empty-projects.json && python3.11 harness/outcome_scorecard.py --projects-file /tmp/dcness-empty-projects.json --agent-effectiveness-record evals/agent-effectiveness/cartography-sanity-real.json --measured-at 2026-07-12T15:17:58Z --json` | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1)이다. downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 측정 불가다. 1차 거부→계약 개선→2차 채택 경위와 host metadata를 비식별화한 trace, 세션 ID·SHA-256·capture/rebuild 명령 provenance가 [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)에 공개된다. 공개 우위 주장이 아니다 |
+| PR·validator 운영 | finished 26/28; PR merge 7/7; validator verdict 33/26 finished run | candidate run 28; measurable PR 7; finished run 26 | 외부 활성 프로젝트 2 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#재현-명령)의 두 source-ref 고정 명령 | merge·validator FAIL은 제품 성공률이 아니다. 선택한 legacy ledger의 guard와 regression은 측정 불가 |
+| 실제 제품 outcome | non-UI journey 1/1 PASS; 제품 AC 1/1 | journey 1; AC 1 | 외부 활성 프로젝트 1 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 CLI/filesystem pilot이다. UI·다른 제품·공개 우위로 일반화할 수 없다 |
 | 비용·경량화 | prompt 107 bytes 감소; input token 38,874→40,659; 결정 `keep` | baseline/variant trial 2 | frozen fixture 1 | `python3.11 evals/lean_ablation.py evals/lean-ablation/tool-repeat-lesson-metadata.json --json` | billed cost 측정 불가. 단일 pair의 wall-clock 감소를 우위 근거로 쓰지 않는다 |
 
 ### 구현 전 결정 pilot과 행동 eval 보정
 
 | evidence | 관측값 | denominator / source | 재현·원천 | 한계 |
 |---|---|---|---|---|
-| 결정 완전성 회고 | 실제 작업 2건 모두에서 이미 정해진 선택은 재질문하지 않고 구현 방향을 바꾸는 미결정 1건씩 표면화; 사람 확인 완료 | 회고 2 / 실제 작업 source 2 | [`decision-completeness-pilots.md`](../internal/decision-completeness-pilots.md)의 원본 hash와 대조 위치 | 회고 표본이며 제품 성공률·질문 절감률을 산출하지 않는다 |
+| 결정 완전성 회고 | 실제 작업 2건 모두에서 이미 정해진 선택은 재질문하지 않고 구현 방향을 바꾸는 미결정 1건씩 표면화; 사람 확인 완료 | 회고 2 / 실제 작업 source 2 | [`decision-completeness-pilots.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/decision-completeness-pilots.md)의 원본 hash와 대조 위치 | 회고 표본이며 제품 성공률·질문 절감률을 산출하지 않는다 |
 | 행동 eval judge 보정 | 사람 golden과 저장 judge 판정 9/9 일치 | 비교 9, report 2 / 고정 calibration set 1 | `python3 evals/calibrate_judge.py evals/calibration/core-incidents-v1 --golden evals/golden/core-incidents-v1.json --expect-golden-version core-incidents-v1-human-v1 --expect-subset-version core-incidents-v1` | 2026-07-05 Sonnet report 2건의 고정 재채점이다. 현재 모든 agent 행동이나 제품 outcome을 뜻하지 않는다 |
 
 ### freshness와 drift 검출
@@ -42,7 +42,7 @@ node scripts/check_public_evidence.mjs
 
 이 gate는 source-ref runtime ledger나 ignored journey receipt를 공개 저장소에 복제하지
 않는다. 운영·제품·effectiveness 숫자의 원천과 고정 cutoff는
-[`outcome-baseline.md`](../internal/outcome-baseline.md)가 소유하며, 원천이 없는 환경에서는
+[`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md)가 소유하며, 원천이 없는 환경에서는
 기록된 snapshot을 재현한 것처럼 가장하지 않고 `측정 불가`로 남긴다.
 
 ## 무엇을 측정하나
@@ -88,7 +88,7 @@ python3 evals/guard_efficacy.py --json
 핵심 가설은 단순하다. dcNess 의 무거운 절차(검증·구현·리뷰 시퀀스)를 sub-agent 가
 흡수하면 **메인 Claude 의 turn 누적이 줄어든다**. 그게 사실인지 숫자로 본다.
 
-LLM 행동 eval 은 또 다른 범위다. [`evals/run.sh`](../../evals/run.sh) 는 실제 agent 를
+LLM 행동 eval 은 또 다른 범위다. [`evals/run.sh`](https://github.com/Daeguk-Sun/dcNess/blob/main/evals/run.sh) 는 실제 agent 를
 호출해 지침이 story slicing 같은 판단을 계속 하게 만드는지 보는 회귀 도구이며, guard
 hook/function 의 결정적 allow/block 성능을 대신하지 않는다.
 
@@ -260,7 +260,7 @@ python3 "$DCN"/harness/outcome_scorecard.py --redact-paths
 python3 "$DCN"/harness/outcome_scorecard.py --redact-paths --json
 ```
 
-시점 snapshot과 원천 registry 위치는 [`outcome-baseline.md`](../internal/outcome-baseline.md)에
+시점 snapshot과 원천 registry 위치는 [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md)에
 보존한다.
 
 ### fleet 실측 (외부 활성 프로젝트 1곳)

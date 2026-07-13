@@ -2,7 +2,7 @@
 
 > Claude Code와 Codex를 실제 제품 개발 루프에 묶는 agent workflow harness.
 
-> **Spec(SSOT)**: [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)
+> **Spec(SSOT)**: [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)
 
 dcNess는 Claude Code와 Codex를 제품 개발 루프로 묶는 agent workflow harness입니다.
 
@@ -75,16 +75,16 @@ fail-open은 hook이 정책 판단을 못 해서 차단 대신 통과한 의심 
 | evidence 영역 | 관측 결과 | denominator / source | 재현 명령 | 이 수치가 말하지 않는 것 |
 |---|---|---|---|---|
 | 하네스·기계적 guard | unittest 1,932/1,932 PASS, 결정적 guard 39/39 PASS | test 1,932, guard case 39 / dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 보안 증명이나 제품 성공률이 아니다 |
-| Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 / 실측 fixture 1 | [`docs/internal/outcome-baseline.md`](docs/internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)의 trace→record 재현 명령 | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1). downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 실행하지 않아 측정 불가다. 1차 거부와 2차 채택 trace는 host metadata를 비식별화했고 세션 ID·SHA-256·capture/rebuild 명령이 provenance에 있다. 공개 우위 주장이 아니다 |
-| PR·validator 운영 | finished run 26/28, measurable PR merge 7/7, validator verdict 33건 | candidate run 28 / 외부 활성 프로젝트 2 | [`docs/internal/outcome-baseline.md`](docs/internal/outcome-baseline.md#재현-명령)의 source-ref 고정 명령 | merge와 validator FAIL은 과정 evidence이지 제품 outcome이 아니다 |
-| 실제 제품 outcome | non-UI journey 1/1 PASS, 제품 AC 1/1 | journey 1, AC 1 / 외부 활성 프로젝트 1 | [`docs/internal/outcome-baseline.md`](docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 pilot이며 일반 제품 성공률이나 공개 우위가 아니다 |
+| Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 / 실측 fixture 1 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)의 trace→record 재현 명령 | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1). downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 실행하지 않아 측정 불가다. 1차 거부와 2차 채택 trace는 host metadata를 비식별화했고 세션 ID·SHA-256·capture/rebuild 명령이 provenance에 있다. 공개 우위 주장이 아니다 |
+| PR·validator 운영 | finished run 26/28, measurable PR merge 7/7, validator verdict 33건 | candidate run 28 / 외부 활성 프로젝트 2 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#재현-명령)의 source-ref 고정 명령 | merge와 validator FAIL은 과정 evidence이지 제품 outcome이 아니다 |
+| 실제 제품 outcome | non-UI journey 1/1 PASS, 제품 AC 1/1 | journey 1, AC 1 / 외부 활성 프로젝트 1 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 pilot이며 일반 제품 성공률이나 공개 우위가 아니다 |
 | 비용·경량화 | prompt 107 bytes 축소에도 input token 38,874→40,659; **keep** | baseline/variant trial 2 / frozen fixture 1 | `python3.11 evals/lean_ablation.py evals/lean-ablation/tool-repeat-lesson-metadata.json --json` | 단일 pair의 wall-clock·token 변동을 일반 비용 우위로 쓰지 않는다 |
 
 결정 완전성 회고는 실제 작업 2건에서 불필요한 재질문 없이 구현 방향을 바꾸는 미결정
 각 1건을 드러냈고 사람이 확인했다. 행동 eval judge 보정은 고정 report 2건의 사람 판정과
 저장 judge 판정 9/9가 일치했다. 각각
-[`decision-completeness-pilots.md`](docs/internal/decision-completeness-pilots.md)와
-[`core-incidents-v1`](evals/calibration/core-incidents-v1/README.md)에 표본·재현 절차·한계를
+[`decision-completeness-pilots.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/decision-completeness-pilots.md)와
+[`core-incidents-v1`](https://github.com/Daeguk-Sun/dcNess/blob/main/evals/calibration/core-incidents-v1/README.md)에 표본·재현 절차·한계를
 보존한다. 두 결과도 제품 outcome이나 다중 프로젝트 우위 근거로 승격하지 않는다.
 
 `node scripts/check_public_evidence.mjs`는 설치 cache가 아니라 dcNess source checkout에서만 실행하는
@@ -98,7 +98,7 @@ python3.11 -m unittest discover -s tests -v < /dev/null
 python3.11 evals/guard_efficacy.py
 ```
 
-최근 릴리즈별 변경 상세는 [`docs/internal/release-notes.md`](docs/internal/release-notes.md)에 남긴다.
+최근 릴리즈별 변경 상세는 [`docs/internal/release-notes.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/release-notes.md)에 남긴다.
 
 ## Safety 범위
 
@@ -206,11 +206,11 @@ Sub-agent(`agents/`, architect / validator / worker / reviewer / acceptance 계�
 
 ## 거버넌스 (dcNess 저장소 자체 작업 기준)
 
-이 저장소의 모든 변경은 [`CLAUDE.md`](CLAUDE.md)(SSOT)를 따른다.
+이 저장소의 모든 변경은 [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md)(SSOT)를 따른다.
 
 - **게이트**: main-block · git-naming · pytest(pre-commit hook) + 위 10개 CI
 - **branch → PR → merge** 필수, `main` 직접 push 금지
-- PR 절차: [`CLAUDE.md`](CLAUDE.md#커밋-pr-절차)
+- PR 절차: [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#커밋-pr-절차)
 
 ## 개발자 셋업 (dcNess 에 기여)
 
@@ -234,15 +234,15 @@ bash scripts/check_static_quality.sh          # ruff + mypy + bandit
 
 | 문서 | 역할 |
 |---|---|
-| [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성·강제 원칙 SSOT |
+| [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) | 정체성·강제 원칙 SSOT |
 | [`docs/plugin/terms.md`](docs/plugin/terms.md) | 사용자-facing 용어 사전 |
 | [`docs/plugin/positioning.md`](docs/plugin/positioning.md) | 공개 진입점 계약 (기본/보조/고급/유틸/내부 분류) |
 | [`docs/plugin/workflow-router.md`](docs/plugin/workflow-router.md) | 자유 형식 요청을 어떤 workflow 로 보낼지 판정 |
 | [`docs/plugin/benchmark.md`](docs/plugin/benchmark.md) | 측정 재현 가이드 + 표본 한계 |
 | [`docs/plugin/loop-procedure.md`](docs/plugin/loop-procedure.md#진입-모델) | loop 실행 절차 (Step 0~8) |
 | [`docs/plugin/hooks.md`](docs/plugin/hooks.md#catastrophic-gatesh) | 순서 차단 훅 + hook SSOT |
-| [`PROGRESS.md`](PROGRESS.md) | 현재 상태 / TODO / Blockers |
-| [`AGENTS.md`](AGENTS.md) | 외부 에이전트(Codex 등) 지침 |
+| [`PROGRESS.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/PROGRESS.md) | 현재 상태 / TODO / Blockers |
+| [`AGENTS.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/AGENTS.md) | 외부 에이전트(Codex 등) 지침 |
 
 ## License
 

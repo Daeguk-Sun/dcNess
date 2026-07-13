@@ -33,9 +33,10 @@ release artifact의 단일 포함·제외 SSOT는 [`scripts/release_artifact.jso
 [`scripts/release_artifact.py`](../../scripts/release_artifact.py)의 candidate 생성과
 [`scripts/sync_release.sh`](../../scripts/sync_release.sh)의 release branch 정리가 이 파일만 소비한다.
 marketplace install/update는 그렇게 생성된 `release` ref를 소비하며, cache 비교에서 허용하는
-transport/runtime metadata는 GitHub source update용 `.git`과 활성 사용 표식 `.in_use`뿐이다.
-payload footprint는 이 둘을 제외해 candidate와 비교하고, 실제 cache disk footprint를 보고할 때는
-metadata 크기를 별도로 병기한다.
+transport/runtime metadata는 GitHub source update용 `.git`, 활성 사용 표식 `.in_use`, Python
+실행이 생성하는 `**/__pycache__/*.pyc`뿐이다. bytecode 외 파일은 `__pycache__` 안에서도 허용하지
+않는다. payload footprint는 이 metadata를 제외해 candidate와 비교하고, 실제 cache disk
+footprint를 보고할 때는 metadata 크기를 별도로 병기한다.
 
 `release`는 사람이 작업하는 외부 프로젝트 브랜치 예외가 아니다. dcNess self의
 `sync_release.sh`가 공식 저장소 원격(`Daeguk-Sun/dcNess`, 이전 redirect `alruminum/dcNess`)에

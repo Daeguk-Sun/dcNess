@@ -10,7 +10,7 @@
 
 Core activation 완료 출력은 한 화면 분량의 **5분 온보딩** 블록을 포함한다. 이 블록은 SSOT 본문을 복제하지 않고 다음 포인터만 제공한다.
 
-- 강제/자율 경계: [`hooks.md#catastrophic-gatesh`](hooks.md#catastrophic-gatesh) 와 [`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)
+- 강제/자율 경계: [`hooks.md#catastrophic-gatesh`](hooks.md#catastrophic-gatesh) 와 [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)
 - 첫 작업 진입점: [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 와 [`positioning.md`](positioning.md)
 - hook-first recovery / 재실행 판단: hook 차단 메시지, `dcness-helper status`, 본 문서 [Re-run Matrix](#re-run-matrix)
 

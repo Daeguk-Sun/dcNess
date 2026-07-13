@@ -37,6 +37,10 @@
     ".git",
     ".in_use"
   ],
+  "allowed_cache_metadata_globs": [
+    "__pycache__/*.pyc",
+    "**/__pycache__/*.pyc"
+  ],
   "required_runtime_paths": [
     ".claude-plugin/plugin.json",
     "LICENSE",

@@ -32,6 +32,7 @@ class ArtifactError(RuntimeError):
 class Contract:
     exclude_paths: tuple[str, ...]
     allowed_cache_metadata: tuple[str, ...]
+    allowed_cache_metadata_globs: tuple[str, ...]
     required_runtime_paths: tuple[str, ...]
 
 
@@ -62,12 +63,20 @@ def load_contract(path: Path) -> Contract:
     return Contract(
         exclude_paths=paths("exclude_paths"),
         allowed_cache_metadata=paths("allowed_cache_metadata"),
+        allowed_cache_metadata_globs=paths("allowed_cache_metadata_globs"),
         required_runtime_paths=paths("required_runtime_paths"),
     )
 
 
 def _is_under(relative: str, roots: tuple[str, ...]) -> bool:
     return any(relative == root or relative.startswith(f"{root}/") for root in roots)
+
+
+def _is_allowed_cache_metadata(relative: str, contract: Contract) -> bool:
+    if _is_under(relative, contract.allowed_cache_metadata):
+        return True
+    path = PurePosixPath(relative)
+    return any(path.match(pattern) for pattern in contract.allowed_cache_metadata_globs)
 
 
 def _archive(repo_root: Path, ref: str) -> bytes:
@@ -127,7 +136,7 @@ def _content_hashes(root: Path, contract: Contract) -> dict[str, str]:
     hashes: dict[str, str] = {}
     for path in sorted(item for item in root.rglob("*") if item.is_file()):
         relative = path.relative_to(root).as_posix()
-        if not _is_under(relative, contract.allowed_cache_metadata):
+        if not _is_allowed_cache_metadata(relative, contract):
             hashes[relative] = hashlib.sha256(path.read_bytes()).hexdigest()
     return hashes
 
@@ -142,7 +151,7 @@ def snapshot(root: Path, contract: Contract) -> dict[str, Any]:
     composition: dict[str, dict[str, int]] = defaultdict(lambda: {"files": 0, "bytes": 0})
     for path in sorted(item for item in root.rglob("*") if item.is_file()):
         relative = path.relative_to(root).as_posix()
-        if _is_under(relative, contract.allowed_cache_metadata):
+        if _is_allowed_cache_metadata(relative, contract):
             continue
         data = path.read_bytes()
         size = len(data)

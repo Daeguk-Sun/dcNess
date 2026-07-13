@@ -74,9 +74,11 @@ REMOTE_LOCATION=${2:-}
 is_dcness_release_remote() {
   case "$REMOTE_LOCATION" in
     https://github.com/Daeguk-Sun/dcNess|https://github.com/Daeguk-Sun/dcNess.git|\
-    git@github.com:Daeguk-Sun/dcNess.git|ssh://git@github.com/Daeguk-Sun/dcNess.git|\
+    git@github.com:Daeguk-Sun/dcNess|git@github.com:Daeguk-Sun/dcNess.git|\
+    ssh://git@github.com/Daeguk-Sun/dcNess|ssh://git@github.com/Daeguk-Sun/dcNess.git|\
     https://github.com/alruminum/dcNess|https://github.com/alruminum/dcNess.git|\
-    git@github.com:alruminum/dcNess.git|ssh://git@github.com/alruminum/dcNess.git)
+    git@github.com:alruminum/dcNess|git@github.com:alruminum/dcNess.git|\
+    ssh://git@github.com/alruminum/dcNess|ssh://git@github.com/alruminum/dcNess.git)
       return 0
       ;;
   esac

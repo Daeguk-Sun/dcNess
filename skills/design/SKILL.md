@@ -148,7 +148,7 @@ TaskCreate 직전 메인이 `docs/prd.md` 의 "화면 인벤토리 + 대략적 �
 | **UI-less epic** | 화면 인벤토리 항목이 전부 `(UI 없음)` / 섹션 부재 / 유효 화면 0 개 | Step 1 TaskCreate 에서 ux-architect 제외 + Step 2 skip (commit 1 없음) → Step 2.9 |
 | **모호** | 화면 인벤토리 일부만 UI / 판정 불확실 | 보수적으로 UI epic 진행 |
 
-- 판정은 메인 prose 자율 영역 — hook 강제 아님 ([`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)).
+- 판정은 메인 prose 자율 영역 — hook 강제 아님 ([`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일)).
 - UI-less 판정 시 expected_steps = 2, UI epic 은 3.
 
 ## 목업 선행 체크포인트 (UI epic 한정)
