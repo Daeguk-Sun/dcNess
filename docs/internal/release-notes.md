@@ -6,6 +6,12 @@
 
 ## Unreleased
 
+- **`/impl-loop` story stack topology 전환 — breaking migration (#1108, PR #1111)** — 다중
+  story 구현에서 long-lived 통합 브랜치와 `**Base Branch:**` marker를 폐기하고, PR 생성
+  시 story branch stack을 유지한 뒤 merge gate가 열린 시점에 `main`으로 리타겟·리베이스한다.
+  플러그인 업데이트 시 marker가 남은 in-flight epic은 `pr-trailer`와 issue 생성이 fail-fast하므로,
+  marker를 제거하고 `dcness-story-runner next-action`의 `pr_base`에 따라 story branch를
+  재구성한 뒤 계속해야 한다. 기존 진행 branch는 자동 변환하지 않는다.
 - **marketplace artifact 경량화 (#1102)** — clean install/update가 `release` ref를 직접 소비하도록
   marketplace source를 현행 GitHub source 계약으로 복구하고, candidate·release sync가 하나의
   artifact manifest를 공유한다. 격리 install 기준 self 전용 파일을 제거한 payload는

@@ -123,8 +123,9 @@ Part of #N
 3. git push -u origin {브랜치명}
 4. gh pr create --base {base} --title "..." --body "..."
    # 다중 story PR은 생성 시 stack base를 유지해 순수 story diff를 보인다.
-5. review/acceptance/AC close audit 뒤 사용자의 명시적 merge 승인 대기
-6. 승인된 PR만 base=main 리타겟 + main rebase 후 "$PLUGIN_ROOT/scripts/pr-finalize.sh"
+5. 필요한 review/acceptance/AC close audit 완료 후 host repo merge policy를 따른다.
+   # /impl-loop 다중 story stack은 loop 자동 merge 없이 사용자 merge gate를 기다린다.
+6. 다중 story stack에서 merge 승인이 열린 PR만 base=main 리타겟 + main rebase 후 "$PLUGIN_ROOT/scripts/pr-finalize.sh"
 ```
 
 ### story 브랜치 스택

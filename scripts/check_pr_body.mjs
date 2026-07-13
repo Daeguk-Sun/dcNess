@@ -34,7 +34,7 @@
 
 const TRAILER_RE = /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?|part\s+of)\s*#\d+/i;
 const EXCEPTION_RE = /^\s*Document-Exception-PR-Close:\s*\S+/im;
-const RETIRED_EXCEPTION_RE = /^\s*Document-Exception-PR-Close:[^\n]*(?:통합\s*브랜치|integration\s+branch|main\s+머지\s+시\s+일괄\s+close)/im;
+const RETIRED_EXCEPTION_RE = /^\s*Document-Exception-PR-Close:[^\n]*(?:(?:통합\s*브랜치|integration\s+branch)\s+story\s+sub-?PR\b|main\s+머지\s+시\s+일괄\s+close\b)/im;
 
 function readStdin() {
   return new Promise((resolve, reject) => {

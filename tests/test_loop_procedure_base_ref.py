@@ -60,6 +60,14 @@ class StoryBranchStackContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, body)
 
+    def test_generic_git_flow_defers_to_host_policy_and_scopes_stack_merge(self) -> None:
+        body = self._read("docs/plugin/git-spec.md")
+        generic_flow = body.split("## Git 절차", 1)[1].split("### story 브랜치 스택", 1)[0]
+
+        self.assertIn("host repo merge policy", generic_flow)
+        self.assertIn("다중 story stack에서 merge 승인이 열린 PR만", generic_flow)
+        self.assertNotIn("사용자의 명시적 merge 승인 대기", generic_flow)
+
     def test_spec_delivery_uses_one_main_based_docs_pr(self) -> None:
         skill = self._read("skills/spec/SKILL.md")
         reference = self._read("skills/spec/spec-delivery-reference.md")

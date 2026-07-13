@@ -58,6 +58,12 @@ class PrBodyGateTests(unittest.TestCase):
             "main 머지 시 일괄 close\n"
         )
 
+    def test_legitimate_integration_branch_cleanup_exception_passes(self) -> None:
+        self.assertPass(
+            "후속 정리\n\n"
+            "Document-Exception-PR-Close: 통합 브랜치 잔재 정리 follow-up\n"
+        )
+
     def test_no_trailer_fails(self) -> None:
         self.assertFail("## 작업내용\n트레일러 없음\n")
 
