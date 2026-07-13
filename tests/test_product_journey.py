@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from harness.product_journey import (
     CONFIG_REL,
@@ -329,6 +330,62 @@ class ProductJourneyExecutionTests(unittest.TestCase):
                 run_id="ui-symlink-escape",
                 measured_at="2026-07-13T08:00:00Z",
             )
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.receipt["outcome"], "FAIL")
+        self.assertIn("ui_evidence_missing", result.receipt["failure_reasons"])
+
+    def test_ui_evidence_hash_error_fails_closed_with_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._base_config()
+            config["boundary"] = "ui"
+            config["commands"] = dict(config["commands"])
+            config["commands"]["journey"] = _command(
+                "import os; from pathlib import Path; "
+                "run=Path(os.environ['DCNESS_PRODUCT_JOURNEY_RUN_DIR']); "
+                "(run/'first.png').write_bytes(b'first'); "
+                "(run/'final.png').write_bytes(b'final')"
+            )
+            config["ui_evidence"] = {
+                "steps": [
+                    {
+                        "step_id": "first",
+                        "description": "첫 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": False,
+                        "evidence": [
+                            {"path": "first.png", "type": "screenshot"}
+                        ],
+                    },
+                    {
+                        "step_id": "final",
+                        "description": "최종 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": True,
+                        "evidence": [
+                            {"path": "final.png", "type": "screenshot"}
+                        ],
+                    },
+                ]
+            }
+            config_path = _write_config(root, config)
+            original_hash = __import__(
+                "harness.product_journey", fromlist=["_sha256_file"]
+            )._sha256_file
+
+            def flaky_hash(path: Path) -> str:
+                if path.name == "first.png":
+                    raise OSError("fixture evidence became unreadable")
+                return original_hash(path)
+
+            with patch("harness.product_journey._sha256_file", side_effect=flaky_hash):
+                result = run_from_config(
+                    root,
+                    config_path=config_path,
+                    run_id="ui-hash-error",
+                    measured_at="2026-07-13T08:00:00Z",
+                )
 
         self.assertEqual(result.exit_code, 1)
         self.assertEqual(result.receipt["outcome"], "FAIL")

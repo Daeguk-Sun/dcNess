@@ -86,7 +86,7 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 |---|---|---|---|---:|---|
 | product outcome | journey PASS 1/1, 제품 AC 1/1 | journey 1, AC 1, source 1 | `ui, screenshot, command, log` + sha256 receipt | 실행 중 사람 개입 0 | 단일 외부 활성 프로젝트의 단일 UI pilot이며 공개 우위 근거가 아님 |
 
-receipt는 `landing` → `onboarding` → final `underage-rejection` 세 단계의 설명·대상 AC와 screenshot SHA-256을 연결한다. 브라우저 assertion log는 거부 안내, 입력 미저장 안내, 결과 미노출을 모두 PASS로 남겼다. 증거는 해당 source 프로젝트의 ignored `.dcness-work/product-journey/ui-pilot-issue1080-20260713/`에 보존하며 공개 문서에는 절대경로를 기록하지 않는다. 화면 evidence가 사용자 관점에서 충분한지는 issue의 별도 human verification으로 남긴다.
+receipt는 `landing` → `onboarding` → `underage-rejection` → final `profile-absent` 네 단계의 설명·대상 AC와 screenshot SHA-256을 연결한다. 브라우저 assertion log는 거부 안내, 입력 미저장 안내, 결과 미노출에 더해 거부 후 `/results`를 직접 열어도 profile-required 상태인 것을 모두 PASS로 남겼다. 증거는 해당 source 프로젝트의 ignored `.dcness-work/product-journey/ui-pilot-issue1080-20260713/`에 보존하며 공개 문서에는 절대경로를 기록하지 않는다. 화면 evidence가 사용자 관점에서 충분한지는 issue의 별도 human verification으로 남긴다.
 
 ## Agent effectiveness 입력 경계
 

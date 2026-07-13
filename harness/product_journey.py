@@ -394,16 +394,22 @@ def _collect_ui_evidence(
                     )
                 except OSError:
                     present = False
+            evidence_hash: str | None = None
             if present:
-                present_types.add(declared["type"])
-            else:
+                try:
+                    evidence_hash = _sha256_file(declared_path)
+                except OSError:
+                    present = False
+            if not present:
                 complete = False
+            else:
+                present_types.add(declared["type"])
             collected_evidence.append(
                 {
                     "path": declared_path.relative_to(project_root).as_posix(),
                     "type": declared["type"],
                     "present": present,
-                    "sha256": _sha256_file(declared_path) if present else None,
+                    "sha256": evidence_hash,
                 }
             )
         collected_steps.append(
