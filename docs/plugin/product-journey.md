@@ -1,7 +1,7 @@
 # Project-local 제품 journey 실행 계약
 
 > **Status**: ACTIVE
-> **Scope**: 외부 활성 프로젝트의 non-UI 핵심 journey 한 건을 실제 제품 경계에서 실행하고 product-acceptance가 읽을 receipt를 생성한다.
+> **Scope**: 외부 활성 프로젝트의 핵심 journey 한 건을 실제 제품 경계에서 실행하고 product-acceptance가 읽을 receipt를 생성한다. UI journey는 같은 실행 계약에 단계별 화면 증거만 선택적으로 추가한다.
 
 ## 책임 경계
 
@@ -9,11 +9,11 @@
 
 1. `start`: 앱·서비스·CLI 진입점을 시작한다.
 2. `health`: 다음 journey를 실행할 준비가 됐는지 확인한다.
-3. `journey`: API·CLI·실데이터 통합 경계에서 대상 AC assertion을 평가한다.
+3. `journey`: API·CLI·UI·실데이터 통합 경계에서 대상 AC assertion을 평가한다.
 4. `cleanup`: 성공·실패와 무관하게 종료·정리한다.
 5. `evidence_dir`: command exit와 log, 대상 AC, 실행 시각을 연결하는 receipt 위치다.
 
-메인 workflow가 실행 증거를 만들고 `product-acceptance`는 receipt와 대상 Story AC를 읽기 전용으로 대조한다. 검증 agent가 구현이나 receipt를 수정하지 않는다. UI 화면 상태와 screenshot 증거는 이 계약의 범위가 아니며 별도 UI pilot에서 공통 필드 위에 확장한다.
+메인 workflow가 실행 증거를 만들고 `product-acceptance`는 receipt와 대상 Story AC를 읽기 전용으로 대조한다. 검증 agent가 구현이나 receipt를 수정하지 않는다. UI 경계도 네 command와 같은 assertion 판정을 재사용하며, helper가 브라우저를 직접 자동화하지 않는다. 프로젝트가 소유한 journey command가 화면을 조작하고 screenshot·상태 파일을 남긴다.
 
 ## 프로젝트 계약
 
@@ -62,7 +62,7 @@
 |---|---|
 | `journey_id` | 소문자·숫자·`.`·`_`·`-`로 된 안정 식별자 |
 | `target_ac` | journey assertion이 대조할 Story AC 식별자. 한 개 이상 필수 |
-| `boundary` | `api`, `cli`, `integration`, `mock`. `mock`은 fixture용이며 outcome PASS 불가 |
+| `boundary` | `api`, `cli`, `integration`, `ui`, `mock`. `mock`은 fixture용이며 outcome PASS 불가 |
 | `assertion.description` | command가 무엇을 판정하는지 제품 언어로 설명 |
 | `assertion.source` | `journey_exit`이면 journey exit 0을 assertion PASS로 사용. `none`은 미평가 fixture이며 PASS 불가 |
 | `human_intervention_count` | 실행 중 사람이 개입한 횟수. 없으면 0 |
@@ -74,6 +74,44 @@
 | `evidence_dir` | `.dcness-work/product-journey/` 아래의 project-relative 위치 |
 
 start가 실패하거나 service가 유예 시간 안에 종료되면 `app_not_started`다. health가 실패하면 journey를 실행하지 않고 `journey_not_executed`로 남긴다. journey가 실행되지 않았거나 `assertion.source=none`이면 `assertion_not_evaluated`다. `mock` boundary는 모든 command가 exit 0이어도 `mock_only_boundary`이므로 PASS가 아니다. cleanup은 항상 실행하며 실패하면 전체 outcome도 FAIL이다.
+
+## UI 증거 확장
+
+`boundary=ui`는 위 project-local 계약을 바꾸지 않고 `ui_evidence.steps`만 추가한다. 최소 두 단계가 필요하며 `final=true`인 단계들이 `target_ac` 전부를 덮어야 한다. 각 evidence path는 해당 run directory 내부의 상대 경로이고 type은 `screenshot`, `state`, `log` 중 하나다.
+
+```json
+{
+  "boundary": "ui",
+  "target_ac": ["AC-ONBOARD-1"],
+  "ui_evidence": {
+    "steps": [
+      {
+        "step_id": "onboarding",
+        "description": "생년월일과 동의를 입력한 화면",
+        "target_ac": ["AC-ONBOARD-1"],
+        "final": false,
+        "evidence": [
+          {"path": "onboarding.png", "type": "screenshot"}
+        ]
+      },
+      {
+        "step_id": "result",
+        "description": "제출 뒤 제품 AC를 판정하는 최종 화면",
+        "target_ac": ["AC-ONBOARD-1"],
+        "final": true,
+        "evidence": [
+          {"path": "result.png", "type": "screenshot"},
+          {"path": "browser-assertions.log", "type": "log"}
+        ]
+      }
+    ]
+  }
+}
+```
+
+helper는 command 환경에 `DCNESS_PRODUCT_JOURNEY_RUN_DIR` 절대경로를 주입한다. 프로젝트 journey command는 이 위치에 선언한 파일을 생성한다. receipt에는 project-relative path, 존재 여부, SHA-256을 단계별로 기록한다. 파일이 없거나 비어 있거나 run directory 밖 symlink면 `ui_evidence_missing`으로 FAIL한다. screenshot 파일 자체가 assertion을 대신하지 않으며, `journey_exit=0`이 단계별 화면 assertion 평가를 증명해야 한다.
+
+이는 UI 전용 실행기나 범용 E2E 플랫폼이 아니다. 기존 Playwright, AppTest, XCUITest 같은 project-local 도구 또는 수동으로 보존된 자동화 driver를 journey command가 선택하고, dcNess helper는 실행 순서·receipt·무결성만 맡는다.
 
 ## 실행과 receipt
 
@@ -88,6 +126,7 @@ start가 실패하거나 service가 유예 시간 안에 종료되면 `app_not_s
 - 실제 시작 여부 `app_started`, journey 실행 여부 `journey_executed`.
 - assertion의 설명·근거·평가 여부·결과.
 - 단계별 argv, exit code, timeout, wall-clock과 log 위치.
+- UI journey이면 핵심 단계 설명·대상 AC·최종 단계 여부·screenshot/state/log path와 SHA-256.
 - 대상 AC의 passed/total denominator, 사람 개입, 실행 증거 종류.
 - log별 sha256과 failure reason.
 

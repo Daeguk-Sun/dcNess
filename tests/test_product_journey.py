@@ -1,4 +1,4 @@
-"""Project-local non-UI product journey execution contract tests."""
+"""Project-local product journey execution contract tests."""
 
 from __future__ import annotations
 
@@ -9,8 +9,14 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from harness.product_journey import CONFIG_REL, read_receipts, run_from_config
+from harness.product_journey import (
+    CONFIG_REL,
+    JourneyConfigError,
+    read_receipts,
+    run_from_config,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -165,6 +171,277 @@ class ProductJourneyExecutionTests(unittest.TestCase):
             self.assertIn(mutation["expected"], receipt["failure_reasons"])
             self.assertEqual(receipt["product_ac"]["passed"], 0)
 
+    def test_ui_journey_records_multistep_screen_state_and_log_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._base_config()
+            config["journey_id"] = "fixture-ui-journey"
+            config["boundary"] = "ui"
+            config["commands"] = dict(config["commands"])
+            config["commands"]["journey"] = _command(
+                "import json, os; from pathlib import Path; "
+                "run=Path(os.environ['DCNESS_PRODUCT_JOURNEY_RUN_DIR']); "
+                "(run/'landing.png').write_bytes(b'fixture-png'); "
+                "(run/'onboarding-state.json').write_text(json.dumps({'consent': True})); "
+                "(run/'results.png').write_bytes(b'fixture-results-png')"
+            )
+            config["ui_evidence"] = {
+                "steps": [
+                    {
+                        "step_id": "landing",
+                        "description": "랜딩에서 무료 시작 CTA를 확인한다",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": False,
+                        "evidence": [
+                            {"path": "landing.png", "type": "screenshot"}
+                        ],
+                    },
+                    {
+                        "step_id": "onboarding",
+                        "description": "성인 생년월일과 동의를 제출한다",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": False,
+                        "evidence": [
+                            {
+                                "path": "onboarding-state.json",
+                                "type": "state",
+                            }
+                        ],
+                    },
+                    {
+                        "step_id": "results",
+                        "description": "최종 결과 화면에서 제품 AC를 확인한다",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": True,
+                        "evidence": [
+                            {"path": "results.png", "type": "screenshot"}
+                        ],
+                    },
+                ]
+            }
+            config_path = _write_config(root, config)
+
+            result = run_from_config(
+                root,
+                config_path=config_path,
+                run_id="ui-pilot-success",
+                measured_at="2026-07-13T08:00:00Z",
+            )
+            receipt = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+
+            self.assertEqual(result.exit_code, 0)
+            self.assertEqual(receipt["outcome"], "PASS")
+            self.assertEqual(receipt["boundary"], "ui")
+            self.assertEqual(
+                receipt["evidence_types"],
+                ["command", "log", "screenshot", "state", "ui"],
+            )
+            self.assertEqual(
+                [step["step_id"] for step in receipt["ui_evidence"]["steps"]],
+                ["landing", "onboarding", "results"],
+            )
+            self.assertTrue(receipt["ui_evidence"]["steps"][-1]["final"])
+            for step in receipt["ui_evidence"]["steps"]:
+                for evidence in step["evidence"]:
+                    self.assertFalse(Path(evidence["path"]).is_absolute())
+                    self.assertRegex(evidence["sha256"], r"^[0-9a-f]{64}$")
+            self.assertEqual(len(read_receipts(root)), 1)
+
+    def test_ui_journey_missing_declared_evidence_never_passes(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._base_config()
+            config["boundary"] = "ui"
+            config["ui_evidence"] = {
+                "steps": [
+                    {
+                        "step_id": "start",
+                        "description": "첫 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": False,
+                        "evidence": [
+                            {"path": "missing-start.png", "type": "screenshot"}
+                        ],
+                    },
+                    {
+                        "step_id": "finish",
+                        "description": "최종 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": True,
+                        "evidence": [
+                            {"path": "missing-finish.png", "type": "screenshot"}
+                        ],
+                    },
+                ]
+            }
+            config_path = _write_config(root, config)
+
+            result = run_from_config(
+                root,
+                config_path=config_path,
+                run_id="ui-missing-evidence",
+                measured_at="2026-07-13T08:00:00Z",
+            )
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.receipt["outcome"], "FAIL")
+        self.assertIn("ui_evidence_missing", result.receipt["failure_reasons"])
+        self.assertEqual(result.receipt["product_ac"]["passed"], 0)
+
+    def test_ui_evidence_symlink_escape_fails_closed_with_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._base_config()
+            config["boundary"] = "ui"
+            config["commands"] = dict(config["commands"])
+            config["commands"]["journey"] = _command(
+                "import os; from pathlib import Path; "
+                "run=Path(os.environ['DCNESS_PRODUCT_JOURNEY_RUN_DIR']); "
+                "(run/'first.png').symlink_to('/etc/hosts'); "
+                "(run/'final.png').write_bytes(b'final')"
+            )
+            config["ui_evidence"] = {
+                "steps": [
+                    {
+                        "step_id": "first",
+                        "description": "첫 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": False,
+                        "evidence": [
+                            {"path": "first.png", "type": "screenshot"}
+                        ],
+                    },
+                    {
+                        "step_id": "final",
+                        "description": "최종 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": True,
+                        "evidence": [
+                            {"path": "final.png", "type": "screenshot"}
+                        ],
+                    },
+                ]
+            }
+            config_path = _write_config(root, config)
+
+            result = run_from_config(
+                root,
+                config_path=config_path,
+                run_id="ui-symlink-escape",
+                measured_at="2026-07-13T08:00:00Z",
+            )
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.receipt["outcome"], "FAIL")
+        self.assertIn("ui_evidence_missing", result.receipt["failure_reasons"])
+
+    def test_ui_evidence_hash_error_fails_closed_with_receipt(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._base_config()
+            config["boundary"] = "ui"
+            config["commands"] = dict(config["commands"])
+            config["commands"]["journey"] = _command(
+                "import os; from pathlib import Path; "
+                "run=Path(os.environ['DCNESS_PRODUCT_JOURNEY_RUN_DIR']); "
+                "(run/'first.png').write_bytes(b'first'); "
+                "(run/'final.png').write_bytes(b'final')"
+            )
+            config["ui_evidence"] = {
+                "steps": [
+                    {
+                        "step_id": "first",
+                        "description": "첫 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": False,
+                        "evidence": [
+                            {"path": "first.png", "type": "screenshot"}
+                        ],
+                    },
+                    {
+                        "step_id": "final",
+                        "description": "최종 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": True,
+                        "evidence": [
+                            {"path": "final.png", "type": "screenshot"}
+                        ],
+                    },
+                ]
+            }
+            config_path = _write_config(root, config)
+            original_hash = __import__(
+                "harness.product_journey", fromlist=["_sha256_file"]
+            )._sha256_file
+
+            def flaky_hash(path: Path) -> str:
+                if path.name == "first.png":
+                    raise OSError("fixture evidence became unreadable")
+                return original_hash(path)
+
+            with patch("harness.product_journey._sha256_file", side_effect=flaky_hash):
+                result = run_from_config(
+                    root,
+                    config_path=config_path,
+                    run_id="ui-hash-error",
+                    measured_at="2026-07-13T08:00:00Z",
+                )
+
+        self.assertEqual(result.exit_code, 1)
+        self.assertEqual(result.receipt["outcome"], "FAIL")
+        self.assertIn("ui_evidence_missing", result.receipt["failure_reasons"])
+
+    def test_ui_contract_requires_multistep_final_ac_coverage(self) -> None:
+        cases = {
+            "single-step": [
+                {
+                    "step_id": "only",
+                    "description": "한 단계뿐인 흐름",
+                    "target_ac": ["AC-FIXTURE-1"],
+                    "final": True,
+                    "evidence": [{"path": "only.png", "type": "screenshot"}],
+                }
+            ],
+            "no-final": [
+                {
+                    "step_id": step_id,
+                    "description": step_id,
+                    "target_ac": ["AC-FIXTURE-1"],
+                    "final": False,
+                    "evidence": [{"path": f"{step_id}.png", "type": "screenshot"}],
+                }
+                for step_id in ("first", "second")
+            ],
+            "final-misses-ac": [
+                {
+                    "step_id": "first",
+                    "description": "첫 단계",
+                    "target_ac": ["AC-FIXTURE-1", "AC-FIXTURE-2"],
+                    "final": False,
+                    "evidence": [{"path": "first.png", "type": "screenshot"}],
+                },
+                {
+                    "step_id": "finish",
+                    "description": "최종 단계",
+                    "target_ac": ["AC-FIXTURE-1"],
+                    "final": True,
+                    "evidence": [{"path": "finish.png", "type": "screenshot"}],
+                },
+            ],
+        }
+        for name, steps in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config = self._base_config()
+                config["boundary"] = "ui"
+                if name == "final-misses-ac":
+                    config["target_ac"] = ["AC-FIXTURE-1", "AC-FIXTURE-2"]
+                config["ui_evidence"] = {"steps": steps}
+                config_path = _write_config(root, config)
+
+                with self.assertRaises(JourneyConfigError):
+                    run_from_config(root, config_path=config_path, run_id=name)
+
     def test_tampered_log_invalidates_receipt_for_scorecard_consumers(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -178,6 +455,60 @@ class ProductJourneyExecutionTests(unittest.TestCase):
             self.assertEqual(len(read_receipts(root)), 1)
             journey_log = root / result.receipt["evidence_paths"]["journey"]
             journey_log.write_text("tampered\n", encoding="utf-8")
+
+            receipts = read_receipts(root)
+
+        self.assertEqual(receipts, [])
+
+    def test_tampered_ui_evidence_invalidates_receipt_for_scorecard_consumers(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._base_config()
+            config["boundary"] = "ui"
+            config["commands"] = dict(config["commands"])
+            config["commands"]["journey"] = _command(
+                "import os; from pathlib import Path; "
+                "run=Path(os.environ['DCNESS_PRODUCT_JOURNEY_RUN_DIR']); "
+                "(run/'first.png').write_bytes(b'first'); "
+                "(run/'final.png').write_bytes(b'final')"
+            )
+            config["ui_evidence"] = {
+                "steps": [
+                    {
+                        "step_id": "first",
+                        "description": "첫 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": False,
+                        "evidence": [
+                            {"path": "first.png", "type": "screenshot"}
+                        ],
+                    },
+                    {
+                        "step_id": "final",
+                        "description": "최종 화면",
+                        "target_ac": ["AC-FIXTURE-1"],
+                        "final": True,
+                        "evidence": [
+                            {"path": "final.png", "type": "screenshot"}
+                        ],
+                    },
+                ]
+            }
+            config_path = _write_config(root, config)
+            result = run_from_config(
+                root,
+                config_path=config_path,
+                run_id="ui-tamper-check",
+                measured_at="2026-07-13T08:00:00Z",
+            )
+            self.assertEqual(len(read_receipts(root)), 1)
+            ui_path = (
+                root
+                / result.receipt["ui_evidence"]["steps"][0]["evidence"][0]["path"]
+            )
+            ui_path.write_bytes(b"tampered")
 
             receipts = read_receipts(root)
 
@@ -252,6 +583,9 @@ class ProductJourneyContractDocumentTests(unittest.TestCase):
             "evidence_dir",
             "journey_exit",
             "mock_only_boundary",
+            "ui_evidence.steps",
+            "DCNESS_PRODUCT_JOURNEY_RUN_DIR",
+            "screenshot",
             ".dcness-work/product-journey",
         ):
             self.assertIn(term, contract)
@@ -262,6 +596,8 @@ class ProductJourneyContractDocumentTests(unittest.TestCase):
         self.assertIn("app_started", product_acceptance)
         self.assertIn("journey_executed", product_acceptance)
         self.assertIn("assertion", product_acceptance)
+        self.assertIn("ui_evidence.steps", product_acceptance)
+        self.assertIn("present=true", product_acceptance)
         self.assertIn("읽기 전용", product_acceptance)
         self.assertIn("사용자 repo에 복사하지", init_contract)
         self.assertIn("dcness-product-journey", init_contract)

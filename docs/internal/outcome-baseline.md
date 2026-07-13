@@ -69,6 +69,25 @@ python3.11 "$DCN"/harness/outcome_scorecard.py \
 
 대상 AC는 `AC-421`이고 assertion은 자연어 prompt intake가 실제 session 파일을 만들며 선택한 `history_culture` category와 원문 prompt를 보존하는지 확인했다. `mock` adapter를 쓰지 않았고 실행 후 생성 상태는 cleanup했다. receipt와 log는 해당 source 프로젝트의 ignored `.dcness-work/product-journey/yt-make-intake-pilot-20260712/`에 남아 있으며 공개 문서에는 절대경로를 기록하지 않는다.
 
+## 2026-07-13 UI 제품 journey pilot
+
+기존 project-local 실행 계약에 `boundary=ui`와 단계별 화면 evidence만 추가해 active-project registry의 `source-5509daf5ed`에서 `finsight-underage-ui` journey로 실제 Next 앱과 Chromium을 실행했다. 랜딩의 `무료로 시작` CTA를 눌러 온보딩으로 이동하고, 미성년 생년월일과 이용 동의를 제출한 뒤 결과 화면으로 넘어가지 않으며 거부·미저장 안내가 표시되는지 `AC-001`과 대조했다. 외부 OAuth·DB 호출은 프로젝트의 acceptance 설정으로 차단했지만, 검증 경계인 실제 앱 기동·브라우저 클릭·Next server action·렌더 화면은 mock으로 대체하지 않았다.
+
+```sh
+python3.11 "$DCN"/harness/outcome_scorecard.py \
+  --redact-paths \
+  --measured-at 2026-07-13T03:00:00Z \
+  --as-of 2026-07-13T03:00:00Z \
+  --source-ref source-5509daf5ed \
+  --json
+```
+
+| 영역 | 결과 | denominator / source | 실행 증거 | 사람 개입 | 해석 경계 |
+|---|---|---|---|---:|---|
+| product outcome | journey PASS 1/1, 제품 AC 1/1 | journey 1, AC 1, source 1 | `ui, screenshot, command, log` + sha256 receipt | 실행 중 사람 개입 0 | 단일 외부 활성 프로젝트의 단일 UI pilot이며 공개 우위 근거가 아님 |
+
+receipt는 `landing` → `onboarding` → `underage-rejection` → final `profile-absent` 네 단계의 설명·대상 AC와 screenshot SHA-256을 연결한다. 브라우저 assertion log는 거부 안내, 입력 미저장 안내, 결과 미노출에 더해 거부 후 `/results`를 직접 열어도 profile-required 상태인 것을 모두 PASS로 남겼다. 증거는 해당 source 프로젝트의 ignored `.dcness-work/product-journey/ui-pilot-issue1080-20260713/`에 보존하며 공개 문서에는 절대경로를 기록하지 않는다. 화면 evidence가 사용자 관점에서 충분한지는 issue의 별도 human verification으로 남긴다.
+
 ## Agent effectiveness 입력 경계
 
 - Cartography freshness에서 얻을 수 있는 것: 현재 SSOT·runtime entrypoint·capability owner 후보, affected route의 stale 여부와 갱신·재검증 기록.

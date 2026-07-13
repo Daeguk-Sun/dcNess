@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run a project-local non-UI product journey and emit a verifiable receipt."""
+"""Run a project-local product journey and emit a verifiable receipt."""
 
 from __future__ import annotations
 
@@ -23,9 +23,11 @@ EVIDENCE_ROOT_REL = Path(".dcness-work/product-journey")
 SCHEMA_VERSION = 1
 RECEIPT_TYPE = "dcness.product-journey"
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
-_BOUNDARIES = {"api", "cli", "integration", "mock"}
+_BOUNDARIES = {"api", "cli", "integration", "mock", "ui"}
 _ASSERTION_SOURCES = {"journey_exit", "none"}
 _PHASES = ("start", "health", "journey", "cleanup")
+_UI_EVIDENCE_TYPES = {"log", "screenshot", "state"}
+_RUN_DIR_ENV = "DCNESS_PRODUCT_JOURNEY_RUN_DIR"
 
 
 class JourneyConfigError(ValueError):
@@ -122,6 +124,71 @@ def _resolve_evidence_root(project_root: Path, raw: object) -> Path:
     return resolved
 
 
+def _validated_ui_evidence(config: dict[str, Any]) -> None:
+    boundary = config.get("boundary")
+    raw_ui = config.get("ui_evidence")
+    if boundary != "ui":
+        if raw_ui is not None:
+            raise JourneyConfigError("ui_evidence is only valid for boundary=ui")
+        return
+    if not isinstance(raw_ui, dict):
+        raise JourneyConfigError("ui_evidence must be an object for boundary=ui")
+    steps = raw_ui.get("steps")
+    if not isinstance(steps, list) or len(steps) < 2:
+        raise JourneyConfigError("ui_evidence.steps must contain at least two steps")
+    target_ac = {str(item).strip() for item in config["target_ac"]}
+    step_ids: set[str] = set()
+    final_ac: set[str] = set()
+    for index, step in enumerate(steps):
+        prefix = f"ui_evidence.steps[{index}]"
+        if not isinstance(step, dict):
+            raise JourneyConfigError(f"{prefix} must be an object")
+        step_id = _require_text(step, "step_id")
+        if not _ID_RE.fullmatch(step_id):
+            raise JourneyConfigError(f"{prefix}.step_id must be a valid id")
+        if step_id in step_ids:
+            raise JourneyConfigError(f"{prefix}.step_id must be unique")
+        step_ids.add(step_id)
+        _require_text(step, "description")
+        step_ac = step.get("target_ac")
+        if (
+            not isinstance(step_ac, list)
+            or not step_ac
+            or any(not isinstance(item, str) or not item.strip() for item in step_ac)
+        ):
+            raise JourneyConfigError(f"{prefix}.target_ac must contain AC ids")
+        normalized_ac = {item.strip() for item in step_ac}
+        if not normalized_ac.issubset(target_ac):
+            raise JourneyConfigError(f"{prefix}.target_ac must be declared in target_ac")
+        is_final = step.get("final")
+        if not isinstance(is_final, bool):
+            raise JourneyConfigError(f"{prefix}.final must be boolean")
+        if is_final:
+            final_ac.update(normalized_ac)
+        evidence = step.get("evidence")
+        if not isinstance(evidence, list) or not evidence:
+            raise JourneyConfigError(f"{prefix}.evidence must not be empty")
+        for evidence_index, item in enumerate(evidence):
+            item_prefix = f"{prefix}.evidence[{evidence_index}]"
+            if not isinstance(item, dict):
+                raise JourneyConfigError(f"{item_prefix} must be an object")
+            raw_path = _require_text(item, "path")
+            relative = Path(raw_path)
+            if relative.is_absolute() or ".." in relative.parts:
+                raise JourneyConfigError(
+                    f"{item_prefix}.path must stay inside the run directory"
+                )
+            if item.get("type") not in _UI_EVIDENCE_TYPES:
+                raise JourneyConfigError(
+                    f"{item_prefix}.type must be one of "
+                    f"{sorted(_UI_EVIDENCE_TYPES)}"
+                )
+    if final_ac != target_ac:
+        raise JourneyConfigError(
+            "final UI steps must cover every AC declared in target_ac"
+        )
+
+
 def _validated_config(
     project_root: Path, config_path: Path
 ) -> tuple[dict[str, Any], Path]:
@@ -141,6 +208,7 @@ def _validated_config(
     boundary = config.get("boundary")
     if boundary not in _BOUNDARIES:
         raise JourneyConfigError(f"boundary must be one of {sorted(_BOUNDARIES)}")
+    _validated_ui_evidence(config)
     assertion = config.get("assertion")
     if not isinstance(assertion, dict):
         raise JourneyConfigError("assertion must be an object")
@@ -302,6 +370,60 @@ def _write_receipt(path: Path, receipt: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def _collect_ui_evidence(
+    config: dict[str, Any], run_dir: Path, project_root: Path
+) -> tuple[dict[str, Any], bool, set[str]]:
+    collected_steps: list[dict[str, Any]] = []
+    complete = True
+    present_types: set[str] = set()
+    for step in config["ui_evidence"]["steps"]:
+        collected_evidence: list[dict[str, Any]] = []
+        for declared in step["evidence"]:
+            declared_path = run_dir / declared["path"]
+            path = declared_path.resolve()
+            try:
+                path.relative_to(run_dir.resolve())
+            except ValueError:
+                present = False
+            else:
+                try:
+                    present = (
+                        declared_path.is_file()
+                        and not declared_path.is_symlink()
+                        and declared_path.stat().st_size > 0
+                    )
+                except OSError:
+                    present = False
+            evidence_hash: str | None = None
+            if present:
+                try:
+                    evidence_hash = _sha256_file(declared_path)
+                except OSError:
+                    present = False
+            if not present:
+                complete = False
+            else:
+                present_types.add(declared["type"])
+            collected_evidence.append(
+                {
+                    "path": declared_path.relative_to(project_root).as_posix(),
+                    "type": declared["type"],
+                    "present": present,
+                    "sha256": evidence_hash,
+                }
+            )
+        collected_steps.append(
+            {
+                "step_id": step["step_id"],
+                "description": step["description"],
+                "target_ac": [str(item).strip() for item in step["target_ac"]],
+                "final": step["final"],
+                "evidence": collected_evidence,
+            }
+        )
+    return {"steps": collected_steps}, complete, present_types
+
+
 def run_from_config(
     project_root: Path | str,
     *,
@@ -336,6 +458,7 @@ def run_from_config(
     receipt_path = run_dir / "receipt.json"
     env = os.environ.copy()
     env.update(config.get("env", {}))
+    env[_RUN_DIR_ENV] = str(run_dir)
     commands = config["commands"]
     command_results: dict[str, dict[str, Any]] = {}
     log_paths = {phase: run_dir / f"{phase}.log" for phase in _PHASES}
@@ -393,6 +516,15 @@ def run_from_config(
     if service is not None:
         _stop_service(service, command_results["start"])
 
+    ui_evidence: dict[str, Any] | None = None
+    ui_evidence_types: set[str] = set()
+    if config["boundary"] == "ui":
+        ui_evidence, ui_complete, ui_evidence_types = _collect_ui_evidence(
+            config, run_dir, root
+        )
+        if not ui_complete:
+            _append_once(failures, "ui_evidence_missing")
+
     outcome = (
         "PASS"
         if not failures
@@ -430,7 +562,9 @@ def run_from_config(
             "total": len(target_ac),
         },
         "human_intervention_count": config.get("human_intervention_count", 0),
-        "evidence_types": sorted({"command", config["boundary"], "log"}),
+        "evidence_types": sorted(
+            {"command", config["boundary"], "log", *ui_evidence_types}
+        ),
         "evidence_paths": evidence_paths,
         "evidence_sha256": evidence_sha256,
         "app_started": app_started,
@@ -444,6 +578,8 @@ def run_from_config(
         "commands": command_results,
         "failure_reasons": failures,
     }
+    if ui_evidence is not None:
+        receipt["ui_evidence"] = ui_evidence
     _write_receipt(receipt_path, receipt)
     return JourneyRunResult(0 if outcome == "PASS" else 1, receipt_path, receipt)
 
@@ -551,7 +687,97 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
         return False
     if payload["outcome"] == "FAIL" and (passed != 0 or not failure_reasons):
         return False
+    if boundary == "ui":
+        if not _valid_ui_receipt(payload, project_root, receipt_path):
+            return False
+    elif "ui_evidence" in payload:
+        return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
+
+
+def _valid_ui_receipt(
+    payload: dict[str, Any], project_root: Path, receipt_path: Path
+) -> bool:
+    ui_evidence = payload.get("ui_evidence")
+    if not isinstance(ui_evidence, dict):
+        return False
+    steps = ui_evidence.get("steps")
+    if not isinstance(steps, list) or len(steps) < 2:
+        return False
+    target_ac = set(payload["target_ac"])
+    final_ac: set[str] = set()
+    step_ids: set[str] = set()
+    all_present = True
+    declared_types: set[str] = set()
+    run_dir = receipt_path.parent.resolve()
+    canonical_root = (project_root / EVIDENCE_ROOT_REL).resolve()
+    for step in steps:
+        if not isinstance(step, dict):
+            return False
+        step_id = step.get("step_id")
+        if (
+            not isinstance(step_id, str)
+            or not _ID_RE.fullmatch(step_id)
+            or step_id in step_ids
+        ):
+            return False
+        step_ids.add(step_id)
+        if not isinstance(step.get("description"), str) or not step["description"]:
+            return False
+        step_ac = step.get("target_ac")
+        if (
+            not isinstance(step_ac, list)
+            or not step_ac
+            or any(not isinstance(item, str) or not item for item in step_ac)
+            or not set(step_ac).issubset(target_ac)
+        ):
+            return False
+        if not isinstance(step.get("final"), bool):
+            return False
+        if step["final"]:
+            final_ac.update(step_ac)
+        evidence = step.get("evidence")
+        if not isinstance(evidence, list) or not evidence:
+            return False
+        for item in evidence:
+            if not isinstance(item, dict) or item.get("type") not in _UI_EVIDENCE_TYPES:
+                return False
+            declared_path = item.get("path")
+            present = item.get("present")
+            declared_hash = item.get("sha256")
+            if not isinstance(declared_path, str) or not isinstance(present, bool):
+                return False
+            path = (project_root / declared_path).resolve()
+            try:
+                path.relative_to(canonical_root)
+                path.relative_to(run_dir)
+            except ValueError:
+                return False
+            if present:
+                if (
+                    not isinstance(declared_hash, str)
+                    or path.is_symlink()
+                    or not path.is_file()
+                    or path.stat().st_size == 0
+                ):
+                    return False
+                try:
+                    actual_hash = _sha256_file(path)
+                except OSError:
+                    return False
+                if actual_hash != declared_hash:
+                    return False
+                declared_types.add(item["type"])
+            else:
+                all_present = False
+                if declared_hash is not None or path.exists():
+                    return False
+    if final_ac != target_ac:
+        return False
+    if payload["outcome"] == "PASS" and not all_present:
+        return False
+    expected_types = {"command", "log", "ui", *declared_types}
+    return set(payload["evidence_types"]) == expected_types
 
 
 def _evidence_matches_receipt(
@@ -612,7 +838,7 @@ def _evidence_matches_receipt(
 
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description="project-local non-UI product journey runner"
+        description="project-local product journey runner"
     )
     parser.add_argument("command", choices=["run"])
     parser.add_argument("--project-root", default=".")
