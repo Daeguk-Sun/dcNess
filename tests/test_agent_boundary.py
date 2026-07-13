@@ -269,6 +269,34 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
             self.assertIsNotNone(reason)
             self.assertIn("write-zero", reason)
 
+    def test_product_acceptance_journey_runner_respects_write_zero(self):
+        command = (
+            "dcness-product-journey run --project-root . "
+            "--config app/.maestro/dcness-journey.json"
+        )
+        self.assertIsNone(check_bash_mutation(command))
+        self.assertEqual(extract_bash_paths(command), [])
+
+        with tempfile.TemporaryDirectory() as td:
+            cwd = Path(td)
+            for mutation in (
+                f"{command} > tracked.file",
+                "sed -i 's/x/y/' tracked.file",
+            ):
+                paths = extract_bash_paths(mutation)
+                self.assertIn("tracked.file", paths)
+                reasons = [
+                    check_write_allowed(
+                        "product-acceptance",
+                        path,
+                        cwd=cwd,
+                        shell_context=True,
+                    )
+                    for path in paths
+                ]
+                self.assertTrue(all(reasons))
+                self.assertTrue(all("write-zero" in reason for reason in reasons))
+
     def test_module_architect_new_docs_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)

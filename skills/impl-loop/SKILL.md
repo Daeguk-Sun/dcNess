@@ -229,9 +229,9 @@ story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후
 
 최종 main 대상 PR 이 여러 story 를 닫으면 `product-acceptance:STORY_ACCEPTANCE` 를 story × N 으로 수행한 뒤, epic close 가 실제 발동되면 `product-acceptance:EPIC_ACCEPTANCE` 를 1회 수행한다. gap 수정 commit 이 생기면 이전 STORY PASS 는 stale 이므로 STORY_ACCEPTANCE 부터 다시 돌린다.
 
-product-acceptance 는 read-only 라 `gh` 호출 불가다. PR 목록·검증 결과·동작 증거·UI 목업 정합 증거와 build-worker Cartography impact, affected Root Cartography 좌표, 상태 증거, 관련 epic/decision을 메인이 prompt 에 직접 담는다. UI task 는 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 함께 넣어 목업 불일치와 화면 증거 부재를 판정할 수 있게 한다. 핵심 AC 증거가 mock-only green 이거나 대상 사용자에게 부적합한 입력/진행 동선이면 gap 이다.
+product-acceptance 는 외부 상태 변경(`gh` issue/PR mutation, push, merge) 금지 경계라 `gh` 호출이 불가다. PR 목록·검증 결과·동작 증거·UI 목업 정합 증거와 build-worker Cartography impact, affected Root Cartography 좌표, 상태 증거, 관련 epic/decision을 메인이 prompt 에 직접 담는다. UI task 는 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 함께 넣어 목업 불일치와 화면 증거 부재를 판정할 수 있게 한다. 핵심 AC 증거가 mock-only green 이거나 대상 사용자에게 부적합한 입력/진행 동선이면 gap 이다.
 
-핵심 journey가 마감 AC이고 project-local 계약이 있으면, 메인이 product-acceptance 호출 직전에 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `"$PLUGIN_ROOT/scripts/dcness-product-journey" run --project-root "$PROJECT_ROOT" --config <contract>`를 실행한다. 생성된 receipt와 log를 prompt에 넣고 UI boundary이면 단계별 screenshot/state/log 경로도 함께 넣는다. exit 1은 구현 gap 증거이며 mock-only, app-not-started, journey 미실행, assertion 미평가, UI evidence 누락을 PASS로 세지 않는다. helper가 쓰는 영역은 ignored `.dcness-work/product-journey/`로 한정되고 product-acceptance agent는 수정하지 않는다.
+핵심 journey가 마감 AC이면 build-worker가 인계한 `(JOURNEY)` REQ와 owner module/소스 영역의 journey 매니페스트/e2e flow 경로를 product-acceptance prompt에 넣는다. receipt가 없으면 product-acceptance가 최종 tip에서 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `"$PLUGIN_ROOT/scripts/dcness-product-journey" run --project-root "$PROJECT_ROOT" --config <contract>`를 실행한다. exit 1은 구현 gap 증거이며 mock-only, app-not-started, journey 미실행, assertion 미평가, UI evidence 누락을 PASS로 세지 않는다. helper가 쓰는 영역은 ignored `.dcness-work/product-journey/`로 한정되고 tracked 구현·설계는 write-zero로 유지한다.
 
 호출:
 
