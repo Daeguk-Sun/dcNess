@@ -30,7 +30,7 @@ fi
 
 TASK_FILE="$1"
 if [ -z "$TASK_FILE" ]; then
-  echo "[pr-trailer] ERROR: impl task 파일 경로 인자 필요 — 사용법: pr-trailer.sh [--base] <impl-task-file>" >&2
+  echo "[pr-trailer] ERROR: impl task 파일 경로 인자 필요 — 사용법: pr-trailer.sh <impl-task-file>" >&2
   exit 2
 fi
 if [ ! -f "$TASK_FILE" ]; then

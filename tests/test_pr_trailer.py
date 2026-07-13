@@ -132,6 +132,12 @@ class PrTrailerTests(unittest.TestCase):
         self.assertIn("next-action", result.stderr)
         self.assertIn("pr_base", result.stderr)
 
+    def test_usage_no_longer_advertises_removed_base_mode(self) -> None:
+        result = self._run()
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("pr-trailer.sh <impl-task-file>", result.stderr)
+        self.assertNotIn("[--base]", result.stderr)
+
     def test_legacy_base_branch_marker_blocks_instead_of_deferring_close(self) -> None:
         (self.epic_dir / "stories.md").write_text(
             "**Base Branch:** feature/shorts-template\n\n" + STORIES_BODY,

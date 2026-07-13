@@ -145,7 +145,7 @@ Part of #N
 - `gh pr checks --watch` (CI 결과 대기)
 - auto-merge 완료 대기 (GitHub 백그라운드 lag)
 - peer claim 이 있으면 completed 기록 (`merge-lock complete`)
-- `git fetch origin <default>` 후 default branch worktree fast-forward (base가 default와 다르면 origin/<base>도 fetch)
+- `git fetch origin <default>` 후 default branch worktree fast-forward
 - clean linked feature worktree 와 stale worktree admin entry 를 안전 조건 안에서 정리하고, dirty/non-fast-forward/checkout 충돌은 `preserved` 목록에 이유와 함께 남긴다.
 - **base ≠ default branch PR 거부** — `pr-finalize.sh`는 merge 전에 fail-fast한다. `/impl-loop` story PR은 사용자 승인 뒤 main으로 리타겟·리베이스해야만 helper를 호출할 수 있다.
 - (예정) Test Plan 종합 — 하위 commit 들의 `## Test Plan` 자동 수집·중복 제거·PR body 갱신

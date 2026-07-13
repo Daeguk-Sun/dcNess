@@ -86,6 +86,23 @@ format_items() {
   fi
 }
 
+require_default_base() {
+  local resolved_base
+  if ! resolved_base=$(gh pr view "$PR" --json baseRefName -q .baseRefName 2>/dev/null); then
+    echo "[pr-finalize] ERROR: PR #$PR base branch 조회 실패 — merge 안전 검증 불가" >&2
+    return 1
+  fi
+  if [ -z "$resolved_base" ] || [ "$resolved_base" = "null" ]; then
+    echo "[pr-finalize] ERROR: PR #$PR base branch 조회 실패 — 빈 응답, merge 안전 검증 불가" >&2
+    return 1
+  fi
+  BASE_REF="$resolved_base"
+  if [ "$BASE_REF" != "$DEFAULT_REF" ]; then
+    echo "[pr-finalize] ERROR: base=$BASE_REF ≠ default=$DEFAULT_REF — merge 전에 PR을 ${DEFAULT_REF}으로 리타겟·리베이스할 것" >&2
+    return 1
+  fi
+}
+
 canonical_path() {
   (cd "$1" 2>/dev/null && pwd -P) || printf '%s\n' "$1"
 }
@@ -288,12 +305,7 @@ DEFAULT_REF=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/
 if [ -z "$DEFAULT_REF" ]; then
   DEFAULT_REF=main
 fi
-BASE_REF=$(gh pr view "$PR" --json baseRefName -q .baseRefName 2>/dev/null || true)
-if [ -z "$BASE_REF" ]; then BASE_REF="$DEFAULT_REF"; fi
-if [ "$BASE_REF" != "$DEFAULT_REF" ]; then
-  echo "[pr-finalize] ERROR: base=$BASE_REF ≠ default=$DEFAULT_REF — merge 전에 PR을 main으로 리타겟·리베이스할 것" >&2
-  exit 1
-fi
+require_default_base
 
 # working tree dirty check
 if [ -n "$(git status --porcelain)" ]; then
@@ -329,6 +341,11 @@ if [ "$MERGE_LOCK_MODE" = "peer" ]; then
     echo "[pr-finalize] WARN: 현재 CI 상태가 clean 이 아님 — --watch 단계에서 최종 판정" >&2
   fi
 fi
+
+# 승인 대기·dirty 확인·peer lock 사이에 PR base가 바뀌었을 수 있으므로 merge
+# 명령 직전에 다시 fail-closed 검증한다.
+echo "[pr-finalize] merge 직전 default branch base 재확인" >&2
+require_default_base
 
 # Step 1: auto-merge 토글
 # PR 이 이미 clean status (CI 통과 + mergeable) 면 enablePullRequestAutoMerge mutation

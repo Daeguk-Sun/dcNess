@@ -24,8 +24,9 @@ class PrFinalizeBaseGuardTests(unittest.TestCase):
     def test_rejects_non_default_base_before_any_merge_path(self) -> None:
         self.assertIn("defaultBranchRef", self.script)
         self.assertIn("baseRefName", self.script)
-        self.assertIn("main으로 리타겟", self.script)
-        guard = self.script.index('if [ "$BASE_REF" != "$DEFAULT_REF" ]; then')
+        self.assertIn("리타겟·리베이스", self.script)
+        self.assertGreaterEqual(self.script.count("require_default_base"), 3)
+        guard = self.script.index("require_default_base", self.script.index("CURRENT_WORKTREE="))
         dirty_check = self.script.index("# working tree dirty check")
         merge_call = self.script.index('gh pr merge "$PR" --auto --merge')
         self.assertLess(guard, dirty_check)
@@ -33,6 +34,11 @@ class PrFinalizeBaseGuardTests(unittest.TestCase):
         self.assertNotIn("extract_close_issue_numbers", self.script)
         self.assertNotIn("gh issue close", self.script)
         self.assertNotIn("check-runs", self.script)
+
+        git_spec = (REPO_ROOT / "docs" / "plugin" / "git-spec.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("base가 default와 다르면 origin/<base>도 fetch", git_spec)
 
     def test_non_default_base_exits_before_merge_command(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -87,6 +93,58 @@ class PrFinalizeBaseGuardTests(unittest.TestCase):
             self.assertEqual(1, result.returncode, result.stderr)
             self.assertIn("feature/parent", result.stderr)
             self.assertIn("main으로 리타겟", result.stderr)
+            self.assertNotIn("pr merge", gh_log.read_text(encoding="utf-8"))
+
+    def test_unresolved_base_fails_closed_before_merge_command(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td) / "repo"
+            bin_dir = Path(td) / "bin"
+            gh_log = Path(td) / "gh.log"
+            root.mkdir()
+            bin_dir.mkdir()
+            subprocess.run(
+                ["git", "init", "-b", "main"], cwd=root, check=True, capture_output=True
+            )
+            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Test"], cwd=root, check=True)
+            (root / "README.md").write_text("base\n", encoding="utf-8")
+            subprocess.run(["git", "add", "README.md"], cwd=root, check=True)
+            subprocess.run(
+                ["git", "commit", "-m", "base"], cwd=root, check=True, capture_output=True
+            )
+
+            gh = bin_dir / "gh"
+            gh.write_text(
+                "#!/bin/sh\n"
+                "echo \"$*\" >> \"$GH_LOG\"\n"
+                "case \"$*\" in\n"
+                "  'repo view --json defaultBranchRef -q .defaultBranchRef.name') echo main ;;\n"
+                "  'pr view 123 --json headRefName -q .headRefName') echo feature/child ;;\n"
+                "  'pr view 123 --json baseRefName -q .baseRefName') exit 1 ;;\n"
+                "  'pr merge 123 --auto --merge') exit 0 ;;\n"
+                "  'pr checks 123 --watch') exit 1 ;;\n"
+                "esac\n"
+                "exit 0\n",
+                encoding="utf-8",
+            )
+            gh.chmod(0o755)
+            env = {
+                **os.environ,
+                "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                "GH_LOG": str(gh_log),
+            }
+
+            result = subprocess.run(
+                [str(SCRIPT_PATH), "123"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=30,
+            )
+
+            self.assertEqual(1, result.returncode, result.stderr)
+            self.assertIn("base branch 조회 실패", result.stderr)
             self.assertNotIn("pr merge", gh_log.read_text(encoding="utf-8"))
 
     def test_pr_finalize_documents_invocation_as_merge_commitment(self) -> None:
