@@ -9,7 +9,7 @@
 - **marketplace artifact 경량화 (#1102)** — clean install/update가 `release` ref를 직접 소비하도록
   marketplace source를 현행 GitHub source 계약으로 복구하고, candidate·release sync가 하나의
   artifact manifest를 공유한다. 격리 install 기준 self 전용 파일을 제거한 payload는
-  549파일·5,159,235 bytes·102,346 LOC에서 199파일·2,185,919 bytes·44,519 LOC로 줄었으며,
+  549파일·5,159,235 bytes·102,346 LOC에서 199파일·2,186,255 bytes·44,522 LOC로 줄었으며,
   SessionStart additionalContext는 별도 지표(2,068 bytes, 약 517 token)로 유지해 package 감소를
   prompt 감소로 주장하지 않는다.
 
