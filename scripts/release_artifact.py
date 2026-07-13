@@ -210,7 +210,7 @@ def _run_checked(command: list[str], *, cwd: Path, env: dict[str, str] | None = 
     return result.stdout
 
 
-def _verify_agent_surface(bundle: Path) -> None:
+def _verify_agent_surface(bundle: Path, public_surface_checker: Path) -> None:
     agents_root = bundle / "agents"
     recursive = sorted(path for path in agents_root.rglob("*.md") if path.is_file())
     top_level = sorted(path for path in agents_root.glob("*.md") if path.is_file())
@@ -222,7 +222,7 @@ def _verify_agent_surface(bundle: Path) -> None:
         instruction = bundle / "docs" / "plugin" / "agents" / name / f"{name}-agent.md"
         if not instruction.is_file():
             raise ArtifactError(f"agent instruction missing: {instruction.relative_to(bundle)}")
-    _run_checked([_executable("node"), "scripts/check_public_surface.mjs"], cwd=bundle)
+    _run_checked([_executable("node"), str(public_surface_checker)], cwd=bundle)
 
 
 def _verify_required_paths(bundle: Path, contract: Contract) -> None:
@@ -354,7 +354,7 @@ def smoke(repo_root: Path, ref: str, contract: Contract) -> dict[str, int]:
         bundle = temp_root / "bundle"
         build(repo_root, ref, bundle, contract)
         _verify_required_paths(bundle, contract)
-        _verify_agent_surface(bundle)
+        _verify_agent_surface(bundle, repo_root / "scripts" / "check_public_surface.mjs")
         runtime = _verify_external_runtime(bundle, temp_root)
         artifact = snapshot(bundle, contract)
         context_bytes = runtime["session_start_additional_context_bytes"]

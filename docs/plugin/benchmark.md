@@ -30,7 +30,8 @@ process, Agent effectiveness, product outcome, 비용을 합산한 단일 성공
 
 ### freshness와 drift 검출
 
-기본 검증 명령은 실제로 `python3.11 -m unittest discover -s tests -v`와
+아래 기본 검증 명령은 설치 cache가 아니라 tests/evals를 포함한 dcNess source checkout에서만
+실행한다. 실제로 `python3.11 -m unittest discover -s tests -v`와
 `python3.11 evals/guard_efficacy.py --json`을 실행한다. 그 결과를 README와 이 문서의
 동일 snapshot marker, `.claude-plugin/plugin.json` version과 비교하므로 version·test·guard
 중 하나라도 현재 checkout과 달라지면 exit 1이다.

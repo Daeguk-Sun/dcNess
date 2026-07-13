@@ -47,15 +47,33 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "requirements-eval.txt",
                 "requirements-quality.txt",
                 "scripts/CLAUDE.md",
+                "scripts/check_cross_refs.mjs",
+                "scripts/check_doc_path_integrity.mjs",
                 "scripts/check_python_tests.sh",
+                "scripts/check_plugin_manifest.mjs",
+                "scripts/check_public_evidence.mjs",
+                "scripts/check_public_surface.mjs",
                 "scripts/hooks/cc-pre-commit.sh",
+                "scripts/launchd",
                 "scripts/release_artifact.json",
                 "scripts/release_artifact.py",
+                "scripts/setup_branch_protection.mjs",
                 "scripts/sync_release.sh",
                 "templates/CLAUDE.md",
             }.issubset(excluded)
         )
         self.assertEqual(contract["allowed_cache_metadata"], [".git", ".in_use"])
+
+        runtime_checkers = {
+            "scripts/check_design_artifact_structure.mjs",
+            "scripts/check_git_naming.mjs",
+            "scripts/check_issue_body.mjs",
+            "scripts/check_pr_body.mjs",
+        }
+        all_checkers = {
+            path.relative_to(ROOT).as_posix() for path in (ROOT / "scripts").glob("check_*")
+        }
+        self.assertEqual(all_checkers - excluded, runtime_checkers)
 
     def test_build_and_snapshot_share_the_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

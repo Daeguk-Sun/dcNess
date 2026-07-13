@@ -87,7 +87,8 @@ fail-open은 hook이 정책 판단을 못 해서 차단 대신 통과한 의심 
 [`core-incidents-v1`](evals/calibration/core-incidents-v1/README.md)에 표본·재현 절차·한계를
 보존한다. 두 결과도 제품 outcome이나 다중 프로젝트 우위 근거로 승격하지 않는다.
 
-`node scripts/check_public_evidence.mjs`는 실제 전체 unittest와 guard eval을 실행하고,
+`node scripts/check_public_evidence.mjs`는 설치 cache가 아니라 dcNess source checkout에서만 실행하는
+self evidence gate다. 실제 전체 unittest와 guard eval을 실행하고,
 manifest version·test 수·guard 수가 이 표와
 [`benchmark.md`](docs/plugin/benchmark.md#현재-공개-evidence-snapshot)에서 어긋나면 실패한다.
 개별 원명령도 그대로 통과해야 한다.
