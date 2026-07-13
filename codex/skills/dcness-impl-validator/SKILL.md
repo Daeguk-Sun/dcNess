@@ -7,19 +7,19 @@ description: Use when dcNess routes impl-validator merge-review or internal CODE
 
 ## 언제 쓰나
 
-dcNess가 `impl-validator`를 Codex 교차 검토로 보낼 때 사용한다. 구현 뒤 story PR, `/impl` local diff, 또는 다중 story/통합 브랜치의 합쳐진 diff 가 merge 가능한지 읽기 전용으로 검증한다.
+dcNess가 `impl-validator`를 Codex 교차 검토로 보낼 때 사용한다. 구현 뒤 story PR, `/impl` local diff, 또는 다중 story의 최종 stack tip vs main diff가 merge 가능한지 읽기 전용으로 검증한다.
 
 ## 목적
 
 Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 가 제공된 plan과 현재 repository state를 만족하는지 보고, 동시에 merge risk와 유지보수성을 본다. 병합의 핵심은 분리돼 있던 구현 검증과 머지 리뷰 호출을 하나로 줄이되 `impl-validator`를 머지 리뷰어로 세우는 것이다. 재진입 라우팅은 finding-class로 보존한다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../../docs/plugin/terms.md)를 확인한다.
 
-검토 단위는 "지금 merge 하려는 diff" 이다. 단일 story 또는 `/impl` PR 이면 그 PR diff 를 보고, 다중 story/epic invocation 이면 개별 PR 을 순차 리뷰하지 않고 호출자가 제공한 합쳐진 diff 를 1회 통합 리뷰한다. 제품 AC 검수는 `product-acceptance` 책임이다.
+검토 단위는 "지금 merge 하려는 diff" 이다. 단일 story 또는 `/impl` PR이면 그 PR diff를 보고, 다중 story/epic invocation이면 개별 PR을 순차 리뷰하지 않고 호출자가 제공한 stack tip vs main diff를 1회 통합 리뷰한다. 제품 AC 검수는 `product-acceptance` 책임이다.
 
 `CODEBASE_SANITY`는 Epic 최종 clean candidate에서 쓰고, 다음 `/design`의 직전 receipt가 stale일 때 affected scope 재감사에도 재사용하는 내부 mode다. 기본 merge-review mode의 diff scope와 PR 밖 legacy 비차단 계약은 바꾸지 않는다. 이 mode에서만 전체 repo 또는 affected dependency cone을 semantic scope로 받아 dead code·warning·scaffold·replacement/refactor 잔존을 감사한다. 별도 public command나 agent가 아니다.
 
 ## 입력
 
-- PR 번호, URL, 로컬 diff 맥락, 또는 다중 PR/통합 브랜치의 합쳐진 diff 맥락
+- PR 번호, URL, 로컬 diff 맥락, 또는 다중 story PR의 stack tip vs main diff 맥락
 - implementation plan 경로. Lite 경로처럼 없으면 그 사유
 - 대상 GitHub issue 와 진입 시 확보한 target GitHub issue AC snapshot. issue 없는 작업이면 그 사유
 - 변경 파일 목록
@@ -28,7 +28,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 - 구현자가 자유 prose로 남긴 build-worker impact 보고. direct 구현이면 같은 의미 축의 Cartography impact 보고
 - impact가 가리키는 affected Root Cartography 좌표와 tracked/local-only 문서 정책
 - 필요하면 retry count, scope note, known constraint
-- 다중 story/epic invocation 이면 포함된 story PR/fix PR 목록과 최종 merge target
+- 다중 story/epic invocation이면 포함된 story PR/조건부 QA PR 목록과 최종 stack tip
 
 ## 먼저 볼 기준
 
@@ -97,7 +97,7 @@ mode가 명시됐을 때만 적용한다. 작은 repo는 전체 repo, 큰 repo�
 
 ## 작업 흐름
 
-1. mode를 확인한다. 기본 merge-review mode는 changed code와 합쳐진 diff를 우선한다. `CODEBASE_SANITY`는 code revision과 repo/affected dependency cone scope를 확정한다.
+1. mode를 확인한다. 기본 merge-review mode는 changed code를 보고, 다중 story/epic이면 stack tip vs main diff를 우선한다. `CODEBASE_SANITY`는 code revision과 repo/affected dependency cone scope를 확정한다.
 2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. plan 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
 3. quality 렌즈로 merge blocker를 찾는다. `CODEBASE_SANITY`이면 warning·coverage·dead-code·replacement 분류를 함께 수행한다.
 4. Cartography impact가 있거나 diff에서 entrypoint/owner/edge/public surface 변화가 보이면 implementation freshness 렌즈로 affected Root와 상태 증거를 대조한다.
@@ -125,7 +125,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - FAIL이면 모든 blocker가 재현 가능한 path:line evidence와 finding-class를 갖는다.
 - ESCALATE이면 어떤 입력, diff, 테스트 결과, repo context가 부족한지 명확하다.
 - 호출자가 제공하지 않은 테스트 실행 결과를 꾸며 쓰지 않는다.
-- 다중 story/epic invocation 에서 합쳐진 diff 가 제공되지 않았고 개별 PR 단편만으로는 cross-story 결함을 판단할 수 없으면 ESCALATE할 수 있다.
+- 다중 story/epic invocation에서 stack tip vs main diff가 제공되지 않았고 개별 PR 단편만으로는 cross-story 결함을 판단할 수 없으면 ESCALATE할 수 있다.
 - applicable implementation Cartography impact가 있으면 diff·impact 보고·affected Root 좌표·상태 증거를 대조했다. as-built drift, 증거 없는 `landed`, route-only drift가 남아 있으면 PASS하지 않는다. local-only/ignored 정책에서도 canonical local Root refresh가 확인되지 않고 durable impact handoff만 있으면 같은 미해소 상태다. system backpressure가 남아 있어도 PASS하지 않는다.
 - `CODEBASE_SANITY` PASS이면 revision/scope와 기계적 증거가 명확하고 모든 후보가 근거로 분류됐으며 rework finding이 없다. merge 판단을 막는 unknown은 ESCALATE한다.
 

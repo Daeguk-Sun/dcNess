@@ -13,8 +13,6 @@
 4. 완성 쇼츠가 1080×1920 mp4 로 export 되고, unlisted 디폴트 + `#Shorts` 로 업로드된다.
 5. 영상별로 [원본 음성 유지]/[나레이션 대체] 택1이 되고, 나레이션 모드는 교정한 텍스트를 타입캐스트 TTS 로 합성해 원본 음성을 대체하며, 합성 음성 포함 시 AI 고지가 자동 반영된다.
 
-**Base Branch:** feature/shorts-template
-
 **GitHub Epic Issue:** [#182](https://github.com/alruminum/youTubeGenerator/issues/182)
 
 ---

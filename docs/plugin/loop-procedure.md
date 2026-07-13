@@ -27,16 +27,18 @@ EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / d
 ```
 
 - **거부 표현 시에만 건너뜀** — 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시 EnterWorktree 호출 0, 일반 cwd 그대로 진행.
-- 수동 `git worktree add` 우회 금지 — CC permission 시스템이 EnterWorktree 만 자동 권한 처리. 수동 워크트리는 sub-agent Write 거부 회귀 (#255 W1). **예외 = 통합 브랜치 모드** ([base-ref 분기](#base-ref-분기-통합-브랜치-모드-424) — 사전 `git worktree add` 후 `EnterWorktree(path=)` 진입, CC 가 path= 도 권한 처리).
+- 수동 `git worktree add` 우회 금지 — CC permission 시스템이 EnterWorktree 만 자동 권한 처리. 수동 워크트리는 sub-agent Write 거부 회귀 (#255 W1).
 - **종료 시 ExitWorktree (커밋 diff 흡수 + clean worktree 자동 분기)** — 자동 remove/discard 조건은 **커밋 diff 흡수 확인 + working tree clean** 둘 다다. 먼저 `main..<worktree-branch>` diff (`.claude` 제외) 가 비어 이미 머지 흡수됐는지 확인하고, 이어서 worktree cwd 에서 `git status --porcelain --untracked-files=all` 이 빈 값인지 확인한다. 두 조건을 모두 만족할 때만 `ExitWorktree(action="remove", discard_changes=true)` 를 호출한다. 커밋 diff 가 남아 있거나 `uncommitted/untracked` 파일이 하나라도 있으면 `ExitWorktree(action="keep")` 으로 강등하며, dirty 상태 자동 discard 금지.
 
-### base-ref 분기 (통합 브랜치 모드, #424)
+### story 브랜치 스택
 
-**운전 원칙만 여기, 규칙은 git-spec.** epic 단위 stories.md 상단 `**Base Branch:** feature/<slug>` 마커 매치 시 = 통합 브랜치 모드 → outer worktree base ref 도 integration branch 와 정합해야 한다 (`EnterWorktree(name=)` default `baseRef=fresh` = origin/main 이라 base mismatch → sub-PR diff 거대화 false). EnterWorktree 가 base parameter 미지원이라 사전 `git fetch origin <integration>` → `git worktree add -b <new> <path> origin/<integration>` → `EnterWorktree(path=<path>)` 로 진입한다. **fetch 선행 필수** — remote-tracking ref 미갱신 시 `origin/<integration>` 이 stale / unknown revision 이라 worktree add 실패 또는 stale base 로 sub-PR diff 거대화 재발.
+`/impl-loop` 다중 story는 `story1(base=main) → story2(base=story1) → …` 순서로 branch와 PR을 만든다. 상세 naming/trailer 규칙은 [`git-spec.md`의 story 브랜치 스택](git-spec.md#story-브랜치-스택)이 소유한다.
 
-- **base 값 판정 규칙** (`**Base Branch:**` 마커 → base, 없으면 main · checkout/PR base 둘 다 적용) = [`git-spec.md` Git 절차](git-spec.md#git-절차).
-- **loop 별 적용** (epic 단위 stories.md 경로 유도 / chain outer 1회) = [`skills/design/SKILL.md`](../../skills/design/SKILL.md) · [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md).
-- **stale env 가드 (MUST)**: epic 단위 stories.md 경로 유도 시 `EPIC_DIR`(design) 와 `TASK_FILE`(impl-loop) 가 *둘 다* set 이면 (resume/chain) 두 경로가 같은 epic 의 stories.md 로 수렴하는지 검증 — 서로 다른 epic 을 가리키면 stale env 의심으로 **정지** (조용히 한쪽 택1 금지). 잘못된 epic 의 `**Base Branch:**` 로 worktree/PR base 가 어긋나는 사고 차단.
+- 첫 story branch는 `main`, 다음 story branch는 **직전 story 브랜치** tip에서 만든다. 직전 story PR은 열린 상태로 두며 자동 merge 금지다.
+- PR 생성 시 stack base를 유지해 순수 story diff를 보여 준다. 사용자가 merge를 승인한 시점에만 해당 PR을 base=`main` 으로 리타겟하고 최신 main 위로 리베이스한다.
+- main rebase가 현재 story tip을 바꾸면 아직 열린 downstream branch를 새 tip 위에 순서대로 restack한 뒤 merge한다. restack 충돌 해결로 최종 tree가 달라지면 기존 review/acceptance 증거는 stale이다.
+- 다음 story로 넘어가기 위한 branch 생성은 reversible local/git 작업이며, `$PLUGIN_ROOT/scripts/pr-finalize.sh` 호출은 merge 승인 뒤에만 가능하다.
+- `EPIC_DIR`(design)와 `TASK_FILE`(impl-loop)이 둘 다 set이면 두 경로가 같은 epic의 stories.md로 수렴하는지 검증한다. 서로 다르면 stale env로 정지한다.
 
 ### begin-run
 
@@ -328,9 +330,9 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 |---|---|
 | runner `plan/init` | path 정렬 뒤 동일 frontmatter `story` 값의 비연속 재등장을 state 변경 전에 차단하고 관련 task 경로를 보고한다. runner 는 story 순서를 임의 재정렬하지 않는다. |
 | build-worker PASS 직후 | task local commit sha 확인 + `dcness-story-runner mark --status completed --commit <sha>` |
-| 한 story 의 task 전부 completed | story PR body 작성 + push + PR create. 다중 story/epic 은 통합 브랜치로 머지하고 갱신된 ref 에서 다음 story branch 재분기 |
-| 모든 target task completed | 단일 story PR 또는 통합→main PR 의 merge candidate diff 에 impl-validator 통합 리뷰 1회 |
-| impl-validator / STORY_ACCEPTANCE × N / 필요한 EPIC_ACCEPTANCE PASS | 최종 main 대상 PR 의 사용자 merge 결정 대기 |
+| 한 story 의 task 전부 completed | story PR body 작성 + push + PR create. 다음 story branch는 merge 없이 직전 story branch tip에서 재분기 |
+| 모든 target task completed | 스택 tip vs main merge candidate diff에 impl-validator 통합 리뷰 1회 |
+| impl-validator / STORY_ACCEPTANCE × N / 필요한 EPIC_ACCEPTANCE PASS | story PR별 main 리타겟·리베이스 후 사용자 merge 결정 대기 |
 
 > `docs/.../impl/NN-*.md` 는 `/design` 산출물이 *미리 머지* 된 상태 — impl-task-loop 안에서 별도 commit X. fallback 모드 (정식 위치 부재) 는 module-architect 산출물을 본 PR src commit 에 같이 포함.
 
@@ -339,13 +341,13 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 규칙은 전부 git-spec 위임 — loop-procedure 는 판정 로직(브랜치명·base·트레일러)을 재서술하지 않는다:
 
 - **브랜치명** = [`git-spec.md` 브랜치](git-spec.md#브랜치) (결정 절차 = [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)).
-- **base 분기** = [`git-spec.md` Git 절차](git-spec.md#git-절차) (stories.md `**Base Branch:**` 마커 매치 시 통합 브랜치, 없으면 main · checkout 과 PR base 둘 다 동일 BASE).
+- **base** = [`git-spec.md` story 브랜치 스택](git-spec.md#story-브랜치-스택) (첫 story=main, 이후 story=직전 story branch, merge 시 main 리타겟·리베이스).
 - **PR body 트레일러 (Part of vs Closes) 판정** = [`git-spec.md` PR 트레일러](git-spec.md#pr-트레일러-part-of-closes) 의 story/base 분기.
 - **실행** = [`scripts/pr-create.sh`](../../scripts/pr-create.sh) — `--branch / --base / --title / --body-file / --commit-msg-file` 받아 branch + add + commit + push + `gh pr create` 한 명령. body-file 은 메인이 위 트레일러 규칙대로 작성해 전달 (스크립트는 판정 X). **주의**: pr-create.sh 는 `git add -A`(worktree 전체 stage) — 위 권한 경계로 worktree 가 src-only 라 곧 src-only 커밋이 되지만, 메인이 stray non-src 변경(임시 파일·`.DS_Store` 등)을 발견하면 호출 *전* 정리하거나 명시 pathspec 으로 직접 stage 한다.
 
 ### Step 7a (impl-task-loop)
 
-story PR 경계에서만 PR 이 생성된 상태다. 다중 story/epic sub-PR 은 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 로 통합 브랜치에 반영하고, 다음 branch 를 갱신된 통합 ref 에서 만든다. 단일 story→main 및 마지막 통합→main PR 은 review/acceptance 뒤 사용자 merge 정책을 따른다.
+story PR 경계에서는 PR 생성만 완료한 상태다. 다중 story/epic도 PR을 merge하지 않고 다음 branch를 직전 story branch에서 만든다. 모든 PR에 자동 merge 금지 규칙을 적용하며, review/acceptance/AC audit 뒤 사용자가 유일한 merge gate다.
 
 ---
 

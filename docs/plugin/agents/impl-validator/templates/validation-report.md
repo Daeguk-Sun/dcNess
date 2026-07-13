@@ -5,7 +5,7 @@
 ## PASS
 
 - 검증 범위: merge candidate diff / 변경 파일 / 계획 파일 유무 / 테스트 증거
-- 다중 story/epic 이면 합쳐진 diff 를 봤는지 명시
+- 다중 story/epic이면 stack tip vs main diff를 봤는지 명시
 - 남은 NICE TO HAVE 가 있으면 blocker 가 아님을 명시
 
 마지막 단락: `PASS`
@@ -21,7 +21,7 @@
 
 ## ESCALATE
 
-- 판단 불가 이유: 누락 입력 / 권한 밖 정보 / 합쳐진 diff 부재 / spec 부재가 하드스톱인 이유
+- 판단 불가 이유: 누락 입력 / 권한 밖 정보 / stack tip vs main diff 부재 / spec 부재가 하드스톱인 이유
 - 메인 오케스트레이터 판단점
 
 마지막 단락: `ESCALATE`

@@ -123,7 +123,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         self.assertIn("5줄 요약", self.impl_loop_skill)
         self.assertIn("자유 형식 단축 금지", self.impl_loop_skill)
         # 5줄 템플릿의 핵심 줄 키 보존 (구조가 무너지면 FAIL).
-        for key in ("finding:", "PR <#NNN> merged", "next:"):
+        for key in ("finding:", "PR <#NNN> open", "next:"):
             self.assertIn(key, self.impl_loop_skill)
 
     # ----- 시나리오 3 — false-clean 차단 -----
@@ -201,20 +201,53 @@ class SkillScenarioRegressionTests(unittest.TestCase):
                 with self.subTest(doc=doc_name, needle=needle):
                     self.assertIn(needle, doc)
 
-    def test_impl_loop_documents_multi_story_fix_pr_policy(self) -> None:
-        """#1023 — multi-story review fixes use one integrated fix PR, not rebase churn."""
+    def test_impl_loop_documents_multi_story_qa_pr_policy(self) -> None:
+        """#1108 — cross-cutting review/acceptance fixes belong to the QA PR."""
         for doc_name, doc in (
             ("impl-loop", self.impl_loop_skill),
             ("impl-loop-routing", self.impl_loop_routing),
         ):
             for needle in (
                 "story PR 이 2개 이상",
-                "downstream rebase 없이",
-                "통합 fix PR 1개",
-                "이미 머지된 뒤",
+                "cross-cutting FAIL",
+                "QA PR",
+                "story-local FAIL",
+                "해당 story PR 브랜치",
             ):
                 with self.subTest(doc=doc_name, needle=needle):
                     self.assertIn(needle, doc)
+
+    def test_impl_loop_documents_qa_artifact_and_ac_write_contract(self) -> None:
+        for needle in (
+            "1-story",
+            "N-story",
+            "tracked 변경",
+            ".dcness-work/product-journey/",
+            "빈 QA PR",
+            "acceptance verdict",
+            "`(JOURNEY)`",
+            "`사람 확인 안내`",
+            "--acceptance-only",
+            "--require-complete",
+            "human verification 대기",
+            "마지막 merge 대상 PR",
+            "`Closes #epic`",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.impl_loop_skill)
+
+    def test_impl_loop_makes_user_the_only_merge_gate(self) -> None:
+        for doc_name, doc in (
+            ("impl-loop", self.impl_loop_skill),
+            ("impl-loop-routing", self.impl_loop_routing),
+        ):
+            with self.subTest(doc=doc_name):
+                self.assertIn("사용자가 유일한 merge gate", doc)
+                self.assertIn("자동 merge 금지", doc)
+                self.assertNotIn("즉시 머지", doc)
+
+        self.assertIn("downstream branch", self.impl_loop_skill)
+        self.assertIn("review/acceptance 증거", self.impl_loop_skill)
 
     def test_impl_loop_chain_confirms_when_issue_close_will_fire(self) -> None:
         """#851/#1019 — issue close 발동 story PR chain 은 1회 확인한다."""
@@ -223,8 +256,8 @@ class SkillScenarioRegressionTests(unittest.TestCase):
             "task 수와 무관하게",
             "1회 확인",
             "yolo 모드에서는 생략",
-            "확인 응답 전에는 task1 또는 마감 PR 머지로 진입하지 않는다",
-            "마지막 main 머지 PR 직전에 1회 확인한다",
+            "확인 응답 전에는 task1 또는 story PR merge 준비로 진입하지 않는다",
+            "각 story PR 의 main 리타겟 직전에 1회 확인한다",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_loop_skill)
