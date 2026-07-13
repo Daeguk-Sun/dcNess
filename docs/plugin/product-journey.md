@@ -142,4 +142,4 @@ helper는 command 환경에 `DCNESS_PRODUCT_JOURNEY_RUN_DIR` 절대경로를 주
 
 helper와 runtime은 plugin 본체의 `scripts/dcness-product-journey`, `harness/product_journey.py`로 배포된다. 사용자 repo에 helper 사본을 복사하지 않는다. 프로젝트 계약은 opt-in이며 `/init-dcness`가 자동 생성하거나 덮어쓰지 않는다.
 
-계약을 팀과 공유해야 하면 owner module/소스 영역의 매니페스트와 e2e flow를 프로젝트가 명시적으로 관리한다. build-worker가 이 plugin 배포물 안에서 산출물을 만들기 때문에 신규 `/init-dcness` deploy 스텝은 필요 없다. 실행 log와 receipt는 재생성 가능한 실측 evidence이므로 gitignore 대상 `.dcness-work/product-journey/`에 둔다.
+계약을 팀과 공유해야 하면 owner module/소스 영역의 매니페스트와 e2e flow를 프로젝트가 명시적으로 관리한다. plugin에 포함된 build-worker가 활성 프로젝트의 해당 영역에 산출물을 만들기 때문에 신규 `/init-dcness` deploy 스텝은 필요 없다. 실행 log와 receipt는 재생성 가능한 실측 evidence이므로 gitignore 대상 `.dcness-work/product-journey/`에 둔다.
