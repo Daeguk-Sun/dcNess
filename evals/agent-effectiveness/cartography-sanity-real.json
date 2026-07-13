@@ -10,7 +10,7 @@
       "One frozen fixture and one paired run (1+1) give a single live measurement signal, not a statistical generalization.",
       "Each trial consists of two task-isolated headless invocations, so the 1+1 screening used 4 LLM invocations counted as 2 trials.",
       "visited only contains successful Read events on fixture files; Glob/Grep calls and failed reads remain in the raw traces referenced by provenance.",
-      "Cross-session resume was outside this measurement, so both variants record false.",
+      "Cross-session resume was outside this measurement, so both variants record it as unmeasured (null).",
       "Attempt 1 on 2026-07-13 (traces preserved under evidence/real-2026-07-attempt1/) was rejected by the fail-closed validator: both variants over-included two framework-route files in the refactor impact set. The current contract then gained an explicit impact-boundary rule and this attempt 2 with the amended contract is the adopted paired run; no same-setup rerun selection occurred.",
       "Executed in the same month as the 2026-07 lean-ablation screening; the month-separation budget rule was retired by user decision on 2026-07-13.",
       "The 2026-07 trial cap was raised from 4 to 6 by user decision on 2026-07-13 to fund attempt 2; attempt-1 trials stay counted in used_before."

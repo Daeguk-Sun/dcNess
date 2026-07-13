@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = ROOT / "evals" / "agent-effectiveness" / "fixture"
 RECORD_DIR = ROOT / "evals" / "agent-effectiveness"
 JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
+HOST_HOME_PREFIX_RE = re.compile(r"/(?:Users|home)/[^/\\\s\"']+")
 
 EXPECTED_COORDINATES = {
     "ssot": "docs/architecture.md",
@@ -126,7 +127,7 @@ def _sanitize_string(value: str, sandbox: str) -> str:
     for source, target in sorted(replacements.items(), key=lambda item: len(item[0]), reverse=True):
         if source:
             result = result.replace(source, target)
-    return result
+    return HOST_HOME_PREFIX_RE.sub("<HOME>", result)
 
 
 def _sanitize_trace_value(value: Any, sandbox: str) -> Any:
@@ -583,7 +584,7 @@ def build_record(args: argparse.Namespace) -> dict[str, Any]:
                 "Grep calls and failed reads remain in the raw traces referenced by "
                 "provenance.",
                 "Cross-session resume was outside this measurement, so both variants "
-                "record false.",
+                "record it as unmeasured (null).",
                 "Attempt 1 on 2026-07-13 (traces preserved under "
                 "evidence/real-2026-07-attempt1/) was rejected by the fail-closed "
                 "validator: both variants over-included two framework-route files in "
