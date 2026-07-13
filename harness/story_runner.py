@@ -278,6 +278,30 @@ def _story_summary(state: dict[str, Any], story: str) -> dict[str, Any]:
     }
 
 
+def _story_order(state: dict[str, Any]) -> list[str]:
+    ordered: list[str] = []
+    for task in state.get("tasks", []):
+        story = str(task.get("story"))
+        if story not in ordered:
+            ordered.append(story)
+    return ordered
+
+
+def _story_branch_ref(story: str) -> dict[str, str]:
+    return {"kind": "story-branch", "story": story}
+
+
+def _pr_base_ref(state: dict[str, Any], story: str) -> dict[str, str]:
+    order = _story_order(state)
+    try:
+        index = order.index(story)
+    except ValueError as exc:
+        raise ValueError(f"story not found while resolving PR base: {story}") from exc
+    if index == 0:
+        return {"kind": "default-branch", "branch": "main"}
+    return _story_branch_ref(order[index - 1])
+
+
 def _progress(state: dict[str, Any]) -> dict[str, int]:
     tasks = state.get("tasks", [])
     return {
@@ -328,6 +352,8 @@ def next_action(state: dict[str, Any]) -> dict[str, Any]:
                 return {
                     "action": "story-pr",
                     "story": _story_summary(state, boundary_story),
+                    "pr_base": _pr_base_ref(state, boundary_story),
+                    "next_branch_base": _story_branch_ref(boundary_story),
                     "next_task": task,
                     "progress": _progress(state),
                 }
@@ -338,6 +364,8 @@ def next_action(state: dict[str, Any]) -> dict[str, Any]:
         return {
             "action": "done",
             "final_story": _story_summary(state, final_story),
+            "pr_base": _pr_base_ref(state, final_story),
+            "stack_tip": _story_branch_ref(final_story),
             "progress": _progress(state),
         }
 

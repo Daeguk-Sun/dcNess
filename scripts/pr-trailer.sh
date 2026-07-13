@@ -8,28 +8,24 @@
 #
 # 사용:
 #   scripts/pr-trailer.sh <impl-task-file>          # 트레일러 블록을 stdout 출력
-#   scripts/pr-trailer.sh --base <impl-task-file>   # PR base 브랜치만 stdout 출력
 #
 # stdout / stderr 분리:
-#   - stdout = 트레일러 블록(또는 --base 시 base 브랜치명)만 — PR body 에 그대로 붙임.
+#   - stdout = 트레일러 블록만 — PR body 에 그대로 붙임.
 #   - stderr = 판정 근거 / WARN / ERROR.
 #
 # 분기 (git-spec 기본 룰):
 #   - story: 공통 → Part of #<epic>
-#   - story PR, base=main → Closes #<story> (+ epic 마지막 story 면 Closes #<epic>)
-#   - story sub-PR, base=통합 브랜치 → Part of #<story> + final main bulk-close exception
+#   - story PR → Closes #<story> (+ epic 마지막 story 면 Closes #<epic>)
 #   - malformed (숫자 story 인데 task_index 가 i/total 형식 아님) → exit 1
 #
-# 통합 브랜치: stories.md 상단 `**Base Branch:** feature/<slug>` 마커가 있으면
-# base = 그 값. sub-PR 은 story 를 조기 close 하지 않고 마지막 통합→main PR 이
-# 모든 story + epic 을 일괄 close 한다.
+# story PR 생성 시 stack base 는 dcness-story-runner next-action 의 pr_base 가
+# 소유한다. merge 직전 main retarget/rebase 뒤 이 Closes trailer 가 발동한다.
 
 set -e
 
-MODE=trailer
 if [ "$1" = "--base" ]; then
-  MODE=base
-  shift
+  echo "[pr-trailer] ERROR: --base 는 폐기됨 — dcness-story-runner next-action 의 pr_base 를 사용할 것" >&2
+  exit 2
 fi
 
 TASK_FILE="$1"
@@ -53,19 +49,13 @@ if [ ! -f "$STORIES" ]; then
   exit 1
 fi
 
+if grep -qE '^\*\*Base Branch:\*\*' "$STORIES" 2>/dev/null; then
+  echo "[pr-trailer] ERROR: 폐기된 Base Branch 마커가 $STORIES 에 남아 있음 — 마커를 제거하고 story-runner stack topology 를 사용할 것" >&2
+  exit 1
+fi
+
 STORY_NUM=$(awk '/^story:/ {gsub(/[",]/,""); print $2; exit}' "$TASK_FILE")
 TASK_INDEX=$(awk '/^task_index:/ {gsub(/[",]/,""); print $2; exit}' "$TASK_FILE")
-
-# Base Branch 마커 (통합 브랜치 모드) — 매치 없으면 main (git-spec Git 절차 base 분기 룰)
-BASE=$(grep -m1 -E '^\*\*Base Branch:\*\*' "$STORIES" 2>/dev/null | sed -E 's/^\*\*Base Branch:\*\*[[:space:]]*//' | awk '{print $1}' || true)
-if [ -z "$BASE" ]; then
-  BASE=main
-fi
-
-if [ "$MODE" = "base" ]; then
-  echo "$BASE"
-  exit 0
-fi
 
 EPIC_ISSUE=$(grep -m1 -E '^\*\*GitHub Epic Issue:\*\*' "$STORIES" 2>/dev/null | grep -oE '#[0-9]+' | head -1 | tr -d '#' || true)
 
@@ -94,31 +84,25 @@ elif printf '%s' "$TASK_INDEX" | grep -qE '^[0-9]+/[0-9]+$'; then
     echo "[pr-trailer] ERROR: story $STORY_NUM 의 '**GitHub Issue:** #N' 마커를 $STORIES 에서 못 찾음 — 이슈 미등록이면 등록 후 재시도" >&2
     exit 1
   fi
-  if [ "$BASE" != "main" ]; then
-    TRAILER="Part of #${STORY_ISSUE}
-Document-Exception-PR-Close: 통합 브랜치 story sub-PR — main 머지 시 일괄 close"
-    echo "[pr-trailer] 통합 브랜치 story $STORY_NUM sub-PR → Part of #${STORY_ISSUE}; 마지막 통합→main PR 에서 일괄 close" >&2
-  else
-    TRAILER="Closes #${STORY_ISSUE}"
-    echo "[pr-trailer] story $STORY_NUM PR → Closes #${STORY_ISSUE}" >&2
-    # epic 마지막 story 판정 — epic 라벨은 stories.md 디렉토리명(epic-NN-<slug>) 우선,
-    # 없으면 epic 이슈의 라벨에서 조회. OPEN story 가 본 story 뿐이면 epic 도 동봉.
-    EPIC_LABEL=$(basename "$(dirname "$STORIES")" | grep -E '^epic-[0-9]+-' || true)
-    if [ -z "$EPIC_LABEL" ] && [ -n "$EPIC_ISSUE" ]; then
-      EPIC_LABEL=$(gh issue view "$EPIC_ISSUE" --json labels -q '.labels[].name' 2>/dev/null | grep -E '^epic-[0-9]+-' | head -1 || true)
-    fi
-    if [ -n "$EPIC_LABEL" ] && [ -n "$EPIC_ISSUE" ]; then
-      OPEN=$(gh issue list --label "$EPIC_LABEL" --milestone Story --state open --json number --jq 'length' 2>/dev/null || true)
-      if [ "$OPEN" = "1" ]; then
-        TRAILER="${TRAILER}
+  TRAILER="Closes #${STORY_ISSUE}"
+  echo "[pr-trailer] story $STORY_NUM PR → Closes #${STORY_ISSUE}" >&2
+  # epic 마지막 story 판정 — epic 라벨은 stories.md 디렉토리명(epic-NN-<slug>) 우선,
+  # 없으면 epic 이슈의 라벨에서 조회. OPEN story 가 본 story 뿐이면 epic 도 동봉.
+  EPIC_LABEL=$(basename "$(dirname "$STORIES")" | grep -E '^epic-[0-9]+-' || true)
+  if [ -z "$EPIC_LABEL" ] && [ -n "$EPIC_ISSUE" ]; then
+    EPIC_LABEL=$(gh issue view "$EPIC_ISSUE" --json labels -q '.labels[].name' 2>/dev/null | grep -E '^epic-[0-9]+-' | head -1 || true)
+  fi
+  if [ -n "$EPIC_LABEL" ] && [ -n "$EPIC_ISSUE" ]; then
+    OPEN=$(gh issue list --label "$EPIC_LABEL" --milestone Story --state open --json number --jq 'length' 2>/dev/null || true)
+    if [ "$OPEN" = "1" ]; then
+      TRAILER="${TRAILER}
 Closes #${EPIC_ISSUE}"
-        echo "[pr-trailer] epic 마지막 story — Closes #${EPIC_ISSUE} 동봉" >&2
-      elif [ -z "$OPEN" ]; then
-        echo "[pr-trailer] WARN: epic 마지막 story 판정 불가 (gh issue list 실패) — Closes #${EPIC_ISSUE} 미동봉. 수동 확인: gh issue list --label $EPIC_LABEL --milestone Story --state open" >&2
-      fi
-    elif [ -n "$EPIC_ISSUE" ]; then
-      echo "[pr-trailer] WARN: epic 라벨(epic-NN-<slug>) 미해결 — epic 마지막 story 판정 skip" >&2
+      echo "[pr-trailer] epic 마지막 story — Closes #${EPIC_ISSUE} 동봉" >&2
+    elif [ -z "$OPEN" ]; then
+      echo "[pr-trailer] WARN: epic 마지막 story 판정 불가 (gh issue list 실패) — Closes #${EPIC_ISSUE} 미동봉. 수동 확인: gh issue list --label $EPIC_LABEL --milestone Story --state open" >&2
     fi
+  elif [ -n "$EPIC_ISSUE" ]; then
+    echo "[pr-trailer] WARN: epic 라벨(epic-NN-<slug>) 미해결 — epic 마지막 story 판정 skip" >&2
   fi
 else
   echo "[pr-trailer] ERROR: story=$STORY_NUM 인데 task_index='$TASK_INDEX' 가 i/total 도 공통(—)도 아님 — malformed/누락 가드, PR 생성 정지 (git-spec PR 트레일러 MUST)" >&2

@@ -125,37 +125,24 @@ class PrTrailerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertIn("GitHub Issue", result.stderr)
 
-    def test_base_mode_reads_integration_branch_marker(self) -> None:
-        (self.epic_dir / "stories.md").write_text(
-            "**Base Branch:** feature/shorts-template\n\n" + STORIES_BODY,
-            encoding="utf-8",
-        )
+    def test_removed_base_mode_fails_with_story_runner_migration(self) -> None:
         task = self._task("01-first.md", "1", "1/2")
         result = self._run("--base", str(task))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "feature/shorts-template")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("next-action", result.stderr)
+        self.assertIn("pr_base", result.stderr)
 
-    def test_base_mode_defaults_to_main(self) -> None:
-        task = self._task("01-first.md", "1", "1/2")
-        result = self._run("--base", str(task))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(result.stdout.strip(), "main")
-
-    def test_integration_story_sub_pr_defers_close_to_main(self) -> None:
+    def test_legacy_base_branch_marker_blocks_instead_of_deferring_close(self) -> None:
         (self.epic_dir / "stories.md").write_text(
             "**Base Branch:** feature/shorts-template\n\n" + STORIES_BODY,
             encoding="utf-8",
         )
         task = self._task("01-first.md", "1", "1/2")
         result = self._run(str(task))
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(
-            result.stdout.strip(),
-            "Part of #11\n"
-            "Document-Exception-PR-Close: 통합 브랜치 story sub-PR — main 머지 시 일괄 close",
-        )
-        self.assertIn("통합 브랜치", result.stderr)
-        self.assertIn("일괄 close", result.stderr)
+        self.assertEqual(result.returncode, 1)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("폐기된", result.stderr)
+        self.assertIn("제거", result.stderr)
 
 
 if __name__ == "__main__":

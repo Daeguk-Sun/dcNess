@@ -9,13 +9,9 @@
 #   3. auto-merge 완료 대기 (GitHub 백그라운드 lag)
 #   4. git fetch origin <default> + default branch worktree fast-forward
 #   5. clean feature worktree / stale worktree admin entry 정리
-#   6. (통합 브랜치 sub-PR 만) PR body 의 close 선언 기반 issue close 보정
 #
-# 통합 브랜치 sub-PR (base ≠ default branch) 인지:
-#   - CI 체크 0개를 정상으로 처리 — 검증 워크플로는 default branch 대상 PR 만 발동.
-#   - GitHub auto-close 는 default branch 머지만 인식 → PR body 의 Closes/Fixes/Resolves
-#     선언을 근거로 머지 후 gh issue close 보정 (git-spec "통합 브랜치 케이스" 절).
-#     임의 직접 close 가 아니라 PR body 선언의 기계 보정이다.
+# base ≠ default branch PR은 merge 전에 거부한다. story stack PR은 사용자의 merge
+# 승인 뒤 default branch로 리타겟·리베이스한 다음 이 helper를 호출해야 한다.
 #
 # 사용:
 #   pr-finalize.sh                # current branch 의 open PR 자동 검출
@@ -62,21 +58,6 @@ record_pr_merged() {
   if ! "$HELPER" ledger-event pr_merged --pr "$pr_number" --url "$pr_url" >/dev/null 2>&1; then
     echo "[pr-finalize] WARN: ledger pr_merged 기록 실패 — active dcNess run 밖이면 정상" >&2
   fi
-}
-
-extract_close_issue_numbers() {
-  awk '
-    {
-      line = $0
-      lower = tolower(line)
-      if (lower ~ /^[[:space:]]*(close[sd]?|fix(e[sd])?|resolve[sd]?)[[:space:]]+#[0-9]+([,[:space:]]+#?[0-9]+)*[[:space:]]*$/) {
-        while (match(line, /#[0-9]+/)) {
-          print substr(line, RSTART + 1, RLENGTH - 1)
-          line = substr(line, RSTART + RLENGTH)
-        }
-      }
-    }
-  ' | sort -un
 }
 
 append_item() {
@@ -237,12 +218,6 @@ post_merge_sync_and_cleanup() {
   fi
   ORIGIN_DEFAULT_HEAD=$(git rev-parse "origin/$DEFAULT_REF" 2>/dev/null || true)
 
-  if [ "$INTEGRATION" = "true" ]; then
-    if ! git fetch origin "$BASE_REF" --quiet; then
-      echo "[pr-finalize] WARN: git fetch origin $BASE_REF 실패 — 다음 sub-PR branch 생성 전 수동 fetch 권장" >&2
-    fi
-  fi
-
   default_path=$(find_worktree_by_branch "$DEFAULT_REF")
   if [ -n "$default_path" ]; then
     sync_default_worktree "$default_path" || true
@@ -308,19 +283,16 @@ if [ -z "$BRANCH" ]; then
 fi
 CURRENT_WORKTREE=$(git rev-parse --show-toplevel)
 
-# 통합 브랜치 sub-PR 판정 — base ≠ default branch
+# default branch merge guard
 DEFAULT_REF=$(gh repo view --json defaultBranchRef -q .defaultBranchRef.name 2>/dev/null || true)
 if [ -z "$DEFAULT_REF" ]; then
   DEFAULT_REF=main
 fi
 BASE_REF=$(gh pr view "$PR" --json baseRefName -q .baseRefName 2>/dev/null || true)
-if [ -z "$BASE_REF" ]; then
-  BASE_REF="$DEFAULT_REF"
-fi
-INTEGRATION=false
+if [ -z "$BASE_REF" ]; then BASE_REF="$DEFAULT_REF"; fi
 if [ "$BASE_REF" != "$DEFAULT_REF" ]; then
-  INTEGRATION=true
-  echo "[pr-finalize] base=$BASE_REF ≠ default=$DEFAULT_REF — 통합 브랜치 sub-PR 모드" >&2
+  echo "[pr-finalize] ERROR: base=$BASE_REF ≠ default=$DEFAULT_REF — merge 전에 PR을 main으로 리타겟·리베이스할 것" >&2
+  exit 1
 fi
 
 # working tree dirty check
@@ -376,23 +348,10 @@ MERGE_ERR=$(gh pr merge "$PR" --auto --merge 2>&1 >/dev/null) || {
 }
 
 # Step 2: CI 결과 대기
-# 통합 브랜치 sub-PR 은 CI 체크 0개가 정상 (검증 워크플로는 default branch 대상 PR 만
-# 발동) — watch 가 "no checks reported" 로 실패하면 check-run 수를 재확인해 0개면 통과.
 echo "[pr-finalize] CI 결과 대기 (gh pr checks --watch)" >&2
 if ! gh pr checks "$PR" --watch >&2; then
-  CHECKS_OK=false
-  if [ "$INTEGRATION" = "true" ]; then
-    HEAD_OID=$(gh pr view "$PR" --json headRefOid -q .headRefOid 2>/dev/null || true)
-    CHECK_COUNT=$(gh api "repos/{owner}/{repo}/commits/${HEAD_OID}/check-runs" -q '.total_count' 2>/dev/null || true)
-    if [ "$CHECK_COUNT" = "0" ]; then
-      echo "[pr-finalize] 통합 브랜치 sub-PR 에 CI 체크 없음 — 정상, 계속 진행" >&2
-      CHECKS_OK=true
-    fi
-  fi
-  if [ "$CHECKS_OK" != "true" ]; then
-    echo "[pr-finalize] ERROR: CI FAIL — 머지 안 됨. sync skip" >&2
-    exit 1
-  fi
+  echo "[pr-finalize] ERROR: CI FAIL — 머지 안 됨. sync skip" >&2
+  exit 1
 fi
 
 # Step 3: auto-merge 완료 대기 (GitHub 백그라운드)
@@ -424,32 +383,6 @@ if [ -n "$MERGE_LOCK_TOKEN" ]; then
     --url "$PR_URL" >/dev/null
   MERGE_LOCK_TOKEN=""
   MERGE_CLAIM_KEY=""
-fi
-
-# Step 5: 통합 브랜치 sub-PR issue close 보정
-# GitHub auto-close 는 base = default branch 인 PR 머지만 인식 — base ≠ default 인
-# sub-PR 의 PR body close 선언(Closes/Fixes/Resolves #N)은 머지돼도 발동하지 않는다.
-# PR body 의 독립 trailer 줄에 선언이 있는 OPEN issue 를 PR 링크 코멘트와 함께 close 보정한다
-# (선언 없는 issue, 산문 인용, blockquote/list 예시는 건드리지 않음). epic→main 일괄 머지 PR 의
-# 중복 Closes 는 이미 closed issue 에 무해.
-if [ "$INTEGRATION" = "true" ]; then
-  CLOSE_NUMS=$(gh pr view "$PR" --json body -q .body 2>/dev/null \
-    | extract_close_issue_numbers || true)
-  if [ -n "$CLOSE_NUMS" ]; then
-    echo "[pr-finalize] issue close 보정 대상: $(printf '%s' "$CLOSE_NUMS" | tr '\n' ' ')" >&2
-  else
-    echo "[pr-finalize] issue close 보정 대상 없음" >&2
-  fi
-  for N in $CLOSE_NUMS; do
-    ISSUE_STATE=$(gh issue view "$N" --json state -q .state 2>/dev/null || true)
-    if [ "$ISSUE_STATE" = "OPEN" ]; then
-      if gh issue close "$N" --comment "[pr-finalize] PR #${PR} 가 통합 브랜치 '${BASE_REF}' 에 머지됨 — base 가 default branch 가 아니어서 GitHub auto-close 미발동. PR body 의 close 선언을 근거로 보정 close. $PR_URL" >&2; then
-        echo "[pr-finalize] issue #$N close 보정 (통합 브랜치 — auto-close 미발동)" >&2
-      else
-        echo "[pr-finalize] WARN: issue #$N close 실패 — 수동 확인 필요: gh issue view $N" >&2
-      fi
-    fi
-  done
 fi
 
 post_merge_sync_and_cleanup

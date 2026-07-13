@@ -12,11 +12,12 @@
  *   - Part of #N                          — 단순 언급, auto-close 발동 X
  *
  * 게이트 동작:
- *   1. Document-Exception-PR-Close 마커 매치 → PASS (검사 우회)
- *   2. issue 트레일러 1+ 매치 → PASS
+ *   1. 폐기된 integration-branch exception 매치 → FAIL
+ *   2. Document-Exception-PR-Close 마커 매치 → PASS (검사 우회)
+ *   3. issue 트레일러 1+ 매치 → PASS
  *
  * task 는 local commit 이고 PR 경계는 story 다. 이 gate 는 task-index 로 PR
- * close 시점을 추론하지 않는다. story/integration base 별 trailer 선택은
+ * close 시점을 추론하지 않는다. story/QA PR별 trailer 선택은
  * git-spec 과 pr-trailer.sh 가 담당한다.
  *
  * 사용:
@@ -28,11 +29,12 @@
  *
  * 예외 우회 — body 안에 다음 line 쓰면 통과:
  *   Document-Exception-PR-Close: <사유>
- *   사유 예) "infra-only — issue 없음", "follow-up split — close 별도 PR", "통합 브랜치 sub-PR — main 머지 시 일괄 close"
+ *   사유 예) "infra-only — issue 없음", "follow-up split — close 별도 PR"
  */
 
 const TRAILER_RE = /(?:close[sd]?|fix(?:es|ed)?|resolve[sd]?|part\s+of)\s*#\d+/i;
 const EXCEPTION_RE = /^\s*Document-Exception-PR-Close:\s*\S+/im;
+const RETIRED_EXCEPTION_RE = /^\s*Document-Exception-PR-Close:[^\n]*(?:통합\s*브랜치|integration\s+branch|main\s+머지\s+시\s+일괄\s+close)/im;
 
 function readStdin() {
   return new Promise((resolve, reject) => {
@@ -60,6 +62,11 @@ async function main() {
 
   if (typeof body !== 'string' || body.length === 0) {
     console.error('[pr-body] FAIL — PR body 가 비어있음. 최소 트레일러 1건 또는 Document-Exception-PR-Close 마커 쓸 것.');
+    process.exit(1);
+  }
+
+  if (RETIRED_EXCEPTION_RE.test(body)) {
+    console.error('[pr-body] FAIL — 폐기된 integration-branch exception 감지. story PR은 Closes #story를 사용하고 merge 승인 시 main으로 리타겟할 것.');
     process.exit(1);
   }
 

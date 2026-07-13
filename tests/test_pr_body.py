@@ -51,6 +51,13 @@ class PrBodyGateTests(unittest.TestCase):
     def test_document_exception_marker_passes(self) -> None:
         self.assertPass("infra-only 변경\n\nDocument-Exception-PR-Close: 이슈 없음\n")
 
+    def test_retired_integration_branch_exception_fails(self) -> None:
+        self.assertFail(
+            "story 변경\n\n"
+            "Document-Exception-PR-Close: 통합 브랜치 story sub-PR — "
+            "main 머지 시 일괄 close\n"
+        )
+
     def test_no_trailer_fails(self) -> None:
         self.assertFail("## 작업내용\n트레일러 없음\n")
 
