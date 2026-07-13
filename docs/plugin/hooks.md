@@ -2,7 +2,7 @@
 
 > **Status**: ACTIVE
 > **Scope**: `/init-dcness` 로 활성화된 사용자 프로젝트에서 dcNess 가 어떤 시점에 무엇을 막는지 설명한다.
-> **Cross-ref**: [`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) (대원칙), [`terms.md`](terms.md) (사용자-facing 용어), [`harness/agent_boundary.py`](../../harness/agent_boundary.py) (권한 매트릭스). 순서 차단 훅 진본 = 본 문서 [catastrophic-gate.sh](#catastrophic-gatesh).
+> **Cross-ref**: [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) (대원칙), [`terms.md`](terms.md) (사용자-facing 용어), [`harness/agent_boundary.py`](../../harness/agent_boundary.py) (권한 매트릭스). 순서 차단 훅 진본 = 본 문서 [catastrophic-gate.sh](#catastrophic-gatesh).
 
 dcNess 의 강제 영역은 두 가지뿐이다.
 
@@ -432,7 +432,7 @@ catastrophic-gate 에는 marker override 가 없다. `tdd-exempt: <사유>` 는 
 
 자연어 SSOT:
 
-- [`CLAUDE.md`](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) — 강제 영역 2가지
+- [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) — 강제 영역 2가지
 - 본 문서 [catastrophic-gate.sh](#catastrophic-gatesh) — 순서 차단 훅 진본
 - [`git-spec.md`](git-spec.md) — branch / commit / PR naming + PR trailer
 - [`issue-lifecycle.md`](issue-lifecycle.md) — Project lifecycle workflow 의미

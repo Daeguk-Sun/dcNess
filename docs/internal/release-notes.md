@@ -6,7 +6,12 @@
 
 ## Unreleased
 
-_(없음)_
+- **marketplace artifact 경량화 (#1102)** — clean install/update가 `release` ref를 직접 소비하도록
+  marketplace source를 현행 GitHub source 계약으로 복구하고, candidate·release sync가 하나의
+  artifact manifest를 공유한다. 격리 install 기준 self 전용 파일을 제거한 payload는
+  549파일·5,159,235 bytes·102,346 LOC에서 191파일·2,139,171 bytes·43,138 LOC로 줄었으며,
+  SessionStart additionalContext는 별도 지표(2,068 bytes, 약 517 token)로 유지해 package 감소를
+  prompt 감소로 주장하지 않는다.
 
 ---
 
@@ -17,7 +22,7 @@ _(없음)_
 
 ### 무엇이 바뀌나
 
-1. **Epic 1064 — agent effectiveness 실측 측정 파이프라인** ([#1090](https://github.com/Daeguk-Sun/dcNess/pull/1090) · [#1086](https://github.com/Daeguk-Sun/dcNess/pull/1086) · [#1091](https://github.com/Daeguk-Sun/dcNess/pull/1091) · [#1083](https://github.com/Daeguk-Sun/dcNess/pull/1083) · [#1081](https://github.com/Daeguk-Sun/dcNess/pull/1081) · [#1082](https://github.com/Daeguk-Sun/dcNess/pull/1082) · [#1084](https://github.com/Daeguk-Sun/dcNess/pull/1084) Closes [#1064](https://github.com/Daeguk-Sun/dcNess/issues/1064) [#1070](https://github.com/Daeguk-Sun/dcNess/issues/1070)) — agent 의 탐색·변경 효과를 주장이 아니라 실측 record 로 남기는 측정 축을 세웠다. 실측 1+1 record 와 provenance 를 확보(`evals/agent_effectiveness_measure.py`)하고, 공개 수치는 과장 대신 측정 계약 검증으로 하향했다. non-UI journey evidence 계약(story 1067), lean ablation 실증 기록(story 1069), agent 탐색·변경 효과 측정(story 1070), 공개 evidence freshness gate(story 1071)를 연결하고, evidence close audit 로 증거 미충족 마감을 차단한다.
+1. **Epic 1064 — agent effectiveness 실측 측정 파이프라인** ([#1090](https://github.com/Daeguk-Sun/dcNess/pull/1090) · [#1086](https://github.com/Daeguk-Sun/dcNess/pull/1086) · [#1091](https://github.com/Daeguk-Sun/dcNess/pull/1091) · [#1083](https://github.com/Daeguk-Sun/dcNess/pull/1083) · [#1081](https://github.com/Daeguk-Sun/dcNess/pull/1081) · [#1082](https://github.com/Daeguk-Sun/dcNess/pull/1082) · [#1084](https://github.com/Daeguk-Sun/dcNess/pull/1084) Closes [#1064](https://github.com/Daeguk-Sun/dcNess/issues/1064) [#1070](https://github.com/Daeguk-Sun/dcNess/issues/1070)) — agent 의 탐색·변경 효과를 주장이 아니라 실측 record 로 남기는 측정 축을 세웠다. 실측 1+1 record 와 provenance 를 확보(`evals/agent_effectiveness_measure.py`, [`outcome-baseline.md`](outcome-baseline.md))하고, 공개 수치는 과장 대신 측정 계약 검증으로 하향했다. non-UI journey evidence 계약(story 1067), lean ablation 실증 기록(story 1069), agent 탐색·변경 효과 측정(story 1070), 공개 evidence freshness gate(story 1071)를 연결하고, evidence close audit 로 증거 미충족 마감을 차단한다.
 
 2. **제품 outcome scorecard + 구현 전 결정 완전성 pilot** ([#1072](https://github.com/Daeguk-Sun/dcNess/pull/1072) · [#1076](https://github.com/Daeguk-Sun/dcNess/pull/1076) Closes [#1066](https://github.com/Daeguk-Sun/dcNess/issues/1066) [#1065](https://github.com/Daeguk-Sun/dcNess/issues/1065)) — process 신호(게이트 통과·절차 준수)와 실제 제품 outcome 을 분리해 주장하도록 outcome scorecard 와 운영 baseline 을 추가했다([`docs/plugin/outcome-scorecard.md`](../plugin/outcome-scorecard.md)). `/spec`·`/design` 에서 구현 방향을 바꾸는 결정의 완전성(결정 범위·근거 상태·질문/위임·완료 의미)을 pilot 으로 연결했다([`docs/plugin/decision-completeness.md`](../plugin/decision-completeness.md)).
 

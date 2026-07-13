@@ -1,7 +1,7 @@
 # workflow-router 분기 규칙 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: 자유 형식 작업 요청을 받았을 때 어떤 workflow(skill)로 진입할지 고르는 분기 규칙의 단일 진본. skill 진입 후의 agent 결론 → 다음 호출 판단은 각 `<skill>-routing.md` 영역이다. 용어 기준 = [`terms.md`](terms.md), 강제 vs 권고 = [`CLAUDE.md`](../../CLAUDE.md).
+> **Scope**: 자유 형식 작업 요청을 받았을 때 어떤 workflow(skill)로 진입할지 고르는 분기 규칙의 단일 진본. skill 진입 후의 agent 결론 → 다음 호출 판단은 각 `<skill>-routing.md` 영역이다. 용어 기준 = [`terms.md`](terms.md), 강제 vs 권고 = [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md).
 
 ## 읽는 법
 

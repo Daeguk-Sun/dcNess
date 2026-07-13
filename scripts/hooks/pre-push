@@ -69,6 +69,21 @@ record_guard_hit() {
 }
 
 SCRIPT_PATH=$(resolve_plugin_script)
+REMOTE_LOCATION=${2:-}
+
+is_dcness_release_remote() {
+  case "$REMOTE_LOCATION" in
+    https://github.com/Daeguk-Sun/dcNess|https://github.com/Daeguk-Sun/dcNess.git|\
+    git@github.com:Daeguk-Sun/dcNess|git@github.com:Daeguk-Sun/dcNess.git|\
+    ssh://git@github.com/Daeguk-Sun/dcNess|ssh://git@github.com/Daeguk-Sun/dcNess.git|\
+    https://github.com/alruminum/dcNess|https://github.com/alruminum/dcNess.git|\
+    git@github.com:alruminum/dcNess|git@github.com:alruminum/dcNess.git|\
+    ssh://git@github.com/alruminum/dcNess|ssh://git@github.com/alruminum/dcNess.git)
+      return 0
+      ;;
+  esac
+  return 1
+}
 
 while read local_ref local_sha remote_ref remote_sha; do
   # 1. main 직접 push 차단
@@ -83,8 +98,12 @@ while read local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/heads/*)
       BRANCH="${remote_ref#refs/heads/}"
-      # main / master / HEAD / develop 면 skip (이미 main 차단 별도)
+      # main / master / HEAD / develop 면 skip (이미 main 차단 별도).
       case "$BRANCH" in main|master|HEAD|develop) continue ;; esac
+      # release 는 dcNess 공식 저장소의 기계 생성 배포 ref일 때만 예외다.
+      if [ "$BRANCH" = "release" ] && is_dcness_release_remote; then
+        continue
+      fi
 
       # node 부재 시 브랜치명 검증만 fail-open (WARN + skip). main-block(위)은 node 미사용이라
       # 그대로 차단 유지 — node 미설치(exit 127)를 형식 위반과 구분.

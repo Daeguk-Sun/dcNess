@@ -2,7 +2,7 @@
 
 > **Status**: ACTIVE
 > **Scope**: `/tech-review` skill **단일 전용** 분기 규칙 진본 — tech-reviewer 의 결론 (PASS / FAIL / ESCALATE) → 다음 호출 + 사용자 2차 OK 분기 + cycle 재진입 + **단방향 관례 (재진입 비권장)** + 비대상 + 후속. 진행 절차(Step) 는 [`SKILL.md`](SKILL.md). tech-reviewer 는 tech-review 전용 agent 라 본 문서가 유일 진본 (맥락 분기 없음).
-> **Cross-ref**: 단방향 관례 (코드 강제 아님) = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례 · 강제 영역 = [`../../CLAUDE.md`](../../CLAUDE.md) · 용어 기준 = [`terms.md`](../../docs/plugin/terms.md).
+> **Cross-ref**: 단방향 관례 (코드 강제 아님) = [`hooks.md`](../../docs/plugin/hooks.md#catastrophic-gatesh) 의 tech-review 자연어 관례 · 강제 영역 = [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md) · 용어 기준 = [`terms.md`](../../docs/plugin/terms.md).
 
 ## 읽는 법
 

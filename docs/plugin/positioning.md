@@ -69,7 +69,7 @@ agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-val
 
 ## Contract Gate
 
-기본/support/고급/유틸리티/내부 agent 목록(과 내부 skill `internalSkills`)과 skill/command/agent 의 frontmatter name 대 path 정합은 [`scripts/check_public_surface.mjs`](../../scripts/check_public_surface.mjs) 가 검사한다. 새 기본 workflow 를 추가하려면 이 문서와 gate 기대값을 함께 수정해야 한다. `canvas-design`, `design-ux`, `design-system` 같은 내부 skill 은 `internalSkills` 카테고리로 분류돼 `/` 공개 진입점에 추가되지 않는다.
+기본/support/고급/유틸리티/내부 agent 목록(과 내부 skill `internalSkills`)과 skill/command/agent 의 frontmatter name 대 path 정합은 [`scripts/check_public_surface.mjs`](https://github.com/Daeguk-Sun/dcNess/blob/main/scripts/check_public_surface.mjs) 가 검사한다. 새 기본 workflow 를 추가하려면 이 문서와 gate 기대값을 함께 수정해야 한다. `canvas-design`, `design-ux`, `design-system` 같은 내부 skill 은 `internalSkills` 카테고리로 분류돼 `/` 공개 진입점에 추가되지 않는다.
 
 ### 신규 공개 진입점 justification (왜 작게 유지하나)
 
@@ -79,4 +79,4 @@ agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-val
 - 기존 validator(`impl-validator` / `architecture-validator`)로 검증이 안 되는가?
 - 기존 utility/agent 의 내부 단계로 둘 수 없고 *새 public 발화*가 꼭 필요한가?
 
-세 질문에 모두 "그렇다(기존으론 부족)"가 서지 않으면 새 공개 진입점 대신 기존 구현 경로/agent 내부 단계로 흡수한다. 이 justification 은 [`CLAUDE.md` 안티패턴 5](../../CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) 의 self 가드레일이자 PR 템플릿 체크 항목이다.
+세 질문에 모두 "그렇다(기존으론 부족)"가 서지 않으면 새 공개 진입점 대신 기존 구현 경로/agent 내부 단계로 흡수한다. 이 justification 은 [`CLAUDE.md` 안티패턴 5](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) 의 self 가드레일이자 PR 템플릿 체크 항목이다.
