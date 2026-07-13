@@ -207,6 +207,8 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.assertNotIn("project-local 계약 `.dcness/product-journey.json`", init_dcness)
         self.assertIn("product-acceptance가", acceptance_skill)
         self.assertIn("journey 매니페스트", acceptance_skill)
+        self.assertIn("legacy `.dcness/product-journey.json`", acceptance_skill)
+        self.assertIn("새 build-worker 산출물 위치가 아니다", acceptance_skill)
         self.assertIn("product-acceptance가", acceptance_routing)
         self.assertIn("journey 매니페스트", acceptance_routing)
         self.assertIn("외부 상태 변경", impl_loop_skill)

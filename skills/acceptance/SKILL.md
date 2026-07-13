@@ -148,7 +148,7 @@ standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을
 ## 절차
 
 1. 입력 단위가 story 인지 epic 인지 확인한다.
-2. 핵심 journey가 검수 대상이면 owner module/소스 영역의 journey 매니페스트와 연결된 e2e flow 경로를 확인한다. 기존 receipt가 있으면 함께 전달하고, 없으면 product-acceptance가 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 tip에서 `dcness-product-journey run --config <매니페스트 경로>`를 실행하게 한다. UI boundary이면 단계별 screenshot/state/log 경로도 판정하되, exit 1 receipt의 mock-only/app-not-started/journey 미실행/assertion 미평가/UI evidence 누락을 PASS로 바꾸지 않는다.
+2. 핵심 journey가 검수 대상이면 owner module/소스 영역의 journey 매니페스트와 연결된 e2e flow 경로를 확인한다. 수동 관리 중인 legacy `.dcness/product-journey.json` 계약은 helper 기본 경로로 계속 호환하되 새 build-worker 산출물 위치가 아니다. 기존 receipt가 있으면 함께 전달하고, 없으면 product-acceptance가 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 tip에서 `dcness-product-journey run --config <매니페스트 경로>`를 실행하게 한다. UI boundary이면 단계별 screenshot/state/log 경로도 판정하되, exit 1 receipt의 mock-only/app-not-started/journey 미실행/assertion 미평가/UI evidence 누락을 PASS로 바꾸지 않는다.
 3. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE`를 호출한다. product-acceptance가 journey를 직접 실행했다면 receipt 경로, 판정, 사람 확인 잔여 목록만 메인에 반환하고 화면 dump 원본은 싣지 않는다.
 4. `PASS`면 완료 후보로 보고한다.
 5. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `module-architect:CARTOGRAPHY_REFRESH` 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
