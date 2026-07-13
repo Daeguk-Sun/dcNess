@@ -41,13 +41,18 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "docs/archive",
                 "docs/internal",
                 "evals",
+                "harness/CLAUDE.md",
                 "tests",
                 "pyproject.toml",
                 "requirements-eval.txt",
                 "requirements-quality.txt",
+                "scripts/CLAUDE.md",
+                "scripts/check_python_tests.sh",
+                "scripts/hooks/cc-pre-commit.sh",
                 "scripts/release_artifact.json",
                 "scripts/release_artifact.py",
                 "scripts/sync_release.sh",
+                "templates/CLAUDE.md",
             }.issubset(excluded)
         )
         self.assertEqual(contract["allowed_cache_metadata"], [".git", ".in_use"])
@@ -169,8 +174,37 @@ class ReleaseArtifactContractTests(unittest.TestCase):
 
         self.assertIn("scripts/release_artifact.py", script)
         self.assertIn("excluded-paths", script)
+        self.assertIn('git commit -m "[docs] release sync from main@', script)
         self.assertNotIn("EXCLUDE_PATHS=(", script)
         self.assertNotIn("--no-verify", script)
+
+        pre_push = (ROOT / "scripts/hooks/pre-push").read_text(encoding="utf-8")
+        git_spec = (ROOT / "docs/plugin/git-spec.md").read_text(encoding="utf-8")
+        self.assertIn("main|master|HEAD|develop|release", pre_push)
+        self.assertIn("`release`", git_spec)
+        subprocess.run(
+            [
+                "node",
+                str(ROOT / "scripts/check_git_naming.mjs"),
+                "--title",
+                "[docs] release sync from main@abcdef0",
+            ],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        release_push = subprocess.run(
+            ["sh", str(ROOT / "scripts/hooks/pre-push")],
+            cwd=ROOT,
+            input=f"refs/heads/release {'a' * 40} refs/heads/release {'b' * 40}\n",
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        self.assertEqual(release_push.returncode, 0, release_push.stderr)
 
     def test_current_candidate_passes_runtime_smoke(self) -> None:
         result = _run(
@@ -183,6 +217,25 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             str(CONTRACT),
         )
         self.assertIn("release_artifact_smoke=PASS", result.stdout)
+        smoke_metrics = json.loads(result.stdout.splitlines()[-1])
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = Path(tmp) / "bundle"
+            _run(
+                "build",
+                "--repo-root",
+                str(ROOT),
+                "--ref",
+                "HEAD",
+                "--output",
+                str(bundle),
+                "--contract",
+                str(CONTRACT),
+            )
+            direct = json.loads(
+                _run("snapshot", "--root", str(bundle), "--contract", str(CONTRACT)).stdout
+            )
+        self.assertEqual(smoke_metrics["file_count"], direct["file_count"])
+        self.assertEqual(smoke_metrics["byte_size"], direct["byte_size"])
 
 
 if __name__ == "__main__":

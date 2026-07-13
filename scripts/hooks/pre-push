@@ -83,8 +83,9 @@ while read local_ref local_sha remote_ref remote_sha; do
   case "$remote_ref" in
     refs/heads/*)
       BRANCH="${remote_ref#refs/heads/}"
-      # main / master / HEAD / develop 면 skip (이미 main 차단 별도)
-      case "$BRANCH" in main|master|HEAD|develop) continue ;; esac
+      # main / master / HEAD / develop 및 기계 생성 배포 ref release 면 skip
+      # (main 직접 push 차단은 위에서 별도 적용, release 는 sync_release.sh 전용).
+      case "$BRANCH" in main|master|HEAD|develop|release) continue ;; esac
 
       # node 부재 시 브랜치명 검증만 fail-open (WARN + skip). main-block(위)은 node 미사용이라
       # 그대로 차단 유지 — node 미설치(exit 127)를 형식 위반과 구분.

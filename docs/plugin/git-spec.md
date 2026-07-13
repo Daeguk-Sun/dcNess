@@ -22,6 +22,8 @@
 - **공통 task 묶음 (epic 단위, story 없음)**: `feature/epic{N}_common_{desc}` — `feature/{desc}` 의 epic-traceable 특수형 (module-architect 공통 호출 산출물 = `story: 공통` / `task_index: —`). 게이트는 generic feature 로 통과 (`_common` 은 `_story` 가 아니라 위 부정선행에 안 걸림). 예: `feature/epic7_common_theme_tokens`. 제목 = `[feature] {설명}`, PR 트레일러 = `Part of #<epic>` ([기본 룰](#기본-룰)).
 - main 직접 push 금지. 항상 branch → PR → merge.
 - 브랜치는 merge 후에도 삭제하지 않는다.
+- `release` 는 사람이 작업하는 브랜치가 아니라 `scripts/sync_release.sh`가 main의 검증된
+  runtime artifact를 재생성하는 배포 ref이므로 일반 브랜치 네이밍 검사에서 제외한다.
 
 ## 커밋 제목
 

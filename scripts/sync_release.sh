@@ -91,8 +91,8 @@ fi
 if git diff --cached --quiet; then
     echo "→ 변경 없음 — commit 생략."
 else
-    git commit -m "release sync from main@${SHORT_SHA}"
-    echo "→ commit: release sync from main@${SHORT_SHA}"
+    git commit -m "[docs] release sync from main@${SHORT_SHA}"
+    echo "→ commit: [docs] release sync from main@${SHORT_SHA}"
 fi
 
 echo ""

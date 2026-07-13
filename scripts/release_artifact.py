@@ -234,7 +234,65 @@ def _verify_required_paths(bundle: Path, contract: Contract) -> None:
         raise ArtifactError(f"self-only paths leaked into artifact: {', '.join(leaked)}")
 
 
-def _verify_external_runtime(bundle: Path, temp_root: Path) -> int:
+def _deploy_init_core(bundle: Path, project: Path, home: Path, env: dict[str, str]) -> int:
+    deployed = 0
+    hooks_dir = project / ".git" / "hooks"
+    for name in ("pre-commit", "commit-msg", "post-checkout", "pre-push"):
+        source = bundle / "scripts" / "hooks" / name
+        target = hooks_dir / name
+        shutil.copy2(source, target)
+        target.chmod(0o755)
+        if target.read_bytes() != source.read_bytes():
+            raise ArtifactError(f"/init-dcness hook deploy mismatch: {name}")
+        deployed += 1
+
+    codex_home = home / ".codex"
+    for name in ("dcness-impl-validator", "dcness-architecture-validator"):
+        source = bundle / "codex" / "skills" / name / "SKILL.md"
+        target = codex_home / "skills" / name / "SKILL.md"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+        if target.read_bytes() != source.read_bytes():
+            raise ArtifactError(f"/init-dcness Codex skill deploy mismatch: {name}")
+        deployed += 1
+
+    helper = str(bundle / "scripts" / "dcness-helper")
+    context_docs = str(bundle / "scripts" / "dcness-context-docs")
+    _run_checked([helper, "enable"], cwd=project, env=env)
+    _run_checked([helper, "is-active"], cwd=project, env=env)
+    _run_checked([context_docs, "--ensure", "--repo", str(project)], cwd=project, env=env)
+    if not (project / "CLAUDE.md").is_file():
+        raise ArtifactError("/init-dcness context seed was not created")
+    return deployed + 1
+
+
+def _verify_agent_reads(bundle: Path, project: Path, env: dict[str, str]) -> int:
+    code = """
+import sys
+from pathlib import Path
+from harness.agent_boundary import check_read_allowed
+
+bundle = Path(sys.argv[1])
+project = Path(sys.argv[2])
+count = 0
+for entrypoint in sorted((bundle / 'agents').glob('*.md')):
+    name = entrypoint.stem
+    instruction = bundle / 'docs' / 'plugin' / 'agents' / name / f'{name}-agent.md'
+    reason = check_read_allowed(name, str(instruction), cwd=project, plugin_root=str(bundle))
+    if reason:
+        raise SystemExit(f'{name}: {reason}')
+    if not instruction.read_text(encoding='utf-8').strip():
+        raise SystemExit(f'{name}: empty instruction')
+    count += 1
+print(count)
+"""
+    output = _run_checked(
+        [sys.executable, "-c", code, str(bundle), str(project)], cwd=project, env=env
+    )
+    return int(output.strip())
+
+
+def _verify_external_runtime(bundle: Path, temp_root: Path) -> dict[str, int]:
     project = temp_root / "external-project"
     home = temp_root / "home"
     config = temp_root / "config"
@@ -256,12 +314,13 @@ def _verify_external_runtime(bundle: Path, temp_root: Path) -> int:
             "HOME": str(home),
             "CLAUDE_CONFIG_DIR": str(config),
             "CLAUDE_PLUGIN_ROOT": str(bundle),
-            "DCNESS_FORCE_ENABLE": "1",
             "DCNESS_WHITELIST_PATH": str(temp_root / "whitelist.json"),
             "PYTHONPATH": str(bundle),
+            "PYTHONDONTWRITEBYTECODE": "1",
         }
     )
-    _run_checked([str(bundle / "scripts" / "dcness-helper"), "--help"], cwd=project, env=env)
+    deployed_count = _deploy_init_core(bundle, project, home, env)
+    agent_read_count = _verify_agent_reads(bundle, project, env)
     payload = json.dumps({"session_id": "release-artifact-smoke", "cwd": str(project)})
     result = subprocess.run(  # nosec B603
         [_executable("bash"), str(bundle / "hooks" / "session-start.sh")],
@@ -282,7 +341,11 @@ def _verify_external_runtime(bundle: Path, temp_root: Path) -> int:
         raise ArtifactError("SessionStart did not emit additionalContext JSON") from exc
     if "[dcness 활성 환경]" not in context:
         raise ArtifactError("SessionStart additionalContext lacks activation marker")
-    return len(context.encode("utf-8"))
+    return {
+        "init_core_deployed_files": deployed_count,
+        "agent_instruction_reads": agent_read_count,
+        "session_start_additional_context_bytes": len(context.encode("utf-8")),
+    }
 
 
 def smoke(repo_root: Path, ref: str, contract: Contract) -> dict[str, int]:
@@ -292,14 +355,17 @@ def smoke(repo_root: Path, ref: str, contract: Contract) -> dict[str, int]:
         build(repo_root, ref, bundle, contract)
         _verify_required_paths(bundle, contract)
         _verify_agent_surface(bundle)
-        context_bytes = _verify_external_runtime(bundle, temp_root)
+        runtime = _verify_external_runtime(bundle, temp_root)
         artifact = snapshot(bundle, contract)
+        context_bytes = runtime["session_start_additional_context_bytes"]
         return {
             "file_count": artifact["file_count"],
             "byte_size": artifact["byte_size"],
             "text_loc": artifact["text_loc"],
             "session_start_additional_context_bytes": context_bytes,
             "session_start_token_approx": (context_bytes + 3) // 4,
+            "agent_instruction_reads": runtime["agent_instruction_reads"],
+            "init_core_deployed_files": runtime["init_core_deployed_files"],
         }
 
 
