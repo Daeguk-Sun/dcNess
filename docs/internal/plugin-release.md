@@ -9,15 +9,48 @@
 | `.claude-plugin/plugin.json` | `"version"` |
 | `.claude-plugin/marketplace.json` | `"metadata.version"` |
 
-## 2. 주의사항 — marketplace.json source 형식
+## 2. marketplace source와 artifact 계약
 
-`plugins[].source` 는 반드시 `"./"` 형식이어야 한다.
+`plugins[].source` 는 공식 Claude Code marketplace의 GitHub source 계약으로 `release`
+브랜치를 직접 소비한다.
 
 ```json
-"source": "./"   ✅
+"source": {
+  "source": "github",
+  "repo": "Daeguk-Sun/dcNess",
+  "ref": "release"
+}
 ```
 
-GitHub object 형식(`{"source": "github", "repo": "...", "ref": "release"}`)은 `claude plugin install`(신규)은 동작하지만 `claude plugin update`에서 "destination is empty after copy" 오류 발생. (0.2.3에서 수정됨)
+과거 0.2.2 당시 GitHub source update가 `destination is empty after copy`로 실패해 `./`로
+되돌린 적이 있다. 현행 계약은 Claude Code 2.1.170 이상에서 clean install과 이전 명시 버전에서
+새 명시 버전으로의 update를 모두 격리 검증한 뒤 사용한다. 같은 버전끼리의 update는 cache key가
+같아 skip되므로 성공 증거로 세지 않는다. 공식 source·version 계약은
+[Claude Code marketplace 문서](https://code.claude.com/docs/en/plugin-marketplaces#plugin-sources)를
+따른다.
+
+release artifact의 단일 포함·제외 SSOT는 [`scripts/release_artifact.json`](../../scripts/release_artifact.json)이다.
+[`scripts/release_artifact.py`](../../scripts/release_artifact.py)의 candidate 생성과
+[`scripts/sync_release.sh`](../../scripts/sync_release.sh)의 release branch 정리가 이 파일만 소비한다.
+marketplace install/update는 그렇게 생성된 `release` ref를 소비하며, cache 비교에서 허용하는
+transport/runtime metadata는 GitHub source update용 `.git`과 활성 사용 표식 `.in_use`뿐이다.
+payload footprint는 이 둘을 제외해 candidate와 비교하고, 실제 cache disk footprint를 보고할 때는
+metadata 크기를 별도로 병기한다.
+
+```sh
+# 현재 ref의 비파괴 candidate + runtime smoke + footprint/context 분리 측정
+python3 scripts/release_artifact.py smoke --repo-root . --ref HEAD
+
+# candidate/release/cache를 같은 명령으로 측정·대조
+python3 scripts/release_artifact.py snapshot --root <artifact-root>
+python3 scripts/release_artifact.py compare --expected <candidate-root> --actual <cache-root>
+```
+
+baseline clean-install manifest는
+[`marketplace-artifact-baseline.json`](marketplace-artifact-baseline.json)에 저장한다. 릴리즈 PR에서는
+태그·공개 전에 위 smoke를 통과시킨다. FAIL이면 릴리즈를 중단하고, 현재 PR 범위에서 근본원인을
+고칠 수 없을 때만 후속 이슈로 분리한다. 실제 marketplace clean install/update는 선택적 LLM
+실사가 아니라 source/cache 경계를 검증하는 릴리즈 필수 실사다.
 
 ## 3. 릴리즈 순서
 

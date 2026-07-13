@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "exclude_paths": [
+    ".claude",
+    ".claude-plugin/marketplace.json",
+    ".github",
+    ".gitignore",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "PROGRESS.md",
+    "docs/archive",
+    "docs/internal",
+    "evals",
+    "pyproject.toml",
+    "requirements-eval.txt",
+    "requirements-quality.txt",
+    "scripts/check_static_quality.sh",
+    "scripts/loop_diagnose.py",
+    "scripts/release_artifact.json",
+    "scripts/release_artifact.py",
+    "scripts/sync_release.sh",
+    "tests"
+  ],
+  "allowed_cache_metadata": [
+    ".git",
+    ".in_use"
+  ],
+  "required_runtime_paths": [
+    ".claude-plugin/plugin.json",
+    "LICENSE",
+    "README.md",
+    "agents",
+    "codex/skills/dcness-architecture-validator/SKILL.md",
+    "codex/skills/dcness-impl-validator/SKILL.md",
+    "commands/init-dcness.md",
+    "docs/plugin",
+    "harness",
+    "hooks/hooks.json",
+    "hooks/session-start.sh",
+    "scripts/dcness-context-docs",
+    "scripts/dcness-helper",
+    "scripts/dcness-tdd-hooks",
+    "scripts/hooks/commit-msg",
+    "scripts/hooks/post-checkout",
+    "scripts/hooks/pre-commit",
+    "scripts/hooks/pre-push",
+    "skills",
+    "templates/github-workflows"
+  ]
+}

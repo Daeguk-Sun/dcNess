@@ -7,26 +7,6 @@ set -euo pipefail
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
-# dcness self 전용 경로 — release 브랜치에서 제거
-EXCLUDE_PATHS=(
-    "docs/internal"
-    "docs/archive"
-    "tests"
-    "evals"
-    "PROGRESS.md"
-    "CLAUDE.md"
-    "scripts/sync_release.sh"
-    "scripts/loop_diagnose.py"
-    ".claude-plugin/marketplace.json"
-    ".github/workflows/python-tests.yml"
-    ".github/workflows/release-sync.yml"
-    ".github/workflows/static-quality.yml"
-    "scripts/check_static_quality.sh"
-    "requirements-quality.txt"
-    "pyproject.toml"
-    ".claude"
-)
-
 ORIG_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
 
 git_with_token() {
@@ -95,12 +75,12 @@ fi
 
 echo "→ dcness self 경로 제거..."
 REMOVED=()
-for p in "${EXCLUDE_PATHS[@]}"; do
+while IFS= read -r p; do
     if [ -n "$(git ls-files "$p")" ]; then
         git rm -r --quiet "$p"
         REMOVED+=("$p")
     fi
-done
+done < <(python3 scripts/release_artifact.py excluded-paths)
 
 if [ ${#REMOVED[@]} -eq 0 ]; then
     echo "  제거 대상 없음 (이미 동기화 상태)."
@@ -111,8 +91,7 @@ fi
 if git diff --cached --quiet; then
     echo "→ 변경 없음 — commit 생략."
 else
-    # --no-verify: sync commit 은 기계 생성 스냅샷 — pre-commit 훅(pytest 게이트) 비대상
-    git commit --no-verify -m "release sync from main@${SHORT_SHA}"
+    git commit -m "release sync from main@${SHORT_SHA}"
     echo "→ commit: release sync from main@${SHORT_SHA}"
 fi
 
