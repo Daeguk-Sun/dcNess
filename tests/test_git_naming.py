@@ -49,9 +49,9 @@ class BranchNamingTests(unittest.TestCase):
         # 공통 task (story: 공통 / task_index: —) — epic-traceable, generic 통과
         self.assertBranchPass("feature/epic7_common_theme_tokens")
 
-    def test_valid_generic_feature_and_integration(self) -> None:
+    def test_valid_generic_feature(self) -> None:
         self.assertBranchPass("feature/local_dsp")
-        self.assertBranchPass("feature/integration_branch_pattern")
+        self.assertBranchPass("feature/story_stack_pattern")
 
     def test_valid_fix_and_docs(self) -> None:
         self.assertBranchPass("fix/issue32_duplicate_touch")
@@ -87,10 +87,10 @@ class TitleNamingTests(unittest.TestCase):
 
     def test_valid_titles(self) -> None:
         self.assertTitlePass("[epic1][story2] mcp 세팅")
-        self.assertTitlePass("[epic19] Local DSP 통합 머지")
+        self.assertTitlePass("[epic19] Local DSP 마감 보정")
         self.assertTitlePass("[issue-32] 중복 터치 수정")
         self.assertTitlePass("[docs] API 스펙 업데이트")
-        self.assertTitlePass("[feature] 통합 브랜치 패턴 지원")
+        self.assertTitlePass("[feature] story stack 패턴 지원")
 
     def test_invalid_titles(self) -> None:
         self.assertTitleFail("feat: add thing")        # conventional-commits 금지

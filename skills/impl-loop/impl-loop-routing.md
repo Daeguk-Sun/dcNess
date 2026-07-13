@@ -21,12 +21,15 @@ flowchart TB
   GATE -->|fail| RETRY
   MARK --> NEXT[next-action]
   NEXT -->|task| BW
-  NEXT -->|story-pr| SPR[story sub-PR 생성 + 통합 브랜치 merge]
-  SPR --> REBRANCH[갱신된 통합 브랜치에서 재분기]
+  NEXT -->|story-pr| SPR[stack base로 story PR 생성 · merge 없음]
+  SPR --> REBRANCH[직전 story 브랜치에서 재분기]
   REBRANCH --> BW
-  NEXT -->|done + final_story| FPR[마지막 story PR + 최종 main 대상 PR]
-  FPR --> EPIC{Epic close?}
-  EPIC -->|아니오| IV[impl-validator merged diff review 1회]
+  NEXT -->|done + final_story| FPR[마지막 story PR + stack tip 확정]
+  FPR --> QA{tracked QA 보정 있음?}
+  QA -->|예| QAPR[stack tip 기반 QA PR]
+  QA -->|아니오| EPIC{Epic close?}
+  QAPR --> EPIC
+  EPIC -->|아니오| IV[impl-validator stack tip vs main review 1회]
   EPIC -->|예| CS[impl-validator CODEBASE_SANITY]
   CS -->|PASS| IV
   CS -->|FAIL quality-gap| CSFIX[build-worker rework]
@@ -40,7 +43,7 @@ flowchart TB
   IV -->|FAIL| FIX[메인 root-cause 수정 + commit append]
   FIX -->|Epic code 변경| CS
   FIX -->|Story-only| IV
-  ACC -->|아니오| MERGE[메인 merge]
+  ACC -->|아니오| MERGE[사용자 승인 → main 리타겟·리베이스·merge]
   ACC -->|예| PA[product-acceptance story x N + epic]
   PA -->|PASS| AC[Target GitHub issue AC close audit]
   AC -->|require-complete PASS| MERGE
@@ -62,12 +65,14 @@ canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-ste
 | step | 결론 → 다음 |
 |---|---|
 | **build-worker** | `PASS` + local commit sha + clean status → `dcness-story-runner mark --status completed --commit <sha>` 후 `next-action` · `TESTS_FAIL` → build-worker rework(≤3) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` → 메인이 같은 worktree cwd 에서 worker 가 남긴 검증 명령 실행, exit 0 이면 PASS 와 동일, 실패면 build-worker rework(≤3), 메인도 실행 불가면 사용자 위임 · `IMPLEMENTATION_ESCALATE` → 사용자 |
-| **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `story-pr` → 직전 story sub-PR 생성·통합 브랜치 merge 후 응답의 `next_task` 를 갱신된 통합 브랜치에서 재분기 · `done` → `final_story` PR 경계를 처리하고 최종 main 대상 PR 생성 + impl-validator · `blocked` / `error` → task note 를 근거로 retry 한도 내 재시도 또는 사용자 위임 |
+| **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `story-pr` → 응답의 `pr_base`로 직전 story PR 생성, merge 없이 `next_branch_base`의 직전 story 브랜치에서 재분기 · `done` → `final_story` PR 경계를 처리하고 `stack_tip` vs main candidate + 조건부 QA PR로 impl-validator · `blocked` / `error` → task note를 근거로 retry 한도 내 재시도 또는 사용자 위임 |
 | **impl-validator:CODEBASE_SANITY** | Epic close final candidate에서만 실행. 작은 repo는 전체 repo, 큰 repo는 affected module과 affected dependency cone + cheap global signals · `PASS` → local receipt 보존 후 일반 merge review · `FAIL [quality-gap]` → build-worker rework 후 새 code revision에서 Sanity 재감사(≤3) · `ESCALATE` → 사용자 |
-| **impl-validator** | merged diff `PASS` → close 발동 여부 확인 · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정. 단일 story PR 은 commit append, story PR 이 2개 이상이거나 이미 머지된 뒤라면 downstream rebase 없이 통합 fix PR 1개 + 재리뷰(≤3) · `ESCALATE` → 사용자 |
+| **impl-validator** | stack tip vs main diff `PASS` → close 발동 여부 확인 · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정. 단일 story는 해당 PR append, story PR 이 2개 이상이면 story-local FAIL은 해당 story PR 브랜치 append + downstream restack, cross-cutting FAIL은 QA PR 흡수 + 재리뷰(≤3) · `ESCALATE` → 사용자 |
 | **Cartography freshness** | build-worker Cartography impact + merge candidate diff + affected Root Cartography + 관련 epic/decision이 `영향 없음 또는 Root와 일치` → 기존 경로 · route/state/as-built edge stale → `module-architect:CARTOGRAPHY_REFRESH` bounded refresh + impl-validator 재검증 · system boundary/global decision 변경 → `/design --revise` 또는 system checkpoint backpressure |
-| **product-acceptance** | `PASS` → target GitHub issue AC close audit. story×N 과 epic 대상이면 모두 PASS 필요 · `FAIL` auto-fixable gap → build-worker rework + commit append. Epic code 변경은 완료된 Sanity/impl-validator 증거를 stale 처리하고 Sanity부터 재진입, Story-only는 impl-validator 재리뷰 + acceptance 재검수(≤3) · capability 상태 drift가 route-only stale → `CARTOGRAPHY_REFRESH` + 같은 diff+갱신 Root impl-validator 재검증 + acceptance 재검수 · system boundary/global decision gap → `/design --revise`/checkpoint · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
-| **target GitHub issue AC close audit** | 자동 판정 가능한 AC 전항목 충족·체크 + `check_issue_body.mjs --acceptance-only --require-complete` PASS → merge · 미충족·미체크 → clean 마감 금지, 구현 보강 · human verification 잔여 → 목록 보고 후 merge 전 대기 (`blocked` 아님) |
+| **product-acceptance** | 최종 tip에서 story×N + epic을 per-story verdict로 판정. `PASS` → target GitHub issue AC close audit. 1-story fix는 본 PR append, N-story tracked cross-cutting fix/flow 보정은 QA PR 흡수 · Epic code 변경은 완료된 Sanity/impl-validator 증거를 stale 처리하고 Sanity부터 재진입, Story-only는 impl-validator 재리뷰 + acceptance 재검수(≤3) · capability 상태 drift가 route-only stale → `CARTOGRAPHY_REFRESH` + 같은 diff+갱신 Root impl-validator 재검증 + acceptance 재검수 · system boundary/global decision gap → `/design --revise`/checkpoint · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
+| **target GitHub issue AC close audit** | 메인이 acceptance verdict로 자동/`(JOURNEY)` AC를 체크하고 `사람 확인 안내`는 미체크 유지. `check_issue_body.mjs --acceptance-only --require-complete` PASS → 사용자 merge 승인 대기 · 미충족·미체크 → clean 마감 금지, 구현 보강 · human verification 잔여 → 목록 보고 후 merge 전 대기 (`blocked` 아님) |
+
+loop의 자동 merge 금지: 사용자가 유일한 merge gate다. 승인 뒤에만 대상 PR을 base=`main`으로 리타겟·리베이스하고 merge helper를 호출한다.
 
 `(JOURNEY)` REQ는 PASS 블로커가 아니다. build-worker가 flow 대본, `.dcness/` 밖 journey 매니페스트, 필요한 setup/teardown/상태전이 스크립트를 작성하고 acceptance 인계를 보고하면 `PASS`로 진행한다. 이 경로는 메인 게이트 대행용 `VALIDATION_BLOCKED`와 다르다.
 
@@ -85,13 +90,13 @@ finding 수용 원칙: 같은 파일·주제·위험 클래스 finding 이 반�
 
 ## 마감 acceptance 분기
 
-Epic close의 Codebase Sanity는 acceptance보다 먼저 수행한다. 모든 Story/PR마다 full-repo audit을 반복하지 않고 Epic당 최종 clean candidate 1회가 기본이다. 메인이 code revision과 실제 test/lint/build/typecheck/coverage 명령·exit/warning을 수집하며, coverage 도구가 없으면 `UNKNOWN`이다. 결과는 `dcness-helper sanity-receipt-dir --project-root "$PROJECT_ROOT"`가 반환한 persistent primary-worktree `.dcness-work/codebase-sanity/`에 local receipt로 보존해 linked `ExitWorktree` 뒤에도 재사용한다. 코드 변경은 Sanity와 일반 impl-validator 증거를 모두 stale로 만들어 Sanity부터 재진입한다. receipt는 canonical Root `CARTOGRAPHY_REFRESH` 또는 다음 design의 현재 코드 대조를 대신하지 않는다.
+Epic close의 Codebase Sanity는 acceptance보다 먼저 수행한다. 모든 Story/PR마다 full-repo audit을 반복하지 않고 최종 stack tip(QA PR이 있으면 QA branch) vs main candidate 1회가 기본이다. 메인이 code revision과 실제 test/lint/build/typecheck/coverage 명령·exit/warning을 수집하며, coverage 도구가 없으면 `UNKNOWN`이다. 결과는 `dcness-helper sanity-receipt-dir --project-root "$PROJECT_ROOT"`가 반환한 persistent primary-worktree `.dcness-work/codebase-sanity/`에 local receipt로 보존해 linked `ExitWorktree` 뒤에도 재사용한다. 코드 변경은 Sanity와 일반 impl-validator 증거를 모두 stale로 만들어 Sanity부터 재진입한다. receipt는 canonical Root `CARTOGRAPHY_REFRESH` 또는 다음 design의 현재 코드 대조를 대신하지 않는다.
 
 story/epic close 를 실제 발동하는 PR 의 impl-validator `PASS` 후 · merge 전 product-acceptance 검수를 끼운다. 기본 ON, `--no-acceptance` 명시 run 만 비대상이다. product-acceptance 를 생략해도 target GitHub issue AC close audit 은 생략되지 않는다.
 
 impl-validator 는 계획 대비 구현 정합과 merge candidate diff 위험을 검토한다. 여러 PR 이 합쳐진 story 동작과 여러 story 가 합쳐진 epic 동작의 사용자 관찰 가능 동작은 마감 product-acceptance 가 맡는다.
 
-여러 task commit 이 합쳐진 story 동작은 story PR 과 acceptance 증거를 함께 보고 판정한다. 여러 story sub-PR 이 합쳐진 epic 동작도 같은 원칙으로 product-acceptance 가 맡는다. product-acceptance 는 개별 task green 이 아니라 story/epic close 시점의 사용자 동작 전체를 검수한다.
+여러 task commit이 합쳐진 story 동작은 story PR과 acceptance 증거를 함께 보고 판정한다. 여러 story PR이 stack tip에서 합쳐진 epic 동작도 같은 원칙으로 product-acceptance가 맡는다. product-acceptance는 개별 task green이 아니라 story/epic close 시점의 사용자 동작 전체를 검수한다.
 
 STORY/EPIC_ACCEPTANCE는 대상 AC의 `(JOURNEY)` receipt가 없고 매니페스트/e2e가 있으면 최종 tip에서 flow를 실행해 receipt를 생성·판정한다. 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 보고하며 특정 e2e 도구를 강제하지 않는다.
 
@@ -108,8 +113,8 @@ auto-fixable gap: PRD 유저 시나리오 / Story AC 미충족, 검수 증거 �
 ## clean / blocked 판정
 
 - task clean = build-worker PASS + phase prose 3개 + local commit sha + clean status + story-runner mark.
-- story boundary clean = 해당 story 의 모든 task completed + story PR 생성. 다중 story 면 통합 브랜치 merge + 다음 branch 재분기까지 확인.
-- integrated review clean = 모든 target task completed + 모든 story PR 경계 처리 + 최종 main 대상 PR 생성 + Epic close이면 현재 code revision의 `impl-validator:CODEBASE_SANITY` PASS와 receipt + 일반 impl-validator PASS.
+- story boundary clean = 해당 story의 모든 task completed + story PR 생성 + merge 없이 다음 branch를 직전 story branch에서 재분기.
+- integrated review clean = 모든 target task completed + 모든 story PR 경계 처리 + stack tip 확정 + Epic close이면 현재 code revision의 `impl-validator:CODEBASE_SANITY` PASS와 receipt + 일반 impl-validator PASS.
 - close 발동 clean = integrated review clean + 필요한 product-acceptance PASS + target GitHub issue AC 전항목 충족·체크 + `require-complete` PASS.
 - verify-only clean = 검증 명령 exit 0 + 변경 0 + validator PASS.
 

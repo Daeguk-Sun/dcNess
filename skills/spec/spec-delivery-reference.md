@@ -2,7 +2,7 @@
 
 `/spec` 산출물을 PR 로 머지하고, 필요 시 issue 를 등록한 뒤 `/design` 을 권고할 때 쓰는 참고 자료다. 실행 순서는 [`SKILL.md`](SKILL.md), 분기는 [`spec-routing.md`](spec-routing.md) 가 진본이다.
 
-## 일반 branch + PR
+## branch + PR
 
 ```bash
 git checkout -b docs/<slug> main
@@ -14,22 +14,7 @@ gh pr create --base main --title "..." --body "..."
 bash "$PLUGIN_ROOT/scripts/pr-finalize.sh" <PR_NUMBER>
 ```
 
-## 통합 브랜치 branch + PR
-
-```bash
-git checkout -b feature/<slug> main
-git push -u origin feature/<slug>
-git checkout -b docs/<slug>_prd feature/<slug>
-git add docs/prd.md docs/index.md docs/epics/epic-NN-<slug>/stories.md
-# preflight 를 실행했다면: git add docs/tech-review.md
-git commit -m "[docs] PRD 신규 / 변경 요약"
-git push -u origin docs/<slug>_prd
-gh pr create --base feature/<slug> --title "[docs] ..." \
-  --body "... \nDocument-Exception-PR-Close: PRD/stories.md 머지 — 이슈 없음"
-bash "$PLUGIN_ROOT/scripts/pr-finalize.sh" <PR_NUMBER>
-```
-
-`Document-Exception-PR-Close` 마커는 PRD sub-PR 이 이슈 등록 전 단계라 별도 추적 이슈를 만들지 않기 위한 예외다.
+PRD/stories.md delivery branch는 항상 `main`에서 만든다. 후속 다중 story 구현의 branch stack은 `/impl-loop`가 별도로 구성하며 spec 산출물에 base marker를 남기지 않는다.
 
 ## 이슈 등록
 

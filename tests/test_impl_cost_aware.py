@@ -122,8 +122,9 @@ class TestImplLoopSingleEngine(unittest.TestCase):
         skill = read_impl_skill()
         for needle in (
             "action=story-pr",
-            "story sub-PR",
-            "갱신된 통합 브랜치에서 재분기",
+            "story PR",
+            "직전 story 브랜치에서 재분기",
+            "스택 tip vs main",
             "impl-validator review 출력은 merge candidate 경계에서 1회",
         ):
             with self.subTest(needle=needle):

@@ -1,6 +1,6 @@
 # impl-validator finding class
 
-`impl-validator` 의 FAIL finding 은 재진입 모드를 보존하기 위해 class 를 붙인다. finding 은 항상 merge candidate diff 기준이다. 다중 story/epic invocation 에서는 개별 PR 단편이 아니라 합쳐진 diff 에서 드러나는 cross-story 결함도 같은 class 로 분류한다.
+`impl-validator` 의 FAIL finding 은 재진입 모드를 보존하기 위해 class 를 붙인다. finding 은 항상 merge candidate diff 기준이다. 다중 story/epic invocation에서는 개별 PR 단편이 아니라 stack tip vs main diff에서 드러나는 cross-story 결함도 같은 class로 분류한다.
 
 ## spec-gap
 

@@ -19,7 +19,7 @@
 - [test_signal_io.py](test_signal_io.py), [test_run_review.py](test_run_review.py),
   [test_sub_eval.py](test_sub_eval.py): prose 결과, run review, validator helper.
 - [test_git_naming.py](test_git_naming.py), [test_pr_body.py](test_pr_body.py),
-  [test_pr_trailer.py](test_pr_trailer.py), [test_pr_finalize_integration.py](test_pr_finalize_integration.py):
+  [test_pr_trailer.py](test_pr_trailer.py), [test_pr_finalize_non_default_base.py](test_pr_finalize_non_default_base.py):
   git/PR lifecycle 계약.
 - [test_doc_path_integrity.py](test_doc_path_integrity.py), [test_index_map_aggregate.py](test_index_map_aggregate.py),
   [test_design_artifact_audit.py](test_design_artifact_audit.py): 문서/템플릿 gate.

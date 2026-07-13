@@ -626,7 +626,7 @@
     "tests/test_outcome_scorecard.py",
     "tests/test_parallel_wave.py",
     "tests/test_pr_body.py",
-    "tests/test_pr_finalize_integration.py",
+    "tests/test_pr_finalize_non_default_base.py",
     "tests/test_pr_finalize_peer_lock.py",
     "tests/test_pr_lifecycle_ledger.py",
     "tests/test_pr_trailer.py",

@@ -13,8 +13,8 @@ epic issue ─┬─ story issue ── (task: local commit, 이슈 없음)
 - **epic** = 1 개 `docs/epics/epic-NN-<slug>/stories.md` 영역 (epic 단위 stories.md 1 개 = 1 epic)
 - **story** = epic 단위 stories.md 안의 Story N 단위
 - **task** = `docs/epics/epic-NN-*/impl/NN-*.md` 단위. 완료 경계는 local commit 이며 GitHub 이슈 X
-- **story** = task commit 묶음의 PR 경계. 단일 story 는 base=`main` PR 1개, 다중 story/epic 은 story 별 통합 브랜치 sub-PR
-- **epic** = story sub-PR × N + 마지막 통합→main PR. epic 구현을 단일 PR로 묶지 않는다.
+- **story** = task commit 묶음의 PR 경계. 단일 story는 base=`main` PR 1개, 다중 story/epic은 story branch stack의 story별 PR이다.
+- **epic** = story PR × N + tracked 마감 보정이 있을 때만 QA PR 1개. epic 구현을 단일 PR로 묶거나 story PR을 자동 merge하지 않는다.
 
 `epic-NN` 은 프로젝트 전역 번호다. milestone 은 path segment 가 아니라 stories frontmatter `milestone: vNN` 로 남긴다.
 
@@ -102,7 +102,7 @@ Project 미러까지 원하면 `--owner` / `--project` 를 명시하거나 repo 
 
 ### PR merge 후처리 — close + label cleanup
 
-close 를 발동하는 PR 의 CI와 최종 review 증거가 확정된 뒤, merge 전 메인은 진입 preflight 에서 한 번 읽어 보관한 target GitHub issue AC snapshot 과 구현·검증 증거를 완료 후보 issue 별로 전수 대조한다. task/story 진행 중 issue 를 다시 조회하거나 수정하지 않는다. close 경계의 기존 GitHub 조회가 있으면 최신 body 확인을 그 호출에 얹고, 자동 판정 가능한 AC 를 모두 충족한 뒤 체크박스 write 를 issue 별로 이 경계에서 한 번 수행한다. 갱신 body 는 각각 다음 명령이 PASS 해야 한다.
+close 를 발동하는 PR 의 CI와 최종 review 증거가 확정된 뒤, merge 전 메인은 진입 preflight 에서 한 번 읽어 보관한 target GitHub issue AC snapshot 과 구현·검증 증거를 완료 후보 issue 별로 전수 대조한다. task/story 진행 중 issue 를 다시 조회하거나 수정하지 않는다. story-close acceptance verdict에서 자동 판정 및 `(JOURNEY)`로 충족된 AC는 메인이 체크하고 `사람 확인 안내`는 미체크로 둔다. 이 체크박스 write는 issue별 close 경계에서 한 번 수행한다. 갱신 body 는 각각 다음 명령이 PASS 해야 한다.
 
 ```bash
 node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \

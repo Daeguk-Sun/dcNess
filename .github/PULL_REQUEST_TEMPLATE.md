@@ -5,8 +5,8 @@
 
 <!-- 트레일러 룰 (git-spec 의 PR 트레일러 기본 룰):
      - 단일 story → Closes #story (epic 마지막이면 Closes #epic 동봉)
-     - 통합 브랜치 story sub-PR → Part of #story + main bulk-close exception
-     - 통합 → main → 모든 story + epic 을 Closes
+     - story branch stack PR → 생성 시 직전 story branch base, merge 시 main 리타겟 후 Closes #story
+     - QA PR → tracked 보정이 있으면 Part of #epic, epic close를 발동하면 Closes #epic
      - issue 없는 infra/follow-up → Document-Exception-PR-Close: <사유> -->
 Part of #N
 

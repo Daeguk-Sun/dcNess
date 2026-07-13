@@ -47,7 +47,7 @@ architecture, domain-model, impl task 는 이 stage 에서 만들지 않는다. 
 ## 절차
 
 1. **Stage 선택 확인** — `/design` dispatcher 가 넘긴 epic dir 를 기준으로 `stories.md` 와 UI 판정, UX 층 revision mode 여부를 확인한다. `ux-flow.md` 가 이미 있고 revision mode 가 아니면 이 stage 를 중단하고 `design-system` 으로 돌아간다.
-2. **Run 시작** — worktree/base ref 는 `/design` 과 동일하게 적용하고 `begin-run design --stage design-ux` 로 시작한다. 통합 브랜치 모드면 stage 1 PR 도 같은 base ref 를 사용한다.
+2. **Run 시작** — worktree와 stage 1 PR은 `/design`과 동일한 `main` base를 적용하고 `begin-run design --stage design-ux`로 시작한다.
 3. **목업 선행 여부 checkpoint** — UI epic 에서 목업 선행 여부를 1회 묻는다. 목업=예 가 아니면 목업 없음 으로 처리한다. 사용자 opt-out 발화나 yolo 모드는 yolo 기본값 = 목업 없음 이며, 기존 UX stage 흐름 그대로 ux-flow 와 text wireframe 만 durable 하게 남긴다. opt-out 정규식은 `/design` dispatcher 의 `(목업|mockup|시안|디자인)\s*(빼|없|말|나중|생략)` 를 따른다.
 4. **디자인 시스템 체크포인트 (목업=예 한정)** — docs/design.md 실존+유효 이면 확인-후-skip 한다. 부재하면 사용자에게 참고 디자인 시스템을 요청한다. 이미 `docs/design-refs/` 같은 ad-hoc 베이스라인 문서가 있으면 외부 import 1회 변환으로 `docs/design.md` 에 흡수하고, 같은 내용을 반복 import 하지 않는다. 이 결과를 ux-architect prompt 의 참고 디자인 시스템 신호로 전달한다.
 5. **ux-architect 호출** — `UX_FLOW` 모드로 epic `ux-flow.md` 를 작성한다. revision mode 에서는 기존 `ux-flow.md`, `docs/design.md`, 확정 목업/canvas 포인터와 "화면 통합/분할/삭제 등 UX 층 개정 의도"를 입력으로 넣고 영향 UX 산출물만 개정하게 한다. 화면 인벤토리는 `hi-fi 목업 필요` 열을 유지하고, 목업=예 경로에서는 `docs/design.md` 토큰을 참고 디자인 시스템 신호에 맞춰 정리한다.

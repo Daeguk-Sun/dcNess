@@ -73,8 +73,6 @@ epic: epic-01-demo
 milestone: v01
 ---
 
-**Base Branch:** feature/test_epic
-
 ## Epic — 테스트 에픽
 
 에픽 본문 설명.
@@ -249,6 +247,20 @@ class CreateEpicStoryBoardTests(unittest.TestCase):
         )
         self.assertNotEqual(0, result.returncode)
         self.assertIn("epic-NN-<slug>", result.stderr)
+        self.assertEqual("", gh_log)
+        self.assertEqual("", node_log)
+
+    def test_rejects_retired_base_branch_marker_before_github_calls(self):
+        stories = STORIES_NEW.replace(
+            "milestone: v01\n",
+            "milestone: v01\n\n**Base Branch:** `feature/legacy-integration`\n",
+        )
+
+        result, gh_log, node_log, _ = self._run(stories, {"VARS_PRESENT": "1"})
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn("Base Branch", result.stderr)
+        self.assertIn("폐기", result.stderr)
         self.assertEqual("", gh_log)
         self.assertEqual("", node_log)
 

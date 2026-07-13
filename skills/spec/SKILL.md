@@ -142,18 +142,13 @@ full E2E 검증은 MVP /spec 이행 범위 밖이다.
 - `FAIL` → gap 보고 + 메인 patch 후 Step 7
 - `ESCALATE` → 기준 문서/권한/사용자 결정 부족 보고 후 사용자 위임
 
-### Step 9 — 통합 브랜치 그릴
+### Step 9 — delivery topology 확정
 
-PRD/stories.md 검증 완료 후 branch 만들기 전 사용자에게 작업 전략을 묻는다.
-
-- `a` 일반 → `docs/<slug>` 브랜치로 Step 10
-- `b` 통합 브랜치 → `feature/<slug>` 생성 후 `docs/<slug>_prd` sub-PR 로 Step 10
-
-통합 브랜치 선택 시 stories.md 상단에 `**Base Branch:** feature/<slug>` 를 추가한다.
+PRD/stories.md는 `main` 기반 `docs/<slug>` PR 하나로 전달한다. 구현 topology를 spec 문서에 branch marker로 저장하지 않는다. 다중 story 구현은 `/impl-loop`가 `story 브랜치 스택`으로 구성하고, PR 생성과 merge 시점의 base를 분리해 관리한다.
 
 ### Step 10 — branch + commit + PR + 머지
 
-Step 9 의 선택에 따라 PRD/stories.md PR 을 만들고 머지한다.
+Step 9에서 확정한 main 기반 PRD/stories.md PR을 만들고 머지한다.
 
 명령 예시는 [`spec-delivery-reference.md`](spec-delivery-reference.md)를 따른다. preflight 를 실행했다면 PR 에 `docs/tech-review.md` 를 포함한다. `.dcness-work/reviews/` 는 git-tracked PR 대상이 아니다.
 

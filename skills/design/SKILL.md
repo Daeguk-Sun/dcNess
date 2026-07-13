@@ -65,7 +65,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 Step 0 진입 시 자동 `EnterWorktree(name="design-{ts_short}")`. 사용자 발화에 정규식 `워크트리\s*(빼|없|말)` 매치 시에만 건너뜀. 자세히 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정).
 
-**Base ref 분기 (MUST, #424)**: epic 단위 `docs/epics/epic-NN-<slug>/stories.md` 상단 `**Base Branch:** feature/<slug>` 마커 매치 시 통합 브랜치 모드 — outer worktree base ref + `docs/<epic-slug>` branch 둘 다 integration branch 기반. 절차 = [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#base-ref-분기-통합-브랜치-모드-424).
+**Base ref (MUST)**: design outer worktree와 `docs/<epic-slug>` PR은 `main` 기반이다. 후속 구현의 다중 story topology는 `/impl-loop`의 story branch stack이 소유하며 design 산출물에 branch marker를 기록하지 않는다.
 
 ## Pre-flight gate (Step 0 직후)
 
@@ -183,7 +183,7 @@ UI epic 으로 판정되고 `design-ux` stage 를 선택한 직후 메인이 목
 9. **Stage 2 — architecture-validator final epic 검증** (기존 절차명: **Step 4 — architecture-validator final epic 검증**) — epic 전체 산출물을 한 번에 검증한다. 요구사항 출처 충실도는 PRD 가 아니라 Story AC ↔ impl REQ 매핑을 원점으로 보고, coverage report 의 미커버 AC·무출처 REQ·마지막 task 전수 검증 누락을 산출물과 직접 대조한다. 그 밖에 설계 표준, 계약과 인터페이스, 제품 동작 슬라이스, Story 간 compose/wiring, 고위험 상태 계약 추적, cold-seat 구현 가능성, impl 과상세화, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 본다. ux-flow·stories prose·legacy Contract Ledger/References 같은 비규범/구양식 층의 stale 은 형식만으로 Must finding 으로 올리지 않는다. revision mode 에서는 final validator 가 개정분만 보지 않고 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 결과를 다시 본다. Must finding 마다 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류를 붙인다. `PASS` 는 사용자 최종 설계 승인 checkpoint 로 넘어갈 수 있다는 뜻이지 commit 승인 신호가 아니다.
 10. **Step 5 — end-run + design run 기록 freeze** — 각 stage PR 생성 전에 `bash "$PLUGIN_ROOT/scripts/dcness-helper" end-run` 을 실행한다. end-run 안전망이 finalize-run/review 를 만들고, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션을 포함한다. `/design` run 이면 현재 design worktree 의 `docs/metrics/design-runs.jsonl` 도 갱신한다. 이 파일은 design 산출물이므로 같은 PR 에 포함되어야 한다. PR/merge 뒤에 end-run 을 미루면 worktree 또는 main working tree 에 uncommitted metrics 가 고립되므로 금지한다.
 11. **Step 6 — 사용자 최종 설계 승인 + commit/PR + ExitWorktree** — final validator PASS 와 end-run 이 끝나면 먼저 설계 산출물 요약과 diff 규모를 사용자에게 제시하고 최종 설계 검수/승인을 받는다. stage 1 은 UX 산출물 요약, 목업 선행 여부, 확정 목업 경로, diff 규모를 제시한다. stage 2 는 산출물 요약(전역 architecture/conventions/decisions/epic architecture/domain-model/impl 파일 목록), revision mode 여부와 drift audit 결과, diff 규모(`git diff --stat <BASE>...HEAD`, 설계 pack 줄 수/파일 수)를 제시한다. 승인 응답 전에는 `git add`, `git commit`, `git push`, `gh pr create`, `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다. yolo 모드(`yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서`)도 사용자 최종 설계 승인을 생략하지 않는다. 승인 뒤에만 branch commit → push → `gh pr create --base <BASE>` (body = 설계 산출물 요약 + `Part of #<epic-issue>`) → `bash "$PLUGIN_ROOT/scripts/pr-finalize.sh"` → merge/default worktree sync 완료 후 ExitWorktree.
-   - **base 분기 (MUST)**: `gh pr create` 직전 epic 단위 stories.md 상단 `**Base Branch:**` 줄 매치 → `--base <매치 값>` (통합 브랜치 케이스, base = `feature/<slug>`). 매치 없음 → `--base main` (default). Step 0 의 `EnterWorktree` branch (`docs/<epic-slug>`) 도 동일 base 기반 — 절차 [`docs/plugin/loop-procedure.md`](../../docs/plugin/loop-procedure.md#base-ref-분기-통합-브랜치-모드-424).
+   - **base (MUST)**: `gh pr create --base main`을 사용한다. Step 0의 `EnterWorktree` branch(`docs/<epic-slug>`)도 `main` 기반이다.
 
 > 각 Step 의 agent 결론에 따른 분기·재진입·cycle 한도·escalate = [`design-routing.md`](design-routing.md). loop 종료 후 후속(`/impl` 안내 등)도 그 파일.
 

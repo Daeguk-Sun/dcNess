@@ -255,6 +255,12 @@ class StoryRunnerTests(unittest.TestCase):
         self.assertEqual(action["final_story"]["story"], "1")
         self.assertEqual(action["final_story"]["task_ids"], [1, 2])
         self.assertEqual(action["final_story"]["commits"], ["abc123", "def456"])
+        self.assertEqual(
+            action["pr_base"], {"kind": "default-branch", "branch": "main"}
+        )
+        self.assertEqual(
+            action["stack_tip"], {"kind": "story-branch", "story": "1"}
+        )
         self.assertEqual(action["progress"], {"completed": 2, "total": 2})
 
     def test_next_stops_at_story_pr_boundary_before_later_story(self) -> None:
@@ -270,12 +276,37 @@ class StoryRunnerTests(unittest.TestCase):
         self.assertEqual(action["story"]["story"], "1")
         self.assertEqual(action["story"]["task_ids"], [1, 2])
         self.assertEqual(action["next_task"]["id"], 3)
+        self.assertEqual(
+            action["pr_base"], {"kind": "default-branch", "branch": "main"}
+        )
+        self.assertEqual(
+            action["next_branch_base"],
+            {"kind": "story-branch", "story": "1"},
+        )
 
-        # story-pr 생성·통합 브랜치 머지는 state 에 저장하지 않는다. 갱신된
-        # 통합 브랜치에서 재분기한 뒤 next_task 를 running 으로 mark 하면 전진한다.
+        # story PR 생성은 state 에 저장하지 않는다. 다음 story branch 를 직전
+        # story branch tip 에서 만든 뒤 next_task 를 running 으로 mark 하면 전진한다.
         mark_task(state, "3", "running", provider="claude-headless")
         self.assertEqual(next_task(state)["id"], 3)
         self.assertEqual(next_action(state)["task"]["id"], 3)
+
+    def test_done_exposes_final_story_base_and_stack_tip_for_epic(self) -> None:
+        state = build_state([str(self.impl_dir)], cwd=self.root, scope="epic")
+
+        mark_task(state, "1", "completed", commit="abc123")
+        mark_task(state, "2", "completed", commit="def456")
+        mark_task(state, "3", "completed", commit="ghi789")
+
+        action = next_action(state)
+
+        self.assertEqual(action["action"], "done")
+        self.assertEqual(action["final_story"]["story"], "공통")
+        self.assertEqual(
+            action["pr_base"], {"kind": "story-branch", "story": "1"}
+        )
+        self.assertEqual(
+            action["stack_tip"], {"kind": "story-branch", "story": "공통"}
+        )
 
     def test_completed_requires_commit_and_failure_states_require_note(self) -> None:
         state = build_state([str(self.impl_dir / "01-ui.md")], cwd=self.root)

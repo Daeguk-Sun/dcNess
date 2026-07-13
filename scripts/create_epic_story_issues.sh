@@ -55,6 +55,10 @@ if [ ! -f "$STORIES" ]; then
   echo "[issue-create] ERROR: $STORIES 부재. PRD/stories.md 먼저 작성 후 호출하세요." >&2
   exit 1
 fi
+if grep -qE '^\*\*Base Branch:\*\*' "$STORIES"; then
+  echo "[issue-create] ERROR: **Base Branch:** 마커는 폐기됨 — marker를 제거하고 story runner의 pr_base를 사용하세요." >&2
+  exit 1
+fi
 
 REPO=$(gh repo view --json nameWithOwner --jq '.nameWithOwner' 2>/dev/null)
 if [ -z "$REPO" ]; then
@@ -225,15 +229,6 @@ esac
 EPIC_BODY=$(printf '%s\n' "$EPIC_BODY" | sed -E \
   -e 's/^\*\*완료 기준\*\* \(epic 단위 수용 기준\):$/**Acceptance criteria:**/' \
   -e 's/^[0-9]+\.[[:space:]]+(\[(command|agent-read)\].*)$/- [ ] \1/')
-
-# **Base Branch:** 마커 read — stories.md 상단에 있으면 epic issue body 첫 줄로 미러링
-BASE_BRANCH_LINE=$(grep -m1 -E '^\*\*Base Branch:\*\*[[:space:]]+' "$STORIES" || true)
-if [ -n "$BASE_BRANCH_LINE" ]; then
-  EPIC_BODY="${BASE_BRANCH_LINE}
-
-${EPIC_BODY}"
-  echo "[issue-create] Base Branch 마커 감지 — epic body 미러링: $BASE_BRANCH_LINE"
-fi
 
 LABELS_ARGS=( -l epic -l "$VNN" )
 if [ -n "$EPIC_SLUG" ]; then
