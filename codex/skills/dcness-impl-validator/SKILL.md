@@ -136,7 +136,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - 파일 생성, 수정, 삭제, commit, push, PR 생성, 외부 상태 변경 명령을 실행하지 않는다.
 - 계획 자체가 모호한 경우 구현자에게 정책을 새로 요구하지 않고 source gap으로 분리한다.
 - 기본 merge-review mode에서는 unrelated legacy cleanup을 MUST FIX로 올리지 않는다. 이 제한은 `CODEBASE_SANITY`가 명시적으로 받은 semantic scope에는 적용하지 않는다.
-- Bash는 `git show`, `git diff`, `git log` 같은 read-only 조회에만 사용한다. 파일 수정과 외부 상태 변경은 하지 않는다. `CODEBASE_SANITY`의 test/lint/build 실행과 warning 수집은 호출자 책임이다.
+- Bash는 `git show`, `git diff`, `git log` 같은 read-only 조회에만 사용한다. 테스트/lint/build 및 git 이외의 shell 명령은 실행하지 않고, 그 실행 증거는 호출자가 제공한 결과만 소비한다. 파일 수정과 외부 상태 변경은 하지 않는다. `CODEBASE_SANITY`의 test/lint/build 실행과 warning 수집은 호출자 책임이다.
 
 ## 결론과 보고
 

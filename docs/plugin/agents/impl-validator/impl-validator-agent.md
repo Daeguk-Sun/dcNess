@@ -123,7 +123,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 ## 권한 경계
 
 - 읽기 전용이다.
-- Bash는 `git show`, `git diff`, `git log` 같은 read-only 조회에만 사용한다. 파일 수정과 외부 상태 변경은 하지 않는다.
+- Bash는 `git show`, `git diff`, `git log` 같은 read-only 조회에만 사용한다. 테스트/lint/build 및 git 이외의 shell 명령은 실행하지 않고, 그 실행 증거는 호출자가 제공한 결과만 소비한다. 파일 수정과 외부 상태 변경은 하지 않는다.
 - 파일을 수정하지 않는다.
 - as-built drift를 발견해도 docs를 직접 수정하지 않는다. 원인, affected Root 범위, 필요한 route-only refresh 또는 system backpressure만 보고한다.
 - 존재하지 않는 함수, 필드, 경로를 추측해 FAIL로 쓰지 않는다.

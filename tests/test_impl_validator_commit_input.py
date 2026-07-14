@@ -38,6 +38,8 @@ class ImplValidatorCommitInputContractTests(unittest.TestCase):
                     "파일 수정",
                     "외부 상태 변경",
                     "읽기 전용",
+                    "테스트/lint/build",
+                    "git 이외의 shell 명령",
                 ):
                     self.assertIn(needle, prompt)
                 self.assertNotIn("Bash를 쓰지 않는다.", prompt)
