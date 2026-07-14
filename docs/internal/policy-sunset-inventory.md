@@ -247,17 +247,18 @@ compatibility 후보는 `LIFE-002`와 `LIFE-003` 두 개로 유지된다. 둘 �
 
 ## 500줄 이상 major text 책임 감사
 
-단순 분할은 개선으로 세지 않는다. 각 파일의 현재 책임, 중복·legacy 비중, 실제 감량 후보를 읽었다. `후속/판정`이 #1098인 항목도 앞선 정책 이슈가 제거한 branch·fixture를 입력으로 받을 뿐, 크기만으로 쪼개지 않는다.
+단순 분할은 개선으로 세지 않는다. `265e538`에서 58개 전부를 다시 읽고 현재 책임, 중복·legacy 비중, 실제 감량 후보를 갱신했다. `후속/판정`이 #1098인 항목도 앞선 정책 이슈가 제거한 branch·fixture를 입력으로 받을 뿐, 크기만으로 쪼개지 않는다.
 
 | 파일 | LOC | 현재 책임 | 중복·legacy 관찰 | 후속/판정 |
 |---|---:|---|---|---|
 | `PROGRESS.md` | 556 | self 진행 기록 | 누적 이력이며 runtime 아님 | #1098 입력 제외; 분할 무효 |
-| `commands/init-dcness.md` | 512 | 활성화·재실행·제거 orchestration | install 설명이 사용자 SSOT와 일부 반복 | #1096에서 배포 계약 단위 감량 |
+| `commands/init-dcness.md` | 513 | 활성화·재실행·제거 orchestration | install 설명이 사용자 SSOT와 일부 반복 | #1096에서 배포 계약 단위 감량 |
 | `docs/archive/change_rationale_history.md` | 2,633 | 과거 결정 archive | legacy 비중 높지만 실행 surface 아님 | #1098에서 archive 보존정책 없이는 삭제 금지 |
 | `docs/archive/conveyor-design.md` | 684 | 폐기 설계 archive | 현행 loop와 중복 가능 | #1098 후보, 단 runtime 감량으로 계산 X |
 | `docs/archive/document_update_record.md` | 1,777 | 과거 변경 archive | Git history와 중복 | #1098 후보, 별도 archive 근거 필요 |
 | `docs/archive/status-json-mutate-pattern.md` | 553 | 폐기 status JSON 참고 | 현행 prose-only와 legacy 비중 높음 | #1098 후보, 외부 링크 감사 후 |
 | `docs/internal/marketplace-artifact-baseline.json` | 658 | release artifact inventory | generated data, 책임 중복 없음 | 유지; 분할 무효 |
+| `docs/internal/policy-sunset-inventory.json` | 515 | 정책 slice machine inventory | markdown 감사와 표현은 겹치지만 machine validation 입력 | 유지; #1099 재측정 입력 |
 | `docs/internal/release-notes.md` | 2,184 | 릴리즈 이력 | GitHub PR history와 일부 중복 | #1098 후보지만 release SSOT 보존 필요 |
 | `docs/plugin/loop-procedure.md` | 504 | loop mechanics SSOT | run/routing 호환 설명이 누적 | #1094·#1095 뒤 문구 삭제, 단순 분할 금지 |
 | `evals/agent_effectiveness_measure.py` | 734 | paired trace 측정 | policy compatibility와 무관 | 현행; #1098 크기만으로 선택 금지 |
@@ -269,7 +270,7 @@ compatibility 후보는 `LIFE-002`와 `LIFE-003` 두 개로 유지된다. 둘 �
 | `harness/benchmark_aggregate.py` | 500 | run verdict·waste 집계 | legacy verdict 분기 포함 | #1094 `RUN-008`, 이후 #1098 |
 | `harness/chain_view.py` | 531 | run chain view | run reader와 assertion 중복 가능 | #1094 결과 후 #1098 |
 | `harness/codex_sandbox_permission.py` | 594 | Codex 제한 승인 receipt | 현행 safety | 유지 |
-| `harness/guard_telemetry.py` | 657 | guard hit telemetry | compatibility와 무관 | 현행 |
+| `harness/guard_telemetry.py` | 663 | guard hit telemetry | compatibility와 무관 | 현행 |
 | `harness/hooks.py` | 1,671 | order/state hook 집약 | 여러 세대 enum·run assertion 포함 | #1094 후 #1098; order guard 보존 |
 | `harness/ledger.py` | 642 | canonical + legacy run reader | legacy/mixed/field 호환 비중 큼 | #1094 핵심 감량 후보 |
 | `harness/outcome_scorecard.py` | 739 | process·effectiveness·outcome 집계 | legacy verdict 소비 중복 | #1094 뒤 #1098 |
@@ -283,32 +284,41 @@ compatibility 후보는 `LIFE-002`와 `LIFE-003` 두 개로 유지된다. 둘 �
 | `harness/story_runner.py` | 509 | story stack state | 현행 lifecycle | #1097 reader 정리 뒤 #1098 |
 | `harness/tdd_hooks.py` | 1,356 | generated hook 생성·status·self-test | install 상태별 분기 큼, 실제 partial 소비자 존재 | #1096; 단순 분할 금지 |
 | `scripts/github_project_lifecycle.mjs` | 1,444 | GitHub Project state lifecycle | legacy story reader와 직접 무관 | 현행; #1098 크기만으로 선택 금지 |
-| `scripts/loop_diagnose.py` | 884 | cross-project 진단 | compatibility와 무관 | 현행 |
+| `scripts/loop_diagnose.py` | 887 | cross-project 진단 | compatibility와 무관 | 현행 |
 | `templates/design-variants/_lib/canvas.js` | 618 | static mockup canvas runtime | policy legacy와 무관 | 현행 |
 | `tests/test_agent_boundary.py` | 2,642 | 권한 경계 회귀 | legacy alias assertion 일부, safety fixture 다수 | #1094 후 #1098 중복 assertion 검토 |
 | `tests/test_agent_effectiveness.py` | 591 | effectiveness schema | compatibility와 무관 | 현행 |
-| `tests/test_benchmark_aggregate.py` | 565 | aggregate verdict 회귀 | legacy verdict fixture 포함 | #1094 후 #1098 |
+| `tests/test_benchmark_aggregate.py` | 528 | aggregate verdict 회귀 | local current/legacy fixture writer를 #1098 공통 helper로 통합; verdict assertions 유지 | #1098 fixture 책임 감량 완료 |
 | `tests/test_chain_view.py` | 522 | chain view 회귀 | run fixture 중복 가능 | #1094 후 #1098 |
 | `tests/test_codex_sandbox_permission.py` | 564 | sandbox 승인 경계 | 현행 safety | 유지 |
 | `tests/test_codex_validator_wrapper.py` | 1,522 | Codex wrapper/prose/boundary | 여러 wrapper fixture 중복 가능 | #1096 후 #1098, sandbox safety 보존 |
 | `tests/test_design_surface.py` | 578 | design prompt/template sync | legacy authoring 부정 assertion 포함 | #1093 후 #1098 |
+| `tests/test_evals_harness.py` | 688 | eval runner 격리·병렬·release strict 회귀 | policy compatibility와 무관 | 현행; 크기만으로 선택 금지 |
 | `tests/test_generated_tdd_hooks.py` | 771 | generated install matrix | partial/install fixture가 실사용 | #1096 후 중복 fixture만 #1098 |
 | `tests/test_github_project_lifecycle.py` | 1,544 | project lifecycle 스크립트 | compatibility와 무관 | 현행; #1098 크기만으로 선택 금지 |
 | `tests/test_hooks.py` | 3,582 | order/state/hook 통합 회귀 | run·alias·fallback assertion 세대 다수 | #1094·#1096 뒤 #1098 핵심 |
 | `tests/test_ledger.py` | 600 | ledger current/legacy/mixed/corrupt | compatibility fixture 비중 큼 | #1094 핵심; 4개 안전 시나리오 보존 |
-| `tests/test_loop_diagnose.py` | 645 | cross-project 진단 | compatibility와 무관 | 현행 |
+| `tests/test_loop_diagnose.py` | 679 | cross-project 진단 | compatibility와 무관 | 현행 |
 | `tests/test_multisession_smoke.py` | 647 | 동시 run smoke | 현행 concurrency safety | 유지 |
 | `tests/test_outcome_scorecard.py` | 574 | outcome aggregation | legacy verdict fixture 일부 | #1094 후 #1098 |
 | `tests/test_parallel_wave.py` | 978 | wave/merge lock | 현행 concurrency safety | 유지 |
 | `tests/test_product_journey.py` | 610 | journey runner | compatibility와 무관 | 현행 |
 | `tests/test_provider_chain.py` | 1,466 | provider chain 상태전이 | 현행 provider 성공·변경 전 실패·변경 후 실패 안전 경계 | #1095에서 legacy route 제거, safety fallback 보존 |
-| `tests/test_run_review.py` | 1,622 | run review current/legacy 분석 | legacy alias/verdict/.steps fixture 비중 큼 | #1094 핵심, 이후 #1098 |
+| `tests/test_run_review.py` | 1,590 | run review current/legacy 분석 | local persisted-run writer를 #1098에서 공통 helper로 통합; reader별 assertion은 유지 | #1098 fixture 책임 감량 완료 |
 | `tests/test_session_state.py` | 3,510 | state/CLI/run lifecycle | private re-export fixture는 #1094에서 canonical owner import로 전환; persisted safety fixture 유지 | #1094 완료 뒤 #1098 |
 | `tests/test_story_runner.py` | 545 | story runner lifecycle | 현행 stack fixture | #1097 뒤 #1098 |
 | `tests/test_surface_docs_sync.py` | 1,005 | agent/docs/Codex mirror sync | legacy design leniency 문자열 assertion 포함 | #1093 후 #1098 |
 | `tests/test_tdd_guard.py` | 816 | central/generated TDD guard | partial install fallback fixture가 실사용 | #1096 후 #1098, TDD invariant 보존 |
 
 실제 감량 우선순위는 `ledger/run_review/session_state`와 대응 테스트의 다세대 persisted 형식, provider routing의 소비자 없는 preset/export, design legacy authoring·reader, install partial-state 증거다. archive·release data·safety eval·concurrency·journey 파일은 크기만으로 선택하지 않는다.
+
+## #1098 persisted-run fixture 책임 통합
+
+#1094/PR #1119는 canonical `ledger.jsonl` writer와 실제 표본이 남은 legacy `.steps.jsonl` reader를 구분해 보존했다. 그 뒤 call/import scan에서 제품 호출자가 아닌 `tests/test_run_review.py`, `tests/test_benchmark_aggregate.py`, `tests/test_design_run_records.py`가 같은 run 경로 생성, prose 절대경로 치환, SHA-256 receipt 작성을 세 번 구현하고, legacy row writer도 두 번 구현한 사실을 확인했다. 크기 자체가 아니라 선행 정책 퇴역 결과와 3개 reader의 동일 persisted contract가 cleanup 근거다.
+
+5개 로컬 fixture writer를 `tests/run_fixtures.py`의 canonical/legacy helper 2개로 통합했다. run review의 current·legacy·mixed·invalid receipt, fleet verdict 집계, design durable record 시나리오와 각 assertion은 그대로 두어 검증 범위를 줄이지 않았다. helper 책임 수는 5→2, code+test LOC는 70,710→70,689로 21줄 순감하며 단순 파일 분할은 없다. 새 public surface와 제품 동작 변경도 없다.
+
+Safety invariant는 영향 경로를 달리해 보존한다. persisted state 관련 369개와 전체 1,980개 unit test가 통과했고, order gate·file/external-state boundary·TDD guard·install path는 각각 hooks, agent-boundary, tdd-guard, generated-hook 전체 회귀와 guard-efficacy 39/39로 확인했다. static quality, 문서·public-surface·manifest, release artifact smoke도 통과했으며 최종 명령은 #1098 PR Test Plan과 issue close audit에 남긴다.
 
 ## 후속 범위 완전성
 
@@ -322,7 +332,7 @@ compatibility 후보는 `LIFE-002`와 `LIFE-003` 두 개로 유지된다. 둘 �
 | #1098 | 위 500줄 이상 감사의 정책 제거 후 중복 책임 | 단순 분할이 아닌 assertion/helper 통합 |
 | #1099 | baseline JSON과 29개 원장 전항목 | 동일 정의 재측정·전체 gate·부모 close audit |
 
-machine validator 결과는 29/29 entry가 정확히 하나의 #1093~#1097에 배정되고 중복 ID가 없으며, 11/11 한시 호환 entry가 4요소를 갖춘다. 대형 파일 56/56도 표에서 유지·정책 cleanup·#1098 검토 중 하나로 판정했다. 어느 범위에도 속하지 않은 후보는 없다.
+machine validator 결과는 29/29 entry가 정확히 하나의 #1093~#1097에 배정되고 중복 ID가 없으며, 현재 남은 10/10 한시 호환 entry가 4요소를 갖춘다. `265e538`의 대형 파일 58/58도 표에서 유지·정책 cleanup·#1098 검토 중 하나로 판정했다. 어느 범위에도 속하지 않은 후보는 없다.
 
 ## Codebase Sanity receipt
 

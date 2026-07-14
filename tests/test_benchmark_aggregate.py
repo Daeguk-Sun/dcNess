@@ -4,7 +4,6 @@ run_review.py (run 1개) 위의 fleet 레이어. fixture 는 정식 ledger.jsonl
 (sha256 receipt 자동) 로 만들어 production reader 와 동형으로 검증한다.
 """
 
-import json
 import sys
 import tempfile
 import unittest
@@ -14,52 +13,16 @@ from typing import Optional
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
-from harness import ledger  # noqa: E402
 from harness.benchmark_aggregate import (  # noqa: E402
     aggregate_runs,
     aggregate_sessions,
     render_markdown,
     main,
 )
-
-
-def _make_run_dir_ledger(tmp: Path, sid: str, rid: str, events: list,
-                          prose_files: Optional[dict] = None) -> Path:
-    """ledger.jsonl 기반 run_dir fixture (sha256 receipt 자동 — reader drop 회피).
-
-    test_run_review.py 의 동명 헬퍼와 동일 규약. prose_file 은 파일명으로 참조하면
-    절대경로로 치환 + sha256 receipt 가 채워진다.
-    """
-    run_dir = tmp / ".claude" / "harness-state" / ".sessions" / sid / "runs" / rid
-    run_dir.mkdir(parents=True, exist_ok=True)
-    prose_by_name: dict = {}
-    for filename, content in (prose_files or {}).items():
-        prose_path = run_dir / filename
-        prose_path.write_text(content, encoding="utf-8")
-        prose_by_name[filename] = (prose_path, content)
-    with open(run_dir / "ledger.jsonl", "w", encoding="utf-8") as f:
-        for e in events:
-            rec = dict(e)
-            prose_file = rec.get("prose_file")
-            if isinstance(prose_file, str) and prose_file in prose_by_name:
-                prose_path, content = prose_by_name[prose_file]
-                rec["prose_file"] = str(prose_path)
-                rec.setdefault("sha256", ledger.sha256_text(content))
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    return run_dir
-
-
-def _make_run_dir_steps(tmp: Path, sid: str, rid: str, rows: list) -> Path:
-    """legacy .steps.jsonl 기반 run_dir fixture (receipt 무검증 경로).
-
-    prose 부재 + enum 에 실제 verdict 저장된 옛 row 의 폴백 집계를 검증하기 위함.
-    """
-    run_dir = tmp / ".claude" / "harness-state" / ".sessions" / sid / "runs" / rid
-    run_dir.mkdir(parents=True, exist_ok=True)
-    with open(run_dir / ".steps.jsonl", "w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    return run_dir
+from tests.run_fixtures import (  # noqa: E402
+    make_ledger_run_dir as _make_run_dir_ledger,
+    make_legacy_run_dir as _make_run_dir_steps,
+)
 
 
 def _step(agent: str, prose_name: str, *, enum: str = "PROSE_LOGGED",
