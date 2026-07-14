@@ -28,6 +28,8 @@ Environment:
                          1, true, or on. Unset/0/false/off keeps the default.
   DCNESS_CODEX_WRITABLE_ROOTS  Optional path-separator-delimited list of
                          additional workspace-write writable roots.
+  DCNESS_CODEX_PERMISSION_RECEIPT  Internal marker for the single
+                         user-approved permission retry.
 
 The wrapper always runs Codex in workspace-write mode. Model, effort, network,
 and writable-root overrides are only passed when the matching environment
@@ -85,6 +87,7 @@ CODEX_MODEL="${DCNESS_CODEX_MODEL:-}"
 CODEX_EFFORT="${DCNESS_CODEX_EFFORT:-}"
 CODEX_NETWORK_ACCESS="${DCNESS_CODEX_NETWORK_ACCESS:-}"
 CODEX_WRITABLE_ROOTS="${DCNESS_CODEX_WRITABLE_ROOTS:-}"
+CODEX_PERMISSION_RECEIPT="${DCNESS_CODEX_PERMISSION_RECEIPT:-}"
 
 abs_path() {
   case "$1" in
@@ -572,6 +575,36 @@ if [ "$TDD_RC" -eq 1 ]; then
   echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$TDD_PROBLEMS" >&2
   exit 1
+fi
+
+if [ "${DCNESS_HEADLESS_CONTEXT_DEGRADED:-0}" = "1" ]; then
+  PERMISSION_RECEIPT="$RAW_LOG_DIR/codex-sandbox-permission-${AGENT}${MODE:+-$MODE}-$$.json"
+else
+  PERMISSION_RECEIPT="$(dirname "$RAW_LOG_DIR")/codex-sandbox-permission-${AGENT}${MODE:+-$MODE}-$$.json"
+fi
+PERMISSION_ARGS=(
+  detect
+  --prose-file "$TMP_PROSE"
+  --raw-log "$RAW_LOG"
+  --project-root "$PROJECT_ROOT"
+  --receipt "$PERMISSION_RECEIPT"
+)
+if [ -n "$CODEX_PERMISSION_RECEIPT" ]; then
+  PERMISSION_ARGS+=(--retry-receipt "$CODEX_PERMISSION_RECEIPT")
+fi
+if [ -n "$RESOLVED_SID" ] && [ -n "$RESOLVED_RID" ]; then
+  PERMISSION_ARGS+=(--sid "$RESOLVED_SID" --run-id "$RESOLVED_RID")
+fi
+
+PERMISSION_OUTPUT="$(
+  PYTHONPATH="$SCRIPT_DIR/..:${PYTHONPATH:-}" \
+    python3 -m harness.codex_sandbox_permission "${PERMISSION_ARGS[@]}"
+)"
+PERMISSION_RC=$?
+if [ "$PERMISSION_RC" -eq 0 ]; then
+  echo "[dcness-codex-worker] permission_required receipt: $PERMISSION_OUTPUT" >&2
+elif [ "$PERMISSION_RC" -ne 4 ]; then
+  echo "[dcness-codex-worker] WARN: sandbox permission evidence classification failed (exit $PERMISSION_RC); VALIDATION_BLOCKED remains unchanged." >&2
 fi
 
 dcness_record_end_step "dcness-codex-worker" "codex-headless" "$HELPER" "$AGENT" "$MODE" "$TMP_PROSE" "$RAW_LOG"

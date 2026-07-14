@@ -16,7 +16,12 @@ flowchart TB
   BW[build-worker] -->|PASS + local commit sha| MARK[dcness-story-runner mark completed]
   BW -->|SPEC_GAP_FOUND| REWORK[design-doc 보강 또는 사용자 위임]
   BW -->|TESTS_FAIL| RETRY[build-worker rework]
-  BW -->|VALIDATION_BLOCKED| GATE[메인 게이트 대행 실행]
+  BW -->|VALIDATION_BLOCKED + permission_required| APPROVAL[사용자 sandbox 승인 선택]
+  APPROVAL -->|once 또는 project| PRETRY[Codex workspace-write 제한 재시도 1회]
+  APPROVAL -.->|deny / 안전한 root 없음| USER
+  PRETRY -->|PASS| MARK
+  PRETRY -.->|반복 거부 / 실패| USER
+  BW -->|VALIDATION_BLOCKED + permission receipt 없음| GATE[메인 게이트 대행 실행]
   GATE -->|exit 0| MARK
   GATE -->|fail| RETRY
   MARK --> NEXT[next-action]
@@ -64,7 +69,7 @@ canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-ste
 
 | step | 결론 → 다음 |
 |---|---|
-| **build-worker** | `PASS` + local commit sha + clean status → `dcness-story-runner mark --status completed --commit <sha>` 후 `next-action` · `TESTS_FAIL` → build-worker rework(≤3) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` → 메인이 같은 worktree cwd 에서 worker 가 남긴 검증 명령 실행, exit 0 이면 PASS 와 동일, 실패면 build-worker rework(≤3), 메인도 실행 불가면 사용자 위임 · `IMPLEMENTATION_ESCALATE` → 사용자 |
+| **build-worker** | `PASS` + local commit sha + clean status → `dcness-story-runner mark --status completed --commit <sha>` 후 `next-action` · `TESTS_FAIL` → build-worker rework(≤3) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` + `permission_required` → outbound network 범위·제안 root·근거·`workspace-write` 유지·`danger-full-access` 미사용을 설명하고 사용자에게 이번 실행에만 허용/이 프로젝트에 저장/거부 선택 요청. 승인하면 Codex만 1회 제한 재시도, 거부·malformed settings·안전한 root 없음·반복 sandbox 거부면 권한 확대/host 직접 검증/다른 provider 우회 없이 사용자 위임 · permission receipt 없음 → 메인이 같은 worktree cwd에서 worker 검증 명령 실행, exit 0이면 PASS와 동일, 실패면 build-worker rework(≤3), 메인도 실행 불가면 사용자 위임 · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `story-pr` → 응답의 `pr_base`로 직전 story PR 생성, merge 없이 `next_branch_base`의 직전 story 브랜치에서 재분기 · `done` → `final_story` PR 경계를 처리하고 `stack_tip` vs main candidate + 조건부 QA PR로 impl-validator · `blocked` / `error` → task note를 근거로 retry 한도 내 재시도 또는 사용자 위임 |
 | **impl-validator:CODEBASE_SANITY** | Epic close final candidate에서만 실행. 작은 repo는 전체 repo, 큰 repo는 affected module과 affected dependency cone + cheap global signals · `PASS` → local receipt 보존 후 일반 merge review · `FAIL [quality-gap]` → build-worker rework 후 새 code revision에서 Sanity 재감사(≤3) · `ESCALATE` → 사용자 |
 | **impl-validator** | stack tip vs main diff `PASS` → close 발동 여부 확인 · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정. 단일 story는 해당 PR append, story PR 이 2개 이상이면 story-local FAIL은 해당 story PR 브랜치 append + downstream restack, cross-cutting FAIL은 QA PR 흡수 + 재리뷰(≤3) · `ESCALATE` → 사용자 |
@@ -81,6 +86,7 @@ loop의 자동 merge 금지: 사용자가 유일한 merge gate다. 승인 뒤에
 | 재시도 경로 | 한도 | 초과 시 |
 |---|---|---|
 | build-worker `TESTS_FAIL` 또는 메인 게이트 대행 실패 | 3 | 사용자 위임 |
+| Codex `permission_required` 사용자 승인 재시도 | 1 | 추가 확대 없이 사용자 위임 |
 | Codebase Sanity `FAIL` → build-worker rework → Sanity 재감사 | 3 | 사용자 위임 |
 | impl-validator `FAIL` → 메인 root-cause 수정 → 재리뷰 | 3 | 사용자 위임 |
 | product-acceptance `FAIL` auto-fixable gap → rework → 재검수 | 3 | 사용자 위임 |

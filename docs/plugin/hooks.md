@@ -207,7 +207,16 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **Headless worker 정책**: [`scripts/dcness-codex-worker`](../../scripts/dcness-codex-worker) 와 [`scripts/dcness-claude-worker`](../../scripts/dcness-claude-worker) 는 성공 prose 생성 후 file-boundary 검사를 먼저 수행하고, 그 다음 changed path(`git diff`/staged diff/untracked) 중 삭제가 아닌 파일을 synthetic `Edit` payload 로 `tdd-guard.sh` 에 다시 넣는다. 중앙 `tdd-guard.sh` 가 generated hook 을 위임하므로 headless worker 도 non-TS/JS 플랫폼에서 같은 project-local **TDD 계약**을 재사용한다. 단, 이 재사용은 generated hook 파일들이 Git 에 커밋되어 해당 worktree 에 존재할 때만 성립한다. `exit 2` 는 step 성공 종료를 차단하고 위반 파일 목록을 출력한다. guard 자체 오류는 `headless-tdd-guard` fail-open event 로 기록하고 작업을 과차단하지 않는다.
 
-**Codex build-worker sandbox opt-in**: 기본 호출은 환경변수를 추가하지 않은 기존 계약 그대로 `-s workspace-write`만 전달한다. 외부 활성 프로젝트가 loopback IPC 또는 workspace 밖 build cache 쓰기를 필요로 할 때만 Claude Code 로컬 설정의 `.claude/settings.local.json` `env` 블록에 아래 값을 둘 수 있다. Bash로 spawn된 `dcness-codex-worker`가 이 값을 상속해 Codex 호출별 설정으로 변환하므로 세션마다 `export`할 필요가 없다.
+**Codex build-worker sandbox 승인 복구**: 기본 호출은 환경변수를 추가하지 않은 기존 계약 그대로 `-s workspace-write`만 전달한다. build-worker가 `VALIDATION_BLOCKED`를 보고하고 raw log에 `SocketException: Operation not permitted` 같은 좁은 Codex sandbox signature가 있을 때만 wrapper가 run 디렉터리에 helper-generated `permission_required` receipt를 남긴다. assertion/compile/test 실패, 일반 `Permission denied`, Codex CLI/auth/timeout 실패는 permission request로 분류하지 않는다.
+
+메인 `/impl-loop`은 receipt의 capability, 제안 writable root 절대경로, 근거를 읽고 다음 사실을 사용자에게 설명한 뒤 승인을 받는다.
+
+- `network_access`는 loopback만 여는 옵션이 아니라 Codex `workspace-write`의 **outbound network** 접근을 허용한다.
+- 추가 writable root는 로그에서 확인된 `GRADLE_USER_HOME` 또는 `~/.gradle`처럼 안전하게 좁힌 절대경로만 제안한다. 안전한 root를 추론하지 못하면 root 권한을 제안하지 않는다.
+- 승인 여부와 무관하게 sandbox는 `workspace-write`로 유지한다. `danger-full-access`는 자동 폴백이나 사용자 선택지로 제공하지 않는다.
+- 선택지는 **이번 실행에만 허용 / 이 프로젝트에 저장 / 거부**다.
+
+`이번 실행에만 허용`은 승인한 env를 Codex build-worker 재시도 프로세스 한 번에만 전달하며 `.claude/settings.local.json`을 생성하거나 수정하지 않는다. `이 프로젝트에 저장`은 기존 JSON의 다른 최상위 키와 기존 `env` 키를 보존하면서 승인한 키만 아래처럼 병합하고, 현재 세션의 제한 재시도에도 같은 값을 명시적으로 전달한다. 저장값은 이미 실행 중인 임의 프로세스에 소급 적용되지 않으며, 이후 **새 세션**에서는 Claude Code가 `.claude/settings.local.json`의 `env`를 로드한 뒤 spawn하는 Codex worker부터 적용된다.
 
 ```json
 {
@@ -221,6 +230,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 - `DCNESS_CODEX_NETWORK_ACCESS=1|true|on`은 `-c sandbox_workspace_write.network_access=true`만 추가한다. 미설정 또는 `0|false|off`는 옵션을 추가하지 않으며, 그 밖의 값은 오타로 보고 worker 시작을 거부한다.
 - `DCNESS_CODEX_WRITABLE_ROOTS`는 플랫폼 path separator(macOS/Linux `:`)로 구분한 절대경로 목록이다. wrapper가 각 원소를 JSON 호환 TOML string array로 encode한 뒤 `-c sandbox_workspace_write.writable_roots=[...]`를 추가하므로 공백·따옴표·backslash가 한 CLI 인자 안에서 보존된다.
 - 두 opt-in은 서로 독립이며 `workspace-write`를 유지한다. `danger-full-access` 전환은 제공하지 않는다.
+- 승인 후 자동 재시도는 최대 1회다. 같은 sandbox 거부가 반복되면 추가 root/network 확대 없이 중단한다. malformed settings는 덮어쓰지 않으며, 사용자 거부·안전한 root 추론 실패와 함께 `VALIDATION_BLOCKED` 상태를 유지한다. 이 permission 경로에서는 host 직접 검증이나 다른 provider로 우회하지 않는다.
 - 이 계약은 Codex 설정 키를 사용하는 `codex-headless` build-worker 전용이다. `claude-headless` worker는 Claude Code의 `--permission-mode acceptEdits` 경로이며 Codex sandbox 설정을 소비하지 않으므로 동일 env를 적용하지 않는다. 다른 provider로의 자동 확장은 범위 밖이다.
 
 **차단**: test 부재 시 `exit 2` + 한국어 안내. Bash write target 차단 메시지는 `TDD GUARD[Bash]` 로 시작해 어떤 target 이 matching-test enforcement 에 실패했는지 함께 표시한다. Headless worker 차단 메시지는 `[dcness-codex-worker] BLOCKED: TDD GUARD ...` 또는 `[dcness-claude-worker] BLOCKED: TDD GUARD ...` 로 시작하고 위반 파일 목록을 포함한다.

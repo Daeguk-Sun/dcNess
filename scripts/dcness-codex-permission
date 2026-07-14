@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+# Wrapper for the helper-generated Codex sandbox permission receipt workflow.
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+  exec python3 -m harness.codex_sandbox_permission "$@"
