@@ -123,21 +123,34 @@ def _root_is_safe(path: Path, project_root: Path) -> bool:
     return not _path_is_within(resolved, project)
 
 
+def _sandbox_denied_paths(raw_log: str) -> list[Path]:
+    paths: list[Path] = []
+    for match in _WRITABLE_SIGNATURE.finditer(raw_log):
+        token = _clean_path_token(match.group("path"))
+        candidate = Path(os.path.expanduser(token))
+        if candidate.is_absolute():
+            paths.append(candidate.resolve(strict=False))
+    return paths
+
+
 def _suggested_gradle_roots(raw_log: str, project_root: Path) -> list[Path]:
+    denied_paths = _sandbox_denied_paths(raw_log)
     explicit_candidates: list[Path] = []
     for line in raw_log.splitlines():
         match = _GRADLE_HOME.match(line)
         if match:
             token = _clean_path_token(match.group("path"))
             candidate = Path(os.path.expanduser(token))
-            if _root_is_safe(candidate, project_root):
-                explicit_candidates.append(candidate.resolve(strict=False))
+            resolved = candidate.resolve(strict=False)
+            if _root_is_safe(candidate, project_root) and any(
+                _path_is_within(denied, resolved) for denied in denied_paths
+            ):
+                explicit_candidates.append(resolved)
 
     candidates = list(explicit_candidates)
     if not explicit_candidates:
-        for match in _WRITABLE_SIGNATURE.finditer(raw_log):
-            token = _clean_path_token(match.group("path"))
-            candidate = _normalise_gradle_root(Path(os.path.expanduser(token)))
+        for denied in denied_paths:
+            candidate = _normalise_gradle_root(denied)
             if candidate.name not in {".gradle", ".konan"}:
                 continue
             if _root_is_safe(candidate, project_root):

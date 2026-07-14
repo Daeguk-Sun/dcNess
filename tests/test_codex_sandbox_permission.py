@@ -207,6 +207,36 @@ class CodexSandboxPermissionClassificationTests(unittest.TestCase):
                     self.assertIsNone(receipt)
                     self.assertFalse(receipt_path.exists())
 
+    def test_unrelated_write_denial_is_not_attached_to_gradle_root(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            gradle_home = tmp / "gradle-home"
+            prose = tmp / "build-worker.md"
+            raw_log = tmp / "codex.log"
+            prose.write_text("Blocked\n\nVALIDATION_BLOCKED\n", encoding="utf-8")
+            raw_log.write_text(
+                "GRADLE_USER_HOME=" + str(gradle_home) + "\n"
+                "java.net.SocketException: Operation not permitted\n"
+                "Codex sandbox denied write to "
+                + str(tmp / "unrelated-cache" / "state.bin")
+                + "\n",
+                encoding="utf-8",
+            )
+
+            receipt = permission.record_permission_required(
+                prose_path=prose,
+                raw_log_path=raw_log,
+                project_root=project,
+                receipt_path=tmp / "receipt.json",
+            )
+
+            self.assertIsNotNone(receipt)
+            assert receipt is not None
+            self.assertEqual(receipt["capabilities"], ["network_access"])
+            self.assertEqual(receipt["suggested_writable_roots"], [])
+
     def test_sandbox_signature_without_validation_blocked_is_not_classified(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
