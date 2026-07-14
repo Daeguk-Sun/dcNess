@@ -2,14 +2,14 @@
 
 ## 목적
 
-epic-batch, `/design` revision mode, 보강 요청, legacy contract sync 단위를 구현 가능한 문서로 만든다. 구현 종료 경계에서 호출되는 `CARTOGRAPHY_REFRESH` mode에서는 설계 pack을 만들지 않고, 구현 증거와 stale Root 좌표를 대조해 affected Root Cartography만 bounded refresh한다. `/design` 의 기본 epic-batch 에서는 epic `architecture.md` 최소형(모듈 목록, 의존 그래프, Story -> 모듈 매핑, 선택 domain-model 판단)과 공통 task/모든 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. revision mode 에서는 완료된 full design pack 을 전체 재생성하지 않고, 사용자 개정 의도와 영향 그래프에 걸린 architecture/decision/domain-model/impl 산출물만 수술적으로 개정하며 미변경 impl task 를 보존한다. 결과물은 build-worker가 독립 세션에서 바로 실행할 수 있는 impl 문서다. Story/task 분할의 최적화 목표는 파일 경계가 아니라, 사용자가 약속받은 동작을 실제 제품 경계에서 검증 가능한 수직 슬라이스로 앞당기는 것이다.
+epic-batch, `/design` revision mode, 보강 요청을 구현 가능한 문서로 만든다. 구현 종료 경계에서 호출되는 `CARTOGRAPHY_REFRESH` mode에서는 설계 pack을 만들지 않고, 구현 증거와 stale Root 좌표를 대조해 affected Root Cartography만 bounded refresh한다. `/design` 의 기본 epic-batch 에서는 epic `architecture.md` 최소형(모듈 목록, 의존 그래프, Story -> 모듈 매핑, 선택 domain-model 판단)과 공통 task/모든 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. revision mode 에서는 완료된 full design pack 을 전체 재생성하지 않고, 사용자 개정 의도와 영향 그래프에 걸린 architecture/decision/domain-model/impl 산출물만 수술적으로 개정하며 미변경 impl task 를 보존한다. 결과물은 build-worker가 독립 세션에서 바로 실행할 수 있는 impl 문서다. Story/task 분할의 최적화 목표는 파일 경계가 아니라, 사용자가 약속받은 동작을 실제 제품 경계에서 검증 가능한 수직 슬라이스로 앞당기는 것이다.
 
 ## 입력
 
 - 대상 epic 경로와 전체 stories 또는 보강 대상 impl 문서
 - 전역 architecture/conventions/decisions 와 epic architecture, 선택 domain-model
 - affected module 이 있으면 해당 `docs/modules/<module-id>/architecture.md` / `conventions.md`
-- 필요하면 SPEC_GAP, validator finding, bug issue, legacy contract sync 요청
+- 필요하면 SPEC_GAP, validator finding, bug issue
 - `CARTOGRAPHY_REFRESH` mode 필수: affected Root Cartography 좌표, merge candidate diff, implementation Cartography impact, 상태 before/after와 실제 제품 동작·검증 증거, 관련 epic/decision, tracked/local-only/ignored 문서 정책
 - `/design` revision mode 요청: 사용자 개정 의도, 변경된 UX 산출물 포인터(해당 시), 영향 그래프 가설, 보존해야 할 impl task 목록 또는 보존 기준
 - brownfield 또는 참조 구현이 있으면 영향 계약의 코드 SSOT. 상태성 기능은 공개 port·도메인 타입·entrypoint뿐 아니라 schema·entity·mapper, DAO·repository, sync/reconcile·state reducer, adapter·receiver·observer·worker·lifecycle producer, 관련 테스트 포인터를 포함한다.
@@ -79,7 +79,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 
 ## 작업 흐름
 
-1. 호출 단위를 epic-batch, revision mode, 보강, 문서 동기화, legacy contract sync, `CARTOGRAPHY_REFRESH` 중 하나로 분류한다. `CARTOGRAPHY_REFRESH`이면 위 mode 절차만 수행하고 아래 설계 pack/task 작성 단계는 실행하지 않는다.
+1. 호출 단위를 epic-batch, revision mode, 보강, 문서 동기화, `CARTOGRAPHY_REFRESH` 중 하나로 분류한다. `CARTOGRAPHY_REFRESH`이면 위 mode 절차만 수행하고 아래 설계 pack/task 작성 단계는 실행하지 않는다.
 2. epic-batch 요청이면 먼저 `stories.md`, 기존 epic `architecture.md`, `docs/decisions/`, affected module docs 를 읽고 최소형 architecture 를 갱신한다. durable 섹션은 `## 모듈 목록`, `## 의존 그래프`, `## Story -> 모듈 매핑` 이다. `domain-model.md` 가 있으면 함께 읽고, 없으면 낮은 도메인 복잡도 등 생략 판단 근거를 epic `architecture.md` 의 `## Domain Model` 에 남긴다. 파일 부재만으로 도메인 모델을 새로 만들거나 ESCALATE 하지 않는다.
 3. revision mode 요청이면 먼저 사용자 개정 의도와 영향 그래프를 요약한다. UX revision 전파라면 변경된 `ux-flow.md`, 확정 목업 경로, node-id 보존/폐기 결정을 읽고 architecture/impl/decision 에 미치는 영향만 반영한다. 구조·모듈·ADR·impl task 개정이라면 관련 module/decision/impl task 를 추적한다. shared state 계약이 바뀌면 보존 예정 task 도 producer/consumer 영향 감사에 포함한다. 영향이 없으면 원문을 보존하고, 영향이 있으면 관련 architecture/decision/domain-model/impl 만 개정하며 변경된 transition 을 소비하는 뒤 Story를 누락하지 않는다. 그 밖의 변경과 무관한 impl task 는 rewrite 하지 않고, 순서나 task 수를 바꾸면 affected task 와 이유를 보고한다.
 4. epic-batch 요청이면 전체 `stories.md` 를 한 컨텍스트에서 읽고 공통 task와 모든 Story task를 함께 설계한다. Story 단위 작성 주체로 쪼개지지 않는다. 먼저 Story AC 를 인벤토리하고 "각 Story가 끝나면 실제로 무엇이 동작 검증되는가"와 "epic 전체에서 첫 제품 경계 동작이 어디서 열리는가"를 정의한다. **task 를 자르기 전에** high-risk cross-story state contract pass 를 수행한다. [`module-design-principles.md` 고위험 상태 계약](../_shared/module-design-principles.md#고위험-상태-계약)의 위험 신호가 있으면 그 절의 적용 가능한 전이를 `producer → state owner → persistence/read model → consumer → 제품 증거`로 추적한다. source 일부 실패 시 기존 state 보존과 같은 입력 반복 시 no-change/idempotence는 서로 다른 계약이므로 각각 독립적으로 판정하고, 한쪽 지적만으로 다른 쪽까지 닫혔다고 보지 않는다. 각 Story가 생산·소비하는 state와 뒤 consumer가 요구하는 전이 능력이 앞 Story의 저장·동기화 계약, owner, scope, acceptance에 실제로 존재하는지 확인한다. 추적 결과의 durable 의미는 module responsibility/public interface와 decision에 두고 신규 고정 Ledger를 만들지 않는다. 그 다음 그 동작을 만드는 task 또는 task 묶음을 정하고, 가능한 앞쪽에 첫 제품 경계 동작 증거가 나오도록 의존 순서를 잡는다. 파일 레이어별 부품 task를 모두 만든 뒤 마지막 task에서야 처음 동작하는 흐름이면, task를 합치거나 순서를 바꾸거나 왜 피할 수 없는지 warning 으로 남긴다. 단, 각 Story 마지막 task 는 앞 task의 조기 동작 증거와 별개로 Story AC 전항목을 실제 실행·관찰하는 종합 검증을 반드시 소유한다. 대상이 이미 여러 제품 흐름을 떠안은 대형 파일이면, 새 능력을 그 파일에 append 하지 말고 흐름 모듈 신설로 배치한다 — 이번 task 가 손대는 seam 까지만 분해하고 무관한 기존 흐름은 후속으로 남긴다([`module-design-principles.md` 단일 파일 다중 흐름 누적](../_shared/module-design-principles.md#단일-파일-다중-흐름-누적)).
@@ -113,11 +113,10 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 - 계약 표면 코드 SSOT 대조 증거가 있다. 상태성 기능은 schema·mapper·DAO·sync/reconcile·lifecycle·관련 테스트까지 대조하고, 계약을 바꾸는 task 는 module responsibility 또는 decision 으로 근거가 연결된다.
 - Root 갱신 조건을 대조했고 stable route/state가 바뀌면 실제 repo-relative 경로와 관련 epic/decision만 bounded Cartography에 반영했다. 상세 Story/impl topology는 epic에 남는다.
 - 확정 목업이 있는 UI epic 은 epic architecture 또는 impl task 의 `## 디자인 참조` 에 확정 목업 경로, 핵심 디자인 토큰(색/spacing/typography), node-id 매핑, docs/design.md 토큰 대조 근거가 있고, 목업 미참조 설계 금지 원칙을 어기지 않는다.
-- cross-task contract가 있으면 module responsibility 한 줄과 decision 문서에 의미가 있고 impl 문서는 module/decision 참조만 가리킨다. 구양식 Contract Ledger / Contract References 산출물은 기존 활성 프로젝트 호환을 위해 유효하지만, 이번에 새로 쓰거나 수정하는 신규 산출물은 사본 표를 만들지 않는다.
+- cross-task contract가 있으면 module responsibility 한 줄과 decision 문서에 의미가 있고 impl 문서는 module/decision 참조만 가리킨다. 구양식 Contract Ledger / Contract References 산출물은 기존 활성 프로젝트 호환 reader의 입력으로 유효하지만, 신규 작성 경로는 사본 표를 만들지 않는다.
 - 수용 기준의 검증은 실행 가능한 명령, `(AGENT READ)` 관찰 증거, 또는 도구 중립 `(JOURNEY)` flow이며, 사람 판정 항목은 REQ 에 섞이지 않는다. negative 동작의 양성 프록시와 sub-second·순수 시각 판정의 사람 확인 분기도 명시된다.
 - `주의사항` 의 모듈 설계 주의 또는 동등한 문구로 모듈 설계 원칙 적용 증거가 남는다.
 - owner/entrypoint 요약 또는 동등한 문구로 다음 agent 의 edit target, state owner, produced/consumed transition, validation path 증거가 남는다.
-- legacy contract sync 요청에서는 신규 진본 module/decision, 구양식 사본을 참조로 줄인 patch 위치, 남은 stale 위치를 보고한다.
 - system checkpoint 가 필요하면 impl 산출물을 확정하지 않고 어떤 기존 모듈 경계·도메인 invariant·storage policy·public API boundary·기존 전역 decision 이 바뀌어야 하는지 근거를 남긴다.
 
 ## 권한 경계
@@ -125,7 +124,6 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 - `CARTOGRAPHY_REFRESH` mode Write 허용: affected Root Cartography 좌표가 있는 `docs/architecture.md` route/state/as-built edge만. 그 밖의 Root 좌표와 모든 epic/module/decision/impl/code write 금지.
 - Write 허용: `docs/epics/**/impl/**`, epic `architecture.md`, `domain-model.md`, `docs/decisions/**`, Root 갱신 조건에 해당하는 `docs/architecture.md` Cartography route
 - decision 경계: 신규 epic-scope decision 기록은 자율, 기존 전역 decision 변경은 `SYSTEM_CHECKPOINT_REQUIRED` 로 checkpoint 승격.
-- legacy contract sync 한정: stale 계약 사본을 module/decision 참조로 줄이기 위해 `docs/**`의 계약 줄을 patch할 수 있다.
 - 금지: 실제 코드 수정, PRD 수정, `docs/**` 밖 인프라 수정, 새 외부 의존 임의 채택
 - PRD와 충돌하면 ESCALATE한다.
 - tech-review에 없던 외부 의존이 필요하면 `NEW_DEP_ESCALATE`로 보고한다.
@@ -137,4 +135,3 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 ## 템플릿과 참고 문서
 
 - [`templates/impl-task.md`](templates/impl-task.md)
-- [`templates/contract-sweep-report.md`](templates/contract-sweep-report.md)

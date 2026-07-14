@@ -15,25 +15,24 @@ def read(rel_path: str) -> str:
 class ModuleDecisionContractModelTests(unittest.TestCase):
     def test_impl_task_template_uses_lightweight_module_decision_references_not_ledger_keys(self) -> None:
         template = read("docs/plugin/agents/module-architect/templates/impl-task.md")
-        legacy_template = read(
-            "docs/plugin/agents/module-architect/templates/contract-sweep-report.md"
-        )
 
-        self.assertNotIn("## 계약 / 결정 참조", template)
-        self.assertNotIn("| kind | ref | action | note |", template)
         self.assertIn("계약/결정 링크", template)
         self.assertIn("module", template)
         self.assertIn("decision", template)
         self.assertNotIn("## Contract References", template)
         self.assertNotIn("Ledger row key", template)
-        self.assertNotIn("row keys only", template)
-        self.assertNotIn("## Contract\n", template)
-        self.assertNotIn("## Module Design Check", template)
         self.assertIn("모듈 설계 주의", template)
 
-        self.assertIn("Legacy Contract Sync Report", legacy_template)
-        self.assertIn("module/decision 참조", legacy_template)
-        self.assertIn("구양식", legacy_template)
+    def test_legacy_contract_sync_authoring_surface_is_retired(self) -> None:
+        template = "docs/plugin/agents/module-architect/templates/contract-sweep-report.md"
+        self.assertFalse((ROOT / template).exists())
+        for rel_path in (
+            "agents/module-architect.md",
+            "docs/plugin/agents/module-architect/module-architect-agent.md",
+            "docs/plugin/agents/module-architect/references/contract-amendment.md",
+        ):
+            with self.subTest(rel_path=rel_path):
+                self.assertNotIn("legacy contract sync", read(rel_path).lower())
 
     def test_impl_task_template_defaults_to_owner_dir_scope_and_command_acceptance(
         self,
