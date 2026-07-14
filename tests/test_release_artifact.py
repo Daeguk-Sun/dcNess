@@ -59,6 +59,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "scripts/check_public_surface.mjs",
                 "scripts/hooks/cc-pre-commit.sh",
                 "scripts/launchd",
+                "scripts/policy_cleanup_baseline.py",
                 "scripts/release_artifact.json",
                 "scripts/release_artifact.py",
                 "scripts/setup_branch_protection.mjs",
