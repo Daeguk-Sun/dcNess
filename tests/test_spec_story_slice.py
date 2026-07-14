@@ -139,7 +139,19 @@ class SpecStorySliceContractTests(unittest.TestCase):
     def test_spec_acceptance_axes_keep_documented_exceptions(self) -> None:
         for needle in (
             "어느 후행 Story 에서 그 동작이 확인되는지 명시했으면 gap 이 아니다",
-            "불가피한 사유가 epic 완료 기준 근처에 기록돼 있으면 gap 대신 warning 으로 보고한다",
+            "epic 완료 기준 근처에 명시돼 있는 경우에만 gap 대신 warning 으로 보고",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.product_acceptance)
+
+    def test_spec_acceptance_ordering_gap_not_retracted_or_reframed(self) -> None:
+        """순서 gap 을 하위 동작·의존 순서로 철회하거나, 사유를 지어내거나,
+        형식/export 프레이밍으로 덮는 razor-thin 경계 흔들림을 회귀로 차단한다 (#1139)."""
+        for needle in (
+            "의존 순서가 기술적으로 합리적이라는 이유만으로 이 순서 gap 을 철회하지 않는다",
+            "그 사유는 검수자가 스스로 지어내지 않는다",
+            "export 경계 모호성 같은 다른 프레이밍으로 대체하거나 흡수하지 않고, 순서 결함으로 명시해 보고한다",
+            "불가능한 사유가 명세에 기록돼 있지 않으면 순서 gap 으로 보고하고 PASS 하지 않는다",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.product_acceptance)
