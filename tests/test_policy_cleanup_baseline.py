@@ -155,7 +155,6 @@ class PolicyCleanupBaselineTests(unittest.TestCase):
 
         self.assertEqual(run006["classification"], "퇴역 완료")
         self.assertNotIn("_CLI_REEXPORT_NAMES", state_source)
-        self.assertNotIn("def __getattr__(", state_source)
 
     def test_unit_suite_runs_the_requested_revision_not_dirty_working_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

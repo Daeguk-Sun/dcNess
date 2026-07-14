@@ -510,6 +510,8 @@ class AppendStepCompletedTests(unittest.TestCase):
             self.assertEqual(rec["event"], "step_completed")
             self.assertEqual(rec["sha256"], ledger.sha256_text(prose))
             self.assertEqual(rec["provider"], "codex-headless")
+            self.assertTrue(ledger.ledger_path(_SID, _RID, base_dir=base).is_file())
+            self.assertFalse(ledger.legacy_steps_path(_SID, _RID, base_dir=base).exists())
 
     def test_product_acceptance_prose_only_fail_sets_next_action(self) -> None:
         with TemporaryDirectory() as d:

@@ -64,7 +64,7 @@ python3.11 scripts/policy_cleanup_baseline.py \
 
 ### #1094 run/ledger cleanup 상태 전이
 
-`RUN-006`은 `제거 가능`에서 `퇴역 완료`로 이동했다. `harness.session_state`가 2026-07-05 모듈 분리 뒤 임시로 다시 노출하던 private CLI 이름 53개는 runtime import가 0건이었고, 테스트만 facade를 소비했다. 동적 `_CLI_REEXPORT_NAMES`·`__getattr__`를 제거하고 테스트가 실제 owner인 `session_state_cli`·`session_state_cli_finalize`를 직접 사용하게 했다. facade 부재 회귀 테스트도 추가했다. code+test diff는 72줄 추가·154줄 삭제로 82 LOC 순감이고, 전체 compatibility 후보는 14개에서 13개, run/ledger 후보는 5개에서 4개로 감소한다.
+`RUN-006`은 `제거 가능`에서 `퇴역 완료`로 이동했다. `harness.session_state`가 2026-07-05 모듈 분리 뒤 임시로 다시 노출하던 private CLI 이름 53개는 runtime import가 0건이었고, 테스트만 facade를 소비했다. 동적 `_CLI_REEXPORT_NAMES`·`__getattr__`를 제거하고 테스트가 실제 owner인 `session_state_cli`·`session_state_cli_finalize`를 직접 사용하게 했다. facade 부재 회귀 테스트도 추가했다. code+test diff는 73줄 추가·154줄 삭제로 81 LOC 순감이고, 전체 compatibility 후보는 14개에서 13개, run/ledger 후보는 5개에서 4개로 감소한다.
 
 나머지 `RUN-002`·`RUN-003`·`RUN-005`·`RUN-008`은 실제 legacy sample이 있어 종료 trigger가 충족되지 않았다. `RUN-004`·`RUN-007`은 legacy가 아니라 현재 crash·hook failure 안전 경계이므로 감량 대상으로 재분류하지 않는다. run-state 8개 후보의 저장·소비 계약은 다음과 같다.
 
@@ -94,6 +94,39 @@ registry="$HOME/.claude/plugins/data/dcness-dcness/projects.json"
     done
   done
 } | sort | uniq -c
+```
+
+확인 가능한 plugin/cache·과거 checkout의 지원 표본은 host path를 출력하지 않고 다음 명령으로 형식과 legacy field를 집계한다.
+
+```sh
+support_files() {
+  for root in "$HOME/.claude" "$(dirname "$(git rev-parse --show-toplevel)")"; do
+    rg --hidden --no-ignore --files "$root" 2>/dev/null |
+      awk '/\/(ledger\.jsonl|\.steps\.jsonl)$/ {print}'
+  done | sort -u
+}
+
+support_files | while IFS= read -r file; do
+  dir="$(dirname "$file")"
+  case "$(basename "$file")" in
+    ledger.jsonl)
+      if [ -f "$dir/.steps.jsonl" ]; then echo mixed; else echo current-only; fi ;;
+    .steps.jsonl)
+      [ -f "$dir/ledger.jsonl" ] || echo legacy-only ;;
+  esac
+done | sort | uniq -c
+
+support_files | awk '/\/\.steps\.jsonl$/' | while IFS= read -r file; do
+  jq -r '[.agent // "<missing>", .enum // "<missing>",
+          (has("prose_file") | tostring)] | @tsv' "$file"
+done | awk -F '\t' '
+  { agents[$1]++; enums[$2]++; prose_file[$3]++; rows++ }
+  END {
+    print "rows", rows
+    for (key in agents) print "agent", key, agents[key]
+    for (key in enums) print "enum", key, enums[key]
+    for (key in prose_file) print "prose_file_present", key, prose_file[key]
+  }'
 ```
 
 2026-07-14 #1094 실행 결과는 등록 프로젝트 5곳 모두 state root가 있었고 `current-only 32`, `legacy-only 0`, `mixed 0`이었다. 지원 범위로 확인 가능한 plugin/cache·과거 checkout 표본은 같은 파일명 분류를 `$HOME/.claude`와 현재 저장소의 부모 디렉터리에 적용해 `current-only 33`, `legacy-only 62`, `mixed 0`을 확인했다. legacy 62개·339행에는 `validator` 58행, `CHANGES_REQUESTED` 4행, `LGTM` 33행, `prose_file` 없는 row 125개가 실제 존재했다. 따라서 현재 active snapshot의 0건만으로 read-side 지원 종료를 선언하지 않는다.
