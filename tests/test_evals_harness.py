@@ -585,12 +585,14 @@ class EvalsHarnessContractTests(unittest.TestCase):
             )
 
     def test_parallel_and_serial_agree_on_pass_fail(self) -> None:
-        """같은 케이스 집합에서 병렬/직렬 pass·fail 집계가 동일해야 한다 (#1120 MUST)."""
+        """병렬/직렬 pass·fail 집계 동일 + EVAL_RELEASE_CHECK strict N/N 판정 불변 (#1120 MUST)."""
         cases = "headless-prose-quality shorts-real-spec story-slice-skeleton"
 
         def summary(stdout: str) -> list[str]:
             return sorted(
-                line for line in stdout.splitlines() if re.search(r"— 정답 \d+/\d+", line)
+                line
+                for line in stdout.splitlines()
+                if re.search(r"— 정답 \d+/\d+", line) or "릴리즈 체크 실패" in line
             )
 
         for verdict, expected_rc in (("PASS", 0), ("FAIL", 1)):
@@ -599,9 +601,12 @@ class EvalsHarnessContractTests(unittest.TestCase):
                 bin_dir = tmp / "bin"
                 bin_dir.mkdir()
                 self._write_fake_claude(bin_dir, self._verdict_fake(verdict))
+                # RELEASE_CHECK=1 + 선택 케이스를 전부 strict 로 둬 N/N 판정 경로까지 태운다.
                 base_env = {
                     "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}",
                     "EVAL_CASES": cases,
+                    "EVAL_STRICT_CASES": cases,
+                    "EVAL_RELEASE_CHECK": "1",
                     "EVAL_RUNS": "2",
                 }
                 serial = self._run_eval(
