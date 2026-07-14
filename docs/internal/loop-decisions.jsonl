@@ -5,3 +5,4 @@
 {"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "eval:flow-ownership-owner-good", "note": "negative-guard 회귀 감시 유지; 포화 지속 시 다음 주기 은퇴 재검토.", "ref": "#931"}
 {"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "eval:story-slice-partfirst", "note": "negative-guard 회귀 감시 유지; 포화 지속 시 다음 주기 은퇴 재검토.", "ref": "#931"}
 {"decided_at": "2026-07-05T13:29:24Z", "decision": "hold", "key": "eval:story-slice-skeleton", "note": "negative-guard 회귀 감시 유지; 포화 지속 시 다음 주기 은퇴 재검토.", "ref": "#931"}
+{"decided_at": "2026-07-14T07:31:34Z", "decision": "fixed", "key": "eval:decision-completeness-ungrounded", "note": "HEAD 재측정 18/18(100%), 전부 GAP-1(30일 삭제=구현 기본값) 정확 포착 후 FAIL·judge 정채점. 케이스 정당(expected 불변). 역사 50%(4/8)는 케이스 생성 7e0a6da(7/12 14:48)와 근거 지침 4d4256e(7/12 14:59) 사이 pre-fix 표본이 /tmp 누적에 섞인 오염 — 둘 다 PR #1076(#1065 pilot). agent 결함이었으나 4d4256e 로 이미 해소. 형제 grounded(#1128, 과대판정)는 여전히 OPEN.", "ref": "#1129"}
