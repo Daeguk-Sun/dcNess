@@ -1,10 +1,12 @@
 {
   "schema_version": 1,
-  "snapshot_revision": "b676140bcffdaa5843ce59198ecef4f997efddc9",
+  "baseline_revision": "b676140bcffdaa5843ce59198ecef4f997efddc9",
+  "last_transition_issue": 1093,
   "classification_enum": [
     "현재 실사용",
     "제거 가능",
-    "한시적 호환 필요"
+    "한시적 호환 필요",
+    "퇴역 완료"
   ],
   "entries": [
     {
@@ -24,13 +26,13 @@
       "id": "DES-002",
       "area": "design",
       "policy_slice": "legacy contract sync authoring mode와 전용 sweep report",
-      "classification": "제거 가능",
+      "classification": "퇴역 완료",
       "follow_up_issue": 1093,
       "current_ssot": ["docs/plugin/deliverables-map.md#설계-산출물"],
-      "implementation": ["docs/plugin/agents/module-architect/module-architect-agent.md#legacy-contract-sync", "docs/plugin/agents/module-architect/templates/contract-sweep-report.md"],
+      "implementation": ["agents/module-architect.md", "docs/plugin/agents/module-architect/module-architect-agent.md", "docs/plugin/agents/module-architect/references/contract-amendment.md", "docs/plugin/agents/module-architect/templates/contract-sweep-report.md (removed)"],
       "tests_fixtures": ["tests/test_contract_pointer_model.py", "tests/test_design_surface.py"],
       "docs_distribution": ["agents/module-architect.md", "docs/plugin/agents/module-architect/references/contract-amendment.md"],
-      "consumer_evidence": "현행 /design 진입은 epic-batch·revision·Cartography refresh만 사용하며 legacy sync를 호출하는 runtime route나 생성기가 저장소에 없다.",
+      "consumer_evidence": "현행 /design 진입은 epic-batch·revision·Cartography refresh만 사용하고 legacy sync 호출자가 없으므로 #1093에서 mode·write 경계·전용 report를 함께 제거했다. tests.test_contract_pointer_model이 부재를 검증한다.",
       "compatibility": null
     },
     {

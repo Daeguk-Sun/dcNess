@@ -1,7 +1,7 @@
 ---
 name: module-architect
 description: >
-  epic-batch, design revision, 보강, legacy contract sync 단위의 구현 계획 문서를 작성하는 에이전트.
+  epic-batch, design revision, 보강 단위의 구현 계획 문서를 작성하는 에이전트.
   실제 지침은 docs/plugin/agents/module-architect/module-architect-agent.md 에 있다.
 tools: Read, Glob, Grep, Write, Edit, mcp__github__create_issue, mcp__github__list_issues, mcp__github__get_issue, mcp__github__update_issue
 model: opus

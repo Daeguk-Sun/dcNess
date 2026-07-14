@@ -25,7 +25,7 @@ MAJOR_TEXT_SUFFIXES = frozenset(
     {".py", ".mjs", ".js", ".sh", ".md", ".json", ".yml", ".yaml", ".toml"}
 )
 CODE_ROOTS = frozenset({"harness", "scripts", "evals"})
-CLASSIFICATIONS = ("현재 실사용", "제거 가능", "한시적 호환 필요")
+CLASSIFICATIONS = ("현재 실사용", "제거 가능", "한시적 호환 필요", "퇴역 완료")
 AREA_TO_FOLLOW_UP = {
     "design": 1093,
     "run-ledger": 1094,

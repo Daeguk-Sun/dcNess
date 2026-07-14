@@ -1,6 +1,6 @@
 # 정책 수명주기 inventory와 cleanup baseline
 
-> #1089의 cleanup 전 snapshot이다. 측정 revision은 `b676140bcffdaa5843ce59198ecef4f997efddc9`이며, 분류 근거는 2026-07-14 KST의 저장소와 등록 활성 프로젝트 read-only 조사다. 이 문서는 제거 작업을 수행하지 않는다.
+> #1089의 cleanup 전 snapshot과 후속 상태 전이를 함께 기록한다. 측정 revision은 `b676140bcffdaa5843ce59198ecef4f997efddc9`이며, 분류 근거는 2026-07-14 KST의 저장소와 등록 활성 프로젝트 read-only 조사다. baseline 수치는 고정하고 후속 cleanup은 별도 상태 전이로 누적한다.
 
 ## 재현 명령과 산출물
 
@@ -42,8 +42,25 @@ python3.11 scripts/policy_cleanup_baseline.py \
 | `현재 실사용` | 현행 writer·runtime safety·배포 topology가 직접 소비하며 오래됐다는 이유로 제거할 수 없음 | 14 |
 | `제거 가능` | repo call/import와 활성 소비자 증거가 없고 현행 writer가 만들지 않는 surface | 4 |
 | `한시적 호환 필요` | persisted 형식이나 실제 활성 프로젝트가 소비하며 대상·이유·제거 trigger·확인 방법이 모두 있음 | 11 |
+| `퇴역 완료` | 제거 가능 판정 뒤 구현·테스트·fixture·문서 surface와 배포 경로를 함께 제거하고 검증한 terminal state | 0 |
 
 영역별 29개는 design 6, run/ledger 8, routing 5, install/path 5, lifecycle 5다. 각 entry는 현행 SSOT, 구현, test/fixture, 문서·배포, 소비자 증거를 모두 가진다. 키워드가 같아도 release artifact의 `--contract`처럼 의미가 다른 적중은 `현재 실사용`으로 명시해 false positive를 버리지 않고 분류했다.
+
+### #1093 설계 cleanup 상태 전이
+
+`DES-002`는 `제거 가능`에서 `퇴역 완료`로 이동했다. module-architect의 legacy contract sync mode·추가 write 경계·전용 sweep report를 함께 제거했고, 현행 module/decision 작성 경로와 실제 활성 프로젝트가 소비하는 `DES-003`~`DES-005` reader/leniency는 분리해 유지했다. 이에 따라 전체 compatibility 후보는 15개에서 14개, design 영역 후보는 4개에서 3개로 감소한다.
+
+초기 탐색의 설계 후보 25개는 다음처럼 닫힌다.
+
+| 관계 | 파일 | #1093 판정 |
+|---|---|---|
+| legacy authoring/sweep | `agents/module-architect.md`, `docs/plugin/agents/module-architect/module-architect-agent.md`, `docs/plugin/agents/module-architect/references/contract-amendment.md`, `docs/plugin/agents/module-architect/templates/contract-sweep-report.md` | mode·권한·보고서·작성 지침을 함께 퇴역하고 report 파일을 plugin payload에서 제거 |
+| warning/reader | `scripts/check_design_artifact_structure.mjs`, `scripts/aggregate_architecture_map.mjs` | legacy artifact warning과 architecture map 입력 호환을 유지 (`DES-003`, `DES-004`) |
+| validator/reference leniency | `codex/skills/dcness-architecture-validator/SKILL.md`, `docs/plugin/agents/architecture-validator/architecture-validator-agent.md`, `docs/plugin/agents/architecture-validator/references/finding-examples.md`, `docs/plugin/agents/system-architect/references/contract-ledger.md`, `docs/plugin/agents/system-architect/references/system-freeze.md` | 구양식 존재만으로 Must/FAIL하지 않는 read-side 계약과 해석 참고를 유지 (`DES-005`) |
+| current authoring/docs | `docs/plugin/agents/system-architect/system-architect-agent.md`, `docs/plugin/agents/system-architect/templates/root-architecture.md`, `docs/plugin/deliverables-map.md`, `docs/plugin/hooks.md`, `docs/plugin/init-dcness.md`, `skills/design/SKILL.md`, `skills/design/design-routing.md` | module responsibility·decision 진본, 신규 legacy 사본 금지, doc-sync warning 배포 설명을 유지 (`DES-001`, `DES-003`~`DES-005`) |
+| test/fixture | `tests/test_agent_operability_contract.py`, `tests/test_architecture_cartography.py`, `tests/test_architecture_map_aggregate.py`, `tests/test_contract_pointer_model.py`, `tests/test_design_artifact_audit.py`, `tests/test_design_surface.py`, `tests/test_surface_docs_sync.py` | 현행 writer 부정선행, legacy reader fixture, agent/docs/Codex mirror 정합을 분리 검증하며 sweep report 양성 fixture는 제거 |
+
+배포 경로는 plugin 본체다. `agents/**`, `docs/plugin/**`, `skills/**`, `scripts/**`, `codex/**` 변경은 다음 plugin 버전 업데이트로 활성 프로젝트에 도달하며, `/init-dcness`가 복사하는 generated file이나 workflow 계약은 바뀌지 않아 재실행 migration은 필요하지 않다. release artifact candidate는 삭제된 sweep report를 더 이상 포함하지 않는지 smoke로 확인한다.
 
 ### 활성 소비자 snapshot
 

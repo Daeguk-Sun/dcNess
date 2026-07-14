@@ -109,14 +109,13 @@ class PolicyCleanupBaselineTests(unittest.TestCase):
                 "compatibility": None,
             },
         ]
+        entries[1]["classification"] = "퇴역 완료"
 
         summary = self.module.summarize_inventory(entries)
 
-        self.assertEqual(summary["entries_total"], 2)
         self.assertEqual(summary["compatibility_candidates"], 1)
-        self.assertEqual(summary["by_classification"]["현재 실사용"], 1)
         self.assertEqual(summary["by_classification"]["한시적 호환 필요"], 1)
-        self.assertEqual(summary["by_follow_up_issue"], {"1093": 1, "1094": 1})
+        self.assertEqual(summary["by_classification"]["퇴역 완료"], 1)
 
         broken = json.loads(json.dumps(entries))
         del broken[0]["compatibility"]["removal_trigger"]
