@@ -286,7 +286,7 @@ def _strict_conveyor_gate_message(
 
     # #700 — 이름은 canonical 비교(namespaced 표기 무관, subagent 는 호출부에서 정규화 전달).
     # mode 는 Agent 도구가 실을 수 없어 항상 None 이므로, Agent 측 mode 가 *실제로 실린*
-    # 경우(미래 호환)에만 불일치 차단 — moded step(engineer:IMPL)이 영구 차단되던 결함 해소.
+    # 경우에만 불일치 차단 — mode가 있는 current step이 영구 차단되던 결함 해소.
     norm_step_agent = normalize_agent_type(step_agent) or step_agent
     if norm_step_agent != subagent or (mode is not None and step_mode != mode):
         return (
@@ -498,7 +498,7 @@ def handle_pretooluse_agent(
         return 0
     subagent = tool_input.get("subagent_type", "") or ""
     mode = tool_input.get("mode", "") or ""
-    # #700 — 게이트 비교는 canonical 이름으로 일관화. namespaced(`dcness:engineer`)가
+    # #700 — 게이트 비교는 canonical 이름으로 일관화. namespaced(`dcness:build-worker`)가
     # raw 비교에서 진행 순서 검사 불일치로 차단되던 것을 정규화로 해소(A). 그리고
     # 진행 순서 검사가 namespaced 를 통과시키는 이상, 뒤따르는 catastrophic 게이트(build-worker/
     # impl-validator/module-architect)도 norm 으로 비교해야 namespaced 우회를 막는다(codex P1).
@@ -956,7 +956,7 @@ def handle_posttooluse_agent(
     tool_input = stdin_data.get("tool_input") or {}
     if isinstance(tool_input, dict):
         # issue #598 — sub_type 도 정규화 (histogram filter 가 정규화된 trace agent 와
-        # 매칭하도록 + 라벨 canonical). namespaced(`dcness:engineer`) → `engineer`.
+        # 매칭하도록 + 라벨 canonical). namespaced(`dcness:build-worker`) → `build-worker`.
         sub_type = normalize_agent_type(
             str(tool_input.get("subagent_type", "") or "")
         ) or ""
@@ -1215,7 +1215,7 @@ def handle_subagent_stop(
     if not valid_session_id(sid):
         return 0
 
-    # issue #598 — namespaced(`dcness:engineer`) 정규화 후 match-guard 비교.
+    # issue #598 — namespaced(`dcness:build-worker`) 정규화 후 match-guard 비교.
     agent_type = normalize_agent_type(stdin_data.get("agent_type", "") or "") or ""
     try:
         live = read_live(sid, base_dir=base_dir) or {}
@@ -1565,7 +1565,7 @@ def _maybe_emit_continuation_signal(
     else:
         next_hint = (
             "worker 가 남긴 검증 명령을 메인이 직접 실행(게이트 대행) 후 exit 0 이면 "
-            "git/PR, FAIL 이면 engineer 재시도 분기. "
+                "git/PR, FAIL 이면 build-worker 재시도 분기. "
             if enum == "VALIDATION_BLOCKED"
             else "정의된 다음 agent 호출 또는 PR/review/merge 영역 "
             "(예: begin-step impl-validator + Agent impl-validator + end-step + PR 머지). "

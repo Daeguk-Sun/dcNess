@@ -522,7 +522,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             blocked_events = [
                 event for event in events
                 if event.get("event") == "blocked"
-                and event.get("category") == "engineer_boundary"
+                and event.get("category") == "worker_boundary"
             ]
             self.assertEqual(len(blocked_events), 1)
             self.assertEqual(blocked_events[0].get("agent"), "build-worker")
@@ -536,7 +536,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             live = read_live(sid, base_dir=state_base)
             marker = live["active_runs"][rid].get("blocked")
             self.assertIsInstance(marker, dict)
-            self.assertEqual(marker.get("category"), "engineer_boundary")
+            self.assertEqual(marker.get("category"), "worker_boundary")
             self.assertEqual(marker.get("provider"), provider)
 
     def test_worker_uses_hook_loading_claude_print_mode_and_records_provider(self) -> None:

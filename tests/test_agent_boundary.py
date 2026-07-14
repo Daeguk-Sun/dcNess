@@ -93,11 +93,11 @@ class PluginRootDoesNotBypassTests(unittest.TestCase):
     이 신호로 infra 우회되던 버그(P0-2)를 제거했으므로, infra path edit 가 차단되어야 한다.
     """
 
-    def test_external_project_engineer_blocked_on_infra_despite_plugin_root(self):
+    def test_external_project_build_worker_blocked_on_infra_despite_plugin_root(self):
         with patch.dict(os.environ, {"DCNESS_INFRA": "", "CLAUDE_PLUGIN_ROOT": "/x"}):
             with tempfile.TemporaryDirectory() as td:
                 cwd = Path(td)  # dcness self repo 마커 없음 = 외부 프로젝트
-                reason = check_write_allowed("engineer", "hooks/x.sh", cwd=cwd)
+                reason = check_write_allowed("build-worker", "hooks/x.sh", cwd=cwd)
                 self.assertIsNotNone(
                     reason, "CLAUDE_PLUGIN_ROOT 가 set 이어도 외부 프로젝트는 차단되어야 함"
                 )
@@ -113,7 +113,7 @@ class PluginRootDoesNotBypassTests(unittest.TestCase):
                     json.dumps({"name": "dcness", "version": "0.3.0"})
                 )
                 self.assertIsNone(
-                    check_write_allowed("engineer", "hooks/x.sh", cwd=root)
+                    check_write_allowed("build-worker", "hooks/x.sh", cwd=root)
                 )
 
 
@@ -139,11 +139,11 @@ class WriteAllowedInfraProjectBypassTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as td:
                 cwd = Path(td)
                 self.assertIsNone(
-                    check_write_allowed("engineer", "hooks/x.sh", cwd=cwd)
+                    check_write_allowed("build-worker", "hooks/x.sh", cwd=cwd)
                 )
                 self.assertIsNone(
                     check_write_allowed(
-                        "engineer",
+                        "build-worker",
                         "skills/design/design-routing.md",
                         cwd=cwd,
                     )
@@ -163,10 +163,10 @@ class WriteAllowedInfraPatternBlockTests(unittest.TestCase):
     def tearDown(self):
         self._patcher.stop()
 
-    def test_engineer_blocked_on_hooks(self):
+    def test_build_worker_blocked_on_hooks(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            reason = check_write_allowed("engineer", "hooks/foo.sh", cwd=cwd)
+            reason = check_write_allowed("build-worker", "hooks/foo.sh", cwd=cwd)
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
 
@@ -174,18 +174,18 @@ class WriteAllowedInfraPatternBlockTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             reason = check_write_allowed(
-                "architect",
+                "module-architect",
                 "skills/design/design-routing.md",
                 cwd=cwd,
             )
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
 
-    def test_engineer_blocked_on_governance(self):
+    def test_build_worker_blocked_on_governance(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             reason = check_write_allowed(
-                "engineer", "docs/internal/governance.md", cwd=cwd
+                "build-worker", "docs/internal/governance.md", cwd=cwd
             )
             self.assertIsNotNone(reason)
 
@@ -199,11 +199,11 @@ class WriteAllowedInfraPatternBlockTests(unittest.TestCase):
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
 
-    def test_engineer_blocked_on_claude_md(self):
+    def test_build_worker_blocked_on_claude_md(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             reason = check_write_allowed(
-                "engineer", "CLAUDE.md", cwd=cwd
+                "build-worker", "CLAUDE.md", cwd=cwd
             )
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
@@ -214,7 +214,7 @@ class WriteAllowedInfraPatternBlockTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             reason = check_write_allowed(
-                "engineer", "node_modules/foo/CLAUDE.md", cwd=cwd
+                "build-worker", "node_modules/foo/CLAUDE.md", cwd=cwd
             )
             # INFRA 매칭은 아니어야 함 (root 직속만 매치).
             if reason is not None:
@@ -233,17 +233,17 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
     def tearDown(self):
         self._patcher.stop()
 
-    def test_engineer_src_allowed(self):
+    def test_build_worker_src_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self.assertIsNone(
-                check_write_allowed("engineer", "src/foo.ts", cwd=cwd)
+                check_write_allowed("build-worker", "src/foo.ts", cwd=cwd)
             )
 
-    def test_engineer_blocked_on_random(self):
+    def test_build_worker_blocked_on_random(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            reason = check_write_allowed("engineer", "README.md", cwd=cwd)
+            reason = check_write_allowed("build-worker", "README.md", cwd=cwd)
             self.assertIsNotNone(reason)
             self.assertIn("ALLOW_MATRIX", reason)
 
@@ -251,7 +251,7 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self.assertIsNone(
-                check_write_allowed("architect", "docs/architecture.md", cwd=cwd)
+                check_write_allowed("module-architect", "docs/architecture.md", cwd=cwd)
             )
 
     def test_impl_validator_readonly(self):
@@ -318,7 +318,7 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
         # root-level epic artifacts and removed ADR locations are denied before the broad docs/ allow.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            for agent in ("architect", "module-architect", "system-architect"):
+            for agent in ("module-architect", "module-architect", "system-architect"):
                 for path in (
                     "docs/stories.md",
                     "docs/ux-flow.md",
@@ -408,9 +408,9 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
 class LanguageNeutralAllowMatrixTests(unittest.TestCase):
     """#694 — ALLOW_MATRIX 언어 중립성.
 
-    test-engineer / engineer 의 write 경계가 JS/TS 모노레포 컨벤션에 묶여 비-JS 외부
+    build-worker / build-worker 의 write 경계가 JS/TS 모노레포 컨벤션에 묶여 비-JS 외부
     프로젝트(Python·Go·Ruby·JVM·C#·PHP·Elixir·remotion 등)의 정상 산출물을 차단하던
-    회귀 수정. 역할 격리(test-engineer=테스트만, engineer=소스)는 유지하면서 언어·레이아웃만
+    회귀 수정. 역할 격리(build-worker=테스트만, build-worker=소스)는 유지하면서 언어·레이아웃만
     중립화한다. 외부 프로젝트 시뮬레이션(DCNESS_INFRA="" + CLAUDE_PLUGIN_ROOT="").
     """
 
@@ -431,8 +431,8 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             json.dumps(mapping), encoding="utf-8"
         )
 
-    # ── test-engineer: 언어 중립 테스트 경로 허용 ──
-    def test_test_engineer_python_tests_allowed(self):
+    # ── build-worker: 언어 중립 테스트 경로 허용 ──
+    def test_test_build_worker_python_tests_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for p in (
@@ -441,28 +441,28 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 "pkg/utils_test.py",                   # *_test.py (디렉토리 밖)
             ):
                 self.assertIsNone(
-                    check_write_allowed("test-engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"Python 테스트 {p} 가 허용되어야 함",
                 )
 
-    def test_test_engineer_go_test_allowed(self):
+    def test_test_build_worker_go_test_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             # *_test.go (디렉토리 무관 파일명 컨벤션).
             self.assertIsNone(
-                check_write_allowed("test-engineer", "internal/svc/handler_test.go", cwd=cwd)
+                check_write_allowed("build-worker", "internal/svc/handler_test.go", cwd=cwd)
             )
 
-    def test_test_engineer_ruby_spec_allowed(self):
+    def test_test_build_worker_ruby_spec_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for p in ("spec/models/user_spec.rb", "lib/foo_test.rb"):
                 self.assertIsNone(
-                    check_write_allowed("test-engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"Ruby 테스트 {p} 허용",
                 )
 
-    def test_test_engineer_jvm_csharp_php_allowed(self):
+    def test_test_build_worker_jvm_csharp_php_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for p in (
@@ -472,18 +472,18 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 "app/Service/UserTest.php",
             ):
                 self.assertIsNone(
-                    check_write_allowed("test-engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"JVM/C#/PHP 테스트 {p} 허용",
                 )
 
-    def test_test_engineer_elixir_allowed(self):
+    def test_test_build_worker_elixir_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self.assertIsNone(
-                check_write_allowed("test-engineer", "test/foo_test.exs", cwd=cwd)
+                check_write_allowed("build-worker", "test/foo_test.exs", cwd=cwd)
             )
 
-    def test_test_engineer_js_ts_regression(self):
+    def test_test_build_worker_js_ts_regression(self):
         # 기존 JS/TS 패턴이 광범위 패턴에 흡수돼도 여전히 허용 (회귀 방지).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
@@ -494,34 +494,25 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 "packages/core/src/__tests__/x.test.ts",
             ):
                 self.assertIsNone(
-                    check_write_allowed("test-engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"기존 JS/TS 테스트 {p} 회귀",
                 )
 
-    def test_test_engineer_still_cannot_write_impl(self):
-        # 역할 격리 유지 — test-engineer 는 비-테스트 구현 코드를 쓰면 안 된다.
-        with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)
-            for p in ("src/domain/shorts.py", "remotion/shorts-types.ts", "lib/core.go"):
-                reason = check_write_allowed("test-engineer", p, cwd=cwd)
-                self.assertIsNotNone(reason, f"test-engineer 가 구현 {p} 를 쓰면 안 됨")
-                self.assertIn("ALLOW_MATRIX", reason)
-
-    # ── engineer: 언어 중립 소스 레이아웃 허용 ──
-    def test_engineer_remotion_requires_project_override(self):
+    # ── build-worker: 언어 중립 소스 레이아웃 허용 ──
+    def test_build_worker_remotion_requires_project_override(self):
         # #778 — 프로젝트 고유 디렉토리(remotion/)는 코어 기본값이 아니라 프로젝트 override.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            reason = check_write_allowed("engineer", "remotion/shorts-types.ts", cwd=cwd)
+            reason = check_write_allowed("build-worker", "remotion/shorts-types.ts", cwd=cwd)
             self.assertIsNotNone(reason)
             self.assertIn("ALLOW_MATRIX", reason)
 
-            self._write_boundary(cwd, {"engineer": {"add": [r"^remotion/"]}})
+            self._write_boundary(cwd, {"build-worker": {"add": [r"^remotion/"]}})
             self.assertIsNone(
-                check_write_allowed("engineer", "remotion/shorts-types.ts", cwd=cwd)
+                check_write_allowed("build-worker", "remotion/shorts-types.ts", cwd=cwd)
             )
 
-    def test_engineer_common_source_layouts_allowed(self):
+    def test_build_worker_common_source_layouts_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for p in (
@@ -532,7 +523,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 "pkg/util/strings.go",
             ):
                 self.assertIsNone(
-                    check_write_allowed("engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"흔한 소스 레이아웃 {p} 허용",
                 )
 
@@ -544,18 +535,18 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             # ./ prefix 소스 — 허용
             for p in ("./lib/parser.rb", "./cmd/main.go"):
                 self.assertIsNone(
-                    check_write_allowed("engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"./ prefix 소스 {p} 허용",
                 )
-            reason = check_write_allowed("engineer", "./remotion/shorts-types.ts", cwd=cwd)
+            reason = check_write_allowed("build-worker", "./remotion/shorts-types.ts", cwd=cwd)
             self.assertIsNotNone(reason, "프로젝트 override 없는 remotion/ 은 차단되어야 함")
             self.assertIn("ALLOW_MATRIX", reason)
             # ./ prefix 테스트 — 허용
             self.assertIsNone(
-                check_write_allowed("test-engineer", "./tests/test_x.py", cwd=cwd)
+                check_write_allowed("build-worker", "./tests/test_x.py", cwd=cwd)
             )
             # ./ prefix docs 우회 — 차단 유지
-            reason = check_write_allowed("engineer", "./docs/internal/x.md", cwd=cwd)
+            reason = check_write_allowed("build-worker", "./docs/internal/x.md", cwd=cwd)
             self.assertIsNotNone(reason, "./docs/ 우회가 차단돼야 함")
             self.assertIn("docs", reason)
 
@@ -566,7 +557,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             cwd = Path(td)
             for p in ("apps/docs/src/App.tsx", "packages/docs/src/index.ts"):
                 self.assertIsNone(
-                    check_write_allowed("engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"docs 이름 패키지 소스 {p} 허용",
                 )
 
@@ -576,9 +567,9 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
-                ("test-engineer", "../tests/test_x.py"),
-                ("test-engineer", "../spec/foo_spec.rb"),
-                ("engineer", "../lib/x.rb"),
+                ("build-worker", "../tests/test_x.py"),
+                ("build-worker", "../spec/foo_spec.rb"),
+                ("build-worker", "../lib/x.rb"),
                 ("build-worker", "../src/main.py"),
             ]:
                 reason = check_write_allowed(agent, p, cwd=cwd)
@@ -590,8 +581,8 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
-                ("engineer", "lib/../../lib/payload.rb"),
-                ("test-engineer", "tests/../../tests/test_x.py"),
+                ("build-worker", "lib/../../lib/payload.rb"),
+                ("build-worker", "tests/../../tests/test_x.py"),
             ]:
                 reason = check_write_allowed(agent, p, cwd=cwd)
                 self.assertIsNotNone(reason, f"{agent} 중첩 .. 탈출 {p} 차단")
@@ -603,17 +594,17 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             cwd = Path(td)
             cases = [
                 # 의존성/vendored — 안의 src/tests 가 중첩 매칭돼도 차단
-                ("test-engineer", "node_modules/pkg/tests/x.py"),
-                ("test-engineer", "vendor/foo/spec/bar_spec.rb"),
+                ("build-worker", "node_modules/pkg/tests/x.py"),
+                ("build-worker", "vendor/foo/spec/bar_spec.rb"),
                 ("build-worker", "third_party/lib/foo_test.go"),
-                ("engineer", "node_modules/pkg/src/index.ts"),
-                ("engineer", ".venv/lib/python3.11/site.py"),
+                ("build-worker", "node_modules/pkg/src/index.ts"),
+                ("build-worker", ".venv/lib/python3.11/site.py"),
                 # 빌드 산출물 — 안의 src/tests 가 중첩 매칭돼도 차단
-                ("engineer", "dist/bundle/src/app.js"),
-                ("engineer", "build/gen/src/Main.java"),
-                ("engineer", "target/debug/build/foo/src/lib.rs"),
-                ("test-engineer", "out/tests/e2e.test.ts"),
-                ("engineer", "src/__pycache__/mod.cpython-311.pyc"),
+                ("build-worker", "dist/bundle/src/app.js"),
+                ("build-worker", "build/gen/src/Main.java"),
+                ("build-worker", "target/debug/build/foo/src/lib.rs"),
+                ("build-worker", "out/tests/e2e.test.ts"),
+                ("build-worker", "src/__pycache__/mod.cpython-311.pyc"),
             ]
             for agent, p in cases:
                 reason = check_write_allowed(agent, p, cwd=cwd)
@@ -627,7 +618,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             for p in ("src/build/index.ts", "src/dist/util.ts",
                       "packages/core/src/out/x.ts", "apps/web/src/build/m.ts"):
                 self.assertIsNone(
-                    check_write_allowed("engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"src 트리 안 동명 디렉토리 {p} 허용",
                 )
 
@@ -639,7 +630,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                       "out/index.html", "apps/web/build/foo/src/m.ts",
                       "packages/core/dist/i.js"):
                 self.assertIsNotNone(
-                    check_write_allowed("engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"산출물 루트 {p} 차단",
                 )
 
@@ -651,7 +642,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             for p in ("apps/vendor/src/index.ts",
                       "packages/third_party/src/x.ts"):
                 self.assertIsNone(
-                    check_write_allowed("engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"vendor/third_party 이름의 정당 패키지 소스 {p} 허용",
                 )
 
@@ -661,9 +652,9 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
-                ("engineer", "vendor/p/index.ts"),
-                ("test-engineer", "third_party/lib/spec/x_spec.rb"),
-                ("engineer", "apps/web/vendor/p/y.ts"),
+                ("build-worker", "vendor/p/index.ts"),
+                ("build-worker", "third_party/lib/spec/x_spec.rb"),
+                ("build-worker", "apps/web/vendor/p/y.ts"),
                 ("build-worker", "packages/core/third_party/foo_test.go"),
             ]:
                 self.assertIsNotNone(
@@ -678,36 +669,35 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
-                ("test-engineer", "tests/"),
-                ("engineer", "src/"),
-                ("engineer", "apps/web/src/"),
-                ("engineer", "lib/"),
-                ("engineer", "packages/core/src/"),
+                ("build-worker", "tests/"),
+                ("build-worker", "src/"),
+                ("build-worker", "apps/web/src/"),
+                ("build-worker", "lib/"),
+                ("build-worker", "packages/core/src/"),
                 # `/.`·`/./` 스펠링도 같은 디렉토리 타깃 (codex P2 r10).
-                ("test-engineer", "tests/."),
-                ("engineer", "apps/web/src/."),
-                ("engineer", "src/./"),
+                ("build-worker", "tests/."),
+                ("build-worker", "apps/web/src/."),
+                ("build-worker", "src/./"),
             ]:
                 self.assertIsNone(
                     check_write_allowed(agent, p, cwd=cwd, shell_context=True),
                     f"{agent} 의 허용 디렉토리 타깃 {p} 허용",
                 )
 
-    def test_directory_target_role_and_deny_preserved(self):
-        # 디렉토리 타깃이라도 역할 격리(engineer 는 tests/ 못 씀)와 전용영역/인프라 deny 는 유지.
+    def test_directory_target_deny_preserved(self):
+        # 디렉토리 타깃이라도 전용영역/인프라 deny 는 유지.
         # 끝 `/` 보존이 보호를 뚫으면 안 됨 — 오히려 `docs/`·`hooks/` 디렉토리 타깃이 정확히 매칭.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
-                ("engineer", "tests/"),         # 역할 격리 — engineer ALLOW 미매칭
-                ("engineer", "docs/"),          # 전용영역 deny
-                ("engineer", "node_modules/"),  # 의존성 deny
-                ("engineer", "vendor/"),        # vendored deny (루트)
-                ("engineer", "hooks/"),         # 인프라 deny
+                ("build-worker", "docs/"),          # 전용영역 deny
+                ("build-worker", "node_modules/"),  # 의존성 deny
+                ("build-worker", "vendor/"),        # vendored deny (루트)
+                ("build-worker", "hooks/"),         # 인프라 deny
                 # `/.` 스펠링도 동일하게 deny 매칭돼야 함 (보호 우회 방지).
-                ("engineer", "docs/."),
-                ("engineer", "node_modules/."),
-                ("engineer", "hooks/."),
+                ("build-worker", "docs/."),
+                ("build-worker", "node_modules/."),
+                ("build-worker", "hooks/."),
             ]:
                 self.assertIsNotNone(
                     check_write_allowed(agent, p, cwd=cwd, shell_context=True),
@@ -721,10 +711,10 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
-                ("test-engineer", "$PWD/../tests/x.py"),
-                ("engineer", "$PWD/../../etc/src/x.py"),
-                ("engineer", "`pwd`/../src/x.py"),
-                ("engineer", "${PWD}/../app/x.rb"),
+                ("build-worker", "$PWD/../tests/x.py"),
+                ("build-worker", "$PWD/../../etc/src/x.py"),
+                ("build-worker", "`pwd`/../src/x.py"),
+                ("build-worker", "${PWD}/../app/x.rb"),
             ]:
                 self.assertIsNotNone(
                     check_write_allowed(agent, p, cwd=cwd, shell_context=True),
@@ -737,10 +727,10 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
-                ("test-engineer", "$HOME/tests/test_x.py"),
-                ("engineer", "${HOME}/lib/x.rb"),
-                ("engineer", "$(pwd)/src/x.py"),
-                ("engineer", "`echo /etc`/src/x.py"),
+                ("build-worker", "$HOME/tests/test_x.py"),
+                ("build-worker", "${HOME}/lib/x.rb"),
+                ("build-worker", "$(pwd)/src/x.py"),
+                ("build-worker", "`echo /etc`/src/x.py"),
             ]:
                 reason = check_write_allowed(agent, p, cwd=cwd, shell_context=True)
                 self.assertIsNotNone(reason, f"{agent} Bash 셸 확장 경로 {p} 차단")
@@ -752,12 +742,12 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             cwd = Path(td)
             for p in ("src/routes/users.$userId.tsx", "app/routes/$slug.tsx"):
                 self.assertIsNone(
-                    check_write_allowed("engineer", p, cwd=cwd),
+                    check_write_allowed("build-worker", p, cwd=cwd),
                     f"literal $ 파일명 {p} 허용 (Edit/Write)",
                 )
             # 동일 경로라도 Bash 출처(shell_context=True)면 셸 변수로 간주 차단
             self.assertIsNotNone(
-                check_write_allowed("engineer", "src/routes/users.$userId.tsx",
+                check_write_allowed("build-worker", "src/routes/users.$userId.tsx",
                                     cwd=cwd, shell_context=True),
                 "Bash 출처의 $ 경로는 차단",
             )
@@ -768,9 +758,9 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, p in [
-                ("test-engineer", "~/tests/test_x.py"),
-                ("engineer", "~/lib/x.rb"),
-                ("engineer", "~/src/main.py"),
+                ("build-worker", "~/tests/test_x.py"),
+                ("build-worker", "~/lib/x.rb"),
+                ("build-worker", "~/src/main.py"),
             ]:
                 reason = check_write_allowed(agent, p, cwd=cwd)
                 self.assertIsNotNone(reason, f"{agent} tilde 경로 {p} 차단")
@@ -780,28 +770,28 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         # 우회 차단. _normalize 가 cwd 기준 resolve 로 실제 write 위치를 매칭 대상으로 삼는다.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            # lib/../README.md → 실제 README.md(루트 문서) → engineer 차단
+            # lib/../README.md → 실제 README.md(루트 문서) → build-worker 차단
             self.assertIsNotNone(
-                check_write_allowed("engineer", "lib/../README.md", cwd=cwd),
+                check_write_allowed("build-worker", "lib/../README.md", cwd=cwd),
                 "lib/../README.md (.. 우회) 차단",
             )
-            # tests/../src/main.py → 실제 src/main.py(구현) → test-engineer 차단
-            self.assertIsNotNone(
-                check_write_allowed("test-engineer", "tests/../src/main.py", cwd=cwd),
-                "tests/../src/main.py (.. 우회) 차단",
+            # tests/../src/main.py → 실제 src/main.py(구현) → current worker 허용
+            self.assertIsNone(
+                check_write_allowed("build-worker", "tests/../src/main.py", cwd=cwd),
+                "tests/../src/main.py → src/main.py 허용",
             )
             # ../ 상위 탈출 → 차단
             self.assertIsNotNone(
-                check_write_allowed("engineer", "../outside/x.ts", cwd=cwd),
+                check_write_allowed("build-worker", "../outside/x.ts", cwd=cwd),
                 "../ 상위 탈출 차단",
             )
             # 정상 .. 해소 후 유효 소스는 허용 (src/sub/../foo.ts → src/foo.ts)
             self.assertIsNone(
-                check_write_allowed("engineer", "src/sub/../foo.ts", cwd=cwd),
+                check_write_allowed("build-worker", "src/sub/../foo.ts", cwd=cwd),
                 "src/sub/../foo.ts → src/foo.ts 허용",
             )
 
-    def test_engineer_nested_layout_names_not_matched(self):
+    def test_build_worker_nested_layout_names_not_matched(self):
         # #694 codex P2 — 루트 소스 레이아웃(^lib/·^cmd/ 등)은 루트 앵커라, 의존성도 docs 도
         # 아닌 일반 중첩 동명 디렉토리(.github/*/lib·services/*/lib·a/b/cmd)는 소스 루트가
         # 아니므로 ALLOW 미매칭으로 차단된다 (의존성 트리는 별도 deny — 아래 테스트).
@@ -812,21 +802,21 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
                 "services/foo/lib/util.rb",
                 "a/b/cmd/run.go",
             ):
-                reason = check_write_allowed("engineer", p, cwd=cwd)
-                self.assertIsNotNone(reason, f"engineer 가 중첩 {p} 를 쓰면 안 됨")
+                reason = check_write_allowed("build-worker", p, cwd=cwd)
+                self.assertIsNotNone(reason, f"build-worker 가 중첩 {p} 를 쓰면 안 됨")
                 self.assertIn("ALLOW_MATRIX", reason)
 
-    def test_engineer_invariant_still_blocks_docs_and_root(self):
-        # 회귀 가드 — engineer 가 docs / 루트 비소스 문서를 쓰면 안 된다 (기존 invariant 유지).
+    def test_build_worker_invariant_still_blocks_docs_and_root(self):
+        # 회귀 가드 — build-worker 가 docs / 루트 비소스 문서를 쓰면 안 된다 (기존 invariant 유지).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             # 루트 비소스 문서 — ALLOW_MATRIX 미매칭 차단.
             for p in ("README.md", "CHANGELOG.md"):
-                reason = check_write_allowed("engineer", p, cwd=cwd)
-                self.assertIsNotNone(reason, f"engineer 가 {p} 를 쓰면 안 됨")
+                reason = check_write_allowed("build-worker", p, cwd=cwd)
+                self.assertIsNotNone(reason, f"build-worker 가 {p} 를 쓰면 안 됨")
                 self.assertIn("ALLOW_MATRIX", reason)
             # docs/ — 전용영역 deny 로 차단 (#694 codex P2).
-            reason = check_write_allowed("engineer", "docs/storage-layout.md", cwd=cwd)
+            reason = check_write_allowed("build-worker", "docs/storage-layout.md", cwd=cwd)
             self.assertIsNotNone(reason)
             self.assertIn("docs", reason)
 
@@ -836,12 +826,12 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             cases = [
-                ("engineer", "docs/internal/release-notes.md"),  # internal/ 우회
-                ("engineer", "docs/lib/guide.md"),               # lib/ 우회
-                ("engineer", "docs/app/overview.md"),            # app/ 우회
-                ("test-engineer", "docs/spec/api.md"),           # spec/ 우회
-                ("test-engineer", "docs/tests/plan.md"),         # tests/ 우회
-                ("test-engineer", "docs/test_examples.py"),      # test_*.py 파일명 우회
+                ("build-worker", "docs/internal/release-notes.md"),  # internal/ 우회
+                ("build-worker", "docs/lib/guide.md"),               # lib/ 우회
+                ("build-worker", "docs/app/overview.md"),            # app/ 우회
+                ("build-worker", "docs/spec/api.md"),           # spec/ 우회
+                ("build-worker", "docs/tests/plan.md"),         # tests/ 우회
+                ("build-worker", "docs/test_examples.py"),      # test_*.py 파일명 우회
                 ("build-worker", "docs/internal/x.md"),          # 합집합 상속
             ]
             for agent, p in cases:
@@ -853,7 +843,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         # docs/design-variants/ 확정본과 canvas 는 메인 전용이고, designer 는 drafts 만 쓴다.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            for agent in ("engineer", "test-engineer", "build-worker"):
+            for agent in ("build-worker", "build-worker", "build-worker"):
                 reason = check_write_allowed(
                     agent, "docs/design-variants/drafts/home-draft1.html", cwd=cwd
                 )
@@ -874,7 +864,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             ):
                 reason = check_write_allowed("designer", p, cwd=cwd)
                 self.assertIsNotNone(reason, f"designer 가 확정/canvas 경로 {p} 를 쓰면 안 됨")
-            for agent in ("architect", "module-architect", "system-architect"):
+            for agent in ("module-architect", "module-architect", "system-architect"):
                 reason = check_write_allowed(
                     agent, "docs/design-variants/canvas.html", cwd=cwd
                 )
@@ -885,11 +875,11 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self._write_boundary(cwd, {"build-worker": {"add": [r"^remotion/"]}})
-            # 테스트 산출 (test-engineer 영역) — task 01·02·03·07
+            # 테스트 산출 (build-worker 영역) — task 01·02·03·07
             self.assertIsNone(
                 check_write_allowed("build-worker", "tests/core/domain/test_shorts.py", cwd=cwd)
             )
-            # 소스 산출 (engineer 영역) — task 04
+            # 소스 산출 (build-worker 영역) — task 04
             self.assertIsNone(
                 check_write_allowed("build-worker", "remotion/shorts-types.ts", cwd=cwd)
             )
@@ -926,11 +916,8 @@ class AllowMatrixCoverageTests(unittest.TestCase):
             f"ALLOW_MATRIX 누락 agent: {missing} — 미정의 agent 는 경계가 무력화됨",
         )
 
-    def test_build_worker_is_engineer_test_engineer_union(self):
-        self.assertEqual(
-            set(ALLOW_MATRIX["build-worker"]),
-            set(ALLOW_MATRIX["engineer"]) | set(ALLOW_MATRIX["test-engineer"]),
-        )
+    def test_allow_matrix_contains_current_agents_only(self):
+        self.assertEqual(set(ALLOW_MATRIX), set(self._agent_names()))
 
 
 class RunDirProseCarveOutTests(unittest.TestCase):
@@ -1055,7 +1042,7 @@ class RunDirProseCarveOutTests(unittest.TestCase):
             self.assertIsNotNone(reason)
 
     def test_non_build_worker_cannot_forge_validator_pass(self):
-        # codex P1 — engineer 등 임의 agent 가 run_dir 에 validator PASS 마커 위조 시도 → 차단.
+        # codex P1 — build-worker 등 임의 agent 가 run_dir 에 validator PASS 마커 위조 시도 → 차단.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for marker in (
@@ -1064,9 +1051,9 @@ class RunDirProseCarveOutTests(unittest.TestCase):
                 "architecture-validator.md",
             ):
                 p = f".claude/harness-state/.sessions/SID/runs/run-x/{marker}"
-                reason = check_write_allowed("engineer", p, cwd=cwd)
+                reason = check_write_allowed("build-worker", p, cwd=cwd)
                 self.assertIsNotNone(
-                    reason, f"engineer 가 {marker} 위조 → 차단되어야 함 (catastrophic gate 우회 방지)"
+                    reason, f"build-worker 가 {marker} 위조 → 차단되어야 함 (catastrophic gate 우회 방지)"
                 )
 
     def test_build_worker_cannot_forge_validator_pass(self):
@@ -1150,7 +1137,7 @@ class OptOutMarkerTests(unittest.TestCase):
             self.assertTrue(is_opt_out(cwd))
             # 우회 — INFRA_PATTERN 매칭이지만 통과.
             self.assertIsNone(
-                check_write_allowed("engineer", "hooks/x.sh", cwd=cwd)
+                check_write_allowed("build-worker", "hooks/x.sh", cwd=cwd)
             )
             # CLAUDE.md 도 우회 (사용자 임시 우회 정합).
             self.assertIsNone(
@@ -1187,11 +1174,11 @@ class ReadAllowedTests(unittest.TestCase):
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
 
-    def test_engineer_read_src_allowed(self):
+    def test_build_worker_read_src_allowed(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self.assertIsNone(
-                check_read_allowed("engineer", "src/main.ts", cwd=cwd)
+                check_read_allowed("build-worker", "src/main.ts", cwd=cwd)
             )
 
 
@@ -1445,7 +1432,7 @@ class PluginReadCarveoutTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd, root = self._dirs(td)
             target = str(root / "agents/system-architect/system-architect-agent.md")
-            reason = check_write_allowed("engineer", target, cwd=cwd)
+            reason = check_write_allowed("build-worker", target, cwd=cwd)
             self.assertIsNotNone(reason)
 
 
@@ -1925,7 +1912,7 @@ class BashIntegrationTests(unittest.TestCase):
     def tearDown(self):
         self._patcher.stop()
 
-    def test_engineer_sed_blocks_infra(self):
+    def test_build_worker_sed_blocks_infra(self):
         # heuristic 은 보수적 — quoted sed pattern 도 path 후보 포함 (`/` 있음).
         # 어떤 후보든 INFRA 매칭 되면 reason 발화 = OK.
         with tempfile.TemporaryDirectory() as td:
@@ -1936,7 +1923,7 @@ class BashIntegrationTests(unittest.TestCase):
             self.assertIn("hooks/catastrophic-gate.sh", paths)
             blocked = [
                 p for p in paths
-                if check_write_allowed("engineer", p, cwd=cwd) is not None
+                if check_write_allowed("build-worker", p, cwd=cwd) is not None
             ]
             self.assertTrue(any("hooks/" in p for p in blocked))
 
@@ -1957,16 +1944,16 @@ class BashIntegrationTests(unittest.TestCase):
                 blocked, [], f"tech-reviewer evidence 수집이 차단됨: {blocked}"
             )
 
-    def test_engineer_sed_legit_edit_not_blocked(self):
-        # codex P2 (round10) — engineer 의 정상 `sed -i 's/x/y/' src/…` 가
+    def test_build_worker_sed_legit_edit_not_blocked(self):
+        # codex P2 (round10) — build-worker 의 정상 `sed -i 's/x/y/' src/…` 가
         # sed 스크립트 오인으로 차단되면 안 됨.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             blocked = [
                 p for p in extract_bash_paths("sed -i 's/foo/bar/' src/main.ts")
-                if check_write_allowed("engineer", p, cwd=cwd) is not None
+                if check_write_allowed("build-worker", p, cwd=cwd) is not None
             ]
-            self.assertEqual(blocked, [], f"engineer 정상 편집이 차단됨: {blocked}")
+            self.assertEqual(blocked, [], f"build-worker 정상 편집이 차단됨: {blocked}")
 
     def test_quoted_redirect_shell_expansion_blocked(self):
         # codex P2 (round10) — `echo x > "$HOME/tests/x.py"` 가 따옴표째 버려져 검사 미도달로
@@ -1977,7 +1964,7 @@ class BashIntegrationTests(unittest.TestCase):
             self.assertIn("$HOME/tests/x.py", paths)
             blocked = [
                 p for p in paths
-                if check_write_allowed("test-engineer", p, cwd=cwd,
+                if check_write_allowed("build-worker", p, cwd=cwd,
                                        shell_context=True) is not None
             ]
             self.assertTrue(
@@ -1992,18 +1979,18 @@ class BashIntegrationTests(unittest.TestCase):
             cwd = Path(td)
             blocked_eng = [
                 p for p in extract_bash_paths("cp src/foo.ts apps/web/src/")
-                if check_write_allowed("engineer", p, cwd=cwd,
+                if check_write_allowed("build-worker", p, cwd=cwd,
                                        shell_context=True) is not None
             ]
             self.assertEqual(blocked_eng, [],
-                             f"engineer cp 디렉토리 타깃 차단됨: {blocked_eng}")
+                             f"build-worker cp 디렉토리 타깃 차단됨: {blocked_eng}")
             blocked_te = [
                 p for p in extract_bash_paths("mv test_helper.py tests/")
-                if check_write_allowed("test-engineer", p, cwd=cwd,
+                if check_write_allowed("build-worker", p, cwd=cwd,
                                        shell_context=True) is not None
             ]
             self.assertEqual(blocked_te, [],
-                             f"test-engineer mv 디렉토리 타깃 차단됨: {blocked_te}")
+                             f"build-worker mv 디렉토리 타깃 차단됨: {blocked_te}")
 
     def test_quoted_redirect_dotdot_collapse_blocked(self):
         # codex P2 (round10) — `echo x > "$PWD/../tests/x.py"` 는 추출되어 norm 에서 `$PWD/..`
@@ -2014,7 +2001,7 @@ class BashIntegrationTests(unittest.TestCase):
             self.assertIn("$PWD/../tests/x.py", paths)
             blocked = [
                 p for p in paths
-                if check_write_allowed("test-engineer", p, cwd=cwd,
+                if check_write_allowed("build-worker", p, cwd=cwd,
                                        shell_context=True) is not None
             ]
             self.assertTrue(
@@ -2023,16 +2010,16 @@ class BashIntegrationTests(unittest.TestCase):
             )
 
     def test_quoted_sed_with_var_legit_edit_not_blocked(self):
-        # codex P2 (round10) — engineer 의 `sed -i "s/$old/$new/" src/main.ts` 가 따옴표 안
+        # codex P2 (round10) — build-worker 의 `sed -i "s/$old/$new/" src/main.ts` 가 따옴표 안
         # 치환 스크립트 오인으로 차단되면 안 됨 (src/main.ts 만 후보, 정상 통과).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             blocked = [
                 p for p in extract_bash_paths('sed -i "s/$old/$new/" src/main.ts')
-                if check_write_allowed("engineer", p, cwd=cwd,
+                if check_write_allowed("build-worker", p, cwd=cwd,
                                        shell_context=True) is not None
             ]
-            self.assertEqual(blocked, [], f"engineer 정상 편집이 차단됨: {blocked}")
+            self.assertEqual(blocked, [], f"build-worker 정상 편집이 차단됨: {blocked}")
 
 
 class FdRedirectAndDeviceSinkTests(unittest.TestCase):
@@ -2227,11 +2214,11 @@ class RootCodeFileAllowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, fp in (
-                ("engineer", "app.py"),
-                ("engineer", "main.py"),
-                ("engineer", "manage.py"),
-                ("engineer", "server.js"),
-                ("engineer", "main.go"),
+                ("build-worker", "app.py"),
+                ("build-worker", "main.py"),
+                ("build-worker", "manage.py"),
+                ("build-worker", "server.js"),
+                ("build-worker", "main.go"),
                 ("build-worker", "app.py"),
                 ("build-worker", "main.go"),
             ):
@@ -2242,12 +2229,12 @@ class RootCodeFileAllowTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for agent, fp in (
-                ("engineer", "README.md"),       # 문서 — 역할 격리 유지
-                ("engineer", "check.sh"),        # 게이트 스크립트 — agent 가 수정 금지
-                ("engineer", "pyproject.toml"),  # 매니페스트
-                ("engineer", "package.json"),
-                ("engineer", "Makefile"),
-                ("engineer", ".env"),
+                ("build-worker", "README.md"),       # 문서 — 역할 격리 유지
+                ("build-worker", "check.sh"),        # 게이트 스크립트 — agent 가 수정 금지
+                ("build-worker", "pyproject.toml"),  # 매니페스트
+                ("build-worker", "package.json"),
+                ("build-worker", "Makefile"),
+                ("build-worker", ".env"),
                 ("build-worker", "release.yaml"),
             ):
                 with self.subTest(agent=agent, fp=fp):
@@ -2258,20 +2245,19 @@ class RootCodeFileAllowTests(unittest.TestCase):
             cwd = Path(td)
             # 루트 전용 앵커 — 디렉토리 하위는 기존 패턴 영역 그대로.
             self.assertIsNotNone(
-                check_write_allowed("engineer", "scripts/run.py", cwd=cwd)
+                check_write_allowed("build-worker", "scripts/run.py", cwd=cwd)
             )
             # docs/ 하위 코드 파일명은 전용영역 deny 가 계속 우선.
             self.assertIsNotNone(
-                check_write_allowed("engineer", "docs/app.py", cwd=cwd)
+                check_write_allowed("build-worker", "docs/app.py", cwd=cwd)
             )
 
-    def test_root_validation_toolchain_files_blocked_for_engineer(self):
+    def test_root_validation_toolchain_files_blocked_for_build_worker(self):
         # 리뷰 P2 — 루트 코드 파일 ALLOW 가 *검증 도구체인 설정* 까지 열면 안 된다.
         # conftest.py 한 줄(collect_ignore)로 테스트 전체 침묵 skip = false-clean 재유입.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             for fp in (
-                "conftest.py",        # pytest collection 제어 — engineer 금지
                 "noxfile.py",         # 테스트 세션 러너
                 "jest.config.js",
                 "vitest.config.ts",
@@ -2280,34 +2266,15 @@ class RootCodeFileAllowTests(unittest.TestCase):
             ):
                 with self.subTest(fp=fp):
                     self.assertIsNotNone(
-                        check_write_allowed("engineer", fp, cwd=cwd)
+                        check_write_allowed("build-worker", fp, cwd=cwd)
                     )
 
     def test_build_worker_keeps_conftest_via_test_union(self):
-        # build-worker 는 테스트도 쓰는 엔진 — test-engineer 합집합으로 conftest 유지.
+        # build-worker 는 테스트도 쓰는 엔진 — build-worker 합집합으로 conftest 유지.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self.assertIsNone(
                 check_write_allowed("build-worker", "conftest.py", cwd=cwd)
-            )
-
-    def test_conftest_allowed_for_test_engineer(self):
-        # pytest 관례 파일 — 같은 클래스 friction (디렉토리 패턴 밖 관례 파일).
-        with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)
-            self.assertIsNone(
-                check_write_allowed("test-engineer", "conftest.py", cwd=cwd)
-            )
-            self.assertIsNone(
-                check_write_allowed("test-engineer", "tests/conftest.py", cwd=cwd)
-            )
-
-    def test_test_engineer_still_blocked_from_impl_source(self):
-        # 역할 격리 회귀 가드 — test-engineer 는 구현 엔트리 파일 write 금지 유지.
-        with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)
-            self.assertIsNotNone(
-                check_write_allowed("test-engineer", "app.py", cwd=cwd)
             )
 
 
@@ -2354,23 +2321,11 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
             cwd = Path(td)
             # add 전 — 차단 확인.
             self.assertIsNotNone(
-                check_write_allowed("engineer", "custom-pkg/widget.go", cwd=cwd)
+                check_write_allowed("build-worker", "custom-pkg/widget.go", cwd=cwd)
             )
-            self._write_boundary(cwd, {"engineer": {"add": [r"(^|/)custom-pkg/"]}})
+            self._write_boundary(cwd, {"build-worker": {"add": [r"(^|/)custom-pkg/"]}})
             self.assertIsNone(
-                check_write_allowed("engineer", "custom-pkg/widget.go", cwd=cwd)
-            )
-
-    def test_add_opens_default_excluded_tests_for_engineer(self):
-        # engineer 의 tests/ 기본 제외(self-grading 방어)를 프로젝트가 add 로 완화.
-        with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)
-            self.assertIsNotNone(
-                check_write_allowed("engineer", "tests/test_widget.py", cwd=cwd)
-            )
-            self._write_boundary(cwd, {"engineer": {"add": [r"(^|/)tests?/"]}})
-            self.assertIsNone(
-                check_write_allowed("engineer", "tests/test_widget.py", cwd=cwd)
+                check_write_allowed("build-worker", "custom-pkg/widget.go", cwd=cwd)
             )
 
     # ── remove: 코어 기본값 제거 ──
@@ -2379,10 +2334,10 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self.assertIsNone(
-                check_write_allowed("engineer", "app/models.rb", cwd=cwd)
+                check_write_allowed("build-worker", "app/models.rb", cwd=cwd)
             )
-            self._write_boundary(cwd, {"engineer": {"remove": [r"^app/"]}})
-            reason = check_write_allowed("engineer", "app/models.rb", cwd=cwd)
+            self._write_boundary(cwd, {"build-worker": {"remove": [r"^app/"]}})
+            reason = check_write_allowed("build-worker", "app/models.rb", cwd=cwd)
             self.assertIsNotNone(reason)
 
     def test_remove_overrides_add_on_conflict(self):
@@ -2391,10 +2346,10 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
             cwd = Path(td)
             self._write_boundary(
                 cwd,
-                {"engineer": {"add": [r"(^|/)zone/"], "remove": [r"(^|/)zone/"]}},
+                {"build-worker": {"add": [r"(^|/)zone/"], "remove": [r"(^|/)zone/"]}},
             )
             self.assertIsNotNone(
-                check_write_allowed("engineer", "zone/x.go", cwd=cwd)
+                check_write_allowed("build-worker", "zone/x.go", cwd=cwd)
             )
 
     # ── 가드: 되돌릴 수 없는 경계는 override 가 못 뚫는다 ──
@@ -2402,8 +2357,8 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         # add 로 INFRA 경로(hooks/)를 열려 해도 INFRA 검사가 먼저라 차단.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            self._write_boundary(cwd, {"engineer": {"add": [r"(^|/)hooks/"]}})
-            reason = check_write_allowed("engineer", "hooks/evil.py", cwd=cwd)
+            self._write_boundary(cwd, {"build-worker": {"add": [r"(^|/)hooks/"]}})
+            reason = check_write_allowed("build-worker", "hooks/evil.py", cwd=cwd)
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
 
@@ -2411,7 +2366,7 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         # 위조 방지 — 설정 파일 자신은 어떤 sub-agent 도 write 못 함 (self 확장/축소 금지).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            for agent in ("engineer", "test-engineer", "build-worker", "architect"):
+            for agent in ("build-worker", "build-worker", "build-worker", "module-architect"):
                 reason = check_write_allowed(
                     agent, ".dcness/boundary.json", cwd=cwd
                 )
@@ -2422,9 +2377,9 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         # add 로 .dcness/ 를 열려 해도 boundary.json 은 INFRA 라 차단.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            self._write_boundary(cwd, {"engineer": {"add": [r"(^|/)\.dcness/"]}})
+            self._write_boundary(cwd, {"build-worker": {"add": [r"(^|/)\.dcness/"]}})
             reason = check_write_allowed(
-                "engineer", ".dcness/boundary.json", cwd=cwd
+                "build-worker", ".dcness/boundary.json", cwd=cwd
             )
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
@@ -2434,10 +2389,10 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         # boundary.json 을 교체하는 우회를 차단. .dcness 디렉토리 자체·하위 모두 INFRA.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            self._write_boundary(cwd, {"engineer": {"add": [r"(^|/)\.dcness/"]}})
+            self._write_boundary(cwd, {"build-worker": {"add": [r"(^|/)\.dcness/"]}})
             for target in (".dcness/", ".dcness", ".dcness/other.json"):
                 reason = check_write_allowed(
-                    "engineer", target, cwd=cwd, shell_context=True
+                    "build-worker", target, cwd=cwd, shell_context=True
                 )
                 self.assertIsNotNone(reason, f"{target} 우회 가능하면 안 됨")
                 self.assertIn("인프라", reason)
@@ -2447,10 +2402,10 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self._write_boundary(
-                cwd, {"engineer": {"remove": [r"(^|/)\.dcness/boundary\.json$"]}}
+                cwd, {"build-worker": {"remove": [r"(^|/)\.dcness/boundary\.json$"]}}
             )
             reason = check_write_allowed(
-                "engineer", ".dcness/boundary.json", cwd=cwd
+                "build-worker", ".dcness/boundary.json", cwd=cwd
             )
             self.assertIsNotNone(reason)
             self.assertIn("인프라", reason)
@@ -2460,9 +2415,9 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             # 코어 기본값 그대로 — src 허용, random 차단.
-            self.assertIsNone(check_write_allowed("engineer", "src/x.ts", cwd=cwd))
+            self.assertIsNone(check_write_allowed("build-worker", "src/x.ts", cwd=cwd))
             self.assertIsNotNone(
-                check_write_allowed("engineer", "README.md", cwd=cwd)
+                check_write_allowed("build-worker", "README.md", cwd=cwd)
             )
 
     def test_malformed_boundary_ignored(self):
@@ -2472,9 +2427,9 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
             cfg_dir = cwd / ".dcness"
             cfg_dir.mkdir()
             (cfg_dir / "boundary.json").write_text("{not json", encoding="utf-8")
-            self.assertIsNone(check_write_allowed("engineer", "src/x.ts", cwd=cwd))
+            self.assertIsNone(check_write_allowed("build-worker", "src/x.ts", cwd=cwd))
             self.assertIsNotNone(
-                check_write_allowed("engineer", "custom-pkg/x.go", cwd=cwd)
+                check_write_allowed("build-worker", "custom-pkg/x.go", cwd=cwd)
             )
 
     def test_invalid_regex_pattern_skipped(self):
@@ -2482,10 +2437,10 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self._write_boundary(
-                cwd, {"engineer": {"add": [r"(unclosed", r"(^|/)okdir/"]}}
+                cwd, {"build-worker": {"add": [r"(unclosed", r"(^|/)okdir/"]}}
             )
             self.assertIsNone(
-                check_write_allowed("engineer", "okdir/x.go", cwd=cwd)
+                check_write_allowed("build-worker", "okdir/x.go", cwd=cwd)
             )
 
     def test_boundary_found_in_ancestor(self):
@@ -2493,11 +2448,11 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td).resolve()
             self._git_init(root)
-            self._write_boundary(root, {"engineer": {"add": [r"(^|/)custom-pkg/"]}})
+            self._write_boundary(root, {"build-worker": {"add": [r"(^|/)custom-pkg/"]}})
             sub = root / "services" / "api"
             sub.mkdir(parents=True)
             self.assertIsNone(
-                check_write_allowed("engineer", "custom-pkg/x.go", cwd=sub)
+                check_write_allowed("build-worker", "custom-pkg/x.go", cwd=sub)
             )
 
     def test_boundary_in_linked_worktree_from_subdir(self):
@@ -2516,11 +2471,11 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
             wt = Path(tb).resolve() / "linked-wt"  # 메인 밖 경로
             subprocess.run(["git", "worktree", "add", "-q", str(wt)],
                            cwd=str(main), check=True, capture_output=True, env=env)
-            self._write_boundary(wt, {"engineer": {"add": [r"(^|/)custom-pkg/"]}})
+            self._write_boundary(wt, {"build-worker": {"add": [r"(^|/)custom-pkg/"]}})
             sub = wt / "services" / "api"
             sub.mkdir(parents=True)
             self.assertIsNone(
-                check_write_allowed("engineer", "custom-pkg/x.go", cwd=sub)
+                check_write_allowed("build-worker", "custom-pkg/x.go", cwd=sub)
             )
 
     def test_boundary_outside_project_root_ignored(self):
@@ -2528,15 +2483,15 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         # 상위 디렉토리의 override 가 무관한 하위 프로젝트의 경계를 약화하면 안 된다.
         with tempfile.TemporaryDirectory() as td:
             outer = Path(td).resolve()
-            # 상위 워크스페이스에 boundary (engineer 에 custom-pkg 허용).
-            self._write_boundary(outer, {"engineer": {"add": [r"(^|/)custom-pkg/"]}})
+            # 상위 워크스페이스에 boundary (build-worker 에 custom-pkg 허용).
+            self._write_boundary(outer, {"build-worker": {"add": [r"(^|/)custom-pkg/"]}})
             # 하위에 독립 프로젝트(git repo) — 자기 boundary 없음.
             proj = outer / "child-project"
             proj.mkdir()
             self._git_init(proj)
             # 상위 boundary 가 새지 않아 여전히 차단되어야 한다.
             self.assertIsNotNone(
-                check_write_allowed("engineer", "custom-pkg/x.go", cwd=proj)
+                check_write_allowed("build-worker", "custom-pkg/x.go", cwd=proj)
             )
 
     def test_build_worker_own_key_still_applies(self):
@@ -2572,13 +2527,13 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         # .no-dcness-guard(is_opt_out) / .claude-plugin/plugin.json(is_infra_project).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            self._write_boundary(cwd, {"engineer": {"add": [r".*"]}})
+            self._write_boundary(cwd, {"build-worker": {"add": [r".*"]}})
             for target in (
                 ".no-dcness-guard", ".no-dcness-guard/",
                 ".claude-plugin/plugin.json", ".claude-plugin/", ".claude-plugin",
             ):
                 reason = check_write_allowed(
-                    "engineer", target, cwd=cwd, shell_context=True
+                    "build-worker", target, cwd=cwd, shell_context=True
                 )
                 self.assertIsNotNone(reason, f"{target} self-disable 가능하면 안 됨")
                 self.assertIn("인프라", reason)
@@ -2588,10 +2543,10 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         with patch.dict(os.environ, {"DCNESS_INFRA": "1"}, clear=False):
             with tempfile.TemporaryDirectory() as td:
                 cwd = Path(td)
-                self._write_boundary(cwd, {"engineer": {"remove": [r"(^|/)src/"]}})
+                self._write_boundary(cwd, {"build-worker": {"remove": [r"(^|/)src/"]}})
                 # remove 했어도 infra project 는 통과.
                 self.assertIsNone(
-                    check_write_allowed("engineer", "src/x.ts", cwd=cwd)
+                    check_write_allowed("build-worker", "src/x.ts", cwd=cwd)
                 )
 
 

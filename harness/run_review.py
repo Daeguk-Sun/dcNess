@@ -889,7 +889,7 @@ def detect_wastes(
     # (reviewer FAIL → engineer fix → 재리뷰) + producer 의 고친-항목 재진술
     # (engineer POLISH 가 "## MUST FIX 1 …" 헤더로 처방 내역 기재) 을 전수 오탐.
     # 실측 41/41 false positive. 진짜 신호는 *게이트가 advance(PASS)하면서
-    # blocker 를 남긴* 경우뿐 — producer(engineer/build-worker/test-engineer)의 must_fix
+    # blocker 를 남긴* 경우뿐 — producer(build-worker)의 must_fix
     # 와 reviewer 의 FAIL 은 정상. 마지막 step 미해결은 MUST_FIX_LEAK 담당이라 제외.
     for i, s in enumerate(steps):
         if not (s.must_fix and i + 1 < len(steps)):
@@ -1615,7 +1615,7 @@ def build_report(
             # sub-agent TUR ts 는 end-step 호출 직전 (= first_ts 보다 약간 이전).
             # padding 없이 [first_ts, last_ts] 로 잡으면 첫 step TUR 가 *항상*
             # window 밖으로 필터아웃되어 구조적으로 첫 step metric 누락.
-            # jajang run-459cce99 실측 — test-engineer TUR 02:40:18 vs first_ts 02:40:26 (8s diff).
+            # 실측 run에서 sub-agent 완료 시각과 first step 시각이 8초 어긋난 사례.
             window = (first_ts - WINDOW_TS_PADDING, last_ts + WINDOW_TS_PADDING)
             invocations = extract_agent_invocations(repo_path, window)
             assign_invocations_to_steps(steps, invocations)

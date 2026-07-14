@@ -1,7 +1,7 @@
 """agent_names.py — dcness sub-agent 이름 정규화 SSOT (issue #383 / #598).
 
 CC hook payload / transcript 의 agent_type 에 붙는 plugin namespace prefix
-(`dcness:engineer`)를 제거한다. boundary (`agent_boundary`) / trace / histogram /
+(`dcness:build-worker`)를 제거한다. boundary (`agent_boundary`) / trace / histogram /
 review 가 동일 canonical 이름으로 매칭하도록 본 모듈이 *단일* 정규화를 제공한다.
 
 경량(stdlib only) — file-guard PreToolUse 핫패스에서 import 해도 안전.

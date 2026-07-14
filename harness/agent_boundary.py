@@ -104,13 +104,13 @@ RUN_DIR_PROSE_ALLOW: tuple[str, ...] = (
 
 
 # ── ALLOW_MATRIX (agent 별 Write 허용) ─────────────────────────
-# RWHarness agent-boundary.py:48~84 기반. engineer / test-engineer 는 #694 에서 언어·레이아웃
-# 중립으로 확장 (JS/TS 전용 → Python·Go·Ruby·JVM·C#·PHP·Elixir 등 비-JS 외부 프로젝트).
+# build-worker는 소스와 테스트를 한 호출에서 다루므로 언어·레이아웃 중립 패턴을
+# 하나의 현행 권한 집합으로 유지한다.
 ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
-    # engineer — 구현 소스. JS/TS·Python 모노레포(src/·apps/·packages/) + 언어 중립 소스 루트
+    # build-worker — 구현 소스와 테스트. JS/TS·Python 모노레포(src/·apps/·packages/) + 언어 중립 소스 루트
     # (lib/·app/·cmd/·internal/·pkg/). docs/ · 루트 비소스 문서(README 등)는 미매칭으로
     # 차단 — 역할 격리 유지. remotion/ 같은 프로젝트 고유 디렉토리는 프로젝트별 override 영역.
-    "engineer": (
+    "build-worker": (
         # JS/TS·Python 모노레포 관례
         r'(^|/)src/',
         r'(^|/)apps/[^/]+/src/',
@@ -133,23 +133,28 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
         # 우회가 강제됨). *코드 확장자만* — `.sh`(게이트 스크립트)·`.md`(문서)·toml/json/yaml
         # (매니페스트)·Makefile/Dockerfile 은 계속 미매칭 차단. 그 외 언어는 #696 override 영역.
         #
-        # 단 *검증 도구체인 설정* 은 코드 확장자라도 제외 (#705 리뷰 P2) — 이들을 engineer 가
+        # 단 *검증 도구체인 설정* 은 코드 확장자라도 제외 (#705 리뷰 P2) — 이들을 build-worker가
         # 고치면 자기 산출을 검증하는 게이트 자체를 침묵시킬 수 있다 (conftest.py 의
         # collect_ignore 한 줄 = 테스트 전체 skip → false-clean 재유입):
         #   - dotfile 설정 (.eslintrc.js 등) — `(?!\.)` 선두 제외
         #   - conftest.py (pytest collection 제어) / noxfile.py (테스트 세션 러너)
-        #     — test-engineer 의 `conftest\.py$` ALLOW 는 별개라 build-worker(합집합)는 유지
         #   - *.config.{js,ts,mjs,cjs} (jest/vitest/eslint/playwright 류 설정)
         r'^(?!\.)(?!conftest\.py$)(?!noxfile\.py$)'
         r'(?![^/]+\.config\.(?:js|ts|mjs|cjs)$)'
         r'[^/]+\.(?:py|pyi|go|rs|rb|php|ex|exs|js|jsx|ts|tsx|mjs|cjs)$',
+        # 언어 중립 테스트 디렉터리와 파일명 관례.
+        r'(^|/)tests?/',
+        r'(^|/)spec/',
+        r'(^|/)__tests__/',
+        r'(^|/)test_[^/]+\.py$',
+        r'(^|/)[^/]+_test\.(py|go|rb|dart|exs?)$',
+        r'(^|/)[^/]+_spec\.rb$',
+        r'(^|/)[^/]+\.test\.[jt]sx?$',
+        r'(^|/)[^/]+\.spec\.[jt]sx?$',
+        r'(^|/)[^/]+Tests?\.(java|kt|kts|scala|cs|php)$',
+        r'(^|/)conftest\.py$',
     ),
-    "architect": (
-        r'(^|/)docs/',
-        r'(^|/)backlog\.md$',
-        r'(^|/)trd\.md$',
-    ),
-    # module-architect / system-architect — architect 변종. 키 명시 필수.
+    # module-architect / system-architect — 키 명시 필수.
     # 키 부재 시 "미정의 agent = 통과" fallback 으로 빠져 ALLOW 강제 자체가 무력화.
     "module-architect": (
         r'(^|/)docs/',
@@ -163,25 +168,6 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
     ),
     "designer": (
         r'^docs/design-variants/drafts/',
-    ),
-    # test-engineer — 테스트만 (역할 격리: 구현 소스 write 금지). 언어 중립 테스트 컨벤션을
-    # 디렉토리(tests/·test/·spec/·__tests__/)와 파일명(test_*.py·*_test.{go,rb,..}·
-    # *.test.{ts,..}·*Test(s).{java,kt,cs,php}·*_spec.rb 등)으로 포괄.
-    # 기존 JS/TS 전용 패턴(src/__tests__/·apps/*/tests/ 등)은 아래 광범위 패턴에 흡수됨
-    # (test_test_engineer_js_ts_regression 회귀 가드가 보존 검증).
-    "test-engineer": (
-        # 테스트 디렉토리 — 안의 모든 파일이 테스트 (언어 다수)
-        r'(^|/)tests?/',           # tests/ · test/ — Python·Rust·PHP·JVM(src/test/)·JS·일반
-        r'(^|/)spec/',             # Ruby RSpec, JS Jasmine
-        r'(^|/)__tests__/',        # JS/TS jest — 어디든
-        # 테스트 파일명 — 디렉토리 밖 테스트 (언어별 컨벤션)
-        r'(^|/)test_[^/]+\.py$',                          # Python test_*.py
-        r'(^|/)[^/]+_test\.(py|go|rb|dart|exs?)$',        # Python·Go·Ruby·Dart·Elixir *_test.*
-        r'(^|/)[^/]+_spec\.rb$',                          # Ruby *_spec.rb
-        r'(^|/)[^/]+\.test\.[jt]sx?$',                    # JS/TS *.test.*
-        r'(^|/)[^/]+\.spec\.[jt]sx?$',                    # JS/TS *.spec.*
-        r'(^|/)[^/]+Tests?\.(java|kt|kts|scala|cs|php)$', # JVM·C#·PHP *Test(s).*
-        r'(^|/)conftest\.py$',                            # pytest 픽스처 관례 파일 (#705)
     ),
     # ux-architect — 화면 플로우/와이어프레임 + design system token (agents/ux-architect 권한 경계).
     # ux-flow 는 epic 단위가 canonical (docs/epics/.../ux-flow.md — /design 흐름).
@@ -203,29 +189,23 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
     "product-acceptance": (),
 }
 
-# build-worker — engineer ∪ test-engineer (agents/build-worker.md 권한 경계).
-# 합집합으로 정의해 engineer / test-engineer 패턴 변경 시 자동 동기화 (drift 방지).
-# 키 부재 시 "미정의 agent = 통과" fallback 으로 빠져 /impl-loop 핵심 mutation agent 의
-# 경계가 무력화되던 결함(#597) 수정. (run_dir prose self-write 는 RUN_DIR_PROSE_ALLOW carve-out.)
-ALLOW_MATRIX["build-worker"] = ALLOW_MATRIX["engineer"] + ALLOW_MATRIX["test-engineer"]
-
 # ── 코드 agent 전용영역 deny (#694 codex P2) ───────────────────────
-# engineer / test-engineer / build-worker 의 언어 중립 ALLOW 패턴(lib/·internal/·cmd/·
+# build-worker의 언어 중립 ALLOW 패턴(lib/·internal/·cmd/·
 # tests?/·spec/·test_*.py 등)은 re.search 라 docs/ 하위 동명 디렉토리(docs/internal/·
-# docs/spec/·docs/tests/)나 docs 안 테스트 파일명을 *우회 허용* 한다. docs/ 는 architect,
+# docs/spec/·docs/tests/)나 docs 안 테스트 파일명을 *우회 허용* 한다. docs/ 는 설계 agent,
 # docs/design-variants/ 는 canvas-design/main 전용이고, drafts 만 designer 전용이므로
 # 코드 agent 의 write 를 ALLOW 검사보다 *먼저* 차단해 역할 경계를 지킨다.
 # (기존 src/ 패턴의 docs/src/ 우회도 함께 닫힌다.)
-_CODE_AGENTS: frozenset = frozenset({"engineer", "test-engineer", "build-worker"})
+_CODE_AGENTS: frozenset = frozenset({"build-worker"})
 # 루트(^) 앵커 — monorepo 의 동명 app/package(apps/docs/src·packages/docs/src)를 문서로
 # 오인해 정상 소스를 막지 않도록 루트 docs 트리만 deny (#694 codex P2). _normalize 가
 # ./·.. 를 해소하므로 ^ 앵커가 안전(우회 prefix 없음).
 _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
     # 다른 역할 전용 산출 영역 — 루트(^) 앵커 (monorepo 동명 패키지 apps/docs/src 는 소스라 허용).
-    r'^docs/',            # architect / ux-architect / tech-reviewer 전용
+    r'^docs/',            # 설계/UX/tech-review agent 전용
     r'^design-variants/', # legacy root design variants — 사용 금지
-    # 의존성 / 빌드 산출 트리 — 누구도 직접 write 하지 않는다. engineer 의 (^|/)src/ 와
-    # test-engineer 의 (^|/)tests?/·spec/ 가 이 트리 안 src/tests 를 *중첩* 매칭하던 우회를
+    # 의존성 / 빌드 산출 트리 — 누구도 직접 write 하지 않는다. build-worker의
+    # source/test 패턴이 이 트리 안 src/tests 를 *중첩* 매칭하던 우회를
     # 차단 (codex P1/P2). 언어 전반의 보편 집합 — 프로젝트 고유 추가는 #696 override.
     #
     # 두 그룹으로 나눈다 (codex P2 round10):
@@ -245,13 +225,13 @@ _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
 
 
 # ── architect 계열 폐기된 docs 산출물 deny (#810) ────────────────
-# architect / module-architect / system-architect 는 새 전역 문서 drift 를 막기 위해
+# module-architect / system-architect 는 새 전역 문서 drift 를 막기 위해
 # docs/ 전체를 broad allow 한다. 대신 root-flat legacy epic 산출물, 폐기된 ADR 위치,
 # canvas-design 확정본 영역만 ALLOW 검사 전에 좁게 차단한다.
 # ALLOW 검사 전에 좁게 차단한다. root docs/architecture.md·docs/tech-review.md 등 전역
 # 영속 산출물은 계속 허용.
 _ARCHITECT_AGENTS: frozenset = frozenset(
-    {"architect", "module-architect", "system-architect"}
+    {"module-architect", "system-architect"}
 )
 _ARCHITECT_ROOT_FLAT_DENY: tuple[str, ...] = (
     r'^docs/stories\.md$',
@@ -268,9 +248,6 @@ _ARCHITECT_ROOT_FLAT_DENY: tuple[str, ...] = (
 READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
     "designer": (
         r'(^|/)src/',
-    ),
-    "test-engineer": (
-        # impl 외 src 읽기 금지 — domain 문서 격리. 실 적용은 후속 강화.
     ),
 }
 
@@ -678,7 +655,7 @@ def check_write_allowed(
     # 프로젝트 add 로도 write 를 열 수 없다 (#696 codex P2). "검증자는 자기가 검증하는
     # 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는
     # 경계다 — add 로 mutation agent 로 승격시키면 gate forge 위험. 이슈가 "프로젝트
-    # 감수" 로 연 것은 mutation agent 내부 경계(engineer 의 tests/)이지 검증자 승격이 아니다.
+    # 감수" 로 연 것은 mutation agent 내부 경계(build-worker의 tests/)이지 검증자 승격이 아니다.
     if allowed == ():
         return (
             f"{agent} 는 write-zero(판정/검증 전용) — 프로젝트 boundary add 로도 "

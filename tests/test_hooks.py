@@ -438,16 +438,6 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         active[self.rid] = slot
         update_live(self.sid, base_dir=self.base, active_runs=active)
 
-    def test_begin_step_allows_dead_engineer_reference_without_design_artifact(self) -> None:
-        message = evaluate_order_gate_for_step(
-            self.sid,
-            self.rid,
-            "engineer",
-            "IMPL",
-            base_dir=self.base,
-        )
-        self.assertIsNone(message)
-
     def test_begin_step_blocks_build_worker_without_design_artifact(self) -> None:
         message = evaluate_order_gate_for_step(
             self.sid,
@@ -666,7 +656,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
             check=True,
         )
 
-    def test_begin_step_blocks_design_doc_scope_outside_engineer_boundary(self) -> None:
+    def test_begin_step_blocks_design_doc_scope_outside_worker_boundary(self) -> None:
         doc = self._write_impl_plan("- gradle/libs.versions.toml")
         self._record_design_doc_for_gate(doc)
 
@@ -845,8 +835,8 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         mark_run_blocked(
             self.sid,
             self.rid,
-            category="engineer_boundary",
-            agent="engineer",
+            category="worker_boundary",
+            agent="build-worker",
             mode="IMPL",
             provider="codex-headless",
             reason="hooks/catastrophic-gate.sh: write denied",
@@ -862,7 +852,7 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
         )
         self.assertIsNotNone(message)
         self.assertIn("[순서 차단 훅: headless boundary BLOCK]", message or "")
-        self.assertIn("engineer_boundary", message or "")
+        self.assertIn("worker_boundary", message or "")
         self.assertIn("hooks/catastrophic-gate.sh", message or "")
 
     def test_begin_step_blocks_after_ledger_only_boundary_block_event(self) -> None:
@@ -870,8 +860,8 @@ class ProviderAgnosticBeginStepOrderGateTests(_PreToolBase):
             self.sid,
             self.rid,
             "blocked",
-            category="engineer_boundary",
-            agent="engineer",
+            category="worker_boundary",
+            agent="build-worker",
             mode="IMPL",
             provider="codex-headless",
             reason="hooks/catastrophic-gate.sh: write denied",
@@ -962,8 +952,7 @@ class CatastrophicBuildWorkerLiteLaneTests(_PreToolBase):
 
 
 class CatastrophicImplValidatorTests(_PreToolBase):
-    def test_no_engineer_write_allows(self) -> None:
-        # engineer 호출 흔적 없으면 통과
+    def test_outside_active_step_allows(self) -> None:
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("impl-validator", ""),
             cc_pid=self.cc_pid,
@@ -971,7 +960,7 @@ class CatastrophicImplValidatorTests(_PreToolBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_engineer_write_without_prior_validator_allows(self) -> None:
+    def test_matching_current_step_allows(self) -> None:
         self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("impl-validator", ""),
@@ -989,32 +978,6 @@ class CatastrophicImplValidatorTests(_PreToolBase):
             base_dir=self.base,
         )
         self.assertEqual(rc, 0)
-
-    def test_engineer_write_with_prior_impl_validator_pass_still_allows(self) -> None:
-        (self.run_path / "impl-validator.md").write_text(
-            "## 결론\nPASS\n", encoding="utf-8",
-        )
-        self._begin_step("impl-validator")
-        rc = handle_pretooluse_agent(
-            stdin_data=self._payload("impl-validator", ""),
-            cc_pid=self.cc_pid,
-            base_dir=self.base,
-        )
-        self.assertEqual(rc, 0)
-
-    def test_engineer_write_with_prior_impl_validator_occurrence_pass_allows(self) -> None:
-        # occurrence (재호출) 도 인정
-        (self.run_path / "impl-validator-2.md").write_text(
-            "## 결론\nPASS\n", encoding="utf-8",
-        )
-        self._begin_step("impl-validator")
-        rc = handle_pretooluse_agent(
-            stdin_data=self._payload("impl-validator", ""),
-            cc_pid=self.cc_pid,
-            base_dir=self.base,
-        )
-        self.assertEqual(rc, 0)
-
 
 # ---------------------------------------------------------------------------
 # module-architect — design 안 first call / thin bootstrap 이후 진입 / opt-in system checkpoint 이후 재진입 모두
@@ -1294,7 +1257,7 @@ class StrictConveyorGateTests(_PreToolBase):
         )
         self.assertEqual(rc, 1)
 
-    def test_impl_lite_pr_reviewer_allows_without_code_validator_when_no_engineer_step(self) -> None:
+    def test_impl_lite_pr_reviewer_allows_without_code_validator_when_no_build_worker_step(self) -> None:
         self._begin_step("impl-validator")
         rc = handle_pretooluse_agent(
             stdin_data=self._payload("impl-validator"),
@@ -1336,9 +1299,9 @@ class StrictConveyorGateTests(_PreToolBase):
 
     def test_blocks_agent_mode_mismatch(self) -> None:
         # mode 가 *실제로 실린* 경우(인위적)엔 여전히 불일치 차단 — 방어 유지.
-        self._begin_step("engineer", "IMPL")
+        self._begin_step("build-worker", "IMPL")
         rc = handle_pretooluse_agent(
-            stdin_data=self._payload("engineer", "POLISH"),
+            stdin_data=self._payload("build-worker", "POLISH"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -1569,7 +1532,7 @@ class RidResolutionTests(unittest.TestCase):
         rc = handle_pretooluse_agent(
             stdin_data={
                 "sessionId": self.sid,
-                "tool_input": {"subagent_type": "engineer", "mode": "IMPL"},
+                "tool_input": {"subagent_type": "build-worker", "mode": "IMPL"},
             },
             cc_pid=None,
             base_dir=self.base,
@@ -1585,7 +1548,7 @@ class RidResolutionTests(unittest.TestCase):
 class SilentAllowWithoutSessionTests(_PreToolBase):
     def test_no_session_id_silent(self) -> None:
         rc = handle_pretooluse_agent(
-            stdin_data={"tool_input": {"subagent_type": "engineer", "mode": "IMPL"}},
+            stdin_data={"tool_input": {"subagent_type": "build-worker", "mode": "IMPL"}},
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -1676,7 +1639,7 @@ class _FileOpFixtureMixin:
         super().tearDown()
 
     def _file_op_payload(
-        self, tool_name: str, *, agent_type: str | None = "engineer", **tool_input
+        self, tool_name: str, *, agent_type: str | None = "build-worker", **tool_input
     ) -> dict:
         payload = {
             "sessionId": self.sid,
@@ -1702,8 +1665,8 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_engineer_blocked_on_infra_edit(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+    def test_build_worker_blocked_on_infra_edit(self) -> None:
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload(
                 "Edit", file_path="hooks/catastrophic-gate.sh"
@@ -1713,8 +1676,8 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
         )
         self.assertEqual(rc, 1)
 
-    def test_engineer_allowed_on_src_edit(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+    def test_build_worker_allowed_on_src_edit(self) -> None:
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload("Edit", file_path="src/foo.ts"),
             cc_pid=self.cc_pid,
@@ -1722,8 +1685,8 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
         )
         self.assertEqual(rc, 0)
 
-    def test_engineer_blocked_on_random_path(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+    def test_build_worker_blocked_on_random_path(self) -> None:
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload("Write", file_path="README.md"),
             cc_pid=self.cc_pid,
@@ -1731,8 +1694,8 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
         )
         self.assertEqual(rc, 1)
 
-    def test_engineer_bash_sed_blocks_infra(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+    def test_build_worker_bash_sed_blocks_infra(self) -> None:
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload(
                 "Bash", command="sed -i 's/x/y/' hooks/foo.sh"
@@ -1743,7 +1706,7 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
         self.assertEqual(rc, 1)
 
     def test_bash_no_indicator_passes(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload("Bash", command="ls -la docs/"),
             cc_pid=self.cc_pid,
@@ -1753,7 +1716,7 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
 
     def test_bash_git_push_blocked(self) -> None:
         # #597 커밋5 — sub-agent 의 git push 차단.
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload("Bash", command="git push -u origin x"),
             cc_pid=self.cc_pid,
@@ -1762,7 +1725,7 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
         self.assertEqual(rc, 1)
 
     def test_bash_gh_issue_create_blocked(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload(
                 "Bash", command="gh issue create --title x --body y"
@@ -1773,7 +1736,7 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
         self.assertEqual(rc, 1)
 
     def test_bash_gh_readonly_passes(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload(
                 "Bash", command="gh issue list --state open"
@@ -1785,11 +1748,11 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
 
     def test_mcp_github_pr_mutation_blocked(self) -> None:
         # #597 커밋5 — sub-agent 의 GitHub MCP PR/repo mutation 차단.
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data={
                 "sessionId": self.sid,
-                "agent_type": "engineer",
+                "agent_type": "build-worker",
                 "tool_name": "mcp__github__merge_pull_request",
                 "tool_input": {"pullNumber": 1},
             },
@@ -1814,11 +1777,11 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
         self.assertEqual(rc, 0)
 
     def test_mcp_github_read_passes(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data={
                 "sessionId": self.sid,
-                "agent_type": "engineer",
+                "agent_type": "build-worker",
                 "tool_name": "mcp__github__get_issue",
                 "tool_input": {"issue_number": 5},
             },
@@ -1829,7 +1792,7 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
 
     def test_opt_out_marker_bypasses_bash_mutation(self) -> None:
         # codex P2 (round6) — .no-dcness-guard 면 git push 도 통과 (opt-out 일관성).
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         (self.base / ".no-dcness-guard").write_text("")
         try:
             rc = handle_pretooluse_file_op(
@@ -1842,13 +1805,13 @@ class FileOpHookTests(_FileOpFixtureMixin, _PreToolBase):
             (self.base / ".no-dcness-guard").unlink()
 
     def test_opt_out_marker_bypasses_mcp_mutation(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         (self.base / ".no-dcness-guard").write_text("")
         try:
             rc = handle_pretooluse_file_op(
                 stdin_data={
                     "sessionId": self.sid,
-                    "agent_type": "engineer",
+                    "agent_type": "build-worker",
                     "tool_name": "mcp__github__merge_pull_request",
                     "tool_input": {"pullNumber": 1},
                 },
@@ -1914,7 +1877,7 @@ class PostToolUseAgentClearTests(_PreToolBase):
     def test_clears_active_agent(self) -> None:
         update_live(
             self.sid, base_dir=self.base,
-            active_agent="engineer", active_mode="IMPL",
+            active_agent="build-worker", active_mode="IMPL",
         )
         rc = handle_posttooluse_agent(
             stdin_data={"sessionId": self.sid},
@@ -1960,7 +1923,7 @@ class FileOpTraceTests(_PreToolBase):
         super().tearDown()
 
     def _payload_file(
-        self, tool_name: str, *, agent_type: str | None = "engineer", **tool_input
+        self, tool_name: str, *, agent_type: str | None = "build-worker", **tool_input
     ) -> dict:
         payload = {
             "sessionId": self.sid,
@@ -1972,7 +1935,7 @@ class FileOpTraceTests(_PreToolBase):
         return payload
 
     def test_pre_trace_appended_on_pass(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_file("Edit", file_path="src/foo.py"),
             cc_pid=self.cc_pid,
@@ -1982,12 +1945,12 @@ class FileOpTraceTests(_PreToolBase):
         entries = read_trace(self.sid, self.rid, base_dir=self.base)
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0]["phase"], "pre")
-        self.assertEqual(entries[0]["agent"], "engineer")
+        self.assertEqual(entries[0]["agent"], "build-worker")
         self.assertEqual(entries[0]["tool"], "Edit")
         self.assertEqual(entries[0]["input"], "src/foo.py")
 
     def test_no_trace_on_block(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_file("Edit", file_path="hooks/foo.sh"),
             cc_pid=self.cc_pid,
@@ -2011,7 +1974,7 @@ class FileOpTraceTests(_PreToolBase):
         self.assertEqual(entries, [])
 
     def test_bash_input_in_trace(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_file("Bash", command="ls -la docs/"),
             cc_pid=self.cc_pid,
@@ -2023,7 +1986,7 @@ class FileOpTraceTests(_PreToolBase):
         self.assertEqual(entries[0]["input"], "ls -la docs/")
 
     def test_long_input_truncated(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         long_cmd = "echo " + "x" * 500
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_file("Bash", command=long_cmd),
@@ -2043,7 +2006,7 @@ class _PostFileOpFixtureMixin:
         tool_name: str,
         tool_response: dict,
         *,
-        agent_type: str | None = "engineer",
+        agent_type: str | None = "build-worker",
         **tool_input,
     ) -> dict:
         payload = {
@@ -2061,7 +2024,7 @@ class PostToolUseFileOpTests(_PostFileOpFixtureMixin, _PreToolBase):
     """handle_posttooluse_file_op — sub 행동 post trace append."""
 
     def test_post_trace_appended(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_posttooluse_file_op(
             stdin_data=self._post_payload(
                 "Bash",
@@ -2093,7 +2056,7 @@ class PostToolUseFileOpTests(_PostFileOpFixtureMixin, _PreToolBase):
         self.assertEqual(entries, [])
 
     def test_post_records_is_error(self) -> None:
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_posttooluse_file_op(
             stdin_data=self._post_payload(
                 "Bash",
@@ -2143,7 +2106,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
         update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
-                "Edit", "engineer", file_path="src/foo.ts"
+                "Edit", "build-worker", file_path="src/foo.ts"
             ),
             cc_pid=self.cc_pid,
             base_dir=self.base,
@@ -2152,7 +2115,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
 
     def test_payload_agent_type_overrides_active_agent_block(self):
         # active_agent=engineer(src 허용) 인데 payload agent_type=impl-validator → impl-validator 로 판정 → src 차단.
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
                 "Edit", "impl-validator", file_path="src/foo.ts"
@@ -2167,7 +2130,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
         # agent_type 있으면 sub 로 인지 → 경계 강제. 단일 슬롯 의존 시 BUG: 메인으로 오인 통과.
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
-                "Write", "engineer", file_path="README.md"
+                "Write", "build-worker", file_path="README.md"
             ),
             cc_pid=self.cc_pid,
             base_dir=self.base,
@@ -2176,7 +2139,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
 
     def test_no_agent_type_does_not_trust_shared_active_agent(self):
         # payload 자기 식별이 없으면 동시 실행에 취약한 공유 슬롯을 권한 입력으로 쓰지 않는다.
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._file_op_payload(
                 "Write", agent_type=None, file_path="README.md"
@@ -2202,7 +2165,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
         update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
-                "Read", "engineer", file_path="src/foo.ts"
+                "Read", "build-worker", file_path="src/foo.ts"
             ),
             cc_pid=self.cc_pid,
             base_dir=self.base,
@@ -2211,7 +2174,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
         entries = read_trace(self.sid, self.rid, base_dir=self.base)
         pre = [e for e in entries if e.get("phase") == "pre"]
         self.assertTrue(pre)
-        self.assertEqual(pre[-1]["agent"], "engineer")
+        self.assertEqual(pre[-1]["agent"], "build-worker")
 
     def test_namespaced_payload_agent_type_enforced(self):
         # issue #598 codex P1 — namespaced agent_type(dcness:impl-validator)도 정규화되어 경계 강제.
@@ -2228,7 +2191,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
     def test_namespaced_payload_agent_type_allow(self):
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
-                "Edit", "dcness:engineer", file_path="src/foo.ts"
+                "Edit", "dcness:build-worker", file_path="src/foo.ts"
             ),
             cc_pid=self.cc_pid,
             base_dir=self.base,
@@ -2239,7 +2202,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
         # namespaced payload 의 trace agent 도 canonical 로 기록.
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
-                "Read", "dcness:engineer", file_path="src/foo.ts"
+                "Read", "dcness:build-worker", file_path="src/foo.ts"
             ),
             cc_pid=self.cc_pid,
             base_dir=self.base,
@@ -2248,7 +2211,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
         entries = read_trace(self.sid, self.rid, base_dir=self.base)
         pre = [e for e in entries if e.get("phase") == "pre"]
         self.assertTrue(pre)
-        self.assertEqual(pre[-1]["agent"], "engineer")  # dcness: prefix 제거
+        self.assertEqual(pre[-1]["agent"], "build-worker")  # dcness: prefix 제거
 
 
 class PostFileOpSelfAttributionTests(_PostFileOpFixtureMixin, _PreToolBase):
@@ -2259,26 +2222,26 @@ class PostFileOpSelfAttributionTests(_PostFileOpFixtureMixin, _PreToolBase):
         d = self._post_payload(
             "Bash", {"exit_code": 0, "stdout": "x"}, command="echo x"
         )
-        d["agent_type"] = "engineer"
+        d["agent_type"] = "build-worker"
         d["agent_id"] = "sub-eng-1"
         rc = handle_posttooluse_file_op(
             stdin_data=d, cc_pid=self.cc_pid, base_dir=self.base
         )
         self.assertEqual(rc, 0)
         entries = read_trace(self.sid, self.rid, base_dir=self.base)
-        self.assertEqual(entries[-1]["agent"], "engineer")  # active_agent(impl-validator) 아님
+        self.assertEqual(entries[-1]["agent"], "build-worker")  # active_agent(impl-validator) 아님
 
     def test_post_trace_records_with_payload_only(self):
         # active_agent 미설정이라도 payload agent_type 있으면 trace 기록.
         d = self._post_payload("Bash", {"exit_code": 0}, command="ls")
-        d["agent_type"] = "engineer"
+        d["agent_type"] = "build-worker"
         rc = handle_posttooluse_file_op(
             stdin_data=d, cc_pid=self.cc_pid, base_dir=self.base
         )
         self.assertEqual(rc, 0)
         entries = read_trace(self.sid, self.rid, base_dir=self.base)
         self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0]["agent"], "engineer")
+        self.assertEqual(entries[0]["agent"], "build-worker")
 
 
 # ---------------------------------------------------------------------------
@@ -2337,12 +2300,12 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
     def test_clears_active_agent_still_works(self):
         update_live(
             self.sid, base_dir=self.base,
-            active_agent="engineer", active_mode="IMPL",
+            active_agent="build-worker", active_mode="IMPL",
         )
-        self._simulate_pre("engineer", mode="IMPL")
-        self._seed_trace("engineer", ["Read", "Bash"])
+        self._simulate_pre("build-worker", mode="IMPL")
+        self._seed_trace("build-worker", ["Read", "Bash"])
         rc = handle_posttooluse_agent(
-            stdin_data=self._post_payload("engineer"),
+            stdin_data=self._post_payload("build-worker"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -2365,7 +2328,7 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         """#272 W3 진짜 회귀 — 직전 step (engineer) 의 trace 가 *다음* sub 의
         histogram 에 새지 않음. 시각 범위 매칭의 핵심."""
         # 직전 engineer 가 file-op 다수 했음 (이미 끝남)
-        self._seed_trace("engineer", ["Read", "Edit", "Edit", "Bash"])
+        self._seed_trace("build-worker", ["Read", "Edit", "Edit", "Bash"])
         # 시각 진행 보장 — _now_iso 1초 단위라 sleep 1.1s 면 충분
         import time
         time.sleep(1.1)
@@ -2390,11 +2353,11 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         # 끝난 agent(engineer)의 histogram 에 섞이지 않음 (시각 범위 + agent 필터).
         import io
         import contextlib
-        self._simulate_pre("engineer", tool_use_id="toolu_eng")
+        self._simulate_pre("build-worker", tool_use_id="toolu_eng")
         for tool in ["Read", "Edit"]:
             trace_append(
                 self.sid, self.rid,
-                {"phase": "pre", "agent": "engineer", "tool": tool},
+                {"phase": "pre", "agent": "build-worker", "tool": tool},
                 base_dir=self.base,
             )
         for tool in ["Bash", "Bash", "Grep"]:
@@ -2406,7 +2369,7 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             rc = handle_posttooluse_agent(
-                stdin_data=self._post_payload("engineer", tool_use_id="toolu_eng"),
+                stdin_data=self._post_payload("build-worker", tool_use_id="toolu_eng"),
                 cc_pid=self.cc_pid, base_dir=self.base,
             )
         self.assertEqual(rc, 0)
@@ -2421,13 +2384,13 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         """tool_use_id 가 PreToolUse 와 PostToolUse 사이 다르면 stderr WARN."""
         import io
         import contextlib
-        self._simulate_pre("engineer", tool_use_id="toolu_pre")
-        self._seed_trace("engineer", ["Read", "Edit"])
+        self._simulate_pre("build-worker", tool_use_id="toolu_pre")
+        self._seed_trace("build-worker", ["Read", "Edit"])
         buf = io.StringIO()
         with contextlib.redirect_stderr(buf):
             rc = handle_posttooluse_agent(
                 stdin_data=self._post_payload(
-                    "engineer", tool_use_id="toolu_post_DIFFERENT",
+                    "build-worker", tool_use_id="toolu_post_DIFFERENT",
                 ),
                 cc_pid=self.cc_pid,
                 base_dir=self.base,
@@ -2441,14 +2404,14 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
     def test_pending_agent_cleared_after_post(self):
         """PostToolUse Agent 후 live.json.active_runs[rid].pending_agents 제거."""
         from harness.session_state import read_live as _rl
-        self._simulate_pre("engineer", tool_use_id="toolu_x")
+        self._simulate_pre("build-worker", tool_use_id="toolu_x")
         live = _rl(self.sid, base_dir=self.base)
         slot = live.get("active_runs", {}).get(self.rid, {})
         self.assertIn("pending_agents", slot)
         self.assertIn("toolu_x", slot["pending_agents"])
-        self._seed_trace("engineer", ["Read"])
+        self._seed_trace("build-worker", ["Read"])
         handle_posttooluse_agent(
-            stdin_data=self._post_payload("engineer", tool_use_id="toolu_x"),
+            stdin_data=self._post_payload("build-worker", tool_use_id="toolu_x"),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
@@ -2475,7 +2438,7 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
     def test_set_two_tool_use_ids_both_present(self):
         from harness.session_state import set_pending_agent
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t1", sub_type="engineer",
+            self.sid, self.rid, tool_use_id="t1", sub_type="build-worker",
             base_dir=self.base,
         )
         set_pending_agent(
@@ -2485,13 +2448,13 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
         slot = read_live(self.sid, base_dir=self.base)["active_runs"][self.rid]
         self.assertIn("pending_agents", slot)
         self.assertEqual(set(slot["pending_agents"]), {"t1", "t2"})
-        self.assertEqual(slot["pending_agents"]["t1"]["sub_type"], "engineer")
+        self.assertEqual(slot["pending_agents"]["t1"]["sub_type"], "build-worker")
         self.assertEqual(slot["pending_agents"]["t2"]["sub_type"], "impl-validator")
 
     def test_clear_by_tool_use_id_pops_only_match(self):
         from harness.session_state import set_pending_agent, clear_pending_agent
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t1", sub_type="engineer",
+            self.sid, self.rid, tool_use_id="t1", sub_type="build-worker",
             base_dir=self.base,
         )
         set_pending_agent(
@@ -2508,7 +2471,7 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
     def test_clear_last_removes_key(self):
         from harness.session_state import set_pending_agent, clear_pending_agent
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t1", sub_type="engineer",
+            self.sid, self.rid, tool_use_id="t1", sub_type="build-worker",
             base_dir=self.base,
         )
         clear_pending_agent(
@@ -2521,7 +2484,7 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
         # tool_use_id 미지정인데 슬롯 1개 → 폴백 pop (drift 시각 범위 보존).
         from harness.session_state import set_pending_agent, clear_pending_agent
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t1", sub_type="engineer",
+            self.sid, self.rid, tool_use_id="t1", sub_type="build-worker",
             base_dir=self.base,
         )
         popped = clear_pending_agent(self.sid, self.rid, base_dir=self.base)
@@ -2532,7 +2495,7 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
         # tool_use_id 미지정 + 여러 개 → 모호 → pop 안 함 (잘못된 슬롯 제거 방지).
         from harness.session_state import set_pending_agent, clear_pending_agent
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t1", sub_type="engineer",
+            self.sid, self.rid, tool_use_id="t1", sub_type="build-worker",
             base_dir=self.base,
         )
         set_pending_agent(
@@ -2548,7 +2511,7 @@ class PendingAgentsMultiSlotTests(_PreToolBase):
         # tool_use_id 매칭 없음 + 여러 개 → pop 안 함 (drift 폴백은 단일일 때만).
         from harness.session_state import set_pending_agent, clear_pending_agent
         set_pending_agent(
-            self.sid, self.rid, tool_use_id="t1", sub_type="engineer",
+            self.sid, self.rid, tool_use_id="t1", sub_type="build-worker",
             base_dir=self.base,
         )
         set_pending_agent(
@@ -2646,10 +2609,10 @@ class SubagentStopClearTests(_PreToolBase):
         from harness.hooks import handle_subagent_stop
         update_live(
             self.sid, base_dir=self.base,
-            active_agent="engineer", active_mode="IMPL",
+            active_agent="build-worker", active_mode="IMPL",
         )
         rc = handle_subagent_stop(
-            self._payload(agent_type="engineer"), base_dir=self.base
+            self._payload(agent_type="build-worker"), base_dir=self.base
         )
         self.assertEqual(rc, 0)
         live = read_live(self.sid, base_dir=self.base)
@@ -2658,18 +2621,18 @@ class SubagentStopClearTests(_PreToolBase):
 
     def test_keeps_slot_when_agent_type_absent(self):
         from harness.hooks import handle_subagent_stop
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_subagent_stop(self._payload(agent_type=""), base_dir=self.base)
         self.assertEqual(rc, 0)
         live = read_live(self.sid, base_dir=self.base)
-        self.assertEqual(live.get("active_agent"), "engineer")
+        self.assertEqual(live.get("active_agent"), "build-worker")
 
     def test_no_clobber_on_mismatch(self):
         # 동시 sub: active_agent=impl-validator 인데 engineer 의 SubagentStop → impl-validator 슬롯 보존.
         from harness.hooks import handle_subagent_stop
         update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_subagent_stop(
-            self._payload(agent_type="engineer"), base_dir=self.base
+            self._payload(agent_type="build-worker"), base_dir=self.base
         )
         self.assertEqual(rc, 0)
         live = read_live(self.sid, base_dir=self.base)
@@ -2678,7 +2641,7 @@ class SubagentStopClearTests(_PreToolBase):
     def test_noop_when_no_active_agent(self):
         from harness.hooks import handle_subagent_stop
         rc = handle_subagent_stop(
-            self._payload(agent_type="engineer"), base_dir=self.base
+            self._payload(agent_type="build-worker"), base_dir=self.base
         )
         self.assertEqual(rc, 0)
         live = read_live(self.sid, base_dir=self.base)
@@ -2687,9 +2650,9 @@ class SubagentStopClearTests(_PreToolBase):
     def test_clears_namespaced_agent_type(self):
         # issue #598 codex P1 — namespaced agent_type(dcness:engineer)도 정규화 후 매칭 clear.
         from harness.hooks import handle_subagent_stop
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_subagent_stop(
-            self._payload(agent_type="dcness:engineer"), base_dir=self.base
+            self._payload(agent_type="dcness:build-worker"), base_dir=self.base
         )
         self.assertEqual(rc, 0)
         live = read_live(self.sid, base_dir=self.base)
@@ -2951,24 +2914,24 @@ class PostToolUseAgentProseAutoStageTests(_PreToolBase):
         self.assertIn("item0_type=tool_result", stderr)
 
     def test_occurrence_increments_on_repeat(self) -> None:
-        self._set_current_step("engineer", None)
+        self._set_current_step("build-worker", None)
         # 첫 번째 current ledger receipt를 기록한다.
         first_prose = "## 결론\nPASS\n"
-        first_path = run_dir(self.sid, self.rid, base_dir=self.base) / "first-engineer.md"
+        first_path = run_dir(self.sid, self.rid, base_dir=self.base) / "first-build-worker.md"
         first_path.write_text(first_prose, encoding="utf-8")
         ledger.append_step_completed(
-            self.sid, self.rid, "engineer", None, "PROSE_LOGGED",
+            self.sid, self.rid, "build-worker", None, "PROSE_LOGGED",
             first_prose, first_path, base_dir=self.base,
         )
-        # 두 번째 sub 호출 → occurrence=1 → engineer-1.md
+        # 두 번째 sub 호출 → occurrence=1 → build-worker-1.md
         prose = "## 결론\nPASS\n"
         handle_posttooluse_agent(
-            stdin_data=self._payload_with_prose("engineer", "engineer", None, prose),
+            stdin_data=self._payload_with_prose("build-worker", "build-worker", None, prose),
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
         expected = (
-            session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "engineer-1.md"
+            session_dir(self.sid, base_dir=self.base) / "runs" / self.rid / "build-worker-1.md"
         )
         self.assertTrue(expected.exists())
 

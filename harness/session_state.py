@@ -661,7 +661,7 @@ def update_current_step(
     base_dir: Optional[Path] = None,
 ) -> None:
     """`active_runs[run_id].current_step` 갱신 + heartbeat (`last_confirmed_at`)."""
-    # #700 — current_step.agent 를 canonical 로 정규화 저장. namespaced(`dcness:engineer`)
+    # #700 — current_step.agent 를 canonical 로 정규화 저장. namespaced(`dcness:build-worker`)
     # 표기를 bare 이름으로 통일해 strict-conveyor 게이트 비교 + prose 파일명(staging/
     # end-step)이 표기 무관하게 일관되도록. agent 이름 검증 정규식(콜론 거부)을 바꾸지 않고
     # 정규화로 해소 (이슈 out-of-scope: 정규식 정책 변경).
@@ -675,7 +675,7 @@ def update_current_step(
 
     # DCN-CHG-20260430-30: stale current_step WARN — begin-step 호출 시 *기존*
     # current_step 의 last_confirmed_at 가 STALE_STEP_TTL_SEC 초과면 stderr WARN.
-    # I4 사례 — engineer step 후 end-step 누락 → 다음 begin-step 시 ledger receipt
+    # I4 사례 — worker step 후 end-step 누락 → 다음 begin-step 시 ledger receipt
     # 의 직전 step 누락 신호. 자동 보정 X (안전).
     prev_step = slot.get("current_step")
     prev_confirmed = slot.get("last_confirmed_at")
@@ -1069,7 +1069,7 @@ def _run_entry_point(
         return ""
 
 
-def _run_engineer_boundary_block_marker(
+def _run_worker_boundary_block_marker(
     session_id: str,
     run_id: str,
     *,
@@ -1077,7 +1077,7 @@ def _run_engineer_boundary_block_marker(
 ) -> Optional[Dict[str, Any]]:
     try:
         marker = _slot_for_run(session_id, run_id, base_dir=base_dir).get("blocked")
-        if isinstance(marker, dict) and marker.get("category") == "engineer_boundary":
+        if isinstance(marker, dict) and marker.get("category") == "worker_boundary":
             return marker
     except (OSError, ValueError):
         pass
@@ -1088,7 +1088,7 @@ def _run_engineer_boundary_block_marker(
         for event in reversed(ledger.read_events(session_id, run_id, base_dir=base_dir)):
             if (
                 event.get("event") == "blocked"
-                and event.get("category") == "engineer_boundary"
+                and event.get("category") == "worker_boundary"
             ):
                 return event
     except Exception:  # nosec B110
@@ -1106,7 +1106,7 @@ def _boundary_block_gate_message(marker: Dict[str, Any]) -> str:
         detail += f" raw_log={raw_log}"
     return (
         "[순서 차단 훅: headless boundary BLOCK] 이 run 은 "
-        "headless worker boundary BLOCK(category=engineer_boundary) 기록이 있어 "
+        "headless worker boundary BLOCK(category=worker_boundary) 기록이 있어 "
         "다음 step 을 시작할 수 없습니다. workspace diff 와 ledger marker 를 확인한 뒤 "
         "새 run 또는 명시적 수동 복구로 진행하세요."
         f"{detail}"
@@ -1134,7 +1134,7 @@ def evaluate_order_gate_for_step(
     norm_agent = normalize_agent_type(agent) or agent
     rd = run_dir(session_id, run_id, base_dir=base_dir)
 
-    boundary_block = _run_engineer_boundary_block_marker(
+    boundary_block = _run_worker_boundary_block_marker(
         session_id, run_id, base_dir=base_dir
     )
     if boundary_block:
