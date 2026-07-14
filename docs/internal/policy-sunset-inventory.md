@@ -4,11 +4,10 @@
 
 ## 재현 명령과 산출물
 
-한 명령이 Git tracked tree의 크기 지표, inventory schema·분류·후속 이슈 전수 배정, 전체 unit suite 실행시간을 함께 출력한다. untracked receipt와 현재 working copy의 새 파일은 revision 지표에 들어가지 않는다. suite도 지정 revision의 임시 detached worktree에서 실행해 dirty working tree를 격리한다. 측정 구현은 terminal 분류까지 반영된 pre-#1099 main `071146c`에 고정했으며 #1099 최종 재측정 뒤 one-shot 코드와 전용 테스트를 함께 퇴역했다.
+한 명령이 Git tracked tree의 크기 지표, inventory schema·분류·후속 이슈 전수 배정, 전체 unit suite 실행시간을 함께 출력한다. untracked receipt와 현재 working copy의 새 파일은 revision 지표에 들어가지 않는다. suite도 지정 revision의 임시 detached worktree에서 실행해 dirty working tree를 격리한다. 측정 구현은 terminal 분류까지 반영된 pre-#1099 main `071146c`에 고정했으며 #1099 최종 재측정 뒤 one-shot 구현과 전용 테스트를 퇴역했다. #1092의 명령 계약은 20줄 이하 replay shim으로 보존한다.
 
 ```sh
-git show 071146c:scripts/policy_cleanup_baseline.py | \
-python3.11 - --repo-root . \
+python3.11 scripts/policy_cleanup_baseline.py \
   --revision <comparison-revision> \
   --inventory docs/internal/policy-sunset-inventory.json \
   --run-unit-suite
@@ -18,7 +17,7 @@ python3.11 - --repo-root . \
 - 정책 slice 원장: [`policy-sunset-inventory.json`](policy-sunset-inventory.json)
 - 고정 출력: [`policy-sunset-baseline.json`](policy-sunset-baseline.json)
 
-측정 구현은 dcNess self에서만 쓴 일회성 내부 도구다. #1092~#1099 동안 marketplace release payload와 `init-dcness` 배포에서 제외했고, 최종 증거를 만든 뒤 구현 360줄·전용 테스트 219줄·release exclusion을 함께 제거했다. 재감사는 위 frozen source를 실행하므로 정의를 바꾸지 않는다.
+측정 구현은 dcNess self에서만 쓴 일회성 내부 도구다. #1092~#1099 동안 marketplace release payload와 `init-dcness` 배포에서 제외했고, 최종 증거를 만든 뒤 구현 360줄과 전용 테스트 219줄을 제거했다. 같은 경로에 남긴 16줄 replay shim은 Git object의 frozen source를 실행할 뿐 정의를 복제하거나 바꾸지 않으며 release exclusion도 유지한다.
 
 `major text`는 `.py`, `.mjs`, `.js`, `.sh`, `.md`, `.json`, `.yml`, `.yaml`, `.toml`이다. `code LOC`는 `harness/`, `scripts/`, `evals/` 아래 Python이고 `test LOC`는 `tests/` 아래 Python이다. test 함수는 Python AST에서 이름이 `test_`로 시작하는 함수·메서드를 센다. 대형 파일 수는 major text의 논리 LOC가 각각 500·1,000 이상인 파일 수다. compatibility 후보는 `제거 가능`과 `한시적 호환 필요` slice의 합이며 `현재 실사용`은 분모에는 남지만 감량 후보로 세지 않는다.
 
@@ -326,9 +325,9 @@ Safety invariant는 영향 경로를 달리해 보존한다. persisted state 관
 
 최종 main 재측정에서 #1092 baseline 69,865줄보다 #1098 merge 시점이 70,689줄로 824줄 많았다. 개별 cleanup의 순감만 나열해 이 차이를 숨기지 않고, 원인을 같은 정의로 분해했다. baseline을 재기 위해 추가한 `scripts/policy_cleanup_baseline.py`와 전용 테스트가 579줄을 차지했고, 병행 feature의 Python code/test 추가가 정책 cleanup의 감소분을 상쇄했다.
 
-#1099는 측정을 마친 one-shot 구현·테스트 579줄을 lifecycle 단위로 종료했다. 전수 symbol/doc scan에서 runtime caller가 0이고 테스트만 소비하던 `parallel_wave.fan_in_check`·`WorkerResult`·`FanInResult`도, 현행 독립 peer의 claim board·merge lock 계약과 분리해 구현 134줄과 fan-in 전용 테스트 순 145줄을 제거했다. 이 PR의 code+test는 70,689→69,831로 858줄 순감하며, #1092 baseline보다도 34줄 작다. 파일 분할은 없고 compatibility 후보는 baseline 15→최종 10이다.
+#1099는 측정을 마친 one-shot 구현 360줄과 전용 테스트 219줄을 lifecycle 단위로 종료하고, 동일 명령을 위한 16줄 replay shim만 보존했다. 전수 symbol/doc scan에서 runtime caller가 0이고 테스트만 소비하던 `parallel_wave.fan_in_check`·`WorkerResult`·`FanInResult`도, 현행 독립 peer의 claim board·merge lock 계약과 분리해 구현 134줄과 fan-in 전용 테스트 순 145줄을 제거했다. 이 PR의 code+test는 70,689→69,849로 840줄 순감하며, #1092 baseline보다도 16줄 작다. 파일 분할은 없고 compatibility 후보는 baseline 15→최종 10이다.
 
-`RUN-009`는 #1092 원장에서 누락된 single-session fan-in policy fossil이다. #1099에서 미분류 상태를 숨기지 않고 machine inventory에 추가한 뒤 곧바로 `퇴역 완료`로 닫았다. 현행 `compute_waves`, 별도 interactive peer, claim board, merge lock과 관련 safety test는 유지한다. one-shot 측정 구현도 public command·agent·mode·gate가 아니며, 제거 뒤 외부 배포물에는 fan-in symbol과 self-only 계측 코드가 모두 남지 않는다.
+`RUN-009`는 #1092 원장에서 누락된 single-session fan-in policy fossil이다. #1099에서 미분류 상태를 숨기지 않고 machine inventory에 추가한 뒤 곧바로 `퇴역 완료`로 닫았다. 현행 `compute_waves`, 별도 interactive peer, claim board, merge lock과 관련 safety test는 유지한다. one-shot 측정 구현과 replay shim은 public command·agent·mode·gate가 아니며, release exclusion 때문에 외부 배포물에는 fan-in symbol과 self-only 계측 코드가 모두 들어가지 않는다.
 
 ## 후속 범위 완전성
 
@@ -354,4 +353,4 @@ machine validator 결과는 30/30 entry가 정확히 하나의 정책 영역에 
 - replacement hygiene: 현행 writer와 legacy reader를 분리했고 새 writer가 legacy 형식을 생성한다고 판정한 항목은 없음
 - warning 경계: legacy marker 자체는 warning/후속 입력이며 소비자 증거 없이 dead code로 승격하지 않음
 
-새 public command·agent·mode·workflow·상설 hard gate는 만들지 않았다. baseline 스크립트는 #1092/#1099 비교 완료와 함께 퇴역했고, 현행 peer 배포 경로는 `harness/parallel_wave.py`의 `compute_waves` + `dcness-helper` claim board + `pr-finalize.sh` merge lock으로만 남는다.
+새 public command·agent·mode·workflow·상설 hard gate는 만들지 않았다. baseline의 360줄 구현은 #1092/#1099 비교 완료와 함께 퇴역했고, 같은 명령 경로의 16줄 replay shim만 self-only로 남겼다. 현행 peer 배포 경로는 `harness/parallel_wave.py`의 `compute_waves` + `dcness-helper` claim board + `pr-finalize.sh` merge lock으로만 남는다.

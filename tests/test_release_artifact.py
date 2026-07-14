@@ -59,6 +59,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "scripts/check_public_surface.mjs",
                 "scripts/hooks/cc-pre-commit.sh",
                 "scripts/launchd",
+                "scripts/policy_cleanup_baseline.py",
                 "scripts/release_artifact.json",
                 "scripts/release_artifact.py",
                 "scripts/setup_branch_protection.mjs",
@@ -66,7 +67,8 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "templates/CLAUDE.md",
             }.issubset(excluded)
         )
-        self.assertFalse((ROOT / "scripts/policy_cleanup_baseline.py").exists())
+        replay_shim = ROOT / "scripts/policy_cleanup_baseline.py"
+        self.assertLessEqual(len(replay_shim.read_text(encoding="utf-8").splitlines()), 20)
         self.assertEqual(contract["allowed_cache_metadata"], [".git", ".in_use"])
         self.assertIn("scripts/release_preflight.py", excluded)
         self.assertNotIn("scripts/loop_diagnose.py", excluded)

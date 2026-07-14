@@ -25,6 +25,7 @@
     "scripts/check_static_quality.sh",
     "scripts/hooks/cc-pre-commit.sh",
     "scripts/launchd",
+    "scripts/policy_cleanup_baseline.py",
     "scripts/release_preflight.py",
     "scripts/release_artifact.json",
     "scripts/release_artifact.py",
