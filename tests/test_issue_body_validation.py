@@ -179,16 +179,6 @@ class IssueBodyValidationTests(unittest.TestCase):
 
         self.assertEqual(0, result.returncode, result.stderr)
 
-    def test_close_preflight_rejects_unchecked_acceptance_criteria(self) -> None:
-        result = run_validator(
-            VALID_BODY,
-            "--acceptance-only",
-            "--require-complete",
-        )
-
-        self.assertEqual(1, result.returncode)
-        self.assertIn("unchecked acceptance criteria", result.stderr)
-
     def test_close_audit_rejects_unchecked_heading_acceptance_criteria(self) -> None:
         body = textwrap.dedent(
             """
@@ -224,23 +214,11 @@ class IssueBodyValidationTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("unchecked acceptance criteria remain: 1", result.stderr)
 
-    def test_close_preflight_accepts_checked_acceptance_criteria(self) -> None:
-        body = VALID_BODY.replace("- [ ]", "- [x]")
-
-        result = run_validator(
-            body,
-            "--acceptance-only",
-            "--require-complete",
-        )
-
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("PASS", result.stdout)
-
-    def test_close_audit_accepts_checked_legacy_unclassified_criteria(self) -> None:
+    def test_close_audit_routes_checked_legacy_unclassified_criteria_to_review(self) -> None:
         legacy_body = textwrap.dedent(
             """
             **Acceptance criteria:**
-            - [x] 기존 자동 검증 결과를 확인한다.
+            - [x] 정상 동작한다.
             - [x] 사용자가 최종 시각 결과를 확인한다.
             """
         ).strip()
@@ -252,9 +230,10 @@ class IssueBodyValidationTests(unittest.TestCase):
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("acceptance criteria complete (2)", result.stdout)
+        self.assertIn("REVIEW — legacy/unclassified", result.stdout)
+        self.assertNotIn("PASS", result.stdout)
 
-    def test_close_audit_allows_legacy_issue_without_acceptance_section(self) -> None:
+    def test_close_audit_routes_legacy_issue_without_acceptance_section_to_review(self) -> None:
         legacy_story_body = textwrap.dedent(
             """
             **As a** user,
@@ -272,7 +251,8 @@ class IssueBodyValidationTests(unittest.TestCase):
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("legacy/no AC", result.stdout)
+        self.assertIn("REVIEW — legacy/no AC", result.stdout)
+        self.assertNotIn("PASS", result.stdout)
 
     def test_acceptance_criterion_requires_agent_verification_class(self) -> None:
         body = VALID_BODY.replace(
@@ -327,7 +307,8 @@ class IssueBodyValidationTests(unittest.TestCase):
         )
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("acceptance criteria complete (2)", result.stdout)
+        self.assertIn("PASS — acceptance criteria complete (2)", result.stdout)
+        self.assertNotIn("REVIEW", result.stdout)
 
     def test_story_human_verification_checkbox_is_rejected(self) -> None:
         story_body = textwrap.dedent(
@@ -381,6 +362,18 @@ class IssueBodyValidationDocsTests(unittest.TestCase):
         self.assertIn("gh issue create", text)
         self.assertIn("GitHub UI", text)
         self.assertIn("hard gate", text)
+        self.assertIn("REVIEW", text)
+        self.assertIn("자동 close 권한이 아니다", text)
+
+        for relative in ("skills/impl/SKILL.md", "skills/impl-loop/SKILL.md"):
+            skill = (ROOT / relative).read_text(encoding="utf-8")
+            self.assertIn("검증 주체 미기재 legacy AC", skill, relative)
+            self.assertIn("추론·체크·재분류하지 않는다", skill, relative)
+            self.assertNotIn(
+                "검증 주체가 없는 legacy AC 는 `[command]`/`[agent-read]` 로 분류",
+                skill,
+                relative,
+            )
 
     def test_workflow_router_mentions_non_to_issue_agent_creation_still_validates(self) -> None:
         text = (ROOT / "docs" / "plugin" / "workflow-router.md").read_text(

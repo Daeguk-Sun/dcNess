@@ -202,10 +202,29 @@ PY
 | persisted run | `ledger.jsonl` 30개, `.steps.jsonl` 0개 | `RUN-001` 현행; 과거/cache 형식인 `RUN-002`는 종료 trigger 필요 |
 | routing config | schema 3이지만 retired `code-validator`, `pr-reviewer`, `test-engineer` key 잔존 | `ROUTE-002` migration 대상 실재 |
 | generated install | 프로젝트별 5개 대상 파일 보유량 `0/5, 2/5, 5/5, 0/5, 1/5` | partial install fallback인 `INST-002` 현행 |
-| stories | 3개 프로젝트의 `stories.md` 8개가 모두 Story AC heading 없는 구양식 | `LIFE-002` 한시 호환 |
+| stories | 3개 프로젝트의 `stories.md` 10개가 모두 Story AC 없는 구양식 | `LIFE-002` 한시 호환 |
+| open issue acceptance | 1개 프로젝트의 open issue 14개: 검증 주체 미기재 8, no-AC 6; 무분류 중 사람 판단 가능 항목 5 | `LIFE-003` REVIEW reader 한시 호환 |
 | legacy `design-variants/` prefix | 등록 프로젝트 directory·markdown reference 모두 0건 | `INST-004` 제거 trigger 충족·퇴역 완료 |
 
 절대경로·프로젝트명은 근거가 아니라 민감한 host 정보라 기록하지 않았다. 후속 이슈는 같은 registry 순번과 해당 이슈의 확인 명령으로 재조사한다.
+
+### #1097 story·issue acceptance cleanup 상태 전이
+
+신규 writer와 legacy reader를 분리해 조사했다. typed Story AC·issue checklist는 2026-07-11 도입됐고 신규 생성기는 `[command]`/`[agent-read]`만 checklist로 만든다. 반면 등록 프로젝트에는 2026-05-24~2026-07-03에 생성된 legacy stories 10개와 2026-06-05~2026-06-21에 생성된 open legacy issue 14개가 남아 reader 제거 trigger를 충족하지 못했다.
+
+`LIFE-003` reader는 유지하되 자동 close 신호만 퇴역했다. 기존 `PASS — legacy/no AC`와 checked unclassified AC의 일반 `PASS`, impl/impl-loop의 무분류 AC 자동 재분류·본문 반영 지침을 제거했다. 이제 legacy body는 exit 0 `REVIEW`로 읽혀 migration 없는 접근은 유지하지만 agent 자동 close 권한을 주지 않는다. typed 전항목 완료 body만 `PASS`이며, legacy 의미·사람 판단은 agent가 추론·체크·재분류하지 않고 human verification으로 넘긴다.
+
+| ID | 생성 시기·실제 소비자 | 지원 이유 | 제거 trigger | 확인 fixture |
+|---|---|---|---|---|
+| LIFE-001 | 2026-07-11 도입; spec template, story issue generator, to-issue, pre-create/close audit | 신규 작성이 typed agent-verifiable checklist만 생성하는 현행 계약 | 대체 schema와 writer/reader migration 승인 | create-issue, issue-body, spec-story tests |
+| LIFE-002 | 확인 가능 2026-05-24~2026-07-03; 3/5 프로젝트 stories 10개 | 기존 설계·acceptance를 false fail하거나 coverage PASS로 오인하지 않음 | typed migration 뒤 legacy scan 0 | AC coverage와 product-acceptance fixture |
+| LIFE-003 | 2026-06-05~2026-06-21; open issue 14개(무분류 8, no-AC 6) | migration 없이 읽되 사람·불명확 의미의 agent 자동 close를 차단 | typed migration 또는 human-confirmed close 뒤 scan 0 | issue-body typed PASS / legacy REVIEW fixture |
+| LIFE-004 | 2026-07-11 도입; 모든 신규 issue와 close workflow | 사람 판단을 agent-verifiable checkbox에서 분리 | 동등한 human safety 계약 승인 | issue human-verification fixture |
+| LIFE-005 | 2026-07-11 도입; design pre-final과 architecture-validator | 실제 문서 읽기 판정을 형식 hard fail로 대체하지 않음 | 동등한 trace reader 통합 | AC coverage advisory fixture |
+
+compatibility 후보는 `LIFE-002`와 `LIFE-003` 두 개로 유지된다. 둘 다 활성 소비자가 0이 아니므로 감소시키지 않았으며, 대신 `LIFE-003` 안의 자동 PASS·agent inference writer surface만 구현·테스트·skill·SSOT에서 함께 제거했다. 신규 public command·agent·mode·gate는 만들지 않았고 변경은 plugin 본체 `scripts/**`, `skills/**`, `docs/plugin/**`를 통해 다음 plugin update에 도달한다. `/init-dcness`가 복사하는 generated file은 바뀌지 않는다.
+
+비식별 fixture 재생 결과 legacy stories는 `10/10 REVIEW`, completed-copy open legacy issue는 `14/14 REVIEW`였고 `PASS`·실패는 각각 0건이었다. lifecycle script+test diff(`check_issue_body`, `report_ac_coverage`, 대응 두 test)는 31줄 추가·32줄 삭제로 1 LOC 순감이다. 전체 compatibility 후보는 10개, lifecycle 후보는 2개로 유지되며 감소 불가 근거는 위 `LIFE-002`·`LIFE-003` 활성 소비자 수다.
 
 ## 한시적 호환 4요소 감사
 
@@ -222,7 +241,7 @@ PY
 | RUN-008 | legacy stored verdict + prose sentinel | 과거 FAIL 비율 오판 방지 | verdict migration + old 표본 0 | run-review/aggregate tests |
 | ROUTE-002 | schema 1·2와 retired route keys | local config를 조용히 폐기하지 않음 | config migration + scan 0 | routing doctor + tests |
 | LIFE-002 | Story AC 없는 stories | 소급 의미 추론·false fail 방지 | typed AC migration + scan 0 | AC coverage + fixture |
-| LIFE-003 | checklist 없는 legacy issue | false close·영구 close 불가 방지 | 열린 issue migration/지원 종료 | issue close audit + fixture |
+| LIFE-003 | checklist 없거나 검증 주체 미기재인 legacy issue | migration 없는 read + agent false close 방지 | typed migration/human-confirmed close + scan 0 | typed PASS·legacy REVIEW close fixture |
 
 종료 날짜를 근거 없이 임의 지정하지 않았다. trigger를 만족하지 못한 채 reader를 제거하는 것은 #1089 안전 경계를 위반한다.
 

@@ -252,7 +252,8 @@ class AcceptanceCoverageReporterTests(unittest.TestCase):
         result = _run_report(legacy, {})
 
         self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("Legacy stories format", result.stdout)
+        self.assertIn("REVIEW — Legacy stories format", result.stdout)
+        self.assertNotIn("PASS", result.stdout)
         self.assertIn("no retroactive conversion", result.stdout)
 
     def test_duplicate_ac_declaration_inside_one_story_is_reported(self) -> None:

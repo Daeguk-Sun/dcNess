@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "baseline_revision": "b676140bcffdaa5843ce59198ecef4f997efddc9",
-  "last_transition_issue": 1094,
+  "last_transition_issue": 1097,
   "classification_enum": [
     "현재 실사용",
     "제거 가능",
@@ -407,6 +407,13 @@
       "tests_fixtures": ["tests/test_spec_story_slice.py", "tests/test_issue_body_validation.py", "tests/test_create_epic_story_issues.py"],
       "docs_distribution": ["docs/plugin/issue-lifecycle.md", "commands/init-dcness.md"],
       "consumer_evidence": "신규 story/issue 생성기는 [command]/[agent-read] 기준만 체크박스로 materialize하고 close audit가 이를 검사한다.",
+      "lifecycle_evidence": {
+        "introduced": "typed Story AC·issue checklist writer는 2026-07-11 commit de38edc/555ede9에서 도입",
+        "actual_consumer": "spec stories template, create_epic_story_issues.sh, to-issue template와 신규 issue pre-create/close audit",
+        "support_reason": "신규 작성이 agent가 판정 가능한 두 유형과 별도 human verification만 생성하게 하는 현행 계약",
+        "removal_trigger": "대체 acceptance schema와 writer/reader migration이 별도로 승인될 때",
+        "verification": "python3.11 -m unittest tests.test_create_epic_story_issues tests.test_issue_body_validation tests.test_spec_story_slice -v"
+      },
       "compatibility": null
     },
     {
@@ -419,7 +426,14 @@
       "implementation": ["scripts/report_ac_coverage.mjs:buildCoverageReport", "docs/plugin/agents/product-acceptance/product-acceptance-agent.md"],
       "tests_fixtures": ["tests/test_spec_story_slice.py", "tests/test_acceptance_contract_hierarchy.py"],
       "docs_distribution": ["docs/plugin/git-spec.md", "docs/plugin/agents/architecture-validator/architecture-validator-agent.md"],
-      "consumer_evidence": "등록 프로젝트 3곳의 stories.md 8개 모두 Story AC heading이 없는 구양식으로 조사됐다.",
+      "consumer_evidence": "2026-07-14 재조사에서 등록 프로젝트 3곳의 stories.md 10개가 모두 Story AC 없는 구양식이며 생성일 확인 범위는 2026-05-24~2026-07-03이다.",
+      "lifecycle_evidence": {
+        "introduced": "legacy stories format은 typed Story AC 도입(2026-07-11) 이전 작성본이며 확인 가능한 생성일은 2026-05-24~2026-07-03",
+        "actual_consumer": "등록 프로젝트 3/5의 stories.md 10개를 report_ac_coverage와 product-acceptance가 read-only로 소비",
+        "support_reason": "typed AC가 없는 기존 설계와 acceptance를 migration 없이 false fail하거나 coverage PASS로 오인하지 않게 함",
+        "removal_trigger": "등록 프로젝트 stories를 typed AC로 migration하고 legacy story scan이 0인 뒤 지원 종료 선언",
+        "verification": "node scripts/report_ac_coverage.mjs --stories <legacy-stories> --impl-dir <impl> 및 python3.11 -m unittest tests.test_acceptance_contract_hierarchy tests.test_spec_story_slice -v"
+      },
       "compatibility": {
         "consumer_or_format": "Story AC 없이 As a/I want/So that 또는 완료 시 확인 가능한 동작을 쓰는 기존 stories.md",
         "reason": "소급 추론으로 AC 의미를 바꾸거나 기존 설계/acceptance를 false fail하지 않게 한다.",
@@ -430,18 +444,30 @@
     {
       "id": "LIFE-003",
       "area": "lifecycle",
-      "policy_slice": "acceptance checklist가 없는 legacy issue의 close audit pass",
+      "policy_slice": "acceptance checklist가 없거나 검증 주체 미기재인 legacy issue REVIEW reader",
       "classification": "한시적 호환 필요",
       "follow_up_issue": 1097,
       "current_ssot": ["docs/plugin/git-spec.md#이슈-완료-규칙"],
       "implementation": ["scripts/check_issue_body.mjs:validateIssueBody"],
       "tests_fixtures": ["tests/test_issue_body_validation.py"],
       "docs_distribution": ["docs/plugin/issue-lifecycle.md"],
-      "consumer_evidence": "typed acceptance checklist 도입 전 생성된 GitHub issue는 checklist 자체가 없는 지원 대상 형식이며 checker가 legacy/no AC를 명시적으로 판정한다.",
+      "consumer_evidence": "2026-07-14 등록 프로젝트 open issue 비식별 조사에서 2026-06-05~2026-06-21 생성된 legacy issue 14개가 남아 있다. 검증 주체 미기재 checklist 8개, no-AC 6개이며 무분류 항목 중 5개는 사람 판단 가능성이 있다.",
+      "lifecycle_evidence": {
+        "introduced": "지원 body는 typed checklist 도입(2026-07-11) 전인 2026-06-05~2026-06-21에 생성; 기존 자동 PASS reader는 2026-07-11 commit 297b611에서 도입",
+        "actual_consumer": "등록 프로젝트 1/5의 open legacy issue 14개(무분류 AC 8, no-AC 6)가 향후 close audit 대상",
+        "support_reason": "본문을 migration 없이 읽되 의미 불명확·사람 판정 항목을 agent가 자동 완료하거나 영구 close 불가로 만들지 않음",
+        "removal_trigger": "open legacy issue가 typed checklist로 migration되거나 human-confirmed close되어 unclassified/no-AC scan이 0이 된 뒤",
+        "verification": "node scripts/check_issue_body.mjs --body-file <legacy-body> --acceptance-only --require-complete 및 python3.11 -m unittest tests.test_issue_body_validation -v"
+      },
+      "retired_surface": {
+        "old_behavior": "legacy/no AC와 checked unclassified AC를 PASS로 출력하고 impl skills가 무분류 AC를 두 자동 유형으로 재분류·본문 반영",
+        "removed_in": "#1097에서 REVIEW/human verification 경계로 교체하고 agent inference writer 지침 삭제",
+        "verification": "legacy fixture는 exit 0 REVIEW·PASS 부재, typed fixture만 PASS; impl/impl-loop 부정 문자열 회귀 테스트"
+      },
       "compatibility": {
-        "consumer_or_format": "Acceptance criteria checklist가 없는 도입 이전 GitHub issue body",
-        "reason": "기존 issue를 의미 추론으로 자동 체크하거나 영구 close 불가 상태로 만들지 않는다.",
-        "removal_trigger": "열린 legacy issue를 typed checklist로 migration하거나 지원 종료 목록으로 닫고 no-AC close 호출이 0임을 확인한다.",
+        "consumer_or_format": "Acceptance criteria가 없거나 checklist에 [command]/[agent-read]가 없는 도입 이전 GitHub issue body",
+        "reason": "기존 issue를 읽는 동안 agent 자동 close는 막고 명시적 사람 확인으로 migration 없는 close를 허용한다.",
+        "removal_trigger": "열린 legacy issue를 typed checklist로 migration하거나 human-confirmed close하고 unclassified/no-AC scan이 0임을 확인한다.",
         "verification": "node scripts/check_issue_body.mjs --body-file <legacy-body> --acceptance-only --require-complete 및 tests.test_issue_body_validation"
       }
     },
@@ -456,6 +482,13 @@
       "tests_fixtures": ["tests/test_issue_body_validation.py"],
       "docs_distribution": ["docs/plugin/issue-lifecycle.md", "skills/acceptance/SKILL.md"],
       "consumer_evidence": "현재 close 안전 계약으로 사람 확인을 자동 완료하지 못하게 하며 legacy 여부와 무관하다.",
+      "lifecycle_evidence": {
+        "introduced": "typed human-verification 분리는 2026-07-11 commit 555ede9에서 도입",
+        "actual_consumer": "신규 Issue Brief·Story issue와 impl/impl-loop close 경계 전부",
+        "support_reason": "시각·취향·운영 승인 같은 사람 판단을 agent-verifiable checkbox와 분리하는 현행 안전 계약",
+        "removal_trigger": "동등하게 사람 판정을 자동 완료하지 않는 대체 close 계약이 승인될 때",
+        "verification": "python3.11 -m unittest tests.test_issue_body_validation tests.test_acceptance_contract_hierarchy -v"
+      },
       "compatibility": null
     },
     {
@@ -469,6 +502,13 @@
       "tests_fixtures": ["tests/test_acceptance_contract_hierarchy.py", "tests/test_spec_story_slice.py"],
       "docs_distribution": ["docs/plugin/agents/architecture-validator/architecture-validator-agent.md"],
       "consumer_evidence": "현행 typed AC에서도 command output을 validator 관찰 증거로 쓰고 형식만으로 hard fail하지 않는 자율성 계약이다.",
+      "lifecycle_evidence": {
+        "introduced": "Story AC→REQ advisory reporter는 2026-07-11 commit de38edc에서 도입",
+        "actual_consumer": "design mechanical pre-final check와 architecture-validator가 typed stories/impl을 함께 읽을 때 사용",
+        "support_reason": "형식 출력만으로 hard fail하지 않고 실제 산출물 읽기 판정을 보존하는 현행 자율성 계약",
+        "removal_trigger": "동등한 Story AC→REQ trace reader가 architecture validation에 통합될 때",
+        "verification": "python3.11 -m unittest tests.test_acceptance_contract_hierarchy tests.test_spec_story_slice -v"
+      },
       "compatibility": null
     }
   ]

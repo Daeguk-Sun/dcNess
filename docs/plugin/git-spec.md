@@ -230,7 +230,7 @@ task 는 별도 GitHub 이슈를 만들지 않는다. build-worker 의 local com
 
 ## 이슈 완료 규칙
 
-`Closes` 가 발동할 target issue 는 plan이나 Story AC 와 별개의 **target GitHub issue AC** 마감 계약을 가진다. 구현 경로는 plan ∪ target GitHub issue AC 를 충족해야 하며, close 직전 자동 판정 가능한 체크박스를 모두 check 한 body 가 `check_issue_body.mjs --acceptance-only --require-complete` 를 통과해야 한다. 미충족·미체크 AC 가 있으면 PR 을 clean 으로 마감하거나 merge 하지 않는다. 사람 판정 항목은 agent 가 체크하지 않고 human verification 대기로 보고한다.
+`Closes` 가 발동할 target issue 는 plan이나 Story AC 와 별개의 **target GitHub issue AC** 마감 계약을 가진다. 구현 경로는 plan ∪ target GitHub issue AC 를 충족해야 하며, close 직전 자동 판정 가능한 typed 체크박스를 모두 check 한 body 가 `check_issue_body.mjs --acceptance-only --require-complete` 의 정확한 `PASS`를 받아야 한다. 미충족·미체크 AC 가 있으면 PR 을 clean 으로 마감하거나 merge 하지 않는다. 검증 주체 미기재 또는 no-AC legacy body의 exit 0 `REVIEW`는 자동 close 권한이 아니며, agent가 의미를 추론·체크·재분류하지 않고 human verification 대기로 보고한다.
 
 ### Story 완료
 
