@@ -17,6 +17,8 @@ python3.11 scripts/policy_cleanup_baseline.py \
 - 정책 slice 원장: [`policy-sunset-inventory.json`](policy-sunset-inventory.json)
 - 고정 출력: [`policy-sunset-baseline.json`](policy-sunset-baseline.json)
 
+측정 구현은 dcNess self에서만 쓰는 일회성 내부 도구다. `scripts/release_artifact.json`의 제외 계약에 고정되어 marketplace release payload에 들어가지 않으며, `init-dcness`도 외부 프로젝트에 복사하지 않는다.
+
 `major text`는 `.py`, `.mjs`, `.js`, `.sh`, `.md`, `.json`, `.yml`, `.yaml`, `.toml`이다. `code LOC`는 `harness/`, `scripts/`, `evals/` 아래 Python이고 `test LOC`는 `tests/` 아래 Python이다. test 함수는 Python AST에서 이름이 `test_`로 시작하는 함수·메서드를 센다. 대형 파일 수는 major text의 논리 LOC가 각각 500·1,000 이상인 파일 수다. compatibility 후보는 `제거 가능`과 `한시적 호환 필요` slice의 합이며 `현재 실사용`은 분모에는 남지만 감량 후보로 세지 않는다.
 
 | 지표 | cleanup 전 값 |
