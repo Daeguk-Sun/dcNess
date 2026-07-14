@@ -239,7 +239,7 @@ class AcceptanceCoverageReporterTests(unittest.TestCase):
         self.assertIn("Final task missing AC: AC-002", result.stdout)
         self.assertIn("advisory report", result.stdout)
 
-    def test_legacy_stories_without_story_ac_are_accepted_without_rewrite(self) -> None:
+    def test_stories_without_story_ac_are_rejected(self) -> None:
         legacy = """
         # Story Backlog
 
@@ -251,10 +251,8 @@ class AcceptanceCoverageReporterTests(unittest.TestCase):
 
         result = _run_report(legacy, {})
 
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("REVIEW — Legacy stories format", result.stdout)
-        self.assertNotIn("PASS", result.stdout)
-        self.assertIn("no retroactive conversion", result.stdout)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("FAIL — Story AC is required", result.stdout)
 
     def test_duplicate_ac_declaration_inside_one_story_is_reported(self) -> None:
         duplicate = STORIES.replace(

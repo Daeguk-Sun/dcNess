@@ -19,7 +19,6 @@ THIN_BOOTSTRAP 은 system 재진입이 아니다. bootstrap 뒤에 별도 archit
 
 다음은 module-architect 보강 또는 validator Should finding 으로 처리한다.
 
-- 구양식 Contract Ledger / Contract References 사본이 남아 있음
 - ux-flow 또는 stories prose 가 module responsibility / decision 과 표현만 다름
 - impl task 의 Agent Workability, scope, acceptance criteria 보강
 - 전역 architecture 요약 리포트가 생성되지 않음

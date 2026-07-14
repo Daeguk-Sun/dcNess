@@ -592,15 +592,10 @@ class SurfaceDocsSyncTests(unittest.TestCase):
 
     def test_issue_832_design_runs_mechanical_artifact_audit(self) -> None:
         """#832 — design loop runs the artifact audit before final validator/PR."""
-        for needle in (
-            "check_design_artifact_structure.mjs",
-            "legacy Contract Ledger / Contract References 경고",
-            "final validator 진입을 막지 않는다",
-        ):
-            self.assertIn(needle, self.design_skill)
+        self.assertIn("check_design_artifact_structure.mjs", self.design_skill)
 
         for needle in (
-            "형식만으로 FAIL 하지 않는다",
+            "Story AC 부재는 즉시 실패",
             "Should finding",
             "module responsibility",
         ):

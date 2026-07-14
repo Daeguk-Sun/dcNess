@@ -82,7 +82,7 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 
 ### catastrophic-gate.sh
 
-사용자-facing 용어: **순서 차단 훅**. 파일명과 hook command 는 호환성을 위해 `catastrophic-gate.sh` 를 유지한다.
+사용자-facing 용어: **순서 차단 훅**. 코드 식별자는 `catastrophic-gate.sh` 다.
 
 **시점**: 메인 Claude 가 `Agent` tool 로 sub-agent 를 호출하기 직전, 그리고 `dcness-helper begin-step` 이 step 시작을 기록하기 직전. Claude Agent provider 는 전자를 타고, Codex/headless provider 는 후자를 탄다.
 
@@ -103,7 +103,7 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 
 **impl entry pre-flight**: build-worker 의 구현 step 시작 직전에 추가로 확인한다. `--design-doc` 이 있으면 해당 impl 문서의 `### 수정 허용` 경로를 `ALLOW_MATRIX ∪ .dcness/boundary.json` 과 대조한다. 미커버 경로가 있으면 `[순서 차단 훅: impl pre-flight boundary]` 로 STOP 하며, 사람 승인 후 `.dcness/boundary.json` override 가 필요하다. 또한 프로젝트 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated hook 이 없거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않았으면 `[순서 차단 훅: impl pre-flight TDD]` 로 STOP 한다. in-place 실행은 hook 파일이 디스크에 실존·등록돼 있으면 생성 파일 커밋 없이 통과한다. 빈 프로젝트·미지원 플랫폼·dcNess self repo 는 no-op 이다.
 
-**implementation gate 의 direct 경로 면제 (#714)**: `/impl` direct 경로(설계도 없음)는 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 implementation gate 가 그 기록을 build-worker 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 legacy enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(`/impl-loop` story/epic runner / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구한다.
+**implementation gate 의 direct 경로 면제 (#714)**: `/impl` direct 경로(설계도 없음)는 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 implementation gate 가 그 기록을 build-worker 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(`/impl-loop` story/epic runner / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구한다.
 
 **tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. /design 도중 미검증 새 외부 의존이 발견되면 design 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
 
@@ -144,7 +144,7 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 - **`remove`**: 코어 기본 허용 경로를 이 프로젝트에서 제거 (ALLOW 보다 우선하는 DENY 오버레이).
 - **탐색**: `harness/agent_boundary.py` 가 cwd 에서 **working tree top-level(`git rev-parse --show-toplevel`)까지만** 조상을 거슬러 이 파일을 찾는다. nested·linked worktree 와 하위 디렉토리에서도 worktree 루트 설정이 적용되지만, 그 *위* 상위 워크스페이스·home 디렉토리의 `.dcness/boundary.json` 은 무시된다 (무관한 상위 설정이 경계를 약화하지 못하도록).
 - **제안 트리거**: `/init-dcness` 와 `/impl` 시작 시 `dcness-helper boundary-suggestions` 가 비표준 소스 디렉터리의 `build-worker.add` 후보를 read-only 로 출력한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이며, 실제 파일 작성은 사람 승인 뒤 메인이 수행한다.
-- **build-worker override**: `/impl-loop` 의 실제 mutation agent 는 build-worker 이므로 신규 프로젝트는 `build-worker` 키로 `add`·`remove` 를 선언한다. 과거 역할 override 키가 남아 있으면 호환성 레이어가 build-worker override 로 합쳐 전파한다.
+- **build-worker override**: `/impl-loop` 의 mutation agent 는 build-worker 이므로 `build-worker` 키로 `add`·`remove` 를 선언한다. 다른 agent key는 build-worker에 전파되지 않는다.
 - **안전 degrade**: 파일 부재·깨진 JSON·형식 위반·컴파일 불가 정규식은 조용히 무시하고 코어 기본값을 유지한다 (잘못된 설정이 경계를 깨뜨리지 않는다).
 - **배포**: 읽는 로직은 plugin 본체(`harness/`)라 plugin 버전업으로 자동 적용 (cp 0). 설정 파일은 프로젝트가 직접 작성한다.
 
@@ -152,7 +152,7 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 
 - **INFRA 경로** (`DCNESS_INFRA_PATTERNS` — `hooks/`, `harness/*.py` 등) 는 `add` 로 열 수 없다. INFRA 검사가 ALLOW(코어+add) 검사보다 *먼저* 발화하기 때문.
 - **`.dcness/boundary.json` 자신**(과 `.dcness/` 디렉토리 전체) 은 sub-agent write 차단 영역 (자기 경계 셀프 확장/축소 금지). INFRA 로 보호되며 `remove` 로도 풀 수 없고, 디렉토리 타깃 write 우회도 닫힌다.
-- **판정/검증 전용 agent**(`impl-validator` / `architecture-validator` / `product-acceptance` / `plan-reviewer` — 코어 ALLOW 가 빈 `()`) 는 `add` 로도 write 를 열 수 없다. "검증자는 자기가 검증하는 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는 경계 — `add` 로 mutation agent 로 승격시킬 수 없다.
+- **판정/검증 전용 agent**(`impl-validator` / `architecture-validator` / `product-acceptance` — 코어 ALLOW 가 빈 `()`) 는 `add` 로도 write 를 열 수 없다. "검증자는 자기가 검증하는 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는 경계 — `add` 로 mutation agent 로 승격시킬 수 없다.
 - **guard self-disable 마커** (`.no-dcness-guard` = file-guard 임시 우회 / `.claude-plugin/` = `is_infra_project` self-repo 신호) 도 INFRA 로 보호된다. broad `add`(예 `.*`)로도 sub-agent 가 file guard 자체를 끄는 통제 파일을 쓸 수 없다.
 - 그 외 기본값은 **강제 가드가 아니라 권고** 다. 프로젝트가 `add` 로 풀 수 있고, 그 경우 self-grading drift(구현자가 자기 코드를 통과시키도록 테스트를 편향) 위험은 프로젝트가 감수한다.
 
@@ -177,7 +177,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **프로젝트 로컬 계약**: `.dcness/tdd-hooks.json` 이 있으면 helper 는 코어 프리셋보다 이 파일을 우선한다. 모든 계약은 `source_roots`, `impl_exts` 가 필요하고, custom 플랫폼은 `test_candidate_templates` 도 필요하다. `test_file_globs` 는 test 파일 자체를 구현 파일로 오인하지 않게 하는 선택 필드다. template placeholder 는 `{parent}`, `{stem}`, `{base}`, `{ext}`, `{path}`, `{path_no_ext}`, `{filename}` 을 지원한다. 기존 파일이 깨진 JSON 이거나 필수 필드가 없으면 덮어쓰지 않고 등록을 중단한다.
 
-**지원 플랫폼**: helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있다. 새 플랫폼은 코어 프리셋을 추가하지 않아도 프로젝트 에이전트나 사람이 위 형식의 `.dcness/tdd-hooks.json` 을 승인·커밋하면 같은 self-test/등록 경로를 쓴다. 빈 프로젝트 또는 project-local 계약이 없는 미지원 플랫폼은 생성 skip 이며 안전 no-op 이다. 중앙 fallback 은 기존 호환을 위해 TS/JS 만 (`*.ts`, `*.tsx`, `*.js`, `*.jsx`) 검사한다. 그 외 확장자는 generated hook 이 없으면 silent skip 이다.
+**지원 플랫폼**: helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있다. 새 플랫폼은 코어 프리셋을 추가하지 않아도 프로젝트 에이전트나 사람이 위 형식의 `.dcness/tdd-hooks.json` 을 승인·커밋하면 같은 self-test/등록 경로를 쓴다. 빈 프로젝트 또는 project-local 계약이 없는 미지원 플랫폼은 생성 skip 이며 안전 no-op 이다. 중앙 fallback 은 TS/JS (`*.ts`, `*.tsx`, `*.js`, `*.jsx`)만 검사한다. 그 외 확장자는 generated hook 이 없으면 silent skip 이다.
 
 **생성/등록 순서**: CC hook 이 먼저다. `.claude/hooks/dcness-tdd-guard.sh` 후보가 self-test 를 통과해야 `.claude/settings.json` PreToolUse(`Edit|Write|NotebookEdit|Bash`) 에 등록된다. Codex hook 은 그 다음 같은 패턴으로 `.codex/hooks/dcness-tdd-guard.sh` 와 `.codex/hooks.json` PreToolUse(`Edit|Write|apply_patch`) 에 등록된다. 기존 `.claude/settings.json` 또는 `.codex/hooks.json` 이 깨진 JSON 이면 등록을 거부하고 파일을 덮어쓰지 않는다. Codex 쪽은 CLI 의 사용자 신뢰 승인(`~/.codex/config.toml` trusted hash 흐름)이 추가로 필요할 수 있으므로, `registered` 는 project-local 파일 등록 상태이지 사용자 trust 승인 완료를 뜻하지 않는다.
 
@@ -396,7 +396,7 @@ git hook 차단도 같은 telemetry 체계를 쓰되, 기록은 `is-active` 또�
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표가 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사한다. legacy Contract Ledger / Contract References 는 호환 경고로만 보고하며 형식만으로 실패시키지 않는다.
+**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표가 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사한다.
 
 **빈 환경**: `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 갓 시드된 프로젝트에서는 no-op PASS 한다.
 
@@ -437,7 +437,7 @@ hook 또는 workflow 를 추가/삭제/이름 변경할 때 이 문서가 빠지
 
 **CC hooks**: [`hooks/hooks.json`](../../hooks/hooks.json) 이 event, matcher, script command 를 정의한다. Claude Code 가 plug-in 활성 시 표준 경로를 자동 인식한다.
 
-**git hooks**: `/init-dcness` bootstrap 이 사용자 repo 의 `.git/hooks/` 에 thin shim 을 always-overwrite 한다. hook 본체는 `CLAUDE_PLUGIN_ROOT`, plug-in cache, legacy repo script 순서로 검증 script 를 resolve 한다.
+**git hooks**: `/init-dcness` bootstrap 이 사용자 repo 의 `.git/hooks/` 에 thin shim 을 always-overwrite 한다. hook 본체는 self-repo, `CLAUDE_PLUGIN_ROOT`, plug-in cache 중 실행 문맥에 맞는 검증 script 를 resolve 한다.
 
 **CI/CD workflows**: `/init-dcness` 가 사용자 선택에 따라 thin workflow 를 `.github/workflows/` 에 always-overwrite 한다. 사용자가 tag pin 을 원하면 `@main` 대신 release tag 로 바꿀 수 있다.
 

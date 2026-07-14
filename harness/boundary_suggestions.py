@@ -392,7 +392,6 @@ def format_boundary_suggestions(report: BoundarySuggestionReport) -> str:
         [
             "",
             "사람 승인 후에만 `.dcness/boundary.json` 에 add override 를 작성하세요.",
-            "legacy engineer/test-engineer override 도 build-worker 에 자동 상속됩니다.",
             "",
             json.dumps(sample, ensure_ascii=False, indent=2),
         ]

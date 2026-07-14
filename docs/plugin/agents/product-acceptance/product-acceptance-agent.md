@@ -109,7 +109,6 @@ story 구현 완료 직후 호출된다. 해당 story 의 수용 기준이 구�
 - stories.md 또는 story issue 의 Story AC 전항목과 그 AC 에서 파생된 REQ 가 구현 파일, 테스트, smoke 증거 중 하나 이상과 연결된다.
 - 핵심 AC 가 동작 증거와 연결된다.
 - Story 마지막 task 가 Story AC 전항목을 실제 실행·관찰한 증거를 대조한다.
-- Story AC 가 없는 구양식에서 `완료 시 확인 가능한 동작` 줄이 있으면, 그 동작이 실제 동작 증거로 닫혔는지 하위호환 기준으로 대조한다. 검증 주체나 의미가 불명확하면 typed Story AC를 합성하지 않고 불명확성을 그대로 보고한다.
 - 핵심 AC 의 입력/진행 동선이 대상 사용자에게 적합한 제품 언어로 닫힌다.
 - 테스트나 smoke 증거가 실제 실행 결과로 남아 있다.
 - project-local journey를 사용했다면 receipt가 Story AC와 command/log evidence를 연결하고 app_started·journey_executed·assertion 결과를 명시한다.

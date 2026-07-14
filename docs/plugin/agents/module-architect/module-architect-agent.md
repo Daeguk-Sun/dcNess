@@ -113,7 +113,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 - 계약 표면 코드 SSOT 대조 증거가 있다. 상태성 기능은 schema·mapper·DAO·sync/reconcile·lifecycle·관련 테스트까지 대조하고, 계약을 바꾸는 task 는 module responsibility 또는 decision 으로 근거가 연결된다.
 - Root 갱신 조건을 대조했고 stable route/state가 바뀌면 실제 repo-relative 경로와 관련 epic/decision만 bounded Cartography에 반영했다. 상세 Story/impl topology는 epic에 남는다.
 - 확정 목업이 있는 UI epic 은 epic architecture 또는 impl task 의 `## 디자인 참조` 에 확정 목업 경로, 핵심 디자인 토큰(색/spacing/typography), node-id 매핑, docs/design.md 토큰 대조 근거가 있고, 목업 미참조 설계 금지 원칙을 어기지 않는다.
-- cross-task contract가 있으면 module responsibility 한 줄과 decision 문서에 의미가 있고 impl 문서는 module/decision 참조만 가리킨다. 구양식 Contract Ledger / Contract References 산출물은 기존 활성 프로젝트 호환 reader의 입력으로 유효하지만, 신규 작성 경로는 사본 표를 만들지 않는다.
+- cross-task contract가 있으면 module responsibility 한 줄과 decision 문서에 의미가 있고 impl 문서는 module/decision 참조만 가리킨다.
 - 수용 기준의 검증은 실행 가능한 명령, `(AGENT READ)` 관찰 증거, 또는 도구 중립 `(JOURNEY)` flow이며, 사람 판정 항목은 REQ 에 섞이지 않는다. negative 동작의 양성 프록시와 sub-second·순수 시각 판정의 사람 확인 분기도 명시된다.
 - `주의사항` 의 모듈 설계 주의 또는 동등한 문구로 모듈 설계 원칙 적용 증거가 남는다.
 - owner/entrypoint 요약 또는 동등한 문구로 다음 agent 의 edit target, state owner, produced/consumed transition, validation path 증거가 남는다.

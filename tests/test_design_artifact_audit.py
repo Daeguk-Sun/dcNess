@@ -103,66 +103,6 @@ class DesignArtifactAuditTests(unittest.TestCase):
         self.assertEqual(payload["violations"], [])
         self.assertEqual(payload["warnings"], [])
 
-    def test_legacy_contract_ledger_and_references_warn_but_pass(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _seed_project(
-                root,
-                architecture_body="""
-                # Epic Architecture
-
-                ## 모듈 목록
-
-                | 모듈 | 책임 | 공개 인터페이스 |
-                |---|---|---|
-                | AuthCore | auth owner | authenticate() |
-
-                ## 의존 그래프
-
-                ```mermaid
-                flowchart LR
-                ```
-
-                ## Contract Ledger
-
-                | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |
-                |---|---|---|---|---|---|---|---|---|---|
-                | AuthSession | AuthCore | LoginForm | AuthCore | stable | before refresh | reject | env | global session | ADR-0001 |
-
-                ## Story -> 모듈 매핑
-
-                | Story | 영향 모듈 | 이유 |
-                |---|---|---|
-                | 1 | AuthCore | login behavior |
-                """,
-                impl_body="""
-                ---
-                contract:
-                  produces: [AuthSession]
-                  consumes: []
-                ---
-
-                # Legacy task
-
-                ## Contract References
-
-                | kind | Ledger row key | action | note |
-                |---|---|---|---|
-                | produces | AuthSession | new | Ledger updated |
-                """,
-            )
-
-            proc = _run(root, "--json")
-
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        payload = json.loads(proc.stdout)
-        self.assertTrue(payload["ok"])
-        self.assertEqual(payload["violations"], [])
-        warning_codes = {warning["code"] for warning in payload["warnings"]}
-        self.assertIn("legacy-contract-ledger", warning_codes)
-        self.assertIn("legacy-contract-frontmatter", warning_codes)
-        self.assertIn("legacy-contract-references", warning_codes)
-
     def test_missing_core_agent_first_sections_are_warnings_not_failures(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -195,21 +135,6 @@ class DesignArtifactAuditTests(unittest.TestCase):
         self.assertTrue(
             any(w["code"] == "design-pack-over-target" for w in payload["warnings"])
         )
-
-    def test_legacy_contract_lookup_flag_is_deprecated_not_a_recovery_contract(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp)
-            _seed_project(root, impl_body="# Auth task\n")
-
-            proc = _run(root, "--json", "--contract", "AuthSession")
-
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        payload = json.loads(proc.stdout)
-        self.assertIsNone(payload["recovery"])
-        self.assertTrue(
-            any(w["code"] == "deprecated-contract-lookup" for w in payload["warnings"])
-        )
-
 
 if __name__ == "__main__":
     unittest.main()

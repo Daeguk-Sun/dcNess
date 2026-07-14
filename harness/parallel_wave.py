@@ -11,9 +11,6 @@
 - `compute_waves` — depends_on DAG 위상 + Scope 파일집합 disjoint +
   `max_parallel_workers` cap → 병렬 wave 후보. 불명확(미상 / scope 자유서술 /
   force_serial)은 직렬 강등 (정책 §3.1 · §4).
-- `fan_in_check` — 이전 fan-in 모델의 구조 판정 helper. 현재 peer 모델의
-  핵심 경로는 아니며 호환/후속 정리 대상으로 남겨둔다.
-
 3-state `depends_on` (정책 §3.1):
 
 - `None`  = 미상(미작성 / placeholder 잔존) → 독립 확신 불가 → 직렬 강등.
@@ -35,11 +32,8 @@ __all__ = [
     "ImplTask",
     "WaveStep",
     "WavePlan",
-    "WorkerResult",
-    "FanInResult",
     "parse_impl_task",
     "compute_waves",
-    "fan_in_check",
     "scopes_disjoint",
     "normalize_scope_text",
     "normalize_scope_file",
@@ -183,43 +177,6 @@ class WavePlan:
             "steps": [s.to_dict() for s in self.steps],
             "serial_demotions": list(self.serial_demotions),
             "format_unnormalized_slugs": list(self.format_unnormalized_slugs),
-        }
-
-
-@dataclass(frozen=True)
-class WorkerResult:
-    """Legacy fan-in helper input."""
-
-    slug: str
-    changed_paths: frozenset[str]  # legacy worker diff 가 실제로 건드린 파일
-    declared_scope: frozenset[str]  # 해당 task 의 `수정 허용`
-    evidence_present: bool = True
-
-
-@dataclass(frozen=True)
-class FanInResult:
-    """Legacy fan-in gate result."""
-
-    verdict: str  # "PASS" | "FALLBACK"
-    scope_violations: tuple[tuple[str, str], ...]  # (slug, scope 밖 path)
-    conflicts: tuple[tuple[str, tuple[str, ...]], ...]  # (path, 그 path 건드린 slug 들)
-    missing_evidence: tuple[str, ...]  # evidence 없는 slug
-    unexpected_workers: tuple[str, ...]  # wave 기대 slug 밖 worker 결과
-    reasons: tuple[str, ...]
-
-    @property
-    def passed(self) -> bool:
-        return self.verdict == "PASS"
-
-    def to_dict(self) -> dict:
-        return {
-            "verdict": self.verdict,
-            "passed": self.passed,
-            "scope_violations": [list(v) for v in self.scope_violations],
-            "conflicts": [[p, list(s)] for p, s in self.conflicts],
-            "missing_evidence": list(self.missing_evidence),
-            "unexpected_workers": list(self.unexpected_workers),
-            "reasons": list(self.reasons),
         }
 
 
@@ -779,97 +736,6 @@ def compute_waves(
             done.add(head.slug)
 
     return WavePlan(tuple(steps), max_parallel_workers)
-
-
-# ── legacy fan-in 검증 ───────────────────────────────────────
-
-
-def _path_in_scope(path: str, scope: Iterable[str]) -> bool:
-    """changed path 가 declared scope 안인가 (legacy fan-in scope gate).
-
-    - exact 파일 매치.
-    - **명시적 디렉토리 scope(끝이 `/`)** 만 하위 파일을 허용. 확장자 없는 파일
-      scope(`scripts/tool`)를 디렉토리로 오인해 `scripts/tool/x.py` 를 통과시키던
-      구멍 차단 (#636 codex F12). 디렉토리 의도면 `scripts/tool/` 로 적는다.
-    - glob entry 는 segment-aware 매칭 — `src/*.py` 는 `src/sub/a.py` 를 in-scope 로
-      오인하지 않는다 (#636 codex F4: fnmatch 가 `/` 를 안 가려 scope 우회되던 구멍).
-    """
-    for entry in scope:
-        if path == entry:
-            return True
-        if entry.endswith("/") and path.startswith(entry):
-            return True  # 명시적 디렉토리 scope 만 하위 허용
-        if _has_glob(entry) and _glob_match(path, entry):
-            return True
-    return False
-
-
-def fan_in_check(
-    results: Iterable[WorkerResult],
-    *,
-    expected_slugs: Iterable[str],
-) -> FanInResult:
-    """legacy fan-in gate 의 최소 구조 판정.
-
-    PASS = 모든 worker diff 가 자기 Scope 안 + cross-worker 파일 충돌 없음 +
-    evidence 전부 존재 + 결과 slug 가 기대 wave 와 일치. 하나라도 어기면
-    FALLBACK (직렬 강등 신호). `expected_slugs` 는 필수 입력이다. caller 가
-    wave 에 있어야 하는 worker 전체를 넘기지 않으면 부분 누락을 알 수 없기
-    때문이다.
-
-    주의: 현재 peer 모델의 핵심 경로는 claim board + merge lock 이다. 본 함수는
-    이전 fan-in 모델의 호환 helper 로 남아 있다.
-    """
-    results = list(results)
-    expected = tuple(dict.fromkeys(s for s in expected_slugs if s))
-    expected_set = set(expected)
-    present = {r.slug for r in results}
-
-    scope_violations: list[tuple[str, str]] = []
-    for r in results:
-        for p in sorted(r.changed_paths):
-            if not _path_in_scope(p, r.declared_scope):
-                scope_violations.append((r.slug, p))
-
-    owners: dict[str, list[str]] = {}
-    for r in results:
-        for p in r.changed_paths:
-            owners.setdefault(p, []).append(r.slug)
-    conflicts = [
-        (p, tuple(sorted(s))) for p, s in sorted(owners.items()) if len(s) > 1
-    ]
-
-    missing = tuple(
-        dict.fromkeys(
-            [s for s in expected if s not in present]
-            + [r.slug for r in results if not r.evidence_present]
-        )
-    )
-    unexpected = tuple(
-        dict.fromkeys(r.slug for r in results if r.slug not in expected_set)
-    )
-
-    reasons: list[str] = []
-    if not results and not expected:
-        reasons.append("worker 결과 없음")
-    if scope_violations:
-        reasons.append(f"scope 이탈 {len(scope_violations)}건")
-    if conflicts:
-        reasons.append(f"cross-worker 파일 충돌 {len(conflicts)}건")
-    if missing:
-        reasons.append(f"evidence 누락 {len(missing)}건")
-    if unexpected:
-        reasons.append(f"예상 밖 worker {len(unexpected)}건")
-
-    verdict = "PASS" if not reasons else "FALLBACK"
-    return FanInResult(
-        verdict=verdict,
-        scope_violations=tuple(scope_violations),
-        conflicts=tuple(conflicts),
-        missing_evidence=missing,
-        unexpected_workers=unexpected,
-        reasons=tuple(reasons),
-    )
 
 
 # ── CLI 보조 (wave-plan 서브커맨드에서 호출) ──────────────────

@@ -51,7 +51,7 @@ UI 작업이면 구현 전 **UI 기준 확보 분기**를 먼저 본다. 내부 
 ## Pre-flight
 
 1. `docs/epics/**/stories.md` 상단의 `**GitHub Epic Issue:** [#N]` 또는 `미등록 (사유: …)` 를 확인한다. 없으면 STOP.
-2. parent epic/story issue 본문을 진입 preflight 에서 한 번 read 하고 target GitHub issue AC snapshot 을 만든다. task 자체는 GitHub issue 가 아니라 impl 파일 + task commit 으로 추적한다. snapshot 은 task/story 진행 전체에서 재사용하며 반복 issue 조회를 추가하지 않는다. 검증 주체 미기재 legacy AC 는 기존 의미를 보존하며 agent 가 `[command]`/`[agent-read]` 로 추론·체크·재분류하지 않는다. 사람 판단인지 불명확한 항목과 no-AC issue 는 close audit의 `REVIEW` 결과를 따라 human verification 대기로 보낸다. 현행 typed 일반론 AC 는 snapshot 에서 구체화해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
+2. parent epic/story issue 본문을 진입 preflight 에서 한 번 read 하고 target GitHub issue AC snapshot 을 만든다. task 자체는 GitHub issue 가 아니라 impl 파일 + task commit 으로 추적한다. snapshot 은 task/story 진행 전체에서 재사용하며 반복 issue 조회를 추가하지 않는다. AC가 없거나 검증 주체가 미기재됐으면 close 전에 현행 typed AC로 갱신하고, agent가 의미를 임의 추론해 체크·재분류하지 않는다. 현행 typed 일반론 AC 는 snapshot 에서 구체화해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
 3. task 가 이미 머지됐는지 `git log --grep <task-slug>` 와 task tail 로 확인한다.
 4. `begin-run impl --design-doc <task impl 문서>` 로 설계 문서를 기록한다. 이 값은 build-worker gate, boundary pre-flight, impl-validator review 근거다.
 5. `boundary-suggestions --impl-plan <task>` 로 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되는지 확인한다. 미커버 경로는 사람 승인 후 boundary override 가 필요하다.
@@ -105,7 +105,7 @@ retry 시 기존 sub-step 을 재활용하고 신규 TaskCreate 를 만들지 �
 2. `begin-step build-worker` 로 step 을 열고 implementation provider 를 resolve 한다. 기본 provider 는 `headless-chain` 이다.
 3. `dcness-implementation-chain build-worker --provider <provider> --prompt-file <file>` 를 실행한다. prompt 에는 target GitHub issue AC snapshot 을 진본 포인터로 포함한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다.
 4. build-worker 는 test → impl → self-validate 를 한 task 안에서 수행하고, gates 가 green 이면 로컬 task commit 을 만든다.
-   - `task_index: total/total` 인 Story 마지막 task 는 impl 문서의 종합 검증 REQ 로 해당 Story AC 전항목을 다시 실행·관찰한다. 앞 task 의 PASS 를 대신 재사용하지 않는다. 신규 Story AC 가 있는데 마지막 task 에 전수 검증 REQ 가 없으면 구현 완료로 간주하지 않고 `SPEC_GAP_FOUND` 로 설계 보강을 요청한다. Story AC 가 없는 legacy stories 는 이 의무를 소급 적용하지 않는다.
+   - `task_index: total/total` 인 Story 마지막 task 는 impl 문서의 종합 검증 REQ 로 해당 Story AC 전항목을 다시 실행·관찰한다. 앞 task 의 PASS 를 대신 재사용하지 않는다. 마지막 task 에 전수 검증 REQ 가 없으면 구현 완료로 간주하지 않고 `SPEC_GAP_FOUND` 로 설계 보강을 요청한다.
 5. task local commit 은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)을 따른다. build-worker 는 한 task 안에서도 독립 검토 가능한 의미 단위로 쪼개되, 각 커밋은 hook 을 통과할 수 있는 일관 상태여야 한다.
 6. build-worker 는 `git status`, `git diff`, `git diff --check`, `git add`, `git commit`, `git rev-parse HEAD` 만 사용할 수 있다. `git push`, `gh pr create`, `gh pr merge`, `gh issue` mutation 은 금지다.
 7. build-worker report 에 commit sha, 검증 명령, clean status 가 없으면 task clean 으로 보지 않는다.
@@ -225,7 +225,7 @@ node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
   --require-complete
 ```
 
-미충족·미체크 typed target GitHub issue AC 가 하나라도 있으면 clean 마감과 merge 를 금지한다. close audit의 정확한 `PASS`만 자동 close 경로를 열며 exit 0의 legacy `REVIEW`는 failure가 아니라 human verification 대기 신호다. 사람 판정·검증 주체 미기재·no-AC 항목은 agent 가 체크하거나 재분류하지 않고 잔여 human verification 목록을 보고 merge 전에 정지한다.
+미충족·미체크 typed target GitHub issue AC 가 하나라도 있으면 clean 마감과 merge 를 금지한다. close audit의 정확한 `PASS`만 close 경로를 연다. AC 부재·검증 주체 미기재 항목은 실패하며 body를 현행 typed AC로 갱신하기 전 merge를 정지한다. 사람 판정은 checklist와 분리한 human verification 목록으로 보고한다.
 
 `impl-validator:CODEBASE_SANITY FAIL`이면 finding의 affected surface를 build-worker rework로 넘기고 Sanity부터 재감사한다. 일반 `impl-validator FAIL`의 story-local FAIL은 해당 story PR 브랜치에 append하고 downstream story/QA branch를 restack한다. story PR 이 2개 이상인 run의 cross-cutting FAIL은 QA PR이 흡수한다. 단일 story PR은 해당 PR branch에 append한다. 어느 경로든 코드가 바뀌면 Sanity와 merge-review 증거가 stale이며 같은 finding을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
 
@@ -297,7 +297,8 @@ PR이 아직 열린 stack 상태면 `PR <#NNN> open · base <branch>`로 표시�
 - Epic close이면 현재 code revision을 덮는 `.dcness-work/codebase-sanity/` receipt와 `impl-validator:CODEBASE_SANITY` PASS.
 - 필요한 product-acceptance PASS.
 - build-worker Cartography impact가 affected Root Cartography 및 관련 epic/decision과 대조됐고 route-only stale 또는 system backpressure가 남지 않음.
-- target issue 가 있으면 자동 판정 가능한 typed AC 전항목 충족·체크 + `require-complete`의 정확한 `PASS`; legacy `REVIEW`면 human verification 완료.
+- target issue 가 있으면 자동 판정 가능한 typed AC 전항목 충족·체크 + `require-complete`의 정확한 `PASS`.
+- 자동 판정할 수 없는 사람 확인 항목이 남으면 `human verification 대기`로 보고하고 merge 전에 정지한다.
 
 이 중 하나라도 없는데 clean 이라고 쓰면 false-clean → blocked.
 

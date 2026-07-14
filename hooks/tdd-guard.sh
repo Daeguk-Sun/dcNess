@@ -87,7 +87,7 @@ PY
 }
 
 delegate_generated_project_hook() {
-  # #909 — project-local generated hook wins over the legacy central TS/JS guard.
+  # #909 — project-local generated hook wins over the central TS/JS guard.
   # The generated hook has already passed dcNess-owned contract self-test before
   # registration. Central hook delegates here so interactive CC and headless
   # wrappers both use the same project-specific contract.

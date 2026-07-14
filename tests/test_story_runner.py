@@ -495,51 +495,5 @@ class StoryRunnerTests(unittest.TestCase):
         self.assertEqual(duplicate.returncode, 1)
         self.assertIn("state has incomplete task(s): #1=pending", duplicate.stderr)
 
-    def test_init_archives_legacy_ready_for_review_when_tasks_are_completed(self) -> None:
-        state_path = self.root / ".dcness-work" / "story-run.json"
-        state_path.parent.mkdir(parents=True)
-        legacy = build_state(
-            [str(self.impl_dir / "01-ui.md")], cwd=self.root, scope="story"
-        )
-        legacy["schema_version"] = 1
-        legacy["status"] = "ready_for_review"
-        legacy["current_task"] = None
-        legacy["tasks"][0]["status"] = "completed"
-        legacy["tasks"][0]["commit"] = "abc123"
-        legacy["stories"] = [
-            {"story": "1", "status": "implemented", "task_ids": [1], "pr": None}
-        ]
-        state_path.write_text(json.dumps(legacy), encoding="utf-8")
-        env = {**os.environ, "PYTHONPATH": str(ROOT)}
-
-        reinit = subprocess.run(
-            [
-                str(SCRIPT),
-                "init",
-                str(self.impl_dir / "01-ui.md"),
-                "--cwd",
-                str(self.root),
-                "--state",
-                str(state_path),
-                "--json",
-            ],
-            cwd=ROOT,
-            env=env,
-            text=True,
-            capture_output=True,
-            check=True,
-        )
-
-        fresh = json.loads(reinit.stdout)
-        self.assertEqual(fresh["schema_version"], 2)
-        archives = list(state_path.parent.glob("story-run.completed-*.json"))
-        self.assertEqual(len(archives), 1)
-        archived = json.loads(archives[0].read_text(encoding="utf-8"))
-        self.assertEqual(archived["schema_version"], 2)
-        self.assertNotIn("status", archived)
-        self.assertNotIn("current_task", archived)
-        self.assertNotIn("stories", archived)
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -201,7 +201,6 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
     "impl-validator": (),
     "architecture-validator": (),
     "product-acceptance": (),
-    "plan-reviewer": (),
 }
 
 # build-worker — engineer ∪ test-engineer (agents/build-worker.md 권한 경계).
@@ -209,13 +208,6 @@ ALLOW_MATRIX: dict[str, tuple[str, ...]] = {
 # 키 부재 시 "미정의 agent = 통과" fallback 으로 빠져 /impl-loop 핵심 mutation agent 의
 # 경계가 무력화되던 결함(#597) 수정. (run_dir prose self-write 는 RUN_DIR_PROSE_ALLOW carve-out.)
 ALLOW_MATRIX["build-worker"] = ALLOW_MATRIX["engineer"] + ALLOW_MATRIX["test-engineer"]
-
-# build-worker 의 합집합 구성 역할 — 프로젝트 override(#696) 전파 대상. 코어 ALLOW 가
-# engineer ∪ test-engineer 인 것과 동일 원리로, `.dcness/boundary.json` 의 engineer /
-# test-engineer add·remove 도 build-worker 에 합쳐 전파해야 한다 (안 그러면 /impl-loop 의
-# 실제 mutation agent 인 build-worker 가 engineer.remove 를 우회하고 engineer.add 를 무효화).
-_BUILD_WORKER_UNION_ROLES: tuple[str, ...] = ("engineer", "test-engineer", "build-worker")
-
 
 # ── 코드 agent 전용영역 deny (#694 codex P2) ───────────────────────
 # engineer / test-engineer / build-worker 의 언어 중립 ALLOW 패턴(lib/·internal/·cmd/·
@@ -279,11 +271,6 @@ READ_DENY_MATRIX: dict[str, tuple[str, ...]] = {
     ),
     "test-engineer": (
         # impl 외 src 읽기 금지 — domain 문서 격리. 실 적용은 후속 강화.
-    ),
-    "plan-reviewer": (
-        r'(^|/)src/',
-        r'(^|/)docs/epics/[^/]+/impl/',
-        r'(^|/)trd\.md$',
     ),
 }
 
@@ -496,18 +483,12 @@ def _effective_overrides(
 ) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """agent 에 적용할 (add, remove) 패턴을 반환한다.
 
-    build-worker 는 코어 ALLOW 가 engineer ∪ test-engineer 합집합이므로(#597), 프로젝트
-    override 도 구성 역할(engineer / test-engineer)의 add·remove 를 합쳐 전파한다 (codex
-    P1 #696). 안 그러면 /impl-loop 의 실제 mutation agent 인 build-worker 가 engineer.remove
-    를 우회하고 engineer.add 를 무효화한다. 그 외 agent 는 자기 키만 본다.
+    각 agent는 `.dcness/boundary.json`의 자기 key만 사용한다.
     """
-    roles = _BUILD_WORKER_UNION_ROLES if agent == "build-worker" else (agent,)
     add: list[str] = []
     remove: list[str] = []
-    for role in roles:
-        ov = overrides.get(role)
-        if not ov:
-            continue
+    ov = overrides.get(agent)
+    if ov:
         add.extend(ov.get("add", ()))
         remove.extend(ov.get("remove", ()))
     return tuple(add), tuple(remove)
@@ -693,7 +674,7 @@ def check_write_allowed(
         # 미정의 agent — false positive 회피로 통과.
         return None
     # write-zero agent (판정/검증 전용 — impl-validator / architecture-validator /
-    # product-acceptance / plan-reviewer 의 빈 ALLOW) 는
+    # product-acceptance 의 빈 ALLOW) 는
     # 프로젝트 add 로도 write 를 열 수 없다 (#696 codex P2). "검증자는 자기가 검증하는
     # 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는
     # 경계다 — add 로 mutation agent 로 승격시키면 gate forge 위험. 이슈가 "프로젝트

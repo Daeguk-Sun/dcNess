@@ -368,6 +368,9 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             with self.subTest(template=needle):
                 self.assertIn(needle, canvas_html)
 
+        self.assertNotIn("data-frame-id", canvas_html)
+        self.assertNotIn("layoutFrames", canvas_js)
+
         for needle in (
             "querySelectorAll('.screen-node')",
             "dataset.nodeId",

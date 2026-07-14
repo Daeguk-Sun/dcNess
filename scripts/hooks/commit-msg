@@ -9,7 +9,7 @@
 # Plugin root 동적 resolve 우선순위:
 #   1. CLAUDE_PLUGIN_ROOT 환경변수 (Claude Code 가 set)
 #   2. ~/.claude/plugins/cache/dcness/dcness/* 의 최신 디렉토리 (cache lookup)
-#   3. 위 둘 다 부재 시 사용자 repo 의 scripts/check_git_naming.mjs (legacy fallback)
+#   3. dcNess self repo 의 scripts/check_git_naming.mjs
 
 COMMIT_TITLE=$(head -1 "$1")
 
@@ -20,13 +20,13 @@ fi
 
 resolve_plugin_root() {
   # 우선순위 (이슈 #419 자매):
-  # 1. git toplevel (legacy) — 본 저장소 안에 scripts/check_git_naming.mjs 가 있으면 항상 최우선.
+  # 1. git toplevel — dcNess self repo 안에서는 checkout의 최신 룰이 최우선.
   #    dcness self 작업 시 자기 저장소의 최신 룰 적용. 외부 활성 프로젝트는 mjs 사본 부재 → 자연스럽게 다음 후보로 fall through.
   # 2. CLAUDE_PLUGIN_ROOT — CC plug-in hook 컨텍스트에서 자동 설정.
   # 3. plug-in cache — 위 둘 다 부재 시 최후 fallback.
-  legacy="$(git rev-parse --show-toplevel 2>/dev/null)"
-  if [ -f "$legacy/scripts/check_git_naming.mjs" ]; then
-    echo "$legacy"
+  self_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [ -f "$self_root/scripts/check_git_naming.mjs" ]; then
+    echo "$self_root"
     return 0
   fi
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "${CLAUDE_PLUGIN_ROOT}/scripts" ]; then

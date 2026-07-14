@@ -310,7 +310,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 
 자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이라는 이유만으로 finding 에서 제외하지 않는다 — 구체적인 위치, 깨지는 시나리오, 방치 시 영향이 입증되면 Must finding 으로 올리고, 근거가 부족한 우려만 advisory 또는 수동 review 권고로 남긴다.
 
-**Module/Decision contract 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 신규 `/design` 에서 이 계약들은 epic architecture.md 의 `## 모듈 목록` 책임/공개 인터페이스 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 문서는 module id 와 decision id/link 만 참조한다. module-architect 가 public contract 변경 시 두 진본을 갱신하며, architecture-validator 는 구양식 사본의 존재만으로 FAIL 하지 않고 module/decision 과 충돌하는 구현 차단 위험만 Must finding 으로 본다. 분류·분기 상세 = [`design-routing.md`](../../../../skills/design/design-routing.md#finding-분류-분기).
+**Module/Decision contract 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 이 계약들은 epic architecture.md 의 `## 모듈 목록` 책임/공개 인터페이스 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 문서는 module id 와 decision id/link 만 참조한다. module-architect 가 public contract 변경 시 두 진본을 갱신하며, architecture-validator 는 module/decision 과 충돌하는 구현 차단 위험을 Must finding 으로 본다. 분류·분기 상세 = [`design-routing.md`](../../../../skills/design/design-routing.md#finding-분류-분기).
 
 ## 참조
 

@@ -1,7 +1,7 @@
 """`/impl-loop` story branch stack topology contract regression tests.
 
-The filename is retained so existing test selection remains stable after the legacy
-Base Branch marker contract was retired.
+The file guards the current story branch stack after the Base Branch marker contract
+was retired.
 """
 from __future__ import annotations
 

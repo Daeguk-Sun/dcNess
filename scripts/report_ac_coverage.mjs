@@ -149,10 +149,7 @@ export function buildCoverageReport({ storyData, implData, implDir }) {
     [...storyData.stories.values()].flatMap((ids) => [...ids]),
   );
   if (allAcceptance.length === 0) {
-    return [
-      '[ac-coverage] REVIEW — Legacy stories format; no Story AC found.',
-      '[ac-coverage] Existing artifacts remain valid; no retroactive conversion is required.',
-    ].join('\n');
+    return '[ac-coverage] FAIL — Story AC is required.';
   }
 
   const knownAcceptance = new Set(allAcceptance);
@@ -233,6 +230,7 @@ async function main() {
   const storyData = parseStoryAcceptance(readFileSync(args.stories, 'utf8'));
   const implData = parseImplRequirements(args['impl-dir']);
   console.log(buildCoverageReport({ storyData, implData, implDir: args['impl-dir'] }));
+  if ([...storyData.stories.values()].every((ids) => ids.size === 0)) return 1;
   return 0;
 }
 

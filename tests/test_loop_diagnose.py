@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Any
 from unittest import mock
 
+from tests.run_fixtures import make_ledger_run_dir
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "loop_diagnose.py"
@@ -69,35 +71,36 @@ def _write_telemetry_epoch(project: Path, *, days_ago: int) -> None:
 
 
 def _write_recurrent_waste_run(project: Path) -> None:
-    run_dir = (
-        project
-        / ".claude"
-        / "harness-state"
-        / ".sessions"
-        / "sid-loop-diagnose"
-        / "runs"
-        / "run-loop902a"
-    )
-    _write_jsonl(
-        run_dir / ".steps.jsonl",
+    excerpt = "same failure\nline2\nline3\nline4\nline5"
+    make_ledger_run_dir(
+        project,
+        "sid-loop-diagnose",
+        "run-loop902a",
         [
+            {"event": "run_started", "ts": "2026-01-01T00:00:00Z"},
             {
+                "event": "step_completed",
                 "ts": "2026-01-01T00:00:01Z",
                 "agent": "engineer",
                 "mode": "IMPL",
                 "enum": "TESTS_FAIL",
                 "must_fix": False,
-                "prose_excerpt": "same failure\nline2\nline3\nline4\nline5",
+                "prose_excerpt": excerpt,
+                "prose_file": "engineer-1.md",
             },
             {
+                "event": "step_completed",
                 "ts": "2026-01-01T00:01:01Z",
                 "agent": "engineer",
                 "mode": "IMPL",
                 "enum": "TESTS_FAIL",
                 "must_fix": False,
-                "prose_excerpt": "same failure\nline2\nline3\nline4\nline5",
+                "prose_excerpt": excerpt,
+                "prose_file": "engineer-2.md",
             },
+            {"event": "run_finished", "ts": "2026-01-01T00:02:00Z"},
         ],
+        {"engineer-1.md": excerpt, "engineer-2.md": excerpt},
     )
 
 

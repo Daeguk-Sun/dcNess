@@ -2,7 +2,7 @@
 """Cross-project process, effectiveness, and product-outcome scorecard.
 
 Run ledgers provide process evidence. Project-local journey receipts provide product
-outcomes. Agent-effectiveness and complete legacy trial metadata stay unmeasured until
+outcomes. Agent-effectiveness and complete trial metadata stay unmeasured until
 their own evidence exists; no axis substitutes for another.
 """
 
@@ -100,9 +100,8 @@ def _candidate_run_dirs(sessions_root: Path) -> list[Path]:
     if not sessions_root.is_dir():
         return []
     candidates: set[Path] = set()
-    for filename in ("ledger.jsonl", ".steps.jsonl"):
-        for path in sessions_root.glob(f"*/runs/*/{filename}"):
-            candidates.add(path.parent)
+    for path in sessions_root.glob("*/runs/*/ledger.jsonl"):
+        candidates.add(path.parent)
     return sorted(candidates)
 
 
@@ -112,19 +111,6 @@ def _run_event_times(run_dir: Path) -> list[datetime]:
         for event in ledger.read_events_at(run_dir)
         if (parsed := _parse_ts(event.get("ts"))) is not None
     ]
-    if values or not (run_dir / ".steps.jsonl").is_file():
-        return values
-    try:
-        lines = (run_dir / ".steps.jsonl").read_text(encoding="utf-8").splitlines()
-    except OSError:
-        return []
-    for line in lines:
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(row, dict) and (parsed := _parse_ts(row.get("ts"))) is not None:
-            values.append(parsed)
     return values
 
 
@@ -147,11 +133,7 @@ def _finished_by(run_dir: Path, cutoff: Optional[datetime]) -> bool:
     ]
     if finished:
         return any(parsed <= cutoff for parsed in finished)
-    times = _run_event_times(run_dir)
-    # Legacy .steps.jsonl has no run_finished marker: every readable step receipt is
-    # historically a finished-run signal. Later appends must not remove the earlier
-    # snapshot; parse_steps(event_cutoff=...) filters the post-cutoff rows themselves.
-    return any(parsed <= cutoff for parsed in times)
+    return False
 
 
 def _metric(
@@ -357,7 +339,7 @@ def build_scorecard(
             denominator=review_verdicts,
             value=(review_rejections / review_verdicts if review_verdicts else None),
             unit="FAIL / impl-validator review verdicts",
-            evidence="impl-validator conclusion prose or compatible legacy verdict",
+            evidence="impl-validator conclusion prose",
             measurable=review_verdicts > 0,
         ),
         "validator_verdicts": _metric(
@@ -421,7 +403,7 @@ def build_scorecard(
         else {
             **unmeasured_context,
             "reason": (
-                "legacy run은 task/repo 유형, model/provider, harness variant, trial "
+                "현재 run 기록은 task/repo 유형, model/provider, harness variant, trial "
                 "identity, 사람 개입, wall-clock, token, cost를 하나의 비교 가능한 "
                 "record로 일관되게 보존하지 않는다."
             ),

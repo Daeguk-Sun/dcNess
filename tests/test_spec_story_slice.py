@@ -64,15 +64,6 @@ class SpecStorySliceContractTests(unittest.TestCase):
         ):
             self.assertIn(needle, self.stories_reference)
 
-    def test_stories_reference_keeps_backward_compatibility(self) -> None:
-        for needle in (
-            "기존 외부 활성 프로젝트의 옛 양식 stories.md 와 PRD AC 는 그대로 허용",
-            "read 시 parser 는 `As a / I want / So that` 매치만 의무로 본다",
-            "소급 변환하지 않는다",
-        ):
-            with self.subTest(needle=needle):
-                self.assertIn(needle, self.stories_reference)
-
     def test_spec_skill_acceptance_prompt_checks_behavior_increment(self) -> None:
         for needle in (
             "사용자 검증 가능한 동작 증분 / 얇은 골격 우선 기준",
@@ -161,12 +152,8 @@ class SpecStorySliceContractTests(unittest.TestCase):
             "../../skills/spec/spec-stories-reference.md", self.product_acceptance
         )
 
-    def test_story_acceptance_consumes_story_ac_with_legacy_fallback(self) -> None:
+    def test_story_acceptance_consumes_typed_story_ac(self) -> None:
         self.assertIn("Story AC 전항목", self.product_acceptance)
-        self.assertIn(
-            "Story AC 가 없는 구양식에서 `완료 시 확인 가능한 동작` 줄이 있으면",
-            self.product_acceptance,
-        )
 
     def test_report_guidance_is_evidence_bounded(self) -> None:
         self.assertIn("불명이면 불명이라고 쓴다", self.product_acceptance)
@@ -176,14 +163,6 @@ class SpecStorySliceContractTests(unittest.TestCase):
             "라이브러리/SDK 는 공개 API 사용 예제(컴파일·실행 가능한)가 제품 경계다",
             self.stories_reference,
         )
-
-    def test_migrate_script_does_not_force_legacy_conversion(self) -> None:
-        migrate = (ROOT / "scripts" / "migrate_stories_to_new_format.sh").read_text(
-            encoding="utf-8"
-        )
-        self.assertIn("소급 변환하지 않음", migrate)
-        self.assertIn("Story AC", migrate)
-
 
 if __name__ == "__main__":
     unittest.main()

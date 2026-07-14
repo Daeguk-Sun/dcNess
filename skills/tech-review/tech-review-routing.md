@@ -53,7 +53,6 @@ flowchart TB
 
 **왜 단방향?**
 - tech-reviewer 단계 = PRD 최종화 전 기술 검증 기회. 검증 충실 의무 가중 (증거물 / HTML 리포트 룰의 가치 근거).
-- /design 진입 후 역방향 회귀 = ping-pong 사고 패턴 (옛 plan-reviewer cycle 한도 룰이 누적된 원인, 이슈 [#515](https://github.com/alruminum/dcNess/issues/515)).
 
 **/design 도중 미검증 새 외부 의존 발견 시 → design routing 의 `NEW_DEP_ESCALATE` 4안**:
 1. **채택 + 수동 검증** — 사용자 승인 → 해당 architect 재진입

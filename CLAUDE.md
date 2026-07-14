@@ -83,7 +83,7 @@
 3. **branch → PR → regular merge** (직접 `main` push 금지). CI PASS 후 메인이 즉시 머지 — *사용자 수동 승인 대기 X*.
 4. **종료 시 ExitWorktree** — squash 흡수 검사 후 자동 `keep`/`remove` ([`docs/plugin/loop-procedure.md` worktree 분기](docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정)).
 
-GitHub issue 를 대상으로 하는 dcness self 구현은 진입 때 읽은 본문을 target GitHub issue AC snapshot 으로 보관하고, 항목별 구현·검증 증거를 대조한다. close 전 자동 판정 가능한 typed AC 를 모두 충족·체크한 body 가 `node scripts/check_issue_body.mjs --body-file <issue-body.md> --acceptance-only --require-complete` 의 정확한 `PASS`를 받아야 한다. 검증 주체 미기재 legacy AC 와 no-AC body의 exit 0 `REVIEW`는 자동 close 권한이 아니며 agent가 의미를 추론·체크·재분류하지 않는다. 미충족·미체크 상태로 clean 마감하거나 merge하지 않고, legacy `REVIEW` 또는 사람 확인이 남으면 `human verification 대기`로 보고한다.
+GitHub issue 를 대상으로 하는 dcness self 구현은 진입 때 읽은 본문을 target GitHub issue AC snapshot 으로 보관하고, 항목별 구현·검증 증거를 대조한다. close 전 `[command]`/`[agent-read]` typed AC 를 모두 충족·체크한 body 가 `node scripts/check_issue_body.mjs --body-file <issue-body.md> --acceptance-only --require-complete` 의 정확한 `PASS`를 받아야 한다. AC가 없거나 검증 주체가 미기재된 body는 close 전에 현행 typed AC로 갱신하며, agent가 의미를 임의 추론해 체크하지 않는다. 미충족·미체크 상태로 clean 마감하거나 merge하지 않고, 사람 확인이 남으면 `human verification 대기`로 보고한다.
 
 ## 게이트 요약
 

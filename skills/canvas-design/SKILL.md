@@ -60,9 +60,8 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
    - 승격 시 `../_lib/show-ids.js` 참조를 `_lib/show-ids.js` 로 정규화한다.
    - 확정본은 v 접미사를 쓰지 않는다.
 6. **canvas frame 등록**
-   - 메인이 `docs/design-variants/canvas.html` 에 `<iframe data-frame-id="<screen-id>" src="<screen-id>.html"></iframe>` 를 등록한다.
-   - 화면 플로우 설명이 필요하면 `<div class="screen-node" data-node-id="<screen-id>" data-pos="<col>,<row>" data-title="..." data-desc="..." data-states="..." data-h="900"><iframe src="<screen-id>.html"></iframe></div>` 로 등록한다.
-   - 이미 같은 `data-frame-id` 또는 `data-node-id` 가 있으면 중복 등록하지 않고 기존 항목을 갱신한다.
+   - 메인이 `docs/design-variants/canvas.html` 에 `<div class="screen-node" data-node-id="<screen-id>" data-pos="<col>,<row>" data-title="..." data-desc="..." data-states="..." data-h="900"><iframe src="<screen-id>.html"></iframe></div>` 를 등록한다. 자동 배치는 `data-pos` 를 생략한다.
+   - 이미 같은 `data-node-id` 가 있으면 중복 등록하지 않고 기존 항목을 갱신한다.
    - 화면 간 흐름이 확정돼 있으면 `svg.flow-arrows` 의 `path[data-from][data-to][data-label][data-bend]` 로 연결한다. canvas helper 가 라벨 pill, 강조, 초기 fit-to-view 를 처리한다.
 7. **반환**
    - 확정 목업 경로: `docs/design-variants/<screen-id>.html`

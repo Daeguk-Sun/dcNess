@@ -67,14 +67,14 @@ fail-open은 hook이 정책 판단을 못 해서 차단 대신 통과한 의심 
 
 [![guard-efficacy](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml/badge.svg)](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml)
 
-<!-- public-evidence-snapshot {"plugin_version":"0.23.0","measured_at":"2026-07-14","unit_tests":{"passed":1963,"total":1963},"guard":{"passed":39,"total":39},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.23.0","measured_at":"2026-07-14","unit_tests":{"passed":1897,"total":1897},"guard":{"passed":39,"total":39},"source_project_count":2} -->
 
 현재 공개 snapshot은 **v0.23.0, 2026-07-14 측정**이다. 숫자마다 분모와 source 수를
 붙이고, 서로 다른 evidence 영역을 합산하거나 대신 쓰지 않는다.
 
 | evidence 영역 | 관측 결과 | denominator / source | 재현 명령 | 이 수치가 말하지 않는 것 |
 |---|---|---|---|---|
-| 하네스·기계적 guard | unittest 1,963/1,963 PASS, 결정적 guard 39/39 PASS | test 1,963, guard case 39 / dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 보안 증명이나 제품 성공률이 아니다 |
+| 하네스·기계적 guard | unittest 1,897/1,897 PASS, 결정적 guard 39/39 PASS | test 1,897, guard case 39 / dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 보안 증명이나 제품 성공률이 아니다 |
 | Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 / 실측 fixture 1 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)의 trace→record 재현 명령 | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1). downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 실행하지 않아 측정 불가다. 1차 거부와 2차 채택 trace는 host metadata를 비식별화했고 세션 ID·SHA-256·capture/rebuild 명령이 provenance에 있다. 공개 우위 주장이 아니다 |
 | PR·validator 운영 | finished run 26/28, measurable PR merge 7/7, validator verdict 33건 | candidate run 28 / 외부 활성 프로젝트 2 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#재현-명령)의 source-ref 고정 명령 | merge와 validator FAIL은 과정 evidence이지 제품 outcome이 아니다 |
 | 실제 제품 outcome | non-UI journey 1/1 PASS, 제품 AC 1/1 | journey 1, AC 1 / 외부 활성 프로젝트 1 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 pilot이며 일반 제품 성공률이나 공개 우위가 아니다 |

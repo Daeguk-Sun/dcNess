@@ -6,16 +6,15 @@
     sid × run_id 별 격리된 디렉토리 구조 + `_meta` envelope 으로 leftover 방어.
 
 본 모듈은 다음을 단일 책임으로 묶는다:
-    1. session_id 검증 + resolution (3-tier: env → project pointer; 글로벌 폴백 제외)
-    2. session pointer 파일 (`.session-id`) 읽기/쓰기
-    3. run_id 생성 (`run-{token_hex(4)}`)
-    4. atomic write (O_EXCL+fsync+rename+dir fsync, 0o600 — RWH 패턴)
-    5. live.json 스키마 + active_runs map 조작 (OMC `SkillActiveStateV2` 차용)
+    1. session_id 검증 + env/by-pid/active-run resolution
+    2. run_id 생성 (`run-{token_hex(4)}`)
+    3. atomic write (O_EXCL+fsync+rename+dir fsync, 0o600 — RWH 패턴)
+    4. live.json 스키마 + active_runs map 조작 (OMC `SkillActiveStateV2` 차용)
 
 OMC + RWH 차용 매핑:
     - regex `^[a-zA-Z0-9][a-zA-Z0-9_-]{0,255}$`           ← OMC SESSION_ID_ALLOWLIST
     - stdin 3 변형 fallback (sessionId/session_id/sessionid) ← OMC
-    - 3-tier resolution (env > pointer)                    ← RWH (글로벌 폴백 제외)
+    - resolution (env > by-pid > active run scan)
     - `_meta` envelope + 자기참조 sessionId 검증            ← RWH
     - atomic write O_EXCL+fsync+rename+dir fsync           ← RWH
     - active_runs map + soft tombstone                     ← OMC SkillActiveStateV2
@@ -64,8 +63,6 @@ __all__ = [
     "valid_session_id",
     "session_id_from_stdin",
     "current_session_id",
-    "read_session_pointer",
-    "write_session_pointer",
     "generate_run_id",
     "atomic_write",
     "session_dir",
@@ -133,7 +130,7 @@ def _resolve_state_root_for_cwd(cwd_str: str) -> Path:
     의 `.claude/harness-state/` 가 단일 source 가 됨 → SessionStart 훅이 main
     repo 에서 쓴 by-pid / live.json 을 worktree 안 helper 도 그대로 본다.
 
-    git 미설치 / git 리포 아님 / subprocess 실패 → cwd 폴백 (legacy 동작).
+    git 미설치 / git 리포 아님 / subprocess 실패 → cwd 기준으로 동작한다.
     cwd 별 캐시 (subprocess 반복 호출 회피).
     """
     if cwd_str in _DEFAULT_BASE_CACHE:
@@ -257,10 +254,6 @@ def live_path(session_id: str, *, base_dir: Optional[Path] = None) -> Path:
     return session_dir(session_id, base_dir=base_dir) / "live.json"
 
 
-def _pointer_path(base_dir: Optional[Path] = None) -> Path:
-    return _resolve_base(base_dir) / ".session-id"
-
-
 # ── session_id 검증 ─────────────────────────────────────────────────
 
 
@@ -304,44 +297,10 @@ def session_id_from_stdin(
 
 
 def current_session_id(*, base_dir: Optional[Path] = None) -> str:
-    """현재 세션 ID resolution — 2-tier (RWH 3-tier 의 글로벌 폴백 제외).
-
-    1. `DCNESS_SESSION_ID` env (subprocess 전파, 가장 권위)
-    2. `.claude/harness-state/.session-id` pointer (legacy 폴백 — 현재
-       SessionStart 훅은 `.by-pid/<cc_pid>` 만 작성하고 본 pointer 는 쓰지
-       않는다. `write_session_pointer` 프로덕션 호출자 부재 → 사실상 미사용
-       폴백, 멀티세션 정합은 `auto_detect_session_id` 의 by-pid 단계가 담당)
-
-    실패 시 빈 문자열. 호출자가 빈 문자열 처리 책임.
-    """
+    """`DCNESS_SESSION_ID` 환경변수의 유효한 현재 세션 ID를 반환한다."""
+    del base_dir
     sid = os.environ.get("DCNESS_SESSION_ID", "")
-    if valid_session_id(sid):
-        return sid
-    return read_session_pointer(base_dir=base_dir)
-
-
-def read_session_pointer(*, base_dir: Optional[Path] = None) -> str:
-    """`.session-id` pointer 파일 읽기. 검증 실패 시 빈 문자열."""
-    path = _pointer_path(base_dir)
-    try:
-        if not path.exists():
-            return ""
-        sid = path.read_text(encoding="utf-8").strip()
-        return sid if valid_session_id(sid) else ""
-    except OSError:
-        return ""
-
-
-def write_session_pointer(
-    session_id: str, *, base_dir: Optional[Path] = None
-) -> Path:
-    """`.session-id` pointer atomic 작성."""
-    if not valid_session_id(session_id):
-        raise ValueError(f"invalid session_id: {session_id!r}")
-    target = _pointer_path(base_dir)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(target, session_id.encode("utf-8"))
-    return target
+    return sid if valid_session_id(sid) else ""
 
 
 # ── run_id 생성 ──────────────────────────────────────────────────────
@@ -547,7 +506,7 @@ def _validate_design_doc(design_doc: str) -> str:
     return str(resolved)
 
 
-# /impl legacy lane(설계도 유무) 닫힌 enum (#714). lite = 설계도 없음,
+# /impl lane(설계도 유무) 닫힌 enum (#714). lite = 설계도 없음,
 # standard = 설계도 있음. implementation gate 가 lane=lite 를 설계 산출물
 # 사전 조건 면제 신호로 인정하므로, 임의 문자열이 면제를 유발하지 못하게
 # 기록 시점에 이 집합으로 fail-fast 검증한다.
@@ -576,7 +535,7 @@ def start_run(
     증거로 인정한다 (`/impl-loop` story/epic runner 처럼 설계가 별도 run 에서 머지된
     뒤 진입하는 경우).
 
-    lane — /impl legacy lane(설계도 유무: "lite" / "standard", #714).
+    lane — /impl lane(설계도 유무: "lite" / "standard", #714).
     lane="lite" 는 설계도 없는 direct 구현 경로로, implementation gate 가 설계 산출물
     사전 조건을 면제하는 신호다. 면제 누수 방지를 위해 (1) 닫힌 enum 만
     수용하고 (2) design_doc 과 동일하게 entry_point=impl run 에서만 기록을
@@ -703,7 +662,7 @@ def update_current_step(
 ) -> None:
     """`active_runs[run_id].current_step` 갱신 + heartbeat (`last_confirmed_at`)."""
     # #700 — current_step.agent 를 canonical 로 정규화 저장. namespaced(`dcness:engineer`)
-    # / legacy alias 를 bare 로 통일해 strict-conveyor 게이트 비교 + prose 파일명(staging/
+    # 표기를 bare 이름으로 통일해 strict-conveyor 게이트 비교 + prose 파일명(staging/
     # end-step)이 표기 무관하게 일관되도록. agent 이름 검증 정규식(콜론 거부)을 바꾸지 않고
     # 정규화로 해소 (이슈 out-of-scope: 정규식 정책 변경).
     from harness.agent_names import normalize_agent_type
@@ -716,7 +675,7 @@ def update_current_step(
 
     # DCN-CHG-20260430-30: stale current_step WARN — begin-step 호출 시 *기존*
     # current_step 의 last_confirmed_at 가 STALE_STEP_TTL_SEC 초과면 stderr WARN.
-    # I4 사례 — engineer step 후 end-step 누락 → 다음 begin-step 시 .steps.jsonl
+    # I4 사례 — engineer step 후 end-step 누락 → 다음 begin-step 시 ledger receipt
     # 의 직전 step 누락 신호. 자동 보정 X (안전).
     prev_step = slot.get("current_step")
     prev_confirmed = slot.get("last_confirmed_at")
@@ -840,29 +799,13 @@ def mark_run_blocked(
     return marker
 
 
-def _steps_jsonl_path(sid: str, rid: str, *, base_dir: Optional[Path] = None) -> Path:
-    """[deprecated] 옛 `.steps.jsonl` 경로 — ledger.jsonl 로 흡수됨 (이슈 #587).
-
-    `ledger.legacy_steps_path` 위임 (마이그레이션 폴백 참조 전용). 새 코드는
-    `harness.ledger` 모듈을 직접 쓴다.
-    """
-    from harness import ledger
-
-    return ledger.legacy_steps_path(sid, rid, base_dir=base_dir)
-
-
 def _read_steps_jsonl(
     sid: str,
     rid: str,
     *,
     base_dir: Optional[Path] = None,
 ) -> list:
-    """run 의 step_completed event 를 시간순 반환 (옛 `.steps.jsonl` 호환 — 이슈 #587).
-
-    `ledger.read_step_completed` 위임. ledger.jsonl 우선, 없으면 옛 .steps.jsonl
-    폴백 (마이그레이션 셔틀). 반환 레코드는 옛 row 필드명 호환 — 소비처
-    (finalize-run / strict-conveyor / Stop hook) 는 그대로 읽는다.
-    """
+    """현재 ledger의 step_completed receipt를 시간순 반환."""
     from harness import ledger
 
     return ledger.read_step_completed(sid, rid, base_dir=base_dir)
@@ -1427,9 +1370,8 @@ def clear_pending_agent(
 
     issue #598 multi-slot 매칭 정책:
       - `tool_use_id` 명시 + 매칭 슬롯 존재 → 그 슬롯만 pop (동시 Agent 정확 귀속).
-      - `tool_use_id` 미매칭/None + 슬롯 *1개뿐* → 그 1개 pop (단일/구버전·drift 폴백).
+      - `tool_use_id` 미매칭/None + 슬롯 *1개뿐* → 그 1개 pop (drift 복구).
       - `tool_use_id` 미매칭/None + 슬롯 여러 개 → 모호 → pop 안 함 (None 반환).
-      - `pending_agents` 비었고 구버전 단일 슬롯(`pending_agent`) 잔존 → 흡수 (업그레이드 호환).
     """
     live = read_live(session_id, base_dir=base_dir) or {}
     active = live.get("active_runs", {})
@@ -1450,11 +1392,6 @@ def clear_pending_agent(
             popped = pending.popitem()[1]
             changed = True
         # else: 여러 개 + 매칭 없음 → 모호 → pop 안 함.
-    elif isinstance(slot.get("pending_agent"), dict):
-        # 구버전 단일 슬롯(pending_agent) 잔존분 흡수 (in-flight 업그레이드 호환).
-        popped = slot.pop("pending_agent")
-        changed = True
-
     if not changed:
         return None  # 변경 없음 — write skip
     if pending:
@@ -1740,7 +1677,7 @@ def get_cc_pid_via_ppid_chain() -> Optional[int]:
 
 
 def auto_detect_session_id(*, base_dir: Optional[Path] = None) -> str:
-    """helper 컨텍스트 — env > by-pid (멀티세션 정합) > pointer > active_runs scan 폴백.
+    """helper 컨텍스트 — env > by-pid (멀티세션 정합) > active_runs scan 폴백.
 
     issue #469 결함 B (DCN-CHG-20260522): PPID chain mismatch 시
     (bash subprocess 재시작 / fork 등) sid 미해결 회귀 차단. env var 우선 +
@@ -1756,11 +1693,7 @@ def auto_detect_session_id(*, base_dir: Optional[Path] = None) -> str:
         sid = read_pid_session(cc_pid, base_dir=base_dir)
         if sid:
             return sid
-    # (c) pointer 폴백 (기존 — current_session_id 가 env+pointer 2-tier)
-    sid = current_session_id(base_dir=base_dir)
-    if sid:
-        return sid
-    # (d) active_runs scan 폴백 — 가장 최근 미완료 run 의 session_id
+    # (c) active_runs scan 폴백 — 가장 최근 미완료 run 의 session_id
     slot_info = _scan_recent_active_run_slot(base_dir=base_dir)
     if slot_info:
         return slot_info[0]  # (sid, rid)
@@ -1789,7 +1722,7 @@ def auto_detect_run_id(*, base_dir: Optional[Path] = None) -> str:
             slot_info = _scan_recent_active_run_slot(base_dir=base_dir, session_id=sid)
             if slot_info:
                 return slot_info[1]
-    # (c) pointer/env sid 가 있으면 해당 세션 active_runs 를 먼저 scan
+    # (c) env sid 가 있으면 해당 세션 active_runs 를 먼저 scan
     sid = current_session_id(base_dir=base_dir)
     if sid:
         slot_info = _scan_recent_active_run_slot(base_dir=base_dir, session_id=sid)
@@ -1858,8 +1791,6 @@ def diagnose_sid_rid_resolution(
             )
 
     # (c) active_runs scan layer (rid 영역만 의미 — sid 도 같이 매칭)
-    if not sid_hint:
-        sid_hint = current_session_id(base_dir=base_dir)
     slot = _scan_recent_active_run_slot(
         base_dir=base_dir,
         session_id=sid_hint or None,
@@ -1967,39 +1898,33 @@ def _scan_recent_active_run_slot(
     `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` env var 명시 권장.
     """
     base = _resolve_base(base_dir)
-    session_roots = [base / ".sessions", base / "sessions"]  # legacy fallback
-    session_roots = [p for p in session_roots if p.is_dir()]
-    if not session_roots:
+    sessions_dir = base / ".sessions"
+    if not sessions_dir.is_dir():
         return None
 
     if session_id:
-        best: Optional[tuple[str, str, str]] = None
-        for sessions_dir in session_roots:
-            slot = _scan_live_file_for_active_run(
-                sessions_dir / session_id / "live.json",
-                session_id=session_id,
-            )
-            if slot and (best is None or slot[0] > best[0]):
-                best = slot
-        if best is None:
+        slot = _scan_live_file_for_active_run(
+            sessions_dir / session_id / "live.json",
+            session_id=session_id,
+        )
+        if slot is None:
             return None
-        return (best[1], best[2])
+        return (slot[1], slot[2])
 
     # live.json mtime 최신 max_sessions 개만 추출 (비용 가드)
     candidates: list[tuple[float, Path]] = []
-    for sessions_dir in session_roots:
-        try:
-            for entry in sessions_dir.iterdir():
-                if not entry.is_dir():
-                    continue
-                live_file = entry / "live.json"
-                try:
-                    stat = live_file.stat()
-                except OSError:
-                    continue
-                candidates.append((stat.st_mtime, live_file))
-        except OSError:
-            continue
+    try:
+        for entry in sessions_dir.iterdir():
+            if not entry.is_dir():
+                continue
+            live_file = entry / "live.json"
+            try:
+                stat = live_file.stat()
+            except OSError:
+                continue
+            candidates.append((stat.st_mtime, live_file))
+    except OSError:
+        return None
     candidates.sort(key=lambda x: x[0], reverse=True)
     candidates = candidates[:max_sessions]
 
@@ -2014,9 +1939,8 @@ def _scan_recent_active_run_slot(
     return (best_slot[1], best_slot[2])
 
 
-# ── split-module compatibility re-exports ───────────────────────────
-# Keep the historical ``harness.session_state`` import path stable while
-# cohesive responsibilities live in smaller modules.
+# ── split-module public facade re-exports ──────────────────────────
+# Callers import the cohesive modules through ``harness.session_state``.
 from harness.session_state_activation import (  # noqa: E402
     _resolve_project_root as _resolve_project_root,
     disable_project as disable_project,

@@ -155,8 +155,6 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
 
 - **CI FAIL 시**: pr-finalize 가 exit 1 + 안내. 원인 파악 후 수정 커밋 → 재검증.
 - **working tree dirty**: pr-finalize 가 사용자 확인 후 main sync skip 옵션.
-- **레거시 패턴** (수동 4 명령) 도 작동 — 단 권장 X (메인 Claude 가 까먹어 main sync 누락 사례).
-
 ---
 
 ## 이슈 등록 (양식)
@@ -183,7 +181,7 @@ argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 
 - **레이블**: `story` + `vNN` + `epic-NN-<slug>` (3중, epic 과 `epic-NN-<slug>` 공유)
 - **마일스톤**: `Story`
 - **제목**: `[story] <story 한 줄 요약>`
-- **본문**: `As a / I want / So that` + Story AC 목록(`AC-NNN`, Given/When/Then, 검증 주체 `[command]` 또는 `[agent-read]`). `AC-NNN` 은 프로젝트 전역 순번이며 한번 부여하면 불변이다. 생성 스크립트는 GitHub issue body 의 Story AC 에만 미체크 체크박스를 붙여 close 감사를 가능하게 하고, stories.md 원문은 바꾸지 않는다. 사람 판정 항목은 AC 체크박스가 아닌 `사람 확인 안내`로 분리한다. 대상 화면 / 상세 동작 명세 / task 체크리스트는 넣지 않는다 — architecture.md + impl 파일 영역. Story AC 가 없는 구양식 stories.md 는 소급 변환하지 않고 그대로 허용한다.
+- **본문**: `As a / I want / So that` + Story AC 목록(`AC-NNN`, Given/When/Then, 검증 주체 `[command]` 또는 `[agent-read]`). `AC-NNN` 은 프로젝트 전역 순번이며 한번 부여하면 불변이다. 생성 스크립트는 GitHub issue body 의 Story AC 에만 미체크 체크박스를 붙여 close 감사를 가능하게 하고, stories.md 원문은 바꾸지 않는다. 사람 판정 항목은 AC 체크박스가 아닌 `사람 확인 안내`로 분리한다. 대상 화면 / 상세 동작 명세 / task 체크리스트는 넣지 않는다 — architecture.md + impl 파일 영역. Story AC 없는 stories.md는 유효하지 않다.
 - **순서**: epic 생성 완료 후 story 1, 2, … 순차
 - **stories.md 기록**:
   - 각 story 헤더 직하: `**GitHub Issue:** [#MMM](url)`
@@ -230,7 +228,7 @@ task 는 별도 GitHub 이슈를 만들지 않는다. build-worker 의 local com
 
 ## 이슈 완료 규칙
 
-`Closes` 가 발동할 target issue 는 plan이나 Story AC 와 별개의 **target GitHub issue AC** 마감 계약을 가진다. 구현 경로는 plan ∪ target GitHub issue AC 를 충족해야 하며, close 직전 자동 판정 가능한 typed 체크박스를 모두 check 한 body 가 `check_issue_body.mjs --acceptance-only --require-complete` 의 정확한 `PASS`를 받아야 한다. 미충족·미체크 AC 가 있으면 PR 을 clean 으로 마감하거나 merge 하지 않는다. 검증 주체 미기재 또는 no-AC legacy body의 exit 0 `REVIEW`는 자동 close 권한이 아니며, agent가 의미를 추론·체크·재분류하지 않고 human verification 대기로 보고한다.
+`Closes` 가 발동할 target issue 는 plan이나 Story AC 와 별개의 **target GitHub issue AC** 마감 계약을 가진다. 구현 경로는 plan ∪ target GitHub issue AC 를 충족해야 하며, close 직전 typed 체크박스를 모두 check 한 body 가 `check_issue_body.mjs --acceptance-only --require-complete` 의 정확한 `PASS`를 받아야 한다. AC 부재·검증 주체 미기재·미충족·미체크 body는 실패하며, close 전에 현행 typed AC로 갱신한다. agent는 의미를 임의 추론해 체크하지 않는다.
 
 ### Story 완료
 

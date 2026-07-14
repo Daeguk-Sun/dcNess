@@ -7,7 +7,7 @@
 
 ## 현재 공개 Evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.23.0","measured_at":"2026-07-14","unit_tests":{"passed":1963,"total":1963},"guard":{"passed":39,"total":39},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.23.0","measured_at":"2026-07-14","unit_tests":{"passed":1897,"total":1897},"guard":{"passed":39,"total":39},"source_project_count":2} -->
 
 현재 plugin version은 **v0.23.0**, 측정일은 **2026-07-14**이다. 아래 표의 최대
 source 프로젝트 수는 2이며, 영역별 실제 source와 denominator는 각 행에 다시 적는다.
@@ -15,9 +15,9 @@ process, Agent effectiveness, product outcome, 비용을 합산한 단일 성공
 
 | evidence 영역 | 관측값 | denominator | source 수 | 재현 명령 | 한계 |
 |---|---|---:|---:|---|---|
-| 하네스 정의·기계적 guard | unittest 1,963/1,963 PASS; guard fixture 39/39 PASS | test 1,963; guard 39 | dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 테스트와 fixture 계약의 과정 evidence다. 보안 증명·제품 성공률이 아니다 |
+| 하네스 정의·기계적 guard | unittest 1,897/1,897 PASS; guard fixture 39/39 PASS | test 1,897; guard 39 | dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 테스트와 fixture 계약의 과정 evidence다. 보안 증명·제품 성공률이 아니다 |
 | Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 | 실측 fixture 1 | `printf '{"version":1,"projects":[]}' > /tmp/dcness-empty-projects.json && python3.11 harness/outcome_scorecard.py --projects-file /tmp/dcness-empty-projects.json --agent-effectiveness-record evals/agent-effectiveness/cartography-sanity-real.json --measured-at 2026-07-12T15:17:58Z --json` | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1)이다. downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 측정 불가다. 1차 거부→계약 개선→2차 채택 경위와 host metadata를 비식별화한 trace, 세션 ID·SHA-256·capture/rebuild 명령 provenance가 [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)에 공개된다. 공개 우위 주장이 아니다 |
-| PR·validator 운영 | finished 26/28; PR merge 7/7; validator verdict 33/26 finished run | candidate run 28; measurable PR 7; finished run 26 | 외부 활성 프로젝트 2 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#재현-명령)의 두 source-ref 고정 명령 | merge·validator FAIL은 제품 성공률이 아니다. 선택한 legacy ledger의 guard와 regression은 측정 불가 |
+| PR·validator 운영 | finished 26/28; PR merge 7/7; validator verdict 33/26 finished run | candidate run 28; measurable PR 7; finished run 26 | 외부 활성 프로젝트 2 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#재현-명령)의 두 source-ref 고정 명령 | merge·validator FAIL은 제품 성공률이 아니다. 선택한 과거 ledger의 guard와 regression은 측정 불가 |
 | 실제 제품 outcome | non-UI journey 1/1 PASS; 제품 AC 1/1 | journey 1; AC 1 | 외부 활성 프로젝트 1 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 CLI/filesystem pilot이다. UI·다른 제품·공개 우위로 일반화할 수 없다 |
 | 비용·경량화 | prompt 107 bytes 감소; input token 38,874→40,659; 결정 `keep` | baseline/variant trial 2 | frozen fixture 1 | `python3.11 evals/lean_ablation.py evals/lean-ablation/tool-repeat-lesson-metadata.json --json` | billed cost 측정 불가. 단일 pair의 wall-clock 감소를 우위 근거로 쓰지 않는다 |
 
@@ -103,7 +103,7 @@ hook/function 의 결정적 allow/block 성능을 대신하지 않는다.
 | 지표 | 의미 | 산출 근거 |
 |---|---|---|
 | cost / turn reduction | 메인 turn, token, cost 가 얼마나 줄었는가 | Claude Code session JSONL + `measure_main_turns.py` / `run_review.py` |
-| review rejection | `impl-validator` 가 실제로 반려한 비율 | `impl-validator` verdict: `FAIL / (PASS + FAIL)` (legacy LGTM 는 집계 호환만 유지) |
+| review rejection | `impl-validator` 가 실제로 반려한 비율 | `impl-validator` verdict: `FAIL / (PASS + FAIL)` |
 | blocked events | run 이 안전하게 멈춘 횟수 | `ledger.jsonl` 의 `blocked` event |
 | escalate | agent 가 자동 진행을 거부하고 사용자/상위 설계로 올린 횟수 | step verdict 에 `ESCALATE` 포함 |
 | waste | 반복 실패, 도구 반복, gate 모순 등 비용 낭비 finding | `run_review.py` 의 waste detector |
@@ -275,11 +275,11 @@ python3 "$DCN"/harness/outcome_scorecard.py --redact-paths --json
 | 지표 | 값 | 비고 |
 |---|---|---|
 | 총 run | 44 | impl 40 / design 3 / architect-loop 1 |
-| impl-validator FAIL 비율 | 42.6% | PASS 35 / FAIL 29 / legacy LGTM 4 — 리뷰 게이트가 실제로 반려 |
+| impl-validator FAIL 비율 | 45.3% | PASS 35 / FAIL 29 — 현재 verdict만 집계 |
 | escalate 결론 | 2 | 주로 architecture-validator |
 | blocked 이벤트 | 1 | |
 | waste top | TOOL_REPEAT_HIGH 39 / MUST_FIX_LEAK 11 / MISSING_CONCLUSION_ENUM 2 | `/run-review` 가 잡는 낭비 패턴 |
-| PR 머지 성공률 | 측정 불가 | legacy snapshot: `pr_created` denominator 없음 |
+| PR 머지 성공률 | 측정 불가 | 당시 snapshot에 `pr_created` denominator 없음 |
 
 해석: impl-validator 의 ~42% FAIL 은 "리뷰가 형식적으로 통과만 시키지 않고 실제로
 반려한다"는 뜻이다 — 가드가 동작한다는 신호. waste top 은 어디를 개선하면 비용이
@@ -302,7 +302,7 @@ python3 "$DCN"/harness/outcome_scorecard.py --redact-paths --json
 같은 PR 의 `pr_merged` 가 있을 때만 성공으로 센다.
 
 기존 run 처럼 `pr_created` 가 없으면 PR 성공률은 측정 불가다. `pr_merged` 만 남은
-수동/legacy event 는 orphan 으로 표시하고 성공률 분자에 넣지 않는다.
+`pr_created`가 없는 수동 event는 orphan 으로 표시하고 성공률 분자에 넣지 않는다.
 
 ## 재현 4 — design run 영속 기록
 
@@ -323,7 +323,6 @@ record v1 필드: `run_id`, `started_at`, `finished_at`, `duration_s`, `step_cou
 `final_verdict`, `clean`, `finding_classes`, `revalidation_cycles`, `units[]`,
 `total_input_tokens`, `total_output_tokens`, `total_cost_usd`. `finding_classes` 는
 FAIL/ESCALATE prose 안의 class token 언급 수라 finding 건수의 근사치다.
-`units[].revalidation_cycle` 은 현 schema 에서 `units[].cycle` alias 로 남긴다.
 토큰/비용은 세션 JSONL 매칭이 가능할 때만 채워지고, 불가능하면 0으로 남는다.
 
 ## 언제 유리하고 언제 과한가

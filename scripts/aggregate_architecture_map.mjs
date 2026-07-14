@@ -6,7 +6,6 @@
  * - docs/epics/epic-NN-<slug>/architecture.md
  * - "## 모듈 목록" markdown table
  * - module responsibility / public interface / validation / decision columns
- * - legacy "## Contract Ledger" and "## Decisions" tables
  *
  * Usage:
  *   node scripts/aggregate_architecture_map.mjs
@@ -215,30 +214,15 @@ function parseEpicArchitecture(root, epicDirName) {
     }))
     .filter((row) => !isBlankish(row.name));
 
-  const contractRows = parseMarkdownTable(extractSection(content, 'Contract Ledger'))
-    .map((row) => ({
-      contract: pick(row, ['contract', 'Contract']),
-      owner: pick(row, ['owner', 'Owner']),
-      producer: pick(row, ['producer', 'Producer']),
-      consumer: pick(row, ['consumer', 'Consumer']),
-      invariant: pick(row, ['invariant', 'Invariant']),
-      refs: pick(row, ['refs', 'Refs']),
-    }))
-    .filter((row) => !isBlankish(row.contract));
-
-  const legacyDecisionRows = parseMarkdownTable(extractSection(content, 'Decisions'))
-    .map((row) => pick(row, ['Decision', 'decision']));
-  const decisionRows = uniqueNonBlank([
-    ...moduleRows.flatMap((row) => splitDecisionRefs(row.decision)),
-    ...legacyDecisionRows.flatMap(splitDecisionRefs),
-  ]);
+  const decisionRows = uniqueNonBlank(
+    moduleRows.flatMap((row) => splitDecisionRefs(row.decision)),
+  );
 
   return {
     name: epicDirName,
     architecturePath,
     domainModelPath: join(epicDir, 'domain-model.md'),
     moduleRows,
-    contractRows,
     decisionRows,
   };
 }
@@ -310,19 +294,6 @@ function buildSections(reportPath, epics) {
         rebaseMarkdownLinks(row.dependencies, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.validation, epic.architecturePath, reportPath),
         rebaseMarkdownLinks(row.decision, epic.architecturePath, reportPath),
-        epicLink,
-      ]);
-    }
-
-    for (const row of epic.contractRows) {
-      capabilityContractRows.push([
-        'legacy Contract Ledger',
-        rebaseMarkdownLinks(row.contract, epic.architecturePath, reportPath),
-        rebaseMarkdownLinks(row.owner, epic.architecturePath, reportPath),
-        rebaseMarkdownLinks(row.producer, epic.architecturePath, reportPath),
-        rebaseMarkdownLinks(row.consumer, epic.architecturePath, reportPath),
-        rebaseMarkdownLinks(row.invariant, epic.architecturePath, reportPath),
-        rebaseMarkdownLinks(row.refs, epic.architecturePath, reportPath),
         epicLink,
       ]);
     }
@@ -398,10 +369,7 @@ function nextArchitectureReport(root, reportPath, epics = collectEpics(root)) {
     content: `${content.trimEnd()}\n`,
     epicCount: epics.length,
     moduleCount: epics.reduce((sum, epic) => sum + epic.moduleRows.length, 0),
-    capabilityContractCount: epics.reduce(
-      (sum, epic) => sum + epic.moduleRows.length + epic.contractRows.length,
-      0
-    ),
+    capabilityContractCount: epics.reduce((sum, epic) => sum + epic.moduleRows.length, 0),
   };
 }
 

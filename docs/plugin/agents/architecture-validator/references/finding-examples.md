@@ -22,7 +22,6 @@
 - producer와 consumer가 같은 module/decision 참조를 다른 의미로 씀
 - forbidden alternative가 decision 문서에 없어 stale 구현을 막을 근거가 없음
 - 신규 산출물의 impl 문서가 module/decision 참조 대신 invariant/ordering/error mode 전문 사본을 다시 적음
-- 구양식 Contract Ledger / Contract References 가 남아 있지만 이번 변경과 무관한 형식 잔존뿐임 (Should, Must 아님)
 
 ## 고위험 상태 계약
 

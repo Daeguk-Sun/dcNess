@@ -196,11 +196,11 @@ export function validateIssueBody({
   }
 
   const acceptanceCriteria = parseAcceptanceCriteria(text);
-  if (!acceptanceOnly && acceptanceCriteria.length === 0) {
+  if (acceptanceCriteria.length === 0) {
     failures.push('Acceptance criteria must contain at least one checklist item');
   }
   for (const criterion of acceptanceCriteria) {
-    if (!acceptanceOnly && !criterion.verificationClass) {
+    if (!criterion.verificationClass) {
       failures.push(
         `acceptance criterion must declare [command] or [agent-read]: ${criterion.text}`,
       );
@@ -266,13 +266,7 @@ async function main() {
   });
   if (result.ok) {
     if (args['acceptance-only']) {
-      if (result.acceptanceCriteria.length === 0) {
-        console.log('[issue-body] REVIEW — legacy/no AC issue; readable without migration, automatic close is not authorized');
-      } else if (result.unclassifiedCriteria.length > 0) {
-        console.log(`[issue-body] REVIEW — legacy/unclassified AC (${result.unclassifiedCriteria.length}); automatic close is not authorized`);
-      } else {
-        console.log(`[issue-body] PASS — acceptance criteria complete (${result.acceptanceCriteria.length})`);
-      }
+      console.log(`[issue-body] PASS — acceptance criteria complete (${result.acceptanceCriteria.length})`);
     } else {
       console.log(`[issue-body] PASS — IssueType=${result.issueType}, Priority=${result.priority}`);
     }

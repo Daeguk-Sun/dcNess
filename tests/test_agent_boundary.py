@@ -884,7 +884,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
     def test_build_worker_youtube_generator_scenario(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            self._write_boundary(cwd, {"engineer": {"add": [r"^remotion/"]}})
+            self._write_boundary(cwd, {"build-worker": {"add": [r"^remotion/"]}})
             # 테스트 산출 (test-engineer 영역) — task 01·02·03·07
             self.assertIsNone(
                 check_write_allowed("build-worker", "tests/core/domain/test_shorts.py", cwd=cwd)
@@ -2539,47 +2539,8 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
                 check_write_allowed("engineer", "custom-pkg/x.go", cwd=proj)
             )
 
-    # ── build-worker 합집합 전파 (codex P1) ──
-    def test_build_worker_inherits_engineer_add(self):
-        # build-worker = engineer ∪ test-engineer — engineer.add 가 build-worker 에 전파.
-        with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)
-            self.assertIsNotNone(
-                check_write_allowed("build-worker", "custom-pkg/x.go", cwd=cwd)
-            )
-            self._write_boundary(cwd, {"engineer": {"add": [r"(^|/)custom-pkg/"]}})
-            self.assertIsNone(
-                check_write_allowed("build-worker", "custom-pkg/x.go", cwd=cwd)
-            )
-
-    def test_build_worker_inherits_engineer_remove(self):
-        # engineer.remove 가 build-worker 에 전파 — remove 우회 방지.
-        with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)
-            self.assertIsNone(
-                check_write_allowed("build-worker", "app/models.rb", cwd=cwd)
-            )
-            self._write_boundary(cwd, {"engineer": {"remove": [r"^app/"]}})
-            self.assertIsNotNone(
-                check_write_allowed("build-worker", "app/models.rb", cwd=cwd)
-            )
-
-    def test_build_worker_inherits_test_engineer_add(self):
-        # test-engineer.add 도 build-worker 에 전파 (합집합 구성 역할).
-        with tempfile.TemporaryDirectory() as td:
-            cwd = Path(td)
-            self.assertIsNotNone(
-                check_write_allowed("build-worker", "custom-e2e/run.yml", cwd=cwd)
-            )
-            self._write_boundary(
-                cwd, {"test-engineer": {"add": [r"(^|/)custom-e2e/.*"]}}
-            )
-            self.assertIsNone(
-                check_write_allowed("build-worker", "custom-e2e/run.go", cwd=cwd)
-            )
-
     def test_build_worker_own_key_still_applies(self):
-        # build-worker 자체 키 override 도 유효 (union 에 build-worker 포함).
+        # build-worker 자체 key override만 적용된다.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             self._write_boundary(
@@ -2588,17 +2549,13 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
             self.assertIsNone(
                 check_write_allowed("build-worker", "bw-only/x.go", cwd=cwd)
             )
-            # engineer 단독은 build-worker 키 add 를 받지 않는다 (역방향 전파 없음).
-            self.assertIsNotNone(
-                check_write_allowed("engineer", "bw-only/x.go", cwd=cwd)
-            )
 
     def test_add_cannot_grant_write_to_readonly_agent(self):
         # #696 codex P2 — 판정/검증 전용 agent(빈 ALLOW)는 add 로도 write 못 연다.
         # 검증자 역할 격리는 catastrophic gate 신뢰의 근간 (되돌릴 수 없는 경계).
         readonly = (
             "impl-validator", "architecture-validator",
-            "product-acceptance", "plan-reviewer",
+            "product-acceptance",
         )
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)

@@ -397,8 +397,8 @@ def _cli_insight(args: Any) -> int:
     Usage: dcness-helper insight <agent>[-<mode>] "<자연어 한 줄>"
 
     예시:
-        dcness-helper insight engineer-IMPL "🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X"
-        dcness-helper insight impl-validator "PR 후 prose 결론 enum 빠뜨림 — 다음엔 IMPL_DONE 명시"
+        dcness-helper insight build-worker "🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X"
+        dcness-helper insight impl-validator "PR 후 prose 결론 enum 누락 — 다음엔 PASS/FAIL 명시"
     """
     from harness.loop_insights import append_insight
 
@@ -411,10 +411,10 @@ def _cli_insight(args: Any) -> int:
     if "-" in raw:
         # 정식 agent 이름에 - 있을 수 있음 (impl-validator / module-architect 등).
         # 매트릭스 매칭: 정식 이름 prefix 시도.
-        from harness.run_review import DCNESS_AGENT_NAMES, LEGACY_AGENT_ALIASES
+        from harness.run_review import DCNESS_AGENT_NAMES
         agent = None
         mode = None
-        for known in sorted(DCNESS_AGENT_NAMES | set(LEGACY_AGENT_ALIASES.keys()), key=len, reverse=True):
+        for known in sorted(DCNESS_AGENT_NAMES, key=len, reverse=True):
             if raw == known:
                 agent, mode = known, None
                 break
@@ -461,50 +461,6 @@ def _cli_prev_tasks_reset(args: Any) -> int:
     return 0
 
 
-def _prior_engineer_tool_use_count(sid: str) -> Optional[int]:
-    """현재 sid 의 CC session JSONL 에서 직전 engineer sub-agent invocation 의
-    `totalToolUseCount` 추출 (DCN-CHG-20260430-36).
-
-    LLM 은 자기 tool use count self-monitor 불가 (CC API 미노출) — helper 가
-    측정해 stderr hint 로 흘려 IMPL_PARTIAL 자율 판단 *조건* 보강. 자율 침해 X.
-
-    return: 직전 engineer invocation count (int) / 측정 실패 None.
-    """
-    try:
-        from harness.run_review import encode_repo_path_dcness
-    except Exception:
-        return None
-    try:
-        cwd = Path.cwd()
-        encoded = encode_repo_path_dcness(str(cwd))
-        jsonl = Path.home() / ".claude" / "projects" / encoded / f"{sid}.jsonl"
-        if not jsonl.exists():
-            return None
-        latest_count: Optional[int] = None
-        latest_ts = ""
-        for line in jsonl.read_text(encoding="utf-8").splitlines():
-            if '"totalToolUseCount"' not in line or '"agentType"' not in line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            tur = rec.get("toolUseResult") or {}
-            agent_type = (tur.get("agentType") or "").lower()
-            if "engineer" not in agent_type:
-                continue
-            cnt = tur.get("totalToolUseCount")
-            if not isinstance(cnt, int):
-                continue
-            ts = rec.get("timestamp", "")
-            if ts > latest_ts:
-                latest_ts = ts
-                latest_count = cnt
-        return latest_count
-    except Exception:
-        return None
-
-
 def _cli_begin_step(args: Any) -> int:
     """sid+rid auto-detect → update_current_step."""
     sid = auto_detect_session_id()
@@ -521,7 +477,7 @@ def _cli_begin_step(args: Any) -> int:
         print(f"[begin-step] FAIL — {exc}", file=sys.stderr)
         return 1
     # #700 — agent 이름 canonical 정규화. update_current_step 도 내부 정규화하지만
-    # ledger checkpoint / engineer hint 까지 같은 표기로 일관시킨다.
+    # ledger checkpoint까지 같은 표기로 일관시킨다.
     from harness.agent_names import normalize_agent_type
     agent = normalize_agent_type(args.agent) or args.agent
     try:
@@ -543,19 +499,6 @@ def _cli_begin_step(args: Any) -> int:
         ledger.append_event(sid, rid, "step_started", agent=agent, mode=mode)
     except Exception:  # nosec B110
         pass
-
-    # DCN-CHG-20260430-36: agent="engineer" 시 직전 engineer invocation 의
-    # tool_use_count stderr hint. LLM self-monitor 불가 영역 정보 보강.
-    # 측정 실패 silent (노이즈 회피).
-    if agent == "engineer":
-        prior = _prior_engineer_tool_use_count(sid)
-        if prior is not None and prior > 0:
-            print(
-                f"[hint] prior engineer tool_use_count={prior} — "
-                f"단일 호출 capacity 압박 인지 시 IMPL_PARTIAL 분할 자율 판단 권고. "
-                f"강제 X (정보만).",
-                file=sys.stderr,
-            )
 
     print("ok")
 
@@ -986,7 +929,7 @@ def _build_arg_parser() -> Any:
     )
     p_br.add_argument(
         "--lane", default=None, choices=_VALID_LANES,
-        help="/impl legacy 구현 경로(설계도 유무: lite / standard, #714) — lane=lite 는 "
+        help="/impl 구현 경로(설계도 유무: lite / standard, #714) — lane=lite 는 "
              "설계도 없는 direct 구현 경로로 implementation gate 설계 산출물 사전 조건 "
              "면제 신호. entry_point=impl 에서만 수용",
     )

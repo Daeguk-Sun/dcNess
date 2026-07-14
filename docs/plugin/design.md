@@ -86,7 +86,7 @@ agent 는 파일 부재를 오류로 처리하지 않는다.
 
 확정본 SSOT 는 `docs/design-variants/` 한 지붕이다.
 
-- `docs/design-variants/canvas.html`: 프로젝트 전체 화면 지도와 흐름 화살표. 단순 등록은 `<iframe data-frame-id>` auto-layout 을 쓰고, 화면별 캡션·상태·노드별 높이·2D 배치가 필요하면 `.screen-node[data-node-id][data-pos][data-title][data-desc][data-states][data-h]` 로 등록한다.
+- `docs/design-variants/canvas.html`: 프로젝트 전체 화면 지도와 흐름 화살표. `.screen-node[data-node-id][data-pos][data-title][data-desc][data-states][data-h]` 로 화면을 등록하며 `data-pos` 생략 시 자동 배치한다.
 - `docs/design-variants/_lib/`: canvas/show-id helper.
 - `docs/design-variants/<screen-id>.html`: 화면별 확정본. v 접미사는 쓰지 않고 히스토리는 git 이 보존한다.
 - `docs/design-variants/drafts/`: 탐색용 draft. `.gitignore` 로 draft 파일은 무시하되 `.gitkeep` 으로 디렉터리를 보존한다.

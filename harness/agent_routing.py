@@ -161,6 +161,11 @@ def load_routing(*, path: Optional[Path] = None) -> Dict[str, Any]:
         raise ValueError(f"routing config parse failed: {target}: {exc}") from exc
     if not isinstance(data, dict):
         raise ValueError(f"routing config must be JSON object: {target}")
+    if data.get("version") != CONFIG_VERSION:
+        raise ValueError(
+            f"unsupported routing config version: {data.get('version')!r} "
+            f"(expected {CONFIG_VERSION})"
+        )
     routes = data.get("routes", {})
     if not isinstance(routes, dict):
         raise ValueError(f"routing config routes must be object: {target}")
@@ -171,7 +176,6 @@ def load_routing(*, path: Optional[Path] = None) -> Dict[str, Any]:
         )
     cfg = _default_config()
     cfg.update(data)
-    cfg["version"] = data.get("version")
     cfg["routes"] = routes
     cfg["implementation_routes"] = implementation_routes
     return cfg
@@ -231,8 +235,6 @@ def resolve_provider(
     if agent not in ROUTABLE_VALIDATION_AGENTS + ROUTABLE_IMPLEMENTATION_AGENTS:
         return SAFE_FALLBACK_PROVIDER
     cfg = load_routing(path=path)
-    if cfg.get("version") != CONFIG_VERSION:
-        return SAFE_FALLBACK_PROVIDER
     if agent in ROUTABLE_VALIDATION_AGENTS:
         routes = cfg.get("routes", {})
         provider = routes.get(agent)
@@ -350,10 +352,6 @@ def doctor(*, path: Optional[Path] = None) -> list[str]:
     except ValueError as exc:
         return [str(exc)]
 
-    version = cfg.get("version")
-    if version != CONFIG_VERSION:
-        problems.append(f"unsupported version: {version!r} (expected {CONFIG_VERSION})")
-
     routes = cfg.get("routes", {})
     if not isinstance(routes, dict):
         problems.append("routes must be object")
@@ -391,14 +389,6 @@ def format_status(*, path: Optional[Path] = None) -> str:
                 f"[dcness routing] problem: {exc}",
             ]
         )
-
-    if cfg.get("version") != CONFIG_VERSION:
-        cfg["routes"] = {
-            agent: SAFE_FALLBACK_PROVIDER for agent in ROUTABLE_VALIDATION_AGENTS
-        }
-        cfg["implementation_routes"] = {
-            agent: SAFE_FALLBACK_PROVIDER for agent in ROUTABLE_IMPLEMENTATION_AGENTS
-        }
 
     lines = [
         f"[dcness routing] config: {target}",

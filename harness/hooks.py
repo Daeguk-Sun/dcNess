@@ -11,10 +11,8 @@ bash 훅 (`hooks/*.sh`) 이 stdin payload + cc_pid 를 본 모듈의 핸들러�
         PreToolUse, tool=Agent. catastrophic 룰 검사.
         exit 0 = allow, exit 1 = block (stderr 메시지 + CC 가 호출 거부).
 
-옛 merge-gate (LGTM 없이 merge) / impl-task-loop 3-commit 룰은 *메인 영역*
-(skill 안 Pre-flight) 또는 다른 흐름 (`/design` 의 impl 미리 머지 등)
-으로 이전 — 코드 강제 폐기. 본 hook 코드 강제는 begin-step/current-step 일치와
-implementation gate(직전 module-architect PASS 또는 동등 설계 산출물)다.
+본 hook 코드 강제는 begin-step/current-step 일치와 implementation gate
+(직전 module-architect PASS 또는 동등 설계 산출물)다.
 
 규약:
     - 모든 실패 케이스 silent (exit 0) — CC 동작 방해 최소화
@@ -286,7 +284,7 @@ def _strict_conveyor_gate_message(
     step_mode = _mode_or_none(cur_step.get("mode"))
     current = _agent_mode_label(step_agent, step_mode)
 
-    # #700 — 이름은 canonical 비교(namespaced/alias 무관, subagent 는 호출부에서 정규화 전달).
+    # #700 — 이름은 canonical 비교(namespaced 표기 무관, subagent 는 호출부에서 정규화 전달).
     # mode 는 Agent 도구가 실을 수 없어 항상 None 이므로, Agent 측 mode 가 *실제로 실린*
     # 경우(미래 호환)에만 불일치 차단 — moded step(engineer:IMPL)이 영구 차단되던 결함 해소.
     norm_step_agent = normalize_agent_type(step_agent) or step_agent
@@ -319,9 +317,13 @@ def _strict_conveyor_gate_message(
         if last_agent == step_agent and last_mode == step_mode:
             count_at_begin = _step_count_or_none(cur_step.get("steps_count_at_begin"))
             current_count = len(records)
+            if count_at_begin is None:
+                return (
+                    "[진행 순서 검사] current_step.steps_count_at_begin 부재 — "
+                    f"`{_begin_step_cmd(subagent, mode)}` 로 현재 형식의 step을 다시 시작하세요."
+                )
             if (
-                count_at_begin is not None
-                and current_count > count_at_begin
+                current_count > count_at_begin
             ):
                 return (
                     "[진행 순서 검사] 이전 step이 이미 ledger.jsonl 에 기록됐습니다 — "
@@ -368,17 +370,19 @@ def _resolve_acting_agent(
     각 도구 호출이 *자기 payload* 로 agent 를 식별하면 동시 sub-agent 가 공유
     단일 슬롯(`live.active_agent`)을 서로 덮어써도 권한/trace 귀속이 안 섞인다.
 
-    우선순위: payload `agent_type` (자기 식별, 동시 안전) → `live.active_agent`
-    단일 슬롯 폴백 (구버전 CC / payload 미탑재 케이스). 둘 다 없으면 "" = 메인 Claude.
+    payload `agent_type`만 권한 판정에 사용한다. 없으면 "" = 메인 Claude다.
+    공유 단일 슬롯인 `live.active_agent`는 동시 sub-agent를 정확히 식별할 수 없으므로
+    권한 판정 입력으로 사용하지 않는다.
 
     issue #598 (codex P1) — 반환 전 `normalize_agent_type` 으로 정규화. namespaced
     payload(`dcness:impl-validator`) 가 ALLOW_MATRIX 미정의 → check_*_allowed pass-through 로
     경계를 우회하던 결함 차단. 정규화 후 boundary + trace 가 canonical 이름 사용.
     """
+    del live
     payload_agent = stdin_data.get("agent_type")
     if isinstance(payload_agent, str) and payload_agent:
         return normalize_agent_type(payload_agent) or ""
-    return normalize_agent_type(live.get("active_agent") or "") or ""
+    return ""
 
 
 def handle_session_start(
@@ -494,8 +498,8 @@ def handle_pretooluse_agent(
         return 0
     subagent = tool_input.get("subagent_type", "") or ""
     mode = tool_input.get("mode", "") or ""
-    # #700 — 게이트 비교는 canonical 이름으로 일관화. namespaced(`dcness:engineer`) / legacy
-    # alias 가 raw 비교에서 진행 순서 검사 불일치로 차단되던 것을 정규화로 해소(A). 그리고
+    # #700 — 게이트 비교는 canonical 이름으로 일관화. namespaced(`dcness:engineer`)가
+    # raw 비교에서 진행 순서 검사 불일치로 차단되던 것을 정규화로 해소(A). 그리고
     # 진행 순서 검사가 namespaced 를 통과시키는 이상, 뒤따르는 catastrophic 게이트(build-worker/
     # impl-validator/module-architect)도 norm 으로 비교해야 namespaced 우회를 막는다(codex P1).
     # active_agent / pending 기록은 raw subagent 유지(식별 원본 보존). 단 게이트의 *판정 로직*
@@ -509,7 +513,7 @@ def handle_pretooluse_agent(
 
     # issue #604 — active run 안에서는 begin-step 없이 Agent 직접 호출 금지.
     # PostToolUse staging 이후 같은 step 재호출, end-step 완료 후 stale current_step 도
-    # PreToolUse 시점에서 차단해 `.steps.jsonl` 누락을 실행 전에 막는다.
+    # PreToolUse 시점에서 차단해 ledger receipt 누락을 실행 전에 막는다.
     step_mode = None
     try:
         live = read_live(sid, base_dir=base_dir) or {}
@@ -595,10 +599,6 @@ def handle_pretooluse_agent(
     #   run *안* 에서는 위 진행 순서 검사(#604) 가 *모든* off-sequence agent
     #   (tech-reviewer 포함) 에 begin-step 선언을 요구한다 — 이는 tech-reviewer 전용 차단이 아닌
     #   일반 loop 무결성 룰이라 #609 범위 밖이고, 루프 도중 의존 검증은 NEW_DEP_ESCALATE 로 간다.
-
-    # 옛 merge-gate (LGTM 없이 merge) / impl-task-loop 3-commit 룰 (자연어 폐기) —
-    # /design 이 impl/NN-*.md 미리 머지로 의미 소멸 또는 사전 조건
-    # 검증은 메인 영역 (skill 안에서 보장) 으로 이전. 코드 강제 폐기.
 
     # DCN-CHG-20260501-01: 통과 시 live.json.active_agent 기록 — sub-agent 내부
     # PreToolUse(Edit/Write/Read/Bash) 훅이 활성 agent 판정에 사용 (agent_boundary).
@@ -739,7 +739,7 @@ def handle_pretooluse_file_op(
         )
         return 0
     # issue #598 — acting agent 는 payload agent_type(자기 식별, 동시 sub 안전) 우선,
-    # 없으면 live.active_agent 단일 슬롯 폴백 (_resolve_acting_agent).
+    # payload self-attribution이 없으면 메인 호출로 판정한다.
     acting_agent = _resolve_acting_agent(stdin_data, live)
     if not acting_agent:
         return 0  # 메인 Claude — governance 가 보호.
@@ -885,7 +885,7 @@ def handle_posttooluse_file_op(
         return 0
 
     live = read_live(sid, base_dir=base_dir) or {}
-    # issue #598 — payload agent_type(self-attribution) 우선, active_agent 폴백.
+    # issue #598 — payload agent_type(self-attribution)으로 동시 sub-agent를 구분한다.
     acting_agent = _resolve_acting_agent(stdin_data, live)
     if not acting_agent:
         return 0
@@ -1195,8 +1195,8 @@ def handle_subagent_stop(
     clear 를 승격한다. PostToolUse Agent 의 clear 는 그대로 유지 (이중 안전망, 멱등).
 
     match-guard: `live.active_agent == payload agent_type` 일 때만 clear — 동시
-    sub-agent 환경에서 다른 agent 의 슬롯을 오클리어하지 않는다. agent_type 부재
-    (구버전 CC) 시 best-effort 무조건 clear.
+    sub-agent 환경에서 다른 agent 의 슬롯을 오클리어하지 않는다. agent_type이
+    없으면 소유자를 확인할 수 없으므로 clear하지 않는다.
 
     차단 권한 사용 안 함 — 항상 `exit 0`. SubagentStop 에 `stop_hook_active` 가
     없고 본 핸들러는 block(decision) 도 안 쓰므로 무한 루프 무관.
@@ -1223,8 +1223,10 @@ def handle_subagent_stop(
         if not active_agent:
             return 0  # 이미 clear됨 (PostToolUse Agent 선처리 / sub 아님) — noop
         # match-guard — agent_type 있으면 일치할 때만 clear. 부재 시 best-effort.
-        # 양쪽 모두 정규화해 namespaced/legacy alias 불일치로 인한 미clear 방지.
-        if agent_type and (normalize_agent_type(active_agent) or "") != agent_type:
+        # 양쪽 모두 정규화해 namespaced 표기 불일치로 인한 미clear 방지.
+        if not agent_type:
+            return 0
+        if (normalize_agent_type(active_agent) or "") != agent_type:
             return 0
         update_live(sid, base_dir=base_dir, active_agent=None, active_mode=None)
     except (OSError, ValueError):
@@ -1323,7 +1325,7 @@ def handle_stop(
        없으면 end-run 후보로 유지하고, run_finished 가 있으면 이미 종료로 skip
     3. live.json.current_step 이 마지막 step 이후 새 begin-step 을 가리키면
        진행 중 → skip. 새 begin-step 판정은 begin 당시 step_completed 개수와
-       현재 개수의 짝 매칭을 우선하고, legacy 슬롯은 agent/mode 비교로 폴백한다.
+       현재 개수의 짝으로 확인한다.
     4. 위 모두 통과 → in-process `_cli_end_run` 호출.
        session_state.py:1001 안전망 → finalize-run --auto-review 자동 →
        `<run_dir>/review.md` 생성 + stderr `[REVIEW_READY]` 신호
@@ -1421,17 +1423,14 @@ def handle_stop(
     last_mode = last.get("mode")
     cur_step = slot.get("current_step") if isinstance(slot, dict) else None
     if isinstance(cur_step, dict):
-        cur_agent = cur_step.get("agent")
-        cur_mode = cur_step.get("mode")
         steps_count_at_begin = _step_count_or_none(cur_step.get("steps_count_at_begin"))
-        if steps_count_at_begin is not None and steps_count_at_begin >= len(steps):
-            return 0  # begin-step 후 end-step 미호출 — 진행 중
-        # legacy current_step 슬롯은 정확 일치 검사로 폴백 (mode None 도 비교)
-        if cur_agent != last_agent or cur_mode != last_mode:
+        if steps_count_at_begin is None:
+            return 0  # 현재 schema가 아닌 슬롯은 자동 종료하지 않음
+        if steps_count_at_begin >= len(steps):
             return 0  # begin-step 후 end-step 미호출 — 진행 중
 
     # === issue #469 결함 A — 중간 step PASS 후 메인 turn 자동 발화 부재 fix ===
-    # build-worker / engineer / impl-validator 같은 중간 step 종료 후 메인이
+    # build-worker / 설계 agent 같은 중간 step 종료 후 메인이
     # 다음 step 진입 안 한 상태로 Stop 받으면 decision:block 으로 메인 turn
     # 재 발화 강제. impl-validator 는 종료 agent (run 끝 = 정상 침묵).
     if _maybe_emit_continuation_signal(
@@ -1457,13 +1456,12 @@ def handle_stop(
 # issue #469 결함 A — Stop hook continuation signal helper
 # 다음 step 진입 가능 결론 enum (단독 결론 + 일반 PASS).
 _CONTINUE_ENUMS: frozenset[str] = frozenset({
-    "PASS", "IMPL_DONE", "POLISH_DONE",
-    "TESTS_WRITTEN", "UX_FLOW_DONE",
+    "PASS", "UX_FLOW_READY", "UX_FLOW_PATCHED", "UX_REFINE_READY",
     # build-worker 검증 실행 불가 — 메인 게이트 대행이 MUST 인 결론. 누락 시 메인 침묵
     # Stop 에서 auto end-run 으로 run 이 대행 없이 닫힌다 (#705 리뷰 — impl-loop-routing 짝).
     "VALIDATION_BLOCKED",
 })
-# 종료 agent — 본 agent 의 PASS/LGTM 은 run 끝 = block 안 함.
+# 종료 agent — 본 agent 의 PASS는 run 끝 = block 안 함.
 _TERMINAL_AGENTS: frozenset[str] = frozenset({"impl-validator"})
 # 무한 루프 가드 — 같은 step 에서 block 쓴 횟수 상한.
 _STOP_BLOCK_COUNT_MAX = 2
@@ -1523,7 +1521,7 @@ def _maybe_emit_continuation_signal(
     except OSError:
         return False
     enum = _extract_conclusion_enum(prose)
-    if enum not in _CONTINUE_ENUMS and not (acceptance_after_pr and enum == "LGTM"):
+    if enum not in _CONTINUE_ENUMS:
         return False
 
     # 무한 루프 가드 — 같은 step 에서 block 쓴 횟수 상한 검사.

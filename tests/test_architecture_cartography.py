@@ -47,7 +47,6 @@ class ArchitectureCartographyContractTests(unittest.TestCase):
         self.assertIn("## Capability routes", self.root_map)
         self.assertNotIn("## Story -> 모듈 매핑", self.root_map)
         self.assertNotIn("## 구현 순서", self.root_map)
-        self.assertNotIn("## Contract Ledger", self.root_map)
 
     def test_as_built_application_to_data_lifecycle_edge_is_recorded(self) -> None:
         app = (

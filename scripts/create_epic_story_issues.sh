@@ -225,7 +225,7 @@ esac
 
 # stories.md 의 안정적인 Story/Epic 수용 기준은 문서에서는 일반 목록으로 유지하고,
 # GitHub issue body 에서만 close 시 체크 가능한 checklist 로 materialize 한다.
-# 검증 주체가 명시된 신규 양식만 변환하며 legacy 기준은 소급 추론하지 않는다.
+# 검증 주체가 명시된 현행 양식만 변환하며 분류를 소급 추론하지 않는다.
 EPIC_BODY=$(printf '%s\n' "$EPIC_BODY" | sed -E \
   -e 's/^\*\*완료 기준\*\* \(epic 단위 수용 기준\):$/**Acceptance criteria:**/' \
   -e 's/^[0-9]+\.[[:space:]]+(\[(command|agent-read)\].*)$/- [ ] \1/')

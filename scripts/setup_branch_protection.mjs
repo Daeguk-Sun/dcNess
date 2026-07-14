@@ -8,8 +8,8 @@
  *   본 스크립트는 필요 시 재활성용 보존.
  *
  * 목적:
- *   proposal §5 Phase 3 "Gate 5 (LGTM flag) → branch protection required reviewers"
- *   를 GitHub Repository Settings 로 외부화. RWHarness 의 in-process LGTM flag 폐기 정합.
+ *   proposal §5 Phase 3 "Gate 5 (PASS flag) → branch protection required reviewers"
+ *   를 GitHub Repository Settings 로 외부화. RWHarness 의 in-process PASS flag 폐기 정합.
  *
  * 사용:
  *   gh auth status                              # 인증 확인 (admin 권한 필요)

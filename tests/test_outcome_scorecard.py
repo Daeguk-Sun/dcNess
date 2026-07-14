@@ -386,60 +386,6 @@ class OutcomeScorecardAggregationTests(unittest.TestCase):
         self.assertEqual(report["product_outcome"]["source_project_count"], 1)
         self.assertEqual(report["process_evidence"]["finished_runs"]["status"], "측정 불가")
 
-    def test_legacy_run_replay_ignores_steps_appended_after_cutoff(self) -> None:
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            project = root / "legacy-project"
-            run_dir = (
-                project
-                / ".claude"
-                / "harness-state"
-                / ".sessions"
-                / "session-1"
-                / "runs"
-                / "run-legacy01"
-            )
-            run_dir.mkdir(parents=True)
-            steps_file = run_dir / ".steps.jsonl"
-            before = {
-                "agent": "impl-validator",
-                "enum": "PASS",
-                "ts": "2026-07-01T00:01:00Z",
-            }
-            after = {
-                "agent": "impl-validator",
-                "enum": "FAIL",
-                "ts": "2026-07-12T00:01:00Z",
-            }
-            steps_file.write_text(json.dumps(before) + "\n", encoding="utf-8")
-            projects_file = root / "projects.json"
-            projects_file.write_text(
-                json.dumps({"version": 1, "projects": [str(project)]}),
-                encoding="utf-8",
-            )
-            initial = build_scorecard(
-                projects_file,
-                measured_at="2026-07-11T00:00:00Z",
-                as_of="2026-07-11T00:00:00Z",
-                redact_paths=True,
-            )
-            with steps_file.open("a", encoding="utf-8") as stream:
-                stream.write(json.dumps(after) + "\n")
-
-            replay = build_scorecard(
-                projects_file,
-                measured_at="2026-07-11T00:00:00Z",
-                as_of="2026-07-11T00:00:00Z",
-                source_refs=[initial["sources"][0]["source_ref"]],
-                redact_paths=True,
-            )
-
-        self.assertEqual(replay["process_evidence"]["finished_runs"]["numerator"], 1)
-        self.assertEqual(
-            replay["sources"][0]["fleet"]["agent_conclusions"],
-            initial["sources"][0]["fleet"]["agent_conclusions"],
-        )
-
     def test_markdown_separates_process_effectiveness_and_product_outcome(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             report = build_scorecard(

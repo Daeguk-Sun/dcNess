@@ -59,7 +59,6 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "scripts/check_public_surface.mjs",
                 "scripts/hooks/cc-pre-commit.sh",
                 "scripts/launchd",
-                "scripts/policy_cleanup_baseline.py",
                 "scripts/release_artifact.json",
                 "scripts/release_artifact.py",
                 "scripts/setup_branch_protection.mjs",
@@ -368,6 +367,8 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             if is_excluded(relative):
                 continue
             source = ROOT / relative
+            if not source.is_file():
+                continue
             in_fence = False
             for line_number, line in enumerate(source.read_text(encoding="utf-8").splitlines(), 1):
                 if line.lstrip().startswith("```"):

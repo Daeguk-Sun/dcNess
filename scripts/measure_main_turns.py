@@ -4,7 +4,7 @@
 용도
 ----
 `/impl-loop` Hybrid A 트랙 (#446) 의 메인 컨텍스트 누적 측정:
-- baseline (legacy multi-agent 모델): jajang 실측 ~280 turn/task (impl 1-task 세션 3개 평균)
+- 이전 multi-agent baseline: jajang 실측 ~280 turn/task (impl 1-task 세션 3개 평균)
 - Hybrid A 목표: 메인 turn/task ~30 (~85-90% 감소). gate = Step 3 프로토타입.
 
 JSONL 위치: `~/.claude/projects/<project-id>/<session-id>.jsonl` (Claude Code 가 자동 기록).
@@ -76,8 +76,7 @@ def parse_session(path: Path) -> dict:
                     has_tool = True
                     name = blk.get("name", "?")
                     tool_hist[name] += 1
-                    # sub-agent invocation: "Agent" (current) or "Task" (legacy schema)
-                    if name in ("Agent", "Task"):
+                    if name == "Agent":
                         inp = blk.get("input") or {}
                         agent_invocations.append(inp.get("subagent_type", "?"))
                 elif bt == "text":

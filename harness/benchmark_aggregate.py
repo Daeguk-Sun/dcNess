@@ -10,7 +10,7 @@ N run 을 한 번에 집계한다 — public benchmark (성공률/FAIL/escalate/
 --------
 - run 수 (entry_point 별 분포)
 - agent 별 결론(conclusion enum) 분포
-- impl-validator FAIL 비율 (= review rejection = FAIL / (PASS+FAIL+LGTM))
+- impl-validator FAIL 비율 (= review rejection = FAIL / (PASS+FAIL))
 - escalate 결론 수 (전 agent)
 - `blocked` 이벤트 수
 - PR 머지 성공률 (= pr_created 중 pr_merged 로 확인된 PR 비율, 이벤트 있을 때만)
@@ -47,17 +47,10 @@ if str(_REPO_ROOT) not in sys.path:
 from harness import ledger  # noqa: E402
 from harness import run_review  # noqa: E402
 
-# impl-validator FAIL 비율 — 실패로 세는 verdict (FAIL + 옛 CHANGES_REQUESTED).
-# CHANGES_REQUESTED 는 현 파서가 FAIL 로 흡수했으나 legacy .steps.jsonl enum 폴백
-# 경로에서 원형으로 등장할 수 있어 fail 버킷에 포함한다.
-_PR_REVIEWER_FAIL = {"FAIL", "CHANGES_REQUESTED"}
+# impl-validator FAIL 비율 — 현재 prose 결론의 FAIL만 센다.
+_PR_REVIEWER_FAIL = {"FAIL"}
 # FAIL 비율 분모 — 결론으로 인정하는 verdict 전체.
-_PR_REVIEWER_VERDICTS = {"PASS", "LGTM"} | _PR_REVIEWER_FAIL
-
-# verdict 로 세지 않는 sentinel — PROSE_LOGGED(#284 prose-only advance) / AMBIGUOUS
-# (helper 모호 prose 마커). prose 결론(conclusion_enum) 부재 시 stored enum 으로
-# 폴백하되 이 값들은 verdict 가 아니므로 제외한다.
-_NON_VERDICT_ENUMS = {"PROSE_LOGGED", "AMBIGUOUS", ""}
+_PR_REVIEWER_VERDICTS = {"PASS"} | _PR_REVIEWER_FAIL
 
 DEFAULT_RECURRENCE_THRESHOLD = 3
 
@@ -68,17 +61,7 @@ _IMPROVEMENT_SUGGESTION = (
 
 
 def _step_verdict(step) -> str:
-    """step 의 진짜 verdict — stored enum 이 실제 결론이면 그것을 우선한다.
-
-    신규 ledger 는 enum 이 sentinel(PROSE_LOGGED)이라 prose 결론(conclusion_enum)이
-    유일 신호 → prose 사용. legacy .steps.jsonl row 는 enum 에 실제 verdict
-    (FAIL / CHANGES_REQUESTED 등)가 저장돼 있고, 이쪽이 regex 로 prose 를 재파싱하는
-    conclusion_enum 보다 신뢰도가 높다 (예: "MUST FIX ...\\nLGTM 후보 X" prose 가
-    LGTM 으로 오파싱돼 거부된 리뷰를 LGTM 으로 둔갑시키는 회귀 방지). 따라서 stored
-    enum 이 non-sentinel 이면 그것을, 아니면 prose 결론을 쓴다.
-    """
-    if step.enum and step.enum not in _NON_VERDICT_ENUMS:
-        return step.enum
+    """현재 prose SSOT에서 추출한 verdict를 반환한다."""
     return step.conclusion_enum or ""
 
 
@@ -281,7 +264,7 @@ def aggregate_runs(
         for w in report.wastes:
             waste_counter[w.pattern] += 1
 
-    # impl-validator FAIL 비율 (FAIL + 옛 CHANGES_REQUESTED) / (PASS+FAIL+LGTM+CR)
+    # impl-validator FAIL 비율: FAIL / (PASS+FAIL)
     pr = agent_conclusions.get("impl-validator", {})
     denom = sum(c for v, c in pr.items() if v in _PR_REVIEWER_VERDICTS)
     fail_n = sum(c for v, c in pr.items() if v in _PR_REVIEWER_FAIL)

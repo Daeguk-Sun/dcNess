@@ -31,7 +31,7 @@ LESSON_TEMPLATES: dict[str, str] = {
         "한 번만 접근한다."
     ),
     "MUST_FIX_GHOST": (
-        "게이트 agent 가 미해결 MUST FIX 를 남겼으면 PASS/LGTM 으로 진행하지 않는다. "
+        "게이트 agent 가 미해결 MUST FIX 를 남겼으면 PASS로 진행하지 않는다. "
         "메인은 blocker 를 해결하거나 FAIL 흐름으로 되돌린다."
     ),
     "MUST_FIX_LEAK": (

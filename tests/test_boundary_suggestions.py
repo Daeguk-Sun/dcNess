@@ -101,7 +101,7 @@ class BoundarySuggestionsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
             self._write(root / "remotion" / "scene.tsx", "export {}\n")
-            self._write_boundary(root, {"engineer": {"add": [r"^remotion/"]}})
+            self._write_boundary(root, {"build-worker": {"add": [r"^remotion/"]}})
 
             report = collect_boundary_suggestions(root)
 
@@ -140,7 +140,7 @@ class BoundarySuggestionsTests(unittest.TestCase):
             )
             self._write_boundary(
                 root,
-                {"engineer": {"add": [r"^gradle/libs\.versions\.toml$"]}},
+                {"build-worker": {"add": [r"^gradle/libs\.versions\.toml$"]}},
             )
 
             report = collect_boundary_suggestions(root, impl_plan=plan)

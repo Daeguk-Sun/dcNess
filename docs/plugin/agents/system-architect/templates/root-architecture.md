@@ -1,6 +1,6 @@
 # 전역 아키텍처 지도 (Cartography)
 
-> 이 문서는 후속 agent가 변경 목적이나 외부 trigger에서 실제 코드와 상세 지도까지 이동하는 작은 Cartography router다. epic 수가 늘어도 stable capability/runtime entrypoint 단위로 유지하고 epic 목록은 복제하지 않는다. epic별 상세 topology, Story→모듈 매핑, 구현 순서, 계약 전문, Contract Ledger, 기술 스택 표를 복제하지 않는다.
+> 이 문서는 후속 agent가 변경 목적이나 외부 trigger에서 실제 코드와 상세 지도까지 이동하는 작은 Cartography router다. epic 수가 늘어도 stable capability/runtime entrypoint 단위로 유지하고 epic 목록은 복제하지 않는다. epic별 상세 topology, Story→모듈 매핑, 구현 순서, 계약 전문, 기술 스택 표를 복제하지 않는다.
 > 기술 스택과 운영 convention 은 `docs/conventions.md`, 모듈 특수 delta 는 `docs/modules/<module-id>/`, 결정 기록은 `docs/decisions/NNNN-slug.md` 를 가리킨다.
 > 여러 epic의 capability/owner 보조 뷰가 필요할 때만 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 로 `.dcness-work/reports/architecture-map.md` 를 그 시점에 생성한다. 이 임시 리포트는 필수 agent 입력, checked-in freshness 진본, as-built 코드 증거가 아니다.
 

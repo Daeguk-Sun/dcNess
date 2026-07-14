@@ -122,7 +122,7 @@ raw 알림이다. run-review 리포트에는 "측정 noted" 로 표시되지만,
 
 매칭 룰: 순서 (timestamp 오름차순) + agent name 정합 (`dcness:system-architect` / `dcness:module-architect` 그대로).
 
-미매칭 시 (구버전 / 다른 agent / log 결손) per-step metric 표시 X (`-`). run-level cost 는 별도 합산.
+미매칭 시 (다른 agent / log 결손) per-step metric 표시 X (`-`). run-level cost 는 별도 합산.
 
 ## 한계 / 후속
 

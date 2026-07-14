@@ -82,7 +82,6 @@ class DesignSurfaceContractTests(unittest.TestCase):
         for stale in (
             "architecture-validator(1차/system freeze)",
             "system freeze",
-            "Contract Ledger row-key",
             "contract_sweep",
             "CONTRACT_PROPAGATION",
         ):
@@ -210,7 +209,6 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("## 모듈 목록", system_template)
         self.assertIn("## 의존 그래프", system_template)
         self.assertIn("## Story -> 모듈 매핑", system_template)
-        self.assertNotIn("## Contract Ledger", system_template)
         self.assertNotIn("## Flow Ownership Map", system_template)
 
         self.assertIn(

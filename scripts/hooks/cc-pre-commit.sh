@@ -33,8 +33,8 @@ resolve_naming_script() {
   #    plug-in cache 의 구 룰이 자기 저장소를 검증하던 회귀 차단.
   # 2. CLAUDE_PLUGIN_ROOT — 외부 활성 프로젝트가 본 hook 를 별도로 등록한 경우 대비 (현재 미사용).
   # 3. plug-in cache — 위 둘 다 부재 시 최후 fallback.
-  legacy="$(git rev-parse --show-toplevel 2>/dev/null || echo "${CLAUDE_PROJECT_DIR:-}")/scripts/check_git_naming.mjs"
-  [ -f "$legacy" ] && echo "$legacy" && return 0
+  self_script="$(git rev-parse --show-toplevel 2>/dev/null || echo "${CLAUDE_PROJECT_DIR:-}")/scripts/check_git_naming.mjs"
+  [ -f "$self_script" ] && echo "$self_script" && return 0
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/scripts/check_git_naming.mjs" ]; then
     echo "${CLAUDE_PLUGIN_ROOT}/scripts/check_git_naming.mjs"; return 0
   fi
