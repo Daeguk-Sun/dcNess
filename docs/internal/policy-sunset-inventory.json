@@ -358,7 +358,7 @@
       "classification": "현재 실사용",
       "follow_up_issue": 1096,
       "current_ssot": ["docs/plugin/hooks.md#worktree"],
-      "implementation": ["harness/session_state.py:primary_worktree_root", "harness/tdd_hooks.py:generated_files_git_state", "scripts/hooks/post-checkout"],
+      "implementation": ["harness/session_state.py:_resolve_state_root_for_cwd", "harness/tdd_hooks.py:generated_files_git_state", "scripts/hooks/post-checkout"],
       "tests_fixtures": ["tests/test_generated_tdd_hooks.py", "tests/test_session_state.py", "tests/test_hook_wrapper_exit.py"],
       "docs_distribution": ["commands/init-dcness.md", "docs/plugin/loop-procedure.md"],
       "consumer_evidence": "현행 impl/design workflow가 linked worktree를 사용하며 common-dir hook과 primary local receipt를 구분해야 한다.",
