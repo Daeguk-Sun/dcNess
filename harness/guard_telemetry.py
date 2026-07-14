@@ -469,6 +469,7 @@ def collect_eval_summary(
             row["estimated_output_tokens"] / attempts if attempts else 0.0
         )
         row["saturation_candidate"] = attempts >= min_runs and attempts == passes
+        row["flaky_candidate"] = attempts >= min_runs and 0 < passes < attempts
     return {
         "saturation_days": saturation_days,
         "saturation_min_runs": saturation_min_runs,
@@ -517,7 +518,12 @@ def format_telemetry_report(
         if isinstance(cases, dict) and cases:
             for case, row_any in sorted(cases.items()):
                 row = row_any if isinstance(row_any, dict) else {}
-                marker = "노후 후보" if row.get("saturation_candidate") else "active"
+                if row.get("saturation_candidate"):
+                    marker = "노후 후보"
+                elif row.get("flaky_candidate"):
+                    marker = "flaky 후보"
+                else:
+                    marker = "active"
                 attempts = int(row.get("attempts") or 0)
                 passes = int(row.get("passes") or 0)
                 accuracy = float(row.get("accuracy") or 0.0)
