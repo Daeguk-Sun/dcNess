@@ -6,18 +6,40 @@
 
 ## Unreleased
 
-- **`/impl-loop` story stack topology 전환 — breaking migration (#1108, PR #1111)** — 다중
-  story 구현에서 long-lived 통합 브랜치와 `**Base Branch:**` marker를 폐기하고, PR 생성
-  시 story branch stack을 유지한 뒤 merge gate가 열린 시점에 `main`으로 리타겟·리베이스한다.
-  플러그인 업데이트 시 marker가 남은 in-flight epic은 `pr-trailer`와 issue 생성이 fail-fast하므로,
-  marker를 제거하고 `dcness-story-runner next-action`의 `pr_base`에 따라 story branch를
-  재구성한 뒤 계속해야 한다. 기존 진행 branch는 자동 변환하지 않는다.
-- **marketplace artifact 경량화 (#1102)** — clean install/update가 `release` ref를 직접 소비하도록
-  marketplace source를 현행 GitHub source 계약으로 복구하고, candidate·release sync가 하나의
-  artifact manifest를 공유한다. 격리 install 기준 self 전용 파일을 제거한 payload는
-  549파일·5,159,235 bytes·102,346 LOC에서 191파일·2,139,171 bytes·43,138 LOC로 줄었으며,
-  SessionStart additionalContext는 별도 지표(2,068 bytes, 약 517 token)로 유지해 package 감소를
-  prompt 감소로 주장하지 않는다.
+_(현재 없음)_
+
+---
+
+## v0.23.0 (2026-07-14)
+
+**커밋 범위**: `v0.22.0..v0.23.0` (머지 PR 7개, #1101 · #1103 · #1104 · #1109 · #1110 · #1111 · #1114)
+**핵심 변경**: **`/impl-loop` multi-story 토폴로지를 통합 브랜치에서 story PR stack 으로 바꾼 breaking 릴리즈** 이면서, **Codex headless build-worker 의 sandbox 경계를 프로젝트별 opt-in + 사용자 승인 복구로 열고**, marketplace 배포 artifact 를 경량화하고, 제품 outcome 증거 사슬을 UI journey 까지 확장하고, 릴리즈 운영을 단일 preflight 도구로 자동화한 minor 릴리즈. (1) 다중 story 구현이 long-lived 통합 브랜치·`Base Branch` marker 를 폐기하고 story branch stack 을 유지하다 merge 직전에만 `main` 으로 리타겟·rebase, (2) Codex `workspace-write` 의 network/writable-root 를 env opt-in 으로 열고 sandbox 거부를 감지→승인→1회 재시도로 복구, (3) marketplace clean install/update 가 `release` ref 를 직접 소비하도록 배포 artifact 를 단일 manifest 로 경량화(549→191 files), (4) product journey runner 에 UI 화면 증거(`boundary=ui`)와 `(JOURNEY)` 검증 경계 lifecycle 을 추가, (5) 릴리즈 전 evidence 축을 고정 순서로 한 번에 수집하는 `scripts/release_preflight.py` 운영 자동화와 공개 evidence 비식별화·문구 정정.
+
+### 무엇이 바뀌나
+
+1. **`/impl-loop` story PR stack 전환 — breaking migration** ([#1111](https://github.com/Daeguk-Sun/dcNess/pull/1111) Closes [#1108](https://github.com/Daeguk-Sun/dcNess/issues/1108)) — multi-story 흐름이 long-lived 통합 브랜치와 자동 merge 를 전제해 "사용자만 merge 를 승인한다" 는 운영 원칙 및 story 별 독립 PR 검증과 충돌하던 문제를 해소. story 1 은 `main`, 이후 story 는 직전 story branch 를 base 로 하는 stack 정보를 runner 가 산출하고, non-default base PR 의 finalize 를 fail-fast 로 차단하며, merge 직전에만 `main` 리타겟·rebase 및 downstream restack 을 수행한다. PR base 조회 실패도 fail-closed 로 처리하고 peer lock 이후 merge 직전 base 를 재검증한다. 자동 merge 를 제거하고 조건부 QA PR·stack-tip 대비 Code Validation/Sanity·story close acceptance 규칙을 동기화했으며, `Base Branch` marker 를 폐기했다. **마이그레이션**: 플러그인 업데이트 시 marker 가 남은 in-flight epic 은 `pr-trailer` 와 issue 생성이 fail-fast 하므로, marker 를 제거하고 `dcness-story-runner next-action` 의 `pr_base` 에 따라 story branch 를 재구성한 뒤 계속해야 한다. 기존 진행 branch 는 자동 변환하지 않는다.
+
+2. **Codex build-worker sandbox opt-in + 사용자 승인 복구** ([#1110](https://github.com/Daeguk-Sun/dcNess/pull/1110) Closes [#1105](https://github.com/Daeguk-Sun/dcNess/issues/1105), [#1114](https://github.com/Daeguk-Sun/dcNess/pull/1114) Closes [#1113](https://github.com/Daeguk-Sun/dcNess/issues/1113)) — Codex headless build-worker 가 항상 기본 `workspace-write` sandbox 로 실행돼 loopback IPC·workspace 밖 build cache 쓰기가 필요한 Gradle 계열 외부 활성 프로젝트를 자체 검증하지 못하던 문제를 해소. `DCNESS_CODEX_NETWORK_ACCESS=1|true|on` 일 때만 network access 를, `DCNESS_CODEX_WRITABLE_ROOTS` 의 path-separator 목록으로 추가 writable roots 를 opt-in 전달한다(`danger-full-access` 미제공, 미설정·`off` 는 기존 인자 유지). 이어서 sandbox 거부를 일반 검증 실패와 구분해, `VALIDATION_BLOCKED` prose 를 제외한 Codex raw log 에서 실제 SocketException/sandbox write signature 만 permission receipt·ledger event 로 기록하고, `dcness-codex-permission` helper 가 이번 실행만 허용/프로젝트 저장(`.claude/settings.local.json` 보존 병합)/거부를 처리한 뒤 승인한 env 만 Codex worker 재시도 1회에 전달한다.
+
+3. **marketplace artifact 경량화 + install/update 정합** ([#1103](https://github.com/Daeguk-Sun/dcNess/pull/1103) Closes [#1102](https://github.com/Daeguk-Sun/dcNess/issues/1102)) — 기존 `source: "./"` 설치가 저장소 전체 checkout 을 cache 에 복사해 사용자가 소비하지 않는 테스트·평가·내부 문서·self CI 도구까지 배포하던 문제를 해소. `scripts/release_artifact.json` 을 단일 include/exclude·필수 runtime·허용 cache metadata 계약으로 추가하고, marketplace source 를 GitHub `release` ref 로 전환해 candidate·release sync 가 하나의 artifact manifest 를 공유한다. 격리 install 기준 self 전용 파일을 제거한 payload 는 549파일·5,159,235 bytes·102,346 LOC 에서 191파일·2,139,171 bytes·43,138 LOC 로 줄었으며, Claude Code 2.1.170 으로 clean install 과 이전→새 명시 버전 update 를 모두 격리 검증했다. SessionStart additionalContext 는 별도 지표(2,068 bytes, 약 517 token)로 유지해 package 감소를 prompt 감소로 주장하지 않는다.
+
+4. **UI journey 실행 증거 pilot + `(JOURNEY)` 검증 경계 lifecycle** ([#1104](https://github.com/Daeguk-Sun/dcNess/pull/1104) Closes [#1080](https://github.com/Daeguk-Sun/dcNess/issues/1080), [#1109](https://github.com/Daeguk-Sun/dcNess/pull/1109) Closes [#1107](https://github.com/Daeguk-Sun/dcNess/issues/1107)) — 기존 product journey runner 가 `api`·`cli`·`integration` 경계만 허용해 UI 다단계 흐름의 화면 상태·screenshot 을 receipt 에 연결하지 못하던 문제를 해소. runner 에 선택적 `boundary=ui` 와 `ui_evidence.steps` 를 추가해 UI 단계 최소 2개·final 단계 전체 AC coverage·screenshot/state/log 의 run-directory 경계·존재·SHA-256 을 fail-closed 로 검증하고, mock-only·앱 미기동·evidence 변조·symlink escape 가 제품 outcome PASS 가 되지 않게 했다. 이어서 module-architect REQ 에 도구 중립 `(JOURNEY)` taxonomy 를 추가하고, build-worker 는 flow·매니페스트만 작성한 뒤 product-acceptance 가 조건부 Bash 로 봉인 러너를 실행하는 lifecycle(설계 taxonomy→build-worker 산출물→acceptance 실행·판정)을 연결했다.
+
+5. **릴리즈 운영 자동화(preflight) + 공개 evidence 비식별화·문구 정정** ([#1114](https://github.com/Daeguk-Sun/dcNess/pull/1114) 내 [#1088](https://github.com/Daeguk-Sun/dcNess/issues/1088), [#1101](https://github.com/Daeguk-Sun/dcNess/pull/1101) Closes [#1064](https://github.com/Daeguk-Sun/dcNess/issues/1064)) — 릴리즈 전 evidence 축(guard·핵심 행동 eval·judge calibration·제품 outcome·agent effectiveness·경량화 결정·공개 evidence·bundle 소비 smoke)을 감사 가능한 고정 순서로 한 번에 수집하는 `scripts/release_preflight.py` 와 harness 실험 러너(`evals/harness_experiment.py`), loop_diagnose 진단 보강을 추가했다. 함께, benchmark snapshot 측정일과 prose 불일치를 교정하고 cross-session 값을 unmeasured(null) 의미로 정정했으며, sanitizer/validator 의 host-home 탐지가 macOS `/Users` 뿐 아니라 Linux `/home` 경로도 `<HOME>` 으로 치환·거부하도록 강화했다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 order gate·headless worker(Codex sandbox)·boundary·TDD 인접 영역과 story-runner·product journey·release artifact 를 건드려 결정적 guard-efficacy 를 재실행 — **39/39 PASS**, 회귀 없음. 전체 unittest 도 재실행해 공개 snapshot 수치를 실측 동기화했다. 각 머지 PR 은 개별 CI(pytest·static-quality·public-surface·cross-ref·index-map·doc-sync)와 guard-efficacy 39/39 를 통과했고, #1104·#1109·#1111 은 행동 eval(30/30 등)을 개별 실행했다.
+- Decide: 소멸 후보 없음. follow-up 없음. (marketplace artifact·release preflight 로 배포 경계·릴리즈 절차를 오히려 단순화했다.)
+- Verify: 7개 머지 PR 각각 CI PASS. story PR stack runner·Codex sandbox opt-in/permission·release artifact·UI journey·(JOURNEY) lifecycle·release preflight 신규/회귀 테스트 통과. LLM 기반 핵심 행동 eval 은 사용자 지시 minor 배포라 릴리즈 시점 재실행은 생략(advisory)하고 각 PR 개별 실행 결과로 갈음했다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `harness/**`·`hooks/**`·`scripts/**`·`skills/**`·`agents/**`·`docs/plugin/**` 변경. marketplace 는 이제 경량 `release` ref artifact 를 소비한다.
+- **`/impl-loop` 로 multi-story/epic 을 도는 프로젝트 (breaking)** — 통합 브랜치·`Base Branch` marker 가 폐기되고 story PR stack 으로 바뀐다. marker 가 남은 in-flight epic 은 marker 제거 + `dcness-story-runner next-action` 의 `pr_base` 기준 story branch 재구성 후 계속해야 하며, 자동 변환은 없다.
+- **Codex headless build-worker(Gradle 등) 사용 프로젝트** — `.claude/settings.local.json` 의 `env` 에 `DCNESS_CODEX_NETWORK_ACCESS`/`DCNESS_CODEX_WRITABLE_ROOTS` opt-in 을 추가하면 loopback IPC·workspace 밖 build cache 쓰기가 필요한 검증을 headless 로 수행할 수 있고, sandbox 거부 시 승인→1회 재시도 복구 여정이 제공된다.
+- **marketplace 설치/업데이트 사용자** — 설치 cache 가 저장소 전체 checkout 이 아니라 경량 `release` ref artifact(v0.23.0 릴리즈 smoke 실측 194파일·약 2.23MB·45,019 LOC)를 소비한다. 소비하지 않던 테스트·평가·내부 문서·self CI 도구가 더는 배포되지 않는다.
+- **`/acceptance`·`/impl-loop` 로 제품 검수하는 프로젝트** — UI 다단계 흐름의 화면 증거(`boundary=ui`)와 `(JOURNEY)` 검증 경계가 연결돼, mock-only/설명만으로 UI Story AC 가 제품 outcome PASS 되던 경로가 차단된다.
 
 ---
 
