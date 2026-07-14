@@ -1,0 +1,443 @@
+{
+  "schema_version": 1,
+  "snapshot_revision": "b676140bcffdaa5843ce59198ecef4f997efddc9",
+  "classification_enum": [
+    "현재 실사용",
+    "제거 가능",
+    "한시적 호환 필요"
+  ],
+  "entries": [
+    {
+      "id": "DES-001",
+      "area": "design",
+      "policy_slice": "module responsibility와 decision link 기반 현행 설계 authoring",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1093,
+      "current_ssot": ["docs/plugin/deliverables-map.md#설계-산출물"],
+      "implementation": ["docs/plugin/agents/module-architect/module-architect-agent.md", "docs/plugin/agents/system-architect/templates/epic-architecture.md"],
+      "tests_fixtures": ["tests/test_contract_pointer_model.py", "tests/fixtures/architecture-cartography"],
+      "docs_distribution": ["skills/design/SKILL.md", "docs/plugin/agents/_shared/module-design-principles.md"],
+      "consumer_evidence": "신규 template과 design workflow가 모듈 목록·decision 참조를 생성하고 관련 회귀 테스트가 이를 진본으로 검증한다.",
+      "compatibility": null
+    },
+    {
+      "id": "DES-002",
+      "area": "design",
+      "policy_slice": "legacy contract sync authoring mode와 전용 sweep report",
+      "classification": "제거 가능",
+      "follow_up_issue": 1093,
+      "current_ssot": ["docs/plugin/deliverables-map.md#설계-산출물"],
+      "implementation": ["docs/plugin/agents/module-architect/module-architect-agent.md#legacy-contract-sync", "docs/plugin/agents/module-architect/templates/contract-sweep-report.md"],
+      "tests_fixtures": ["tests/test_contract_pointer_model.py", "tests/test_design_surface.py"],
+      "docs_distribution": ["agents/module-architect.md", "docs/plugin/agents/module-architect/references/contract-amendment.md"],
+      "consumer_evidence": "현행 /design 진입은 epic-batch·revision·Cartography refresh만 사용하며 legacy sync를 호출하는 runtime route나 생성기가 저장소에 없다.",
+      "compatibility": null
+    },
+    {
+      "id": "DES-003",
+      "area": "design",
+      "policy_slice": "legacy Contract Ledger·References·frontmatter warning reader와 deprecated --contract flag",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1093,
+      "current_ssot": ["docs/plugin/deliverables-map.md#설계-산출물"],
+      "implementation": ["scripts/check_design_artifact_structure.mjs:auditArchitecture", "scripts/check_design_artifact_structure.mjs:auditArtifact"],
+      "tests_fixtures": ["tests/test_design_artifact_audit.py"],
+      "docs_distribution": ["docs/plugin/hooks.md", "docs/plugin/init-dcness.md"],
+      "consumer_evidence": "2026-07-14 등록 프로젝트 익명 집계에서 2/5 프로젝트, 72개 문서가 legacy design marker를 보유한다.",
+      "compatibility": {
+        "consumer_or_format": "기존 활성 프로젝트의 Contract Ledger, Contract References, contract frontmatter, Flow Ownership Map 문서",
+        "reason": "doc-sync audit가 기존 문서를 실패시키지 않고 경고로 분류해야 migration 전 프로젝트가 계속 검증된다.",
+        "removal_trigger": "등록 프로젝트의 legacy design marker가 0이 되고 --contract 호출자가 없음을 재조사한 뒤 reader 지원 종료를 명시한다.",
+        "verification": "node scripts/check_design_artifact_structure.mjs --root <legacy-project> --json 및 tests.test_design_artifact_audit"
+      }
+    },
+    {
+      "id": "DES-004",
+      "area": "design",
+      "policy_slice": "architecture map의 legacy Contract Ledger·Decisions table reader",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1093,
+      "current_ssot": ["docs/plugin/deliverables-map.md#cartography"],
+      "implementation": ["scripts/aggregate_architecture_map.mjs:parseEpicArchitecture"],
+      "tests_fixtures": ["tests/test_architecture_map_aggregate.py:test_generates_report_from_epic_architecture_tables"],
+      "docs_distribution": ["docs/plugin/deliverables-map.md", "docs/plugin/init-dcness.md"],
+      "consumer_evidence": "DES-003과 동일한 두 활성 프로젝트의 기존 architecture 문서를 온디맨드 map이 읽는다.",
+      "compatibility": {
+        "consumer_or_format": "## Contract Ledger와 표 형식 ## Decisions가 있는 기존 epic architecture.md",
+        "reason": "migration 전 global map에서 기존 capability와 decision 연결을 잃지 않아야 한다.",
+        "removal_trigger": "기존 architecture 문서를 module list·docs/decisions 형식으로 migration하고 legacy parser 적중이 0임을 확인한다.",
+        "verification": "node scripts/aggregate_architecture_map.mjs --root <legacy-project> --stdout 및 tests.test_architecture_map_aggregate"
+      }
+    },
+    {
+      "id": "DES-005",
+      "area": "design",
+      "policy_slice": "architecture validator와 design routing의 legacy artifact leniency",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1093,
+      "current_ssot": ["docs/plugin/agents/architecture-validator/architecture-validator-agent.md"],
+      "implementation": ["skills/design/design-routing.md", "codex/skills/dcness-architecture-validator/SKILL.md"],
+      "tests_fixtures": ["tests/test_surface_docs_sync.py", "tests/test_contract_pointer_model.py"],
+      "docs_distribution": ["docs/plugin/agents/architecture-validator/references/finding-examples.md", "docs/plugin/agents/module-architect/references/contract-amendment.md"],
+      "consumer_evidence": "기존 설계 문서가 남은 2개 활성 프로젝트에서 형식 잔존만으로 false FAIL하지 않게 하는 reader-side 계약이다.",
+      "compatibility": {
+        "consumer_or_format": "legacy Contract Ledger/References를 포함하지만 현행 module/decision과 충돌하지 않는 설계 pack",
+        "reason": "구양식 존재 자체를 Must finding으로 승격하면 migration되지 않은 활성 프로젝트의 설계 개정이 차단된다.",
+        "removal_trigger": "legacy 문서 migration 완료 후 validator fixture와 실제 프로젝트에서 leniency 없이 같은 판정이 나옴을 확인한다.",
+        "verification": "python3.11 -m unittest tests.test_contract_pointer_model tests.test_surface_docs_sync -v"
+      }
+    },
+    {
+      "id": "DES-006",
+      "area": "design",
+      "policy_slice": "release artifact --contract 옵션의 동명이의 검색 적중",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1093,
+      "current_ssot": ["docs/internal/plugin-release.md"],
+      "implementation": ["scripts/release_artifact.py"],
+      "tests_fixtures": ["tests/test_release_artifact.py"],
+      "docs_distribution": ["docs/internal/release-notes.md"],
+      "consumer_evidence": "release_artifact의 contract는 legacy design row key가 아니라 배포 artifact 계약 파일이며 snapshot/build 검증에서 현재 사용된다.",
+      "compatibility": null
+    },
+    {
+      "id": "RUN-001",
+      "area": "run-ledger",
+      "policy_slice": "canonical ledger.jsonl event writer와 receipt 무결성",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/loop-procedure.md#ledger"],
+      "implementation": ["harness/ledger.py:append_event", "harness/ledger.py:append_step_completed"],
+      "tests_fixtures": ["tests/test_ledger.py", "tests/test_session_state.py"],
+      "docs_distribution": ["docs/plugin/hooks.md", "skills/impl-loop/SKILL.md"],
+      "consumer_evidence": "등록 프로젝트 집계에서 ledger.jsonl 30개가 존재하고 .steps.jsonl은 0개이며 현재 writer는 ledger.jsonl만 생성한다.",
+      "compatibility": null
+    },
+    {
+      "id": "RUN-002",
+      "area": "run-ledger",
+      "policy_slice": "legacy .steps.jsonl reader와 mixed-upgrade merge",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/loop-procedure.md#ledger"],
+      "implementation": ["harness/ledger.py:legacy_steps_path", "harness/ledger.py:_read_events_paths"],
+      "tests_fixtures": ["tests/test_ledger.py", "tests/test_run_review.py"],
+      "docs_distribution": ["docs/plugin/benchmark.md", "scripts/check_cross_refs.mjs"],
+      "consumer_evidence": "활성 프로젝트에는 .steps.jsonl이 없지만 plugin cache와 과거 checkout의 persisted run을 run-review가 읽는 지원 형식으로 코드와 fixture가 명시한다.",
+      "compatibility": {
+        "consumer_or_format": "ledger.jsonl 도입 전 .steps.jsonl 및 업데이트 중 두 파일이 공존하는 mixed run",
+        "reason": "과거 run review와 plugin update 도중 occurrence·prose receipt 순서를 보존한다.",
+        "removal_trigger": "지원 보존 기간을 정하고 cache/보관 run을 migration한 뒤 .steps.jsonl 표본과 실제 호출이 0임을 확인한다.",
+        "verification": "python3.11 -m unittest tests.test_ledger tests.test_run_review -v"
+      }
+    },
+    {
+      "id": "RUN-003",
+      "area": "run-ledger",
+      "policy_slice": "옛 step row 필드명 prose_file·prose_excerpt·must_fix·enum 유지",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/loop-procedure.md#ledger"],
+      "implementation": ["harness/ledger.py:build_receipt", "harness/run_review.py:parse_steps"],
+      "tests_fixtures": ["tests/test_ledger.py", "tests/test_benchmark_aggregate.py", "tests/test_outcome_scorecard.py"],
+      "docs_distribution": ["docs/plugin/benchmark.md", "docs/plugin/outcome-scorecard.md"],
+      "consumer_evidence": "run-review·benchmark·outcome 집계가 현재 receipt와 legacy row를 같은 field vocabulary로 소비한다.",
+      "compatibility": {
+        "consumer_or_format": "legacy step rows와 현행 step_completed receipt의 공통 필드명",
+        "reason": "저장 데이터와 집계 consumer를 동시에 migration하지 않고 이름을 바꾸면 과거 evidence가 누락된다.",
+        "removal_trigger": "canonical receipt schema와 migration tool을 확정하고 모든 reader가 새 필드를 사용한 뒤 legacy fixture를 별도 archive reader로 격리한다.",
+        "verification": "python3.11 -m unittest tests.test_ledger tests.test_benchmark_aggregate tests.test_outcome_scorecard -v"
+      }
+    },
+    {
+      "id": "RUN-004",
+      "area": "run-ledger",
+      "policy_slice": "malformed·partial ledger, invalid receipt, tombstone 안전 처리",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/hooks.md#상태-저장"],
+      "implementation": ["harness/ledger.py:_read_jsonl", "harness/ledger.py:_drop_invalid_primary_steps", "harness/session_state.py"],
+      "tests_fixtures": ["tests/test_ledger.py", "tests/test_session_state.py", "tests/test_state_cleanup.py"],
+      "docs_distribution": ["docs/plugin/loop-procedure.md"],
+      "consumer_evidence": "현재 append-only writer도 crash/partial write와 worktree cleanup을 겪을 수 있어 legacy 여부와 무관한 손상 안전 경계다.",
+      "compatibility": null
+    },
+    {
+      "id": "RUN-005",
+      "area": "run-ledger",
+      "policy_slice": "legacy validator agent-name alias",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/agents/impl-validator/impl-validator-agent.md"],
+      "implementation": ["harness/agent_names.py:LEGACY_AGENT_ALIASES", "harness/run_review.py:LEGACY_AGENT_ALIASES"],
+      "tests_fixtures": ["tests/test_run_review.py", "tests/test_agent_boundary.py"],
+      "docs_distribution": ["docs/plugin/loop-procedure.md"],
+      "consumer_evidence": "과거 trace의 dcness:validator 이름과 file-boundary 정규화를 run-review가 복구하도록 issue #383의 persisted trace 소비 근거가 남아 있다.",
+      "compatibility": {
+        "consumer_or_format": "0.2.16 시기 validator agent 이름을 가진 persisted trace",
+        "reason": "과거 run review와 boundary attribution을 impl-validator로 정규화한다.",
+        "removal_trigger": "지원 기간 이전 trace를 migration/archive하고 validator alias 적중 telemetry가 0임을 확인한다.",
+        "verification": "python3.11 -m unittest tests.test_run_review tests.test_agent_boundary -v"
+      }
+    },
+    {
+      "id": "RUN-006",
+      "area": "run-ledger",
+      "policy_slice": "harness.session_state의 historical private-name re-export",
+      "classification": "제거 가능",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/loop-procedure.md"],
+      "implementation": ["harness/session_state.py:_CLI_REEXPORT_NAMES", "harness/session_state.py:__getattr__"],
+      "tests_fixtures": ["tests/test_session_state.py", "tests/test_parallel_wave.py"],
+      "docs_distribution": ["scripts/dcness-helper"],
+      "consumer_evidence": "session_state_cli의 sibling handler import는 현재 parser가 사용한다. 반면 harness.session_state에서 private helper를 다시 노출하는 경로는 저장소 테스트 import 외 runtime 호출자가 검색되지 않는다.",
+      "compatibility": null
+    },
+    {
+      "id": "RUN-007",
+      "area": "run-ledger",
+      "policy_slice": "hook staging 실패 시 run-dir prose 탐색",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/loop-procedure.md#자유서술-방식"],
+      "implementation": ["harness/session_state_cli_finalize.py:_find_prose_fallback"],
+      "tests_fixtures": ["tests/test_session_state.py", "tests/test_hooks.py"],
+      "docs_distribution": ["docs/plugin/hooks.md"],
+      "consumer_evidence": "현재 hook auto-stage 자체가 best-effort이므로 hook failure 뒤 이미 기록된 prose를 회수하는 runtime 복구 경로다.",
+      "compatibility": null
+    },
+    {
+      "id": "RUN-008",
+      "area": "run-ledger",
+      "policy_slice": "prose-only PROSE_LOGGED와 legacy stored verdict 집계",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/loop-procedure.md#자유서술-방식"],
+      "implementation": ["harness/run_review.py:_resolved_verdict", "harness/benchmark_aggregate.py:_step_verdict", "harness/outcome_scorecard.py"],
+      "tests_fixtures": ["tests/test_run_review.py", "tests/test_benchmark_aggregate.py", "tests/test_outcome_scorecard.py"],
+      "docs_distribution": ["docs/plugin/benchmark.md", "docs/plugin/outcome-scorecard.md"],
+      "consumer_evidence": "현행 ledger는 PROSE_LOGGED sentinel과 prose 결론을 쓰지만 legacy .steps.jsonl은 LGTM·CHANGES_REQUESTED 등 stored verdict를 보유한다.",
+      "compatibility": {
+        "consumer_or_format": "legacy stored verdict enum과 현행 prose-only sentinel이 섞인 run evidence",
+        "reason": "과거 FAIL 비율과 waste 분석에서 prose 재파싱 오판으로 verdict가 뒤집히지 않게 한다.",
+        "removal_trigger": "legacy row를 canonical prose verdict로 migration하고 old verdict 표본이 지원 범위에서 0임을 확인한다.",
+        "verification": "python3.11 -m unittest tests.test_run_review tests.test_benchmark_aggregate tests.test_outcome_scorecard -v"
+      }
+    },
+    {
+      "id": "ROUTE-001",
+      "area": "routing",
+      "policy_slice": "schema v3 role-split routes와 headless-chain 기본값",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1095,
+      "current_ssot": ["docs/plugin/init-dcness.md#provider-routing"],
+      "implementation": ["harness/agent_routing.py:enable_role_split_routing", "scripts/dcness-implementation-chain"],
+      "tests_fixtures": ["tests/test_agent_routing.py", "tests/test_provider_chain.py"],
+      "docs_distribution": ["commands/init-dcness.md", "skills/impl-loop/SKILL.md"],
+      "consumer_evidence": "로컬 routing.json은 version=3과 routes/implementation_routes를 사용하고 init의 추천 preset이 이 형식을 쓴다.",
+      "compatibility": null
+    },
+    {
+      "id": "ROUTE-002",
+      "area": "routing",
+      "policy_slice": "routing schema version 1·2와 retired agent key 수용",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1095,
+      "current_ssot": ["docs/plugin/init-dcness.md#provider-routing"],
+      "implementation": ["harness/agent_routing.py:SUPPORTED_CONFIG_VERSIONS", "harness/agent_routing.py:load_routing"],
+      "tests_fixtures": ["tests/test_agent_routing.py"],
+      "docs_distribution": ["commands/init-dcness.md"],
+      "consumer_evidence": "2026-07-14 local version=3 config에도 retired code-validator·pr-reviewer·test-engineer keys가 남아 persisted config migration 필요가 실재한다.",
+      "compatibility": {
+        "consumer_or_format": "routing.json schema 1·2와 schema 3 안의 retired agent route keys",
+        "reason": "plugin update가 기존 local config를 조용히 삭제하지 않고 doctor/migration 대상으로 식별해야 한다.",
+        "removal_trigger": "등록 config를 current agent key로 migration하고 schema/retired-key scan이 0인 뒤 지원 버전을 축소한다.",
+        "verification": "python3.11 -m harness.session_state routing doctor 및 python3.11 -m unittest tests.test_agent_routing -v"
+      }
+    },
+    {
+      "id": "ROUTE-003",
+      "area": "routing",
+      "policy_slice": "legacy codex-first preset과 enable/disable CLI",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1095,
+      "current_ssot": ["docs/plugin/init-dcness.md#provider-routing"],
+      "implementation": ["harness/agent_routing.py:enable_codex_implementation", "harness/session_state_cli.py:_cli_routing", "scripts/dcness-implementation-chain"],
+      "tests_fixtures": ["tests/test_agent_routing.py", "tests/test_provider_chain.py"],
+      "docs_distribution": ["commands/init-dcness.md", "docs/plugin/loop-procedure.md"],
+      "consumer_evidence": "현재 조사 config는 codex-first를 쓰지 않지만 과거 opt-in 프로젝트가 저장한 implementation route 값의 지원 경계로 문서와 parser가 유지한다.",
+      "compatibility": {
+        "consumer_or_format": "implementation_routes.build-worker=codex-first인 기존 local routing config",
+        "reason": "headless-chain 도입 전 explicit opt-in의 Codex→Claude-main 의미를 migration 전 보존한다.",
+        "removal_trigger": "등록 routing config에서 codex-first가 0이고 custom 사용자를 headless-chain 또는 claude로 migration한 뒤 CLI를 제거한다.",
+        "verification": "python3.11 -m harness.session_state routing status 및 python3.11 -m unittest tests.test_agent_routing tests.test_provider_chain -v"
+      }
+    },
+    {
+      "id": "ROUTE-004",
+      "area": "routing",
+      "policy_slice": "VALID_PROVIDERS backward-compatible export",
+      "classification": "제거 가능",
+      "follow_up_issue": 1095,
+      "current_ssot": ["docs/plugin/init-dcness.md#provider-routing"],
+      "implementation": ["harness/agent_routing.py:VALID_PROVIDERS"],
+      "tests_fixtures": ["tests/test_agent_routing.py"],
+      "docs_distribution": ["commands/init-dcness.md"],
+      "consumer_evidence": "repository-wide symbol search에서 정의·__all__ 외 import/call site가 없고 local JSON은 symbol export를 소비하지 않는다.",
+      "compatibility": null
+    },
+    {
+      "id": "ROUTE-005",
+      "area": "routing",
+      "policy_slice": "workspace 변경 전 provider 실패만 다음 provider로 넘기는 safety fallback",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1095,
+      "current_ssot": ["docs/plugin/loop-procedure.md#provider-routing"],
+      "implementation": ["scripts/dcness-implementation-chain"],
+      "tests_fixtures": ["tests/test_provider_chain.py"],
+      "docs_distribution": ["docs/plugin/loop-procedure.md", "skills/impl-loop/SKILL.md"],
+      "consumer_evidence": "현행 headless-chain의 CLI/auth/timeout 복구 계약이며 workspace mutation 뒤에는 fallback하지 않는 안전 불변조건이 테스트된다.",
+      "compatibility": null
+    },
+    {
+      "id": "INST-001",
+      "area": "install-path",
+      "policy_slice": "project-local generated Claude/Codex TDD hook contract",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1096,
+      "current_ssot": ["docs/plugin/init-dcness.md#generated-tdd-hooks"],
+      "implementation": ["harness/tdd_hooks.py:ensure_generated_hooks", "harness/tdd_hooks.py:run_generated_hook"],
+      "tests_fixtures": ["tests/test_generated_tdd_hooks.py", "tests/test_tdd_guard.py"],
+      "docs_distribution": ["commands/init-dcness.md", "hooks/tdd-guard.sh"],
+      "consumer_evidence": "등록 프로젝트 1개는 5/5 generated 파일을 보유하고 current impl preflight가 committed project-local hook을 요구한다.",
+      "compatibility": null
+    },
+    {
+      "id": "INST-002",
+      "area": "install-path",
+      "policy_slice": "partial generated install에서 central TDD guard를 유지하는 fallback",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1096,
+      "current_ssot": ["docs/plugin/hooks.md#tdd-guard"],
+      "implementation": ["hooks/tdd-guard.sh:delegate_generated_project_hook"],
+      "tests_fixtures": ["tests/test_tdd_guard.py", "tests/test_generated_tdd_hooks.py"],
+      "docs_distribution": ["commands/init-dcness.md", "docs/plugin/init-dcness.md"],
+      "consumer_evidence": "등록 5개 프로젝트의 generated install 보유량이 0/5, 2/5, 5/5, 0/5, 1/5라 partial state가 현재 실재한다.",
+      "compatibility": null
+    },
+    {
+      "id": "INST-003",
+      "area": "install-path",
+      "policy_slice": "generated hook의 explicit root→Claude root→cache→in-place root 탐색",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1096,
+      "current_ssot": ["docs/plugin/init-dcness.md#실행-위치"],
+      "implementation": ["harness/tdd_hooks.py:_generated_hook_text", "scripts/hooks/commit-msg", "scripts/hooks/pre-push"],
+      "tests_fixtures": ["tests/test_generated_tdd_hooks.py", "tests/test_git_hook_guard_telemetry.py"],
+      "docs_distribution": ["commands/init-dcness.md", "docs/plugin/hooks.md"],
+      "consumer_evidence": "plugin cache 실행, dcness self in-place 실행, Claude hook env, headless env가 서로 다른 root 신호를 제공하는 현행 배포 topology다.",
+      "compatibility": null
+    },
+    {
+      "id": "INST-004",
+      "area": "install-path",
+      "policy_slice": "design-variants/ legacy path prefix의 validation-only 탐지",
+      "classification": "제거 가능",
+      "follow_up_issue": 1096,
+      "current_ssot": ["docs/plugin/deliverables-map.md#design-variants"],
+      "implementation": ["scripts/check_doc_path_integrity.mjs:LEGACY_PATH_PREFIXES"],
+      "tests_fixtures": ["tests/test_doc_path_integrity.py"],
+      "docs_distribution": ["docs/plugin/init-dcness.md"],
+      "consumer_evidence": "등록 프로젝트 익명 조사에서 docs/design-variants/를 제외한 legacy design-variants/ 참조가 0건이다.",
+      "compatibility": null
+    },
+    {
+      "id": "INST-005",
+      "area": "install-path",
+      "policy_slice": "linked worktree의 common git hooks path와 primary worktree 상태 해석",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1096,
+      "current_ssot": ["docs/plugin/hooks.md#worktree"],
+      "implementation": ["harness/session_state.py:primary_worktree_root", "harness/tdd_hooks.py:generated_files_git_state", "scripts/hooks/post-checkout"],
+      "tests_fixtures": ["tests/test_generated_tdd_hooks.py", "tests/test_session_state.py", "tests/test_hook_wrapper_exit.py"],
+      "docs_distribution": ["commands/init-dcness.md", "docs/plugin/loop-procedure.md"],
+      "consumer_evidence": "현행 impl/design workflow가 linked worktree를 사용하며 common-dir hook과 primary local receipt를 구분해야 한다.",
+      "compatibility": null
+    },
+    {
+      "id": "LIFE-001",
+      "area": "lifecycle",
+      "policy_slice": "typed Story AC와 issue acceptance checklist 현행 writer",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1097,
+      "current_ssot": ["skills/spec/spec-stories-reference.md", "docs/plugin/git-spec.md#이슈-완료-규칙"],
+      "implementation": ["scripts/create_epic_story_issues.sh", "scripts/check_issue_body.mjs"],
+      "tests_fixtures": ["tests/test_spec_story_slice.py", "tests/test_issue_body_validation.py", "tests/test_create_epic_story_issues.py"],
+      "docs_distribution": ["docs/plugin/issue-lifecycle.md", "commands/init-dcness.md"],
+      "consumer_evidence": "신규 story/issue 생성기는 [command]/[agent-read] 기준만 체크박스로 materialize하고 close audit가 이를 검사한다.",
+      "compatibility": null
+    },
+    {
+      "id": "LIFE-002",
+      "area": "lifecycle",
+      "policy_slice": "Story AC가 없는 stories.md와 완료 시 확인 가능한 동작 reader",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1097,
+      "current_ssot": ["skills/spec/spec-stories-reference.md#구버전-호환성"],
+      "implementation": ["scripts/report_ac_coverage.mjs:buildCoverageReport", "docs/plugin/agents/product-acceptance/product-acceptance-agent.md"],
+      "tests_fixtures": ["tests/test_spec_story_slice.py", "tests/test_acceptance_contract_hierarchy.py"],
+      "docs_distribution": ["docs/plugin/git-spec.md", "docs/plugin/agents/architecture-validator/architecture-validator-agent.md"],
+      "consumer_evidence": "등록 프로젝트 3곳의 stories.md 8개 모두 Story AC heading이 없는 구양식으로 조사됐다.",
+      "compatibility": {
+        "consumer_or_format": "Story AC 없이 As a/I want/So that 또는 완료 시 확인 가능한 동작을 쓰는 기존 stories.md",
+        "reason": "소급 추론으로 AC 의미를 바꾸거나 기존 설계/acceptance를 false fail하지 않게 한다.",
+        "removal_trigger": "등록 프로젝트 stories를 typed AC로 migration하고 legacy story scan이 0인 뒤 reader 지원 종료를 선언한다.",
+        "verification": "node scripts/report_ac_coverage.mjs --stories <legacy-stories> --impl-dir <impl> 및 python3.11 -m unittest tests.test_spec_story_slice -v"
+      }
+    },
+    {
+      "id": "LIFE-003",
+      "area": "lifecycle",
+      "policy_slice": "acceptance checklist가 없는 legacy issue의 close audit pass",
+      "classification": "한시적 호환 필요",
+      "follow_up_issue": 1097,
+      "current_ssot": ["docs/plugin/git-spec.md#이슈-완료-규칙"],
+      "implementation": ["scripts/check_issue_body.mjs:validateIssueBody"],
+      "tests_fixtures": ["tests/test_issue_body_validation.py"],
+      "docs_distribution": ["docs/plugin/issue-lifecycle.md"],
+      "consumer_evidence": "typed acceptance checklist 도입 전 생성된 GitHub issue는 checklist 자체가 없는 지원 대상 형식이며 checker가 legacy/no AC를 명시적으로 판정한다.",
+      "compatibility": {
+        "consumer_or_format": "Acceptance criteria checklist가 없는 도입 이전 GitHub issue body",
+        "reason": "기존 issue를 의미 추론으로 자동 체크하거나 영구 close 불가 상태로 만들지 않는다.",
+        "removal_trigger": "열린 legacy issue를 typed checklist로 migration하거나 지원 종료 목록으로 닫고 no-AC close 호출이 0임을 확인한다.",
+        "verification": "node scripts/check_issue_body.mjs --body-file <legacy-body> --acceptance-only --require-complete 및 tests.test_issue_body_validation"
+      }
+    },
+    {
+      "id": "LIFE-004",
+      "area": "lifecycle",
+      "policy_slice": "사람 판정 항목의 checkbox 금지와 agent 자동 체크 금지",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1097,
+      "current_ssot": ["docs/plugin/git-spec.md#이슈-완료-규칙"],
+      "implementation": ["scripts/check_issue_body.mjs:validateIssueBody"],
+      "tests_fixtures": ["tests/test_issue_body_validation.py"],
+      "docs_distribution": ["docs/plugin/issue-lifecycle.md", "skills/acceptance/SKILL.md"],
+      "consumer_evidence": "현재 close 안전 계약으로 사람 확인을 자동 완료하지 못하게 하며 legacy 여부와 무관하다.",
+      "compatibility": null
+    },
+    {
+      "id": "LIFE-005",
+      "area": "lifecycle",
+      "policy_slice": "Story AC→REQ coverage의 advisory-only 판정",
+      "classification": "현재 실사용",
+      "follow_up_issue": 1097,
+      "current_ssot": ["skills/design/SKILL.md#mechanical-pre-final-checks"],
+      "implementation": ["scripts/report_ac_coverage.mjs"],
+      "tests_fixtures": ["tests/test_acceptance_contract_hierarchy.py", "tests/test_spec_story_slice.py"],
+      "docs_distribution": ["docs/plugin/agents/architecture-validator/architecture-validator-agent.md"],
+      "consumer_evidence": "현행 typed AC에서도 command output을 validator 관찰 증거로 쓰고 형식만으로 hard fail하지 않는 자율성 계약이다.",
+      "compatibility": null
+    }
+  ]
+}
