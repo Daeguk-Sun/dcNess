@@ -289,7 +289,7 @@
       "policy_slice": "workspace 변경 전 provider 실패만 다음 provider로 넘기는 safety fallback",
       "classification": "현재 실사용",
       "follow_up_issue": 1095,
-      "current_ssot": ["docs/plugin/loop-procedure.md#provider-routing"],
+      "current_ssot": ["docs/plugin/init-dcness.md#provider-routing"],
       "implementation": ["scripts/dcness-implementation-chain"],
       "tests_fixtures": ["tests/test_provider_chain.py"],
       "docs_distribution": ["docs/plugin/loop-procedure.md", "skills/impl-loop/SKILL.md"],
