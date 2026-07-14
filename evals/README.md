@@ -84,7 +84,25 @@ Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
 실행하지 않는다. flaky 후보는 `scripts/loop_diagnose.py`(스케줄 sweep·`/run-review`)의
 자동 후보 표에도 노후 후보와 함께 올라오므로 사람이 리포트를 직접 치지 않아도 표면화된다.
 기본 산출 위치인 `.metrics/evals/**` 는 자동 집계 대상이다. `EVAL_OUTPUT_DIR` 를 repo 밖으로
-지정한 경우에는 `dcness-helper guard-telemetry --base-dir <EVAL_OUTPUT_DIR>` 로 그 산출물을 직접 본다.
+지정한 경우에는 `dcness-helper guard-telemetry --base-dir <EVAL_OUTPUT_DIR>` 로 그 산출물을 직접 볼 수
+있지만, `scripts/loop_diagnose.py` 의 자동 후보 집계에는 포함되지 않는다.
+
+## 실패·재실행 처리 규범
+
+단발 실패를 뒤이은 재실행 PASS로 덮어 "통과"로 닫지 않는다. 재실행은 flaky 여부를 판별하는
+수단이지 통과 표본을 고르는 수단이 아니다. 판정이 흔들리면 최초 MISS를 포함하도록 `EVAL_RUNS`를
+높여 전체 정답률(`k/N`)을 측정하고, 일부만 통과하면 결과를 flaky로 보고한다. 방금 변경한 diff의
+회귀가 아니라는 근거가 있더라도 해당 flaky 신호 자체를 없던 것으로 취급하지 않는다.
+
+flaky로 확정한 후보는 gate 통과 여부와 무관하게 처분을 남긴다. [#1123](https://github.com/alruminum/dcNess/pull/1123)의
+flaky 후보 자동 표면화를 거쳐 `scripts/loop_diagnose.py record-decision`으로 `fixed`·`hold`·`rejected`
+중 하나를 기록하거나, 근본 원인을 다룰 follow-up을 등록한다. "비결정적 judge miss"처럼 원인을
+분류하거나 현재 PR을 계속 진행해도 된다고 판단한 것만으로는 처분이 끝나지 않는다. 후보 소비와
+결정 원장은 [`docs/internal/self-improvement-loop.md`](../docs/internal/self-improvement-loop.md)를 따른다.
+
+flaky 판별 재실행은 자동 표면화가 이어지는 기본 `.metrics/evals/**` 위치를 사용한다. 불가피하게
+`EVAL_OUTPUT_DIR`를 `/tmp` 등 repo 밖으로 지정하면 위 자동 집계에서 빠지므로, 그 실행을 근거로 한
+`record-decision`을 명시적으로 남겨 신호 소실을 막는다.
 
 ## judge 보정 — 사람 golden 과 채점 모델 대조
 
