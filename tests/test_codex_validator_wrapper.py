@@ -584,12 +584,12 @@ class CodexValidatorWrapperTests(unittest.TestCase):
 
 
 class CodexWorkerWrapperTests(unittest.TestCase):
-    def _capture_worker_args(
+    def _run_worker_for_args(
         self,
         *,
         network_access: str | None = None,
         writable_roots: list[str] | None = None,
-    ) -> tuple[list[str], str]:
+    ) -> tuple[subprocess.CompletedProcess[str], list[str], str]:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             project = tmp / "project"
@@ -693,8 +693,25 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 text=True,
             )
 
-            self.assertEqual(result.returncode, 0, result.stderr)
-            return args_capture.read_text(encoding="utf-8").splitlines(), str(project)
+            args = (
+                args_capture.read_text(encoding="utf-8").splitlines()
+                if args_capture.exists()
+                else []
+            )
+            return result, args, str(project)
+
+    def _capture_worker_args(
+        self,
+        *,
+        network_access: str | None = None,
+        writable_roots: list[str] | None = None,
+    ) -> tuple[list[str], str]:
+        result, args, project = self._run_worker_for_args(
+            network_access=network_access,
+            writable_roots=writable_roots,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return args, project
 
     def test_worker_default_sandbox_args_remain_workspace_write_only(self) -> None:
         for network_access in (None, "0", "false", "off"):
@@ -752,6 +769,54 @@ class CodexWorkerWrapperTests(unittest.TestCase):
         self.assertEqual(args[11], "--output-last-message")
         self.assertTrue(args[12])
         self.assertEqual(args[13:], ["-"])
+
+    def test_worker_sandbox_opt_ins_are_independent(self) -> None:
+        writable_roots = ["/tmp/gradle cache"]
+        cases = (
+            (
+                "network-only",
+                "on",
+                None,
+                ["sandbox_workspace_write.network_access=true"],
+            ),
+            (
+                "roots-only",
+                None,
+                writable_roots,
+                [
+                    "sandbox_workspace_write.writable_roots="
+                    + json.dumps(writable_roots, ensure_ascii=False)
+                ],
+            ),
+        )
+
+        for name, network_access, roots, expected_configs in cases:
+            with self.subTest(name=name):
+                args, _project = self._capture_worker_args(
+                    network_access=network_access,
+                    writable_roots=roots,
+                )
+                actual_configs = [
+                    args[index + 1]
+                    for index, arg in enumerate(args)
+                    if arg == "-c"
+                ]
+                self.assertEqual(actual_configs, expected_configs)
+                self.assertEqual(args.count("-c"), 1)
+                self.assertIn("workspace-write", args)
+
+    def test_worker_rejects_invalid_network_access_before_codex(self) -> None:
+        result, args, _project = self._run_worker_for_args(
+            network_access="enabled",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(args, [])
+        self.assertIn(
+            "DCNESS_CODEX_NETWORK_ACCESS must be one of "
+            "1/true/on or 0/false/off: enabled",
+            result.stderr,
+        )
 
     def test_worker_embeds_agent_docs_writes_workspace_and_stores_prose(self) -> None:
         with tempfile.TemporaryDirectory() as td:
