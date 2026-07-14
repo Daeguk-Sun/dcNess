@@ -84,7 +84,7 @@ hash, Python 명령은 사용자에게 작업으로 넘기지 않는다.
 
 1. 후보 telemetry를 그대로 근거로 격리 fixture, 동일 frozen task, baseline 조건, 더 짧은 variant 조건을 `.metrics/harness-experiments/` 아래에 생성한다. 사용자가 JSON이나 hash를 작성하지 않는다.
 2. 작업 순서·파일 경계·외부 상태 변경·TDD 보호를 live run에서 비활성화하지 않는다. 선택형 안내·중복 절차만 shadow fixture에서 비교한다.
-3. `evals/harness_experiment.py`로 baseline 1회 + variant 1회를 실행한다. 첫 pair가 명확하면 멈추고, 애매할 때만 월 4회 공통 상한 안에서 한 pair를 더 실행한다.
+3. `evals/harness_experiment.py`로 baseline 1회 + variant 1회를 실행한다. 첫 pair가 명확하면 멈추고, 애매할 때만 월 4회 공통 상한 안에서 한 pair를 더 실행한다(최대 4 trial). 승인 문구에도 이 최대치를 함께 표시한다.
 4. 실제 run ID, raw tool/read trace, model/provider, 입력·산출물 hash, token, wall-clock, 제품 AC, MUST-FIX, 회귀, 사람 복구가 자동 수집된 record만 판정에 사용한다.
 5. 사용자에게는 **유지 / 줄이기 후보 / 보류**와 근거·한계만 보고한다. 실제 룰 축약이나 제거는 별도 branch → PR 변경이며 자동 적용하지 않는다.
 

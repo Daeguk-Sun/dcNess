@@ -21,6 +21,15 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
+DEFAULT_LEDGER = (
+    Path.home()
+    / ".claude"
+    / "plugins"
+    / "data"
+    / "dcness-dcness"
+    / "harness-experiments"
+    / "trial-ledger.jsonl"
+)
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
@@ -304,6 +313,7 @@ def _trial_from_trace(
     variant: str,
     plan: dict[str, Any],
     task_path: Path,
+    expected_prompt_sha256: str,
 ) -> dict[str, Any]:
     parsed = execution.parse_trace(trace)
     answer = _quality_answer(parsed)
@@ -311,6 +321,9 @@ def _trial_from_trace(
     actual_model = str(parsed["model"] or "").strip()
     if not actual_model:
         raise ExperimentError("trial_model_required")
+    actual_prompt_sha256 = str(parsed["meta"].get("prompt_sha256") or "")
+    if actual_prompt_sha256 != expected_prompt_sha256:
+        raise ExperimentError("trace_prompt_sha256_mismatch")
     trace_sha = _sha256(trace)
     artifact = trace.with_name(f"{trace.stem}-artifact.json")
     artifact.write_text(
@@ -322,6 +335,7 @@ def _trial_from_trace(
         "variant": variant,
         "task_id": str(plan["candidate"]["id"]),
         "input_sha256": _sha256(task_path),
+        "prompt_sha256": expected_prompt_sha256,
         "model": actual_model,
         "requested_model": str(provider["model"]),
         "provider": execution.EXECUTION_PROVIDER,
@@ -420,6 +434,12 @@ def _run_pair(
             variant=variant,
             plan=plan,
             task_path=paths["task"],
+            expected_prompt_sha256=hashlib.sha256(
+                _prompt(
+                    paths["task"].read_text(encoding="utf-8"),
+                    paths[variant].read_text(encoding="utf-8"),
+                ).encode("utf-8")
+            ).hexdigest(),
         )
         trials.append(trial)
         if not from_traces:
@@ -545,7 +565,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ledger",
         type=Path,
-        default=ROOT / ".metrics" / "harness-experiments" / "trial-ledger.jsonl",
+        default=DEFAULT_LEDGER,
     )
     parser.add_argument("--timeout", type=int, default=600)
     parser.add_argument("--from-traces", action="store_true")

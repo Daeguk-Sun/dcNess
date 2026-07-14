@@ -75,6 +75,11 @@ python3.11 scripts/release_preflight.py
 release bundle 소비 smoke를 독립 축으로 실행한다. bundle 소비 smoke와 2026-08 실측은 이
 도구가 재구현하지 않고 기존 산출물·검증기를 조합한다.
 
+하네스 실험의 월 trial ledger는 checkout 내부가 아니라 operator-wide
+`~/.claude/plugins/data/dcness-dcness/harness-experiments/trial-ledger.jsonl`를 사용하므로
+worktree·checkout을 나눠도 상한이 분리되지 않는다. `--ledger`는 테스트와 저장 trace
+재구축 같은 명시적 운영 용도로만 덮어쓴다.
+
 - Sense: preflight가 guard와 핵심 행동 eval을 실행하고 산출물을 `.metrics/release-preflight/` 아래에 남긴다.
 - Diagnose: 전용 도구로 활성 프로젝트의 가드 발화 이력과 재발·낭비 신호([#876](https://github.com/alruminum/dcNess/issues/876)), dcNess self eval 포화 후보를 함께 본다. 새 CI 게이트가 아니라 릴리즈 전 사람이 읽는 점검이다.
 

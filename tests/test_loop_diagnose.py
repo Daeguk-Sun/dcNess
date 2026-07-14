@@ -479,6 +479,7 @@ class LoopDiagnoseTests(unittest.TestCase):
                 "기대 효과",
                 "안전 경계",
                 "예상 LLM trial: 2회",
+                "애매하면 최대 4회",
                 "실행할까요?",
             ):
                 self.assertIn(expected, result.stdout)

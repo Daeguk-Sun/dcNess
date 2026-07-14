@@ -735,7 +735,7 @@ def render_action_brief(payload: dict[str, Any]) -> str:
                 "- 안전 경계: 작업 순서·파일 경계·외부 상태 변경·TDD 보호는 "
                 "live run에서 그대로 유지하고 격리 fixture만 비교"
             ),
-            "- 예상 LLM trial: 2회(동일 task baseline 1회 + 경량 variant 1회)",
+            "- 예상 LLM trial: 2회(동일 task baseline 1회 + 경량 variant 1회; 애매하면 최대 4회)",
             "이 하네스 경량화 실험을 실행할까요? 결과는 유지 / 줄이기 후보 / 보류로 보고합니다.",
         ]
     )

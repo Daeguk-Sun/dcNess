@@ -41,6 +41,9 @@ repo·이슈·설정을 바꾸지 않는다. 설치·주기·teardown 은 [스�
 쓴다. 결과는 유지·줄이기 후보·보류로 보고하며, live hard safety guard를 끄거나 자동으로
 룰을 제거하지 않는다. Cartography·Codebase Sanity·context 경로의 Agent 작업 효율 측정도
 같은 headless 실행·raw trace 수집 backend를 재사용하고 provenance가 없으면 측정 불가다.
+trial ledger는 worktree별 `.metrics/`가 아니라 operator-wide
+`~/.claude/plugins/data/dcness-dcness/harness-experiments/trial-ledger.jsonl`에 남겨
+병렬 checkout도 월 상한을 공유한다.
 
 ## 소비 표식
 

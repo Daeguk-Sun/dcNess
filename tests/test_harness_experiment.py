@@ -1,6 +1,7 @@
 """Approved harness-lightweight experiment orchestration contracts (#1088)."""
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 import sys
@@ -16,7 +17,14 @@ ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "evals" / "harness_experiment.py"
 
 
-def _trace(path: Path, *, variant: str, input_tokens: int, ac_passed: int = 2) -> None:
+def _trace(
+    path: Path,
+    *,
+    variant: str,
+    input_tokens: int,
+    prompt_sha256: str,
+    ac_passed: int = 2,
+) -> None:
     answer = {
         "product_ac": {"passed": ac_passed, "total": 2},
         "must_fix_count": 0,
@@ -29,6 +37,7 @@ def _trace(path: Path, *, variant: str, input_tokens: int, ac_passed: int = 2) -
                 "task": "fixture-task",
                 "variant": variant,
                 "sandbox": "<SANDBOX>/repo",
+                "prompt_sha256": prompt_sha256,
             }
         },
         {
@@ -112,6 +121,12 @@ class HarnessExperimentTests(unittest.TestCase):
             check=False,
         )
 
+    def _prompt_hash(self, plan: Path, variant: str) -> str:
+        payload = json.loads(plan.read_text(encoding="utf-8"))
+        condition = payload[f"{variant}_condition"]
+        prompt = experiment._prompt(payload["task"], condition)
+        return hashlib.sha256(prompt.encode("utf-8")).hexdigest()
+
     def test_first_clear_pair_builds_and_validates_provenance_record(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
@@ -121,11 +136,16 @@ class HarnessExperimentTests(unittest.TestCase):
                 output / "pair1-baseline.jsonl",
                 variant="baseline",
                 input_tokens=200,
+                prompt_sha256=self._prompt_hash(plan, "baseline"),
             )
             _trace(
                 output / "pair1-variant.jsonl",
                 variant="variant",
                 input_tokens=100,
+                prompt_sha256=self._prompt_hash(plan, "variant"),
+            )
+            baseline_trace = (output / "pair1-baseline.jsonl").read_text(
+                encoding="utf-8"
             )
 
             result = self._run(plan, output, tmp / "trial-ledger.jsonl")
@@ -153,6 +173,17 @@ class HarnessExperimentTests(unittest.TestCase):
                 )
                 self.assertEqual(trial["requested_provider"], "test-provider")
             self.assertFalse((tmp / "trial-ledger.jsonl").exists())
+
+            (output / "pair1-baseline.jsonl").write_text(
+                baseline_trace.replace("prompt_sha256", "prompt_sha256_broken"),
+                encoding="utf-8",
+            )
+            mismatch = self._run(plan, output, tmp / "trial-ledger-mismatch.jsonl")
+            self.assertNotEqual(mismatch.returncode, 0)
+            self.assertIn("trace_prompt_sha256_mismatch", mismatch.stderr)
+            (output / "pair1-baseline.jsonl").write_text(
+                baseline_trace, encoding="utf-8"
+            )
 
             ledger = tmp / "trial-ledger.jsonl"
             ledger_rows = []
@@ -193,11 +224,13 @@ class HarnessExperimentTests(unittest.TestCase):
                 output / "pair1-baseline.jsonl",
                 variant="baseline",
                 input_tokens=200,
+                prompt_sha256=self._prompt_hash(plan, "baseline"),
             )
             _trace(
                 output / "pair1-variant.jsonl",
                 variant="variant",
                 input_tokens=100,
+                prompt_sha256=self._prompt_hash(plan, "variant"),
             )
             ledger = tmp / "trial-ledger.jsonl"
             ledger.write_text(
