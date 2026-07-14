@@ -197,8 +197,8 @@ done | awk -F '\t' '
 | `harness/parallel_wave.py` | 948 | peer claim/wave 상태 | 현행 concurrency safety | 유지 |
 | `harness/product_journey.py` | 864 | 제품 journey runner | compatibility와 무관 | 현행 |
 | `harness/run_review.py` | 1,853 | persisted run 분석·waste report | legacy name/verdict/prose 비중 큼 | #1094 핵심, 이후 #1098 |
-| `harness/session_state.py` | 2,190 | run lifecycle/state owner | private CLI re-export는 #1094에서 퇴역; persisted state 안전 책임 유지 | #1094 완료 뒤 #1098, 단순 분할 무효 |
-| `harness/session_state_cli.py` | 1,488 | CLI dispatch·routing | canonical CLI owner; legacy route CLI는 별도 책임 | #1095 |
+| `harness/session_state.py` | 2,125 | run lifecycle/state owner | private CLI re-export는 #1094에서 퇴역; persisted state 안전 책임 유지 | #1094 완료 뒤 #1098, 단순 분할 무효 |
+| `harness/session_state_cli.py` | 1,486 | CLI dispatch·routing | canonical CLI owner; legacy route CLI는 별도 책임 | #1095 |
 | `harness/session_state_cli_finalize.py` | 595 | end-step/finalize/prose receipt | prose fallback과 old field 설명 | #1094 |
 | `harness/session_state_status.py` | 501 | status/diagnostic view | state reader assertion과 중복 가능 | #1094 뒤 #1098 |
 | `harness/story_runner.py` | 509 | story stack state | 현행 lifecycle | #1097 reader 정리 뒤 #1098 |
@@ -216,7 +216,7 @@ done | awk -F '\t' '
 | `tests/test_generated_tdd_hooks.py` | 771 | generated install matrix | partial/install fixture가 실사용 | #1096 후 중복 fixture만 #1098 |
 | `tests/test_github_project_lifecycle.py` | 1,544 | project lifecycle 스크립트 | compatibility와 무관 | 현행; #1098 크기만으로 선택 금지 |
 | `tests/test_hooks.py` | 3,582 | order/state/hook 통합 회귀 | run·alias·fallback assertion 세대 다수 | #1094·#1096 뒤 #1098 핵심 |
-| `tests/test_ledger.py` | 598 | ledger current/legacy/mixed/corrupt | compatibility fixture 비중 큼 | #1094 핵심; 4개 안전 시나리오 보존 |
+| `tests/test_ledger.py` | 600 | ledger current/legacy/mixed/corrupt | compatibility fixture 비중 큼 | #1094 핵심; 4개 안전 시나리오 보존 |
 | `tests/test_loop_diagnose.py` | 645 | cross-project 진단 | compatibility와 무관 | 현행 |
 | `tests/test_multisession_smoke.py` | 647 | 동시 run smoke | 현행 concurrency safety | 유지 |
 | `tests/test_outcome_scorecard.py` | 574 | outcome aggregation | legacy verdict fixture 일부 | #1094 후 #1098 |
@@ -224,7 +224,7 @@ done | awk -F '\t' '
 | `tests/test_product_journey.py` | 610 | journey runner | compatibility와 무관 | 현행 |
 | `tests/test_provider_chain.py` | 1,466 | provider chain 상태전이 | codex-first fixture와 현행 safety fallback 혼재 | #1095 핵심, mutation-after-failure 보존 |
 | `tests/test_run_review.py` | 1,622 | run review current/legacy 분석 | legacy alias/verdict/.steps fixture 비중 큼 | #1094 핵심, 이후 #1098 |
-| `tests/test_session_state.py` | 3,533 | state/CLI/run lifecycle | private re-export fixture는 #1094에서 canonical owner import로 전환; persisted safety fixture 유지 | #1094 완료 뒤 #1098 |
+| `tests/test_session_state.py` | 3,510 | state/CLI/run lifecycle | private re-export fixture는 #1094에서 canonical owner import로 전환; persisted safety fixture 유지 | #1094 완료 뒤 #1098 |
 | `tests/test_story_runner.py` | 545 | story runner lifecycle | 현행 stack fixture | #1097 뒤 #1098 |
 | `tests/test_surface_docs_sync.py` | 1,005 | agent/docs/Codex mirror sync | legacy design leniency 문자열 assertion 포함 | #1093 후 #1098 |
 | `tests/test_tdd_guard.py` | 816 | central/generated TDD guard | partial install fallback fixture가 실사용 | #1096 후 #1098, TDD invariant 보존 |
