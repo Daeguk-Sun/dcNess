@@ -171,6 +171,7 @@ def load_routing(*, path: Optional[Path] = None) -> Dict[str, Any]:
         )
     cfg = _default_config()
     cfg.update(data)
+    cfg["version"] = data.get("version")
     cfg["routes"] = routes
     cfg["implementation_routes"] = implementation_routes
     return cfg

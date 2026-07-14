@@ -187,6 +187,15 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("impl-validator: claude", agent_routing.format_status())
         self.assertIn("build-worker: claude", agent_routing.format_status())
 
+    def test_existing_config_without_version_requires_migration(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text("{}", encoding="utf-8")
+
+        self.assertTrue(
+            any("unsupported version: None" in problem for problem in agent_routing.doctor())
+        )
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
+
     def test_v2_codex_first_requires_migration_and_uses_safe_routes(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(

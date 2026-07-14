@@ -166,7 +166,7 @@ print("implementation_values", dict(sorted(implementation_values.items())))
 PY
 ```
 
-2026-07-14 실행 결과는 등록 프로젝트 5곳, routing file 1개, version 3 한 건, validation key `architecture-validator`·`code-validator`·`pr-reviewer` 각 1건, implementation key `test-engineer` 1건, implementation value `claude` 1건이었다. `codex-first`와 schema v1·v2는 0건이다. 현행 role split·custom route 회귀와 provider 성공·변경 전 실패·변경 후 실패 안전 경계는 `tests.test_agent_routing`과 `tests.test_provider_chain`이 분리 검증한다. Python code+test diff는 83줄 추가·97줄 삭제로 14 LOC 순감이다.
+2026-07-14 실행 결과는 등록 프로젝트 5곳, routing file 1개, version 3 한 건, validation key `architecture-validator`·`code-validator`·`pr-reviewer` 각 1건, implementation key `test-engineer` 1건, implementation value `claude` 1건이었다. `codex-first`와 schema v1·v2는 0건이다. 현행 role split·custom route 회귀와 provider 성공·변경 전 실패·변경 후 실패 안전 경계는 `tests.test_agent_routing`과 `tests.test_provider_chain`이 분리 검증한다. Python code+test diff는 93줄 추가·97줄 삭제로 4 LOC 순감이다.
 
 | ID | 실제 소비자·지원 경계 | 유지 또는 종료 이유 | 제거 trigger | 확인 명령 |
 |---|---|---|---|---|
