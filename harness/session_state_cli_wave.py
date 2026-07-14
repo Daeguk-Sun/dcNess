@@ -2,8 +2,8 @@
 
 Split out of ``session_state_cli`` to keep the CLI dispatcher cohesive. The
 public CLI surface is unchanged: ``session_state_cli`` re-exposes these names so
-``python3 -m harness.session_state <wave-*|merge-lock|normalize-scope>`` and the
-``harness.session_state`` compatibility path keep working.
+``python3 -m harness.session_state <wave-*|merge-lock|normalize-scope>`` keeps
+working.
 """
 from __future__ import annotations
 

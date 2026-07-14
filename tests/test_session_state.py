@@ -92,6 +92,26 @@ from harness.session_state import (
     valid_session_id,
     write_session_pointer,
 )
+from harness.session_state_cli import (
+    _build_arg_parser,
+    _cli_begin_step,
+    _cli_init_session,
+    _cli_is_active,
+    _cli_is_self,
+    _cli_ledger_event,
+    _cli_next_task,
+    _cli_post_task_begin,
+    _cli_run_dir,
+    _cli_run_status,
+)
+from harness.session_state_cli_finalize import (
+    _CONCLUSION_HEADER_RE,
+    _append_step_status,
+    _cli_auto_resolve,
+    _cli_end_step,
+    _cli_finalize_run,
+    _latest_step_per_role,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -977,7 +997,7 @@ class CleanupStalePidTests(unittest.TestCase):
 
 class CliInitSessionTests(unittest.TestCase):
     def setUp(self) -> None:
-        from harness.session_state import _cli_init_session, read_pid_session, read_live
+        from harness.session_state import read_pid_session, read_live
         self._cli_init_session = _cli_init_session
         self.read_pid_session = read_pid_session
         self.read_live = read_live
@@ -1066,7 +1086,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         )
 
     def test_begin_step_updates_current_step(self) -> None:
-        from harness.session_state import _cli_begin_step, read_live
+        from harness.session_state import read_live
         from types import SimpleNamespace
         rc = _cli_begin_step(SimpleNamespace(agent="validator", mode="PLAN_VALIDATION"))
         self.assertEqual(rc, 0)
@@ -1078,7 +1098,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_begin_step_action_run_emits_prompt_slot_check(self) -> None:
         """#780 — action loop Agent prompt 작성 직전에 3-slot self-check 를 노출."""
         from harness.session_state import (
-            _cli_begin_step,
             start_run,
             write_pid_current_run,
         )
@@ -1212,7 +1231,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_begin_step_non_action_run_omits_prompt_slot_check(self) -> None:
         """Advisory signal is limited to action loops, not every helper step."""
-        from harness.session_state import _cli_begin_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stdout
@@ -1226,7 +1244,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_begin_step_emits_loop_lessons_when_present(self) -> None:
         """#917 — lessons are injected next to insights without blocking the step."""
-        from harness.session_state import _cli_begin_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stdout
@@ -1244,7 +1261,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_run_dir_cli_outputs_absolute_path(self) -> None:
         # DCN-30-21: run-dir subcommand for prose-staging path 격리.
-        from harness.session_state import _cli_run_dir, run_dir
+        from harness.session_state import run_dir
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stdout
@@ -1261,10 +1278,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_cli_resolves_active_run_when_pid_current_run_pointer_missing(self) -> None:
         """issue #684 — escape hatch 없이 helper CLI 가 sid-scoped active_runs 로 복구."""
         from harness.session_state import (
-            _cli_begin_step,
-            _cli_end_step,
-            _cli_run_dir,
-            _cli_run_status,
             clear_pid_current_run,
             read_live,
             run_dir,
@@ -1312,9 +1325,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_step_reentry_after_finalize_resolves_same_run_without_pointer(self) -> None:
         """issue #730 — impl-validator FAIL 후 fix round begin-step 재진입 회귀."""
         from harness.session_state import (
-            _cli_begin_step,
-            _cli_end_step,
-            _cli_finalize_run,
             clear_pid_current_run,
             read_live,
         )
@@ -1376,9 +1386,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_step_reentry_after_finalize_resolves_when_pid_mapping_missing(self) -> None:
         """#625 + #730 — PPID mapping 단절 후 finalized 미완료 run 전역 fallback."""
         from harness.session_state import (
-            _cli_begin_step,
-            _cli_end_step,
-            _cli_finalize_run,
             clear_pid_current_run,
             pid_session_path,
             read_live,
@@ -1441,7 +1448,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_end_step_drift_warn_on_agent_mismatch(self) -> None:
         # DCN-30-25: end-step 호출 시 current_step 의 agent 와 args.agent 불일치
         # → stderr DRIFT WARN. 자동 보정 X (동작은 정상 진행).
-        from harness.session_state import _cli_begin_step, _cli_end_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
@@ -1469,7 +1475,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_end_step_drift_warn_when_no_current_step(self) -> None:
         # DCN-30-25: begin-step 안 부르고 end-step 호출 → stderr WARN.
-        from harness.session_state import _cli_end_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
@@ -1490,7 +1495,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_finalize_run_step_count_warn(self) -> None:
         # DCN-30-25: --expected-steps 미달 시 stderr WARN.
-        from harness.session_state import _cli_finalize_run
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
@@ -1507,7 +1511,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_finalize_run_no_warn_when_expected_none(self) -> None:
         # --expected-steps 미명시 시 WARN 없음 (기존 호출자 backward compat).
-        from harness.session_state import _cli_finalize_run
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
@@ -1521,7 +1524,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_finalize_run_auto_review_chains_report(self) -> None:
         # DCN-30-29: --auto-review 시 STATUS JSON 뒤에 run-review 호출 chained.
-        from harness import session_state as ss
+        from harness import session_state_cli as ss
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
@@ -1550,7 +1553,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_finalize_run_auto_review_skip_on_failure(self) -> None:
         # DCN-30-29: review_main 예외 시 STATUS 정상 + stderr WARN, exit 0.
-        from harness import session_state as ss
+        from harness import session_state_cli as ss
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
@@ -1573,7 +1576,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_finalize_run_auto_review_off_no_chain(self) -> None:
         # --auto-review 미지정 시 review 호출 안 함 (기존 동작 보존).
-        from harness import session_state as ss
+        from harness import session_state_cli as ss
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
@@ -1597,7 +1600,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertNotIn("/run-review (auto)", out.getvalue())
 
     def test_end_run_warns_on_recent_fail_open_event(self) -> None:
-        from harness import session_state as ss
+        from harness import session_state_cli as ss
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
@@ -1654,7 +1657,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_begin_step_engineer_emits_tool_use_hint(self) -> None:
         """DCN-30-36: agent='engineer' 시 직전 invocation count stderr hint."""
-        from harness.session_state import _cli_begin_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr
@@ -1675,7 +1677,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_begin_step_engineer_no_hint_when_no_prior(self) -> None:
         """JSONL 없거나 engineer invocation 없으면 silent."""
-        from harness.session_state import _cli_begin_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr
@@ -1689,7 +1690,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_begin_step_non_engineer_no_hint(self) -> None:
         """agent != 'engineer' 면 hint 없음 (다른 agent 도 jsonl 있어도 무관)."""
-        from harness.session_state import _cli_begin_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr
@@ -1706,7 +1706,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_end_step_prose_only_writes_prose(self) -> None:
         """자유서술 방식: --allowed-enums 없이 PROSE_LOGGED + prose 파일 저장."""
-        from harness.session_state import _cli_end_step, session_dir
+        from harness.session_state import session_dir
         from types import SimpleNamespace
         prose_path = self.base / "tmp_prose.md"
         prose_path.write_text("## 결과\n검증.\n## 결론\nPASS\n", encoding="utf-8")
@@ -1734,8 +1734,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_begin_end_step_accepts_lower_hyphen_mode(self) -> None:
         """issue #977 — begin-step 이 받은 소문자·하이픈 mode 를 end-step 도 수용."""
         from harness.session_state import (
-            _cli_begin_step,
-            _cli_end_step,
             run_dir,
             run_prose_has_pass,
             session_dir,
@@ -1776,7 +1774,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_begin_step_rejects_mode_that_end_step_would_reject(self) -> None:
         """issue #977 — begin-step/end-step mode 검증 기준은 동일해야 한다."""
-        from harness.session_state import _cli_begin_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stderr
@@ -1790,7 +1787,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_end_step_prose_only_mode_no_allowed_enums(self) -> None:
         """자유서술 방식 (이슈 #280/#284) — PROSE_LOGGED + prose 저장 + .steps.jsonl + stderr 요약."""
         from harness.session_state import (
-            _cli_end_step, session_dir, _read_steps_jsonl,
+            session_dir, _read_steps_jsonl,
         )
         from types import SimpleNamespace
         prose_path = self.base / "tmp_prose.md"
@@ -1825,7 +1822,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_end_step_prose_only_does_not_extract_enum_word(self) -> None:
         """어휘 보존 ≠ 기계추출: prose 에 PASS 단어가 있어도 추출 안 하고 PROSE_LOGGED."""
-        from harness.session_state import _cli_end_step
         from types import SimpleNamespace
         prose_path = self.base / "enum_word_prose.md"
         prose_path.write_text("## 결론\n\nPASS — impl-validator 권고\n", encoding="utf-8")
@@ -1845,7 +1841,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_end_step_prose_only_mode_attribute_missing(self) -> None:
         """`--allowed-enums` attribute 자체 부재 SimpleNamespace 도 정상 (코드 미참조)."""
-        from harness.session_state import _cli_end_step
         from types import SimpleNamespace
         prose_path = self.base / "tmp_prose.md"
         prose_path.write_text("any text\n", encoding="utf-8")
@@ -1866,7 +1861,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_end_step_no_prose_file_uses_hook_staged(self) -> None:
         # DCN-CHG-20260501-15: --prose-file 미제공 시 live.json.current_step.prose_file 사용
         from harness.session_state import (
-            _cli_end_step, _cli_begin_step, session_dir, read_live, update_live,
+            session_dir, read_live, update_live,
         )
         from types import SimpleNamespace
         from io import StringIO
@@ -1906,7 +1901,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_end_step_no_prose_file_no_staging_returns_1(self) -> None:
         # DCN-CHG-20260501-15: --prose-file 없고 hook staging 도 없으면 rc=1
-        from harness.session_state import _cli_end_step, _cli_begin_step
         from types import SimpleNamespace
         from io import StringIO
         from contextlib import redirect_stdout, redirect_stderr
@@ -1925,7 +1919,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_end_step_argparse_accepts_prose_file_only(self) -> None:
         """argparse 회귀: end-step 은 --prose-file 만 받고 정상 파싱 (--allowed-enums 폐기)."""
-        from harness.session_state import _build_arg_parser
         parser = _build_arg_parser()
         ns = parser.parse_args(
             ["end-step", "impl-validator", "--prose-file", "/tmp/x.md"]
@@ -1937,7 +1930,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
     def test_end_step_argparse_rejects_removed_allowed_enums_flag(self) -> None:
         """argparse 회귀: 폐기된 --allowed-enums 플래그는 거부 (SystemExit)."""
-        from harness.session_state import _build_arg_parser
         from io import StringIO
         from contextlib import redirect_stderr
         parser = _build_arg_parser()
@@ -1948,7 +1940,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
             )
 
     def test_end_step_argparse_accepts_provider_receipt_hint(self) -> None:
-        from harness.session_state import _build_arg_parser
 
         parser = _build_arg_parser()
         ns = parser.parse_args(
@@ -2255,7 +2246,7 @@ class ProjectActivationTests(unittest.TestCase):
 
     def test_dcness_self_repo_is_not_globally_active_but_is_self(self) -> None:
         """self repo 는 plugin hook 전체 active 가 아니며 is-self 로만 구분한다."""
-        from harness.session_state import _cli_is_self, is_project_active
+        from harness.session_state import is_project_active
         from types import SimpleNamespace
         repo = Path(self._tmp.name) / "dcness"
         self._init_git_repo(repo)
@@ -2277,7 +2268,7 @@ class ProjectActivationTests(unittest.TestCase):
 
     def test_cli_is_active_exit_code(self) -> None:
         """`is-active` subcommand exit 0=active, 1=inactive."""
-        from harness.session_state import _cli_is_active, enable_project
+        from harness.session_state import enable_project
         from types import SimpleNamespace
         repo = Path(self._tmp.name) / "repo"
         self._init_git_repo(repo)
@@ -2314,7 +2305,7 @@ class HelperAutomationTests(unittest.TestCase):
         enum: str,
         prose: str,
     ) -> None:
-        from harness.session_state import _append_step_status, run_dir
+        from harness.session_state import run_dir
 
         key = (sid, rid, agent, mode)
         occurrence = self._prose_occurrences.get(key, 0)
@@ -2372,7 +2363,6 @@ PASS — 빈 문자열 가드 추가.
 
     def test_extract_prose_summary_change_only_word_not_match(self) -> None:
         """`## 변경` 단독은 매칭 X (`## 변경 분석` 등 generic 헤더 회피)."""
-        from harness.session_state import _CONCLUSION_HEADER_RE
         # 매칭 안 되어야
         self.assertFalse(_CONCLUSION_HEADER_RE.match("## 변경 분석"))
         # 매칭 되어야
@@ -2546,7 +2536,6 @@ PASS — 빈 문자열 가드 추가.
 
     def test_finalize_run_outputs_status_json(self) -> None:
         from harness.session_state import (
-            _cli_finalize_run,
             run_dir, _clear_default_base_cache, write_pid_session,
             write_pid_current_run, get_cc_pid_via_ppid_chain,
         )
@@ -2601,7 +2590,6 @@ PASS — 빈 문자열 가드 추가.
         """#272 W4 — impl-validator CHANGES_REQUESTED → POLISH → impl-validator LGTM 시
         has_must_fix=False (sticky 미발생). latest-per-role 평가 회귀."""
         from harness.session_state import (
-            _cli_finalize_run,
             run_dir, _clear_default_base_cache, write_pid_session,
             write_pid_current_run, get_cc_pid_via_ppid_chain,
         )
@@ -2665,7 +2653,6 @@ PASS — 빈 문자열 가드 추가.
     def test_finalize_run_must_fix_unresolved_still_sticky(self) -> None:
         """final impl-validator 가 여전히 CHANGES_REQUESTED 면 has_must_fix True."""
         from harness.session_state import (
-            _cli_finalize_run,
             run_dir, _clear_default_base_cache, write_pid_session,
             write_pid_current_run, get_cc_pid_via_ppid_chain,
         )
@@ -2708,7 +2695,6 @@ PASS — 빈 문자열 가드 추가.
 
     def test_latest_step_per_role(self) -> None:
         """_latest_step_per_role — 같은 (agent, mode) 의 마지막 발생만 반환 (#272 W4)."""
-        from harness.session_state import _latest_step_per_role
         steps = [
             {"agent": "engineer", "mode": "IMPL", "must_fix": False},
             {"agent": "impl-validator", "mode": None, "must_fix": True, "enum": "CHANGES_REQUESTED"},
@@ -2724,7 +2710,6 @@ PASS — 빈 문자열 가드 추가.
         self.assertFalse(pr["must_fix"])
 
     def test_auto_resolve_ux_escalate(self) -> None:
-        from harness.session_state import _cli_auto_resolve
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -2739,7 +2724,6 @@ PASS — 빈 문자열 가드 추가.
         self.assertIn("hint", payload)
 
     def test_auto_resolve_ambiguous_wildcard(self) -> None:
-        from harness.session_state import _cli_auto_resolve
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -2753,7 +2737,6 @@ PASS — 빈 문자열 가드 추가.
         self.assertEqual(payload["action"], "user-delegate")
 
     def test_auto_resolve_unmapped_returns_exit_1(self) -> None:
-        from harness.session_state import _cli_auto_resolve
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -2768,7 +2751,6 @@ PASS — 빈 문자열 가드 추가.
         # issue #612 — validator FAIL 은 finding 분류 의존 분기.
         # read-only validator 재호출(re-invoke) / 직전 step 고정(re-invoke-prev) 둘 다
         # 오분기 — action 은 route-by-classification, 실제 target 은 hint 의 분류가 진본.
-        from harness.session_state import _cli_auto_resolve
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -3102,13 +3084,12 @@ class NextTaskTransitionTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_sid_unresolved_returns_exit_1(self) -> None:
-        from harness.session_state import _cli_next_task
         from types import SimpleNamespace
         rc = _cli_next_task(SimpleNamespace(entry_point="impl"))
         self.assertEqual(rc, 1)
 
     def test_transition_prints_previous_and_new(self) -> None:
-        from harness.session_state import _cli_next_task, start_run
+        from harness.session_state import start_run
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -3142,7 +3123,7 @@ class NextTaskTransitionTests(unittest.TestCase):
     def test_transition_records_design_doc(self) -> None:
         # chain task — 다음 task 의 머지된 설계 문서를 새 run 에 기록 (engineer
         # 게이트 사전 조건 증거 승계). 기록값 = resolve 절대경로.
-        from harness.session_state import _cli_next_task, read_live
+        from harness.session_state import read_live
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -3167,7 +3148,7 @@ class NextTaskTransitionTests(unittest.TestCase):
 
     def test_transition_records_acceptance_required(self) -> None:
         # chain task — 다음 task 가 story/epic 마감이면 새 run 에 acceptance marker 를 기록.
-        from harness.session_state import _cli_next_task, read_live
+        from harness.session_state import read_live
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -3188,7 +3169,7 @@ class NextTaskTransitionTests(unittest.TestCase):
         # 실존하지 않는 design_doc — begin-run FAIL fail-fast (exit 1). 검증은
         # 이전 run end-run *전* 이라 이전 run 이 닫히지 않고 보존돼야 한다
         # (오타 한 번에 prev review echo 영구 소실 방지).
-        from harness.session_state import _cli_next_task, read_live, start_run
+        from harness.session_state import read_live, start_run
         from io import StringIO
         from contextlib import redirect_stdout, redirect_stderr
         from types import SimpleNamespace
@@ -3211,7 +3192,7 @@ class NextTaskTransitionTests(unittest.TestCase):
 
     def test_transition_invalid_acceptance_marker_fails_before_end_run(self) -> None:
         # acceptance_required 는 impl run 전용 — 잘못된 entry_point 면 이전 run 닫기 전 실패.
-        from harness.session_state import _cli_next_task, read_live, start_run
+        from harness.session_state import read_live, start_run
         from io import StringIO
         from contextlib import redirect_stdout, redirect_stderr
         from types import SimpleNamespace
@@ -3237,7 +3218,6 @@ class DesignDocArgparseTests(unittest.TestCase):
     """begin-run / next-task 의 --design-doc 플래그 파싱 회귀."""
 
     def test_begin_run_accepts_design_doc(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
             ["begin-run", "impl", "--design-doc", "docs/epics/epic-01-x/impl/x.md"]
         )
@@ -3245,12 +3225,10 @@ class DesignDocArgparseTests(unittest.TestCase):
         self.assertEqual(ns.design_doc, "docs/epics/epic-01-x/impl/x.md")
 
     def test_begin_run_design_doc_defaults_none(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(["begin-run", "impl"])
         self.assertIsNone(ns.design_doc)
 
     def test_begin_run_accepts_acceptance_required(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
             ["begin-run", "impl", "--acceptance-required"]
         )
@@ -3258,12 +3236,10 @@ class DesignDocArgparseTests(unittest.TestCase):
         self.assertTrue(ns.acceptance_required)
 
     def test_begin_run_acceptance_required_defaults_false(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(["begin-run", "impl"])
         self.assertFalse(ns.acceptance_required)
 
     def test_next_task_accepts_design_doc(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
             ["next-task", "--design-doc",
              "docs/epics/epic-01-x/impl/01-x.md"]
@@ -3275,7 +3251,6 @@ class DesignDocArgparseTests(unittest.TestCase):
         )
 
     def test_next_task_accepts_acceptance_required(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(["next-task", "--acceptance-required"])
         self.assertEqual(ns.cmd, "next-task")
         self.assertTrue(ns.acceptance_required)
@@ -3283,7 +3258,6 @@ class DesignDocArgparseTests(unittest.TestCase):
     # -- #714 — begin-run --lane 플래그 파싱 --
 
     def test_begin_run_accepts_lane(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
             ["begin-run", "impl", "--lane", "lite"]
         )
@@ -3291,12 +3265,10 @@ class DesignDocArgparseTests(unittest.TestCase):
         self.assertEqual(ns.lane, "lite")
 
     def test_begin_run_lane_defaults_none(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(["begin-run", "impl"])
         self.assertIsNone(ns.lane)
 
     def test_begin_run_accepts_design_stage(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
             ["begin-run", "design", "--stage", "design-ux"]
         )
@@ -3304,7 +3276,6 @@ class DesignDocArgparseTests(unittest.TestCase):
         self.assertEqual(ns.stage, "design-ux")
 
     def test_design_records_subcommand_accepts_json_and_limit(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
             ["design-records", "--json", "--limit", "5"]
         )
@@ -3313,7 +3284,6 @@ class DesignDocArgparseTests(unittest.TestCase):
         self.assertEqual(ns.limit, 5)
 
     def test_normalize_scope_subcommand_accepts_paths(self) -> None:
-        from harness.session_state import _build_arg_parser
         ns = _build_arg_parser().parse_args(
             ["normalize-scope", "docs/epics/epic-01-x/impl"]
         )
@@ -3350,13 +3320,12 @@ class PostTaskBeginMarkerTests(unittest.TestCase):
         self._tmp.cleanup()
 
     def test_sid_unresolved_silent_skip(self) -> None:
-        from harness.session_state import _cli_post_task_begin
         from types import SimpleNamespace
         rc = _cli_post_task_begin(SimpleNamespace(reason=""))
         self.assertEqual(rc, 0)
 
     def test_marker_appended_to_live(self) -> None:
-        from harness.session_state import _cli_post_task_begin, read_live
+        from harness.session_state import read_live
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -3382,7 +3351,7 @@ class PostTaskBeginMarkerTests(unittest.TestCase):
         self.assertIn("at", markers[0])
 
     def test_multiple_markers_appended(self) -> None:
-        from harness.session_state import _cli_post_task_begin, read_live
+        from harness.session_state import read_live
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -3399,7 +3368,7 @@ class PostTaskBeginMarkerTests(unittest.TestCase):
         self.assertEqual([m["reason"] for m in markers], ["이슈 등록", "cleanup", "분석"])
 
     def test_marker_fifo_cap_20(self) -> None:
-        from harness.session_state import _cli_post_task_begin, read_live
+        from harness.session_state import read_live
         from io import StringIO
         from contextlib import redirect_stdout
         from types import SimpleNamespace
@@ -3440,7 +3409,7 @@ class NextTaskLedgerTests(unittest.TestCase):
         from types import SimpleNamespace
 
         from harness import ledger
-        from harness.session_state import _cli_next_task, _clear_default_base_cache
+        from harness.session_state import _clear_default_base_cache
 
         repo = Path(self._td.name) / "repo"
         repo.mkdir()
@@ -3471,7 +3440,7 @@ class NextTaskLedgerTests(unittest.TestCase):
         import io
         from types import SimpleNamespace
 
-        from harness.session_state import _cli_ledger_event, _clear_default_base_cache
+        from harness.session_state import _clear_default_base_cache
 
         repo = Path(self._td.name) / "le-repo"
         repo.mkdir()
@@ -3505,6 +3474,14 @@ class NextTaskLedgerTests(unittest.TestCase):
 
 
 class SplitModuleImportTests(unittest.TestCase):
+    def test_state_facade_does_not_reexport_cli_private_names(self) -> None:
+        """Core state API must not revive historical private CLI ownership."""
+        import harness.session_state as state
+        import harness.session_state_cli as cli
+
+        self.assertFalse(hasattr(state, "_build_arg_parser"))
+        self.assertTrue(callable(cli._build_arg_parser))
+
     def test_split_modules_import_without_parent_preload(self) -> None:
         """분할 모듈은 facade 선로드 없이도 fresh interpreter 에서 import 가능."""
         repo_root = Path(__file__).resolve().parents[1]
@@ -3515,7 +3492,7 @@ import harness.session_state_status
 import harness.session_state_cli_wave
 import harness.session_state_cli_finalize
 import harness.session_state_cli
-from harness.session_state import _build_arg_parser
+from harness.session_state_cli import _build_arg_parser
 assert _build_arg_parser is not None
 """
         proc = subprocess.run(  # nosec B603

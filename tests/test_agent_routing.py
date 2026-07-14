@@ -11,6 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from harness import agent_routing
+from harness.session_state_cli import _build_arg_parser, _cli_routing
 
 
 class AgentRoutingTests(unittest.TestCase):
@@ -207,7 +208,6 @@ class AgentRoutingCliTests(unittest.TestCase):
         self._td.cleanup()
 
     def test_argparse_routing_resolve(self) -> None:
-        from harness.session_state import _build_arg_parser
 
         parser = _build_arg_parser()
         ns = parser.parse_args(["routing", "resolve", "impl-validator"])
@@ -240,7 +240,6 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(ns.provider, "claude-headless")
 
     def test_cli_enable_and_resolve(self) -> None:
-        from harness.session_state import _cli_routing
 
         out = StringIO()
         with redirect_stdout(out):
@@ -270,7 +269,6 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(out.getvalue().strip(), "codex")
 
     def test_cli_resolve_impl_validator_crosses_impl_loop_provider(self) -> None:
-        from harness.session_state import _cli_routing
 
         out = StringIO()
         with redirect_stdout(out):
@@ -286,7 +284,6 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(out.getvalue().strip(), "claude")
 
     def test_cli_implementation_modes_and_resolve(self) -> None:
-        from harness.session_state import _cli_routing
 
         out = StringIO()
         with redirect_stdout(out):
@@ -345,7 +342,6 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertIn("set implementation build-worker=codex-first", out.getvalue())
 
     def test_cli_role_split_routing_preset_and_doctor(self) -> None:
-        from harness.session_state import _cli_routing
 
         out = StringIO()
         with redirect_stdout(out):
@@ -364,7 +360,6 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertIn("[dcness routing] doctor: PASS", out.getvalue())
 
     def test_cli_doctor_fails_on_bad_file(self) -> None:
-        from harness.session_state import _cli_routing
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text("{bad json", encoding="utf-8")
