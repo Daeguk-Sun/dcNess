@@ -12,6 +12,7 @@ import hashlib
 import json
 import shutil
 import sys
+import uuid
 from argparse import Namespace
 from pathlib import Path
 from typing import Any
@@ -130,20 +131,80 @@ def _read_ledger(path: Path) -> list[dict[str, Any]]:
 
 
 def _used_trials(path: Path, month: str) -> int:
-    return sum(1 for row in _read_ledger(path) if row.get("execution_month") == month)
+    return sum(
+        1
+        for row in _read_ledger(path)
+        if row.get("execution_month") == month
+        and row.get("kind") in {None, "trial_started"}
+    )
 
 
-def _append_trial(path: Path, month: str, trial: dict[str, Any]) -> None:
+def _append_ledger(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as stream:
+        stream.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+
+
+def _start_trial(
+    path: Path, *, month: str, candidate_id: str, pair: int, variant: str
+) -> str:
+    attempt_id = str(uuid.uuid4())
+    _append_ledger(
+        path,
+        {
+            "kind": "trial_started",
+            "execution_month": month,
+            "candidate_id": candidate_id,
+            "pair": pair,
+            "variant": variant,
+            "attempt_id": attempt_id,
+        },
+    )
+    return attempt_id
+
+
+def _finish_trial(
+    path: Path, *, month: str, attempt_id: str, trial: dict[str, Any]
+) -> None:
     payload = {
+        "kind": "trial_result",
         "execution_month": month,
         "candidate_id": trial["task_id"],
         "variant": trial["variant"],
+        "attempt_id": attempt_id,
         "run_id": trial["run_id"],
         "raw_trace_sha256": trial["raw_trace_sha256"],
     }
-    with path.open("a", encoding="utf-8") as stream:
-        stream.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+    _append_ledger(path, payload)
+
+
+def _rebuild_used_before(
+    path: Path, month: str, trials: list[dict[str, Any]]
+) -> int:
+    rows = [
+        row for row in _read_ledger(path) if row.get("execution_month") == month
+    ]
+    trace_hashes = {str(trial["raw_trace_sha256"]) for trial in trials}
+    own_attempts = {
+        str(row.get("attempt_id"))
+        for row in rows
+        if row.get("kind") == "trial_result"
+        and row.get("raw_trace_sha256") in trace_hashes
+        and row.get("attempt_id")
+    }
+    return sum(
+        1
+        for row in rows
+        if row.get("kind") in {None, "trial_started"}
+        and not (
+            row.get("kind") == "trial_started"
+            and str(row.get("attempt_id")) in own_attempts
+        )
+        and not (
+            row.get("kind") is None
+            and row.get("raw_trace_sha256") in trace_hashes
+        )
+    )
 
 
 def _tree_hashes(directory: Path) -> dict[str, str]:
@@ -306,7 +367,17 @@ def _run_pair(
     trials: list[dict[str, Any]] = []
     for variant in ("baseline", "variant"):
         trace = output_dir / f"pair{pair}-{variant}.jsonl"
+        attempt_id = ""
         if not from_traces:
+            if _used_trials(ledger, str(plan["execution_month"])) + 1 > MONTHLY_CAP:
+                raise ExperimentError("monthly_trial_cap_exceeded")
+            attempt_id = _start_trial(
+                ledger,
+                month=str(plan["execution_month"]),
+                candidate_id=str(plan["candidate"]["id"]),
+                pair=pair,
+                variant=variant,
+            )
             args = Namespace(
                 output_dir=output_dir,
                 model=plan["provider"]["model"],
@@ -330,7 +401,12 @@ def _run_pair(
         )
         trials.append(trial)
         if not from_traces:
-            _append_trial(ledger, str(plan["execution_month"]), trial)
+            _finish_trial(
+                ledger,
+                month=str(plan["execution_month"]),
+                attempt_id=attempt_id,
+                trial=trial,
+            )
     return trials
 
 
@@ -345,8 +421,9 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     plan = _load_object(args.plan.resolve())
     _validate_plan(plan)
     month = str(plan["execution_month"])
-    used_before = _used_trials(args.ledger.resolve(), month)
-    if used_before + 2 > MONTHLY_CAP:
+    ledger = args.ledger.resolve()
+    used_before = _used_trials(ledger, month)
+    if not args.from_traces and used_before + 2 > MONTHLY_CAP:
         raise ExperimentError("monthly_trial_cap_exceeded")
 
     output_dir = args.output_dir.resolve()
@@ -358,11 +435,11 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         output_dir=output_dir,
         timeout=args.timeout,
         from_traces=args.from_traces,
-        ledger=args.ledger.resolve(),
+        ledger=ledger,
     )
     decision = _decision(plan["candidate"], trials)
     if decision == "additional_pair_required":
-        if used_before + 4 > MONTHLY_CAP:
+        if not args.from_traces and used_before + 4 > MONTHLY_CAP:
             raise ExperimentError("monthly_trial_cap_exceeded")
         trials.extend(
             _run_pair(
@@ -372,10 +449,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 output_dir=output_dir,
                 timeout=args.timeout,
                 from_traces=args.from_traces,
-                ledger=args.ledger.resolve(),
+                ledger=ledger,
             )
         )
         decision = _decision(plan["candidate"], trials)
+    if args.from_traces:
+        used_before = _rebuild_used_before(ledger, month, trials)
+        if used_before + len(trials) > MONTHLY_CAP:
+            raise ExperimentError("monthly_trial_cap_exceeded")
 
     baseline = paths["baseline"]
     variant = paths["variant"]

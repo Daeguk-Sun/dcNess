@@ -151,6 +151,36 @@ class HarnessExperimentTests(unittest.TestCase):
                 self.assertEqual(trial["requested_provider"], "test-provider")
             self.assertFalse((tmp / "trial-ledger.jsonl").exists())
 
+            ledger = tmp / "trial-ledger.jsonl"
+            ledger_rows = []
+            for index, trial in enumerate(record["paired_screening"]["trials"]):
+                attempt_id = f"attempt-{index}"
+                ledger_rows.extend(
+                    [
+                        {
+                            "kind": "trial_started",
+                            "execution_month": "2026-07",
+                            "attempt_id": attempt_id,
+                        },
+                        {
+                            "kind": "trial_result",
+                            "execution_month": "2026-07",
+                            "attempt_id": attempt_id,
+                            "raw_trace_sha256": trial["raw_trace_sha256"],
+                        },
+                    ]
+                )
+            ledger.write_text(
+                "".join(json.dumps(row) + "\n" for row in ledger_rows),
+                encoding="utf-8",
+            )
+            rebuilt = self._run(plan, output, ledger)
+            self.assertEqual(rebuilt.returncode, 0, rebuilt.stderr)
+            rebuilt_record = json.loads(
+                (output / "record.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(rebuilt_record["budget"]["used_before"], 0)
+
     def test_monthly_four_trial_cap_blocks_a_new_pair(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
@@ -170,7 +200,11 @@ class HarnessExperimentTests(unittest.TestCase):
             ledger.write_text(
                 "".join(
                     json.dumps(
-                        {"execution_month": "2026-07", "run_id": str(index)}
+                        {
+                            "kind": "trial_started",
+                            "execution_month": "2026-07",
+                            "attempt_id": str(index),
+                        }
                     )
                     + "\n"
                     for index in range(3)
