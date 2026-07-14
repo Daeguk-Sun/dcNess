@@ -162,8 +162,26 @@ class PolicyCleanupBaselineTests(unittest.TestCase):
         doc_path_source = (
             ROOT / "scripts" / "check_doc_path_integrity.mjs"
         ).read_text(encoding="utf-8")
+        inventory_doc = (
+            ROOT / "docs" / "internal" / "policy-sunset-inventory.md"
+        ).read_text(encoding="utf-8")
+        compatibility_audit = inventory_doc.split("## 한시적 호환 4요소 감사", 1)[1].split(
+            "## 500줄 이상 major text 책임 감사", 1
+        )[0]
+        documented_compatibility = {
+            row.split("|")[1].strip()
+            for row in compatibility_audit.splitlines()
+            if row.startswith("| ") and not row.startswith("| ID ")
+        }
+        expected_compatibility = {
+            entry["id"]
+            for entry in entries
+            if entry["classification"] == "한시적 호환 필요"
+        }
         self.assertEqual(by_id["INST-004"]["classification"], "퇴역 완료")
         self.assertNotIn("LEGACY_PATH_PREFIXES", doc_path_source)
+        self.assertEqual(documented_compatibility, expected_compatibility)
+        self.assertIn(f"아래 {len(expected_compatibility)}개", compatibility_audit)
 
     def test_unit_suite_runs_the_requested_revision_not_dirty_working_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

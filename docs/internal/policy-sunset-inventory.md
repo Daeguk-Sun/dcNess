@@ -209,7 +209,7 @@ PY
 
 ## 한시적 호환 4요소 감사
 
-아래 11개 모두 대상, 유지 이유, 제거 trigger, 확인 방법을 가진다. 명령 전문과 trace path는 machine inventory에 있다.
+아래 10개 모두 대상, 유지 이유, 제거 trigger, 확인 방법을 가진다. 명령 전문과 trace path는 machine inventory에 있다.
 
 | ID | 소비자 또는 대상 형식 | 유지 이유 | 제거 trigger | 확인 방법 |
 |---|---|---|---|---|
@@ -221,7 +221,6 @@ PY
 | RUN-005 | `validator` 이름의 persisted trace | attribution과 boundary 복구 | archive migration + alias 적중 0 | run-review/boundary tests |
 | RUN-008 | legacy stored verdict + prose sentinel | 과거 FAIL 비율 오판 방지 | verdict migration + old 표본 0 | run-review/aggregate tests |
 | ROUTE-002 | schema 1·2와 retired route keys | local config를 조용히 폐기하지 않음 | config migration + scan 0 | routing doctor + tests |
-| ROUTE-003 | `codex-first` 저장값 | 과거 explicit opt-in 의미 보존 | registered config 사용 0 + migration | routing status/provider-chain tests |
 | LIFE-002 | Story AC 없는 stories | 소급 의미 추론·false fail 방지 | typed AC migration + scan 0 | AC coverage + fixture |
 | LIFE-003 | checklist 없는 legacy issue | false close·영구 close 불가 방지 | 열린 issue migration/지원 종료 | issue close audit + fixture |
 
