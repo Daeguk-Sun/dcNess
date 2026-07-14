@@ -385,7 +385,7 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 2. step enum 이 해당 skill `## Loop` 의 advance/expected_steps 와 정합
 3. git 안전 가드: `git status --porcelain` 에 `.env` / `secrets.*` / `credentials.*` 없음 · unstaged + untracked ≤ 10 · submodule 변경 없음
 
-이 공통 매트릭스는 issue close 계약을 대체하지 않는다. `/impl-loop` 이 target GitHub issue 를 닫는 경우 [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)의 clean 판정에 따라 AC 전항목 충족·체크와 `require-complete` PASS 까지 추가로 만족해야 clean 이다.
+이 공통 매트릭스는 issue close 계약을 대체하지 않는다. `/impl-loop` 이 target GitHub issue 를 닫는 경우 [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)의 clean 판정에 따라 typed AC 전항목 충족·체크와 `require-complete`의 정확한 `PASS`까지 추가로 만족해야 clean 이다. legacy `REVIEW`는 human verification 대기다.
 
 **verify-only 예외 (`/impl-loop`)**: `impl-validator:VERIFY_ONLY` prose 가 `PASS`이고 prose 안에 검증 명령 exit 0 + `git status --porcelain` 변경 0 증거가 있으면, step 1개 + PR 0개도 clean 이다. 이 예외에서는 `pr-create.sh` 를 호출하지 않는다.
 

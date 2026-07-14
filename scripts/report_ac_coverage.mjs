@@ -150,7 +150,7 @@ export function buildCoverageReport({ storyData, implData, implDir }) {
   );
   if (allAcceptance.length === 0) {
     return [
-      '[ac-coverage] Legacy stories format — no Story AC found.',
+      '[ac-coverage] REVIEW — Legacy stories format; no Story AC found.',
       '[ac-coverage] Existing artifacts remain valid; no retroactive conversion is required.',
     ].join('\n');
   }

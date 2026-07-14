@@ -98,4 +98,4 @@ milestone: vNN
 
 기존 외부 활성 프로젝트의 옛 양식 stories.md 와 PRD AC 는 그대로 허용한다. 새 작성 시만 Story AC 양식을 적용하며 기존 산출물을 소급 변환하지 않는다. read 시 parser 는 `As a / I want / So that` 매치만 의무로 본다.
 
-Story AC 가 없거나 `**완료 시 확인 가능한 동작**:` 줄을 쓰는 기존 stories.md 도 그대로 허용한다. `scripts/report_ac_coverage.mjs` 는 이런 파일을 legacy 로 보고하고 변환이나 실패를 강제하지 않는다.
+Story AC 가 없거나 `**완료 시 확인 가능한 동작**:` 줄을 쓰는 기존 stories.md 도 그대로 허용한다. `scripts/report_ac_coverage.mjs` 는 이런 파일을 exit 0의 `REVIEW`로 보고하고 변환이나 실패를 강제하지 않으며, `REVIEW`를 typed AC coverage PASS로 해석하지 않는다.

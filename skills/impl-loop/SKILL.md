@@ -51,7 +51,7 @@ UI 작업이면 구현 전 **UI 기준 확보 분기**를 먼저 본다. 내부 
 ## Pre-flight
 
 1. `docs/epics/**/stories.md` 상단의 `**GitHub Epic Issue:** [#N]` 또는 `미등록 (사유: …)` 를 확인한다. 없으면 STOP.
-2. parent epic/story issue 본문을 진입 preflight 에서 한 번 read 하고 target GitHub issue AC snapshot 을 만든다. task 자체는 GitHub issue 가 아니라 impl 파일 + task commit 으로 추적한다. snapshot 은 task/story 진행 전체에서 재사용하며 반복 issue 조회를 추가하지 않는다. 검증 주체가 없는 legacy AC 는 `[command]`/`[agent-read]` 로 분류하고, 일반론 AC 는 snapshot 에서 구체화해 구현 계약으로 쓴다. body 반영은 close 경계의 1회 write 에 포함하며, 사용자 판단 없이는 구체화할 수 없으면 추측하지 않는다.
+2. parent epic/story issue 본문을 진입 preflight 에서 한 번 read 하고 target GitHub issue AC snapshot 을 만든다. task 자체는 GitHub issue 가 아니라 impl 파일 + task commit 으로 추적한다. snapshot 은 task/story 진행 전체에서 재사용하며 반복 issue 조회를 추가하지 않는다. 검증 주체 미기재 legacy AC 는 기존 의미를 보존하며 agent 가 `[command]`/`[agent-read]` 로 추론·체크·재분류하지 않는다. 사람 판단인지 불명확한 항목과 no-AC issue 는 close audit의 `REVIEW` 결과를 따라 human verification 대기로 보낸다. 현행 typed 일반론 AC 는 snapshot 에서 구체화해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
 3. task 가 이미 머지됐는지 `git log --grep <task-slug>` 와 task tail 로 확인한다.
 4. `begin-run impl --design-doc <task impl 문서>` 로 설계 문서를 기록한다. 이 값은 build-worker gate, boundary pre-flight, impl-validator review 근거다.
 5. `boundary-suggestions --impl-plan <task>` 로 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되는지 확인한다. 미커버 경로는 사람 승인 후 boundary override 가 필요하다.
@@ -225,7 +225,7 @@ node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
   --require-complete
 ```
 
-미충족·미체크 target GitHub issue AC 가 하나라도 있으면 clean 마감과 merge 를 금지한다. 기존 이슈 체크박스에 사람 판정 항목이 남아 있으면 agent 는 자동 항목만 충족·체크하고 잔여 human verification 목록을 보고 정지한다. 이는 자동 구현 실패인 `blocked` 가 아니라 `human verification 대기`다.
+미충족·미체크 typed target GitHub issue AC 가 하나라도 있으면 clean 마감과 merge 를 금지한다. close audit의 정확한 `PASS`만 자동 close 경로를 열며 exit 0의 legacy `REVIEW`는 failure가 아니라 human verification 대기 신호다. 사람 판정·검증 주체 미기재·no-AC 항목은 agent 가 체크하거나 재분류하지 않고 잔여 human verification 목록을 보고 merge 전에 정지한다.
 
 `impl-validator:CODEBASE_SANITY FAIL`이면 finding의 affected surface를 build-worker rework로 넘기고 Sanity부터 재감사한다. 일반 `impl-validator FAIL`의 story-local FAIL은 해당 story PR 브랜치에 append하고 downstream story/QA branch를 restack한다. story PR 이 2개 이상인 run의 cross-cutting FAIL은 QA PR이 흡수한다. 단일 story PR은 해당 PR branch에 append한다. 어느 경로든 코드가 바뀌면 Sanity와 merge-review 증거가 stale이며 같은 finding을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
 
@@ -297,7 +297,7 @@ PR이 아직 열린 stack 상태면 `PR <#NNN> open · base <branch>`로 표시�
 - Epic close이면 현재 code revision을 덮는 `.dcness-work/codebase-sanity/` receipt와 `impl-validator:CODEBASE_SANITY` PASS.
 - 필요한 product-acceptance PASS.
 - build-worker Cartography impact가 affected Root Cartography 및 관련 epic/decision과 대조됐고 route-only stale 또는 system backpressure가 남지 않음.
-- target issue 가 있으면 자동 판정 가능한 AC 전항목 충족·체크 + `require-complete` PASS.
+- target issue 가 있으면 자동 판정 가능한 typed AC 전항목 충족·체크 + `require-complete`의 정확한 `PASS`; legacy `REVIEW`면 human verification 완료.
 
 이 중 하나라도 없는데 clean 이라고 쓰면 false-clean → blocked.
 

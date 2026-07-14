@@ -51,8 +51,8 @@ flowchart TB
   ACC -->|아니오| MERGE[사용자 승인 → main 리타겟·리베이스·merge]
   ACC -->|예| PA[product-acceptance story x N + epic]
   PA -->|PASS| AC[Target GitHub issue AC close audit]
-  AC -->|require-complete PASS| MERGE
-  AC -.->|미충족·미체크| USER
+  AC -->|typed require-complete PASS| MERGE
+  AC -.->|legacy REVIEW 또는 미충족·미체크| USER
   PA -->|FAIL auto-fixable + Epic code 변경| CSFIX
   PA -->|FAIL auto-fixable + Story-only| RETRY
   PA -->|capability 상태 drift route-only| CR
@@ -75,7 +75,7 @@ canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-ste
 | **impl-validator** | stack tip vs main diff `PASS` → close 발동 여부 확인 · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정. 단일 story는 해당 PR append, story PR 이 2개 이상이면 story-local FAIL은 해당 story PR 브랜치 append + downstream restack, cross-cutting FAIL은 QA PR 흡수 + 재리뷰(≤3) · `ESCALATE` → 사용자 |
 | **Cartography freshness** | build-worker Cartography impact + merge candidate diff + affected Root Cartography + 관련 epic/decision이 `영향 없음 또는 Root와 일치` → 기존 경로 · route/state/as-built edge stale → `module-architect:CARTOGRAPHY_REFRESH` bounded refresh + impl-validator 재검증 · system boundary/global decision 변경 → `/design --revise` 또는 system checkpoint backpressure |
 | **product-acceptance** | 최종 tip에서 story×N + epic을 per-story verdict로 판정. `PASS` → target GitHub issue AC close audit. 1-story fix는 본 PR append, N-story tracked cross-cutting fix/flow 보정은 QA PR 흡수 · Epic code 변경은 완료된 Sanity/impl-validator 증거를 stale 처리하고 Sanity부터 재진입, Story-only는 impl-validator 재리뷰 + acceptance 재검수(≤3) · capability 상태 drift가 route-only stale → `CARTOGRAPHY_REFRESH` + 같은 diff+갱신 Root impl-validator 재검증 + acceptance 재검수 · system boundary/global decision gap → `/design --revise`/checkpoint · `FAIL` 비자동 gap / round 초과 / `ESCALATE` → 사용자 |
-| **target GitHub issue AC close audit** | 메인이 acceptance verdict로 자동/`(JOURNEY)` AC를 체크하고 `사람 확인 안내`는 미체크 유지. `check_issue_body.mjs --acceptance-only --require-complete` PASS → 사용자 merge 승인 대기 · 미충족·미체크 → clean 마감 금지, 구현 보강 · human verification 잔여 → 목록 보고 후 merge 전 대기 (`blocked` 아님) |
+| **target GitHub issue AC close audit** | 메인이 acceptance verdict로 자동/`(JOURNEY)` typed AC만 체크하고 `사람 확인 안내`는 미체크 유지. `check_issue_body.mjs --acceptance-only --require-complete`의 정확한 `PASS` → 사용자 merge 승인 대기 · legacy `REVIEW` → human verification 대기 · 미충족·미체크 → clean 마감 금지, 구현 보강 (`blocked` 아님) |
 
 loop의 자동 merge 금지: 사용자가 유일한 merge gate다. 승인 뒤에만 대상 PR을 base=`main`으로 리타겟·리베이스하고 merge helper를 호출한다.
 
@@ -121,7 +121,7 @@ auto-fixable gap: PRD 유저 시나리오 / Story AC 미충족, 검수 증거 �
 - task clean = build-worker PASS + phase prose 3개 + local commit sha + clean status + story-runner mark.
 - story boundary clean = 해당 story의 모든 task completed + story PR 생성 + merge 없이 다음 branch를 직전 story branch에서 재분기.
 - integrated review clean = 모든 target task completed + 모든 story PR 경계 처리 + stack tip 확정 + Epic close이면 현재 code revision의 `impl-validator:CODEBASE_SANITY` PASS와 receipt + 일반 impl-validator PASS.
-- close 발동 clean = integrated review clean + 필요한 product-acceptance PASS + target GitHub issue AC 전항목 충족·체크 + `require-complete` PASS.
+- close 발동 automatic clean = integrated review clean + 필요한 product-acceptance PASS + typed target GitHub issue AC 전항목 충족·체크 + `require-complete`의 정확한 `PASS`. legacy `REVIEW`는 human verification 뒤에만 진행한다.
 - verify-only clean = 검증 명령 exit 0 + 변경 0 + validator PASS.
 
 false-clean 의심 시 blocked. 예: phase prose 부재, commit sha 부재, 검증 미실행, impl-validator PASS 부재, acceptance PASS 부재, target GitHub issue AC 미충족·미체크, PR/merge 흔적 부재. 단, 자동 항목은 모두 끝났고 사람 판정만 남은 `human verification 대기`는 blocked 로 뭉뚱그리지 않는다.
