@@ -115,6 +115,17 @@ class LeanAblationProtocolTests(unittest.TestCase):
         self.assertEqual(report["trial_count"], 2)
         self.assertEqual(report["epic_monthly_trial_total"], 2)
 
+    def test_optional_telemetry_pattern_is_not_hardcoded_to_tool_repeat(self) -> None:
+        record = _record(
+            [_trial("baseline", tokens=200), _trial("variant", tokens=100)]
+        )
+        record["candidate"]["telemetry"]["pattern"] = "READ_REPEAT_HIGH"
+
+        result = self._run(record)
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout)["decision"], "remove")
+
     def test_quality_loss_forces_keep_even_when_variant_is_cheaper(self) -> None:
         record = _record(
             [

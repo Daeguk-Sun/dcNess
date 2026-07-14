@@ -42,7 +42,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 | `/init-dcness` | 프로젝트 활성화. 비활성화(whitelist 제거) 요청도 같은 진입점이 처리한다 |
 | `/migrate-dcness` | 기존 비-dcness 프로젝트를 코드 역설계로 전역 docs(`prd.md`/`architecture.md`/`conventions.md`/`decisions/`/`index.md`)를 채워 부트스트랩하는 일회성 유틸리티. `/init-dcness`(활성화)의 짝. epic/story 산출물은 만들지 않는다 |
 | `/next-work` | GitHub issue open/closed 상태, `in-progress` label, Issue Brief Priority 로 다음 작업 후보를 read-only 조회 |
-| `/run-review` | 끝난 run 사후 분석 |
+| `/run-review` | 끝난 run의 비용·낭비와 활성 프로젝트 전반의 반복 신호를 함께 검토하고, 가치 있는 하네스 경량화 후보가 있을 때만 실험 승인을 요청 |
 | `/smart-compact` | resume prompt 포함 *같은 세션* context compact 보조 |
 | `/handoff` | 세션을 넘기기 전 의도/결정/진행/다음 액션을 `.dcness-work/handoffs/next-session.md` 에 인계 문서로 기록한다. 다음 세션 SessionStart 훅이 최우선 주입 후 archive 로 clear 하는 결정적 cross-session warm 인계 (auto-memory 비의존) |
 | `/efficiency` | 세션 토큰/비용 분석 |

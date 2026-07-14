@@ -31,6 +31,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE_DIR = ROOT / "evals" / "agent-effectiveness" / "fixture"
 RECORD_DIR = ROOT / "evals" / "agent-effectiveness"
+EXECUTION_PROVIDER = "claude -p --safe-mode (headless)"
 JSON_BLOCK_RE = re.compile(r"```json\s*(\{.*?\})\s*```", re.DOTALL)
 HOST_HOME_PREFIX_RE = re.compile(r"/(?:Users|home)/[^/\\\s\"']+")
 
@@ -240,7 +241,8 @@ def run_agent(task: str, variant: str, prompt: str, args: argparse.Namespace) ->
     stderr_path = args.output_dir / f"{task}-{variant}.stderr.log"
     sandbox = Path(tempfile.mkdtemp(prefix=f"dcness-effectiveness-{task}-{variant}-"))
     repo = sandbox / "repo"
-    shutil.copytree(FIXTURE_DIR, repo)
+    fixture_dir = Path(getattr(args, "fixture_dir", FIXTURE_DIR))
+    shutil.copytree(fixture_dir, repo)
     command = [
         "claude",
         "-p",
@@ -378,6 +380,7 @@ def parse_trace(trace_path: Path) -> dict[str, Any]:
     total_cost_usd = 0.0
     num_turns = 0
     final_text = ""
+    elapsed_ms_max = 0
     for line in trace_path.read_text(encoding="utf-8").splitlines():
         entry = json.loads(line)
         if "meta" in entry:
@@ -387,6 +390,7 @@ def parse_trace(trace_path: Path) -> dict[str, Any]:
         if not isinstance(event, dict):
             continue
         elapsed_ms = int(entry.get("elapsed_ms") or 0)
+        elapsed_ms_max = max(elapsed_ms_max, elapsed_ms)
         if event.get("type") == "system" and event.get("subtype") == "init":
             session_id = str(event.get("session_id") or "")
             model = str(event.get("model") or "")
@@ -435,6 +439,7 @@ def parse_trace(trace_path: Path) -> dict[str, Any]:
         "usage": usage,
         "total_cost_usd": total_cost_usd,
         "num_turns": num_turns,
+        "wall_clock_seconds": elapsed_ms_max / 1000.0,
         "answer": answer,
     }
 
@@ -601,7 +606,7 @@ def build_record(args: argparse.Namespace) -> dict[str, Any]:
         },
         "conditions": {
             "repo_type": "frozen synthetic Python application",
-            "provider": "claude -p --safe-mode (headless)",
+            "provider": EXECUTION_PROVIDER,
             "model": models.pop(),
             "harness_variants": ["baseline", "current"],
         },

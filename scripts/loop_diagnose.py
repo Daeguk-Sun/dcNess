@@ -46,6 +46,13 @@ DECISION_LABELS = {
     "rejected": "기각",
 }
 NO_OBSERVATION = "관측 이력 없음(미배포 또는 무발화)"
+ACTION_PRIORITY = {
+    "waste": 0,
+    "lesson-rule": 1,
+    "lesson": 2,
+    "eval": 3,
+    "guard": 4,
+}
 
 
 def _now_iso() -> str:
@@ -676,6 +683,64 @@ def render_markdown(payload: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def _action_candidate(candidates: list[dict[str, Any]]) -> Optional[dict[str, Any]]:
+    actionable = [
+        row
+        for row in candidates
+        if not (
+            isinstance(row.get("decision"), dict)
+            and row["decision"].get("decision") in {"fixed", "rejected"}
+        )
+    ]
+    if not actionable:
+        return None
+    return min(
+        actionable,
+        key=lambda row: (
+            0 if str(row.get("freshness") or "").startswith("신규") else 1,
+            ACTION_PRIORITY.get(str(row.get("kind") or ""), 99),
+            str(row.get("key") or ""),
+        ),
+    )
+
+
+def render_action_brief(payload: dict[str, Any]) -> str:
+    """Render the one decision worth putting in front of the user now.
+
+    This deliberately avoids exposing the sweep table or internal research terms. The
+    detailed report remains available for audit, while /run-review only asks for the
+    approval that can spend LLM trials.
+    """
+    candidate = _action_candidate(payload["candidates"])
+    if candidate is None:
+        return "지금 검토할 하네스 개선 후보가 없습니다. 다음 run을 진행해도 됩니다."
+
+    kind = str(candidate.get("kind") or "")
+    if kind == "waste":
+        expected = "반복 탐색이나 재시도를 줄이면서 같은 품질 경계를 유지하는지 확인"
+    elif kind in {"lesson", "lesson-rule"}:
+        expected = "반복 안내를 더 짧게 만들어도 재발 방지 효과가 유지되는지 확인"
+    elif kind == "eval":
+        expected = "포화된 검사를 줄여도 핵심 사고 회귀 검출력이 유지되는지 확인"
+    else:
+        expected = "반복 비용을 줄일 여지가 있는지 shadow fixture에서 먼저 확인"
+
+    return "\n".join(
+        [
+            "우선 검토 후보가 1건 있습니다.",
+            f"- 대상 구성요소: {candidate['key']}",
+            f"- 반복 근거: {candidate['detail']}",
+            f"- 기대 효과: {expected}",
+            (
+                "- 안전 경계: 작업 순서·파일 경계·외부 상태 변경·TDD 보호는 "
+                "live run에서 그대로 유지하고 격리 fixture만 비교"
+            ),
+            "- 예상 LLM trial: 2회(동일 task baseline 1회 + 경량 variant 1회; 애매하면 최대 4회)",
+            "이 하네스 경량화 실험을 실행할까요? 결과는 유지 / 줄이기 후보 / 보류로 보고합니다.",
+        ]
+    )
+
+
 def record_decision(args: argparse.Namespace) -> int:
     repo_root = Path(args.repo_root).expanduser().resolve()
     key = str(args.key or "").strip()
@@ -718,6 +783,8 @@ def _add_common_report_args(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--recurrence-threshold", type=int, default=3)
     parser.add_argument("--hide-decided", action="store_true")
     parser.add_argument("--json", action="store_true")
+    parser.add_argument("--action-brief", action="store_true")
+    parser.add_argument("--no-watermark", action="store_true")
 
 
 def _build_report_parser() -> argparse.ArgumentParser:
@@ -752,8 +819,11 @@ def _build_decision_parser() -> argparse.ArgumentParser:
 
 def _run_report(argv: list[str]) -> int:
     args = _build_report_parser().parse_args(argv)
-    payload = build_payload(args)
-    if args.json:
+    payload = build_payload(args, write_watermark=not args.no_watermark)
+    payload.pop("_pending_watermark", None)
+    if args.action_brief:
+        print(render_action_brief(payload))
+    elif args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         print(render_markdown(payload))

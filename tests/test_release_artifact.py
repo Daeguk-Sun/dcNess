@@ -33,6 +33,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
     def test_contract_excludes_self_only_paths_and_names_runtime_metadata(self) -> None:
         contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
         excluded = set(contract["exclude_paths"])
+        required = set(contract["required_runtime_paths"])
 
         self.assertTrue(
             {
@@ -66,6 +67,9 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             }.issubset(excluded)
         )
         self.assertEqual(contract["allowed_cache_metadata"], [".git", ".in_use"])
+        self.assertIn("scripts/release_preflight.py", excluded)
+        self.assertNotIn("scripts/loop_diagnose.py", excluded)
+        self.assertIn("scripts/loop_diagnose.py", required)
         self.assertEqual(
             contract["allowed_cache_metadata_globs"],
             ["__pycache__/*.pyc", "**/__pycache__/*.pyc"],

@@ -151,6 +151,8 @@ python3.11 -m unittest discover -s tests -v < /dev/null   # stdin 리다이렉�
 python3.11 -m unittest tests.test_signal_io -v   # 단일 모듈
 node scripts/check_public_surface.mjs
 PYTHON_BIN=python3.11 scripts/dcness-product-journey run --project-root <external-project> --config <project-local-contract>
+python3.11 evals/harness_experiment.py --plan <approved-plan.json> --output-dir <evidence-dir>
+python3.11 scripts/release_preflight.py
 
 # static-quality: system python 은 PEP 668 (externally-managed) 로 pip install 거부 — venv 사용
 python3.11 -m venv /tmp/dcness-quality-venv && /tmp/dcness-quality-venv/bin/pip install -q -r requirements-quality.txt

@@ -91,8 +91,8 @@ def _candidate_contract(
 ) -> tuple[dict[str, Any], str, float, float]:
     candidate = _mapping(record.get("candidate"), "candidate", errors)
     telemetry = _mapping(candidate.get("telemetry"), "candidate_telemetry", errors)
-    if telemetry.get("pattern") != "TOOL_REPEAT_HIGH":
-        errors.append("candidate_not_linked_to_tool_repeat_high")
+    if not str(telemetry.get("pattern") or "").strip():
+        errors.append("candidate_telemetry_pattern_required")
     if _number(telemetry.get("count"), "telemetry_count", errors) <= 0:
         errors.append("telemetry_count_must_be_positive")
     if _number(
@@ -263,6 +263,40 @@ def _collect_trials(
                 f"trial_{index}_evidence",
                 errors,
             )
+        if record.get("schema_version") == 2:
+            run_id = trial.get("run_id")
+            raw_trace = trial.get("raw_trace")
+            raw_trace_sha = trial.get("raw_trace_sha256")
+            artifact = trial.get("artifact")
+            artifact_sha = trial.get("artifact_sha256")
+            if not str(run_id or "").strip():
+                errors.append(f"trial_{index}_run_id_required")
+            if not str(raw_trace or "").strip():
+                errors.append(f"trial_{index}_raw_trace_required")
+            if not isinstance(raw_trace_sha, str) or not SHA256_RE.fullmatch(raw_trace_sha):
+                errors.append(f"trial_{index}_raw_trace_sha256_invalid")
+            else:
+                _verify_artifact(
+                    raw_trace,
+                    raw_trace_sha,
+                    None,
+                    f"trial_{index}_raw_trace",
+                    errors,
+                )
+            if not isinstance(artifact_sha, str) or not SHA256_RE.fullmatch(artifact_sha):
+                errors.append(f"trial_{index}_artifact_sha256_invalid")
+            else:
+                _verify_artifact(
+                    artifact,
+                    artifact_sha,
+                    None,
+                    f"trial_{index}_artifact",
+                    errors,
+                )
+            if not str(artifact or "").strip():
+                errors.append(f"trial_{index}_artifact_required")
+            if not isinstance(trial.get("read_trace"), list):
+                errors.append(f"trial_{index}_read_trace_must_be_array")
         _trial_quality(trial, errors, index)
         _number(trial.get(str(metric)), f"trial_{index}_{metric}", errors)
     if len(conditions) != 1:
@@ -365,7 +399,7 @@ def _validate_recorded_decision(
 
 def evaluate(record: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
     errors: list[str] = []
-    if record.get("schema_version") != 1:
+    if record.get("schema_version") not in {1, 2}:
         errors.append("unsupported_schema_version")
 
     candidate, metric, absolute_threshold, relative_threshold = _candidate_contract(
