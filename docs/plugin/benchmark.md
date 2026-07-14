@@ -7,15 +7,15 @@
 
 ## 현재 공개 Evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.22.0","measured_at":"2026-07-13","unit_tests":{"passed":1932,"total":1932},"guard":{"passed":39,"total":39},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.22.1","measured_at":"2026-07-14","unit_tests":{"passed":1945,"total":1945},"guard":{"passed":39,"total":39},"source_project_count":2} -->
 
-현재 plugin version은 **v0.22.0**, 측정일은 **2026-07-13**이다. 아래 표의 최대
+현재 plugin version은 **v0.22.1**, 측정일은 **2026-07-14**이다. 아래 표의 최대
 source 프로젝트 수는 2이며, 영역별 실제 source와 denominator는 각 행에 다시 적는다.
 process, Agent effectiveness, product outcome, 비용을 합산한 단일 성공 점수는 만들지 않는다.
 
 | evidence 영역 | 관측값 | denominator | source 수 | 재현 명령 | 한계 |
 |---|---|---:|---:|---|---|
-| 하네스 정의·기계적 guard | unittest 1,932/1,932 PASS; guard fixture 39/39 PASS | test 1,932; guard 39 | dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 테스트와 fixture 계약의 과정 evidence다. 보안 증명·제품 성공률이 아니다 |
+| 하네스 정의·기계적 guard | unittest 1,945/1,945 PASS; guard fixture 39/39 PASS | test 1,945; guard 39 | dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 테스트와 fixture 계약의 과정 evidence다. 보안 증명·제품 성공률이 아니다 |
 | Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 | 실측 fixture 1 | `printf '{"version":1,"projects":[]}' > /tmp/dcness-empty-projects.json && python3.11 harness/outcome_scorecard.py --projects-file /tmp/dcness-empty-projects.json --agent-effectiveness-record evals/agent-effectiveness/cartography-sanity-real.json --measured-at 2026-07-12T15:17:58Z --json` | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1)이다. downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 측정 불가다. 1차 거부→계약 개선→2차 채택 경위와 host metadata를 비식별화한 trace, 세션 ID·SHA-256·capture/rebuild 명령 provenance가 [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)에 공개된다. 공개 우위 주장이 아니다 |
 | PR·validator 운영 | finished 26/28; PR merge 7/7; validator verdict 33/26 finished run | candidate run 28; measurable PR 7; finished run 26 | 외부 활성 프로젝트 2 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#재현-명령)의 두 source-ref 고정 명령 | merge·validator FAIL은 제품 성공률이 아니다. 선택한 legacy ledger의 guard와 regression은 측정 불가 |
 | 실제 제품 outcome | non-UI journey 1/1 PASS; 제품 AC 1/1 | journey 1; AC 1 | 외부 활성 프로젝트 1 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 CLI/filesystem pilot이다. UI·다른 제품·공개 우위로 일반화할 수 없다 |
@@ -156,11 +156,13 @@ dcNess loop(`begin-run` ~ `end-run` 사이클)을 한 번이라도 돌린 run �
 /run-review list       # run 목록만
 ```
 
-`/run-review` 는 step별 비용, 낭비(WASTE — 같은 실패 재시도 / read-only Bash 낭비 /
-도구 반복, gate 모순 등) finding, 수정 제안을 리포트로 출력한다. 현재 run 의 waste pattern
-이 같은 sessions root 의 과거 run 에서도 임계(기본 3회) 이상 반복됐으면 재발 기반 개선
-후보로 같이 표면화한다. 실 구현은
-[`harness/run_review.py`](../../harness/run_review.py) 다.
+`/run-review` 는 step별 비용과 낭비 finding을 출력한 뒤, 내부 분석기
+[`scripts/loop_diagnose.py`](../../scripts/loop_diagnose.py)로 활성 프로젝트의 반복 신호를
+종합한다. 판단할 후보가 없으면 지금 할 일이 없다고 명확히 말하고, 있으면 우선순위가 가장
+높은 한 건만 대상 구성요소·반복 근거·기대 효과·안전 경계·예상 LLM trial 수와 함께
+제안한다. 승인된 하네스 경량화 실험은 작업 순서·파일 경계·외부 상태 변경·TDD 보호를
+live run에서 끄지 않고 격리 fixture에서 수행한다. run 단위 실 구현은
+[`harness/run_review.py`](../../harness/run_review.py)다.
 
 ## 실측 샘플 (turn 절감)
 

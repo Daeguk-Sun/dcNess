@@ -16,7 +16,7 @@
 | 슬롯 | 질문 | 현재 담당 |
 |---|---|---|
 | Sense | 어떤 신호를 보나 | `/run-review`, benchmark/fleet 집계, 프로젝트-로컬 `.claude/loop-lessons/` 활성 lesson, `evals/guard_efficacy.py`, `evals/run.sh`, 가드 발화 텔레메트리 후보 [#875](https://github.com/alruminum/dcNess/issues/875), 재발·낭비 집계 후보 [#876](https://github.com/alruminum/dcNess/issues/876), judge 보정 후보 [#894](https://github.com/alruminum/dcNess/issues/894) |
-| Diagnose | 여러 신호를 어떻게 우선순위화하나 | `scripts/loop_diagnose.py`와 repo-local `/loop-diagnose` command가 전담한다. 활성 프로젝트 whitelist 를 읽어 cross-project 신호를 당겨오고, guard telemetry 는 `dcness-helper guard-telemetry` 와 같은 기본 90일 스캔창(`--since-days`)으로 본다. 활성 lesson 은 프로젝트별 Sense 항목으로 표시하고, 같은 lesson 패턴이 복수 프로젝트에서 활성화되면 중앙 RULE 후보로 올린다. 수시 점검과 릴리즈 점검 양쪽에서 후보를 blocker, release-note follow-up, 별도 issue로 나눈다. |
+| Diagnose | 여러 신호를 어떻게 우선순위화하나 | 기존 `/run-review`가 내부 `scripts/loop_diagnose.py`를 호출한다. 활성 프로젝트 whitelist의 cross-project 신호를 종합해 판단 가치가 가장 큰 한 건만 사용자 언어로 보여주며, 별도 공개 command는 없다. guard telemetry는 `dcness-helper guard-telemetry`와 같은 기본 90일 스캔창(`--since-days`)으로 본다. 활성 lesson은 프로젝트별 Sense 항목으로 표시하고, 같은 lesson 패턴이 복수 프로젝트에서 활성화되면 중앙 RULE 후보로 올린다. |
 | Decide | 무엇을 바꾸나 | 추가 전 제거 검토를 먼저 한다. 새 룰·hook·CI를 추가하기 전에 기존 룰 삭제, 문구 축약, SSOT 파생 생성으로 같은 효과를 낼 수 있는지 확인한다. 첫 사례는 개수 하드코딩 제거 [#877](https://github.com/alruminum/dcNess/issues/877)이다. |
 | Act | 실제 변경은 어디서 하나 | 일반 dcNess 변경 절차대로 branch → PR → merge를 탄다. PR 본문에 Sense 근거, Diagnose 판단, Decide 이유, Verify 계획을 짧게 적는다. |
 | Verify | 개선이 먹혔는지 어떻게 보나 | 변경 성격별로 결정적 eval, 행동 eval, 다음 Sense 주기 재측정을 분리한다. |
@@ -34,6 +34,13 @@ repo·이슈·설정을 바꾸지 않는다. 설치·주기·teardown 은 [스�
 
 평소 run 중 발견한 단발 신호는 바로 룰로 박지 않는다. 같은 신호가 반복되거나 릴리즈
 점검에서 비용·위험이 충분히 커졌을 때 Decide 슬롯으로 올린다.
+
+선택형 절차를 줄일 후보는 사용자가 `/run-review`에서 승인한 뒤에만
+`evals/harness_experiment.py`가 격리 fixture와 동일 frozen task의 baseline/variant를
+실행한다. 첫 1+1 pair가 명확하면 멈추고, 애매할 때만 월 4회 상한 안에서 한 pair를 더
+쓴다. 결과는 유지·줄이기 후보·보류로 보고하며, live hard safety guard를 끄거나 자동으로
+룰을 제거하지 않는다. Cartography·Codebase Sanity·context 경로의 Agent 작업 효율 측정도
+같은 headless 실행·raw trace 수집 backend를 재사용하고 provenance가 없으면 측정 불가다.
 
 ## 소비 표식
 

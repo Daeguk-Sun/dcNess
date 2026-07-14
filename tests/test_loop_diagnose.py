@@ -435,6 +435,55 @@ class LoopDiagnoseTests(unittest.TestCase):
             self.assertIn("lesson:MUST_FIX_GHOST@beta/engineer-IMPL", keys)
             self.assertIn("lesson-rule:MUST_FIX_GHOST", keys)
 
+    def test_action_brief_reports_no_work_without_advancing_watermark(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": []}), encoding="utf-8"
+            )
+
+            result = self._run(
+                repo_root, projects_file, "--action-brief", "--no-watermark"
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("지금 검토할 하네스 개선 후보가 없습니다", result.stdout)
+            self.assertFalse((repo_root / ".metrics" / "loop-diagnose").exists())
+
+    def test_action_brief_prioritizes_one_candidate_in_user_language(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            alpha = tmp / "alpha"
+            alpha.mkdir()
+            _write_guard_hit(alpha)
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": [str(alpha)]}),
+                encoding="utf-8",
+            )
+
+            result = self._run(
+                repo_root, projects_file, "--action-brief", "--no-watermark"
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            for expected in (
+                "우선 검토 후보",
+                "대상 구성요소",
+                "반복 근거",
+                "기대 효과",
+                "안전 경계",
+                "예상 LLM trial: 2회",
+                "실행할까요?",
+            ):
+                self.assertIn(expected, result.stdout)
+            self.assertNotIn("ablation", result.stdout.lower())
+
 
 class LoopSweepTests(unittest.TestCase):
     def _run_sweep(

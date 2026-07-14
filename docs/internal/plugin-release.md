@@ -61,15 +61,22 @@ baseline clean-install manifest는
 ## 3. 릴리즈 순서
 
 릴리즈 전 자기개선 점검은 [`self-improvement-loop.md`](self-improvement-loop.md)의
-Sense→Diagnose→Decide→Act→Verify 루프를 따른다. 새 CI 게이트가 아니라 사람이 도는
-권고 절차다.
+Sense→Diagnose→Decide→Act→Verify 루프를 따른다. 메인 agent가 내부
+`scripts/release_preflight.py`를 한 번 실행해 아래 evidence 축을 순서대로 수집하고 릴리즈
+가능 여부와 각 로그 경로를 보고한다. 사용자는 evidence 불일치나 새로운 사람 판정이 남은
+경우에만 개입하며 Python 명령·fixture·JSON·hash를 직접 작성하거나 해석하지 않는다.
 
-- Sense: `python3 evals/guard_efficacy.py`와 `EVAL_RUNS=3 EVAL_RELEASE_CHECK=1 bash evals/run.sh`를 실행한다. 행동 eval 산출물은 `.metrics/evals/` 또는 `EVAL_OUTPUT_DIR`에 남긴다.
+```sh
+python3.11 scripts/release_preflight.py
+```
+
+이 명령은 guard efficacy, 핵심 행동 eval, 검증된 golden 기준 judge calibration, 최신 제품
+결과, 실제 Agent 작업 효율 record, 최근 하네스 경량화 결정, 공개 evidence 생성·검사,
+release bundle 소비 smoke를 독립 축으로 실행한다. bundle 소비 smoke와 2026-08 실측은 이
+도구가 재구현하지 않고 기존 산출물·검증기를 조합한다.
+
+- Sense: preflight가 guard와 핵심 행동 eval을 실행하고 산출물을 `.metrics/release-preflight/` 아래에 남긴다.
 - Diagnose: 전용 도구로 활성 프로젝트의 가드 발화 이력과 재발·낭비 신호([#876](https://github.com/alruminum/dcNess/issues/876)), dcNess self eval 포화 후보를 함께 본다. 새 CI 게이트가 아니라 릴리즈 전 사람이 읽는 점검이다.
-
-  ```sh
-  python3.11 scripts/loop_diagnose.py --idle-days 30 --since-days 90 --saturation-days 30 --saturation-min-runs 3
-  ```
 
   - 가드 발화 텔레메트리([#875](https://github.com/alruminum/dcNess/issues/875))가 있으면 통합 후보 표의 `guard:*` 후보를 검토한다.
   - 텔레메트리가 아직 없거나 관측 기간이 부족하면 리포트의 `관측 이력 없음(미배포 또는 무발화)` 프로젝트를 확인하고, 최근 릴리즈 이후 CI 실패, 로컬 hook 차단, PR 수정 이력을 수동 확인한다.

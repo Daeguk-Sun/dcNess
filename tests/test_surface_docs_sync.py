@@ -178,6 +178,20 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.pr_reviewer)
 
+    def test_run_review_owns_cross_project_improvement_decision_surface(self) -> None:
+        for needle in (
+            "loop_diagnose.py",
+            "후보가 없습니다",
+            "하네스 경량화 실험",
+            "유지",
+            "줄이기 후보",
+            "보류",
+            "실행할까요",
+        ):
+            with self.subTest(needle=needle):
+                self.assertIn(needle, self.run_review_skill)
+        self.assertNotIn("/loop-diagnose", self.run_review_skill)
+
     def test_project_registration_mechanics_have_single_owner(self) -> None:
         """#853 — GitHub Project axis doc points to lifecycle mechanics instead of restating them."""
         self.assertIn(

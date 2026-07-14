@@ -34,6 +34,8 @@
 | 사전 조건 | `prerequisite` | 특정 gate 나 workflow 진입 전에 이미 충족되어야 하는 조건. | design-doc 구현 경로는 설계 산출물 사전 조건을 `--design-doc` 으로 기록한다. | [`hooks.md`](hooks.md#catastrophic-gatesh), [`skills/impl/SKILL.md`](../../skills/impl/SKILL.md) |
 | 자유서술 방식 | `prose-only` | agent 가 고정 JSON/schema/marker 없이 prose 로 보고하고, 메인 Claude 가 prose 를 직접 읽어 판단하는 방식. | 자유서술 방식에서도 마지막 단락의 결론 단어와 근거는 명확해야 한다. | [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일), [`loop-procedure.md`](loop-procedure.md#표준-1-step-시퀀스-per-agent-의무) |
 | 진행 순서 검사 | `strict conveyor`, `strict-conveyor`, `conveyor` | active run 안에서 `begin-step -> Agent -> end-step` 물리 순서를 검사하는 hook 영역. | 진행 순서 검사는 `begin-step` 없이 Agent 를 직접 호출하면 차단한다. | [`hooks.md`](hooks.md#catastrophic-gatesh), [`loop-procedure.md`](loop-procedure.md#표준-1-step-시퀀스-per-agent-의무) |
+| 하네스 경량화 실험 | `ablation` | 반복 비용이 있는 선택형 절차를 줄여도 품질 경계가 유지되는지 격리 fixture의 동일 task baseline/variant로 비교하는 승인형 실험. | 첫 1+1 결과가 명확하면 추가 trial 없이 유지·줄이기 후보·보류로 보고한다. | [`outcome-scorecard.md`](outcome-scorecard.md#개인-경량화-판단) |
+| 운영 성과 요약 | `scorecard` | 과정·Agent 작업 효율·실제 제품 결과를 서로 대체하지 않고 나란히 보는 사용자-facing 요약. 코드 심볼과 파일명은 호환을 위해 유지한다. | 제품 결과가 없으면 다른 축으로 채우지 않고 측정 불가로 표시한다. | [`outcome-scorecard.md`](outcome-scorecard.md) |
 
 ## 수용 기준 계층
 
