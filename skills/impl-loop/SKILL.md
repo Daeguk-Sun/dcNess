@@ -134,7 +134,11 @@ phase prose:
 
 검증 대행:
 
-- build-worker 가 환경 제약으로 검증 명령을 실행하지 못해 `VALIDATION_BLOCKED` 를 보고하면, 메인이 같은 worktree cwd 에서 worker 가 남긴 명령을 직접 실행한다.
+- build-worker 가 `VALIDATION_BLOCKED` 를 보고하면 먼저 같은 run ledger의 최신 `codex_sandbox_permission_required` event가 가리키는 `codex-sandbox-permission-*.json` receipt와 `permission_required` 상태를 확인한다. 이 receipt는 Codex wrapper가 자유 prose와 raw log의 좁은 sandbox signature를 함께 읽어 생성하며 agent 출력 JSON/marker가 아니다.
+- permission receipt가 없으면 기존 경로대로 메인이 같은 worktree cwd에서 worker가 남긴 검증 명령을 직접 실행한다. assertion/compile/test 실패, 일반 `Permission denied`, Codex CLI/auth/timeout 실패에는 receipt가 생기지 않는다.
+- `permission_required`이면 메인은 사용자에게 승인 전에 다음 사실을 한 번 설명한다: 필요한 capability, `network_access`가 loopback 전용이 아니라 Codex workspace-write의 **outbound network** 전체 허용이라는 범위, 제안 writable root 절대경로와 로그 근거, `workspace-write` 유지, `danger-full-access` 미사용. 선택지는 **이번 실행에만 허용 / 이 프로젝트에 저장 / 거부** 세 가지다.
+- 사용자가 선택하면 `"$PLUGIN_ROOT/scripts/dcness-codex-permission" retry --receipt <receipt> --decision once|project|deny --prompt-file "$PROMPT_FILE" --project-root "$PROJECT_ROOT" --helper "$HELPER"`를 실행한다. `once`는 승인 env를 해당 Codex worker 프로세스에만 전달하고 설정 파일을 쓰지 않는다. `project`는 기존 최상위/`env` 키를 보존해 `.claude/settings.local.json`에 승인한 키만 병합하고 현재 재시도에도 같은 env를 명시적으로 전달한다.
+- permission retry는 provider chain이 아니라 Codex build-worker를 직접 `-s workspace-write`로 한 번만 재호출한다. malformed settings, 사용자 `deny`, 안전한 root 추론 실패, 승인 후 같은 거부 반복은 설정·권한을 더 바꾸지 않고 `VALIDATION_BLOCKED`를 유지한다. 이 상태에서 host 직접 검증, 다른 provider, `danger-full-access`로 우회하지 않고 증거와 남은 선택지를 사용자에게 보고한다.
 - 검증 미실행 상태로 commit/push/PR 진행 금지.
 
 ## story/epic runner task 단일 상태 (#1019, #1041)
