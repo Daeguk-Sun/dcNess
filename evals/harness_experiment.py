@@ -8,8 +8,10 @@ quality/cost comparison, and the monthly four-trial ceiling.
 from __future__ import annotations
 
 import argparse
+import fcntl
 import hashlib
 import json
+import os
 import shutil
 import sys
 import uuid
@@ -149,17 +151,39 @@ def _start_trial(
     path: Path, *, month: str, candidate_id: str, pair: int, variant: str
 ) -> str:
     attempt_id = str(uuid.uuid4())
-    _append_ledger(
-        path,
-        {
-            "kind": "trial_started",
-            "execution_month": month,
-            "candidate_id": candidate_id,
-            "pair": pair,
-            "variant": variant,
-            "attempt_id": attempt_id,
-        },
-    )
+    payload = {
+        "kind": "trial_started",
+        "execution_month": month,
+        "candidate_id": candidate_id,
+        "pair": pair,
+        "variant": variant,
+        "attempt_id": attempt_id,
+    }
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+", encoding="utf-8") as stream:
+        fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+        try:
+            stream.seek(0)
+            used = 0
+            for line in stream:
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if (
+                    isinstance(row, dict)
+                    and row.get("execution_month") == month
+                    and row.get("kind") in {None, "trial_started"}
+                ):
+                    used += 1
+            if used + 1 > MONTHLY_CAP:
+                raise ExperimentError("monthly_trial_cap_exceeded")
+            stream.seek(0, os.SEEK_END)
+            stream.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        finally:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
     return attempt_id
 
 
@@ -369,8 +393,6 @@ def _run_pair(
         trace = output_dir / f"pair{pair}-{variant}.jsonl"
         attempt_id = ""
         if not from_traces:
-            if _used_trials(ledger, str(plan["execution_month"])) + 1 > MONTHLY_CAP:
-                raise ExperimentError("monthly_trial_cap_exceeded")
             attempt_id = _start_trial(
                 ledger,
                 month=str(plan["execution_month"]),

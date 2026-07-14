@@ -6,7 +6,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
+from evals import harness_experiment as experiment
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -228,6 +231,29 @@ class HarnessExperimentTests(unittest.TestCase):
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("candidate_must_be_optional", result.stderr)
+
+    def test_concurrent_trial_reservations_cannot_exceed_monthly_cap(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            ledger = Path(td) / "trial-ledger.jsonl"
+
+            def reserve(index: int) -> bool:
+                try:
+                    experiment._start_trial(
+                        ledger,
+                        month="2026-07",
+                        candidate_id="candidate",
+                        pair=index,
+                        variant="baseline",
+                    )
+                except experiment.ExperimentError:
+                    return False
+                return True
+
+            with ThreadPoolExecutor(max_workers=8) as pool:
+                results = list(pool.map(reserve, range(8)))
+
+            self.assertEqual(results.count(True), 4)
+            self.assertEqual(experiment._used_trials(ledger, "2026-07"), 4)
 
 
 if __name__ == "__main__":
