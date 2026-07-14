@@ -97,7 +97,7 @@ GitHub issue 를 대상으로 하는 dcness self 구현은 진입 때 읽은 본
 - **cross-ref**: `scripts/check_cross_refs.mjs` (CI `cross-ref-validation.yml`) — markdown link 파일/anchor 실존 + 옛 명칭 deny-list (외부 배포 영역 한정) + 고아 문서 탐지 (docs/plugin·docs/internal 미참조 .md) 회귀 차단
 - **static-quality**: `pyproject.toml` + `requirements-quality.txt` + `scripts/check_static_quality.sh` (CI `static-quality.yml`) — Python 3.11 기준 ruff lint/complexity, mypy, Bandit baseline 회귀 차단
 - **결정적 guard-efficacy eval (권고 — required CI 차단 아님)**: `python3 evals/guard_efficacy.py` + advisory workflow `.github/workflows/guard-efficacy.yml` — guard/hook 변경 PR 머지 전 1회. LLM 없이 file boundary / Bash·MCP mutation / order gate / TDD allow·block fixture 를 범주별 count 로 재현.
-- **행동 eval (권고 — CI 차단 아님)**: `bash evals/run.sh` — `agents/**`/`skills/**` 지침 변경 PR 머지 전 + 플러그인 릴리즈 전 1회. agent 가 기준대로 실제 판정하는지 사고 기반 fixture 로 확인. 상세 [`evals/README.md`](evals/README.md)
+- **행동 eval (권고 — CI 차단 아님)**: `bash evals/run.sh` — `agents/**`/`skills/**` 지침 변경 PR 머지 전 + 플러그인 릴리즈 전 1회. agent 가 기준대로 실제 판정하는지 사고 기반 fixture 로 확인. 실패를 재실행 PASS로 닫지 않는 처리 규범까지 [`evals/README.md`](evals/README.md)를 따른다.
 
 > ⚠️ **금지**: `--no-verify` 등 hook 우회. main 직접 push.
 
