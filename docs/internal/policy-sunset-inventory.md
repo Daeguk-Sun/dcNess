@@ -176,6 +176,22 @@ PY
 | ROUTE-004 | 저장 형식과 무관한 Python export; repo caller 0 | backward-compatible 이름만 남은 read surface | 완료 — export·`__all__`·assertion 제거 | `rg 'VALID_PROVIDERS' harness scripts`와 `tests.test_policy_cleanup_baseline` |
 | ROUTE-005 | schema v3 `headless-chain`; implementation runtime | pre-mutation 실패만 복구하고 mutation 후 자동 덮어쓰기를 막는 현행 safety | 동등한 mutation 감지·중단 보장으로 chain을 대체할 때 | `python3.11 -m unittest tests.test_provider_chain -v` |
 
+### #1096 설치·hook·경로 cleanup 상태 전이
+
+`INST-004`의 루트 `design-variants/` prefix는 v0.11.0에서 canonical `docs/design-variants/`로 이동할 때 stale reference를 잡던 validation-only 경로였다. 2026-07-14 등록 프로젝트 5곳을 비식별 재조사한 결과 legacy directory와 markdown reference가 모두 0건이었고, current generator·TDD skip·배포 inventory는 canonical path만 쓴다. 따라서 `LEGACY_PATH_PREFIXES`, 구 migration 안내, 존재 예상 test를 함께 제거하고 `퇴역 완료`로 전이한다. 전체 compatibility 후보는 11개에서 10개, install/path 후보는 1개에서 0개로 감소한다.
+
+나머지 경로는 단순히 오래됐다는 이유로 제거하지 않는다. generated hook은 v0.12.0+의 현행 계약이고, v0.19.0+의 in-place·linked-worktree 도달성 판정과 함께 쓴다. git thin shim의 repo-local·`CLAUDE_PLUGIN_ROOT`·cache 탐색은 v0.2.2+ self/external 실행 topology를, central TDD fallback은 현재 partial generated install을 보호한다.
+
+| ID | 소비 설치 상태·지원 버전 | #1096 판정·유지 이유 | 제거 trigger | 확인 명령·fixture |
+|---|---|---|---|---|
+| INST-001 | fresh init, re-run, plugin update, 5/5 generated install; v0.12.0+, Git 도달성은 v0.19.0+ | 현재 writer·self-test·impl preflight와 5/5 활성 소비자가 있어 유지 | 대체 계약 migration 후 generated file·runtime hit 0 | `tests.test_generated_tdd_hooks`, `dcness-tdd-hooks status/ensure` |
+| INST-002 | 0/5·1/5·2/5 partial, update 중간 상태; v0.12.0+ | 5곳 중 4곳이 partial이며 generated hook 없는 TS/JS TDD safety를 보호해 유지 | 전항 5/5 migration + update 중간 safety 대체 | `tests.test_generated_tdd_hooks`, `tests.test_tdd_guard`, `tests.test_hooks` |
+| INST-003 | explicit headless/self-test, Claude env, plugin cache, dcNess self repo-local; thin shim v0.2.2+, generated resolver v0.12.0+ | 실행 surface별 root 신호가 달라 유지 | 검증된 active root 단일 신호 전환 + self/cache hit 0 | `tests.test_generated_tdd_hooks`, `tests.test_git_hook_guard_telemetry`, `tests.test_hook_wrapper_exit` |
+| INST-004 | v0.11.0~v0.23.0 validation-only legacy prefix; 디렉터리·reference 0 | 퇴역 완료; canonical generator는 `docs/design-variants/`만 쓰며 소비자 없음 | 2026-07-14 등록 프로젝트 directory 0 + reference 0으로 충족 | `rg 'LEGACY_PATH_PREFIXES'`, canvas/doc-path/policy inventory tests |
+| INST-005 | primary/linked worktree, common hooks, generated commit state, primary receipt; v0.19.0+ | 현행 impl/design worktree의 오차단·미차단 방지로 유지 | worktree workflow 종료 또는 Git hook/state root 단일화 + migration | `tests.test_hooks`, `tests.test_session_state`, `tests.test_hook_wrapper_exit` |
+
+배포 경로는 두 가지다. `harness/**`, `hooks/**`, `scripts/**`, `commands/**`, `docs/plugin/**`는 plugin 본체와 release artifact를 통해 다음 plugin update 시 활성 프로젝트에 도달한다. 선택형 `doc-path-integrity.yml`은 `Daeguk-Sun/dcNess/.github/actions/doc-path-integrity@main`의 현행 script를 호출하므로 legacy prefix 제거를 위한 workflow 재배포는 필요 없다. git thin shim 내용이 바뀌는 후속 변경만 `/init-dcness` 재실행이 필요하며, 이 변경은 shim과 generated file 바이트를 바꾸지 않는다.
+
 ### 활성 소비자 snapshot
 
 등록 파일 `~/.claude/plugins/data/dcness-dcness/projects.json`의 경로는 문서에 공개하지 않고 registry 순번으로만 조사했다.
@@ -187,7 +203,7 @@ PY
 | routing config | schema 3이지만 retired `code-validator`, `pr-reviewer`, `test-engineer` key 잔존 | `ROUTE-002` migration 대상 실재 |
 | generated install | 프로젝트별 5개 대상 파일 보유량 `0/5, 2/5, 5/5, 0/5, 1/5` | partial install fallback인 `INST-002` 현행 |
 | stories | 3개 프로젝트의 `stories.md` 8개가 모두 Story AC heading 없는 구양식 | `LIFE-002` 한시 호환 |
-| legacy `design-variants/` prefix | 등록 프로젝트 0건 | `INST-004` 제거 가능 |
+| legacy `design-variants/` prefix | 등록 프로젝트 directory·markdown reference 모두 0건 | `INST-004` 제거 trigger 충족·퇴역 완료 |
 
 절대경로·프로젝트명은 근거가 아니라 민감한 host 정보라 기록하지 않았다. 후속 이슈는 같은 registry 순번과 해당 이슈의 확인 명령으로 재조사한다.
 

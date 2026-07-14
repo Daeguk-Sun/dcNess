@@ -412,7 +412,7 @@ custom 은 기존 세부 기능을 유지하되 이미 결정 가능한 항목�
 
 - CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `github-project-lifecycle.yml` 을 각각 선택할 수 있다.
 - docs seed: 이미 존재하는 파일은 묻지 않는다. 단 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 append 보강한다. 루트 `architecture.md` 가 있으면 `docs/architecture.md` 생성 질문을 생략하고 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
-- design seed: UI 프로젝트 여부가 불명확할 때만 묻는다. `docs/design.md` 는 부재 시 [`docs/plugin/design.md`](../docs/plugin/design.md) 기준 minimal template 생성 여부를 선택한다. `docs/design-variants/` 는 사용자가 명시 선택한 경우에만 설치한다. draft 는 `docs/design-variants/drafts/` 에 두고 gitignore 한다. 기존 활성 프로젝트가 과거 루트 `design-variants/` seed 만 갖고 있으면 custom design seed 를 재실행하거나 아래 파일들을 `docs/design-variants/` 로 복사해 재배포한다.
+- design seed: UI 프로젝트 여부가 불명확할 때만 묻는다. `docs/design.md` 는 부재 시 [`docs/plugin/design.md`](../docs/plugin/design.md) 기준 minimal template 생성 여부를 선택한다. `docs/design-variants/` 는 사용자가 명시 선택한 경우에만 설치한다. draft 는 `docs/design-variants/drafts/` 에 두고 gitignore 한다.
 - Provider routing: 추천 role-split 으로 복귀하려면 `enable-role-split-routing` 을 선택한다. all-codex validation 을 원하면 `enable-codex-validation`, Claude 검증 복귀를 원하면 `disable-codex-validation` 을 명시 선택한다.
 - Implementation routing: 지원값과 migration 순서는 [`docs/plugin/init-dcness.md#provider-routing`](../docs/plugin/init-dcness.md#provider-routing)을 따르고, Claude-only는 `set-implementation build-worker claude`를 사용한다.
 - GitHub Project lifecycle: custom 에서만 진행한다. 세부 계약은 [`docs/plugin/github-project.md`](../docs/plugin/github-project.md) 와 [`docs/plugin/issue-lifecycle.md`](../docs/plugin/issue-lifecycle.md) 가 SSOT 다.

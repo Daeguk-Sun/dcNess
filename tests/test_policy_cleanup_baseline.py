@@ -159,6 +159,12 @@ class PolicyCleanupBaselineTests(unittest.TestCase):
         self.assertNotIn("codex-first", routing_source)
         self.assertNotIn("VALID_PROVIDERS", routing_source)
 
+        doc_path_source = (
+            ROOT / "scripts" / "check_doc_path_integrity.mjs"
+        ).read_text(encoding="utf-8")
+        self.assertEqual(by_id["INST-004"]["classification"], "퇴역 완료")
+        self.assertNotIn("LEGACY_PATH_PREFIXES", doc_path_source)
+
     def test_unit_suite_runs_the_requested_revision_not_dirty_working_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
