@@ -93,9 +93,10 @@ Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
 적용한다.
 
 단발 실패를 뒤이은 재실행 PASS로 덮어 "통과"로 닫지 않는다. 재실행은 flaky 여부를 판별하는
-수단이지 통과 표본을 고르는 수단이 아니다. 판정이 흔들리면 최초 MISS를 포함하도록 `EVAL_RUNS`를
-높여 전체 정답률(`k/N`)을 측정하고, 일부만 통과하면 결과를 flaky로 보고한다. 방금 변경한 diff의
-회귀가 아니라는 근거가 있더라도 해당 flaky 신호 자체를 없던 것으로 취급하지 않는다.
+수단이지 통과 표본을 고르는 수단이 아니다. 판정이 흔들리면 최초 MISS를 결과 집합에서 버리지 않은
+채 `EVAL_RUNS`를 높여 추가 표본을 모으고, 최초 MISS까지 합산한 전체 정답률(`k/N`)을 측정한다.
+일부만 통과하면 결과를 flaky로 보고한다. 방금 변경한 diff의 회귀가 아니라는 근거가 있더라도 해당
+flaky 신호 자체를 없던 것으로 취급하지 않는다.
 
 flaky로 확정한 후보는 gate 통과 여부와 무관하게 처분을 남긴다. [#1123](https://github.com/alruminum/dcNess/pull/1123)의
 flaky 후보 자동 표면화를 거쳐 `scripts/loop_diagnose.py record-decision`으로 `fixed`·`hold`·`rejected`
