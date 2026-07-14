@@ -230,7 +230,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 - UI 흔적이 있어도 `docs/design-variants/` 는 기본 skip. 특히 단일 `app/page.tsx` 정도만으로 design kit 를 설치하지 않는다.
 - GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
 - Provider routing 추천 bundle 은 `enable-role-split-routing` 단일 entrypoint 로 역할 분리 preset 을 적용한다: `build-worker=headless-chain`, `impl-validator=codex`, `architecture-validator=codex`. 기존 활성 프로젝트가 추천 preset 만 소급 적용하려면 `"$HELPER" routing enable-role-split-routing` 뒤 `"$HELPER" routing doctor` 로 PASS 를 확인한다.
-- custom 에서는 기존 선택지를 유지한다: all-codex validation 은 `enable-codex-validation`, legacy Codex-first implementation 은 `enable-codex-implementation`, Claude-only implementation 은 `disable-codex-implementation`.
+- custom 지원값과 migration 순서는 [`docs/plugin/init-dcness.md#provider-routing`](../docs/plugin/init-dcness.md#provider-routing)을 따른다.
 - workflow 변경 PR 은 GitHub remote 가 있고, `gh auth status` 가 통과하고, `.github/workflows/*.yml` 변경이 있고, 현재 branch 가 `main` 이면 추천 ON. Y 선택 시 별도 질문 없이 branch 생성, workflow 파일만 stage, commit, push, PR 생성까지 진행한다. `gh` 미설치/미인증이면 자동 PR 은 skip 하고 custom/manual 안내만 남긴다.
 
 추천 출력 예시:
@@ -314,10 +314,11 @@ done
 "$HELPER" routing disable-codex-validation       # custom: validation agent 를 모두 Claude 로 되돌릴 때
 "$HELPER" routing enable-headless-implementation   # custom 에서 3단 headless-chain 복귀 시
 "$HELPER" routing enable-claude-headless-implementation  # custom 에서 Claude headless 우선 선택 시
-"$HELPER" routing enable-codex-implementation   # custom 에서 legacy Codex-first 선택 시
-"$HELPER" routing disable-codex-implementation  # custom 에서 Claude-only 선택 시
+"$HELPER" routing set-implementation build-worker claude  # custom 에서 Claude-only 선택 시
 "$HELPER" routing doctor
 ```
+
+지원 agent·provider와 구 config migration 순서는 [`docs/plugin/init-dcness.md#provider-routing`](../docs/plugin/init-dcness.md#provider-routing)이 소유한다. doctor가 실패하는 기존 config는 role-split preset으로 schema v3 현행 route map을 만든 뒤 필요한 custom override를 적용한다.
 
 #### workflow 변경 PR
 
@@ -413,7 +414,7 @@ custom 은 기존 세부 기능을 유지하되 이미 결정 가능한 항목�
 - docs seed: 이미 존재하는 파일은 묻지 않는다. 단 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 append 보강한다. 루트 `architecture.md` 가 있으면 `docs/architecture.md` 생성 질문을 생략하고 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - design seed: UI 프로젝트 여부가 불명확할 때만 묻는다. `docs/design.md` 는 부재 시 [`docs/plugin/design.md`](../docs/plugin/design.md) 기준 minimal template 생성 여부를 선택한다. `docs/design-variants/` 는 사용자가 명시 선택한 경우에만 설치한다. draft 는 `docs/design-variants/drafts/` 에 두고 gitignore 한다. 기존 활성 프로젝트가 과거 루트 `design-variants/` seed 만 갖고 있으면 custom design seed 를 재실행하거나 아래 파일들을 `docs/design-variants/` 로 복사해 재배포한다.
 - Provider routing: 추천 role-split 으로 복귀하려면 `enable-role-split-routing` 을 선택한다. all-codex validation 을 원하면 `enable-codex-validation`, Claude 검증 복귀를 원하면 `disable-codex-validation` 을 명시 선택한다.
-- Implementation routing: `headless-chain` / `codex-first` / `claude-headless` / `claude` 중 하나를 명시 선택한다. Claude-only 사용자는 `disable-codex-implementation` 으로 `claude` 를 고른다.
+- Implementation routing: 지원값과 migration 순서는 [`docs/plugin/init-dcness.md#provider-routing`](../docs/plugin/init-dcness.md#provider-routing)을 따르고, Claude-only는 `set-implementation build-worker claude`를 사용한다.
 - GitHub Project lifecycle: custom 에서만 진행한다. 세부 계약은 [`docs/plugin/github-project.md`](../docs/plugin/github-project.md) 와 [`docs/plugin/issue-lifecycle.md`](../docs/plugin/issue-lifecycle.md) 가 SSOT 다.
 - workflow 변경 PR: `.github/workflows/*.yml` 변경이 있고 현재 branch 가 `main` 이고 `gh auth status` 가 통과할 때만 선택한다. 선택 시 workflow 파일만 stage 한다.
 
@@ -475,7 +476,7 @@ record_dcness_workflow_change ".github/workflows/github-project-lifecycle.yml"
 
 - plugin uninstall/reinstall 로 whitelist 가 사라진 경우
 - 선택형 CI workflow 를 새로 깔거나 갱신하는 경우
-- provider routing 을 추천 role-split preset / all-codex validation / headless-chain / Claude-only / legacy Codex-first 등으로 바꾸는 경우
+- provider routing 을 추천 role-split preset / all-codex validation / headless-chain / Claude-only 등으로 바꾸거나 구 config를 migration하는 경우
 - Project lifecycle bootstrap 또는 project-local seed 가 필요한 경우
 
 ```bash

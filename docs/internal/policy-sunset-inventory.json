@@ -236,56 +236,51 @@
       "implementation": ["harness/agent_routing.py:enable_role_split_routing", "scripts/dcness-implementation-chain"],
       "tests_fixtures": ["tests/test_agent_routing.py", "tests/test_provider_chain.py"],
       "docs_distribution": ["commands/init-dcness.md", "skills/impl-loop/SKILL.md"],
-      "consumer_evidence": "로컬 routing.json은 version=3과 routes/implementation_routes를 사용하고 init의 추천 preset이 이 형식을 쓴다.",
+      "consumer_evidence": "2026-07-14 설치 data의 유일한 routing.json은 version=3이며 init 추천 preset과 runtime 소비자가 routes/implementation_routes를 사용한다.",
       "compatibility": null
     },
     {
       "id": "ROUTE-002",
       "area": "routing",
-      "policy_slice": "routing schema version 1·2와 retired agent key 수용",
+      "policy_slice": "schema v3 config 안의 retired agent key migration",
       "classification": "한시적 호환 필요",
       "follow_up_issue": 1095,
       "current_ssot": ["docs/plugin/init-dcness.md#provider-routing"],
-      "implementation": ["harness/agent_routing.py:SUPPORTED_CONFIG_VERSIONS", "harness/agent_routing.py:load_routing"],
+      "implementation": ["harness/agent_routing.py:CONFIG_VERSION", "harness/agent_routing.py:doctor", "harness/agent_routing.py:enable_role_split_routing"],
       "tests_fixtures": ["tests/test_agent_routing.py"],
       "docs_distribution": ["commands/init-dcness.md"],
-      "consumer_evidence": "2026-07-14 local version=3 config에도 retired code-validator·pr-reviewer·test-engineer keys가 남아 persisted config migration 필요가 실재한다.",
+      "consumer_evidence": "2026-07-14 등록 프로젝트 5곳이 공유하는 설치 data의 version=3 config에 retired code-validator·pr-reviewer·test-engineer key가 남아 migration 필요가 실재한다. schema v1·v2 파일은 0건이라 지원을 종료했다.",
       "compatibility": {
-        "consumer_or_format": "routing.json schema 1·2와 schema 3 안의 retired agent route keys",
-        "reason": "plugin update가 기존 local config를 조용히 삭제하지 않고 doctor/migration 대상으로 식별해야 한다.",
-        "removal_trigger": "등록 config를 current agent key로 migration하고 schema/retired-key scan이 0인 뒤 지원 버전을 축소한다.",
-        "verification": "python3.11 -m harness.session_state routing doctor 및 python3.11 -m unittest tests.test_agent_routing -v"
+        "consumer_or_format": "schema v3 routing.json 안의 retired code-validator·pr-reviewer·test-engineer route keys",
+        "reason": "plugin update가 기존 local config를 조용히 삭제하지 않고 doctor 실패와 role-split preset 재적용으로 migration해야 한다.",
+        "removal_trigger": "등록 config를 current agent key로 migration하고 retired-key scan이 0이 된 뒤 해당 doctor 진단 fixture를 제거한다.",
+        "verification": "dcness-helper routing enable-role-split-routing 후 routing doctor 및 python3.11 -m unittest tests.test_agent_routing -v"
       }
     },
     {
       "id": "ROUTE-003",
       "area": "routing",
-      "policy_slice": "legacy codex-first preset과 enable/disable CLI",
-      "classification": "한시적 호환 필요",
+      "policy_slice": "retired codex-first preset과 implementation enable/disable CLI",
+      "classification": "퇴역 완료",
       "follow_up_issue": 1095,
       "current_ssot": ["docs/plugin/init-dcness.md#provider-routing"],
-      "implementation": ["harness/agent_routing.py:enable_codex_implementation", "harness/session_state_cli.py:_cli_routing", "scripts/dcness-implementation-chain"],
+      "implementation": ["harness/agent_routing.py:VALID_IMPLEMENTATION_PROVIDERS", "harness/session_state_cli.py:_cli_routing", "scripts/dcness-implementation-chain"],
       "tests_fixtures": ["tests/test_agent_routing.py", "tests/test_provider_chain.py"],
       "docs_distribution": ["commands/init-dcness.md", "docs/plugin/loop-procedure.md"],
-      "consumer_evidence": "현재 조사 config는 codex-first를 쓰지 않지만 과거 opt-in 프로젝트가 저장한 implementation route 값의 지원 경계로 문서와 parser가 유지한다.",
-      "compatibility": {
-        "consumer_or_format": "implementation_routes.build-worker=codex-first인 기존 local routing config",
-        "reason": "headless-chain 도입 전 explicit opt-in의 Codex→Claude-main 의미를 migration 전 보존한다.",
-        "removal_trigger": "등록 routing config에서 codex-first가 0이고 custom 사용자를 headless-chain 또는 claude로 migration한 뒤 CLI를 제거한다.",
-        "verification": "python3.11 -m harness.session_state routing status 및 python3.11 -m unittest tests.test_agent_routing tests.test_provider_chain -v"
-      }
+      "consumer_evidence": "2026-07-14 ~/.claude 지원 범위의 routing.json 1개는 schema v3이고 implementation value codex-first는 0건이었다. runtime·문서·테스트에서 preset/CLI/chain을 함께 제거하고 현행 custom 값을 명시했다.",
+      "compatibility": null
     },
     {
       "id": "ROUTE-004",
       "area": "routing",
       "policy_slice": "VALID_PROVIDERS backward-compatible export",
-      "classification": "제거 가능",
+      "classification": "퇴역 완료",
       "follow_up_issue": 1095,
       "current_ssot": ["docs/plugin/init-dcness.md#provider-routing"],
       "implementation": ["harness/agent_routing.py:VALID_PROVIDERS"],
       "tests_fixtures": ["tests/test_agent_routing.py"],
       "docs_distribution": ["commands/init-dcness.md"],
-      "consumer_evidence": "repository-wide symbol search에서 정의·__all__ 외 import/call site가 없고 local JSON은 symbol export를 소비하지 않는다.",
+      "consumer_evidence": "repository-wide symbol search에서 정의·__all__ 외 import/call site가 없고 local JSON도 Python symbol export를 소비하지 않아 export와 전용 assertion을 제거했다.",
       "compatibility": null
     },
     {

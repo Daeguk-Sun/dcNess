@@ -53,7 +53,7 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 | design preview seed | `docs/design-variants/**` | `templates/design-variants/**` | custom 선택 | 부재 시만 생성 | X |
 | Role-split provider routing preset | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing enable-role-split-routing` | 추천 bundle | `build-worker=headless-chain`, `impl-validator=codex`, `architecture-validator=codex` | X |
 | Validation routing custom | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing enable-codex-validation` / `disable-codex-validation` | custom | all-codex validation 또는 Claude validation 복귀 | X |
-| Implementation routing custom | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing enable-headless-implementation` / `enable-claude-headless-implementation` / `enable-codex-implementation` / `disable-codex-implementation` | custom | `headless-chain`, legacy Codex-first, Claude-headless, Claude-only 가능 | X |
+| Implementation routing custom | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing enable-headless-implementation` / `enable-claude-headless-implementation` / `set-implementation build-worker claude` | custom | `headless-chain`, `claude-headless`, `claude` 가능 | X |
 | Project coordinates | repo variables `DCNESS_PROJECT_NUMBER`, `DCNESS_PROJECT_OWNER` | `gh variable set` | Project bootstrap 선택 | 값 갱신 | X |
 
 > 🔴 **진단 동기화 의무**: 위 inventory 에 새 복사/배포 대상(git hook · CI workflow · 권한 등)을 추가하면, `dcness-helper status` 진단표(`harness/session_state.py` 의 `collect_status_diagnostics`)에도 해당 검사 항목을 함께 추가한다. 그렇지 않으면 사용자가 설치 누락을 한눈에 확인할 수 없다.
@@ -71,6 +71,17 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 `docs/index.md` 의 epic/module 표와 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. 전역 architecture 인간용 요약은 필요할 때 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 로 `.dcness-work/reports/architecture-map.md` 에 온디맨드 생성한다. `/design` 산출물 구조 감사도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
 
 제품 journey runner도 사용자 repo에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/dcness-product-journey`)로 제공한다. project-local 계약은 owner module/소스 영역의 opt-in 매니페스트이며 `/init-dcness`가 자동 생성하거나 덮어쓰지 않는다. UI journey도 같은 계약과 helper를 재사용하고 project-owned command가 단계별 화면 증거를 생성한다. 실행 receipt와 log는 기존 ignored `.dcness-work/product-journey/`에 남고 [`outcome-scorecard.md`](outcome-scorecard.md)가 집계한다. 계약과 판정 경계는 [`product-journey.md`](product-journey.md)가 소유한다.
+
+## Provider Routing
+
+provider config는 프로젝트별 파일이 아니라 plugin 공용 `~/.claude/plugins/data/dcness-dcness/routing.json` 하나다. 지원 형식은 schema v3의 `routes`와 `implementation_routes`이며, validation agent는 `impl-validator`·`architecture-validator`, implementation agent는 `build-worker`만 지원한다.
+
+- 추천 role split은 `routing enable-role-split-routing`으로 `build-worker=headless-chain`, `impl-validator=codex`, `architecture-validator=codex`를 함께 기록한다.
+- validation custom은 `routing enable-codex-validation`, `routing disable-codex-validation` 또는 `routing set <agent> claude|codex`를 사용한다.
+- implementation custom은 `routing enable-headless-implementation`, `routing enable-claude-headless-implementation` 또는 `routing set-implementation build-worker claude|claude-headless|headless-chain`을 사용한다. Claude-only는 `routing set-implementation build-worker claude`다.
+- schema v1·v2, retired agent key, 지원 목록 밖 implementation 값은 migration 대상이다. 기존 config에서 `routing doctor`가 실패하면 `routing enable-role-split-routing`으로 두 route map을 schema v3 현행값으로 교체한 뒤 필요한 custom override를 다시 적용하고 doctor PASS를 확인한다.
+
+이 config compatibility와 runtime provider fallback은 다른 계약이다. `headless-chain`은 provider가 workspace를 바꾸기 전에 실패했을 때만 다음 provider로 진행하고, 변경 뒤 실패하면 중단한다. 이 안전 경계는 legacy config 지원 여부와 무관하게 유지한다.
 
 ## Provider Mirror Sync
 
@@ -98,7 +109,7 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 - GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
 - Provider routing 추천 bundle 은 `enable-role-split-routing` 단일 entrypoint 로 역할 분리 preset 을 적용한다: `build-worker=headless-chain`, `impl-validator=codex`, `architecture-validator=codex`.
 - 기존 활성 프로젝트가 추천 preset 만 소급 적용하려면 `dcness-helper routing enable-role-split-routing` 실행 뒤 `dcness-helper routing doctor` 로 PASS 를 확인한다.
-- custom 에서는 기존 선택지를 유지한다. all-codex validation 은 `enable-codex-validation`, legacy Codex-first implementation 은 `enable-codex-implementation`, Claude-only implementation 은 `disable-codex-implementation` 으로 명시 선택한다.
+- custom 지원 범위와 migration 순서는 [Provider Routing](#provider-routing)을 따른다.
 - workflow 변경 PR 은 GitHub remote 가 있고, `gh auth status` 가 통과하고, 이번 `/init-dcness` run 이 쓴 `.github/workflows/*.yml` 변경이 있고, 현재 branch 가 `main` 이면 추천 ON. Y 선택 시 별도 질문 없이 해당 파일만 stage 해서 branch/commit/push/PR 을 진행한다. `gh` 미설치/미인증이면 자동 PR 은 skip 하고 custom/manual 안내만 남긴다. 기존 dirty workflow 파일은 자동 포함하지 않는다.
 
 ## Already Automatic
@@ -190,7 +201,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | `.claude/harness-state/` gitignore 보강 | 예 | runtime state ignore 는 사용자 repo `.gitignore` append 라서 `/init-dcness` 재실행 때 적용된다. |
 | `CLAUDE.md` seed/migration 로직 갱신 | 예 | 기존 활성 프로젝트의 root `CLAUDE.md` 생성·cold-start 앵커 append 는 `/init-dcness` 재실행 때 적용된다. |
 | 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index 집계기를 1회 실행해야 한다. 전역 architecture 요약은 온디맨드다. |
-| Provider routing preset/custom 변경 | 예 | 기존 활성 프로젝트도 local plugin data 를 갱신해야 한다. 추천 preset 은 `dcness-helper routing enable-role-split-routing` 뒤 `dcness-helper routing doctor` 로 적용·검증한다. all-codex validation, headless-chain, Claude-only, legacy Codex-first 는 custom 경로로 유지한다. Native Codex skill 등록/fallback 용 `$CODEX_HOME/skills` 도 최신화된다. |
+| Provider routing preset/custom 변경 | 예 | 기존 활성 프로젝트도 plugin 공용 local data 를 갱신해야 한다. 추천 preset 은 `dcness-helper routing enable-role-split-routing` 뒤 `dcness-helper routing doctor` 로 적용·검증하고, custom은 [Provider Routing](#provider-routing)의 현행 값만 사용한다. Native Codex skill 등록/fallback 용 `$CODEX_HOME/skills` 도 최신화된다. |
 | Project lifecycle 좌표 저장/변경 | 예 | repo variables 와 선택형 workflow 를 갱신해야 한다. |
 | docs/design + docs/design-variants seed 추가 | 예 | 부재 파일 seed 는 사용자 repo 에 직접 생성된다. draft 는 `docs/design-variants/drafts/` 에 두고 `.gitignore` 로 무시하되 `drafts/.gitkeep` 으로 디렉터리를 보존한다. 기존 활성 프로젝트가 과거 루트 `design-variants/` seed 만 갖고 있으면 `/init-dcness` custom design seed 를 재실행하거나 `templates/design-variants/{.gitignore,canvas.html,_lib/*,drafts/.gitkeep}` 를 `docs/design-variants/` 로 복사한다. |
 | TDD Guard 정책 갱신 | 아니오 | 중앙 fallback 과 self-test 본체는 plug-in update 로 갱신된다. project-local generated hook 이 없는 기존 프로젝트는 `/init-dcness` 또는 `/impl` 진입 시 생성 제안을 다시 받을 수 있다. |
