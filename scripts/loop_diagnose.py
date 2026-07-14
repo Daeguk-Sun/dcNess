@@ -358,12 +358,15 @@ def _collect_self_evals(repo_root: Path, args: argparse.Namespace) -> dict[str, 
     if isinstance(cases, dict):
         for case, raw in sorted(cases.items()):
             row = raw if isinstance(raw, dict) else {}
-            if not row.get("saturation_candidate"):
+            saturation = bool(row.get("saturation_candidate"))
+            flaky = bool(row.get("flaky_candidate"))
+            if not (saturation or flaky):
                 continue
             attempts = int(row.get("attempts") or 0)
             passes = int(row.get("passes") or 0)
             accuracy = float(row.get("accuracy") or 0.0)
-            detail = f"{passes}/{attempts} pass, accuracy={accuracy:.0%}"
+            kind_label = "flaky" if flaky else "saturation"
+            detail = f"{kind_label}: {passes}/{attempts} pass, accuracy={accuracy:.0%}"
             last = row.get("last_ts") if isinstance(row.get("last_ts"), str) else None
             candidates.append(
                 _candidate(

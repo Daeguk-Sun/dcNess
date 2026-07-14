@@ -261,6 +261,7 @@ class EvalSummaryTests(unittest.TestCase):
             self.assertEqual(row["passes"], 0)
             self.assertEqual(row["failure_stages"]["report"], 1)
             self.assertFalse(row["saturation_candidate"])
+            self.assertFalse(row["flaky_candidate"])
 
     def test_all_pass_eval_case_is_saturation_candidate(self) -> None:
         with TemporaryDirectory() as td:
@@ -285,6 +286,29 @@ class EvalSummaryTests(unittest.TestCase):
             self.assertEqual(row["passes"], 2)
             self.assertEqual(row["accuracy"], 1.0)
             self.assertTrue(row["saturation_candidate"])
+            self.assertFalse(row["flaky_candidate"])
+
+    def test_partial_pass_eval_case_is_flaky_candidate(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            for passed in (True, True, False):
+                record_eval_case_result(
+                    "flow-ownership-entrypoint-bad",
+                    passed=passed,
+                    cwd=root,
+                )
+
+            summary = collect_eval_summary(
+                cwd=root,
+                saturation_days=30,
+                saturation_min_runs=3,
+            )
+
+            row = summary["cases"]["flow-ownership-entrypoint-bad"]
+            self.assertEqual(row["attempts"], 3)
+            self.assertEqual(row["passes"], 2)
+            self.assertTrue(row["flaky_candidate"])
+            self.assertFalse(row["saturation_candidate"])
 
     def test_any_recent_fail_prevents_saturation_candidate(self) -> None:
         with TemporaryDirectory() as td:
@@ -392,6 +416,32 @@ class ReportFormatTests(unittest.TestCase):
 
         self.assertIn("scan window: 7d", report)
         self.assertIn("관측 부족", report)
+
+    def test_report_marks_flaky_candidate(self) -> None:
+        guard_summary = {"idle_days": 30, "guards": {}}
+        eval_summary = {
+            "saturation_days": 30,
+            "saturation_min_runs": 3,
+            "cases": {
+                "flow-ownership-entrypoint-bad": {
+                    "attempts": 3,
+                    "passes": 2,
+                    "accuracy": 2 / 3,
+                    "avg_llm_turns": 2.0,
+                    "avg_estimated_output_tokens": 60.0,
+                    "last_ts": "2026-07-05T00:00:00Z",
+                    "saturation_candidate": False,
+                    "flaky_candidate": True,
+                    "failure_stages": {},
+                }
+            },
+            "token_estimate_basis": "utf8_bytes/4_lower_bound",
+        }
+
+        report = format_telemetry_report(guard_summary, eval_summary)
+
+        self.assertIn("flaky 후보", report)
+        self.assertIn("2/3", report)
 
 
 if __name__ == "__main__":

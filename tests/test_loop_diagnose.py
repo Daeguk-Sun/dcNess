@@ -408,6 +408,40 @@ class LoopDiagnoseTests(unittest.TestCase):
             self.assertIn("eval:headless-prose-quality", result.stdout)
             self.assertIn("judge 보정은 자동 수집하지 않습니다", result.stdout)
 
+    def test_eval_flaky_candidate_from_self_metrics(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            repo_root = tmp / "dcness"
+            repo_root.mkdir()
+            projects_file = tmp / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": []}),
+                encoding="utf-8",
+            )
+            _write_jsonl(
+                repo_root / ".metrics" / "evals" / "run-1" / "guard-telemetry.jsonl",
+                [
+                    {
+                        "kind": "eval_case_result",
+                        "case": "flow-ownership-entrypoint-bad",
+                        "passed": True,
+                        "ts": "2026-07-05T00:00:00Z",
+                    },
+                    {
+                        "kind": "eval_case_result",
+                        "case": "flow-ownership-entrypoint-bad",
+                        "passed": False,
+                        "ts": "2026-07-05T01:00:00Z",
+                    },
+                ],
+            )
+
+            result = self._run(repo_root, projects_file)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("eval:flow-ownership-entrypoint-bad", result.stdout)
+            self.assertIn("flaky", result.stdout)
+
     def test_active_lessons_are_sense_candidates_and_cross_project_rule_candidate(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
