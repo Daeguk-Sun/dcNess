@@ -144,6 +144,9 @@ class CodexSandboxPermissionClassificationTests(unittest.TestCase):
                 "GRADLE_USER_HOME=" + str(gradle_home) + "\n"
                 "java.net.SocketException: Operation not permitted\n"
                 "Codex sandbox denied write to "
+                + str(tmp / "unrelated-cache" / "state.bin")
+                + "\n"
+                "Codex sandbox denied write to "
                 + str(gradle_home / "caches" / "modules.lock")
                 + "\n",
                 encoding="utf-8",
@@ -171,6 +174,26 @@ class CodexSandboxPermissionClassificationTests(unittest.TestCase):
             self.assertFalse(receipt["danger_full_access"])
             self.assertTrue(receipt_path.is_file())
             self.assertIn("SocketException", json.dumps(receipt["evidence"]))
+            self.assertIn(
+                str(gradle_home),
+                receipt["evidence"][-1]["signature"],
+            )
+            self.assertNotIn("unrelated-cache", receipt["evidence"][-1]["signature"])
+
+    def test_pass_does_not_require_reading_raw_log(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            prose = tmp / "build-worker.md"
+            prose.write_text("All gates passed\n\nPASS\n", encoding="utf-8")
+
+            receipt = permission.record_permission_required(
+                prose_path=prose,
+                raw_log_path=tmp / "missing.log",
+                project_root=tmp,
+                receipt_path=tmp / "receipt.json",
+            )
+
+            self.assertIsNone(receipt)
 
     def test_non_sandbox_failures_do_not_create_permission_receipt(self) -> None:
         cases = {

@@ -166,6 +166,21 @@ def _suggested_gradle_roots(raw_log: str, project_root: Path) -> list[Path]:
     return unique
 
 
+def _writable_evidence_line(raw_log: str, roots: Sequence[Path]) -> Optional[str]:
+    for line in raw_log.splitlines():
+        match = _WRITABLE_SIGNATURE.search(line)
+        if not match:
+            continue
+        token = _clean_path_token(match.group("path"))
+        denied = Path(os.path.expanduser(token))
+        if not denied.is_absolute():
+            continue
+        resolved = denied.resolve(strict=False)
+        if any(_path_is_within(resolved, root) for root in roots):
+            return line.strip()[:500]
+    return None
+
+
 def _classify(
     *, prose: str, raw_log: str, project_root: Path
 ) -> Optional[dict[str, Any]]:
@@ -191,7 +206,7 @@ def _classify(
             break
 
     roots = _suggested_gradle_roots(raw_log, project_root)
-    write_line = _evidence_line(raw_log, _WRITABLE_SIGNATURE)
+    write_line = _writable_evidence_line(raw_log, roots)
     if write_line and roots:
         capabilities.append("writable_roots")
         evidence.append(
@@ -270,6 +285,8 @@ def record_permission_required(
 ) -> Optional[dict[str, Any]]:
     """Classify evidence and atomically create/update a permission receipt."""
     prose = _read_text(prose_path)
+    if not _conclusion_is_validation_blocked(prose):
+        return None
     raw_log = _read_text(raw_log_path)
     classified = _classify(
         prose=prose,
