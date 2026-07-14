@@ -3,7 +3,7 @@ name: impl-validator
 description: >
   구현 결과를 읽기 전용으로 검증하는 단일 반대-진영 validator. 실제 지침은
   docs/plugin/agents/impl-validator/impl-validator-agent.md 에 있다.
-tools: Read, Glob, Grep
+tools: Read, Glob, Grep, Bash
 model: sonnet
 ---
 

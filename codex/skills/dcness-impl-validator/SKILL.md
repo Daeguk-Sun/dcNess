@@ -19,10 +19,10 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 
 ## 입력
 
-- PR 번호, URL, 로컬 diff 맥락, 또는 다중 story PR의 stack tip vs main diff 맥락
+- 검토 대상이 커밋으로 존재하면 커밋 id와 변경 파일 목록. 다중 story/epic이면 최종 stack tip 커밋 id와 비교할 base를 함께 받는다.
+- 커밋이 아직 없는 uncommitted local diff이면 로컬 diff 맥락 또는 호출자가 제공한 diff 파일. PR 번호나 URL은 검토 범위를 보조하는 맥락으로 받을 수 있다.
 - implementation plan 경로. Lite 경로처럼 없으면 그 사유
 - 대상 GitHub issue 와 진입 시 확보한 target GitHub issue AC snapshot. issue 없는 작업이면 그 사유
-- 변경 파일 목록
 - 호출자가 제공한 테스트 실행 결과
 - `CODEBASE_SANITY`이면 code revision/tree identity, 적용 scope, 메인이 발견·실행한 test/lint/build/typecheck/coverage 명령별 exit code와 warning
 - 구현자가 자유 prose로 남긴 build-worker impact 보고. direct 구현이면 같은 의미 축의 Cartography impact 보고
@@ -32,7 +32,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 
 ## 먼저 볼 기준
 
-- merge candidate 의 changed code와 diff
+- merge candidate 의 changed code와 diff. 커밋 id가 있으면 `git show`, `git diff`, `git log` 같은 read-only 조회로 커밋 진본을 직접 펼치고, 호출자가 만든 diff 사본을 요구하지 않는다.
 - 계획 문서가 있으면 Must contract, public interface, scope boundary
 - 대상 issue 가 있으면 target GitHub issue AC 와 호출자가 제시한 항목별 실행·관찰 증거
 - 관련 local convention, architecture, domain-model, design token, DB schema
@@ -97,7 +97,7 @@ mode가 명시됐을 때만 적용한다. 작은 repo는 전체 repo, 큰 repo�
 
 ## 작업 흐름
 
-1. mode를 확인한다. 기본 merge-review mode는 changed code를 보고, 다중 story/epic이면 stack tip vs main diff를 우선한다. `CODEBASE_SANITY`는 code revision과 repo/affected dependency cone scope를 확정한다.
+1. mode를 확인한다. 기본 merge-review mode는 changed code를 본다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic이면 stack tip vs main diff를 우선한다. `CODEBASE_SANITY`는 code revision과 repo/affected dependency cone scope를 확정한다.
 2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. plan 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
 3. quality 렌즈로 merge blocker를 찾는다. `CODEBASE_SANITY`이면 warning·coverage·dead-code·replacement 분류를 함께 수행한다.
 4. Cartography impact가 있거나 diff에서 entrypoint/owner/edge/public surface 변화가 보이면 implementation freshness 렌즈로 affected Root와 상태 증거를 대조한다.
@@ -136,7 +136,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - 파일 생성, 수정, 삭제, commit, push, PR 생성, 외부 상태 변경 명령을 실행하지 않는다.
 - 계획 자체가 모호한 경우 구현자에게 정책을 새로 요구하지 않고 source gap으로 분리한다.
 - 기본 merge-review mode에서는 unrelated legacy cleanup을 MUST FIX로 올리지 않는다. 이 제한은 `CODEBASE_SANITY`가 명시적으로 받은 semantic scope에는 적용하지 않는다.
-- Bash를 쓰지 않는다. `CODEBASE_SANITY`에서도 명령 실행과 warning 수집은 호출자 책임이며 validator는 읽기 전용이다.
+- Bash는 `git show`, `git diff`, `git log` 같은 read-only 조회에만 사용한다. 테스트/lint/build 및 git 이외의 shell 명령은 실행하지 않고, 그 실행 증거는 호출자가 제공한 결과만 소비한다. 파일 수정과 외부 상태 변경은 하지 않는다. `CODEBASE_SANITY`의 test/lint/build 실행과 warning 수집은 호출자 책임이다.
 
 ## 결론과 보고
 

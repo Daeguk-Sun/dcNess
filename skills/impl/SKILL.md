@@ -142,8 +142,9 @@ standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-vali
    - 프로젝트에 실제 존재하는 명령만 실행한다.
    - 하나라도 red 면 commit/PR 로 가지 않는다.
 5. `impl-validator` review
-   - `begin-run impl` 또는 `begin-run impl --design-doc <경로>` → `begin-step impl-validator` 로 local diff 를 리뷰한다.
-   - prompt에 merge candidate diff, 메인의 Cartography impact 자유 prose, affected Root Cartography 좌표, 관련 epic/decision을 필요한 만큼 넣는다.
+   - `begin-run impl` 또는 `begin-run impl --design-doc <경로>` → `begin-step impl-validator` 로 merge candidate를 리뷰한다.
+   - 검토 대상이 커밋으로 존재하면 커밋 id와 변경 파일 목록을 1급 입력으로 선행 전달하고, validator가 `git show` / `git diff` / `git log`로 커밋 진본을 직접 펼치게 한다. 호출자는 별도 diff 파일을 덤프하지 않는다. 커밋이 없는 uncommitted local diff일 때만 diff 파일 전달을 폴백으로 사용한다.
+   - prompt에 위 리뷰 대상, 메인의 Cartography impact 자유 prose, affected Root Cartography 좌표, 관련 epic/decision을 필요한 만큼 넣는다.
    - provider 가 `codex` 이면 `dcness-codex-validator impl-validator` wrapper 를 사용한다.
    - Codex CLI 부재나 wrapper 비정상 종료 시 Claude `impl-validator` 로 폴백하고 폴백 사실을 보고한다.
    - review-only 다. 코드 수정은 메인이 한다. PASS 전 commit/PR 로 가지 않는다.
@@ -171,6 +172,7 @@ standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-vali
 `impl-validator` review 를 격리 provider 로 호출하면 `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
 
 - **대상 + 읽을 진본**: 이슈·설계도·task 파일·merge candidate diff·Cartography impact·affected Root Cartography 좌표·관련 epic/decision 등 agent 가 자체 read 할 SSOT 포인터만 둔다.
+- **리뷰 대상 전달 우선순위**: 커밋이 있으면 커밋 id와 변경 파일 목록을 선행 전달한다. diff 파일은 커밋이 없는 uncommitted local diff의 폴백으로만 전달한다.
 - **worktree**: worktree 활성 시 worktree 절대경로를 넣는다.
 - **이 호출 특유**: 진본에 없는 제약·신호만 둔다.
 - **방법 처방 금지**: 구현 방식, 테스트 assert 방식, 알고리즘 같은 방법 처방은 넣지 않는다.

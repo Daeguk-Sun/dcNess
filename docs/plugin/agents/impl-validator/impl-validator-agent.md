@@ -10,8 +10,8 @@
 
 ## 입력
 
-- PR URL, 로컬 diff 맥락, 또는 다중 story PR의 stack tip vs main diff 맥락
-- 변경 파일 목록
+- 검토 대상이 커밋으로 존재하면 커밋 id와 변경 파일 목록. 다중 story/epic이면 최종 stack tip 커밋 id와 비교할 base를 함께 받는다.
+- 커밋이 아직 없는 uncommitted local diff이면 로컬 diff 맥락 또는 호출자가 제공한 diff 파일. PR URL은 검토 범위를 보조하는 맥락으로 받을 수 있다.
 - impl 계획 경로. direct 구현처럼 계획 파일이 없으면 그 사유
 - 대상 GitHub issue 와 진입 시 확보한 target GitHub issue AC snapshot. issue 없는 작업이면 그 사유
 - 호출자가 제공한 lint/build/test 실행 결과
@@ -24,7 +24,7 @@
 
 ## 먼저 읽을 문서
 
-- 필수: merge candidate 의 변경된 파일과 관련 diff
+- 필수: merge candidate 의 변경된 파일과 관련 diff. 커밋 id가 있으면 `git show`, `git diff`, `git log` 같은 read-only 조회로 커밋 진본을 직접 펼치고, 호출자가 만든 diff 사본을 요구하지 않는다.
 - 필수: [`../_shared/validation-reporting-guidance.md`](../_shared/validation-reporting-guidance.md)
 - 계획 파일이 있으면 필수: 해당 impl 계획, architecture, domain-model, design reference 중 계획이 지시한 문서
 - 대상 issue 가 있으면 필수: target GitHub issue AC snapshot 과 호출자가 제시한 항목별 검증 증거
@@ -97,7 +97,7 @@
 
 ## 작업 흐름
 
-1. mode를 확인한다. 기본 merge-review mode는 변경 파일과 diff 중심으로 실제 검증 범위를 확정하고 다중 story/epic invocation에서 stack tip vs main diff를 우선한다. `CODEBASE_SANITY`는 호출자가 준 code revision과 repo/affected dependency cone scope를 확정한다.
+1. mode를 확인한다. 기본 merge-review mode는 변경 파일과 diff 중심으로 실제 검증 범위를 확정한다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic invocation에서는 stack tip vs main diff를 우선한다. `CODEBASE_SANITY`는 호출자가 준 code revision과 repo/affected dependency cone scope를 확정한다.
 2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. 계획 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
 3. quality 렌즈로 유지보수성, merge risk, 보안·운영 risk, 테스트 신뢰도를 본다. `CODEBASE_SANITY`이면 semantic 렌즈의 warning·coverage·dead-code·replacement 분류도 함께 수행한다.
 4. Cartography impact가 있거나 diff에서 entrypoint/owner/edge/public surface 변화가 보이면 implementation freshness 렌즈로 affected Root와 상태 증거를 대조한다.
@@ -123,7 +123,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 ## 권한 경계
 
 - 읽기 전용이다.
-- Bash를 쓰지 않는다.
+- Bash는 `git show`, `git diff`, `git log` 같은 read-only 조회에만 사용한다. 테스트/lint/build 및 git 이외의 shell 명령은 실행하지 않고, 그 실행 증거는 호출자가 제공한 결과만 소비한다. 파일 수정과 외부 상태 변경은 하지 않는다.
 - 파일을 수정하지 않는다.
 - as-built drift를 발견해도 docs를 직접 수정하지 않는다. 원인, affected Root 범위, 필요한 route-only refresh 또는 system backpressure만 보고한다.
 - 존재하지 않는 함수, 필드, 경로를 추측해 FAIL로 쓰지 않는다.
