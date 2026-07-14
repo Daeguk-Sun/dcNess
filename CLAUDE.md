@@ -188,6 +188,8 @@ PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality
 | `DCNESS_FORCE_ENABLE` | is-active 게이트 임시 활성 (디버깅) | 미설정 | X |
 | `DCNESS_CODEX_TIMEOUT` | `dcness-codex-validator` / `dcness-codex-worker` Codex attempt timeout | validator `600`, worker `1200` | X |
 | `DCNESS_CODEX_IDLE_TIMEOUT` | `dcness-codex-worker` Codex attempt 의 stdout/prose/workspace 무진행 조기 kill timeout | `180` | X |
+| `DCNESS_CODEX_NETWORK_ACCESS` | `dcness-codex-worker` 의 `workspace-write` network opt-in (`1` / `true` / `on`; `0` / `false` / `off` 는 비활성) | 미설정 | X |
+| `DCNESS_CODEX_WRITABLE_ROOTS` | `dcness-codex-worker` 의 추가 writable roots. 플랫폼 path separator(macOS/Linux `:`)로 여러 절대경로 구분 | 미설정 | X |
 | `DCNESS_CLAUDE_TIMEOUT` | `dcness-claude-worker` Claude headless attempt timeout | `1200` | X |
 | `DCNESS_CLAUDE_IDLE_TIMEOUT` | `dcness-claude-worker` Claude attempt 의 stdout/stderr/workspace 무진행 조기 kill timeout (codex worker 와 패리티) | `180` | X |
 | `DCNESS_CODEX_MODEL` / `DCNESS_CODEX_EFFORT` | Codex headless wrapper model / reasoning effort opt-in override. 미설정 시 사용자 Codex config 상속 | 미설정 | X |

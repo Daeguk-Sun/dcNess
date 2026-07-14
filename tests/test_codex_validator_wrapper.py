@@ -1,6 +1,7 @@
 """Smoke tests for the Codex validator wrapper."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import subprocess
@@ -583,6 +584,240 @@ class CodexValidatorWrapperTests(unittest.TestCase):
 
 
 class CodexWorkerWrapperTests(unittest.TestCase):
+    def _run_worker_for_args(
+        self,
+        *,
+        network_access: str | None = None,
+        writable_roots: list[str] | None = None,
+    ) -> tuple[subprocess.CompletedProcess[str], list[str], str]:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement the task.\n", encoding="utf-8")
+            args_capture = tmp / "codex-args.txt"
+            prose_capture = tmp / "captured-prose.md"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    if [ "$1" = "--help" ]; then
+                      echo "Usage: codex [OPTIONS]"
+                      echo "  -a, --ask-for-approval <APPROVAL_POLICY>"
+                      exit 0
+                    fi
+                    printf '%s\\n' "$@" > "$ARGS_CAPTURE"
+                    out=""
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --output-last-message)
+                          out="$2"
+                          shift 2
+                          ;;
+                        *)
+                          shift
+                          ;;
+                      esac
+                    done
+                    cat >/dev/null
+                    printf 'Worker prose\\n\\nPASS\\n' > "$out"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            helper = tmp / "dcness-helper"
+            helper.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --prose-file)
+                          cp "$2" "$PROSE_CAPTURE"
+                          exit 0
+                          ;;
+                      esac
+                      shift
+                    done
+                    exit 1
+                    """
+                ),
+                encoding="utf-8",
+            )
+            helper.chmod(0o755)
+
+            env = os.environ.copy()
+            for key in (
+                "DCNESS_CODEX_EFFORT",
+                "DCNESS_CODEX_MODEL",
+                "DCNESS_CODEX_NETWORK_ACCESS",
+                "DCNESS_CODEX_WRITABLE_ROOTS",
+            ):
+                env.pop(key, None)
+            env.update(
+                {
+                    "ARGS_CAPTURE": str(args_capture),
+                    "DCNESS_RUN_ID": "run-sandbox1",
+                    "DCNESS_SESSION_ID": "sid-worker-sandbox",
+                    "PATH": f"{bin_dir}{os.pathsep}{env.get('PATH', '')}",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+            if network_access is not None:
+                env["DCNESS_CODEX_NETWORK_ACCESS"] = network_access
+            if writable_roots is not None:
+                env["DCNESS_CODEX_WRITABLE_ROOTS"] = os.pathsep.join(writable_roots)
+
+            result = subprocess.run(
+                [
+                    str(WORKER),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            args = (
+                args_capture.read_text(encoding="utf-8").splitlines()
+                if args_capture.exists()
+                else []
+            )
+            return result, args, str(project)
+
+    def _capture_worker_args(
+        self,
+        *,
+        network_access: str | None = None,
+        writable_roots: list[str] | None = None,
+    ) -> tuple[list[str], str]:
+        result, args, project = self._run_worker_for_args(
+            network_access=network_access,
+            writable_roots=writable_roots,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return args, project
+
+    def test_worker_default_sandbox_args_remain_workspace_write_only(self) -> None:
+        for network_access in (None, "0", "false", "off"):
+            with self.subTest(network_access=network_access):
+                args, project = self._capture_worker_args(
+                    network_access=network_access,
+                )
+
+                self.assertEqual(
+                    args[:7],
+                    [
+                        "-a",
+                        "never",
+                        "exec",
+                        "-C",
+                        project,
+                        "-s",
+                        "workspace-write",
+                    ],
+                )
+                self.assertEqual(args[7], "--output-last-message")
+                self.assertTrue(args[8])
+                self.assertEqual(args[9:], ["-"])
+                self.assertNotIn("-c", args)
+
+    def test_worker_adds_only_opted_in_sandbox_config_with_toml_escaping(self) -> None:
+        writable_roots = [
+            "/tmp/gradle cache",
+            '/tmp/quoted"cache',
+            "/tmp/back\\slash",
+        ]
+
+        args, project = self._capture_worker_args(
+            network_access="true",
+            writable_roots=writable_roots,
+        )
+
+        self.assertEqual(
+            args[:11],
+            [
+                "-a",
+                "never",
+                "-c",
+                "sandbox_workspace_write.network_access=true",
+                "-c",
+                "sandbox_workspace_write.writable_roots="
+                + json.dumps(writable_roots, ensure_ascii=False),
+                "exec",
+                "-C",
+                project,
+                "-s",
+                "workspace-write",
+            ],
+        )
+        self.assertEqual(args[11], "--output-last-message")
+        self.assertTrue(args[12])
+        self.assertEqual(args[13:], ["-"])
+
+    def test_worker_sandbox_opt_ins_are_independent(self) -> None:
+        writable_roots = ["/tmp/gradle cache"]
+        cases = (
+            (
+                "network-only",
+                "on",
+                None,
+                ["sandbox_workspace_write.network_access=true"],
+            ),
+            (
+                "roots-only",
+                None,
+                writable_roots,
+                [
+                    "sandbox_workspace_write.writable_roots="
+                    + json.dumps(writable_roots, ensure_ascii=False)
+                ],
+            ),
+        )
+
+        for name, network_access, roots, expected_configs in cases:
+            with self.subTest(name=name):
+                args, _project = self._capture_worker_args(
+                    network_access=network_access,
+                    writable_roots=roots,
+                )
+                actual_configs = [
+                    args[index + 1]
+                    for index, arg in enumerate(args)
+                    if arg == "-c"
+                ]
+                self.assertEqual(actual_configs, expected_configs)
+                self.assertEqual(args.count("-c"), 1)
+                self.assertIn("workspace-write", args)
+
+    def test_worker_rejects_invalid_network_access_before_codex(self) -> None:
+        result, args, _project = self._run_worker_for_args(
+            network_access="enabled",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(args, [])
+        self.assertIn(
+            "DCNESS_CODEX_NETWORK_ACCESS must be one of "
+            "1/true/on or 0/false/off: enabled",
+            result.stderr,
+        )
+
     def test_worker_embeds_agent_docs_writes_workspace_and_stores_prose(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)

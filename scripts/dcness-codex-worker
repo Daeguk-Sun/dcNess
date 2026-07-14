@@ -24,10 +24,15 @@ Environment:
                          before early kill. Default: 180.
   DCNESS_CODEX_MODEL    Optional Codex model override. Default: inherit user config.
   DCNESS_CODEX_EFFORT   Optional reasoning effort override. Default: inherit user config.
+  DCNESS_CODEX_NETWORK_ACCESS  Opt in to workspace-write network access with
+                         1, true, or on. Unset/0/false/off keeps the default.
+  DCNESS_CODEX_WRITABLE_ROOTS  Optional path-separator-delimited list of
+                         additional workspace-write writable roots.
 
-The wrapper runs Codex in workspace-write mode. Model and effort overrides are
-only passed when the matching environment variables are set:
-  codex [-m "$DCNESS_CODEX_MODEL"] [-c "model_reasoning_effort=$DCNESS_CODEX_EFFORT"] exec -C "$PROJECT_ROOT" -s workspace-write --output-last-message "$TMP_PROSE"
+The wrapper always runs Codex in workspace-write mode. Model, effort, network,
+and writable-root overrides are only passed when the matching environment
+variables opt in. It never offers danger-full-access:
+  codex [-m "$DCNESS_CODEX_MODEL"] [-c "model_reasoning_effort=$DCNESS_CODEX_EFFORT"] [-c sandbox_workspace_write.network_access=true] [-c 'sandbox_workspace_write.writable_roots=[...]'] exec -C "$PROJECT_ROOT" -s workspace-write --output-last-message "$TMP_PROSE"
 
 On success it validates changed paths against dcNess agent_boundary, reuses
 tdd-guard matching-test enforcement for Codex-changed implementation files, and stores:
@@ -78,6 +83,8 @@ CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-1200}"
 CODEX_IDLE_TIMEOUT="${DCNESS_CODEX_IDLE_TIMEOUT:-180}"
 CODEX_MODEL="${DCNESS_CODEX_MODEL:-}"
 CODEX_EFFORT="${DCNESS_CODEX_EFFORT:-}"
+CODEX_NETWORK_ACCESS="${DCNESS_CODEX_NETWORK_ACCESS:-}"
+CODEX_WRITABLE_ROOTS="${DCNESS_CODEX_WRITABLE_ROOTS:-}"
 
 abs_path() {
   case "$1" in
@@ -164,6 +171,34 @@ if ! command -v codex >/dev/null 2>&1; then
   exit 127
 fi
 
+CODEX_NETWORK_CONFIG=""
+case "$CODEX_NETWORK_ACCESS" in
+  '') ;;
+  1|true|on)
+    CODEX_NETWORK_CONFIG="sandbox_workspace_write.network_access=true"
+    ;;
+  0|false|off) ;;
+  *)
+    echo "[dcness-codex-worker] DCNESS_CODEX_NETWORK_ACCESS must be one of 1/true/on or 0/false/off: $CODEX_NETWORK_ACCESS" >&2
+    exit 2
+    ;;
+esac
+
+CODEX_WRITABLE_ROOTS_CONFIG=""
+if [ -n "$CODEX_WRITABLE_ROOTS" ]; then
+  if ! CODEX_WRITABLE_ROOTS_TOML="$(python3 -c '
+import json
+import os
+
+roots = [root for root in os.environ["DCNESS_CODEX_WRITABLE_ROOTS"].split(os.pathsep) if root]
+print(json.dumps(roots, ensure_ascii=False))
+')"; then
+    echo "[dcness-codex-worker] failed to encode DCNESS_CODEX_WRITABLE_ROOTS as a TOML string array" >&2
+    exit 2
+  fi
+  CODEX_WRITABLE_ROOTS_CONFIG="sandbox_workspace_write.writable_roots=$CODEX_WRITABLE_ROOTS_TOML"
+fi
+
 cd "$PROJECT_ROOT"
 
 dcness_resolve_headless_context "dcness-codex-worker" "$PROJECT_ROOT" "$SCRIPT_DIR"
@@ -229,6 +264,12 @@ if [ -n "$CODEX_MODEL" ]; then
 fi
 if [ -n "$CODEX_EFFORT" ]; then
   CODEX_CMD+=( -c "model_reasoning_effort=$CODEX_EFFORT" )
+fi
+if [ -n "$CODEX_NETWORK_CONFIG" ]; then
+  CODEX_CMD+=( -c "$CODEX_NETWORK_CONFIG" )
+fi
+if [ -n "$CODEX_WRITABLE_ROOTS_CONFIG" ]; then
+  CODEX_CMD+=( -c "$CODEX_WRITABLE_ROOTS_CONFIG" )
 fi
 CODEX_ARGS=(exec -C "$PROJECT_ROOT" -s workspace-write --output-last-message "$TMP_PROSE" -)
 
