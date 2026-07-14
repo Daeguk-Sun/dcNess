@@ -365,7 +365,7 @@ class IssueBodyValidationDocsTests(unittest.TestCase):
         self.assertIn("REVIEW", text)
         self.assertIn("자동 close 권한이 아니다", text)
 
-        for relative in ("skills/impl/SKILL.md", "skills/impl-loop/SKILL.md"):
+        for relative in ("CLAUDE.md", "skills/impl/SKILL.md", "skills/impl-loop/SKILL.md"):
             skill = (ROOT / relative).read_text(encoding="utf-8")
             self.assertIn("검증 주체 미기재 legacy AC", skill, relative)
             self.assertIn("추론·체크·재분류하지 않는다", skill, relative)
