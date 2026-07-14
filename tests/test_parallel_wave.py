@@ -18,22 +18,18 @@
         - force_serial(parallel: serial) → 직렬
         - 디렉토리/파일 포함 충돌 → 직렬
 
-    fan_in_check (AC: fan-in PASS / FALLBACK):
-        - 깨끗한 wave → PASS
-        - scope 이탈 → FALLBACK
-        - cross-worker 파일 충돌 → FALLBACK
-        - evidence 누락 → FALLBACK
+    retired surface:
+        - single-session fan-in helper는 peer claim board + merge lock으로 대체되어 부재
 """
 import tempfile
 import unittest
 from pathlib import Path
 
+import harness.parallel_wave as parallel_wave
 from harness.parallel_wave import (
     DEFAULT_MAX_PARALLEL_WORKERS,
     ImplTask,
-    WorkerResult,
     compute_waves,
-    fan_in_check,
     normalize_scope_file,
     normalize_scope_text,
     parse_impl_task,
@@ -404,11 +400,11 @@ class TestScopesDisjoint(unittest.TestCase):
 
     def test_globstar_zero_and_deep_dirs(self):
         # codex F8 — src/**/*.py 는 중간 디렉토리 0개(src/a.py)도 매치해야 함.
-        from harness.parallel_wave import _path_in_scope
-        self.assertTrue(_path_in_scope("src/a.py", {"src/**/*.py"}))
-        self.assertTrue(_path_in_scope("src/x/a.py", {"src/**/*.py"}))
-        self.assertTrue(_path_in_scope("src/x/y/a.py", {"src/**/*.py"}))
-        self.assertFalse(_path_in_scope("lib/a.py", {"src/**/*.py"}))
+        from harness.parallel_wave import _glob_match
+        self.assertTrue(_glob_match("src/a.py", "src/**/*.py"))
+        self.assertTrue(_glob_match("src/x/a.py", "src/**/*.py"))
+        self.assertTrue(_glob_match("src/x/y/a.py", "src/**/*.py"))
+        self.assertFalse(_glob_match("lib/a.py", "src/**/*.py"))
         # disjoint: src/**/*.py 는 src/a.py 와 겹침(둘 다 src 하위 .py)
         self.assertFalse(scopes_disjoint({"src/**/*.py"}, {"src/a.py"}))
 
@@ -613,155 +609,14 @@ class TestComputeWaves(unittest.TestCase):
         self.assertEqual(plan.steps[1].tasks[0].slug, "02-b")
 
 
-# ── fan_in_check ────────────────────────────────────────────
+# ── retired single-session fan-in surface ──────────────────
 
 
-class TestFanInCheck(unittest.TestCase):
-    def test_expected_slugs_required(self):
-        results = [
-            WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
-        ]
-        with self.assertRaises(TypeError):
-            fan_in_check(results)
-
-    def test_clean_wave_passes(self):
-        results = [
-            WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
-            WorkerResult("02-b", frozenset({"src/b.py"}), frozenset({"src/b.py"})),
-        ]
-        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
-        self.assertTrue(r.passed)
-        self.assertEqual(r.verdict, "PASS")
-        self.assertEqual(r.reasons, ())
-
-    def test_scope_violation_fallback(self):
-        results = [
-            # a 가 선언 scope(src/a.py) 밖 src/other.py 를 건드림
-            WorkerResult(
-                "01-a",
-                frozenset({"src/a.py", "src/other.py"}),
-                frozenset({"src/a.py"}),
-            ),
-        ]
-        r = fan_in_check(results, expected_slugs=("01-a",))
-        self.assertFalse(r.passed)
-        self.assertEqual(r.verdict, "FALLBACK")
-        self.assertIn(("01-a", "src/other.py"), r.scope_violations)
-
-    def test_cross_worker_conflict_fallback(self):
-        results = [
-            WorkerResult(
-                "01-a", frozenset({"src/shared.py"}), frozenset({"src/shared.py"})
-            ),
-            WorkerResult(
-                "02-b", frozenset({"src/shared.py"}), frozenset({"src/shared.py"})
-            ),
-        ]
-        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
-        self.assertFalse(r.passed)
-        self.assertEqual(len(r.conflicts), 1)
-        self.assertEqual(r.conflicts[0][0], "src/shared.py")
-        self.assertEqual(r.conflicts[0][1], ("01-a", "02-b"))
-
-    def test_missing_evidence_fallback(self):
-        results = [
-            WorkerResult(
-                "01-a",
-                frozenset({"src/a.py"}),
-                frozenset({"src/a.py"}),
-                evidence_present=False,
-            ),
-        ]
-        r = fan_in_check(results, expected_slugs=("01-a",))
-        self.assertFalse(r.passed)
-        self.assertEqual(r.missing_evidence, ("01-a",))
-
-    def test_empty_worker_results_fallback(self):
-        # worker 결과 수집 자체가 실패했는데 빈 입력을 PASS 로 보면 안 됨.
-        r = fan_in_check([], expected_slugs=())
-        self.assertFalse(r.passed)
-        self.assertEqual(r.verdict, "FALLBACK")
-        self.assertIn("worker 결과 없음", r.reasons)
-
-    def test_missing_expected_worker_result_fallback(self):
-        # 2-worker wave 에서 한 worker 결과 record 가 통째로 누락된 경우도 evidence 누락.
-        results = [
-            WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
-        ]
-        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
-        self.assertFalse(r.passed)
-        self.assertEqual(r.missing_evidence, ("02-b",))
-        self.assertIn("evidence 누락 1건", r.reasons)
-
-    def test_expected_worker_and_flagged_missing_deduped(self):
-        # expected 에도 있고 evidence_present=False 인 경우 missing_evidence 중복 방지.
-        results = [
-            WorkerResult(
-                "01-a",
-                frozenset({"src/a.py"}),
-                frozenset({"src/a.py"}),
-                evidence_present=False,
-            ),
-        ]
-        r = fan_in_check(results, expected_slugs=("01-a",))
-        self.assertFalse(r.passed)
-        self.assertEqual(r.missing_evidence, ("01-a",))
-
-    def test_unexpected_worker_result_fallback(self):
-        # wave 밖 worker 결과가 섞이면 identity 오류라 fan-in 을 통과하면 안 됨.
-        results = [
-            WorkerResult("01-a", frozenset({"src/a.py"}), frozenset({"src/a.py"})),
-            WorkerResult("02-b", frozenset({"src/b.py"}), frozenset({"src/b.py"})),
-            WorkerResult("99-z", frozenset({"src/z.py"}), frozenset({"src/z.py"})),
-        ]
-        r = fan_in_check(results, expected_slugs=("01-a", "02-b"))
-        self.assertFalse(r.passed)
-        self.assertEqual(r.unexpected_workers, ("99-z",))
-        self.assertIn("예상 밖 worker 1건", r.reasons)
-
-    def test_scope_dir_prefix_allowed(self):
-        # 선언 scope 가 디렉토리면 그 아래 파일 변경은 준수
-        results = [
-            WorkerResult(
-                "01-a", frozenset({"src/feature/x.py"}), frozenset({"src/feature/"})
-            ),
-        ]
-        r = fan_in_check(results, expected_slugs=("01-a",))
-        self.assertTrue(r.passed)
-
-    def test_file_scope_no_descendant(self):
-        # codex F12 — 확장자 없는 파일 scope(scripts/tool)를 디렉토리로 오인해
-        # scripts/tool/x.py 를 통과시키면 안 됨. 디렉토리는 끝에 / 를 적어야 함.
-        violator = WorkerResult(
-            "01-a", frozenset({"scripts/tool/x.py"}), frozenset({"scripts/tool"})
-        )
-        self.assertFalse(
-            fan_in_check([violator], expected_slugs=("01-a",)).passed
-        )
-        exact = WorkerResult(
-            "02-b", frozenset({"scripts/tool"}), frozenset({"scripts/tool"})
-        )
-        self.assertTrue(fan_in_check([exact], expected_slugs=("02-b",)).passed)
-        # 명시적 디렉토리 scope(끝 /)는 하위 허용
-        dir_ok = WorkerResult(
-            "03-c", frozenset({"scripts/tool/x.py"}), frozenset({"scripts/tool/"})
-        )
-        self.assertTrue(fan_in_check([dir_ok], expected_slugs=("03-c",)).passed)
-
-    def test_glob_scope_segment_aware_violation(self):
-        # codex F4 — glob scope `src/*.py` 선언했는데 src/sub/a.py 를 건드리면
-        # fnmatch 였다면 통과했을 것. segment-aware 라 scope 이탈로 잡아야 함.
-        violator = WorkerResult(
-            "01-a", frozenset({"src/sub/a.py"}), frozenset({"src/*.py"})
-        )
-        self.assertFalse(
-            fan_in_check([violator], expected_slugs=("01-a",)).passed
-        )
-        # 같은 glob scope 의 직접 자식은 준수
-        ok = WorkerResult(
-            "02-b", frozenset({"src/a.py"}), frozenset({"src/*.py"})
-        )
-        self.assertTrue(fan_in_check([ok], expected_slugs=("02-b",)).passed)
+class TestRetiredParallelSurface(unittest.TestCase):
+    def test_legacy_single_session_fan_in_surface_is_retired(self):
+        for name in ("fan_in_check", "WorkerResult", "FanInResult"):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(parallel_wave, name))
 
 
 class TestWavePlanFromPaths(unittest.TestCase):

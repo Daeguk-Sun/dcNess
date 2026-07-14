@@ -4,20 +4,21 @@
 
 ## 재현 명령과 산출물
 
-한 명령이 Git tracked tree의 크기 지표, inventory schema·분류·후속 이슈 전수 배정, 전체 unit suite 실행시간을 함께 출력한다. untracked receipt와 현재 working copy의 새 파일은 revision 지표에 들어가지 않는다. suite도 지정 revision의 임시 detached worktree에서 실행해 dirty working tree를 격리한다.
+한 명령이 Git tracked tree의 크기 지표, inventory schema·분류·후속 이슈 전수 배정, 전체 unit suite 실행시간을 함께 출력한다. untracked receipt와 현재 working copy의 새 파일은 revision 지표에 들어가지 않는다. suite도 지정 revision의 임시 detached worktree에서 실행해 dirty working tree를 격리한다. 측정 구현은 terminal 분류까지 반영된 pre-#1099 main `071146c`에 고정했으며 #1099 최종 재측정 뒤 one-shot 코드와 전용 테스트를 함께 퇴역했다.
 
 ```sh
-python3.11 scripts/policy_cleanup_baseline.py \
-  --revision b676140bcffdaa5843ce59198ecef4f997efddc9 \
+git show 071146c:scripts/policy_cleanup_baseline.py | \
+python3.11 - --repo-root . \
+  --revision <comparison-revision> \
   --inventory docs/internal/policy-sunset-inventory.json \
   --run-unit-suite
 ```
 
-- 측정 구현: [`scripts/policy_cleanup_baseline.py`](../../scripts/policy_cleanup_baseline.py)
+- 측정 구현: pre-#1099 main `071146c`의 `scripts/policy_cleanup_baseline.py` (고정 snapshot; #1092 LOC 정의 동일)
 - 정책 slice 원장: [`policy-sunset-inventory.json`](policy-sunset-inventory.json)
 - 고정 출력: [`policy-sunset-baseline.json`](policy-sunset-baseline.json)
 
-측정 구현은 dcNess self에서만 쓰는 일회성 내부 도구다. `scripts/release_artifact.json`의 제외 계약에 고정되어 marketplace release payload에 들어가지 않으며, `init-dcness`도 외부 프로젝트에 복사하지 않는다.
+측정 구현은 dcNess self에서만 쓴 일회성 내부 도구다. #1092~#1099 동안 marketplace release payload와 `init-dcness` 배포에서 제외했고, 최종 증거를 만든 뒤 구현 360줄·전용 테스트 219줄·release exclusion을 함께 제거했다. 재감사는 위 frozen source를 실행하므로 정의를 바꾸지 않는다.
 
 `major text`는 `.py`, `.mjs`, `.js`, `.sh`, `.md`, `.json`, `.yml`, `.yaml`, `.toml`이다. `code LOC`는 `harness/`, `scripts/`, `evals/` 아래 Python이고 `test LOC`는 `tests/` 아래 Python이다. test 함수는 Python AST에서 이름이 `test_`로 시작하는 함수·메서드를 센다. 대형 파일 수는 major text의 논리 LOC가 각각 500·1,000 이상인 파일 수다. compatibility 후보는 `제거 가능`과 `한시적 호환 필요` slice의 합이며 `현재 실사용`은 분모에는 남지만 감량 후보로 세지 않는다.
 
@@ -44,7 +45,7 @@ python3.11 scripts/policy_cleanup_baseline.py \
 | `한시적 호환 필요` | persisted 형식이나 실제 활성 프로젝트가 소비하며 대상·이유·제거 trigger·확인 방법이 모두 있음 | 11 |
 | `퇴역 완료` | 제거 가능 판정 뒤 구현·테스트·fixture·문서 surface와 배포 경로를 함께 제거하고 검증한 terminal state | 0 |
 
-영역별 29개는 design 6, run/ledger 8, routing 5, install/path 5, lifecycle 5다. 각 entry는 현행 SSOT, 구현, test/fixture, 문서·배포, 소비자 증거를 모두 가진다. 키워드가 같아도 release artifact의 `--contract`처럼 의미가 다른 적중은 `현재 실사용`으로 명시해 false positive를 버리지 않고 분류했다.
+baseline 영역별 29개는 design 6, run/ledger 8, routing 5, install/path 5, lifecycle 5다. #1099 통합 감사에서 누락된 run/orchestration fossil `RUN-009`를 추가해 최종 원장은 30개다. 각 entry는 현행 SSOT, 구현, test/fixture, 문서·배포, 소비자 증거를 모두 가진다. 키워드가 같아도 release artifact의 `--contract`처럼 의미가 다른 적중은 `현재 실사용`으로 명시해 false positive를 버리지 않고 분류했다.
 
 ### #1093 설계 cleanup 상태 전이
 
@@ -78,6 +79,7 @@ python3.11 scripts/policy_cleanup_baseline.py \
 | RUN-006 | persisted 형식 없음; v0.13.0 모듈 분리 때 생긴 Python private import facade | 저장소 테스트만 import했고 runtime reader/writer 0 | 퇴역 완료; canonical CLI owner 직접 import와 facade 부재를 검증 | `SplitModuleImportTests`, `tests.test_agent_routing` |
 | RUN-007 | hook auto-stage 실패 뒤 run-dir에 남은 current prose; hook/end-step이 생성 | finalize helper가 recovery read, staging/prose writer는 현행 | 현재 안전 경계 유지; best-effort staging failure 가능성이 제거되기 전 삭제 불가 | `tests.test_session_state`, `tests.test_hooks` |
 | RUN-008 | legacy row의 stored verdict와 현행 `PROSE_LOGGED`+prose 결론; v0.5.0 이후 canonical writer는 sentinel만 write | run review·benchmark·outcome가 두 세대를 read | 한시 유지; legacy verdict를 canonical prose verdict로 migration하고 old sample 0 | run-review·benchmark·outcome tests |
+| RUN-009 | persisted 형식 없음; 한 세션 worker fan-out/fan-in 시절의 result aggregation helper | runtime·script·문서 caller 0, tests만 옛 `fan_in_check` API를 호출 | #1099 퇴역 완료; 현행 독립 peer는 claim board+merge lock 사용 | `rg 'fan_in_check|WorkerResult|FanInResult'`와 `tests.test_parallel_wave` |
 
 등록 활성 프로젝트의 persisted run은 registry path를 출력하지 않고 다음 명령으로 형식별 집계한다.
 
@@ -129,7 +131,7 @@ done | awk -F '\t' '
   }'
 ```
 
-2026-07-14 #1094 실행 결과는 등록 프로젝트 5곳 모두 state root가 있었고 `current-only 32`, `legacy-only 0`, `mixed 0`이었다. 지원 범위로 확인 가능한 plugin/cache·과거 checkout 표본은 같은 파일명 분류를 `$HOME/.claude`와 현재 저장소의 부모 디렉터리에 적용해 `current-only 33`, `legacy-only 62`, `mixed 0`을 확인했다. legacy 62개·339행에는 `validator` 58행, `CHANGES_REQUESTED` 4행, `LGTM` 33행, `prose_file` 없는 row 125개가 실제 존재했다. 따라서 현재 active snapshot의 0건만으로 read-side 지원 종료를 선언하지 않는다.
+2026-07-14 #1094 실행 결과는 등록 프로젝트 5곳 모두 state root가 있었고 `current-only 32`, `legacy-only 0`, `mixed 0`이었다. #1099 재실행에서는 active `current-only 35`, 지원 범위 전체 `current-only 36`·`legacy-only 62`·`mixed 0`이었다. legacy 62개·339행의 핵심 잔존값도 `validator` 58행, `CHANGES_REQUESTED` 4행, `LGTM` 33행, `prose_file` 없는 row 125개로 동일했다. 따라서 현재 active snapshot의 legacy 0건만으로 read-side 지원 종료를 선언하지 않는다.
 
 ### #1095 provider routing cleanup 상태 전이
 
@@ -173,7 +175,7 @@ PY
 | ROUTE-001 | schema v3 `routes`/`implementation_routes`; init preset·validator·build-worker | 현행 role split과 custom route 진본 | 대체 routing 계약과 config migration이 별도로 승인될 때 | `python3.11 -m unittest tests.test_agent_routing -v` |
 | ROUTE-002 | schema v3 retired key 3종은 migration 대상; schema v1·v2 지원 종료 | 설치 data 실재 config를 조용히 삭제하지 않고 doctor로 식별 | 등록 config retired-key scan 0 | `dcness-helper routing enable-role-split-routing` 후 `routing doctor` |
 | ROUTE-003 | `codex-first` 설치 config 0건; 이 변경부터 미지원 | 소비자 없는 preset·CLI·chain을 terminal 제거 | 완료 — runtime·docs·tests active surface 0 | `rg 'codex-first|enable-codex-implementation|disable-codex-implementation'` active surface와 routing/provider tests |
-| ROUTE-004 | 저장 형식과 무관한 Python export; repo caller 0 | backward-compatible 이름만 남은 read surface | 완료 — export·`__all__`·assertion 제거 | `rg 'VALID_PROVIDERS' harness scripts`와 `tests.test_policy_cleanup_baseline` |
+| ROUTE-004 | 저장 형식과 무관한 Python export; repo caller 0 | backward-compatible 이름만 남은 read surface | 완료 — export·`__all__`·assertion 제거 | `rg 'VALID_PROVIDERS' harness scripts`와 `tests.test_agent_routing` |
 | ROUTE-005 | schema v3 `headless-chain`; implementation runtime | pre-mutation 실패만 복구하고 mutation 후 자동 덮어쓰기를 막는 현행 safety | 동등한 mutation 감지·중단 보장으로 chain을 대체할 때 | `python3.11 -m unittest tests.test_provider_chain -v` |
 
 ### #1096 설치·hook·경로 cleanup 상태 전이
@@ -185,7 +187,7 @@ PY
 | ID | 소비 설치 상태·지원 버전 | #1096 판정·유지 이유 | 제거 trigger | 확인 명령·fixture |
 |---|---|---|---|---|
 | INST-001 | fresh init, re-run, plugin update, 5/5 generated install; v0.12.0+, Git 도달성은 v0.19.0+ | 현재 writer·self-test·impl preflight와 5/5 활성 소비자가 있어 유지 | 대체 계약 migration 후 generated file·runtime hit 0 | `tests.test_generated_tdd_hooks`, `dcness-tdd-hooks status/ensure` |
-| INST-002 | 0/5·1/5·2/5 partial, update 중간 상태; v0.12.0+ | 5곳 중 4곳이 partial이며 generated hook 없는 TS/JS TDD safety를 보호해 유지 | 전항 5/5 migration + update 중간 safety 대체 | `tests.test_generated_tdd_hooks`, `tests.test_tdd_guard`, `tests.test_hooks` |
+| INST-002 | 현재 0/5 partial 4곳과 update 중간 1/5·2/5 fixture; v0.12.0+ | 5곳 중 4곳이 partial이며 generated hook 없는 TS/JS TDD safety를 보호해 유지 | 전항 5/5 migration + update 중간 safety 대체 | `tests.test_generated_tdd_hooks`, `tests.test_tdd_guard`, `tests.test_hooks` |
 | INST-003 | explicit headless/self-test, Claude env, plugin cache, dcNess self repo-local; thin shim v0.2.2+, generated resolver v0.12.0+ | 실행 surface별 root 신호가 달라 유지 | 검증된 active root 단일 신호 전환 + self/cache hit 0 | `tests.test_generated_tdd_hooks`, `tests.test_git_hook_guard_telemetry`, `tests.test_hook_wrapper_exit` |
 | INST-004 | v0.11.0~v0.23.0 validation-only legacy prefix; 디렉터리·reference 0 | 퇴역 완료; canonical generator는 `docs/design-variants/`만 쓰며 소비자 없음 | 2026-07-14 등록 프로젝트 directory 0 + reference 0으로 충족 | `rg 'LEGACY_PATH_PREFIXES'`, canvas/doc-path/policy inventory tests |
 | INST-005 | primary/linked worktree, common hooks, generated commit state, primary receipt; v0.19.0+ | 현행 impl/design worktree의 오차단·미차단 방지로 유지 | worktree workflow 종료 또는 Git hook/state root 단일화 + migration | `tests.test_hooks`, `tests.test_session_state`, `tests.test_hook_wrapper_exit` |
@@ -199,9 +201,9 @@ PY
 | 관찰 영역 | 2026-07-14 read-only 결과 | inventory 영향 |
 |---|---|---|
 | legacy design artifact | 5개 중 2개 프로젝트, marker 포함 문서 72개 | `DES-003`~`DES-005` 한시 호환 |
-| persisted run | `ledger.jsonl` 30개, `.steps.jsonl` 0개 | `RUN-001` 현행; 과거/cache 형식인 `RUN-002`는 종료 trigger 필요 |
+| persisted run | active `ledger.jsonl` 35개, `.steps.jsonl` 0개; 지원 표본 legacy 62개 | `RUN-001` 현행; 과거/cache 형식인 `RUN-002`는 종료 trigger 필요 |
 | routing config | schema 3이지만 retired `code-validator`, `pr-reviewer`, `test-engineer` key 잔존 | `ROUTE-002` migration 대상 실재 |
-| generated install | 프로젝트별 5개 대상 파일 보유량 `0/5, 2/5, 5/5, 0/5, 1/5` | partial install fallback인 `INST-002` 현행 |
+| generated install | 프로젝트별 5개 대상 파일 보유량 `0/5, 0/5, 0/5, 0/5, 5/5` | partial install fallback인 `INST-002` 현행 |
 | stories | 3개 프로젝트의 `stories.md` 10개가 모두 Story AC 없는 구양식 | `LIFE-002` 한시 호환 |
 | open issue acceptance | 1개 프로젝트의 open issue 14개: 검증 주체 미기재 8, no-AC 6; 무분류 중 사람 판단 가능 항목 5 | `LIFE-003` REVIEW reader 한시 호환 |
 | legacy `design-variants/` prefix | 등록 프로젝트 directory·markdown reference 모두 0건 | `INST-004` 제거 trigger 충족·퇴역 완료 |
@@ -274,7 +276,7 @@ compatibility 후보는 `LIFE-002`와 `LIFE-003` 두 개로 유지된다. 둘 �
 | `harness/hooks.py` | 1,671 | order/state hook 집약 | 여러 세대 enum·run assertion 포함 | #1094 후 #1098; order guard 보존 |
 | `harness/ledger.py` | 642 | canonical + legacy run reader | legacy/mixed/field 호환 비중 큼 | #1094 핵심 감량 후보 |
 | `harness/outcome_scorecard.py` | 739 | process·effectiveness·outcome 집계 | legacy verdict 소비 중복 | #1094 뒤 #1098 |
-| `harness/parallel_wave.py` | 948 | peer claim/wave 상태 | 현행 concurrency safety | 유지 |
+| `harness/parallel_wave.py` | 814 | peer wave 후보 계산 | 미사용 single-session fan-in model은 #1099에서 퇴역 | 현행 compute/claim/merge-lock 계약 유지 |
 | `harness/product_journey.py` | 864 | 제품 journey runner | compatibility와 무관 | 현행 |
 | `harness/run_review.py` | 1,853 | persisted run 분석·waste report | legacy name/verdict/prose 비중 큼 | #1094 핵심, 이후 #1098 |
 | `harness/session_state.py` | 2,125 | run lifecycle/state owner | private CLI re-export는 #1094에서 퇴역; persisted state 안전 책임 유지 | #1094 완료 뒤 #1098, 단순 분할 무효 |
@@ -301,7 +303,7 @@ compatibility 후보는 `LIFE-002`와 `LIFE-003` 두 개로 유지된다. 둘 �
 | `tests/test_loop_diagnose.py` | 679 | cross-project 진단 | compatibility와 무관 | 현행 |
 | `tests/test_multisession_smoke.py` | 647 | 동시 run smoke | 현행 concurrency safety | 유지 |
 | `tests/test_outcome_scorecard.py` | 574 | outcome aggregation | legacy verdict fixture 일부 | #1094 후 #1098 |
-| `tests/test_parallel_wave.py` | 978 | wave/merge lock | 현행 concurrency safety | 유지 |
+| `tests/test_parallel_wave.py` | 833 | wave 후보 계산 회귀 | fan-in-only 12개 fixture를 제거하고 부재 계약 1개만 유지 | 현행 compute/claim/merge-lock 계약 유지 |
 | `tests/test_product_journey.py` | 610 | journey runner | compatibility와 무관 | 현행 |
 | `tests/test_provider_chain.py` | 1,466 | provider chain 상태전이 | 현행 provider 성공·변경 전 실패·변경 후 실패 안전 경계 | #1095에서 legacy route 제거, safety fallback 보존 |
 | `tests/test_run_review.py` | 1,590 | run review current/legacy 분석 | local persisted-run writer를 #1098에서 공통 helper로 통합; reader별 assertion은 유지 | #1098 fixture 책임 감량 완료 |
@@ -320,19 +322,27 @@ compatibility 후보는 `LIFE-002`와 `LIFE-003` 두 개로 유지된다. 둘 �
 
 Safety invariant는 영향 경로를 달리해 보존한다. persisted state 관련 369개와 전체 1,980개 unit test가 통과했고, order gate·file/external-state boundary·TDD guard·install path는 각각 hooks, agent-boundary, tdd-guard, generated-hook 전체 회귀와 guard-efficacy 39/39로 확인했다. static quality, 문서·public-surface·manifest, release artifact smoke도 통과했으며 최종 명령은 #1098 PR Test Plan과 issue close audit에 남긴다.
 
+## #1099 integration audit와 one-shot surface 퇴역
+
+최종 main 재측정에서 #1092 baseline 69,865줄보다 #1098 merge 시점이 70,689줄로 824줄 많았다. 개별 cleanup의 순감만 나열해 이 차이를 숨기지 않고, 원인을 같은 정의로 분해했다. baseline을 재기 위해 추가한 `scripts/policy_cleanup_baseline.py`와 전용 테스트가 579줄을 차지했고, 병행 feature의 Python code/test 추가가 정책 cleanup의 감소분을 상쇄했다.
+
+#1099는 측정을 마친 one-shot 구현·테스트 579줄을 lifecycle 단위로 종료했다. 전수 symbol/doc scan에서 runtime caller가 0이고 테스트만 소비하던 `parallel_wave.fan_in_check`·`WorkerResult`·`FanInResult`도, 현행 독립 peer의 claim board·merge lock 계약과 분리해 구현 134줄과 fan-in 전용 테스트 순 145줄을 제거했다. 이 PR의 code+test는 70,689→69,831로 858줄 순감하며, #1092 baseline보다도 34줄 작다. 파일 분할은 없고 compatibility 후보는 baseline 15→최종 10이다.
+
+`RUN-009`는 #1092 원장에서 누락된 single-session fan-in policy fossil이다. #1099에서 미분류 상태를 숨기지 않고 machine inventory에 추가한 뒤 곧바로 `퇴역 완료`로 닫았다. 현행 `compute_waves`, 별도 interactive peer, claim board, merge lock과 관련 safety test는 유지한다. one-shot 측정 구현도 public command·agent·mode·gate가 아니며, 제거 뒤 외부 배포물에는 fan-in symbol과 self-only 계측 코드가 모두 남지 않는다.
+
 ## 후속 범위 완전성
 
 | 후속 | inventory 입력 | 책임 |
 |---|---|---|
 | #1093 | DES-001~006 | design authoring·reader·warning·validator·배포 |
-| #1094 | RUN-001~008 | ledger/prose/alias/verdict/session state |
+| #1094 | RUN-001~009 | ledger/prose/alias/verdict/session state + 누락 fan-in fossil |
 | #1095 | ROUTE-001~005 | schema/preset/export/provider fallback |
 | #1096 | INST-001~005 | generated hook/partial install/root/path/worktree |
 | #1097 | LIFE-001~005 | current writer/legacy stories/no-AC issue/human/advisory |
 | #1098 | 위 500줄 이상 감사의 정책 제거 후 중복 책임 | 단순 분할이 아닌 assertion/helper 통합 |
-| #1099 | baseline JSON과 29개 원장 전항목 | 동일 정의 재측정·전체 gate·부모 close audit |
+| #1099 | baseline JSON과 30개 원장 전항목 | 동일 정의 재측정·누락 fan-in 퇴역·전체 gate·부모 close audit |
 
-machine validator 결과는 29/29 entry가 정확히 하나의 #1093~#1097에 배정되고 중복 ID가 없으며, 현재 남은 10/10 한시 호환 entry가 4요소를 갖춘다. `265e538`의 대형 파일 58/58도 표에서 유지·정책 cleanup·#1098 검토 중 하나로 판정했다. 어느 범위에도 속하지 않은 후보는 없다.
+machine validator 결과는 30/30 entry가 정확히 하나의 정책 영역에 배정되고 중복 ID가 없으며, 현재 남은 10/10 한시 호환 entry가 4요소를 갖춘다. `265e538`의 대형 파일 58/58도 표에서 유지·정책 cleanup·#1098 검토 중 하나로 판정했다. #1099에서 발견한 `RUN-009`까지 terminal 분류해 어느 범위에도 속하지 않은 후보는 없다.
 
 ## Codebase Sanity receipt
 
@@ -344,4 +354,4 @@ machine validator 결과는 29/29 entry가 정확히 하나의 #1093~#1097에 �
 - replacement hygiene: 현행 writer와 legacy reader를 분리했고 새 writer가 legacy 형식을 생성한다고 판정한 항목은 없음
 - warning 경계: legacy marker 자체는 warning/후속 입력이며 소비자 증거 없이 dead code로 승격하지 않음
 
-새 public command·agent·mode·workflow·상설 hard gate는 만들지 않았다. baseline 스크립트는 #1092/#1099 비교용 내부 one-shot 도구이며 plugin 배포 inventory와 `/init-dcness`에 포함하지 않는다.
+새 public command·agent·mode·workflow·상설 hard gate는 만들지 않았다. baseline 스크립트는 #1092/#1099 비교 완료와 함께 퇴역했고, 현행 peer 배포 경로는 `harness/parallel_wave.py`의 `compute_waves` + `dcness-helper` claim board + `pr-finalize.sh` merge lock으로만 남는다.

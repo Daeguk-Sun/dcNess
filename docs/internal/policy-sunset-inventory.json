@@ -112,7 +112,7 @@
       "implementation": ["harness/ledger.py:append_event", "harness/ledger.py:append_step_completed"],
       "tests_fixtures": ["tests/test_ledger.py", "tests/test_session_state.py"],
       "docs_distribution": ["docs/plugin/hooks.md", "skills/impl-loop/SKILL.md"],
-      "consumer_evidence": "등록 프로젝트 집계에서 ledger.jsonl 30개가 존재하고 .steps.jsonl은 0개이며 현재 writer는 ledger.jsonl만 생성한다.",
+      "consumer_evidence": "#1099 재집계에서 등록 프로젝트에 ledger.jsonl 35개, .steps.jsonl 0개가 존재하며 현재 writer는 ledger.jsonl만 생성한다.",
       "compatibility": null
     },
     {
@@ -227,6 +227,19 @@
       }
     },
     {
+      "id": "RUN-009",
+      "area": "run-ledger",
+      "policy_slice": "single-session worker fan-in result aggregation helper",
+      "classification": "퇴역 완료",
+      "follow_up_issue": 1094,
+      "current_ssot": ["docs/plugin/parallel-policy.md"],
+      "implementation": ["harness/parallel_wave.py:fan_in_check (removed)"],
+      "tests_fixtures": ["tests/test_parallel_wave.py"],
+      "docs_distribution": ["docs/plugin/parallel-policy.md"],
+      "consumer_evidence": "#1099 repository-wide symbol scan에서 fan_in_check, WorkerResult, FanInResult의 runtime·script·docs caller는 0건이고 tests만 옛 한 세션 fan-out/fan-in 모델을 고정했다. 현행 SSOT는 독립 interactive peer, claim board, merge lock만 노출한다.",
+      "compatibility": null
+    },
+    {
       "id": "ROUTE-001",
       "area": "routing",
       "policy_slice": "schema v3 role-split routes와 headless-chain 기본값",
@@ -326,7 +339,7 @@
       "implementation": ["hooks/tdd-guard.sh:delegate_generated_project_hook"],
       "tests_fixtures": ["tests/test_tdd_guard.py", "tests/test_generated_tdd_hooks.py"],
       "docs_distribution": ["commands/init-dcness.md", "docs/plugin/init-dcness.md"],
-      "consumer_evidence": "등록 5개 프로젝트의 generated install 보유량이 0/5, 2/5, 5/5, 0/5, 1/5라 partial state가 현재 실재한다.",
+      "consumer_evidence": "#1099 재집계에서 등록 5개 프로젝트의 generated install 보유량이 0/5, 0/5, 0/5, 0/5, 5/5라 partial state가 현재 실재한다.",
       "support_contract": {
         "installation_states": "generated file 0/5·1/5·2/5 partial state, plugin update 중간 상태, project-local hook 미생성 project",
         "supported_versions": "v0.12.0+의 generated/central 공존 계약; 현재 v0.23.0 partial install 지원",
@@ -364,7 +377,7 @@
       "follow_up_issue": 1096,
       "current_ssot": ["docs/plugin/deliverables-map.md#design-variants"],
       "implementation": ["scripts/check_doc_path_integrity.mjs:LEGACY_PATH_PREFIXES (removed)"],
-      "tests_fixtures": ["tests/test_canvas_design_workflow.py", "tests/test_policy_cleanup_baseline.py"],
+      "tests_fixtures": ["tests/test_canvas_design_workflow.py", "tests/test_doc_path_integrity.py"],
       "docs_distribution": ["commands/init-dcness.md", "docs/plugin/init-dcness.md"],
       "consumer_evidence": "2026-07-14 등록 프로젝트 5곳 익명 조사에서 legacy design-variants/ 디렉터리·markdown 참조가 모두 0건이었다. canonical docs/design-variants/ 디렉터리는 1곳에 존재했고 current generator는 canonical path만 쓴다.",
       "support_contract": {
@@ -372,7 +385,7 @@
         "supported_versions": "legacy 탐지는 v0.11.0~v0.23.0; 이 변경 이후 미지원",
         "retention_reason": "유지 사유 없음; current generator·docs·TDD skip은 docs/design-variants/ canonical path만 사용한다.",
         "removal_trigger": "등록 프로젝트 legacy directory 0 그리고 markdown reference 0으로 2026-07-14 충족",
-        "verification": "! rg 'LEGACY_PATH_PREFIXES' scripts/check_doc_path_integrity.mjs && ! rg '(^|[^/])design-variants/' commands docs/plugin; python3.11 -m unittest tests.test_canvas_design_workflow tests.test_doc_path_integrity tests.test_policy_cleanup_baseline -v"
+        "verification": "! rg 'LEGACY_PATH_PREFIXES' scripts/check_doc_path_integrity.mjs && ! rg '(^|[^/])design-variants/' commands docs/plugin; python3.11 -m unittest tests.test_canvas_design_workflow tests.test_doc_path_integrity -v"
       },
       "compatibility": null
     },
