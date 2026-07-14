@@ -37,6 +37,7 @@ EVAL_RUNS=3 bash evals/run.sh        # 케이스당 3회 반복 (릴리즈 전 �
 EVAL_RUNS=3 EVAL_RELEASE_CHECK=1 bash evals/run.sh  # 핵심 실사고 케이스 N/N 확인
 EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonnet)
 EVAL_OUTPUT_DIR=/tmp/dcness-evals bash evals/run.sh # 산출물 저장 위치 지정
+EVAL_PARALLEL=8 bash evals/run.sh    # (case, run) 셀을 최대 8개까지 병렬 실행 (기본 4, 1=직렬 안전판)
 
 # judge 보정 — blind report 생성 후 사람이 versioned golden을 작성·확인한다
 python3 evals/calibrate_judge.py .metrics/evals/run-YYYYMMDDTHHMMSSZ-PID --expect-golden-version example-human-v1 --expect-subset-version example-subset-v1
@@ -45,6 +46,12 @@ python3 evals/calibrate_judge.py /tmp/dcness-evals --golden /tmp/dcness-evals/ju
 # 저장된 core 후보 — owner 확인 전에는 의도적으로 exit 2
 python3 evals/calibrate_judge.py evals/calibration/core-incidents-v1 --golden evals/golden/core-incidents-v1.json --expect-golden-version core-incidents-v1-human-v1 --expect-subset-version core-incidents-v1
 ```
+
+`run.sh` 는 `(case, run)` 셀이 서로 독립인 점을 이용해 셀 단위로 병렬 실행한다. 셀 내부의
+report→judge 순서만 유지하고, 동시 셀 상한은 `EVAL_PARALLEL`(기본 4)로 조절한다.
+`EVAL_PARALLEL=1` 은 셀을 하나씩 도는 직렬 실행이며 병렬화 회귀가 의심될 때의 안전판이다.
+headless `claude -p` quota 는 메인 세션과 공유되므로 상한은 보수적으로 둔다. 집계는 shell
+카운터가 아니라 셀별 marker 파일로 하므로 병렬/직렬 pass·fail 판정은 동일하다.
 
 `guard_efficacy.py` 는 범주별 pass/fail count 를 출력한다. `provider-agnostic-order-gate`
 와 `provider-agnostic-tdd` 범주는 Claude Agent hook 이 아닌 `begin-step`/headless worker

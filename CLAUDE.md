@@ -187,6 +187,7 @@ PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality
 | 이름 | 용도 | 기본값 | 필수 |
 |---|---|---|---|
 | `EVAL_RUNS` / `EVAL_MODEL` / `EVAL_OUTPUT_DIR` / `EVAL_RELEASE_CHECK` / `EVAL_STRICT_CASES` | `evals/run.sh` 행동 eval — 반복 수 / 모델 / 산출물 위치 / 릴리즈 N/N 모드 / 핵심 케이스 목록 | `1` / `sonnet` / `.metrics/evals/run-*` / `0` / 핵심 2케이스 | X |
+| `EVAL_PARALLEL` | `evals/run.sh` 행동 eval 의 동시 실행 `(case, run)` 셀 상한. `1` = 직렬(회귀 안전판). headless `claude -p` quota 는 메인 세션과 공유하므로 보수적 값 유지 | `4` | X |
 | `DCNESS_FORCE_ENABLE` | is-active 게이트 임시 활성 (디버깅) | 미설정 | X |
 | `DCNESS_CODEX_TIMEOUT` | `dcness-codex-validator` / `dcness-codex-worker` Codex attempt timeout | validator `600`, worker `1200` | X |
 | `DCNESS_CODEX_IDLE_TIMEOUT` | `dcness-codex-worker` Codex attempt 의 stdout/prose/workspace 무진행 조기 kill timeout | `180` | X |
