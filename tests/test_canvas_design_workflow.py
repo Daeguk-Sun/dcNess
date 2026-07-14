@@ -280,15 +280,16 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertIn("docs/design-variants/drafts/", self.designer)
         self.assertNotIn("design-variants/<screen>-v<N>.html", self.designer)
 
-    def test_init_dcness_deploys_docs_design_variants_seed_and_redeploy_notice(
+    def test_init_dcness_deploys_canonical_docs_design_variants_seed(
         self,
     ) -> None:
         for text in (self.init_skill, self.init_ref):
             with self.subTest(doc=text[:30]):
                 self.assertIn("docs/design-variants/", text)
                 self.assertIn("docs/design-variants/drafts/", text)
-                self.assertIn("canvas.html", text)
-                self.assertIn("기존 활성 프로젝트", text)
+                self.assertNotIn("과거 루트 `design-variants/`", text)
+        self.assertIn("canvas.html", self.init_skill)
+        self.assertIn("templates/design-variants/**", self.init_ref)
         self.assertNotIn('TARGET="$PROJECT_ROOT/design-variants/$FILE"', self.init_skill)
         self.assertTrue((ROOT / "templates" / "design-variants" / ".gitignore").is_file())
         self.assertTrue(
@@ -297,8 +298,8 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
 
     def test_support_gates_treat_docs_design_variants_as_canonical_path(self) -> None:
         self.assertIn("'docs/design-variants/'", self.doc_path_integrity)
-        self.assertIn("LEGACY_PATH_PREFIXES", self.doc_path_integrity)
-        self.assertIn("'design-variants/'", self.doc_path_integrity)
+        self.assertNotIn("LEGACY_PATH_PREFIXES", self.doc_path_integrity)
+        self.assertNotIn("\n  'design-variants/',", self.doc_path_integrity)
 
         self.assertIn("*/docs/design-variants/*", self.tdd_guard)
         self.assertNotIn("*/design-variants/*) allow", self.tdd_guard)

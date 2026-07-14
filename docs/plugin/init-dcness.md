@@ -203,7 +203,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index 집계기를 1회 실행해야 한다. 전역 architecture 요약은 온디맨드다. |
 | Provider routing preset/custom 변경 | 예 | 기존 활성 프로젝트도 plugin 공용 local data 를 갱신해야 한다. 추천 preset 은 `dcness-helper routing enable-role-split-routing` 뒤 `dcness-helper routing doctor` 로 적용·검증하고, custom은 [Provider Routing](#provider-routing)의 현행 값만 사용한다. Native Codex skill 등록/fallback 용 `$CODEX_HOME/skills` 도 최신화된다. |
 | Project lifecycle 좌표 저장/변경 | 예 | repo variables 와 선택형 workflow 를 갱신해야 한다. |
-| docs/design + docs/design-variants seed 추가 | 예 | 부재 파일 seed 는 사용자 repo 에 직접 생성된다. draft 는 `docs/design-variants/drafts/` 에 두고 `.gitignore` 로 무시하되 `drafts/.gitkeep` 으로 디렉터리를 보존한다. 기존 활성 프로젝트가 과거 루트 `design-variants/` seed 만 갖고 있으면 `/init-dcness` custom design seed 를 재실행하거나 `templates/design-variants/{.gitignore,canvas.html,_lib/*,drafts/.gitkeep}` 를 `docs/design-variants/` 로 복사한다. |
+| docs/design + docs/design-variants seed 추가 | 예 | 부재 파일 seed 는 사용자 repo 에 직접 생성된다. draft 는 `docs/design-variants/drafts/` 에 두고 `.gitignore` 로 무시하되 `drafts/.gitkeep` 으로 디렉터리를 보존한다. |
 | TDD Guard 정책 갱신 | 아니오 | 중앙 fallback 과 self-test 본체는 plug-in update 로 갱신된다. project-local generated hook 이 없는 기존 프로젝트는 `/init-dcness` 또는 `/impl` 진입 시 생성 제안을 다시 받을 수 있다. |
 
 ## Auto PR Scope
