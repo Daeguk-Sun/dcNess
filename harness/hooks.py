@@ -1565,7 +1565,7 @@ def _maybe_emit_continuation_signal(
     else:
         next_hint = (
             "worker 가 남긴 검증 명령을 메인이 직접 실행(게이트 대행) 후 exit 0 이면 "
-                "git/PR, FAIL 이면 build-worker 재시도 분기. "
+            "git/PR, FAIL 이면 build-worker 재시도 분기. "
             if enum == "VALIDATION_BLOCKED"
             else "정의된 다음 agent 호출 또는 PR/review/merge 영역 "
             "(예: begin-step impl-validator + Agent impl-validator + end-step + PR 머지). "

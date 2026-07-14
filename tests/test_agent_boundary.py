@@ -318,7 +318,7 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
         # root-level epic artifacts and removed ADR locations are denied before the broad docs/ allow.
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            for agent in ("module-architect", "module-architect", "system-architect"):
+            for agent in ("module-architect", "system-architect"):
                 for path in (
                     "docs/stories.md",
                     "docs/ux-flow.md",
@@ -397,7 +397,7 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
             )
 
     def test_ux_architect_architecture_blocked(self):
-        # 역할 격리 보존 — ux-architect 는 architecture.md 를 쓰지 않는다 (architect 전용).
+        # 역할 격리 보존 — ux-architect 는 architecture.md 를 쓰지 않는다 (설계 전용).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
             reason = check_write_allowed("ux-architect", "docs/architecture.md", cwd=cwd)
@@ -408,10 +408,9 @@ class WriteAllowedAllowMatrixTests(unittest.TestCase):
 class LanguageNeutralAllowMatrixTests(unittest.TestCase):
     """#694 — ALLOW_MATRIX 언어 중립성.
 
-    build-worker / build-worker 의 write 경계가 JS/TS 모노레포 컨벤션에 묶여 비-JS 외부
-    프로젝트(Python·Go·Ruby·JVM·C#·PHP·Elixir·remotion 등)의 정상 산출물을 차단하던
-    회귀 수정. 역할 격리(build-worker=테스트만, build-worker=소스)는 유지하면서 언어·레이아웃만
-    중립화한다. 외부 프로젝트 시뮬레이션(DCNESS_INFRA="" + CLAUDE_PLUGIN_ROOT="").
+    build-worker의 source/test write 경계가 JS/TS 모노레포 컨벤션에 묶여 비-JS 외부
+    프로젝트(Python·Go·Ruby·JVM·C#·PHP·Elixir 등)의 정상 산출물을 차단하던 회귀를
+    검증한다. 외부 프로젝트 시뮬레이션(DCNESS_INFRA="" + CLAUDE_PLUGIN_ROOT="").
     """
 
     def setUp(self):
@@ -864,7 +863,7 @@ class LanguageNeutralAllowMatrixTests(unittest.TestCase):
             ):
                 reason = check_write_allowed("designer", p, cwd=cwd)
                 self.assertIsNotNone(reason, f"designer 가 확정/canvas 경로 {p} 를 쓰면 안 됨")
-            for agent in ("module-architect", "module-architect", "system-architect"):
+            for agent in ("module-architect", "system-architect"):
                 reason = check_write_allowed(
                     agent, "docs/design-variants/canvas.html", cwd=cwd
                 )

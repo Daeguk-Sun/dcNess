@@ -37,7 +37,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 - epic + story 이슈 등록 완료 (`scripts/create_epic_story_issues.sh` 산출, stories.md 상단 `**GitHub Epic Issue:** [#NNN]` 마커 존재) 또는 명시적 미등록 marker (`**GitHub Epic Issue:** 미등록 (사유: …)`) 존재
 - 미충족 시 → `/spec` 재진입 권고 (사용자에게 안내)
 
-> **design → spec 되돌림(backpressure)**: 위 "미충족 시 `/spec` 재진입" 과, design 도중 architect 가 PRD/요구사항 부족(`ESCALATE`) · 미검증 새 외부 의존(`NEW_DEP_ESCALATE`)을 발견해 upstream 으로 되돌리는 것은 모두 같은 되돌림 원리다 — downstream 이 upstream 산출물 부족을 판단하면 upstream 으로 되돌려 보강한다. 예외가 아니라 정상 루프다. 원리 SSOT = [`workflow-router.md` 되돌림 원리](../../docs/plugin/workflow-router.md#되돌림backpressure-원리), 처리 진본 = [`design-routing.md` escalate 처리](design-routing.md#escalate-처리).
+> **design → spec 되돌림(backpressure)**: 위 "미충족 시 `/spec` 재진입" 과, design 도중 설계 agent가 PRD/요구사항 부족(`ESCALATE`) · 미검증 새 외부 의존(`NEW_DEP_ESCALATE`)을 발견해 upstream 으로 되돌리는 것은 모두 같은 되돌림 원리다 — downstream 이 upstream 산출물 부족을 판단하면 upstream 으로 되돌려 보강한다. 예외가 아니라 정상 루프다. 원리 SSOT = [`workflow-router.md` 되돌림 원리](../../docs/plugin/workflow-router.md#되돌림backpressure-원리), 처리 진본 = [`design-routing.md` escalate 처리](design-routing.md#escalate-처리).
 
 ## 비대상 (다른 skill 추천)
 

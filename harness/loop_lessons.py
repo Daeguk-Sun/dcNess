@@ -23,7 +23,7 @@ LESSON_TEMPLATES: dict[str, str] = {
         "확인과 다른 해결 전략부터 시작한다."
     ),
     "MISSING_CONCLUSION_ENUM": (
-        "engineer prose 마지막 단락에 요구된 결론 enum 을 명시한다. 메인은 enum 부재를 "
+        "build-worker prose 마지막 단락에 요구된 결론 enum 을 명시한다. 메인은 enum 부재를 "
         "routing 신호로 쓰지 않는다."
     ),
     "STRAY_DIR_LEAK": (

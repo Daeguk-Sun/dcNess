@@ -82,7 +82,7 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
 
 - designer 는 drafts 전용이다. designer 는 `docs/design-variants/drafts/` 에만 write 한다.
 - 확정본(`docs/design-variants/<screen-id>.html`), `canvas.html`, `_lib/` 갱신은 메인이 수행한다.
-- build-worker, architect 계열 agent 는 `docs/design-variants/` 를 write 하지 않는다.
+- build-worker와 설계 계열 agent는 `docs/design-variants/`를 write하지 않는다.
 - canvas SSOT 를 바꿔야 하는 workflow 는 이 스킬을 호출하고, 승격 규약을 자체 문서에 중복 구현하지 않는다.
 
 ## 호출 측 계약

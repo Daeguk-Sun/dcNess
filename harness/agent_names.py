@@ -12,7 +12,7 @@ from typing import Optional
 
 
 def normalize_agent_type(agent_type: Optional[str]) -> Optional[str]:
-    """`dcness:architect:system-design` → `architect`. None / 비-dcness → 원형 그대로.
+    """`dcness:module-architect` → `module-architect`. None / 비-dcness → 원형 그대로.
 
     `dcness:` namespace prefix를 제거한다. boundary / trace / histogram 매칭 전
     호출해 namespaced(`dcness:impl-validator`)가 ALLOW_MATRIX 미정의 pass-through로

@@ -94,7 +94,7 @@ DCNESS_INFRA_PATTERNS: tuple[str, ...] = (
 #
 # 🔴 반드시 (agent == build-worker) AND (파일명 = build-{test,impl,validate,polish}.md)
 #    둘 다 좁힌다.
-#    넓게(임의 agent, 임의 .md) 열면 engineer 같은 agent 가 run_dir 에 module-architect.md /
+#    넓게(임의 agent, 임의 .md) 열면 다른 agent 가 run_dir 에 module-architect.md /
 #    impl-validator.md / architecture-validator.md 를 `PASS` 로 *위조* → `_has_pass` 가 신뢰 →
 #    implementation gate 우회 (codex review P1). build-* 파일명은 어떤
 #    gate 도 신뢰하지 않으므로 forge 불가.
@@ -224,7 +224,7 @@ _CODE_AGENT_EXCLUSIVE_DENY: tuple[str, ...] = (
 )
 
 
-# ── architect 계열 폐기된 docs 산출물 deny (#810) ────────────────
+# ── 설계 agent의 폐기된 docs 산출물 deny (#810) ────────────────
 # module-architect / system-architect 는 새 전역 문서 drift 를 막기 위해
 # docs/ 전체를 broad allow 한다. 대신 root-flat legacy epic 산출물, 폐기된 ADR 위치,
 # canvas-design 확정본 영역만 ALLOW 검사 전에 좁게 차단한다.
@@ -608,7 +608,7 @@ def check_write_allowed(
     if matched:
         return f"인프라 path 보호: matched `{matched}` (DCNESS_INFRA_PATTERNS)"
 
-    # 2. architect 계열 root-flat legacy deny → ALLOW 검사보다 먼저 (#810).
+    # 2. 설계 agent root-flat legacy deny → ALLOW 검사보다 먼저 (#810).
     if agent in _ARCHITECT_AGENTS:
         matched = _matches_any(norm, _ARCHITECT_ROOT_FLAT_DENY)
         if matched:

@@ -183,7 +183,7 @@ def _cli_end_step(args: Any) -> int:
                     file=sys.stderr,
                 )
         else:
-            # current_step 자체 부재 — begin-step 안 부른 경우 (engineer auto-PR 후 등).
+            # current_step 자체 부재 — begin-step 없이 end-step 을 호출한 경우.
             print(
                 f"[session_state] DRIFT WARN — current_step 부재. "
                 f"end-step={agent}{':' + mode if mode else ''}. "

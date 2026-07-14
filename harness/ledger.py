@@ -393,7 +393,7 @@ def infer_next_action(
     if agent == "impl-validator":
         return "finding-class에 따라 build-worker rework 또는 메인 root-cause 수정 예상"
     if agent == "architecture-validator":
-        return "finding 분류로 architect 분기 예상 (build-worker 단계 아님)"
+        return "finding 분류로 설계 agent 분기 예상 (build-worker 단계 아님)"
     return ""
 
 

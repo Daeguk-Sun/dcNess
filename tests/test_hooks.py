@@ -2102,7 +2102,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
 
     def test_payload_agent_type_overrides_active_agent_allow(self):
         # active_agent 가 다른 sub(impl-validator: write 전면 불가)로 덮어써져 있어도
-        # payload agent_type=engineer → engineer 매트릭스로 판정 → src 허용.
+        # payload agent_type=build-worker → build-worker 매트릭스로 판정 → src 허용.
         update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
@@ -2114,7 +2114,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
         self.assertEqual(rc, 0)  # impl-validator 로 판정됐다면 차단(rc 1)됐을 것
 
     def test_payload_agent_type_overrides_active_agent_block(self):
-        # active_agent=engineer(src 허용) 인데 payload agent_type=impl-validator → impl-validator 로 판정 → src 차단.
+        # active_agent=build-worker(src 허용)인데 payload agent_type=impl-validator → src 차단.
         update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_pretooluse_file_op(
             stdin_data=self._payload_with_agent(
@@ -2123,7 +2123,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)  # engineer 로 판정됐다면 통과(rc 0)됐을 것
+        self.assertEqual(rc, 1)  # build-worker로 판정됐다면 통과(rc 0)됐을 것
 
     def test_payload_agent_type_enforced_without_active_agent(self):
         # active_agent 미설정(다른 sub 의 SubagentStop 으로 clear됨)이라도 payload
@@ -2135,7 +2135,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 1)  # engineer 는 README write 불가
+        self.assertEqual(rc, 1)  # build-worker는 README write 불가
 
     def test_no_agent_type_does_not_trust_shared_active_agent(self):
         # payload 자기 식별이 없으면 동시 실행에 취약한 공유 슬롯을 권한 입력으로 쓰지 않는다.
@@ -2325,9 +2325,9 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         self.assertEqual(rc, 0)
 
     def test_prior_step_trace_excluded(self):
-        """#272 W3 진짜 회귀 — 직전 step (engineer) 의 trace 가 *다음* sub 의
+        """#272 W3 진짜 회귀 — 직전 build-worker trace가 *다음* sub의
         histogram 에 새지 않음. 시각 범위 매칭의 핵심."""
-        # 직전 engineer 가 file-op 다수 했음 (이미 끝남)
+        # 직전 build-worker가 file-op 다수 했음 (이미 끝남)
         self._seed_trace("build-worker", ["Read", "Edit", "Edit", "Bash"])
         # 시각 진행 보장 — _now_iso 1초 단위라 sleep 1.1s 면 충분
         import time
@@ -2350,7 +2350,7 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
 
     def test_histogram_filters_by_matched_agent(self):
         # issue #598 finding1 — 동시 sub 환경: since_ts 이후 다른 agent(impl-validator)의 trace 가
-        # 끝난 agent(engineer)의 histogram 에 섞이지 않음 (시각 범위 + agent 필터).
+        # 끝난 build-worker의 histogram에 섞이지 않음 (시각 범위 + agent 필터).
         import io
         import contextlib
         self._simulate_pre("build-worker", tool_use_id="toolu_eng")
@@ -2376,7 +2376,7 @@ class PostToolUseAgentHistogramTests(_PreToolBase):
         ctx = out.getvalue()
         self.assertIn("Read:1", ctx)
         self.assertIn("Edit:1", ctx)
-        # 동시 impl-validator 행동(Bash/Grep)은 engineer histogram 에 누설 안 됨.
+        # 동시 impl-validator 행동(Bash/Grep)은 build-worker histogram에 누설 안 됨.
         self.assertNotIn("Grep", ctx)
         self.assertNotIn("Bash", ctx)
 
@@ -2628,7 +2628,7 @@ class SubagentStopClearTests(_PreToolBase):
         self.assertEqual(live.get("active_agent"), "build-worker")
 
     def test_no_clobber_on_mismatch(self):
-        # 동시 sub: active_agent=impl-validator 인데 engineer 의 SubagentStop → impl-validator 슬롯 보존.
+        # 동시 sub: active_agent=impl-validator인데 build-worker SubagentStop → 슬롯 보존.
         from harness.hooks import handle_subagent_stop
         update_live(self.sid, base_dir=self.base, active_agent="impl-validator")
         rc = handle_subagent_stop(
@@ -2648,7 +2648,7 @@ class SubagentStopClearTests(_PreToolBase):
         self.assertNotIn("active_agent", live)
 
     def test_clears_namespaced_agent_type(self):
-        # issue #598 codex P1 — namespaced agent_type(dcness:engineer)도 정규화 후 매칭 clear.
+        # issue #598 codex P1 — namespaced dcness:build-worker도 정규화 후 매칭 clear.
         from harness.hooks import handle_subagent_stop
         update_live(self.sid, base_dir=self.base, active_agent="build-worker")
         rc = handle_subagent_stop(

@@ -159,10 +159,10 @@ escalate 계열 결론(`UX_FLOW_ESCALATE` / `ESCALATE` / `NEW_DEP_ESCALATE`) 수
 
 system-architect / module-architect 가 design 도중 tech-review 미검증 새 외부 의존을 발견했을 때. loop 자동 중단 X. 메인이 사용자에게 4안 제시:
 
-1. **채택 + 수동 검증** — 사용자 승인 → 해당 architect 재진입 (`docs/decisions/` 또는 epic architecture 에 "사용자 승인, tech-review 미경유" 흔적 명시)
-2. **대안 기술 우회** — 이미 tech-review 검증된 대안 지정 → architect 재진입
+1. **채택 + 수동 검증** — 사용자 승인 → 해당 설계 agent 재진입 (`docs/decisions/` 또는 epic architecture 에 "사용자 승인, tech-review 미경유" 흔적 명시)
+2. **대안 기술 우회** — 이미 tech-review 검증된 대안 지정 → 설계 agent 재진입
 3. **전체 원점 회귀** — `/design` 중단 + `/spec` 재진입 + 새 tech-review
-4. **대상 epic 기술 검토** — 현재 `/design` 을 보류하고 tech-reviewer 를 대상 epic 범위로 호출. 산출은 `docs/epics/epic-NN-<slug>/tech-review.md`, evidence/HTML 은 `.dcness-work/reviews/`. PASS + 사용자 OK 후 해당 architect 재진입
+4. **대상 epic 기술 검토** — 현재 `/design` 을 보류하고 tech-reviewer 를 대상 epic 범위로 호출. 산출은 `docs/epics/epic-NN-<slug>/tech-review.md`, evidence/HTML 은 `.dcness-work/reviews/`. PASS + 사용자 OK 후 해당 설계 agent 재진입
 
 (1)·(2)·(4) 재진입 cycle ≤ 3. (4)는 전역 `/tech-review` 재진입이 아니라 현재 epic 에 한정한 검토다. (3)은 `/spec` 으로 돌아가 전역 PRD와 preflight 를 다시 닫는다.
 

@@ -141,7 +141,7 @@ def _resolved_verdict(step) -> str:
     """현재 prose SSOT에서 추출한 step verdict."""
     return step.conclusion_enum or ""
 
-# DCN-CHG-20260430-38: engineer self-verify echo anchor 옵션 (DCN-30-34 강제 → DCN-30-38 자율화).
+# DCN-CHG-20260430-38: 구현 결과 self-verify echo anchor 옵션 (DCN-30-34 강제 → DCN-30-38 자율화).
 # prose 끝에 *어느 한 anchor* 라도 있으면 통과. 형식 자율 + substance 의무.
 # heading 라인에 검증 / verification / self-verify 단어가 *포함* 되면 매칭 (issue #249 — `## 수용 기준 검증` 같은 변형 허용).
 SELF_VERIFY_ANCHORS = [
@@ -152,7 +152,7 @@ SELF_VERIFY_ANCHORS = [
 
 
 def _has_self_verify_anchor(prose: str) -> bool:
-    """engineer prose 에 self-verify anchor 중 하나라도 있는지 (DCN-30-38)."""
+    """구현 prose 에 self-verify anchor 중 하나라도 있는지 (DCN-30-38)."""
     if not prose:
         return False
     for pat in SELF_VERIFY_ANCHORS:
@@ -811,7 +811,7 @@ def detect_wastes(
 
     # RETRY_SAME_FAIL — 연속 동일 FAIL enum
     # 이슈 #302 #1: prose-only mode (#284) 정착 후 PROSE_LOGGED 가 표준 advance enum.
-    # 또한 같은 (agent, mode) 가 N task 순회 정상 호출 (예: architect MODULE_PLAN × 4)
+    # 또한 같은 (agent, mode) 가 N task 순회 정상 호출 (예: module-architect × 4)
     # 시 동일 enum 반복은 *retry 가 아닌 정상 호출* — prose 내용이 다르면 다른 step.
     ADVANCE_ENUMS = {
         "PASS",
@@ -886,8 +886,8 @@ def detect_wastes(
     # MUST_FIX_GHOST — 게이트(리뷰어/검증자)가 PASS 결론을 내면서 prose 에 미해결
     # MUST FIX 를 남긴 모순 (= 통과시키면 안 되는데 통과). issue #770: 옛 룰은
     # `must_fix and 다음 step 존재` 만으로 위반 판정 → conveyor 의 정상 흐름
-    # (reviewer FAIL → engineer fix → 재리뷰) + producer 의 고친-항목 재진술
-    # (engineer POLISH 가 "## MUST FIX 1 …" 헤더로 처방 내역 기재) 을 전수 오탐.
+    # (reviewer FAIL → build-worker fix → 재리뷰) + producer 의 고친-항목 재진술을
+    # 전수 오탐했다.
     # 실측 41/41 false positive. 진짜 신호는 *게이트가 advance(PASS)하면서
     # blocker 를 남긴* 경우뿐 — producer(build-worker)의 must_fix
     # 와 reviewer 의 FAIL 은 정상. 마지막 step 미해결은 MUST_FIX_LEAK 담당이라 제외.
@@ -1580,7 +1580,7 @@ def render_report(report: RunReport) -> str:
     lines.append("")
     lines.append("```bash")
     lines.append("$HELPER insight <agent>[-<mode>] \"<자연어 한 줄>\"")
-    lines.append("# 예: $HELPER insight engineer-IMPL \"🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X\"")
+    lines.append("# 예: $HELPER insight build-worker \"🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X\"")
     lines.append("```")
     lines.append("")
     lines.append("- agent+mode 별 `.claude/loop-insights/<agent>[-<mode>].md` 에 누적 (FIFO 10 cap)")

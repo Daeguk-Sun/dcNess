@@ -46,7 +46,7 @@ GitHub 방식 (cross-ref CI의 `slugify`와 동일):
 - `F1`~`F14`·`M1`/`N`/`H1`/`L2` — 외부 실측 이슈·audit 코드
 - `task_index: i/total` — 기술 명세
 
-> catastrophic 게이트는 옛 `§2.1.N` 룰 번호 대신 *게이트 이름* (`pr-reviewer` / `engineer` /
+> catastrophic 게이트는 옛 `§2.1.N` 룰 번호 대신 *게이트 이름* (`pr-reviewer` / `build-worker` /
 > `module-architect` 게이트) 으로 부른다. 런타임 에러 메시지도 `[catastrophic: <게이트>]` 형식
 > (번호 없음). `§2.1.N` 번호 체계는 폐기됐다.
 

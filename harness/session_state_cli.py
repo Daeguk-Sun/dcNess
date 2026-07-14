@@ -981,7 +981,7 @@ def _build_arg_parser() -> Any:
         "insight",
         help="agent+mode 별 인사이트 한 줄 append (FIFO 10 cap, 메인 자율 평가)",
     )
-    p_in.add_argument("agent_mode", help='agent 또는 "agent-mode" (예: engineer, engineer-IMPL)')
+    p_in.add_argument("agent_mode", help='agent 또는 "agent-mode" (예: build-worker)')
     p_in.add_argument("text", help="자연어 한 줄 (예: \"🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X\")")
     p_in.set_defaults(func=_cli_insight)
 
