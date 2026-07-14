@@ -1,13 +1,11 @@
 """Design run durable record tests (#833)."""
 from __future__ import annotations
 
-import json
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
-from harness import ledger
 from harness.design_run_records import (
     DESIGN_RUN_RECORD_REL,
     build_design_record,
@@ -16,26 +14,7 @@ from harness.design_run_records import (
     design_record_path,
     write_design_record,
 )
-
-
-def _make_run_dir(tmp: Path, sid: str, rid: str, events: list[dict], prose: dict) -> Path:
-    run_dir = tmp / ".claude" / "harness-state" / ".sessions" / sid / "runs" / rid
-    run_dir.mkdir(parents=True, exist_ok=True)
-    prose_paths: dict[str, tuple[Path, str]] = {}
-    for name, text in prose.items():
-        p = run_dir / name
-        p.write_text(text, encoding="utf-8")
-        prose_paths[name] = (p, text)
-    with (run_dir / "ledger.jsonl").open("w", encoding="utf-8") as f:
-        for event in events:
-            rec = dict(event)
-            pf = rec.get("prose_file")
-            if isinstance(pf, str) and pf in prose_paths:
-                p, text = prose_paths[pf]
-                rec["prose_file"] = str(p)
-                rec.setdefault("sha256", ledger.sha256_text(text))
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    return run_dir
+from tests.run_fixtures import make_ledger_run_dir as _make_run_dir
 
 
 def _step(agent: str, filename: str, ts: str, *, provider: str | None = None) -> dict:

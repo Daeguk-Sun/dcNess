@@ -7,7 +7,6 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from typing import Optional
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
@@ -15,6 +14,10 @@ sys.path.insert(0, str(REPO_ROOT))
 from harness import ledger  # noqa: E402
 from harness import run_review as run_review_module  # noqa: E402
 from harness.session_state import record_fail_open_event  # noqa: E402
+from tests.run_fixtures import (  # noqa: E402
+    make_ledger_run_dir as _make_run_dir_ledger,
+    make_legacy_run_dir as _make_run_dir,
+)
 from harness.run_review import (  # noqa: E402
     RunReport, StepRecord, WasteFinding, build_report, detect_wastes, detect_notes,
     parse_steps, render_report, list_runs, find_run_dir,
@@ -51,41 +54,6 @@ class ActiveWastePatternSsotTests(unittest.TestCase):
 
         self.assertEqual(dynamic_pattern_lines, [])
         self.assertEqual(ACTIVE_WASTE_PATTERNS, frozenset(emitted))
-
-
-def _make_run_dir(tmp: Path, sid: str, rid: str, step_records: list[dict],
-                    prose_files: Optional[dict[str, str]] = None) -> Path:
-    run_dir = tmp / ".claude" / "harness-state" / ".sessions" / sid / "runs" / rid
-    run_dir.mkdir(parents=True, exist_ok=True)
-    jsonl = run_dir / ".steps.jsonl"
-    with open(jsonl, "w", encoding="utf-8") as f:
-        for r in step_records:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
-    for filename, content in (prose_files or {}).items():
-        (run_dir / filename).write_text(content, encoding="utf-8")
-    return run_dir
-
-
-def _make_run_dir_ledger(tmp: Path, sid: str, rid: str, events: list[dict],
-                          prose_files: Optional[dict[str, str]] = None) -> Path:
-    """이슈 #587 — ledger.jsonl (event stream) 기반 run_dir fixture."""
-    run_dir = tmp / ".claude" / "harness-state" / ".sessions" / sid / "runs" / rid
-    run_dir.mkdir(parents=True, exist_ok=True)
-    prose_by_name: dict[str, tuple[Path, str]] = {}
-    for filename, content in (prose_files or {}).items():
-        prose_path = run_dir / filename
-        prose_path.write_text(content, encoding="utf-8")
-        prose_by_name[filename] = (prose_path, content)
-    with open(run_dir / "ledger.jsonl", "w", encoding="utf-8") as f:
-        for e in events:
-            rec = dict(e)
-            prose_file = rec.get("prose_file")
-            if isinstance(prose_file, str) and prose_file in prose_by_name:
-                prose_path, content = prose_by_name[prose_file]
-                rec["prose_file"] = str(prose_path)
-                rec.setdefault("sha256", ledger.sha256_text(content))
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    return run_dir
 
 
 class ParseStepsTests(unittest.TestCase):
