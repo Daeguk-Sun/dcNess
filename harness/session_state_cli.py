@@ -916,11 +916,6 @@ def _cli_routing(args: Any) -> int:
         print(f"[dcness routing] disabled Codex validation: {path}")
         print(agent_routing.format_status())
         return 0
-    if action == "enable-codex-implementation":
-        path = agent_routing.enable_codex_implementation()
-        print(f"[dcness routing] enabled Codex implementation: {path}")
-        print(agent_routing.format_status())
-        return 0
     if action == "enable-headless-implementation":
         path = agent_routing.enable_headless_implementation()
         print(f"[dcness routing] enabled headless implementation chain: {path}")
@@ -929,11 +924,6 @@ def _cli_routing(args: Any) -> int:
     if action == "enable-claude-headless-implementation":
         path = agent_routing.enable_claude_headless_implementation()
         print(f"[dcness routing] enabled Claude headless implementation: {path}")
-        print(agent_routing.format_status())
-        return 0
-    if action == "disable-codex-implementation":
-        path = agent_routing.disable_codex_implementation()
-        print(f"[dcness routing] disabled Codex implementation: {path}")
         print(agent_routing.format_status())
         return 0
     if action == "set":
@@ -1394,12 +1384,6 @@ def _build_arg_parser() -> Any:
     rt_set.add_argument("provider", choices=("claude", "codex"))
     rt_set.set_defaults(func=_cli_routing)
 
-    rt_enable_impl = rt_sub.add_parser(
-        "enable-codex-implementation",
-        help="legacy: build-worker 를 Codex-first 로 보냄",
-    )
-    rt_enable_impl.set_defaults(func=_cli_routing)
-
     rt_enable_headless = rt_sub.add_parser(
         "enable-headless-implementation",
         help="implementation agent 를 Codex headless → Claude headless → Claude main 체인으로 보냄",
@@ -1412,12 +1396,6 @@ def _build_arg_parser() -> Any:
     )
     rt_enable_claude_headless.set_defaults(func=_cli_routing)
 
-    rt_disable_impl = rt_sub.add_parser(
-        "disable-codex-implementation",
-        help="implementation agent 분기를 Claude 로 되돌림",
-    )
-    rt_disable_impl.set_defaults(func=_cli_routing)
-
     rt_set_impl = rt_sub.add_parser(
         "set-implementation",
         help="특정 implementation agent provider 설정",
@@ -1425,7 +1403,7 @@ def _build_arg_parser() -> Any:
     rt_set_impl.add_argument("agent")
     rt_set_impl.add_argument(
         "provider",
-        choices=("claude", "codex-first", "claude-headless", "headless-chain"),
+        choices=("claude", "claude-headless", "headless-chain"),
     )
     rt_set_impl.set_defaults(func=_cli_routing)
 
@@ -1433,7 +1411,7 @@ def _build_arg_parser() -> Any:
     rt_resolve.add_argument("agent")
     rt_resolve.add_argument(
         "--implementation-provider",
-        choices=("claude", "codex-first", "claude-headless", "headless-chain"),
+        choices=("claude", "claude-headless", "headless-chain"),
         default=None,
         help="impl-validator 기본값을 계산할 때 구현 provider camp 를 반영",
     )

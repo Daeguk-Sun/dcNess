@@ -24,7 +24,6 @@ __all__ = [
     "ROUTABLE_IMPLEMENTATION_AGENTS",
     "ROUTABLE_VALIDATION_AGENTS",
     "VALID_IMPLEMENTATION_PROVIDERS",
-    "VALID_PROVIDERS",
     "VALID_VALIDATION_PROVIDERS",
     "IMPLEMENTATION_PROVIDER_CHAINS",
     "routing_path",
@@ -39,14 +38,11 @@ __all__ = [
     "disable_codex_validation",
     "enable_headless_implementation",
     "enable_claude_headless_implementation",
-    "enable_codex_implementation",
-    "disable_codex_implementation",
     "doctor",
     "format_status",
 ]
 
 CONFIG_VERSION = 3
-SUPPORTED_CONFIG_VERSIONS = (1, 2, 3)
 ROUTABLE_VALIDATION_AGENTS = (
     "impl-validator",
     "architecture-validator",
@@ -57,18 +53,14 @@ ROUTABLE_IMPLEMENTATION_AGENTS = (
 VALID_VALIDATION_PROVIDERS = ("claude", "codex")
 VALID_IMPLEMENTATION_PROVIDERS = (
     "claude",
-    "codex-first",
     "claude-headless",
     "headless-chain",
 )
 IMPLEMENTATION_PROVIDER_CHAINS = {
     "headless-chain": ("codex-headless", "claude-headless", "claude-main"),
-    "codex-first": ("codex-headless", "claude-main"),
     "claude-headless": ("claude-headless", "claude-main"),
     "claude": ("claude-main",),
 }
-# Backward-compatible export for callers that only know validation routing.
-VALID_PROVIDERS = VALID_VALIDATION_PROVIDERS
 DEFAULT_VALIDATION_PROVIDER = "claude"
 DEFAULT_IMPLEMENTATION_PROVIDER = "headless-chain"
 SAFE_FALLBACK_PROVIDER = "claude"
@@ -115,7 +107,7 @@ def _implementation_camp(
     main_provider: str = "claude",
 ) -> str:
     """Return the model camp that is expected to implement the change."""
-    if implementation_provider in {"headless-chain", "codex-first"}:
+    if implementation_provider == "headless-chain":
         return "codex"
     if implementation_provider in {"claude", "claude-headless"}:
         return "claude"
@@ -179,6 +171,7 @@ def load_routing(*, path: Optional[Path] = None) -> Dict[str, Any]:
         )
     cfg = _default_config()
     cfg.update(data)
+    cfg["version"] = data.get("version")
     cfg["routes"] = routes
     cfg["implementation_routes"] = implementation_routes
     return cfg
@@ -232,13 +225,14 @@ def resolve_provider(
     no explicit local override exists. If the opposite provider is Codex but the
     Codex CLI is unavailable, the default safely falls back to Claude.
     Other validation agents default to Claude. Implementation agents default to
-    the 3-stage headless chain. Explicit legacy values keep their previous
-    meaning.
+    the 3-stage headless chain.
     Unknown agents always resolve to Claude.
     """
     if agent not in ROUTABLE_VALIDATION_AGENTS + ROUTABLE_IMPLEMENTATION_AGENTS:
         return SAFE_FALLBACK_PROVIDER
     cfg = load_routing(path=path)
+    if cfg.get("version") != CONFIG_VERSION:
+        return SAFE_FALLBACK_PROVIDER
     if agent in ROUTABLE_VALIDATION_AGENTS:
         routes = cfg.get("routes", {})
         provider = routes.get(agent)
@@ -330,21 +324,6 @@ def disable_codex_validation(*, path: Optional[Path] = None) -> Path:
     return save_routing(cfg, path=path)
 
 
-def enable_codex_implementation(*, path: Optional[Path] = None) -> Path:
-    """Legacy Codex-first implementation route.
-
-    This intentionally keeps the old two-stage meaning: Codex headless, then
-    Claude main. New installs should normally use enable_headless_implementation.
-    """
-    cfg = load_routing(path=path)
-    routes = {
-        agent: "codex-first"
-        for agent in ROUTABLE_IMPLEMENTATION_AGENTS
-    }
-    cfg["implementation_routes"] = routes
-    return save_routing(cfg, path=path)
-
-
 def enable_headless_implementation(*, path: Optional[Path] = None) -> Path:
     cfg = load_routing(path=path)
     routes = {
@@ -362,13 +341,6 @@ def enable_claude_headless_implementation(*, path: Optional[Path] = None) -> Pat
     return save_routing(cfg, path=path)
 
 
-def disable_codex_implementation(*, path: Optional[Path] = None) -> Path:
-    cfg = load_routing(path=path)
-    routes = {agent: "claude" for agent in ROUTABLE_IMPLEMENTATION_AGENTS}
-    cfg["implementation_routes"] = routes
-    return save_routing(cfg, path=path)
-
-
 def doctor(*, path: Optional[Path] = None) -> list[str]:
     """Return routing config problems. Empty list means healthy."""
     problems: list[str] = []
@@ -379,9 +351,8 @@ def doctor(*, path: Optional[Path] = None) -> list[str]:
         return [str(exc)]
 
     version = cfg.get("version")
-    if version not in SUPPORTED_CONFIG_VERSIONS:
-        supported = "|".join(str(v) for v in SUPPORTED_CONFIG_VERSIONS)
-        problems.append(f"unsupported version: {version!r} (expected {supported})")
+    if version != CONFIG_VERSION:
+        problems.append(f"unsupported version: {version!r} (expected {CONFIG_VERSION})")
 
     routes = cfg.get("routes", {})
     if not isinstance(routes, dict):
@@ -420,6 +391,14 @@ def format_status(*, path: Optional[Path] = None) -> str:
                 f"[dcness routing] problem: {exc}",
             ]
         )
+
+    if cfg.get("version") != CONFIG_VERSION:
+        cfg["routes"] = {
+            agent: SAFE_FALLBACK_PROVIDER for agent in ROUTABLE_VALIDATION_AGENTS
+        }
+        cfg["implementation_routes"] = {
+            agent: SAFE_FALLBACK_PROVIDER for agent in ROUTABLE_IMPLEMENTATION_AGENTS
+        }
 
     lines = [
         f"[dcness routing] config: {target}",

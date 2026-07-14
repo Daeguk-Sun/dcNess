@@ -17,7 +17,6 @@ Agents:
 
 Providers:
   headless-chain    Codex headless -> Claude headless -> Claude main fallback
-  codex-first       Codex headless -> Claude main fallback (legacy)
   claude-headless   Claude headless -> Claude main fallback
   claude            Claude main fallback only
 

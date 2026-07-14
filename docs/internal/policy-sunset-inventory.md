@@ -131,6 +131,51 @@ done | awk -F '\t' '
 
 2026-07-14 #1094 실행 결과는 등록 프로젝트 5곳 모두 state root가 있었고 `current-only 32`, `legacy-only 0`, `mixed 0`이었다. 지원 범위로 확인 가능한 plugin/cache·과거 checkout 표본은 같은 파일명 분류를 `$HOME/.claude`와 현재 저장소의 부모 디렉터리에 적용해 `current-only 33`, `legacy-only 62`, `mixed 0`을 확인했다. legacy 62개·339행에는 `validator` 58행, `CHANGES_REQUESTED` 4행, `LGTM` 33행, `prose_file` 없는 row 125개가 실제 존재했다. 따라서 현재 active snapshot의 0건만으로 read-side 지원 종료를 선언하지 않는다.
 
+### #1095 provider routing cleanup 상태 전이
+
+`ROUTE-003`의 `codex-first` preset·CLI·provider chain과 `ROUTE-004`의 소비자 없는 `VALID_PROVIDERS` export를 구현·테스트·문서에서 함께 제거해 `퇴역 완료`로 이동했다. 지원 custom implementation route는 `headless-chain`, `claude-headless`, `claude` 세 값이며 추천 role split과 migration 순서는 [`docs/plugin/init-dcness.md`](../plugin/init-dcness.md#provider-routing)가 한 곳에서 소유한다. 전체 compatibility 후보는 13개에서 11개, routing 후보는 3개에서 1개로 감소한다.
+
+`ROUTE-002`는 둘로 나눠 판정했다. 설치 data와 확인 가능한 지원 범위에서 schema v1·v2는 0건이라 지원을 종료하고, version이 3이 아니면 runtime이 safe Claude route를 사용하며 doctor가 migration 필요를 보고한다. 반면 등록 프로젝트 5곳이 공유하는 schema v3 config에는 retired key 3개가 실제 남아 있어 이 부분은 `한시적 호환 필요`를 유지한다. 추천 preset은 두 route map을 현행 key로 덮어쓰므로 `routing enable-role-split-routing` 뒤 필요한 custom override를 다시 적용하고 `routing doctor` PASS를 확인하는 migration 경로다.
+
+host path를 출력하지 않는 설치 config 재현 명령은 다음과 같다.
+
+```sh
+python3.11 - <<'PY'
+import json
+from collections import Counter
+from pathlib import Path
+
+registry = json.loads((Path.home() / ".claude/plugins/data/dcness-dcness/projects.json").read_text())
+files = sorted((Path.home() / ".claude").rglob("routing.json"))
+versions = Counter()
+validation_keys = Counter()
+implementation_keys = Counter()
+implementation_values = Counter()
+for path in files:
+    data = json.loads(path.read_text())
+    versions[str(data.get("version"))] += 1
+    validation_keys.update((data.get("routes") or {}).keys())
+    implementation_keys.update((data.get("implementation_routes") or {}).keys())
+    implementation_values.update((data.get("implementation_routes") or {}).values())
+print("registered_projects", len(registry["projects"]))
+print("routing_files", len(files))
+print("versions", dict(sorted(versions.items())))
+print("validation_keys", dict(sorted(validation_keys.items())))
+print("implementation_keys", dict(sorted(implementation_keys.items())))
+print("implementation_values", dict(sorted(implementation_values.items())))
+PY
+```
+
+2026-07-14 실행 결과는 등록 프로젝트 5곳, routing file 1개, version 3 한 건, validation key `architecture-validator`·`code-validator`·`pr-reviewer` 각 1건, implementation key `test-engineer` 1건, implementation value `claude` 1건이었다. `codex-first`와 schema v1·v2는 0건이다. 현행 role split·custom route 회귀와 provider 성공·변경 전 실패·변경 후 실패 안전 경계는 `tests.test_agent_routing`과 `tests.test_provider_chain`이 분리 검증한다. Python code+test diff는 93줄 추가·97줄 삭제로 4 LOC 순감이다.
+
+| ID | 실제 소비자·지원 경계 | 유지 또는 종료 이유 | 제거 trigger | 확인 명령 |
+|---|---|---|---|---|
+| ROUTE-001 | schema v3 `routes`/`implementation_routes`; init preset·validator·build-worker | 현행 role split과 custom route 진본 | 대체 routing 계약과 config migration이 별도로 승인될 때 | `python3.11 -m unittest tests.test_agent_routing -v` |
+| ROUTE-002 | schema v3 retired key 3종은 migration 대상; schema v1·v2 지원 종료 | 설치 data 실재 config를 조용히 삭제하지 않고 doctor로 식별 | 등록 config retired-key scan 0 | `dcness-helper routing enable-role-split-routing` 후 `routing doctor` |
+| ROUTE-003 | `codex-first` 설치 config 0건; 이 변경부터 미지원 | 소비자 없는 preset·CLI·chain을 terminal 제거 | 완료 — runtime·docs·tests active surface 0 | `rg 'codex-first|enable-codex-implementation|disable-codex-implementation'` active surface와 routing/provider tests |
+| ROUTE-004 | 저장 형식과 무관한 Python export; repo caller 0 | backward-compatible 이름만 남은 read surface | 완료 — export·`__all__`·assertion 제거 | `rg 'VALID_PROVIDERS' harness scripts`와 `tests.test_policy_cleanup_baseline` |
+| ROUTE-005 | schema v3 `headless-chain`; implementation runtime | pre-mutation 실패만 복구하고 mutation 후 자동 덮어쓰기를 막는 현행 safety | 동등한 mutation 감지·중단 보장으로 chain을 대체할 때 | `python3.11 -m unittest tests.test_provider_chain -v` |
+
 ### 활성 소비자 snapshot
 
 등록 파일 `~/.claude/plugins/data/dcness-dcness/projects.json`의 경로는 문서에 공개하지 않고 registry 순번으로만 조사했다.
@@ -198,7 +243,7 @@ done | awk -F '\t' '
 | `harness/product_journey.py` | 864 | 제품 journey runner | compatibility와 무관 | 현행 |
 | `harness/run_review.py` | 1,853 | persisted run 분석·waste report | legacy name/verdict/prose 비중 큼 | #1094 핵심, 이후 #1098 |
 | `harness/session_state.py` | 2,125 | run lifecycle/state owner | private CLI re-export는 #1094에서 퇴역; persisted state 안전 책임 유지 | #1094 완료 뒤 #1098, 단순 분할 무효 |
-| `harness/session_state_cli.py` | 1,486 | CLI dispatch·routing | canonical CLI owner; legacy route CLI는 별도 책임 | #1095 |
+| `harness/session_state_cli.py` | 1,464 | CLI dispatch·routing | canonical CLI owner; legacy implementation preset CLI는 #1095에서 제거 | #1095 완료 뒤 #1098 |
 | `harness/session_state_cli_finalize.py` | 595 | end-step/finalize/prose receipt | prose fallback과 old field 설명 | #1094 |
 | `harness/session_state_status.py` | 501 | status/diagnostic view | state reader assertion과 중복 가능 | #1094 뒤 #1098 |
 | `harness/story_runner.py` | 509 | story stack state | 현행 lifecycle | #1097 reader 정리 뒤 #1098 |
@@ -222,14 +267,14 @@ done | awk -F '\t' '
 | `tests/test_outcome_scorecard.py` | 574 | outcome aggregation | legacy verdict fixture 일부 | #1094 후 #1098 |
 | `tests/test_parallel_wave.py` | 978 | wave/merge lock | 현행 concurrency safety | 유지 |
 | `tests/test_product_journey.py` | 610 | journey runner | compatibility와 무관 | 현행 |
-| `tests/test_provider_chain.py` | 1,466 | provider chain 상태전이 | codex-first fixture와 현행 safety fallback 혼재 | #1095 핵심, mutation-after-failure 보존 |
+| `tests/test_provider_chain.py` | 1,466 | provider chain 상태전이 | 현행 provider 성공·변경 전 실패·변경 후 실패 안전 경계 | #1095에서 legacy route 제거, safety fallback 보존 |
 | `tests/test_run_review.py` | 1,622 | run review current/legacy 분석 | legacy alias/verdict/.steps fixture 비중 큼 | #1094 핵심, 이후 #1098 |
 | `tests/test_session_state.py` | 3,510 | state/CLI/run lifecycle | private re-export fixture는 #1094에서 canonical owner import로 전환; persisted safety fixture 유지 | #1094 완료 뒤 #1098 |
 | `tests/test_story_runner.py` | 545 | story runner lifecycle | 현행 stack fixture | #1097 뒤 #1098 |
 | `tests/test_surface_docs_sync.py` | 1,005 | agent/docs/Codex mirror sync | legacy design leniency 문자열 assertion 포함 | #1093 후 #1098 |
 | `tests/test_tdd_guard.py` | 816 | central/generated TDD guard | partial install fallback fixture가 실사용 | #1096 후 #1098, TDD invariant 보존 |
 
-실제 감량 우선순위는 `ledger/run_review/session_state`와 대응 테스트의 다세대 persisted 형식, provider-chain의 `codex-first`, design legacy authoring·reader, install partial-state 증거다. archive·release data·safety eval·concurrency·journey 파일은 크기만으로 선택하지 않는다.
+실제 감량 우선순위는 `ledger/run_review/session_state`와 대응 테스트의 다세대 persisted 형식, provider routing의 소비자 없는 preset/export, design legacy authoring·reader, install partial-state 증거다. archive·release data·safety eval·concurrency·journey 파일은 크기만으로 선택하지 않는다.
 
 ## 후속 범위 완전성
 

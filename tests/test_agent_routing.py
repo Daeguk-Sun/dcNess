@@ -5,7 +5,7 @@ import json
 import os
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -79,8 +79,8 @@ class AgentRoutingTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             agent_routing.set_provider("impl-validator", "openai")
 
-    def test_implementation_routes_can_disable_and_enable_headless_chain(self) -> None:
-        agent_routing.disable_codex_implementation()
+    def test_implementation_routes_can_select_claude_and_headless_chain(self) -> None:
+        agent_routing.set_implementation_provider("build-worker", "claude")
         for agent in agent_routing.ROUTABLE_IMPLEMENTATION_AGENTS:
             self.assertEqual(agent_routing.resolve_provider(agent), "claude")
 
@@ -88,10 +88,15 @@ class AgentRoutingTests(unittest.TestCase):
         for agent in agent_routing.ROUTABLE_IMPLEMENTATION_AGENTS:
             self.assertEqual(agent_routing.resolve_provider(agent), "headless-chain")
 
-    def test_legacy_enable_codex_implementation_keeps_codex_first_semantics(self) -> None:
-        agent_routing.enable_codex_implementation()
-        for agent in agent_routing.ROUTABLE_IMPLEMENTATION_AGENTS:
-            self.assertEqual(agent_routing.resolve_provider(agent), "codex-first")
+    def test_legacy_aliases_are_not_public_or_routable(self) -> None:
+        self.assertNotIn("VALID_PROVIDERS", agent_routing.__all__)
+        self.assertFalse(hasattr(agent_routing, "VALID_PROVIDERS"))
+        self.assertFalse(hasattr(agent_routing, "enable_codex_implementation"))
+        self.assertFalse(hasattr(agent_routing, "disable_codex_implementation"))
+        self.assertEqual(
+            agent_routing.implementation_provider_chain("codex-first"),
+            ("claude-main",),
+        )
 
     def test_role_split_preset_routes_implementation_and_contract_roles(self) -> None:
         agent_routing.enable_role_split_routing()
@@ -112,6 +117,8 @@ class AgentRoutingTests(unittest.TestCase):
             agent_routing.set_implementation_provider("impl-validator", "claude")
         with self.assertRaises(ValueError):
             agent_routing.set_implementation_provider("build-worker", "codex")
+        with self.assertRaises(ValueError):
+            agent_routing.set_implementation_provider("build-worker", "codex-first")
 
     def test_doctor_reports_invalid_config(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -160,7 +167,7 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("impl-validator:", text)
         self.assertIn("build-worker: claude", text)
 
-    def test_v1_config_is_supported_and_defaults_implementation_to_headless_chain(self) -> None:
+    def test_v1_config_requires_migration_and_uses_safe_routes(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(
             json.dumps(
@@ -173,24 +180,48 @@ class AgentRoutingTests(unittest.TestCase):
             ),
             encoding="utf-8",
         )
-        self.assertEqual(agent_routing.doctor(), [])
-        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "codex")
-        self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
+        problems = agent_routing.doctor()
+        self.assertTrue(any("unsupported version: 1" in problem for problem in problems))
+        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "claude")
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
+        self.assertIn("impl-validator: claude", agent_routing.format_status())
+        self.assertIn("build-worker: claude", agent_routing.format_status())
 
-    def test_v2_explicit_codex_first_keeps_legacy_chain(self) -> None:
+    def test_existing_config_without_version_requires_migration(self) -> None:
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text("{}", encoding="utf-8")
+
+        self.assertTrue(
+            any("unsupported version: None" in problem for problem in agent_routing.doctor())
+        )
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
+
+    def test_v2_codex_first_requires_migration_and_uses_safe_routes(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(
             json.dumps(
                 {
                     "version": 2,
-                    "routes": {},
+                    "routes": {"pr-reviewer": "claude"},
                     "implementation_routes": {"build-worker": "codex-first"},
                 }
             ),
             encoding="utf-8",
         )
+        problems = agent_routing.doctor()
+        self.assertTrue(any("unsupported version: 2" in problem for problem in problems))
+        self.assertTrue(
+            any(
+                "invalid implementation provider for build-worker: codex-first" in problem
+                for problem in problems
+            )
+        )
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
+
+        agent_routing.enable_role_split_routing()
+        self.assertEqual(agent_routing.load_routing()["version"], 3)
         self.assertEqual(agent_routing.doctor(), [])
-        self.assertEqual(agent_routing.resolve_provider("build-worker"), "codex-first")
+        self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
 
 
 class AgentRoutingCliTests(unittest.TestCase):
@@ -238,6 +269,15 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(ns.routing_cmd, "set-implementation")
         self.assertEqual(ns.agent, "build-worker")
         self.assertEqual(ns.provider, "claude-headless")
+
+        for argv in (
+            ["routing", "enable-codex-implementation"],
+            ["routing", "disable-codex-implementation"],
+            ["routing", "set-implementation", "build-worker", "codex-first"],
+        ):
+            with self.subTest(argv=argv), redirect_stderr(StringIO()):
+                with self.assertRaises(SystemExit):
+                    parser.parse_args(argv)
 
     def test_cli_enable_and_resolve(self) -> None:
 
@@ -287,9 +327,15 @@ class AgentRoutingCliTests(unittest.TestCase):
 
         out = StringIO()
         with redirect_stdout(out):
-            rc = _cli_routing(SimpleNamespace(routing_cmd="disable-codex-implementation"))
+            rc = _cli_routing(
+                SimpleNamespace(
+                    routing_cmd="set-implementation",
+                    agent="build-worker",
+                    provider="claude",
+                )
+            )
         self.assertEqual(rc, 0)
-        self.assertIn("disabled Codex implementation", out.getvalue())
+        self.assertIn("set implementation build-worker=claude", out.getvalue())
 
         out = StringIO()
         with redirect_stdout(out):
@@ -329,18 +375,6 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "claude-headless")
 
-        out = StringIO()
-        with redirect_stdout(out):
-            rc = _cli_routing(
-                SimpleNamespace(
-                    routing_cmd="set-implementation",
-                    agent="build-worker",
-                    provider="codex-first",
-                )
-            )
-        self.assertEqual(rc, 0)
-        self.assertIn("set implementation build-worker=codex-first", out.getvalue())
-
     def test_cli_role_split_routing_preset_and_doctor(self) -> None:
 
         out = StringIO()
@@ -371,7 +405,7 @@ class AgentRoutingCliTests(unittest.TestCase):
 
 
 class InitRoleSplitRoutingDocsTests(unittest.TestCase):
-    def test_init_docs_recommend_role_split_preset_and_keep_custom_routes(self) -> None:
+    def test_init_docs_recommend_role_split_preset_and_current_custom_routes(self) -> None:
         root = Path(__file__).resolve().parents[1]
         command = (root / "commands" / "init-dcness.md").read_text(
             encoding="utf-8",
@@ -389,8 +423,10 @@ class InitRoleSplitRoutingDocsTests(unittest.TestCase):
                 self.assertIn("기존 활성 프로젝트", text)
                 self.assertIn("routing doctor", text)
                 self.assertIn("enable-codex-validation", text)
-                self.assertIn("enable-codex-implementation", text)
-                self.assertIn("disable-codex-implementation", text)
+                self.assertIn("set-implementation build-worker claude", text)
+                self.assertNotIn("enable-codex-implementation", text)
+                self.assertNotIn("disable-codex-implementation", text)
+                self.assertNotIn("codex-first", text)
 
 
 if __name__ == "__main__":
