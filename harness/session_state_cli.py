@@ -71,8 +71,7 @@ format_status_report = _status.format_status_report
 _is_self_repo = _status._is_self_repo
 
 # peer parallelism (wave board + merge lock) handlers live in a cohesive
-# sibling module; re-expose them so _build_arg_parser and the
-# ``harness.session_state`` compatibility path resolve the historical names.
+# sibling module; import them here because this dispatcher owns the CLI parser.
 from harness.session_state_cli_wave import (  # noqa: E402
     _cli_merge_lock as _cli_merge_lock,
     _cli_normalize_scope as _cli_normalize_scope,
@@ -91,8 +90,7 @@ from harness.session_state_cli_wave import (  # noqa: E402
 )
 
 # step completion + run finalization handlers live in a cohesive sibling
-# module; re-expose them so _cli_end_run / _build_arg_parser and the
-# ``harness.session_state`` compatibility path resolve the historical names.
+# module; import them here because _cli_end_run and the parser dispatch to them.
 from harness.session_state_cli_finalize import (  # noqa: E402
     _CONCLUSION_HEADER_RE as _CONCLUSION_HEADER_RE,
     _MUST_FIX_HEADER_ONLY_RE as _MUST_FIX_HEADER_ONLY_RE,

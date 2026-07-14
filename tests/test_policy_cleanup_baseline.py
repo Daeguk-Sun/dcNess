@@ -144,6 +144,19 @@ class PolicyCleanupBaselineTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate inventory id"):
             self.module.summarize_inventory([entry, dict(entry)])
 
+    def test_run006_transition_is_terminal_and_private_facade_is_absent(self) -> None:
+        entries = self.module.load_inventory(
+            ROOT / "docs" / "internal" / "policy-sunset-inventory.json"
+        )
+        run006 = next(entry for entry in entries if entry["id"] == "RUN-006")
+        state_source = (ROOT / "harness" / "session_state.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertEqual(run006["classification"], "퇴역 완료")
+        self.assertNotIn("_CLI_REEXPORT_NAMES", state_source)
+        self.assertNotIn("def __getattr__(", state_source)
+
     def test_unit_suite_runs_the_requested_revision_not_dirty_working_tree(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)

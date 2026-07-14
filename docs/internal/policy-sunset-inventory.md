@@ -62,6 +62,42 @@ python3.11 scripts/policy_cleanup_baseline.py \
 
 배포 경로는 plugin 본체다. `agents/**`, `docs/plugin/**`, `skills/**`, `scripts/**`, `codex/**` 변경은 다음 plugin 버전 업데이트로 활성 프로젝트에 도달하며, `/init-dcness`가 복사하는 generated file이나 workflow 계약은 바뀌지 않아 재실행 migration은 필요하지 않다. release artifact candidate는 삭제된 sweep report를 더 이상 포함하지 않는지 smoke로 확인한다.
 
+### #1094 run/ledger cleanup 상태 전이
+
+`RUN-006`은 `제거 가능`에서 `퇴역 완료`로 이동했다. `harness.session_state`가 2026-07-05 모듈 분리 뒤 임시로 다시 노출하던 private CLI 이름 53개는 runtime import가 0건이었고, 테스트만 facade를 소비했다. 동적 `_CLI_REEXPORT_NAMES`·`__getattr__`를 제거하고 테스트가 실제 owner인 `session_state_cli`·`session_state_cli_finalize`를 직접 사용하게 했다. facade 부재 회귀 테스트도 추가했다. code+test diff는 72줄 추가·154줄 삭제로 82 LOC 순감이고, 전체 compatibility 후보는 14개에서 13개, run/ledger 후보는 5개에서 4개로 감소한다.
+
+나머지 `RUN-002`·`RUN-003`·`RUN-005`·`RUN-008`은 실제 legacy sample이 있어 종료 trigger가 충족되지 않았다. `RUN-004`·`RUN-007`은 legacy가 아니라 현재 crash·hook failure 안전 경계이므로 감량 대상으로 재분류하지 않는다. run-state 8개 후보의 저장·소비 계약은 다음과 같다.
+
+| ID | 저장 형식·생성 주체·도입 버전 | 실제 소비자·read/write | #1094 판정·제거 trigger | 확인 fixture |
+|---|---|---|---|---|
+| RUN-001 | helper가 쓰는 `ledger.jsonl` event와 prose receipt, v0.5.0부터 canonical | session state·hooks·run review·benchmark·headless worker가 read, `harness.ledger`만 append | 현재 실사용 유지; canonical ledger 자체는 제거 대상 아님 | `tests.test_ledger`, `tests.test_session_state` |
+| RUN-002 | v0.2.2~v0.4 계열 helper의 `.steps.jsonl`; v0.5.0 update 중 두 파일이 생기는 mixed run | ledger/session state/run review가 read-only 호환, current writer는 `.steps.jsonl`을 쓰지 않음 | 한시 유지; 보존기간 확정·migration 뒤 legacy/mixed 표본과 reader hit 0 | `tests.test_ledger`, `tests.test_run_review` |
+| RUN-003 | legacy step row와 현행 receipt의 `prose_file`·`prose_excerpt`·`must_fix`·`enum`; end-step helper가 생성 | run review·benchmark·outcome가 read, current receipt writer도 같은 field vocabulary를 write | 한시 유지; canonical schema·migration 확정과 reader 전환 뒤 archive reader 격리 | ledger·benchmark·outcome tests |
+| RUN-004 | malformed/partial ledger line, invalid receipt, `live.json` tombstone; 현행 writer crash·cleanup에서도 발생 가능 | ledger/session state가 손상 row를 skip/drop하고 tombstone을 read/write | 현재 안전 경계 유지; append·cleanup이 crash/partial 상태를 만들 수 없다는 별도 계약 전에는 제거 불가 | `tests.test_ledger`, `tests.test_session_state`, `tests.test_state_cleanup` |
+| RUN-005 | v0.2.16 시기 persisted `validator` agent name; 구 writer가 생성 | run review·agent boundary가 read 시 `impl-validator`로 normalize, current writer는 canonical name만 write | 한시 유지; archive migration 뒤 alias 표본과 hit telemetry 0 | `tests.test_run_review`, `tests.test_agent_boundary` |
+| RUN-006 | persisted 형식 없음; v0.13.0 모듈 분리 때 생긴 Python private import facade | 저장소 테스트만 import했고 runtime reader/writer 0 | 퇴역 완료; canonical CLI owner 직접 import와 facade 부재를 검증 | `SplitModuleImportTests`, `tests.test_agent_routing` |
+| RUN-007 | hook auto-stage 실패 뒤 run-dir에 남은 current prose; hook/end-step이 생성 | finalize helper가 recovery read, staging/prose writer는 현행 | 현재 안전 경계 유지; best-effort staging failure 가능성이 제거되기 전 삭제 불가 | `tests.test_session_state`, `tests.test_hooks` |
+| RUN-008 | legacy row의 stored verdict와 현행 `PROSE_LOGGED`+prose 결론; v0.5.0 이후 canonical writer는 sentinel만 write | run review·benchmark·outcome가 두 세대를 read | 한시 유지; legacy verdict를 canonical prose verdict로 migration하고 old sample 0 | run-review·benchmark·outcome tests |
+
+등록 활성 프로젝트의 persisted run은 registry path를 출력하지 않고 다음 명령으로 형식별 집계한다.
+
+```sh
+registry="$HOME/.claude/plugins/data/dcness-dcness/projects.json"
+{
+  jq -r '.projects[]' "$registry" | while IFS= read -r root; do
+    state="$root/.claude/harness-state"
+    find "$state" -type f -name ledger.jsonl 2>/dev/null | while IFS= read -r file; do
+      if [ -f "$(dirname "$file")/.steps.jsonl" ]; then echo mixed; else echo current-only; fi
+    done
+    find "$state" -type f -name .steps.jsonl 2>/dev/null | while IFS= read -r file; do
+      [ -f "$(dirname "$file")/ledger.jsonl" ] || echo legacy-only
+    done
+  done
+} | sort | uniq -c
+```
+
+2026-07-14 #1094 실행 결과는 등록 프로젝트 5곳 모두 state root가 있었고 `current-only 32`, `legacy-only 0`, `mixed 0`이었다. 지원 범위로 확인 가능한 plugin/cache·과거 checkout 표본은 같은 파일명 분류를 `$HOME/.claude`와 현재 저장소의 부모 디렉터리에 적용해 `current-only 33`, `legacy-only 62`, `mixed 0`을 확인했다. legacy 62개·339행에는 `validator` 58행, `CHANGES_REQUESTED` 4행, `LGTM` 33행, `prose_file` 없는 row 125개가 실제 존재했다. 따라서 현재 active snapshot의 0건만으로 read-side 지원 종료를 선언하지 않는다.
+
 ### 활성 소비자 snapshot
 
 등록 파일 `~/.claude/plugins/data/dcness-dcness/projects.json`의 경로는 문서에 공개하지 않고 registry 순번으로만 조사했다.
@@ -128,8 +164,8 @@ python3.11 scripts/policy_cleanup_baseline.py \
 | `harness/parallel_wave.py` | 948 | peer claim/wave 상태 | 현행 concurrency safety | 유지 |
 | `harness/product_journey.py` | 864 | 제품 journey runner | compatibility와 무관 | 현행 |
 | `harness/run_review.py` | 1,853 | persisted run 분석·waste report | legacy name/verdict/prose 비중 큼 | #1094 핵심, 이후 #1098 |
-| `harness/session_state.py` | 2,190 | run lifecycle/state owner | legacy lane·path와 다세대 state 책임 | #1094 핵심, 단순 분할 무효 |
-| `harness/session_state_cli.py` | 1,488 | CLI dispatch·routing | historical private re-export와 legacy route CLI | #1094 `RUN-006` + #1095 |
+| `harness/session_state.py` | 2,190 | run lifecycle/state owner | private CLI re-export는 #1094에서 퇴역; persisted state 안전 책임 유지 | #1094 완료 뒤 #1098, 단순 분할 무효 |
+| `harness/session_state_cli.py` | 1,488 | CLI dispatch·routing | canonical CLI owner; legacy route CLI는 별도 책임 | #1095 |
 | `harness/session_state_cli_finalize.py` | 595 | end-step/finalize/prose receipt | prose fallback과 old field 설명 | #1094 |
 | `harness/session_state_status.py` | 501 | status/diagnostic view | state reader assertion과 중복 가능 | #1094 뒤 #1098 |
 | `harness/story_runner.py` | 509 | story stack state | 현행 lifecycle | #1097 reader 정리 뒤 #1098 |
@@ -155,7 +191,7 @@ python3.11 scripts/policy_cleanup_baseline.py \
 | `tests/test_product_journey.py` | 610 | journey runner | compatibility와 무관 | 현행 |
 | `tests/test_provider_chain.py` | 1,466 | provider chain 상태전이 | codex-first fixture와 현행 safety fallback 혼재 | #1095 핵심, mutation-after-failure 보존 |
 | `tests/test_run_review.py` | 1,622 | run review current/legacy 분석 | legacy alias/verdict/.steps fixture 비중 큼 | #1094 핵심, 이후 #1098 |
-| `tests/test_session_state.py` | 3,533 | state/CLI/run lifecycle | private re-export·legacy state fixture와 현행 safety 혼재 | #1094 핵심, 이후 #1098 |
+| `tests/test_session_state.py` | 3,533 | state/CLI/run lifecycle | private re-export fixture는 #1094에서 canonical owner import로 전환; persisted safety fixture 유지 | #1094 완료 뒤 #1098 |
 | `tests/test_story_runner.py` | 545 | story runner lifecycle | 현행 stack fixture | #1097 뒤 #1098 |
 | `tests/test_surface_docs_sync.py` | 1,005 | agent/docs/Codex mirror sync | legacy design leniency 문자열 assertion 포함 | #1093 후 #1098 |
 | `tests/test_tdd_guard.py` | 816 | central/generated TDD guard | partial install fallback fixture가 실사용 | #1096 후 #1098, TDD invariant 보존 |

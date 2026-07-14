@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "baseline_revision": "b676140bcffdaa5843ce59198ecef4f997efddc9",
-  "last_transition_issue": 1093,
+  "last_transition_issue": 1094,
   "classification_enum": [
     "현재 실사용",
     "제거 가능",
@@ -186,13 +186,13 @@
       "id": "RUN-006",
       "area": "run-ledger",
       "policy_slice": "harness.session_state의 historical private-name re-export",
-      "classification": "제거 가능",
+      "classification": "퇴역 완료",
       "follow_up_issue": 1094,
       "current_ssot": ["docs/plugin/loop-procedure.md"],
-      "implementation": ["harness/session_state.py:_CLI_REEXPORT_NAMES", "harness/session_state.py:__getattr__"],
-      "tests_fixtures": ["tests/test_session_state.py", "tests/test_parallel_wave.py"],
-      "docs_distribution": ["scripts/dcness-helper"],
-      "consumer_evidence": "session_state_cli의 sibling handler import는 현재 parser가 사용한다. 반면 harness.session_state에서 private helper를 다시 노출하는 경로는 저장소 테스트 import 외 runtime 호출자가 검색되지 않는다.",
+      "implementation": ["harness/session_state.py:_CLI_REEXPORT_NAMES (removed)", "harness/session_state.py:__getattr__ (removed)", "harness/session_state_cli.py"],
+      "tests_fixtures": ["tests/test_session_state.py", "tests/test_agent_routing.py"],
+      "docs_distribution": ["scripts/dcness-helper", "docs/internal/policy-sunset-inventory.md"],
+      "consumer_evidence": "저장소 call/import scan에서 historical facade의 runtime 호출자는 0건이었고, 테스트는 canonical session_state_cli·session_state_cli_finalize owner를 직접 import하도록 전환했다. tests.test_session_state.SplitModuleImportTests가 facade 부재와 CLI owner 존재를 함께 검증한다.",
       "compatibility": null
     },
     {
