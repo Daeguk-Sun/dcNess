@@ -11,9 +11,9 @@
 set -e
 
 resolve_dcness_root() {
-  legacy="$(git rev-parse --show-toplevel 2>/dev/null)"
-  if [ -n "$legacy" ] && [ -f "$legacy/harness/guard_telemetry.py" ]; then
-    echo "$legacy"
+  self_root="$(git rev-parse --show-toplevel 2>/dev/null)"
+  if [ -n "$self_root" ] && [ -f "$self_root/harness/guard_telemetry.py" ]; then
+    echo "$self_root"
     return 0
   fi
   if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/harness/guard_telemetry.py" ]; then

@@ -193,7 +193,13 @@ def build_state(
 
 
 def load_state(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    state = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(state, dict) or state.get("schema_version") != 2:
+        raise ValueError(
+            f"unsupported story-run schema: {path}; "
+            "rerun init with --force to replace it"
+        )
+    return state
 
 
 def archive_completed_state(path: Path) -> Path:
@@ -224,9 +230,6 @@ def prepare_init_state(path: Path, *, force: bool) -> Path | None:
     if isinstance(tasks, list) and tasks and all(
         task.get("status") == "completed" for task in tasks
     ):
-        # Normalize schema-v1 states that were stranded at ready_for_review.
-        # PR metadata never participates in the task-state lifetime.
-        save_state(path, existing)
         return archive_completed_state(path)
     if not isinstance(tasks, list) or not tasks:
         raise ValueError(
@@ -243,10 +246,9 @@ def prepare_init_state(path: Path, *, force: bool) -> Path | None:
 
 
 def save_state(path: Path, state: dict[str, Any]) -> None:
+    if state.get("schema_version") != 2:
+        raise ValueError("story-run state must use schema_version 2")
     path.parent.mkdir(parents=True, exist_ok=True)
-    state["schema_version"] = 2
-    for derived_key in ("status", "current_task", "stories"):
-        state.pop(derived_key, None)
     state["updated_at"] = _now_iso()
     payload = json.dumps(state, ensure_ascii=False, indent=2) + "\n"
     tmp = path.with_name(f".{path.name}.tmp-{os.getpid()}")

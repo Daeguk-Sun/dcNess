@@ -18,7 +18,6 @@ from pathlib import Path
 from typing import Any, BinaryIO, Optional
 
 
-CONFIG_REL = Path(".dcness/product-journey.json")
 EVIDENCE_ROOT_REL = Path(".dcness-work/product-journey")
 SCHEMA_VERSION = 1
 RECEIPT_TYPE = "dcness.product-journey"
@@ -427,7 +426,7 @@ def _collect_ui_evidence(
 def run_from_config(
     project_root: Path | str,
     *,
-    config_path: Path | str = CONFIG_REL,
+    config_path: Path | str,
     run_id: Optional[str] = None,
     measured_at: Optional[str] = None,
 ) -> JourneyRunResult:
@@ -842,7 +841,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     )
     parser.add_argument("command", choices=["run"])
     parser.add_argument("--project-root", default=".")
-    parser.add_argument("--config", default=CONFIG_REL.as_posix())
+    parser.add_argument("--config", required=True)
     parser.add_argument("--run-id", default=None)
     parser.add_argument("--measured-at", default=None)
     args = parser.parse_args(argv)

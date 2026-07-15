@@ -92,7 +92,6 @@ receipt는 `landing` → `onboarding` → `underage-rejection` → final `profil
 
 - Cartography freshness에서 얻을 수 있는 것: 현재 SSOT·runtime entrypoint·capability owner 후보, affected route의 stale 여부와 갱신·재검증 기록.
 - Codebase Sanity에서 얻을 수 있는 것: 감사 code revision, 실제 scope, 명령·warning·coverage 근거, dead-code 분류와 unknown.
-- #1089 cleanup 전 repository-size·compatibility snapshot은 [`policy-sunset-inventory.md`](policy-sunset-inventory.md)에 별도 고정한다.
 - 아직 측정할 수 없는 것: 첫 올바른 대상 선택 정확도와 시간, 불필요한 read/tool 양, 오경로, 영향 범위 누락, context 기인 validator 재작업, cross-session 복구 성공의 paired before/after.
 
 기능 또는 receipt가 존재한다는 사실은 마지막 항목들의 개선 증거가 아니다. 후속 trial이 생길 때까지 `측정 불가`를 실패나 개선으로 추정하지 않는다.

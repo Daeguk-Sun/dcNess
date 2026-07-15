@@ -1,17 +1,12 @@
 /* docs/design-variants/_lib/canvas.js
- * dcness plug-in seed: pan/zoom design canvas with two compatible modes.
+ * dcness plug-in seed: pan/zoom design flow board.
  *
- * Legacy grid mode:
- *   <iframe data-frame-id="..." src="<screen-id>.html"></iframe>
- *   <iframe data-frame-id="..." data-pos="<col>,<row>" src="..."></iframe>
- *
- * Flow board mode:
  *   <div class="screen-node" data-node-id="..." data-pos="<col>,<row>"
  *        data-title="..." data-desc="..." data-states="..." data-h="900">
  *     <iframe src="<screen-id>.html"></iframe>
  *   </div>
  *
- * Optional arrows in both modes:
+ * Optional arrows:
  *   <svg class="flow-arrows">
  *     <path data-from="A" data-to="B" data-label="..." data-bend="0"/>
  *   </svg>
@@ -22,10 +17,7 @@
 (function () {
   'use strict';
 
-  const VIEWPORT_W = { mobile: 390, tablet: 768, desktop: 1280 };
-  const FRAME_H = 720;
-  const LEGACY_GAP = 110;
-  const LEGACY_COLS = 4;
+  const GRID_COLS = 4;
   const FLOW_NODE_W = 390;
   const FLOW_FRAME_H = 900;
   const FLOW_GAP_X = 150;
@@ -104,35 +96,6 @@
     while (stage.firstChild) inner.appendChild(stage.firstChild);
     stage.appendChild(inner);
     return { stage, inner };
-  }
-
-  function layoutFrames(inner) {
-    const frames = inner.querySelectorAll('iframe[data-frame-id]');
-    let nextCol = 0, nextRow = 0;
-    frames.forEach(frame => {
-      const vp = frame.dataset.viewport || 'mobile';
-      const w = VIEWPORT_W[vp] || VIEWPORT_W.mobile;
-      let col, row;
-      if (frame.dataset.pos) {
-        const pos = parsePos(frame.dataset.pos, nextCol, nextRow);
-        col = pos.col;
-        row = pos.row;
-      } else {
-        col = nextCol;
-        row = nextRow;
-        nextCol++;
-        if (nextCol >= LEGACY_COLS) { nextCol = 0; nextRow++; }
-      }
-      Object.assign(frame.style, {
-        position: 'absolute',
-        left: (col * (w + LEGACY_GAP)) + 'px',
-        top: (row * (FRAME_H + LEGACY_GAP)) + 'px',
-        width: w + 'px',
-        height: FRAME_H + 'px',
-        border: '1px solid #d0d0d5',
-        background: '#fff'
-      });
-    });
   }
 
   function buildCaption(node) {
@@ -238,7 +201,7 @@
 
       placements.push({ node, col: pos.col, row: pos.row });
       nextCol++;
-      if (nextCol >= LEGACY_COLS) { nextCol = 0; nextRow++; }
+      if (nextCol >= GRID_COLS) { nextCol = 0; nextRow++; }
     });
 
     const maxRow = placements.reduce((max, item) => Math.max(max, item.row), 0);
@@ -277,12 +240,9 @@
     }));
   }
 
-  function nodeBox(inner, id, flowMode) {
+  function nodeBox(inner, id) {
     const escaped = cssEscape(id);
-    const selector = flowMode
-      ? `.screen-node[data-node-id="${escaped}"]`
-      : `iframe[data-frame-id="${escaped}"]`;
-    const node = inner.querySelector(selector);
+    const node = inner.querySelector(`.screen-node[data-node-id="${escaped}"]`);
     if (!node) return null;
     return {
       el: node,
@@ -294,9 +254,7 @@
   }
 
   function boardItems(inner) {
-    const nodes = inner.querySelectorAll('.screen-node');
-    if (nodes.length) return Array.from(nodes);
-    return Array.from(inner.querySelectorAll('iframe[data-frame-id]'));
+    return Array.from(inner.querySelectorAll('.screen-node'));
   }
 
   function boardBounds(inner) {
@@ -404,7 +362,7 @@
     group.appendChild(text);
   }
 
-  function drawArrows(inner, specs, flowMode) {
+  function drawArrows(inner, specs) {
     const svg = inner.querySelector('svg.flow-arrows');
     if (!svg) return;
 
@@ -425,8 +383,8 @@
 
     const ns = 'http://www.w3.org/2000/svg';
     specs.forEach(spec => {
-      const from = nodeBox(inner, spec.from, flowMode);
-      const to = nodeBox(inner, spec.to, flowMode);
+      const from = nodeBox(inner, spec.from);
+      const to = nodeBox(inner, spec.to);
       if (!from || !to) return;
 
       const anchor = anchors(from, to);
@@ -460,13 +418,11 @@
   }
 
   function selectableNodes(inner) {
-    const nodes = inner.querySelectorAll('.screen-node');
-    if (nodes.length) return Array.from(nodes);
-    return Array.from(inner.querySelectorAll('iframe[data-frame-id]'));
+    return Array.from(inner.querySelectorAll('.screen-node'));
   }
 
   function nodeId(node) {
-    return node.dataset.nodeId || node.dataset.frameId;
+    return node.dataset.nodeId;
   }
 
   function styleNodeFocus(node, on, dim) {
@@ -587,30 +543,25 @@
 
     const { stage, inner } = context;
     const specs = readArrowSpecs(inner);
-    const flowMode = inner.querySelectorAll('.screen-node').length > 0;
-
-    if (flowMode) layoutScreenNodes(inner);
-    else layoutFrames(inner);
+    layoutScreenNodes(inner);
 
     sizeInner(inner);
-    drawArrows(inner, specs, flowMode);
+    drawArrows(inner, specs);
     setupPanZoom(stage, inner);
     setupShowIdsBroadcast(inner);
     applyTransform(inner);
 
-    if (flowMode) {
-      setTimeout(() => {
-        sizeInner(inner);
-        drawArrows(inner, specs, flowMode);
-        zoomToFit(stage, inner);
-      }, 350);
-      window.addEventListener('load', () => {
-        sizeInner(inner);
-        drawArrows(inner, specs, flowMode);
-        zoomToFit(stage, inner);
-      });
-      window.addEventListener('resize', () => zoomToFit(stage, inner));
-    }
+    setTimeout(() => {
+      sizeInner(inner);
+      drawArrows(inner, specs);
+      zoomToFit(stage, inner);
+    }, 350);
+    window.addEventListener('load', () => {
+      sizeInner(inner);
+      drawArrows(inner, specs);
+      zoomToFit(stage, inner);
+    });
+    window.addEventListener('resize', () => zoomToFit(stage, inner));
   }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);

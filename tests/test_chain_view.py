@@ -57,12 +57,13 @@ class TestSubsteps(unittest.TestCase):
             ["build-worker", "impl-validator"],
         )
 
-    def test_engine_aliases(self):
-        self.assertEqual(normalize_engine("bw"), "build-worker")
-        self.assertEqual(normalize_engine("impl-ui-design-loop"), "ui-build-worker")
+    def test_engine_enum(self):
         self.assertEqual(normalize_engine("ui-build-worker"), "ui-build-worker")
         # case-insensitive + whitespace
         self.assertEqual(normalize_engine("  Build-Worker "), "build-worker")
+        for removed in ("bw", "ui", "impl-ui-design-loop", "ui-worker"):
+            with self.subTest(removed=removed), self.assertRaises(ValueError):
+                normalize_engine(removed)
 
     def test_ui_build_worker_substeps(self):
         self.assertEqual(
@@ -423,7 +424,7 @@ class TestBuildChainViewAndParse(unittest.TestCase):
             parse_tasks([{"name": "x", "engine": "build-worker", "closes": "release"}])
 
     def test_parse_ui_engine(self):
-        tasks = parse_tasks([{"name": "screen", "engine": "impl-ui-design-loop"}])
+        tasks = parse_tasks([{"name": "screen", "engine": "ui-build-worker"}])
         self.assertEqual(tasks[0].engine, "ui-build-worker")
         self.assertIn("canvas-design", substeps_for(tasks[0]))
         self.assertNotIn("사용자 PICK", substeps_for(tasks[0]))

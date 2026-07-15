@@ -27,8 +27,8 @@ resolve_plugin_script() {
       return 0
     fi
   fi
-  legacy="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/check_git_naming.mjs"
-  [ -f "$legacy" ] && echo "$legacy" && return 0
+  self_script="$(git rev-parse --show-toplevel 2>/dev/null)/scripts/check_git_naming.mjs"
+  [ -f "$self_script" ] && echo "$self_script" && return 0
   return 1
 }
 

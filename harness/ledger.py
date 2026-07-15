@@ -9,17 +9,10 @@
     저장된 prose + known state 에서 receipt 를 *생성* 한다. prose 가 변형 SSOT 이고
     ledger 는 그것을 가리키는 장부일 뿐이다.
 
-단일 SSOT 재설계 (이슈 #587 옵션 B):
-    옛 `.steps.jsonl` (step_completed 수준만 기록) 을 `ledger.jsonl` 로 흡수한다.
-    `step_completed` event 가 옛 step row 의 *superset* — 옛 필드명 (prose_excerpt /
-    prose_file / must_fix / enum) 을 그대로 유지하고 receipt 필드 (sha256 /
-    evidence_paths / next_action) 를 더한다. 따라서 소비처 (finalize-run /
-    strict-conveyor gate / Stop hook / run_review) 는 `read_step_completed` 가
-    돌려주는 레코드를 옛 row 처럼 읽으면 된다.
-
-    마이그레이션 셔틀: `ledger.jsonl` 이 없고 옛 `.steps.jsonl` 만 있으면 (plugin
-    업데이트가 진행 중 run 에 걸친 경우) 옛 row 를 `step_completed` event 로
-    normalize 해 폴백한다. 새 run 부터는 ledger.jsonl 단일 사용.
+단일 SSOT (이슈 #587 옵션 B):
+    모든 lifecycle 과 `step_completed` receipt 를 `ledger.jsonl` 에 기록한다.
+    소비처 (finalize-run / strict-conveyor gate / Stop hook / run_review) 는
+    `read_step_completed` 가 돌려주는 현재 receipt 만 읽는다.
 
 저장 위치: `<run_dir>/ledger.jsonl` (= `.sessions/<sid>/runs/<rid>/ledger.jsonl`).
     워크트리에서 호출해도 `session_state.run_dir` 의 base_dir 해석이 main repo
@@ -37,10 +30,9 @@ ledger event 카탈로그 (이슈 명세):
     (validator_passed/failed = validator agent + must_fix). dcNess doctrine 의
     "강제는 catastrophic 만" 정신 — 형식/기록을 agent 에 강제하지 않는다.
 
-receipt 필드명 ↔ 이슈 명세 매핑 (호환 우선):
+receipt 필드명 ↔ 이슈 명세 매핑:
     prose_file ↔ prose_path / prose_excerpt ↔ short_summary / ts ↔ created_at.
-    옛 `.steps.jsonl` 소비처 회귀를 0 으로 만들기 위해 내부 필드명은 옛 이름을
-    유지한다 (의미는 동일).
+    현재 ledger schema 의 canonical 필드명은 prose_file / prose_excerpt / ts 다.
 """
 from __future__ import annotations
 
@@ -57,7 +49,6 @@ __all__ = [
     "LIFECYCLE_EVENT_TYPES",
     "MANUAL_EVENT_TYPES",
     "ledger_path",
-    "legacy_steps_path",
     "append_event",
     "read_events",
     "read_events_at",
@@ -109,20 +100,14 @@ _VALIDATOR_AGENTS = frozenset(
 
 # phase 추론 — entry_point + 마지막 step agent 로 "지금 어느 단계인가" best-effort.
 _PHASE_BY_AGENT = {
-    "test-engineer": "test",
-    "build-test": "test",
-    "engineer": "implement",
-    "build-impl": "implement",
     "build-worker": "implement",
     "impl-validator": "validate",
-    "build-validate": "validate",
     "system-architect": "design",
     "module-architect": "design",
     "architecture-validator": "design-review",
     "ux-architect": "ux",
     "designer": "ux",
     "product-acceptance": "acceptance",
-    "product-planner": "plan",
     "tech-reviewer": "tech-review",
 }
 
@@ -137,15 +122,6 @@ def ledger_path(sid: str, rid: str, *, base_dir: Optional[Path] = None) -> Path:
     from harness.session_state import run_dir
 
     return run_dir(sid, rid, base_dir=base_dir) / "ledger.jsonl"
-
-
-def legacy_steps_path(
-    sid: str, rid: str, *, base_dir: Optional[Path] = None
-) -> Path:
-    """옛 `<run_dir>/.steps.jsonl` 절대 경로 (마이그레이션 폴백 전용)."""
-    from harness.session_state import run_dir
-
-    return run_dir(sid, rid, base_dir=base_dir) / ".steps.jsonl"
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
@@ -180,16 +156,6 @@ def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
             f"손상 가능 (truncated write?). run-status / run-review 로 상태 확인 권장.",
             file=sys.stderr,
         )
-    return out
-
-
-def _normalize_legacy_rows(legacy: Path) -> List[Dict[str, Any]]:
-    """옛 .steps.jsonl row 를 step_completed event 로 normalize."""
-    out: List[Dict[str, Any]] = []
-    for row in _read_jsonl(legacy):
-        if "event" not in row:
-            row = {"event": "step_completed", **row}
-        out.append(row)
     return out
 
 
@@ -310,71 +276,23 @@ def _drop_invalid_primary_steps(
     return kept
 
 
-def _read_events_paths(
-    primary: Path, legacy: Path
-) -> List[Dict[str, Any]]:
-    """ledger.jsonl + 옛 .steps.jsonl 통합 읽기 (마이그레이션 셔틀).
-
-    저수준 — sid/rid 버전 (`read_events`) 과 run_dir Path 버전 (`read_events_at`)
-    공통 본체. 마이그레이션 셔틀이 한 곳에만 살게 한다.
-
-    🔴 mixed-version merge (이슈 #587 codex review high): plugin 업데이트가 진행 중
-    run 에 걸치면 한 run 에 옛 .steps.jsonl row (업데이트 전) 와 새 ledger.jsonl
-    event (업데이트 후) 가 *둘 다* 존재할 수 있다. ledger 만 읽으면 옛 step 이
-    통째로 사라져 occurrence count 가 리셋되고 prose 파일이 덮어써지며
-    finalize/strict-gate/run_review 가 step 수를 적게 본다. 옛 코드는 .steps.jsonl
-    에만, 새 코드는 ledger.jsonl 에만 쓰므로 step 중복은 없다 — legacy (시간상
-    먼저) 를 앞에 두고 concat 해 시간순을 보존한다.
-    """
-    primary_events = _read_jsonl(primary) if primary.exists() else []
-    legacy_events = _normalize_legacy_rows(legacy) if legacy.exists() else []
-    # primary ledger.jsonl 의 step_completed 는 strict receipt 검증 필수 (codex review).
-    # append API 가 위조 append 를 막아도, durable ledger 에 stale/downgrade/손상으로
-    # receipt 없는 step_completed 가 남으면 reader 가 진짜 step 으로 신뢰해버린다 —
-    # invariant 가 writer path 가 아니라 *소비되는 데이터* 에 걸리도록 read 측에서도
-    # 강제한다. legacy .steps.jsonl 은 별도 호환 경로(무검증) — prose_file 없는 옛 row 보존.
-    if primary_events:
-        primary_events = _drop_invalid_primary_steps(primary_events, primary)
-    if not (primary_events and legacy_events):
-        return primary_events or legacy_events
-    # mixed — ts 기준 안정 정렬 merge (codex review). concat 만 하면 version skew /
-    # downgrade / retry / stale helper 시 새 legacy row 가 옛 ledger row 앞에 강제될 수
-    # 있다. ISO8601(UTC) ts 는 lexicographic = chronological. ts 동률이면 stable sort 로
-    # 입력 순서 (legacy 먼저) 보존. step_completed 는 (agent,mode,ts,prose_file) identity
-    # 로 dedup 해 stale/retry 중복을 흡수한다.
-    combined = legacy_events + primary_events
-    combined.sort(key=lambda e: e.get("ts") or "")
-    seen: set = set()
-    out: List[Dict[str, Any]] = []
-    for e in combined:
-        if e.get("event") == "step_completed":
-            ident = (
-                e.get("agent"),
-                e.get("mode"),
-                e.get("ts"),
-                e.get("prose_file"),
-            )
-            if ident in seen:
-                continue
-            seen.add(ident)
-        out.append(e)
-    return out
+def _read_events_path(path: Path) -> List[Dict[str, Any]]:
+    """현재 ledger.jsonl 을 읽고 receipt 가 손상된 step 을 제외한다."""
+    events = _read_jsonl(path)
+    return _drop_invalid_primary_steps(events, path) if events else []
 
 
 def read_events(
     sid: str, rid: str, *, base_dir: Optional[Path] = None
 ) -> List[Dict[str, Any]]:
-    """ledger.jsonl 전체 읽기. 없으면 옛 .steps.jsonl 폴백 (step_completed 로 normalize)."""
-    return _read_events_paths(
-        ledger_path(sid, rid, base_dir=base_dir),
-        legacy_steps_path(sid, rid, base_dir=base_dir),
-    )
+    """현재 ledger.jsonl 전체 읽기."""
+    return _read_events_path(ledger_path(sid, rid, base_dir=base_dir))
 
 
 def read_events_at(run_dir_path: Any) -> List[Dict[str, Any]]:
     """run_dir Path 로부터 직접 읽기 (run_review 사후 분석 — sid/rid 없이 디렉토리 스캔)."""
     p = Path(run_dir_path)
-    return _read_events_paths(p / "ledger.jsonl", p / ".steps.jsonl")
+    return _read_events_path(p / "ledger.jsonl")
 
 
 def read_step_completed_at(run_dir_path: Any) -> List[Dict[str, Any]]:
@@ -389,11 +307,7 @@ def read_step_completed_at(run_dir_path: Any) -> List[Dict[str, Any]]:
 def read_step_completed(
     sid: str, rid: str, *, base_dir: Optional[Path] = None
 ) -> List[Dict[str, Any]]:
-    """step_completed event 만 시간순 반환 (옛 `_read_steps_jsonl` 대체).
-
-    소비처 (finalize-run / strict-conveyor / Stop hook / run_review) 는 이 결과를
-    옛 .steps.jsonl row 처럼 읽으면 된다 (필드명 호환).
-    """
+    """step_completed event 만 시간순 반환."""
     return [
         e
         for e in read_events(sid, rid, base_dir=base_dir)
@@ -409,7 +323,7 @@ def count_step_completed(
     *,
     base_dir: Optional[Path] = None,
 ) -> int:
-    """(agent, mode) step_completed 수 (옛 `_count_step_occurrences` 대체 — occurrence 계산)."""
+    """(agent, mode) step_completed 수."""
     return sum(
         1
         for s in read_step_completed(sid, rid, base_dir=base_dir)
@@ -479,7 +393,7 @@ def infer_next_action(
     if agent == "impl-validator":
         return "finding-class에 따라 build-worker rework 또는 메인 root-cause 수정 예상"
     if agent == "architecture-validator":
-        return "finding 분류로 architect 분기 예상 (build-worker 단계 아님)"
+        return "finding 분류로 설계 agent 분기 예상 (build-worker 단계 아님)"
     return ""
 
 
@@ -504,8 +418,8 @@ def build_receipt(
 ) -> Dict[str, Any]:
     """저장된 prose + known state 에서 receipt dict 생성 (helper-generated).
 
-    필드명은 옛 .steps.jsonl row 호환 (prose_excerpt / prose_file / must_fix) +
-    receipt 신규 (sha256 / evidence_paths / next_action). agent 출력 형식 강제 X.
+    현재 receipt 필드(prose_excerpt / prose_file / must_fix / sha256 /
+    evidence_paths / next_action)를 helper가 생성한다. agent 출력 형식 강제 X.
     """
     from harness.session_state import _extract_prose_summary, _has_positive_must_fix
 

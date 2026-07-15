@@ -103,7 +103,7 @@ story acceptance 는 주로 PRD 유저 시나리오 / Story AC 미충족, 검수
 
 사용자 동선 warning 도 gap 과 별개로 남길 수 있다. 예를 들어 개발자용 CLI/API가 JSON 입력을 받는 것은 정당하지만 계약 예제가 부족하면 warning 으로 보고하고, 그 부족 때문에 대상 사용자가 핵심 AC를 수행할 수 없으면 gap 으로 승격한다.
 
-`/design` 은 `/design` 호환 alias 이므로 acceptance gap 의 설계 회수 후보는 사용자-facing 공개 진입점인 `/design` 으로 제안한다.
+acceptance gap의 설계 회수 후보는 사용자-facing 공개 진입점인 `/design`으로 제안한다.
 
 acceptance gap issue 는 제품 검수 후속이다. 이미 기준 문서와 구현 증거에서 나온 gap 이므로, 별도 분류 흐름으로 되돌리지 않는다.
 

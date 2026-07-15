@@ -119,8 +119,8 @@ def append_insight(
     """issue #396 — 메인 자율 인사이트 1줄 append. FIFO cap (가장 오래된 자동 제거).
 
     Args:
-        agent: subagent_type (engineer / impl-validator / ...)
-        mode: optional mode (IMPL / POLISH / CODE_VALIDATION / ...)
+        agent: subagent_type (build-worker / impl-validator / ...)
+        mode: optional mode
         text: 자연어 한 줄. 줄바꿈 strip, 빈 텍스트면 noop.
         cwd: main repo root (worktree 자동 정규화).
         fifo_cap: 최대 줄 수 (default INSIGHT_FIFO_CAP=10).

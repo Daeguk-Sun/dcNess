@@ -190,7 +190,6 @@ class AgentOperabilityContractTests(unittest.TestCase):
                 "edit target",
                 "state owner",
                 "validation path",
-                "옛 섹션명 부재만으로 FAIL 하지 않는다",
             ):
                 with self.subTest(text=text_name, needle=needle):
                     self.assertIn(needle, text)

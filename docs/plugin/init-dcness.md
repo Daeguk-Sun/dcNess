@@ -79,9 +79,9 @@ provider config는 프로젝트별 파일이 아니라 plugin 공용 `~/.claude/
 - 추천 role split은 `routing enable-role-split-routing`으로 `build-worker=headless-chain`, `impl-validator=codex`, `architecture-validator=codex`를 함께 기록한다.
 - validation custom은 `routing enable-codex-validation`, `routing disable-codex-validation` 또는 `routing set <agent> claude|codex`를 사용한다.
 - implementation custom은 `routing enable-headless-implementation`, `routing enable-claude-headless-implementation` 또는 `routing set-implementation build-worker claude|claude-headless|headless-chain`을 사용한다. Claude-only는 `routing set-implementation build-worker claude`다.
-- schema v1·v2, retired agent key, 지원 목록 밖 implementation 값은 migration 대상이다. 기존 config에서 `routing doctor`가 실패하면 `routing enable-role-split-routing`으로 두 route map을 schema v3 현행값으로 교체한 뒤 필요한 custom override를 다시 적용하고 doctor PASS를 확인한다.
+- schema v3만 지원한다. `routing doctor`가 version 오류로 실패하는 config는 삭제하고 `routing enable-role-split-routing`으로 현행 파일을 새로 만든 뒤 필요한 custom override를 적용한다.
 
-이 config compatibility와 runtime provider fallback은 다른 계약이다. `headless-chain`은 provider가 workspace를 바꾸기 전에 실패했을 때만 다음 provider로 진행하고, 변경 뒤 실패하면 중단한다. 이 안전 경계는 legacy config 지원 여부와 무관하게 유지한다.
+config 형식 검증과 runtime provider fallback은 다른 계약이다. `headless-chain`은 provider가 workspace를 바꾸기 전에 실패했을 때만 다음 provider로 진행하고, 변경 뒤 실패하면 중단한다.
 
 ## Provider Mirror Sync
 
@@ -109,7 +109,7 @@ provider config는 프로젝트별 파일이 아니라 plugin 공용 `~/.claude/
 - GitHub Project lifecycle 은 기본 skip. `gh` 인증, Project number, PAT/secrets, field/label 복구가 얽히므로 custom 에서만 진행한다.
 - Provider routing 추천 bundle 은 `enable-role-split-routing` 단일 entrypoint 로 역할 분리 preset 을 적용한다: `build-worker=headless-chain`, `impl-validator=codex`, `architecture-validator=codex`.
 - 기존 활성 프로젝트가 추천 preset 만 소급 적용하려면 `dcness-helper routing enable-role-split-routing` 실행 뒤 `dcness-helper routing doctor` 로 PASS 를 확인한다.
-- custom 지원 범위와 migration 순서는 [Provider Routing](#provider-routing)을 따른다.
+- custom 지원 범위와 설정 순서는 [Provider Routing](#provider-routing)을 따른다.
 - workflow 변경 PR 은 GitHub remote 가 있고, `gh auth status` 가 통과하고, 이번 `/init-dcness` run 이 쓴 `.github/workflows/*.yml` 변경이 있고, 현재 branch 가 `main` 이면 추천 ON. Y 선택 시 별도 질문 없이 해당 파일만 stage 해서 branch/commit/push/PR 을 진행한다. `gh` 미설치/미인증이면 자동 PR 은 skip 하고 custom/manual 안내만 남긴다. 기존 dirty workflow 파일은 자동 포함하지 않는다.
 
 ## Already Automatic
@@ -126,7 +126,7 @@ provider config는 프로젝트별 파일이 아니라 plugin 공용 `~/.claude/
 
 ## CI Workflow Snippets
 
-기존 `#ci-workflow-snippets` anchor 호환을 위해 heading 은 유지한다. 이 섹션은 더 이상 YAML 전문을 소유하지 않고, `/init-dcness` 가 사용자 repo 의 `.github/workflows/` 로 복사하는 workflow template inventory 만 제공한다. 검증 본체는 사용자 repo 에 복사하지 않고 dcNess composite action 을 호출한다.
+이 섹션은 `/init-dcness` 가 사용자 repo 의 `.github/workflows/` 로 복사하는 workflow template inventory 를 제공한다. 검증 본체는 사용자 repo 에 복사하지 않고 dcNess composite action 을 호출한다.
 
 ### git-naming-validation.yml
 
@@ -150,7 +150,7 @@ provider config는 프로젝트별 파일이 아니라 plugin 공용 `~/.claude/
 
 - 대상 경로: `.github/workflows/doc-sync.yml`
 - 템플릿: [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml)
-- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표가 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사한다. `docs/index.md` 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다. legacy Contract Ledger / Contract References 는 호환 경고로만 보고하며 형식만으로 실패시키지 않는다.
+- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표가 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사한다. `docs/index.md` 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다.
 
 ### github-project-lifecycle.yml
 

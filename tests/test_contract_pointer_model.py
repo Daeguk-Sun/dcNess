@@ -13,26 +13,13 @@ def read(rel_path: str) -> str:
 
 
 class ModuleDecisionContractModelTests(unittest.TestCase):
-    def test_impl_task_template_uses_lightweight_module_decision_references_not_ledger_keys(self) -> None:
+    def test_impl_task_template_uses_lightweight_module_decision_references(self) -> None:
         template = read("docs/plugin/agents/module-architect/templates/impl-task.md")
 
         self.assertIn("계약/결정 링크", template)
         self.assertIn("module", template)
         self.assertIn("decision", template)
-        self.assertNotIn("## Contract References", template)
-        self.assertNotIn("Ledger row key", template)
         self.assertIn("모듈 설계 주의", template)
-
-    def test_legacy_contract_sync_authoring_surface_is_retired(self) -> None:
-        template = "docs/plugin/agents/module-architect/templates/contract-sweep-report.md"
-        self.assertFalse((ROOT / template).exists())
-        for rel_path in (
-            "agents/module-architect.md",
-            "docs/plugin/agents/module-architect/module-architect-agent.md",
-            "docs/plugin/agents/module-architect/references/contract-amendment.md",
-        ):
-            with self.subTest(rel_path=rel_path):
-                self.assertNotIn("legacy contract sync", read(rel_path).lower())
 
     def test_impl_task_template_defaults_to_owner_dir_scope_and_command_acceptance(
         self,
@@ -76,13 +63,10 @@ class ModuleDecisionContractModelTests(unittest.TestCase):
             with self.subTest(text=text[:40]):
                 self.assertIn("module", text)
                 self.assertIn("decision", text)
-                self.assertIn("구양식", text)
 
         self.assertIn("module responsibility 한 줄과 decision 문서", module_architect)
         self.assertIn("impl 문서는 module/decision 참조", module_architect)
         self.assertIn("task 내부 한정 private interface", module_architect)
-        self.assertIn("형식만으로 FAIL 하지 않는다", validator)
-        self.assertIn("Should finding", validator)
         self.assertNotIn("CONTRACT_PROPAGATION", validator)
 
     def test_deliverables_map_records_doc_budget_and_contract_hierarchy(self) -> None:
@@ -99,22 +83,16 @@ class ModuleDecisionContractModelTests(unittest.TestCase):
 
     def test_epic_architecture_template_is_minimal_agent_first_shape(self) -> None:
         template = read("docs/plugin/agents/system-architect/templates/epic-architecture.md")
-        reference = read("docs/plugin/agents/system-architect/references/contract-ledger.md")
-
         for heading in ("## 모듈 목록", "## 의존 그래프", "## Story -> 모듈 매핑"):
             self.assertIn(heading, template)
 
         for stale in (
-            "## Contract Ledger",
             "## Flow Ownership Map",
             "## Decisions",
             "## Module Design Check",
             "| contract | owner | producer | consumer |",
         ):
             self.assertNotIn(stale, template)
-
-        self.assertIn("Legacy Contract Ledger", reference)
-        self.assertIn("신규 `/design` 산출물은 Ledger row key 를 만들지 않는다", reference)
 
 
 if __name__ == "__main__":

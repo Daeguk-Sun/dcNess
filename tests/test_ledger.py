@@ -3,17 +3,16 @@
 Coverage matrix:
     EVENT_TYPES:
         - 이슈 카탈로그 10종 전부 포함
-    ledger_path / legacy_steps_path:
-        - run_dir 안 ledger.jsonl / .steps.jsonl
+    ledger_path:
+        - run_dir 안 ledger.jsonl
     append_event:
         - 유효 event append + ts 자동
         - 잘못된 event type → ValueError
         - 임의 필드 보존
     read_events:
-        - 전체 읽기 / 빈 파일 / ledger 없으면 .steps.jsonl 폴백
+        - 전체 읽기 / 빈 파일 / 손상 receipt 제외
     read_step_completed:
         - step_completed 만 필터
-        - .steps.jsonl 폴백 시 옛 row 를 step_completed 로 normalize
     count_step_completed:
         - (agent, mode) 카운트 (occurrence 계산)
     sha256_text:
@@ -26,7 +25,7 @@ Coverage matrix:
         - sha256 / prose_excerpt / evidence_paths / prose_file 포함
         - agent 출력 형식 강제 안 함 (임의 prose 입력)
     append_step_completed:
-        - step_completed event 가 receipt superset (옛 row 필드명 호환)
+        - step_completed event 가 현재 receipt 필드를 포함
     render_status:
         - 현재 run 의 phase / last event / evidence pointer 출력 (resume)
 """
@@ -90,11 +89,6 @@ class PathTests(unittest.TestCase):
             p = ledger.ledger_path(_SID, _RID, base_dir=base)
             self.assertEqual(p, run_dir(_SID, _RID, base_dir=base) / "ledger.jsonl")
 
-    def test_legacy_steps_path(self) -> None:
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            p = ledger.legacy_steps_path(_SID, _RID, base_dir=base)
-            self.assertEqual(p, run_dir(_SID, _RID, base_dir=base) / ".steps.jsonl")
 
 
 class AppendEventTests(unittest.TestCase):
@@ -153,108 +147,12 @@ class AppendEventTests(unittest.TestCase):
             )
 
 
-class ReadEventsFallbackTests(unittest.TestCase):
+class ReadEventsTests(unittest.TestCase):
     def test_empty_when_nothing(self) -> None:
         with TemporaryDirectory() as d:
             base = Path(d)
             _seed_run(base)
             self.assertEqual(ledger.read_events(_SID, _RID, base_dir=base), [])
-
-    def test_fallback_to_legacy_steps(self) -> None:
-        """ledger.jsonl 없고 .steps.jsonl 만 있으면 옛 row 를 step_completed 로 반환."""
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            _seed_run(base)
-            legacy = ledger.legacy_steps_path(_SID, _RID, base_dir=base)
-            legacy.parent.mkdir(parents=True, exist_ok=True)
-            old_row = {
-                "ts": "2026-05-24T19:01:07+00:00",
-                "agent": "build-test",
-                "mode": None,
-                "enum": "PROSE_LOGGED",
-                "prose_excerpt": "요약",
-                "must_fix": False,
-                "prose_file": "/tmp/build-test.md",
-            }
-            legacy.write_text(json.dumps(old_row) + "\n", encoding="utf-8")
-            events = ledger.read_events(_SID, _RID, base_dir=base)
-            self.assertEqual(len(events), 1)
-            self.assertEqual(events[0]["event"], "step_completed")
-            self.assertEqual(events[0]["agent"], "build-test")
-            self.assertEqual(events[0]["prose_file"], "/tmp/build-test.md")
-
-    def test_mixed_merges_legacy_and_ledger(self) -> None:
-        """plugin 업데이트가 진행 중 run 에 걸침 — legacy step + 새 ledger event 둘 다 보존 (codex high).
-
-        ledger.jsonl 만 읽으면 옛 .steps.jsonl step 이 사라져 occurrence count 리셋 →
-        prose 덮어쓰기. legacy (시간상 먼저) 를 앞에 두고 merge 해야 한다.
-        """
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            _seed_run(base)
-            # 옛 코드 구간 — .steps.jsonl 에 step row
-            legacy = ledger.legacy_steps_path(_SID, _RID, base_dir=base)
-            legacy.write_text(
-                json.dumps({"agent": "old-step", "mode": None, "enum": "PROSE_LOGGED",
-                            "prose_excerpt": "old", "must_fix": False,
-                            "prose_file": "/tmp/old.md"}) + "\n",
-                encoding="utf-8")
-            # plugin 업데이트 후 — 새 코드가 ledger.jsonl 에 event 생성
-            ledger.append_event(_SID, _RID, "step_started", base_dir=base, agent="new-step")
-            prose_path = _write_prose_file(base, "new.md", "new")
-            ledger.append_step_completed(
-                _SID, _RID, "new-step", None, "PROSE_LOGGED", "new", prose_path, base_dir=base)
-            # legacy step 이 사라지지 않고 시간상 먼저로 merge
-            events = ledger.read_events(_SID, _RID, base_dir=base)
-            self.assertEqual(events[0]["event"], "step_completed")
-            self.assertEqual(events[0]["agent"], "old-step")
-            steps = ledger.read_step_completed(_SID, _RID, base_dir=base)
-            self.assertEqual([s["agent"] for s in steps], ["old-step", "new-step"])
-            # occurrence count 가 legacy 포함 (prose 덮어쓰기 방지)
-            self.assertEqual(
-                ledger.count_step_completed(_SID, _RID, "old-step", None, base_dir=base), 1)
-
-    def test_mixed_merge_sorts_by_ts(self) -> None:
-        """legacy ts 가 ledger event 사이에 끼면 ts 정렬로 시간순 복원 (codex review non-monotonic)."""
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            _seed_run(base)
-            lp = ledger.ledger_path(_SID, _RID, base_dir=base)
-            early = _receipt_fields(base, "a.md", "early")
-            late = _receipt_fields(base, "c.md", "late")
-            lp.write_text(
-                json.dumps({"event": "step_completed", "ts": "2026-05-01T10:00:00+00:00",
-                            "agent": "early", "mode": None, **early}) + "\n"
-                + json.dumps({"event": "step_completed", "ts": "2026-05-01T12:00:00+00:00",
-                              "agent": "late", "mode": None, **late}) + "\n",
-                encoding="utf-8")
-            legacy = ledger.legacy_steps_path(_SID, _RID, base_dir=base)
-            legacy.write_text(
-                json.dumps({"ts": "2026-05-01T11:00:00+00:00", "agent": "middle", "mode": None,
-                            "enum": "PROSE_LOGGED", "prose_excerpt": "m", "must_fix": False,
-                            "prose_file": "/tmp/b.md"}) + "\n",
-                encoding="utf-8")
-            steps = ledger.read_step_completed(_SID, _RID, base_dir=base)
-            self.assertEqual([s["agent"] for s in steps], ["early", "middle", "late"])
-
-    def test_mixed_merge_dedupes_step_completed(self) -> None:
-        """동일 (agent,mode,ts,prose_file) step_completed 중복 제거 (codex review)."""
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            _seed_run(base)
-            dup = _receipt_fields(base, "d.md", "dup")
-            ident = {"ts": "2026-05-01T10:00:00+00:00", "agent": "dup",
-                     "mode": None, **dup}
-            lp = ledger.ledger_path(_SID, _RID, base_dir=base)
-            lp.write_text(json.dumps({"event": "step_completed", **ident}) + "\n", encoding="utf-8")
-            legacy = ledger.legacy_steps_path(_SID, _RID, base_dir=base)
-            legacy.write_text(
-                json.dumps({**ident, "enum": "PROSE_LOGGED", "prose_excerpt": "d",
-                            "must_fix": False}) + "\n",
-                encoding="utf-8")
-            steps = ledger.read_step_completed(_SID, _RID, base_dir=base)
-            self.assertEqual(len(steps), 1)
-            self.assertEqual(steps[0]["agent"], "dup")
 
     def test_primary_step_with_invalid_receipt_dropped(self) -> None:
         """ledger.jsonl 의 invalid receipt step_completed 는 drop+warn (codex review)."""
@@ -293,20 +191,6 @@ class ReadEventsFallbackTests(unittest.TestCase):
             self.assertIn("missing_file", buf.getvalue())
             self.assertIn("sha256_mismatch", buf.getvalue())
 
-    def test_legacy_step_without_prose_file_preserved(self) -> None:
-        """옛 .steps.jsonl 의 prose_file 없는 row 는 호환 보존 (primary 검증과 분리 — codex review)."""
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            _seed_run(base)
-            legacy = ledger.legacy_steps_path(_SID, _RID, base_dir=base)
-            legacy.write_text(
-                json.dumps({"ts": "2026-05-01T10:00:00+00:00", "agent": "old", "mode": None,
-                            "enum": "PROSE_LOGGED", "must_fix": False,
-                            "prose_excerpt": "o"}) + "\n",
-                encoding="utf-8")
-            steps = ledger.read_step_completed(_SID, _RID, base_dir=base)
-            self.assertEqual(len(steps), 1)
-            self.assertEqual(steps[0]["agent"], "old")
 
     def test_malformed_line_warns(self) -> None:
         """손상 레코드 가시화 — malformed 줄 skip + stderr WARN (codex medium)."""
@@ -342,24 +226,6 @@ class ReadStepCompletedTests(unittest.TestCase):
             self.assertEqual(len(steps), 1)
             self.assertEqual(steps[0]["agent"], "engineer")
 
-    def test_legacy_steps_as_step_completed(self) -> None:
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            _seed_run(base)
-            legacy = ledger.legacy_steps_path(_SID, _RID, base_dir=base)
-            legacy.parent.mkdir(parents=True, exist_ok=True)
-            rows = [
-                {"agent": "engineer", "mode": "IMPL", "enum": "PROSE_LOGGED",
-                 "prose_excerpt": "a", "must_fix": False, "prose_file": "/tmp/e.md"},
-                {"agent": "impl-validator", "mode": None, "enum": "PROSE_LOGGED",
-                 "prose_excerpt": "b", "must_fix": True, "prose_file": "/tmp/cv.md"},
-            ]
-            legacy.write_text(
-                "\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8"
-            )
-            steps = ledger.read_step_completed(_SID, _RID, base_dir=base)
-            self.assertEqual([s["agent"] for s in steps], ["engineer", "impl-validator"])
-            self.assertTrue(steps[1]["must_fix"])
 
 
 class CountStepCompletedTests(unittest.TestCase):
@@ -383,16 +249,6 @@ class CountStepCompletedTests(unittest.TestCase):
             self.assertEqual(
                 ledger.count_step_completed(_SID, _RID, "impl-validator", None, base_dir=base), 0)
 
-    def test_count_includes_legacy_fallback(self) -> None:
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            _seed_run(base)
-            legacy = ledger.legacy_steps_path(_SID, _RID, base_dir=base)
-            legacy.parent.mkdir(parents=True, exist_ok=True)
-            legacy.write_text(
-                json.dumps({"agent": "engineer", "mode": "IMPL"}) + "\n", encoding="utf-8")
-            self.assertEqual(
-                ledger.count_step_completed(_SID, _RID, "engineer", "IMPL", base_dir=base), 1)
 
 
 class Sha256Tests(unittest.TestCase):
@@ -484,10 +340,10 @@ class BuildReceiptTests(unittest.TestCase):
         )
         self.assertEqual(r["provider"], "claude-headless")
 
-        legacy = ledger.build_receipt(
+        without_provider = ledger.build_receipt(
             "engineer", "IMPL", "PROSE_LOGGED", prose, "/tmp/engineer.md"
         )
-        self.assertNotIn("provider", legacy)
+        self.assertNotIn("provider", without_provider)
 
 
 class AppendStepCompletedTests(unittest.TestCase):
@@ -501,17 +357,15 @@ class AppendStepCompletedTests(unittest.TestCase):
                 _SID, _RID, "engineer", "IMPL", "PROSE_LOGGED",
                 prose, prose_path, base_dir=base, provider="codex-headless",
             )
-            # 옛 .steps.jsonl row 필드명 호환
+            # 현재 receipt 기본 필드
             for k in ("ts", "agent", "mode", "enum", "prose_excerpt", "must_fix", "prose_file"):
-                self.assertIn(k, rec, f"호환 필드 누락: {k}")
-            # 신규 receipt 필드
+                self.assertIn(k, rec, f"receipt 필드 누락: {k}")
             for k in ("sha256", "evidence_paths"):
                 self.assertIn(k, rec, f"receipt 필드 누락: {k}")
             self.assertEqual(rec["event"], "step_completed")
             self.assertEqual(rec["sha256"], ledger.sha256_text(prose))
             self.assertEqual(rec["provider"], "codex-headless")
             self.assertTrue(ledger.ledger_path(_SID, _RID, base_dir=base).is_file())
-            self.assertFalse(ledger.legacy_steps_path(_SID, _RID, base_dir=base).exists())
 
     def test_product_acceptance_prose_only_fail_sets_next_action(self) -> None:
         with TemporaryDirectory() as d:
@@ -554,21 +408,6 @@ class ReadAtPathTests(unittest.TestCase):
             self.assertEqual(len(steps), 1)
             self.assertEqual(steps[0]["agent"], "engineer")
 
-    def test_read_at_legacy_fallback(self) -> None:
-        with TemporaryDirectory() as d:
-            base = Path(d)
-            _seed_run(base)
-            rd = run_dir(_SID, _RID, base_dir=base)
-            (rd / ".steps.jsonl").write_text(
-                json.dumps({"agent": "impl-validator", "mode": None, "enum": "PROSE_LOGGED",
-                            "prose_excerpt": "z", "must_fix": False, "prose_file": "/tmp/q.md"})
-                + "\n",
-                encoding="utf-8",
-            )
-            steps = ledger.read_step_completed_at(rd)
-            self.assertEqual(len(steps), 1)
-            self.assertEqual(steps[0]["agent"], "impl-validator")
-            self.assertEqual(steps[0]["event"], "step_completed")
 
 
 class RenderStatusTests(unittest.TestCase):

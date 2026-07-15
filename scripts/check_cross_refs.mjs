@@ -78,7 +78,7 @@ const DENY_LIST = [
   },
   {
     pattern: /\.steps\.jsonl/,
-    label: '옛 step 로그 `.steps.jsonl` — `ledger.jsonl` 의 step_completed event 로 흡수 (이슈 #587). legacy/폴백 맥락(옛·legacy 키워드 동반)만 허용.',
+    label: '폐기된 step 로그 `.steps.jsonl` 참조 금지.',
   },
   {
     // `design-routing.md` 등 skill 분기 파일은 앞에 `-`/단어문자가 붙어 제외.

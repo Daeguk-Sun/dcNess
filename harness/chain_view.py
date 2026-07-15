@@ -70,16 +70,10 @@ ENGINE_SUBSTEPS: Dict[str, List[str]] = {
     ],
 }
 
-# task 진행 뷰 입력 표기 → 정규 키.
-_ENGINE_ALIASES: Dict[str, str] = {
+# task 진행 뷰가 받는 현행 engine enum.
+_ENGINES: Dict[str, str] = {
     "build-worker": "build-worker",
-    "bw": "build-worker",
-    "ui": "ui-build-worker",
-    "ui-design-loop": "ui-build-worker",
-    "impl-ui-design-loop": "ui-build-worker",
     "ui-build-worker": "ui-build-worker",
-    "ui-worker": "ui-build-worker",
-    "impl-ui-build-worker-loop": "ui-build-worker",
 }
 
 # 진행 뷰에는 보이지만 strict conveyor 의 begin-step/Agent 쌍이 아닌 메인 체크포인트.
@@ -104,10 +98,10 @@ def normalize_engine(engine: Any) -> str:
     if not isinstance(engine, str):
         raise ValueError(f"engine 은 문자열이어야 한다: {engine!r}")
     key = engine.strip().lower()
-    if key in _ENGINE_ALIASES:
-        return _ENGINE_ALIASES[key]
+    if key in _ENGINES:
+        return _ENGINES[key]
     raise ValueError(
-        f"미지원 engine: {engine!r} (지원: {sorted(set(_ENGINE_ALIASES))})"
+        f"미지원 engine: {engine!r} (지원: {sorted(_ENGINES)})"
     )
 
 

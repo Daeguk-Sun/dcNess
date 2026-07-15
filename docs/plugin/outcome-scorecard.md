@@ -26,7 +26,7 @@
 | 사람 개입 | 개입 횟수, 이유, 복구에 든 작업 |
 | 결과 증거 | 실행 증거 종류(command, API/CLI/UI journey, screenshot/log, 실제 통합 경계 등), evidence 위치 |
 
-필드가 legacy run에 없으면 `측정 불가`와 이유를 남긴다. 서로 다른 task 유형이나 repo 유형을 하나의 variant 효과처럼 합치지 않는다.
+필드가 현재 run 기록에 없으면 `측정 불가`와 이유를 남긴다. 서로 다른 task 유형이나 repo 유형을 하나의 variant 효과처럼 합치지 않는다.
 
 ## 과정·merge 영역
 

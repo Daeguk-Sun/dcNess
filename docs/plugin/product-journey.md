@@ -17,7 +17,7 @@ module-architect가 실앱 실행이 필요한 AC를 `(JOURNEY)` REQ로 지정�
 
 ## 프로젝트 계약
 
-build-worker가 만드는 새 매니페스트는 `.dcness/` 밖 owner module/소스 영역(예: `app/.maestro/dcness-journey.json`)에 둔다. `.dcness/`는 sub-agent write 보호 영역이므로 carve-out을 만들지 않는다. 이 lifecycle에서는 helper의 `--config`로 매니페스트 경로를 명시한다. helper의 기존 기본 경로 지원은 수동으로 관리 중인 legacy 계약 호환용이며, 새 build-worker 산출물 위치가 아니다.
+build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 영역(예: `app/.maestro/dcness-journey.json`)에 둔다. `.dcness/`는 sub-agent write 보호 영역이므로 carve-out을 만들지 않는다. helper 실행 시 `--config`로 매니페스트 경로를 반드시 명시한다.
 
 ```json
 {

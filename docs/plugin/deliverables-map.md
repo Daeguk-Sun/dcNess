@@ -21,7 +21,7 @@
 | single task implementation pack (`docs/index.md` + 전역 최소 입력 + epic 고정 입력 + 대상 impl 1개) | target 900 lines | `/impl-loop` task 단위 cold-start 가 읽는 실제 입력 세트 | 대상 task 에 필요 없는 전문 사본 제거 |
 | module scoped pack (`docs/modules/<module-id>/architecture.md` + `conventions.md`) | target 300 lines per module | 모듈 작업 cold-start 가 무관한 스택·빌드·규약을 읽지 않게 하기 위한 상한 | 전역과 중복되는 규칙 제거, module-local delta 만 남김 |
 
-예산은 신규 산출물의 작성 압력이다. 기존 활성 프로젝트의 구양식 산출물은 계속 유효하지만, 수정하는 순간 신규 규칙에 맞춰 전문 사본을 줄인다.
+예산은 모든 현행 산출물의 작성 압력이다. 수정하는 산출물은 현재 규칙에 맞춰 전문 사본을 줄인다.
 
 ## 적용 범위
 
@@ -78,15 +78,15 @@ docs/
 | design run 기록 | `docs/metrics/design-runs.jsonl` | `dcness-helper end-run` before design PR | JSONL schema v1 (`harness/design_run_records.py`) |
 | 결정 기록 | `docs/decisions/NNNN-slug.md` | system-architect / module-architect | `docs/plugin/agents/system-architect/templates/decision.md` |
 
-`docs/architecture.md` 는 변경 목적/외부 trigger에서 실제 runtime entrypoint, stable capability owner, 관련 epic/decision으로 이동하는 bounded Cartography anchor다. `landed/stub/planned/deferred` 상태는 실제 코드 entrypoint 또는 accepted epic/decision 포인터로 검증 가능해야 한다. 변경 영향 집합을 판단할 때는 바뀌는 capability 의 Cartography row 경계(해당 runtime entrypoint·owner 와 그 capability 를 검증하는 테스트) 안으로 유지한다. 별도 framework/manifest 등록으로만 도달하는 경로는 다른 row 의 소유이므로, 분류 대상일 수는 있어도 해당 capability 의 영향 집합에 합치지 않는다. greenfield thin bootstrap 때 큰 모듈 경계와 의존 그래프를 얇게 담을 수 있지만, Story→모듈 매핑, 구현 순서, 상세 계약 본문, 전역 generated summary, Contract Ledger, ux/story 요약을 복제하지 않는다. 전역 모듈/의존/결정의 긴 설명은 `docs/decisions/` 또는 module docs 로 보낸다.
+`docs/architecture.md` 는 변경 목적/외부 trigger에서 실제 runtime entrypoint, stable capability owner, 관련 epic/decision으로 이동하는 bounded Cartography anchor다. `landed/stub/planned/deferred` 상태는 실제 코드 entrypoint 또는 accepted epic/decision 포인터로 검증 가능해야 한다. 변경 영향 집합을 판단할 때는 바뀌는 capability 의 Cartography row 경계(해당 runtime entrypoint·owner 와 그 capability 를 검증하는 테스트) 안으로 유지한다. 별도 framework/manifest 등록으로만 도달하는 경로는 다른 row 의 소유이므로, 분류 대상일 수는 있어도 해당 capability 의 영향 집합에 합치지 않는다. greenfield thin bootstrap 때 큰 모듈 경계와 의존 그래프를 얇게 담을 수 있지만, Story→모듈 매핑, 구현 순서, 상세 계약 본문, 전역 generated summary, ux/story 요약을 복제하지 않는다. 전역 모듈/의존/결정의 긴 설명은 `docs/decisions/` 또는 module docs 로 보낸다.
 
 `docs/index.md` 는 cold-start agent 의 정적 entrypoint 다. `## 에픽` 표는 `docs/epics/epic-NN-*` 디렉토리와 `stories.md` frontmatter `milestone` 값에서 파생되는 생성 섹션이며 수동 편집하지 않는다. `다음 액션` 컬럼은 산출물 존재만으로 epic 단위 phase 를 파생한다: `stories.md` 부재면 `/spec`, `stories.md` 는 있으나 설계 미완이면 `/design`, `ux-flow.md` 는 있으나 full design pack 이 없으면 `/design` (ux 완료 · system 미완), 설계 완료면 `/impl`. 설계 완료 판정은 `architecture.md` 존재 AND `impl/NN-*.md` 1개 이상 존재이며(선택 산출물 `domain-model.md`·`ux-flow.md`·`tech-review.md` 부재는 미완으로 보지 않는다), auto-memory 없이도 콜드스타트 다음 액션을 자족적으로 확정하기 위한 것이다. UI-less epic 은 `ux-flow.md` 가 원래 없으므로 기존 "설계 미완" 라벨을 유지한다. 모듈 축을 쓰는 프로젝트에서는 `## 모듈` 표도 `docs/modules/<module-id>/` 에서 파생된다. live 진행상태를 문서에 복제하지 않고, 수동 섹션 `## 진행 상태 · 다음 작업` 에서 GitHub issue/label 상태, epic/story issue, `/next-work` 를 가리킨다. `/init-dcness` 는 기존 `docs/index.md` 를 overwrite 하지 않지만, 이 섹션이 없으면 `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs` 로 섹션만 append 한다.
 
 `$PLUGIN_ROOT/scripts/aggregate_index_map.mjs` 는 각 epic 폴더와 opt-in module 폴더를 결정적으로 정렬하고 `docs/index.md` 의 `## 에픽` / `## 모듈` 표를 생성/갱신한다. 파일이 없는 선택 산출물 셀은 링크가 아닌 `—` 로 남긴다. `docs/modules/` 가 없으면 모듈 표는 생성하지 않아 단일 루트 프로젝트의 기존 index 동작을 바꾸지 않는다. 기존 `docs/index.md` 에 수동 `## 모듈` 섹션이 있으면 모듈 축 활성화 시 생성 섹션으로 교체되므로, 수동 설명은 다른 heading 으로 옮긴 뒤 집계기를 실행한다.
 
-`$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 최신 `## 모듈 목록` 책임·공개 인터페이스·검증 경로·decision 참조와 legacy `## Contract Ledger`/`## Decisions`를 읽어 여러 epic의 capability/owner 보조 뷰를 `.dcness-work/reports/architecture-map.md` 에 온디맨드로 생성할 수 있다. 이 결과는 필수 agent 입력, checked-in 유지 의무, CI drift gate, as-built 코드 상태 증거가 아니다. 여러 epic을 함께 보는 시점에 생성하고 PR 산출물 본문에는 복제하지 않는다.
+`$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 는 각 `docs/epics/epic-NN-<slug>/architecture.md` 의 `## 모듈 목록` 책임·공개 인터페이스·검증 경로·decision 참조를 읽어 여러 epic의 capability/owner 보조 뷰를 `.dcness-work/reports/architecture-map.md` 에 온디맨드로 생성할 수 있다. 이 결과는 필수 agent 입력, checked-in 유지 의무, CI drift gate, as-built 코드 상태 증거가 아니다. 여러 epic을 함께 보는 시점에 생성하고 PR 산출물 본문에는 복제하지 않는다.
 
-Cross-task 계약 의미는 epic `architecture.md` 의 `## 모듈 목록` 책임/공개 인터페이스/검증 경로 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 산출물은 module id 와 decision id/link 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다. 구양식 Contract Ledger / Contract References 는 기존 활성 프로젝트 호환을 위해 유효하지만, 신규 산출물이나 이번에 수정하는 산출물은 module/decision 참조로 축소한다.
+Cross-task 계약 의미는 epic `architecture.md` 의 `## 모듈 목록` 책임/공개 인터페이스/검증 경로 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 산출물은 module id 와 decision id/link 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다.
 
 기술 스택, naming, formatter, runtime, package manager, dependency policy 같은 반복 입력은 `docs/conventions.md` 에 둔다. 전역 architecture 는 시스템 topology 와 cross-epic map 에 집중한다.
 

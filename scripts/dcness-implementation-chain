@@ -155,7 +155,14 @@ from harness.agent_routing import (
 
 agent = sys.argv[1]
 requested = sys.argv[2]
-provider = requested or resolve_provider(agent)
+try:
+    provider = requested or resolve_provider(agent)
+except ValueError as exc:
+    print(
+        f"[dcness-implementation-chain] routing config rejected: {exc}",
+        file=sys.stderr,
+    )
+    sys.exit(2)
 if provider not in VALID_IMPLEMENTATION_PROVIDERS:
     allowed = "|".join(VALID_IMPLEMENTATION_PROVIDERS)
     print(

@@ -370,32 +370,32 @@ def _tdd_guard_bash_write_without_test() -> tuple[Decision, str]:
 def build_cases() -> list[GuardCase]:
     return [
         GuardCase(
-            "file_boundary_allows_engineer_src",
+            "file_boundary_allows_build_worker_src",
             "file-boundary",
             "allow",
-            "engineer can write implementation source.",
-            _file_write("engineer", "src/service.ts"),
+            "build-worker can write implementation source.",
+            _file_write("build-worker", "src/service.ts"),
         ),
         GuardCase(
             "file_boundary_blocks_infra",
             "file-boundary",
             "block",
-            "engineer cannot write dcNess-controlled hook paths.",
-            _file_write("engineer", "hooks/file-guard.sh"),
+            "build-worker cannot write dcNess-controlled hook paths.",
+            _file_write("build-worker", "hooks/file-guard.sh"),
         ),
         GuardCase(
             "file_boundary_blocks_code_agent_docs",
             "file-boundary",
             "block",
-            "code agents cannot write architect-owned docs.",
-            _file_write("engineer", "docs/architecture.md"),
+            "code agents cannot write design-owned docs.",
+            _file_write("build-worker", "docs/architecture.md"),
         ),
         GuardCase(
-            "file_boundary_allows_architect_docs",
+            "file_boundary_allows_module_architect_docs",
             "file-boundary",
             "allow",
-            "architect-owned docs remain writable by architect.",
-            _file_write("architect", "docs/architecture.md"),
+            "design-owned docs remain writable by module-architect.",
+            _file_write("module-architect", "docs/architecture.md"),
         ),
         GuardCase(
             "read_boundary_allows_own_agent_instructions",

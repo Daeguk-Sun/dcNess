@@ -11,7 +11,7 @@
 - main 머지 후 사용자가 `claude plugin update dcness@dcness` 를 실행하면 외부 활성 프로젝트의 plug-in cache 에 반영된다.
 - `/init-dcness` 재실행은 필요하지 않다.
 - 에이전트가 자동 선독하는 문서가 아니다. 용어, 공개 진입점, 분기 표현, 사용자 표시 메시지를 수정하거나 리뷰할 때만 lazy read 한다.
-- 코드 심볼, 파일명, CLI flag, 테스트 fixture 는 별도 rename 이슈가 없는 한 유지한다. 예: `catastrophic-gate.sh`, `check_bash_mutation`, `--lane`, `routing.json`.
+- 코드 심볼, 파일명, CLI flag, 테스트 fixture 는 공식 용어와 별개의 기술 식별자다. 예: `catastrophic-gate.sh`, `check_bash_mutation`, `--lane`, `routing.json`.
 
 ## 파일명 결정
 
@@ -35,7 +35,7 @@
 | 자유서술 방식 | `prose-only` | agent 가 고정 JSON/schema/marker 없이 prose 로 보고하고, 메인 Claude 가 prose 를 직접 읽어 판단하는 방식. | 자유서술 방식에서도 마지막 단락의 결론 단어와 근거는 명확해야 한다. | [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일), [`loop-procedure.md`](loop-procedure.md#표준-1-step-시퀀스-per-agent-의무) |
 | 진행 순서 검사 | `strict conveyor`, `strict-conveyor`, `conveyor` | active run 안에서 `begin-step -> Agent -> end-step` 물리 순서를 검사하는 hook 영역. | 진행 순서 검사는 `begin-step` 없이 Agent 를 직접 호출하면 차단한다. | [`hooks.md`](hooks.md#catastrophic-gatesh), [`loop-procedure.md`](loop-procedure.md#표준-1-step-시퀀스-per-agent-의무) |
 | 하네스 경량화 실험 | `ablation` | 반복 비용이 있는 선택형 절차를 줄여도 품질 경계가 유지되는지 격리 fixture의 동일 task baseline/variant로 비교하는 승인형 실험. | 첫 1+1 결과가 명확하면 추가 trial 없이 유지·줄이기 후보·보류로 보고한다. | [`outcome-scorecard.md`](outcome-scorecard.md#개인-경량화-판단) |
-| 운영 성과 요약 | `scorecard` | 과정·Agent 작업 효율·실제 제품 결과를 서로 대체하지 않고 나란히 보는 사용자-facing 요약. 코드 심볼과 파일명은 호환을 위해 유지한다. | 제품 결과가 없으면 다른 축으로 채우지 않고 측정 불가로 표시한다. | [`outcome-scorecard.md`](outcome-scorecard.md) |
+| 운영 성과 요약 | `scorecard` | 과정·Agent 작업 효율·실제 제품 결과를 서로 대체하지 않고 나란히 보는 사용자-facing 요약. | 제품 결과가 없으면 다른 축으로 채우지 않고 측정 불가로 표시한다. | [`outcome-scorecard.md`](outcome-scorecard.md) |
 
 ## 수용 기준 계층
 

@@ -53,13 +53,12 @@ flowchart TB
 
 **왜 단방향?**
 - tech-reviewer 단계 = PRD 최종화 전 기술 검증 기회. 검증 충실 의무 가중 (증거물 / HTML 리포트 룰의 가치 근거).
-- /design 진입 후 역방향 회귀 = ping-pong 사고 패턴 (옛 plan-reviewer cycle 한도 룰이 누적된 원인, 이슈 [#515](https://github.com/alruminum/dcNess/issues/515)).
 
 **/design 도중 미검증 새 외부 의존 발견 시 → design routing 의 `NEW_DEP_ESCALATE` 4안**:
-1. **채택 + 수동 검증** — 사용자 승인 → 해당 architect 재진입
-2. **대안 기술 우회** — tech-review 기검증 대안 지정 → architect 재진입
+1. **채택 + 수동 검증** — 사용자 승인 → 해당 설계 agent 재진입
+2. **대안 기술 우회** — tech-review 기검증 대안 지정 → 설계 agent 재진입
 3. **전체 원점 회귀** — `/design` 중단 + `/spec` 재진입 + 새 tech-review
-4. **대상 epic 기술 검토** — 현재 epic `tech-review.md` 작성, evidence/HTML 은 `.dcness-work/reviews/`, 사용자 OK 후 architect 재진입
+4. **대상 epic 기술 검토** — 현재 epic `tech-review.md` 작성, evidence/HTML 은 `.dcness-work/reviews/`, 사용자 OK 후 설계 agent 재진입
 
 (1)·(2)·(4) cycle ≤ 2. (4)는 전역 `/tech-review` 재진입이 아니라 design 중 발견된 새 의존을 현재 epic 범위로 좁혀 검토하는 경로다. 상세 흐름 = [`../design/design-routing.md`](../design/design-routing.md#escalate-처리).
 

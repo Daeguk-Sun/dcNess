@@ -166,4 +166,3 @@ tech-review 통과 완료.
 - tech-reviewer agent SSOT: [`agents/tech-reviewer.md`](../../agents/tech-reviewer.md)
 - PRD 작성 (선행 스킬): [`skills/spec/SKILL.md`](../spec/SKILL.md)
 - 설계 단계 (후속 스킬): [`skills/design/SKILL.md`](../design/SKILL.md)
-- 옛 plan-reviewer 폐기 배경 (이슈 [#515](https://github.com/alruminum/dcNess/issues/515))

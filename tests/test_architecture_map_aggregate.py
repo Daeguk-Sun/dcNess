@@ -74,61 +74,6 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
         epic_map = _section(proc.stdout, "에픽 간 지도")
         self.assertEqual(epic_map.count("[ADR-0002]"), 1)
 
-    def test_generates_report_from_epic_architecture_tables(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            project = Path(tmp)
-            _write(project / "docs/epics/epic-01-alpha/domain-model.md", "# Domain\n")
-            _write(
-                project / "docs/epics/epic-01-alpha/architecture.md",
-                """
-                # Epic Architecture
-
-                ## 모듈 목록
-
-                | 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |
-                |---|---|---|---|---|
-                | AuthCore | login orchestration | TokenStore | `authenticate()` | auth contract |
-                | TokenStore | token persistence | - | `saveToken()` | token store |
-
-                ## Contract Ledger
-
-                | contract | owner | producer | consumer | invariant | ordering | error mode | config | forbidden alternative | refs |
-                |---|---|---|---|---|---|---|---|---|---|
-                | AuthSession | AuthCore | LoginForm | AuthCore | session id stable | login before refresh | reject | env | global mutable session | [ADR-0001](../../decisions/0001-auth.md) |
-
-                ## Decisions
-
-                | Decision | Scope | Reason |
-                |---|---|---|
-                | [ADR-0001](../../decisions/0001-auth.md) | global | auth decision |
-                """,
-            )
-
-            proc = _run(project)
-            self.assertEqual(proc.returncode, 0, proc.stderr)
-
-            root_map = _report(project).read_text(encoding="utf-8")
-            self.assertIn("## 에픽 간 지도", root_map)
-            epic_map_counts = _table_cell_counts(_section(root_map, "에픽 간 지도"))
-            self.assertGreaterEqual(len(epic_map_counts), 2)
-            self.assertTrue(
-                all(count == epic_map_counts[0] for count in epic_map_counts[1:]),
-                f"generated epic map row widths differ from header: {epic_map_counts}",
-            )
-            self.assertIn(
-                "| [epic-01-alpha](../../docs/epics/epic-01-alpha) | [architecture.md](../../docs/epics/epic-01-alpha/architecture.md) | [domain-model.md](../../docs/epics/epic-01-alpha/domain-model.md) | AuthCore, TokenStore | [ADR-0001](../../docs/decisions/0001-auth.md) |",
-                root_map,
-            )
-            self.assertIn(
-                "| AuthCore | login orchestration | TokenStore | `authenticate()` | [epic-01-alpha](../../docs/epics/epic-01-alpha/architecture.md) |",
-                root_map,
-            )
-            self.assertIn("## 공유 계약 인덱스", root_map)
-            self.assertIn(
-                "| legacy Contract Ledger | AuthSession | AuthCore | LoginForm | AuthCore | session id stable | [ADR-0001](../../docs/decisions/0001-auth.md) | [epic-01-alpha](../../docs/epics/epic-01-alpha/architecture.md) |",
-                root_map,
-            )
-
     def test_rebases_module_doc_links_from_epic_module_rows(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)
@@ -153,51 +98,6 @@ class ArchitectureMapAggregateTests(unittest.TestCase):
             root_map = _report(project).read_text(encoding="utf-8")
             self.assertIn(
                 "| [android](../../docs/modules/android/architecture.md) | mobile UI shell | - | `MainActivity` | [epic-01-mobile](../../docs/epics/epic-01-mobile/architecture.md) |",
-                root_map,
-            )
-
-    def test_rerun_corrects_legacy_four_cell_report_rows(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            project = Path(tmp)
-            _write(
-                _report(project),
-                """
-                # 전역 아키텍처 온디맨드 리포트
-
-                ## 에픽 간 지도
-
-                <!-- dcness-architecture-map:generated -->
-                <!-- 수정하지 말고 plugin script `aggregate_architecture_map.mjs` 로 갱신한다. -->
-                | 에픽 | Architecture | Domain Model | 핵심 모듈 | 결정 |
-                |---|---|---|---|---|
-                | [epic-01-alpha](epics/epic-01-alpha/architecture.md) | [domain-model.md](epics/epic-01-alpha/domain-model.md) | AuthCore | - |
-                """,
-            )
-            _write(project / "docs/epics/epic-01-alpha/domain-model.md", "# Domain\n")
-            _write(
-                project / "docs/epics/epic-01-alpha/architecture.md",
-                """
-                # Epic Architecture
-
-                ## 모듈 목록
-
-                | 모듈 | 책임 | 의존 모듈 | 공개 API | 테스트 단위 |
-                |---|---|---|---|---|
-                | AuthCore | login orchestration | - | `authenticate()` | auth contract |
-                """,
-            )
-
-            proc = _run(project)
-            self.assertEqual(proc.returncode, 0, proc.stderr)
-
-            root_map = _report(project).read_text(encoding="utf-8")
-            epic_map_counts = _table_cell_counts(_section(root_map, "에픽 간 지도"))
-            self.assertTrue(
-                all(count == epic_map_counts[0] for count in epic_map_counts[1:]),
-                f"generated epic map row widths differ from header: {epic_map_counts}",
-            )
-            self.assertIn(
-                "| [epic-01-alpha](../../docs/epics/epic-01-alpha) | [architecture.md](../../docs/epics/epic-01-alpha/architecture.md) | [domain-model.md](../../docs/epics/epic-01-alpha/domain-model.md) | AuthCore | - |",
                 root_map,
             )
 

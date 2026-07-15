@@ -2,7 +2,7 @@
 
 데이터 소스:
   1. `.sessions/{sid}/runs/{rid}/ledger.jsonl` — event 장부의 step_completed
-     (agent/mode/enum/must_fix/prose_excerpt/ts; 옛 .steps.jsonl 은 legacy 폴백, 이슈 #587)
+     (agent/mode/enum/must_fix/prose_excerpt/ts)
   2. `.sessions/{sid}/runs/{rid}/<agent>[-<MODE>].md` — 각 step 의 전체 prose
   3. CC session JSONL — run timeframe 내 cost/token (run-level coarse)
 
@@ -38,10 +38,7 @@ except Exception:
     def price_for(_model: str) -> dict:  # type: ignore
         return {"in": 15.0, "out": 75.0, "cw5": 18.75, "cw1h": 30.0, "cr": 1.50}
 
-# DCN-CHG-20260501-10: must_fix retroactive recompute.
-# .steps.jsonl 의 must_fix 는 *기록 시점* helper regex 산출물 — DCN-CHG-20260501-09
-# 이전 데이터는 단순 단어경계 매칭의 false positive 포함. parser 가 prose_full 보유 시
-# 신규 negation-aware regex 로 재계산. prose_full 부재 시 jsonl fallback.
+# must_fix 는 저장 receipt가 아니라 prose SSOT에서 다시 계산한다.
 try:
     from harness.session_state import (
         _has_positive_must_fix,
@@ -60,19 +57,6 @@ except Exception:
 
 # ── 상수 ───────────────────────────────────────────────────────────────
 
-EXPECTED_FINAL_ENUMS = {
-    "system-architect": {None: "PASS"},
-    "module-architect": {None: "PASS"},
-    "test-engineer": {None: "PASS"},
-    "engineer": {"IMPL": "IMPL_DONE", "POLISH": "POLISH_DONE"},
-    "impl-validator": {None: "PASS", "CODEBASE_SANITY": "PASS"},
-    "architecture-validator": {None: "PASS"},
-    "product-acceptance": {None: "PASS"},
-    "plan-reviewer": {None: "PASS"},
-    "designer": {None: "PASS"},
-    "ux-architect": {None: "UX_FLOW_READY"},  # 통일 부적합 — variant 3개
-}
-
 PLACEHOLDER_PATTERNS = [
     r"\[미기록\]", r"\[미결\]", r"M0\s*이후", r"M0\s*에서\s*검증",
     r"NotImplementedError", r"^\s*#\s*TODO\b", r"후보\s*\d+\s*개\s*비교",
@@ -90,7 +74,6 @@ INFRA_PATH_PATTERNS = [
 READONLY_AGENTS = {
     "impl-validator",
     "architecture-validator",
-    "plan-reviewer",
 }
 
 # #917 — lesson 대상 WasteFinding 패턴의 코드 SSOT.
@@ -112,25 +95,18 @@ ACTIVE_WASTE_PATTERNS = frozenset({
 # elapsed_s: 정상 sub-agent 한 번 호출 한도 (초).
 # min_output_tokens: 정상 sub-agent 가 emit 할 최소 output token (이하 = stall 의심).
 EXPECTED_AGENT_BUDGETS: dict[str, dict[str, int]] = {
-    "architect":       {"elapsed_s": 600, "min_output_tokens": 1500},
     "module-architect": {"elapsed_s": 600, "min_output_tokens": 1500},
     "system-architect": {"elapsed_s": 600, "min_output_tokens": 1500},
-    "engineer":        {"elapsed_s": 900, "min_output_tokens": 2000},
-    "test-engineer":   {"elapsed_s": 600, "min_output_tokens": 1500},
+    "build-worker":    {"elapsed_s": 900, "min_output_tokens": 2000},
     "impl-validator":  {"elapsed_s": 420, "min_output_tokens": 1000},
     "architecture-validator": {"elapsed_s": 300, "min_output_tokens": 800},
     "product-acceptance": {"elapsed_s": 300, "min_output_tokens": 800},
-    "plan-reviewer":   {"elapsed_s": 300, "min_output_tokens": 1000},
+    "tech-reviewer":   {"elapsed_s": 300, "min_output_tokens": 1000},
     "designer":        {"elapsed_s": 600, "min_output_tokens": 1000},
     "ux-architect":    {"elapsed_s": 600, "min_output_tokens": 1000},
 }
 
 DCNESS_AGENT_NAMES = set(EXPECTED_AGENT_BUDGETS.keys())
-
-# issue #383 — 옛 통합형 agent 이름 alias. issue #598 에서 SSOT 를
-# `harness/agent_names.py` 로 이전 (file-guard 핫패스에서도 공유). 본 모듈은
-# backward compat 위해 재-export (옛 `run_review.LEGACY_AGENT_ALIASES` 참조 보존).
-from harness.agent_names import LEGACY_AGENT_ALIASES  # noqa: E402,F401
 
 # issue #383 B1 — window padding. step.ts = end-step 호출 시각이므로
 # sub-agent TUR ts (완료 시각) 는 first_ts 보다 약간 이전. padding 없으면
@@ -139,10 +115,10 @@ WINDOW_TS_PADDING = timedelta(seconds=60)
 
 # issue #770/#771 — MUST_FIX_GHOST 는 *게이트* agent 가 advance 결론을 내면서 미해결
 # MUST FIX 를 남긴 모순만 검출한다 (producer 의 must_fix·reviewer FAIL 은 정상 흐름).
-# 게이트 = PASS/FAIL/(LGTM) 결론으로 진행을 막는 read-only 검증/리뷰/검수 agent.
+# 게이트 = PASS/FAIL 결론으로 진행을 막는 read-only 검증/리뷰/검수 agent.
 # hardcode 대신 권한 metadata 에서 *파생* — agent_boundary.ALLOW_MATRIX 의 *빈 허용*
 # (Write 권한 0 = read-only) agent 가 곧 게이트다 (code/architecture-validator,
-# impl-validator, product-acceptance, plan-reviewer 자동 포함). tech-reviewer 는 자기
+# impl-validator, architecture-validator, product-acceptance 자동 포함). tech-reviewer 는 자기
 # 보고서를 쓰므로 빈 허용은 아니지만 PASS/FAIL/ESCALATE 게이트라 명시 추가.
 # 이렇게 단일 SSOT 에서 파생하면 게이트가 늘어도 본 집합이 자동으로 따라간다 (#771
 # whack-a-mole 종료 — 게이트 하나씩 누락되던 hardcode 회귀 차단).
@@ -155,26 +131,17 @@ def _derive_gate_agents() -> set[str]:
             "impl-validator",
             "architecture-validator",
             "product-acceptance",
-            "plan-reviewer",
         }
     return read_only | {"tech-reviewer"}
 
 
 MUST_FIX_GATE_AGENTS = _derive_gate_agents()
-MUST_FIX_GHOST_PASS_ENUMS = {"PASS", "LGTM"}
-# stored enum 이 실제 verdict 면 그것을 우선 (legacy .steps.jsonl row). PROSE_LOGGED /
-# AMBIGUOUS 같은 sentinel 일 때만 prose 파싱 결론을 쓴다 — prose 오파싱(예 "LGTM 후보 X")
-# 이 stored verdict(CHANGES_REQUESTED 등)를 덮어써 거짓 GHOST 를 내는 회귀 차단 (#770).
-_VERDICT_SENTINELS = {"PROSE_LOGGED", "AMBIGUOUS", ""}
-
-
+MUST_FIX_GHOST_PASS_ENUMS = {"PASS"}
 def _resolved_verdict(step) -> str:
-    """step 의 verdict — stored enum 우선, sentinel 이면 prose 결론."""
-    if step.enum and step.enum not in _VERDICT_SENTINELS:
-        return step.enum
+    """현재 prose SSOT에서 추출한 step verdict."""
     return step.conclusion_enum or ""
 
-# DCN-CHG-20260430-38: engineer self-verify echo anchor 옵션 (DCN-30-34 강제 → DCN-30-38 자율화).
+# DCN-CHG-20260430-38: 구현 결과 self-verify echo anchor 옵션 (DCN-30-34 강제 → DCN-30-38 자율화).
 # prose 끝에 *어느 한 anchor* 라도 있으면 통과. 형식 자율 + substance 의무.
 # heading 라인에 검증 / verification / self-verify 단어가 *포함* 되면 매칭 (issue #249 — `## 수용 기준 검증` 같은 변형 허용).
 SELF_VERIFY_ANCHORS = [
@@ -185,7 +152,7 @@ SELF_VERIFY_ANCHORS = [
 
 
 def _has_self_verify_anchor(prose: str) -> bool:
-    """engineer prose 에 self-verify anchor 중 하나라도 있는지 (DCN-30-38)."""
+    """구현 prose 에 self-verify anchor 중 하나라도 있는지 (DCN-30-38)."""
     if not prose:
         return False
     for pat in SELF_VERIFY_ANCHORS:
@@ -248,9 +215,8 @@ class StepRecord:
     matched_invocation: bool = False
     # DCN-CHG-20260430-37: tool_use_count — TOOL_USE_OVERFLOW 검출 + DCN-30-36 hint 짝.
     tool_use_count: int = 0
-    # issue #383 B4 — prose 본문 끝 결론 enum (PASS/LGTM/FAIL/ESCALATE).
-    # 옛 enum mode 는 helper stdout 에서 enum 직접 씀. prose-only mode
-    # (이슈 #284) 이후 helper sentinel = `PROSE_LOGGED` 통일 → agent prose
+    # issue #383 B4 — prose 본문 끝 결론 enum.
+    # prose-only mode helper sentinel = `PROSE_LOGGED` → agent prose
     # 마지막 단락 결론 (agents/impl-validator.md 의 결론 + 권장 다음 단계 "PASS / FAIL / ESCALATE")
     # 을 표시 단계에서 추출. 부재 시 빈 문자열 (= sentinel 그대로 표시 fallback).
     conclusion_enum: str = ""
@@ -520,8 +486,6 @@ def list_runs(sessions_root: Path) -> list[Path]:
       step_completed 후 end-run 전의 partial active run 이 implicit --latest 로
       선택돼 미완 리포트가 나오는 것을 막고, step 없는 완료 run 도 제외한다.
       (명시 `--run-id` 는 find_run_dir 직접 탐색으로 partial 도 분석 가능.)
-    - legacy .steps.jsonl run: run_finished 개념이 없으므로 step_completed≥1 로 판정
-      (옛 '파일 존재 = 최소 1 step' 동작과 동등, 호환 경로).
     """
     from harness import ledger
 
@@ -537,10 +501,7 @@ def list_runs(sessions_root: Path) -> list[Path]:
             if not events:
                 continue
             has_step = any(e.get("event") == "step_completed" for e in events)
-            if (rid_dir / "ledger.jsonl").exists():
-                if has_step and any(e.get("event") == "run_finished" for e in events):
-                    runs.append(rid_dir)
-            elif has_step:
+            if has_step and any(e.get("event") == "run_finished" for e in events):
                 runs.append(rid_dir)
     return sorted(runs, key=lambda p: p.stat().st_mtime, reverse=True)
 
@@ -550,7 +511,7 @@ def find_run_dir(sessions_root: Path, run_id: Optional[str], use_latest: bool) -
         for rd in list_runs(sessions_root):
             if rd.name == run_id:
                 return rd
-        # .steps.jsonl 없는 run 도 직접 탐색 (prose staging 실패 등 부분 완료 run)
+        # ledger에 아직 step이 없는 부분 완료 run도 명시 ID로는 탐색한다.
         for sid_dir in sessions_root.iterdir():
             runs_dir = sid_dir / "runs"
             if not runs_dir.is_dir():
@@ -619,52 +580,29 @@ def _parse_iso(ts: str) -> Optional[datetime]:
 
 # issue #383 B4 — prose 본문 결론 enum 추출.
 # agents/impl-validator.md 의 결론 + 권장 다음 단계 등: "prose 마지막 단락에 결론 (PASS / FAIL / ESCALATE)".
-# impl-validator 는 LGTM 도 사용. 마지막 N줄에서 단어 단위 매칭 — 부정문 (예: "FAIL 없음",
-# "0 FAIL") 회피 위해 같은 줄에 부정 마커 있으면 skip.
+# 마지막 N줄에서 단어 단위 매칭 — 부정문 (예: "FAIL 없음", "0 FAIL") 회피를 위해
+# 같은 줄에 부정 마커가 있으면 skip.
 _CONCLUSION_ENUMS: tuple[tuple[str, re.Pattern[str]], ...] = (
-    # issue #383 follow-up — agent 별 결론 enum 12개 매트릭스 (agents/*.md 실측):
-    #   engineer (IMPL): IMPL_DONE / IMPL_PARTIAL / TESTS_FAIL
-    #   engineer (POLISH): POLISH_DONE / IMPLEMENTATION_ESCALATE
-    #   test-engineer: TESTS_WRITTEN
-    #   impl-validator / architecture-validator / module-architect / system-architect
-    #     / plan-reviewer: PASS / FAIL / ESCALATE
-    #   impl-validator: LGTM / FAIL / ESCALATE
-    #   ux-architect: UX_FLOW_DONE / UX_FLOW_ESCALATE
-    #   designer: PASS
-    # 우선순위 — 구체적 enum 먼저 (TESTS_FAIL 이 FAIL 보다 먼저 매칭).
-    # 일반 PASS/FAIL/ESCALATE 는 마지막 fallback.
-    ("LGTM", re.compile(r"\bLGTM\b")),
-    # engineer IMPL
-    ("IMPL_DONE", re.compile(r"\bIMPL_DONE\b")),
-    ("IMPL_PARTIAL", re.compile(r"\bIMPL_PARTIAL\b")),
-    # build-worker — 검증 명령 실행 불가 (환경 제약) 보고. 정적 분석 PASS 흡수 금지 —
-    # 메인이 게이트 대행 실행 (skills/impl-loop/impl-loop-routing.md).
-    # TESTS_FAIL 보다 *앞* — 구분 문장("TESTS_FAIL 이 아니라 VALIDATION_BLOCKED")에서
-    # 둘 다 standalone(negation skip)이라 순서가 결론을 정한다 (#705 리뷰).
+    # 현행 agents/*.md 결론 enum. 구체적 enum을 일반 enum보다 먼저 매칭한다.
     ("VALIDATION_BLOCKED", re.compile(r"\bVALIDATION_BLOCKED\b")),
     ("TESTS_FAIL", re.compile(r"\bTESTS_FAIL\b")),
-    # engineer POLISH
-    ("POLISH_DONE", re.compile(r"\bPOLISH_DONE\b")),
+    ("SPEC_GAP_FOUND", re.compile(r"\bSPEC_GAP_FOUND\b")),
     ("IMPLEMENTATION_ESCALATE", re.compile(r"\bIMPLEMENTATION_ESCALATE\b")),
-    # test-engineer
-    ("TESTS_WRITTEN", re.compile(r"\bTESTS_WRITTEN\b")),
-    # ux-architect
-    ("UX_FLOW_DONE", re.compile(r"\bUX_FLOW_DONE\b")),
+    ("SYSTEM_CHECKPOINT_REQUIRED", re.compile(r"\bSYSTEM_CHECKPOINT_REQUIRED\b")),
+    ("NEW_DEP_ESCALATE", re.compile(r"\bNEW_DEP_ESCALATE\b")),
+    ("UX_FLOW_READY", re.compile(r"\bUX_FLOW_READY\b")),
+    ("UX_FLOW_PATCHED", re.compile(r"\bUX_FLOW_PATCHED\b")),
+    ("UX_REFINE_READY", re.compile(r"\bUX_REFINE_READY\b")),
     ("UX_FLOW_ESCALATE", re.compile(r"\bUX_FLOW_ESCALATE\b")),
-    # 일반 (PR #361 enum 통일 — code/architecture-validator / system/module-architect
-    # / plan-reviewer / impl-validator / designer 공통)
     ("PASS", re.compile(r"\bPASS\b")),
     ("FAIL", re.compile(r"\bFAIL\b")),
     ("ESCALATE", re.compile(r"\bESCALATE\b")),
 )
 # 단독 결론 (negation 검사 skip 대상) — 단어 자체가 부정 형태 가질 수 없음.
 _STANDALONE_CONCLUSIONS: frozenset[str] = frozenset({
-    "LGTM",
-    "IMPL_DONE", "IMPL_PARTIAL",
-    "POLISH_DONE", "IMPLEMENTATION_ESCALATE",
-    "TESTS_WRITTEN", "TESTS_FAIL",
-    "VALIDATION_BLOCKED",
-    "UX_FLOW_DONE", "UX_FLOW_ESCALATE",
+    "SPEC_GAP_FOUND", "TESTS_FAIL", "VALIDATION_BLOCKED",
+    "IMPLEMENTATION_ESCALATE", "SYSTEM_CHECKPOINT_REQUIRED", "NEW_DEP_ESCALATE",
+    "UX_FLOW_READY", "UX_FLOW_PATCHED", "UX_REFINE_READY", "UX_FLOW_ESCALATE",
 })
 _NEGATION_RE = re.compile(
     r"(없|미발견|아님|아니|불필요|"           # 한글 부정
@@ -674,18 +612,20 @@ _NEGATION_RE = re.compile(
 )
 
 
-# issue #771 — GHOST 가드용. _extract_conclusion_enum 은 라벨 우선순위(PASS/LGTM 먼저)
+# issue #771 — GHOST 가드용. _extract_conclusion_enum 은 라벨 우선순위(PASS 먼저)
 # 로 끝 15줄을 스캔해 "tests PASS" 같은 incidental pass 단어를 결론으로 잡을 수 있다.
 # GHOST 는 게이트가 *진짜* 통과했을 때만 모순이므로, prose 의 *위치상 마지막* 결론이
 # fail-class 면(= 실제 실패) pass 단어가 섞였어도 GHOST 에서 제외한다 (fail wins).
 _FAIL_CLASS_VERDICTS = frozenset({
-    "FAIL", "CHANGES_REQUESTED", "TESTS_FAIL", "ESCALATE",
-    "IMPLEMENTATION_ESCALATE", "UX_FLOW_ESCALATE", "VALIDATION_BLOCKED",
+    "FAIL", "TESTS_FAIL", "ESCALATE",
+    "SPEC_GAP_FOUND", "IMPLEMENTATION_ESCALATE", "SYSTEM_CHECKPOINT_REQUIRED",
+    "NEW_DEP_ESCALATE", "UX_FLOW_ESCALATE", "VALIDATION_BLOCKED",
 })
-_PASS_CLASS_VERDICTS = frozenset({"PASS", "LGTM"})
+_PASS_CLASS_VERDICTS = frozenset({"PASS"})
 _ANY_VERDICT_RE = re.compile(
-    r"\b(LGTM|PASS|CHANGES_REQUESTED|TESTS_FAIL|IMPLEMENTATION_ESCALATE|"
-    r"UX_FLOW_ESCALATE|VALIDATION_BLOCKED|FAIL|ESCALATE)\b"
+    r"\b(PASS|TESTS_FAIL|SPEC_GAP_FOUND|IMPLEMENTATION_ESCALATE|"
+    r"SYSTEM_CHECKPOINT_REQUIRED|NEW_DEP_ESCALATE|UX_FLOW_ESCALATE|"
+    r"VALIDATION_BLOCKED|FAIL|ESCALATE)\b"
 )
 
 
@@ -715,7 +655,7 @@ def _extract_conclusion_enum(prose: str) -> str:
     매칭 룰:
     - 끝 15줄 (마지막 단락 가정)
     - 결론 enum 단어 매칭 + 같은 줄 부정 마커 부재
-    - LGTM > PASS > FAIL > ESCALATE 우선순위 (LGTM 단독, PASS/FAIL 부정 가능)
+    - 구체적 worker enum > PASS > FAIL > ESCALATE 우선순위
     - 다 매칭 실패 시 빈 문자열 반환 (= 호출자가 helper sentinel 그대로 표시)
     """
     if not prose:
@@ -725,8 +665,7 @@ def _extract_conclusion_enum(prose: str) -> str:
     for label, pattern in _CONCLUSION_ENUMS:
         for line in tail:
             if pattern.search(line):
-                # 단독 결론 enum (TESTS_WRITTEN / IMPL_DONE 등) 은 negation 검사 skip.
-                # 단어 자체가 부정 형태 가질 수 없음 — "TESTS_WRITTEN 없음" 어색.
+                # routing enum 자체는 같은 줄의 부정 표현과 무관하게 명시 결론으로 본다.
                 if label in _STANDALONE_CONCLUSIONS:
                     return label
                 # 일반 PASS/FAIL/ESCALATE — 같은 줄에 부정 마커 있으면 skip
@@ -741,7 +680,7 @@ def parse_steps(
     *,
     event_cutoff: Optional[datetime] = None,
 ) -> list[StepRecord]:
-    # 이슈 #587 — ledger.jsonl 의 step_completed event 읽기 (옛 .steps.jsonl 폴백 내장).
+    # ledger.jsonl 의 현재 step_completed receipt를 읽는다.
     from harness import ledger
 
     steps: list[StepRecord] = []
@@ -758,11 +697,6 @@ def parse_steps(
 
     for idx, rec in enumerate(raw):
         agent = rec.get("agent", "?")
-        # issue #383 B2 — step.agent 도 alias normalize. jajang `.steps.jsonl`
-        # 의 `validator` (0.2.16 잔재) 를 `impl-validator` 로 흡수해야
-        # assign_invocations_to_steps 의 `inv.agent != step.agent` 비교가
-        # 정합 일치 (invocation 측은 _normalize_agent_type 에서 이미 normalize).
-        agent = LEGACY_AGENT_ALIASES.get(agent, agent)
         mode = rec.get("mode")
         prose_full = ""
 
@@ -776,20 +710,7 @@ def parse_steps(
                 except OSError:
                     pass
 
-        # legacy fallback: prose_file 없는 옛 records → outer <agent>[-mode].md
-        if not prose_full:
-            suffix = f"{agent}-{mode}.md" if mode else f"{agent}.md"
-            legacy = run_dir / suffix
-            if legacy.exists():
-                try:
-                    prose_full = legacy.read_text(encoding="utf-8")
-                except OSError:
-                    pass
-
-        if prose_full:
-            must_fix = _has_positive_must_fix(prose_full)
-        else:
-            must_fix = bool(rec.get("must_fix"))
+        must_fix = _has_positive_must_fix(prose_full)
 
         steps.append(StepRecord(
             idx=idx,
@@ -890,15 +811,11 @@ def detect_wastes(
 
     # RETRY_SAME_FAIL — 연속 동일 FAIL enum
     # 이슈 #302 #1: prose-only mode (#284) 정착 후 PROSE_LOGGED 가 표준 advance enum.
-    # 또한 같은 (agent, mode) 가 N task 순회 정상 호출 (예: architect MODULE_PLAN × 4)
+    # 또한 같은 (agent, mode) 가 N task 순회 정상 호출 (예: module-architect × 4)
     # 시 동일 enum 반복은 *retry 가 아닌 정상 호출* — prose 내용이 다르면 다른 step.
     ADVANCE_ENUMS = {
-        "PASS",  # 8 agent enum 통일 (impl-validator / architecture-validator /
-                 # plan-reviewer / system-architect / module-architect /
-                 # test-engineer / impl-validator / designer 공통)
-        "IMPL_DONE", "POLISH_DONE",  # engineer 분기 enum (통일 부적합)
-        "PRODUCT_PLAN_READY",  # old product-planner trace enum
-        "UX_FLOW_READY", "UX_FLOW_PATCHED", "UX_REFINE_READY",  # ux-architect 분기
+        "PASS",
+        "UX_FLOW_READY", "UX_FLOW_PATCHED", "UX_REFINE_READY",
         "PROSE_LOGGED",  # #284 prose-only mode default sentinel
     }
     for i in range(1, len(steps)):
@@ -922,12 +839,9 @@ def detect_wastes(
             fix=f"agents/{cur.agent}.md fail 전략 강화 또는 impl 보강",
         ))
 
-    # issue #387 — MISSING_CONCLUSION_ENUM. engineer prose 끝 결론 enum (IMPL_DONE
-    # / IMPL_PARTIAL / SPEC_GAP_FOUND / TESTS_FAIL / IMPLEMENTATION_ESCALATE
-    # / POLISH_DONE) 부재 검출. agents/engineer.md 의 결론 + 권장 다음 단계 명시 강제.
-    # validator/architect 류는 PR #361 enum 통일로 자율 영역 — 본 패턴 미적용.
+    # build-worker prose는 구현 결과를 routing할 결론 enum이 필수다.
     for s in steps:
-        if s.agent != "engineer":
+        if s.agent != "build-worker":
             continue
         if not s.prose_full:
             continue  # prose 부재 시 검사 불가
@@ -939,13 +853,13 @@ def detect_wastes(
             step_idx=s.idx,
             agent=s.agent,
             detail=(
-                f"engineer step {s.idx} prose 끝 결론 enum 부재 — "
-                "agents/engineer.md 의 결론 + 권장 다음 단계 명시 의무 위반 "
-                "(IMPL_DONE / IMPL_PARTIAL / SPEC_GAP_FOUND / TESTS_FAIL / "
-                "IMPLEMENTATION_ESCALATE / POLISH_DONE 중 1)"
+                f"build-worker step {s.idx} prose 끝 결론 enum 부재 — "
+                "agents/build-worker.md 결론 계약 위반 "
+                "(PASS / SPEC_GAP_FOUND / TESTS_FAIL / VALIDATION_BLOCKED / "
+                "IMPLEMENTATION_ESCALATE 중 1)"
             ),
             fix=(
-                "engineer 재호출 시 prompt 에 결론 enum 강제 의무 명시 또는 "
+                "build-worker 재호출 시 prompt 에 결론 enum 강제 의무 명시 또는 "
                 "메인 Claude 가 prose routing 결정 시 enum 부재 인지 + 재호출"
             ),
         ))
@@ -969,13 +883,13 @@ def detect_wastes(
                 fix=f"agents/{s.agent}.md 디렉토리명 정확 인지 룰 보강 또는 사용자 환경 검증",
             ))
 
-    # MUST_FIX_GHOST — 게이트(리뷰어/검증자)가 PASS/LGTM 결론을 내면서 prose 에 미해결
+    # MUST_FIX_GHOST — 게이트(리뷰어/검증자)가 PASS 결론을 내면서 prose 에 미해결
     # MUST FIX 를 남긴 모순 (= 통과시키면 안 되는데 통과). issue #770: 옛 룰은
     # `must_fix and 다음 step 존재` 만으로 위반 판정 → conveyor 의 정상 흐름
-    # (reviewer FAIL → engineer fix → 재리뷰) + producer 의 고친-항목 재진술
-    # (engineer POLISH 가 "## MUST FIX 1 …" 헤더로 처방 내역 기재) 을 전수 오탐.
-    # 실측 41/41 false positive. 진짜 신호는 *게이트가 advance(PASS/LGTM)하면서
-    # blocker 를 남긴* 경우뿐 — producer(engineer/build-worker/test-engineer)의 must_fix
+    # (reviewer FAIL → build-worker fix → 재리뷰) + producer 의 고친-항목 재진술을
+    # 전수 오탐했다.
+    # 실측 41/41 false positive. 진짜 신호는 *게이트가 advance(PASS)하면서
+    # blocker 를 남긴* 경우뿐 — producer(build-worker)의 must_fix
     # 와 reviewer 의 FAIL 은 정상. 마지막 step 미해결은 MUST_FIX_LEAK 담당이라 제외.
     for i, s in enumerate(steps):
         if not (s.must_fix and i + 1 < len(steps)):
@@ -985,20 +899,17 @@ def detect_wastes(
         verdict = _resolved_verdict(s)
         if verdict not in MUST_FIX_GHOST_PASS_ENUMS:
             continue
-        # issue #771 — prose 의 위치상 마지막 결론이 fail-class 면, conclusion_enum 이
-        # LGTM/PASS-first 스캔으로 incidental pass 단어("tests PASS")를 잘못 집은 것.
-        # 실제로는 실패(정상 fail→fix 루프)이므로 GHOST 아님 (fail wins over pass words).
-        if not (s.enum and s.enum not in _VERDICT_SENTINELS):
-            # stored enum 이 sentinel(=prose 의존)일 때만 prose 최종결론으로 교차검증.
-            if _prose_final_verdict_is_fail(s.prose_full or s.prose_excerpt):
-                continue
+        # prose 의 위치상 마지막 결론이 fail-class 면 incidental pass 단어를
+        # conclusion_enum이 잘못 집은 것이므로 정상 fail→fix 루프로 본다.
+        if _prose_final_verdict_is_fail(s.prose_full or s.prose_excerpt):
+            continue
         findings.append(WasteFinding(
             pattern="MUST_FIX_GHOST",
             severity="HIGH",
             step_idx=i,
             agent=s.agent,
             detail=f"step {i} ({s.agent}) {verdict} 결론인데 prose 에 미해결 MUST FIX — 게이트 통과 모순",
-            fix=f"agents/{s.agent}.md 결론 일관성 — MUST FIX 가 있으면 PASS/LGTM 이 아니라 FAIL",
+            fix=f"agents/{s.agent}.md 결론 일관성 — MUST FIX 가 있으면 PASS 가 아니라 FAIL",
         ))
 
     # issue #383 B3 — MUST_FIX_LEAK. 마지막 step 의 must_fix=True (= caveat 신호)
@@ -1016,16 +927,18 @@ def detect_wastes(
             fix="loop-procedure.md 의 7b — 주의사항 확인 분기 — 사용자 위임 + 메모리 candidate emit",
         ))
 
-    # SPEC_GAP_LOOP — architect SPEC_GAP cycle 한도 초과
-    spec_gap_count = sum(1 for s in steps if s.agent == "architect" and s.mode == "SPEC_GAP")
+    # SPEC_GAP_LOOP — 현행 agent들의 SPEC_GAP_FOUND cycle 한도 초과
+    spec_gap_steps = [s for s in steps if _resolved_verdict(s) == "SPEC_GAP_FOUND"]
+    spec_gap_count = len(spec_gap_steps)
     if spec_gap_count > 2:
+        gap_agent = spec_gap_steps[-1].agent
         findings.append(WasteFinding(
             pattern="SPEC_GAP_LOOP",
             severity="MEDIUM",
             step_idx=-1,
-            agent="architect",
-            detail=f"architect SPEC_GAP {spec_gap_count}회 — cycle 한도 2 초과",
-            fix="impl batch 자체 보강 또는 /spec 재진입",
+            agent=gap_agent,
+            detail=f"SPEC_GAP_FOUND {spec_gap_count}회 — cycle 한도 2 초과",
+            fix="module-architect 보강 또는 사용자 위임",
         ))
 
     # INFRA_READ — prose 안 인프라 경로 흔적
@@ -1069,8 +982,8 @@ def detect_wastes(
     # issue #394 — THINKING_LOOP / TOOL_USE_OVERFLOW 는 detect_notes 로 이동.
     # issue #392 — PARTIAL_LOOP 폐기 (hardcoded ≥3 임계값 = 정신 위반).
 
-    # END_STEP_SKIP (DCN-CHG-20260430-37) — sub-agent invocation > .steps.jsonl row.
-    # 메인 distract → end-step 호출 skip → .steps.jsonl 누락. DCN-30-25 STEP COUNT WARN /
+    # END_STEP_SKIP (DCN-CHG-20260430-37) — sub-agent invocation > ledger receipt.
+    # 메인 distract → end-step 호출 skip → receipt 누락. DCN-30-25 STEP COUNT WARN /
     # DCN-30-33 STALE STEP WARN 의 사후 측정 보완.
     if invocations:
         from collections import Counter
@@ -1234,7 +1147,7 @@ def detect_notes(steps: list[StepRecord]) -> list[NoteFinding]:
             step_idx=s.idx,
             agent=s.agent,
             detail=f"{s.agent} step {s.idx} tool_use_count={s.tool_use_count} (≥ 100, "
-                   f"jajang 실측 임계 — context overflow / IMPL_PARTIAL 위험)",
+                   "tool 사용 과다로 context overflow 위험)",
         ))
 
     return notes
@@ -1251,8 +1164,7 @@ def detect_notes(steps: list[StepRecord]) -> list[NoteFinding]:
 # ── Per-Agent invocation extraction (DCN-CHG-20260430-20, Phase 2) ────
 
 
-# issue #598 — 정규화 SSOT 를 harness/agent_names.normalize_agent_type 로 이전.
-# 옛 이름 `_normalize_agent_type` 는 backward compat 위해 재-export (테스트 + 호출처 보존).
+# agent 이름 정규화 SSOT.
 from harness.agent_names import normalize_agent_type as _normalize_agent_type  # noqa: E402,F401
 
 
@@ -1405,7 +1317,7 @@ def find_session_jsonls(repo_path: Path) -> list[Path]:
 def compute_run_cost(run_dir: Path, repo_path: Path) -> tuple[float, int, int]:
     """Run timeframe 내 assistant turn 의 cost/input/output 합산. Coarse — Agent 별 분리 X."""
     # 이슈 #587 (codex review) — run window = run_started ~ run_finished lifecycle event.
-    # lifecycle 이 없으면(legacy .steps.jsonl) step_completed first/last 로 폴백.
+    # lifecycle marker가 손상된 경우 유효 step receipt 범위로 제한한다.
     from harness import ledger
 
     events = ledger.read_events_at(run_dir)
@@ -1561,7 +1473,7 @@ def render_report(report: RunReport) -> str:
 
     # 호출 흐름 — issue #383 B4: prose 결론 enum 우선 표시.
     # helper sentinel `PROSE_LOGGED` 는 prose-only mode 신호일 뿐 사용자 가독성 0.
-    # parse_steps 가 prose 본문 끝 결론 (PASS/LGTM/FAIL/ESCALATE) 추출 → 우선.
+    # parse_steps 가 prose 본문 끝 결론을 추출 → 우선.
     lines.append("## 호출 흐름")
     lines.append("```")
     for i, s in enumerate(report.steps):
@@ -1668,7 +1580,7 @@ def render_report(report: RunReport) -> str:
     lines.append("")
     lines.append("```bash")
     lines.append("$HELPER insight <agent>[-<mode>] \"<자연어 한 줄>\"")
-    lines.append("# 예: $HELPER insight engineer-IMPL \"🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X\"")
+    lines.append("# 예: $HELPER insight build-worker \"🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X\"")
     lines.append("```")
     lines.append("")
     lines.append("- agent+mode 별 `.claude/loop-insights/<agent>[-<mode>].md` 에 누적 (FIFO 10 cap)")
@@ -1703,7 +1615,7 @@ def build_report(
             # sub-agent TUR ts 는 end-step 호출 직전 (= first_ts 보다 약간 이전).
             # padding 없이 [first_ts, last_ts] 로 잡으면 첫 step TUR 가 *항상*
             # window 밖으로 필터아웃되어 구조적으로 첫 step metric 누락.
-            # jajang run-459cce99 실측 — test-engineer TUR 02:40:18 vs first_ts 02:40:26 (8s diff).
+            # 실측 run에서 sub-agent 완료 시각과 first step 시각이 8초 어긋난 사례.
             window = (first_ts - WINDOW_TS_PADDING, last_ts + WINDOW_TS_PADDING)
             invocations = extract_agent_invocations(repo_path, window)
             assign_invocations_to_steps(steps, invocations)

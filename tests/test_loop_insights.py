@@ -133,7 +133,7 @@ class TestAppendInsight(unittest.TestCase):
     def test_no_mode_path(self):
         with tempfile.TemporaryDirectory() as td:
             td_path = Path(td)
-            p = append_insight("impl-validator", None, "LGTM 정합", cwd=td_path)
+            p = append_insight("impl-validator", None, "PASS 정합", cwd=td_path)
             self.assertEqual(p.name, "impl-validator.md")
 
     def test_empty_text_is_noop(self):

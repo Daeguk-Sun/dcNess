@@ -19,10 +19,7 @@ from harness.benchmark_aggregate import (  # noqa: E402
     render_markdown,
     main,
 )
-from tests.run_fixtures import (  # noqa: E402
-    make_ledger_run_dir as _make_run_dir_ledger,
-    make_legacy_run_dir as _make_run_dir_steps,
-)
+from tests.run_fixtures import make_ledger_run_dir as _make_run_dir_ledger  # noqa: E402
 
 
 def _step(agent: str, prose_name: str, *, enum: str = "PROSE_LOGGED",
@@ -78,52 +75,11 @@ class TestAggregateBasic(unittest.TestCase):
             self.assertEqual(rep.agent_conclusions["impl-validator"]["PASS"], 1)
             self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 0.75)
 
-    def test_legacy_steps_jsonl_enum_fallback(self):
-        # prose 부재 legacy row — conclusion_enum 없어도 stored enum 으로 폴백 집계.
-        with tempfile.TemporaryDirectory() as d:
-            tmp = Path(d)
-            r = _make_run_dir_steps(tmp, "s1", "run-leg00001", [
-                {"agent": "impl-validator", "mode": None, "enum": "FAIL",
-                 "ts": "2026-06-01T00:01:00Z"},
-            ])
-            rep = aggregate_runs([r])
-            self.assertEqual(rep.agent_conclusions["impl-validator"]["FAIL"], 1)
-            self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
-
-    def test_legacy_changes_requested_counts_as_fail(self):
-        # 옛 impl-validator CHANGES_REQUESTED 도 FAIL 버킷 + 분모에 포함 → ratio 1.0.
-        with tempfile.TemporaryDirectory() as d:
-            tmp = Path(d)
-            r = _make_run_dir_steps(tmp, "s1", "run-cr000001", [
-                {"agent": "impl-validator", "mode": None,
-                 "enum": "CHANGES_REQUESTED", "ts": "2026-06-01T00:01:00Z"},
-            ])
-            rep = aggregate_runs([r])
-            self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
-
-    def test_stored_verdict_wins_over_misparsed_prose(self):
-        # legacy stored enum(CHANGES_REQUESTED)이 prose 오파싱(LGTM 후보)을 이긴다 —
-        # 거부된 리뷰가 LGTM 으로 둔갑하는 회귀 방지.
-        with tempfile.TemporaryDirectory() as d:
-            tmp = Path(d)
-            r = _make_run_dir_ledger(
-                tmp, "s1", "run-pv000001",
-                _run_events("impl", [
-                    _step("impl-validator", "pr.md", enum="CHANGES_REQUESTED"),
-                ]),
-                {"pr.md": "MUST FIX: 보강 필요\nLGTM 후보 X\n"},
-            )
-            rep = aggregate_runs([r])
-            dist = rep.agent_conclusions["impl-validator"]
-            self.assertEqual(dist.get("LGTM", 0), 0)
-            self.assertEqual(dist.get("CHANGES_REQUESTED"), 1)
-            self.assertAlmostEqual(rep.pr_reviewer_fail_ratio, 1.0)
-
     def test_prose_logged_sentinel_not_counted_as_verdict(self):
         # PROSE_LOGGED sentinel 은 verdict 로 세지 않는다 (prose 결론도 없을 때).
         with tempfile.TemporaryDirectory() as d:
             tmp = Path(d)
-            r = _make_run_dir_steps(tmp, "s1", "run-snt00001", [
+            r = _make_run_dir_ledger(tmp, "s1", "run-snt00001", [
                 {"agent": "module-architect", "mode": None,
                  "enum": "PROSE_LOGGED", "ts": "2026-06-01T00:01:00Z"},
             ])
@@ -344,7 +300,7 @@ class TestWasteTop(unittest.TestCase):
                 tmp,
                 "s1",
                 "run-wfull002",
-                _run_events("impl", [_step("engineer", "e.md")]),
+                _run_events("impl", [_step("build-worker", "e.md")]),
                 {"e.md": "결론 enum이 없는 보고\n"},
             )
 

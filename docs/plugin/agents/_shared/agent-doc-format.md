@@ -4,7 +4,7 @@ agent 문서는 사람이 먼저 읽고, 모델이 그 다음 읽는 문서다. 
 
 `agents/<name>.md` 진입점과 agent별 디렉터리의 링크는 dcNess plug-in root 기준이다. 외부 활성 프로젝트에서는 plug-in 업데이트로 `agents/**` 전체가 함께 배포되는 경로 1 산출물로 본다.
 
-`agents/<name>.md` 진입점에는 frontmatter, 호환 안내, 첫 행동, 필수 분기 enum만 남긴다. 판단 축, 산출물 서식, 반복 결함 사례는 agent 디렉터리의 본문, `templates/`, `references/`로 내린다.
+`agents/<name>.md` 진입점에는 frontmatter, 지침 경로 안내, 첫 행동, 필수 분기 enum만 남긴다. 판단 축, 산출물 서식, 반복 결함 사례는 agent 디렉터리의 본문, `templates/`, `references/`로 내린다.
 
 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`docs/plugin/terms.md`](../../terms.md) 를 확인한다. 모든 agent 에 상시 선독을 추가하지 않는다.
 

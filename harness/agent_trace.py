@@ -15,7 +15,7 @@ Schema (강제 X — 권장 필드):
     ts          (auto)  ISO8601 UTC, 미지정 시 자동 추가
     phase               "pre" | "post"
     agent_id            sub task id (메인 hook 발화 시 비어있을 수 있음)
-    agent               subagent type (engineer / architect / ...)
+    agent               subagent type (build-worker / module-architect / ...)
     tool                Edit / Write / Read / Bash / NotebookEdit
     input               (pre)  tool_input 의 핵심 (file_path / command 앞부분)
     exit                (post) exit code (Bash) 또는 0/1 (Edit/Write)

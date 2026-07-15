@@ -67,7 +67,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 
 일반 `/impl` 도 `impl-validator` 를 호출한다. direct 에 대상 issue 가 있으면 계획 파일이 없어도 spec 렌즈를 켜고 **target GitHub issue AC** 를 대조한다. design-doc 경로의 spec 기준은 plan ∪ target GitHub issue AC 이며, 대상 issue 가 없는 direct 만 quality 렌즈로 검토한다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.
 
-대상 issue 가 있는 경로는 typed target GitHub issue AC 전항목 충족과 자동 판정 가능한 체크박스 전부 check 후 `check_issue_body.mjs --acceptance-only --require-complete`의 정확한 `PASS`까지가 자동 clean 조건이다. 미충족·미체크 typed AC가 남으면 clean 마감과 close 발동을 금지한다. legacy `REVIEW`와 agent가 체크할 수 없는 human verification은 목록을 보고 merge 전에 정지하며, 이 대기 상태를 `blocked`로 분류하지 않는다.
+대상 issue 가 있는 경로는 typed target GitHub issue AC 전항목 충족과 자동 판정 가능한 체크박스 전부 check 후 `check_issue_body.mjs --acceptance-only --require-complete`의 정확한 `PASS`까지가 자동 clean 조건이다. 미충족·미체크 typed AC가 남으면 clean 마감과 close 발동을 금지한다. agent가 체크할 수 없는 human verification은 checklist 밖 목록으로 보고 merge 전에 정지하며, 이 대기 상태를 `blocked`로 분류하지 않는다.
 
 ## high-risk warn-don't-block
 

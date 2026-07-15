@@ -86,7 +86,7 @@ flowchart TB
 | # | 요청 예시 | 올바른 처리 | 회귀 |
 |---|---|---|---|
 | R1 | 파일/symbol 명시한 "이 함수 버그 고쳐줘" | `/impl` direct | `/spec` 재기획으로 우회 |
-| R2 | 작은 docs-only 오타/문구 수정 | `/impl` direct | full architect 검증 호출 |
+| R2 | 작은 docs-only 오타/문구 수정 | `/impl` direct | full 설계 검증 호출 |
 | R3 | 이미 분류·승인된 issue/PR 번호 "구현해줘" | `/impl` direct | `/spec` 재기획으로 우회 |
 | R4 | 새 외부 API/SDK/model 도입이 필요 | 설계 선행 권장 + 사용자 선택 | 경고 없이 direct 직행 또는 사용자 의사와 무관한 강제 되돌림 |
 
@@ -98,7 +98,7 @@ flowchart TB
 
 | 되돌림 경로 | 발견 주체 → 목적지 | 트리거 | 비고 |
 |---|---|---|---|
-| **design → spec** | design 중 PRD/요구사항 부족 발견 → 메인 `/spec` 재진입 권고 | architect 가 PRD 충돌/누락(`ESCALATE`) 또는 미검증 새 외부 의존(`NEW_DEP_ESCALATE`) 보고 | 진본 = [`design-routing.md` escalate 처리](../../skills/design/design-routing.md#escalate-처리) |
+| **design → spec** | design 중 PRD/요구사항 부족 발견 → 메인 `/spec` 재진입 권고 | 설계 agent가 PRD 충돌/누락(`ESCALATE`) 또는 미검증 새 외부 의존(`NEW_DEP_ESCALATE`) 보고 | 진본 = [`design-routing.md` escalate 처리](../../skills/design/design-routing.md#escalate-처리) |
 | **impl → 사용자 결정** | 구현 중 되돌리기 어려운 영향 발견 → 사용자에게 설계 선행/계속 진행 선택지 보고 | high-risk 영향이 실제 코드 변경 지점에서 구체화 | 자동 `/spec`·`/design` 되돌림 금지 |
 | **review → 구현** | impl-validator FAIL → finding-class 에 따라 메인 root-cause 수정 | finding 발생 | 단계 내부 되돌림. retry 한도는 [`impl-routing.md`](../../skills/impl/impl-routing.md) |
 

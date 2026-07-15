@@ -46,7 +46,7 @@ UI 기준: 시각 구조 불변 — 목업 없이 구현
 - 이 repo 의 실제 lint/build/test 명령, PR helper, hook 존재 여부를 확인한다.
 - GitHub issue 번호가 대상이면 구현 실행 전 [`issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#issuelabel-status-lifecycle)에 따라 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 Project `Status=In progress` 도 best-effort 로 미러한다.
 
-GitHub issue 가 대상이면 이 진입 preflight 에서 한 번 읽은 본문을 run 전체의 **target GitHub issue AC** snapshot 으로 재사용한다. 각 AC 에 구현 범위와 검증 증거를 대응시키고, task/commit/validator 단계마다 issue 를 반복 조회하지 않는다. `[command]` 는 명령과 종료코드, `[agent-read]` 는 읽은 산출물·diff·계약과 관찰 사실로 판정한다. 검증 주체 미기재 legacy AC 는 기존 의미를 보존하며 agent 가 `[command]`/`[agent-read]` 로 추론·체크·재분류하지 않는다. 사람 판단인지 불명확한 항목과 no-AC issue 는 close audit의 `REVIEW` 결과를 따라 human verification 대기로 보낸다. 현행 typed AC 의 `구현이 완료된다`나 `정상 동작한다` 같은 일반론은 snapshot 에서 구체적인 관측 조건으로 교체해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
+GitHub issue 가 대상이면 이 진입 preflight 에서 한 번 읽은 본문을 run 전체의 **target GitHub issue AC** snapshot 으로 재사용한다. 각 AC 에 구현 범위와 검증 증거를 대응시키고, task/commit/validator 단계마다 issue 를 반복 조회하지 않는다. `[command]` 는 명령과 종료코드, `[agent-read]` 는 읽은 산출물·diff·계약과 관찰 사실로 판정한다. AC가 없거나 검증 주체가 미기재됐으면 close 전에 현행 typed AC로 갱신하고, agent가 의미를 임의 추론해 체크·재분류하지 않는다. `구현이 완료된다`나 `정상 동작한다` 같은 일반론은 snapshot 에서 구체적인 관측 조건으로 교체해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
 
 ## Step 0.2 — 파일 경계 override 후보 확인
 
@@ -114,7 +114,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 - **커밋**: green 변경은 독립 검토 가능한 단위 commit 으로 닫는다.
 - **UI**: 확정 목업이 있으면 레이아웃·상태·`design:required` 토큰 정합을 대조하고 보고한다.
 - **Cartography impact**: 구현 결과에서 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after와 증거, 관련 epic/decision의 변화 여부를 자유 prose로 남긴다. 영향이 없으면 `영향 없음`과 대조한 Root 좌표를 명시한다.
-- **target issue AC**: 대상 GitHub issue 가 있으면 typed target GitHub issue AC 전항목 충족과 자동 판정 가능한 체크박스 전부 check가 공통 자동 종료 조건이다. 하나라도 미충족·미체크면 `require-complete` 감사가 실패하므로 clean 마감, `Closes` PR 머지, 완료 보고를 금지한다. legacy `REVIEW`는 human verification 대기이며 이 계약은 계획 파일 유무와 무관하다.
+- **target issue AC**: 대상 GitHub issue 가 있으면 typed target GitHub issue AC 전항목 충족과 자동 판정 가능한 체크박스 전부 check가 공통 자동 종료 조건이다. 하나라도 미충족·미체크면 `require-complete` 감사가 실패하므로 clean 마감, `Closes` PR 머지, 완료 보고를 금지한다. checklist와 분리된 사람 확인 항목은 human verification 대기이며 이 계약은 계획 파일 유무와 무관하다.
 
 ### Cartography freshness boundary
 
@@ -160,7 +160,7 @@ standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-vali
    - dcNess plugin 배포물 변경이면 PR body 에 배포 경로 검증을 적는다.
 8. CI / merge policy
    - PR 생성 후 CI 를 확인한다.
-   - CI green 과 최종 review 증거가 확정된 뒤, target issue 를 `Closes` 하는 PR 경계에서 메인이 보관한 AC 증거를 전수 대조한다. `Closes` 대상이 여러 개면 issue 별로 모두 수행한다. 자동 판정 가능한 typed 항목을 모두 충족한 뒤 이슈 본문 체크박스 write 를 issue 별 close 경계에서 한 번 수행하고, 같은 body 를 `node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" --body-file <issue-body.md> --acceptance-only --require-complete` 로 감사한다. 정확한 `PASS`만 자동 close 경로를 열며, exit 0의 legacy `REVIEW`는 failure가 아니라 human verification 대기 신호다. 진행 중에는 issue mutation 을 하지 않는다.
+   - CI green 과 최종 review 증거가 확정된 뒤, target issue 를 `Closes` 하는 PR 경계에서 메인이 보관한 AC 증거를 전수 대조한다. `Closes` 대상이 여러 개면 issue 별로 모두 수행한다. 자동 판정 가능한 typed 항목을 모두 충족한 뒤 이슈 본문 체크박스 write 를 issue 별 close 경계에서 한 번 수행하고, 같은 body 를 `node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" --body-file <issue-body.md> --acceptance-only --require-complete` 로 감사한다. 정확한 `PASS`만 자동 close 경로를 열며, 사람 확인 항목은 checklist 밖에서 완료될 때까지 merge를 멈춘다. 진행 중에는 issue mutation 을 하지 않는다.
    - 머지는 host repo 정책을 따른다. 사용자 승인 대기 정책 repo 에서는 임의 머지하지 않는다.
 
 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다. TDD 게이트는 삭제하지 않는다.

@@ -36,8 +36,7 @@
 - CHECKPOINT 모듈 작업: affected module 의 `docs/modules/<module-id>/architecture.md`, `conventions.md`, 선택 `tech-review.md` 만 추가로 읽음
 - CHECKPOINT 상황별: `docs/tech-review.md`, 대상 epic의 `tech-review.md`/`ux-flow.md`, UI epic 의 `docs/design.md` 포인터 또는 부재 신호 / 확정 목업 경로 / canvas 포인터 또는 부재 신호 / 핵심 node-id 매핑, 기존 전역/epic architecture와 domain-model
 - CHECKPOINT 상황별: 기존 코드의 계약 표면 코드 SSOT(포트, 도메인 타입, 공개 entrypoint)
-- 참고: [`references/contract-ledger.md`](references/contract-ledger.md)는 구양식 호환 배경으로만 읽는다.
-- 참고: [`references/system-freeze.md`](references/system-freeze.md)는 THIN_BOOTSTRAP 예외와 CHECKPOINT 경계, 구양식 freeze 용어 차이를 확인할 때만 읽는다.
+- 참고: [`references/system-freeze.md`](references/system-freeze.md)는 THIN_BOOTSTRAP 예외와 CHECKPOINT 경계를 확인할 때만 읽는다.
 
 ## 판단 축
 

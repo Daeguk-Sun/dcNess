@@ -214,7 +214,7 @@ class IssueBodyValidationTests(unittest.TestCase):
         self.assertEqual(1, result.returncode)
         self.assertIn("unchecked acceptance criteria remain: 1", result.stderr)
 
-    def test_close_audit_routes_checked_legacy_unclassified_criteria_to_review(self) -> None:
+    def test_close_audit_rejects_unclassified_criteria(self) -> None:
         legacy_body = textwrap.dedent(
             """
             **Acceptance criteria:**
@@ -229,11 +229,10 @@ class IssueBodyValidationTests(unittest.TestCase):
             "--require-complete",
         )
 
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("REVIEW — legacy/unclassified", result.stdout)
-        self.assertNotIn("PASS", result.stdout)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("must declare [command] or [agent-read]", result.stderr)
 
-    def test_close_audit_routes_legacy_issue_without_acceptance_section_to_review(self) -> None:
+    def test_close_audit_rejects_issue_without_acceptance_section(self) -> None:
         legacy_story_body = textwrap.dedent(
             """
             **As a** user,
@@ -250,9 +249,8 @@ class IssueBodyValidationTests(unittest.TestCase):
             "--require-complete",
         )
 
-        self.assertEqual(0, result.returncode, result.stderr)
-        self.assertIn("REVIEW — legacy/no AC", result.stdout)
-        self.assertNotIn("PASS", result.stdout)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("must contain at least one checklist item", result.stderr)
 
     def test_acceptance_criterion_requires_agent_verification_class(self) -> None:
         body = VALID_BODY.replace(
@@ -362,18 +360,12 @@ class IssueBodyValidationDocsTests(unittest.TestCase):
         self.assertIn("gh issue create", text)
         self.assertIn("GitHub UI", text)
         self.assertIn("hard gate", text)
-        self.assertIn("REVIEW", text)
-        self.assertIn("자동 close 권한이 아니다", text)
+        self.assertIn("AC 또는 Acceptance criteria가 없는 body는 실패", text)
 
         for relative in ("CLAUDE.md", "skills/impl/SKILL.md", "skills/impl-loop/SKILL.md"):
             skill = (ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn("검증 주체 미기재 legacy AC", skill, relative)
-            self.assertIn("추론·체크·재분류하지 않는다", skill, relative)
-            self.assertNotIn(
-                "검증 주체가 없는 legacy AC 는 `[command]`/`[agent-read]` 로 분류",
-                skill,
-                relative,
-            )
+            self.assertIn("현행 typed AC로 갱신", skill, relative)
+            self.assertIn("임의 추론", skill, relative)
 
     def test_workflow_router_mentions_non_to_issue_agent_creation_still_validates(self) -> None:
         text = (ROOT / "docs" / "plugin" / "workflow-router.md").read_text(

@@ -10,7 +10,6 @@ from harness.ledger import infer_next_action, infer_phase
 from harness.run_review import (
     DCNESS_AGENT_NAMES,
     EXPECTED_AGENT_BUDGETS,
-    EXPECTED_FINAL_ENUMS,
     READONLY_AGENTS,
 )
 
@@ -207,8 +206,8 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.assertNotIn("project-local 계약 `.dcness/product-journey.json`", init_dcness)
         self.assertIn("product-acceptance가", acceptance_skill)
         self.assertIn("journey 매니페스트", acceptance_skill)
-        self.assertIn("legacy `.dcness/product-journey.json`", acceptance_skill)
-        self.assertIn("새 build-worker 산출물 위치가 아니다", acceptance_skill)
+        self.assertIn("--config <매니페스트 경로>", acceptance_skill)
+        self.assertNotIn(".dcness/product-journey.json", acceptance_skill)
         self.assertIn("product-acceptance가", acceptance_routing)
         self.assertIn("journey 매니페스트", acceptance_routing)
         self.assertIn("외부 상태 변경", impl_loop_skill)
@@ -225,7 +224,6 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.assertIn("`product-acceptance`", positioning)
 
     def test_harness_review_and_ledger_track_product_acceptance(self) -> None:
-        self.assertEqual(EXPECTED_FINAL_ENUMS["product-acceptance"], {None: "PASS"})
         self.assertIn("product-acceptance", EXPECTED_AGENT_BUDGETS)
         self.assertIn("product-acceptance", DCNESS_AGENT_NAMES)
         self.assertNotIn("product-acceptance", READONLY_AGENTS)

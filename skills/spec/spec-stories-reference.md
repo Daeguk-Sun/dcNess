@@ -6,7 +6,7 @@
 
 PRD 작성과 필요한 tech-review preflight 완료 후 메인이 epic 단위 `docs/epics/epic-NN-<slug>/stories.md` 를 작성한다. 1개 `stories.md` 는 1개 epic 영역이다. `epic-NN` 번호는 프로젝트 전역에서 증가하고, milestone 은 경로가 아니라 frontmatter `milestone: vNN` 로 기록한다.
 
-새 작성 시 각 Story 본문은 `As a / I want / So that` + Story AC 목록으로 쓴다. Story AC 는 제품 언어의 검증 약속이며 `Given <상황>, When <행동>, Then <검증 가능한 결과>`로 닫는다. 옛 `**완료 시 확인 가능한 동작**:` 한 줄은 신규 양식에서 Story AC 로 대체한다.
+각 Story 본문은 `As a / I want / So that` + Story AC 목록으로 쓴다. Story AC 는 제품 언어의 검증 약속이며 `Given <상황>, When <행동>, Then <검증 가능한 결과>`로 닫는다.
 
 - 대상 화면 / 동작 명세 = root `docs/architecture.md`, epic 단위 `architecture.md`, impl 파일 책임
 - 수용 기준 Story 단위 = stories.md 의 Story AC
@@ -24,7 +24,7 @@ PRD 작성과 필요한 tech-review preflight 완료 후 메인이 epic 단위 `
 
 Story AC 가 검증 체인의 origin 이다. module-architect 는 제품 REQ 마다 `(from AC-NNN)` 출처를 적고, architecture-validator 는 Story AC 전항목이 하나 이상의 REQ 로 커버되는지와 무출처 REQ 가 없는지 대조한다.
 
-Epic 완료 기준도 같은 검증 주체 분류를 사용한다. `scripts/create_epic_story_issues.sh` 는 신규 `[command]`/`[agent-read]` Epic 완료 기준과 Story AC 를 GitHub issue body 에서만 미체크 checklist 로 materialize 한다. stories.md 의 안정 ID·목록 형태는 바꾸지 않으며, 검증 주체가 없는 legacy 기준은 소급 추론하지 않는다.
+Epic 완료 기준도 같은 검증 주체 분류를 사용한다. `scripts/create_epic_story_issues.sh` 는 `[command]`/`[agent-read]` Epic 완료 기준과 Story AC 를 GitHub issue body 에서만 미체크 checklist 로 materialize 한다. stories.md 의 안정 ID·목록 형태는 바꾸지 않으며, 검증 주체가 없으면 입력 오류로 중단한다.
 
 ## Story 크기 가이드
 
@@ -94,8 +94,6 @@ milestone: vNN
 ### Story 2 — ...
 ```
 
-## 구버전 호환성
+## 유효성
 
-기존 외부 활성 프로젝트의 옛 양식 stories.md 와 PRD AC 는 그대로 허용한다. 새 작성 시만 Story AC 양식을 적용하며 기존 산출물을 소급 변환하지 않는다. read 시 parser 는 `As a / I want / So that` 매치만 의무로 본다.
-
-Story AC 가 없거나 `**완료 시 확인 가능한 동작**:` 줄을 쓰는 기존 stories.md 도 그대로 허용한다. `scripts/report_ac_coverage.mjs` 는 이런 파일을 exit 0의 `REVIEW`로 보고하고 변환이나 실패를 강제하지 않으며, `REVIEW`를 typed AC coverage PASS로 해석하지 않는다.
+모든 stories.md는 `As a / I want / So that`와 typed Story AC를 함께 가져야 한다. Story AC가 없으면 `scripts/report_ac_coverage.mjs`가 실패하며 design 전에 문서를 현행 양식으로 갱신한다.

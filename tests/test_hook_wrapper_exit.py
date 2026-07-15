@@ -132,8 +132,7 @@ class FileGuardWrapperExitTests(unittest.TestCase):
         )
         _clear_default_base_cache()
         write_pid_session(self.cc_pid, self.sid, base_dir=self.base)
-        # 활성 sub-agent = engineer (file-guard 가 active_agent 로 boundary 판정).
-        update_live(self.sid, base_dir=self.base, active_agent="engineer")
+        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
 
     def tearDown(self) -> None:
         self._td.cleanup()
@@ -141,12 +140,13 @@ class FileGuardWrapperExitTests(unittest.TestCase):
     def _file_payload(self, tool_name: str, **tool_input) -> dict:
         return {
             "sessionId": self.sid,
+            "agent_type": "build-worker",
             "tool_name": tool_name,
             "tool_input": tool_input,
         }
 
     def test_infra_write_exits_2(self) -> None:
-        # engineer 가 인프라 path (hooks/) Write → DCNESS_INFRA_PATTERNS 차단 → return 1.
+        # build-worker가 인프라 path (hooks/) Write → DCNESS_INFRA_PATTERNS 차단.
         result = _run_wrapper(
             "file-guard.sh",
             self._file_payload("Write", file_path="hooks/evil.sh"),
@@ -245,7 +245,7 @@ class FileGuardWrapperExitTests(unittest.TestCase):
         )
 
     def test_src_write_exits_0(self) -> None:
-        # engineer 의 src/ Write 는 허용 → exit 0.
+        # build-worker의 src/ Write 는 허용 → exit 0.
         result = _run_wrapper(
             "file-guard.sh",
             self._file_payload("Edit", file_path="src/foo.ts"),

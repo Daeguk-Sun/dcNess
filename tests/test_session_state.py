@@ -10,18 +10,9 @@ Coverage matrix:
         - 빈 dict / 잘못된 타입 / 잘못된 sid 형식
         - data= 전달 시 stdin read 스킵
 
-    current_session_id (env > pointer):
-        - env 있음 → env
-        - env 빈 + pointer 있음 → pointer
-        - 둘 다 빈 → ""
-        - env 잘못된 → pointer
-
-    read_session_pointer:
-        - 정상 / 미존재 / 잘못된 sid
-
-    write_session_pointer:
-        - 작성 + 0o600 권한
-        - 잘못된 sid → ValueError
+    current_session_id:
+        - 유효한 env 있음 → env
+        - env 미설정·잘못된 값 → ""
 
     generate_run_id:
         - 형식 (run-{8 hex})
@@ -81,7 +72,6 @@ from harness.session_state import (
     generate_run_id,
     live_path,
     read_live,
-    read_session_pointer,
     record_fail_open_event,
     run_dir,
     session_dir,
@@ -90,7 +80,6 @@ from harness.session_state import (
     update_current_step,
     update_live,
     valid_session_id,
-    write_session_pointer,
 )
 from harness.session_state_cli import (
     _build_arg_parser,
@@ -186,7 +175,7 @@ class SessionIdFromStdinTests(unittest.TestCase):
 
 
 # ---------------------------------------------------------------------------
-# current_session_id (env > pointer)
+# current_session_id
 # ---------------------------------------------------------------------------
 
 
@@ -201,59 +190,16 @@ class CurrentSessionIdTests(unittest.TestCase):
 
     def test_env_var_takes_priority(self) -> None:
         os.environ["DCNESS_SESSION_ID"] = "env-sid"
-        write_session_pointer("pointer-sid", base_dir=self.base)
         self.assertEqual(
             current_session_id(base_dir=self.base), "env-sid"
         )
 
-    def test_pointer_used_when_env_empty(self) -> None:
-        write_session_pointer("pointer-sid", base_dir=self.base)
-        self.assertEqual(
-            current_session_id(base_dir=self.base), "pointer-sid"
-        )
-
-    def test_returns_empty_when_both_missing(self) -> None:
+    def test_returns_empty_when_missing(self) -> None:
         self.assertEqual(current_session_id(base_dir=self.base), "")
 
-    def test_invalid_env_falls_to_pointer(self) -> None:
+    def test_invalid_env_returns_empty(self) -> None:
         os.environ["DCNESS_SESSION_ID"] = "../bad"
-        write_session_pointer("pointer-sid", base_dir=self.base)
-        self.assertEqual(
-            current_session_id(base_dir=self.base), "pointer-sid"
-        )
-
-
-# ---------------------------------------------------------------------------
-# session pointer read/write
-# ---------------------------------------------------------------------------
-
-
-class SessionPointerTests(unittest.TestCase):
-    def setUp(self) -> None:
-        self._td = TemporaryDirectory()
-        self.base = Path(self._td.name)
-
-    def tearDown(self) -> None:
-        self._td.cleanup()
-
-    def test_write_then_read(self) -> None:
-        write_session_pointer("abc-sid", base_dir=self.base)
-        self.assertEqual(read_session_pointer(base_dir=self.base), "abc-sid")
-
-    def test_read_missing_returns_empty(self) -> None:
-        self.assertEqual(read_session_pointer(base_dir=self.base), "")
-
-    def test_write_invalid_raises(self) -> None:
-        with self.assertRaises(ValueError):
-            write_session_pointer("../bad", base_dir=self.base)
-
-    def test_pointer_file_permissions(self) -> None:
-        write_session_pointer("abc-sid", base_dir=self.base)
-        path = self.base / ".session-id"
-        # POSIX 만 — Windows 는 0o600 매핑이 다름
-        if os.name == "posix":
-            mode = path.stat().st_mode & 0o777
-            self.assertEqual(mode, 0o600)
+        self.assertEqual(current_session_id(base_dir=self.base), "")
 
 
 # ---------------------------------------------------------------------------
@@ -745,7 +691,7 @@ class ActiveRunsTests(unittest.TestCase):
         err = StringIO()
         with redirect_stderr(err):
             update_current_step(
-                self.sid, self.run_id, "validator", "CODE_VALIDATION",
+                self.sid, self.run_id, "impl-validator", "CODE_VALIDATION",
                 base_dir=self.base,
             )
         self.assertIn("STALE STEP WARN", err.getvalue())
@@ -767,7 +713,7 @@ class ActiveRunsTests(unittest.TestCase):
         err = StringIO()
         with redirect_stderr(err):
             update_current_step(
-                self.sid, self.run_id, "validator", "CODE_VALIDATION",
+                self.sid, self.run_id, "impl-validator", "CODE_VALIDATION",
                 base_dir=self.base,
             )
         self.assertNotIn("STALE STEP WARN", err.getvalue())
@@ -1088,7 +1034,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     def test_begin_step_updates_current_step(self) -> None:
         from harness.session_state import read_live
         from types import SimpleNamespace
-        rc = _cli_begin_step(SimpleNamespace(agent="validator", mode="PLAN_VALIDATION"))
+        rc = _cli_begin_step(SimpleNamespace(agent="impl-validator", mode="PLAN_VALIDATION"))
         self.assertEqual(rc, 0)
         live = read_live(self.sid)
         slot = live["active_runs"][self.rid]
@@ -1237,7 +1183,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
         out = StringIO()
         with redirect_stdout(out):
-            rc = _cli_begin_step(SimpleNamespace(agent="validator", mode="PLAN_VALIDATION"))
+            rc = _cli_begin_step(SimpleNamespace(agent="impl-validator", mode="PLAN_VALIDATION"))
 
         self.assertEqual(rc, 0)
         self.assertNotIn("[PROMPT_SLOT_CHECK]", out.getvalue())
@@ -1290,7 +1236,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
 
         out = StringIO()
         with redirect_stdout(out):
-            rc = _cli_begin_step(SimpleNamespace(agent="validator", mode="CODE_VALIDATION"))
+            rc = _cli_begin_step(SimpleNamespace(agent="impl-validator", mode="CODE_VALIDATION"))
         self.assertEqual(rc, 0)
         self.assertIn("ok", out.getvalue())
         live = read_live(self.sid)
@@ -1309,7 +1255,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         out = StringIO()
         with redirect_stdout(out):
             rc = _cli_end_step(SimpleNamespace(
-                agent="validator",
+                agent="impl-validator",
                 mode="CODE_VALIDATION",
                 prose_file=str(prose_path),
             ))
@@ -1452,8 +1398,8 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
 
-        # begin-step "validator" 박은 후 end-step "engineer" 호출
-        _cli_begin_step(SimpleNamespace(agent="validator", mode="CODE_VALIDATION"))
+        # begin-step "impl-validator" 박은 후 end-step "engineer" 호출
+        _cli_begin_step(SimpleNamespace(agent="impl-validator", mode="CODE_VALIDATION"))
 
         prose_path = self.base / "drift_prose.md"
         prose_path.write_text("## 결론\nIMPL_DONE\n", encoding="utf-8")
@@ -1470,7 +1416,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertEqual(out.getvalue().strip(), "PROSE_LOGGED")
         # stderr 에 DRIFT WARN
         self.assertIn("DRIFT WARN", err.getvalue())
-        self.assertIn("validator", err.getvalue())
+        self.assertIn("impl-validator", err.getvalue())
         self.assertIn("engineer", err.getvalue())
 
     def test_end_step_drift_warn_when_no_current_step(self) -> None:
@@ -1499,7 +1445,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         from io import StringIO
         from contextlib import redirect_stderr, redirect_stdout
 
-        # .steps.jsonl 비어있음 (0 steps)
+        # ledger step receipt 비어있음 (0 steps)
         err = StringIO()
         out = StringIO()
         with redirect_stderr(err), redirect_stdout(out):
@@ -1634,76 +1580,6 @@ class CliBeginStepEndStepTests(unittest.TestCase):
     #   - test_finalize_run_no_accumulate_opt_out
     #   - test_finalize_run_explicit_accumulate_without_auto_review
 
-    def _setup_fake_cc_jsonl(self, sid: str, engineer_counts: list) -> Path:
-        """CC session JSONL fake — engineer toolUseResult 행 N개 박음. ts 오름차순."""
-        from harness.run_review import encode_repo_path_dcness
-        encoded = encode_repo_path_dcness(str(Path.cwd()))
-        proj_dir = Path.home() / ".claude" / "projects" / encoded
-        proj_dir.mkdir(parents=True, exist_ok=True)
-        jsonl = proj_dir / f"{sid}.jsonl"
-        lines = []
-        for i, cnt in enumerate(engineer_counts):
-            lines.append(json.dumps({
-                "timestamp": f"2026-04-30T0{i}:00:00.000Z",
-                "toolUseResult": {
-                    "agentType": "dcness:engineer",
-                    "totalToolUseCount": cnt,
-                    "totalDurationMs": 1000,
-                    "totalTokens": 100,
-                },
-            }))
-        jsonl.write_text("\n".join(lines) + "\n", encoding="utf-8")
-        return jsonl
-
-    def test_begin_step_engineer_emits_tool_use_hint(self) -> None:
-        """DCN-30-36: agent='engineer' 시 직전 invocation count stderr hint."""
-        from types import SimpleNamespace
-        from io import StringIO
-        from contextlib import redirect_stderr
-
-        jsonl = self._setup_fake_cc_jsonl(self.sid, [50, 87])  # 직전 = 87
-        try:
-            self._write_module_architect_pass()
-            err = StringIO()
-            with redirect_stderr(err):
-                rc = _cli_begin_step(SimpleNamespace(agent="engineer", mode="IMPL"))
-            self.assertEqual(rc, 0)
-            stderr = err.getvalue()
-            self.assertIn("[hint]", stderr)
-            self.assertIn("tool_use_count=87", stderr)
-            self.assertIn("IMPL_PARTIAL", stderr)
-        finally:
-            jsonl.unlink(missing_ok=True)
-
-    def test_begin_step_engineer_no_hint_when_no_prior(self) -> None:
-        """JSONL 없거나 engineer invocation 없으면 silent."""
-        from types import SimpleNamespace
-        from io import StringIO
-        from contextlib import redirect_stderr
-
-        err = StringIO()
-        self._write_module_architect_pass()
-        with redirect_stderr(err):
-            rc = _cli_begin_step(SimpleNamespace(agent="engineer", mode="IMPL"))
-        self.assertEqual(rc, 0)
-        self.assertNotIn("[hint]", err.getvalue())
-
-    def test_begin_step_non_engineer_no_hint(self) -> None:
-        """agent != 'engineer' 면 hint 없음 (다른 agent 도 jsonl 있어도 무관)."""
-        from types import SimpleNamespace
-        from io import StringIO
-        from contextlib import redirect_stderr
-
-        jsonl = self._setup_fake_cc_jsonl(self.sid, [200])  # 큰 값 박혀도
-        try:
-            err = StringIO()
-            with redirect_stderr(err):
-                rc = _cli_begin_step(SimpleNamespace(agent="validator", mode="CODE_VALIDATION"))
-            self.assertEqual(rc, 0)
-            self.assertNotIn("[hint]", err.getvalue())
-        finally:
-            jsonl.unlink(missing_ok=True)
-
     def test_end_step_prose_only_writes_prose(self) -> None:
         """자유서술 방식: --allowed-enums 없이 PROSE_LOGGED + prose 파일 저장."""
         from harness.session_state import session_dir
@@ -1717,7 +1593,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         out = StringIO()
         with redirect_stdout(out):
             rc = _cli_end_step(SimpleNamespace(
-                agent="validator",
+                agent="impl-validator",
                 mode="PLAN_VALIDATION",
                 prose_file=str(prose_path),
             ))
@@ -1785,7 +1661,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertIn("invalid mode name", err.getvalue())
 
     def test_end_step_prose_only_mode_no_allowed_enums(self) -> None:
-        """자유서술 방식 (이슈 #280/#284) — PROSE_LOGGED + prose 저장 + .steps.jsonl + stderr 요약."""
+        """자유서술 방식 (이슈 #280/#284) — PROSE_LOGGED + prose 저장 + ledger + stderr 요약."""
         from harness.session_state import (
             session_dir, _read_steps_jsonl,
         )
@@ -1814,7 +1690,7 @@ class CliBeginStepEndStepTests(unittest.TestCase):
         self.assertIn("자연어", prose_md.read_text(encoding="utf-8"))
         # stderr 에 [impl-validator = PROSE_LOGGED] 헤더 (모든 skill 자동 요약 수혜)
         self.assertIn("[impl-validator = PROSE_LOGGED]", err.getvalue())
-        # .steps.jsonl 에 PROSE_LOGGED row append (finalize-run / run-review 입력)
+        # ledger에 PROSE_LOGGED receipt append (finalize-run / run-review 입력)
         steps = _read_steps_jsonl(self.sid, self.rid)
         self.assertTrue(steps)
         self.assertEqual(steps[-1]["agent"], "impl-validator")
@@ -2424,8 +2300,8 @@ PASS — 빈 문자열 가드 추가.
         _clear_default_base_cache()
         run_dir("sid", "run-aaaa1111", create=True)
         self._append_step_status_with_prose(
-            "sid", "run-aaaa1111", "impl-validator", None, "CHANGES_REQUESTED",
-            "## 결론\nCHANGES_REQUESTED\n## MUST FIX\n- src/foo.py:10 race condition\n",
+            "sid", "run-aaaa1111", "impl-validator", None, "FAIL",
+            "## 결론\nFAIL\n## MUST FIX\n- src/foo.py:10 race condition\n",
         )
         records = _read_steps_jsonl("sid", "run-aaaa1111")
         self.assertTrue(records[0]["must_fix"])
@@ -2447,16 +2323,16 @@ PASS — 빈 문자열 가드 추가.
         run_dir("sid", "run-bbbb2222", create=True)
         # 자장 실 케이스 그대로
         self._append_step_status_with_prose(
-            "sid", "run-bbbb2222", "impl-validator", None, "LGTM",
-            "MUST FIX 0, NICE TO HAVE 6 (let tree: any / dead code).\nLGTM\n",
+            "sid", "run-bbbb2222", "impl-validator", None, "PASS",
+            "MUST FIX 0, NICE TO HAVE 6 (let tree: any / dead code).\nPASS\n",
         )
         self._append_step_status_with_prose(
-            "sid", "run-bbbb2222", "impl-validator", None, "LGTM",
-            "MUST FIX: 0\n결론: LGTM\n",
+            "sid", "run-bbbb2222", "impl-validator", None, "PASS",
+            "MUST FIX: 0\n결론: PASS\n",
         )
         self._append_step_status_with_prose(
-            "sid", "run-bbbb2222", "impl-validator", None, "LGTM",
-            "검토 결과: MUST FIX 없음. NICE TO HAVE 3.\nLGTM\n",
+            "sid", "run-bbbb2222", "impl-validator", None, "PASS",
+            "검토 결과: MUST FIX 없음. NICE TO HAVE 3.\nPASS\n",
         )
         records = _read_steps_jsonl("sid", "run-bbbb2222")
         for r in records:
@@ -2480,22 +2356,22 @@ PASS — 빈 문자열 가드 추가.
         run_dir("sid", "run-dddd4444", create=True)
         # 자장 task2 impl-validator 실 prose 형태
         self._append_step_status_with_prose(
-            "sid", "run-dddd4444", "impl-validator", None, "LGTM",
+            "sid", "run-dddd4444", "impl-validator", None, "PASS",
             "**MUST FIX 항목**: 없음\n**NICE TO HAVE 항목**:\n- D 데드코드\n",
         )
         # 변형 — 라벨 + 콜론 + 부정
         self._append_step_status_with_prose(
-            "sid", "run-dddd4444", "impl-validator", None, "LGTM",
+            "sid", "run-dddd4444", "impl-validator", None, "PASS",
             "MUST FIX 항목: 없음\nNICE TO HAVE: 3건\n",
         )
         # 변형 — 해당 없음
         self._append_step_status_with_prose(
-            "sid", "run-dddd4444", "impl-validator", None, "LGTM",
+            "sid", "run-dddd4444", "impl-validator", None, "PASS",
             "MUST FIX: 해당 없음\n",
         )
         # 변형 — bold + `:` 없이 직접 부정
         self._append_step_status_with_prose(
-            "sid", "run-dddd4444", "impl-validator", None, "LGTM",
+            "sid", "run-dddd4444", "impl-validator", None, "PASS",
             "**MUST FIX** 없음\n",
         )
         records = _read_steps_jsonl("sid", "run-dddd4444")
@@ -2517,16 +2393,16 @@ PASS — 빈 문자열 가드 추가.
         _clear_default_base_cache()
         run_dir("sid", "run-cccc3333", create=True)
         self._append_step_status_with_prose(
-            "sid", "run-cccc3333", "impl-validator", None, "CHANGES_REQUESTED",
+            "sid", "run-cccc3333", "impl-validator", None, "FAIL",
             "## MUST FIX\n- audio buffer underflow on iOS\n",
         )
         self._append_step_status_with_prose(
-            "sid", "run-cccc3333", "impl-validator", None, "CHANGES_REQUESTED",
-            "MUST FIX: storage 키 충돌 가능\nLGTM 후보 X\n",
+            "sid", "run-cccc3333", "impl-validator", None, "FAIL",
+            "MUST FIX: storage 키 충돌 가능\nPASS 후보 X\n",
         )
         # mixed — 부정 라인 + positive 라인 → True (positive 우선)
         self._append_step_status_with_prose(
-            "sid", "run-cccc3333", "impl-validator", None, "CHANGES_REQUESTED",
+            "sid", "run-cccc3333", "impl-validator", None, "FAIL",
             "MUST FIX 0\nMUST FIX: 실제 이슈 발견\n",
         )
         records = _read_steps_jsonl("sid", "run-cccc3333")
@@ -2568,10 +2444,10 @@ PASS — 빈 문자열 가드 추가.
             sid, rid, "engineer", "IMPL", "IMPL_DONE", "fix done"
         )
         self._append_step_status_with_prose(
-            sid, rid, "validator", "BUGFIX_VALIDATION", "PASS", "verified"
+            sid, rid, "impl-validator", "BUGFIX_VALIDATION", "PASS", "verified"
         )
         self._append_step_status_with_prose(
-            sid, rid, "impl-validator", None, "LGTM", "looks good"
+            sid, rid, "impl-validator", None, "PASS", "looks good"
         )
 
         out = StringIO()
@@ -2586,8 +2462,8 @@ PASS — 빈 문자열 가드 추가.
         self.assertFalse(payload["has_must_fix"])
         self.assertEqual(len(payload["steps"]), 5)
 
-    def test_finalize_run_must_fix_resolved_by_polish_lgtm(self) -> None:
-        """#272 W4 — impl-validator CHANGES_REQUESTED → POLISH → impl-validator LGTM 시
+    def test_finalize_run_must_fix_resolved_by_polish_pass(self) -> None:
+        """#272 W4 — impl-validator FAIL → POLISH → impl-validator PASS 시
         has_must_fix=False (sticky 미발생). latest-per-role 평가 회귀."""
         from harness.session_state import (
             run_dir, _clear_default_base_cache, write_pid_session,
@@ -2611,8 +2487,8 @@ PASS — 빈 문자열 가드 추가.
         run_dir(sid, rid, create=True)
         write_pid_current_run(cc_pid, rid)
 
-        # impl-task-loop fallback 전형 시퀀스 — impl-validator CHANGES_REQUESTED →
-        # engineer POLISH → impl-validator LGTM. 첫 impl-validator prose 에 MUST FIX 포함.
+        # impl-task-loop fallback 전형 시퀀스 — impl-validator FAIL →
+        # engineer POLISH → impl-validator PASS. 첫 impl-validator prose 에 MUST FIX 포함.
         self._append_step_status_with_prose(
             sid, rid, "impl-validator", None, "PASS", "ok"
         )
@@ -2623,18 +2499,18 @@ PASS — 빈 문자열 가드 추가.
             sid, rid, "engineer", "IMPL", "IMPL_DONE", "first attempt"
         )
         self._append_step_status_with_prose(
-            sid, rid, "validator", "BUGFIX_VALIDATION", "PASS", "verified",
+            sid, rid, "impl-validator", "BUGFIX_VALIDATION", "PASS", "verified",
         )
         self._append_step_status_with_prose(
-            sid, rid, "impl-validator", None, "CHANGES_REQUESTED",
+            sid, rid, "impl-validator", None, "FAIL",
             "## MUST FIX\n- 1번 항목 고치자\n",
         )
         self._append_step_status_with_prose(
             sid, rid, "engineer", "POLISH", "POLISH_DONE", "fixed",
         )
         self._append_step_status_with_prose(
-            sid, rid, "impl-validator", None, "LGTM",
-            "## 결론\nLGTM\nMUST FIX 없음\n",
+            sid, rid, "impl-validator", None, "PASS",
+            "## 결론\nPASS\nMUST FIX 없음\n",
         )
 
         out = StringIO()
@@ -2643,15 +2519,15 @@ PASS — 빈 문자열 가드 추가.
         self.assertEqual(rc, 0)
         payload = json.loads(out.getvalue())
         self.assertEqual(payload["step_count"], 7)
-        # latest impl-validator = LGTM (must_fix=False) → has_must_fix False 여야 함
+        # latest impl-validator = PASS (must_fix=False) → has_must_fix False 여야 함
         self.assertFalse(
             payload["has_must_fix"],
-            msg="POLISH 후 LGTM 으로 해소된 must_fix 가 sticky 됨 (#272 W4 회귀)",
+            msg="POLISH 후 PASS 으로 해소된 must_fix 가 sticky 됨 (#272 W4 회귀)",
         )
         self.assertFalse(payload["has_ambiguous"])
 
     def test_finalize_run_must_fix_unresolved_still_sticky(self) -> None:
-        """final impl-validator 가 여전히 CHANGES_REQUESTED 면 has_must_fix True."""
+        """final impl-validator 가 여전히 FAIL 면 has_must_fix True."""
         from harness.session_state import (
             run_dir, _clear_default_base_cache, write_pid_session,
             write_pid_current_run, get_cc_pid_via_ppid_chain,
@@ -2681,7 +2557,7 @@ PASS — 빈 문자열 가드 추가.
             sid, rid, "engineer", "IMPL", "IMPL_DONE", "ok"
         )
         self._append_step_status_with_prose(
-            sid, rid, "impl-validator", None, "CHANGES_REQUESTED",
+            sid, rid, "impl-validator", None, "FAIL",
             "## MUST FIX\n- 미해소 항목\n",
         )
 
@@ -2690,23 +2566,23 @@ PASS — 빈 문자열 가드 추가.
             rc = _cli_finalize_run(SimpleNamespace())
         self.assertEqual(rc, 0)
         payload = json.loads(out.getvalue())
-        # 후속 LGTM 이 없으니 latest impl-validator = CHANGES_REQUESTED → must_fix True
+        # 후속 PASS 이 없으니 latest impl-validator = FAIL → must_fix True
         self.assertTrue(payload["has_must_fix"])
 
     def test_latest_step_per_role(self) -> None:
         """_latest_step_per_role — 같은 (agent, mode) 의 마지막 발생만 반환 (#272 W4)."""
         steps = [
             {"agent": "engineer", "mode": "IMPL", "must_fix": False},
-            {"agent": "impl-validator", "mode": None, "must_fix": True, "enum": "CHANGES_REQUESTED"},
+            {"agent": "impl-validator", "mode": None, "must_fix": True, "enum": "FAIL"},
             {"agent": "engineer", "mode": "POLISH", "must_fix": False},
-            {"agent": "impl-validator", "mode": None, "must_fix": False, "enum": "LGTM"},
+            {"agent": "impl-validator", "mode": None, "must_fix": False, "enum": "PASS"},
         ]
         latest = _latest_step_per_role(steps)
         # engineer:IMPL, engineer:POLISH 는 다른 mode → 둘 다 살아남음.
-        # impl-validator:None 은 마지막 (LGTM, must_fix=False) 만.
+        # impl-validator:None 은 마지막 (PASS, must_fix=False) 만.
         self.assertEqual(len(latest), 3)
         pr = next(s for s in latest if s["agent"] == "impl-validator")
-        self.assertEqual(pr["enum"], "LGTM")
+        self.assertEqual(pr["enum"], "PASS")
         self.assertFalse(pr["must_fix"])
 
     def test_auto_resolve_ux_escalate(self) -> None:
@@ -2779,7 +2655,7 @@ class AutoDetectFallbackTests(unittest.TestCase):
     """issue #469 결함 B — helper sid/rid 폴백 (env var + active_runs scan).
 
     PPID chain mismatch (bash subprocess 재시작 / fork) 시 sid/rid 미해결
-    회귀 차단. env > PPID > pointer > active_runs scan 폴백 우선순위.
+    회귀 차단. env > PPID > active_runs scan 폴백 우선순위.
 
     회귀 계보:
       - #469: impl-loop/helper 직접 호출의 PPID mismatch fallback
@@ -2810,9 +2686,9 @@ class AutoDetectFallbackTests(unittest.TestCase):
         sid: str,
         *,
         runs: dict,
-        root: str = "sessions",
+        root: str = ".sessions",
     ) -> Path:
-        """sessions/<sid>/live.json 작성 helper."""
+        """.sessions/<sid>/live.json 작성 helper."""
         sess_dir = self.base / root / sid
         sess_dir.mkdir(parents=True, exist_ok=True)
         payload = {
@@ -2853,7 +2729,7 @@ class AutoDetectFallbackTests(unittest.TestCase):
             runs={self.RID_B: {"run_id": self.RID_B, "started_at": "2026-05-22T01:00:00+00:00"}},
         )
         sid = auto_detect_session_id(base_dir=self.base)
-        # env 무시 + PPID chain (실 환경 X) + pointer 부재 → active_runs scan 박힘
+        # env 무시 + PPID chain (실 환경 X) → active_runs scan 박힘
         self.assertEqual(sid, self.SID_B)
 
     def test_scan_picks_recent_uncompleted_run(self) -> None:

@@ -125,7 +125,7 @@ class AgentRoutingTests(unittest.TestCase):
         self.path.write_text(
             json.dumps(
                 {
-                    "version": 999,
+                    "version": 3,
                     "routes": {
                         "impl-validator": "codex",
                         "build-worker": "codex",
@@ -141,7 +141,6 @@ class AgentRoutingTests(unittest.TestCase):
             encoding="utf-8",
         )
         problems = agent_routing.doctor()
-        self.assertTrue(any("unsupported version" in p for p in problems))
         self.assertTrue(
             any("unknown validation agent route: build-worker" in p for p in problems)
         )
@@ -166,63 +165,6 @@ class AgentRoutingTests(unittest.TestCase):
         self.assertIn("architecture-validator: codex", text)
         self.assertIn("impl-validator:", text)
         self.assertIn("build-worker: claude", text)
-
-    def test_v1_config_requires_migration_and_uses_safe_routes(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(
-                {
-                    "version": 1,
-                    "routes": {
-                        "impl-validator": "codex",
-                    },
-                }
-            ),
-            encoding="utf-8",
-        )
-        problems = agent_routing.doctor()
-        self.assertTrue(any("unsupported version: 1" in problem for problem in problems))
-        self.assertEqual(agent_routing.resolve_provider("impl-validator"), "claude")
-        self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
-        self.assertIn("impl-validator: claude", agent_routing.format_status())
-        self.assertIn("build-worker: claude", agent_routing.format_status())
-
-    def test_existing_config_without_version_requires_migration(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text("{}", encoding="utf-8")
-
-        self.assertTrue(
-            any("unsupported version: None" in problem for problem in agent_routing.doctor())
-        )
-        self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
-
-    def test_v2_codex_first_requires_migration_and_uses_safe_routes(self) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.path.write_text(
-            json.dumps(
-                {
-                    "version": 2,
-                    "routes": {"pr-reviewer": "claude"},
-                    "implementation_routes": {"build-worker": "codex-first"},
-                }
-            ),
-            encoding="utf-8",
-        )
-        problems = agent_routing.doctor()
-        self.assertTrue(any("unsupported version: 2" in problem for problem in problems))
-        self.assertTrue(
-            any(
-                "invalid implementation provider for build-worker: codex-first" in problem
-                for problem in problems
-            )
-        )
-        self.assertEqual(agent_routing.resolve_provider("build-worker"), "claude")
-
-        agent_routing.enable_role_split_routing()
-        self.assertEqual(agent_routing.load_routing()["version"], 3)
-        self.assertEqual(agent_routing.doctor(), [])
-        self.assertEqual(agent_routing.resolve_provider("build-worker"), "headless-chain")
-
 
 class AgentRoutingCliTests(unittest.TestCase):
     def setUp(self) -> None:

@@ -183,7 +183,7 @@ def _cli_end_step(args: Any) -> int:
                     file=sys.stderr,
                 )
         else:
-            # current_step 자체 부재 — begin-step 안 부른 경우 (engineer auto-PR 후 등).
+            # current_step 자체 부재 — begin-step 없이 end-step 을 호출한 경우.
             print(
                 f"[session_state] DRIFT WARN — current_step 부재. "
                 f"end-step={agent}{':' + mode if mode else ''}. "
@@ -194,7 +194,7 @@ def _cli_end_step(args: Any) -> int:
         # drift detector 자체 실패는 silent — end-step 동작 우선
         pass
 
-    # DCN-CHG-20260501-15: prose 로딩 — --prose-file 제공 시 legacy 경로, 없으면 hook auto-stage.
+    # prose 로딩 — --prose-file explicit override, 없으면 hook auto-stage.
     if args.prose_file:
         prose = Path(args.prose_file).read_text(encoding="utf-8")
         if not prose.strip():
@@ -317,7 +317,7 @@ def _count_step_occurrences(
 ) -> int:
     """(agent, mode) step_completed 수 반환 (write_prose occurrence 계산용 — 이슈 #587).
 
-    `ledger.count_step_completed` 위임 (ledger.jsonl 우선, 옛 .steps.jsonl 폴백).
+    `ledger.count_step_completed` 위임.
     """
     from harness import ledger
 
@@ -337,9 +337,9 @@ def _append_step_status(
 ) -> None:
     """end-step 호출마다 ledger.jsonl 에 step_completed event append (이슈 #587).
 
-    옛 단일 .steps.jsonl row → `ledger.append_step_completed` 위임. receipt
-    (sha256 / evidence_paths / next_action) 가 옛 필드 (prose_excerpt / must_fix /
-    prose_file) 의 superset 으로 기록된다. prose 가 SSOT, ledger 는 색인 장부.
+    `ledger.append_step_completed`가 현재 receipt(sha256 / evidence_paths /
+    next_action / prose_excerpt / must_fix / prose_file)를 기록한다. prose가 SSOT,
+    ledger는 색인 장부다.
     """
     from harness import ledger
 
@@ -532,24 +532,14 @@ _YOLO_FALLBACKS: Dict[str, Dict[str, Optional[str]]] = {
         ),
         "next_enum": "UX_FLOW_PATCHED",
     },
-    "product-planner:CLARITY_INSUFFICIENT": {
-        "action": "re-invoke",
-        "hint": "agent 권고 그대로 채택 — 모든 항목 default 채택 + 재호출",
-        "next_enum": "PRODUCT_PLAN_READY",
-    },
-    "architect:SPEC_GAP_FOUND": {
-        "action": "escalate-or-architect-spec-gap",
-        "hint": "SPEC_GAP cycle 진입 (architect SPEC_GAP) 또는 사용자 위임",
-        "next_enum": "SPEC_GAP_RESOLVED",
-    },
     "impl-validator:FAIL": {
         "action": "re-invoke-prev",
-        "hint": "engineer 재호출 (FAIL 본문 보고) — attempt < 3",
+        "hint": "build-worker 재호출 (FAIL 본문 보고) — attempt < 3",
         "next_enum": None,
     },
     "impl-validator:ESCALATE": {
-        "action": "escalate-or-architect-spec-gap",
-        "hint": "본문 사유 prose 확인: spec 부재면 architect SPEC_GAP, 그 외면 사용자 위임",
+        "action": "escalate-or-design-gap",
+        "hint": "본문 사유 prose 확인: spec 부재면 module-architect 보강, 그 외면 사용자 위임",
         "next_enum": None,
     },
     "architecture-validator:FAIL": {
@@ -560,7 +550,7 @@ _YOLO_FALLBACKS: Dict[str, Dict[str, Optional[str]]] = {
         # 메인이 분류를 읽고 분기, 분류 모호하면 사용자 위임 (mechanical 재호출 금지).
         "action": "route-by-classification",
         "hint": (
-            "validator 재호출 X — finding 분류로 architect 분기 (design-routing): "
+            "validator 재호출 X — finding 분류로 설계 agent 분기 (design-routing): "
             "SYSTEM_BOUNDARY → system-architect opt-in checkpoint / "
             "TASK_LOCAL → module-architect 보강(해당 task). 분류 모호 시 사용자 위임 (cycle ≤ 3)"
         ),

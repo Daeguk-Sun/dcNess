@@ -12,7 +12,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 from harness.product_journey import (
-    CONFIG_REL,
     JourneyConfigError,
     read_receipts,
     run_from_config,
@@ -20,6 +19,7 @@ from harness.product_journey import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
+CONFIG_PATH = Path("app/.maestro/dcness-journey.json")
 
 
 def _free_port() -> int:
@@ -33,7 +33,7 @@ def _command(code: str) -> dict[str, object]:
 
 
 def _write_config(root: Path, payload: dict[str, object]) -> Path:
-    path = root / CONFIG_REL
+    path = root / CONFIG_PATH
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     return path

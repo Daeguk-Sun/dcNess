@@ -170,7 +170,7 @@ fi
 - 슬롯 1 ↔ 4요소 (1)(2)(4), 슬롯 2 ↔ worktree MUST(아래), 슬롯 3 ↔ 4요소 (3) + 미기록 결정 예외. 4요소를 줄인 게 아니라 *담는 칸* 을 고정한 것이다.
 - `이 호출 특유` 칸이 방법 처방을 막는 가드다 — 채울 게 없으면 비우고, 채워도 "무엇" 까지만 적는다.
 - **진본 충실 시 수렴**: module-architect 산출물(impl task 파일)이 인터페이스·수용기준 통과조건·테스트 스켈레톤·Scope 까지 담으면, 호출은 포인터+worktree(+미기록 사실 한 줄)로 수렴한다. agent 본업(RED·lint·결론 형식)이나 진본 사본(AC 통과조건·Scope·인터페이스 시그니처)을 prompt 에 다시 적으면 슬림 포인터 규약 위반이다 — 진본이 진본임을 prompt 가 명시하면서 그 사본을 욱여넣는 자기모순.
-- direct 기본 경로(메인 직접 구현)는 sub-agent 호출 자체가 없어 본 슬롯 대상이 아니다. 슬롯이 적용되는 곳은 *sub-agent 에 prompt 가 나가는* 경로다 (`/impl-loop` build-worker · design 의 architect 호출).
+- direct 기본 경로(메인 직접 구현)는 sub-agent 호출 자체가 없어 본 슬롯 대상이 아니다. 슬롯이 적용되는 곳은 *sub-agent 에 prompt 가 나가는* 경로다 (`/impl-loop` build-worker · design 의 설계 agent 호출).
 
 **worktree 활성 시 worktree 절대 경로 prompt 에 추가 명시 — MUST**: cwd 가 `.claude/worktrees/<name>/` 안이면 sub-agent prompt 에 worktree 절대 경로 명시. main repo abs path 사용 금지 — 머지 전 옛 코드 read 로 false positive (CC #31546 / #48096). 근거: CC Task tool 에 cwd parameter 부재 (#12748), subagent frontmatter cwd field 부재 (#31940) — 메인이 명시 책임.
 
@@ -231,7 +231,7 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 ```
 
 - `agent` — 소문자·하이픈만 (`^[a-z][a-z0-9-]{0,63}$`)
-- `mode` — legacy 대문자·숫자·언더스코어(`^[A-Z][A-Z0-9_]{0,63}$`) 또는 skill 라벨용 소문자·숫자·하이픈(`^[a-z][a-z0-9-]{0,63}$`, 단 occurrence suffix 와 충돌하는 `-<숫자>` 끝맺음 제외)
+- `mode` — agent enum용 대문자·숫자·언더스코어(`^[A-Z][A-Z0-9_]{0,63}$`) 또는 skill 라벨용 소문자·숫자·하이픈(`^[a-z][a-z0-9-]{0,63}$`, 단 occurrence suffix 와 충돌하는 `-<숫자>` 끝맺음 제외)
 - 콜론 표기 금지 — `"build-worker:retry-1"` 형식은 `_validate_agent` 거부 → prose 미기록
 
 **prose 파일 자동 명명** (PostToolUse hook 이 `signal_io.signal_path` 기준 결정):
@@ -246,7 +246,7 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 | impl-validator 재리뷰 | `begin-step impl-validator retry` | `impl-validator-retry.md` |
 | `/design` epic batch | `begin-step module-architect epic-batch` | `module-architect-epic-batch.md` |
 
-재호출마다 별도 begin/end-step 1쌍 필수 (DCN-30-25 안전망). `--prose-file` 명시적 전달은 legacy/override 용도로 여전히 허용.
+재호출마다 별도 begin/end-step 1쌍 필수 (DCN-30-25 안전망). `--prose-file` 명시적 전달은 explicit override로 허용한다.
 
 **안티패턴** (begin/end-step 쌍 누락): ❌ build-worker local commit 후 git status 확인 → end-step skip / ❌ FAIL 후 build-worker rework 호출 시 begin/end-step 미포함 / ❌ end-step 보류 중 다음 step 진입으로 망각 / ❌ task 간 보고 작성 후 begin-step 재호출 누락.
 
@@ -295,7 +295,7 @@ TaskUpdate(<기존 task>, completed)
 validator (`impl-validator` / `architecture-validator`) 의 FAIL finding·수정 권고는 **"그 점/그 줄만 고쳐라"가 아니다.** 권고가 나온 *의미* = finding 이 가리키는 **근본 원인을 파악해 그 영역을 재설계하라** 이다.
 
 - **메인 (relay)**: 재진입 prompt 에 finding 을 "이 점만 고쳐"로 좁게 전달 금지. finding 이 구조적 누수의 *증상*인지 먼저 판단 → 증상이면 "근본 원인 + 증상 패턴 전체"를 주고 "이 접근을 재설계하라"로 프레이밍한다. **같은 영역 finding 이 2회+ 반복 = 점 패치 신호 → 즉시 근본 재설계로 전환** (위 REDO 분류의 `REDO_DIFF` 와 정합 — 같은 접근 재시도가 아니라 접근 자체 교체). 해법 메커니즘은 메인이 처방하지 말 것 — 증상·사실관계만 넘기고 설계 소유는 producer agent 가 갖는다.
-- **producer (architect / build-worker)**: finding 수신 시 점 패치 전에 "더 깊은 설계 문제의 신호인가?"를 먼저 본다. 신호면 점이 아니라 접근을 재설계한다. 재설계가 상위 산출물 (architecture / decisions / conventions / domain-model 등) 을 건드리면 직접 편집하지 말고 변경점을 prose 로 보고 → 메인이 상위 agent 로 분기 (각 `<skill>-routing.md` 의 retry 경로).
+- **producer (설계 agent / build-worker)**: finding 수신 시 점 패치 전에 "더 깊은 설계 문제의 신호인가?"를 먼저 본다. 신호면 점이 아니라 접근을 재설계한다. 재설계가 상위 산출물 (architecture / decisions / conventions / domain-model 등) 을 건드리면 직접 편집하지 말고 변경점을 prose 로 보고 → 메인이 상위 agent 로 분기 (각 `<skill>-routing.md` 의 retry 경로).
 - **이유**: 점 패치는 finding cascade 를 부른다 — 좁은 수정이 다음 결함을 드러내 같은 영역 FAIL 이 N 라운드 반복. 한 번의 근본 재설계 < N 번 점 패치 + N 번 재검증. 같은 영역을 점 패치로 retry 한도 ([design-routing](../../skills/design/design-routing.md#retry-한도) / [impl-loop-routing](../../skills/impl-loop/impl-loop-routing.md#retry-한도)) 까지 소진하지 말 것.
 
 ### yolo 모드
@@ -365,7 +365,6 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 
 - review 결과는 `<run_dir>/review.md` 에 저장 + stderr `[REVIEW_READY] <path>` 신호 출력. 메인 Claude 가 [Step 8 — review 결과 인지](#step-8-review-결과-인지) 따라 세션에 그대로 출력 의무.
 - review.md 에는 `CLAUDE.md/AGENTS.md 현행화 후보` read-only 섹션이 포함된다. 이는 대표 workflow 종료 시 세션 학습 환류 후보를 보여주는 권고이며, CLAUDE.md/AGENTS.md 를 자동 수정하지 않는다.
-- (예전 2개 명령 — `finalize-run --expected-steps <N> --auto-review` + `end-run` — 폐기. end-run 1개로 단순화. issue #396)
 - (issue #392 — `loop-insights` 자동 누적 매커니즘 폐기. 메인 자율 평가는 `$HELPER insight <agent>[-<mode>] "<한 줄>"` CLI 로 대체. review.md 끝 prompt 안내)
 
 ### STATUS JSON 구조
@@ -385,7 +384,7 @@ end-run 안전망 (`session_state.py`) 이 자동으로 `finalize-run --auto-rev
 2. step enum 이 해당 skill `## Loop` 의 advance/expected_steps 와 정합
 3. git 안전 가드: `git status --porcelain` 에 `.env` / `secrets.*` / `credentials.*` 없음 · unstaged + untracked ≤ 10 · submodule 변경 없음
 
-이 공통 매트릭스는 issue close 계약을 대체하지 않는다. `/impl-loop` 이 target GitHub issue 를 닫는 경우 [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)의 clean 판정에 따라 typed AC 전항목 충족·체크와 `require-complete`의 정확한 `PASS`까지 추가로 만족해야 clean 이다. legacy `REVIEW`는 human verification 대기다.
+이 공통 매트릭스는 issue close 계약을 대체하지 않는다. `/impl-loop` 이 target GitHub issue 를 닫는 경우 [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)의 clean 판정에 따라 typed AC 전항목 충족·체크와 `require-complete`의 정확한 `PASS`까지 추가로 만족해야 clean 이다. checklist 밖 사람 확인 항목은 human verification 완료 전까지 merge를 멈춘다.
 
 **verify-only 예외 (`/impl-loop`)**: `impl-validator:VERIFY_ONLY` prose 가 `PASS`이고 prose 안에 검증 명령 exit 0 + `git status --porcelain` 변경 0 증거가 있으면, step 1개 + PR 0개도 clean 이다. 이 예외에서는 `pr-create.sh` 를 호출하지 않는다.
 
@@ -462,7 +461,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 - `step_completed` (end-step) — = **receipt**: agent / mode / enum / prose_excerpt / must_fix / prose_file / sha256 / evidence_paths / next_action(hint)
 - `run_finished` (end-run)
 
-`ledger.jsonl` 의 `step_completed` receipt 는 read 시점에 primary ledger 한정으로 `prose_file` 실존 + `sha256` digest match 를 strict 검증한다. 검증 실패 step 은 위조/손상으로 보고 소비처(`run-status` / `run-review` / finalize gate)에서 제외한다. 옛 `.steps.jsonl` 폴백은 마이그레이션 호환 경로라 같은 검증을 걸지 않는다.
+`ledger.jsonl` 의 `step_completed` receipt 는 read 시점에 `prose_file` 실존 + `sha256` digest match 를 strict 검증한다. 검증 실패 step 은 위조/손상으로 보고 소비처(`run-status` / `run-review` / finalize gate)에서 제외한다.
 
 **PR lifecycle event**: `scripts/pr-create.sh` 는 PR 생성 성공 뒤 `pr_created`,
 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 는 merge 완료 확인 뒤 `pr_merged` 를 자동 기록한다. active
@@ -484,7 +483,7 @@ dcNess run 밖에서 호출되면 ledger 기록은 경고만 내고 PR 작업 �
 ```
 출력의 evidence pointer (prose 파일 경로) 로 필요한 prose 만 선택적으로 연다.
 
-**옛 `.steps.jsonl` 흡수** (이슈 #587): step 로그는 `ledger.jsonl` 의 `step_completed` event 로 단일화됐다 (옛 step row 필드의 superset). `ledger.jsonl` 부재 시 옛 `.steps.jsonl` 로 폴백 — plugin 업데이트가 진행 중 run 에 걸친 경우의 마이그레이션 셔틀이다. run-review / 진행 순서 검사 / Stop hook 은 모두 `step_completed` event 를 읽는다.
+step 로그는 `ledger.jsonl` 의 `step_completed` event 로 단일화됐다. run-review / 진행 순서 검사 / Stop hook 은 모두 무결성 검증된 `step_completed` event 를 읽는다.
 
 ---
 

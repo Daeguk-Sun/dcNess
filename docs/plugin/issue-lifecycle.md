@@ -53,7 +53,7 @@ gh issue create --title "<title>" --body-file <brief.md> --label "<IssueType>"
 
 `--require-complete` 는 새 CI hard gate 가 아니라 close 직전 메인이 같은 validator 를 재사용하는 로컬 감사 옵션이다. `--acceptance-only` 와 함께 쓰면 Issue Brief 와 Story/Epic issue body 에 공통으로 적용되며, target GitHub issue AC 에 미체크 항목이 하나라도 있으면 실패한다. close 감사는 Acceptance criteria 와 human verification 의 bold field·Markdown heading 섹션을 모두 인식하고, `-`·`*`·`+` 체크박스 불릿을 같은 checklist 문법으로 집계한다.
 
-reader 결과는 한 경계에서 해석한다. 전항목이 `[command]`/`[agent-read]` 인 현행 body만 정확한 `PASS`로 자동 close를 허용한다. 검증 주체 미기재 AC 또는 Acceptance criteria가 없는 구양식 body는 exit 0의 `REVIEW`로 읽어 기존 issue를 migration 없이 열어둘 수 있게 하지만, 이 결과는 자동 close 권한이 아니다. agent는 legacy 항목을 추론·체크·재분류하지 않고 `human verification 대기`로 보고한다. 사용자가 의미와 완료를 명시적으로 확인하면 body를 소급 변환하지 않고 그 확인을 close 근거로 사용할 수 있다. 신규 writer는 계속 typed checklist만 생성하며, 실제 미체크 항목이나 현행 typed 일반론 AC는 실패한다.
+reader 결과는 한 경계에서 해석한다. 전항목이 `[command]`/`[agent-read]` 인 body만 정확한 `PASS`로 close를 허용한다. 검증 주체 미기재 AC 또는 Acceptance criteria가 없는 body는 실패하며 close 전에 현행 typed checklist로 갱신한다. agent는 항목 의미를 임의 추론해 체크·재분류하지 않는다. 실제 미체크 항목이나 일반론 AC도 실패한다.
 
 ## Issue/label Status lifecycle
 
@@ -113,7 +113,7 @@ node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
   --require-complete
 ```
 
-정확한 `PASS`면 typed 자동 항목의 close 감사가 끝난다. `REVIEW`면 legacy reader가 본문을 성공적으로 읽은 것이며 close 완료 신호가 아니다. 사람 판정·검증 주체 미기재·no-AC 항목은 agent가 체크하거나 재분류하지 않고 잔여 human verification 목록을 보고 merge 전에 정지한다. 이는 구현 실패인 `blocked`가 아니라 `human verification 대기`다.
+정확한 `PASS`면 typed 자동 항목의 close 감사가 끝난다. AC 부재·검증 주체 미기재·미체크 항목은 실패하고 body 갱신 전 merge를 정지한다. 사람 판정은 checklist와 분리한 human verification 목록으로 보고하며, 이는 구현 실패인 `blocked`가 아니라 `human verification 대기`다.
 
 default branch 로 PR merge 가 끝난 뒤 GitHub closing reference 가 issue close 를 발동한다. 후처리 경로는 PR body 또는 GitHub closing issue reference 에서 완료 후보 issue 를 찾고, `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 label 제거 뒤에 Project item `Status=Done` 이동을 best-effort 로 1회 시도한다. 보드 미러 실패는 warning 으로만 보고하고 label cleanup 성공을 실패로 바꾸지 않는다.
 

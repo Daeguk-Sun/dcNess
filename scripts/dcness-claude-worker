@@ -381,7 +381,7 @@ sid, rid, agent, mode, provider, raw_log = sys.argv[1:7]
 reason = os.environ.get("BOUNDARY_REASON", "").strip()
 
 fields = {
-    "category": "engineer_boundary",
+    "category": "worker_boundary",
     "agent": agent,
     "provider": provider,
     "reason": reason,
@@ -403,7 +403,7 @@ try:
     mark_run_blocked(
         sid,
         rid,
-        category="engineer_boundary",
+        category="worker_boundary",
         agent=agent,
         mode=mode or None,
         provider=provider,
