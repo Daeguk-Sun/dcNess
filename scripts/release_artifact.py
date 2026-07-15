@@ -32,6 +32,7 @@ class ArtifactError(RuntimeError):
 @dataclass(frozen=True)
 class Contract:
     include_paths: tuple[str, ...]
+    product_python: tuple[tuple[str, str], ...]
     allowed_cache_metadata: tuple[str, ...]
     allowed_cache_metadata_globs: tuple[str, ...]
     required_runtime_paths: tuple[str, ...]
@@ -65,8 +66,39 @@ def load_contract(path: Path) -> Contract:
             raise ArtifactError(f"artifact contract {field} contains duplicates")
         return normalized
 
+    raw_product_python = payload.get("product_python")
+    if not isinstance(raw_product_python, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in raw_product_python.items()
+    ):
+        raise ArtifactError("artifact contract product_python must be a path-to-contract object")
+    product_python: list[tuple[str, str]] = []
+    normalized_product_paths: set[str] = set()
+    for raw_path, raw_reason in raw_product_python.items():
+        normalized = _safe_relative(raw_path, field="product_python")
+        reason = raw_reason.strip()
+        if not normalized.endswith(".py"):
+            raise ArtifactError(f"product_python must name Python files: {raw_path!r}")
+        if not reason:
+            raise ArtifactError(f"product_python contract must not be empty: {raw_path!r}")
+        if normalized in normalized_product_paths:
+            raise ArtifactError(f"artifact contract product_python contains duplicates: {normalized}")
+        normalized_product_paths.add(normalized)
+        product_python.append((normalized, reason))
+
+    include_paths = paths("include_paths")
+    outside_allowlist = sorted(
+        path for path in normalized_product_paths if not _is_under(path, include_paths)
+    )
+    if outside_allowlist:
+        raise ArtifactError(
+            "product_python paths must be selected by include_paths: "
+            + ", ".join(outside_allowlist)
+        )
+
     return Contract(
-        include_paths=paths("include_paths"),
+        include_paths=include_paths,
+        product_python=tuple(product_python),
         allowed_cache_metadata=paths("allowed_cache_metadata"),
         allowed_cache_metadata_globs=paths("allowed_cache_metadata_globs"),
         required_runtime_paths=paths("required_runtime_paths"),
@@ -145,6 +177,22 @@ def build(repo_root: Path, ref: str, output: Path, contract: Contract) -> None:
     if output.exists():
         raise ArtifactError(f"output already exists: {output}")
     _extract_archive(_archive(repo_root, ref), output, include_paths=contract.include_paths)
+    _verify_product_python_inventory(output, contract)
+
+
+def _verify_product_python_inventory(bundle: Path, contract: Contract) -> None:
+    expected = {path for path, _reason in contract.product_python}
+    actual = {
+        path.relative_to(bundle).as_posix()
+        for path in bundle.rglob("*.py")
+        if path.is_file()
+    }
+    undeclared = sorted(actual - expected)
+    missing = sorted(expected - actual)
+    details = [*(f"undeclared product Python: {path}" for path in undeclared)]
+    details.extend(f"declared product Python missing: {path}" for path in missing)
+    if details:
+        raise ArtifactError("product Python inventory violated:\n" + "\n".join(details))
 
 
 def _content_hashes(root: Path, contract: Contract) -> dict[str, str]:
@@ -303,6 +351,7 @@ def _product_module_exists(bundle: Path, module: str) -> bool:
 
 
 def _verify_product_dependencies(bundle: Path, contract: Contract) -> None:
+    _verify_product_python_inventory(bundle, contract)
     violations: list[str] = []
     for path in sorted(bundle.rglob("*.py")):
         relative = path.relative_to(bundle).as_posix()

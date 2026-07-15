@@ -33,6 +33,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
     def test_contract_is_a_positive_product_allowlist(self) -> None:
         contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
         included = set(contract["include_paths"])
+        product_python = contract["product_python"]
         required = set(contract["required_runtime_paths"])
 
         self.assertEqual(contract["schema_version"], 2)
@@ -61,6 +62,24 @@ class ReleaseArtifactContractTests(unittest.TestCase):
         )
         self.assertNotIn("harness/agent_effectiveness.py", included)
         self.assertNotIn("harness/outcome_scorecard.py", included)
+        self.assertNotIn("harness/agent_effectiveness.py", product_python)
+        self.assertNotIn("harness/outcome_scorecard.py", product_python)
+        self.assertTrue(product_python)
+        self.assertTrue(all(isinstance(reason, str) and reason.strip() for reason in product_python.values()))
+
+        tracked_python = subprocess.run(
+            ["git", "ls-files", "*.py"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.splitlines()
+        included_python = {
+            path
+            for path in tracked_python
+            if any(path == root or path.startswith(f"{root}/") for root in included)
+        }
+        self.assertEqual(set(product_python), included_python)
         self.assertEqual(contract["allowed_cache_metadata"], [".git", ".in_use"])
         self.assertIn("scripts/loop_diagnose.py", included)
         self.assertIn("scripts/loop_diagnose.py", required)
@@ -116,6 +135,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                             "agents",
                             "docs/plugin",
                         ],
+                        "product_python": {},
                         "allowed_cache_metadata": [".git", ".in_use"],
                         "allowed_cache_metadata_globs": [
                             "__pycache__/*.pyc",
@@ -185,6 +205,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                     {
                         "schema_version": 2,
                         "include_paths": ["product.py", "missing-runtime.py"],
+                        "product_python": {"product.py": "public fixture runtime"},
                         "allowed_cache_metadata": [".git", ".in_use"],
                         "allowed_cache_metadata_globs": [],
                         "required_runtime_paths": ["product.py"],
@@ -210,9 +231,59 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             self.assertNotEqual(failed.returncode, 0)
             self.assertIn("allowlist paths missing at revision: missing-runtime.py", failed.stderr)
 
+    def test_build_rejects_undeclared_python_inside_an_included_product_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            contract_path = root / "contract.json"
+            (repo / "product").mkdir(parents=True)
+            subprocess.run(["git", "init", "-q", repo], check=True)
+            subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "test@example.com"], check=True
+            )
+            (repo / "product/runtime.py").write_text("VALUE = 1\n", encoding="utf-8")
+            (repo / "product/dev_only.py").write_text("VALUE = 2\n", encoding="utf-8")
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "fixture"], check=True)
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "include_paths": ["product"],
+                        "product_python": {
+                            "product/runtime.py": "public hook runtime",
+                        },
+                        "allowed_cache_metadata": [".git", ".in_use"],
+                        "allowed_cache_metadata_globs": [],
+                        "required_runtime_paths": ["product/runtime.py"],
+                        "forbidden_product_imports": ["evals", "tests"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            failed = _run(
+                "build",
+                "--repo-root",
+                str(repo),
+                "--ref",
+                "HEAD",
+                "--output",
+                str(root / "bundle"),
+                "--contract",
+                str(contract_path),
+                check=False,
+            )
+
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("undeclared product Python: product/dev_only.py", failed.stderr)
+
     def test_product_dependency_check_rejects_repository_imports(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
-            bundle = Path(tmp) / "bundle"
+            root = Path(tmp)
+            bundle = root / "bundle"
+            contract_path = root / "contract.json"
             bundle.mkdir()
             (bundle / "harness").mkdir()
             (bundle / "product.py").write_text(
@@ -226,13 +297,34 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             (bundle / "harness/relative_product.py").write_text(
                 "from . import outcome_scorecard\n", encoding="utf-8"
             )
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "include_paths": ["product.py", "harness/relative_product.py"],
+                        "product_python": {
+                            "product.py": "public fixture runtime",
+                            "harness/relative_product.py": "public fixture runtime",
+                        },
+                        "allowed_cache_metadata": [".git", ".in_use"],
+                        "allowed_cache_metadata_globs": [],
+                        "required_runtime_paths": ["product.py"],
+                        "forbidden_product_imports": [
+                            "evals",
+                            "tests",
+                            "harness.outcome_scorecard",
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             failed = _run(
                 "check-dependencies",
                 "--root",
                 str(bundle),
                 "--contract",
-                str(CONTRACT),
+                str(contract_path),
                 check=False,
             )
 
@@ -263,6 +355,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                     {
                         "schema_version": 2,
                         "include_paths": ["product.py"],
+                        "product_python": {"product.py": "public fixture runtime"},
                         "allowed_cache_metadata": [".git", ".in_use"],
                         "allowed_cache_metadata_globs": [
                             "__pycache__/*.pyc",
@@ -513,6 +606,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                     {
                         "schema_version": 2,
                         "include_paths": ["product.txt"],
+                        "product_python": {},
                         "allowed_cache_metadata": [".git", ".in_use"],
                         "allowed_cache_metadata_globs": [],
                         "required_runtime_paths": ["product.txt"],

@@ -29,9 +29,14 @@
 [Claude Code marketplace 문서](https://code.claude.com/docs/en/plugin-marketplaces#plugin-sources)를
 따른다.
 
-release artifact의 단일 포함·제외 SSOT는 [`scripts/release_artifact.json`](../../scripts/release_artifact.json)이다.
+release artifact의 단일 positive allowlist SSOT는 [`scripts/release_artifact.json`](../../scripts/release_artifact.json)이다.
 [`scripts/release_artifact.py`](../../scripts/release_artifact.py)의 candidate 생성과
 [`scripts/sync_release.sh`](../../scripts/sync_release.sh)의 release branch 정리가 이 파일만 소비한다.
+`include_paths`는 제품 콘텐츠와 runtime만 선택하고, `product_python`은 배포되는 모든 Python
+파일을 공개 hook·command·skill 또는 외부 사용자용 CLI 계약과 1:1로 분류한다. 포함 디렉터리
+아래에 새 Python 파일이 추가돼도 `product_python`에 제품 소비자를 명시하지 않으면 artifact
+build가 fail-closed 한다. `evals`, tests, build·release, dcNess 자체 effectiveness/scorecard는
+repository operations이며 제품 Python이 import할 수 없다.
 marketplace install/update는 그렇게 생성된 `release` ref를 소비하며, cache 비교에서 허용하는
 transport/runtime metadata는 GitHub source update용 `.git`, 활성 사용 표식 `.in_use`, Python
 실행이 생성하는 `**/__pycache__/*.pyc`뿐이다. bytecode 외 파일은 `__pycache__` 안에서도 허용하지
@@ -40,12 +45,18 @@ footprint를 보고할 때는 metadata 크기를 별도로 병기한다.
 
 `release`는 사람이 작업하는 외부 프로젝트 브랜치 예외가 아니다. dcNess self의
 `sync_release.sh`가 공식 저장소 원격(`Daeguk-Sun/dcNess`, 이전 redirect `alruminum/dcNess`)에
-push할 때만 pre-push naming gate에서 기계 생성 배포 ref로 인정한다. artifact 제외 계약 조회가
-실패하거나 빈 결과를 내면 sync는 push 전에 fail-closed 한다.
+push할 때만 pre-push naming gate에서 기계 생성 배포 ref로 인정한다. positive allowlist artifact
+생성이나 제품 Python inventory 검증이 실패하면 sync는 push 전에 fail-closed 한다.
 
 ```sh
 # 현재 ref의 비파괴 candidate + runtime smoke + footprint/context 분리 측정
 python3 scripts/release_artifact.py smoke --repo-root . --ref HEAD
+
+# 같은 revision의 저장소 Python과 release Python을 분리 측정
+python3 scripts/release_artifact.py measure --repo-root . --ref HEAD
+
+# 생성된 artifact의 repository-operations 역방향 의존 금지 확인
+python3 scripts/release_artifact.py check-dependencies --root <artifact-root>
 
 # candidate/release/cache를 같은 명령으로 측정·대조
 python3 scripts/release_artifact.py snapshot --root <artifact-root>
