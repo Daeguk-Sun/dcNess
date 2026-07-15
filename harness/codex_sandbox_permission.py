@@ -244,13 +244,14 @@ def _append_ledger_event(
     if not sid or not rid:
         return
     try:
-        from harness import ledger
+        from harness.session_state import transition
 
         state = str(receipt.get("state", "permission_required"))
-        ledger.append_event(
+        transition(
             sid,
-            rid,
-            "blocked",
+            "ledger_checkpoint",
+            run_id=rid,
+            event="blocked",
             agent="build-worker",
             provider="codex-headless",
             category=(

@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Optional
 
 from harness.context_docs import audit_claude_md_file
+from harness.session_state import StateFormatError
 
 # Reuse existing pricing util.
 try:
@@ -40,8 +41,8 @@ except Exception:
 
 # must_fix 는 저장 receipt가 아니라 prose SSOT에서 다시 계산한다.
 try:
-    from harness.session_state import (
-        _has_positive_must_fix,
+    from harness.session_state import _has_positive_must_fix
+    from harness.session_state_fail_open import (
         collect_fail_open_summary,
         format_fail_open_warning,
     )
@@ -497,7 +498,11 @@ def list_runs(sessions_root: Path) -> list[Path]:
         if not runs_dir.is_dir():
             continue
         for rid_dir in runs_dir.iterdir():
-            events = ledger.read_events_at(rid_dir)
+            try:
+                events = ledger.read_events_at(rid_dir)
+            except StateFormatError as exc:
+                print(f"[run-review] invalid run skipped: {exc}", file=sys.stderr)
+                continue
             if not events:
                 continue
             has_step = any(e.get("event") == "step_completed" for e in events)

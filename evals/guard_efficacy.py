@@ -32,10 +32,8 @@ from harness.agent_boundary import (  # noqa: E402
 )
 from harness.hooks import handle_pretooluse_agent  # noqa: E402
 from harness.session_state import (  # noqa: E402
-    start_run,
-    update_current_step,
     evaluate_order_gate_for_step,
-    update_live,
+    transition,
     write_pid_current_run,
     write_pid_session,
 )
@@ -135,11 +133,17 @@ def _order_gate(subagent: str, *, current_step: str | None = None) -> Probe:
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
             write_pid_session(cc_pid, sid, base_dir=base)
-            update_live(sid, base_dir=base)
-            start_run(sid, rid, "impl", base_dir=base, lane="lite")
+            transition(sid, "session_initialized", base_dir=base)
+            transition(
+                sid, "run_started", run_id=rid, base_dir=base,
+                entry_point="impl", lane="lite",
+            )
             write_pid_current_run(cc_pid, rid, base_dir=base)
             if current_step:
-                update_current_step(sid, rid, current_step, None, base_dir=base)
+                transition(
+                    sid, "step_started", run_id=rid, base_dir=base,
+                    agent=current_step, mode=None,
+                )
             payload = {
                 "sessionId": sid,
                 "tool_input": {"subagent_type": subagent},
@@ -170,8 +174,11 @@ def _begin_step_order_gate(
         rid = "run-22222222"
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
-            update_live(sid, base_dir=base)
-            start_run(sid, rid, "impl", base_dir=base, lane=lane)
+            transition(sid, "session_initialized", base_dir=base)
+            transition(
+                sid, "run_started", run_id=rid, base_dir=base,
+                entry_point="impl", lane=lane,
+            )
             rd = base / ".sessions" / sid / "runs" / rid
             if build_worker_output:
                 _write_file(rd, "build-worker.md", "implementation\n\nPASS\n")

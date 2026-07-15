@@ -8,10 +8,11 @@ working.
 from __future__ import annotations
 
 import json
-import re
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+from harness import ledger
 
 
 def _parent_state_module():
@@ -28,98 +29,16 @@ def _parent_state_module():
 
 _state = _parent_state_module()
 _now_iso = _state._now_iso
-_read_steps_jsonl = _state._read_steps_jsonl
 auto_detect_run_id = _state.auto_detect_run_id
 auto_detect_session_id = _state.auto_detect_session_id
-clear_current_step = _state.clear_current_step
 diagnose_sid_rid_resolution = _state.diagnose_sid_rid_resolution
 read_live = _state.read_live
-record_fail_open_event = _state.record_fail_open_event
 run_dir = _state.run_dir
 session_dir = _state.session_dir
-update_live = _state.update_live
+transition = _state.transition
 
 
-_SUMMARY_LINE_LIMIT = 12      # prose 요약 최대 줄 수 (DCN-CHG-30-11: 8 → 12)
-_SUMMARY_CHAR_LIMIT = 1200    # 요약 총 길이 cap (DCN-CHG-30-11: 600 → 1200)
-
-# 결론/요약 섹션 헤더 후보 — case-insensitive 매칭 (한국어 + 영어 혼용).
-# `\b` 는 한국어에 잘못 동작 (word boundary 가 ASCII 만) — 사용 X. 대신 끝에
-# 공백/끝 또는 한국어 조사 후속 허용 패턴.
-_CONCLUSION_HEADER_RE = re.compile(
-    r"^\s{0,3}#{1,6}\s*"
-    r"(결론|결과|요약|변경\s*요약|변경\s*사항|변경\s*내용|"
-    r"conclusion|summary|result|key\s*changes?|outcome|verdict)"
-    r"(\s|$|:|—|-)",
-    re.IGNORECASE,
-)
-
-
-def _extract_section_after_header(prose: str, max_lines: int, char_cap: int) -> str:
-    """결론/요약 섹션 헤더를 찾아 그 다음 본문 추출.
-
-    헤더 부재 시 빈 문자열 반환 (caller 가 fallback 사용).
-    """
-    lines = prose.splitlines()
-    start = -1
-    for i, line in enumerate(lines):
-        if _CONCLUSION_HEADER_RE.match(line):
-            start = i + 1
-            break
-    if start < 0:
-        return ""
-    out: list = []
-    total = 0
-    for line in lines[start:]:
-        rstripped = line.rstrip()
-        stripped = rstripped.lstrip()
-        # 다음 동급 이상 헤더 만나면 종료
-        if stripped.startswith("#"):
-            if out:  # 본문이 시작된 후 만나는 다음 헤더 = 섹션 종료
-                break
-            continue
-        if not stripped and not out:
-            continue  # 헤더 직후 빈 줄 skip
-        out.append(rstripped)
-        total += len(rstripped) + 1
-        if len(out) >= max_lines or total >= char_cap:
-            break
-    # 끝 trailing 빈 줄 제거
-    while out and not out[-1].strip():
-        out.pop()
-    return "\n".join(out)
-
-
-def _extract_prose_summary(prose: str, *, max_lines: int = _SUMMARY_LINE_LIMIT) -> str:
-    """prose 의 결론/요약 섹션 우선 추출, 없으면 첫 의미 있는 N 줄 fallback.
-
-    의도: skill bash 에서 helper 호출 후 stderr 로 흘려 사용자 가시성 ↑. agent prose 가
-    대개 마지막에 `## 결론` / `## Summary` / `## 변경 요약` 섹션 씀 — 그 섹션이 가장
-    정보 밀도 높음. 첫 N 줄 무차별 추출보다 효과적.
-
-    DCN-CHG-30-11 (이전 8 줄 / 600 char → 12 줄 / 1200 char) — 사용자 가시성 ↑ 위해 cap 확장.
-    """
-    char_cap = _SUMMARY_CHAR_LIMIT if max_lines == _SUMMARY_LINE_LIMIT else max_lines * 100
-    # 1단계: 결론/요약 섹션 우선
-    section = _extract_section_after_header(prose, max_lines, char_cap)
-    if section:
-        return section
-    # 2단계: fallback — 첫 의미 있는 줄
-    out_lines: list = []
-    total_chars = 0
-    for raw in prose.splitlines():
-        line = raw.rstrip()
-        stripped = line.lstrip()
-        if not stripped:
-            continue
-        # skip 첫 markdown 헤더만 (정보 부족)
-        if stripped.startswith("#") and len(stripped) < 40 and len(out_lines) == 0:
-            continue
-        out_lines.append(line)
-        total_chars += len(line) + 1
-        if len(out_lines) >= max_lines or total_chars >= char_cap:
-            break
-    return "\n".join(out_lines)
+_extract_prose_summary = _state._extract_prose_summary
 
 
 def _find_prose_fallback(sid: str, rid: str, agent: str, mode: Optional[str]) -> Optional[str]:
@@ -201,7 +120,7 @@ def _cli_end_step(args: Any) -> int:
             print("[session_state] empty prose", file=sys.stderr)
             return 1
         base = session_dir(sid) / "runs"
-        occ = _count_step_occurrences(sid, rid, agent, mode)
+        occ = ledger.count_step_completed(sid, rid, agent, mode)
         prose_path = write_prose(agent, rid, prose, mode=mode, base_dir=base, occurrence=occ)
     else:
         # hook auto-staged prose — live.json.current_step.prose_file 에서 경로 읽기
@@ -251,77 +170,10 @@ def _cli_end_step(args: Any) -> int:
         prose_path,
         provider=getattr(args, "provider", None),
     )
-    clear_current_step(sid, rid, agent=agent, mode=mode)
     return 0
 
 
 # ── step status log + finalize-run + auto-resolve ────────────────────
-
-
-_MUST_FIX_RE = re.compile(r"\bMUST[\s_-]?FIX\b", re.IGNORECASE)
-
-# 같은 줄 부정 패턴 — "MUST FIX 0" / "MUST FIX 없음" / "no must fix"
-# DCN-CHG-20260523 (#484 Case 2): between 영역 `[\s:=]*` → `[^\n]{0,30}?` 로 일반화.
-# jajang `**MUST FIX 항목**: 없음` 패턴 (한국어 라벨 + markdown bold + 콜론 끼임)
-# 회귀 차단. 30자 한도 = `MUST FIX` 직후 같은 라인 안 짧은 라벨 + 부정 어휘만 흡수.
-_MUST_FIX_NEGATION_RE = re.compile(
-    r"\bMUST[\s_-]?FIX\b[^\n]{0,30}?"
-    r"(?:\b0(?!\s*\d)|없[음다]|해당\s*없[음다])"
-    r"|\bno\s+MUST[\s_-]?FIX\b",
-    re.IGNORECASE,
-)
-# Markdown 헤더 단독 줄 — "## MUST FIX" 처럼 내용 없이 헤더만
-_MUST_FIX_HEADER_ONLY_RE = re.compile(r'^\s*#{1,6}\s*MUST[\s_-]?FIX\s*$', re.IGNORECASE)
-# 헤더 다음 줄 부정 패턴 — "없음." / "0건" / "해당 없음" 등
-_NEXT_LINE_NEGATION_RE = re.compile(
-    r'^(?:없[음다]\.?|0건|0개|해당\s*없[음다]\.?|없습니다\.?)\s*$',
-    re.IGNORECASE,
-)
-
-
-def _has_positive_must_fix(prose: str) -> bool:
-    """prose 안 MUST FIX 가 *positive* (실제 fix 요청) 의미로 등장했는지.
-
-    검사 절차:
-      1. MUST FIX 매칭 0개 → False
-      2. 라인 단위 — 같은 줄 부정 컨텍스트 → skip
-      3. Markdown 헤더 단독 줄 (## MUST FIX) → 다음 비어있지 않은 줄이 부정이면 skip
-      4. 위 조건 모두 통과 → True (실제 fix 항목 존재)
-    """
-    if not _MUST_FIX_RE.search(prose):
-        return False
-    lines = prose.splitlines()
-    for i, line in enumerate(lines):
-        if not _MUST_FIX_RE.search(line):
-            continue
-        if _MUST_FIX_NEGATION_RE.search(line):
-            continue  # 같은 줄 부정
-        if _MUST_FIX_HEADER_ONLY_RE.match(line):
-            # 헤더 단독 줄 — 다음 의미있는 줄 확인
-            next_content = next(
-                (line.strip() for line in lines[i + 1:] if line.strip()), ""
-            )
-            if not next_content or _NEXT_LINE_NEGATION_RE.match(next_content):
-                continue  # 다음 줄이 없거나 부정 → false positive
-        return True
-    return False
-
-
-def _count_step_occurrences(
-    sid: str,
-    rid: str,
-    agent: str,
-    mode: Optional[str],
-    *,
-    base_dir: Optional[Path] = None,
-) -> int:
-    """(agent, mode) step_completed 수 반환 (write_prose occurrence 계산용 — 이슈 #587).
-
-    `ledger.count_step_completed` 위임.
-    """
-    from harness import ledger
-
-    return ledger.count_step_completed(sid, rid, agent, mode, base_dir=base_dir)
 
 
 def _append_step_status(
@@ -335,42 +187,18 @@ def _append_step_status(
     *,
     provider: Optional[str] = None,
 ) -> None:
-    """end-step 호출마다 ledger.jsonl 에 step_completed event append (이슈 #587).
-
-    `ledger.append_step_completed`가 현재 receipt(sha256 / evidence_paths /
-    next_action / prose_excerpt / must_fix / prose_file)를 기록한다. prose가 SSOT,
-    ledger는 색인 장부다.
-    """
-    from harness import ledger
-
-    ledger.append_step_completed(
-        sid, rid, agent, mode, enum, prose, prose_path, provider=provider
+    """Complete a step through the canonical state/ledger transition."""
+    transition(
+        sid,
+        "step_completed",
+        run_id=rid,
+        agent=agent,
+        mode=mode,
+        enum=enum,
+        prose=prose,
+        prose_path=prose_path,
+        provider=provider,
     )
-    try:
-        if agent == "build-worker" and provider in {"codex-headless", "claude-headless"}:
-            from harness.run_review import _extract_conclusion_enum
-
-            if _extract_conclusion_enum(prose) == "VALIDATION_BLOCKED":
-                ledger.append_event(
-                    sid,
-                    rid,
-                    "blocked",
-                    agent=agent,
-                    mode=mode,
-                    provider=provider,
-                    category="headless_validation_blocked",
-                    prose_file=str(prose_path),
-                    detail=(
-                        "headless build-worker reported VALIDATION_BLOCKED; "
-                        "main must run the validation command fallback"
-                    ),
-                )
-    except Exception as exc:  # noqa: BLE001
-        record_fail_open_event(
-            hook="headless-validation-blocked-ledger",
-            category="metric_write_error",
-            detail=f"{type(exc).__name__}: {exc}",
-        )
 
 
 def _record_design_run_if_applicable(sid: str, rid: str) -> None:
@@ -435,7 +263,7 @@ def _cli_finalize_run(args: Any) -> int:
     if not sid or not rid:
         print(json.dumps({"error": "sid/rid 미해결"}), file=sys.stderr)
         return 1
-    steps = _read_steps_jsonl(sid, rid)
+    steps = ledger.read_step_completed(sid, rid)
     # #272 W4 — has_must_fix sticky on PASS 수정. POLISH/retry 로 해소된 must_fix 가
     # sticky 로 남아 PASS final step 임에도 caveat 진입했음. 같은 (agent, mode) 의
     # *마지막* 발생만 평가해서 후속 step 에서 해소된 신호를 정합 처리.
@@ -464,15 +292,8 @@ def _cli_finalize_run(args: Any) -> int:
     }
     print(json.dumps(payload, ensure_ascii=False, indent=2))
 
-    # finalized_at 플래그 — end-run 이 미호출 감지용.
     try:
-        _live = read_live(sid)
-        _active = _live.get("active_runs", {}) if _live else {}
-        if isinstance(_active, dict) and rid in _active:
-            _slot = dict(_active[rid])
-            _slot["finalized_at"] = _now_iso()
-            _active[rid] = _slot
-            update_live(sid, active_runs=_active)
+        transition(sid, "run_finalized", run_id=rid)
     except Exception:  # nosec B110
         pass
 

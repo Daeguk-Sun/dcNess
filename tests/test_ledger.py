@@ -36,11 +36,23 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from tests import run_state_test_fixtures
+from tests.run_state_test_fixtures import start_run
+
 from harness import ledger
-from harness.session_state import run_dir, start_run
+from harness import session_state as state
+from harness.session_state import run_dir
 
 _SID = "test-ledger-sid"
 _RID = "run-deadbeef"
+
+
+def setUpModule() -> None:
+    run_state_test_fixtures.install()
+
+
+def tearDownModule() -> None:
+    run_state_test_fixtures.uninstall()
 
 
 def _seed_run(base: Path) -> None:
@@ -96,10 +108,7 @@ class AppendEventTests(unittest.TestCase):
         with TemporaryDirectory() as d:
             base = Path(d)
             _seed_run(base)
-            rec = ledger.append_event(
-                _SID, _RID, "run_started",
-                base_dir=base, entry_point="impl", issue_num=587,
-            )
+            rec = ledger.read_events(_SID, _RID, base_dir=base)[0]
             self.assertEqual(rec["event"], "run_started")
             self.assertEqual(rec["entry_point"], "impl")
             self.assertEqual(rec["issue_num"], 587)
@@ -114,7 +123,13 @@ class AppendEventTests(unittest.TestCase):
             base = Path(d)
             _seed_run(base)
             with self.assertRaises(ValueError):
-                ledger.append_event(_SID, _RID, "not_a_real_event", base_dir=base)
+                state.transition(
+                    _SID,
+                    "ledger_checkpoint",
+                    run_id=_RID,
+                    base_dir=base,
+                    event="not_a_real_event",
+                )
 
     def test_append_event_rejects_step_completed(self) -> None:
         """public append_event 는 step_completed 위조 거부 — append_step_completed 전용 (codex review)."""
@@ -122,7 +137,14 @@ class AppendEventTests(unittest.TestCase):
             base = Path(d)
             _seed_run(base)
             with self.assertRaises(ValueError):
-                ledger.append_event(_SID, _RID, "step_completed", base_dir=base, agent="fake")
+                state.transition(
+                    _SID,
+                    "ledger_checkpoint",
+                    run_id=_RID,
+                    base_dir=base,
+                    event="step_completed",
+                    agent="fake",
+                )
             # 디스크에 위조 step_completed 가 안 남음
             self.assertEqual(ledger.read_step_completed(_SID, _RID, base_dir=base), [])
             # 정당 경로(append_step_completed)는 receipt 동반으로 생성
@@ -137,9 +159,16 @@ class AppendEventTests(unittest.TestCase):
         with TemporaryDirectory() as d:
             base = Path(d)
             _seed_run(base)
-            ledger.append_event(_SID, _RID, "run_started", base_dir=base)
-            ledger.append_event(_SID, _RID, "step_started", base_dir=base, agent="engineer")
-            ledger.append_event(_SID, _RID, "run_finished", base_dir=base)
+            state.transition(
+                _SID,
+                "step_started",
+                run_id=_RID,
+                base_dir=base,
+                agent="engineer",
+            )
+            state.transition(
+                _SID, "run_completed", run_id=_RID, base_dir=base
+            )
             events = ledger.read_events(_SID, _RID, base_dir=base)
             self.assertEqual(
                 [e["event"] for e in events],
@@ -151,13 +180,11 @@ class ReadEventsTests(unittest.TestCase):
     def test_empty_when_nothing(self) -> None:
         with TemporaryDirectory() as d:
             base = Path(d)
-            _seed_run(base)
+            run_dir(_SID, _RID, base_dir=base, create=True)
             self.assertEqual(ledger.read_events(_SID, _RID, base_dir=base), [])
 
     def test_primary_step_with_invalid_receipt_dropped(self) -> None:
-        """ledger.jsonl 의 invalid receipt step_completed 는 drop+warn (codex review)."""
-        import contextlib
-        import io
+        """Current ledger의 invalid receipt는 명시적으로 실패한다."""
         with TemporaryDirectory() as d:
             base = Path(d)
             _seed_run(base)
@@ -183,19 +210,16 @@ class ReadEventsTests(unittest.TestCase):
                               "agent": "bad_hash", "mode": None,
                               "prose_file": str(mismatch_path), "sha256": ledger.sha256_text("expected")}) + "\n",
                 encoding="utf-8")
-            buf = io.StringIO()
-            with contextlib.redirect_stderr(buf):
-                steps = ledger.read_step_completed(_SID, _RID, base_dir=base)
-            self.assertEqual([s["agent"] for s in steps], ["valid"])
-            self.assertIn("receipt", buf.getvalue())
-            self.assertIn("missing_file", buf.getvalue())
-            self.assertIn("sha256_mismatch", buf.getvalue())
+            from harness.session_state import StateFormatError
+
+            with self.assertRaisesRegex(
+                StateFormatError, "invalid step_completed receipt"
+            ):
+                ledger.read_step_completed(_SID, _RID, base_dir=base)
 
 
     def test_malformed_line_warns(self) -> None:
-        """손상 레코드 가시화 — malformed 줄 skip + stderr WARN (codex medium)."""
-        import contextlib
-        import io
+        """손상 레코드를 정상 이력으로 축소하지 않고 명시적으로 실패한다."""
         with TemporaryDirectory() as d:
             base = Path(d)
             _seed_run(base)
@@ -203,11 +227,10 @@ class ReadEventsTests(unittest.TestCase):
             lp.write_text(
                 '{"event": "run_started", "ts": "t"}\n{truncated broken json...\n',
                 encoding="utf-8")
-            buf = io.StringIO()
-            with contextlib.redirect_stderr(buf):
-                events = ledger.read_events(_SID, _RID, base_dir=base)
-            self.assertEqual(len(events), 1)
-            self.assertIn("malformed", buf.getvalue().lower())
+            from harness.session_state import StateFormatError
+
+            with self.assertRaisesRegex(StateFormatError, "malformed JSON"):
+                ledger.read_events(_SID, _RID, base_dir=base)
 
 
 class ReadStepCompletedTests(unittest.TestCase):
@@ -215,8 +238,13 @@ class ReadStepCompletedTests(unittest.TestCase):
         with TemporaryDirectory() as d:
             base = Path(d)
             _seed_run(base)
-            ledger.append_event(_SID, _RID, "run_started", base_dir=base)
-            ledger.append_event(_SID, _RID, "step_started", base_dir=base, agent="engineer")
+            state.transition(
+                _SID,
+                "step_started",
+                run_id=_RID,
+                base_dir=base,
+                agent="engineer",
+            )
             prose_path = _write_prose_file(base, "engineer.md", "## 결론\n구현 완료")
             ledger.append_step_completed(
                 _SID, _RID, "engineer", None, "PROSE_LOGGED",
@@ -397,7 +425,6 @@ class ReadAtPathTests(unittest.TestCase):
         with TemporaryDirectory() as d:
             base = Path(d)
             _seed_run(base)
-            ledger.append_event(_SID, _RID, "run_started", base_dir=base)
             prose_path = _write_prose_file(base, "e.md", "x")
             ledger.append_step_completed(
                 _SID, _RID, "engineer", None, "PROSE_LOGGED", "x", prose_path, base_dir=base)
@@ -415,7 +442,6 @@ class RenderStatusTests(unittest.TestCase):
         with TemporaryDirectory() as d:
             base = Path(d)
             _seed_run(base)
-            ledger.append_event(_SID, _RID, "run_started", base_dir=base, entry_point="impl", issue_num=587)
             prose_path = _write_prose_file(base, "impl-validator.md", "## 결론\nPASS")
             ledger.append_step_completed(
                 _SID, _RID, "impl-validator", None, "PROSE_LOGGED",

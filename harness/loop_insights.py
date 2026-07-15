@@ -20,7 +20,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Optional
 
-from harness.session_state import _resolve_project_root
+from harness.session_state_activation import _resolve_project_root
 
 
 __all__ = ["insights_path", "read", "append_findings", "append_insight", "INSIGHT_FIFO_CAP"]

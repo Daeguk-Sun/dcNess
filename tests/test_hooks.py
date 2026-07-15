@@ -37,6 +37,14 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Dict, Optional
 
+from tests import run_state_test_fixtures
+from tests.run_state_test_fixtures import (
+    mark_run_blocked,
+    start_run,
+    update_current_step,
+    update_live,
+)
+
 from harness import ledger
 from harness.hooks import (
     _has_pass,
@@ -52,18 +60,22 @@ from harness.agent_trace import read_all as read_trace
 # issue #392 — redo_log 폐기
 from harness.session_state import (
     evaluate_order_gate_for_step,
-    mark_run_blocked,
     read_live,
-    read_fail_open_events,
     read_pid_session,
     run_dir,
     session_dir,
-    start_run,
-    update_current_step,
-    update_live,
     write_pid_current_run,
     write_pid_session,
 )
+from harness.session_state_fail_open import read_fail_open_events
+
+
+def setUpModule() -> None:
+    run_state_test_fixtures.install()
+
+
+def tearDownModule() -> None:
+    run_state_test_fixtures.uninstall()
 
 
 # ---------------------------------------------------------------------------
@@ -2923,6 +2935,8 @@ class PostToolUseAgentProseAutoStageTests(_PreToolBase):
             self.sid, self.rid, "build-worker", None, "PROSE_LOGGED",
             first_prose, first_path, base_dir=self.base,
         )
+        # step_completed 는 matching current_step 을 닫는다. 반복 호출은 새 step이다.
+        self._set_current_step("build-worker", None)
         # 두 번째 sub 호출 → occurrence=1 → build-worker-1.md
         prose = "## 결론\nPASS\n"
         handle_posttooluse_agent(
@@ -3082,7 +3096,7 @@ class StopHookGuardTests(unittest.TestCase):
 
             env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
             with patch.dict(os.environ, env, clear=False), patch(
-                "harness.session_state._cli_end_run", return_value=0
+                "harness.session_state_cli._cli_end_run", return_value=0
             ) as end_run:
                 rc = handle_stop(stdin_data={}, base_dir=base)
 
@@ -3131,7 +3145,7 @@ class StopHookGuardTests(unittest.TestCase):
 
             env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
             with patch.dict(os.environ, env, clear=False), patch(
-                "harness.session_state._cli_end_run", return_value=0
+                "harness.session_state_cli._cli_end_run", return_value=0
             ) as end_run:
                 rc = handle_stop(stdin_data={}, base_dir=base)
 
@@ -3146,7 +3160,7 @@ class StopHookGuardTests(unittest.TestCase):
             update_live(sid, base_dir=base, active_runs=active)
 
             with patch.dict(os.environ, env, clear=False), patch(
-                "harness.session_state._cli_end_run", return_value=0
+                "harness.session_state_cli._cli_end_run", return_value=0
             ) as old_slot_end_run:
                 rc = handle_stop(stdin_data={}, base_dir=base)
 
@@ -3181,7 +3195,7 @@ class StopHookGuardTests(unittest.TestCase):
 
             env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
             with patch.dict(os.environ, env, clear=False), patch(
-                "harness.session_state._cli_end_run", return_value=0
+                "harness.session_state_cli._cli_end_run", return_value=0
             ) as end_run:
                 rc = handle_stop(stdin_data={}, base_dir=base)
         self.assertEqual(rc, 0)
@@ -3215,7 +3229,7 @@ class StopHookGuardTests(unittest.TestCase):
 
             env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
             with patch.dict(os.environ, env, clear=False), patch(
-                "harness.session_state._cli_end_run", return_value=0
+                "harness.session_state_cli._cli_end_run", return_value=0
             ) as end_run:
                 rc = handle_stop(stdin_data={}, base_dir=base)
         self.assertEqual(rc, 0)
@@ -3272,6 +3286,9 @@ class StopHookContinuationSignalTests(unittest.TestCase):
     def _invoke(self, *, slot, last_agent, last_mode=None):
         from harness.hooks import _maybe_emit_continuation_signal
         active = {self.RID: slot}
+        run_state_test_fixtures.update_live(
+            self.SID, base_dir=self.base_dir, active_runs=active
+        )
         # stdout capture
         import io
         from contextlib import redirect_stdout
@@ -3343,7 +3360,7 @@ class StopHookContinuationSignalTests(unittest.TestCase):
 
             env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
             with patch.dict(os.environ, env, clear=False), patch(
-                "harness.session_state._cli_end_run", return_value=0
+                "harness.session_state_cli._cli_end_run", return_value=0
             ) as end_run:
                 rc = handle_stop(stdin_data={}, base_dir=base)
 

@@ -63,22 +63,25 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from tests import run_state_test_fixtures
+from tests.run_state_test_fixtures import (
+    cleanup_stale_runs,
+    complete_run,
+    start_run,
+    update_current_step,
+    update_live,
+)
+
 from harness.session_state import (
     LIVE_JSON_VERSION,
     atomic_write,
-    cleanup_stale_runs,
-    complete_run,
     current_session_id,
     generate_run_id,
     live_path,
     read_live,
-    record_fail_open_event,
     run_dir,
     session_dir,
     session_id_from_stdin,
-    start_run,
-    update_current_step,
-    update_live,
     valid_session_id,
 )
 from harness.session_state_cli import (
@@ -94,13 +97,28 @@ from harness.session_state_cli import (
     _cli_run_status,
 )
 from harness.session_state_cli_finalize import (
-    _CONCLUSION_HEADER_RE,
     _append_step_status,
     _cli_auto_resolve,
     _cli_end_step,
     _cli_finalize_run,
     _latest_step_per_role,
 )
+from harness.session_state import _CONCLUSION_HEADER_RE
+from harness.session_state_activation import (
+    disable_project,
+    enable_project,
+    is_project_active,
+    list_active_projects,
+)
+from harness.session_state_fail_open import record_fail_open_event
+
+
+def setUpModule() -> None:
+    run_state_test_fixtures.install()
+
+
+def tearDownModule() -> None:
+    run_state_test_fixtures.uninstall()
 
 
 # ---------------------------------------------------------------------------
@@ -363,14 +381,20 @@ class LiveJsonTests(unittest.TestCase):
             }),
             encoding="utf-8",
         )
-        # read_live 가 다른 sid 의 데이터 거부
-        self.assertEqual(read_live(self.sid, base_dir=self.base), {})
+        # current schema 손상을 정상적인 빈 상태처럼 숨기지 않는다.
+        from harness.session_state import StateFormatError
+
+        with self.assertRaisesRegex(StateFormatError, "recreate"):
+            read_live(self.sid, base_dir=self.base)
 
     def test_invalid_json_returns_empty(self) -> None:
         path = live_path(self.sid, base_dir=self.base)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("not valid json", encoding="utf-8")
-        self.assertEqual(read_live(self.sid, base_dir=self.base), {})
+        from harness.session_state import StateFormatError
+
+        with self.assertRaisesRegex(StateFormatError, "recreate"):
+            read_live(self.sid, base_dir=self.base)
 
     def test_session_id_self_reference(self) -> None:
         update_live(self.sid, base_dir=self.base, x=1)
@@ -2022,14 +2046,12 @@ class ProjectActivationTests(unittest.TestCase):
             subprocess.run(cmd, cwd=path, check=True, capture_output=True)
 
     def test_inactive_when_whitelist_empty(self) -> None:
-        from harness.session_state import is_project_active
         repo = Path(self._tmp.name) / "repo"
         self._init_git_repo(repo)
         os.chdir(repo)
         self.assertFalse(is_project_active())
 
     def test_enable_then_active(self) -> None:
-        from harness.session_state import is_project_active, enable_project
         repo = Path(self._tmp.name) / "repo"
         self._init_git_repo(repo)
         os.chdir(repo)
@@ -2040,9 +2062,6 @@ class ProjectActivationTests(unittest.TestCase):
         self.assertTrue(self._whitelist_file.exists())
 
     def test_disable_then_inactive(self) -> None:
-        from harness.session_state import (
-            is_project_active, enable_project, disable_project
-        )
         repo = Path(self._tmp.name) / "repo"
         self._init_git_repo(repo)
         os.chdir(repo)
@@ -2052,7 +2071,6 @@ class ProjectActivationTests(unittest.TestCase):
         self.assertFalse(is_project_active())
 
     def test_enable_idempotent(self) -> None:
-        from harness.session_state import enable_project, list_active_projects
         repo = Path(self._tmp.name) / "repo"
         self._init_git_repo(repo)
         os.chdir(repo)
@@ -2063,7 +2081,6 @@ class ProjectActivationTests(unittest.TestCase):
 
     def test_subdirectory_inherits_active(self) -> None:
         """activated 프로젝트의 subdir 도 active 로 판정."""
-        from harness.session_state import is_project_active, enable_project
         repo = Path(self._tmp.name) / "repo"
         self._init_git_repo(repo)
         sub = repo / "subdir" / "deep"
@@ -2075,9 +2092,7 @@ class ProjectActivationTests(unittest.TestCase):
 
     def test_worktree_inherits_active_via_gamma(self) -> None:
         """worktree cwd 에서 is_project_active = True (γ resolution → main repo whitelist hit)."""
-        from harness.session_state import (
-            is_project_active, enable_project, _clear_default_base_cache,
-        )
+        from harness.session_state import _clear_default_base_cache
         repo = Path(self._tmp.name) / "main"
         self._init_git_repo(repo)
         wt = Path(self._tmp.name) / "wt"
@@ -2101,7 +2116,6 @@ class ProjectActivationTests(unittest.TestCase):
 
     def test_force_enable_env_override(self) -> None:
         """DCNESS_FORCE_ENABLE=1 → whitelist 무시 + 무조건 active."""
-        from harness.session_state import is_project_active
         repo = Path(self._tmp.name) / "repo"
         self._init_git_repo(repo)
         os.chdir(repo)
@@ -2110,7 +2124,6 @@ class ProjectActivationTests(unittest.TestCase):
 
     def test_other_project_remains_inactive(self) -> None:
         """A 만 enable 했을 때 B 는 inactive."""
-        from harness.session_state import is_project_active, enable_project
         repo_a = Path(self._tmp.name) / "a"
         repo_b = Path(self._tmp.name) / "b"
         self._init_git_repo(repo_a)
@@ -2122,7 +2135,6 @@ class ProjectActivationTests(unittest.TestCase):
 
     def test_dcness_self_repo_is_not_globally_active_but_is_self(self) -> None:
         """self repo 는 plugin hook 전체 active 가 아니며 is-self 로만 구분한다."""
-        from harness.session_state import is_project_active
         from types import SimpleNamespace
         repo = Path(self._tmp.name) / "dcness"
         self._init_git_repo(repo)
@@ -2137,14 +2149,12 @@ class ProjectActivationTests(unittest.TestCase):
 
     def test_whitelist_corrupt_returns_empty(self) -> None:
         """projects.json 파일 깨졌을 때 빈 리스트 반환 (silent)."""
-        from harness.session_state import list_active_projects
         self._whitelist_file.parent.mkdir(parents=True, exist_ok=True)
         self._whitelist_file.write_text("not valid json", encoding="utf-8")
         self.assertEqual(list_active_projects(), [])
 
     def test_cli_is_active_exit_code(self) -> None:
         """`is-active` subcommand exit 0=active, 1=inactive."""
-        from harness.session_state import enable_project
         from types import SimpleNamespace
         repo = Path(self._tmp.name) / "repo"
         self._init_git_repo(repo)
@@ -2181,7 +2191,11 @@ class HelperAutomationTests(unittest.TestCase):
         enum: str,
         prose: str,
     ) -> None:
-        from harness.session_state import run_dir
+        from harness.session_state import read_live, run_dir, start_run
+
+        active = (read_live(sid).get("active_runs") or {})
+        if rid not in active:
+            start_run(sid, rid, "test")
 
         key = (sid, rid, agent, mode)
         occurrence = self._prose_occurrences.get(key, 0)
@@ -3324,6 +3338,11 @@ class NextTaskLedgerTests(unittest.TestCase):
         _clear_default_base_cache()
         os.environ["DCNESS_SESSION_ID"] = "11111111-2222-4333-8444-555555555555"
         os.environ["DCNESS_RUN_ID"] = "run-deadbeef"
+        start_run(
+            os.environ["DCNESS_SESSION_ID"],
+            os.environ["DCNESS_RUN_ID"],
+            "impl",
+        )
 
         def _ns(event_type: str) -> SimpleNamespace:
             return SimpleNamespace(

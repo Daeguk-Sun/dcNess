@@ -6,7 +6,7 @@
 
 ## Unreleased
 
-_(현재 없음)_
+- **run/session 상태 단일 소유자 전환** ([#1153](https://github.com/Daeguk-Sun/dcNess/pull/1153) Closes [#1145](https://github.com/Daeguk-Sun/dcNess/issues/1145)) — `session_state.transition()`이 live state와 lifecycle ledger의 유일한 mutation boundary가 되고, namespaced agent도 경계 안에서 canonical 이름으로 정규화한다. **동작 변화**: 손상·부분 `live.json`, malformed `ledger.jsonl`, 위변조된 `step_completed` receipt는 더 이상 빈 상태/누락 record로 축소하지 않고 재생성 안내와 함께 fail-fast 한다. `/run-review`의 목록 조회는 손상 run을 명시적으로 경고·skip하고 나머지 run 분석을 계속한다. **복구**: 오류가 가리키는 해당 run state를 제거하고 workflow를 재실행해 현재 포맷으로 다시 생성한다.
 
 ---
 

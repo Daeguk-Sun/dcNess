@@ -34,7 +34,7 @@ import subprocess  # nosec B404
 from pathlib import Path
 from typing import Iterable, Optional
 
-from harness.session_state import _resolve_project_root
+from harness.session_state_activation import _resolve_project_root
 
 
 __all__ = [

@@ -7,7 +7,7 @@
 
 ## 현재 공개 Evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.23.0","measured_at":"2026-07-15","unit_tests":{"passed":1895,"total":1895},"guard":{"passed":39,"total":39},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.23.0","measured_at":"2026-07-15","unit_tests":{"passed":1901,"total":1901},"guard":{"passed":39,"total":39},"source_project_count":2} -->
 
 현재 plugin version은 **v0.23.0**, 측정일은 **2026-07-15**이다. 아래 표의 최대
 source 프로젝트 수는 2이며, 영역별 실제 source와 denominator는 각 행에 다시 적는다.
@@ -15,7 +15,7 @@ process, Agent effectiveness, product outcome, 비용을 합산한 단일 성공
 
 | evidence 영역 | 관측값 | denominator | source 수 | 재현 명령 | 한계 |
 |---|---|---:|---:|---|---|
-| 하네스 정의·기계적 guard | unittest 1,895/1,895 PASS; guard fixture 39/39 PASS | test 1,895; guard 39 | dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 테스트와 fixture 계약의 과정 evidence다. 보안 증명·제품 성공률이 아니다 |
+| 하네스 정의·기계적 guard | unittest 1,901/1,901 PASS; guard fixture 39/39 PASS | test 1,901; guard 39 | dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 테스트와 fixture 계약의 과정 evidence다. 보안 증명·제품 성공률이 아니다 |
 | Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 | 실측 fixture 1 | `printf '{"version":1,"projects":[]}' > /tmp/dcness-empty-projects.json && python3.11 harness/outcome_scorecard.py --projects-file /tmp/dcness-empty-projects.json --agent-effectiveness-record evals/agent-effectiveness/cartography-sanity-real.json --measured-at 2026-07-12T15:17:58Z --json` | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1)이다. downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 측정 불가다. 1차 거부→계약 개선→2차 채택 경위와 host metadata를 비식별화한 trace, 세션 ID·SHA-256·capture/rebuild 명령 provenance가 [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)에 공개된다. 공개 우위 주장이 아니다 |
 | PR·validator 운영 | finished 26/28; PR merge 7/7; validator verdict 33/26 finished run | candidate run 28; measurable PR 7; finished run 26 | 외부 활성 프로젝트 2 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#재현-명령)의 두 source-ref 고정 명령 | merge·validator FAIL은 제품 성공률이 아니다. 선택한 과거 ledger의 guard와 regression은 측정 불가 |
 | 실제 제품 outcome | non-UI journey 1/1 PASS; 제품 AC 1/1 | journey 1; AC 1 | 외부 활성 프로젝트 1 | [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 CLI/filesystem pilot이다. UI·다른 제품·공개 우위로 일반화할 수 없다 |

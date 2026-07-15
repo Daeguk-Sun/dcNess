@@ -401,29 +401,13 @@ import sys
 sid, rid, agent, mode, provider, raw_log = sys.argv[1:7]
 reason = os.environ.get("BOUNDARY_REASON", "").strip()
 
-fields = {
-    "category": "worker_boundary",
-    "agent": agent,
-    "provider": provider,
-    "reason": reason,
-    "raw_log": raw_log,
-}
-if mode:
-    fields["mode"] = mode
-
 try:
-    from harness import ledger
+    from harness.session_state import transition
 
-    ledger.append_event(sid, rid, "blocked", **fields)
-except Exception as exc:  # noqa: BLE001
-    print(f"[dcness-codex-worker] WARN: ledger boundary block record failed: {type(exc).__name__}: {exc}", file=sys.stderr)
-
-try:
-    from harness.session_state import mark_run_blocked
-
-    mark_run_blocked(
+    transition(
         sid,
-        rid,
+        "run_blocked",
+        run_id=rid,
         category="worker_boundary",
         agent=agent,
         mode=mode or None,
@@ -432,7 +416,7 @@ try:
         raw_log=raw_log,
     )
 except Exception as exc:  # noqa: BLE001
-    print(f"[dcness-codex-worker] WARN: live boundary block marker failed: {type(exc).__name__}: {exc}", file=sys.stderr)
+    print(f"[dcness-codex-worker] WARN: boundary block transition failed: {type(exc).__name__}: {exc}", file=sys.stderr)
 PY
 }
 

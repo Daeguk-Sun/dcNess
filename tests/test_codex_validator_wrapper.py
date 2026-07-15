@@ -10,7 +10,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from harness.session_state import start_run
+from harness.session_state import transition
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -366,7 +366,13 @@ class CodexValidatorWrapperTests(unittest.TestCase):
             project.mkdir()
             subprocess.run(["git", "init", "-q"], cwd=project, check=True)
             state_base = project / ".claude" / "harness-state"
-            start_run("sid-auto", "run-a1b2c3d4", "impl", base_dir=state_base)
+            transition(
+                "sid-auto",
+                "run_started",
+                run_id="run-a1b2c3d4",
+                base_dir=state_base,
+                entry_point="impl",
+            )
 
             prompt_file = tmp / "prompt.md"
             prompt_file.write_text("Review this implementation.\n", encoding="utf-8")

@@ -567,13 +567,18 @@ class CatastrophicRuleE2eTests(unittest.TestCase):
         # 대신 start_run + write_pid_current_run 직접 호출 (test harness 안에서)
         sys.path.insert(0, str(REPO_ROOT))
         from harness.session_state import (
-            start_run, write_pid_current_run,
+            transition, write_pid_current_run,
         )
         # cwd 컨텍스트에서 작업하기 위해 chdir
         self._prev_cwd = os.getcwd()
         os.chdir(self.cwd)
         try:
-            start_run(self.sid, self.rid, "e2e-test")
+            transition(
+                self.sid,
+                "run_started",
+                run_id=self.rid,
+                entry_point="e2e-test",
+            )
             write_pid_current_run(self.cc_pid, self.rid)
         finally:
             os.chdir(self._prev_cwd)

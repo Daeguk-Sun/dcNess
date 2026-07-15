@@ -39,8 +39,6 @@ from __future__ import annotations
 import hashlib
 import json
 import re
-import sys
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -49,7 +47,6 @@ __all__ = [
     "LIFECYCLE_EVENT_TYPES",
     "MANUAL_EVENT_TYPES",
     "ledger_path",
-    "append_event",
     "read_events",
     "read_events_at",
     "read_step_completed",
@@ -60,11 +57,10 @@ __all__ = [
     "infer_next_action",
     "infer_phase",
     "build_receipt",
-    "append_step_completed",
     "render_status",
 ]
 
-# 이슈 #587 event 카탈로그 — append_event 가 허용하는 event type 전체.
+# Current event catalog consumed by the canonical session_state transition.
 EVENT_TYPES = frozenset(
     {
         "run_started",
@@ -80,9 +76,7 @@ EVENT_TYPES = frozenset(
     }
 )
 
-# helper-owned lifecycle event — begin-run/begin-step/end-step/end-run 코드 경로만
-# 기록한다. step_completed 는 receipt 필드(sha256/prose_file/...)를 동반해야 하므로
-# 반드시 append_step_completed 를 거친다.
+# helper-owned lifecycle events are never accepted by the manual checkpoint CLI.
 LIFECYCLE_EVENT_TYPES = frozenset(
     {"run_started", "step_started", "step_completed", "run_finished"}
 )
@@ -112,11 +106,6 @@ _PHASE_BY_AGENT = {
 }
 
 
-def _now_iso() -> str:
-    """session_state._now_iso 와 동일 형식 — 지연 import 비용 회피용 동일 구현."""
-    return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
 def ledger_path(sid: str, rid: str, *, base_dir: Optional[Path] = None) -> Path:
     """`<run_dir>/ledger.jsonl` 절대 경로."""
     from harness.session_state import run_dir
@@ -125,102 +114,36 @@ def ledger_path(sid: str, rid: str, *, base_dir: Optional[Path] = None) -> Path:
 
 
 def _read_jsonl(path: Path) -> List[Dict[str, Any]]:
-    """jsonl 전체 읽기 — 깨진 줄 skip, 파일 없으면 빈 리스트.
-
-    손상 가시화 (이슈 #587 codex review): truncated lifecycle event (crash /
-    partial write) 가 "없던 event" 와 구분 안 되면 resume/finalize 가 stale
-    state 로 silent 폴백한다. malformed 줄이 있으면 stderr 1회 WARN — 정상 시엔
-    0건이라 노이즈 없음.
-    """
+    """Read the only supported ledger schema; malformed current data is fatal."""
     if not path.exists():
         return []
     out: List[Dict[str, Any]] = []
-    malformed = 0
     try:
-        for line in path.read_text(encoding="utf-8").splitlines():
+        for line_no, line in enumerate(
+            path.read_text(encoding="utf-8").splitlines(), start=1
+        ):
             line = line.strip()
             if not line:
                 continue
             try:
                 rec = json.loads(line)
-            except json.JSONDecodeError:
-                malformed += 1
-                continue
-            if isinstance(rec, dict):
-                out.append(rec)
-    except OSError:
-        return []
-    if malformed:
-        print(
-            f"[ledger] {malformed} malformed line(s) skipped in {path} — "
-            f"손상 가능 (truncated write?). run-status / run-review 로 상태 확인 권장.",
-            file=sys.stderr,
-        )
+            except json.JSONDecodeError as exc:
+                raise _format_error(path, f"malformed JSON at line {line_no}") from exc
+            if not isinstance(rec, dict) or rec.get("event") not in EVENT_TYPES:
+                raise _format_error(path, f"invalid event at line {line_no}")
+            out.append(rec)
+    except OSError as exc:
+        raise _format_error(path, f"unreadable ledger: {exc}") from exc
     return out
 
 
-def _append_event_raw(
-    sid: str,
-    rid: str,
-    event: str,
-    *,
-    base_dir: Optional[Path] = None,
-    ts: Optional[str] = None,
-    **fields: Any,
-) -> Dict[str, Any]:
-    """저수준 append — event ∈ EVENT_TYPES 만 검증. 작성된 record 반환.
+def _format_error(path: Path, detail: str) -> ValueError:
+    from harness.session_state import StateFormatError
 
-    🔴 helper 내부 전용 (`_` prefix). 직접 호출 금지 — step_completed 는 receipt
-    동반이 강제이므로 반드시 `append_step_completed` 를, 그 외 event 는
-    `append_event` (public, step_completed 거부) 를 쓴다.
-
-    Raises:
-        ValueError: event 가 EVENT_TYPES 에 없음.
-    """
-    if event not in EVENT_TYPES:
-        raise ValueError(
-            f"unknown ledger event: {event!r} (allowed: {sorted(EVENT_TYPES)})"
-        )
-    record: Dict[str, Any] = {"event": event, "ts": ts or _now_iso()}
-    for k, v in fields.items():
-        if k in ("event", "ts"):
-            continue  # event/ts 는 강제 — fields 가 덮어쓰지 못함
-        record[k] = v
-
-    target = ledger_path(sid, rid, base_dir=base_dir)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    with open(target, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
-    return record
-
-
-def append_event(
-    sid: str,
-    rid: str,
-    event: str,
-    *,
-    base_dir: Optional[Path] = None,
-    ts: Optional[str] = None,
-    **fields: Any,
-) -> Dict[str, Any]:
-    """ledger.jsonl 에 event 한 줄 append (append-only). 작성된 record 반환.
-
-    🔴 step_completed 직접 생성 거부 (codex review): step_completed 는 prose 무결성
-    receipt (sha256 / prose_file / evidence_paths) 를 동반해야 하고, 소비처
-    (read_step_completed / list_runs / finalize-run) 가 이를 진짜 step 으로 신뢰한다.
-    receipt 없는 위조 step_completed 가 prose-as-SSOT invariant 를 깨지 못하도록
-    step_completed 는 오직 `append_step_completed` 만 생성한다. run_started /
-    step_started / run_finished 같은 lifecycle marker 와 manual event 는 그대로 허용.
-
-    Raises:
-        ValueError: event 가 step_completed 이거나 EVENT_TYPES 에 없음.
-    """
-    if event == "step_completed":
-        raise ValueError(
-            "step_completed 는 append_step_completed (receipt 동반) 전용 — "
-            "append_event 직접 생성 금지 (prose-as-SSOT invariant)."
-        )
-    return _append_event_raw(sid, rid, event, base_dir=base_dir, ts=ts, **fields)
+    return StateFormatError(
+        f"current run ledger is invalid at {path}: {detail}; "
+        "remove that run state and rerun the workflow to recreate it"
+    )
 
 
 def _validate_primary_step_receipt(event: Dict[str, Any]) -> str:
@@ -247,33 +170,13 @@ def _validate_primary_step_receipt(event: Dict[str, Any]) -> str:
 def _drop_invalid_primary_steps(
     events: List[Dict[str, Any]], primary: Path
 ) -> List[Dict[str, Any]]:
-    """primary ledger.jsonl 의 invalid receipt step_completed 를 drop + warn.
-
-    정당한 step_completed 는 append_step_completed 가 생성한 prose_file + sha256 를
-    동반하고, read 시점에 prose 파일이 실제 존재하며 digest 가 일치해야 한다.
-    위조(append API 우회) 또는 손상된 durable event 를 소비처가 진짜 step 으로
-    신뢰하지 않도록 제거한다. step_completed 외 event 는 보존.
-    """
-    kept: List[Dict[str, Any]] = []
-    dropped_by_reason: Dict[str, int] = {}
+    """Reject an invalid current receipt instead of treating it as absent."""
     for e in events:
         if e.get("event") == "step_completed":
             reason = _validate_primary_step_receipt(e)
             if reason:
-                dropped_by_reason[reason] = dropped_by_reason.get(reason, 0) + 1
-                continue
-        kept.append(e)
-    if dropped_by_reason:
-        total = sum(dropped_by_reason.values())
-        detail = ", ".join(
-            f"{reason}={count}" for reason, count in sorted(dropped_by_reason.items())
-        )
-        print(
-            f"[ledger] {total} step_completed with invalid receipt dropped from {primary} "
-            f"({detail}) — prose_file 실존 + sha256 digest match strict 검증 실패.",
-            file=sys.stderr,
-        )
-    return kept
+                raise _format_error(primary, f"invalid step_completed receipt: {reason}")
+    return events
 
 
 def _read_events_path(path: Path) -> List[Dict[str, Any]]:
@@ -441,30 +344,6 @@ def build_receipt(
     if provider:
         receipt["provider"] = provider
     return receipt
-
-
-def append_step_completed(
-    sid: str,
-    rid: str,
-    agent: str,
-    mode: Optional[str],
-    enum: str,
-    prose: str,
-    prose_path: Any,
-    *,
-    base_dir: Optional[Path] = None,
-    provider: Optional[str] = None,
-) -> Dict[str, Any]:
-    """end-step 시점: prose 에서 receipt 생성 → step_completed event append.
-
-    step_completed 의 *유일한* 정당 생성 경로 — receipt (sha256 / prose_file /
-    evidence_paths) 를 동반해 _append_event_raw 로 기록한다. public append_event 는
-    step_completed 를 거부하므로 위조 경로가 없다 (codex review).
-    """
-    receipt = build_receipt(agent, mode, enum, prose, prose_path, provider=provider)
-    return _append_event_raw(
-        sid, rid, "step_completed", base_dir=base_dir, **receipt
-    )
 
 
 def infer_phase(
