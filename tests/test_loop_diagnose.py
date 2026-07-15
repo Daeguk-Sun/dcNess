@@ -124,26 +124,6 @@ def _write_eval_events(repo_root: Path) -> None:
     )
 
 
-def _write_lesson(project: Path, pattern: str, *, hits: int = 3) -> None:
-    path = project / ".claude" / "loop-lessons" / "engineer-IMPL.md"
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "# Loop Lessons: engineer / IMPL\n\n"
-        "<!-- dcness-loop-lessons:v1 -->\n\n"
-        "## Active\n\n"
-        f"### {pattern}\n"
-        "- status: active\n"
-        f"- hits: {hits}\n"
-        "- last: 2026-07-05T00:03:00Z\n"
-        "- lesson: Engineer must change approach before retrying this recurrent waste.\n"
-        "- evidence:\n"
-        "  - run_id=run-lesson path=.claude/harness-state/.sessions/s/runs/run-lesson/engineer-IMPL.md\n"
-        "\n"
-        "## Archived\n",
-        encoding="utf-8",
-    )
-
-
 def _snapshot_tree(root: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     for path in sorted(p for p in root.rglob("*") if p.is_file()):
@@ -575,29 +555,6 @@ class LoopSweepTests(unittest.TestCase):
             entries = [json.loads(line) for line in sweep_log.read_text(encoding="utf-8").splitlines()]
             self.assertEqual(len(entries), 2)
             self.assertTrue(all(entry["status"] == "ok" for entry in entries))
-
-    def test_sweep_does_not_archive_stale_lessons_in_swept_projects(self) -> None:
-        # A lesson pattern no longer in the active set would be flipped to archived
-        # (file rewrite) by the default lesson listing. The read-only sweep must not
-        # mutate a swept project's files for that.
-        with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            repo_root = tmp / "dcness"
-            repo_root.mkdir()
-            alpha = tmp / "alpha"
-            alpha.mkdir()
-            _write_lesson(alpha, "OLD_REMOVED_PATTERN", hits=3)
-            projects_file = tmp / "projects.json"
-            projects_file.write_text(
-                json.dumps({"version": 1, "projects": [str(alpha)]}),
-                encoding="utf-8",
-            )
-            before_alpha = _snapshot_tree(alpha)
-
-            result = self._run_sweep(repo_root, projects_file)
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(_snapshot_tree(alpha), before_alpha)
 
     def test_sweep_digest_failure_leaves_error_and_does_not_advance_watermark(self) -> None:
         # If the digest cannot be persisted, the watermark must NOT advance — otherwise the

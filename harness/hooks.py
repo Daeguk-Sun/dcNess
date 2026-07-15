@@ -580,9 +580,7 @@ def handle_pretooluse_agent(
             )
             pass  # 실패해도 Agent 호출은 통과 — 식별만 누락.
 
-    # #272 W3 진짜 fix — PreToolUse Agent 의 tool_use_id + 시작 시각을 써
-    # PostToolUse Agent 가 *시각 범위* 로 sub 의 trace 정확히 식별 (agent_id 폴백
-    # 위험 제거). CC docs: tool_use_id 가 PreToolUse↔PostToolUse 매칭 키.
+    # PreToolUse↔PostToolUse 공통 tool_use_id로 pending lifecycle slot을 식별한다.
     if rid and subagent:
         tuid = stdin_data.get("tool_use_id", "") or ""
         if tuid:
@@ -613,8 +611,8 @@ def _warn_concurrent_subagent(
     """issue #598 — PreToolUse Agent 가 *이미 미완 pending* 상태에서 새 Agent 를
     발사하면 동시 sub-agent (loop 실행 절차 순차 전제 위반) 로 보고 stderr 진단 (비차단).
 
-    self-attribution (file-op payload agent_type) 덕에 boundary/trace 는 이미
-    안전하지만, dcness loop 실행 절차는 step 당 agent 1개 순차 전제라 동시 발사는 메인
+    self-attribution (file-op payload agent_type) 덕에 boundary 식별은 안전하지만,
+    dcness loop 실행 절차는 step 당 agent 1개 순차 전제라 동시 발사는 메인
     로직 버그 신호일 수 있어 가시화한다. 차단·inject 아님 (권고 — 측정+경고).
     """
     try:
@@ -630,7 +628,7 @@ def _warn_concurrent_subagent(
                 f"[hook concurrency] 동시 sub-agent 감지 — 이미 미완 Agent "
                 f"{len(others)}개(pending) 상태에서 '{subagent}' 추가 발사. dcness "
                 f"loop 실행 절차는 step 당 agent 1개 순차 전제. self-attribution 으로 "
-                f"권한/trace 는 안전하나 순차 전제 위반 여부 점검 권장.",
+                f"권한 식별은 안전하나 순차 전제 위반 여부 점검 권장.",
                 file=sys.stderr,
             )
     except Exception:  # noqa: BLE001 # nosec B110
@@ -739,7 +737,7 @@ def handle_pretooluse_file_op(
     # check_bash_mutation/check_github_mcp_mutation 은 cwd 무관 순수 함수라 별도 가드 필요.
     mutation_guard_off = is_opt_out(cwd) or is_infra_project(cwd)
 
-    # boundary 검사 — 차단 시 즉시 return (trace 미기록 — 차단된 행동은 file-guard 가 stderr 에 별도 기록)
+    # boundary 검사 — 차단 시 guard receipt와 stderr를 남기고 즉시 return.
     if tool_name == "Read":
         fp = tool_input.get("file_path", "") or ""
         if fp:

@@ -31,6 +31,7 @@ DCEFF="$(ls -d ${CLAUDE_PLUGIN_ROOT:-$HOME/.claude/plugins/cache/dcness/dcness/*
 
 - read-only이며 프로젝트 파일을 변경하지 않는다.
 - 세션 디렉터리나 usage가 없으면 exit 2와 명시적 오류를 반환한다.
+- 옛 `dashboard`·`patterns`·`patterns-dashboard`·`full` subcommand는 runtime 분석 제거에 따라 exit 2와 `analyze`/`summary` migration 안내를 반환한다.
 - 미등록 모델은 알려진 model prefix를 먼저 비교하고, 그래도 모르면 보수적인 Opus 단가를 사용하며 stderr에 경고한다.
 - `/run-review`의 단일 run 분석과 달리 `/efficiency`는 레포의 Claude Code session usage 전체를 본다.
 

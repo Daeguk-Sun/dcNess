@@ -24,6 +24,10 @@ case "$cmd" in
     analyze|summary)
         exec python3 "$EFF_DIR/analyze_sessions.py" "$@"
         ;;
+    dashboard|patterns|patterns-dashboard|full)
+        echo "[dcness-efficiency] '$cmd' was removed from plugin runtime; use analyze or summary." >&2
+        exit 2
+        ;;
     *)
         echo "unknown subcommand: $cmd" >&2
         exit 1

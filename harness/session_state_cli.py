@@ -365,6 +365,20 @@ def _cli_prev_tasks_reset(args: Any) -> int:
     return 0
 
 
+def _cli_retired_runtime_analysis(args: Any) -> int:
+    """Keep removed public command names on an explicit migration path."""
+    if args.cmd == "guard-telemetry":
+        replacement = "dcNess source checkout의 `python3 scripts/loop_diagnose.py`"
+    else:
+        replacement = "완료된 run의 `/run-review`"
+    print(
+        f"[dcness-helper] {args.cmd}는 plugin runtime에서 제거되었습니다; "
+        f"대신 {replacement}를 사용하세요.",
+        file=sys.stderr,
+    )
+    return 2
+
+
 def _cli_begin_step(args: Any) -> int:
     """sid+rid auto-detect → step_started transition."""
     sid = auto_detect_session_id()
@@ -839,6 +853,21 @@ def _build_arg_parser() -> Any:
         help='자율 진입 사유 ("이슈 등록 / cleanup / 분석" 등)',
     )
     p_ptb.set_defaults(func=_cli_post_task_begin)
+
+    p_in = sub.add_parser("insight", help="retired runtime self-analysis command")
+    p_in.add_argument("agent_mode")
+    p_in.add_argument("text")
+    p_in.set_defaults(func=_cli_retired_runtime_analysis)
+
+    p_gt = sub.add_parser("guard-telemetry", help="retired runtime aggregation command")
+    p_gt.add_argument("--idle-days", type=int, default=30)
+    p_gt.add_argument("--since-days", type=int, default=90)
+    p_gt.add_argument("--saturation-days", type=int, default=30)
+    p_gt.add_argument("--saturation-min-runs", type=int, default=3)
+    p_gt.add_argument("--cwd", default="")
+    p_gt.add_argument("--base-dir", default="")
+    p_gt.add_argument("--json", action="store_true")
+    p_gt.set_defaults(func=_cli_retired_runtime_analysis)
 
     # #525 — /impl-loop 직전 task 산출 요약 누적 (build-worker append → 다음 진입 emit)
     p_pta = sub.add_parser(

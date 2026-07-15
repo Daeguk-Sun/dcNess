@@ -18,6 +18,7 @@ from harness.session_state import generate_run_id, run_dir
 
 
 SID = "guard-telemetry-sid"
+ROOT = Path(__file__).resolve().parents[1]
 
 
 class ReceiptContractTests(unittest.TestCase):
@@ -53,17 +54,23 @@ class ReceiptContractTests(unittest.TestCase):
     def test_eval_is_a_receipt_not_a_runtime_summary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            report_file = "nested/" + ("x" * 200) + "/report.md"
             record_eval_case_result(
                 "headless-prose-quality",
                 passed=False,
+                run_index=-1,
+                report_file=report_file,
                 llm_turns=2,
-                failure_stage="judge",
+                failure_stage="judge" * 30,
                 failure_detail="failed\ncleanly",
                 cwd=root,
             )
 
             event = read_events(cwd=root)[-1]
             self.assertEqual(event["kind"], "eval_case_result")
+            self.assertEqual(event["run_index"], -1)
+            self.assertEqual(event["report_file"], report_file)
+            self.assertEqual(len(event["failure_stage"]), 80)
             self.assertEqual(event["llm_turns"], 2)
             self.assertEqual(event["failure_detail"], "failed cleanly")
 
@@ -107,6 +114,24 @@ class ReceiptContractTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(read_events(base_dir=base)[-1]["guard"], "tdd-guard")
+
+    def test_retired_public_analysis_commands_have_migration_contract(self) -> None:
+        cases = (
+            ("guard-telemetry", (), "loop_diagnose.py"),
+            ("insight", ("build-worker", "legacy note"), "/run-review"),
+        )
+        for command, args, replacement in cases:
+            with self.subTest(command=command):
+                result = subprocess.run(
+                    [str(ROOT / "scripts/dcness-helper"), command, *args],
+                    cwd=ROOT,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("plugin runtime에서 제거", result.stderr)
+                self.assertIn(replacement, result.stderr)
 
 
 if __name__ == "__main__":

@@ -103,6 +103,19 @@ class WrapperSmokeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("no .jsonl files", result.stderr.lower())
 
+    def test_retired_analysis_subcommands_have_migration_contract(self) -> None:
+        for command in ("dashboard", "patterns", "patterns-dashboard", "full"):
+            with self.subTest(command=command):
+                result = subprocess.run(
+                    [str(REPO_ROOT / "scripts/dcness-efficiency"), command],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("removed from plugin runtime", result.stderr)
+                self.assertIn("analyze or summary", result.stderr)
+
 
 class IntegrationSmokeTests(unittest.TestCase):
     """Analyze a fixture session through the public wrapper."""

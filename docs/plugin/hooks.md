@@ -51,6 +51,8 @@ Fail-open 관측성: 미활성 프로젝트 no-op, main Claude turn, active run 
 
 Guard hit 관측성: 정책 위반을 실제로 차단한 경우는 `<project>/.claude/harness-state/guard-telemetry.jsonl` 또는 active run의 `guard-telemetry.jsonl`에 최소 `guard_hit` receipt를 append한다. 기록 필드는 guard 이름, category, source, 시각, 필요한 식별자이며 기록 실패는 원래 차단/허용 판정을 바꾸지 않는다. runtime hook은 이 receipt를 집계하거나 효과를 해석하지 않는다.
 
+기존 `dcness-helper guard-telemetry`와 `insight` 명령명은 조용히 사라지지 않고 exit 2와 migration 안내를 반환한다. 전자는 dcNess source checkout의 `scripts/loop_diagnose.py`, 완료 run 복기는 `/run-review`를 사용한다.
+
 Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision: "block"` JSON 을 stdout 으로 내보내 메인 turn 을 재발화시킨다.
 
 ## Safety 범위

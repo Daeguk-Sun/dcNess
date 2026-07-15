@@ -41,6 +41,7 @@ DECISION_LABELS = {
 }
 NO_OBSERVATION = "관측 이력 없음(미배포 또는 무발화)"
 DEFAULT_REPORT_SINCE_DAYS = 90
+OUTPUT_ESTIMATE_BASIS = "utf8_bytes/4_lower_bound"
 KNOWN_GUARDS = (
     "catastrophic-gate",
     "file-guard",
@@ -133,6 +134,16 @@ def collect_guard_summary(
         ),
         default=None,
     )
+    if epoch is None:
+        epoch = min(
+            (
+                parsed
+                for event in all_events
+                for parsed in [_parse_ts(event.get("ts"))]
+                if parsed is not None
+            ),
+            default=None,
+        )
     if epoch is None and since_days is not None and read_events(cwd, base_dir=base_dir, limit=1):
         epoch = now - timedelta(days=max(int(since_days), 0))
     observation_days = max((now - epoch).days, 0) if epoch else None
@@ -186,6 +197,8 @@ def collect_eval_summary(
                 "accuracy": 0.0,
                 "llm_turns": 0,
                 "estimated_output_tokens": 0,
+                "report_chars": 0,
+                "judge_chars": 0,
                 "avg_llm_turns": 0.0,
                 "avg_estimated_output_tokens": 0.0,
                 "failure_stages": {},
@@ -198,6 +211,8 @@ def collect_eval_summary(
         row["estimated_output_tokens"] += max(
             int(event.get("estimated_output_tokens") or 0), 0
         )
+        row["report_chars"] += max(int(event.get("report_chars") or 0), 0)
+        row["judge_chars"] += max(int(event.get("judge_chars") or 0), 0)
         failure_stage = str(event.get("failure_stage") or "")
         if failure_stage:
             row["failure_stages"][failure_stage] = row["failure_stages"].get(failure_stage, 0) + 1
@@ -218,6 +233,7 @@ def collect_eval_summary(
     return {
         "saturation_days": saturation_days,
         "saturation_min_runs": saturation_min_runs,
+        "token_estimate_basis": OUTPUT_ESTIMATE_BASIS,
         "cases": rows,
     }
 

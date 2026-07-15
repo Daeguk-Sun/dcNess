@@ -99,7 +99,7 @@ def append_event(
         payload.setdefault("ts", _now_iso())
         if session_id and valid_session_id(session_id):
             payload.setdefault("session_id", session_id)
-        if run_id and RUN_ID_RE.match(run_id):
+        if run_id and isinstance(run_id, str) and RUN_ID_RE.match(run_id):
             payload.setdefault("run_id", run_id)
         target = _event_path(
             session_id=session_id,
@@ -175,21 +175,22 @@ def record_eval_case_result(
         "case": str(case or "unknown")[:160],
         "passed": bool(passed),
     }
-    text_fields = {
-        "report_file": report_file,
-        "judge_file": judge_file,
-        "model": model,
-        "failure_stage": failure_stage,
-        "token_estimate_basis": token_estimate_basis,
-    }
-    for key, value in text_fields.items():
+    for key, value, limit in (
+        ("report_file", report_file, None),
+        ("judge_file", judge_file, None),
+        ("model", model, None),
+        ("failure_stage", failure_stage, 80),
+        ("token_estimate_basis", token_estimate_basis, 120),
+    ):
         if value:
-            event[key] = str(value)[:160]
+            rendered = str(value)
+            event[key] = rendered[:limit] if limit else rendered
     if failure_detail:
         event["failure_detail"] = str(failure_detail).replace("\n", " ")[:_DETAIL_MAX]
+    for key, index_value in (("run_index", run_index), ("total_runs", total_runs)):
+        if index_value is not None:
+            event[key] = int(index_value)
     for key, numeric_value in (
-        ("run_index", run_index),
-        ("total_runs", total_runs),
         ("llm_turns", llm_turns),
         ("report_chars", report_chars),
         ("judge_chars", judge_chars),
@@ -206,11 +207,17 @@ def _candidate_log_paths(cwd: Optional[Path], base_dir: Optional[Path]) -> list[
     paths = [root / TELEMETRY_NAME]
     sessions = root / ".sessions"
     if sessions.is_dir():
-        paths.extend(sessions.glob(f"*/runs/*/{TELEMETRY_NAME}"))
+        try:
+            paths.extend(sessions.glob(f"*/runs/*/{TELEMETRY_NAME}"))
+        except OSError:
+            pass
     if base_dir is None:
         metrics = project_root / ".metrics" / "evals"
         if metrics.is_dir():
-            paths.extend(metrics.glob(f"*/{TELEMETRY_NAME}"))
+            try:
+                paths.extend(metrics.glob(f"*/{TELEMETRY_NAME}"))
+            except OSError:
+                pass
     return list(dict.fromkeys(path.resolve() for path in paths))
 
 
