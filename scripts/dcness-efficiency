@@ -4,7 +4,7 @@
 # 출처 (attribution): jha0313/skills_repo `improve-token-efficiency` (DCN-CHG-20260430-08).
 #
 # 사용:
-#   "${CLAUDE_PLUGIN_ROOT:-...}/scripts/dcness-efficiency" analyze [args]
+#   "${CLAUDE_PLUGIN_ROOT:-...}/scripts/dcness-efficiency" <analyze|summary> [args]
 
 set -uo pipefail
 
@@ -13,7 +13,7 @@ PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
 EFF_DIR="$PLUGIN_ROOT/harness/efficiency"
 
 if [ "$#" -lt 1 ]; then
-    echo "usage: dcness-efficiency analyze [--repo PATH] [--out PATH]" >&2
+    echo "usage: dcness-efficiency <analyze|summary> [--repo PATH] [--out PATH]" >&2
     exit 1
 fi
 

@@ -206,7 +206,7 @@ class StepRecord:
     # 마지막 단락 결론 (agents/impl-validator.md 의 결론 + 권장 다음 단계 "PASS / FAIL / ESCALATE")
     # 을 표시 단계에서 추출. 부재 시 빈 문자열 (= sentinel 그대로 표시 fallback).
     conclusion_enum: str = ""
-    # #917 — recurrent lesson evidence. ledger 의 prose_file 절대경로를 보존한다.
+    # 같은 run finding의 재발 판정 근거로 ledger prose_file 경로를 보존한다.
     prose_file: str = ""
 
 

@@ -560,8 +560,8 @@ def handle_pretooluse_agent(
     #   (tech-reviewer 포함) 에 begin-step 선언을 요구한다 — 이는 tech-reviewer 전용 차단이 아닌
     #   일반 loop 무결성 룰이라 #609 범위 밖이고, 루프 도중 의존 검증은 NEW_DEP_ESCALATE 로 간다.
 
-    # DCN-CHG-20260501-01: 통과 시 live.json.active_agent 기록 — sub-agent 내부
-    # PreToolUse(Edit/Write/Read/Bash) 훅이 활성 agent 판정에 사용 (agent_boundary).
+    # active_agent는 PostToolUse/SubagentStop lifecycle clear와 진단을 위해 기록한다.
+    # file-guard 권한 판정은 동시 호출에 안전한 각 payload의 agent_type만 사용한다.
     if subagent:
         try:
             transition(

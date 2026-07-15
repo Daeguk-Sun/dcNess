@@ -120,7 +120,7 @@ class WrapperSmokeTests(unittest.TestCase):
 class IntegrationSmokeTests(unittest.TestCase):
     """Analyze a fixture session through the public wrapper."""
 
-    def test_analyze_fixture_session(self) -> None:
+    def test_analyze_and_summary_fixture_session(self) -> None:
         with TemporaryDirectory() as td:
             sessions = Path(td) / "sessions"
             sessions.mkdir()
@@ -140,22 +140,22 @@ class IntegrationSmokeTests(unittest.TestCase):
             }
             fixture.write_text(json.dumps(record) + "\n", encoding="utf-8")
 
-            json_out = Path(td) / "analysis.json"
-            result = subprocess.run(
-                [
-                    str(REPO_ROOT / "scripts" / "dcness-efficiency"),
-                    "analyze",
-                    "--sessions-dir", str(sessions),
-                    "--out", str(json_out),
-                ],
-                capture_output=True, text=True, timeout=15,
-            )
-            self.assertEqual(result.returncode, 0, msg=result.stderr)
-            self.assertTrue(json_out.exists())
-
-            data = json.loads(json_out.read_text(encoding="utf-8"))
-            self.assertGreaterEqual(len(data.get("sessions", [])), 1)
-            self.assertGreater(data.get("totals", {}).get("cost_usd", 0), 0)
+            for command in ("analyze", "summary"):
+                with self.subTest(command=command):
+                    json_out = Path(td) / f"{command}.json"
+                    result = subprocess.run(
+                        [
+                            str(REPO_ROOT / "scripts" / "dcness-efficiency"),
+                            command,
+                            "--sessions-dir", str(sessions),
+                            "--out", str(json_out),
+                        ],
+                        capture_output=True, text=True, timeout=15,
+                    )
+                    self.assertEqual(result.returncode, 0, msg=result.stderr)
+                    data = json.loads(json_out.read_text(encoding="utf-8"))
+                    self.assertGreaterEqual(len(data.get("sessions", [])), 1)
+                    self.assertGreater(data.get("totals", {}).get("cost_usd", 0), 0)
 
 
 if __name__ == "__main__":
