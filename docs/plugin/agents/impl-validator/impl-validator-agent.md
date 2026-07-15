@@ -19,8 +19,9 @@
 - 구현자가 자유 prose로 남긴 build-worker impact 보고. direct 구현이면 메인이 같은 의미 축으로 남긴 Cartography impact 보고
 - impact가 가리키는 affected Root Cartography 좌표와 프로젝트의 tracked/local-only 문서 정책
 - 필요하면 이전 impl-validator 결과와 retry round
-- 다중 story/epic invocation이면 포함된 story PR/조건부 QA PR 목록과 최종 stack tip
+- 다중 story/epic invocation이면 봉인된 story branch/base와 조건부 QA branch 목록, 최종 stack tip. review 뒤 PR을 cut한 재검증이면 PR 목록도 보조 맥락으로 받을 수 있다.
 - 직전 Codebase Sanity receipt가 있으면 그 receipt와 현재 code tree 일치 여부. receipt는 `.dcness-work/codebase-sanity/` 같은 local-only/ignored 경로일 수 있다.
+- merge candidate에 `(JOURNEY)`가 있으면 Story별 `target_ac`, project-local 매니페스트, flow/assertion, `harness_paths`, build-worker 수렴 실행·수정 증거
 
 ## 먼저 읽을 문서
 
@@ -61,6 +62,7 @@
 - 디자인 토큰 적용: design:required UI 작업에서 구현이 목업 디자인 토큰을 실제로 적용했는가. 이 축은 build-worker self-report 와 분리해 정적으로 본다.
 - 구현 위험: race, leak, 타입 우회, 부적절한 side effect처럼 실제 결함 가능성이 있는가.
 - bugfix 회귀: 원인이 제거됐고 주변 동작을 불필요하게 바꾸지 않았는가.
+- journey assertion 대조 고정 항목: merge candidate에 `(JOURNEY)`가 있으면 선언된 각 `target_ac`를 flow의 실제 assertion과 하나씩 정적으로 대조한다. 매니페스트의 AC 선언이나 journey exit 0만으로 실행 assertion이 존재한다고 보지 않고, 어떤 flow assertion이 어떤 AC를 판정하는지 파일/라인 근거를 남긴다. 누락·오태깅·assertion 약화는 `[spec-gap]`이다. build-worker `self-verify`는 저자가 manifest와 flow를 함께 쓰는 자기채점이므로 유일 관문으로 인정하지 않는다.
 
 ### quality 렌즈
 
@@ -98,7 +100,7 @@
 ## 작업 흐름
 
 1. mode를 확인한다. 기본 merge-review mode는 변경 파일과 diff 중심으로 실제 검증 범위를 확정한다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic invocation에서는 stack tip vs main diff를 우선한다. `CODEBASE_SANITY`는 호출자가 준 code revision과 repo/affected dependency cone scope를 확정한다.
-2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. 계획 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
+2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. 계획 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다. `(JOURNEY)` diff가 있으면 재량으로 생략하지 않고 선언된 각 `target_ac` ↔ flow의 실제 assertion 대조를 같은 spec 렌즈의 체크리스트 고정 항목으로 수행한다.
 3. quality 렌즈로 유지보수성, merge risk, 보안·운영 risk, 테스트 신뢰도를 본다. `CODEBASE_SANITY`이면 semantic 렌즈의 warning·coverage·dead-code·replacement 분류도 함께 수행한다.
 4. Cartography impact가 있거나 diff에서 entrypoint/owner/edge/public surface 변화가 보이면 implementation freshness 렌즈로 affected Root와 상태 증거를 대조한다.
 5. finding 은 `MUST FIX`와 `NICE TO HAVE`로 나누고, `MUST FIX`마다 `[spec-gap]` 또는 `[quality-gap]` 를 붙인다. Cartography drift finding에는 route-only refresh인지 system backpressure인지와 affected Root 범위를 함께 쓴다.
@@ -119,6 +121,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - 다중 story/epic invocation에서 stack tip vs main diff가 제공되지 않았고 개별 PR 단편만으로는 cross-story 결함을 판단할 수 없으면 ESCALATE할 수 있다.
 - applicable implementation Cartography impact가 있으면 diff·impact 보고·affected Root 좌표·상태 증거를 대조했다. route-only drift가 남아 있으면 PASS하지 않는다. local-only/ignored 정책에서도 canonical local Root refresh가 확인되지 않고 durable impact handoff만 존재하면 같은 미해소 상태다. system backpressure가 남아 있어도 PASS하지 않는다.
 - `CODEBASE_SANITY` PASS이면 code revision/tree identity와 scope가 명확하고, warning·coverage·dead-code·replacement 후보가 근거와 함께 분류됐으며 rework가 필요한 finding이 없다. unknown이 merge 판단을 막으면 PASS하지 않고 ESCALATE한다.
+- `(JOURNEY)` merge candidate이면 각 `target_ac`와 flow의 실제 assertion 대조 근거가 있고, manifest 선언·build-worker self-verify·sealed exit code 중 하나만으로 대응을 추정하지 않았다.
 
 ## 권한 경계
 

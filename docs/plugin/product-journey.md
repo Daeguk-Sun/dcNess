@@ -13,7 +13,7 @@
 4. `cleanup`: 성공·실패와 무관하게 종료·정리한다.
 5. `evidence_dir`: command exit와 log, 대상 AC, 실행 시각을 연결하는 receipt 위치다.
 
-module-architect가 실앱 실행이 필요한 AC를 `(JOURNEY)` REQ로 지정하고, build-worker가 project-local e2e flow와 journey 매니페스트를 작성한다. `product-acceptance`는 receipt가 없으면 tip에서 helper를 실행하고, 생성된 receipt와 대상 Story AC를 판정한다. 검증 agent는 tracked 구현·설계 소스나 receipt를 수정하지 않는다. UI 경계도 네 command와 같은 assertion 판정을 재사용하며, helper가 브라우저를 직접 자동화하지 않는다. 프로젝트가 소유한 journey command가 화면을 조작하고 screenshot·상태 파일을 남긴다.
+module-architect가 실앱 실행이 필요한 AC를 `(JOURNEY)` REQ로 지정하고 인수 환경과 하네스 배관 경로를 impl task에 선언한다. build-worker는 project-local e2e flow와 journey 매니페스트를 작성한 뒤, 모든 task가 끝난 final tip에서 별도 수렴 호출로 실제 실행·관찰·수정을 끝낸다. `product-acceptance`는 이 수렴 결과를 신뢰해 생략하지 않고 final tip에서 sealed receipt를 직접 생성·판정한다. 고치기 위한 실행은 build-worker, 판정하기 위한 write-zero 실행은 product-acceptance 소유다. UI 경계도 네 command와 같은 assertion 판정을 재사용하며, helper가 브라우저를 직접 자동화하지 않는다. 프로젝트가 소유한 journey command가 화면을 조작하고 screenshot·상태 파일을 남긴다.
 
 ## 프로젝트 계약
 
@@ -30,6 +30,27 @@ build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 
     "source": "journey_exit"
   },
   "human_intervention_count": 0,
+  "acceptance_environment": {
+    "automation": "automated",
+    "requirements": [
+      {
+        "id": "project-cli-ready",
+        "description": "worker 실행 컨텍스트에서 실제 CLI와 fixture 저장소에 도달한다",
+        "probe": {
+          "argv": ["./bin/app", "doctor"],
+          "timeout_sec": 30
+        },
+        "prepare": {
+          "argv": ["./scripts/prepare-acceptance.sh"],
+          "timeout_sec": 300
+        }
+      }
+    ]
+  },
+  "harness_paths": [
+    "scripts/assert-export-journey.sh",
+    "scripts/cleanup-export-journey.sh"
+  ],
   "env": {
     "APP_ENV": "acceptance"
   },
@@ -66,12 +87,21 @@ build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 
 | `assertion.description` | command가 무엇을 판정하는지 제품 언어로 설명 |
 | `assertion.source` | `journey_exit`이면 journey exit 0을 assertion PASS로 사용. `none`은 미평가 fixture이며 PASS 불가 |
 | `human_intervention_count` | 실행 중 사람이 개입한 횟수. 없으면 0 |
+| `acceptance_environment.automation` | `automated` 또는 `human_verification`. 후자는 `자동 인수 불가, 사람 확인 필요`를 명시하는 값이며 env 선검증·수렴 호출 비발동 |
+| `acceptance_environment.requirements` | worker 실행 컨텍스트가 실제로 도달해야 하는 device/emulator+socket, browser/driver, service+writable fixture, provisioned tenant, 특수 seed 권한 같은 요건 목록 |
+| `acceptance_environment.requirements[].probe` | worker 실행 컨텍스트에서 요건 충족 여부를 확인하는 argv와 timeout. 판정 주체를 main 환경으로 바꾸지 않는다 |
+| `acceptance_environment.requirements[].prepare` | emulator boot, container/service 기동, socket 노출처럼 기계적으로 준비할 수 있을 때 쓰는 선택 argv와 timeout |
+| `harness_paths` | flow, seed, runner, manifest, env adapter처럼 수렴 호출이 대조·수정할 project-relative 하네스 배관 경로. write 경계를 기계 강제하는 목록이 아니라 설계·리뷰 handoff 계약 |
 | `env` | 네 단계에 공통으로 추가할 문자열 환경 변수 |
 | `commands.*.argv` | shell 문자열이 아닌 argv 배열. setup/teardown/상태전이 오케스트레이션이 필요하면 `commands.journey.argv`에서 `bash`와 프로젝트 스크립트 경로를 명시적으로 선택 |
 | `commands.*.timeout_sec` | 단계별 600초 이하 timeout |
 | `commands.start.mode` | 장기 실행 앱은 `service`, 종료되는 CLI 진입점은 `command` |
 | `commands.start.startup_grace_sec` | service가 조기 종료하지 않았는지 확인할 유예 시간 |
 | `evidence_dir` | `.dcness-work/product-journey/` 아래의 project-relative 위치 |
+
+새 `(JOURNEY)`는 design/impl-task가 `acceptance_environment`와 `harness_paths`를 먼저 소유하고, build-worker가 같은 값을 project-local 매니페스트에 materialize한다. `automation=automated`이면 `/impl-loop`가 run 진입 직후 worker 실행 컨텍스트에서 probe와 가능한 prepare를 수행하고, 모든 task 완료 뒤 같은 실행 substrate의 fresh build-worker 수렴 호출을 연다. journey 미선언 story와 `automation=human_verification` journey에는 env 선검증·수렴 호출이 비발동이며 기존 `사람 확인 안내`로 남는다.
+
+probe가 확실한 미충족을 보고하고 `prepare`가 없거나 실패 사유상 자동 준비가 불가능할 때만 구현 전에 사용자가 환경 준비 또는 journey 검수 분리를 한 번 선택한다. 도구 부재처럼 검출 자체가 불확실하면 차단하지 않고 구현·수렴으로 진행한다. main에서 보이는 device나 service는 worker 실행 컨텍스트의 도달성 증거를 대신하지 않는다.
 
 start가 실패하거나 service가 유예 시간 안에 종료되면 `app_not_started`다. health가 실패하면 journey를 실행하지 않고 `journey_not_executed`로 남긴다. journey가 실행되지 않았거나 `assertion.source=none`이면 `assertion_not_evaluated`다. `mock` boundary는 모든 command가 exit 0이어도 `mock_only_boundary`이므로 PASS가 아니다. cleanup은 항상 실행하며 실패하면 전체 outcome도 FAIL이다.
 

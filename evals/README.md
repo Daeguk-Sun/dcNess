@@ -187,6 +187,9 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 | `sanity-clean-refactor` | old surface 전부 제거, 현재 owner seam과 실제 coverage 근거가 있는 refactor | 근거 없는 dead-code finding 없이 clean PASS해야 한다 |
 | `sanity-next-design-stale-receipt` | 직전 receipt 이후 affected module hotfix가 들어온 다음 Epic design | stale receipt를 재사용하지 않고 affected scope Sanity와 별도 Cartography 현재 코드 대조를 수행해야 한다 |
 | `sanity-lifecycle-smoke` | Sanity PASS, bounded Cartography refresh/revalidation, acceptance 뒤 code commit이 추가된 trace | 정해진 순서를 인정하되 code change가 모든 code review evidence를 stale하게 만들어 Sanity부터 재진입시켜야 한다 |
+| `journey-convergence-sequential` | 매니페스트·권한·seed·정규화 실패가 앞 실패 수정 뒤 하나씩 드러나고 다섯 번째 실행이 통과한 trace | 서로 다른 실패의 순차 해소를 무진행으로 세지 않되 총 iteration 상한을 별도 runaway 가드로 유지해야 한다 |
+| `journey-convergence-design-conflict` | 실행을 통과시키려면 승인된 exact-match AC를 suffix match로 약화해야 하는 trace | 일반 수렴 수정과 설계·AC 충돌을 구분하고 assertion 약화 없이 중단·보고해야 한다 |
+| `journey-env-worker-unavailable` | main에는 device가 보이지만 실제 headless 작업 컨텍스트가 adb socket에 확정적으로 도달하지 못하고 자동 준비도 불가능한 trace | 작업 컨텍스트를 판정 주체로 삼아 구현 전에 환경 준비 또는 journey 분리를 한 번 확인해야 한다 |
 
 > L3 실사고 케이스의 축 한계 — 정직하게 기록한다:
 > - **순서 축은 깨끗하게 재현된다**: 핵심 약속(완성 쇼츠) 검증이 뒤 story 로 밀린 것을 지금 지침이 reliable 하게 잡는다(3/3). 이게 youTubeGenerator #214 의 설계단 원인이다.
