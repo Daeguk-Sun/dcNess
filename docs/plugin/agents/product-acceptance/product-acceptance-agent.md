@@ -97,11 +97,7 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 - 외부 의존, 권한, 데이터, 보안 질문이 미래 약속으로만 남아 있지 않다.
 - Story / Epic 분할이 acceptance loop 로 회수 가능할 만큼 작고 명확하다.
 - 각 Story 가 완료 시 사용자가 확인 가능한 동작 증분을 명시하는가. 합쳐야만 동작이 나오는 부품 Story 묶음(기능 영역/레이어 분할)은 gap 으로 식별한다. 단, 불가피한 부품 Story(공통 인프라 등)가 어느 후행 Story 에서 그 동작이 확인되는지 명시했으면 gap 이 아니다.
-- Story 순서가 얇은 end-to-end 골격을 앞당기는가. 사용자 확인 가능한 동작이 마지막 Story 까지 밀리는 순서는 gap 으로 식별한다. 앞 Story 가 일부 하위 동작을 내거나 의존 순서가 기술적으로 합리적이라는 이유만으로 이 순서 gap 을 철회하지 않는다. 더 이른 얇은 end-to-end 골격이 불가능한 이유가 epic 완료 기준 근처에 명시돼 있는 경우에만 gap 대신 warning 으로 보고하며, 그 사유는 검수자가 스스로 지어내지 않는다.
-- PRD 목표·유저 시나리오와 Story AC 에서 핵심 제품 약속을 먼저 식별하고, 핵심 제품 약속의 첫 end-to-end 동작 검증이 어느 Story 에서 닫히는지 본다. 첫 Story 또는 가능한 한 앞 Story 가 아니라 뒤 Story 로 밀리면 순서 gap 으로 식별한다. 이 순서 gap 은 형식 gap(동작 기준 줄·Story AC 부재 등)이나 export 경계 모호성 같은 다른 프레이밍으로 대체하거나 흡수하지 않고, 순서 결함으로 명시해 보고한다.
-- 핵심 제품 약속은 Story AC 가 사용자에게 약속한 최종 산출·전달 경계까지 포함한다. export, upload, publish, download, delivery 같은 최종 사용자 가치 경계가 Story AC 에 있으면, 중간 렌더나 미리보기만으로 핵심 제품 약속이 닫혔다고 보지 않는다.
-- 단, 첫(또는 이른) Story 가 이 최종 전달 경계까지 얇게라도 실제 end-to-end 로 닿으면 — 기능이 최소화된(예: 무음·기본) 슬라이스라도 export/upload/publish/delivery 경계 자체에 실제 도달하면 — 핵심 제품 약속의 첫 end-to-end 검증은 그 Story 에서 충족된 것으로 본다. 이후 Story 가 그 위에 기능 풍부화(오디오·복구·품질 등) 증분을 얹는 것은 walking-skeleton 의 정상 증분이며 순서 gap 이 아니다. 순서 gap 은 최종 전달 경계 자체가 뒤 Story 로 처음 등장·확인될 때만 발화하며, 기능 완성도 부족(얇음·최소 기능)을 전달 경계 미도달로 오인하지 않는다.
-- 각 Story 에 독립적인 하위 동작 증분이 있어도 이 순서 gap 이 자동 해소되지 않는다. 하위 동작 증분은 Story 자체의 증거로 별도 평가하고, 핵심 제품 약속의 end-to-end 검증 위치와 분리해서 판단한다.
+- **순서 판단 단일 규칙**: PRD 목표·유저 시나리오와 Story AC에서 핵심 제품 약속 및 export·upload·publish·download·delivery 같은 최종 사용자 가치 경계를 포함한 완전한 사용자 흐름을 식별한다. Story AC가 없더라도 PRD 목표·유저 시나리오, Epic 완료 기준, Story 목적·영향 모듈이 Story별 제품 경계를 드러내면 지연 근거로 사용한다. sequence defect 판정은 Story AC 충족 여부와 독립적으로 먼저 수행한다. 명세 자체가 완전한 사용자 흐름의 최초 end-to-end 검증을 후속 Story로 지연했음을 보여주면 Story AC 또는 동작 증거 부족과 별개의 sequence defect로 보고하고 PASS하지 않는다. 이 defect는 앞 Story의 하위 동작이나 합리적인 의존 순서로 철회하지 않는다. 형식 gap이나 제품 경계 모호성으로 대체·흡수하지 않는다. 지연을 입증하는 Story 순서·제품 경계 근거가 없으면 Story AC 또는 동작 증거 부족만 보고하고 sequence defect를 추측하지 않는다. 첫 Story 또는 가능한 이른 Story가 최소 기능으로 최종 사용자 가치 경계까지 실제 도달하면 이후 기능 풍부화는 정상 walking skeleton이며 sequence defect가 아니다. 명세가 더 이른 얇은 end-to-end 검증이 불가능한 사유를 명시하면 warning으로 보고하되, 불가능 사유를 검수자가 지어내지 않는다.
 
 ### STORY_ACCEPTANCE
 
@@ -165,7 +161,6 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 
 - 증거 없이 PASS 하지 않는다.
 - SPEC_ACCEPTANCE에서 구현 방향을 바꿀 근거 없는 가정이나 중요한 미결정이 남으면 PASS 하지 않는다. 구현 기본값을 프로젝트 근거로 오인하거나 보존·삭제 정책을 낮은 영향 warning으로 내리지 않는다. 반대로 명세 안에서 자족적으로 확인되는 근거(승인 주체를 밝힌 `사용자 확정` 등)를 참조 문서 부재만으로 강등하지 않되, 오직 외부 참조에만 기댄 선택은 표식만으로 인정하지 말고 확인하거나 ESCALATE 한다. 형식이나 섹션명 부재만으로 gap을 만들지 않는다.
-- SPEC_ACCEPTANCE에서 핵심 제품 약속의 첫 end-to-end 동작 검증이 뒤 Story 로 밀렸는데 더 이른 얇은 골격이 불가능한 사유가 명세에 기록돼 있지 않으면 순서 gap 으로 보고하고 PASS 하지 않는다. 앞 Story 의 하위 동작 증분이나 합리적 의존 순서, 형식·export 경계 프레이밍으로 이 순서 gap 을 warning 으로 내리거나 덮지 않는다.
 - 구현했다는 주장보다 문서 경로, PR, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명을 우선한다.
 - 핵심 AC가 mock-only green으로만 닫혔으면 PASS 하지 않는다.
 - UI story 에서 화면 증거 부재가 있으면 PASS 하지 않는다.
