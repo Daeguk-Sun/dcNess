@@ -706,7 +706,7 @@ def handle_pretooluse_file_op(
         return 0
 
     try:
-        live = read_live(sid, base_dir=base_dir) or {}
+        read_live(sid, base_dir=base_dir)
     except (OSError, ValueError) as exc:
         _record_fail_open_safe(
             "file-guard",

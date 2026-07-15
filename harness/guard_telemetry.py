@@ -187,7 +187,7 @@ def record_eval_case_result(
             event[key] = str(value)[:160]
     if failure_detail:
         event["failure_detail"] = str(failure_detail).replace("\n", " ")[:_DETAIL_MAX]
-    for key, value in (
+    for key, numeric_value in (
         ("run_index", run_index),
         ("total_runs", total_runs),
         ("llm_turns", llm_turns),
@@ -195,8 +195,8 @@ def record_eval_case_result(
         ("judge_chars", judge_chars),
         ("estimated_output_tokens", estimated_output_tokens),
     ):
-        if value is not None:
-            event[key] = max(int(value), 0)
+        if numeric_value is not None:
+            event[key] = max(int(numeric_value), 0)
     append_event(event, cwd=cwd, base_dir=base_dir)
 
 

@@ -10,7 +10,6 @@ from pathlib import Path
 
 from harness.guard_telemetry import (
     TELEMETRY_NAME,
-    append_event,
     read_events,
     record_eval_case_result,
     record_guard_hit,

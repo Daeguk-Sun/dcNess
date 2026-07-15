@@ -853,7 +853,7 @@ def detect_wastes(
 
     # issue #392 — ECHO_VIOLATION / PLACEHOLDER_LEAK 폐기.
     # 사유: agent 자율 영역 침해. ECHO_VIOLATION (prose <5줄) = "agent 자율 침해",
-    # PLACEHOLDER_LEAK = "약속-실측 검사" — sub_eval.py:6~10 정신 위반.
+    # PLACEHOLDER_LEAK = "약속-실측 검사" — agent 자율 판정 경계 위반.
 
     # STRAY_DIR_LEAK — `.claude` 와 typo 의심 디렉토리 흔적 (#321 C)
     # 실측: jajang run-dbd49faf task 1/2/3 `.claire` 3 회 연속.
