@@ -78,8 +78,8 @@ class SpecStorySliceContractTests(unittest.TestCase):
         for needle in (
             "각 Story 가 완료 시 사용자가 확인 가능한 동작 증분을 명시하는가",
             "부품 Story 묶음(기능 영역/레이어 분할)은 gap 으로 식별한다",
-            "Story 순서가 얇은 end-to-end 골격을 앞당기는가",
-            "마지막 Story 까지 밀리는 순서는 gap 으로 식별한다",
+            "순서 판단 단일 규칙",
+            "sequence defect",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.product_acceptance)
@@ -88,14 +88,27 @@ class SpecStorySliceContractTests(unittest.TestCase):
         self,
     ) -> None:
         for needle in (
-            "핵심 제품 약속의 첫 end-to-end 동작 검증이 어느 Story 에서 닫히는지",
-            "첫 Story 또는 가능한 한 앞 Story 가 아니라 뒤 Story 로 밀리면 순서 gap",
-            "각 Story 에 독립적인 하위 동작 증분이 있어도 이 순서 gap 이 자동 해소되지 않는다",
-            "중간 렌더나 미리보기만으로 핵심 제품 약속이 닫혔다고 보지 않는다",
-            "export, upload, publish",
+            "순서 판단 단일 규칙",
+            "명세 자체가 완전한 사용자 흐름의 최초 end-to-end 검증을 후속 Story로 지연했음을 보여주면",
+            "Story AC 또는 동작 증거 부족과 별개의 sequence defect",
+            "Story AC가 없더라도 PRD 목표·유저 시나리오, Epic 완료 기준, Story 목적·영향 모듈이 Story별 제품 경계를 드러내면 지연 근거로 사용한다",
+            "sequence defect 판정은 Story AC 충족 여부와 독립적으로 먼저 수행한다",
+            "지연을 입증하는 Story 순서·제품 경계 근거가 없으면",
+            "Story AC 또는 동작 증거 부족만 보고하고 sequence defect를 추측하지 않는다",
+            "export·upload·publish·download·delivery",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.product_acceptance)
+
+        self.assertEqual(self.product_acceptance.count("순서 판단 단일 규칙"), 1)
+        self.assertNotIn(
+            "Story 순서가 얇은 end-to-end 골격을 앞당기는가",
+            self.product_acceptance,
+        )
+        self.assertNotIn(
+            "SPEC_ACCEPTANCE에서 핵심 제품 약속의 첫 end-to-end 동작 검증이 뒤 Story 로 밀렸는데",
+            self.product_acceptance,
+        )
 
     def test_product_acceptance_report_includes_user_runnable_path(self) -> None:
         self.assertIn(
@@ -130,7 +143,8 @@ class SpecStorySliceContractTests(unittest.TestCase):
     def test_spec_acceptance_axes_keep_documented_exceptions(self) -> None:
         for needle in (
             "어느 후행 Story 에서 그 동작이 확인되는지 명시했으면 gap 이 아니다",
-            "epic 완료 기준 근처에 명시돼 있는 경우에만 gap 대신 warning 으로 보고",
+            "더 이른 얇은 end-to-end 검증이 불가능한 사유를 명시하면 warning",
+            "최종 사용자 가치 경계까지 실제 도달하면 이후 기능 풍부화는 정상 walking skeleton",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.product_acceptance)
@@ -139,10 +153,10 @@ class SpecStorySliceContractTests(unittest.TestCase):
         """순서 gap 을 하위 동작·의존 순서로 철회하거나, 사유를 지어내거나,
         형식/export 프레이밍으로 덮는 razor-thin 경계 흔들림을 회귀로 차단한다 (#1139)."""
         for needle in (
-            "의존 순서가 기술적으로 합리적이라는 이유만으로 이 순서 gap 을 철회하지 않는다",
-            "그 사유는 검수자가 스스로 지어내지 않는다",
-            "export 경계 모호성 같은 다른 프레이밍으로 대체하거나 흡수하지 않고, 순서 결함으로 명시해 보고한다",
-            "불가능한 사유가 명세에 기록돼 있지 않으면 순서 gap 으로 보고하고 PASS 하지 않는다",
+            "앞 Story의 하위 동작이나 합리적인 의존 순서로 철회하지 않는다",
+            "불가능 사유를 검수자가 지어내지 않는다",
+            "형식 gap이나 제품 경계 모호성으로 대체·흡수하지 않는다",
+            "sequence defect로 보고하고 PASS하지 않는다",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.product_acceptance)
