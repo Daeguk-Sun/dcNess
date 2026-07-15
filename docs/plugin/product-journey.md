@@ -136,7 +136,7 @@ helper는 command 환경에 `DCNESS_PRODUCT_JOURNEY_RUN_DIR` 절대경로를 주
 - 대상 AC의 passed/total denominator, 사람 개입, 실행 증거 종류.
 - log별 sha256과 failure reason.
 
-`harness/outcome_scorecard.py`는 helper receipt 중 구조가 유효하고 snapshot cutoff 안에 있는 것만 읽는다. journey PASS/전체 실행 수와 제품 AC passed/total을 각각 보존하며 guard·validator·PR 지표를 제품 outcome 분자에 넣지 않는다.
+repository operations의 `harness/outcome_scorecard.py`는 helper receipt 중 구조가 유효하고 snapshot cutoff 안에 있는 것만 읽는다. scorecard 구현은 release artifact에 포함되지 않으며 plug-in runtime이 이를 import하지 않는다. journey PASS/전체 실행 수와 제품 AC passed/total을 각각 보존하며 guard·validator·PR 지표를 제품 outcome 분자에 넣지 않는다.
 
 ## 배포와 보존
 

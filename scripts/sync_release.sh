@@ -2,12 +2,13 @@
 set -euo pipefail
 
 # sync_release.sh — main → release 동기화
-# dcness self 경로를 제거한 사본을 release 브랜치에 push.
+# positive allowlist artifact만 release 브랜치에 기록해 repo-only 신규 파일의 유입을 막는다.
 
 REPO_ROOT=$(git rev-parse --show-toplevel)
 cd "$REPO_ROOT"
 
 ORIG_BRANCH=$(git symbolic-ref --short HEAD 2>/dev/null || echo "")
+TEMP_ROOT=""
 
 git_with_token() {
     if [ -n "${GITHUB_TOKEN:-}" ]; then
@@ -29,7 +30,14 @@ restore_branch() {
         git checkout "$ORIG_BRANCH" 2>/dev/null || true
     fi
 }
-trap restore_branch EXIT
+
+cleanup() {
+    restore_branch
+    if [ -n "$TEMP_ROOT" ]; then
+        rm -rf "$TEMP_ROOT"
+    fi
+}
+trap cleanup EXIT
 
 YES_MODE=0
 for arg in "$@"; do
@@ -73,28 +81,24 @@ else
     git checkout -b release origin/main
 fi
 
-echo "→ dcness self 경로 제거..."
-REMOVED=()
-if ! EXCLUDED_PATHS=$(python3 scripts/release_artifact.py excluded-paths); then
-    echo "ERROR: artifact 제외 계약을 읽지 못해 release sync를 중단합니다." >&2
+echo "→ positive allowlist artifact 생성..."
+ARTIFACT_BUILDER="$REPO_ROOT/scripts/release_artifact.py"
+TEMP_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/dcness-release-sync.XXXXXX")
+ARTIFACT_DIR="$TEMP_ROOT/artifact"
+if ! python3 "$ARTIFACT_BUILDER" build \
+    --repo-root "$REPO_ROOT" \
+    --ref "$MAIN_SHA" \
+    --output "$ARTIFACT_DIR"; then
+    echo "ERROR: positive allowlist artifact 생성에 실패해 release sync를 중단합니다." >&2
     exit 1
 fi
-if [ -z "$EXCLUDED_PATHS" ]; then
-    echo "ERROR: artifact 제외 계약이 비어 있어 release sync를 중단합니다." >&2
-    exit 1
-fi
-while IFS= read -r p; do
-    if [ -n "$(git ls-files "$p")" ]; then
-        git rm -r --quiet "$p"
-        REMOVED+=("$p")
-    fi
-done <<< "$EXCLUDED_PATHS"
 
-if [ ${#REMOVED[@]} -eq 0 ]; then
-    echo "  제거 대상 없음 (이미 동기화 상태)."
-else
-    echo "  제거됨: ${REMOVED[*]}"
-fi
+git rm -r --quiet -- .
+cp -R "$ARTIFACT_DIR/." "$REPO_ROOT/"
+git add -u
+(cd "$ARTIFACT_DIR" && find . -type f -print0) \
+    | git add --pathspec-from-file=- --pathspec-file-nul
+echo "  allowlist artifact 반영 완료"
 
 if git diff --cached --quiet; then
     echo "→ 변경 없음 — commit 생략."

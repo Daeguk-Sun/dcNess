@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 from collections import defaultdict
 from dataclasses import dataclass
 import hashlib
@@ -30,17 +31,21 @@ class ArtifactError(RuntimeError):
 
 @dataclass(frozen=True)
 class Contract:
-    exclude_paths: tuple[str, ...]
+    include_paths: tuple[str, ...]
     allowed_cache_metadata: tuple[str, ...]
     allowed_cache_metadata_globs: tuple[str, ...]
     required_runtime_paths: tuple[str, ...]
+    forbidden_product_imports: tuple[str, ...]
 
 
 def _safe_relative(value: str, *, field: str) -> str:
     path = PurePosixPath(value)
     if not value or path.is_absolute() or ".." in path.parts:
         raise ArtifactError(f"{field} must contain safe repo-relative paths: {value!r}")
-    return path.as_posix().rstrip("/")
+    normalized = path.as_posix().rstrip("/")
+    if normalized in {"", "."}:
+        raise ArtifactError(f"{field} cannot select the repository root: {value!r}")
+    return normalized
 
 
 def load_contract(path: Path) -> Contract:
@@ -48,8 +53,8 @@ def load_contract(path: Path) -> Contract:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise ArtifactError(f"cannot read artifact contract {path}: {exc}") from exc
-    if payload.get("schema_version") != 1:
-        raise ArtifactError("artifact contract schema_version must be 1")
+    if payload.get("schema_version") != 2:
+        raise ArtifactError("artifact contract schema_version must be 2")
 
     def paths(field: str) -> tuple[str, ...]:
         values = payload.get(field)
@@ -61,10 +66,11 @@ def load_contract(path: Path) -> Contract:
         return normalized
 
     return Contract(
-        exclude_paths=paths("exclude_paths"),
+        include_paths=paths("include_paths"),
         allowed_cache_metadata=paths("allowed_cache_metadata"),
         allowed_cache_metadata_globs=paths("allowed_cache_metadata_globs"),
         required_runtime_paths=paths("required_runtime_paths"),
+        forbidden_product_imports=paths("forbidden_product_imports"),
     )
 
 
@@ -92,13 +98,29 @@ def _archive(repo_root: Path, ref: str) -> bytes:
     return result.stdout
 
 
-def _extract_archive(data: bytes, output: Path) -> None:
+def _extract_archive(
+    data: bytes,
+    output: Path,
+    *,
+    include_paths: tuple[str, ...] | None = None,
+) -> None:
     output.mkdir(parents=True, exist_ok=False)
+    matched_includes: set[str] = set()
     with tarfile.open(fileobj=io.BytesIO(data), mode="r:") as archive:
         for member in archive.getmembers():
             member_path = PurePosixPath(member.name)
             if member_path.is_absolute() or ".." in member_path.parts:
                 raise ArtifactError(f"unsafe git archive member: {member.name}")
+            relative = member_path.as_posix().rstrip("/")
+            if include_paths is not None:
+                matched = {
+                    root
+                    for root in include_paths
+                    if relative == root or relative.startswith(f"{root}/")
+                }
+                if not matched:
+                    continue
+                matched_includes.update(matched)
             if member.issym() or member.islnk():
                 raise ArtifactError(f"release artifact does not allow links: {member.name}")
             target = output.joinpath(*member_path.parts)
@@ -114,22 +136,15 @@ def _extract_archive(data: bytes, output: Path) -> None:
             with source, target.open("wb") as destination:
                 shutil.copyfileobj(source, destination)
             target.chmod(member.mode & 0o777)
-
-
-def _remove_excluded(output: Path, contract: Contract) -> None:
-    for relative in contract.exclude_paths:
-        target = output / relative
-        if target.is_dir():
-            shutil.rmtree(target)
-        elif target.exists() or target.is_symlink():
-            target.unlink()
-
+    if include_paths is not None:
+        missing = sorted(set(include_paths) - matched_includes)
+        if missing:
+            raise ArtifactError(f"allowlist paths missing at revision: {', '.join(missing)}")
 
 def build(repo_root: Path, ref: str, output: Path, contract: Contract) -> None:
     if output.exists():
         raise ArtifactError(f"output already exists: {output}")
-    _extract_archive(_archive(repo_root, ref), output)
-    _remove_excluded(output, contract)
+    _extract_archive(_archive(repo_root, ref), output, include_paths=contract.include_paths)
 
 
 def _content_hashes(root: Path, contract: Contract) -> dict[str, str]:
@@ -148,6 +163,8 @@ def snapshot(root: Path, contract: Contract) -> dict[str, Any]:
     hashes: dict[str, str] = {}
     byte_size = 0
     text_loc = 0
+    python_file_count = 0
+    python_loc = 0
     composition: dict[str, dict[str, int]] = defaultdict(lambda: {"files": 0, "bytes": 0})
     for path in sorted(item for item in root.rglob("*") if item.is_file()):
         relative = path.relative_to(root).as_posix()
@@ -162,6 +179,9 @@ def snapshot(root: Path, contract: Contract) -> dict[str, Any]:
             if b"\0" not in data:
                 data.decode("utf-8")
                 text_loc += data.count(b"\n")
+                if path.suffix == ".py":
+                    python_file_count += 1
+                    python_loc += data.count(b"\n")
         except UnicodeDecodeError:
             pass
         top = relative.split("/", 1)[0]
@@ -173,6 +193,8 @@ def snapshot(root: Path, contract: Contract) -> dict[str, Any]:
         "file_count": len(files),
         "byte_size": byte_size,
         "text_loc": text_loc,
+        "python_file_count": python_file_count,
+        "python_loc": python_loc,
         "manifest_sha256": hashlib.sha256(manifest_json.encode()).hexdigest(),
         "top_level": dict(sorted(composition.items())),
         "files": files,
@@ -238,9 +260,91 @@ def _verify_required_paths(bundle: Path, contract: Contract) -> None:
     missing = [relative for relative in contract.required_runtime_paths if not (bundle / relative).exists()]
     if missing:
         raise ArtifactError(f"required runtime paths missing: {', '.join(missing)}")
-    leaked = [relative for relative in contract.exclude_paths if (bundle / relative).exists()]
-    if leaked:
-        raise ArtifactError(f"self-only paths leaked into artifact: {', '.join(leaked)}")
+
+
+def _imported_modules(path: Path, bundle: Path) -> set[str]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (OSError, UnicodeDecodeError, SyntaxError) as exc:
+        raise ArtifactError(f"cannot parse product Python {path}: {exc}") from exc
+
+    imported: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level == 0:
+                module = node.module or ""
+                if module:
+                    imported.add(module)
+                if module in {"evals", "harness", "scripts", "tests"}:
+                    imported.update(f"{module}.{alias.name}" for alias in node.names)
+                continue
+
+            package = list(path.relative_to(bundle).parts[:-1])
+            ascend = node.level - 1
+            if ascend > len(package):
+                continue
+            base = package[: len(package) - ascend] if ascend else package
+            if node.module:
+                base.extend(node.module.split("."))
+            module = ".".join(base)
+            if module:
+                imported.add(module)
+            if not node.module:
+                imported.update(f"{module}.{alias.name}" for alias in node.names)
+    return imported
+
+
+def _product_module_exists(bundle: Path, module: str) -> bool:
+    parts = module.split(".")
+    candidate = bundle.joinpath(*parts)
+    return candidate.is_dir() or candidate.with_suffix(".py").is_file()
+
+
+def _verify_product_dependencies(bundle: Path, contract: Contract) -> None:
+    violations: list[str] = []
+    for path in sorted(bundle.rglob("*.py")):
+        relative = path.relative_to(bundle).as_posix()
+        for imported in sorted(_imported_modules(path, bundle)):
+            if imported.startswith("harness.") and not _product_module_exists(bundle, imported):
+                violations.append(f"{relative}: missing product module {imported}")
+            forbidden = next(
+                (
+                    prefix
+                    for prefix in contract.forbidden_product_imports
+                    if imported == prefix or imported.startswith(f"{prefix}.")
+                ),
+                None,
+            )
+            if forbidden is not None:
+                violations.append(f"{relative}: forbidden import {imported} ({forbidden})")
+    if violations:
+        raise ArtifactError("product dependency boundary violated:\n" + "\n".join(violations))
+
+
+def measure(repo_root: Path, ref: str, contract: Contract) -> dict[str, Any]:
+    revision = _run_checked(
+        [_executable("git"), "-C", str(repo_root), "rev-parse", ref], cwd=repo_root
+    ).strip()
+    archive = _archive(repo_root, revision)
+    with tempfile.TemporaryDirectory(prefix="dcness-release-measure-") as tmp:
+        temp_root = Path(tmp)
+        repository = temp_root / "repository"
+        bundle = temp_root / "bundle"
+        _extract_archive(archive, repository)
+        _extract_archive(archive, bundle, include_paths=contract.include_paths)
+        tracked_python_loc = sum(
+            path.read_bytes().count(b"\n")
+            for path in repository.rglob("*.py")
+            if path.relative_to(repository).parts[0] != "tests"
+        )
+        artifact = snapshot(bundle, contract)
+    return {
+        "revision": revision,
+        "tracked_python_loc_excluding_tests": tracked_python_loc,
+        "release_artifact_python_loc": artifact["python_loc"],
+    }
 
 
 def _deploy_init_core(bundle: Path, project: Path, home: Path, env: dict[str, str]) -> int:
@@ -363,6 +467,7 @@ def smoke(repo_root: Path, ref: str, contract: Contract) -> dict[str, int]:
         bundle = temp_root / "bundle"
         build(repo_root, ref, bundle, contract)
         _verify_required_paths(bundle, contract)
+        _verify_product_dependencies(bundle, contract)
         _verify_agent_surface(bundle, repo_root / "scripts" / "check_public_surface.mjs")
         runtime = _verify_external_runtime(bundle, temp_root)
         artifact = snapshot(bundle, contract)
@@ -404,8 +509,14 @@ def parser() -> argparse.ArgumentParser:
     compare_parser.add_argument("--actual", type=_path, required=True)
     add_contract(compare_parser)
 
-    excluded_parser = subparsers.add_parser("excluded-paths")
-    add_contract(excluded_parser)
+    dependencies_parser = subparsers.add_parser("check-dependencies")
+    dependencies_parser.add_argument("--root", type=_path, required=True)
+    add_contract(dependencies_parser)
+
+    measure_parser = subparsers.add_parser("measure")
+    measure_parser.add_argument("--repo-root", type=_path, required=True)
+    measure_parser.add_argument("--ref", required=True)
+    add_contract(measure_parser)
 
     smoke_parser = subparsers.add_parser("smoke")
     smoke_parser.add_argument("--repo-root", type=_path, required=True)
@@ -428,8 +539,15 @@ def main(argv: list[str] | None = None) -> int:
                 print("\n".join(details), file=sys.stderr)
                 return 1
             print("manifest_match=true")
-        elif args.command == "excluded-paths":
-            print("\n".join(contract.exclude_paths))
+        elif args.command == "check-dependencies":
+            _verify_product_dependencies(args.root, contract)
+            print("product_dependencies=PASS")
+        elif args.command == "measure":
+            print(
+                json.dumps(
+                    measure(args.repo_root, args.ref, contract), ensure_ascii=False, indent=2
+                )
+            )
         elif args.command == "smoke":
             result = smoke(args.repo_root, args.ref, contract)
             print("release_artifact_smoke=PASS")

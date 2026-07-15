@@ -7,7 +7,7 @@
 
 ## 현재 공개 Evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.23.0","measured_at":"2026-07-15","unit_tests":{"passed":1890,"total":1890},"guard":{"passed":39,"total":39},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.23.0","measured_at":"2026-07-15","unit_tests":{"passed":1894,"total":1894},"guard":{"passed":39,"total":39},"source_project_count":2} -->
 
 현재 plugin version은 **v0.23.0**, 측정일은 **2026-07-14**이다. 아래 표의 최대
 source 프로젝트 수는 2이며, 영역별 실제 source와 denominator는 각 행에 다시 적는다.
@@ -47,14 +47,14 @@ node scripts/check_public_evidence.mjs
 
 ## 무엇을 측정하나
 
-dcNess 는 측정 인프라를 plug-in 본체에 같이 배포한다.
+외부 프로젝트의 public command가 직접 호출하는 run·session 분석기는 plug-in 본체에 배포한다. 여러 프로젝트의 제품 outcome과 Agent effectiveness를 합치는 scorecard는 repository operations이며 release artifact에 포함하지 않는다.
 
 | 측정 도구 | 무엇을 보나 | 진입점 |
 |---|---|---|
 | [`scripts/measure_main_turns.py`](../../scripts/measure_main_turns.py) | Claude Code 세션의 메인 assistant turn 분포 (tool / text-only / thinking-only) + tool histogram + sub-agent 호출 분포 | 직접 실행 |
 | [`harness/run_review.py`](../../harness/run_review.py) | run 1개의 step별 비용·토큰 + 낭비(waste) finding | `/run-review` skill |
 | [`harness/benchmark_aggregate.py`](../../harness/benchmark_aggregate.py) | 여러 run 가로질러 fleet 집계 (PR 머지 성공률 / review rejection / escalate / blocked / waste top-N / 재발 개선 후보) | 직접 실행 |
-| [`harness/outcome_scorecard.py`](../../harness/outcome_scorecard.py) | 활성 프로젝트를 가로질러 process, Agent effectiveness, 실제 제품 outcome을 분리하고 모든 집계에 denominator·source 수·측정일을 붙임 | 직접 실행 |
+| [`harness/outcome_scorecard.py`](https://github.com/Daeguk-Sun/dcNess/blob/main/harness/outcome_scorecard.py) | 활성 프로젝트를 가로질러 process, Agent effectiveness, 실제 제품 outcome을 분리하고 모든 집계에 denominator·source 수·측정일을 붙임 | dcNess source checkout에서 직접 실행 |
 
 guard 효능 재현은 별도다. dcNess 소스 checkout 에서만 제공되는
 `evals/guard_efficacy.py` 는 LLM 없이 hook/function 진입점을 직접 호출해 file boundary,
@@ -258,8 +258,9 @@ done
 없는 제품 AC/journey와 탐색 효과는 다른 process 지표로 채우지 않고 `측정 불가`로 출력한다.
 
 ```sh
-python3 "$DCN"/harness/outcome_scorecard.py --redact-paths
-python3 "$DCN"/harness/outcome_scorecard.py --redact-paths --json
+DCNESS_REPO=/path/to/dcNess
+python3 "$DCNESS_REPO"/harness/outcome_scorecard.py --redact-paths
+python3 "$DCNESS_REPO"/harness/outcome_scorecard.py --redact-paths --json
 ```
 
 시점 snapshot과 원천 registry 위치는 [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md)에

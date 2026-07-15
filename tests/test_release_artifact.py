@@ -30,66 +30,61 @@ def _run(*args: str, cwd: Path | None = None, check: bool = True) -> subprocess.
 
 
 class ReleaseArtifactContractTests(unittest.TestCase):
-    def test_contract_excludes_self_only_paths_and_names_runtime_metadata(self) -> None:
+    def test_contract_is_a_positive_product_allowlist(self) -> None:
         contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
-        excluded = set(contract["exclude_paths"])
+        included = set(contract["include_paths"])
         required = set(contract["required_runtime_paths"])
 
+        self.assertEqual(contract["schema_version"], 2)
+        self.assertNotIn("exclude_paths", contract)
         self.assertTrue(
+            {
+                ".claude-plugin/plugin.json",
+                "agents",
+                "commands",
+                "docs/plugin",
+                "hooks",
+                "skills",
+            }.issubset(included)
+        )
+        self.assertFalse(
             {
                 ".claude",
                 ".github",
-                "AGENTS.md",
-                "CLAUDE.md",
-                "PROGRESS.md",
-                "docs/archive",
                 "docs/internal",
                 "evals",
-                "harness/CLAUDE.md",
                 "tests",
-                "pyproject.toml",
-                "requirements-eval.txt",
-                "requirements-quality.txt",
-                "scripts/CLAUDE.md",
-                "scripts/check_cross_refs.mjs",
-                "scripts/check_doc_path_integrity.mjs",
-                "scripts/check_python_tests.sh",
-                "scripts/check_plugin_manifest.mjs",
-                "scripts/check_public_evidence.mjs",
-                "scripts/check_public_surface.mjs",
-                "scripts/hooks/cc-pre-commit.sh",
-                "scripts/launchd",
-                "scripts/release_artifact.json",
                 "scripts/release_artifact.py",
-                "scripts/setup_branch_protection.mjs",
-                "scripts/sync_release.sh",
-                "templates/CLAUDE.md",
-            }.issubset(excluded)
+                "scripts/release_preflight.py",
+            }
+            & included
         )
+        self.assertNotIn("harness/agent_effectiveness.py", included)
+        self.assertNotIn("harness/outcome_scorecard.py", included)
         self.assertEqual(contract["allowed_cache_metadata"], [".git", ".in_use"])
-        self.assertIn("scripts/release_preflight.py", excluded)
-        self.assertNotIn("scripts/loop_diagnose.py", excluded)
+        self.assertIn("scripts/loop_diagnose.py", included)
         self.assertIn("scripts/loop_diagnose.py", required)
         self.assertEqual(
             contract["allowed_cache_metadata_globs"],
             ["__pycache__/*.pyc", "**/__pycache__/*.pyc"],
         )
-
-        runtime_checkers = {
-            "scripts/check_design_artifact_structure.mjs",
-            "scripts/check_git_naming.mjs",
-            "scripts/check_issue_body.mjs",
-            "scripts/check_pr_body.mjs",
-        }
-        all_checkers = {
-            path.relative_to(ROOT).as_posix() for path in (ROOT / "scripts").glob("check_*")
-        }
-        self.assertEqual(all_checkers - excluded, runtime_checkers)
+        self.assertEqual(
+            set(contract["forbidden_product_imports"]),
+            {
+                "evals",
+                "tests",
+                "harness.agent_effectiveness",
+                "harness.outcome_scorecard",
+                "scripts.release_artifact",
+                "scripts.release_preflight",
+            },
+        )
 
     def test_build_and_snapshot_share_the_contract(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp) / "repo"
             bundle = Path(tmp) / "bundle"
+            contract_path = Path(tmp) / "contract.json"
             repo.mkdir()
             subprocess.run(["git", "init", "-q", repo], check=True)
             subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
@@ -104,6 +99,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 ".github/workflows/self.yml": "name: self\n",
                 "tests/test_self.py": "raise AssertionError\n",
                 "PROGRESS.md": "self only\n",
+                "repo-only-fixture.txt": "must not be packaged\n",
             }
             for relative, content in files.items():
                 path = repo / relative
@@ -111,6 +107,30 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 path.write_text(content, encoding="utf-8")
             subprocess.run(["git", "-C", repo, "add", "."], check=True)
             subprocess.run(["git", "-C", repo, "commit", "-qm", "fixture"], check=True)
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "include_paths": [
+                            ".claude-plugin/plugin.json",
+                            "agents",
+                            "docs/plugin",
+                        ],
+                        "allowed_cache_metadata": [".git", ".in_use"],
+                        "allowed_cache_metadata_globs": [
+                            "__pycache__/*.pyc",
+                            "**/__pycache__/*.pyc",
+                        ],
+                        "required_runtime_paths": [
+                            ".claude-plugin/plugin.json",
+                            "agents",
+                            "docs/plugin",
+                        ],
+                        "forbidden_product_imports": ["evals", "tests"],
+                    }
+                ),
+                encoding="utf-8",
+            )
 
             _run(
                 "build",
@@ -121,7 +141,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "--output",
                 str(bundle),
                 "--contract",
-                str(CONTRACT),
+                str(contract_path),
             )
 
             self.assertTrue((bundle / "agents/example.md").is_file())
@@ -130,6 +150,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             self.assertFalse((bundle / ".github").exists())
             self.assertFalse((bundle / "tests").exists())
             self.assertFalse((bundle / "PROGRESS.md").exists())
+            self.assertFalse((bundle / "repo-only-fixture.txt").exists())
 
             snapshot = json.loads(
                 _run(
@@ -137,13 +158,145 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                     "--root",
                     str(bundle),
                     "--contract",
-                    str(CONTRACT),
+                    str(contract_path),
                 ).stdout
             )
             self.assertEqual(snapshot["file_count"], 3)
             self.assertEqual(snapshot["files"], sorted(snapshot["files"]))
             self.assertGreater(snapshot["byte_size"], 0)
             self.assertGreater(snapshot["text_loc"], 0)
+
+    def test_build_fails_when_an_allowlist_entry_is_missing_at_the_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            contract_path = root / "contract.json"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q", repo], check=True)
+            subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "test@example.com"], check=True
+            )
+            (repo / "product.py").write_text("VALUE = 1\n", encoding="utf-8")
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "fixture"], check=True)
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "include_paths": ["product.py", "missing-runtime.py"],
+                        "allowed_cache_metadata": [".git", ".in_use"],
+                        "allowed_cache_metadata_globs": [],
+                        "required_runtime_paths": ["product.py"],
+                        "forbidden_product_imports": ["evals", "tests"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            failed = _run(
+                "build",
+                "--repo-root",
+                str(repo),
+                "--ref",
+                "HEAD",
+                "--output",
+                str(root / "bundle"),
+                "--contract",
+                str(contract_path),
+                check=False,
+            )
+
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("allowlist paths missing at revision: missing-runtime.py", failed.stderr)
+
+    def test_product_dependency_check_rejects_repository_imports(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = Path(tmp) / "bundle"
+            bundle.mkdir()
+            (bundle / "harness").mkdir()
+            (bundle / "product.py").write_text(
+                (
+                    "from tests import fixture\n"
+                    "from harness import missing_runtime\n"
+                    "from harness import outcome_scorecard\n"
+                ),
+                encoding="utf-8",
+            )
+            (bundle / "harness/relative_product.py").write_text(
+                "from . import outcome_scorecard\n", encoding="utf-8"
+            )
+
+            failed = _run(
+                "check-dependencies",
+                "--root",
+                str(bundle),
+                "--contract",
+                str(CONTRACT),
+                check=False,
+            )
+
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("product.py", failed.stderr)
+            self.assertIn("tests", failed.stderr)
+            self.assertIn("missing product module harness.missing_runtime", failed.stderr)
+            self.assertIn("harness.outcome_scorecard", failed.stderr)
+            self.assertIn("harness/relative_product.py", failed.stderr)
+
+    def test_measure_separates_tracked_and_artifact_python_at_one_revision(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            contract_path = root / "contract.json"
+            repo.mkdir()
+            subprocess.run(["git", "init", "-q", repo], check=True)
+            subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "test@example.com"], check=True
+            )
+            (repo / "product.py").write_text("VALUE = 1\nVALUE += 1\n", encoding="utf-8")
+            (repo / "repo_only.py").write_text("VALUE = 2\n", encoding="utf-8")
+            (repo / "tests").mkdir()
+            (repo / "tests/test_product.py").write_text("assert True\n", encoding="utf-8")
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "include_paths": ["product.py"],
+                        "allowed_cache_metadata": [".git", ".in_use"],
+                        "allowed_cache_metadata_globs": [
+                            "__pycache__/*.pyc",
+                            "**/__pycache__/*.pyc",
+                        ],
+                        "required_runtime_paths": ["product.py"],
+                        "forbidden_product_imports": ["evals", "tests"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "fixture"], check=True)
+
+            measured = json.loads(
+                _run(
+                    "measure",
+                    "--repo-root",
+                    str(repo),
+                    "--ref",
+                    "HEAD",
+                    "--contract",
+                    str(contract_path),
+                ).stdout
+            )
+
+            self.assertEqual(measured["revision"], subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip())
+            self.assertEqual(measured["tracked_python_loc_excluding_tests"], 3)
+            self.assertEqual(measured["release_artifact_python_loc"], 2)
 
     def test_compare_allows_only_declared_cache_metadata(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -239,9 +392,10 @@ class ReleaseArtifactContractTests(unittest.TestCase):
         script = (ROOT / "scripts/sync_release.sh").read_text(encoding="utf-8")
 
         self.assertIn("scripts/release_artifact.py", script)
-        self.assertIn("excluded-paths", script)
+        self.assertIn('"$ARTIFACT_BUILDER" build', script)
         self.assertIn('git commit -m "[docs] release sync from main@', script)
         self.assertNotIn("EXCLUDE_PATHS=(", script)
+        self.assertNotIn("excluded-paths", script)
         self.assertNotIn("--no-verify", script)
 
         pre_push = (ROOT / "scripts/hooks/pre-push").read_text(encoding="utf-8")
@@ -337,7 +491,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             )
 
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("artifact 제외 계약을 읽지 못해 release sync를 중단합니다", result.stderr)
+            self.assertIn("positive allowlist artifact 생성에 실패해 release sync를 중단합니다", result.stderr)
             remote_release = subprocess.run(
                 ["git", "--git-dir", str(remote), "show-ref", "--verify", "refs/heads/release"],
                 check=False,
@@ -346,9 +500,71 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             )
             self.assertNotEqual(remote_release.returncode, 0)
 
+    def test_sync_release_publishes_only_the_positive_allowlist(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            remote = root / "remote.git"
+            (repo / "scripts").mkdir(parents=True)
+            shutil.copy2(ROOT / "scripts/sync_release.sh", repo / "scripts/sync_release.sh")
+            shutil.copy2(ROOT / "scripts/release_artifact.py", repo / "scripts/release_artifact.py")
+            (repo / "scripts/release_artifact.json").write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "include_paths": ["product.txt"],
+                        "allowed_cache_metadata": [".git", ".in_use"],
+                        "allowed_cache_metadata_globs": [],
+                        "required_runtime_paths": ["product.txt"],
+                        "forbidden_product_imports": ["evals", "tests"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (repo / "product.txt").write_text("product\n", encoding="utf-8")
+            (repo / "repo-only.txt").write_text("self\n", encoding="utf-8")
+
+            subprocess.run(["git", "init", "-q", "--bare", remote], check=True)
+            subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+            subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "test@example.com"], check=True
+            )
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "fixture"], check=True)
+            subprocess.run(["git", "-C", repo, "remote", "add", "origin", str(remote)], check=True)
+            subprocess.run(["git", "-C", repo, "push", "-q", "-u", "origin", "main"], check=True)
+
+            result = subprocess.run(
+                ["bash", "scripts/sync_release.sh", "--yes"],
+                cwd=repo,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            released = subprocess.run(
+                ["git", "--git-dir", str(remote), "ls-tree", "-r", "--name-only", "release"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.splitlines()
+            self.assertEqual(released, ["product.txt"])
+            self.assertEqual(
+                subprocess.run(
+                    ["git", "-C", repo, "branch", "--show-current"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip(),
+                "main",
+            )
+
     def test_distributed_markdown_links_do_not_target_excluded_paths(self) -> None:
         contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
-        excluded = tuple(contract["exclude_paths"])
+        included = tuple(contract["include_paths"])
         tracked = subprocess.run(
             ["git", "ls-files", "*.md"],
             cwd=ROOT,
@@ -360,11 +576,11 @@ class ReleaseArtifactContractTests(unittest.TestCase):
         link_pattern = re.compile(r"(?<!!)\[[^]]*\]\(([^)]+)\)")
         broken: list[str] = []
 
-        def is_excluded(relative: str) -> bool:
-            return any(relative == root or relative.startswith(f"{root}/") for root in excluded)
+        def is_included(relative: str) -> bool:
+            return any(relative == root or relative.startswith(f"{root}/") for root in included)
 
         for relative in tracked:
-            if is_excluded(relative):
+            if not is_included(relative):
                 continue
             source = ROOT / relative
             if not source.is_file():
@@ -387,7 +603,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                     except ValueError:
                         broken.append(f"{relative}:{line_number}: {raw_target}")
                         continue
-                    if not resolved.exists() or is_excluded(target_relative):
+                    if not resolved.exists() or not is_included(target_relative):
                         broken.append(f"{relative}:{line_number}: {raw_target}")
 
         self.assertEqual(broken, [], "distributed artifact has broken relative links")

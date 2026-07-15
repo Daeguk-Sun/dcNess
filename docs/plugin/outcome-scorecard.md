@@ -1,7 +1,8 @@
 # 제품 결과 scorecard 계약
 
-> **Status**: ACTIVE
+> **Status**: REPOSITORY OPERATIONS
 > **Scope**: 하네스 과정, agent의 실제 작업 능력, 제품 결과를 같은 관측 단위에서 비교하되 서로 대체하지 않는 측정 계약.
+> **Distribution**: scorecard 구현과 agent-effectiveness 측정기는 release artifact에 포함하지 않고 dcNess source checkout에서만 실행한다. 저장소 운영 도구가 plug-in runtime의 ledger·journey receipt를 읽는 방향만 허용하며, plug-in runtime은 scorecard 구현을 import하지 않는다.
 
 ## 세 영역
 
@@ -91,9 +92,10 @@ Cartography freshness는 SSOT·entrypoint·owner 후보와 stale 여부의 입�
 외부 활성 프로젝트의 현재 process baseline은 [`outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md)에 시점 snapshot으로 남긴다. 재현기는 기존 fleet 집계기를 재사용한다.
 
 ```sh
-python3 "$DCN"/harness/outcome_scorecard.py --redact-paths
-python3 "$DCN"/harness/outcome_scorecard.py --redact-paths --json
-python3.11 "$DCN"/harness/outcome_scorecard.py \
+DCNESS_REPO=/path/to/dcNess
+python3 "$DCNESS_REPO"/harness/outcome_scorecard.py --redact-paths
+python3 "$DCNESS_REPO"/harness/outcome_scorecard.py --redact-paths --json
+python3.11 "$DCNESS_REPO"/harness/outcome_scorecard.py \
   --projects-file /path/to/empty-projects.json \
   --agent-effectiveness-record /path/to/frozen-replay-record.json \
   --measured-at 2026-07-12T10:00:00Z \
