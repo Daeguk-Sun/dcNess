@@ -35,7 +35,7 @@ class CurrentStateContractTests(unittest.TestCase):
             "step_started",
             run_id=RID,
             base_dir=self.base,
-            agent="build-worker",
+            agent="dcness:build-worker",
             mode=None,
         )
         prose = "구현 결과\n\nPASS"
@@ -46,7 +46,7 @@ class CurrentStateContractTests(unittest.TestCase):
             "step_completed",
             run_id=RID,
             base_dir=self.base,
-            agent="build-worker",
+            agent="dcness:build-worker",
             mode=None,
             enum="PROSE_LOGGED",
             prose=prose,
@@ -68,9 +68,14 @@ class CurrentStateContractTests(unittest.TestCase):
         slot = session_state.read_live(SID, base_dir=self.base)["active_runs"][RID]
         self.assertIsNotNone(slot["completed_at"])
         self.assertIsNone(slot["current_step"])
+        events = ledger.read_events(SID, RID, base_dir=self.base)
         self.assertEqual(
-            [event["event"] for event in ledger.read_events(SID, RID, base_dir=self.base)],
+            [event["event"] for event in events],
             ["run_started", "step_started", "step_completed", "run_finished"],
+        )
+        self.assertEqual(
+            [event["agent"] for event in events[1:3]],
+            ["build-worker", "build-worker"],
         )
 
     def test_removed_writer_names_are_absent_in_a_fresh_process(self) -> None:

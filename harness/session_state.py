@@ -714,14 +714,16 @@ def _apply_step_transition(
     data: Dict[str, Any],
 ) -> tuple[Any, bool]:
     from harness import ledger
+    from harness.agent_names import normalize_agent_type
 
     slot = _active_slot(active, run_id)
-    if action == "step_started":
-        from harness.agent_names import normalize_agent_type
+    raw_agent = data.get("agent")
+    if not isinstance(raw_agent, str) or not raw_agent:
+        raise ValueError("agent must be non-empty str")
+    agent = normalize_agent_type(raw_agent) or raw_agent
+    data["agent"] = agent
 
-        agent = normalize_agent_type(data.get("agent")) or data.get("agent")
-        if not isinstance(agent, str) or not agent:
-            raise ValueError("agent must be non-empty str")
+    if action == "step_started":
         _warn_stale_step(slot)
         now = _now_iso()
         slot["current_step"] = {
@@ -740,9 +742,6 @@ def _apply_step_transition(
         )
         return None, True
 
-    agent = data.get("agent")
-    if not isinstance(agent, str) or not agent:
-        raise ValueError("agent must be non-empty str")
     receipt = ledger.build_receipt(
         agent, data.get("mode"), data.get("enum", "PROSE_LOGGED"),
         data.get("prose", ""), data.get("prose_path"), provider=data.get("provider"),
@@ -754,7 +753,7 @@ def _apply_step_transition(
     current = slot.get("current_step")
     if not isinstance(current, dict) or (
         current.get("agent"), current.get("mode")
-    ) != (data.get("agent"), data.get("mode")):
+    ) != (agent, data.get("mode")):
         return result, False
     slot["current_step"] = None
     slot["last_confirmed_at"] = _now_iso()
