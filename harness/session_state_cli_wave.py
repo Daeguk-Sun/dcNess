@@ -266,7 +266,7 @@ def _cli_merge_lock(args: Any) -> int:
                 {
                     "ok": False,
                     "error": str(exc),
-                    "blocked_prior_paths": list(exc.result.blocked_prior_paths),
+                    "blocked_prior_paths": list(exc.result.evidence),
                 }
             )
             return 1

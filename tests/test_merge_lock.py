@@ -105,7 +105,7 @@ class MergeLockTests(unittest.TestCase):
         )
 
         self.assertFalse(result.allowed)
-        self.assertEqual(result.blocked_prior_paths, (str(first.resolve()),))
+        self.assertEqual(result.evidence, (str(first.resolve()),))
         self.assertIn("01-first.md", result.reason)
 
     def test_prior_task_external_evidence_allows_order(self) -> None:
@@ -128,7 +128,7 @@ class MergeLockTests(unittest.TestCase):
         )
 
         self.assertTrue(result.allowed)
-        self.assertEqual(result.blocked_prior_paths, ())
+        self.assertEqual(result.evidence, ())
 
     def test_prior_task_completed_on_board_allows_order(self) -> None:
         first = _write_impl(self.root, "01-first.md", story="1", task_index="1/2")

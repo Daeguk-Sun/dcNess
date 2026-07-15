@@ -3,7 +3,7 @@
 DCN-CHG-20260430-08: improve-token-efficiency skill 흡수. encode_repo_path 가
 CC 인코딩 룰 (`/` + `.` 둘 다 → `-`) 정합 + price_for prefix 매칭 검증.
 
-핵심 동작 (analyze_sessions / build_dashboard) 의 통합 smoke 만 — read-only 분석
+핵심 동작 (analyze_sessions) 의 통합 smoke 만 — read-only 분석
 도구라 catastrophic 룰 비대상.
 """
 from __future__ import annotations
@@ -105,9 +105,9 @@ class WrapperSmokeTests(unittest.TestCase):
 
 
 class IntegrationSmokeTests(unittest.TestCase):
-    """analyze + dashboard chain — 가짜 세션 jsonl 생성 후 실제 동작 검증."""
+    """Analyze a fixture session through the public wrapper."""
 
-    def test_full_chain_with_fixture_session(self) -> None:
+    def test_analyze_fixture_session(self) -> None:
         with TemporaryDirectory() as td:
             sessions = Path(td) / "sessions"
             sessions.mkdir()
@@ -143,23 +143,6 @@ class IntegrationSmokeTests(unittest.TestCase):
             data = json.loads(json_out.read_text(encoding="utf-8"))
             self.assertGreaterEqual(len(data.get("sessions", [])), 1)
             self.assertGreater(data.get("totals", {}).get("cost_usd", 0), 0)
-
-            # dashboard 도 실행 가능한지
-            html_out = Path(td) / "report.html"
-            result2 = subprocess.run(
-                [
-                    str(REPO_ROOT / "scripts" / "dcness-efficiency"),
-                    "dashboard",
-                    "--input", str(json_out),
-                    "--out", str(html_out),
-                ],
-                capture_output=True, text=True, timeout=15,
-            )
-            self.assertEqual(result2.returncode, 0, msg=result2.stderr)
-            self.assertTrue(html_out.exists())
-            html_text = html_out.read_text(encoding="utf-8")
-            self.assertIn("<html", html_text.lower())
-            self.assertIn("chart", html_text.lower())
 
 
 if __name__ == "__main__":

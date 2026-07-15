@@ -6,10 +6,8 @@ summary 를 다음 step prompt 에 주입) 패턴 이식. build-worker 가 phase
 가 `[PREVIOUS_TASKS]` 로 emit → 메인이 build-worker prompt 에 포함. task 간
 인터페이스 misalign 을 실행 시점에 저렴하게 완화한다.
 
-저장 위치: <main_repo_root>/.claude/loop-insights/.prev-tasks.md
-(`loop_insights` 와 같은 디렉토리, dot-prefix 로 구분). worktree 진입 후에도
-main repo root 기준 — `_resolve_project_root` γ-resolution 재사용 (loop_insights
-동일 패턴). git 미설치 / 리포 아님 시 cwd 폴백.
+저장 위치: <main_repo_root>/.claude/loop-insights/.prev-tasks.md.
+worktree 진입 후에도 main repo root 기준이며 git 미설치/비-repo면 cwd로 폴백한다.
 
 생명주기: append + FIFO cap. chain 시작 시 `reset()` 권장 (impl-loop skill 진입).
 reset 을 까먹어도 FIFO cap 으로 이전 chain 잔재가 자연 제거된다 (안전망).
@@ -26,7 +24,7 @@ __all__ = ["prev_tasks_path", "read", "append", "reset", "PREV_TASKS_FIFO_CAP"]
 
 _PREV_TASKS_FILE = Path(".claude") / "loop-insights" / ".prev-tasks.md"
 
-# loop_insights 와 동일 컨벤션 — 직전 최대 N task 만 emit (컨텍스트 폭증 차단).
+# 직전 최대 N task 만 emit해 컨텍스트 폭증을 막는다.
 PREV_TASKS_FIFO_CAP = 10
 
 

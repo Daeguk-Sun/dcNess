@@ -24,7 +24,7 @@
 - [merge_lock.py](merge_lock.py), [parallel_wave.py](parallel_wave.py),
   [wave_board.py](wave_board.py): 병렬 작업과 merge 순서 보호.
 - [context_docs.py](context_docs.py): 활성 프로젝트 `CLAUDE.md` seed, migration, audit helper.
-- [efficiency/](efficiency/): 세션 비용과 반복 패턴 분석 도구.
+- [efficiency/](efficiency/): 세션 토큰·캐시·비용 read-only 분석.
 
 ## 수정 시 주의점
 

@@ -36,9 +36,6 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tests import run_state_test_fixtures
-from tests.run_state_test_fixtures import start_run
-
 from harness import ledger
 from harness import session_state as state
 from harness.session_state import run_dir
@@ -47,17 +44,42 @@ _SID = "test-ledger-sid"
 _RID = "run-deadbeef"
 
 
-def setUpModule() -> None:
-    run_state_test_fixtures.install()
-
-
-def tearDownModule() -> None:
-    run_state_test_fixtures.uninstall()
-
-
 def _seed_run(base: Path) -> None:
     """live.json + run_dir 슬롯 1개 생성 (entry_point=impl, issue 587)."""
-    start_run(_SID, _RID, "impl", base_dir=base, issue_num=587)
+    state.transition(
+        _SID,
+        "run_started",
+        run_id=_RID,
+        base_dir=base,
+        entry_point="impl",
+        issue_num=587,
+    )
+
+
+def _append_step_completed(
+    sid: str,
+    rid: str,
+    agent: str,
+    mode: str | None,
+    enum: str,
+    prose: str,
+    prose_path: Path,
+    *,
+    base_dir: Path,
+    provider: str | None = None,
+) -> dict:
+    return state.transition(
+        sid,
+        "step_completed",
+        run_id=rid,
+        base_dir=base_dir,
+        agent=agent,
+        mode=mode,
+        enum=enum,
+        prose=prose,
+        prose_path=prose_path,
+        provider=provider,
+    )
 
 
 def _write_prose_file(base: Path, filename: str, content: str) -> Path:
@@ -149,7 +171,7 @@ class AppendEventTests(unittest.TestCase):
             self.assertEqual(ledger.read_step_completed(_SID, _RID, base_dir=base), [])
             # 정당 경로(append_step_completed)는 receipt 동반으로 생성
             prose_path = _write_prose_file(base, "r.md", "p")
-            rec = ledger.append_step_completed(
+            rec = _append_step_completed(
                 _SID, _RID, "real", None, "PROSE_LOGGED", "p", prose_path, base_dir=base)
             self.assertEqual(rec["event"], "step_completed")
             self.assertIn("sha256", rec)
@@ -246,7 +268,7 @@ class ReadStepCompletedTests(unittest.TestCase):
                 agent="engineer",
             )
             prose_path = _write_prose_file(base, "engineer.md", "## 결론\n구현 완료")
-            ledger.append_step_completed(
+            _append_step_completed(
                 _SID, _RID, "engineer", None, "PROSE_LOGGED",
                 "## 결론\n구현 완료", prose_path, base_dir=base,
             )
@@ -264,11 +286,11 @@ class CountStepCompletedTests(unittest.TestCase):
             p0 = _write_prose_file(base, "e.md", "x")
             p1 = _write_prose_file(base, "e1.md", "y")
             p2 = _write_prose_file(base, "ep.md", "z")
-            ledger.append_step_completed(
+            _append_step_completed(
                 _SID, _RID, "engineer", "IMPL", "PROSE_LOGGED", "x", p0, base_dir=base)
-            ledger.append_step_completed(
+            _append_step_completed(
                 _SID, _RID, "engineer", "IMPL", "PROSE_LOGGED", "y", p1, base_dir=base)
-            ledger.append_step_completed(
+            _append_step_completed(
                 _SID, _RID, "engineer", "POLISH", "PROSE_LOGGED", "z", p2, base_dir=base)
             self.assertEqual(
                 ledger.count_step_completed(_SID, _RID, "engineer", "IMPL", base_dir=base), 2)
@@ -381,7 +403,7 @@ class AppendStepCompletedTests(unittest.TestCase):
             _seed_run(base)
             prose = "## 결론\n구현 완료. `harness/ledger.py` 작성."
             prose_path = _write_prose_file(base, "engineer-IMPL.md", prose)
-            rec = ledger.append_step_completed(
+            rec = _append_step_completed(
                 _SID, _RID, "engineer", "IMPL", "PROSE_LOGGED",
                 prose, prose_path, base_dir=base, provider="codex-headless",
             )
@@ -405,7 +427,7 @@ class AppendStepCompletedTests(unittest.TestCase):
                 "FAIL\n"
             )
             prose_path = _write_prose_file(base, "product-acceptance-STORY_ACCEPTANCE.md", prose)
-            rec = ledger.append_step_completed(
+            rec = _append_step_completed(
                 _SID, _RID, "product-acceptance", "STORY_ACCEPTANCE",
                 "PROSE_LOGGED", prose, prose_path, base_dir=base,
             )
@@ -426,7 +448,7 @@ class ReadAtPathTests(unittest.TestCase):
             base = Path(d)
             _seed_run(base)
             prose_path = _write_prose_file(base, "e.md", "x")
-            ledger.append_step_completed(
+            _append_step_completed(
                 _SID, _RID, "engineer", None, "PROSE_LOGGED", "x", prose_path, base_dir=base)
             rd = run_dir(_SID, _RID, base_dir=base)
             events = ledger.read_events_at(rd)
@@ -443,7 +465,7 @@ class RenderStatusTests(unittest.TestCase):
             base = Path(d)
             _seed_run(base)
             prose_path = _write_prose_file(base, "impl-validator.md", "## 결론\nPASS")
-            ledger.append_step_completed(
+            _append_step_completed(
                 _SID, _RID, "impl-validator", None, "PROSE_LOGGED",
                 "## 결론\nPASS", prose_path, base_dir=base,
             )

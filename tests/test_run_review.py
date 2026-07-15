@@ -1,7 +1,5 @@
 """tests/test_run_review.py — DCN-CHG-20260430-19 run_review 단위 테스트."""
 
-import ast
-import inspect
 import json
 import sys
 import tempfile
@@ -12,7 +10,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO_ROOT))
 
 from harness import ledger  # noqa: E402
-from harness import run_review as run_review_module  # noqa: E402
 from harness.session_state_fail_open import record_fail_open_event  # noqa: E402
 from tests.run_fixtures import (  # noqa: E402
     make_ledger_run_dir as _make_run_dir,
@@ -24,36 +21,10 @@ from harness.run_review import (  # noqa: E402
     _normalize_agent_type, assign_invocations_to_steps,
     DCNESS_AGENT_NAMES,
     WINDOW_TS_PADDING, _extract_conclusion_enum,
-    audit_context_docs, ACTIVE_WASTE_PATTERNS,
+    audit_context_docs,
 )
 # issue #392 — detect_goods 폐기
 # issue #394 — detect_notes 신규 (TOOL_USE_OVERFLOW / THINKING_LOOP)
-
-
-class ActiveWastePatternSsotTests(unittest.TestCase):
-    def test_active_waste_patterns_match_wastefinding_emit_literals(self) -> None:
-        """#917 — lesson 대상 SSOT가 WasteFinding detector emit 목록과 drift 나지 않는다."""
-        tree = ast.parse(inspect.getsource(run_review_module))
-        emitted: set[str] = set()
-        dynamic_pattern_lines: list[int] = []
-        for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            func = node.func
-            if not isinstance(func, ast.Name) or func.id != "WasteFinding":
-                continue
-            pattern_kw = next((kw for kw in node.keywords if kw.arg == "pattern"), None)
-            if not isinstance(pattern_kw, ast.keyword):
-                dynamic_pattern_lines.append(node.lineno)
-                continue
-            value = pattern_kw.value
-            if isinstance(value, ast.Constant) and isinstance(value.value, str):
-                emitted.add(value.value)
-            else:
-                dynamic_pattern_lines.append(value.lineno)
-
-        self.assertEqual(dynamic_pattern_lines, [])
-        self.assertEqual(ACTIVE_WASTE_PATTERNS, frozenset(emitted))
 
 
 class ParseStepsTests(unittest.TestCase):
@@ -437,125 +408,6 @@ class WasteDetectionTests(unittest.TestCase):
         ]
         wastes = detect_wastes(steps)
         self.assertTrue(any(w.pattern == "SPEC_GAP_LOOP" for w in wastes))
-
-    # issue #392 — test_external_verified_missing 폐기 (EXTERNAL_VERIFIED_MISSING 패턴 폐기 정합).
-
-    def test_tool_repeat_high_bash(self):
-        """issue #484 Case 1 — Bash 동일 input ≥ 5회 반복 = TOOL_REPEAT_HIGH MEDIUM.
-
-        jajang run-545513a1 build-worker 가 같은 `cd ... npm test ...` 6회 호출했는데
-        review heuristic 이 못 잡은 회귀 직접 재현 테스트.
-        """
-        with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            rd = tmp / "runs" / "rid1"
-            rd.mkdir(parents=True)
-            # agent-trace.jsonl 박기
-            trace = rd / "agent-trace.jsonl"
-            cmd = "cd apps/mobile && npm test -- --testPathPattern S11"
-            entries = []
-            for i in range(6):
-                entries.append({
-                    "ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
-                    "agent": "build-worker", "tool": "Bash", "input": cmd,
-                })
-            trace.write_text("\n".join(json.dumps(e) for e in entries))
-            steps = [
-                StepRecord(idx=0, ts="2026-05-23T02:20:00Z", agent="build-worker",
-                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
-            ]
-            wastes = detect_wastes(steps, run_dir=rd)
-            repeats = [w for w in wastes if w.pattern == "TOOL_REPEAT_HIGH"]
-            self.assertEqual(len(repeats), 1)
-            self.assertEqual(repeats[0].severity, "MEDIUM")
-            self.assertIn("6회 반복", repeats[0].detail)
-            self.assertIn("Bash", repeats[0].detail)
-
-    def test_tool_repeat_below_threshold_skip(self):
-        """Bash 동일 input ≤ 4회 = 임계 미만 → skip (정상 단순 재시도)."""
-        with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            rd = tmp / "runs" / "rid2"
-            rd.mkdir(parents=True)
-            trace = rd / "agent-trace.jsonl"
-            cmd = "npm test"
-            entries = [
-                {"ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
-                 "agent": "build-worker", "tool": "Bash", "input": cmd}
-                for i in range(4)
-            ]
-            trace.write_text("\n".join(json.dumps(e) for e in entries))
-            steps = [
-                StepRecord(idx=0, ts="2026-05-23T02:20:00Z", agent="build-worker",
-                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
-            ]
-            wastes = detect_wastes(steps, run_dir=rd)
-            self.assertFalse(any(w.pattern == "TOOL_REPEAT_HIGH" for w in wastes))
-
-    def test_tool_repeat_read_lower_threshold(self):
-        """Read 는 임계 4회 — 동일 파일 4회 read = finding."""
-        with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            rd = tmp / "runs" / "rid3"
-            rd.mkdir(parents=True)
-            trace = rd / "agent-trace.jsonl"
-            entries = [
-                {"ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
-                 "agent": "impl-validator", "tool": "Read",
-                 "input": "apps/mobile/src/screens/S11PreviewScreen.tsx"}
-                for i in range(4)
-            ]
-            trace.write_text("\n".join(json.dumps(e) for e in entries))
-            steps = [
-                StepRecord(idx=0, ts="2026-05-23T02:20:00Z", agent="impl-validator",
-                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
-            ]
-            wastes = detect_wastes(steps, run_dir=rd)
-            repeats = [w for w in wastes if w.pattern == "TOOL_REPEAT_HIGH"]
-            self.assertEqual(len(repeats), 1)
-            self.assertIn("4회 반복", repeats[0].detail)
-
-    def test_tool_repeat_no_trace_skip(self):
-        """agent-trace.jsonl 부재 / run_dir=None 시 silent skip — 기존 동작 영향 X."""
-        steps = [
-            StepRecord(idx=0, ts="t1", agent="engineer", mode="IMPL",
-                       enum="IMPL_DONE", must_fix=False, prose_excerpt="x"),
-        ]
-        wastes = detect_wastes(steps)  # run_dir 미전달
-        self.assertFalse(any(w.pattern == "TOOL_REPEAT_HIGH" for w in wastes))
-
-    def test_tool_repeat_window_split_by_step(self):
-        """step 별 윈도우 분리 — task1 와 task2 의 같은 input 은 별개 카운트."""
-        with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            rd = tmp / "runs" / "rid4"
-            rd.mkdir(parents=True)
-            trace = rd / "agent-trace.jsonl"
-            cmd = "npm test"
-            entries = []
-            # step 0 윈도우 안 3회
-            for i in range(3):
-                entries.append({
-                    "ts": f"2026-05-23T02:0{i}:00Z", "phase": "pre",
-                    "agent": "build-worker", "tool": "Bash", "input": cmd,
-                })
-            # step 1 윈도우 안 3회
-            for i in range(3):
-                entries.append({
-                    "ts": f"2026-05-23T02:1{i}:00Z", "phase": "pre",
-                    "agent": "build-worker", "tool": "Bash", "input": cmd,
-                })
-            trace.write_text("\n".join(json.dumps(e) for e in entries))
-            steps = [
-                StepRecord(idx=0, ts="2026-05-23T02:05:00Z", agent="build-worker",
-                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
-                StepRecord(idx=1, ts="2026-05-23T02:20:00Z", agent="build-worker",
-                           mode=None, enum="PASS", must_fix=False, prose_excerpt="x"),
-            ]
-            wastes = detect_wastes(steps, run_dir=rd)
-            # 각 step 3회씩 — 임계 5회 미달 → 둘 다 skip
-            self.assertFalse(any(w.pattern == "TOOL_REPEAT_HIGH" for w in wastes))
-
 
 # issue #392 — GoodDetectionTests 전체 폐기. detect_goods 함수 폐기와 정합.
 
@@ -1368,78 +1220,6 @@ class MissingConclusionEnumTests(unittest.TestCase):
         wastes = detect_wastes([s])
         missing = [w for w in wastes if w.pattern == "MISSING_CONCLUSION_ENUM"]
         self.assertEqual(len(missing), 0)
-
-
-class ToolHistogramTableTests(unittest.TestCase):
-    """#415 — _build_tool_histogram_table step 윈도우 fix.
-
-    step.ts = end-step 시각. sub-agent 도구 호출 ts < step.ts.
-    윈도우 = 이전 step end ~ 현재 step end.
-    """
-
-    def _make_run_with_trace(self, td: Path, step_records: list[dict], trace_entries: list[dict]) -> Path:
-        sid = "00000000-0000-4000-8000-000000000415"
-        rid = "run-00000415"
-        rd = _make_run_dir(td, sid, rid, step_records)
-        # agent-trace.jsonl 추가
-        trace_path = rd / "agent-trace.jsonl"
-        with open(trace_path, "w", encoding="utf-8") as f:
-            for e in trace_entries:
-                f.write(json.dumps(e, ensure_ascii=False) + "\n")
-        return rd
-
-    def test_last_step_included(self):
-        """마지막 step 의 sub-agent trace 가 히스토그램에 포함된다."""
-        from harness.run_review import _build_tool_histogram_table
-        with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            # step 2개 — 마지막은 impl-validator
-            rd = self._make_run_with_trace(tmp, [
-                {"ts": "2026-05-12T14:54:00+00:00", "agent": "engineer", "mode": "IMPL",
-                 "enum": "IMPL_DONE", "must_fix": False, "prose_excerpt": "x"},
-                {"ts": "2026-05-12T14:59:00+00:00", "agent": "impl-validator", "mode": None,
-                 "enum": "PASS", "must_fix": False, "prose_excerpt": "y"},
-            ], [
-                # engineer trace (step 0 윈도우 = ~ 14:54:00)
-                {"phase": "pre", "agent": "engineer", "ts": "2026-05-12T14:53:00+00:00", "tool": "Edit"},
-                {"phase": "pre", "agent": "engineer", "ts": "2026-05-12T14:53:30+00:00", "tool": "Edit"},
-                # impl-validator trace (step 1 윈도우 = 14:54:00 ~ 14:59:00)
-                {"phase": "pre", "agent": "impl-validator", "ts": "2026-05-12T14:57:00+00:00", "tool": "Read"},
-                {"phase": "pre", "agent": "impl-validator", "ts": "2026-05-12T14:58:00+00:00", "tool": "Read"},
-            ])
-            report = build_report(rd, tmp)
-            lines = _build_tool_histogram_table(report)
-            # 표 lines: header(2) + step0 + step1
-            self.assertGreater(len(lines), 2)
-            # step 1 (impl-validator) 가 표에 포함 — last step 누락 회귀 차단
-            pr_line = [ln for ln in lines if "impl-validator" in ln]
-            self.assertEqual(len(pr_line), 1)
-            # Read 2 박힘
-            self.assertIn(" 2 ", pr_line[0])
-
-    def test_step_window_uses_previous_end_to_current_end(self):
-        """윈도우 = 이전 step.ts ~ 현재 step.ts. trace 가 정확히 배정."""
-        from harness.run_review import _build_tool_histogram_table
-        with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            rd = self._make_run_with_trace(tmp, [
-                {"ts": "2026-05-12T10:00:00+00:00", "agent": "test-engineer", "mode": None,
-                 "enum": "TESTS_WRITTEN", "must_fix": False, "prose_excerpt": "x"},
-                {"ts": "2026-05-12T10:10:00+00:00", "agent": "engineer", "mode": "IMPL",
-                 "enum": "IMPL_DONE", "must_fix": False, "prose_excerpt": "y"},
-            ], [
-                # test-engineer 영역 (~ 10:00:00 까지)
-                {"phase": "pre", "agent": "test-engineer", "ts": "2026-05-12T09:55:00+00:00", "tool": "Read"},
-                {"phase": "pre", "agent": "test-engineer", "ts": "2026-05-12T09:56:00+00:00", "tool": "Write"},
-                # engineer 영역 (10:00:00 ~ 10:10:00)
-                {"phase": "pre", "agent": "engineer", "ts": "2026-05-12T10:05:00+00:00", "tool": "Edit"},
-            ])
-            report = build_report(rd, tmp)
-            lines = _build_tool_histogram_table(report)
-            joined = "\n".join(lines)
-            # 두 step 모두 표에 박힘
-            self.assertIn("test-engineer", joined)
-            self.assertIn("engineer", joined)
 
 
 class ListRunsLedgerTests(unittest.TestCase):

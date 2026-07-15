@@ -12,6 +12,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Optional
 
+from harness.guard_core import GuardContext, GuardDecision
 from harness.wave_board import WaveBoard
 
 __all__ = [
@@ -20,7 +21,6 @@ __all__ = [
     "MergeLock",
     "MergeLockToken",
     "MergeOrderBlocked",
-    "MergeOrderResult",
     "PeerMergeGuard",
     "check_merge_order",
     "external_git_completed",
@@ -37,7 +37,7 @@ class LockBusy(RuntimeError):
 class MergeOrderBlocked(RuntimeError):
     """Raised when prior sibling task completion cannot be proven."""
 
-    def __init__(self, result: "MergeOrderResult"):
+    def __init__(self, result: GuardDecision):
         super().__init__(result.reason)
         self.result = result
 
@@ -50,19 +50,12 @@ class MergeLockToken:
 
 
 @dataclass(frozen=True)
-class MergeOrderResult:
-    allowed: bool
-    reason: str
-    blocked_prior_paths: tuple[str, ...] = ()
-
-
-@dataclass(frozen=True)
 class PeerMergeGuard:
     mode: str  # "serial" | "peer"
     token: str
     claim_key: str
     impl_path: str
-    order: MergeOrderResult
+    order: GuardDecision
 
 
 def _now_iso(now: datetime | None = None) -> str:
@@ -275,11 +268,12 @@ def check_merge_order(
     impl_path: str | Path,
     *,
     external_completed: Callable[[str], bool] | None = None,
-) -> MergeOrderResult:
+) -> GuardDecision:
+    context = GuardContext(guard="merge-order", category="story_order")
     current = Path(board.canonical_path(impl_path))
     prior = _prior_sibling_impls(current)
     if not prior:
-        return MergeOrderResult(True, "story order gate not applicable")
+        return GuardDecision.allow(context, "story order gate not applicable")
     external_completed = external_completed or (lambda _path: False)
     blocked: list[str] = []
     for path in prior:
@@ -289,12 +283,12 @@ def check_merge_order(
         blocked.append(canonical)
     if blocked:
         names = ", ".join(Path(p).name for p in blocked)
-        return MergeOrderResult(
-            False,
+        return GuardDecision.block(
+            context,
             f"prior task completion not proven: {names}",
-            tuple(blocked),
+            evidence=tuple(blocked),
         )
-    return MergeOrderResult(True, "all prior story tasks completed")
+    return GuardDecision.allow(context, "all prior story tasks completed")
 
 
 def external_git_completed(
@@ -336,17 +330,20 @@ def acquire_peer_merge_guard(
             "",
             "",
             "",
-            MergeOrderResult(True, "peer claim not registered for branch"),
+            GuardDecision.allow(
+                GuardContext(guard="merge-order", category="peer_claim"),
+                "peer claim not registered for branch",
+            ),
         )
     if claim.get("state") != "claimed":
         raise MergeOrderBlocked(
-            MergeOrderResult(
-                False,
+            GuardDecision.block(
+                GuardContext(guard="merge-order", category="peer_claim"),
                 (
                     f"peer claim state is {claim.get('state', 'unknown')}; "
                     "explicit wave-reclaim is required before finalize"
                 ),
-                (claim.get("canonical_impl_path", ""),),
+                evidence=(claim.get("canonical_impl_path", ""),),
             )
         )
     order = check_merge_order(

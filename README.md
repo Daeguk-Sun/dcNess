@@ -200,7 +200,7 @@ claude plugin install dcness@dcness
 | 유틸 | `/next-work` | issue/label 기반 진행 중 / 다음 할 일 조회 |
 | 유틸 | `/run-review` | 끝난 run 을 되짚어 단계별 비용·차단 분석 |
 | 유틸 | `/smart-compact` | 컨텍스트 압축 + 다음 세션 resume prompt 생성 |
-| 유틸 | `/efficiency` | 세션 토큰·비용 분석 + HTML 대시보드 |
+| 유틸 | `/efficiency` | 세션 토큰·캐시·비용 read-only 요약 |
 
 Sub-agent(`agents/`, architect / validator / worker / reviewer / acceptance 계열)는 사용자가 직접 부르는 게 아니라 workflow 안에서 gate·worker·reviewer 로 호출된다.
 

@@ -445,33 +445,6 @@ class LoopDiagnoseTests(unittest.TestCase):
             self.assertIn("eval:flow-ownership-entrypoint-bad", result.stdout)
             self.assertIn("flaky", result.stdout)
 
-    def test_active_lessons_are_sense_candidates_and_cross_project_rule_candidate(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            tmp = Path(td)
-            repo_root = tmp / "dcness"
-            repo_root.mkdir()
-            alpha = tmp / "alpha"
-            beta = tmp / "beta"
-            alpha.mkdir()
-            beta.mkdir()
-            _write_lesson(alpha, "MUST_FIX_GHOST", hits=3)
-            _write_lesson(beta, "MUST_FIX_GHOST", hits=4)
-            projects_file = tmp / "projects.json"
-            projects_file.write_text(
-                json.dumps({"version": 1, "projects": [str(alpha), str(beta)]}),
-                encoding="utf-8",
-            )
-
-            result = self._run(repo_root, projects_file, "--json")
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            payload = json.loads(result.stdout)
-            self.assertEqual(payload["projects"][0]["lessons"][0]["pattern"], "MUST_FIX_GHOST")
-            keys = {candidate["key"] for candidate in payload["candidates"]}
-            self.assertIn("lesson:MUST_FIX_GHOST@alpha/engineer-IMPL", keys)
-            self.assertIn("lesson:MUST_FIX_GHOST@beta/engineer-IMPL", keys)
-            self.assertIn("lesson-rule:MUST_FIX_GHOST", keys)
-
     def test_action_brief_reports_no_work_without_advancing_watermark(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)

@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# dcNess efficiency wrapper — Claude Code 세션 JSONL 토큰/비용 분석 + HTML 대시보드.
+# dcNess efficiency wrapper — Claude Code 세션 JSONL 토큰/비용 요약.
 #
 # 출처 (attribution): jha0313/skills_repo `improve-token-efficiency` (DCN-CHG-20260430-08).
 #
 # 사용:
-#   "${CLAUDE_PLUGIN_ROOT:-...}/scripts/dcness-efficiency" <subcommand> [args]
-#
-# subcommand:
-#   analyze [--repo PATH] [--out PATH]    — JSON 리포트 생성
-#   dashboard [--input PATH] [--out PATH] — analyze 결과 → HTML 대시보드
-#   patterns [--repo PATH] [--out PATH]   — 패턴 분석 (detect_patterns)
-#   patterns-dashboard [--input] [--out]  — 패턴 → HTML
-#   full [--repo PATH] [--out-dir DIR]    — analyze + dashboard chain (편의)
+#   "${CLAUDE_PLUGIN_ROOT:-...}/scripts/dcness-efficiency" analyze [args]
 
 set -uo pipefail
 
@@ -20,7 +13,7 @@ PLUGIN_ROOT="$(dirname "$SCRIPT_DIR")"
 EFF_DIR="$PLUGIN_ROOT/harness/efficiency"
 
 if [ "$#" -lt 1 ]; then
-    echo "usage: dcness-efficiency <analyze|dashboard|patterns|patterns-dashboard|full> [args]" >&2
+    echo "usage: dcness-efficiency analyze [--repo PATH] [--out PATH]" >&2
     exit 1
 fi
 
@@ -28,43 +21,8 @@ cmd="$1"
 shift
 
 case "$cmd" in
-    analyze)
+    analyze|summary)
         exec python3 "$EFF_DIR/analyze_sessions.py" "$@"
-        ;;
-    dashboard)
-        exec python3 "$EFF_DIR/build_dashboard.py" "$@"
-        ;;
-    patterns)
-        exec python3 "$EFF_DIR/detect_patterns.py" "$@"
-        ;;
-    patterns-dashboard)
-        exec python3 "$EFF_DIR/build_patterns_dashboard.py" "$@"
-        ;;
-    full)
-        # analyze → dashboard chain (편의 wrapper)
-        repo=""
-        out_dir="/tmp/dcness-efficiency"
-        while [ "$#" -gt 0 ]; do
-            case "$1" in
-                --repo) repo="$2"; shift 2 ;;
-                --out-dir) out_dir="$2"; shift 2 ;;
-                *) shift ;;
-            esac
-        done
-        mkdir -p "$out_dir"
-        json_path="$out_dir/session_analysis.json"
-        html_path="$out_dir/efficiency_report.html"
-
-        analyze_args=("--out" "$json_path")
-        [ -n "$repo" ] && analyze_args+=("--repo" "$repo")
-        python3 "$EFF_DIR/analyze_sessions.py" "${analyze_args[@]}" || exit $?
-        python3 "$EFF_DIR/build_dashboard.py" --input "$json_path" --out "$html_path" || exit $?
-
-        echo ""
-        echo "[dcness-efficiency] 완료"
-        echo "  JSON:  $json_path"
-        echo "  HTML:  $html_path"
-        echo "  open '$html_path' 으로 대시보드 확인"
         ;;
     *)
         echo "unknown subcommand: $cmd" >&2

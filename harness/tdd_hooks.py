@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Iterable, Optional
 
+from harness.guard_core import GuardContext, GuardDecision
+
 
 CONFIG_REL = Path(".dcness/tdd-hooks.json")
 CC_HOOK_REL = Path(".claude/hooks/dcness-tdd-guard.sh")
@@ -682,8 +684,9 @@ def evaluate_payload(
     payload: dict[str, Any],
     project_root: Path,
     config: dict[str, Any],
-) -> tuple[str, str]:
-    """Return (allow|deny, reason). Missing config/path is intentionally allow."""
+) -> GuardDecision:
+    """Evaluate one generated TDD guard request."""
+    context = GuardContext(guard="tdd-guard", category="matching_test")
     paths = extract_payload_paths(payload)
     for path in paths:
         if not should_enforce(path, project_root, config):
@@ -695,8 +698,8 @@ def evaluate_payload(
         rel = _rel_path(path, project_root) or path
         candidates = matching_test_candidates(rel, config)
         suggested = "\n".join(f"  - {candidate.as_posix()}" for candidate in candidates[:5])
-        return (
-            "deny",
+        return GuardDecision.block(
+            context,
             "TDD GUARD[generated]: "
             f"'{rel.as_posix()}' 에 대한 매칭 테스트가 없습니다.\n"
             "구현 파일을 쓰기 전에 테스트를 먼저 작성하세요.\n"
@@ -704,7 +707,7 @@ def evaluate_payload(
             "마커를 사유와 함께 남기세요. 빈 사유는 통과하지 않습니다.\n"
             f"권장 위치:\n{suggested}",
         )
-    return "allow", ""
+    return GuardDecision.allow(context)
 
 
 def _allow_json() -> str:
@@ -732,9 +735,9 @@ def run_generated_hook(
     if not isinstance(payload, dict):
         print(_allow_json())
         return 0
-    decision, reason = evaluate_payload(payload, project_root.resolve(), config)
-    if decision == "deny":
-        print(reason, file=sys.stderr)
+    decision = evaluate_payload(payload, project_root.resolve(), config)
+    if not decision.allowed:
+        print(decision.reason, file=sys.stderr)
         return 2
     print(_allow_json())
     return 0
