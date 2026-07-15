@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 import threading
 import unittest
 from pathlib import Path
@@ -70,6 +72,37 @@ class CurrentStateContractTests(unittest.TestCase):
             [event["event"] for event in ledger.read_events(SID, RID, base_dir=self.base)],
             ["run_started", "step_started", "step_completed", "run_finished"],
         )
+
+    def test_removed_writer_names_are_absent_in_a_fresh_process(self) -> None:
+        """Regression fixtures must not recreate the removed product API surface."""
+        probe = """
+from harness import ledger, session_state
+
+removed = {
+    "session_state": [
+        name for name in (
+            "start_run", "update_current_step", "complete_run", "update_live",
+            "mark_run_blocked", "set_pending_agent", "clear_pending_agent",
+            "clear_current_step",
+        ) if hasattr(session_state, name)
+    ],
+    "ledger": [
+        name for name in ("append_event", "append_step_completed", "_append_event_raw")
+        if hasattr(ledger, name)
+    ],
+}
+if any(removed.values()):
+    raise SystemExit(str(removed))
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", probe],
+            cwd=Path(__file__).resolve().parents[1],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr or result.stdout)
 
     def test_parallel_pending_transitions_do_not_lose_slots(self) -> None:
         session_state.transition(
