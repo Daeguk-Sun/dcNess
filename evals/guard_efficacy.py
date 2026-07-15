@@ -30,9 +30,12 @@ from harness.agent_boundary import (  # noqa: E402
     check_read_allowed,
     check_write_allowed,
 )
-from harness.hooks import handle_pretooluse_agent  # noqa: E402
+from harness.hooks import handle_pretooluse_agent, handle_stop  # noqa: E402
 from harness.session_state import (  # noqa: E402
+    _write_live,
     evaluate_order_gate_for_step,
+    read_live,
+    run_dir,
     transition,
     write_pid_current_run,
     write_pid_session,
@@ -125,7 +128,13 @@ def _mcp_mutation(tool_name: str) -> Probe:
     return probe
 
 
-def _order_gate(subagent: str, *, current_step: str | None = None) -> Probe:
+def _order_gate(
+    subagent: str,
+    *,
+    current_step: str | None = None,
+    entry_point: str = "impl",
+    variant: str | None = None,
+) -> Probe:
     def probe() -> tuple[Decision, str]:
         sid = "eval-sid"
         rid = "run-11111111"
@@ -136,7 +145,8 @@ def _order_gate(subagent: str, *, current_step: str | None = None) -> Probe:
             transition(sid, "session_initialized", base_dir=base)
             transition(
                 sid, "run_started", run_id=rid, base_dir=base,
-                entry_point="impl", lane="lite",
+                entry_point=entry_point,
+                lane="lite" if entry_point == "impl" else None,
             )
             write_pid_current_run(cc_pid, rid, base_dir=base)
             if current_step:
@@ -144,6 +154,40 @@ def _order_gate(subagent: str, *, current_step: str | None = None) -> Probe:
                     sid, "step_started", run_id=rid, base_dir=base,
                     agent=current_step, mode=None,
                 )
+                if variant == "staged":
+                    transition(
+                        sid,
+                        "prose_staged",
+                        run_id=rid,
+                        base_dir=base,
+                        prose_file=run_dir(sid, rid, base_dir=base) / "staged.md",
+                    )
+                elif variant in {"missing-count", "logged-stale"}:
+                    live = read_live(sid, base_dir=base)
+                    saved_step = dict(live["active_runs"][rid]["current_step"])
+                    prose = "completed\n\nPASS\n"
+                    prose_path = run_dir(sid, rid, base_dir=base) / f"{current_step}.md"
+                    prose_path.write_text(prose, encoding="utf-8")
+                    transition(
+                        sid,
+                        "step_completed",
+                        run_id=rid,
+                        base_dir=base,
+                        agent=current_step,
+                        mode=None,
+                        enum="PROSE_LOGGED",
+                        prose=prose,
+                        prose_path=prose_path,
+                    )
+                    if variant == "missing-count":
+                        saved_step.pop("steps_count_at_begin", None)
+                    live = read_live(sid, base_dir=base)
+                    live["active_runs"][rid]["current_step"] = saved_step
+                    _write_live(sid, live, base_dir=base)
+                elif variant == "blank-agent":
+                    live = read_live(sid, base_dir=base)
+                    live["active_runs"][rid]["current_step"]["agent"] = ""
+                    _write_live(sid, live, base_dir=base)
             payload = {
                 "sessionId": sid,
                 "tool_input": {"subagent_type": subagent},
@@ -156,6 +200,51 @@ def _order_gate(subagent: str, *, current_step: str | None = None) -> Probe:
                     base_dir=base,
                 )
             return ("allow" if rc == 0 else "block", stderr.getvalue().strip())
+
+    return probe
+
+
+def _stop_hook(agent: str) -> Probe:
+    def probe() -> tuple[Decision, str]:
+        sid = "eval-stop-sid"
+        rid = "run-44444444"
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            transition(
+                sid,
+                "run_started",
+                run_id=rid,
+                base_dir=base,
+                entry_point="impl",
+                lane="lite",
+            )
+            prose = "completed\n\nPASS\n"
+            prose_path = run_dir(sid, rid, base_dir=base) / f"{agent}.md"
+            prose_path.write_text(prose, encoding="utf-8")
+            transition(
+                sid,
+                "step_completed",
+                run_id=rid,
+                base_dir=base,
+                agent=agent,
+                mode=None,
+                enum="PROSE_LOGGED",
+                prose=prose,
+                prose_path=prose_path,
+            )
+            stdout = io.StringIO()
+            stderr = io.StringIO()
+            env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
+            with patch.dict(os.environ, env, clear=False), patch(
+                "harness.session_state_cli._cli_end_run", return_value=0
+            ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                handle_stop({}, base_dir=base)
+            detail = stdout.getvalue().strip() or stderr.getvalue().strip()
+            if stdout.getvalue().strip():
+                payload = json.loads(stdout.getvalue())
+                if payload.get("decision") == "block":
+                    return ("block", detail)
+            return ("allow", detail)
 
     return probe
 
@@ -488,6 +577,20 @@ def build_cases() -> list[GuardCase]:
             _bash_mutation("bash -lc 'gh pr merge 12'"),
         ),
         GuardCase(
+            "bash_mutation_blocks_env_wrapped_issue_create",
+            "bash-mutation",
+            "block",
+            "env wrappers do not hide GitHub mutation.",
+            _bash_mutation("env -i GH_TOKEN=x gh issue create --title x"),
+        ),
+        GuardCase(
+            "bash_mutation_blocks_subshell_git_push",
+            "bash-mutation",
+            "block",
+            "subshell wrappers do not hide git push.",
+            _bash_mutation("(git push origin main)"),
+        ),
+        GuardCase(
             "bash_mutation_blocks_gh_api_post",
             "bash-mutation",
             "block",
@@ -542,6 +645,75 @@ def build_cases() -> list[GuardCase]:
             "block",
             "Agent call cannot jump away from current_step.",
             _order_gate("impl-validator", current_step="build-worker"),
+        ),
+        GuardCase(
+            "order_gate_blocks_blank_current_agent",
+            "order-gate",
+            "block",
+            "A malformed blank current_step agent fails strict.",
+            _order_gate(
+                "module-architect",
+                current_step="module-architect",
+                variant="blank-agent",
+            ),
+        ),
+        GuardCase(
+            "order_gate_blocks_staged_result",
+            "order-gate",
+            "block",
+            "A staged result must be recorded before Agent re-entry.",
+            _order_gate(
+                "module-architect",
+                current_step="module-architect",
+                variant="staged",
+            ),
+        ),
+        GuardCase(
+            "order_gate_blocks_missing_step_counter",
+            "order-gate",
+            "block",
+            "Legacy current_step state without a ledger counter fails strict.",
+            _order_gate(
+                "module-architect",
+                current_step="module-architect",
+                variant="missing-count",
+            ),
+        ),
+        GuardCase(
+            "order_gate_blocks_logged_stale_step",
+            "order-gate",
+            "block",
+            "A current step already logged in the ledger cannot be replayed.",
+            _order_gate(
+                "module-architect",
+                current_step="module-architect",
+                variant="logged-stale",
+            ),
+        ),
+        GuardCase(
+            "order_gate_allows_matching_design_step",
+            "order-gate",
+            "allow",
+            "A matching module-architect step is allowed in the design lane.",
+            _order_gate(
+                "module-architect",
+                current_step="module-architect",
+                entry_point="design",
+            ),
+        ),
+        GuardCase(
+            "stop_hook_blocks_for_worker_continuation",
+            "stop-hook",
+            "block",
+            "A non-terminal PASS emits the continuation decision JSON.",
+            _stop_hook("build-worker"),
+        ),
+        GuardCase(
+            "stop_hook_allows_terminal_auto_end",
+            "stop-hook",
+            "allow",
+            "A terminal validator PASS proceeds to automatic end-run.",
+            _stop_hook("impl-validator"),
         ),
         GuardCase(
             "begin_step_blocks_build_worker_without_design_artifact",

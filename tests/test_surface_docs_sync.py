@@ -971,6 +971,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.loop_procedure,
             msg="loop-procedure.md should link the shared template, not own a copy",
         )
+        self.assertNotIn("[INSIGHTS]", self.loop_procedure)
 
         for label, text in (
             ("impl", self.impl_skill),

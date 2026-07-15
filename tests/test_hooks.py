@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import redirect_stdout
 from io import StringIO
 import json
+import os
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -20,6 +21,7 @@ from harness.hooks import (
     handle_posttooluse_agent,
     handle_pretooluse_agent,
     handle_session_start,
+    handle_stop,
     handle_subagent_stop,
 )
 from harness.session_state import (
@@ -109,6 +111,240 @@ class EnforcementAdapterContractTests(unittest.TestCase):
             side_effect=RuntimeError("hook bug"),
         ):
             self.assertEqual(hooks._main(["pretooluse-agent", "--cc-pid", "1"]), 0)
+
+
+class StrictConveyorContractTests(unittest.TestCase):
+    sid = "sid-strict-contract"
+    rid = "run-cccccccc"
+
+    def test_all_block_reasons_are_preserved_as_a_table(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            transition(
+                self.sid,
+                "run_started",
+                run_id=self.rid,
+                entry_point="impl",
+                lane="lite",
+                base_dir=base,
+            )
+            prose_path = run_dir(self.sid, self.rid, base_dir=base) / "module-architect.md"
+            prose_path.write_text("PASS", encoding="utf-8")
+            transition(
+                self.sid,
+                "step_completed",
+                run_id=self.rid,
+                agent="module-architect",
+                mode=None,
+                enum="PROSE_LOGGED",
+                prose="PASS",
+                prose_path=prose_path,
+                base_dir=base,
+            )
+            base_slot = {"entry_point": "impl"}
+            cases = (
+                (base_slot, "module-architect", "begin-step 누락"),
+                (
+                    {**base_slot, "current_step": {"agent": ""}},
+                    "module-architect",
+                    "current_step.agent 공백",
+                ),
+                (
+                    {**base_slot, "current_step": {"agent": "system-architect"}},
+                    "module-architect",
+                    "begin-step/Agent 불일치",
+                ),
+                (
+                    {
+                        **base_slot,
+                        "current_step": {
+                            "agent": "module-architect",
+                            "prose_file": str(prose_path),
+                        },
+                    },
+                    "module-architect",
+                    "이미 staged",
+                ),
+                (
+                    {**base_slot, "current_step": {"agent": "module-architect"}},
+                    "module-architect",
+                    "steps_count_at_begin 부재",
+                ),
+                (
+                    {
+                        **base_slot,
+                        "current_step": {
+                            "agent": "module-architect",
+                            "steps_count_at_begin": 0,
+                        },
+                    },
+                    "module-architect",
+                    "이미 ledger.jsonl 에 기록",
+                ),
+            )
+            for slot, requested, fragment in cases:
+                with self.subTest(fragment=fragment):
+                    message = hooks._strict_conveyor_gate_message(
+                        sid=self.sid,
+                        rid=self.rid,
+                        base_dir=base,
+                        slot=slot,
+                        subagent=requested,
+                        mode=None,
+                    )
+                    self.assertIsNotNone(message)
+                    self.assertIn(fragment, message)
+
+    def test_matching_design_step_and_completed_run_are_not_overblocked(self) -> None:
+        cases = (
+            (
+                {
+                    "entry_point": "design",
+                    "current_step": {
+                        "agent": "module-architect",
+                        "mode": "epic-batch",
+                        "steps_count_at_begin": 0,
+                    },
+                },
+                "module-architect",
+                None,
+            ),
+            ({"entry_point": "impl", "completed_at": "done"}, "build-worker", None),
+        )
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            for slot, requested, mode in cases:
+                with self.subTest(slot=slot):
+                    self.assertIsNone(
+                        hooks._strict_conveyor_gate_message(
+                            sid=self.sid,
+                            rid=self.rid,
+                            base_dir=base,
+                            slot=slot,
+                            subagent=requested,
+                            mode=mode,
+                        )
+                    )
+
+
+class StopHookContractTests(unittest.TestCase):
+    sid = "sid-stop-contract"
+
+    def _complete_step(self, base: Path, rid: str, agent: str) -> None:
+        transition(
+            self.sid,
+            "run_started",
+            run_id=rid,
+            entry_point="impl",
+            lane="lite",
+            base_dir=base,
+        )
+        prose = "작업 완료\n\nPASS\n"
+        prose_path = run_dir(self.sid, rid, base_dir=base) / f"{agent}.md"
+        prose_path.write_text(prose, encoding="utf-8")
+        transition(
+            self.sid,
+            "step_completed",
+            run_id=rid,
+            agent=agent,
+            mode=None,
+            enum="PROSE_LOGGED",
+            prose=prose,
+            prose_path=prose_path,
+            base_dir=base,
+        )
+
+    def test_auto_end_recovery_and_in_progress_guards(self) -> None:
+        cases = ("completed-step", "finalize-only", "already-finished", "next-step-active")
+        expected_calls = (1, 1, 0, 0)
+        for index, (case, expected) in enumerate(zip(cases, expected_calls), start=1):
+            with self.subTest(case=case), TemporaryDirectory() as td:
+                base = Path(td)
+                rid = f"run-0000000{index}"
+                self._complete_step(base, rid, "impl-validator")
+                if case in {"finalize-only", "already-finished"}:
+                    transition(
+                        self.sid,
+                        "run_finalized",
+                        run_id=rid,
+                        base_dir=base,
+                    )
+                if case == "already-finished":
+                    transition(
+                        self.sid,
+                        "run_completed",
+                        run_id=rid,
+                        base_dir=base,
+                    )
+                if case == "next-step-active":
+                    transition(
+                        self.sid,
+                        "step_started",
+                        run_id=rid,
+                        agent="impl-validator",
+                        mode=None,
+                        base_dir=base,
+                    )
+                env = {"DCNESS_SESSION_ID": self.sid, "DCNESS_RUN_ID": rid}
+                with patch.dict(os.environ, env, clear=False), patch(
+                    "harness.session_state_cli._cli_end_run", return_value=0
+                ) as end_run:
+                    self.assertEqual(handle_stop({}, base_dir=base), 0)
+                self.assertEqual(end_run.call_count, expected)
+
+        with patch("sys.stdin.read", return_value="{broken"):
+            self.assertEqual(handle_stop(None), 0)
+        self.assertEqual(handle_stop("invalid"), 0)  # type: ignore[arg-type]
+        self.assertEqual(handle_stop({"stop_hook_active": True}), 0)
+
+    def test_continuation_json_persists_and_honors_block_count_cap(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            rid = "run-11111111"
+            self._complete_step(base, rid, "build-worker")
+
+            for attempt in range(3):
+                slot = read_live(self.sid, base_dir=base)["active_runs"][rid]
+                output = StringIO()
+                with redirect_stdout(output):
+                    emitted = hooks._maybe_emit_continuation_signal(
+                        sid=self.sid,
+                        rid=rid,
+                        slot=slot,
+                        active={rid: slot},
+                        last_agent="build-worker",
+                        last_mode=None,
+                        base_dir=base,
+                    )
+                self.assertEqual(emitted, attempt < hooks._STOP_BLOCK_COUNT_MAX)
+                if attempt < hooks._STOP_BLOCK_COUNT_MAX:
+                    self.assertEqual(json.loads(output.getvalue())["decision"], "block")
+                else:
+                    self.assertEqual(output.getvalue(), "")
+
+            persisted = read_live(self.sid, base_dir=base)["active_runs"][rid]
+            self.assertEqual(
+                persisted["stop_block_count"]["build-worker:"],
+                hooks._STOP_BLOCK_COUNT_MAX,
+            )
+
+            terminal_rid = "run-22222222"
+            self._complete_step(base, terminal_rid, "impl-validator")
+            terminal = read_live(self.sid, base_dir=base)["active_runs"][terminal_rid]
+            output = StringIO()
+            with redirect_stdout(output):
+                self.assertFalse(
+                    hooks._maybe_emit_continuation_signal(
+                        sid=self.sid,
+                        rid=terminal_rid,
+                        slot=terminal,
+                        active={terminal_rid: terminal},
+                        last_agent="impl-validator",
+                        last_mode=None,
+                        base_dir=base,
+                    )
+                )
+            self.assertEqual(output.getvalue(), "")
 
 
 class PostAgentLifecycleContractTests(unittest.TestCase):

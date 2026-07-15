@@ -183,6 +183,41 @@ class ProjectOverrideTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 load_project_boundary_overrides(root)
 
+    def test_linked_worktree_uses_its_local_boundary_from_a_subdirectory(self) -> None:
+        git_identity = (
+            "-c",
+            "user.name=dcness-test",
+            "-c",
+            "user.email=dcness-test@example.invalid",
+        )
+        with tempfile.TemporaryDirectory() as main_dir, tempfile.TemporaryDirectory() as worktree_dir:
+            main = Path(main_dir)
+            subprocess.run(["git", "init", "-q"], cwd=main, check=True)
+            subprocess.run(
+                ["git", *git_identity, "commit", "--allow-empty", "-q", "-m", "init"],
+                cwd=main,
+                check=True,
+            )
+            worktree = Path(worktree_dir) / "linked"
+            subprocess.run(
+                ["git", "worktree", "add", "-q", "-b", "boundary-fixture", str(worktree)],
+                cwd=main,
+                check=True,
+            )
+            config = worktree / ".dcness/boundary.json"
+            config.parent.mkdir()
+            config.write_text(
+                json.dumps({"build-worker": {"add": [r"(^|/)custom-pkg/"]}}),
+                encoding="utf-8",
+            )
+            boundary._BOUNDARY_ROOT_CACHE.clear()
+            nested = worktree / "services/api"
+            nested.mkdir(parents=True)
+            with external_boundary():
+                self.assertIsNone(
+                    check_write_allowed("build-worker", "custom-pkg/x.go", cwd=nested)
+                )
+
 
 class ReadBoundaryTests(unittest.TestCase):
     def test_read_policy_and_active_plugin_carveout(self) -> None:
@@ -228,6 +263,20 @@ class ReadBoundaryTests(unittest.TestCase):
                     plugin_root=str(active),
                 )
             )
+            secret = base / ".claude/secret.txt"
+            secret.parent.mkdir(exist_ok=True)
+            secret.write_text("secret", encoding="utf-8")
+            disguised = active / "agents/module-architect/disguised.md"
+            disguised.parent.mkdir(parents=True)
+            disguised.symlink_to(secret)
+            self.assertIsNotNone(
+                check_read_allowed(
+                    "module-architect",
+                    str(disguised),
+                    cwd=project,
+                    plugin_root=str(active),
+                )
+            )
 
 
 class BashPathContractTests(unittest.TestCase):
@@ -240,6 +289,11 @@ class BashPathContractTests(unittest.TestCase):
             ("sed -i '' s/x/y/ src/a.ts", ["src/a.ts"]),
             ("git status && cat README.md", []),
             ("printf x > /dev/null", []),
+            ("pytest tests/ 2>&1 | tail -20", []),
+            ("echo warn >&2", []),
+            ("echo x > 1", ["1"]),
+            ("cmd >& out.log", ["out.log"]),
+            ("cmd 2> err.log", ["err.log"]),
         ]
         for command, expected in cases:
             with self.subTest(command=command):
@@ -258,6 +312,11 @@ class ExternalMutationContractTests(unittest.TestCase):
             ("git push origin main", True),
             ("sudo -E git push", True),
             ("bash -lc 'gh pr merge 12'", True),
+            ("env -i GH_TOKEN=x gh issue create --title x", True),
+            ("(git push origin main)", True),
+            ("if true; then git push origin main; fi", True),
+            ("nohup gh pr create --title x", True),
+            ("command -- gh pr create --title x", True),
             ("gh pr create --title x", True),
             ("gh issue comment 12 --body x", True),
             ("gh api repos/o/r/issues -f title=x", True),
@@ -270,6 +329,8 @@ class ExternalMutationContractTests(unittest.TestCase):
             ("gh api repos/o/r -X GET", False),
             ("dcness-helper run-dir", False),
             ("echo dcness-helper end-run", False),
+            ("sudo git status", False),
+            ("(gh issue list)", False),
         ]
         for command, blocked in cases:
             with self.subTest(command=command):

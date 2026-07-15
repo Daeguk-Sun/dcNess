@@ -43,6 +43,7 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "provider-agnostic-order-gate",
             "provider-agnostic-tdd",
             "known-bypass-boundary",
+            "stop-hook",
         ):
             with self.subTest(category=category):
                 self.assertIn(category, categories)
@@ -57,6 +58,13 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "bash_mutation_blocks_git_push",
             "mcp_mutation_blocks_pr_merge",
             "order_gate_blocks_missing_begin_step",
+            "order_gate_blocks_blank_current_agent",
+            "order_gate_blocks_staged_result",
+            "order_gate_blocks_missing_step_counter",
+            "order_gate_blocks_logged_stale_step",
+            "order_gate_allows_matching_design_step",
+            "stop_hook_blocks_for_worker_continuation",
+            "stop_hook_allows_terminal_auto_end",
             "begin_step_blocks_build_worker_without_design_artifact",
             "begin_step_allows_impl_validator_after_build_worker_output",
             "begin_step_allows_impl_validator_after_mode_pass",

@@ -91,7 +91,6 @@ TaskUpdate("<task>", completed)
 
 begin-step stdout 에 `[PROMPT_SLOT_CHECK]` 가 있으면 **Agent prompt 작성 전 먼저 읽고 self-check** 한다. 이 섹션은 메인 Claude 용 호출 직전 reminder 다. `[PREVIOUS_TASKS]` 섹션이 있으면 Agent prompt 끝에 그대로 포함시킨다.
 - `[PROMPT_SLOT_CHECK]` — `/impl`·`/impl-loop`·`/design`·`/ux` action loop 에서 3슬롯 self-check 를 호출 순간에 노출한다. worktree 활성 시 worktree 절대경로를 prompt 에 넣고, 슬롯3에는 미기록 제약·신호만 두며 agent 본업의 방법(정규식·구현 단계·알고리즘·테스트 assert 방식)을 처방하지 않는다. 권고 신호이며 hook block 이 아니다. 출력의 `template` 경로는 [`agent-prompt-slots.md`](templates/agent-prompt-slots.md) 를 가리킨다.
-- `[INSIGHTS]` — 해당 agent 의 과거 루프 학습 ("하지 말 것" / "잘 됐던 것"), 프로젝트 레벨 누적.
 - `[PREVIOUS_TASKS]` — `/impl-loop` chain 의 직전 task 산출 요약 list (build-worker 진입 시만, #525). 인접 task 인터페이스 정합 참고용 — build-worker 가 phase 3 통과 시 `prev-tasks-append` 로 자기 산출을 누적한 것.
 
 active run(`entry_point=design|impl|ux`) 안에서 `begin-step` 없이 `Agent` 를 직접 호출하거나, `begin-step` 의 agent/mode 와 다른 `Agent` 를 호출하면 PreToolUse hook 의 진행 순서 검사가 호출 전 차단한다. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 gate 를 탄다. Agent 결과가 hook 에 의해 staged 된 뒤에는 반드시 `end-step` 으로 기록하고 다음 `begin-step` 으로 넘어간다.
