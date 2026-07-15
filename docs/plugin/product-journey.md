@@ -103,6 +103,8 @@ build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 
 
 probe가 확실한 미충족을 보고하고 `prepare`가 없거나 실패 사유상 자동 준비가 불가능할 때만 구현 전에 사용자가 환경 준비 또는 journey 검수 분리를 한 번 선택한다. 도구 부재처럼 검출 자체가 불확실하면 차단하지 않고 구현·수렴으로 진행한다. main에서 보이는 device나 service는 worker 실행 컨텍스트의 도달성 증거를 대신하지 않는다.
 
+사용자가 journey 검수 분리를 선택하면 메인은 해당 `journey_id`를 현재 run의 `journey_deferred` 목록으로 보존한다. 이는 설계가 소유한 `acceptance_environment.automation`을 바꾸거나 매니페스트를 다시 쓰지 않는다. 현재 run에서만 해당 journey를 `human_verification`/follow-up 처분으로 취급하며, 다른 자동 journey의 env 선검증·수렴·sealed 판정은 계속 수행한다.
+
 start가 실패하거나 service가 유예 시간 안에 종료되면 `app_not_started`다. health가 실패하면 journey를 실행하지 않고 `journey_not_executed`로 남긴다. journey가 실행되지 않았거나 `assertion.source=none`이면 `assertion_not_evaluated`다. `mock` boundary는 모든 command가 exit 0이어도 `mock_only_boundary`이므로 PASS가 아니다. cleanup은 항상 실행하며 실패하면 전체 outcome도 FAIL이다.
 
 ### `(JOURNEY)` flow 설계 경계

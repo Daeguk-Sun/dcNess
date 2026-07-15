@@ -12,7 +12,7 @@
 - RUN_ID와 helper 정보
 - 재시도라면 실패 맥락
 - 이전 task 요약이 있으면 참고한다.
-- 내부 mode가 있으면 `JOURNEY_ENV_PREFLIGHT` 또는 `JOURNEY_CONVERGENCE`, story의 `(JOURNEY)` 선언, `acceptance_environment`, `harness_paths`, final stack tip
+- 내부 mode가 있으면 `JOURNEY_ENV_PREFLIGHT` 또는 `JOURNEY_CONVERGENCE`, story의 `(JOURNEY)` 선언, `acceptance_environment`, `harness_paths`, 현재 run의 `journey_deferred` 목록, final stack tip
 
 ## 먼저 읽을 문서
 
@@ -59,7 +59,7 @@
 
 ### `JOURNEY_CONVERGENCE`
 
-- 모든 task completed 뒤 단일 story final tip 또는 다중 story final stack tip에서 `fresh context` build-worker 호출로 시작한다. `automation=automated` journey만 대상이며, `human_verification` journey는 기존 사람 확인 목록에 남긴다.
+- 모든 task completed 뒤 단일 story final tip 또는 다중 story final stack tip에서 `fresh context` build-worker 호출로 시작한다. `automation=automated`이면서 현재 run의 `journey_deferred`에 없는 journey만 대상이며, 설계가 `human_verification`으로 선언했거나 사용자가 분리를 선택한 journey는 기존 사람 확인/follow-up 목록에 남긴다.
 - 먼저 journey를 그대로 1회 실행한다. 첫 실행이 PASS면 추가 수정·재실행 없이 실행 1회로 종료한다. 실패하면 `실행 → 관찰 → 배관 수정 → 재실행` 루프를 수행하며 flow, seed, runner, manifest, env adapter 같은 `harness_paths`를 우선 대조한다. 이 목록은 검토 handoff이지 build-worker production write를 막는 기계 경계가 아니다.
 - 같은 실패 서명(실패 단계·exit code·정규화한 핵심 오류)이 수정 시도 후 반복될 때만 무진행 라운드를 소비한다. 서로 다른 실패가 이전 실패 수정 뒤 순차 노출되고 이전 서명이 재발하지 않으면 정상 진행이다. 실패 서명만으로 자초 회귀와 잠재 노출을 완전히 구분할 수 없으므로 별도 총 iteration 상한을 함께 지킨다.
 - journey 관찰이 production gap을 드러내면 main 왕복 없이 먼저 재현 테스트를 RED로 만들고 production을 수정해 GREEN을 확인한 뒤 의미 단위 로컬 커밋을 남긴다. 설계·AC 계약과 충돌하는 gap만 assertion을 완화하거나 `target_ac`를 빼지 않고 `SPEC_GAP_FOUND`로 중단·보고한다.
@@ -116,7 +116,7 @@
 - green task 변경이 로컬 커밋으로 닫혔고 commit sha가 보고된다.
 - 핵심 AC별 동작 증거와 mock/stub/fake 사용 경계가 보고된다. TypeScript 등 정적 타입검사가 의미 있는 stack 에서 typecheck/compile 이 빠졌다면 품질 게이트 warning 또는 보강 필요성을 쓴다.
 - task 가 담당하는 target GitHub issue AC 와 impl task REQ 의 대응, 각 항목의 실행·관찰 증거가 보고된다. `(TEST)`/`(AGENT READ)`로 닫는 항목은 어느 하나라도 이 task 범위에서 충족되지 않았으면 PASS 하지 않는다. task 구현 mode의 `(JOURNEY)` REQ는 PASS 블로커에서 제외하되, flow 대본·journey 매니페스트·필요한 setup/teardown/상태전이 스크립트와 환경·배관 선언을 모두 작성하고 final tip 수렴 및 acceptance 인계를 보고한 경우에만 예외다.
-- 담당 `(JOURNEY)` REQ마다 flow 대본과 `.dcness/` 밖 journey 매니페스트가 작성됐고 `JOURNEY_CONVERGENCE`와 sealed acceptance 실행에 인계됐다. 메인이 대신 실행하는 `VALIDATION_BLOCKED` 경로와 다르며, 최종 clean에는 별도 수렴 PASS가 필요하다.
+- 담당 `(JOURNEY)` REQ마다 flow 대본과 `.dcness/` 밖 journey 매니페스트가 작성됐고 수렴 대상이면 `JOURNEY_CONVERGENCE`와 sealed acceptance 실행에 인계됐다. `journey_deferred`이면 현재 run의 수렴·sealed 실행 비대상과 human verification/follow-up 인계를 보고한다. 메인이 대신 실행하는 `VALIDATION_BLOCKED` 경로와 다르며, 최종 clean에는 수렴 대상 journey의 별도 PASS가 필요하다.
 - `JOURNEY_ENV_PREFLIGHT`는 ready 또는 검출 불확실 진행 근거를 보고했거나, 확실한 미충족·자동 준비 불가를 `IMPLEMENTATION_ESCALATE`로 보고했다. `JOURNEY_CONVERGENCE` PASS면 final tip 실행 결과, iteration별 실패 서명·수정·진행 여부, 최종 commit sha가 남는다.
 - 확정 목업이 있는 UI 작업에서는 디자인 정합(레이아웃 계층·상태·토큰 대응)과 의도적 차이가 보고된다.
 - design:required UI 작업에서는 node-id 매핑과 별개로 `docs/design.md` 토큰 적용 결과, 잔존 스캐폴딩 색 상수 여부, boilerplate 테마 잔존 금지 확인 결과가 보고된다.

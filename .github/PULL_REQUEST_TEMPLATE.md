@@ -7,7 +7,7 @@
      - 단일 story → Closes #story (epic 마지막이면 Closes #epic 동봉)
      - story branch stack PR → 생성 시 직전 story branch base, merge 시 main 리타겟 후 Closes #story
      - QA PR → tracked 보정이 있으면 Part of #epic, epic close를 발동하면 Closes #epic
-     - issue 없는 infra/follow-up → Document-Exception-PR-Close: <사유> -->
+     - issue 없는 infra/follow-up 또는 journey_deferred production-only → Document-Exception-PR-Close: <사유> -->
 Part of #N
 
 ## 배경 및 문제

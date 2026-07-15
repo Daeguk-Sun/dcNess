@@ -109,6 +109,34 @@ class JourneyConvergenceContractTests(unittest.TestCase):
         self.assertNotIn("미충족·미체크 또는 사람 확인 대기", routing)
         self.assertIn("별도 merge gate", skill)
 
+    def test_env_split_is_a_durable_per_journey_deferred_disposition(self) -> None:
+        skill = read("skills/impl-loop/SKILL.md")
+        routing = read("skills/impl-loop/impl-loop-routing.md")
+        acceptance = read(
+            "docs/plugin/agents/product-acceptance/product-acceptance-agent.md"
+        )
+        journey = read("docs/plugin/product-journey.md")
+
+        for text in (skill, routing, acceptance, journey):
+            with self.subTest(source=text[:40]):
+                self.assertIn("journey_deferred", text)
+        self.assertIn("ENVUSER -->|구현만 + journey 분리| DEFER", routing)
+        self.assertIn("해당 journey", routing)
+        self.assertIn("JOURNEY_CONVERGENCE 비발동", routing)
+        self.assertIn("sealed journey 실행 비발동", routing)
+        self.assertIn("종료 조건의 수렴 PASS Must 비대상", routing)
+        self.assertIn("`Closes`를 붙이지 않는다", routing)
+        self.assertIn("나머지 journey", acceptance)
+        self.assertIn("매니페스트를 다시 쓰지 않는다", journey)
+
+    def test_n_story_convergence_fix_ownership_is_unambiguous(self) -> None:
+        skill = read("skills/impl-loop/SKILL.md")
+
+        self.assertIn("story-local production 수정", skill)
+        self.assertIn("해당 story branch", skill)
+        self.assertIn("downstream branch를 restack", skill)
+        self.assertIn("flow/manifest 보정은 QA branch", skill)
+
     def test_write_zero_and_user_merge_gate_remain_unchanged(self) -> None:
         skill = read("skills/impl-loop/SKILL.md")
         routing = read("skills/impl-loop/impl-loop-routing.md")

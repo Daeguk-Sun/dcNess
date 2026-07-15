@@ -13,7 +13,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 기준 문서: `docs/index.md`, 기능·유저 시나리오를 담은 `docs/prd.md`, Story AC·Epic 완료 기준을 담은 `docs/epics/<epic>/stories.md`, `docs/decisions/`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
 - 제품 journey receipt: 호출자가 제공한 `receipt.json`과 단계별 log. `app_started`, `journey_executed`, assertion 평가·결과, 대상 AC, command exit, evidence sha256을 포함한다. UI boundary이면 `ui_evidence.steps`의 화면·상태·log path와 최종 단계 AC 대응도 함께 읽는다.
-- `(JOURNEY)` REQ: 대상 AC, build-worker가 작성한 project-local e2e flow와 `.dcness/` 밖 owner module/소스 영역의 journey 매니페스트 경로, 수렴 호출의 실행·수정 증거. STORY/EPIC_ACCEPTANCE는 수렴 receipt를 판정 증거로 재사용하지 않고 이 매니페스트를 final tip에서 다시 실행한다.
+- `(JOURNEY)` REQ: 대상 AC, build-worker가 작성한 project-local e2e flow와 `.dcness/` 밖 owner module/소스 영역의 journey 매니페스트 경로, 수렴 호출의 실행·수정 증거, 호출자가 전달한 현재 run의 `journey_deferred` 목록. STORY/EPIC_ACCEPTANCE는 수렴 receipt를 판정 증거로 재사용하지 않고 수렴 대상 매니페스트를 final tip에서 다시 실행한다.
 - UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
 - epic 구현에 대한 build-worker/impl-validator Cartography impact 보고, affected Root Cartography 좌표, tracked/local-only 문서 정책
@@ -46,6 +46,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 ### `(JOURNEY)` 실행 판정 (STORY / EPIC 공통)
 
 - 대상 AC가 `(JOURNEY)`이고 journey 매니페스트와 project-local e2e가 있으면 기존 receipt 유무와 무관하게 tip에서 `dcness-product-journey run --project-root <project-root> --config <매니페스트 경로>`를 직접 호출해 현재 판정용 sealed receipt를 만든 뒤 판정한다.
+- 호출자가 `journey_deferred`로 명시한 해당 journey는 현재 run에서 sealed journey 실행 비발동이며 PASS 증거로 세지 않는다. human verification/follow-up 잔여로 보고하고, 나머지 journey는 각각 새 sealed receipt를 생성한다. deferred journey가 담당하는 issue의 close/EPIC close 판정에는 이 호출 결과를 사용하지 않는다.
 - 매니페스트 또는 e2e flow가 없으면 실행할 수 없는 gap으로 보고하고 도입을 제안한다. 특정 e2e 도구 채택을 강제하지 않으며, fixable 코드 gap은 기존 routing대로 build-worker rework에 인계한다.
 - 러너가 생성하는 증거는 ignored `.dcness-work/product-journey/` 아래에만 둔다. tracked 구현·설계 소스, flow, 매니페스트를 수정하거나 receipt를 손으로 날조하지 않는다.
 
@@ -113,7 +114,7 @@ story 구현 완료 직후 호출된다. 해당 story 의 수용 기준이 구�
 - 핵심 AC 의 입력/진행 동선이 대상 사용자에게 적합한 제품 언어로 닫힌다.
 - 테스트나 smoke 증거가 실제 실행 결과로 남아 있다.
 - project-local journey를 사용했다면 receipt가 Story AC와 command/log evidence를 연결하고 app_started·journey_executed·assertion 결과를 명시한다.
-- `(JOURNEY)` REQ에 매니페스트가 있으면 build-worker 수렴 PASS나 기존 receipt와 무관하게 tip에서 직접 sealed 실행한 뒤 판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 남긴다.
+- `journey_deferred`가 아닌 `(JOURNEY)` REQ에 매니페스트가 있으면 build-worker 수렴 PASS나 기존 receipt와 무관하게 tip에서 직접 sealed 실행한 뒤 판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 남긴다. deferred REQ는 human verification/follow-up 잔여로만 보고한다.
 - mock-only green 으로만 닫힌 핵심 AC 를 gap 으로 분리한다.
 - UI story 이면 확정 목업과 구현 화면 증거를 Read 로 열어 대조하고, 화면 증거 부재와 목업 불일치를 gap 으로 분리한다.
 - 내부 계약을 사용자가 직접 조립해야만 수행되는 핵심 흐름을 gap 으로 분리한다.
@@ -128,7 +129,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - Epic 완료 기준과 Story AC 전항목이 하나 이상의 story/PR/test evidence 로 닫혔다.
 - story 사이의 흐름, 상태, 권한, 데이터 ownership 이 서로 어긋나지 않는다.
 - 여러 PR/story 경계를 넘는 통합 동작이 동작 증거로 닫혔다. 각 PR 의 mock-only green 이 모여 있어도 실제 사용자 흐름이 한 번도 검증되지 않았으면 cross-story gap 이다.
-- `(JOURNEY)` REQ에 매니페스트가 있으면 기존 수렴 receipt와 무관하게 최종 tip에서 직접 sealed 실행한 뒤 cross-story 동작을 판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 남긴다.
+- `journey_deferred`가 아닌 `(JOURNEY)` REQ에 매니페스트가 있으면 기존 수렴 receipt와 무관하게 최종 tip에서 직접 sealed 실행한 뒤 cross-story 동작을 판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 남긴다. 필수 journey가 deferred인 epic은 close candidate가 아니며 EPIC_ACCEPTANCE PASS 증거를 만들지 않는다.
 - UI epic 이면 story 별 확정 목업과 최종 구현 화면 증거가 서로 이어지는지 보고, 화면 증거 부재나 cross-story 목업 불일치를 gap 으로 분리한다.
 - 여러 story 가 합쳐진 사용자 흐름이 내부 schema/payload 조립이 아니라 대상 사용자의 자연스러운 입력/진행 동선으로 이어진다.
 - 보안/권한/데이터 리스크가 새로 생겼는데 별도 후속 없이 묻히지 않았다.
@@ -153,7 +154,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 1. mode 와 검수 단위를 확인한다.
 2. 기준 문서에서 Story AC, Epic 완료 기준, PRD 유저 시나리오, release readiness 기준을 추출한다.
    SPEC_ACCEPTANCE이면 작업에 관련된 결정 범위와 중요한 선택의 근거 상태도 함께 추출한다.
-3. STORY/EPIC_ACCEPTANCE의 `(JOURNEY)` REQ별 project-local 매니페스트/e2e를 확인하고 tip에서 `dcness-product-journey run`을 호출해 새 sealed receipt를 만든다. build-worker 수렴 receipt나 이전 acceptance receipt는 현재 final tip 판정을 대신하지 않는다. 매니페스트/e2e가 없으면 실행 불가 gap으로 분리한다.
+3. STORY/EPIC_ACCEPTANCE의 `(JOURNEY)` REQ별 project-local 매니페스트/e2e와 `journey_deferred` 목록을 확인한다. deferred가 아닌 journey만 tip에서 `dcness-product-journey run`을 호출해 새 sealed receipt를 만들고, deferred journey는 human verification/follow-up 잔여로 분리한다. build-worker 수렴 receipt나 이전 acceptance receipt는 현재 final tip 판정을 대신하지 않는다. 수렴 대상 매니페스트/e2e가 없으면 실행 불가 gap으로 분리한다.
 4. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다. EPIC_ACCEPTANCE이면 epic이 인수한 capability의 상태 before/after, affected Root 좌표, 실제 동작·검증 증거도 함께 대조한다.
 5. 대상 사용자를 식별하고 핵심 입력/진행 동선이 제품 언어인지, 내부 구현 계약을 사용자에게 떠넘기는지 대조한다.
 6. 충족된 기준, mock-only green 인 기준, 화면 증거 부재 기준, 목업 불일치 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.
