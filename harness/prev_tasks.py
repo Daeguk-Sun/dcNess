@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from harness.session_state import _resolve_project_root
+from harness.session_state_activation import _resolve_project_root
 
 
 __all__ = ["prev_tasks_path", "read", "append", "reset", "PREV_TASKS_FIFO_CAP"]

@@ -26,7 +26,7 @@ OMC + RWH 차용 매핑:
 """
 from __future__ import annotations
 
-import importlib
+import fcntl
 import json
 import os
 import re
@@ -39,7 +39,8 @@ import sys
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from contextlib import contextmanager
+from typing import Any, Dict, Iterator, Literal, Optional, overload
 
 __all__ = [
     "SESSION_ID_RE",
@@ -47,6 +48,7 @@ __all__ = [
     "DEFAULT_PID_TTL_SEC",
     "DEFAULT_RUN_DIR_TTL_SEC",
     "LIVE_JSON_VERSION",
+    "StateFormatError",
     "STDIN_TIMEOUT_SEC",
     "valid_cc_pid",
     "pid_session_path",
@@ -69,28 +71,10 @@ __all__ = [
     "run_dir",
     "live_path",
     "read_live",
-    "update_live",
-    "start_run",
-    "update_current_step",
-    "clear_current_step",
-    "mark_run_blocked",
+    "transition",
     "evaluate_order_gate_for_step",
     "run_prose_has_pass",
-    "set_pending_agent",
-    "clear_pending_agent",
-    "complete_run",
-    "cleanup_stale_runs",
     "cleanup_stale_run_dirs",
-    "is_project_active",
-    "enable_project",
-    "disable_project",
-    "list_active_projects",
-    "whitelist_path",
-    "fail_open_events_path",
-    "record_fail_open_event",
-    "read_fail_open_events",
-    "collect_fail_open_summary",
-    "format_fail_open_warning",
 ]
 
 # ── 상수 ─────────────────────────────────────────────────────────────
@@ -113,6 +97,10 @@ _PROMPT_SLOT_CHECK_ENTRY_POINTS = {"impl", "design"}
 _PROMPT_SLOT_TEMPLATE_REL = Path("docs/plugin/templates/agent-prompt-slots.md")
 _DESIGN_SSOT_REMINDER_AGENTS = {"module-architect", "architecture-validator"}
 _CONFIRMED_MOCKUP_DIR_REL = Path("docs/design-variants")
+
+
+class StateFormatError(ValueError):
+    """Current persisted state is malformed and must be recreated."""
 
 
 # ── 경로 유틸 ───────────────────────────────────────────────────────
@@ -386,11 +374,7 @@ def _make_meta(session_id: str) -> Dict[str, Any]:
 def read_live(
     session_id: str, *, base_dir: Optional[Path] = None
 ) -> Dict[str, Any]:
-    """live.json 읽기 + `_meta.sessionId` 자기참조 검증.
-
-    소유자 불일치 (`_meta.sessionId` ≠ session_id) 면 빈 dict 반환 — leftover 방어.
-    파일 미존재 / 파싱 실패 시 빈 dict.
-    """
+    """Read the only supported live.json schema; missing state is empty."""
     if not valid_session_id(session_id):
         return {}
     path = live_path(session_id, base_dir=base_dir)
@@ -398,53 +382,86 @@ def read_live(
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+    except (json.JSONDecodeError, OSError) as exc:
+        raise _state_format_error(path, f"unreadable JSON: {exc}") from exc
     if not isinstance(data, dict):
-        return {}
-    meta = data.get("_meta", {})
+        raise _state_format_error(path, "root must be an object")
+    meta = data.get("_meta")
     if not isinstance(meta, dict):
-        return {}
-    meta_sid = meta.get("sessionId", "")
-    if meta_sid and meta_sid != session_id:
-        # 다른 세션이 같은 경로에 덮어쓰기 시도 → 거부
-        return {}
+        raise _state_format_error(path, "missing _meta object")
+    if meta.get("version") != LIVE_JSON_VERSION:
+        raise _state_format_error(
+            path,
+            f"unsupported version={meta.get('version')!r}; expected {LIVE_JSON_VERSION}",
+        )
+    if meta.get("sessionId") != session_id or data.get("session_id") != session_id:
+        raise _state_format_error(path, "session identity mismatch")
+    if not isinstance(data.get("active_runs"), dict):
+        raise _state_format_error(path, "missing active_runs object")
     return data
 
 
-def update_live(
+def _state_format_error(path: Path, detail: str) -> StateFormatError:
+    return StateFormatError(
+        f"current run state is invalid at {path}: {detail}; "
+        "remove that session state and rerun the workflow to recreate it"
+    )
+
+
+def _empty_live(session_id: str) -> Dict[str, Any]:
+    return {
+        "session_id": session_id,
+        "active_runs": {},
+        "_meta": _make_meta(session_id),
+    }
+
+
+def _write_live(
+    session_id: str, state: Dict[str, Any], *, base_dir: Optional[Path] = None
+) -> None:
+    """Canonical live.json writer. Call only while holding the session lock."""
+    state["session_id"] = session_id
+    state["active_runs"] = state.get("active_runs", {})
+    state["_meta"] = _make_meta(session_id)
+    payload = json.dumps(state, ensure_ascii=False, indent=2, sort_keys=True)
+    atomic_write(live_path(session_id, base_dir=base_dir), payload.encode("utf-8"))
+
+
+@contextmanager
+def _session_lock(
+    session_id: str, *, base_dir: Optional[Path] = None
+) -> Iterator[None]:
+    lock_path = session_dir(session_id, base_dir=base_dir, create=True) / ".state.lock"
+    with lock_path.open("a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+def _append_ledger_record(
     session_id: str,
+    run_id: str,
+    event: str,
     *,
     base_dir: Optional[Path] = None,
     **fields: Any,
-) -> None:
-    """live.json 의 top-level 필드 read-merge-atomic-write.
+) -> Dict[str, Any]:
+    """Canonical append-only ledger writer; transition() owns every call."""
+    from harness import ledger
 
-    `_meta` 와 `session_id` 자기참조는 항상 갱신.
-    값이 None 이면 필드 삭제 (단 `active_runs` 같은 dict 는 그대로 유지 — `**fields` 가 None 일 때만 pop).
-    """
-    if not valid_session_id(session_id):
-        raise ValueError(f"invalid session_id: {session_id!r}")
-
-    current = read_live(session_id, base_dir=base_dir) or {}
-    # `_meta` 는 항상 새로 작성. 옛 envelope 신뢰 안 함.
-    current.pop("_meta", None)
-
-    for k, v in fields.items():
-        if v is None:
-            current.pop(k, None)
-        else:
-            current[k] = v
-
-    current["session_id"] = session_id
-    current["_meta"] = _make_meta(session_id)
-    if "active_runs" not in current:
-        current["active_runs"] = {}
-
-    payload = json.dumps(current, ensure_ascii=False, indent=2, sort_keys=True)
-    target = live_path(session_id, base_dir=base_dir)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    atomic_write(target, payload.encode("utf-8"))
+    if event not in ledger.EVENT_TYPES:
+        raise ValueError(f"unknown ledger event: {event!r}")
+    record = {"event": event, "ts": _now_iso()}
+    record.update({key: value for key, value in fields.items() if key not in {"event", "ts"}})
+    path = ledger.ledger_path(session_id, run_id, base_dir=base_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    return record
 
 
 # ── active_runs map 조작 ────────────────────────────────────────────
@@ -512,303 +529,424 @@ def _validate_design_doc(design_doc: str) -> str:
 # 기록 시점에 이 집합으로 fail-fast 검증한다.
 _VALID_LANES = ("lite", "standard")
 _VALID_DESIGN_STAGES = ("design-ux", "design-system")
+_RUN_TRANSITIONS = {
+    "run_started",
+    "run_blocked",
+    "run_finalized",
+    "run_completed",
+    "ledger_checkpoint",
+}
+_STEP_TRANSITIONS = {"step_started", "step_completed"}
+_RUNTIME_TRANSITIONS = {
+    "pending_agent_set",
+    "pending_agent_cleared",
+    "active_agent_set",
+    "prose_staged",
+    "stop_block_recorded",
+    "post_task_marked",
+    "stale_runs_cleaned",
+}
+_TRANSITIONS_WITHOUT_RUN_ID = {
+    "session_initialized",
+    "active_agent_set",
+    "post_task_marked",
+    "stale_runs_cleaned",
+}
 
 
-def start_run(
+def transition(
     session_id: str,
-    run_id: str,
-    entry_point: str,
+    action: str,
     *,
+    run_id: Optional[str] = None,
     base_dir: Optional[Path] = None,
-    issue_num: Optional[int] = None,
-    design_doc: Optional[str] = None,
-    lane: Optional[str] = None,
-    stage: Optional[str] = None,
-    acceptance_required: bool = False,
-) -> None:
-    """`active_runs[run_id]` 슬롯 추가 + run 디렉토리 생성.
-
-    이미 존재하면 ValueError (중복 run_id 방어).
-
-    design_doc — 이 run 이 참조하는 머지된 설계 문서 경로 (#701). 기록 시
-    implementation gate 가 같은-run module-architect PASS 의 등가 사전 조건
-    증거로 인정한다 (`/impl-loop` story/epic runner 처럼 설계가 별도 run 에서 머지된
-    뒤 진입하는 경우).
-
-    lane — /impl lane(설계도 유무: "lite" / "standard", #714).
-    lane="lite" 는 설계도 없는 direct 구현 경로로, implementation gate 가 설계 산출물
-    사전 조건을 면제하는 신호다. 면제 누수 방지를 위해 (1) 닫힌 enum 만
-    수용하고 (2) design_doc 과 동일하게 entry_point=impl run 에서만 기록을
-    허용한다 — design/architect-loop run 의 module-architect PASS 강제는 코드
-    보장으로 유지된다.
-
-    acceptance_required — story/epic 마감 task 로, impl-validator PASS 뒤 inline
-    product-acceptance 를 거쳐야 정상 종료되는 run 이라는 신호 (#722).
-    Stop hook 이 이 marker 를 읽어 impl-validator 를 종료 agent 로 취급하지 않는다.
-
-    stage — /design 내부 durable stage 기록(#958). 공개 entry_point 는 design 으로
-    유지하고, design-runs.jsonl 에서 UX PR run 과 system PR run 을 구분한다.
-    """
+    **data: Any,
+) -> Any:
+    """Canonical writer boundary for current session state and run ledger."""
     if not valid_session_id(session_id):
         raise ValueError(f"invalid session_id: {session_id!r}")
-    if not RUN_ID_RE.match(run_id):
-        raise ValueError(f"invalid run_id: {run_id!r}")
-    if not isinstance(entry_point, str) or not entry_point:
-        raise ValueError("entry_point must be non-empty str")
-    if lane is not None:
-        if entry_point != "impl":
-            raise ValueError(
-                f"lane is only valid for entry_point=impl (got {entry_point!r})"
-            )
-        if lane not in _VALID_LANES:
-            raise ValueError(
-                f"lane must be one of {_VALID_LANES} (got {lane!r})"
-            )
-    if stage is not None:
-        if entry_point != "design":
-            raise ValueError(
-                f"stage is only valid for entry_point=design (got {entry_point!r})"
-            )
-        if stage not in _VALID_DESIGN_STAGES:
-            raise ValueError(
-                f"stage must be one of {_VALID_DESIGN_STAGES} (got {stage!r})"
-            )
-    if acceptance_required and entry_point != "impl":
-        raise ValueError(
-            "acceptance_required is only valid for entry_point=impl "
-            f"(got {entry_point!r})"
-        )
-    if design_doc is not None:
-        # design_doc 은 impl 구현 run 전용 — design/architect-loop run 의
-        # build-worker ← module-architect PASS 강제가 코드 보장으로 유지되도록
-        # 다른 entry_point 의 기록 자체를 거부한다.
-        if entry_point != "impl":
-            raise ValueError(
-                f"design_doc is only valid for entry_point=impl (got {entry_point!r})"
-            )
-        design_doc = _validate_design_doc(design_doc)
+    if action not in _TRANSITIONS_WITHOUT_RUN_ID:
+        if not isinstance(run_id, str) or not RUN_ID_RE.fullmatch(run_id):
+            raise ValueError(f"invalid run_id: {run_id!r}")
 
-    live = read_live(session_id, base_dir=base_dir) or {}
-    active = live.get("active_runs", {})
-    if not isinstance(active, dict):
-        active = {}
-    if run_id in active:
-        raise ValueError(f"run_id already active: {run_id}")
-
-    now = _now_iso()
-    active[run_id] = {
-        "run_id": run_id,
-        "entry_point": entry_point,
-        "started_at": now,
-        "last_confirmed_at": now,
-        "completed_at": None,
-        "run_dir": _resolve_run_dir_str(session_id, run_id, base_dir),
-        "current_step": None,
-        "issue_num": issue_num,
-        "design_doc": design_doc,
-        "lane": lane,
-        "stage": stage,
-        "acceptance_required": bool(acceptance_required),
-    }
-    update_live(session_id, base_dir=base_dir, active_runs=active)
-    # run 디렉토리 생성
-    run_dir(session_id, run_id, base_dir=base_dir, create=True)
+    result: Any = None
+    state_changed = False
+    with _session_lock(session_id, base_dir=base_dir):
+        live = read_live(session_id, base_dir=base_dir) or _empty_live(session_id)
+        active = dict(live["active_runs"])
+        if action == "session_initialized":
+            state_changed = not live_path(session_id, base_dir=base_dir).exists()
+        elif action in _RUN_TRANSITIONS:
+            run_id = _required_run_id(run_id)
+            result, state_changed = _apply_run_transition(
+                session_id, run_id, action, active, base_dir, data
+            )
+        elif action in _STEP_TRANSITIONS:
+            run_id = _required_run_id(run_id)
+            result, state_changed = _apply_step_transition(
+                session_id, run_id, action, active, base_dir, data
+            )
+        elif action in _RUNTIME_TRANSITIONS:
+            result, state_changed = _apply_runtime_transition(
+                run_id, action, live, active, data
+            )
+        else:
+            raise ValueError(f"unknown run state transition: {action!r}")
+        if state_changed:
+            live["active_runs"] = active
+            _write_live(session_id, live, base_dir=base_dir)
+    return result
 
 
-def _ledger_run_started(
+def _apply_run_transition(
     session_id: str,
     run_id: str,
-    entry_point: str,
-    *,
-    issue_num: Optional[int] = None,
-    design_doc: Optional[str] = None,
-    lane: Optional[str] = None,
-    stage: Optional[str] = None,
-    acceptance_required: bool = False,
-    base_dir: Optional[Path] = None,
-) -> None:
-    """start_run 직후 ledger run_started checkpoint 기록 (이슈 #587).
-
-    begin-run / next-task 등 *모든 run 시작 경로* 의 공유 path — 한 곳에서만
-    run_started 를 쓰게 해 chain task run 의 run-level audit invariant 누락을
-    막는다 (codex review). 기록 실패가 run 시작을 막지 않게 silent.
-    """
-    try:
-        from harness import ledger
-
-        extra: Dict[str, Any] = {"entry_point": entry_point}
-        if issue_num is not None:
-            extra["issue_num"] = issue_num
-        if design_doc is not None:
-            extra["design_doc"] = design_doc
-        if lane is not None:
-            extra["lane"] = lane
-        if stage is not None:
-            extra["stage"] = stage
-        if acceptance_required:
-            extra["acceptance_required"] = True
-        ledger.append_event(session_id, run_id, "run_started", base_dir=base_dir, **extra)
-    except Exception:  # nosec B110
-        pass
-
-
-def update_current_step(
-    session_id: str,
-    run_id: str,
-    agent: str,
-    mode: Optional[str],
-    *,
-    base_dir: Optional[Path] = None,
-) -> None:
-    """`active_runs[run_id].current_step` 갱신 + heartbeat (`last_confirmed_at`)."""
-    # #700 — current_step.agent 를 canonical 로 정규화 저장. namespaced(`dcness:build-worker`)
-    # 표기를 bare 이름으로 통일해 strict-conveyor 게이트 비교 + prose 파일명(staging/
-    # end-step)이 표기 무관하게 일관되도록. agent 이름 검증 정규식(콜론 거부)을 바꾸지 않고
-    # 정규화로 해소 (이슈 out-of-scope: 정규식 정책 변경).
-    from harness.agent_names import normalize_agent_type
-    agent = normalize_agent_type(agent) or agent
-    live = read_live(session_id, base_dir=base_dir) or {}
-    active = live.get("active_runs", {})
-    if not isinstance(active, dict) or run_id not in active:
-        raise ValueError(f"run_id not active: {run_id}")
-    slot = dict(active[run_id])
-
-    # DCN-CHG-20260430-30: stale current_step WARN — begin-step 호출 시 *기존*
-    # current_step 의 last_confirmed_at 가 STALE_STEP_TTL_SEC 초과면 stderr WARN.
-    # I4 사례 — worker step 후 end-step 누락 → 다음 begin-step 시 ledger receipt
-    # 의 직전 step 누락 신호. 자동 보정 X (안전).
-    prev_step = slot.get("current_step")
-    prev_confirmed = slot.get("last_confirmed_at")
-    if prev_step and isinstance(prev_step, dict) and prev_confirmed:
-        try:
-            from datetime import datetime, timezone
-            prev_dt = datetime.fromisoformat(prev_confirmed.replace("Z", "+00:00"))
-            now_dt = datetime.now(timezone.utc)
-            stale_sec = (now_dt - prev_dt).total_seconds()
-            if stale_sec > STALE_STEP_TTL_SEC:
-                prev_agent = prev_step.get("agent", "?")
-                prev_mode = prev_step.get("mode")
-                label = f"{prev_agent}{':' + prev_mode if prev_mode else ''}"
-                print(
-                    f"[session_state] STALE STEP WARN — previous current_step={label} "
-                    f"stale {int(stale_sec)}s (> {STALE_STEP_TTL_SEC}s). "
-                    f"end-step 누락 의심 — ledger.jsonl 에 직전 step 기록 안 됨.",
-                    file=sys.stderr,
-                )
-        except Exception:  # nosec B110
-            # 시간 파싱 등 실패 silent — begin-step 동작 우선
-            pass
-
-    now = _now_iso()
-    try:
-        steps_count_at_begin = len(
-            _read_steps_jsonl(session_id, run_id, base_dir=base_dir)
-        )
-    except Exception:
-        steps_count_at_begin = None
-    slot["current_step"] = {
-        "agent": agent,
-        "mode": mode,
-        "started_at": now,
-    }
-    if steps_count_at_begin is not None:
-        slot["current_step"]["steps_count_at_begin"] = steps_count_at_begin
-    slot["last_confirmed_at"] = now
-    active[run_id] = slot
-    update_live(session_id, base_dir=base_dir, active_runs=active)
-
-
-def clear_current_step(
-    session_id: str,
-    run_id: str,
-    *,
-    agent: Optional[str] = None,
-    mode: Optional[str] = None,
-    base_dir: Optional[Path] = None,
-) -> bool:
-    """`active_runs[run_id].current_step` 제거.
-
-    agent/mode 가 주어지면 현재 step 이 같은 step 일 때만 제거한다. end-step 성공
-    후 stale current_step 이 남아 다음 Agent 호출을 잘못 통과시키는 회귀를 막기 위한
-    좁은 정리 경로다.
-    """
-    live = read_live(session_id, base_dir=base_dir) or {}
-    active = live.get("active_runs", {})
-    if not isinstance(active, dict) or run_id not in active:
-        return False
-    slot = dict(active[run_id])
-    cur_step = slot.get("current_step")
-    if not isinstance(cur_step, dict):
-        return False
-    if agent is not None:
-        cur_agent = cur_step.get("agent")
-        cur_mode = cur_step.get("mode")
-        if cur_agent != agent or cur_mode != mode:
-            return False
-    slot["current_step"] = None
-    slot["last_confirmed_at"] = _now_iso()
-    active = dict(active)
-    active[run_id] = slot
-    update_live(session_id, base_dir=base_dir, active_runs=active)
-    return True
-
-
-def mark_run_blocked(
-    session_id: str,
-    run_id: str,
-    *,
-    category: str,
-    agent: Optional[str] = None,
-    mode: Optional[str] = None,
-    provider: Optional[str] = None,
-    reason: Optional[str] = None,
-    raw_log: Optional[str] = None,
-    base_dir: Optional[Path] = None,
-) -> Dict[str, Any]:
-    """Persist a run-level blocked marker in live.json.
-
-    ledger.jsonl is the audit trail; this live marker gives the next step gate a
-    cheap active-run signal. The marker is intentionally run-level, not
-    current_step-level, because boundary BLOCK means the workspace needs explicit
-    main/user intervention before any further sub-step can be trusted.
-    """
-    if not isinstance(category, str) or not category:
-        raise ValueError("category must be non-empty str")
-    live = read_live(session_id, base_dir=base_dir) or {}
-    active = live.get("active_runs", {})
-    if not isinstance(active, dict) or run_id not in active:
-        raise ValueError(f"run_id not active: {run_id}")
-
-    marker: Dict[str, Any] = {"category": category, "at": _now_iso()}
-    for key, val in (
-        ("agent", agent),
-        ("mode", mode),
-        ("provider", provider),
-        ("reason", reason),
-        ("raw_log", raw_log),
-    ):
-        if val is not None:
-            marker[key] = val
-
-    slot = dict(active[run_id])
-    slot["blocked"] = marker
-    slot["last_confirmed_at"] = marker["at"]
-    active = dict(active)
-    active[run_id] = slot
-    update_live(session_id, base_dir=base_dir, active_runs=active)
-    return marker
-
-
-def _read_steps_jsonl(
-    sid: str,
-    rid: str,
-    *,
-    base_dir: Optional[Path] = None,
-) -> list:
-    """현재 ledger의 step_completed receipt를 시간순 반환."""
+    action: str,
+    active: Dict[str, Any],
+    base_dir: Optional[Path],
+    data: Dict[str, Any],
+) -> tuple[Any, bool]:
     from harness import ledger
 
-    return ledger.read_step_completed(sid, rid, base_dir=base_dir)
+    if action == "run_started":
+        entry_point = data.get("entry_point")
+        lane = data.get("lane")
+        stage = data.get("stage")
+        design_doc = data.get("design_doc")
+        acceptance_required = bool(data.get("acceptance_required", False))
+        if not isinstance(entry_point, str) or not entry_point:
+            raise ValueError("entry_point must be non-empty str")
+        if lane is not None and (entry_point != "impl" or lane not in _VALID_LANES):
+            raise ValueError(f"lane must be one of {_VALID_LANES} for entry_point=impl")
+        if stage is not None and (
+            entry_point != "design" or stage not in _VALID_DESIGN_STAGES
+        ):
+            raise ValueError(
+                f"stage must be one of {_VALID_DESIGN_STAGES} for entry_point=design"
+            )
+        if acceptance_required and entry_point != "impl":
+            raise ValueError("acceptance_required is only valid for entry_point=impl")
+        if design_doc is not None:
+            if entry_point != "impl":
+                raise ValueError("design_doc is only valid for entry_point=impl")
+            design_doc = _validate_design_doc(design_doc)
+        if run_id in active:
+            raise ValueError(f"run_id already active: {run_id}")
+        now = _now_iso()
+        active[run_id] = {
+            "run_id": run_id,
+            "entry_point": entry_point,
+            "started_at": now,
+            "last_confirmed_at": now,
+            "completed_at": None,
+            "run_dir": _resolve_run_dir_str(session_id, run_id, base_dir),
+            "current_step": None,
+            "issue_num": data.get("issue_num"),
+            "design_doc": design_doc,
+            "lane": lane,
+            "stage": stage,
+            "acceptance_required": acceptance_required,
+        }
+        run_dir(session_id, run_id, base_dir=base_dir, create=True)
+        event_fields = {
+            key: value
+            for key, value in {
+                "entry_point": entry_point,
+                "issue_num": data.get("issue_num"),
+                "design_doc": design_doc,
+                "lane": lane,
+                "stage": stage,
+                "acceptance_required": True if acceptance_required else None,
+            }.items()
+            if value is not None
+        }
+        _append_ledger_record(
+            session_id, run_id, "run_started", base_dir=base_dir, **event_fields
+        )
+        return None, True
+    if action == "run_blocked":
+        slot = _active_slot(active, run_id)
+        category = data.get("category")
+        if not isinstance(category, str) or not category:
+            raise ValueError("category must be non-empty str")
+        marker = {"category": category, "at": _now_iso()}
+        for key in ("agent", "mode", "provider", "reason", "raw_log"):
+            if data.get(key) is not None:
+                marker[key] = data[key]
+        slot["blocked"] = marker
+        slot["last_confirmed_at"] = marker["at"]
+        active[run_id] = slot
+        _append_ledger_record(session_id, run_id, "blocked", base_dir=base_dir, **data)
+        return marker, True
+    if action == "run_finalized":
+        slot = _active_slot(active, run_id)
+        slot["finalized_at"] = _now_iso()
+        active[run_id] = slot
+        return None, True
+    if action == "run_completed":
+        if run_id not in active:
+            return None, False
+        slot = dict(active[run_id])
+        if slot.get("completed_at"):
+            return None, False
+        now = _now_iso()
+        slot.update(completed_at=now, last_confirmed_at=now, current_step=None)
+        active[run_id] = slot
+        _append_ledger_record(session_id, run_id, "run_finished", base_dir=base_dir)
+        return None, True
+
+    _active_slot(active, run_id)
+    event = data.pop("event", None)
+    if event not in ledger.MANUAL_EVENT_TYPES:
+        raise ValueError(f"manual event must be one of {sorted(ledger.MANUAL_EVENT_TYPES)}")
+    return (
+        _append_ledger_record(session_id, run_id, event, base_dir=base_dir, **data),
+        False,
+    )
+
+
+def _apply_step_transition(
+    session_id: str,
+    run_id: str,
+    action: str,
+    active: Dict[str, Any],
+    base_dir: Optional[Path],
+    data: Dict[str, Any],
+) -> tuple[Any, bool]:
+    from harness import ledger
+
+    slot = _active_slot(active, run_id)
+    if action == "step_started":
+        from harness.agent_names import normalize_agent_type
+
+        agent = normalize_agent_type(data.get("agent")) or data.get("agent")
+        if not isinstance(agent, str) or not agent:
+            raise ValueError("agent must be non-empty str")
+        _warn_stale_step(slot)
+        now = _now_iso()
+        slot["current_step"] = {
+            "agent": agent,
+            "mode": data.get("mode"),
+            "started_at": now,
+            "steps_count_at_begin": len(
+                ledger.read_step_completed(session_id, run_id, base_dir=base_dir)
+            ),
+        }
+        slot["last_confirmed_at"] = now
+        active[run_id] = slot
+        _append_ledger_record(
+            session_id, run_id, "step_started", base_dir=base_dir,
+            agent=agent, mode=data.get("mode"),
+        )
+        return None, True
+
+    agent = data.get("agent")
+    if not isinstance(agent, str) or not agent:
+        raise ValueError("agent must be non-empty str")
+    receipt = ledger.build_receipt(
+        agent, data.get("mode"), data.get("enum", "PROSE_LOGGED"),
+        data.get("prose", ""), data.get("prose_path"), provider=data.get("provider"),
+    )
+    result = _append_ledger_record(
+        session_id, run_id, "step_completed", base_dir=base_dir, **receipt
+    )
+    _record_headless_validation_block(session_id, run_id, base_dir, data)
+    current = slot.get("current_step")
+    if not isinstance(current, dict) or (
+        current.get("agent"), current.get("mode")
+    ) != (data.get("agent"), data.get("mode")):
+        return result, False
+    slot["current_step"] = None
+    slot["last_confirmed_at"] = _now_iso()
+    active[run_id] = slot
+    return result, True
+
+
+def _record_headless_validation_block(
+    session_id: str,
+    run_id: str,
+    base_dir: Optional[Path],
+    data: Dict[str, Any],
+) -> None:
+    if data.get("agent") != "build-worker" or data.get("provider") not in {
+        "codex-headless",
+        "claude-headless",
+    }:
+        return
+    from harness.run_review import _extract_conclusion_enum
+
+    if _extract_conclusion_enum(data.get("prose", "")) != "VALIDATION_BLOCKED":
+        return
+    _append_ledger_record(
+        session_id,
+        run_id,
+        "blocked",
+        base_dir=base_dir,
+        agent=data.get("agent"),
+        mode=data.get("mode"),
+        provider=data.get("provider"),
+        category="headless_validation_blocked",
+        prose_file=str(data.get("prose_path")),
+        detail=(
+            "headless build-worker reported VALIDATION_BLOCKED; "
+            "main must run the validation command fallback"
+        ),
+    )
+
+
+def _apply_runtime_transition(
+    run_id: Optional[str],
+    action: str,
+    live: Dict[str, Any],
+    active: Dict[str, Any],
+    data: Dict[str, Any],
+) -> tuple[Any, bool]:
+    if action == "pending_agent_set":
+        run_id = _required_run_id(run_id)
+        slot = _active_slot(active, run_id, missing_ok=True)
+        tool_use_id = data.get("tool_use_id")
+        if slot is None or not tool_use_id:
+            return None, False
+        pending = dict(slot.get("pending_agents") or {})
+        pending[tool_use_id] = {
+            "tool_use_id": tool_use_id,
+            "sub_type": data.get("sub_type") or "",
+            "mode": data.get("mode") or None,
+            "started_at": _now_iso(),
+        }
+        slot["pending_agents"] = pending
+        active[run_id] = slot
+        return None, True
+    if action == "pending_agent_cleared":
+        run_id = _required_run_id(run_id)
+        slot = _active_slot(active, run_id, missing_ok=True)
+        if slot is None:
+            return None, False
+        pending = dict(slot.get("pending_agents") or {})
+        tool_use_id = data.get("tool_use_id")
+        result = None
+        if tool_use_id in pending:
+            result = pending.pop(tool_use_id)
+        elif len(pending) == 1:
+            result = pending.popitem()[1]
+        if result is None:
+            return None, False
+        if pending:
+            slot["pending_agents"] = pending
+        else:
+            slot.pop("pending_agents", None)
+        active[run_id] = slot
+        return result, True
+    if action == "active_agent_set":
+        agent = data.get("agent")
+        if agent:
+            live["active_agent"] = agent
+            if data.get("mode"):
+                live["active_mode"] = data["mode"]
+            else:
+                live.pop("active_mode", None)
+        else:
+            live.pop("active_agent", None)
+            live.pop("active_mode", None)
+        return None, True
+    if action == "prose_staged":
+        run_id = _required_run_id(run_id)
+        slot = _active_slot(active, run_id)
+        current = slot.get("current_step")
+        if not isinstance(current, dict):
+            return None, False
+        current = dict(current)
+        current["prose_file"] = str(data["prose_file"])
+        slot["current_step"] = current
+        active[run_id] = slot
+        return None, True
+    if action == "stop_block_recorded":
+        run_id = _required_run_id(run_id)
+        slot = _active_slot(active, run_id)
+        counts = dict(slot.get("stop_block_count") or {})
+        key = str(data["step_key"])
+        counts[key] = int(counts.get(key, 0)) + 1
+        slot["stop_block_count"] = counts
+        active[run_id] = slot
+        return counts[key], True
+    if action == "post_task_marked":
+        markers = list(live.get("post_task_markers") or [])
+        markers.append({"at": _now_iso(), "reason": str(data.get("reason") or "")})
+        live["post_task_markers"] = markers[-20:]
+        return len(live["post_task_markers"]), True
+
+    now = datetime.now(timezone.utc)
+    ttl_sec = int(data.get("ttl_sec", DEFAULT_RUN_TTL_SEC))
+    survivors: Dict[str, Any] = {}
+    for candidate_rid, candidate in active.items():
+        if not isinstance(candidate, dict):
+            continue
+        stamp = candidate.get("completed_at") or candidate.get("last_confirmed_at")
+        try:
+            age = (now - datetime.fromisoformat(str(stamp))).total_seconds()
+        except (TypeError, ValueError):
+            survivors[candidate_rid] = candidate
+            continue
+        if age <= ttl_sec:
+            survivors[candidate_rid] = candidate
+    removed = len(active) - len(survivors)
+    if not removed:
+        return 0, False
+    active.clear()
+    active.update(survivors)
+    return removed, True
+
+
+def _required_run_id(run_id: Optional[str]) -> str:
+    if run_id is None:
+        raise ValueError("run_id is required for this transition")
+    return run_id
+
+
+@overload
+def _active_slot(
+    active: Dict[str, Any], run_id: str, *, missing_ok: Literal[False] = False
+) -> Dict[str, Any]: ...
+
+
+@overload
+def _active_slot(
+    active: Dict[str, Any], run_id: str, *, missing_ok: Literal[True]
+) -> Optional[Dict[str, Any]]: ...
+
+
+def _active_slot(
+    active: Dict[str, Any], run_id: str, *, missing_ok: bool = False
+) -> Optional[Dict[str, Any]]:
+    slot = active.get(run_id)
+    if not isinstance(slot, dict):
+        if missing_ok:
+            return None
+        raise ValueError(f"run_id not active: {run_id}")
+    return dict(slot)
+
+
+def _warn_stale_step(slot: Dict[str, Any]) -> None:
+    current = slot.get("current_step")
+    confirmed = slot.get("last_confirmed_at")
+    if not isinstance(current, dict) or not isinstance(confirmed, str):
+        return
+    try:
+        age = (
+            datetime.now(timezone.utc)
+            - datetime.fromisoformat(confirmed.replace("Z", "+00:00"))
+        ).total_seconds()
+    except ValueError:
+        return
+    if age > STALE_STEP_TTL_SEC:
+        mode = current.get("mode")
+        label = f"{current.get('agent', '?')}{':' + mode if mode else ''}"
+        print(
+            f"[session_state] STALE STEP WARN — previous current_step={label} "
+            f"stale {int(age)}s (> {STALE_STEP_TTL_SEC}s). "
+            "end-step 누락 의심 — ledger.jsonl 에 직전 step 기록 안 됨.",
+            file=sys.stderr,
+        )
 
 
 def _read_or_empty(path: Path) -> str:
@@ -854,10 +992,6 @@ def run_prose_has_pass(rd: Path, agent: str) -> bool:
         if "PASS" in _read_or_empty(prose):
             return True
     return False
-
-
-def _run_prose_has_pass(rd: Path, agent: str) -> bool:
-    return run_prose_has_pass(rd, agent)
 
 
 def _run_has_module_architect_pass(rd: Path) -> bool:
@@ -1297,178 +1431,6 @@ def _prompt_slot_check_text(
         "- 이 호출 특유: 진본에 없는 제약/신호만 둔다. 정규식·구현 단계·알고리즘·테스트 assert 방식 등 방법 처방 금지."
     )
     return "\n".join(lines)
-
-
-def set_pending_agent(
-    session_id: str,
-    run_id: str,
-    *,
-    tool_use_id: str,
-    sub_type: str,
-    mode: Optional[str] = None,
-    base_dir: Optional[Path] = None,
-) -> None:
-    """`active_runs[run_id].pending_agents[tool_use_id]` 갱신 — PreToolUse Agent 시점.
-
-    PostToolUse Agent 가 *시각 범위* 로 sub trace 를 식별 (#272 W3 진짜 fix).
-    기존 `agent_id` 폴백은 sub 가 file-op 안 한 경우 직전 step 의 ID 가 들어와
-    오기록 (#272 W3) — CC docs 상 PostToolUse Agent (메인 컨텍스트) 에 agent_id
-    가 *없을 수 있음*. `tool_use_id` (PreToolUse↔PostToolUse 매칭 키) + 시작 시각
-    으로 정확히 식별.
-
-    issue #598 — **multi-slot**: `pending_agents` 를 `tool_use_id` 키 dict 로 유지.
-    동시 Agent 호출 시 각 호출이 독립 슬롯을 차지 (단일 슬롯이면 둘째가 첫째를
-    덮어써 prose-staging 시각 범위/trace 귀속이 섞임).
-
-    ⚠️ **알려진 한계 (cross-process lost-write, follow-up)**: live.json 은 lock
-    없는 atomic_write(원자적 rename) 설계라 read-modify-write 가 프로세스 간
-    원자적이지 않다. 두 PreToolUse Agent hook 프로세스가 *동시에* 실행되면 각자
-    자기 `tool_use_id` 만 추가 후 active_runs 전체를 덮어써, last-writer 가 상대
-    슬롯을 잃을 수 있다 (전 mutator 공통 기존 속성 — 본 함수만의 결함 아님).
-    영향 범위는 prose-staging 시각 범위/histogram 라는 *측정 신호* 한정 —
-    file-guard 권한 경계는 payload self-attribution(`_resolve_acting_agent`)으로
-    판정하므로 이 race 와 **무관**(보안 영향 0). 시스템 차원 live.json lock 은
-    별도 follow-up.
-
-    Args:
-        tool_use_id: CC PreToolUse Agent payload 의 tool_use_id (필수, multi-slot 키)
-        sub_type: subagent_type (검증/디버그용)
-        mode: 옵션 mode hint
-    """
-    if not tool_use_id:
-        return  # tool_use_id 없으면 매칭 불가 — 폴백 의존 (시각 범위 X)
-    live = read_live(session_id, base_dir=base_dir) or {}
-    active = live.get("active_runs", {})
-    if not isinstance(active, dict) or run_id not in active:
-        return  # idempotent — run 미시작 케이스 (컨베이어 외부 Agent 호출)
-    slot = dict(active[run_id])
-    pending = slot.get("pending_agents")
-    pending = dict(pending) if isinstance(pending, dict) else {}
-    pending[tool_use_id] = {
-        "tool_use_id": tool_use_id,
-        "sub_type": sub_type or "",
-        "mode": mode or None,
-        "started_at": _now_iso(),
-    }
-    slot["pending_agents"] = pending
-    active = dict(active)
-    active[run_id] = slot
-    update_live(session_id, base_dir=base_dir, active_runs=active)
-
-
-def clear_pending_agent(
-    session_id: str,
-    run_id: str,
-    *,
-    tool_use_id: Optional[str] = None,
-    base_dir: Optional[Path] = None,
-) -> Optional[Dict[str, Any]]:
-    """`active_runs[run_id].pending_agents[tool_use_id]` 제거 + 그 값 반환.
-
-    PostToolUse Agent 가 호출. 반환값으로 sub_type / started_at / tool_use_id
-    검증 → trace 시각 범위 집계 + tool_use_id 매칭.
-
-    issue #598 multi-slot 매칭 정책:
-      - `tool_use_id` 명시 + 매칭 슬롯 존재 → 그 슬롯만 pop (동시 Agent 정확 귀속).
-      - `tool_use_id` 미매칭/None + 슬롯 *1개뿐* → 그 1개 pop (drift 복구).
-      - `tool_use_id` 미매칭/None + 슬롯 여러 개 → 모호 → pop 안 함 (None 반환).
-    """
-    live = read_live(session_id, base_dir=base_dir) or {}
-    active = live.get("active_runs", {})
-    if not isinstance(active, dict) or run_id not in active:
-        return None
-    slot = dict(active[run_id])
-    pending = slot.get("pending_agents")
-    pending = dict(pending) if isinstance(pending, dict) else {}
-
-    popped: Optional[Dict[str, Any]] = None
-    changed = False
-    if pending:
-        if tool_use_id and tool_use_id in pending:
-            popped = pending.pop(tool_use_id)
-            changed = True
-        elif len(pending) == 1:
-            # tool_use_id 미매칭/None 인데 슬롯 1개 — drift 시각 범위 폴백 pop.
-            popped = pending.popitem()[1]
-            changed = True
-        # else: 여러 개 + 매칭 없음 → 모호 → pop 안 함.
-    if not changed:
-        return None  # 변경 없음 — write skip
-    if pending:
-        slot["pending_agents"] = pending
-    else:
-        slot.pop("pending_agents", None)  # 빈 dict 제거 (깔끔)
-    active = dict(active)
-    active[run_id] = slot
-    update_live(session_id, base_dir=base_dir, active_runs=active)
-    return popped if isinstance(popped, dict) else None
-
-
-def complete_run(
-    session_id: str,
-    run_id: str,
-    *,
-    base_dir: Optional[Path] = None,
-) -> None:
-    """`active_runs[run_id].completed_at` 채움 (soft tombstone — 즉시 삭제 X)."""
-    live = read_live(session_id, base_dir=base_dir) or {}
-    active = live.get("active_runs", {})
-    if not isinstance(active, dict) or run_id not in active:
-        return  # idempotent — 이미 없으면 noop
-    slot = dict(active[run_id])
-    now = _now_iso()
-    slot["completed_at"] = now
-    slot["last_confirmed_at"] = now
-    slot["current_step"] = None
-    active[run_id] = slot
-    update_live(session_id, base_dir=base_dir, active_runs=active)
-
-
-def cleanup_stale_runs(
-    session_id: str,
-    *,
-    ttl_sec: int = DEFAULT_RUN_TTL_SEC,
-    base_dir: Optional[Path] = None,
-) -> int:
-    """다음 슬롯 삭제:
-        1. `completed_at` 채워진 + ttl_sec 초과한 슬롯
-        2. `last_confirmed_at` 이 ttl_sec 초과한 슬롯 (heartbeat dead)
-
-    Returns: 삭제된 슬롯 수.
-    """
-    live = read_live(session_id, base_dir=base_dir) or {}
-    active = live.get("active_runs", {})
-    if not isinstance(active, dict):
-        return 0
-
-    now = datetime.now(timezone.utc)
-    removed = 0
-    survivors: Dict[str, Any] = {}
-
-    for rid, slot in active.items():
-        if not isinstance(slot, dict):
-            continue
-        completed_at = slot.get("completed_at")
-        last_confirmed = slot.get("last_confirmed_at")
-
-        candidate_iso = completed_at or last_confirmed
-        if not candidate_iso:
-            survivors[rid] = slot
-            continue
-        try:
-            ts = datetime.fromisoformat(str(candidate_iso))
-        except ValueError:
-            survivors[rid] = slot
-            continue
-        age_sec = (now - ts).total_seconds()
-        if age_sec > ttl_sec:
-            removed += 1
-        else:
-            survivors[rid] = slot
-
-    if removed:
-        update_live(session_id, base_dir=base_dir, active_runs=survivors)
-    return removed
 
 
 def cleanup_stale_run_dirs(
@@ -1939,111 +1901,67 @@ def _scan_recent_active_run_slot(
     return (best_slot[1], best_slot[2])
 
 
-# ── split-module public facade re-exports ──────────────────────────
-# Callers import the cohesive modules through ``harness.session_state``.
-from harness.session_state_activation import (  # noqa: E402
-    _resolve_project_root as _resolve_project_root,
-    disable_project as disable_project,
-    enable_project as enable_project,
-    is_project_active as is_project_active,
-    list_active_projects as list_active_projects,
-    whitelist_path as whitelist_path,
+_CONCLUSION_HEADER_RE = re.compile(
+    r"^\s{0,3}#{1,6}\s*(결론|결과|요약|변경\s*요약|변경\s*사항|변경\s*내용|"
+    r"conclusion|summary|result|key\s*changes?|outcome|verdict)(\s|$|:|—|-)",
+    re.IGNORECASE,
 )
-from harness.session_state_fail_open import (  # noqa: E402
-    collect_fail_open_summary as collect_fail_open_summary,
-    fail_open_events_path as fail_open_events_path,
-    format_fail_open_warning as format_fail_open_warning,
-    read_fail_open_events as read_fail_open_events,
-    record_fail_open_event as record_fail_open_event,
+_MUST_FIX_RE = re.compile(r"\bMUST[\s_-]?FIX\b", re.IGNORECASE)
+_MUST_FIX_NEGATION_RE = re.compile(
+    r"\bMUST[\s_-]?FIX\b[^\n]{0,30}?(?:\b0(?!\s*\d)|없[음다]|해당\s*없[음다])"
+    r"|\bno\s+MUST[\s_-]?FIX\b",
+    re.IGNORECASE,
+)
+_MUST_FIX_HEADER_ONLY_RE = re.compile(
+    r"^\s*#{1,6}\s*MUST[\s_-]?FIX\s*$", re.IGNORECASE
+)
+_NEXT_LINE_NEGATION_RE = re.compile(
+    r"^(?:없[음다]\.?|0건|0개|해당\s*없[음다]\.?|없습니다\.?)\s*$",
+    re.IGNORECASE,
 )
 
 
-def _split_attr(module_name: str, name: str) -> Any:
-    value = getattr(importlib.import_module(module_name), name)
-    globals()[name] = value
-    return value
-
-
-def _extract_prose_summary(*args: Any, **kwargs: Any) -> Any:
-    return _split_attr("harness.session_state_cli", "_extract_prose_summary")(
-        *args, **kwargs
+def _extract_prose_summary(prose: str, *, max_lines: int = 12) -> str:
+    lines = prose.splitlines()
+    start = next(
+        (index + 1 for index, line in enumerate(lines) if _CONCLUSION_HEADER_RE.match(line)),
+        None,
     )
+    candidates = lines[start:] if start is not None else lines
+    out: list[str] = []
+    char_cap = max_lines * 100
+    for raw in candidates:
+        line = raw.rstrip()
+        if start is not None and out and line.lstrip().startswith("#"):
+            break
+        if not line.strip():
+            continue
+        if start is None and not out and line.lstrip().startswith("#") and len(line) < 40:
+            continue
+        out.append(line)
+        if len(out) >= max_lines or sum(len(item) + 1 for item in out) >= char_cap:
+            break
+    return "\n".join(out)
 
 
-def _has_positive_must_fix(*args: Any, **kwargs: Any) -> Any:
-    return _split_attr("harness.session_state_cli", "_has_positive_must_fix")(
-        *args, **kwargs
-    )
-
-
-def _count_step_occurrences(*args: Any, **kwargs: Any) -> Any:
-    return _split_attr("harness.session_state_cli", "_count_step_occurrences")(
-        *args, **kwargs
-    )
-
-
-def _cli_end_run(*args: Any, **kwargs: Any) -> Any:
-    return _split_attr("harness.session_state_cli", "_cli_end_run")(*args, **kwargs)
+def _has_positive_must_fix(prose: str) -> bool:
+    lines = prose.splitlines()
+    for index, line in enumerate(lines):
+        if not _MUST_FIX_RE.search(line) or _MUST_FIX_NEGATION_RE.search(line):
+            continue
+        if _MUST_FIX_HEADER_ONLY_RE.match(line):
+            following = next((item.strip() for item in lines[index + 1 :] if item.strip()), "")
+            if not following or _NEXT_LINE_NEGATION_RE.match(following):
+                continue
+        return True
+    return False
 
 
 def _main(argv: Optional[list] = None) -> int:
-    return _split_attr("harness.session_state_cli", "_main")(argv)
+    from harness.session_state_cli import _main as cli_main
+
+    return cli_main(argv)
 
 
-def _reexport(module_name: str, names: tuple[str, ...]) -> None:
-    module = importlib.import_module(module_name)
-    for name in names:
-        globals()[name] = getattr(module, name)
-
-
-_reexport(
-    "harness.session_state_activation",
-    (
-        "_DEFAULT_WHITELIST_PATH",
-        "_load_whitelist",
-        "_resolve_project_root",
-        "_save_whitelist",
-        "disable_project",
-        "enable_project",
-        "is_project_active",
-        "list_active_projects",
-        "whitelist_path",
-    ),
-)
-_reexport(
-    "harness.session_state_fail_open",
-    (
-        "_format_fail_open_summary",
-        "_parse_fail_open_ts",
-        "_utc_now_iso",
-        "collect_fail_open_summary",
-        "fail_open_events_path",
-        "format_fail_open_warning",
-        "read_fail_open_events",
-        "record_fail_open_event",
-    ),
-)
-_reexport(
-    "harness.session_state_status",
-    (
-        "_CODEX_VALIDATOR_SKILLS",
-        "_CI_WORKFLOWS",
-        "_GIT_HOOK_SHIMS",
-        "_READ_PERM",
-        "_SHIM_MARKERS",
-        "_check_ci_workflows",
-        "_check_codex_validator_skills",
-        "_check_gh_auth",
-        "_check_git_hooks",
-        "_check_read_permission",
-        "_installed_plugin_version",
-        "_is_self_repo",
-        "_plugin_root",
-        "_resolve_git_hooks_dir",
-        "_settings_path",
-        "collect_status_diagnostics",
-        "format_status_report",
-    ),
-)
 if __name__ == "__main__":
     sys.exit(_main())

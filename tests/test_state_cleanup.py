@@ -19,8 +19,7 @@ from harness.session_state import (
     DEFAULT_RUN_DIR_TTL_SEC,
     cleanup_stale_run_dirs,
     read_live,
-    start_run,
-    update_live,
+    transition,
 )
 
 SID = "11111111-2222-4333-8444-555555555555"
@@ -121,13 +120,17 @@ class SessionStartCleanupWiringTests(unittest.TestCase):
         self.assertTrue((self.base / ".by-pid" / "12345").exists())
 
     def test_session_start_removes_expired_tombstone_slot(self) -> None:
-        update_live(SID, base_dir=self.base)
-        start_run(SID, "run-abcd1234", entry_point="impl", base_dir=self.base)
-        live = read_live(SID, base_dir=self.base)
-        slot = live["active_runs"]["run-abcd1234"]
-        slot["completed_at"] = "2020-01-01T00:00:00+00:00"
-        slot["last_confirmed_at"] = "2020-01-01T00:00:00+00:00"
-        update_live(SID, base_dir=self.base, active_runs=live["active_runs"])
+        with mock.patch(
+            "harness.session_state._now_iso",
+            return_value="2020-01-01T00:00:00+00:00",
+        ):
+            transition(
+                SID,
+                "run_started",
+                run_id="run-abcd1234",
+                entry_point="impl",
+                base_dir=self.base,
+            )
 
         rc = self._start()
 

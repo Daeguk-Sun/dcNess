@@ -26,30 +26,23 @@ _VALID_LANES = _state._VALID_LANES
 _active_worktree_root_for_prompt = _state._active_worktree_root_for_prompt
 _clear_default_base_cache = _state._clear_default_base_cache
 _default_base = _state._default_base
-_ledger_run_started = _state._ledger_run_started
 _now_iso = _state._now_iso
 _prompt_slot_check_text = _state._prompt_slot_check_text
-_read_steps_jsonl = _state._read_steps_jsonl
 _resolve_state_root_for_cwd = _state._resolve_state_root_for_cwd
 _scan_recent_active_run_slot = _state._scan_recent_active_run_slot
 _validate_design_doc = _state._validate_design_doc
 auto_detect_run_id = _state.auto_detect_run_id
 auto_detect_session_id = _state.auto_detect_session_id
-clear_current_step = _state.clear_current_step
 clear_pid_current_run = _state.clear_pid_current_run
-complete_run = _state.complete_run
 current_session_id = _state.current_session_id
 diagnose_sid_rid_resolution = _state.diagnose_sid_rid_resolution
 evaluate_order_gate_for_step = _state.evaluate_order_gate_for_step
 generate_run_id = _state.generate_run_id
 get_cc_pid_via_ppid_chain = _state.get_cc_pid_via_ppid_chain
 read_live = _state.read_live
-record_fail_open_event = _state.record_fail_open_event
 run_dir = _state.run_dir
 session_dir = _state.session_dir
-start_run = _state.start_run
-update_current_step = _state.update_current_step
-update_live = _state.update_live
+transition = _state.transition
 valid_cc_pid = _state.valid_cc_pid
 valid_session_id = _state.valid_session_id
 write_pid_current_run = _state.write_pid_current_run
@@ -64,6 +57,7 @@ whitelist_path = _activation.whitelist_path
 _fail_open = importlib.import_module("harness.session_state_fail_open")
 collect_fail_open_summary = _fail_open.collect_fail_open_summary
 format_fail_open_warning = _fail_open.format_fail_open_warning
+record_fail_open_event = _fail_open.record_fail_open_event
 
 _status = importlib.import_module("harness.session_state_status")
 collect_status_diagnostics = _status.collect_status_diagnostics
@@ -92,21 +86,13 @@ from harness.session_state_cli_wave import (  # noqa: E402
 # step completion + run finalization handlers live in a cohesive sibling
 # module; import them here because _cli_end_run and the parser dispatch to them.
 from harness.session_state_cli_finalize import (  # noqa: E402
-    _CONCLUSION_HEADER_RE as _CONCLUSION_HEADER_RE,
-    _MUST_FIX_HEADER_ONLY_RE as _MUST_FIX_HEADER_ONLY_RE,
-    _MUST_FIX_NEGATION_RE as _MUST_FIX_NEGATION_RE,
-    _MUST_FIX_RE as _MUST_FIX_RE,
-    _NEXT_LINE_NEGATION_RE as _NEXT_LINE_NEGATION_RE,
     _YOLO_FALLBACKS as _YOLO_FALLBACKS,
     _append_step_status as _append_step_status,
     _cli_auto_resolve as _cli_auto_resolve,
     _cli_end_step as _cli_end_step,
     _cli_finalize_run as _cli_finalize_run,
-    _count_step_occurrences as _count_step_occurrences,
     _extract_prose_summary as _extract_prose_summary,
-    _extract_section_after_header as _extract_section_after_header,
     _find_prose_fallback as _find_prose_fallback,
-    _has_positive_must_fix as _has_positive_must_fix,
     _latest_step_per_role as _latest_step_per_role,
     _record_design_run_if_applicable as _record_design_run_if_applicable,
 )
@@ -123,12 +109,12 @@ def _cli_init_session(args: Any) -> int:
         return 1
     write_pid_session(args.cc_pid, args.sid)
     if not read_live(args.sid):
-        update_live(args.sid)  # 빈 active_runs 로 초기화
+        transition(args.sid, "session_initialized")
     return 0
 
 
 def _cli_begin_run(args: Any) -> int:
-    """sid auto-detect → rid 생성 → start_run + by-pid-current-run."""
+    """sid auto-detect → rid 생성 → run_started transition + by-pid-current-run."""
     sid = auto_detect_session_id()
     if not sid:
         print(diagnose_sid_rid_resolution(mode="sid"), file=sys.stderr)
@@ -140,19 +126,14 @@ def _cli_begin_run(args: Any) -> int:
     stage = getattr(args, "stage", None)
     acceptance_required = bool(getattr(args, "acceptance_required", False))
     try:
-        start_run(
-            sid, rid, args.entry_point,
+        transition(
+            sid, "run_started", run_id=rid, entry_point=args.entry_point,
             issue_num=issue_num, design_doc=design_doc, lane=lane, stage=stage,
             acceptance_required=acceptance_required,
         )
     except ValueError as exc:
         print(f"[begin-run] FAIL — {exc}", file=sys.stderr)
         return 1
-    _ledger_run_started(
-        sid, rid, args.entry_point,
-        issue_num=issue_num, design_doc=design_doc, lane=lane, stage=stage,
-        acceptance_required=acceptance_required,
-    )
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
         write_pid_current_run(cc_pid, rid)
@@ -161,7 +142,7 @@ def _cli_begin_run(args: Any) -> int:
 
 
 def _cli_end_run(args: Any) -> int:
-    """sid+rid auto-detect → complete_run + clear by-pid-current-run."""
+    """sid+rid auto-detect → run_completed transition + clear by-pid-current-run."""
     sid = auto_detect_session_id()
     rid = auto_detect_run_id()
     if not sid or not rid:
@@ -187,13 +168,7 @@ def _cli_end_run(args: Any) -> int:
     except Exception as exc:
         print(f"[session_state] end-run finalize guard FAIL — {exc}", file=sys.stderr)
 
-    complete_run(sid, rid)
-    # 이슈 #587 — ledger run_finished checkpoint (complete_run 후 = run 종료 기록).
-    try:
-        from harness import ledger
-        ledger.append_event(sid, rid, "run_finished")
-    except Exception:  # nosec B110
-        pass
+    transition(sid, "run_completed", run_id=rid)
     try:
         from harness.loop_lessons import sync_from_run
 
@@ -250,22 +225,11 @@ def _cli_post_task_begin(args: Any) -> int:
         return 0
 
     reason = (getattr(args, "reason", "") or "").strip()
-    now = _now_iso()
-
     try:
-        live = read_live(sid) or {}
-    except Exception:
-        live = {}
-    markers = live.get("post_task_markers") if isinstance(live, dict) else None
-    if not isinstance(markers, list):
-        markers = []
-    markers.append({"at": now, "reason": reason})
-    # FIFO cap 20 (오래된 marker 자동 trim)
-    if len(markers) > 20:
-        markers = markers[-20:]
-
-    try:
-        update_live(sid, post_task_markers=markers)
+        transition(sid, "post_task_marked", reason=reason)
+        live = read_live(sid)
+        markers = live.get("post_task_markers", [])
+        now = markers[-1]["at"]
     except Exception as exc:
         print(f"[post-task-begin] live.json update FAIL — {exc}", file=sys.stderr)
         return 0
@@ -292,7 +256,7 @@ def _cli_next_task(args: Any) -> int:
 
     동작:
     1. 현재 sid 해결 (없으면 exit 1)
-    2. 이전 run (있으면) end-run 자동 호출 (finalize-run guard + complete_run + clear)
+    2. 이전 run (있으면) end-run 자동 호출 (finalize guard + run_completed + clear)
     3. 이전 run 의 review.md 본문 stdout (메인이 echo 만, 본문은 디스크 보존)
     4. 새 run begin-run + by-pid-current-run 갱신
     5. stdout = previous review + 새 run_id + 새 run_dir
@@ -345,18 +309,14 @@ def _cli_next_task(args: Any) -> int:
 
     new_rid = generate_run_id()
     try:
-        start_run(
-            sid, new_rid, entry_point, issue_num=None, design_doc=design_doc,
+        transition(
+            sid, "run_started", run_id=new_rid, entry_point=entry_point,
+            issue_num=None, design_doc=design_doc,
             acceptance_required=acceptance_required,
         )
     except Exception as exc:
         print(f"[next-task] begin-run FAIL — {exc}", file=sys.stderr)
         return 1
-    # 이슈 #587 (codex review) — chain task run 도 run_started checkpoint 남김.
-    _ledger_run_started(
-        sid, new_rid, entry_point, design_doc=design_doc,
-        acceptance_required=acceptance_required,
-    )
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
         write_pid_current_run(cc_pid, new_rid)
@@ -462,7 +422,7 @@ def _cli_prev_tasks_reset(args: Any) -> int:
 
 
 def _cli_begin_step(args: Any) -> int:
-    """sid+rid auto-detect → update_current_step."""
+    """sid+rid auto-detect → step_started transition."""
     sid = auto_detect_session_id()
     rid = auto_detect_run_id()
     if not sid or not rid:
@@ -476,7 +436,7 @@ def _cli_begin_step(args: Any) -> int:
     except ValueError as exc:
         print(f"[begin-step] FAIL — {exc}", file=sys.stderr)
         return 1
-    # #700 — agent 이름 canonical 정규화. update_current_step 도 내부 정규화하지만
+    # #700 — agent 이름 canonical 정규화. transition 도 내부 정규화하지만
     # ledger checkpoint까지 같은 표기로 일관시킨다.
     from harness.agent_names import normalize_agent_type
     agent = normalize_agent_type(args.agent) or args.agent
@@ -492,13 +452,9 @@ def _cli_begin_step(args: Any) -> int:
     if gate_message:
         print(gate_message, file=sys.stderr)
         return 1
-    update_current_step(sid, rid, agent, mode)
-    # 이슈 #587 — ledger step_started checkpoint. 기록 실패가 begin-step 막지 않게 silent.
-    try:
-        from harness import ledger
-        ledger.append_event(sid, rid, "step_started", agent=agent, mode=mode)
-    except Exception:  # nosec B110
-        pass
+    transition(
+        sid, "step_started", run_id=rid, agent=agent, mode=mode
+    )
 
     print("ok")
 
@@ -667,7 +623,13 @@ def _cli_ledger_event(args: Any) -> int:
         if val is not None:
             fields[key] = val
     try:
-        rec = ledger.append_event(sid, rid, args.event_type, **fields)
+        rec = transition(
+            sid,
+            "ledger_checkpoint",
+            run_id=rid,
+            event=args.event_type,
+            **fields,
+        )
     except ValueError as exc:
         print(f"[session_state] {exc}", file=sys.stderr)
         return 1
@@ -928,7 +890,7 @@ def _build_arg_parser() -> Any:
     p_init.add_argument("cc_pid", type=int)
     p_init.set_defaults(func=_cli_init_session)
 
-    p_br = sub.add_parser("begin-run", help="run_id 발급 + start_run")
+    p_br = sub.add_parser("begin-run", help="run_id 발급 + run_started transition")
     p_br.add_argument("entry_point")
     p_br.add_argument("--issue-num", type=int, default=None)
     p_br.add_argument(
@@ -954,7 +916,7 @@ def _build_arg_parser() -> Any:
     )
     p_br.set_defaults(func=_cli_begin_run)
 
-    p_er = sub.add_parser("end-run", help="complete_run + clear by-pid-current-run")
+    p_er = sub.add_parser("end-run", help="run_completed transition + clear by-pid-current-run")
     p_er.set_defaults(func=_cli_end_run)
 
     p_nt = sub.add_parser(

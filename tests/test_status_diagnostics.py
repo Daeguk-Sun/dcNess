@@ -26,8 +26,12 @@ from tempfile import TemporaryDirectory
 
 import subprocess
 
-from harness.session_state import (
+from harness.session_state_fail_open import (
     collect_fail_open_summary,
+    read_fail_open_events,
+    record_fail_open_event,
+)
+from harness.session_state_status import (
     _check_ci_workflows,
     _check_codex_validator_skills,
     _check_git_hooks,
@@ -38,8 +42,6 @@ from harness.session_state import (
     _resolve_git_hooks_dir,
     collect_status_diagnostics,
     format_status_report,
-    read_fail_open_events,
-    record_fail_open_event,
 )
 
 

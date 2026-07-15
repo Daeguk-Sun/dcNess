@@ -26,7 +26,7 @@ import unittest
 from pathlib import Path
 
 from harness.guard_telemetry import read_events
-from harness.session_state import read_fail_open_events
+from harness.session_state_fail_open import read_fail_open_events
 
 ROOT = Path(__file__).resolve().parent.parent
 HOOK_PATH = ROOT / "hooks" / "tdd-guard.sh"

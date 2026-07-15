@@ -13,7 +13,7 @@ sys.path.insert(0, str(REPO_ROOT))
 
 from harness import ledger  # noqa: E402
 from harness import run_review as run_review_module  # noqa: E402
-from harness.session_state import record_fail_open_event  # noqa: E402
+from harness.session_state_fail_open import record_fail_open_event  # noqa: E402
 from tests.run_fixtures import (  # noqa: E402
     make_ledger_run_dir as _make_run_dir,
     make_ledger_run_dir as _make_run_dir_ledger,

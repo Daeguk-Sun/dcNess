@@ -28,22 +28,21 @@ from typing import Any, Dict, Optional
 
 from harness.agent_names import normalize_agent_type
 from harness.session_state import (
-    _read_steps_jsonl,
     cleanup_stale_pid_files,
     cleanup_stale_run_dirs,
-    cleanup_stale_runs,
     evaluate_order_gate_for_step,
-    is_project_active,
     read_live,
     read_pid_current_run,
-    record_fail_open_event,
     run_prose_has_pass,
     session_dir,
-    update_live,
+    transition,
     valid_cc_pid,
     valid_session_id,
     write_pid_session,
 )
+from harness.ledger import read_events, read_step_completed
+from harness.session_state_activation import is_project_active
+from harness.session_state_fail_open import record_fail_open_event
 
 
 __all__ = [
@@ -307,7 +306,7 @@ def _strict_conveyor_gate_message(
 
     records = [
         record
-        for record in _read_steps_jsonl(sid, rid, base_dir=base_dir)
+        for record in read_step_completed(sid, rid, base_dir=base_dir)
         if isinstance(record, dict)
     ]
     if records:
@@ -422,7 +421,7 @@ def handle_session_start(
     try:
         write_pid_session(cc_pid, sid, base_dir=base_dir)
         if not read_live(sid, base_dir=base_dir):
-            update_live(sid, base_dir=base_dir)
+            transition(sid, "session_initialized", base_dir=base_dir)
     except (OSError, ValueError):
         return 0
 
@@ -430,7 +429,9 @@ def handle_session_start(
     # 청소 실패가 세션 시작을 막으면 안 되므로 fail-open.
     try:
         removed_pids = cleanup_stale_pid_files(base_dir=base_dir)
-        removed_slots = cleanup_stale_runs(sid, base_dir=base_dir)
+        removed_slots = transition(
+            sid, "stale_runs_cleaned", base_dir=base_dir
+        )
         removed_dirs = cleanup_stale_run_dirs(base_dir=base_dir)
         if removed_pids or removed_slots or removed_dirs:
             print(
@@ -604,7 +605,13 @@ def handle_pretooluse_agent(
     # PreToolUse(Edit/Write/Read/Bash) 훅이 활성 agent 판정에 사용 (agent_boundary).
     if subagent:
         try:
-            update_live(sid, base_dir=base_dir, active_agent=subagent, active_mode=(mode or None))
+            transition(
+                sid,
+                "active_agent_set",
+                base_dir=base_dir,
+                agent=subagent,
+                mode=mode or None,
+            )
         except (OSError, ValueError) as exc:
             _record_fail_open_safe(
                 "catastrophic-gate",
@@ -621,13 +628,12 @@ def handle_pretooluse_agent(
         tuid = stdin_data.get("tool_use_id", "") or ""
         if tuid:
             try:
-                from harness.session_state import set_pending_agent
                 # issue #598 — set 전 동시성 감지 (이미 미완 pending 있으면 경고).
                 _warn_concurrent_subagent(
                     sid, rid, tuid, subagent, base_dir=base_dir
                 )
-                set_pending_agent(
-                    sid, rid,
+                transition(
+                    sid, "pending_agent_set", run_id=rid,
                     tool_use_id=tuid, sub_type=subagent, mode=(mode or None),
                     base_dir=base_dir,
                 )
@@ -1044,25 +1050,23 @@ def handle_posttooluse_agent(
                         )
                     else:
                         from harness.signal_io import write_prose as _write_prose
-                        from harness.session_state import (
-                            _count_step_occurrences as _count_occ,
-                        )
+                        from harness.ledger import count_step_completed
 
                         base = session_dir(sid, base_dir=base_dir) / "runs"
-                        occ = _count_occ(
+                        occ = count_step_completed(
                             sid, rid, step_agent, step_mode, base_dir=base_dir
                         )
                         prose_path = _write_prose(
                             step_agent, rid, prose_text,
                             mode=step_mode, base_dir=base, occurrence=occ,
                         )
-                        cur_step = dict(cur_step)
-                        cur_step["prose_file"] = str(prose_path)
-                        slot = dict(slot)
-                        slot["current_step"] = cur_step
-                        active = dict(active)
-                        active[rid] = slot
-                        update_live(sid, base_dir=base_dir, active_runs=active)
+                        transition(
+                            sid,
+                            "prose_staged",
+                            run_id=rid,
+                            base_dir=base_dir,
+                            prose_file=prose_path,
+                        )
 
                         # issue #392 — routing_telemetry.record_agent_call 폐기.
                         # #281 baseline 비교 끝남 + jajang 실측 record_cascade 0건.
@@ -1088,7 +1092,6 @@ def handle_posttooluse_agent(
         try:
             from harness.agent_trace import histogram_since as _trace_hist_since
             from harness.agent_trace import read_all as _trace_read
-            from harness.session_state import clear_pending_agent
             from harness.sub_eval import (
                 format_histogram, format_input_repeats, summarize_input_repeats,
             )
@@ -1097,8 +1100,12 @@ def handle_posttooluse_agent(
             tuid_now = stdin_data.get("tool_use_id", "") or ""
             # issue #598 multi-slot — 끝난 Agent 의 tool_use_id 로 그 슬롯만 정확 pop
             # (동시 Agent 시 다른 sub 의 pending 보존). tuid 없으면 단일 슬롯 폴백.
-            pending = clear_pending_agent(
-                sid, rid, tool_use_id=(tuid_now or None), base_dir=base_dir
+            pending = transition(
+                sid,
+                "pending_agent_cleared",
+                run_id=rid,
+                tool_use_id=tuid_now or None,
+                base_dir=base_dir,
             )
             since_ts = ""
             if isinstance(pending, dict):
@@ -1152,7 +1159,7 @@ def handle_posttooluse_agent(
 
     # active_agent 해제 (기존 동작)
     try:
-        update_live(sid, base_dir=base_dir, active_agent=None, active_mode=None)
+        transition(sid, "active_agent_set", base_dir=base_dir, agent=None)
     except (OSError, ValueError):
         pass
 
@@ -1229,7 +1236,7 @@ def handle_subagent_stop(
             return 0
         if (normalize_agent_type(active_agent) or "") != agent_type:
             return 0
-        update_live(sid, base_dir=base_dir, active_agent=None, active_mode=None)
+        transition(sid, "active_agent_set", base_dir=base_dir, agent=None)
     except (OSError, ValueError):
         pass  # clear 실패해도 sub 종료엔 영향 X (PostToolUse Agent 가 백업 clear)
     return 0
@@ -1267,7 +1274,7 @@ def _run_design_doc_exists(
 
     begin-run `--design-doc` 으로 기록된 머지된 설계 문서는 build-worker gate 의
     같은-run module-architect PASS 등가 사전 조건 증거다. 경로 규약 검증은
-    기록 시점(start_run fail-fast)에 끝났고, 여기서는 실존만 재확인한다 (기록
+    기록 시점(run_started transition fail-fast)에 끝났고, 여기서는 실존만 재확인한다 (기록
     후 삭제 방어). 기록 부재 / state 읽기 실패는 종전과 동일하게 차단 측
     (fail-strict).
     """
@@ -1291,7 +1298,7 @@ def _run_lane(
 ) -> Optional[str]:
     """현재 run 슬롯에 기록된 lane(설계도 유무) 반환 (#714).
 
-    /impl 2축 모델의 lane 은 begin-run `--lane lite|standard` 로 start_run 슬롯에
+    /impl 2축 모델의 lane 은 begin-run `--lane lite|standard` 로 run 슬롯에
     기록된다. implementation gate 는 lane="lite"(설계도 없는 direct 경로) 를 설계 산출물
     사전 조건 면제 신호로 인정한다. 기록 부재 / state 읽기 실패는 None 반환 →
     종전 차단 경로(설계 산출물 요구)로 떨어진다 (면제 누수 차단, fail-strict).
@@ -1362,9 +1369,9 @@ def handle_stop(
             auto_detect_session_id,
             auto_detect_run_id,
             read_live,
-            _read_steps_jsonl,
-            _cli_end_run,
         )
+        from harness.ledger import read_step_completed
+        from harness.session_state_cli import _cli_end_run
     except Exception:
         return 0
 
@@ -1394,13 +1401,7 @@ def handle_stop(
         # 있으면 닫힌 것 → skip. 없으면 (finalize-only, end-run 까먹음) 아래 end-run 발사
         # 흐름으로 내려가 run_finished 를 보장한다.
         try:
-            from harness import ledger as _ledger
-
-            _ev = (
-                _ledger.read_events(sid, rid, base_dir=base_dir)
-                if base_dir
-                else _ledger.read_events(sid, rid)
-            )
+            _ev = read_events(sid, rid, base_dir=base_dir)
             if any(e.get("event") == "run_finished" for e in _ev):
                 return 0  # 이미 run_finished — 닫힘
         except Exception:
@@ -1413,7 +1414,7 @@ def handle_stop(
     # 닫히지 않은 상태다. 동일 agent 재라운드는 agent/mode 가 같으므로 개수 짝
     # 매칭을 먼저 봐야 한다 (#1035).
     try:
-        steps = _read_steps_jsonl(sid, rid, base_dir=base_dir)
+        steps = read_step_completed(sid, rid, base_dir=base_dir)
     except Exception:
         return 0
     if not steps:
@@ -1538,11 +1539,14 @@ def _maybe_emit_continuation_signal(
         return False  # 메인이 reason 받고도 발화 안 함 = 진짜 종료 — 기존 분기로
 
     # count +1 persist
-    block_counts[step_key] = cur_count + 1
-    slot["stop_block_count"] = block_counts
-    active[rid] = slot
     try:
-        update_live(sid, base_dir=base_dir, active_runs=active)
+        transition(
+            sid,
+            "stop_block_recorded",
+            run_id=rid,
+            base_dir=base_dir,
+            step_key=step_key,
+        )
     except Exception:  # nosec B110
         pass  # persist 실패해도 block 자체는 씀 (다음 호출 시 cur_count 만 미증가)
 

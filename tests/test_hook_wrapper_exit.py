@@ -59,13 +59,18 @@ class CatastrophicGateWrapperExitTests(unittest.TestCase):
         self.cc_pid = os.getpid()  # bash wrapper 의 $PPID
 
         from harness.session_state import (
-            start_run, update_live, write_pid_current_run, write_pid_session,
+            transition, write_pid_current_run, write_pid_session,
             _clear_default_base_cache,
         )
         _clear_default_base_cache()
         write_pid_session(self.cc_pid, self.sid, base_dir=self.base)
-        update_live(self.sid, base_dir=self.base)
-        start_run(self.sid, self.rid, "test", base_dir=self.base)
+        transition(
+            self.sid,
+            "run_started",
+            run_id=self.rid,
+            base_dir=self.base,
+            entry_point="test",
+        )
         write_pid_current_run(self.cc_pid, self.rid, base_dir=self.base)
 
     def tearDown(self) -> None:
@@ -128,11 +133,16 @@ class FileGuardWrapperExitTests(unittest.TestCase):
         self.cc_pid = os.getpid()
 
         from harness.session_state import (
-            update_live, write_pid_session, _clear_default_base_cache,
+            transition, write_pid_session, _clear_default_base_cache,
         )
         _clear_default_base_cache()
         write_pid_session(self.cc_pid, self.sid, base_dir=self.base)
-        update_live(self.sid, base_dir=self.base, active_agent="build-worker")
+        transition(
+            self.sid,
+            "active_agent_set",
+            base_dir=self.base,
+            agent="build-worker",
+        )
 
     def tearDown(self) -> None:
         self._td.cleanup()

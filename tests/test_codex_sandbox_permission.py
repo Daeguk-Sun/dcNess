@@ -12,7 +12,7 @@ from unittest import mock
 
 from harness import codex_sandbox_permission as permission
 from harness import ledger
-from harness.session_state import run_dir, start_run, update_current_step
+from harness.session_state import run_dir, transition
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,8 +29,8 @@ class CodexSandboxPermissionClassificationTests(unittest.TestCase):
             sid = "sid-sandbox-permission"
             rid = "run-a11ce111"
             state_base = project / ".claude" / "harness-state"
-            start_run(sid, rid, "impl", base_dir=state_base, lane="lite")
-            update_current_step(sid, rid, "build-worker", None, base_dir=state_base)
+            transition(sid, "run_started", run_id=rid, base_dir=state_base, entry_point="impl", lane="lite")
+            transition(sid, "step_started", run_id=rid, base_dir=state_base, agent="build-worker", mode=None)
 
             prompt_file = tmp / "prompt.md"
             prompt_file.write_text("Implement and validate.\n", encoding="utf-8")

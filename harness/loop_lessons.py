@@ -10,7 +10,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional
 
-from harness.session_state import _resolve_project_root
+from harness.session_state_activation import _resolve_project_root
 
 
 LESSONS_DIR = Path(".claude") / "loop-lessons"
