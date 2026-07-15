@@ -2365,7 +2365,7 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
         # 위조 방지 — 설정 파일 자신은 어떤 sub-agent 도 write 못 함 (self 확장/축소 금지).
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
-            for agent in ("build-worker", "build-worker", "build-worker", "module-architect"):
+            for agent in ALLOW_MATRIX:
                 reason = check_write_allowed(
                     agent, ".dcness/boundary.json", cwd=cwd
                 )
@@ -2493,10 +2493,21 @@ class ProjectBoundaryOverrideTests(unittest.TestCase):
                 check_write_allowed("build-worker", "custom-pkg/x.go", cwd=proj)
             )
 
-    def test_build_worker_own_key_still_applies(self):
-        # build-worker 자체 key override만 적용된다.
+    def test_retired_keys_rejected_and_build_worker_key_applies(self):
         with tempfile.TemporaryDirectory() as td:
             cwd = Path(td)
+            for retired in ("engineer", "test-engineer", "architect", "plan-reviewer"):
+                with self.subTest(retired=retired):
+                    self._write_boundary(
+                        cwd, {retired: {"add": [r"(^|/)retired-only/"]}}
+                    )
+                    reason = check_write_allowed(
+                        "build-worker", "retired-only/x.go", cwd=cwd
+                    )
+                    self.assertIsNotNone(reason)
+                    self.assertIn("retired boundary agent key", reason)
+                    self.assertIn(retired, reason)
+
             self._write_boundary(
                 cwd, {"build-worker": {"add": [r"(^|/)bw-only/"]}}
             )

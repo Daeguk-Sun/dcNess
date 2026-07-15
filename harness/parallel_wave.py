@@ -544,7 +544,7 @@ def _glob_match(path: str, pattern: str) -> bool:
     """구체 path 가 glob pattern 에 full-match (segment-aware). glob 없으면 정확 비교.
 
     `fnmatch` 와 달리 `*` 가 `/` 를 넘지 않는다 — `src/*.py` 는 `src/a.py` 만 매치하고
-    `src/sub/a.py` 는 매치 안 함 (fan-in scope gate 우회 차단, #636 codex F4).
+    `src/sub/a.py` 는 매치하지 않는다.
     `?`(단일 비-/ 문자)·`[...]`(char class)도 segment-aware.
     """
     if not _has_glob(pattern):

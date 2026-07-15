@@ -10,11 +10,11 @@
     DCNESS_INFRA_PATTERNS — 전 agent 공통 차단 (인프라 보호)
     is_infra_project() — dcness 자체 작업 시 위 룰 전부 해제
 
-활성 sub-agent 판정: live.json.active_agent (catastrophic-gate 가 PreToolUse Agent
-훅에서 기록, post-agent-clear 가 PostToolUse Agent 훅에서 해제).
+활성 sub-agent 판정: 각 file-op hook payload의 `agent_type`. 동시 sub-agent가 공유하는
+`live.json.active_agent`는 권한 판정에 사용하지 않는다.
 
 규약:
-    - 메인 Claude (active_agent 미설정) = 통과 — governance Document Sync 가 별도 보호.
+    - 메인 Claude (`agent_type` 미탑재 payload) = 통과 — governance Document Sync 가 별도 보호.
     - 미정의 agent_type = 통과 (false positive 회피).
     - is_infra_project() True = 모든 룰 해제 (dcness 자체 SSOT 편집 가능해야).
     - opt-out 마커 `.no-dcness-guard` (cwd) 존재 = 모든 룰 해제.
@@ -50,6 +50,11 @@ __all__ = [
     "check_bash_mutation",
     "check_github_mcp_mutation",
 ]
+
+
+_RETIRED_BOUNDARY_AGENT_KEYS = frozenset(
+    {"architect", "engineer", "plan-reviewer", "test-engineer"}
+)
 
 
 # ── 인프라 패턴 (전 agent 공통 차단) ──────────────────────────
@@ -391,7 +396,8 @@ def load_project_boundary_overrides(
     remove 는 ALLOW 에서만 빼므로 INFRA 보호를 못 푼다 (가드 = 검사 순서로 자동 보장).
 
     안전 degrade: 파일 부재·파싱 실패·형식 위반·컴파일 불가 정규식은 조용히 무시하고
-    해당 부분만 제외한다 (잘못된 설정이 코어 기본값을 깨뜨리지 않는다).
+    해당 부분만 제외한다. 폐기된 agent key는 자동 변환하거나 무시하지 않고 명시적으로
+    거부한다.
     """
     if cwd is None:
         cwd = Path.cwd()
@@ -429,6 +435,14 @@ def load_project_boundary_overrides(
         return {}
     if not isinstance(data, dict):
         return {}
+
+    retired = sorted(_RETIRED_BOUNDARY_AGENT_KEYS.intersection(data))
+    if retired:
+        keys = ", ".join(retired)
+        raise ValueError(
+            f"retired boundary agent key(s) in {cfg_path}: {keys}; "
+            "replace implementation overrides with build-worker"
+        )
 
     result: dict[str, dict[str, tuple[str, ...]]] = {}
     for agent, spec in data.items():
@@ -632,9 +646,11 @@ def check_write_allowed(
     #    INFRA(1)·코드 agent 전용 deny(2) 를 모두 통과한 뒤이므로, override 는 되돌릴 수
     #    없는 경계를 건드리지 못한다 (가드 = 검사 순서). remove 는 ALLOW 보다 우선하는
     #    DENY 오버레이, add 는 코어 ALLOW 확장.
-    add_patterns, remove_patterns = _effective_overrides(
-        load_project_boundary_overrides(cwd), agent
-    )
+    try:
+        overrides = load_project_boundary_overrides(cwd)
+    except ValueError as exc:
+        return f"{agent} 프로젝트 boundary 설정 거부: {exc}"
+    add_patterns, remove_patterns = _effective_overrides(overrides, agent)
 
     # 3a. remove 오버레이 — 코어 기본 허용 경로를 이 프로젝트에서 제거.
     if remove_patterns:

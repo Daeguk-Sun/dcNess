@@ -58,7 +58,7 @@ Stop hook 은 tool 호출을 막는 hook 이 아니다. 필요할 때 `decision:
 
 dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 변경 denylist 의 목적은 활성화된 개발 프로젝트에서 agent 가 실수로 순서·역할·외부 상태 경계를 넘는 일을 줄이는 것이다. 신뢰하지 않는 코드를 OS 수준으로 격리하거나, shell/runtime 의 모든 우회 형태를 완전 차단하는 보안 장치로 해석하면 안 된다.
 
-구체적으로, `file-guard.sh` 는 payload 에 드러난 file path, Bash write target, 알려진 `gh`/GitHub MCP mutation 패턴을 검사한다. 새 CLI subcommand, shell command substitution, 런타임 안에서 생성되는 두 번째 명령, 권한 있는 외부 프로세스처럼 payload 정적 검사에 드러나지 않는 경로는 차단 대상이 아닐 수 있다. `tdd-guard.sh` 도 test 존재와 생성형 hook 계약을 확인하지만 test 품질이나 실제 green 상태를 보장하지 않는다.
+구체적으로, `file-guard.sh` 는 payload 에 드러난 `agent_type`, file path, Bash write target, 알려진 `gh`/GitHub MCP mutation 패턴을 검사한다. sub-agent 권한은 각 tool payload의 `agent_type`으로만 귀속하며, 동시 호출에서 서로 덮어쓸 수 있는 공유 `live.active_agent`를 폴백으로 사용하지 않는다. `agent_type`이 없는 payload는 메인 호출로 취급한다. 새 CLI subcommand, shell command substitution, 런타임 안에서 생성되는 두 번째 명령, 권한 있는 외부 프로세스처럼 payload 정적 검사에 드러나지 않는 경로는 차단 대상이 아닐 수 있다. `tdd-guard.sh` 도 test 존재와 생성형 hook 계약을 확인하지만 test 품질이나 실제 green 상태를 보장하지 않는다.
 
 이 한계 때문에 dcNess 는 hook 자체 오류나 판정 불가를 과차단하지 않고 fail-open 으로 기록한다. 활성 프로젝트에서 payload 파싱 실패, session id 부재, state read/write 오류, handler 비정상 종료 때문에 검사를 평가하지 못하고 allow 한 경우는 `<project>/.claude/harness-state/fail-open-events.jsonl` 에 남고, `dcness-helper status` 의 `hook fail-open 진단` 항목이 최근 24시간 count 와 reason category 를 `WARN` 으로 보여준다.
 

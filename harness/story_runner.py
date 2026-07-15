@@ -195,7 +195,10 @@ def build_state(
 def load_state(path: Path) -> dict[str, Any]:
     state = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(state, dict) or state.get("schema_version") != 2:
-        raise ValueError(f"unsupported story-run schema: {path}; recreate it with init")
+        raise ValueError(
+            f"unsupported story-run schema: {path}; "
+            "rerun init with --force to replace it"
+        )
     return state
 
 

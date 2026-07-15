@@ -160,7 +160,7 @@ claude plugin install dcness@dcness
 
 보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next-work`(issue/label 에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름·디자인 시스템/토큰 베이스라인 먼저).
 
-각 단계에서 agent 가 낸 결론(`PASS` / `IMPL_DONE` / `SPEC_GAP_FOUND` 등)이 다음 어느 단계로 이어지는지는 skill 별 `<skill>-routing.md`(mermaid 분기도 + 표 + retry + escalate)가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/impl-routing.md).
+각 단계에서 agent 가 낸 결론(`PASS` / `SPEC_GAP_FOUND` / `TESTS_FAIL` 등)이 다음 어느 단계로 이어지는지는 skill 별 `<skill>-routing.md`(mermaid 분기도 + 표 + retry + escalate)가 진본이다 — 예: [`skills/impl/impl-routing.md`](skills/impl/impl-routing.md).
 
 ## 진행 중 (로드맵)
 

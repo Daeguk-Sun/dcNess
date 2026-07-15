@@ -775,7 +775,16 @@ def _cli_impl_preview(args: Any) -> int:
     from harness import impl_preview
 
     argv: list[str] = []
-    review_provider = args.review_provider or agent_routing.resolve_provider("impl-validator")
+    try:
+        review_provider = args.review_provider or agent_routing.resolve_provider(
+            "impl-validator"
+        )
+    except ValueError as exc:
+        print(
+            f"[dcness impl-preview] routing config rejected: {exc}",
+            file=sys.stderr,
+        )
+        return 1
     for opt, value in (
         ("--design-doc", args.design_doc),
         ("--cwd", args.cwd),

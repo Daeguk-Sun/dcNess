@@ -6,9 +6,13 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
+from io import StringIO
 from pathlib import Path
+from unittest.mock import patch
 
 from harness.impl_preview import build_preview, validate_design_doc
+from harness.session_state_cli import _main as session_state_main
 
 
 class ImplPreviewTests(unittest.TestCase):
@@ -126,6 +130,27 @@ class ImplPreviewTests(unittest.TestCase):
         self.assertEqual(payload["route"], "design-doc")
         self.assertEqual(payload["implementation_owner"], "main")
         self.assertIn(payload["review_provider"], {"claude", "codex"})
+
+        for version in (1, 2):
+            with self.subTest(version=version):
+                routing = self.root / f"routing-v{version}.json"
+                routing.write_text(
+                    '{"version": %d, "routes": {}, "implementation_routes": {}}\n'
+                    % version,
+                    encoding="utf-8",
+                )
+                err = StringIO()
+                with patch.dict(
+                    os.environ, {"DCNESS_ROUTING_PATH": str(routing)}
+                ), redirect_stderr(err), redirect_stdout(StringIO()):
+                    rc = session_state_main(
+                        ["impl-preview", "--concrete", "--cwd", str(self.root)]
+                    )
+
+                self.assertEqual(rc, 1)
+                self.assertIn("routing config rejected", err.getvalue())
+                self.assertIn(f"routing-v{version}.json", err.getvalue())
+                self.assertIn("rerun /init-dcness", err.getvalue())
 
 
 if __name__ == "__main__":

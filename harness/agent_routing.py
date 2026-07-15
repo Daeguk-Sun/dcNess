@@ -163,8 +163,9 @@ def load_routing(*, path: Optional[Path] = None) -> Dict[str, Any]:
         raise ValueError(f"routing config must be JSON object: {target}")
     if data.get("version") != CONFIG_VERSION:
         raise ValueError(
-            f"unsupported routing config version: {data.get('version')!r} "
-            f"(expected {CONFIG_VERSION})"
+            f"unsupported routing config version at {target}: "
+            f"{data.get('version')!r} (expected {CONFIG_VERSION}); "
+            "remove this file and rerun /init-dcness"
         )
     routes = data.get("routes", {})
     if not isinstance(routes, dict):

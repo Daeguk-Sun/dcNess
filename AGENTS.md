@@ -31,7 +31,7 @@ cp scripts/hooks/pre-commit .git/hooks/pre-commit && chmod +x .git/hooks/pre-com
 
 ## 자유서술 방식 패턴 (검증 에이전트)
 
-본 저장소는 [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) (자유서술 방식 원칙 — 형식 강제 X) 에 따라 검증 결과를 **자유 prose** 로 emit 한다. 검증 에이전트(impl-validator, architecture-validator, plan-reviewer 등) 호출 시:
+본 저장소는 [`CLAUDE.md`](CLAUDE.md#dcness-강제-원칙-룰-추가설계-시-가드레일) (자유서술 방식 원칙 — 형식 강제 X) 에 따라 검증 결과를 **자유 prose** 로 emit 한다. 검증 에이전트(impl-validator, architecture-validator, product-acceptance 등) 호출 시:
 
 1. **stdout 으로 prose**: 형식 자유 (markdown / 평문 / 표). harness 가 prose 파일로 저장(`.claude/harness-state/<run_id>/<agent>[-<MODE>].md`).
 2. **결론 enum**: prose 의 *마지막 단락* 에 enum 단어 1개 명시 (검증 에이전트 통일 — `PASS` / `FAIL` / `ESCALATE`). 모호한 표현 금지.

@@ -1223,6 +1223,39 @@ class ImplementationChainTests(unittest.TestCase):
                 }
             )
 
+            for version in (1, 2):
+                with self.subTest(unsupported_routing_version=version):
+                    routing = tmp / f"routing-v{version}.json"
+                    routing.write_text(
+                        '{"version": %d, "routes": {}, "implementation_routes": {}}\n'
+                        % version,
+                        encoding="utf-8",
+                    )
+                    rejected = subprocess.run(
+                        [
+                            str(CHAIN),
+                            "build-worker",
+                            "--prompt-file",
+                            str(prompt_file),
+                            "--project-root",
+                            str(project),
+                            "--helper",
+                            str(helper),
+                        ],
+                        capture_output=True,
+                        env={**env, "DCNESS_ROUTING_PATH": str(routing)},
+                        text=True,
+                    )
+
+                    self.assertEqual(rejected.returncode, 2)
+                    self.assertIn(
+                        "[dcness-implementation-chain] routing config rejected",
+                        rejected.stderr,
+                    )
+                    self.assertIn(f"routing-v{version}.json", rejected.stderr)
+                    self.assertIn("rerun /init-dcness", rejected.stderr)
+                    self.assertNotIn("Traceback", rejected.stderr)
+
             result = subprocess.run(
                 [
                     str(CHAIN),

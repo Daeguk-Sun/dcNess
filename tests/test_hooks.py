@@ -2196,7 +2196,7 @@ class FileOpSelfAttributionTests(_FileOpFixtureMixin, _PreToolBase):
             cc_pid=self.cc_pid,
             base_dir=self.base,
         )
-        self.assertEqual(rc, 0)  # dcness:engineer → engineer → src 허용
+        self.assertEqual(rc, 0)  # dcness:build-worker → build-worker → src 허용
 
     def test_namespaced_trace_agent_normalized(self):
         # namespaced payload 의 trace agent 도 canonical 로 기록.
@@ -3089,14 +3089,15 @@ class StopHookGuardTests(unittest.TestCase):
         self.assertEqual(rc, 0)
         end_run.assert_called_once()
 
-    def test_same_agent_new_begin_step_after_end_step_skips_auto_end_run(self):
-        """#1035 — 동일 agent 재라운드 begin-step 은 진행 중으로 보호한다."""
+    def test_current_step_guards_skip_auto_end_run(self):
+        """진행 중인 현행 step과 counter 없는 이전 slot은 자동 종료하지 않는다."""
         from tempfile import TemporaryDirectory
         from unittest.mock import patch
 
         from harness import ledger
         from harness.session_state import (
             clear_current_step,
+            read_live,
             run_dir,
             start_run,
             update_current_step,
@@ -3134,8 +3135,23 @@ class StopHookGuardTests(unittest.TestCase):
             ) as end_run:
                 rc = handle_stop(stdin_data={}, base_dir=base)
 
-        self.assertEqual(rc, 0)
-        end_run.assert_not_called()
+            self.assertEqual(rc, 0)
+            end_run.assert_not_called()
+
+            live = read_live(sid, base_dir=base)
+            slot = dict(live["active_runs"][rid])
+            slot["current_step"].pop("steps_count_at_begin")
+            active = dict(live["active_runs"])
+            active[rid] = slot
+            update_live(sid, base_dir=base, active_runs=active)
+
+            with patch.dict(os.environ, env, clear=False), patch(
+                "harness.session_state._cli_end_run", return_value=0
+            ) as old_slot_end_run:
+                rc = handle_stop(stdin_data={}, base_dir=base)
+
+            self.assertEqual(rc, 0)
+            old_slot_end_run.assert_not_called()
 
     def test_finalized_without_run_finished_is_end_run_candidate(self):
         """이슈 #587 (codex review) — finalize-run 후 end-run 까먹어 run_finished 없으면 Stop 이 복구."""

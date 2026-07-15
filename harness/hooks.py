@@ -683,8 +683,9 @@ def handle_pretooluse_file_op(
 ) -> int:
     """PreToolUse Edit/Write/Read/Bash — agent_boundary 강제.
 
-    활성 sub-agent (live.json.active_agent) 가 있을 때만 검사. 메인 Claude 는
-    governance Document Sync 게이트가 별도 보호하므로 본 훅 통과.
+    payload `agent_type`으로 식별된 sub-agent만 검사한다. 이 값이 없는 메인 Claude
+    payload는 governance Document Sync 게이트가 별도 보호하므로 본 훅을 통과한다.
+    동시 sub-agent가 공유하는 `live.json.active_agent`는 권한 입력으로 사용하지 않는다.
     """
     from harness.agent_boundary import (
         check_bash_mutation,

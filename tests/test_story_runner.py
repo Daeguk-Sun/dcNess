@@ -7,7 +7,13 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from harness.story_runner import build_state, mark_task, next_action, next_task
+from harness.story_runner import (
+    build_state,
+    mark_task,
+    next_action,
+    next_task,
+    prepare_init_state,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -494,6 +500,14 @@ class StoryRunnerTests(unittest.TestCase):
 
         self.assertEqual(duplicate.returncode, 1)
         self.assertIn("state has incomplete task(s): #1=pending", duplicate.stderr)
+
+        legacy = {"schema_version": 1, "tasks": []}
+        state_path.write_text(json.dumps(legacy), encoding="utf-8")
+        legacy_bytes = state_path.read_bytes()
+        with self.assertRaisesRegex(ValueError, "--force"):
+            prepare_init_state(state_path, force=False)
+        self.assertEqual(state_path.read_bytes(), legacy_bytes)
+        self.assertIsNone(prepare_init_state(state_path, force=True))
 
 if __name__ == "__main__":
     unittest.main()
