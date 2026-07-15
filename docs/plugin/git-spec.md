@@ -84,7 +84,7 @@
      - 단일 story → Closes #story (epic 마지막이면 Closes #epic 동봉)
      - story 브랜치 스택 PR → 생성 시 직전 story branch base, merge 시 main 리타겟 후 Closes #story
      - QA PR → tracked 보정이 있으면 Part of #epic, epic close를 발동하는 마지막 PR이면 Closes #epic
-     - issue 없는 infra/follow-up → Document-Exception-PR-Close: <사유>
+     - issue 없는 infra/follow-up 또는 journey_deferred production-only → Document-Exception-PR-Close: <사유>
      under-link 보다 over-close 사고가 더 큼 — default 는 안전한 Part of -->
 Part of #N
 
@@ -123,6 +123,7 @@ Part of #N
 3. git push -u origin {브랜치명}
 4. gh pr create --base {base} --title "..." --body "..."
    # 다중 story PR은 생성 시 stack base를 유지해 순수 story diff를 보인다.
+   # /impl-loop는 final tip 수렴·review·acceptance·AC audit·tree-preserving consolidate 뒤 clean branch를 push하고 이 단계를 처음 수행한다.
 5. 필요한 review/acceptance/AC close audit 완료 후 host repo merge policy를 따른다.
    # /impl-loop 다중 story stack은 loop 자동 merge 없이 사용자 merge gate를 기다린다.
 6. 다중 story stack에서 merge 승인이 열린 PR만 base=main 리타겟 + main rebase 후 "$PLUGIN_ROOT/scripts/pr-finalize.sh"
@@ -132,12 +133,12 @@ Part of #N
 
 다중 story/epic의 구현 topology는 `story1(base=main) → story2(base=story1) → …` 브랜치 스택이다.
 
-- **PR 생성 시**: 첫 story PR은 `main`, 이후 story PR은 직전 story 브랜치를 base로 만든다. 선행 story commit이 비교 기준에 포함되므로 각 PR diff는 해당 story만 보인다.
-- **다음 story 시작 시**: 직전 story PR을 merge하지 않고 직전 story 브랜치 tip에서 새 story 브랜치를 만든다. loop의 자동 merge는 0회이며 사용자가 유일한 merge gate다.
+- **PR 생성 시**: `/impl-loop`는 먼저 첫 story branch를 `main`, 이후 story branch를 직전 story 브랜치 base로 쌓는다. final tip 수렴·review·acceptance·AC audit·tree-preserving consolidate 뒤 첫 story PR은 `main`, 이후 story PR은 봉인한 직전 story 브랜치를 base로 clean cut한다. 선행 story commit이 비교 기준에 포함되므로 각 PR diff는 해당 story만 보인다.
+- **다음 story 시작 시**: 직전 story tip/base만 봉인하고 PR을 만들거나 merge하지 않은 채 직전 story 브랜치 tip에서 새 story 브랜치를 만든다. loop의 자동 merge는 0회이며 사용자가 유일한 merge gate다.
 - **PR 머지 시점**: 사용자가 순서대로 merge를 승인하면 해당 PR을 base=`main` 으로 리타겟하고 최신 `main` 위로 리베이스한다. regular merge가 보존한 선행 story SHA는 리베이스에서 중복 적용되지 않는다.
 - **downstream restack**: main rebase로 현재 story tip이 바뀌면 아직 열린 downstream branch를 새 tip 위에 순서대로 restack하고 `--force-with-lease`로 갱신한다. 충돌 해결이 최종 tree를 바꾸면 통합 review/acceptance를 다시 수행한다.
-- **QA PR**: story가 2개 이상이고 최종 tip 검수 뒤 tracked cross-cutting fix 또는 flow/manifest 보정이 있으면 마지막 story 브랜치에서 QA 브랜치를 만들어 PR을 추가한다. tracked 변경이 없으면 빈 PR을 만들지 않는다.
-- **merge 순서**: story1 → story2 → … → QA PR(있으면). 각 PR의 close/acceptance/AC audit은 main 리타겟 뒤 merge 직전에 수행한다.
+- **QA PR**: story가 2개 이상이고 final tip 수렴·검수 중 tracked cross-cutting fix 또는 flow/manifest 보정이 있으면 마지막 story 브랜치에서 QA 브랜치를 만든다. acceptance·AC audit·consolidate 뒤 story PR과 함께 cut하며, tracked 변경이 없으면 빈 PR을 만들지 않는다.
+- **merge 순서**: story1 → story2 → … → QA PR(있으면). 각 PR의 close/acceptance/AC audit은 PR cut 전에 끝나며, main 리타겟·리베이스 뒤 tree identity가 그대로인지 확인한다. tree가 바뀌면 stale 규칙에 따라 수렴·review·acceptance·audit을 다시 수행한다.
 
 `pr-finalize.sh` 내부:
 - **pr-finalize 호출 = 머지 확정** — 별도 최종 승인 UI 없이 아래 merge 절차를 수행한다. 호출 전 PR diff/CI/마감 acceptance/사용자 확인이 필요한 흐름은 먼저 끝낸다.
@@ -207,19 +208,20 @@ task 는 별도 GitHub 이슈를 만들지 않는다. build-worker 의 local com
 
 - **task**: local commit 이므로 PR trailer 없음. `task_index` 는 story 내부 설계 순서이며 PR close 판정 입력이 아니다.
 - **story PR**: 단일/다중 run 모두 `Closes #story-issue`를 넣는다. 다중 story PR은 생성 시 stack base라 close가 아직 발동하지 않고, merge 직전 main 리타겟 후 해당 story만 닫는다.
+- **journey deferred production-only PR**: env 선검증 또는 수렴 한도에서 사용자가 해당 journey 검수를 분리했다면 story/epic issue를 닫지 않는다. `Part of #issue`와 `Document-Exception-PR-Close: journey deferred human verification/follow-up`을 넣고 `Closes`는 붙이지 않는다.
 - **epic close**: QA PR이 있으면 QA PR, 없으면 마지막 story PR에 `Closes #epic-issue`를 넣는다. 마지막 close PR은 stack 전체의 review/acceptance/AC audit이 끝난 뒤에만 merge한다.
 - **QA PR**: epic close 전에는 `Part of #epic-issue`, epic close를 실제 발동하는 마지막 PR이면 `Closes #epic-issue`를 쓴다. receipt/log/screenshot은 tracked PR 산출물이 아니다.
 - **공통 task 묶음**: 별도 story issue가 없으므로 `Part of #epic-issue`를 사용한다.
 
 > **반드시 PR body 에 박는다 (commit message 아님)** — 본 프로젝트는 regular merge 채택 ([Git 절차](#git-절차), squash 금지). regular merge 시 GitHub auto-close 는 *PR body* 또는 *squash merge commit message* 만 인식. commit message 안 `Closes #N` 은 머지 commit 에 들어가도 auto-close 발동 X. 본 룰 mechanical 강제 = [`scripts/check_pr_body.mjs`](../../scripts/check_pr_body.mjs) + `.github/workflows/pr-body-validation.yml` (`/init-dcness` 선택형 workflow 로 사용자 repo 배포).
 >
-> **예외**: issue 없는 infra-only / follow-up split PR 등은 PR body 에 `Document-Exception-PR-Close: <사유>` line 박으면 게이트 우회. `:` + 사유 1단어 이상 동일 line 강제. story stack PR은 예외가 아니며 `Closes #story`를 사용한다.
+> **예외**: issue 없는 infra-only / follow-up split PR과 위 `journey_deferred` production-only PR은 PR body 에 `Document-Exception-PR-Close: <사유>` line 박으면 게이트를 통과한다. `:` + 사유 1단어 이상 동일 line 강제. 그 밖의 story stack PR은 예외가 아니며 `Closes #story`를 사용한다.
 
 ### 적용 절차 — story/base 판정
 
 1. impl 파일 frontmatter의 `story`로 PR grouping key를 찾는다. 숫자 story인데 `task_index`가 `i/total` 형식이 아니면 설계 metadata drift로 중지하지만, `i == total` 여부는 PR 경계를 결정하지 않는다.
 2. `dcness-story-runner next-action`의 `pr_base`를 사용한다. 첫 story는 `default-branch(main)`, 이후 story는 직전 `story-branch`다.
-3. 숫자 story PR은 생성 base와 무관하게 `Closes #story`를 사용한다. 공통 task 묶음은 `Part of #epic`이다.
+3. 숫자 story PR은 생성 base와 무관하게 `Closes #story`를 사용한다. 단, run-local `journey_deferred` target AC가 남은 production-only PR은 위 예외 사유와 `Part of`만 사용한다. 공통 task 묶음은 `Part of #epic`이다.
 4. QA PR 유무를 확정한 뒤 epic close trailer를 마지막 merge 대상 PR에 둔다. merge 직전에는 해당 PR을 main으로 리타겟·리베이스하고 close audit을 수행한다.
 
 **한 명령 구현 = [`scripts/pr-trailer.sh`](../../scripts/pr-trailer.sh)** — `"$PLUGIN_ROOT/scripts/pr-trailer.sh" <story의 impl파일>` 이 story 트레일러 블록을 stdout 으로 출력한다. stack base는 runner가 소유하며, 어떤 task 파일을 넘겨도 같은 story PR 트레일러가 나오고 `task-index` trailer는 출력하지 않는다.
@@ -234,19 +236,19 @@ task 는 별도 GitHub 이슈를 만들지 않는다. build-worker 의 local com
 
 - **구현 완료 조건**: story 의 모든 impl task가 local commit으로 `completed`. PR 생성·머지는 runner state 수명에 영향을 주지 않는다.
 - **close 완료 조건**: task 완료와 별도로 target GitHub issue AC 전항목 충족·체크 감사가 PASS. Story AC 는 REQ 설계 trace 의 원천이고, target GitHub issue AC 는 실제 issue close 계약이다.
-- **단일 story close**: base=`main` story PR body `Closes #story-issue` → merge 시 GitHub 자동 close.
-- **다중 story close**: story PR을 순서대로 main 리타겟·리베이스한 뒤 `Closes #story-issue`로 story별 close. 각 merge 전 story acceptance와 issue AC write/audit을 독립 수행한다.
+- **단일 story close**: acceptance와 issue AC write/audit 뒤 base=`main` story PR을 처음 만들고 body `Closes #story-issue` → merge 시 GitHub 자동 close.
+- **다중 story close**: final stack tip의 story별 acceptance와 issue AC write/audit을 독립 수행한 뒤 story PR을 clean cut한다. 사용자 승인 뒤 순서대로 main 리타겟·리베이스하고 tree identity를 확인한 `Closes #story-issue` PR이 story별 close를 발동한다.
 - 메인 Claude 사후 작업 없음 — stories.md `[x]` 체크 룰 폐기 (2026-05-12, 옛 Step 4.5 동기화 step 폐기, 상세는 git history)
 
 ### Epic 완료
 
 - **조건**: epic 의 모든 story task commit 완료 + 스택 tip vs main review/acceptance PASS
-- **단일 story close 시점**: story→main PR 생성 *직전* 1회 사전 체크:
+- **단일 story close 시점**: acceptance와 issue AC audit 뒤 story→main PR 생성 *직전* 1회 사전 체크:
   ```bash
   gh issue list --label epic-NN-<slug> --milestone Story --state open
   ```
   → 이 story merge 시 마지막 story close 예정이면, PR body 에 `Closes #epic-issue` 도 동봉
-- **다중 story close 시점**: QA PR이 있으면 QA PR, 없으면 마지막 story PR이 epic close를 발동한다. 그 PR의 main 리타겟·리베이스 직전에 epic acceptance와 AC audit을 완료한다.
+- **다중 story close 시점**: QA PR이 있으면 QA PR, 없으면 마지막 story PR이 epic close를 발동한다. 최초 PR cut 전에 epic acceptance와 AC audit을 완료하고, main 리타겟·리베이스 뒤 tree identity가 바뀌면 stale 처리한다.
 - 메인 Claude 사후 작업 없음 — `backlog.md` 자체 폐기 (2026-05-12, GitHub epic issue close 가 SSOT)
 - 별도 변경 없는 wrap-up/QA PR은 만들지 않는다. tracked 마감 보정이 없으면 마지막 story PR이 epic close를 담당한다.
 

@@ -1,0 +1,4 @@
+- [E1][MUST] 사용자의 분리 선택을 해당 `journey_id`의 run-local `journey_deferred` 처분으로 보존하고 설계 소유 매니페스트를 다시 쓰지 않아야 한다.
+- [E2][MUST] 분리한 android journey는 수렴 실행, sealed 제품 인수 실행, 종료 조건의 수렴 PASS Must에서 제외하되 준비된 server journey는 정상 수렴·검수해야 한다.
+- [E3][MUST] android target AC가 남은 story issue를 닫지 않고 human verification/follow-up으로 인계하며, production-only PR에는 `Closes` 없이 `Part of`와 문서화된 예외 사유를 사용해야 한다.
+- [E4][MUST_NOT] 같은 android 환경 실패를 수렴이나 acceptance에서 다시 실행해 무진행/rework 한도를 소모하거나 동일 환경 선택을 다시 물으면 안 된다.

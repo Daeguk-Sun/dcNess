@@ -32,10 +32,10 @@ EnterWorktree(name="<skill>-{ts_short}")   # action 루프 (impl / impl-loop / d
 
 ### story 브랜치 스택
 
-`/impl-loop` 다중 story는 `story1(base=main) → story2(base=story1) → …` 순서로 branch와 PR을 만든다. 상세 naming/trailer 규칙은 [`git-spec.md`의 story 브랜치 스택](git-spec.md#story-브랜치-스택)이 소유한다.
+`/impl-loop` 다중 story는 먼저 `story1(base=main) → story2(base=story1) → …` 순서로 local branch stack을 만들고, final tip 수렴·review·acceptance·AC audit·tree-preserving consolidate가 끝난 clean cut 경계에서 PR을 만든다. 상세 naming/trailer 규칙은 [`git-spec.md`의 story 브랜치 스택](git-spec.md#story-브랜치-스택)이 소유한다.
 
-- 첫 story branch는 `main`, 다음 story branch는 **직전 story 브랜치** tip에서 만든다. 직전 story PR은 열린 상태로 두며 자동 merge 금지다.
-- PR 생성 시 stack base를 유지해 순수 story diff를 보여 준다. 사용자가 merge를 승인한 시점에만 해당 PR을 base=`main` 으로 리타겟하고 최신 main 위로 리베이스한다.
+- 첫 story branch는 `main`, 다음 story branch는 **직전 story 브랜치** tip에서 만든다. 직전 story tip/base만 봉인하고 PR은 아직 만들지 않으며 자동 merge 금지다.
+- PR 생성 시 stack base를 유지해 순수 story diff를 보여 준다. PR은 acceptance와 AC audit 뒤 처음 만들고, 사용자가 merge를 승인한 시점에만 해당 PR을 base=`main` 으로 리타겟하고 최신 main 위로 리베이스한다.
 - main rebase가 현재 story tip을 바꾸면 아직 열린 downstream branch를 새 tip 위에 순서대로 restack한 뒤 merge한다. restack 충돌 해결로 최종 tree가 달라지면 기존 review/acceptance 증거는 stale이다.
 - 다음 story로 넘어가기 위한 branch 생성은 reversible local/git 작업이며, `$PLUGIN_ROOT/scripts/pr-finalize.sh` 호출은 merge 승인 뒤에만 가능하다.
 - `EPIC_DIR`(design)와 `TASK_FILE`(impl-loop)이 둘 다 set이면 두 경로가 같은 epic의 stories.md로 수렴하는지 검증한다. 서로 다르면 stale env로 정지한다.
@@ -328,9 +328,10 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 |---|---|
 | runner `plan/init` | path 정렬 뒤 동일 frontmatter `story` 값의 비연속 재등장을 state 변경 전에 차단하고 관련 task 경로를 보고한다. runner 는 story 순서를 임의 재정렬하지 않는다. |
 | build-worker PASS 직후 | task local commit sha 확인 + `dcness-story-runner mark --status completed --commit <sha>` |
-| 한 story 의 task 전부 completed | story PR body 작성 + push + PR create. 다음 story branch는 merge 없이 직전 story branch tip에서 재분기 |
-| 모든 target task completed | 스택 tip vs main merge candidate diff에 impl-validator 통합 리뷰 1회 |
-| impl-validator / STORY_ACCEPTANCE × N / 필요한 EPIC_ACCEPTANCE PASS | story PR별 main 리타겟·리베이스 후 사용자 merge 결정 대기 |
+| 한 story 의 task 전부 completed | story branch tip/base 봉인. PR 없이 다음 story branch를 직전 story branch tip에서 재분기 |
+| 모든 target task completed | 자동 journey면 worker 실행 컨텍스트 수렴 호출 → 스택 tip vs main merge candidate diff에 impl-validator 통합 리뷰 1회 |
+| impl-validator / STORY_ACCEPTANCE × N / 필요한 EPIC_ACCEPTANCE / target issue AC audit PASS | iteration 노이즈가 있을 때만 tree-preserving commit consolidate, no-op이면 근거 보존 |
+| consolidate 완료 | story/조건부 QA PR 최초 생성. 그 뒤 사용자 승인 시 main 리타겟·리베이스 후 merge 결정 대기 |
 
 > `docs/.../impl/NN-*.md` 는 `/design` 산출물이 *미리 머지* 된 상태 — impl-task-loop 안에서 별도 commit X. fallback 모드 (정식 위치 부재) 는 module-architect 산출물을 본 PR src commit 에 같이 포함.
 
@@ -341,11 +342,11 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 - **브랜치명** = [`git-spec.md` 브랜치](git-spec.md#브랜치) (결정 절차 = [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md)).
 - **base** = [`git-spec.md` story 브랜치 스택](git-spec.md#story-브랜치-스택) (첫 story=main, 이후 story=직전 story branch, merge 시 main 리타겟·리베이스).
 - **PR body 트레일러 (Part of vs Closes) 판정** = [`git-spec.md` PR 트레일러](git-spec.md#pr-트레일러-part-of-closes) 의 story/base 분기.
-- **실행** = [`scripts/pr-create.sh`](../../scripts/pr-create.sh) — `--branch / --base / --title / --body-file / --commit-msg-file` 받아 branch + add + commit + push + `gh pr create` 한 명령. body-file 은 메인이 위 트레일러 규칙대로 작성해 전달 (스크립트는 판정 X). **주의**: pr-create.sh 는 `git add -A`(worktree 전체 stage) — 위 권한 경계로 worktree 가 src-only 라 곧 src-only 커밋이 되지만, 메인이 stray non-src 변경(임시 파일·`.DS_Store` 등)을 발견하면 호출 *전* 정리하거나 명시 pathspec 으로 직접 stage 한다.
+- **실행** = task·수렴 commit과 선택 consolidate가 이미 끝난 clean branch이므로 repo git-spec의 `git push -u origin <branch>` + `gh pr create --base <base>`를 사용한다. [`scripts/pr-create.sh`](../../scripts/pr-create.sh)는 working tree 변경을 add+commit하는 helper라 이 clean cut 경계에는 사용하지 않는다. body-file은 메인이 위 트레일러 규칙대로 작성한다.
 
 ### Step 7a (impl-task-loop)
 
-story PR 경계에서는 PR 생성만 완료한 상태다. 다중 story/epic도 PR을 merge하지 않고 다음 branch를 직전 story branch에서 만든다. 모든 PR에 자동 merge 금지 규칙을 적용하며, review/acceptance/AC audit 뒤 사용자가 유일한 merge gate다.
+story 경계에서는 branch tip/base만 봉인하고 PR을 만들지 않는다. 다중 story/epic도 다음 branch를 직전 story branch에서 만들며, final tip 수렴·review/acceptance/AC audit/consolidate 뒤 clean stack에서 최초 PR을 cut한다. 모든 PR에 자동 merge 금지 규칙을 적용하며 사용자가 유일한 merge gate다.
 
 ---
 

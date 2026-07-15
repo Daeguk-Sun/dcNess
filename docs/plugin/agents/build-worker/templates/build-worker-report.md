@@ -2,6 +2,8 @@
 
 `[task<i> · <slug>] PASS|SPEC_GAP_FOUND|TESTS_FAIL|VALIDATION_BLOCKED|IMPLEMENTATION_ESCALATE`
 
+- mode: `task | JOURNEY_ENV_PREFLIGHT | JOURNEY_CONVERGENCE`
+
 ## Phase Summary
 
 - build-test:
@@ -19,6 +21,15 @@
 - 핵심 AC별 증거:
 - mock/stub/fake 경계:
 - typecheck/compile warning:
+
+## Journey evidence (해당 mode만)
+
+- acceptance_environment / worker probe:
+- 자동 준비 또는 검출 불확실 근거:
+- harness_paths:
+- iteration별 실패 서명 / 수정 / 진행 여부:
+- final tip 실행 결과:
+- 수렴 commit sha:
 
 ## Cartography impact
 

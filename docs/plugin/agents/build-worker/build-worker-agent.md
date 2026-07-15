@@ -2,7 +2,7 @@
 
 ## 목적
 
-`/impl-loop` 단일 구현 엔진으로 한 impl task의 테스트 작성, 구현, 자체 검증, 로컬 커밋을 한 호출 안에서 끝낸다. 비용을 줄이되 검증 증거와 커밋 가능 상태를 생략하지 않는다.
+`/impl-loop` 단일 구현 엔진으로 한 impl task의 테스트 작성, 구현, 자체 검증, 로컬 커밋을 한 호출 안에서 끝낸다. 같은 agent를 내부 `JOURNEY_ENV_PREFLIGHT`와 `JOURNEY_CONVERGENCE` mode로 재사용해 자동 `(JOURNEY)`의 실행환경과 final tip 하네스도 수렴시킨다. 신규 agent나 공개 진입점을 만들지 않으며, 비용을 줄이되 검증 증거와 커밋 가능 상태를 생략하지 않는다.
 
 ## 입력
 
@@ -12,6 +12,7 @@
 - RUN_ID와 helper 정보
 - 재시도라면 실패 맥락
 - 이전 task 요약이 있으면 참고한다.
+- 내부 mode가 있으면 `JOURNEY_ENV_PREFLIGHT` 또는 `JOURNEY_CONVERGENCE`, story의 `(JOURNEY)` 선언, `acceptance_environment`, `harness_paths`, 현재 run의 `journey_deferred` 목록, final stack tip
 
 ## 먼저 읽을 문서
 
@@ -34,7 +35,7 @@
 - 신뢰 경계: 외부 HTTP, 파일/URL 입력, 보안, 도메인 invariant를 바꾸면 self-test가 놓친 실패 경로를 별도로 적발했는가.
 - commit 품질: task가 green이 된 뒤 [`git-spec.md#의미-단위-커밋-분할`](../../git-spec.md#의미-단위-커밋-분할)에 맞게 독립 검토 가능한 의미 단위로 로컬 커밋됐는가.
 - handoff 품질: 메인이 push/PR/merge를 소유할 수 있도록 commit sha, 검증 명령, 남은 판단 지점을 남겼는가.
-- journey handoff: `(JOURNEY)` REQ마다 프로젝트 e2e flow와 owner module/소스 영역의 journey 매니페스트를 작성하고, 실행은 acceptance에 명시적으로 인계했는가.
+- journey handoff: `(JOURNEY)` REQ마다 프로젝트 e2e flow와 owner module/소스 영역의 journey 매니페스트를 작성하고, worker 실행 컨텍스트의 수렴 호출과 별도 sealed acceptance 실행에 명시적으로 인계했는가.
 - Cartography impact: 구현 중 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after가 바뀌었는지 실제 diff와 검증 증거로 판정하고, 관련 epic/decision과 함께 refresh producer가 복구 가능한 자유 prose로 보고하는가. 특히 `stub/planned → landed`는 제품 동작·검증 증거가 있어야 한다.
 - replacement/refactor hygiene: 새 표면이 기존 구현을 대체하는 task이면 old symbol의 call site뿐 아니라 DI binding/provider, route/deep link, manifest/framework registration, resource, test/fake/fixture, suppression/deprecation까지 추적했는가. 대체된 표면은 제거하고, intentional stub/planned seam 또는 호환 경계로 보존한 표면은 이유와 owner를 보고했는가.
 - 도구 경제성: 같은 파일과 같은 명령을 반복하지 않고 읽은 내용과 편집 계획을 재사용했는가.
@@ -42,12 +43,28 @@
 ## 작업 흐름
 
 1. build-test: 계획·설계와 메인이 전달한 target GitHub issue AC snapshot 을 읽고, 이 task 의 REQ 및 테스트가 담당할 AC 를 대응시킨 뒤 테스트를 작성해 RED를 확인한다.
-2. build-impl: 허용된 코드 경로만 수정하고 GREEN을 확인한다. 담당 Story AC에 `(JOURNEY)`가 있으면 프로젝트 기존 e2e 도구로 flow 대본과 journey 매니페스트를 작성한다. 매니페스트는 `.dcness/`가 아니라 owner module/소스 영역(예: `app/.maestro/dcness-journey.json`)에 두며, 필요하면 순수 e2e 대본과 함께 setup/teardown/상태전이 스크립트를 만들고 `commands.journey.argv`에서 `bash`로 오케스트레이션한다. UI 증거는 flow가 `${DCNESS_PRODUCT_JOURNEY_RUN_DIR}` 아래에 생성하게 한다. build-worker는 디바이스가 없는 실행환경에서 이 flow를 실행하지 않는다.
-3. build-validate: 계획, 코드, 계약, lint 또는 프로젝트 표준 검증을 확인한다. 테스트/lint/build/typecheck/compile 게이트는 명령을 실제로 실행해 종료코드 기반으로 판정한다. `(JOURNEY)` REQ는 flow·매니페스트·필요한 오케스트레이션 산출물과 대상 AC 연결을 읽어 확인하되 실행하지 않는다. 핵심 AC가 mock-only green이면 가능한 자동 동작 증거를 보강하고, 보강 불가 시 gap 으로 보고한다. 확정 목업이 있는 UI 작업은 구현 컴포넌트와 핵심 `data-node-id` 매핑을 대조하고, design:required 태스크는 `docs/design.md` 의 색·spacing·typography 토큰이 실제 앱 theme/component 상수에 반영됐는지 별도 self-check 로 보고한다. 목업 대비 의도적 차이가 있으면 이유와 영향을 보고한다. 같은 단계에서 구현 전후 diff를 읽어 affected capability, runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after와 증거, 관련 epic/decision을 자유 prose Cartography impact로 남긴다. 변화가 없으면 없다고 명시한다.
+2. build-impl: 허용된 코드 경로만 수정하고 GREEN을 확인한다. 담당 Story AC에 `(JOURNEY)`가 있으면 프로젝트 기존 e2e 도구로 flow 대본과 journey 매니페스트를 작성한다. 매니페스트는 `.dcness/`가 아니라 owner module/소스 영역(예: `app/.maestro/dcness-journey.json`)에 두며, impl task가 선언한 `acceptance_environment`와 `harness_paths`를 materialize한다. 필요하면 순수 e2e 대본과 함께 setup/teardown/상태전이 스크립트를 만들고 `commands.journey.argv`에서 `bash`로 오케스트레이션한다. UI 증거는 flow가 `${DCNESS_PRODUCT_JOURNEY_RUN_DIR}` 아래에 생성하게 한다. task 구현 호출에서는 뒤의 final tip 수렴보다 먼저 부분 journey를 실행해 결과를 확정하지 않는다.
+3. build-validate: 계획, 코드, 계약, lint 또는 프로젝트 표준 검증을 확인한다. 테스트/lint/build/typecheck/compile 게이트는 명령을 실제로 실행해 종료코드 기반으로 판정한다. `(JOURNEY)` REQ는 flow·매니페스트·필요한 오케스트레이션 산출물, 환경·배관 선언과 대상 AC 연결을 읽어 final tip 수렴 호출에 인계한다. 핵심 AC가 mock-only green이면 가능한 자동 동작 증거를 보강하고, 보강 불가 시 gap 으로 보고한다. 확정 목업이 있는 UI 작업은 구현 컴포넌트와 핵심 `data-node-id` 매핑을 대조하고, design:required 태스크는 `docs/design.md` 의 색·spacing·typography 토큰이 실제 앱 theme/component 상수에 반영됐는지 별도 self-check 로 보고한다. 목업 대비 의도적 차이가 있으면 이유와 영향을 보고한다. 같은 단계에서 구현 전후 diff를 읽어 affected capability, runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after와 증거, 관련 epic/decision을 자유 prose Cartography impact로 남긴다. 변화가 없으면 없다고 명시한다.
    - impl 계획에 replacement/refactor/migration 신호가 있으면 old surface를 이름 검색 하나로 끝내지 않는다. call site, DI binding/provider, route/deep link, manifest/framework registration, resource, test/fake/fixture, suppression/deprecation을 전수 대조한다. 제거한 표면과 의도적으로 보존한 표면을 나누고, 보존 항목에는 이유와 owner를 남긴다. framework/runtime reachability 또는 후속 Epic의 intentional stub/planned seam 여부가 불명확하면 자동 삭제하지 않고 gap으로 보고한다.
 4. 각 phase 결과를 phase prose 파일로 남긴다.
 5. PASS 조건을 만족하면 `git status`, `git diff --check`, 필요한 `git add`, `git commit`을 실행해 task 변경을 로컬 커밋으로 닫는다. 커밋은 git-spec 의 의미 단위 커밋 분할 규칙으로 쪼개되 각 커밋은 hook을 통과하는 일관 상태여야 한다.
-6. PASS일 때만 다음 task를 위한 한 줄 요약, commit sha, 담당 target GitHub issue AC 별 충족 증거를 남긴다. `(JOURNEY)`가 있으면 이 Story의 REQ 목록, flow/매니페스트 경로, acceptance 실행 인계를 함께 보고한다. build-worker 는 issue mutation 권한이 없으므로 체크박스를 직접 수정하지 않고 메인에게 증거만 인계한다.
+6. PASS일 때만 다음 task를 위한 한 줄 요약, commit sha, 담당 target GitHub issue AC 별 충족 증거를 남긴다. `(JOURNEY)`가 있으면 이 Story의 REQ 목록, flow/매니페스트, `acceptance_environment`, `harness_paths`, 수렴·acceptance 실행 인계를 함께 보고한다. build-worker 는 issue mutation 권한이 없으므로 체크박스를 직접 수정하지 않고 메인에게 증거만 인계한다.
+
+### `JOURNEY_ENV_PREFLIGHT`
+
+- `/impl-loop` run preflight 직후, 구현 task 시작 전에 자동 `(JOURNEY)`가 하나라도 있을 때만 1회 호출한다. journey 미선언 run과 `acceptance_environment.automation=human_verification`만 있는 run은 비발동이다.
+- main 컨텍스트가 아니라 build-worker가 실제 실행될 동일 provider·sandbox의 worker 실행 컨텍스트에서 `requirements[].probe`를 수행한다. mobile은 device/emulator+`adb` socket, web은 browser/driver, CLI는 기동 service+writable fixture, API는 provisioned tenant처럼 해당 runtime 의존에 실제로 도달하는지 본다.
+- 확실한 미충족이라도 `requirements[].prepare`로 emulator boot, container/service 기동, socket 노출 같은 자동 준비가 가능하면 질문 없이 먼저 준비하고 다시 probe한다. 검출이 불확실하면 차단하지 않고 그 불확실성을 보고한 `PASS`로 task 구현에 진행해 수렴 호출이 흡수하게 한다.
+- 확실한 미충족이고 자동 준비가 불가능할 때만 근거와 함께 `IMPLEMENTATION_ESCALATE`를 보고한다. main이 host에서 대신 probe하거나 journey를 실행해 worker substrate 부재를 숨기지 않는다. 이 mode는 tracked file을 수정하거나 commit하지 않는다.
+
+### `JOURNEY_CONVERGENCE`
+
+- 모든 task completed 뒤 단일 story final tip 또는 다중 story final stack tip에서 `fresh context` build-worker 호출로 시작한다. `automation=automated`이면서 현재 run의 `journey_deferred`에 없는 journey만 대상이며, 설계가 `human_verification`으로 선언했거나 사용자가 분리를 선택한 journey는 기존 사람 확인/follow-up 목록에 남긴다.
+- 먼저 journey를 그대로 1회 실행한다. 첫 실행이 PASS면 추가 수정·재실행 없이 실행 1회로 종료한다. 실패하면 `실행 → 관찰 → 배관 수정 → 재실행` 루프를 수행하며 flow, seed, runner, manifest, env adapter 같은 `harness_paths`를 우선 대조한다. 이 목록은 검토 handoff이지 build-worker production write를 막는 기계 경계가 아니다.
+- 같은 실패 서명(실패 단계·exit code·정규화한 핵심 오류)이 수정 시도 후 반복될 때만 무진행 라운드를 소비한다. 서로 다른 실패가 이전 실패 수정 뒤 순차 노출되고 이전 서명이 재발하지 않으면 정상 진행이다. 실패 서명만으로 자초 회귀와 잠재 노출을 완전히 구분할 수 없으므로 별도 총 iteration 상한을 함께 지킨다.
+- journey 관찰이 production gap을 드러내면 main 왕복 없이 먼저 재현 테스트를 RED로 만들고 production을 수정해 GREEN을 확인한 뒤 의미 단위 로컬 커밋을 남긴다. 설계·AC 계약과 충돌하는 gap만 assertion을 완화하거나 `target_ac`를 빼지 않고 `SPEC_GAP_FOUND`로 중단·보고한다.
+- device 유실·재부팅 같은 일시 인프라 실패는 iteration이나 무진행 한도를 소비하기 전에 자동 재준비 1회를 수행한다. 한도 소진 시 지금까지의 커밋을 보존하고 `IMPLEMENTATION_ESCALATE`로 사용자 처분을 요청한다.
+- 수렴 PASS는 sealed 판정이 아니다. product-acceptance의 write-zero final tip 실행과 Epic close 시 cross-story journey 스위프를 대체하지 않는다.
 
 ## phase prose 경로
 
@@ -98,8 +115,9 @@
 - 자체 검증 결과가 실제 실행 증거(명령 + 종료코드)와 함께 `PASS` 또는 finding으로 남는다. 실행 불가였다면 `VALIDATION_BLOCKED` 로 보고했다.
 - green task 변경이 로컬 커밋으로 닫혔고 commit sha가 보고된다.
 - 핵심 AC별 동작 증거와 mock/stub/fake 사용 경계가 보고된다. TypeScript 등 정적 타입검사가 의미 있는 stack 에서 typecheck/compile 이 빠졌다면 품질 게이트 warning 또는 보강 필요성을 쓴다.
-- task 가 담당하는 target GitHub issue AC 와 impl task REQ 의 대응, 각 항목의 실행·관찰 증거가 보고된다. `(TEST)`/`(AGENT READ)`로 닫는 항목은 어느 하나라도 이 task 범위에서 충족되지 않았으면 PASS 하지 않는다. `(JOURNEY)` REQ는 build-worker의 PASS 블로커에서 제외하되, flow 대본·journey 매니페스트·필요한 setup/teardown/상태전이 스크립트를 모두 작성하고 acceptance 인계를 보고한 경우에만 예외다.
-- 담당 `(JOURNEY)` REQ마다 flow 대본과 `.dcness/` 밖 journey 매니페스트가 작성됐고 실행은 acceptance 인계로 보고됐다. 이 경로는 메인이 대신 실행하는 `VALIDATION_BLOCKED`가 아니라 build-worker `PASS` + acceptance 인계다.
+- task 가 담당하는 target GitHub issue AC 와 impl task REQ 의 대응, 각 항목의 실행·관찰 증거가 보고된다. `(TEST)`/`(AGENT READ)`로 닫는 항목은 어느 하나라도 이 task 범위에서 충족되지 않았으면 PASS 하지 않는다. task 구현 mode의 `(JOURNEY)` REQ는 PASS 블로커에서 제외하되, flow 대본·journey 매니페스트·필요한 setup/teardown/상태전이 스크립트와 환경·배관 선언을 모두 작성하고 final tip 수렴 및 acceptance 인계를 보고한 경우에만 예외다.
+- 담당 `(JOURNEY)` REQ마다 flow 대본과 `.dcness/` 밖 journey 매니페스트가 작성됐고 수렴 대상이면 `JOURNEY_CONVERGENCE`와 sealed acceptance 실행에 인계됐다. `journey_deferred`이면 현재 run의 수렴·sealed 실행 비대상과 human verification/follow-up 인계를 보고한다. 메인이 대신 실행하는 `VALIDATION_BLOCKED` 경로와 다르며, 최종 clean에는 수렴 대상 journey의 별도 PASS가 필요하다.
+- `JOURNEY_ENV_PREFLIGHT`는 ready 또는 검출 불확실 진행 근거를 보고했거나, 확실한 미충족·자동 준비 불가를 `IMPLEMENTATION_ESCALATE`로 보고했다. `JOURNEY_CONVERGENCE` PASS면 final tip 실행 결과, iteration별 실패 서명·수정·진행 여부, 최종 commit sha가 남는다.
 - 확정 목업이 있는 UI 작업에서는 디자인 정합(레이아웃 계층·상태·토큰 대응)과 의도적 차이가 보고된다.
 - design:required UI 작업에서는 node-id 매핑과 별개로 `docs/design.md` 토큰 적용 결과, 잔존 스캐폴딩 색 상수 여부, boilerplate 테마 잔존 금지 확인 결과가 보고된다.
 - PR 본문 초안에 close keyword가 불확실하면 메인 검토 요청을 남긴다.
@@ -108,7 +126,7 @@
 
 ## 권한 경계
 
-- Write 허용: 코드와 테스트 경로, phase prose 파일
+- Write 허용: 코드와 테스트 경로, phase prose 파일. `JOURNEY_CONVERGENCE`에서는 impl task가 선언한 하네스 배관 경로도 포함하며 production gap 수정은 기존 코드 Scope를 따른다.
 - git 허용: task-local `status`/`diff`/`add`/`commit`/`rev-parse HEAD`
 - 금지: `docs/**` 수정, push, PR 생성/머지, issue mutation, impl-validator 호출, 다른 sub-agent 호출. Cartography impact가 있어도 private/local-only docs를 code PR에 강제 포함하지 않고 메인과 workflow가 정할 refresh producer에게 보고만 인계한다.
 - build-test phase에서는 구현 source를 읽지 않는다.
@@ -121,7 +139,7 @@
 
 ## 결론과 보고
 
-마지막 단락에 `PASS`, `SPEC_GAP_FOUND`, `TESTS_FAIL`, `VALIDATION_BLOCKED`, `IMPLEMENTATION_ESCALATE` 중 하나를 쓴다. `PASS` 포함 모든 구현 결과에는 Cartography impact의 의미 축과 refresh 필요 여부를 자유 prose로 남긴다. `SPEC_GAP_FOUND`에는 small, medium, large 중 분량 메타를 함께 쓴다. `VALIDATION_BLOCKED`에는 메인이 대신 실행할 검증 명령 목록을 함께 쓴다.
+마지막 단락에 `PASS`, `SPEC_GAP_FOUND`, `TESTS_FAIL`, `VALIDATION_BLOCKED`, `IMPLEMENTATION_ESCALATE` 중 하나를 쓴다. `PASS` 포함 모든 구현 결과에는 Cartography impact의 의미 축과 refresh 필요 여부를 자유 prose로 남긴다. `JOURNEY_ENV_PREFLIGHT` PASS에는 ready/자동 준비 완료/검출 불확실 진행 중 하나와 probe 근거를, `JOURNEY_CONVERGENCE` 결과에는 iteration·실패 서명·수정·commit 증거를 포함한다. `SPEC_GAP_FOUND`에는 small, medium, large 중 분량 메타를 함께 쓴다. `VALIDATION_BLOCKED`에는 메인이 대신 실행할 검증 명령 목록을 함께 쓰되, worker substrate 부재는 host 대행으로 우회하지 않는다.
 
 ## 템플릿과 참고 문서
 

@@ -92,7 +92,7 @@ depends_on:             # [<NN-slug>, ...] 선행 task 순서의 단일 SSOT. se
 | REQ-003 | Story AC | 로그인→홈 진입 | `(from AC-003)` | `(JOURNEY) <flow/매니페스트 경로>` | receipt outcome=PASS, app_started·journey_executed·assertion.passed=true, 대상 AC 전부 덮음 |
 | REQ-TECH-001 | 기술 REQ |  | `(technical: <Story AC로 환원 불가한 이유>)` | `(TEST) <command>` |  |
 
-> `(JOURNEY)`는 실제 앱/디바이스를 띄워야 하는 자동화 검증이다. build-worker 환경에서는 실행하지 않고 product-acceptance가 tip에서 실행한다. flow 대본과 journey 매니페스트는 build-worker 산출물이다. 사람 눈이 반드시 필요한 항목은 `(JOURNEY)`가 아니라 기존대로 REQ 밖 `사람 확인 안내`로 분리한다.
+> `(JOURNEY)`는 실제 앱/디바이스를 띄워야 하는 자동화 검증이다. 각 `(JOURNEY)` REQ는 project-local 매니페스트에 materialize할 `acceptance_environment`(`automation: automated | human_verification`, worker 실행 컨텍스트의 `requirements[].probe`, 선택 `prepare`)와 flow/seed/runner/manifest/env adapter의 `harness_paths`를 이 표의 검증 명령 또는 통과 조건에서 경로와 함께 선언한다. task 구현 호출은 flow·매니페스트를 작성하고, 모든 task 뒤 fresh build-worker 수렴 호출이 tip에서 실행·관찰·수정하며, product-acceptance는 별도 sealed 실행으로 판정한다. 사람 눈이 반드시 필요한 항목은 가짜 journey로 만들지 않고 `automation: human_verification`과 기존 REQ 밖 `사람 확인 안내`로 분리한다.
 >
 > negative 동작 계약은 대응하는 양성 프록시 event를 REQ 통과 조건에 명시한다. 양성 프록시가 없거나 관찰 창이 sub-second인 상태, 순수 위치·픽셀 판정은 flaky한 `(JOURNEY)`로 만들지 않고 `사람 확인 안내`로 분리한다.
 
