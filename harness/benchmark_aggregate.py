@@ -214,8 +214,8 @@ def aggregate_runs(
     적용. **worktree 한계** — run_dir(ledger)은 git-common-dir 때문에 항상 main repo
     의 .claude/harness-state 아래 있지만, Claude 세션 JSONL 은 *실행 cwd*(worktree
     경로)로 키잉된다. 따라서 worktree run 은 run_dir 에서 repo 를 유추하면 세션 JSONL
-    을 못 찾아 cost·invocation 의존 waste(END_STEP_SKIP)가 누락된다. prose/agent-trace
-    기반 지표(결론 분포 / FAIL 비율 / escalate / blocked / MUST_FIX·TOOL_REPEAT waste)
+    을 못 찾아 cost·invocation 의존 waste(END_STEP_SKIP)가 누락된다. prose/ledger
+    기반 지표(결론 분포 / FAIL 비율 / escalate / blocked / MUST_FIX waste)
     는 run_dir 만으로 산출되어 영향 없다. cost/invocation 정확도가 필요하면 그 run 이
     실행된 cwd(worktree 포함)를 --repo 로 지정한다 (run_started 가 cwd 미기록 — #766).
     """

@@ -1,12 +1,10 @@
 #!/usr/bin/env bash
 # dcNess post-agent-clear 훅 — PostToolUse Agent
 #
-# 동작 (DCN-CHG-20260501-13 — 노출 개선):
+# 동작:
 #   1. live.json.active_agent / active_mode clear (메인 복귀)
-#   2. agent-trace 집계 → tool histogram + anomaly 검출
-#   3. additionalContext (hookSpecificOutput) stdout JSON 으로 inject
+#   2. prose staging 결과를 additionalContext stdout JSON 으로 inject
 #      → 메인 다음 turn 의 Agent tool result 옆에 system reminder 로 보임
-#   4. redo_log 1줄 자동 append (메인이 잊는 행동 자동화)
 #
 # 트리거: Claude Code PostToolUse event, tool=Agent
 # stdin: CC payload (sessionId, agent_id, tool_input.subagent_type 등)

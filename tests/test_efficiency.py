@@ -3,7 +3,7 @@
 DCN-CHG-20260430-08: improve-token-efficiency skill 흡수. encode_repo_path 가
 CC 인코딩 룰 (`/` + `.` 둘 다 → `-`) 정합 + price_for prefix 매칭 검증.
 
-핵심 동작 (analyze_sessions / build_dashboard) 의 통합 smoke 만 — read-only 분석
+핵심 동작 (analyze_sessions) 의 통합 smoke 만 — read-only 분석
 도구라 catastrophic 룰 비대상.
 """
 from __future__ import annotations
@@ -103,11 +103,24 @@ class WrapperSmokeTests(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("no .jsonl files", result.stderr.lower())
 
+    def test_retired_analysis_subcommands_have_migration_contract(self) -> None:
+        for command in ("dashboard", "patterns", "patterns-dashboard", "full"):
+            with self.subTest(command=command):
+                result = subprocess.run(
+                    [str(REPO_ROOT / "scripts/dcness-efficiency"), command],
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("removed from plugin runtime", result.stderr)
+                self.assertIn("analyze or summary", result.stderr)
+
 
 class IntegrationSmokeTests(unittest.TestCase):
-    """analyze + dashboard chain — 가짜 세션 jsonl 생성 후 실제 동작 검증."""
+    """Analyze a fixture session through the public wrapper."""
 
-    def test_full_chain_with_fixture_session(self) -> None:
+    def test_analyze_and_summary_fixture_session(self) -> None:
         with TemporaryDirectory() as td:
             sessions = Path(td) / "sessions"
             sessions.mkdir()
@@ -127,39 +140,22 @@ class IntegrationSmokeTests(unittest.TestCase):
             }
             fixture.write_text(json.dumps(record) + "\n", encoding="utf-8")
 
-            json_out = Path(td) / "analysis.json"
-            result = subprocess.run(
-                [
-                    str(REPO_ROOT / "scripts" / "dcness-efficiency"),
-                    "analyze",
-                    "--sessions-dir", str(sessions),
-                    "--out", str(json_out),
-                ],
-                capture_output=True, text=True, timeout=15,
-            )
-            self.assertEqual(result.returncode, 0, msg=result.stderr)
-            self.assertTrue(json_out.exists())
-
-            data = json.loads(json_out.read_text(encoding="utf-8"))
-            self.assertGreaterEqual(len(data.get("sessions", [])), 1)
-            self.assertGreater(data.get("totals", {}).get("cost_usd", 0), 0)
-
-            # dashboard 도 실행 가능한지
-            html_out = Path(td) / "report.html"
-            result2 = subprocess.run(
-                [
-                    str(REPO_ROOT / "scripts" / "dcness-efficiency"),
-                    "dashboard",
-                    "--input", str(json_out),
-                    "--out", str(html_out),
-                ],
-                capture_output=True, text=True, timeout=15,
-            )
-            self.assertEqual(result2.returncode, 0, msg=result2.stderr)
-            self.assertTrue(html_out.exists())
-            html_text = html_out.read_text(encoding="utf-8")
-            self.assertIn("<html", html_text.lower())
-            self.assertIn("chart", html_text.lower())
+            for command in ("analyze", "summary"):
+                with self.subTest(command=command):
+                    json_out = Path(td) / f"{command}.json"
+                    result = subprocess.run(
+                        [
+                            str(REPO_ROOT / "scripts" / "dcness-efficiency"),
+                            command,
+                            "--sessions-dir", str(sessions),
+                            "--out", str(json_out),
+                        ],
+                        capture_output=True, text=True, timeout=15,
+                    )
+                    self.assertEqual(result.returncode, 0, msg=result.stderr)
+                    data = json.loads(json_out.read_text(encoding="utf-8"))
+                    self.assertGreaterEqual(len(data.get("sessions", [])), 1)
+                    self.assertGreater(data.get("totals", {}).get("cost_usd", 0), 0)
 
 
 if __name__ == "__main__":

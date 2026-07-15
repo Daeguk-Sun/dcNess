@@ -16,8 +16,8 @@
   [test_generated_tdd_hooks.py](test_generated_tdd_hooks.py): hook과 TDD guard.
 - [test_agent_boundary.py](test_agent_boundary.py), [test_agent_routing.py](test_agent_routing.py):
   agent 권한 경계와 routing 판정.
-- [test_signal_io.py](test_signal_io.py), [test_run_review.py](test_run_review.py),
-  [test_sub_eval.py](test_sub_eval.py): prose 결과, run review, validator helper.
+- [test_signal_io.py](test_signal_io.py), [test_run_review.py](test_run_review.py):
+  prose 결과와 run review 공개 계약.
 - [test_git_naming.py](test_git_naming.py), [test_pr_body.py](test_pr_body.py),
   [test_pr_trailer.py](test_pr_trailer.py), [test_pr_finalize_non_default_base.py](test_pr_finalize_non_default_base.py):
   git/PR lifecycle 계약.

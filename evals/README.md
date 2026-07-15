@@ -77,15 +77,11 @@ Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
 동시에 `guard-telemetry.jsonl` 에 케이스별 `eval_case_result` 이벤트를 append 한다.
 이 이벤트에는 pass/fail 뿐 아니라 블라인드 검수와 judge 호출 2회를 기준으로 한
 `llm_turns`, 보고서/judge 출력 길이, 추정 출력 token 이 함께 기록된다.
-`dcness-helper guard-telemetry` 는 이 이벤트를 읽어 최근 window 에서 장기간 만점인
-케이스를 **노후 후보**로, 정답률이 흔들리는(min_runs 이상 시도에서 일부만 통과한)
-케이스를 **flaky 후보**로 표시하고 평균 turn/token effort 를 함께 보여준다. 두 표시는
-상호배타이며(만점=노후, 부분 통과=flaky, 전패=회귀), 케이스 삭제나 비활성화를 자동
-실행하지 않는다. flaky 후보는 `scripts/loop_diagnose.py`(스케줄 sweep·`/run-review`)의
-자동 후보 표에도 노후 후보와 함께 올라오므로 사람이 리포트를 직접 치지 않아도 표면화된다.
-기본 산출 위치인 `.metrics/evals/**` 는 자동 집계 대상이다. `EVAL_OUTPUT_DIR` 를 repo 밖으로
-지정한 경우에는 `dcness-helper guard-telemetry --base-dir <EVAL_OUTPUT_DIR>` 로 그 산출물을 직접 볼 수
-있지만, `scripts/loop_diagnose.py` 의 자동 후보 집계에는 포함되지 않는다.
+dcNess source checkout의 repo-only `scripts/loop_diagnose.py`는 기본
+`.metrics/evals/**` receipt를 읽어 장기간 만점인 케이스를 **노후 후보**, 일부만 통과한
+케이스를 **flaky 후보**로 표시한다. 설치 runtime과 `/run-review`는 이 집계를 import하지
+않으며 케이스 삭제나 비활성화도 자동 실행하지 않는다. `EVAL_OUTPUT_DIR`를 repo 밖으로
+지정한 산출물은 repo-only 자동 후보 집계에 포함되지 않는다.
 
 ## 실패·재실행 처리 규범
 

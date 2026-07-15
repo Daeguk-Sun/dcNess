@@ -178,19 +178,13 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.pr_reviewer)
 
-    def test_run_review_owns_cross_project_improvement_decision_surface(self) -> None:
-        for needle in (
-            "loop_diagnose.py",
-            "후보가 없습니다",
-            "하네스 경량화 실험",
-            "유지",
-            "줄이기 후보",
-            "보류",
-            "실행할까요",
-        ):
+    def test_run_review_is_single_run_read_only_analysis(self) -> None:
+        for needle in ("단일 run", "read-only", "context 문서", "per-tool 입력 trace"):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.run_review_skill)
-        self.assertNotIn("/loop-diagnose", self.run_review_skill)
+        for removed in ("loop_diagnose.py", "하네스 경량화 실험", "/loop-diagnose"):
+            with self.subTest(removed=removed):
+                self.assertNotIn(removed, self.run_review_skill)
 
     def test_project_registration_mechanics_have_single_owner(self) -> None:
         """#853 — GitHub Project axis doc points to lifecycle mechanics instead of restating them."""
@@ -977,6 +971,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.loop_procedure,
             msg="loop-procedure.md should link the shared template, not own a copy",
         )
+        self.assertNotIn("[INSIGHTS]", self.loop_procedure)
 
         for label, text in (
             ("impl", self.impl_skill),

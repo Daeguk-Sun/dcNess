@@ -6,7 +6,7 @@
 # 동작: harness/hooks.py 의 handle_stop 호출
 #   - stop_hook_active=true 시 즉시 skip (무한 루프 가드, 공식 docs §"Stop hook runs forever")
 #   - active_runs 슬롯 + begin/end-step 완료 매칭 시 dcness-helper end-run 자동 호출
-#   - 부산물: <run_dir>/review.md 생성 + loop-insights 누적 + active_runs 정리
+#   - 부산물: <run_dir>/review.md 생성 + active_runs 정리
 #
 # 실패 시 silent (exit 0) — Stop hook 은 block 안 함 (정상 종료 허용).
 

@@ -77,21 +77,6 @@ READONLY_AGENTS = {
     "architecture-validator",
 }
 
-# #917 — lesson 대상 WasteFinding 패턴의 코드 SSOT.
-# NoteFinding(THINKING_LOOP / TOOL_USE_OVERFLOW)은 의도적으로 제외한다.
-ACTIVE_WASTE_PATTERNS = frozenset({
-    "RETRY_SAME_FAIL",
-    "MISSING_CONCLUSION_ENUM",
-    "STRAY_DIR_LEAK",
-    "MUST_FIX_GHOST",
-    "MUST_FIX_LEAK",
-    "SPEC_GAP_LOOP",
-    "INFRA_READ",
-    "READONLY_BASH",
-    "END_STEP_SKIP",
-    "TOOL_REPEAT_HIGH",
-})
-
 # DCN-CHG-20260430-20: Phase 2 — per-Agent budget for THINKING_LOOP detection.
 # elapsed_s: 정상 sub-agent 한 번 호출 한도 (초).
 # min_output_tokens: 정상 sub-agent 가 emit 할 최소 output token (이하 = stall 의심).
@@ -221,7 +206,7 @@ class StepRecord:
     # 마지막 단락 결론 (agents/impl-validator.md 의 결론 + 권장 다음 단계 "PASS / FAIL / ESCALATE")
     # 을 표시 단계에서 추출. 부재 시 빈 문자열 (= sentinel 그대로 표시 fallback).
     conclusion_enum: str = ""
-    # #917 — recurrent lesson evidence. ledger 의 prose_file 절대경로를 보존한다.
+    # 같은 run finding의 재발 판정 근거로 ledger prose_file 경로를 보존한다.
     prose_file: str = ""
 
 
@@ -416,7 +401,7 @@ def audit_context_docs(
                 ),
                 suggestion=(
                     "반복될 운영 학습이면 CLAUDE.md/AGENTS.md 반영 후보입니다. "
-                    "특정 agent 습관이면 loop insight 또는 agent prompt 수정이 우선입니다."
+                    "특정 agent 습관이면 agent prompt 수정이 우선입니다."
                 ),
             ))
             waste_count += 1
@@ -458,7 +443,6 @@ def render_context_audit_section(
     ]
     if not findings:
         lines.append("- 후보 없음 — 이번 run 에서 CLAUDE.md/AGENTS.md 반영 신호가 없습니다.")
-        lines.append("- 세션 학습이 필요하면 review.md 끝의 `HELPER insight` 안내를 사용합니다.")
         lines.append("")
         return "\n".join(lines)
 
@@ -471,7 +455,7 @@ def render_context_audit_section(
         )
     lines.append("")
     lines.append("- 반영은 사용자 승인 후 별도 docs PR 로 진행합니다.")
-    lines.append("- 프로젝트 공통 규칙이 아니면 CLAUDE.md/AGENTS.md 대신 loop insight 또는 agent prompt 수정을 우선합니다.")
+    lines.append("- 프로젝트 공통 규칙이 아니면 CLAUDE.md/AGENTS.md 대신 agent prompt 수정을 우선합니다.")
     lines.append("")
     return "\n".join(lines)
 
@@ -810,8 +794,6 @@ def detect_wastes(
     window: Optional[tuple] = None,
     run_dir: Optional[Path] = None,
 ) -> list[WasteFinding]:
-    # run_dir 신규 (DCN-CHG-20260523, #484 Case 1) — agent-trace.jsonl 기반
-    # TOOL_REPEAT_HIGH 검출용. None 이면 trace 검사 skip.
     findings: list[WasteFinding] = []
 
     # RETRY_SAME_FAIL — 연속 동일 FAIL enum
@@ -871,7 +853,7 @@ def detect_wastes(
 
     # issue #392 — ECHO_VIOLATION / PLACEHOLDER_LEAK 폐기.
     # 사유: agent 자율 영역 침해. ECHO_VIOLATION (prose <5줄) = "agent 자율 침해",
-    # PLACEHOLDER_LEAK = "약속-실측 검사" — sub_eval.py:6~10 정신 위반.
+    # PLACEHOLDER_LEAK = "약속-실측 검사" — agent 자율 판정 경계 위반.
 
     # STRAY_DIR_LEAK — `.claude` 와 typo 의심 디렉토리 흔적 (#321 C)
     # 실측: jajang run-dbd49faf task 1/2/3 `.claire` 3 회 연속.
@@ -1012,95 +994,6 @@ def detect_wastes(
     # issue #392 — MISSING_SELF_VERIFY 폐기 (agent 자율 영역 침해).
     # issue #392 — MAIN_SED_MISDIAGNOSIS 폐기 (메인 자율 영역 + 검출 모호함).
 
-    # issue #484 Case 1 — agent-trace 기반 TOOL_REPEAT_HIGH (동일 input 반복).
-    if run_dir is not None:
-        findings.extend(_detect_tool_repeat_findings(steps, run_dir))
-
-    return findings
-
-
-def _detect_tool_repeat_findings(
-    steps: list[StepRecord], run_dir: Path
-) -> list[WasteFinding]:
-    """agent-trace.jsonl 기반 동일 (tool, input) ≥ N 회 반복 finding.
-
-    issue #484 Case 1 (DCN-CHG-20260523): jajang run-545513a1 build-worker 가
-    같은 Bash command 6회 반복 호출 + Bash 40회 폭증한 안티패턴을 review heuristic
-    이 못 잡아 "잘못한 점 — 없음 ✅" 통과시킨 회귀 차단. PostToolUse hook 의
-    감시자 신호와 동일 영역 — review 와 hook 의 단일 SSOT 통합.
-
-    임계:
-    - Bash: 같은 input ≥ 5 회
-    - Read: 같은 input ≥ 4 회 (정상 단순 재read 2~3 회 면제)
-    - 기타 도구: ≥ 5 회
-
-    step 별 윈도우 (전 step end ~ 현 step end) 적용. input 200자 초과 truncate.
-    """
-    from collections import Counter
-
-    findings: list[WasteFinding] = []
-    trace_path = run_dir / "agent-trace.jsonl"
-    if not trace_path.exists():
-        return findings
-
-    entries: list[dict] = []
-    try:
-        for line in trace_path.read_text(encoding="utf-8").splitlines():
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                entries.append(json.loads(line))
-            except json.JSONDecodeError:
-                continue
-    except OSError:
-        return findings
-
-    pre_entries = [e for e in entries if e.get("phase") == "pre"]
-    if not pre_entries:
-        return findings
-
-    thresholds = {"Bash": 5, "Read": 4}
-    default_threshold = 5
-
-    for i, s in enumerate(steps):
-        start_ts = steps[i - 1].ts if i > 0 else ""
-        end_ts = s.ts
-        window_entries = [
-            e for e in pre_entries
-            if (not start_ts or e.get("ts", "") > start_ts)
-            and (not end_ts or e.get("ts", "") <= end_ts)
-        ]
-        if not window_entries:
-            continue
-        key_count: Counter = Counter()
-        for e in window_entries:
-            tool = e.get("tool", "?")
-            inp = e.get("input", "")
-            if not isinstance(inp, str) or not inp:
-                continue
-            key_count[(tool, inp[:200])] += 1
-        for (tool, inp), cnt in sorted(
-            key_count.items(), key=lambda kv: (-kv[1], kv[0][0])
-        ):
-            threshold = thresholds.get(tool, default_threshold)
-            if cnt < threshold:
-                continue
-            inp_disp = inp[:80].replace("\n", " ") + ("…" if len(inp) > 80 else "")
-            findings.append(WasteFinding(
-                pattern="TOOL_REPEAT_HIGH",
-                severity="MEDIUM",
-                step_idx=i,
-                agent=s.agent,
-                detail=(
-                    f"step {i} ({s.agent}) {tool} 동일 input {cnt}회 반복 "
-                    f"(임계 {threshold}회): `{inp_disp}`"
-                ),
-                fix=(
-                    f"sub-agent prompt 에 동일 {tool} 호출 반복 금지 가드 추가 "
-                    f"또는 작업 분해 ({tool} 결과 활용 권장)"
-                ),
-            ))
     return findings
 
 
@@ -1160,10 +1053,8 @@ def detect_notes(steps: list[StepRecord]) -> list[NoteFinding]:
 
 # issue #392 — `detect_goods` 함수 + 5 good patterns 전체 폐기.
 # 사유: dcness 정신 정합 X — CLAUDE.md 의 dcness 강제 원칙 "임계값 hardcode 금지 + 자율 친화".
-# jajang 실측: loop-insights 100% PROSE_ECHO_OK (baseline) = 학습 가치 0.
 # 본 함수의 5 patterns (ENUM_CLEAN / PROSE_ECHO_OK / DDD_PHASE_A / DEPENDENCY_CAUSAL /
 # EXTERNAL_VERIFIED_PRESENT) 모두 폐기. 잘한점 섹션은 review.md render 에서도 제거.
-# 메인 자율 평가는 insight CLI (PR3) 로 대체.
 
 
 # ── Per-Agent invocation extraction (DCN-CHG-20260430-20, Phase 2) ────
@@ -1384,73 +1275,6 @@ def compute_run_cost(run_dir: Path, repo_path: Path) -> tuple[float, int, int]:
 
 # ── Report 생성 ───────────────────────────────────────────────────────
 
-def _build_tool_histogram_table(report: RunReport) -> list[str]:
-    """issue #394 — agent-trace.jsonl 집계 → step 별 도구 사용 분포 표.
-
-    각 step 의 prose timestamp 윈도우 안 agent-trace 의 PreToolUse pre entry 만
-    카운트. raw 데이터 — 임계 X. 메인이 보고 자율 판단.
-
-    return: markdown table line 리스트. 빈 trace 시 빈 리스트.
-    """
-    if not report.steps:
-        return []
-
-    from harness.agent_trace import read_all as _trace_read
-
-    try:
-        trace = _trace_read(
-            report.session_id, report.run_id,
-            base_dir=report.run_dir.parent.parent.parent.parent,
-        )
-    except Exception:
-        return []
-    if not trace:
-        return []
-
-    # step 별 시작/종료 ts 윈도우
-    pre_entries = [e for e in trace if e.get("phase") == "pre"]
-
-    lines: list[str] = []
-    lines.append("| step | agent | mode | Read | Write | Edit | Bash | Glob | Grep | 기타 |")
-    lines.append("|---|---|---|---|---|---|---|---|---|---|")
-
-    for i, s in enumerate(report.steps):
-        # #415 — step.ts = end-step 시각. sub-agent 도구 호출 ts < step.ts.
-        # 윈도우 = 이전 step end ~ 현재 step end (i=0 은 빈 string = 모두 포함).
-        start_ts = report.steps[i - 1].ts if i > 0 else ""
-        end_ts = s.ts
-
-        from collections import Counter
-        hist: Counter = Counter()
-        for e in pre_entries:
-            e_ts = e.get("ts", "")
-            if start_ts and e_ts <= start_ts:
-                continue
-            if e_ts > end_ts:
-                continue
-            tool = e.get("tool", "?")
-            hist[tool] += 1
-
-        # 표시 안 함 = 빈 step
-        if not hist:
-            continue
-
-        def _g(k: str) -> str:
-            return str(hist.get(k, 0)) if hist.get(k, 0) else "-"
-
-        common = ["Read", "Write", "Edit", "Bash", "Glob", "Grep"]
-        other = sum(v for k, v in hist.items() if k not in common)
-        other_str = str(other) if other else "-"
-
-        lines.append(
-            f"| {s.idx} | {s.agent} | {s.mode or '-'} | "
-            f"{_g('Read')} | {_g('Write')} | {_g('Edit')} | "
-            f"{_g('Bash')} | {_g('Glob')} | {_g('Grep')} | {other_str} |"
-        )
-
-    return lines if len(lines) > 2 else []
-
-
 def render_report(report: RunReport) -> str:
     lines = []
     lines.append(f"# Run Review: {report.run_id}")
@@ -1525,13 +1349,6 @@ def render_report(report: RunReport) -> str:
 
     # issue #392 — "잘한 점" 섹션 폐기. detect_goods + GoodFinding 폐기와 정합.
 
-    # issue #394 — 도구 사용 분포 표 (agent-trace.jsonl 집계, raw)
-    tool_table = _build_tool_histogram_table(report)
-    if tool_table:
-        lines.append("## 🔧 도구 사용 분포 (raw — 임계 X)")
-        lines.extend(tool_table)
-        lines.append("")
-
     # issue #394 — 측정 noted (TOOL_USE_OVERFLOW / THINKING_LOOP, severity 없음)
     if report.notes:
         lines.append("## ⚠️ 측정 noted (임계 도달 — 결정 X, 메인 자율 판단)")
@@ -1577,23 +1394,6 @@ def render_report(report: RunReport) -> str:
 
     lines.append(render_context_audit_section(report.repo_path, report=report))
 
-    # issue #396 — 메인 인사이트 prompt (review.md 끝 임베드)
-    # 메인 Claude 가 보고 자율 평가 씀. agent+mode 선택 자율.
-    lines.append("## 📝 메인 인사이트 (1줄 자율 평가)")
-    lines.append("")
-    lines.append("이번 run 의 *구체적 학습 1줄* (다음 run 같은 실수 회피용) — 쓸지 메인 자율:")
-    lines.append("")
-    lines.append("```bash")
-    lines.append("$HELPER insight <agent>[-<mode>] \"<자연어 한 줄>\"")
-    lines.append("# 예: $HELPER insight build-worker \"🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X\"")
-    lines.append("```")
-    lines.append("")
-    lines.append("- agent+mode 별 `.claude/loop-insights/<agent>[-<mode>].md` 에 누적 (FIFO 10 cap)")
-    lines.append("- 다음 run begin-step 시 자동 inject — 같은 agent 호출 시 sub-agent prompt 끝에 있음")
-    lines.append("- 미씀 = noop (자율, 강제 X)")
-    lines.append("- **형식 가이드**: *실수 환기* 형태로만 (예: `🚨 X 실수 — 반복 X`). 잘 됐던 케이스 누적은 학습 가치 0 (issue #392 실측)")
-    lines.append("")
-
     return "\n".join(lines)
 
 
@@ -1627,7 +1427,6 @@ def build_report(
 
     # DCN-CHG-20260430-37: detect_wastes 에 invocations + repo_path + window 전달
     # (END_STEP_SKIP / MAIN_SED_MISDIAGNOSIS run-level 패턴 검출 위해).
-    # DCN-CHG-20260523 (#484 Case 1): run_dir 추가 — agent-trace 기반 TOOL_REPEAT_HIGH.
     wastes = detect_wastes(
         steps, invocations=invocations, repo_path=repo_path,
         window=window, run_dir=run_dir,

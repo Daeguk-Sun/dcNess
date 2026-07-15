@@ -7,7 +7,7 @@ import json
 import os
 import sys
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -19,13 +19,7 @@ if str(_REPO_ROOT) not in sys.path:
 from harness import ledger  # noqa: E402
 from harness import run_review  # noqa: E402
 from harness.benchmark_aggregate import aggregate_sessions  # noqa: E402
-from harness.loop_lessons import list_active_lessons  # noqa: E402
-from harness.guard_telemetry import (  # noqa: E402
-    DEFAULT_REPORT_SINCE_DAYS,
-    collect_eval_summary,
-    collect_guard_summary,
-    read_events,
-)
+from harness.guard_telemetry import read_events  # noqa: E402
 
 
 DEFAULT_PROJECTS_FILE = (
@@ -46,10 +40,18 @@ DECISION_LABELS = {
     "rejected": "기각",
 }
 NO_OBSERVATION = "관측 이력 없음(미배포 또는 무발화)"
+DEFAULT_REPORT_SINCE_DAYS = 90
+OUTPUT_ESTIMATE_BASIS = "utf8_bytes/4_lower_bound"
+KNOWN_GUARDS = (
+    "catastrophic-gate",
+    "file-guard",
+    "tdd-guard",
+    "git-commit-msg",
+    "git-pre-push",
+    "git-pre-commit",
+)
 ACTION_PRIORITY = {
     "waste": 0,
-    "lesson-rule": 1,
-    "lesson": 2,
     "eval": 3,
     "guard": 4,
 }
@@ -69,6 +71,171 @@ def _parse_ts(value: Any) -> Optional[datetime]:
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
     return parsed.astimezone(timezone.utc)
+
+
+def collect_guard_summary(
+    cwd: Optional[Path] = None,
+    *,
+    base_dir: Optional[Path] = None,
+    known_guards: tuple[str, ...] = KNOWN_GUARDS,
+    idle_days: int = 30,
+    since_days: Optional[int] = None,
+) -> dict[str, Any]:
+    """Repository-only interpretation of raw guard receipts."""
+    all_events = read_events(cwd, base_dir=base_dir, since_days=since_days)
+    rows = {
+        guard: {
+            "count": 0,
+            "last_ts": None,
+            "categories": {},
+            "sources": [],
+            "reassessment_candidate": False,
+            "observation_since": None,
+            "observation_days": None,
+            "observation_status": "no_observation",
+        }
+        for guard in known_guards
+    }
+    for event in all_events:
+        if event.get("kind") != "guard_hit":
+            continue
+        guard = str(event.get("guard") or "unknown")
+        row = rows.setdefault(
+            guard,
+            {
+                "count": 0,
+                "last_ts": None,
+                "categories": {},
+                "sources": [],
+                "reassessment_candidate": False,
+                "observation_since": None,
+                "observation_days": None,
+                "observation_status": "no_observation",
+            },
+        )
+        row["count"] += 1
+        timestamp = str(event.get("ts") or "")
+        if timestamp and (row["last_ts"] is None or timestamp > row["last_ts"]):
+            row["last_ts"] = timestamp
+        category = str(event.get("category") or "unknown")
+        row["categories"][category] = row["categories"].get(category, 0) + 1
+        source = str(event.get("source") or "unknown")
+        if source not in row["sources"]:
+            row["sources"].append(source)
+
+    now = datetime.now(timezone.utc)
+    epoch = min(
+        (
+            parsed
+            for event in all_events
+            if event.get("kind") == "telemetry_epoch"
+            for parsed in [_parse_ts(event.get("ts"))]
+            if parsed is not None
+        ),
+        default=None,
+    )
+    if epoch is None:
+        epoch = min(
+            (
+                parsed
+                for event in all_events
+                for parsed in [_parse_ts(event.get("ts"))]
+                if parsed is not None
+            ),
+            default=None,
+        )
+    if epoch is None and since_days is not None and read_events(cwd, base_dir=base_dir, limit=1):
+        epoch = now - timedelta(days=max(int(since_days), 0))
+    observation_days = max((now - epoch).days, 0) if epoch else None
+    observation_since = (
+        epoch.replace(microsecond=0).isoformat().replace("+00:00", "Z") if epoch else None
+    )
+    idle_days = max(int(idle_days), 0)
+    idle_cutoff = now - timedelta(days=idle_days)
+    for row in rows.values():
+        count = int(row["count"])
+        if epoch is None:
+            status = "no_observation"
+        elif count == 0 and (observation_days or 0) < idle_days:
+            status = "insufficient_observation"
+        else:
+            status = "observed"
+        last = _parse_ts(row["last_ts"])
+        row["observation_since"] = observation_since
+        row["observation_days"] = observation_days
+        row["observation_status"] = status
+        row["reassessment_candidate"] = (
+            last < idle_cutoff
+            if last is not None
+            else status == "observed" and (observation_days or 0) >= idle_days
+        )
+        row["sources"] = sorted(row["sources"])
+    return {"idle_days": idle_days, "since_days": since_days, "guards": rows}
+
+
+def collect_eval_summary(
+    cwd: Optional[Path] = None,
+    *,
+    base_dir: Optional[Path] = None,
+    saturation_days: int = 30,
+    saturation_min_runs: int = 3,
+) -> dict[str, Any]:
+    """Repository-only saturation/flakiness view of eval receipts."""
+    events = [
+        event
+        for event in read_events(cwd, base_dir=base_dir, since_days=saturation_days)
+        if event.get("kind") == "eval_case_result"
+    ]
+    rows: dict[str, dict[str, Any]] = {}
+    for event in events:
+        case = str(event.get("case") or "unknown")
+        row = rows.setdefault(
+            case,
+            {
+                "attempts": 0,
+                "passes": 0,
+                "accuracy": 0.0,
+                "llm_turns": 0,
+                "estimated_output_tokens": 0,
+                "report_chars": 0,
+                "judge_chars": 0,
+                "avg_llm_turns": 0.0,
+                "avg_estimated_output_tokens": 0.0,
+                "failure_stages": {},
+                "last_ts": None,
+            },
+        )
+        row["attempts"] += 1
+        row["passes"] += int(event.get("passed") is True)
+        row["llm_turns"] += max(int(event.get("llm_turns") or 0), 0)
+        row["estimated_output_tokens"] += max(
+            int(event.get("estimated_output_tokens") or 0), 0
+        )
+        row["report_chars"] += max(int(event.get("report_chars") or 0), 0)
+        row["judge_chars"] += max(int(event.get("judge_chars") or 0), 0)
+        failure_stage = str(event.get("failure_stage") or "")
+        if failure_stage:
+            row["failure_stages"][failure_stage] = row["failure_stages"].get(failure_stage, 0) + 1
+        timestamp = str(event.get("ts") or "")
+        if timestamp and (row["last_ts"] is None or timestamp > row["last_ts"]):
+            row["last_ts"] = timestamp
+    minimum = max(int(saturation_min_runs), 1)
+    for row in rows.values():
+        attempts = int(row["attempts"])
+        passes = int(row["passes"])
+        row["accuracy"] = passes / attempts if attempts else 0.0
+        row["avg_llm_turns"] = row["llm_turns"] / attempts if attempts else 0.0
+        row["avg_estimated_output_tokens"] = (
+            row["estimated_output_tokens"] / attempts if attempts else 0.0
+        )
+        row["saturation_candidate"] = attempts >= minimum and passes == attempts
+        row["flaky_candidate"] = attempts >= minimum and 0 < passes < attempts
+    return {
+        "saturation_days": saturation_days,
+        "saturation_min_runs": saturation_min_runs,
+        "token_estimate_basis": OUTPUT_ESTIMATE_BASIS,
+        "cases": rows,
+    }
 
 
 def _max_ts(values: list[Any]) -> Optional[str]:
@@ -247,32 +414,6 @@ def _waste_candidates(
     return out
 
 
-def _lesson_candidates(
-    project_name: str,
-    project_path: Path,
-    lessons: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    out: list[dict[str, Any]] = []
-    for lesson in lessons:
-        pattern = str(lesson.get("pattern") or "")
-        agent = str(lesson.get("agent") or "")
-        mode = lesson.get("mode")
-        label = agent + (f"-{mode}" if mode else "")
-        hits = int(lesson.get("hits") or 0)
-        last = lesson.get("last") if isinstance(lesson.get("last"), str) else None
-        out.append(
-            _candidate(
-                key=f"lesson:{pattern}@{project_name}/{label}",
-                kind="lesson",
-                project=project_name,
-                scope_path=project_path,
-                detail=f"{pattern} active for {label}, hits={hits}",
-                last_ts=last,
-            )
-        )
-    return out
-
-
 def _collect_project(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     name = _project_name(path)
     events = read_events(cwd=path, since_days=args.since_days)
@@ -292,10 +433,6 @@ def _collect_project(path: Path, args: argparse.Namespace) -> dict[str, Any]:
     fleet = _fleet_to_json(fleet_report)
     candidates = _guard_candidates(name, path, guard_summary)
     candidates.extend(_waste_candidates(name, path, fleet, last_event_ts))
-    # loop_diagnose only observes swept projects — never mutate their lesson files
-    # (archiving is left to each project's own write path).
-    lessons = list_active_lessons(path, archive=False)
-    candidates.extend(_lesson_candidates(name, path, lessons))
     return {
         "name": name,
         "path": str(path),
@@ -304,47 +441,8 @@ def _collect_project(path: Path, args: argparse.Namespace) -> dict[str, Any]:
         "observation": "observed" if events else NO_OBSERVATION,
         "guard_summary": guard_summary,
         "fleet": fleet,
-        "lessons": lessons,
         "candidates": candidates,
     }
-
-
-def _cross_project_lesson_candidates(
-    repo_root: Path,
-    projects: list[dict[str, Any]],
-) -> list[dict[str, Any]]:
-    by_pattern: dict[str, list[dict[str, Any]]] = defaultdict(list)
-    for project in projects:
-        for lesson in project.get("lessons", []):
-            if not isinstance(lesson, dict):
-                continue
-            pattern = str(lesson.get("pattern") or "")
-            if pattern:
-                row = dict(lesson)
-                row["project_name"] = project["name"]
-                by_pattern[pattern].append(row)
-
-    out: list[dict[str, Any]] = []
-    for pattern, rows in sorted(by_pattern.items()):
-        projects_with_pattern = sorted({str(row["project_name"]) for row in rows})
-        if len(projects_with_pattern) < 2:
-            continue
-        last = _max_ts([row.get("last") for row in rows])
-        detail = (
-            f"active in {len(projects_with_pattern)} project(s): "
-            + ", ".join(projects_with_pattern)
-        )
-        out.append(
-            _candidate(
-                key=f"lesson-rule:{pattern}",
-                kind="lesson-rule",
-                project="cross-project",
-                scope_path=repo_root,
-                detail=detail,
-                last_ts=last,
-            )
-        )
-    return out
 
 
 def _collect_self_evals(repo_root: Path, args: argparse.Namespace) -> dict[str, Any]:
@@ -545,7 +643,6 @@ def build_payload(args: argparse.Namespace, *, write_watermark: bool = True) -> 
     candidates: list[dict[str, Any]] = []
     for project in projects:
         candidates.extend(project["candidates"])
-    candidates.extend(_cross_project_lesson_candidates(repo_root, projects))
     candidates.extend(evals["candidates"])
     _attach_status(candidates, previous=previous, decisions=decisions)
     if write_watermark:
@@ -603,8 +700,6 @@ def _render_project(project: dict[str, Any]) -> list[str]:
         f"- fleet runs: {fleet['run_count']}, "
         f"recurrent waste candidates: {len(fleet['improvement_candidates'])}"
     )
-    lessons = project.get("lessons") if isinstance(project.get("lessons"), list) else []
-    lines.append(f"- active lessons: {len(lessons)}")
     lines.append("")
     lines.append("| guard | count | last | status |")
     lines.append("|---|---:|---|---|")
@@ -618,18 +713,6 @@ def _render_project(project: dict[str, Any]) -> list[str]:
                 f"{_md_cell(row.get('last_ts') or '-')} | {status} |"
             )
     lines.append("")
-    if lessons:
-        lines.append("| lesson pattern | agent/mode | hits | last |")
-        lines.append("|---|---|---:|---|")
-        for lesson in lessons:
-            agent = str(lesson.get("agent") or "")
-            mode = lesson.get("mode")
-            label = agent + (f"/{mode}" if mode else "")
-            lines.append(
-                f"| `{_md_cell(lesson.get('pattern'))}` | {_md_cell(label)} | "
-                f"{int(lesson.get('hits') or 0)} | {_md_cell(lesson.get('last') or '-')} |"
-            )
-        lines.append("")
     return lines
 
 
@@ -721,8 +804,6 @@ def render_action_brief(payload: dict[str, Any]) -> str:
     kind = str(candidate.get("kind") or "")
     if kind == "waste":
         expected = "반복 탐색이나 재시도를 줄이면서 같은 품질 경계를 유지하는지 확인"
-    elif kind in {"lesson", "lesson-rule"}:
-        expected = "반복 안내를 더 짧게 만들어도 재발 방지 효과가 유지되는지 확인"
     elif kind == "eval":
         expected = "포화된 검사를 줄여도 핵심 사고 회귀 검출력이 유지되는지 확인"
     else:

@@ -334,9 +334,7 @@ def _cli_finalize_run(args: Any) -> int:
                 file=sys.stderr,
             )
 
-    # issue #392 — auto accumulate 매커니즘 폐기. 자동 redo/wastes/goods 누적이
-    # jajang 실측 100% baseline 노이즈 (PROSE_ECHO_OK) 만 만들어냄. 메인 자율
-    # 평가는 PR3 의 `insight` CLI 로 대체.
+    # 자동 평가/학습 누적은 baseline noise가 커 저장하지 않는다.
 
     _record_design_run_if_applicable(sid, rid)
 

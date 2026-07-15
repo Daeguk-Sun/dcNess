@@ -27,6 +27,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 from harness.agent_names import normalize_agent_type
+from harness.guard_core import GuardContext, GuardDecision, HookRequest
 from harness.session_state import (
     cleanup_stale_pid_files,
     cleanup_stale_run_dirs,
@@ -50,7 +51,6 @@ __all__ = [
     "handle_pretooluse_agent",
     "handle_pretooluse_file_op",
     "handle_posttooluse_agent",
-    "handle_posttooluse_file_op",
     "handle_subagent_stop",
     "handle_stop",
 ]
@@ -78,61 +78,6 @@ def _record_fail_open_safe(
     )
 
 
-# ── DCN-CHG-20260501-11 — agent-trace.jsonl 헬퍼 ──────────────────────
-
-
-_TRACE_INPUT_MAX = 200  # entry size cap (POSIX append atomic = 4096 bytes 이내)
-
-
-def _shorten_path(s: str) -> str:
-    """absolute path → cwd 기준 relative path. cwd 외부 또는 absolute 아니면 그대로.
-
-    #408 — PostToolUse:Agent histogram 본문 cache_read 감축.
-    예: '/Users/foo/proj/src/x.ts' (cwd='/Users/foo/proj') → 'src/x.ts'
-    """
-    if not s or not s.startswith("/"):
-        return s
-    try:
-        cwd_str = str(Path.cwd().resolve())
-        if s.startswith(cwd_str + "/"):
-            return s[len(cwd_str) + 1:]
-    except (OSError, ValueError):
-        pass
-    return s
-
-
-def _summarize_input(tool_name: str, tool_input: Dict[str, Any]) -> str:
-    """tool_input 핵심을 _TRACE_INPUT_MAX bytes 이하로 요약."""
-    if not isinstance(tool_input, dict):
-        return ""
-    if tool_name == "Bash":
-        s = str(tool_input.get("command", ""))
-    elif tool_name in ("Edit", "Write", "NotebookEdit", "Read"):
-        s = _shorten_path(str(tool_input.get("file_path", "") or tool_input.get("path", "")))
-    elif tool_name in ("Glob", "Grep"):
-        s = str(tool_input.get("pattern", ""))
-    else:
-        s = ""
-    if len(s) > _TRACE_INPUT_MAX:
-        s = s[:_TRACE_INPUT_MAX] + "..."
-    return s
-
-
-def _append_trace_safe(
-    sid: str,
-    rid: str,
-    entry: Dict[str, Any],
-    *,
-    base_dir: Optional[Path] = None,
-) -> None:
-    """trace append — 어떤 실패도 hook 본 흐름 방해 X."""
-    try:
-        from harness.agent_trace import append as _trace_append
-        _trace_append(sid, rid, entry, base_dir=base_dir)
-    except Exception:  # noqa: BLE001 # nosec B110
-        pass
-
-
 def _record_guard_hit_safe(
     guard: str,
     category: str,
@@ -157,6 +102,28 @@ def _record_guard_hit_safe(
         )
     except Exception:  # noqa: BLE001 # nosec B110
         pass
+
+
+def _emit_guard_decision(
+    decision: GuardDecision,
+    *,
+    prefix: str,
+    base_dir: Optional[Path] = None,
+) -> int:
+    """Translate the shared decision to the existing hook/telemetry adapter."""
+    if decision.allowed:
+        return 0
+    context = decision.context
+    _record_guard_hit_safe(
+        context.guard,
+        context.category,
+        decision.reason,
+        sid=context.session_id,
+        rid=context.run_id,
+        base_dir=base_dir,
+    )
+    print(f"{prefix}{decision.reason}", file=sys.stderr)
+    return decision.exit_code
 
 
 # #272 W2 — prose robust extraction (어떤 nested 형식이든 first non-empty text)
@@ -359,31 +326,6 @@ def _resolve_rid(
     return candidates[0][0]
 
 
-def _resolve_acting_agent(
-    stdin_data: Dict[str, Any], live: Dict[str, Any]
-) -> str:
-    """file-op 훅의 acting sub-agent 식별 — issue #598 self-attribution.
-
-    공식 CC docs (code.claude.com/docs/en/hooks): PreToolUse/PostToolUse 가
-    sub-agent 안에서 발화하면 payload 에 `agent_type` (+`agent_id`) 가 실린다.
-    각 도구 호출이 *자기 payload* 로 agent 를 식별하면 동시 sub-agent 가 공유
-    단일 슬롯(`live.active_agent`)을 서로 덮어써도 권한/trace 귀속이 안 섞인다.
-
-    payload `agent_type`만 권한 판정에 사용한다. 없으면 "" = 메인 Claude다.
-    공유 단일 슬롯인 `live.active_agent`는 동시 sub-agent를 정확히 식별할 수 없으므로
-    권한 판정 입력으로 사용하지 않는다.
-
-    issue #598 (codex P1) — 반환 전 `normalize_agent_type` 으로 정규화. namespaced
-    payload(`dcness:impl-validator`) 가 ALLOW_MATRIX 미정의 → check_*_allowed pass-through 로
-    경계를 우회하던 결함 차단. 정규화 후 boundary + trace 가 canonical 이름 사용.
-    """
-    del live
-    payload_agent = stdin_data.get("agent_type")
-    if isinstance(payload_agent, str) and payload_agent:
-        return normalize_agent_type(payload_agent) or ""
-    return ""
-
-
 def handle_session_start(
     stdin_data: Optional[Dict[str, Any]] = None,
     cc_pid: Optional[int] = None,
@@ -478,7 +420,22 @@ def handle_pretooluse_agent(
         )
         return 0
 
-    sid = _extract_sid(stdin_data)
+    try:
+        request = HookRequest.from_payload(
+            stdin_data,
+            guard="catastrophic-gate",
+            agent_source="requested",
+        )
+    except ValueError as exc:
+        _record_fail_open_safe(
+            "catastrophic-gate",
+            "payload_invalid",
+            str(exc),
+            base_dir=base_dir,
+        )
+        return 0
+
+    sid = request.context.session_id
     if not valid_session_id(sid):
         _record_fail_open_safe(
             "catastrophic-gate",
@@ -488,15 +445,7 @@ def handle_pretooluse_agent(
         )
         return 0  # sid 없음 → 검사 불가, allow
 
-    tool_input = stdin_data.get("tool_input")
-    if not isinstance(tool_input, dict):
-        _record_fail_open_safe(
-            "catastrophic-gate",
-            "payload_invalid",
-            "tool_input is not an object",
-            base_dir=base_dir,
-        )
-        return 0
+    tool_input = request.tool_input
     subagent = tool_input.get("subagent_type", "") or ""
     mode = tool_input.get("mode", "") or ""
     # #700 — 게이트 비교는 canonical 이름으로 일관화. namespaced(`dcness:build-worker`)가
@@ -505,7 +454,7 @@ def handle_pretooluse_agent(
     # impl-validator/module-architect)도 norm 으로 비교해야 namespaced 우회를 막는다(codex P1).
     # active_agent / pending 기록은 raw subagent 유지(식별 원본 보존). 단 게이트의 *판정 로직*
     # (module-architect PASS 또는 design_doc 요구)은 build-worker order gate 로 유지한다.
-    norm_subagent = normalize_agent_type(subagent) or subagent
+    norm_subagent = request.context.agent or str(subagent)
 
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
 
@@ -539,16 +488,21 @@ def handle_pretooluse_agent(
                 mode=_mode_or_none(mode),
             )
             if strict_msg:
-                _record_guard_hit_safe(
-                    "catastrophic-gate",
-                    "strict_conveyor",
-                    strict_msg,
-                    sid=sid,
-                    rid=rid,
+                return _emit_guard_decision(
+                    GuardDecision.block(
+                        GuardContext(
+                            guard="catastrophic-gate",
+                            category="strict_conveyor",
+                            session_id=sid,
+                            run_id=rid,
+                            agent=norm_subagent,
+                            tool="Agent",
+                        ),
+                        strict_msg,
+                    ),
+                    prefix="",
                     base_dir=base_dir,
                 )
-                print(strict_msg, file=sys.stderr)
-                return 1
     except (OSError, ValueError) as exc:
         _record_fail_open_safe(
             "catastrophic-gate",
@@ -577,16 +531,21 @@ def handle_pretooluse_agent(
         )
         order_gate_msg = None
     if order_gate_msg:
-        _record_guard_hit_safe(
-            "catastrophic-gate",
-            "order_gate",
-            order_gate_msg,
-            sid=sid,
-            rid=rid,
+        return _emit_guard_decision(
+            GuardDecision.block(
+                GuardContext(
+                    guard="catastrophic-gate",
+                    category="order_gate",
+                    session_id=sid,
+                    run_id=rid,
+                    agent=norm_subagent,
+                    tool="Agent",
+                ),
+                order_gate_msg,
+            ),
+            prefix="",
             base_dir=base_dir,
         )
-        print(order_gate_msg, file=sys.stderr)
-        return 1
 
     # tech-reviewer 재호출 (design 진입 후) 은 *tech-reviewer 전용* 코드 강제로
     # 차단하지 않는다 (#609). tech-review 는 design 진입 *전* 단방향 선행 단계라
@@ -601,8 +560,8 @@ def handle_pretooluse_agent(
     #   (tech-reviewer 포함) 에 begin-step 선언을 요구한다 — 이는 tech-reviewer 전용 차단이 아닌
     #   일반 loop 무결성 룰이라 #609 범위 밖이고, 루프 도중 의존 검증은 NEW_DEP_ESCALATE 로 간다.
 
-    # DCN-CHG-20260501-01: 통과 시 live.json.active_agent 기록 — sub-agent 내부
-    # PreToolUse(Edit/Write/Read/Bash) 훅이 활성 agent 판정에 사용 (agent_boundary).
+    # active_agent는 PostToolUse/SubagentStop lifecycle clear와 진단을 위해 기록한다.
+    # file-guard 권한 판정은 동시 호출에 안전한 각 payload의 agent_type만 사용한다.
     if subagent:
         try:
             transition(
@@ -621,9 +580,7 @@ def handle_pretooluse_agent(
             )
             pass  # 실패해도 Agent 호출은 통과 — 식별만 누락.
 
-    # #272 W3 진짜 fix — PreToolUse Agent 의 tool_use_id + 시작 시각을 써
-    # PostToolUse Agent 가 *시각 범위* 로 sub 의 trace 정확히 식별 (agent_id 폴백
-    # 위험 제거). CC docs: tool_use_id 가 PreToolUse↔PostToolUse 매칭 키.
+    # PreToolUse↔PostToolUse 공통 tool_use_id로 pending lifecycle slot을 식별한다.
     if rid and subagent:
         tuid = stdin_data.get("tool_use_id", "") or ""
         if tuid:
@@ -638,7 +595,7 @@ def handle_pretooluse_agent(
                     base_dir=base_dir,
                 )
             except (OSError, ValueError):
-                pass  # 실패해도 Agent 호출 통과 — histogram 폴백 의존.
+                pass  # 실패해도 Agent 호출 통과 — lifecycle 기록만 누락.
 
     return 0
 
@@ -654,8 +611,8 @@ def _warn_concurrent_subagent(
     """issue #598 — PreToolUse Agent 가 *이미 미완 pending* 상태에서 새 Agent 를
     발사하면 동시 sub-agent (loop 실행 절차 순차 전제 위반) 로 보고 stderr 진단 (비차단).
 
-    self-attribution (file-op payload agent_type) 덕에 boundary/trace 는 이미
-    안전하지만, dcness loop 실행 절차는 step 당 agent 1개 순차 전제라 동시 발사는 메인
+    self-attribution (file-op payload agent_type) 덕에 boundary 식별은 안전하지만,
+    dcness loop 실행 절차는 step 당 agent 1개 순차 전제라 동시 발사는 메인
     로직 버그 신호일 수 있어 가시화한다. 차단·inject 아님 (권고 — 측정+경고).
     """
     try:
@@ -671,7 +628,7 @@ def _warn_concurrent_subagent(
                 f"[hook concurrency] 동시 sub-agent 감지 — 이미 미완 Agent "
                 f"{len(others)}개(pending) 상태에서 '{subagent}' 추가 발사. dcness "
                 f"loop 실행 절차는 step 당 agent 1개 순차 전제. self-attribution 으로 "
-                f"권한/trace 는 안전하나 순차 전제 위반 여부 점검 권장.",
+                f"권한 식별은 안전하나 순차 전제 위반 여부 점검 권장.",
                 file=sys.stderr,
             )
     except Exception:  # noqa: BLE001 # nosec B110
@@ -725,7 +682,18 @@ def handle_pretooluse_file_op(
         )
         return 0
 
-    sid = _extract_sid(stdin_data)
+    try:
+        request = HookRequest.from_payload(stdin_data, guard="file-guard")
+    except ValueError as exc:
+        _record_fail_open_safe(
+            "file-guard",
+            "payload_invalid",
+            str(exc),
+            base_dir=base_dir,
+        )
+        return 0
+
+    sid = request.context.session_id
     if not valid_session_id(sid):
         _record_fail_open_safe(
             "file-guard",
@@ -736,7 +704,7 @@ def handle_pretooluse_file_op(
         return 0
 
     try:
-        live = read_live(sid, base_dir=base_dir) or {}
+        read_live(sid, base_dir=base_dir)
     except (OSError, ValueError) as exc:
         _record_fail_open_safe(
             "file-guard",
@@ -747,59 +715,49 @@ def handle_pretooluse_file_op(
         return 0
     # issue #598 — acting agent 는 payload agent_type(자기 식별, 동시 sub 안전) 우선,
     # payload self-attribution이 없으면 메인 호출로 판정한다.
-    acting_agent = _resolve_acting_agent(stdin_data, live)
+    acting_agent = request.context.agent
     if not acting_agent:
         return 0  # 메인 Claude — governance 가 보호.
 
-    tool_name = stdin_data.get("tool_name", "") or ""
-    tool_input = stdin_data.get("tool_input") or {}
-    if not isinstance(tool_input, dict):
-        _record_fail_open_safe(
-            "file-guard",
-            "payload_invalid",
-            "tool_input is not an object",
-            base_dir=base_dir,
-        )
-        return 0
+    tool_name = request.context.tool
+    tool_input = request.tool_input
 
     cwd = Path.cwd()
+    rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
+    context = GuardContext(
+        guard="file-guard",
+        session_id=sid,
+        run_id=rid,
+        agent=acting_agent,
+        tool=tool_name,
+    )
 
     # #597 codex P2 (round6) — mutation 검사도 file-guard 우회(.no-dcness-guard / infra)를 존중.
     # path 검사(check_write_allowed/check_read_allowed)는 내부에서 opt-out/infra 를 이미 해제하지만,
     # check_bash_mutation/check_github_mcp_mutation 은 cwd 무관 순수 함수라 별도 가드 필요.
     mutation_guard_off = is_opt_out(cwd) or is_infra_project(cwd)
 
-    # boundary 검사 — 차단 시 즉시 return (trace 미기록 — 차단된 행동은 file-guard 가 stderr 에 별도 기록)
+    # boundary 검사 — 차단 시 guard receipt와 stderr를 남기고 즉시 return.
     if tool_name == "Read":
         fp = tool_input.get("file_path", "") or ""
         if fp:
             reason = check_read_allowed(acting_agent, fp, cwd=cwd)
             if reason:
-                _record_guard_hit_safe(
-                    "file-guard",
-                    "read_boundary",
-                    reason,
-                    sid=sid,
-                    rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                return _emit_guard_decision(
+                    GuardDecision.block(context.with_category("read_boundary"), reason),
+                    prefix="[agent-boundary] ",
                     base_dir=base_dir,
                 )
-                print(f"[agent-boundary] {reason}", file=sys.stderr)
-                return 1
     elif tool_name in ("Edit", "Write", "NotebookEdit"):
         fp = tool_input.get("file_path", "") or ""
         if fp:
             reason = check_write_allowed(acting_agent, fp, cwd=cwd)
             if reason:
-                _record_guard_hit_safe(
-                    "file-guard",
-                    "write_boundary",
-                    reason,
-                    sid=sid,
-                    rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                return _emit_guard_decision(
+                    GuardDecision.block(context.with_category("write_boundary"), reason),
+                    prefix="[agent-boundary] ",
                     base_dir=base_dir,
                 )
-                print(f"[agent-boundary] {reason}", file=sys.stderr)
-                return 1
     elif tool_name == "Bash":
         cmd = tool_input.get("command", "") or ""
         # 외부 상태 변경 (git push / gh pr 변경) — sub-agent 차단 (#597 커밋5).
@@ -807,126 +765,35 @@ def handle_pretooluse_file_op(
         if not mutation_guard_off:
             reason = check_bash_mutation(cmd)
             if reason:
-                _record_guard_hit_safe(
-                    "file-guard",
-                    "bash_mutation",
-                    reason,
-                    sid=sid,
-                    rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                return _emit_guard_decision(
+                    GuardDecision.block(context.with_category("bash_mutation"), reason),
+                    prefix="[agent-boundary][Bash] ",
                     base_dir=base_dir,
                 )
-                print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
-                return 1
         for fp in extract_bash_paths(cmd):
             # shell_context=True — Bash 추출 경로의 $VAR/$()/backtick 셸 확장 토큰 차단
             # (#694 codex P2). Edit/Write 의 literal 경로 검사(위)는 기본 False 라 영향 없음.
             reason = check_write_allowed(acting_agent, fp, cwd=cwd, shell_context=True)
             if reason:
-                _record_guard_hit_safe(
-                    "file-guard",
-                    "bash_write_boundary",
-                    reason,
-                    sid=sid,
-                    rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+                return _emit_guard_decision(
+                    GuardDecision.block(
+                        context.with_category("bash_write_boundary"),
+                        reason,
+                        evidence=(fp,),
+                    ),
+                    prefix="[agent-boundary][Bash] ",
                     base_dir=base_dir,
                 )
-                print(f"[agent-boundary][Bash] {reason}", file=sys.stderr)
-                return 1
     elif tool_name.startswith("mcp__github__"):
         # GitHub MCP PR/repo 외부 상태 변경 (merge_pull_request / push_files 등) — 차단 (#597 커밋5).
         # opt-out/infra 면 우회.
         reason = None if mutation_guard_off else check_github_mcp_mutation(tool_name)
         if reason:
-            _record_guard_hit_safe(
-                "file-guard",
-                "mcp_mutation",
-                reason,
-                sid=sid,
-                rid=_resolve_rid(sid, cc_pid, base_dir=base_dir),
+            return _emit_guard_decision(
+                GuardDecision.block(context.with_category("mcp_mutation"), reason),
+                prefix="[agent-boundary][MCP] ",
                 base_dir=base_dir,
             )
-            print(f"[agent-boundary][MCP] {reason}", file=sys.stderr)
-            return 1
-
-    # DCN-CHG-20260501-11 — sub 행동 trace append (rid 활성 시만)
-    rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
-    if rid:
-        _append_trace_safe(
-            sid,
-            rid,
-            {
-                "phase": "pre",
-                "agent": acting_agent,
-                "agent_id": stdin_data.get("agent_id", "") or "",
-                "tool": tool_name,
-                "input": _summarize_input(tool_name, tool_input),
-            },
-            base_dir=base_dir,
-        )
-    return 0
-
-
-def handle_posttooluse_file_op(
-    stdin_data: Optional[Dict[str, Any]] = None,
-    cc_pid: Optional[int] = None,
-    *,
-    base_dir: Optional[Path] = None,
-) -> int:
-    """PostToolUse Edit/Write/Read/Bash — sub 행동 trace post append (DCN-CHG-20260501-11).
-
-    활성 sub-agent 가 있을 때만 기록. 메인 Claude turn 은 noop.
-    PostToolUse 는 차단 권한 X — 항상 exit 0.
-    """
-    if stdin_data is None:
-        try:
-            raw = sys.stdin.read()
-            stdin_data = json.loads(raw) if raw.strip() else {}
-        except (json.JSONDecodeError, OSError):
-            return 0
-
-    if not isinstance(stdin_data, dict):
-        return 0
-
-    sid = _extract_sid(stdin_data)
-    if not valid_session_id(sid):
-        return 0
-
-    live = read_live(sid, base_dir=base_dir) or {}
-    # issue #598 — payload agent_type(self-attribution)으로 동시 sub-agent를 구분한다.
-    acting_agent = _resolve_acting_agent(stdin_data, live)
-    if not acting_agent:
-        return 0
-
-    rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
-    if not rid:
-        return 0
-
-    tool_name = stdin_data.get("tool_name", "") or ""
-    tool_response = stdin_data.get("tool_response") or {}
-    if not isinstance(tool_response, dict):
-        tool_response = {}
-
-    entry: Dict[str, Any] = {
-        "phase": "post",
-        "agent": acting_agent,
-        "agent_id": stdin_data.get("agent_id", "") or "",
-        "tool": tool_name,
-    }
-
-    # Bash — exit code + stdout size
-    exit_code = tool_response.get("exit_code")
-    if isinstance(exit_code, int):
-        entry["exit"] = exit_code
-    stdout = tool_response.get("stdout")
-    if isinstance(stdout, str):
-        entry["stdout_size"] = len(stdout)
-
-    # 모든 도구 — error flag
-    is_error = tool_response.get("is_error") or stdin_data.get("is_error")
-    if is_error is True:
-        entry["is_error"] = True
-
-    _append_trace_safe(sid, rid, entry, base_dir=base_dir)
     return 0
 
 
@@ -936,10 +803,7 @@ def handle_posttooluse_agent(
     *,
     base_dir: Optional[Path] = None,
 ) -> int:
-    """PostToolUse Agent — live.json clear + tool histogram inject + redo_log 자동.
-
-    DCN-CHG-20260501-13 — sub 종료 후 agent-trace 집계 → result 옆에 histogram +
-    anomaly 메시지 inject (additionalContext) + redo_log 1줄 자동 append.
+    """PostToolUse Agent — prose staging + pending/active agent clear.
 
     stdout JSON output:
         {"hookSpecificOutput": {"hookEventName": "PostToolUse",
@@ -959,19 +823,9 @@ def handle_posttooluse_agent(
     if not valid_session_id(sid):
         return 0
 
-    sub_type = ""
-    tool_input = stdin_data.get("tool_input") or {}
-    if isinstance(tool_input, dict):
-        # issue #598 — sub_type 도 정규화 (histogram filter 가 정규화된 trace agent 와
-        # 매칭하도록 + 라벨 canonical). namespaced(`dcness:build-worker`) → `build-worker`.
-        sub_type = normalize_agent_type(
-            str(tool_input.get("subagent_type", "") or "")
-        ) or ""
-
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
 
-    # #597 커밋6 — staging 실패 진단을 모델에도 노출 (기존엔 stderr→/tmp 로만 묻혀
-    # histogram 있을 때만 additionalContext 출력 → prose 미staging 원인이 모델에 안 보임).
+    # Staging failure diagnostics remain visible to the model.
     diagnostics: list[str] = []
 
     # prose auto-staging — tool_response → run_dir 에 저장, current_step.prose_file 기록
@@ -1080,80 +934,19 @@ def handle_posttooluse_agent(
                     f"직전 sub 결론을 메인이 직접 확인 후 진행."
                 )
 
-    # rid 활성 시만 측정 inject + redo_log auto append
-    # #272 W1 자율 친화 재설계 — hook 은 *raw 측정 데이터* 만 inject.
-    # "REDO_SUSPECT" 같은 결정 X. 임계값 X. prose-only 화이트리스트 X.
-    # 메인 LLM 이 loop-procedure.md 의 표준 1 step 시퀀스 가이드 보고 자율 판단.
-    histogram_str = ""
-    input_repeats_str = ""
-    hist: Dict[str, int] = {}
-    trace_subset: list = []
+    # Invocation identity is lifecycle state, so clear only the matching pending
+    # slot.  Per-tool traces and derived histograms are post-run analysis and are
+    # intentionally not recorded by the runtime.
     if rid:
         try:
-            from harness.agent_trace import histogram_since as _trace_hist_since
-            from harness.agent_trace import read_all as _trace_read
-            from harness.sub_eval import (
-                format_histogram, format_input_repeats, summarize_input_repeats,
-            )
-
-            # #272 W3 — pending_agent.started_at 이후 trace = 그 sub 의 행동.
             tuid_now = stdin_data.get("tool_use_id", "") or ""
-            # issue #598 multi-slot — 끝난 Agent 의 tool_use_id 로 그 슬롯만 정확 pop
-            # (동시 Agent 시 다른 sub 의 pending 보존). tuid 없으면 단일 슬롯 폴백.
-            pending = transition(
+            transition(
                 sid,
                 "pending_agent_cleared",
                 run_id=rid,
                 tool_use_id=tuid_now or None,
                 base_dir=base_dir,
             )
-            since_ts = ""
-            if isinstance(pending, dict):
-                since_ts = pending.get("started_at", "") or ""
-                pending_tuid = pending.get("tool_use_id", "") or ""
-                if tuid_now and pending_tuid and tuid_now != pending_tuid:
-                    print(
-                        f"[hook agent-id] tool_use_id 불일치: pending="
-                        f"{pending_tuid[:12]}… post={tuid_now[:12]}… — "
-                        f"PreToolUse Agent ↔ PostToolUse Agent 매칭 실패. "
-                        f"trace 시각 범위 폴백 사용.",
-                        file=sys.stderr,
-                    )
-
-            # issue #598 finding1 — 시각 범위 + 끝난 sub 의 agent 로 필터해 동시
-            # sub-agent 의 행동이 이 histogram 에 섞이지 않게 한다 (trace 가 payload
-            # self-attribution 으로 정확한 agent 를 담으므로). sub_type 미상 시 시각만.
-            #
-            # ⚠️ 알려진 한계 (codex round3 P2 — 측정 신호 한정): *동일* subagent_type
-            # 두 개가 시간대 겹쳐 동시 실행되면 둘의 trace agent 가 같아 시각+agent
-            # 필터로도 분리 불가 → histogram/input-repeat 가 오귀속될 수 있다. invocation
-            # 단위 분리는 trace 의 agent_id(=sub 식별) 로만 가능하나, 본 집계는 PostToolUse
-            # Agent(메인 ctx, tool_use_id 키)에서 일어나고 CC hook payload 에 tool_use_id↔
-            # agent_id join 이 없어(부모 Agent tool_use_id 는 sub trace 에 없음) 정확 매핑
-            # 불가. 영향은 *측정 신호*(additionalContext) 뿐 — file-guard 경계는 per-call
-            # self-attribution, prose staging 은 current_step 키라 무관. 동일-타입 동시
-            # 실행은 순차 loop 에서 사실상 안 일어나는 엣지 → 측정 한정 수용 + follow-up.
-            _agent_filter = sub_type or None
-            hist = (
-                _trace_hist_since(
-                    sid, rid, since_ts, agent=_agent_filter, base_dir=base_dir
-                )
-                if since_ts else {}
-            )
-            # 같은 input 반복 — 메인 자율 판단용 raw 신호 (다중 파일 vs 동일 파일 구분)
-            if since_ts:
-                trace_subset = [
-                    e for e in _trace_read(sid, rid, base_dir=base_dir)
-                    if e.get("ts", "") >= since_ts
-                    and (not _agent_filter or (e.get("agent", "") or "") == _agent_filter)
-                ]
-                input_repeats = summarize_input_repeats(trace_subset)
-                input_repeats_str = format_input_repeats(input_repeats)
-
-            if hist or sub_type:
-                histogram_str = format_histogram(hist) if hist else "(none)"
-                # issue #392 — redo_log auto append 폐기. 메커니즘 죽음 (jajang
-                # 실측 "하지 말 것" 0건). 학습 환류는 insight CLI (PR3) 로 대체.
         except Exception:  # noqa: BLE001 # nosec B110
             pass
 
@@ -1163,20 +956,9 @@ def handle_posttooluse_agent(
     except (OSError, ValueError):
         pass
 
-    # additionalContext — *raw 측정 데이터* + 가이드 1줄. 결정 메시지 X.
-    # 메인 LLM 이 loop-procedure.md 의 표준 1 step 시퀀스 가이드 (REDO 판단 신호) 보고 자율 판단.
-    # #597 커밋6 — histogram 없어도 staging 진단(diagnostics)이 있으면 모델에 노출.
-    if histogram_str or diagnostics:
-        lines = []
-        if histogram_str:
-            line = f"[감시자 hook] sub={sub_type or '?'} tool histogram: {histogram_str}"
-            if input_repeats_str:
-                line += f"\n같은 input 반복: {input_repeats_str}"
-            lines.append(line)
-        if diagnostics:
-            lines.append("[staging 진단] " + " / ".join(diagnostics))
-        ctx = "\n".join(lines)
-
+    # Preserve the public PostToolUse diagnostic meaning for staging failures.
+    if diagnostics:
+        ctx = "[staging 진단] " + " / ".join(diagnostics)
         try:
             output = {
                 "hookSpecificOutput": {
@@ -1614,10 +1396,6 @@ def _main(argv: Optional[list] = None) -> int:
                           help="PostToolUse Agent — live.json.active_agent 해제")
     p_pa.add_argument("--cc-pid", type=int, default=None)
 
-    p_pf = sub.add_parser("posttooluse-file-op",
-                          help="PostToolUse Edit/Write/Read/Bash — agent-trace post append")
-    p_pf.add_argument("--cc-pid", type=int, default=None)
-
     p_st = sub.add_parser("stop",
                           help="Stop 훅 — 메인 응답 종료 시 자동 end-run (issue #382)")
     p_st.add_argument("--cc-pid", type=int, default=None)
@@ -1646,8 +1424,6 @@ def _main(argv: Optional[list] = None) -> int:
             rc = handle_pretooluse_file_op(cc_pid=cc_pid)
         elif args.cmd == "posttooluse-agent":
             rc = handle_posttooluse_agent(cc_pid=cc_pid)
-        elif args.cmd == "posttooluse-file-op":
-            rc = handle_posttooluse_file_op(cc_pid=cc_pid)
         elif args.cmd == "stop":
             rc = handle_stop()
         elif args.cmd == "subagent-stop":

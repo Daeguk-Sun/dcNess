@@ -169,19 +169,6 @@ def _cli_end_run(args: Any) -> int:
         print(f"[session_state] end-run finalize guard FAIL — {exc}", file=sys.stderr)
 
     transition(sid, "run_completed", run_id=rid)
-    try:
-        from harness.loop_lessons import sync_from_run
-
-        changed = sync_from_run(run_dir(sid, rid), repo_path=Path.cwd())
-        if changed:
-            changed_list = ", ".join(str(path) for path in changed)
-            print(f"[lessons] updated: {changed_list}", file=sys.stderr)
-    except Exception as exc:  # nosec B110
-        print(
-            f"[lessons] WARN — recurrent lesson sync skipped: "
-            f"{type(exc).__name__}: {exc}",
-            file=sys.stderr,
-        )
     _record_design_run_if_applicable(sid, rid)
     try:
         warning = format_fail_open_warning(collect_fail_open_summary(cwd=Path.cwd()))
@@ -351,49 +338,6 @@ def _cli_next_task(args: Any) -> int:
     return 0
 
 
-def _cli_insight(args: Any) -> int:
-    """issue #396 — 메인 자율 인사이트 1줄 append.
-
-    Usage: dcness-helper insight <agent>[-<mode>] "<자연어 한 줄>"
-
-    예시:
-        dcness-helper insight build-worker "🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X"
-        dcness-helper insight impl-validator "PR 후 prose 결론 enum 누락 — 다음엔 PASS/FAIL 명시"
-    """
-    from harness.loop_insights import append_insight
-
-    raw = (args.agent_mode or "").strip()
-    if not raw:
-        print("[session_state] agent_mode 미지정", file=sys.stderr)
-        return 1
-
-    # "agent-mode" 또는 "agent" 분리
-    if "-" in raw:
-        # 정식 agent 이름에 - 있을 수 있음 (impl-validator / module-architect 등).
-        # 매트릭스 매칭: 정식 이름 prefix 시도.
-        from harness.run_review import DCNESS_AGENT_NAMES
-        agent = None
-        mode = None
-        for known in sorted(DCNESS_AGENT_NAMES, key=len, reverse=True):
-            if raw == known:
-                agent, mode = known, None
-                break
-            if raw.startswith(known + "-"):
-                agent = known
-                mode = raw[len(known) + 1:]
-                break
-        if not agent:
-            # fallback: 첫 - 분리
-            parts = raw.split("-", 1)
-            agent, mode = parts[0], parts[1] if len(parts) > 1 else None
-    else:
-        agent, mode = raw, None
-
-    path = append_insight(agent, mode, args.text, cwd=Path.cwd())
-    print(f"[insight] appended → {path}", file=sys.stderr)
-    return 0
-
-
 def _cli_prev_tasks_append(args: Any) -> int:
     """#525 — build-worker 가 phase 3 종료 시 자기 task 산출 요약 한 줄 append.
 
@@ -419,6 +363,20 @@ def _cli_prev_tasks_reset(args: Any) -> int:
     reset(cwd=Path.cwd())
     print("[prev-tasks] reset", file=sys.stderr)
     return 0
+
+
+def _cli_retired_runtime_analysis(args: Any) -> int:
+    """Keep removed public command names on an explicit migration path."""
+    if args.cmd == "guard-telemetry":
+        replacement = "dcNess source checkout의 `python3 scripts/loop_diagnose.py`"
+    else:
+        replacement = "완료된 run의 `/run-review`"
+    print(
+        f"[dcness-helper] {args.cmd}는 plugin runtime에서 제거되었습니다; "
+        f"대신 {replacement}를 사용하세요.",
+        file=sys.stderr,
+    )
+    return 2
 
 
 def _cli_begin_step(args: Any) -> int:
@@ -462,32 +420,9 @@ def _cli_begin_step(args: Any) -> int:
     if prompt_slot_check:
         print(f"\n{prompt_slot_check}")
 
-    # DCN-CHG-20260502-02: 해당 agent/mode 의 loop insights 있으면 stdout 주입.
-    # 메인 Claude 가 Bash 결과로 읽고 Agent prompt 에 포함시킨다.
-    try:
-        from harness.loop_insights import read as _li_read
-        _insights = _li_read(args.agent, mode or None)
-        if _insights:
-            label = f"{args.agent}/{mode}" if mode else args.agent
-            print(f"\n[INSIGHTS: {label}]\n{_insights}")
-    except Exception:  # nosec B110
-        pass  # insights 주입 실패는 silent — 본 step 차단 X
-
-    # #917: recurrent waste lessons. loop-insights 와 동렬의 advisory 주입이며,
-    # 실패해도 begin-step 자체를 차단하지 않는다.
-    try:
-        from harness.loop_lessons import read as _ll_read
-
-        _lessons = _ll_read(agent, mode or None)
-        if _lessons:
-            label = f"{agent}/{mode}" if mode else agent
-            print(f"\n[LESSONS: {label}]\n{_lessons}")
-    except Exception:  # nosec B110
-        pass
-
     # #525: build-worker 진입 시 직전 task 산출 요약 stdout 주입. 메인 Claude 가
-    # Bash 결과로 읽고 build-worker prompt 에 포함시킨다 (loop_insights 와 동일
-    # 경로). 자기 task 는 phase 3 종료 시 append 되므로 여기선 직전까지만 보인다.
+    # Bash 결과로 읽고 build-worker prompt 에 포함시킨다. 자기 task 는 phase 3
+    # 종료 시 append 되므로 여기서는 직전 task까지만 보인다.
     if args.agent == "build-worker":
         try:
             from harness.prev_tasks import read as _pt_read
@@ -768,34 +703,6 @@ def _cli_impl_preview(args: Any) -> int:
     return impl_preview.main(argv)
 
 
-def _cli_guard_telemetry(args: Any) -> int:
-    """Guard hit / eval saturation summary (#875)."""
-    from harness.guard_telemetry import (
-        collect_eval_summary,
-        collect_guard_summary,
-        format_telemetry_report,
-    )
-
-    since_days = args.since_days if args.since_days and args.since_days > 0 else None
-    guard_summary = collect_guard_summary(
-        cwd=Path(args.cwd) if args.cwd else None,
-        base_dir=Path(args.base_dir) if args.base_dir else None,
-        idle_days=args.idle_days,
-        since_days=since_days,
-    )
-    eval_summary = collect_eval_summary(
-        cwd=Path(args.cwd) if args.cwd else None,
-        base_dir=Path(args.base_dir) if args.base_dir else None,
-        saturation_days=args.saturation_days,
-        saturation_min_runs=args.saturation_min_runs,
-    )
-    if args.json:
-        print(json.dumps({"guards": guard_summary, "evals": eval_summary}, ensure_ascii=False))
-    else:
-        print(format_telemetry_report(guard_summary, eval_summary))
-    return 0
-
-
 def _cli_routing(args: Any) -> int:
     """Local provider 분기 CLI.
 
@@ -947,14 +854,20 @@ def _build_arg_parser() -> Any:
     )
     p_ptb.set_defaults(func=_cli_post_task_begin)
 
-    # issue #396 — insight CLI (메인 자율 평가 매커니즘)
-    p_in = sub.add_parser(
-        "insight",
-        help="agent+mode 별 인사이트 한 줄 append (FIFO 10 cap, 메인 자율 평가)",
-    )
-    p_in.add_argument("agent_mode", help='agent 또는 "agent-mode" (예: build-worker)')
-    p_in.add_argument("text", help="자연어 한 줄 (예: \"🚨 stub 파일로 TDD guard 우회 시도 — 절대 반복 X\")")
-    p_in.set_defaults(func=_cli_insight)
+    p_in = sub.add_parser("insight", help="retired runtime self-analysis command")
+    p_in.add_argument("agent_mode")
+    p_in.add_argument("text")
+    p_in.set_defaults(func=_cli_retired_runtime_analysis)
+
+    p_gt = sub.add_parser("guard-telemetry", help="retired runtime aggregation command")
+    p_gt.add_argument("--idle-days", type=int, default=30)
+    p_gt.add_argument("--since-days", type=int, default=90)
+    p_gt.add_argument("--saturation-days", type=int, default=30)
+    p_gt.add_argument("--saturation-min-runs", type=int, default=3)
+    p_gt.add_argument("--cwd", default="")
+    p_gt.add_argument("--base-dir", default="")
+    p_gt.add_argument("--json", action="store_true")
+    p_gt.set_defaults(func=_cli_retired_runtime_analysis)
 
     # #525 — /impl-loop 직전 task 산출 요약 누적 (build-worker append → 다음 진입 emit)
     p_pta = sub.add_parser(
@@ -1245,19 +1158,6 @@ def _build_arg_parser() -> Any:
     p_ip.add_argument("--review-provider", choices=["claude", "codex"], default="")
     p_ip.add_argument("--json", action="store_true")
     p_ip.set_defaults(func=_cli_impl_preview)
-
-    p_gt = sub.add_parser(
-        "guard-telemetry",
-        help="#875 guard hit / eval saturation telemetry summary",
-    )
-    p_gt.add_argument("--idle-days", type=int, default=30)
-    p_gt.add_argument("--since-days", type=int, default=90)
-    p_gt.add_argument("--saturation-days", type=int, default=30)
-    p_gt.add_argument("--saturation-min-runs", type=int, default=3)
-    p_gt.add_argument("--cwd", default="")
-    p_gt.add_argument("--base-dir", default="")
-    p_gt.add_argument("--json", action="store_true")
-    p_gt.set_defaults(func=_cli_guard_telemetry)
 
     p_rt = sub.add_parser(
         "routing",
