@@ -332,6 +332,26 @@ class WasteDetectionTests(unittest.TestCase):
         wastes = detect_wastes(steps)
         self.assertFalse(any(w.pattern == "MUST_FIX_GHOST" for w in wastes))
 
+    def test_must_fix_ghost_korean_negated_pass_keeps_earlier_fail(self):
+        # #1155 — 아래쪽 "PASS 불가"는 pass 결론이 아니라 부정된 incidental 언급이다.
+        # conclusion_enum 이 PASS 로 오파싱된 방어 상황에서도 상단 FAIL을 찾아 GHOST를 막는다.
+        prose = (
+            "검증 결과.\n결론: **FAIL** (Cartography drift 미해소)\n\n"
+            "## Cartography freshness 렌즈 — MUST FIX\n"
+            "route-only drift를 해소해야 한다.\n\n"
+            "현재 완료 기준상 PASS 불가."
+        )
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
+                       prose_excerpt="", prose_full=prose),
+            StepRecord(idx=1, ts="t2", agent="module-architect", mode="CARTOGRAPHY_REFRESH",
+                       enum="PROSE_LOGGED", must_fix=False,
+                       conclusion_enum="CARTOGRAPHY_REFRESHED", prose_excerpt="fixed"),
+        ]
+        wastes = detect_wastes(steps)
+        self.assertFalse(any(w.pattern == "MUST_FIX_GHOST" for w in wastes))
+
     def test_must_fix_ghost_mixed_conclusion_line_fail_wins(self):
         # #771 — 혼합 결론줄 "PASS / FAIL 중 FAIL" 도 fail 우선 → GHOST 아님.
         steps = [
@@ -1081,10 +1101,47 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
         prose = "검증 결과.\n\nspec mismatch 발견 — FAIL 판정."
         self.assertEqual(_extract_conclusion_enum(prose), "FAIL")
 
+    def test_explicit_top_conclusion_drives_step_and_run_final_enum(self):
+        # #1155 실측: 상단 결론 FAIL 뒤 20줄 이상의 근거에 incidental PASS가 있어도
+        # 명시 결론이 step enum과 run 최종 enum을 함께 지배해야 한다.
+        prose = "\n".join([
+            "# Product acceptance",
+            "결론: **FAIL** (코드 결함 아님 · journey 미실행)",
+            "",
+            "## 검증 근거",
+            *[f"근거 {idx}" for idx in range(1, 18)],
+            "비루팅 에뮬 환경의 제한 안에서는 fixture 검사가 PASS.",
+            "실제 journey 실행 증거는 없다.",
+        ])
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            run_dir = _make_run_dir_ledger(
+                tmp,
+                "sid_1155",
+                "rid_1155",
+                [{
+                    "event": "step_completed",
+                    "ts": "2026-07-15T10:15:00+00:00",
+                    "agent": "product-acceptance", "mode": "STORY_ACCEPTANCE",
+                    "enum": "PROSE_LOGGED", "must_fix": False,
+                    "prose_excerpt": "결론: **FAIL**", "prose_file": "product-acceptance.md",
+                }],
+                {"product-acceptance.md": prose},
+            )
+            report = build_report(run_dir, repo_path=tmp)
+
+        self.assertEqual(report.steps[0].conclusion_enum, "FAIL")
+        self.assertEqual(report.final_enum, "FAIL")
+
     def test_negation_skipped_for_pass_fail(self):
         # "FAIL 없음" 부정문은 매칭 X
         prose = "검토 완료.\n\n모든 항목 통과 — FAIL 없음."
         self.assertNotEqual(_extract_conclusion_enum(prose), "FAIL")
+
+    def test_korean_negated_pass_variants_are_not_conclusions(self):
+        for phrase in ("PASS 불가", "PASS 불가능", "PASS 불충분", "PASS 못 함"):
+            with self.subTest(phrase=phrase):
+                self.assertEqual(_extract_conclusion_enum(f"완료 기준상 {phrase}."), "")
 
     def test_empty_prose_returns_empty(self):
         self.assertEqual(_extract_conclusion_enum(""), "")

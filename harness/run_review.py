@@ -568,8 +568,8 @@ def _parse_iso(ts: str) -> Optional[datetime]:
 
 
 # issue #383 B4 — prose 본문 결론 enum 추출.
-# agents/impl-validator.md 의 결론 + 권장 다음 단계 등: "prose 마지막 단락에 결론 (PASS / FAIL / ESCALATE)".
-# 마지막 N줄에서 단어 단위 매칭 — 부정문 (예: "FAIL 없음", "0 FAIL") 회피를 위해
+# 명시적인 `결론:` 라인은 위치와 무관하게 우선하고, 구형 prose 호환을 위해 마지막
+# N줄 단어 매칭을 fallback 한다. 부정문 (예: "FAIL 없음", "PASS 불가") 회피를 위해
 # 같은 줄에 부정 마커가 있으면 skip.
 _CONCLUSION_ENUMS: tuple[tuple[str, re.Pattern[str]], ...] = (
     # 현행 agents/*.md 결론 enum. 구체적 enum을 일반 enum보다 먼저 매칭한다.
@@ -593,8 +593,14 @@ _STANDALONE_CONCLUSIONS: frozenset[str] = frozenset({
     "IMPLEMENTATION_ESCALATE", "SYSTEM_CHECKPOINT_REQUIRED", "NEW_DEP_ESCALATE",
     "UX_FLOW_READY", "UX_FLOW_PATCHED", "UX_REFINE_READY", "UX_FLOW_ESCALATE",
 })
+_CONCLUSION_LABELS = frozenset(label for label, _pattern in _CONCLUSION_ENUMS)
+_EXPLICIT_CONCLUSION_RE = re.compile(
+    r"^\s*(?:[-*+]\s+)?(?:#{1,6}\s+)?(?:\*\*)?결론(?:\*\*)?\s*[:：]"
+    r"\s*(?:\*\*)?\s*(?P<enum>[A-Z][A-Z_]*)\b",
+    re.IGNORECASE,
+)
 _NEGATION_RE = re.compile(
-    r"(없|미발견|아님|아니|불필요|"           # 한글 부정
+    r"(없|미발견|아님|아니|불필요|불가능|불가|불충분|못|"  # 한글 부정
     r"\bno\b|\bnot\b|\bzero\b|\b0\s*\b|"     # 영어 부정
     r"없음)",
     re.IGNORECASE,
@@ -639,17 +645,26 @@ def _prose_final_verdict_is_fail(prose: str) -> bool:
 
 
 def _extract_conclusion_enum(prose: str) -> str:
-    """prose 본문 끝 ~15줄에서 positive 결론 enum 추출.
+    """prose 에서 positive 결론 enum 추출.
 
     매칭 룰:
-    - 끝 15줄 (마지막 단락 가정)
-    - 결론 enum 단어 매칭 + 같은 줄 부정 마커 부재
+    - 문서 전체에서 `결론:` 바로 뒤의 enum 우선 (여러 개면 마지막 라인)
+    - 명시 라인이 없으면 끝 15줄 (마지막 단락 가정)
+    - fallback 결론 enum은 같은 줄에 부정 마커가 있으면 제외
     - 구체적 worker enum > PASS > FAIL > ESCALATE 우선순위
     - 다 매칭 실패 시 빈 문자열 반환 (= 호출자가 helper sentinel 그대로 표시)
     """
     if not prose:
         return ""
     lines = prose.splitlines()
+    explicit_matches = [
+        match for line in lines if (match := _EXPLICIT_CONCLUSION_RE.match(line))
+    ]
+    for match in reversed(explicit_matches):
+        label = match.group("enum").upper()
+        if label in _CONCLUSION_LABELS:
+            return label
+
     tail = lines[-15:] if len(lines) > 15 else lines
     for label, pattern in _CONCLUSION_ENUMS:
         for line in tail:
