@@ -6,6 +6,7 @@
 
 ## Unreleased
 
+- **guard 판정·runtime evidence 경량화** (Closes [#1146](https://github.com/Daeguk-Sun/dcNess/issues/1146)) — hook payload를 `HookRequest`에서 한 번 정규화하고 policy 결과를 `GuardDecision`으로 통일했다. runtime에는 복구에 필요한 state와 최소 guard/eval receipt만 남기며 per-tool 입력 trace, histogram, dashboard, 자동 lesson/insight, agent effectiveness 분석은 release artifact에서 제거했다. public `/run-review`·`/efficiency`는 각각 단일 run 복기와 read-only token/cost 요약을 유지한다. **검증**: unittest 1,120/1,120, guard efficacy 39/39, release artifact Python 18,367 LOC. **호환성**: 기존 telemetry epoch와 공개 state/guard command의 allow·block·exit·stdout 계약은 유지하며 별도 migration은 없다.
 - **run/session 상태 단일 소유자 전환** ([#1153](https://github.com/Daeguk-Sun/dcNess/pull/1153) Closes [#1145](https://github.com/Daeguk-Sun/dcNess/issues/1145)) — `session_state.transition()`이 live state와 lifecycle ledger의 유일한 mutation boundary가 되고, namespaced agent도 경계 안에서 canonical 이름으로 정규화한다. **동작 변화**: 손상·부분 `live.json`, malformed `ledger.jsonl`, 위변조된 `step_completed` receipt는 더 이상 빈 상태/누락 record로 축소하지 않고 재생성 안내와 함께 fail-fast 한다. `/run-review`의 목록 조회는 손상 run을 명시적으로 경고·skip하고 나머지 run 분석을 계속한다. **복구**: 오류가 가리키는 해당 run state를 제거하고 workflow를 재실행해 현재 포맷으로 다시 생성한다.
 
 ---

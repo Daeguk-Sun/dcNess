@@ -81,8 +81,10 @@ class ReleaseArtifactContractTests(unittest.TestCase):
         }
         self.assertEqual(set(product_python), included_python)
         self.assertEqual(contract["allowed_cache_metadata"], [".git", ".in_use"])
-        self.assertIn("scripts/loop_diagnose.py", included)
-        self.assertIn("scripts/loop_diagnose.py", required)
+        self.assertNotIn("scripts/loop_diagnose.py", included)
+        self.assertNotIn("scripts/loop_diagnose.py", required)
+        self.assertNotIn("harness/benchmark_aggregate.py", included)
+        self.assertNotIn("scripts/measure_main_turns.py", included)
         self.assertEqual(
             contract["allowed_cache_metadata_globs"],
             ["__pycache__/*.pyc", "**/__pycache__/*.pyc"],

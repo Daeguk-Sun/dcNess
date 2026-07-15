@@ -89,6 +89,27 @@ class GuardDecisionContractTests(unittest.TestCase):
 
 
 class RuntimeEvidenceBoundaryTests(unittest.TestCase):
+    def test_release_runtime_excludes_post_run_analysis(self) -> None:
+        contract = json.loads(
+            (ROOT / "scripts/release_artifact.json").read_text(encoding="utf-8")
+        )
+        included = set(contract["include_paths"])
+        product_python = set(contract["product_python"])
+        excluded = {
+            "harness/agent_trace.py",
+            "harness/benchmark_aggregate.py",
+            "harness/loop_insights.py",
+            "harness/loop_lessons.py",
+            "harness/sub_eval.py",
+            "scripts/loop_diagnose.py",
+            "scripts/measure_main_turns.py",
+        }
+
+        self.assertFalse(excluded & included)
+        self.assertFalse(excluded & product_python)
+        self.assertNotIn("harness/efficiency", included)
+        self.assertIn("harness/efficiency/analyze_sessions.py", included)
+
     def test_public_hooks_do_not_capture_per_tool_trace(self) -> None:
         manifest = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
         post_hooks = manifest["hooks"]["PostToolUse"]
