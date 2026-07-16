@@ -12,6 +12,7 @@ import io
 import json
 import os
 from pathlib import Path, PurePosixPath
+import re
 import shutil
 # All subprocess calls below use fixed argv and never enable shell execution.
 import subprocess  # nosec B404
@@ -266,6 +267,194 @@ def compare(expected: Path, actual: Path, contract: Contract) -> tuple[bool, lis
     return not details, details
 
 
+SEMVER_RE = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+RELEASE_TAG_RE = re.compile(r"^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+
+
+def _json_object(path: Path, *, label: str) -> dict[str, Any]:
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        raise ArtifactError(f"cannot read {label}: {exc}") from exc
+    if not isinstance(payload, dict):
+        raise ArtifactError(f"{label} must contain a JSON object")
+    return payload
+
+
+def _git_file(repo_root: Path, ref: str, relative: str) -> str:
+    result = subprocess.run(  # nosec B603
+        [_executable("git"), "-C", str(repo_root), "show", f"{ref}:{relative}"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise ArtifactError(
+            f"cannot read {relative} at {ref}: {result.stderr.strip()}"
+        )
+    return result.stdout
+
+
+def _git_commit(repo_root: Path, ref: str) -> str:
+    result = subprocess.run(  # nosec B603
+        [_executable("git"), "-C", str(repo_root), "rev-parse", "--verify", f"{ref}^{{commit}}"],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0:
+        raise ArtifactError(f"cannot resolve commit {ref}: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
+def _plugin_version(root: Path) -> str:
+    payload = _json_object(root / ".claude-plugin" / "plugin.json", label="plugin manifest")
+    version = payload.get("version")
+    if not isinstance(version, str) or SEMVER_RE.fullmatch(version) is None:
+        raise ArtifactError(f"plugin version must be strict semver: {version!r}")
+    return version
+
+
+def _marketplace_version(repo_root: Path, ref: str) -> str:
+    try:
+        payload = json.loads(_git_file(repo_root, ref, ".claude-plugin/marketplace.json"))
+        version = payload["metadata"]["version"]
+    except (json.JSONDecodeError, KeyError, TypeError) as exc:
+        raise ArtifactError("marketplace metadata.version is missing or invalid") from exc
+    if not isinstance(version, str) or SEMVER_RE.fullmatch(version) is None:
+        raise ArtifactError(f"marketplace version must be strict semver: {version!r}")
+    return version
+
+
+def _semver_tuple(version: str) -> tuple[int, int, int]:
+    match = SEMVER_RE.fullmatch(version)
+    if match is None:
+        raise ArtifactError(f"version must be strict semver: {version!r}")
+    major, minor, patch = match.groups()
+    return int(major), int(minor), int(patch)
+
+
+def _install_payload(bundle: Path, destination: Path, contract: Contract) -> None:
+    destination.mkdir(parents=True, exist_ok=True)
+    preserved = set(contract.allowed_cache_metadata)
+    for child in destination.iterdir():
+        if child.name in preserved:
+            continue
+        if child.is_dir() and not child.is_symlink():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
+    shutil.copytree(bundle, destination, dirs_exist_ok=True)
+
+
+def _install_cohort_report(
+    candidate: Path,
+    published: Path | None,
+    source_sha: str,
+    contract: Contract,
+    temp_root: Path,
+) -> dict[str, Any]:
+    candidate_digest = snapshot(candidate, contract)["manifest_sha256"]
+    clean_cache = temp_root / "clean-cache"
+    _install_payload(candidate, clean_cache, contract)
+    clean_digest = snapshot(clean_cache, contract)["manifest_sha256"]
+    clean_report = {"source_sha": source_sha, "bundle_digest": clean_digest}
+    update_report: dict[str, str] | None = None
+    if published is not None:
+        update_cache = temp_root / "update-cache"
+        _install_payload(published, update_cache, contract)
+        _install_payload(candidate, update_cache, contract)
+        update_digest = snapshot(update_cache, contract)["manifest_sha256"]
+        update_report = {"source_sha": source_sha, "bundle_digest": update_digest}
+    if clean_digest != candidate_digest or (
+        update_report is not None and update_report["bundle_digest"] != candidate_digest
+    ):
+        raise ArtifactError("clean install and previous-version update cohort digest mismatch")
+    return {
+        "bundle_digest": candidate_digest,
+        "clean_install": clean_report,
+        "previous_version_update": update_report,
+    }
+
+
+def verify_release(
+    repo_root: Path,
+    tag: str,
+    candidate: Path,
+    published: Path | None,
+    published_source_sha: str | None,
+    contract: Contract,
+) -> dict[str, Any]:
+    tag_match = RELEASE_TAG_RE.fullmatch(tag)
+    if tag_match is None:
+        raise ArtifactError(f"release tag must match vMAJOR.MINOR.PATCH: {tag!r}")
+    version = ".".join(tag_match.groups())
+    tag_ref = f"refs/tags/{tag}"
+    source_sha = _git_commit(repo_root, tag_ref)
+    candidate_version = _plugin_version(candidate)
+    marketplace_version = _marketplace_version(repo_root, tag_ref)
+    if candidate_version != version or marketplace_version != version:
+        raise ArtifactError(
+            "tag, plugin, and marketplace versions must match: "
+            f"tag={version}, plugin={candidate_version}, marketplace={marketplace_version}"
+        )
+
+    with tempfile.TemporaryDirectory(prefix="dcness-release-verify-") as tmp:
+        temp_root = Path(tmp)
+        expected = temp_root / "tag-candidate"
+        build(repo_root, tag_ref, expected, contract)
+        matched, details = compare(expected, candidate, contract)
+        if not matched:
+            raise ArtifactError(
+                "candidate bundle does not match immutable tag source:\n" + "\n".join(details)
+            )
+
+        candidate_digest = snapshot(candidate, contract)["manifest_sha256"]
+        previous_version: str | None = None
+        previous_digest: str | None = None
+        action = "publish"
+        if published is not None:
+            if not published_source_sha:
+                raise ArtifactError("published source SHA is required with a published bundle")
+            resolved_published_source = _git_commit(repo_root, published_source_sha)
+            if resolved_published_source != published_source_sha:
+                raise ArtifactError("published source SHA must be a full commit SHA")
+            previous_version = _plugin_version(published)
+            previous_digest = snapshot(published, contract)["manifest_sha256"]
+            if candidate_version == previous_version:
+                if candidate_digest != previous_digest:
+                    raise ArtifactError(
+                        f"existing version {candidate_version} has a different bundle digest"
+                    )
+                if source_sha != published_source_sha:
+                    raise ArtifactError(
+                        f"existing version {candidate_version} has a different source SHA"
+                    )
+                action = "already_published"
+            elif _semver_tuple(candidate_version) <= _semver_tuple(previous_version):
+                raise ArtifactError(
+                    f"release version must increase: published={previous_version}, candidate={candidate_version}"
+                )
+
+        cohorts = _install_cohort_report(
+            candidate, published, source_sha, contract, temp_root
+        )
+
+    return {
+        "action": action,
+        "tag": tag,
+        "version": candidate_version,
+        "source_sha": source_sha,
+        "bundle_digest": candidate_digest,
+        "previous_version": previous_version,
+        "previous_bundle_digest": previous_digest,
+        "clean_install": cohorts["clean_install"],
+        "previous_version_update": cohorts["previous_version_update"],
+    }
+
+
 def _executable(name: str) -> str:
     resolved = shutil.which(name)
     if resolved is None:
@@ -510,7 +699,9 @@ def _verify_external_runtime(bundle: Path, temp_root: Path) -> dict[str, int]:
     }
 
 
-def smoke(repo_root: Path, ref: str, contract: Contract) -> dict[str, int]:
+def smoke(
+    repo_root: Path, ref: str, contract: Contract, previous_root: Path | None = None
+) -> dict[str, Any]:
     with tempfile.TemporaryDirectory(prefix="dcness-release-smoke-") as tmp:
         temp_root = Path(tmp)
         bundle = temp_root / "bundle"
@@ -520,11 +711,19 @@ def smoke(repo_root: Path, ref: str, contract: Contract) -> dict[str, int]:
         _verify_agent_surface(bundle, repo_root / "scripts" / "check_public_surface.mjs")
         runtime = _verify_external_runtime(bundle, temp_root)
         artifact = snapshot(bundle, contract)
+        source_sha = _git_commit(repo_root, ref)
+        cohorts = _install_cohort_report(
+            bundle, previous_root, source_sha, contract, temp_root
+        )
         context_bytes = runtime["session_start_additional_context_bytes"]
         return {
             "file_count": artifact["file_count"],
             "byte_size": artifact["byte_size"],
             "text_loc": artifact["text_loc"],
+            "source_sha": source_sha,
+            "bundle_digest": cohorts["bundle_digest"],
+            "clean_install": cohorts["clean_install"],
+            "previous_version_update": cohorts["previous_version_update"],
             "session_start_additional_context_bytes": context_bytes,
             "session_start_token_approx": (context_bytes + 3) // 4,
             "agent_instruction_reads": runtime["agent_instruction_reads"],
@@ -570,7 +769,16 @@ def parser() -> argparse.ArgumentParser:
     smoke_parser = subparsers.add_parser("smoke")
     smoke_parser.add_argument("--repo-root", type=_path, required=True)
     smoke_parser.add_argument("--ref", required=True)
+    smoke_parser.add_argument("--previous-root", type=_path)
     add_contract(smoke_parser)
+
+    verify_release_parser = subparsers.add_parser("verify-release")
+    verify_release_parser.add_argument("--repo-root", type=_path, required=True)
+    verify_release_parser.add_argument("--tag", required=True)
+    verify_release_parser.add_argument("--candidate", type=_path, required=True)
+    verify_release_parser.add_argument("--published", type=_path)
+    verify_release_parser.add_argument("--published-source-sha")
+    add_contract(verify_release_parser)
     return root
 
 
@@ -598,9 +806,24 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         elif args.command == "smoke":
-            result = smoke(args.repo_root, args.ref, contract)
+            result = smoke(args.repo_root, args.ref, contract, args.previous_root)
             print("release_artifact_smoke=PASS")
             print(json.dumps(result, ensure_ascii=False, sort_keys=True))
+        elif args.command == "verify-release":
+            print(
+                json.dumps(
+                    verify_release(
+                        args.repo_root,
+                        args.tag,
+                        args.candidate,
+                        args.published,
+                        args.published_source_sha,
+                        contract,
+                    ),
+                    ensure_ascii=False,
+                    sort_keys=True,
+                )
+            )
         return 0
     except (ArtifactError, OSError, subprocess.SubprocessError) as exc:
         print(f"release_artifact=FAIL: {exc}", file=sys.stderr)

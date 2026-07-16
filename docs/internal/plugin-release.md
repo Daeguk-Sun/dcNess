@@ -30,8 +30,8 @@
 따른다.
 
 release artifact의 단일 positive allowlist SSOT는 [`scripts/release_artifact.json`](../../scripts/release_artifact.json)이다.
-[`scripts/release_artifact.py`](../../scripts/release_artifact.py)의 candidate 생성과
-[`scripts/sync_release.sh`](../../scripts/sync_release.sh)의 release branch 정리가 이 파일만 소비한다.
+[`scripts/release_artifact.py`](../../scripts/release_artifact.py)의 candidate 생성·manifest digest·smoke와
+[`scripts/sync_release.sh`](../../scripts/sync_release.sh)의 immutable tag publish가 이 파일만 소비한다.
 `include_paths`는 제품 콘텐츠와 runtime만 선택하고, `product_python`은 배포되는 모든 Python
 파일을 공개 hook·command·skill 또는 외부 사용자용 CLI 계약과 1:1로 분류한다. 포함 디렉터리
 아래에 새 Python 파일이 추가돼도 `product_python`에 제품 소비자를 명시하지 않으면 artifact
@@ -43,14 +43,25 @@ transport/runtime metadata는 GitHub source update용 `.git`, 활성 사용 표�
 않는다. payload footprint는 이 metadata를 제외해 candidate와 비교하고, 실제 cache disk
 footprint를 보고할 때는 metadata 크기를 별도로 병기한다.
 
+공개 version은 `v{version}` tag, tag가 가리키는 tested source SHA, `snapshot`의
+`manifest_sha256`과 1:1로 대응한다. `release` artifact commit의 parent가 그 source SHA이므로 별도
+registry나 provenance 저장소 없이 관계를 확인할 수 있다. 같은 version의 기존 release와 candidate의
+source SHA 또는 digest가 다르면 release branch를 checkout하거나 push하기 전에 실패한다. 이미 배포한
+version의 tag를 이동·재사용하지 않으며 `sync_release.sh`도 tag ref를 만들거나 수정하지 않는다.
+
 `release`는 사람이 작업하는 외부 프로젝트 브랜치 예외가 아니다. dcNess self의
 `sync_release.sh`가 공식 저장소 원격(`Daeguk-Sun/dcNess`, 이전 redirect `alruminum/dcNess`)에
-push할 때만 pre-push naming gate에서 기계 생성 배포 ref로 인정한다. positive allowlist artifact
-생성이나 제품 Python inventory 검증이 실패하면 sync는 push 전에 fail-closed 한다.
+push할 때만 pre-push naming gate에서 기계 생성 배포 ref로 인정한다. workflow는 `main` push가 아니라
+새 `vMAJOR.MINOR.PATCH` tag에서만 실행하며, exact tag source의 전체 unit suite를 통과한 뒤 publish한다.
+positive allowlist build, 제품 Python inventory, version/tag/source/digest 정합, clean install/update smoke 중
+하나라도 실패하면 release ref는 이전 상태로 보존된다.
 
 ```sh
 # 현재 ref의 비파괴 candidate + runtime smoke + footprint/context 분리 측정
 python3 scripts/release_artifact.py smoke --repo-root . --ref HEAD
+
+# publish 경계에서는 sync가 직전 release artifact를 --previous-root로 넘겨
+# clean install과 직전 version update의 source SHA / bundle digest 정합까지 검사
 
 # 같은 revision의 저장소 Python과 release Python을 분리 측정
 python3 scripts/release_artifact.py measure --repo-root . --ref HEAD
@@ -102,28 +113,40 @@ worktree·checkout을 나눠도 상한이 분리되지 않는다. `--ledger`는 
 - Verify: [`evals/core-incident-subset.json`](../../evals/core-incident-subset.json)의 핵심 행동 eval은 `bash evals/run-core.sh`에서 N/N 통과해야 한다. judge 판정이 의심스러우면 저장된 `run-<N>-report.md`와 `run-<N>-judge.md`를 사람 golden 보정 입력으로 남기고, report digest·golden/subset version이 맞는지 확인한다.
 
 ```sh
-# 1. 브랜치 생성 — 브랜치명 버전은 . 대신 _ (0.13.0 → 0_13_0).
-#    docs/{desc} 네이밍 게이트가 . 을 거부한다. (커밋 제목·태그·버전 파일은 . 유지)
-git checkout -b docs/release_0_13_0_{설명} main
+# 1. version bump 브랜치 생성 — 브랜치명 버전은 . 대신 _ (0.25.0 → 0_25_0).
+git checkout -b docs/release_0_25_0_{설명} main
 
-# 2. 버전 올리기
+# 2. 두 manifest의 version을 같은 새 값으로 올리기
 #    .claude-plugin/plugin.json     "version" 필드
 #    .claude-plugin/marketplace.json "metadata.version" 필드
+node scripts/check_plugin_manifest.mjs
 
-# 3. 커밋
+# 3. commit → PR → 전체 required CI PASS → regular merge
 git add .claude-plugin/plugin.json .claude-plugin/marketplace.json
 git commit -m "[docs] release {버전} — {설명}"
-
-# 4. PR 생성 → CI PASS → merge
-git push -u origin docs/release_0_13_0_{설명}
+git push -u origin docs/release_0_25_0_{설명}
 gh pr create --title "[docs] release {버전} — {설명}" ...
-gh pr merge {번호} --merge
 
-# 5. main pull 후 태그 박기
-git checkout main && git pull
-git tag v{버전} && git push origin v{버전}
+# 4. merge된 exact source에서 full preflight PASS 확인
+git checkout main
+git pull --ff-only origin main
+python3.11 scripts/release_preflight.py
 
-# 6. 사용자 업데이트 가이드 출력
+# 5. 새 immutable tag 생성·push — 기존 tag 재사용/이동 및 force push 금지
+VERSION=$(python3 -c 'import json; print(json.load(open(".claude-plugin/plugin.json"))["version"])')
+TAG="v${VERSION}"
+SOURCE_SHA=$(git rev-parse HEAD)
+git tag "$TAG" "$SOURCE_SHA"
+git push origin "refs/tags/$TAG"
+
+# 6. exact tag unit suite → clean install/update smoke → release publish workflow 확인
+RUN_ID=$(gh run list --workflow=release-sync.yml --commit "$SOURCE_SHA" --limit 1 --json databaseId --jq '.[0].databaseId')
+gh run watch "$RUN_ID" --exit-status
+# workflow log의 verify-release JSON에서 아래 네 값이 일치해야 한다.
+# source_sha == clean_install.source_sha == previous_version_update.source_sha
+# bundle_digest == clean_install.bundle_digest == previous_version_update.bundle_digest
+
+# 7. 사용자 업데이트 가이드 출력
 echo "---"
 echo "v{버전} 업데이트 가이드"
 echo ""
@@ -132,16 +155,11 @@ echo ""
 echo "문제 발생 시:"
 echo "  claude plugin uninstall dcness@dcness && claude plugin install dcness@dcness"
 echo "---"
-
-# 7. release 브랜치 배포 정합 확인 (사용자 배포물 — 수동 sync 불필요)
-#    사용자가 받는 배포물은 main/tag 가 아니라 release 브랜치다(dcness self 경로 제외 사본).
-#    release-sync.yml CI 가 main push 마다 sync_release.sh 를 자동 실행해 release 브랜치를 갱신하므로
-#    수동 실행은 불필요하다. 단, 태그만으로는 사용자에게 도달하지 않으니 아래로 정합을 확인한다.
-gh run list --workflow=release-sync.yml --limit 1                   # merge sha 발화 success 확인
-git show origin/release:.claude-plugin/plugin.json | grep version   # release 브랜치 = v{버전} 정합
 ```
 
-> **완료 기준은 3단 정합**: `main` plugin.json · `v{버전}` 태그 · `release` 브랜치 plugin.json 이 모두 같은 버전이어야 사용자에게 도달한 것이다. 태그만 박고 끝내면 배포 미도달을 완료로 착각할 수 있다.
+> **완료 기준은 4단 정합**: `main` manifest version · immutable `v{version}` tag · release commit
+> parent의 tested source SHA · release bundle digest가 1:1이어야 한다. workflow의 clean install과 직전
+> version update가 같은 source SHA와 digest를 보고해야 사용자에게 도달한 것으로 본다.
 
 ## 4. 릴리즈 후 사용자 검증 방법
 
