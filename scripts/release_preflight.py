@@ -301,7 +301,12 @@ def _judge_passed(output_dir: Path, case: str, run_index: int = 1) -> bool:
         lines = judge_path.read_text(encoding="utf-8").splitlines()
     except OSError:
         return False
-    return any(line.strip() == "RESULT: PASS" for line in lines)
+    verdicts = [
+        line.strip()
+        for line in lines
+        if line.strip() in {"RESULT: PASS", "RESULT: FAIL"}
+    ]
+    return bool(verdicts) and verdicts[-1] == "RESULT: PASS"
 
 
 def _attach_behavior_trials(

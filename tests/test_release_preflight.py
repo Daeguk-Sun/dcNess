@@ -262,6 +262,23 @@ class ReleasePreflightTests(unittest.TestCase):
                 ],
             )
 
+    def test_core_judge_uses_the_final_result_line_like_eval_runner(self) -> None:
+        spec = importlib.util.spec_from_file_location("release_preflight", SCRIPT)
+        module = importlib.util.module_from_spec(spec)
+        assert spec.loader is not None
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as td:
+            output = Path(td)
+            case_dir = output / "case-a"
+            case_dir.mkdir()
+            judge = case_dir / "run-1-judge.md"
+
+            judge.write_text("RESULT: PASS\nRESULT: FAIL\n", encoding="utf-8")
+            self.assertFalse(module._judge_passed(output, "case-a"))
+
+            judge.write_text("RESULT: FAIL\nRESULT: PASS\n", encoding="utf-8")
+            self.assertTrue(module._judge_passed(output, "case-a"))
+
     def test_initial_miss_latches_release_failure_and_preserves_all_four_trials(
         self,
     ) -> None:
