@@ -33,8 +33,9 @@ python3 evals/guard_efficacy.py --json # 범주별 pass/fail JSON
 
 bash evals/run.sh                    # 전 케이스 1회씩
 bash evals/run-core.sh               # versioned 핵심 실사고 subset만 1회씩
-EVAL_RUNS=3 bash evals/run.sh        # 케이스당 3회 반복 (릴리즈 전 권장)
-EVAL_RUNS=3 EVAL_RELEASE_CHECK=1 bash evals/run.sh  # 핵심 실사고 케이스 N/N 확인
+python3.11 scripts/release_preflight.py  # 릴리즈 기본: core 두 case를 각 1회
+python3.11 scripts/release_preflight.py --diagnose-core-misses  # MISS case만 총 4 trial 안에서 추가 진단
+EVAL_RUNS=3 bash evals/run.sh        # 사용자 승인 아래 수동 진단 표본 수집
 EVAL_MODEL=opus bash evals/run.sh    # 검수/채점 모델 변경 (기본 sonnet)
 EVAL_OUTPUT_DIR=/tmp/dcness-evals bash evals/run.sh # 산출물 저장 위치 지정
 EVAL_PARALLEL=8 bash evals/run.sh    # (case, run) 셀을 최대 8개까지 병렬 실행 (기본 4, 1=직렬 안전판)
@@ -63,7 +64,12 @@ headless `claude -p` quota 는 메인 세션과 공유되므로 상한은 보수
 `shorts-real-spec`, `headless-prose-quality`다. 첫 케이스는 실제 제품 순서 사고를, 두 번째는
 근거 없는 headless PASS와 rigid output 회귀를 함께 잡는다. 나머지는 전체 suite의 합성 대조군,
 cartography 확장 회귀, 또는 중복 축으로 유지하되 개인 릴리즈 기본 calibration 비용에서는 뺀다.
-`bash evals/run-core.sh`는 manifest에서 case 목록을 읽고 N/N을 요구한다. 이 기준은 새 CI 게이트가 아니라
+`bash evals/run-core.sh`는 manifest에서 case 목록을 읽고 지정된 실행 수의 N/N을 요구한다.
+릴리즈 preflight는 외부 `EVAL_RUNS` 값과 무관하게 두 case를 각 1회 실행한다. 최초 MISS가 있으면
+릴리즈 FAIL을 즉시 고정하고 기본 실행은 추가 표본을 자동 수집하지 않는다. 원인 분류가 필요한
+operator가 `--diagnose-core-misses`를 선택한 경우에만 실패한 case를 case당 최대 2회 추가 실행하되,
+초기 2회를 포함한 자동 행동 trial 총량은 4회를 넘지 않는다. 추가 진단이 모두 PASS여도 고정된
+release FAIL은 바뀌지 않는다. 이 기준은 새 CI 게이트가 아니라
 [`docs/internal/self-improvement-loop.md`](../docs/internal/self-improvement-loop.md)의
 Verify 슬롯을 사람이 도는 릴리즈 전 권고다.
 저장된 v1 사람 확인 후보와 report/judge 대조 순서는
@@ -89,10 +95,11 @@ dcNess source checkout의 repo-only `scripts/loop_diagnose.py`는 기본
 적용한다.
 
 단발 실패를 뒤이은 재실행 PASS로 덮어 "통과"로 닫지 않는다. 재실행은 flaky 여부를 판별하는
-수단이지 통과 표본을 고르는 수단이 아니다. 판정이 흔들리면 최초 MISS를 결과 집합에서 버리지 않은
-채 `EVAL_RUNS`를 높여 추가 표본을 모으고, 최초 MISS까지 합산한 전체 정답률(`k/N`)을 측정한다.
-일부만 통과하면 결과를 flaky로 보고한다. 방금 변경한 diff의 회귀가 아니라는 근거가 있더라도 해당
-flaky 신호 자체를 없던 것으로 취급하지 않는다.
+수단이지 통과 표본을 고르는 수단이 아니다. 릴리즈 자동 경로는 위 4 trial 상한 안에서 최초 MISS와
+추가 진단의 report·judge trace를 모두 보존한다. 그보다 많은 표본은 사용자 승인 아래
+`EVAL_RUNS`를 높인 수동 진단으로만 모으며, 최초 MISS까지 합산한 전체 정답률(`k/N`)을 측정한다.
+수동 진단 역시 이미 실패한 release 판정을 바꾸지 않는다. 일부만 통과하면 결과를 flaky로 보고한다.
+방금 변경한 diff의 회귀가 아니라는 근거가 있더라도 해당 flaky 신호 자체를 없던 것으로 취급하지 않는다.
 
 flaky로 확정한 후보는 gate 통과 여부와 무관하게 처분을 남긴다. [#1123](https://github.com/alruminum/dcNess/pull/1123)의
 flaky 후보 자동 표면화를 거쳐 `scripts/loop_diagnose.py record-decision`으로 `fixed`·`hold`·`rejected`

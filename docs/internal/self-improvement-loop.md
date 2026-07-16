@@ -129,7 +129,7 @@ Verify는 하나의 PASS로 뭉개지 않는다.
 |---|---|---|
 | hook/function/order/TDD guard 변경 | `python3 evals/guard_efficacy.py` | fixture 계약의 재현만 본다. 실제 agent 행동은 보지 않는다. |
 | agent·skill 행동 판단 변경 | `bash evals/run.sh` | LLM 실행이라 흔들림이 있다. judge 신뢰성은 [#894](https://github.com/alruminum/dcNess/issues/894) 보정 대상이다. |
-| 릴리즈 전 핵심 실사고 회귀 | `EVAL_RUNS=3 EVAL_RELEASE_CHECK=1 bash evals/run.sh` | `shorts-real-spec`, `headless-prose-quality`는 N/N 통과가 기준이다. |
+| 릴리즈 전 핵심 실사고 회귀 | `python3.11 scripts/release_preflight.py` | 기본은 core 두 case를 각 1회 실행한다. 최초 MISS는 release FAIL로 고정하며, 원인 분류가 필요하면 `--diagnose-core-misses`로 실패 case만 자동 총 4 trial 안에서 추가 진단한다. |
 | 재발·낭비·비용 신호 | 다음 Sense 주기 재측정 | evals 밖 운영 신호라 즉시 증명할 수 없다. |
 
 `evals/run.sh`는 블라인드 검수 보고와 judge 채점 결과를 `.metrics/evals/` 아래 또는
