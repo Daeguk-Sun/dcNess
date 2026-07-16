@@ -8,6 +8,30 @@
 
 ---
 
+## v0.25.0 (2026-07-16)
+
+**커밋 범위**: `v0.24.0..v0.25.0` (머지 PR 2개, [#1166](https://github.com/Daeguk-Sun/dcNess/pull/1166) · [#1167](https://github.com/Daeguk-Sun/dcNess/pull/1167))
+**핵심 변경**: **dcNess 자신의 release publish 경계를 tag-only immutable 파이프라인으로 굳히고, 릴리즈 전 preflight 의 행동 예산·judge verdict 파싱을 정합화한** minor 릴리즈. 배포되는 외부 활성 프로젝트 runtime 동작 변화는 없으며, 공개 evidence snapshot 을 현재 revision 실측으로 갱신했다. (1) 같은 plugin version 의 release artifact 불변성을 tag/version/source SHA/bundle digest 4단 정합으로 강제하고 main-push sync 를 제거해 새 `vX.Y.Z` 태그에서만 publish, (2) release preflight 의 핵심 행동 eval 기본 실행을 case 별 1회로 고정해 최초 MISS 를 release FAIL 로 유지하고 judge 최종 verdict 파싱을 eval runner 와 일치시켰다. **v0.25.0 은 이 tag-only immutable publish 파이프라인을 처음 실제로 통과하는 릴리즈다.**
+
+### 무엇이 바뀌나
+
+1. **release artifact 불변성 강제 — tag-only immutable publish** ([#1166](https://github.com/Daeguk-Sun/dcNess/pull/1166) Closes [#1158](https://github.com/Daeguk-Sun/dcNess/issues/1158)) — release publish 가 `main` push 로 트리거돼 이미 배포한 version 의 artifact 가 tag 이동·재빌드로 조용히 바뀔 수 있던 문제를 해소. `sync_release.sh` 가 tag·manifest version·release commit parent 의 tested source SHA·release bundle digest 를 1:1 로 검증하고 같은 version 의 기존 release 와 candidate 의 source SHA/digest 가 다르면 checkout·push 전에 실패하도록 했다. `release-sync.yml` 은 `main` push 가 아니라 새 `vMAJOR.MINOR.PATCH` 태그에서만 실행하며, exact tag source 의 전체 unit suite 와 clean install/update smoke 를 통과한 뒤에만 publish 한다. clean install/update cohort 회귀 테스트와 release runbook 을 함께 갱신했다.
+
+2. **release preflight 행동 예산 + core judge 최종 verdict 정합** ([#1167](https://github.com/Daeguk-Sun/dcNess/pull/1167) Closes [#1157](https://github.com/Daeguk-Sun/dcNess/issues/1157)) — preflight 의 핵심 행동 eval 이 실행 표본 수를 고정하지 않고 judge verdict 파싱이 eval runner 와 달라 판정이 흔들리던 문제를 해소. 기본 실행을 case 별 1회로 고정하고 최초 MISS 를 release FAIL 로 유지하며, 선택형 실패 진단만 자동 4 trial 상한 안에서 실행하되 전체 report·judge trace 를 보존한다. product outcome 축을 현재 성공률이 아니라 historical snapshot 수집 의미로 명확화하고, preflight 가 eval runner 와 동일하게 문서 마지막 `RESULT` 줄을 judge 최종 verdict 로 사용하도록 맞춰(중복 `RESULT` 순서 회귀 테스트 추가) 파싱 불일치를 제거했다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 release publish 경계(`sync_release.sh`·`release-sync.yml`)와 preflight/judge 파싱을 건드려 결정적 guard-efficacy 를 재실행 — **48/48 PASS**, 회귀 없음. 전체 unittest 도 재실행해 공개 수치를 실측 동기화 — **1,152/1,152 PASS**. 두 머지 PR 은 각각 개별 CI(pytest·static-quality·public-surface·cross-ref·index-map·doc-sync·plugin-manifest·pr-body)를 통과했다.
+- Decide: 소멸 후보 없음. follow-up 없음.
+- Verify: release artifact 불변성·preflight 행동 예산·core judge verdict 신규/회귀 테스트 통과. 공개 evidence snapshot(README·`docs/plugin/benchmark.md`)을 v0.25.0 / 2026-07-16 실측(unit 1,152/1,152 · guard 48/48)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측 대조를 검증한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — 이번 릴리즈의 실질 변경은 dcNess self 의 release publish 불변성과 preflight 판정이라 외부 활성 프로젝트 runtime 동작 변화는 없다. 배포물에서는 공개 evidence snapshot(README·benchmark)과 version bump 만 반영된다.
+- **marketplace 설치/업데이트 사용자** — v0.25.0 부터 release 는 새 `vX.Y.Z` 태그에서만 publish 되고, 이미 배포한 version 의 tag 는 이동·재사용하지 않는다. 태그·version·tested source SHA·bundle digest 4단 정합이 맞아야 사용자에게 도달한 것으로 본다.
+
+---
+
 ## v0.24.0 (2026-07-16)
 
 **커밋 범위**: `v0.23.0..v0.24.0` (머지 PR 27개)
