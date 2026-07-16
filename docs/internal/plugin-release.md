@@ -92,10 +92,20 @@ Sense→Diagnose→Decide→Act→Verify 루프를 따른다. 메인 agent가 �
 python3.11 scripts/release_preflight.py
 ```
 
-이 명령은 guard efficacy, 핵심 행동 eval, 검증된 golden 기준 judge calibration, 최신 제품
-결과, 실제 Agent 작업 효율 record, 최근 하네스 경량화 결정, 공개 evidence 생성·검사,
+이 명령은 guard efficacy, 핵심 행동 eval, 검증된 golden 기준 judge calibration, 과거 관측
+제품 outcome snapshot, 실제 Agent 작업 효율 record, 최근 하네스 경량화 결정, 공개 evidence 생성·검사,
 release bundle 소비 smoke를 독립 축으로 실행한다. bundle 소비 smoke와 2026-08 실측은 이
 도구가 재구현하지 않고 기존 산출물·검증기를 조합한다.
+
+기본 핵심 행동 eval은 manifest의 두 case를 각 1회 실행한다. 최초 MISS는 release FAIL로
+고정되며 후속 PASS로 되돌리지 않는다. 원인 분류가 필요할 때 `--diagnose-core-misses`를 사용하면
+실패 case만 case당 최대 2회, 초기 실행을 포함한 자동 총 4 trial 안에서 추가 실행하고 모든
+report·judge trace를 보존한다. 4회를 넘는 표본은 사용자 승인 아래 수동 진단으로만 수집하며
+이미 실패한 release 판정을 바꾸지 않는다.
+
+`product_outcome_snapshot` 축의 `SNAPSHOT COLLECTED`는 기존 scorecard command가 종료코드 0으로
+raw historical ratio·`측정 불가`·한계를 수집했다는 의미다. 현재 revision의 제품 성공률이나
+제품 PASS 판정이 아니다.
 
 하네스 실험의 월 trial ledger는 checkout 내부가 아니라 operator-wide
 `~/.claude/plugins/data/dcness-dcness/harness-experiments/trial-ledger.jsonl`를 사용하므로
@@ -110,7 +120,7 @@ worktree·checkout을 나눠도 상한이 분리되지 않는다. `--ledger`는 
   - 이미 판단한 후보는 `record-decision` 으로 `docs/internal/loop-decisions.jsonl` 에 남긴다. 다음 리포트에서 `fixed`/`rejected` 는 `--hide-decided` 로 숨길 수 있고, `hold` 는 계속 표시된다.
   - 장기 무발화 guard는 바로 제거하지 않고 **소멸 후보**로만 기록한다. 실제 제거는 별도 issue/PR에서 Decide→Act→Verify를 탄다.
 - Decide: 추가 전 제거 검토를 먼저 한다. 소멸 후보나 follow-up이 있으면 릴리즈 노트 `Unreleased`의 자기개선 점검 기록에 적고, 후보가 없으면 `소멸 후보 없음`이라고 적는다. 추적이 길어질 항목은 별도 GitHub issue로 분리한다.
-- Verify: [`evals/core-incident-subset.json`](../../evals/core-incident-subset.json)의 핵심 행동 eval은 `bash evals/run-core.sh`에서 N/N 통과해야 한다. judge 판정이 의심스러우면 저장된 `run-<N>-report.md`와 `run-<N>-judge.md`를 사람 golden 보정 입력으로 남기고, report digest·golden/subset version이 맞는지 확인한다.
+- Verify: [`evals/core-incident-subset.json`](../../evals/core-incident-subset.json)의 핵심 행동 eval은 기본 각 1회에서 모두 통과해야 한다. 최초 MISS가 있으면 release FAIL을 유지한 채 필요한 경우에만 bounded 추가 진단으로 원인을 분류한다. judge 판정이 의심스러우면 저장된 `run-<N>-report.md`와 `run-<N>-judge.md`를 사람 golden 보정 입력으로 남기고, report digest·golden/subset version이 맞는지 확인한다.
 
 ```sh
 # 1. version bump 브랜치 생성 — 브랜치명 버전은 . 대신 _ (0.25.0 → 0_25_0).
