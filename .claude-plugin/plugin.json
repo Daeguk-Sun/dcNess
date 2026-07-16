@@ -1,6 +1,6 @@
 {
   "name": "dcness",
-  "version": "0.23.0",
+  "version": "0.24.0",
   "description": "Claude Code와 Codex를 Git/PR/CI 흐름 안에서 순서 게이트·역할 경계·TDD guard·검증 가능한 작업 기록으로 묶는 agent workflow harness. (한국어 사용자 대상)",
   "author": {
     "name": "alruminum",

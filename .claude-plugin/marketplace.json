@@ -8,7 +8,7 @@
   },
   "metadata": {
     "description": "dcNess — Claude Code와 Codex를 제품 개발 루프에 묶고 순서 게이트, 역할 경계, TDD guard, 검증 가능한 작업 기록을 제공하는 agent workflow harness. release 브랜치의 경량 runtime artifact 배포.",
-    "version": "0.23.0"
+    "version": "0.24.0"
   },
   "plugins": [
     {
