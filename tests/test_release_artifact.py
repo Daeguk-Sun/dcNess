@@ -483,12 +483,30 @@ class ReleaseArtifactContractTests(unittest.TestCase):
 
         self.assertGreater(semver(plugin["version"]), semver(baseline["plugin_version"]))
 
-    def test_sync_release_has_no_second_exclude_list_or_hook_bypass(self) -> None:
+    def test_release_workflow_is_tag_only_and_tests_the_exact_source_before_publish(self) -> None:
+        workflow = (ROOT / ".github/workflows/release-sync.yml").read_text(encoding="utf-8")
+
+        self.assertIn("tags:", workflow)
+        self.assertIn("'v*.*.*'", workflow)
+        self.assertNotIn("branches: [main]", workflow)
+        self.assertIn("python3 -m unittest discover -s tests -v", workflow)
+        self.assertIn('bash scripts/sync_release.sh --tag "$GITHUB_REF_NAME" --yes', workflow)
+        self.assertLess(
+            workflow.index("python3 -m unittest discover -s tests -v"),
+            workflow.index("bash scripts/sync_release.sh"),
+        )
+
+    def test_sync_release_has_no_second_exclude_list_tag_mutation_or_hook_bypass(self) -> None:
         script = (ROOT / "scripts/sync_release.sh").read_text(encoding="utf-8")
 
         self.assertIn("scripts/release_artifact.py", script)
         self.assertIn('"$ARTIFACT_BUILDER" build', script)
-        self.assertIn('git commit -m "[docs] release sync from main@', script)
+        self.assertIn("verify-release", script)
+        self.assertIn('"$ARTIFACT_BUILDER" "${VERIFY_ARGS[@]}"', script)
+        self.assertIn("--previous-root", script)
+        self.assertIn('"$ARTIFACT_BUILDER" "${SMOKE_ARGS[@]}"', script)
+        self.assertIn("--tag", script)
+        self.assertNotIn("git tag", script)
         self.assertNotIn("EXCLUDE_PATHS=(", script)
         self.assertNotIn("excluded-paths", script)
         self.assertNotIn("--no-verify", script)
@@ -502,7 +520,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "node",
                 str(ROOT / "scripts/check_git_naming.mjs"),
                 "--title",
-                "[docs] release sync from main@abcdef0",
+                "[docs] release 1.2.3 from v1.2.3@abcdef0",
             ],
             cwd=ROOT,
             check=True,
@@ -572,11 +590,13 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             )
             subprocess.run(["git", "-C", repo, "add", "."], check=True)
             subprocess.run(["git", "-C", repo, "commit", "-qm", "fixture"], check=True)
+            subprocess.run(["git", "-C", repo, "tag", "v1.0.0"], check=True)
             subprocess.run(["git", "-C", repo, "remote", "add", "origin", str(remote)], check=True)
             subprocess.run(["git", "-C", repo, "push", "-q", "-u", "origin", "main"], check=True)
+            subprocess.run(["git", "-C", repo, "push", "-q", "origin", "v1.0.0"], check=True)
 
             result = subprocess.run(
-                ["bash", "scripts/sync_release.sh", "--yes"],
+                ["bash", "scripts/sync_release.sh", "--tag", "v1.0.0", "--yes"],
                 cwd=repo,
                 env={**os.environ, "PATH": f"{fake_bin}:{os.environ['PATH']}"},
                 check=False,
@@ -586,7 +606,10 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             )
 
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("positive allowlist artifact 생성에 실패해 release sync를 중단합니다", result.stderr)
+            self.assertIn(
+                "positive allowlist artifact 생성에 실패해 release publish를 중단합니다",
+                result.stderr,
+            )
             remote_release = subprocess.run(
                 ["git", "--git-dir", str(remote), "show-ref", "--verify", "refs/heads/release"],
                 check=False,
@@ -594,6 +617,59 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 text=True,
             )
             self.assertNotEqual(remote_release.returncode, 0)
+
+    def test_main_push_style_sync_invocation_leaves_release_ref_and_tree_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp) / "repo"
+            (repo / "scripts").mkdir(parents=True)
+            shutil.copy2(ROOT / "scripts/sync_release.sh", repo / "scripts/sync_release.sh")
+            (repo / "product.txt").write_text("published\n", encoding="utf-8")
+            subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+            subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "test@example.com"], check=True
+            )
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "published"], check=True)
+            subprocess.run(["git", "-C", repo, "branch", "release"], check=True)
+            refs_before = subprocess.run(
+                ["git", "-C", repo, "show-ref"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            tree_before = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "release^{tree}"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+
+            result = subprocess.run(
+                ["bash", "scripts/sync_release.sh", "--yes"],
+                cwd=repo,
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+
+            self.assertEqual(result.returncode, 2)
+            self.assertIn("release publish requires --tag", result.stderr)
+            refs_after = subprocess.run(
+                ["git", "-C", repo, "show-ref"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            tree_after = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "release^{tree}"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.assertEqual(refs_after, refs_before)
+            self.assertEqual(tree_after, tree_before)
 
     def test_sync_release_publishes_only_the_positive_allowlist(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -607,14 +683,23 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 json.dumps(
                     {
                         "schema_version": 2,
-                        "include_paths": ["product.txt"],
+                        "include_paths": [".claude-plugin/plugin.json", "product.txt"],
                         "product_python": {},
                         "allowed_cache_metadata": [".git", ".in_use"],
                         "allowed_cache_metadata_globs": [],
-                        "required_runtime_paths": ["product.txt"],
+                        "required_runtime_paths": [".claude-plugin/plugin.json", "product.txt"],
                         "forbidden_product_imports": ["evals", "tests"],
                     }
                 ),
+                encoding="utf-8",
+            )
+            (repo / ".claude-plugin").mkdir()
+            (repo / ".claude-plugin/plugin.json").write_text(
+                json.dumps({"name": "dcness", "version": "1.0.0"}) + "\n",
+                encoding="utf-8",
+            )
+            (repo / ".claude-plugin/marketplace.json").write_text(
+                json.dumps({"metadata": {"version": "1.0.0"}}) + "\n",
                 encoding="utf-8",
             )
             (repo / "product.txt").write_text("product\n", encoding="utf-8")
@@ -628,11 +713,19 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             )
             subprocess.run(["git", "-C", repo, "add", "."], check=True)
             subprocess.run(["git", "-C", repo, "commit", "-qm", "fixture"], check=True)
+            source_sha = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            subprocess.run(["git", "-C", repo, "tag", "v1.0.0"], check=True)
             subprocess.run(["git", "-C", repo, "remote", "add", "origin", str(remote)], check=True)
             subprocess.run(["git", "-C", repo, "push", "-q", "-u", "origin", "main"], check=True)
+            subprocess.run(["git", "-C", repo, "push", "-q", "origin", "v1.0.0"], check=True)
 
             result = subprocess.run(
-                ["bash", "scripts/sync_release.sh", "--yes"],
+                ["bash", "scripts/sync_release.sh", "--tag", "v1.0.0", "--yes"],
                 cwd=repo,
                 check=False,
                 capture_output=True,
@@ -647,7 +740,21 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 capture_output=True,
                 text=True,
             ).stdout.splitlines()
-            self.assertEqual(released, ["product.txt"])
+            self.assertEqual(released, [".claude-plugin/plugin.json", "product.txt"])
+            released_parent = subprocess.run(
+                ["git", "--git-dir", str(remote), "rev-parse", "release^"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.assertEqual(released_parent, source_sha)
+            remote_tag = subprocess.run(
+                ["git", "--git-dir", str(remote), "rev-parse", "v1.0.0^{}"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            self.assertEqual(remote_tag, source_sha)
             self.assertEqual(
                 subprocess.run(
                     ["git", "-C", repo, "branch", "--show-current"],
@@ -656,6 +763,255 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                     text=True,
                 ).stdout.strip(),
                 "main",
+            )
+
+    def test_verify_release_rejects_same_version_digest_drift_without_mutating_refs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            contract_path = root / "contract.json"
+            published = root / "published"
+            candidate = root / "candidate"
+            (repo / ".claude-plugin").mkdir(parents=True)
+            subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+            subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "test@example.com"], check=True
+            )
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "include_paths": [".claude-plugin/plugin.json", "product.txt"],
+                        "product_python": {},
+                        "allowed_cache_metadata": [".git", ".in_use"],
+                        "allowed_cache_metadata_globs": [],
+                        "required_runtime_paths": [".claude-plugin/plugin.json", "product.txt"],
+                        "forbidden_product_imports": ["evals", "tests"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (repo / ".claude-plugin/plugin.json").write_text(
+                json.dumps({"name": "dcness", "version": "1.0.0"}) + "\n",
+                encoding="utf-8",
+            )
+            (repo / ".claude-plugin/marketplace.json").write_text(
+                json.dumps({"metadata": {"version": "1.0.0"}}) + "\n",
+                encoding="utf-8",
+            )
+            (repo / "product.txt").write_text("published\n", encoding="utf-8")
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "published"], check=True)
+            published_source = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            subprocess.run(["git", "-C", repo, "tag", "v1.0.0"], check=True)
+            subprocess.run(["git", "-C", repo, "branch", "release"], check=True)
+            _run(
+                "build",
+                "--repo-root",
+                str(repo),
+                "--ref",
+                "HEAD",
+                "--output",
+                str(published),
+                "--contract",
+                str(contract_path),
+            )
+
+            (repo / "product.txt").write_text("drifted\n", encoding="utf-8")
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "drift"], check=True)
+            subprocess.run(["git", "-C", repo, "tag", "-f", "v1.0.0"], check=True)
+            _run(
+                "build",
+                "--repo-root",
+                str(repo),
+                "--ref",
+                "HEAD",
+                "--output",
+                str(candidate),
+                "--contract",
+                str(contract_path),
+            )
+            refs_before = subprocess.run(
+                ["git", "-C", repo, "show-ref"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+
+            failed = _run(
+                "verify-release",
+                "--repo-root",
+                str(repo),
+                "--tag",
+                "v1.0.0",
+                "--candidate",
+                str(candidate),
+                "--published",
+                str(published),
+                "--published-source-sha",
+                published_source,
+                "--contract",
+                str(contract_path),
+                check=False,
+            )
+
+            self.assertNotEqual(failed.returncode, 0)
+            self.assertIn("existing version 1.0.0 has a different bundle digest", failed.stderr)
+            refs_after = subprocess.run(
+                ["git", "-C", repo, "show-ref"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout
+            self.assertEqual(refs_after, refs_before)
+
+    def test_verify_release_reports_new_version_cohorts_and_rejects_version_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            repo = root / "repo"
+            contract_path = root / "contract.json"
+            published = root / "published"
+            candidate = root / "candidate"
+            (repo / ".claude-plugin").mkdir(parents=True)
+            (repo / "product").mkdir()
+            subprocess.run(["git", "init", "-q", "-b", "main", repo], check=True)
+            subprocess.run(["git", "-C", repo, "config", "user.name", "test"], check=True)
+            subprocess.run(
+                ["git", "-C", repo, "config", "user.email", "test@example.com"], check=True
+            )
+            contract_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 2,
+                        "include_paths": [".claude-plugin/plugin.json", "product"],
+                        "product_python": {},
+                        "allowed_cache_metadata": [".git", ".in_use"],
+                        "allowed_cache_metadata_globs": [],
+                        "required_runtime_paths": [".claude-plugin/plugin.json", "product"],
+                        "forbidden_product_imports": ["evals", "tests"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (repo / ".claude-plugin/plugin.json").write_text(
+                json.dumps({"name": "dcness", "version": "1.0.0"}) + "\n",
+                encoding="utf-8",
+            )
+            (repo / ".claude-plugin/marketplace.json").write_text(
+                json.dumps({"metadata": {"version": "1.0.0"}}) + "\n",
+                encoding="utf-8",
+            )
+            (repo / "product/runtime.txt").write_text("old\n", encoding="utf-8")
+            (repo / "product/removed.txt").write_text("remove on update\n", encoding="utf-8")
+            subprocess.run(["git", "-C", repo, "add", "."], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "v1"], check=True)
+            published_source = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            subprocess.run(["git", "-C", repo, "tag", "v1.0.0"], check=True)
+            _run(
+                "build",
+                "--repo-root",
+                str(repo),
+                "--ref",
+                "HEAD",
+                "--output",
+                str(published),
+                "--contract",
+                str(contract_path),
+            )
+
+            (repo / ".claude-plugin/plugin.json").write_text(
+                json.dumps({"name": "dcness", "version": "1.1.0"}) + "\n",
+                encoding="utf-8",
+            )
+            (repo / ".claude-plugin/marketplace.json").write_text(
+                json.dumps({"metadata": {"version": "1.1.0"}}) + "\n",
+                encoding="utf-8",
+            )
+            (repo / "product/runtime.txt").write_text("new\n", encoding="utf-8")
+            (repo / "product/removed.txt").unlink()
+            subprocess.run(["git", "-C", repo, "add", "-A"], check=True)
+            subprocess.run(["git", "-C", repo, "commit", "-qm", "v1.1"], check=True)
+            source_sha = subprocess.run(
+                ["git", "-C", repo, "rev-parse", "HEAD"],
+                check=True,
+                capture_output=True,
+                text=True,
+            ).stdout.strip()
+            subprocess.run(["git", "-C", repo, "tag", "v1.1.0"], check=True)
+            _run(
+                "build",
+                "--repo-root",
+                str(repo),
+                "--ref",
+                "HEAD",
+                "--output",
+                str(candidate),
+                "--contract",
+                str(contract_path),
+            )
+
+            result = _run(
+                "verify-release",
+                "--repo-root",
+                str(repo),
+                "--tag",
+                "v1.1.0",
+                "--candidate",
+                str(candidate),
+                "--published",
+                str(published),
+                "--published-source-sha",
+                published_source,
+                "--contract",
+                str(contract_path),
+            )
+            report = json.loads(result.stdout)
+
+            self.assertEqual(report["action"], "publish")
+            self.assertEqual(report["source_sha"], source_sha)
+            self.assertEqual(report["version"], "1.1.0")
+            self.assertEqual(
+                report["clean_install"],
+                {
+                    "source_sha": source_sha,
+                    "bundle_digest": report["bundle_digest"],
+                },
+            )
+            self.assertEqual(report["previous_version_update"], report["clean_install"])
+
+            subprocess.run(["git", "-C", repo, "tag", "v1.2.0"], check=True)
+            version_mismatch = _run(
+                "verify-release",
+                "--repo-root",
+                str(repo),
+                "--tag",
+                "v1.2.0",
+                "--candidate",
+                str(candidate),
+                "--published",
+                str(published),
+                "--published-source-sha",
+                published_source,
+                "--contract",
+                str(contract_path),
+                check=False,
+            )
+            self.assertNotEqual(version_mismatch.returncode, 0)
+            self.assertIn(
+                "tag, plugin, and marketplace versions must match",
+                version_mismatch.stderr,
             )
 
     def test_distributed_markdown_links_do_not_target_excluded_paths(self) -> None:
@@ -734,6 +1090,15 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             )
         self.assertEqual(smoke_metrics["file_count"], direct["file_count"])
         self.assertEqual(smoke_metrics["byte_size"], direct["byte_size"])
+        self.assertEqual(smoke_metrics["bundle_digest"], direct["manifest_sha256"])
+        self.assertEqual(
+            smoke_metrics["clean_install"],
+            {
+                "source_sha": smoke_metrics["source_sha"],
+                "bundle_digest": smoke_metrics["bundle_digest"],
+            },
+        )
+        self.assertIsNone(smoke_metrics["previous_version_update"])
 
 
 if __name__ == "__main__":
