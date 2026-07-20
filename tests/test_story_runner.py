@@ -79,6 +79,7 @@ class StoryRunnerTests(unittest.TestCase):
 
         self.assertEqual(state["scope"], "epic")
         self.assertEqual(state["schema_version"], 2)
+        self.assertRegex(state["chain_id"], r"^[0-9a-f]{32}$")
         self.assertEqual(
             [Path(task["path"]).name for task in state["tasks"]],
             ["01-ui.md", "02-api.md", "03-common.md"],
@@ -424,6 +425,15 @@ class StoryRunnerTests(unittest.TestCase):
         self.assertEqual(action_payload["action"], "done")
         self.assertEqual(action_payload["final_story"]["story"], "1")
 
+        old_chain_id = ready["chain_id"]
+        old_cache = (
+            state_path.parent
+            / "provider-failure-cache"
+            / f"{old_chain_id}.json"
+        )
+        old_cache.parent.mkdir(parents=True)
+        old_cache.write_text("{}\n", encoding="utf-8")
+
         removed = subprocess.run(
             [str(SCRIPT), "mark-story", "--state", str(state_path)],
             cwd=ROOT,
@@ -455,6 +465,8 @@ class StoryRunnerTests(unittest.TestCase):
         )
         reinit_payload = json.loads(reinit.stdout)
         self.assertNotIn("status", reinit_payload)
+        self.assertNotEqual(reinit_payload["chain_id"], old_chain_id)
+        self.assertFalse(old_cache.exists())
         archives = list(state_path.parent.glob("story-run.completed-*.json"))
         self.assertEqual(len(archives), 1)
         archived = json.loads(archives[0].read_text(encoding="utf-8"))
@@ -500,6 +512,17 @@ class StoryRunnerTests(unittest.TestCase):
 
         self.assertEqual(duplicate.returncode, 1)
         self.assertIn("state has incomplete task(s): #1=pending", duplicate.stderr)
+
+        active = json.loads(state_path.read_text(encoding="utf-8"))
+        active_cache = (
+            state_path.parent
+            / "provider-failure-cache"
+            / f"{active['chain_id']}.json"
+        )
+        active_cache.parent.mkdir(parents=True)
+        active_cache.write_text("{}\n", encoding="utf-8")
+        self.assertIsNone(prepare_init_state(state_path, force=True))
+        self.assertFalse(active_cache.exists())
 
         legacy = {"schema_version": 1, "tasks": []}
         state_path.write_text(json.dumps(legacy), encoding="utf-8")

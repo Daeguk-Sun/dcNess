@@ -10,7 +10,7 @@ set -uo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  dcness-implementation-chain <agent> [MODE] --prompt-file <file> [--provider <provider>] [--project-root <dir>]
+  dcness-implementation-chain <agent> [MODE] --prompt-file <file> [--provider <provider>] [--provider-provenance <routing|explicit>] [--chain-state <file>] [--project-root <dir>]
 
 Agents:
   build-worker
@@ -23,6 +23,8 @@ Providers:
 Options:
   --prompt-file, -p   File containing the caller prompt.
   --provider          Override local implementation routing.
+  --provider-provenance  Provider origin. Explicit selections bypass chain cache.
+  --chain-state       Active story-runner state. Enables impl-loop chain cache.
   --project-root, -C  Repository root. Default: git rev-parse --show-toplevel.
   --helper            dcness-helper path. Default: sibling script.
   --help, -h          Show this help.
@@ -69,6 +71,9 @@ PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
 PROVIDER=""
+PROVIDER_ARG_SEEN=0
+PROVIDER_PROVENANCE=""
+CHAIN_STATE=""
 
 abs_path() {
   case "$1" in
@@ -85,6 +90,15 @@ while [ $# -gt 0 ]; do
       ;;
     --provider)
       PROVIDER="${2:-}"
+      PROVIDER_ARG_SEEN=1
+      shift 2
+      ;;
+    --provider-provenance)
+      PROVIDER_PROVENANCE="${2:-}"
+      shift 2
+      ;;
+    --chain-state)
+      CHAIN_STATE="${2:-}"
       shift 2
       ;;
     --project-root|-C)
@@ -122,6 +136,28 @@ if [ ! -d "$PROJECT_ROOT" ]; then
 fi
 PROJECT_ROOT="$(cd "$PROJECT_ROOT" && pwd)"
 HELPER="$(abs_path "$HELPER")"
+if [ -n "$CHAIN_STATE" ]; then
+  CHAIN_STATE="$(abs_path "$CHAIN_STATE")"
+  if [ ! -f "$CHAIN_STATE" ]; then
+    echo "[dcness-implementation-chain] chain state not found: $CHAIN_STATE" >&2
+    exit 2
+  fi
+fi
+
+if [ -z "$PROVIDER_PROVENANCE" ]; then
+  if [ "$PROVIDER_ARG_SEEN" -eq 1 ]; then
+    PROVIDER_PROVENANCE="explicit"
+  else
+    PROVIDER_PROVENANCE="routing"
+  fi
+fi
+case "$PROVIDER_PROVENANCE" in
+  routing|explicit) ;;
+  *)
+    echo "[dcness-implementation-chain] --provider-provenance must be routing or explicit: $PROVIDER_PROVENANCE" >&2
+    exit 2
+    ;;
+esac
 
 if [ ! -x "$HELPER" ]; then
   echo "[dcness-implementation-chain] helper not executable: $HELPER" >&2
@@ -140,7 +176,78 @@ dcness_resolve_headless_context "dcness-implementation-chain" "$PROJECT_ROOT" "$
 git_status_without_harness_state() {
   git -C "$PROJECT_ROOT" status --porcelain=v1 -uall 2>/dev/null \
     | sed '/^.. \.claude\/harness-state\//d' \
-    | sed '/^.. \.dcness-work\/headless-logs\//d' || true
+    | sed '/^.. \.dcness-work\/headless-logs\//d' \
+    | sed '/^.. \.dcness-work\/provider-failure-cache\//d' \
+    | sed '/^.. \.dcness-work\/story-run/d' || true
+}
+
+CACHE_BYPASS_REASON=""
+if [ -n "$CHAIN_STATE" ] && [ "$PROVIDER_PROVENANCE" = "explicit" ]; then
+  CACHE_BYPASS_REASON="provenance=explicit"
+fi
+if [ -n "$CHAIN_STATE" ] && [ -n "${DCNESS_CODEX_PERMISSION_RECEIPT:-}" ]; then
+  CACHE_BYPASS_REASON="permission-retry"
+fi
+
+provider_cache_check() {
+  local stage="$1"
+  local entry=""
+  local rc=0
+  local fields=""
+  local category=""
+  local first_raw_log=""
+  local scope=""
+  local diagnostic=""
+
+  [ -n "$CHAIN_STATE" ] || return 1
+  [ -z "$CACHE_BYPASS_REASON" ] || return 1
+  entry="$(
+    PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+      python3 -m harness.provider_failure_cache check \
+        --state "$CHAIN_STATE" \
+        --project-root "$PROJECT_ROOT" \
+        --provider "$stage"
+  )"
+  rc=$?
+  if [ "$rc" -eq 3 ]; then
+    return 1
+  fi
+  if [ "$rc" -ne 0 ]; then
+    echo "[dcness-implementation-chain] provider cache check failed for $stage; refusing ambiguous chain state." >&2
+    return 2
+  fi
+  fields="$(printf '%s' "$entry" | python3 -c '
+import json, sys
+entry = json.load(sys.stdin)
+print(entry.get("category", ""))
+print(entry.get("raw_log", ""))
+print(entry.get("scope", ""))
+')"
+  category="$(printf '%s\n' "$fields" | sed -n '1p')"
+  first_raw_log="$(printf '%s\n' "$fields" | sed -n '2p')"
+  scope="$(printf '%s\n' "$fields" | sed -n '3p')"
+  diagnostic="$RAW_LOG_DIR/chain-cache-skip-${stage}-${AGENT}${MODE:+-$MODE}-$$.log"
+  dcness_write_headless_context_header "dcness-implementation-chain" "$diagnostic"
+  {
+    printf 'PROVIDER_CACHE_HIT\n'
+    printf 'provider=%s\n' "$stage"
+    printf 'category=%s\n' "$category"
+    printf 'first_raw_log=%s\n' "$first_raw_log"
+    printf 'scope=%s\n' "$scope"
+    printf 'provenance=%s\n' "$PROVIDER_PROVENANCE"
+  } >> "$diagnostic"
+  echo "[dcness-implementation-chain] PROVIDER_CACHE_HIT provider=$stage category=$category first_raw_log=$first_raw_log scope=$scope diagnostic=$diagnostic" >&2
+  return 0
+}
+
+provider_cache_clear() {
+  local stage="$1"
+  [ -n "$CHAIN_STATE" ] || return 0
+  PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 -m harness.provider_failure_cache clear \
+      --state "$CHAIN_STATE" \
+      --project-root "$PROJECT_ROOT" \
+      --provider "$stage" >/dev/null 2>&1 || true
 }
 
 ROUTING_INFO="$(
@@ -204,6 +311,11 @@ run_headless_stage() {
   local before_head=""
   local after_head=""
   local log=""
+  local failure_file=""
+  local failure_info=""
+  local failure_category=""
+  local record_info=""
+  local record_rc=0
   local rc=0
   local cmd=()
 
@@ -221,6 +333,7 @@ run_headless_stage() {
   esac
 
   log="$RAW_LOG_DIR/chain-${stage}-${AGENT}${MODE:+-$MODE}-$$.log"
+  failure_file="$(mktemp "${TMPDIR:-/tmp}/dcness-provider-failure-${stage}.XXXXXX")"
   dcness_write_headless_context_header "dcness-implementation-chain" "$log"
   before_status="$(git_status_without_harness_state)"
   before_head="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
@@ -238,12 +351,16 @@ run_headless_stage() {
     printf '\n'
   } >> "$log"
 
-  "${cmd[@]}" >> "$log" 2>&1
+  DCNESS_PROVIDER_FAILURE_FILE="$failure_file" "${cmd[@]}" >> "$log" 2>&1
   rc=$?
 
   after_status="$(git_status_without_harness_state)"
   after_head="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
   if [ "$rc" -eq 0 ]; then
+    if [ -n "$CACHE_BYPASS_REASON" ]; then
+      provider_cache_clear "$stage"
+    fi
+    rm -f "$failure_file"
     return 0
   fi
 
@@ -251,16 +368,54 @@ run_headless_stage() {
     echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and failed; no fallback." >&2
     echo "[dcness-implementation-chain] raw log: $log" >&2
     git -C "$PROJECT_ROOT" status --short >&2 || true
+    rm -f "$failure_file"
     exit 1
   fi
 
-  echo "[dcness-implementation-chain] provider $stage failed before workspace mutation (exit $rc); continuing. raw log: $log" >&2
+  if [ -s "$failure_file" ]; then
+    failure_info="$(cat "$failure_file")"
+    failure_category="$(printf '%s' "$failure_info" | python3 -c '
+import json, sys
+print(json.load(sys.stdin).get("category", ""))
+' 2>/dev/null || true)"
+  fi
+  if [ -n "$CHAIN_STATE" ] && [ -z "$CACHE_BYPASS_REASON" ] && [ -s "$failure_file" ]; then
+    record_info="$(
+      PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+        python3 -m harness.provider_failure_cache record \
+          --state "$CHAIN_STATE" \
+          --project-root "$PROJECT_ROOT" \
+          --provider "$stage" \
+          --failure-file "$failure_file"
+    )"
+    record_rc=$?
+    if [ "$record_rc" -eq 0 ]; then
+      echo "[dcness-implementation-chain] provider cache recorded provider=$stage category=$failure_category" >&2
+    elif [ "$record_rc" -ne 3 ]; then
+      echo "[dcness-implementation-chain] provider cache record failed for $stage; continuing without memoization." >&2
+    fi
+  fi
+  rm -f "$failure_file"
+
+  echo "[dcness-implementation-chain] provider $stage failed before workspace mutation (exit $rc, category=${failure_category:-unclassified}); continuing. raw log: $log" >&2
   return "$rc"
 }
 
 for STAGE in "${STAGES[@]}"; do
   case "$STAGE" in
     codex-headless|claude-headless)
+      if [ -n "$CACHE_BYPASS_REASON" ]; then
+        echo "[dcness-implementation-chain] provider cache bypass: $CACHE_BYPASS_REASON provider=$STAGE provenance=$PROVIDER_PROVENANCE" >&2
+      else
+        provider_cache_check "$STAGE"
+        CACHE_CHECK_RC=$?
+        if [ "$CACHE_CHECK_RC" -eq 0 ]; then
+          continue
+        fi
+        if [ "$CACHE_CHECK_RC" -eq 2 ]; then
+          exit 2
+        fi
+      fi
       run_headless_stage "$STAGE"
       STAGE_RC=$?
       if [ "$STAGE_RC" -eq 0 ]; then

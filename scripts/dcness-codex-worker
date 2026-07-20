@@ -88,6 +88,7 @@ CODEX_EFFORT="${DCNESS_CODEX_EFFORT:-}"
 CODEX_NETWORK_ACCESS="${DCNESS_CODEX_NETWORK_ACCESS:-}"
 CODEX_WRITABLE_ROOTS="${DCNESS_CODEX_WRITABLE_ROOTS:-}"
 CODEX_PERMISSION_RECEIPT="${DCNESS_CODEX_PERMISSION_RECEIPT:-}"
+PROVIDER_FAILURE_FILE="${DCNESS_PROVIDER_FAILURE_FILE:-}"
 
 abs_path() {
   case "$1" in
@@ -169,11 +170,6 @@ if ! command -v python3 >/dev/null 2>&1; then
   exit 127
 fi
 
-if ! command -v codex >/dev/null 2>&1; then
-  echo "[dcness-codex-worker] codex CLI not found" >&2
-  exit 127
-fi
-
 CODEX_NETWORK_CONFIG=""
 case "$CODEX_NETWORK_ACCESS" in
   '') ;;
@@ -209,7 +205,9 @@ dcness_resolve_headless_context "dcness-codex-worker" "$PROJECT_ROOT" "$SCRIPT_D
 git_status_without_harness_state() {
   git -C "$PROJECT_ROOT" status --porcelain=v1 -uall 2>/dev/null \
     | sed '/^.. \.claude\/harness-state\//d' \
-    | sed '/^.. \.dcness-work\/headless-logs\//d' || true
+    | sed '/^.. \.dcness-work\/headless-logs\//d' \
+    | sed '/^.. \.dcness-work\/provider-failure-cache\//d' \
+    | sed '/^.. \.dcness-work\/story-run/d' || true
 }
 
 BEFORE_STATUS="$(git_status_without_harness_state)"
@@ -217,9 +215,36 @@ BEFORE_HEAD="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
 
 TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-${AGENT}.XXXXXX")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-prompt-${AGENT}.XXXXXX")"
+TMP_FAILURE_CAUSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-failure-${AGENT}.XXXXXX")"
 RAW_LOG="$RAW_LOG_DIR/codex-headless-${AGENT}${MODE:+-$MODE}-$$.log"
 dcness_write_headless_context_header "dcness-codex-worker" "$RAW_LOG"
-trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
+trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT" "$TMP_FAILURE_CAUSE"' EXIT
+
+emit_provider_failure() {
+  local rc="$1"
+  local cause="${2:-}"
+  local args=()
+  [ -n "$PROVIDER_FAILURE_FILE" ] || return 0
+  args=(
+    emit
+    --output "$PROVIDER_FAILURE_FILE"
+    --provider codex-headless
+    --exit-code "$rc"
+    --raw-log "$RAW_LOG"
+  )
+  if [ -n "$cause" ]; then
+    args+=(--cause "$cause")
+  fi
+  PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 -m harness.provider_failure_cache "${args[@]}" >/dev/null 2>&1 || true
+}
+
+if ! command -v codex >/dev/null 2>&1; then
+  printf '[dcness-codex-worker] codex CLI not found\n' >> "$RAW_LOG"
+  emit_provider_failure 127 cli_missing
+  echo "[dcness-codex-worker] codex CLI not found" >&2
+  exit 127
+fi
 
 AGENT_DOC="$SCRIPT_DIR/../agents/$AGENT.md"
 AGENT_DETAIL="$SCRIPT_DIR/../docs/plugin/agents/$AGENT/$AGENT-agent.md"
@@ -306,7 +331,8 @@ project_root = sys.argv[3]
 prompt = sys.argv[4]
 log = sys.argv[5]
 prose = sys.argv[6]
-cmd = sys.argv[7:]
+failure_cause = sys.argv[7]
+cmd = sys.argv[8:]
 
 def git_status() -> str:
     try:
@@ -324,7 +350,14 @@ def git_status() -> str:
         return ""
     return "\n".join(
         line for line in proc.stdout.splitlines()
-        if not line[3:].startswith(".claude/harness-state/")
+        if not line[3:].startswith(
+            (
+                ".claude/harness-state/",
+                ".dcness-work/headless-logs/",
+                ".dcness-work/provider-failure-cache/",
+                ".dcness-work/story-run",
+            )
+        )
     )
 
 def file_size(path: str) -> int:
@@ -387,6 +420,8 @@ with open(prompt, "rb") as stdin, open(log, "ab") as raw:
         if now >= deadline:
             raw.write(f"\n[dcness-codex-worker] total timeout after {timeout}s\n".encode())
             raw.flush()
+            with open(failure_cause, "w", encoding="utf-8") as marker:
+                marker.write("timeout")
             terminate(124)
         if now - last_progress >= idle_timeout:
             raw.write(
@@ -394,10 +429,12 @@ with open(prompt, "rb") as stdin, open(log, "ab") as raw:
                 "(no stdout/prose/workspace progress)\n".encode()
             )
             raw.flush()
+            with open(failure_cause, "w", encoding="utf-8") as marker:
+                marker.write("idle_timeout")
             terminate(124)
         sleep_for = min(1.0, max(0.05, deadline - now), max(0.05, idle_timeout - (now - last_progress)))
         time.sleep(sleep_for)
-' "$CODEX_TIMEOUT" "$CODEX_IDLE_TIMEOUT" "$PROJECT_ROOT" "$TMP_PROMPT" "$RAW_LOG" "$TMP_PROSE" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}"
+' "$CODEX_TIMEOUT" "$CODEX_IDLE_TIMEOUT" "$PROJECT_ROOT" "$TMP_PROMPT" "$RAW_LOG" "$TMP_PROSE" "$TMP_FAILURE_CAUSE" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}"
 }
 
 workspace_changed() {
@@ -447,6 +484,8 @@ if [ "$CODEX_RC" -ne 0 ]; then
     git -C "$PROJECT_ROOT" status --short >&2 || true
     exit 1
   fi
+  FAILURE_CAUSE="$(cat "$TMP_FAILURE_CAUSE" 2>/dev/null || true)"
+  emit_provider_failure "$CODEX_RC" "$FAILURE_CAUSE"
   echo "[dcness-codex-worker] codex exec failed before workspace mutation (exit $CODEX_RC); raw log: $RAW_LOG" >&2
   exit "$CODEX_RC"
 fi
@@ -458,6 +497,7 @@ if [ ! -s "$TMP_PROSE" ]; then
     git -C "$PROJECT_ROOT" status --short >&2 || true
     exit 1
   fi
+  emit_provider_failure 1 empty_output
   echo "[dcness-codex-worker] Codex produced empty prose; raw log: $RAW_LOG" >&2
   exit 1
 fi
@@ -506,6 +546,10 @@ for path in sorted(paths):
         continue
     if path.startswith(".dcness-work/headless-logs/"):
         continue
+    if path.startswith(".dcness-work/provider-failure-cache/"):
+        continue
+    if path.startswith(".dcness-work/story-run"):
+        continue
     reason = check_write_allowed(agent, path, cwd=root)
     if reason:
         print(f"{path}: {reason}")
@@ -527,7 +571,11 @@ TDD_CHANGED_PATHS="$(
     if [ -n "$BEFORE_HEAD" ]; then
       git -C "$PROJECT_ROOT" diff --name-only --diff-filter=ACMRT "$BEFORE_HEAD..HEAD" 2>/dev/null || true
     fi
-  } | grep -v '^\.claude/harness-state/' | grep -v '^\.dcness-work/headless-logs/' | sort -u
+  } | grep -v '^\.claude/harness-state/' \
+    | grep -v '^\.dcness-work/headless-logs/' \
+    | grep -v '^\.dcness-work/provider-failure-cache/' \
+    | grep -v '^\.dcness-work/story-run' \
+    | sort -u
 )"
 TDD_PROBLEMS="$(
   _tdd_found=0

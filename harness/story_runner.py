@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -184,6 +185,7 @@ def build_state(
     return {
         "schema_version": 2,
         "kind": "dcness-story-run",
+        "chain_id": uuid.uuid4().hex,
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
         "scope": resolved_scope,
@@ -214,7 +216,16 @@ def archive_completed_state(path: Path) -> Path:
 
 
 def prepare_init_state(path: Path, *, force: bool) -> Path | None:
-    if not path.exists() or force:
+    if not path.exists():
+        return None
+    if force:
+        try:
+            existing = load_state(path)
+        except (json.JSONDecodeError, OSError, ValueError):
+            return None
+        from harness.provider_failure_cache import invalidate_state_cache
+
+        invalidate_state_cache(path, existing)
         return None
     try:
         existing = load_state(path)
@@ -230,6 +241,9 @@ def prepare_init_state(path: Path, *, force: bool) -> Path | None:
     if isinstance(tasks, list) and tasks and all(
         task.get("status") == "completed" for task in tasks
     ):
+        from harness.provider_failure_cache import invalidate_state_cache
+
+        invalidate_state_cache(path, existing)
         return archive_completed_state(path)
     if not isinstance(tasks, list) or not tasks:
         raise ValueError(
