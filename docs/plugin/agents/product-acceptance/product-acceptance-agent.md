@@ -97,7 +97,10 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 - 외부 의존, 권한, 데이터, 보안 질문이 미래 약속으로만 남아 있지 않다.
 - Story / Epic 분할이 acceptance loop 로 회수 가능할 만큼 작고 명확하다.
 - 각 Story 가 완료 시 사용자가 확인 가능한 동작 증분을 명시하는가. 합쳐야만 동작이 나오는 부품 Story 묶음(기능 영역/레이어 분할)은 gap 으로 식별한다. 단, 불가피한 부품 Story(공통 인프라 등)가 어느 후행 Story 에서 그 동작이 확인되는지 명시했으면 gap 이 아니다.
-- **순서 판단 단일 규칙**: PRD 목표·유저 시나리오와 Story AC에서 핵심 제품 약속 및 export·upload·publish·download·delivery 같은 최종 사용자 가치 경계를 포함한 완전한 사용자 흐름을 식별한다. Story AC가 없더라도 PRD 목표·유저 시나리오, Epic 완료 기준, Story 목적·영향 모듈이 Story별 제품 경계를 드러내면 지연 근거로 사용한다. sequence defect 판정은 Story AC 충족 여부와 독립적으로 먼저 수행한다. 명세 자체가 완전한 사용자 흐름의 최초 end-to-end 검증을 후속 Story로 지연했음을 보여주면 Story AC 또는 동작 증거 부족과 별개의 sequence defect로 보고하고 PASS하지 않는다. 이 defect는 앞 Story의 하위 동작이나 합리적인 의존 순서로 철회하지 않는다. 형식 gap이나 제품 경계 모호성으로 대체·흡수하지 않는다. 지연을 입증하는 Story 순서·제품 경계 근거가 없으면 Story AC 또는 동작 증거 부족만 보고하고 sequence defect를 추측하지 않는다. 첫 Story 또는 가능한 이른 Story가 최소 기능으로 최종 사용자 가치 경계까지 실제 도달하면 이후 기능 풍부화는 정상 walking skeleton이며 sequence defect가 아니다. 명세가 더 이른 얇은 end-to-end 검증이 불가능한 사유를 명시하면 warning으로 보고하되, 불가능 사유를 검수자가 지어내지 않는다.
+- **순서 판단 단일 규칙**: sequence defect 판정은 Story AC 충족 여부와 독립적으로 먼저 수행한다. 다음 세 단계를 한 흐름으로 적용한다.
+  1. **최종 경계와 최초 도달 위치**: PRD 목표·유저 시나리오와 Story AC에서 핵심 제품 약속 및 export·upload·publish·download·delivery 같은 최종 사용자 가치 경계를 식별하고, 최종 사용자 가치 경계를 실제 통과하는 최초 Story를 표시한다. 순서 축의 최초 닫힘은 모든 PRD 기능의 완성이 아니라 최소 동선이 최종 사용자 가치 경계를 실제 통과한 시점이다. Story AC가 없더라도 PRD 목표·유저 시나리오, Epic 완료 기준, Story 목적·영향 모듈이 Story별 제품 경계를 드러내면 지연 근거로 사용한다.
+  2. **정상 walking skeleton 우선 보호**: 첫 Story AC가 최종 사용자 가치 경계를 실제 통과하면 순서 판정을 끝낸다. 첫 Story가 최소 기능으로 최종 사용자 가치 경계까지 실제 도달하면 이후 기능 풍부화는 정상 walking skeleton이며 sequence defect가 아니다. 기능 완성도나 풍부함을 최종 사용자 가치 경계 도달 여부와 혼동하지 않는다. 후속 기능의 누락이나 AC coverage는 별도 gap으로 평가한다. 후속 기능까지 포함한 새 흐름을 만들어 최초 도달 위치를 뒤 Story로 옮기지 않는다.
+  3. **Sequence defect 유지**: 최종 사용자 가치 경계의 최초 통과를 후속 Story로 지연하면 최초 닫힘 위치가 Story 2 이후다. 이때 더 이른 얇은 end-to-end 검증이 불가능한 사유를 명시하면 warning으로 보고하되, 그렇지 않으면 후속 Story가 마지막 Story인지 여부와 무관하게 Story AC 또는 동작 증거 부족과 별개의 sequence defect로 보고하고 PASS하지 않는다. 이 defect는 앞 Story의 하위 동작이나 합리적인 의존 순서로 철회하지 않는다. 완전한 흐름에 필요한 기능을 순서대로 구현한다는 설명은 명시된 불가능 사유가 아니다. 형식 gap이나 제품 경계 모호성으로 대체·흡수하지 않는다. 불가능 사유를 검수자가 지어내지 않는다. 지연을 입증하는 Story 순서·제품 경계 근거가 없으면 Story AC 또는 동작 증거 부족만 보고하고 sequence defect를 추측하지 않는다.
 
 ### STORY_ACCEPTANCE
 
