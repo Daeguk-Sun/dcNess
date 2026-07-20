@@ -19,12 +19,13 @@
     harness-state 를 단일 source 로 잡으므로 (git --git-common-dir) 정합.
 
 ledger event 카탈로그 (이슈 명세):
-    run_started / step_started / step_completed (=receipt) /
+    run_started / step_started / step_aborted / step_completed (=receipt) /
     validator_passed / validator_failed / pr_created / pr_merged /
     task_completed / blocked / run_finished
 
     이 중 코드 경로가 *자동* 기록하는 것은 run_started (begin-run) /
-    step_started (begin-step) / step_completed (end-step) / run_finished
+    step_started (SubagentStart/begin-step) / step_aborted (failed hook lifecycle) /
+    step_completed (PostToolUse/end-step) / run_finished
     (end-run) 4종. 나머지는 메인/skill 이 `ledger-event` CLI 로 *선택* 기록하거나
     (pr_*, task_completed, blocked), step_completed event 에서 *파생 해석* 한다
     (validator_passed/failed = validator agent + must_fix). dcNess doctrine 의
@@ -65,6 +66,7 @@ EVENT_TYPES = frozenset(
     {
         "run_started",
         "step_started",
+        "step_aborted",
         "step_completed",
         "validator_passed",
         "validator_failed",
@@ -78,7 +80,7 @@ EVENT_TYPES = frozenset(
 
 # helper-owned lifecycle events are never accepted by the manual checkpoint CLI.
 LIFECYCLE_EVENT_TYPES = frozenset(
-    {"run_started", "step_started", "step_completed", "run_finished"}
+    {"run_started", "step_started", "step_aborted", "step_completed", "run_finished"}
 )
 
 # `ledger-event` CLI 가 허용하는 *수동* checkpoint event (이슈 #587 codex review).
@@ -318,6 +320,8 @@ def build_receipt(
     prose_path: Any,
     *,
     provider: Optional[str] = None,
+    tool_use_id: Optional[str] = None,
+    agent_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """저장된 prose + known state 에서 receipt dict 생성 (helper-generated).
 
@@ -343,6 +347,10 @@ def build_receipt(
     }
     if provider:
         receipt["provider"] = provider
+    if tool_use_id:
+        receipt["tool_use_id"] = tool_use_id
+    if agent_id:
+        receipt["agent_id"] = agent_id
     return receipt
 
 

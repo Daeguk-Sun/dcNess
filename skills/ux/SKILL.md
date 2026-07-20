@@ -73,7 +73,7 @@ designer 를 호출하는 모든 경로(UX_FLOW, UX_REFINE 사용자 승인 후,
 2. **Step 2 — ux-architect:UX_FLOW** → `UX_FLOW_READY`. 산출 = `docs/epics/epic-NN-<slug>/ux-flow.md` (+ 조건부 `docs/design.md` 시스템 토큰). 화면 인벤토리에 `hi-fi 목업 필요` 값을 표시한다.
    - `UX_REFINE_READY` → UX_REFINE 모드로 전환
    - `UX_FLOW_ESCALATE` → 사용자 위임
-3. **Step 3 — canvas-design wrapper** — `hi-fi 목업 필요` 가 `필요로 표시된 화면` 만 내부 `canvas-design` 에 넘긴다. canvas-design 은 seed 보장, 필요 시 `begin-step designer`, draft 생성, 사용자 PICK, `docs/design-variants/<screen-id>.html` 확정본 승격, `docs/design-variants/canvas.html` canvas 등록까지 수행한다.
+3. **Step 3 — canvas-design wrapper** — `hi-fi 목업 필요` 가 `필요로 표시된 화면` 만 내부 `canvas-design` 에 넘긴다. canvas-design 은 seed 보장, 필요 시 mode 없는 foreground designer Agent의 lifecycle hook 호출, draft 생성, 사용자 PICK, `docs/design-variants/<screen-id>.html` 확정본 승격, `docs/design-variants/canvas.html` canvas 등록까지 수행한다.
    - draft 산출물은 `docs/design-variants/drafts/<screen-id>-draft<N>.html`, `data-node-id`, `:root` CSS custom property 토큰을 포함한다.
    - 사용자 PICK NG → 공통 preflight 를 다시 확인한 뒤 `designer-ROUND-<n>` 으로 재생성한다. round 한도는 없다.
    - `PASS` → 확정 목업 경로와 핵심 node-id 매핑을 기록하고 종료

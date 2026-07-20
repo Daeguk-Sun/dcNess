@@ -29,9 +29,11 @@ dcNess 의 강제 영역은 두 가지뿐이다.
 |---|---|---|---|---|
 | `session-start.sh` | `SessionStart` | 새 세션, resume, `/clear` 직후 | sid/live state 초기화 + 활성 안내 inject | X |
 | `catastrophic-gate.sh` | `PreToolUse / Agent` | sub-agent 호출 직전 | 작업 순서 보호 + 진행 순서 검사 | O |
+| `subagent-start-lifecycle.sh` | `SubagentStart` | 실제 sub-agent spawn 직후 | foreground step 시작 + 동적 context 주입 | X |
 | `file-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Read|Bash|mcp__.*` | file/bash/MCP tool 호출 직전 | agent 별 파일 경계 + 외부 변경 차단 목록 검사 | O |
 | `tdd-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Bash` | 파일 수정 직전 | project-local generated TDD hook 우선 실행, 없으면 TS/JS fallback 으로 매칭 test 존재 확인 | O |
-| `post-agent-clear.sh` | `PostToolUse / Agent` | sub-agent 호출 직후 | active agent clear, prose 자동 staging | X |
+| `post-agent-clear.sh` | `PostToolUse / Agent` | Agent tool 성공 결과 직후 | completed foreground prose + receipt 기록 | X |
+| `post-agent-failure.sh` | `PostToolUseFailure / Agent` | Agent tool 실패 직후 | step abort + 복구 진단 | X |
 | `subagent-stop-clear.sh` | `SubagentStop` | sub-agent 컨텍스트 종료 직후 | active agent clear 보강 | X |
 | `stop-end-run.sh` | `Stop` | 메인 응답 종료 시 | end-run 자동화 + 다음 step continuation signal | 조건부 재발화 |
 
@@ -85,9 +87,9 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 
 사용자-facing 용어: **순서 차단 훅**. 코드 식별자는 `catastrophic-gate.sh` 다.
 
-**시점**: 메인 Claude 가 `Agent` tool 로 sub-agent 를 호출하기 직전, 그리고 `dcness-helper begin-step` 이 step 시작을 기록하기 직전. Claude Agent provider 는 전자를 타고, Codex/headless provider 는 후자를 탄다.
+**시점**: 메인 Claude 가 `Agent` tool 로 sub-agent 를 호출하기 직전, 그리고 `dcness-helper begin-step` 이 headless/modeful step 시작을 기록하기 직전. Claude Agent provider 는 전자를 타고, Codex/headless provider 는 후자를 탄다.
 
-**역할**: 작업 순서 보호와 active run 의 `begin-step -> Agent/headless worker -> end-step` 물리 순서를 강제한다. build-worker 사전 조건, impl-validator step 순서, impl entry pre-flight 는 provider 와 무관하게 같은 판정 함수를 쓴다.
+**역할**: 작업 순서와 호출 적합성만 검사한다. 모든 matching PreToolUse hook은 병렬 평가되므로 이 시점에는 `step_started`/`active_agent`를 확정하지 않고, `tool_use_id` correlation intent만 runtime state에 둔다. sibling hook deny 뒤 실제 spawn이 없으면 ledger lifecycle event도 없다. build-worker 사전 조건, impl-validator step 순서, impl entry pre-flight는 provider와 무관하게 같은 판정 함수를 쓴다.
 
 PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉 `<agent>.md`, 재호출 occurrence 인 `<agent>-1.md`, mode-suffix 인 `<agent>-MODE.md`, mode 재호출인 `<agent>-MODE-1.md` 안의 `PASS` 모두 같은 agent 의 완료 증거로 인정한다.
 
@@ -96,9 +98,9 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 | implementation gate | 설계 산출물 없이 build-worker 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* direct 구현 경로 기록, 셋 중 하나로 충족 |
 | impl boundary pre-flight | `begin-run --design-doc` 이 가리키는 impl 문서의 `### 수정 허용` 경로가 build-worker boundary(`ALLOW_MATRIX ∪ .dcness/boundary.json`)로 커버되지 않음 |
 | impl TDD pre-flight | 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated TDD hook 이 등록되지 않았거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않음 |
-| 진행 순서 검사 | active run 안에서 직전 `begin-step` 과 다른 agent/mode 호출, `current_step` 부재, 이미 staged 된 stale step |
+| 진행 순서 검사 | 명시적 modeful/current step과 다른 agent/mode 호출, 이미 완료된 stale step. mode 없는 foreground Claude Agent의 current step 부재는 SubagentStart 자동 시작 대상으로 허용 |
 
-**진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사를 탄다. module-architect 는 `/design` 기본 선두 진입, greenfield thin bootstrap 이후 진입, opt-in system checkpoint 이후 재진입 모두 별도 validator 게이트 없이 허용한다. checkpoint 필요 여부와 재진입 흐름은 `skills/design/design-routing.md` 의 agent enum(`SYSTEM_CHECKPOINT_REQUIRED`)과 `begin-step` 물리 순서 검사로만 다룬다.
+**진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사를 탄다. module-architect 는 `/design` 기본 선두 진입, greenfield thin bootstrap 이후 진입, opt-in system checkpoint 이후 재진입 모두 별도 validator 게이트 없이 허용한다. checkpoint 필요 여부와 재진입 흐름은 `skills/design/design-routing.md` 의 agent enum(`SYSTEM_CHECKPOINT_REQUIRED`)과 lifecycle identity/mode 검사로만 다룬다.
 
 **implementation gate 의 design_doc 경로**: 설계(impl 문서)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` story/epic runner)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 implementation gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
 
@@ -110,6 +112,23 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 
 **차단**: Claude Code PreToolUse 에서는 위반 시 `exit 2` + stderr, helper `begin-step` 에서는 비-0 종료 + stderr. implementation / impl pre-flight / 진행 순서 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다. 게이트 자체 예외는 fail-open 계측으로 남기고 과차단하지 않는다.
 차단이 발생하면 `guard-telemetry.jsonl` 에 `guard=catastrophic-gate` 로 기록된다.
+
+### subagent-start-lifecycle.sh
+
+**시점**: Claude Code가 Agent tool의 sub-agent를 실제 spawn한 직후, sub-agent가 첫 prompt를 처리하기 전.
+
+**역할**:
+
+- PreToolUse correlation intent의 agent type과 최신 미claim `tool_use_id`를 `agent_id`에 bind
+- mode 없는 foreground Claude Agent면 실제 spawn 뒤 `step_started`를 1건 기록
+- modeful Claude Agent면 선행 explicit `begin-step <agent> <mode>`에 identity만 bind하고 시작 receipt를 중복 생성하지 않음
+- background intent는 lifecycle step을 시작하지 않음
+- worktree 절대경로와 build-worker `[PREVIOUS_TASKS]`를 `additionalContext`로 sub-agent의 첫 prompt 처리 전에 직접 전달
+- 같은 `agent_id` 재전달은 멱등 처리
+
+PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추측 보정하지 않고 `lifecycle 복구` 진단만 전달한다.
+
+**차단**: 없음. SubagentStart는 실제 spawn 이후 event라 state/context만 다룬다.
 
 ### file-guard.sh
 
@@ -242,10 +261,19 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **역할**:
 
-- `live.json.active_agent / active_mode` clear
-- sub-agent prose 를 `<run_dir>/<agent>[-<MODE>].md` 로 자동 저장
-- `live.json.current_step.prose_file` 기록
-- staging 진단을 `hookSpecificOutput.additionalContext` 로 inject
+- `tool_response.status=completed`인 foreground 최종 응답에서만 비어 있지 않은 prose를 `<run_dir>/<agent>[-<MODE>].md`로 저장
+- 동일 `tool_use_id`/`agent_id`로 `step_completed` receipt를 즉시 기록하고 `live.json.active_agent / active_mode` clear
+- `status=async_launched`, status 누락/미인식, 빈 prose는 false `step_completed`를 만들지 않음. 이미 시작된 foreground step은 `step_aborted` 진단으로 닫음
+- 같은 `tool_use_id` 재전달은 prose occurrence 파일과 ledger receipt를 중복 생성하지 않음
+- current step의 agent/mode/tool_use_id/agent_id가 다르면 prose write와 receipt append 전에 거부하고 `hookSpecificOutput.additionalContext`로 복구 진단
+
+**차단**: 없음.
+
+### post-agent-failure.sh
+
+**시점**: `Agent` tool이 오류나 failure result로 끝난 직후.
+
+**역할**: `PostToolUseFailure`의 `tool_use_id`로 pending/current identity를 대조한다. matching foreground step이 실제 시작됐다면 `step_aborted(category=tool_failure)`로 닫고, spawn 전 deny/failure면 ledger step을 만들지 않는다. 어느 경우든 `step_completed` receipt는 만들지 않고 오류와 재시도 지점을 `additionalContext`로 전달한다.
 
 **차단**: 없음.
 

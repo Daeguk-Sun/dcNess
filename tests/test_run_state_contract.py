@@ -144,6 +144,46 @@ if any(removed.values()):
         ]
         self.assertEqual(set(pending), {"tool-1", "tool-2"})
 
+    def test_strict_completion_rejects_mismatched_lifecycle_identity(self) -> None:
+        session_state.transition(
+            SID,
+            "run_started",
+            run_id=RID,
+            base_dir=self.base,
+            entry_point="impl",
+            lane="lite",
+        )
+        session_state.transition(
+            SID,
+            "step_started",
+            run_id=RID,
+            base_dir=self.base,
+            agent="impl-validator",
+            mode=None,
+            tool_use_id="tool-expected",
+            agent_id="agent-expected",
+            strict_identity=True,
+        )
+        prose_path = session_state.run_dir(SID, RID, base_dir=self.base) / "result.md"
+        prose_path.write_text("PASS", encoding="utf-8")
+
+        with self.assertRaisesRegex(ValueError, "identity mismatch"):
+            session_state.transition(
+                SID,
+                "step_completed",
+                run_id=RID,
+                base_dir=self.base,
+                agent="impl-validator",
+                mode=None,
+                prose="PASS",
+                prose_path=prose_path,
+                tool_use_id="tool-other",
+                agent_id="agent-expected",
+                strict_identity=True,
+            )
+
+        self.assertEqual(ledger.read_step_completed(SID, RID, base_dir=self.base), [])
+
     def test_corrupt_or_partial_current_state_fails_with_recreation_help(self) -> None:
         path = session_state.live_path(SID, base_dir=self.base)
         path.parent.mkdir(parents=True)

@@ -1,5 +1,5 @@
 {
-  "description": "dcNess — loop 실행 절차 인프라 훅 (SessionStart sid + PreToolUse Agent 순서 차단 훅(catastrophic-gate) + Edit/Write/Read/Bash/mcp__.* file-guard + PostToolUse Agent prose staging/clear + SubagentStop active_agent clear + Stop auto-end-run)",
+  "description": "dcNess — loop 실행 절차 인프라 훅 (SessionStart sid + PreToolUse Agent 순서 검증 + SubagentStart 실제 spawn 기록/context + PostToolUse Agent foreground 완료 + PostToolUseFailure abort 진단 + file-guard + Stop auto-end-run)",
   "hooks": {
     "Stop": [
       {
@@ -18,6 +18,17 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-stop-clear.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SubagentStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/subagent-start-lifecycle.sh\"",
             "timeout": 5
           }
         ]
@@ -73,6 +84,18 @@
           {
             "type": "command",
             "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-agent-clear.sh\"",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "matcher": "Agent",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/post-agent-failure.sh\"",
             "timeout": 5
           }
         ]

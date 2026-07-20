@@ -32,7 +32,7 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
 
 ## 절차
 
-`canvas-design` 은 main-owned 내부 checkpoint 이며 helper begin/end-step 비대상이다. 이 스킬 자체를 helper step 으로 열지 않는다. draft 생성이 필요할 때만 메인이 별도 `begin-step designer` → Agent(designer) → `end-step designer` 순서로 실제 designer Agent 를 호출하고, 이후 PICK/승격/canvas 등록은 메인이 이어서 수행한다.
+`canvas-design` 은 main-owned 내부 checkpoint 이며 helper begin/end-step 비대상이다. 이 스킬 자체를 helper step 으로 열지 않는다. draft 생성이 필요할 때만 mode 없는 foreground designer Agent를 호출하며 outer step은 SubagentStart/PostToolUse lifecycle hook이 기록한다. 이후 PICK/승격/canvas 등록은 메인이 이어서 수행한다.
 
 1. **seed 보장**
    - `/init-dcness` 기본 경로는 UI seed 를 설치하지 않을 수 있다. draft 생성이나 canvas frame 등록 전 메인이 `docs/design-variants/` seed 를 부재 시만 만든다.
@@ -48,7 +48,7 @@ description: 내부 전용 UI 기준 확보 wrapper. designer draft 생성, 사�
    - 신규 시각 구조 + 기준 없음: designer 를 호출해 `docs/design-variants/drafts/<screen-id>-draft<N>.html` 을 만든다.
    - 시각 구조 불변 또는 사용자의 "목업 없이" 지시: mockup 생성을 생략하고 `skip` 으로 반환한다. 사용자의 "목업 없이" 지시는 항상 우선한다.
 3. **designer draft 생성** (`new-draft` 또는 이미지·스케치의 HTML 변환 필요 시)
-   - 메인이 `begin-step designer` 로 실제 designer Agent step 을 열고, designer 는 `docs/design-variants/drafts/` 아래에만 write 한다.
+   - 메인이 mode 없는 foreground designer Agent를 호출하고 lifecycle hook이 실제 spawn/완료를 기록한다. designer는 `docs/design-variants/drafts/` 아래에만 write 한다.
    - draft HTML 은 single-file, no-build, `:root` CSS custom property 토큰, 주요 `data-node-id`, 필요한 상태(default/hover/focus/disabled/empty/error)를 포함한다.
    - draft 에서 helper script 는 `../_lib/show-ids.js` 를 참조한다.
 4. **사용자 PICK**

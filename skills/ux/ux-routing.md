@@ -51,7 +51,7 @@ flowchart TB
   class U,AP,PICK user
 ```
 
-파랑 = 생산 agent 또는 main-owned checkpoint, 회색 = 사용자 체크포인트 / 위임. `canvas-design` 은 helper begin/end-step 비대상이다. draft 가 필요할 때 실제 Agent 호출은 별도 `begin-step designer` 로 연다.
+파랑 = 생산 agent 또는 main-owned checkpoint, 회색 = 사용자 체크포인트 / 위임. `canvas-design` 은 helper begin/end-step 비대상이다. draft가 필요할 때 mode 없는 foreground designer Agent는 lifecycle hook 경로로 연다.
 
 ## 결론 → 다음 호출 매핑
 

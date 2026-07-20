@@ -76,8 +76,8 @@ _ENGINES: Dict[str, str] = {
     "ui-build-worker": "ui-build-worker",
 }
 
-# 진행 뷰에는 보이지만 strict conveyor 의 begin-step/Agent 쌍이 아닌 메인 체크포인트.
-# canvas-design 이 draft 를 필요로 하면 실제 Agent 호출은 begin-step designer 로 연다.
+# 진행 뷰에는 보이지만 strict conveyor의 Agent step이 아닌 메인 체크포인트.
+# draft가 필요하면 mode 없는 designer Agent lifecycle은 hook이 소유한다.
 MAIN_OWNED_SUBSTEPS = frozenset({"canvas-design"})
 
 # 마감 task 의 추가 sub-step (SKILL line 435 + 마감 acceptance 절).

@@ -2,9 +2,9 @@
 # dcNess post-agent-clear 훅 — PostToolUse Agent
 #
 # 동작:
-#   1. live.json.active_agent / active_mode clear (메인 복귀)
-#   2. prose staging 결과를 additionalContext stdout JSON 으로 inject
-#      → 메인 다음 turn 의 Agent tool result 옆에 system reminder 로 보임
+#   1. status=completed foreground prose만 저장 + step_completed receipt 기록
+#   2. async/빈 prose/identity mismatch는 false completion 없이 복구 진단
+#   3. matching live.json.active_agent / pending identity clear
 #
 # 트리거: Claude Code PostToolUse event, tool=Agent
 # stdin: CC payload (sessionId, agent_id, tool_input.subagent_type 등)

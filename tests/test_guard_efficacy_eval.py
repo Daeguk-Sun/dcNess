@@ -57,7 +57,7 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "read_boundary_blocks_home_claude_outside_plugin",
             "bash_mutation_blocks_git_push",
             "mcp_mutation_blocks_pr_merge",
-            "order_gate_blocks_missing_begin_step",
+            "order_gate_allows_hook_owned_mode_less_step",
             "order_gate_blocks_blank_current_agent",
             "order_gate_blocks_staged_result",
             "order_gate_blocks_missing_step_counter",

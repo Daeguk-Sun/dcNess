@@ -180,6 +180,17 @@ trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
 
 AGENT_DOC="$SCRIPT_DIR/../agents/$AGENT.md"
 AGENT_DETAIL="$SCRIPT_DIR/../docs/plugin/agents/$AGENT/$AGENT-agent.md"
+PREVIOUS_TASKS=""
+if [ "$AGENT" = "build-worker" ]; then
+  PREVIOUS_TASKS="$(PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" python3 - "$PROJECT_ROOT" <<'PY' 2>/dev/null || true
+import sys
+from pathlib import Path
+from harness.prev_tasks import read
+
+print(read(cwd=Path(sys.argv[1])))
+PY
+)"
+fi
 
 {
   echo "dcNess implementation agent: $AGENT"
@@ -214,6 +225,11 @@ AGENT_DETAIL="$SCRIPT_DIR/../docs/plugin/agents/$AGENT/$AGENT-agent.md"
   echo "----- BEGIN CALLER PROMPT -----"
   cat "$PROMPT_FILE"
   echo "----- END CALLER PROMPT -----"
+  if [ -n "$PREVIOUS_TASKS" ]; then
+    echo
+    echo "[PREVIOUS_TASKS]"
+    echo "$PREVIOUS_TASKS"
+  fi
 } > "$TMP_PROMPT"
 
 CLAUDE_CMD=(claude -p --permission-mode acceptEdits --output-format text)
