@@ -67,9 +67,9 @@ fail-open은 hook이 정책 판단을 못 해서 차단 대신 통과한 의심 
 
 [![guard-efficacy](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml/badge.svg)](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml)
 
-<!-- public-evidence-snapshot {"plugin_version":"0.25.0","measured_at":"2026-07-20","unit_tests":{"passed":1167,"total":1167},"guard":{"passed":48,"total":48},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.26.0","measured_at":"2026-07-20","unit_tests":{"passed":1167,"total":1167},"guard":{"passed":48,"total":48},"source_project_count":2} -->
 
-현재 공개 snapshot은 **v0.25.0, 2026-07-20 측정**이다. 숫자마다 분모와 source 수를
+현재 공개 snapshot은 **v0.26.0, 2026-07-20 측정**이다. 숫자마다 분모와 source 수를
 붙이고, 서로 다른 evidence 영역을 합산하거나 대신 쓰지 않는다.
 
 | evidence 영역 | 관측 결과 | denominator / source | 재현 명령 | 이 수치가 말하지 않는 것 |
