@@ -8,6 +8,31 @@
 
 ---
 
+## v0.26.0 (2026-07-20)
+
+**커밋 범위**: `v0.25.0..v0.26.0` (머지 PR 2개, [#1172](https://github.com/Daeguk-Sun/dcNess/pull/1172) · [#1173](https://github.com/Daeguk-Sun/dcNess/pull/1173))
+**핵심 변경**: **Agent step lifecycle 기록을 메인 호출에서 hook 소유로 옮기고, `/impl-loop` 의 provider chain 이 같은 capability 실패를 task 마다 반복 재실행하지 않도록 한** minor 릴리즈. (1) 표준 mode-less foreground Agent step 의 `begin-step`/`end-step` 을 메인이 직접 호출하지 않고 `SubagentStart`/`PostToolUse` hook 이 소유하도록 바꿔 task 당 main request/tool call 을 줄였고, (2) story-runner `chain_id` scope 의 provider 실패 sidecar 를 추가해 CLI 부재·인증·설정 실패처럼 chain 안에서 바뀌지 않는 실패만 memoize 하고 transient 실패는 계속 재시도한다.
+
+### 무엇이 바뀌나
+
+1. **Agent lifecycle 자동화 — main turn 축소** ([#1172](https://github.com/Daeguk-Sun/dcNess/pull/1172) Closes [#1170](https://github.com/Daeguk-Sun/dcNess/issues/1170)) — 표준 mode-less foreground Agent step 마다 메인이 `begin-step` 과 `end-step` 을 직접 호출해 task 당 main request/tool call 이 불필요하게 늘고, PreToolUse 시점에 lifecycle state 를 확정하면 병렬 sibling hook 이 호출을 deny 했을 때 실제 spawn 없는 orphan step 이 남던 문제를 해소. 실제 foreground spawn 이 증명되는 `SubagentStart` 를 `step_started` 경계로 삼아 identity 를 bind 하고, 성공 `PostToolUse` 에서 비어 있지 않은 prose 와 SHA receipt 를 한 번만 기록한다. sibling deny·async·failure·빈 prose·중복 payload·agent/mode/tool identity drift 를 false completion 없이 처리하고 `step_aborted` 복구 경로를 추가했다. modeful Claude 는 explicit `begin-step` + hook completion, Codex/Claude headless 는 wrapper begin/end 소유권을 그대로 유지해 provider 별 공개 계약은 바뀌지 않는다. worktree 와 PREVIOUS_TASKS 는 첫 prompt 전에 hook/wrapper 가 직접 전달하도록 옮겼다. 동일 frozen 1-task fixture 1+1 screening 에서 main requests 12→9, tool calls 12→9, wall-clock 46.831s→41.522s 였으며(양쪽 product AC 1/1, MUST-FIX 0), 단일 표본이므로 통계적 우월성 주장으로 확장하지 않는다.
+
+2. **`/impl-loop` provider 실패 캐시** ([#1173](https://github.com/Daeguk-Sun/dcNess/pull/1173) Closes [#1171](https://github.com/Daeguk-Sun/dcNess/issues/1171)) — 여러 task 가 같은 provider chain 을 반복할 때 CLI 부재나 인증·설정 오류처럼 chain 안에서 바뀌지 않는 capability 실패도 매 task 재실행되어 같은 대기와 fallback 이 반복되던 문제를 해소. story-runner 가 발급하는 `chain_id` 와 exact project/worktree 를 scope 로 하는 provider failure sidecar 를 추가하고, Codex/Claude worker 가 실패를 내부 category 로 전달하도록 했다. `cli_missing`·`auth_unavailable`·`config_unavailable` 만 memoize 하며 timeout·idle·empty·interrupt·network 같은 transient 실패와 workspace/HEAD 변경 실패는 cache 하지 않는다. routing provider 에만 적용하고 explicit provider 와 permission retry 는 우회하며, 성공한 우회 실행은 stale entry 를 지운다. `chain_id` 가 없는 legacy schema 는 no-cache 로 계속 실행하고, unreadable/corrupt JSON 과 project identity mismatch 는 잘못된 scope 로 보아 fail-closed 처리한다. 동일 frozen 2-task fixture 에서 결과 2/2 성공과 fallback 횟수를 유지한 채 unavailable provider 실행이 2회→1회, fallback wall-clock 4.835초→3.759초였다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 Agent lifecycle hook 경계와 `/impl-loop` provider routing 을 건드려 결정적 guard-efficacy 를 재실행 — **48/48 PASS**, 회귀 없음. 전체 unittest 도 재실행해 공개 수치를 실측 동기화 — **1,167/1,167 PASS**. 두 머지 PR 은 각각 개별 CI(pytest·static-quality·public-surface·cross-ref·index-map·doc-sync·plugin-manifest·pr-body)를 통과했다.
+- Decide: 소멸 후보 없음. follow-up 없음.
+- Verify: Agent lifecycle 경계(sibling deny·async·identity drift·`step_aborted`)와 provider failure cache(category 분류·bypass·invalidation·concurrency) 신규/회귀 테스트 통과. 공개 evidence snapshot(README·`docs/plugin/benchmark.md`)을 v0.26.0 / 2026-07-20 실측(unit 1,167/1,167 · guard 48/48)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측 대조를 검증한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `hooks/**`·`hooks/hooks.json`·`harness/**`·`scripts/**`·`skills/**`·`docs/plugin/**` 변경.
+- **Agent step 을 도는 모든 프로젝트** — 표준 mode-less foreground Agent step 의 lifecycle 기록을 hook 이 소유하므로 메인이 `begin-step`/`end-step` 을 직접 부르지 않는다. modeful Claude 와 headless wrapper 의 호출 계약은 그대로다.
+- **`/impl-loop` 를 도는 프로젝트** — 같은 chain 안에서 provider CLI 부재·인증·설정 실패가 확인되면 다음 task 는 그 provider 를 건너뛰고 바로 fallback 으로 간다. transient 실패는 계속 재시도하므로 일시적 오류로 provider 가 영구 배제되지 않는다.
+
+---
+
 ## v0.25.0 (2026-07-16)
 
 **커밋 범위**: `v0.24.0..v0.25.0` (머지 PR 2개, [#1166](https://github.com/Daeguk-Sun/dcNess/pull/1166) · [#1167](https://github.com/Daeguk-Sun/dcNess/pull/1167))
