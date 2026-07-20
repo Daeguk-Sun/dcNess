@@ -442,6 +442,10 @@ class ProviderFailureCacheDocsTests(unittest.TestCase):
             for needle in required:
                 with self.subTest(path=path.name, needle=needle):
                     self.assertIn(needle, text)
+        skill_text = paths[1].read_text(encoding="utf-8")
+        procedure_text = paths[0].read_text(encoding="utf-8")
+        self.assertIn("task 1개 single `/impl-loop`도", skill_text)
+        self.assertIn("single/chain 모드 모두 `--chain-state`", procedure_text)
 
 
 if __name__ == "__main__":
