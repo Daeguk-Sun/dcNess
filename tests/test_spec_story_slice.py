@@ -168,8 +168,8 @@ class SpecStorySliceContractTests(unittest.TestCase):
             self.product_acceptance,
         )
         self.assertLess(
-            self.product_acceptance.index("정상 walking skeleton 우선 보호"),
-            self.product_acceptance.index("Sequence defect 유지"),
+            sequence_contract.index("정상 walking skeleton 우선 보호"),
+            sequence_contract.index("Sequence defect 유지"),
         )
 
         for guidance, start_marker, end_marker in (
@@ -241,7 +241,12 @@ class SpecStorySliceContractTests(unittest.TestCase):
             "not_reframed_as_format_gap": ("형식 gap", "제품 경계 모호성", "대체·흡수"),
             "defect_must_not_pass": ("sequence defect", "PASS하지 않는다"),
         }
-        self.assert_axis_markers(self.product_acceptance, rejection_axes)
+        sequence_contract = contract_block(
+            self.product_acceptance,
+            "- **순서 판단 단일 규칙**:",
+            "### STORY_ACCEPTANCE",
+        )
+        self.assert_axis_markers(sequence_contract, rejection_axes)
 
     def test_product_acceptance_reads_stories_reference_for_spec_mode(self) -> None:
         self.assertIn(
