@@ -10,6 +10,7 @@ import unittest
 from pathlib import Path
 
 from harness import ledger
+from harness.prev_tasks import append as append_previous_task
 from harness.session_state import transition
 
 
@@ -250,9 +251,20 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             prompt_file.write_text("Implement without run context.\n", encoding="utf-8")
             provider_called = tmp / "codex-called.txt"
             env_capture = tmp / "codex-env.txt"
+            prompt_capture = tmp / "codex-prompt.md"
             helper_args = tmp / "helper-args.txt"
             helper = tmp / "dcness-helper"
             _write_failing_helper(helper)
+            append_previous_task("01-foundation", "foundation ready", cwd=project)
+            subprocess.run(["git", "add", ".claude/loop-insights/.prev-tasks.md"], cwd=project, check=True)
+            subprocess.run(
+                [
+                    "git", "-c", "user.name=dcNess Test", "-c",
+                    "user.email=dcness-test@example.invalid", "commit", "-qm", "fixture",
+                ],
+                cwd=project,
+                check=True,
+            )
 
             bin_dir = tmp / "bin"
             bin_dir.mkdir()
@@ -274,7 +286,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
                   shift
                 done
                 printf called > "$PROVIDER_CALLED"
-                cat >/dev/null
+                cat > "$PROMPT_CAPTURE"
                 {
                   printf 'DCNESS_SESSION_ID=%s\\n' "${DCNESS_SESSION_ID-}"
                   printf 'DCNESS_RUN_ID=%s\\n' "${DCNESS_RUN_ID-}"
@@ -287,6 +299,7 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             env.update(
                 {
                     "ENV_CAPTURE": str(env_capture),
+                    "PROMPT_CAPTURE": str(prompt_capture),
                     "PROVIDER_CALLED": str(provider_called),
                 }
             )
@@ -314,6 +327,9 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             captured = env_capture.read_text(encoding="utf-8")
             self.assertIn("DCNESS_SESSION_ID=\n", captured)
             self.assertIn("DCNESS_RUN_ID=\n", captured)
+            prompt = prompt_capture.read_text(encoding="utf-8")
+            self.assertIn(f"project/worktree root: {project}", prompt)
+            self.assertIn("[PREVIOUS_TASKS]\n- 01-foundation: foundation ready", prompt)
             self.assertTrue(helper_args.exists())
             logs = list(
                 (
@@ -568,6 +584,16 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             )
             helper = tmp / "dcness-helper"
             _write_helper(helper, helper_args, prose_capture)
+            append_previous_task("01-foundation", "foundation ready", cwd=project)
+            subprocess.run(["git", "add", ".claude/loop-insights/.prev-tasks.md"], cwd=project, check=True)
+            subprocess.run(
+                [
+                    "git", "-c", "user.name=dcNess Test", "-c",
+                    "user.email=dcness-test@example.invalid", "commit", "-qm", "fixture",
+                ],
+                cwd=project,
+                check=True,
+            )
 
             env = os.environ.copy()
             env.update(
@@ -607,6 +633,8 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             prompt = prompt_capture.read_text(encoding="utf-8")
             self.assertIn("Claude headless", prompt)
             self.assertIn("hooks and plugins enabled", prompt)
+            self.assertIn(f"project/worktree root: {project}", prompt)
+            self.assertIn("[PREVIOUS_TASKS]\n- 01-foundation: foundation ready", prompt)
             self.assertTrue((project / "src" / "generated.py").exists())
             self.assertTrue(
                 helper_args.read_text(encoding="utf-8")

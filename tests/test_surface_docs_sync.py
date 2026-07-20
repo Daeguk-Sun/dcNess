@@ -965,7 +965,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 self.assertIn(needle, self.agent_prompt_template)
 
         self.assertIn("agent-prompt-slots.md", self.loop_procedure)
-        self.assertIn("[PROMPT_SLOT_CHECK]", self.loop_procedure)
+        self.assertNotIn("[PROMPT_SLOT_CHECK]", self.loop_procedure)
+        self.assertIn("SubagentStart", self.loop_procedure)
+        self.assertIn("메인 Bash stdout relay 대상이 아니다", self.loop_procedure)
         self.assertNotIn(
             "**대상 + 읽을 진본:** {{",
             self.loop_procedure,
@@ -981,7 +983,6 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             with self.subTest(label=label):
                 self.assertIn("Sub-agent prompt 작성 checkpoint (#780)", text)
                 self.assertIn("agent-prompt-slots.md", text)
-                self.assertIn("[PROMPT_SLOT_CHECK]", text)
                 self.assertIn("worktree 절대경로", text)
                 self.assertIn("방법 처방", text)
 

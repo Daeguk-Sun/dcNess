@@ -62,7 +62,8 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
 
         self.assertTrue(blocked)
         reason = json.loads(stdout.getvalue())["reason"]
-        self.assertIn("begin-step impl-validator", reason)
+        self.assertIn("impl-validator", reason)
+        self.assertIn("lifecycle hook", reason)
         self.assertIn("merge review", reason)
         self.assertNotIn("begin-step product-acceptance", reason)
 

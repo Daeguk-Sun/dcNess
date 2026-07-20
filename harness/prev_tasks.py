@@ -2,9 +2,9 @@
 
 youTubeGenerator 자작 Codex executor 의 `_build_previous_context` (완료 step
 summary 를 다음 step prompt 에 주입) 패턴 이식. build-worker 가 phase 3 종료 시
-자기 산출 한 줄을 append → 다음 task 진입 시 메인의 `begin-step build-worker`
-가 `[PREVIOUS_TASKS]` 로 emit → 메인이 build-worker prompt 에 포함. task 간
-인터페이스 misalign 을 실행 시점에 저렴하게 완화한다.
+자기 산출 한 줄을 append → 다음 task 진입 시 SubagentStart hook 또는 headless
+worker wrapper가 `[PREVIOUS_TASKS]`로 첫 prompt에 직접 포함한다. main Bash stdout
+relay 없이 task 간 인터페이스 misalign을 실행 시점에 저렴하게 완화한다.
 
 저장 위치: <main_repo_root>/.claude/loop-insights/.prev-tasks.md.
 worktree 진입 후에도 main repo root 기준이며 git 미설치/비-repo면 cwd로 폴백한다.

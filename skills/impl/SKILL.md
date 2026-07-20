@@ -142,7 +142,7 @@ standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-vali
    - 프로젝트에 실제 존재하는 명령만 실행한다.
    - 하나라도 red 면 commit/PR 로 가지 않는다.
 5. `impl-validator` review
-   - `begin-run impl` 또는 `begin-run impl --design-doc <경로>` → `begin-step impl-validator` 로 merge candidate를 리뷰한다.
+   - `begin-run impl` 또는 `begin-run impl --design-doc <경로>` → mode 없는 foreground Claude `impl-validator`는 lifecycle hook으로 merge candidate를 리뷰한다. Codex/headless wrapper 또는 modeful 호출만 명시적 `begin-step`을 연다.
    - 검토 대상이 커밋으로 존재하면 커밋 id와 변경 파일 목록을 1급 입력으로 선행 전달하고, validator가 `git show` / `git diff` / `git log`로 커밋 진본을 직접 펼치게 한다. 호출자는 별도 diff 파일을 덤프하지 않는다. 커밋이 없는 uncommitted local diff일 때만 diff 파일 전달을 폴백으로 사용한다.
    - prompt에 위 리뷰 대상, 메인의 Cartography impact 자유 prose, affected Root Cartography 좌표, 관련 epic/decision을 필요한 만큼 넣는다.
    - provider 가 `codex` 이면 `dcness-codex-validator impl-validator` wrapper 를 사용한다.
@@ -151,7 +151,7 @@ standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-vali
 6. finding 및 Cartography freshness 수정 루프
    - 최대 3회. finding 의 줄만 고치지 말고 root cause 와 같은 계열 결함을 함께 확인한다.
    - route/state/as-built edge stale은 `module-architect:CARTOGRAPHY_REFRESH` 후 impl-validator 재검증하고, system boundary/global decision 변경은 `/design --revise` 또는 system checkpoint 사용자 backpressure에서 멈춘다.
-   - producer 실행은 `begin-step module-architect CARTOGRAPHY_REFRESH`로 열고, 결과 prose를 `end-step module-architect CARTOGRAPHY_REFRESH --prose-file <cartography-refresh-prose>`로 기록한다. `PASS`이면 같은 merge candidate diff와 갱신 Root로 `begin-step impl-validator` 재검증을 열며, `SYSTEM_CHECKPOINT_REQUIRED`이면 Root patch를 적용하지 않고 backpressure에서 멈춘다.
+   - producer 실행은 `begin-step module-architect CARTOGRAPHY_REFRESH`로 열고, 결과 prose를 `end-step module-architect CARTOGRAPHY_REFRESH --prose-file <cartography-refresh-prose>`로 기록한다. `PASS`이면 같은 merge candidate diff와 갱신 Root로 mode 없는 foreground `impl-validator` lifecycle hook 재검증을 열며, `SYSTEM_CHECKPOINT_REQUIRED`이면 Root patch를 적용하지 않고 backpressure에서 멈춘다.
    - 각 round 마다 lint/build/test 재통과 후 `impl-validator` 재호출.
 7. 단위 commit + PR 생성
    - 의미 단위 커밋 분할은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)이 SSOT 다. hook 우회 금지.
@@ -169,11 +169,11 @@ standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-vali
 
 ## Sub-agent prompt 작성 checkpoint (#780)
 
-`impl-validator` review 를 격리 provider 로 호출하면 `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
+`impl-validator` review를 격리 provider로 호출하기 전에 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)를 직접 읽고 3슬롯을 점검한다. 이 정적 checkpoint는 `begin-step` stdout relay가 아니다. foreground Claude Agent의 worktree 절대경로는 SubagentStart lifecycle context가 첫 prompt 전에 전달하고, headless wrapper는 자기 prompt에 직접 합성한다.
 
 - **대상 + 읽을 진본**: 이슈·설계도·task 파일·merge candidate diff·Cartography impact·affected Root Cartography 좌표·관련 epic/decision 등 agent 가 자체 read 할 SSOT 포인터만 둔다.
 - **리뷰 대상 전달 우선순위**: 커밋이 있으면 커밋 id와 변경 파일 목록을 선행 전달한다. diff 파일은 커밋이 없는 uncommitted local diff의 폴백으로만 전달한다.
-- **worktree**: worktree 활성 시 worktree 절대경로를 넣는다.
+- **worktree**: foreground Claude Agent는 SubagentStart hook, headless는 wrapper가 동적으로 넣는다. 메인은 Bash stdout을 prompt로 재전달하지 않는다.
 - **이 호출 특유**: 진본에 없는 제약·신호만 둔다.
 - **방법 처방 금지**: 구현 방식, 테스트 assert 방식, 알고리즘 같은 방법 처방은 넣지 않는다.
 
@@ -203,6 +203,8 @@ else
   Agent(subagent_type="impl-validator", ...)
 fi
 ```
+
+최초 resolve한 `PLUGIN_ROOT`/`HELPER` 절대경로는 이후 독립 Bash 호출에 literal로 넣는다. 서로 다른 Bash tool 호출 사이에서 shell 변수가 지속된다고 가정하지 않는다.
 
 Codex 분기는 review provider 구현일 뿐 별도 public workflow 가 아니다. Codex wrapper receipt 는 실제 provider 를 `codex-headless` 로 기록한다.
 

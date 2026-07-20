@@ -16,10 +16,10 @@ agent 가 자체 read 할 SSOT 경로를 적는다.
     · architecture-validator=검토 대상 산출물
       + 확정 목업 존재 UI epic 이면 docs/design.md + 확정 목업 파일 + docs/design-variants/canvas.html + node-id 매핑}}
 
-**worktree:** {{활성 시 worktree 절대 경로.
-비활성이 확실하면 생략한다.
-활성 여부가 애매하면 `pwd` / `git rev-parse --show-toplevel` 로 확인한 뒤 적는다.
-main repo 절대경로를 worktree 경로처럼 넘기지 않는다.}}
+**worktree:** {{동적 lifecycle context가 전달한다.
+foreground Claude Agent는 SubagentStart hook, headless worker는 wrapper가 절대경로를 첫 prompt에 넣는다.
+메인은 Bash stdout을 이 칸에 재전달하지 않고, 별도 비표준 provider에서만 동등한 직접 전달을 보장한다.
+main repo 절대경로를 worktree 경로처럼 주입하지 않는다.}}
 
 **이 호출 특유:** {{진본에 아직 없는 것만.
 진본이 충실하면 이 칸은 비워도 된다.
@@ -32,8 +32,8 @@ main repo 절대경로를 worktree 경로처럼 넘기지 않는다.}}
 
 ## 슬롯 해석
 
-- **슬롯 1**: 대상 단위 + 읽을 SSOT + write 경계. 같은 결정·계약·요구사항을 prompt 에 다시 복사하지 않는다. **외부 활성 프로젝트에서 sub-agent 의 *자기 전체 지침*(얇은 진입점이 가리키는 `docs/plugin/agents/<name>/<name>-agent.md`) 경로는 cwd 상대가 아니라 활성 plugin root 기준**이므로, 메인이 그 절대경로를 슬롯 1 에 적어 준다 — `ROOT="${CLAUDE_PLUGIN_ROOT:-$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)}"; [ -z "$ROOT" ] && ROOT="$HOME/.claude/plugins/marketplaces/dcness"; INSTR="$ROOT/docs/plugin/agents/<name>/<name>-agent.md"` (**활성 `CLAUDE_PLUGIN_ROOT` 우선** — carve-out 이 활성 root 만 허용하고 구버전 캐시는 차단하므로 최고버전을 먼저 고르면 highest≠active 일 때 file-guard 에 막힌다. 미설정 시에만 cache 최고버전 → 로컬 marketplace fallback). dcness self 저장소면 cwd 상대경로 그대로. (진입점 본문의 `${CLAUDE_PLUGIN_ROOT}` 는 텍스트 치환되지 않아 self-발견이 헤맬 수 있으니 메인이 선공급하면 확실하다.)
-- **슬롯 2**: worktree 활성 시 절대경로. Claude Code Task tool 에 cwd 전달 경로가 없으므로 메인이 명시한다.
+- **슬롯 1**: 대상 단위 + 읽을 SSOT + write 경계. 같은 결정·계약·요구사항을 prompt 에 다시 복사하지 않는다. **외부 활성 프로젝트에서 sub-agent 의 *자기 전체 지침*(얇은 진입점이 가리키는 `docs/plugin/agents/<name>/<name>-agent.md`) 경로는 cwd 상대가 아니라 활성 plugin root 기준**이므로, 메인이 진입 때 최초 resolve한 `<PLUGIN_ROOT_ABS>/docs/plugin/agents/<name>/<name>-agent.md` literal을 슬롯 1에 적는다. shell 변수는 독립 Bash tool 호출 사이에 지속되지 않는다. `dcness-helper` self-location은 발견된 executable 내부 root 해소이며 executable 자체 발견과 구분한다. dcness self 저장소면 cwd 상대경로 그대로.
+- **슬롯 2**: worktree 활성 시 lifecycle hook/wrapper가 절대경로를 직접 전달한다. main prompt에 중복 사본을 만들지 않는다.
 - **슬롯 3**: 그 호출에만 필요한 미기록 제약·신호. 방법 처방을 막는 가드다.
 
 진본이 충실한 호출은 슬롯 1 + 슬롯 2 + 필요한 경우 슬롯 3 한 줄로 수렴한다.

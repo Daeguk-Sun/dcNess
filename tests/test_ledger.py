@@ -110,7 +110,13 @@ class EventTypesTests(unittest.TestCase):
             ledger.MANUAL_EVENT_TYPES,
             ledger.EVENT_TYPES - ledger.LIFECYCLE_EVENT_TYPES,
         )
-        for ev in ("run_started", "step_started", "step_completed", "run_finished"):
+        for ev in (
+            "run_started",
+            "step_started",
+            "step_aborted",
+            "step_completed",
+            "run_finished",
+        ):
             self.assertNotIn(ev, ledger.MANUAL_EVENT_TYPES)
         for ev in ("pr_merged", "blocked", "task_completed", "validator_failed"):
             self.assertIn(ev, ledger.MANUAL_EVENT_TYPES)

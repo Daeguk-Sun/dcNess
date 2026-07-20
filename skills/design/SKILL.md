@@ -122,10 +122,10 @@ revision mode 의 기본 원칙은 surgical revision 이다. module-architect �
 
 ## Sub-agent prompt 작성 checkpoint (#780)
 
-`impl-validator:CODEBASE_SANITY` / `ux-architect` / `system-architect(thin bootstrap 또는 checkpoint)` / `module-architect` / `architecture-validator` 호출 전, `begin-step` stdout 의 `[PROMPT_SLOT_CHECK]` 를 Agent prompt 작성 전에 읽는다. prompt 는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md) 3슬롯을 사용한다.
+`impl-validator:CODEBASE_SANITY` / `ux-architect` / `system-architect(thin bootstrap 또는 checkpoint)` / `module-architect` / `architecture-validator` 호출 전, Agent tool input을 쓰기 전에 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)를 직접 읽고 3슬롯을 점검한다. 정적 checkpoint는 `begin-step` stdout relay가 아니며 동적 worktree context는 hook/wrapper가 첫 prompt에 직접 넣는다.
 
 - **대상 + 읽을 진본**: `docs/index.md`, epic `stories.md`, 전역/epic `architecture.md`, `docs/conventions.md`, affected module 의 `docs/modules/<module-id>/architecture.md` / `conventions.md`, `docs/decisions/`, 선택 epic `domain-model.md`, 검토 대상 산출물, affected capability/entrypoint와 현재 코드의 계약 표면 코드 SSOT 포인터만 둔다 — 기본은 포트, 도메인 타입, 공개 entrypoint 이고, 저장·동기화·상태 전이를 바꾸는 작업이면 schema·entity·mapper·DAO·repository·sync/reconcile·adapter·lifecycle producer·관련 테스트 포인터까지 포함한다. Cartography freshness preflight에서 확인한 affected Root 좌표와 관련 epic/decision 포인터도 system/module architect와 final validator 입력에 포함한다. UI epic 의 `design-system` stage 에서 `system-architect` / `module-architect` / `architecture-validator` 를 호출할 때는 stage 1 UX 산출물 포인터도 기본 입력에 포함한다: UI epic 이면 `ux-flow.md` 포인터는 epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, 화면별 확정 목업 `docs/design-variants/<screen-id>.html` 또는 `확정본 없음`, `docs/design-variants/canvas.html` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로와 핵심 node-id 매핑. 확정본이 없는 화면은 `확정본 없음` 신호를 그대로 전달하고 목업 경로를 추론하지 않는다. UI-less epic 의 prompt 입력은 기존 system/module 설계 진본만 사용한다. 요구사항·계약·설계 결정을 prompt 에 전문 재기입하지 않는다. 모듈 docs 는 affected module 에 한정하고 무관한 모듈은 넣지 않는다. 계약 의미의 durable 진본은 module responsibility/public interface 와 decision 문서다.
-- **worktree**: design worktree 활성 시 worktree 절대경로를 넣는다. main repo 절대경로를 worktree 경로처럼 넘기지 않는다.
+- **worktree**: foreground Claude Agent는 SubagentStart hook, headless는 wrapper가 worktree 절대경로를 동적으로 넣는다. 메인은 Bash stdout을 prompt로 재전달하지 않는다.
 - **이 호출 특유**: Step 2.9 그릴미 합의 또는 기록된 스택 결정 확인-후-skip 사실, artifact audit 결과, wave-plan 신호처럼 아직 진본에 없는 신호만 둔다. 모듈 분할 방식·알고리즘·검증 assert 방식 같은 방법 처방은 넣지 않는다.
 
 ## 기술 스택 그릴미 체크포인트 (Step 2.9 — module-architect 직전)

@@ -80,7 +80,7 @@ flowchart TB
   REWORK -.-> USER
 ```
 
-canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-step 비대상이다. draft 가 필요할 때 실제 Agent 호출은 `begin-step designer` 로 연다. `canvas-design PASS` 뒤에는 같은 `build-worker` 경로로 들어간다.
+canvas-design 은 UI 작업의 main-owned checkpoint 이며 helper begin/end-step 비대상이다. draft가 필요할 때 mode 없는 foreground designer Agent는 lifecycle hook 경로로 연다. `canvas-design PASS` 뒤에는 같은 `build-worker` 경로로 들어간다.
 
 `JOURNEY_ENV_PREFLIGHT`와 `JOURNEY_CONVERGENCE`는 기존 build-worker의 내부 mode다. 신규 agent나 신규 공개 진입점이 아니며, journey 미선언 run에는 두 mode 모두 비발동이다.
 

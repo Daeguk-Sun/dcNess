@@ -93,7 +93,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "PASS",
             "ESCALATE",
             "helper begin/end-step 비대상",
-            "begin-step designer",
+            "SubagentStart/PostToolUse lifecycle hook",
             "designer 는 drafts",
             "메인",
         ):
@@ -230,7 +230,9 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             with self.subTest(doc=text[:30]):
                 self.assertIn("main-owned", text)
                 self.assertIn("helper begin/end-step 비대상", text)
-                self.assertIn("begin-step designer", text)
+                self.assertIn("mode 없는 foreground designer Agent", text)
+                self.assertIn("lifecycle hook", text)
+                self.assertNotIn("begin-step designer", text)
                 self.assertNotIn("begin-step canvas-design", text)
 
     def test_impl_has_three_way_visual_baseline_branch_and_echo(self) -> None:

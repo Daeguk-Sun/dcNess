@@ -12,7 +12,9 @@
 #            exit 1 = non-blocking error → 도구 그대로 진행 (차단 안 됨).
 #
 # 강제 룰:
-#   - begin-step/current-step 일치 — Agent 호출이 현재 기록된 step 과 맞는지 확인
+#   - modeful/current-step 일치 — 명시 step과 Agent 호출 identity 확인
+#   - mode 없는 foreground Agent는 correlation intent만 저장하고 actual spawn은
+#     SubagentStart lifecycle hook이 기록
 #   - build-worker 게이트 — 구현 직전 설계 산출물 확인 (같은 run 의 module-architect PASS
 #     또는 begin-run --design-doc 으로 기록된 설계 문서 실존)
 #   - impl entry pre-flight — design_doc 의 `### 수정 허용` boundary 대조 +

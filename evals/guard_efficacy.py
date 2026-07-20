@@ -626,10 +626,10 @@ def build_cases() -> list[GuardCase]:
             _mcp_mutation("mcp__github__update_issue"),
         ),
         GuardCase(
-            "order_gate_blocks_missing_begin_step",
+            "order_gate_allows_hook_owned_mode_less_step",
             "order-gate",
-            "block",
-            "strict impl runs require begin-step before Agent calls.",
+            "allow",
+            "Mode-less foreground Agent lifecycle starts only after SubagentStart.",
             _order_gate("impl-validator"),
         ),
         GuardCase(

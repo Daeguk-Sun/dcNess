@@ -29,6 +29,7 @@ from typing import Any, Dict, Optional
 from harness.agent_names import normalize_agent_type
 from harness.guard_core import GuardContext, GuardDecision, HookRequest
 from harness.session_state import (
+    _active_worktree_root_for_prompt,
     cleanup_stale_pid_files,
     cleanup_stale_run_dirs,
     evaluate_order_gate_for_step,
@@ -50,7 +51,9 @@ __all__ = [
     "handle_session_start",
     "handle_pretooluse_agent",
     "handle_pretooluse_file_op",
+    "handle_subagent_start",
     "handle_posttooluse_agent",
+    "handle_posttooluse_failure_agent",
     "handle_subagent_stop",
     "handle_stop",
 ]
@@ -219,6 +222,7 @@ def _strict_conveyor_gate_message(
     slot: Dict[str, Any],
     subagent: str,
     mode: Optional[str],
+    allow_implicit_start: bool = False,
 ) -> Optional[str]:
     """active run 안 Agent 직접 호출을 begin-step/current_step 기준으로 차단."""
     if not subagent:
@@ -232,6 +236,8 @@ def _strict_conveyor_gate_message(
     requested = _agent_mode_label(subagent, mode)
     cur_step = slot.get("current_step")
     if not isinstance(cur_step, dict):
+        if allow_implicit_start:
+            return None
         return (
             "[진행 순서 검사] begin-step 누락 — active run"
             f"(entry_point={entry_point}, rid={rid[:8]}...) 안에서 Agent({requested}) "
@@ -461,10 +467,15 @@ def handle_pretooluse_agent(
     if not rid:
         return 0  # active run 외부 — 그 외 agent 는 통과
 
-    # issue #604 — active run 안에서는 begin-step 없이 Agent 직접 호출 금지.
-    # PostToolUse staging 이후 같은 step 재호출, end-step 완료 후 stale current_step 도
-    # PreToolUse 시점에서 차단해 ledger receipt 누락을 실행 전에 막는다.
+    # active run의 mode 없는 foreground Agent는 current_step 없음을 허용하고
+    # SubagentStart에서 실제 spawn 후 시작한다. 명시적 modeful/current step이
+    # 있으면 Agent·mode mismatch, staged result, stale step을 실행 전 차단한다.
     step_mode = None
+    auto_start = False
+    background = bool(
+        tool_input.get("run_in_background", False)
+        or tool_input.get("background", False)
+    )
     try:
         live = read_live(sid, base_dir=base_dir) or {}
         active = live.get("active_runs", {}) if isinstance(live, dict) else {}
@@ -479,6 +490,8 @@ def handle_pretooluse_agent(
                 cur_step = slot.get("current_step")
                 if isinstance(cur_step, dict):
                     step_mode = _mode_or_none(cur_step.get("mode"))
+                else:
+                    auto_start = True
             strict_msg = _strict_conveyor_gate_message(
                 sid=sid,
                 rid=rid,
@@ -486,6 +499,7 @@ def handle_pretooluse_agent(
                 slot=slot,
                 subagent=norm_subagent,
                 mode=_mode_or_none(mode),
+                allow_implicit_start=auto_start,
             )
             if strict_msg:
                 return _emit_guard_decision(
@@ -556,31 +570,13 @@ def handle_pretooluse_agent(
     # NEW_DEP_ESCALATE 4안.
     #   ※ 자유 재호출은 active run *밖* (메인 루프 / 루프 finalize 후) 에서 일어난다 —
     #   그 경우 rid 부재 또는 finalize 분기로 게이트가 발화하지 않는다. active
-    #   run *안* 에서는 위 진행 순서 검사(#604) 가 *모든* off-sequence agent
-    #   (tech-reviewer 포함) 에 begin-step 선언을 요구한다 — 이는 tech-reviewer 전용 차단이 아닌
+    #   run *안* 에서는 위 진행 순서 검사가 *모든* off-sequence agent
+    #   (tech-reviewer 포함) 에 lifecycle identity/mode 정합을 요구한다 — 이는 tech-reviewer 전용 차단이 아닌
     #   일반 loop 무결성 룰이라 #609 범위 밖이고, 루프 도중 의존 검증은 NEW_DEP_ESCALATE 로 간다.
 
-    # active_agent는 PostToolUse/SubagentStop lifecycle clear와 진단을 위해 기록한다.
-    # file-guard 권한 판정은 동시 호출에 안전한 각 payload의 agent_type만 사용한다.
-    if subagent:
-        try:
-            transition(
-                sid,
-                "active_agent_set",
-                base_dir=base_dir,
-                agent=subagent,
-                mode=mode or None,
-            )
-        except (OSError, ValueError) as exc:
-            _record_fail_open_safe(
-                "catastrophic-gate",
-                "state_write_error",
-                f"active_agent update failed: {type(exc).__name__}: {exc}",
-                base_dir=base_dir,
-            )
-            pass  # 실패해도 Agent 호출은 통과 — 식별만 누락.
-
-    # PreToolUse↔PostToolUse 공통 tool_use_id로 pending lifecycle slot을 식별한다.
+    # PreToolUse 는 lifecycle event 를 확정하지 않는다. all-matching hook 이 병렬로
+    # 평가되므로 sibling deny 전에 step_started/active_agent 를 쓰면 실제 spawn 없는
+    # orphan step 이 된다. 여기서는 SubagentStart/PostToolUse correlation intent 만 둔다.
     if rid and subagent:
         tuid = stdin_data.get("tool_use_id", "") or ""
         if tuid:
@@ -591,7 +587,8 @@ def handle_pretooluse_agent(
                 )
                 transition(
                     sid, "pending_agent_set", run_id=rid,
-                    tool_use_id=tuid, sub_type=subagent, mode=(mode or None),
+                    tool_use_id=tuid, sub_type=subagent, mode=effective_mode,
+                    background=background, auto_start=auto_start,
                     base_dir=base_dir,
                 )
             except (OSError, ValueError):
@@ -797,179 +794,481 @@ def handle_pretooluse_file_op(
     return 0
 
 
-def handle_posttooluse_agent(
+def _emit_hook_context(event_name: str, messages: list[str]) -> None:
+    if not messages:
+        return
+    output = {
+        "hookSpecificOutput": {
+            "hookEventName": event_name,
+            "additionalContext": " / ".join(messages),
+        }
+    }
+    print(json.dumps(output, ensure_ascii=False))
+
+
+def _pending_agent_for_tool(
+    sid: str,
+    rid: str,
+    tool_use_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    try:
+        live = read_live(sid, base_dir=base_dir) or {}
+        active = live.get("active_runs", {})
+        slot = active.get(rid, {}) if isinstance(active, dict) else {}
+        pending = slot.get("pending_agents", {}) if isinstance(slot, dict) else {}
+        record = pending.get(tool_use_id) if isinstance(pending, dict) else None
+        return dict(record) if isinstance(record, dict) else None
+    except Exception:  # noqa: BLE001 # nosec B110
+        return None
+
+
+def _completed_agent_tool_use(
+    sid: str,
+    rid: str,
+    tool_use_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> bool:
+    if not tool_use_id:
+        return False
+    try:
+        return any(
+            event.get("event") == "step_completed"
+            and event.get("tool_use_id") == tool_use_id
+            for event in read_events(sid, rid, base_dir=base_dir)
+        )
+    except Exception:  # noqa: BLE001 # nosec B110
+        return False
+
+
+def _agent_response_status(tool_response: Any) -> str:
+    if isinstance(tool_response, dict):
+        status = tool_response.get("status")
+        return status if isinstance(status, str) else ""
+    return ""
+
+
+def _clear_pending_exact(
+    sid: str,
+    rid: str,
+    tool_use_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> None:
+    if not tool_use_id:
+        return
+    try:
+        transition(
+            sid,
+            "pending_agent_cleared",
+            run_id=rid,
+            tool_use_id=tool_use_id,
+            require_exact=True,
+            base_dir=base_dir,
+        )
+    except Exception:  # noqa: BLE001 # nosec B110
+        pass
+
+
+def _clear_active_agent_if_matches(
+    sid: str,
+    agent: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> None:
+    try:
+        live = read_live(sid, base_dir=base_dir) or {}
+        active_agent = normalize_agent_type(live.get("active_agent") or "") or ""
+        if active_agent and active_agent == agent:
+            transition(sid, "active_agent_set", base_dir=base_dir, agent=None)
+    except Exception:  # noqa: BLE001 # nosec B110
+        pass
+
+
+def _abort_agent_step(
+    sid: str,
+    rid: str,
+    pending: Dict[str, Any],
+    *,
+    category: str,
+    detail: str,
+    base_dir: Optional[Path] = None,
+) -> bool:
+    agent = normalize_agent_type(pending.get("sub_type") or "") or ""
+    try:
+        transition(
+            sid,
+            "step_aborted",
+            run_id=rid,
+            agent=agent,
+            mode=_mode_or_none(pending.get("mode")),
+            tool_use_id=pending.get("tool_use_id"),
+            agent_id=pending.get("agent_id"),
+            category=category,
+            detail=detail,
+            strict_identity=True,
+            base_dir=base_dir,
+        )
+        return True
+    except (OSError, ValueError):
+        return False
+
+
+def _subagent_start_context(
+    agent: str,
+    payload: Dict[str, Any],
+) -> list[str]:
+    lines: list[str] = []
+    cwd_raw = payload.get("cwd")
+    cwd = Path(cwd_raw) if isinstance(cwd_raw, str) and cwd_raw else Path.cwd()
+    worktree_root = _active_worktree_root_for_prompt(cwd=cwd)
+    if worktree_root:
+        lines.append(
+            "[WORKTREE] 이 호출의 작업 루트는 "
+            f"`{worktree_root}`입니다. main repo 경로 대신 이 절대경로를 사용하세요."
+        )
+    if agent == "build-worker":
+        try:
+            from harness.prev_tasks import read as read_previous_tasks
+
+            previous = read_previous_tasks(cwd=cwd)
+            if previous:
+                lines.append(f"[PREVIOUS_TASKS]\n{previous}")
+        except Exception:  # noqa: BLE001 # nosec B110
+            pass
+    return lines
+
+
+def handle_subagent_start(
     stdin_data: Optional[Dict[str, Any]] = None,
     cc_pid: Optional[int] = None,
     *,
     base_dir: Optional[Path] = None,
 ) -> int:
-    """PostToolUse Agent — prose staging + pending/active agent clear.
-
-    stdout JSON output:
-        {"hookSpecificOutput": {"hookEventName": "PostToolUse",
-                                 "additionalContext": "..."}}
-    """
+    """SubagentStart — actual spawn identity를 bind하고 hook-owned step을 시작한다."""
     if stdin_data is None:
         try:
             raw = sys.stdin.read()
             stdin_data = json.loads(raw) if raw.strip() else {}
         except (json.JSONDecodeError, OSError):
             return 0
-
     if not isinstance(stdin_data, dict):
         return 0
+    sid = _extract_sid(stdin_data)
+    agent_id = stdin_data.get("agent_id") or ""
+    agent = normalize_agent_type(stdin_data.get("agent_type") or "") or ""
+    if not valid_session_id(sid) or not agent_id or not agent:
+        return 0
+    rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
+    if not rid:
+        return 0
 
+    context = _subagent_start_context(agent, stdin_data)
+    try:
+        if any(
+            event.get("agent_id") == agent_id
+            and event.get("event") in {"step_started", "step_aborted", "step_completed"}
+            for event in read_events(sid, rid, base_dir=base_dir)
+        ):
+            _emit_hook_context("SubagentStart", context)
+            return 0
+    except Exception:  # noqa: BLE001 # nosec B110
+        pass
+
+    try:
+        pending = transition(
+            sid,
+            "pending_agent_spawned",
+            run_id=rid,
+            agent=agent,
+            agent_id=agent_id,
+            base_dir=base_dir,
+        )
+    except (OSError, ValueError):
+        pending = None
+    if not isinstance(pending, dict):
+        context.append(
+            "[lifecycle 복구] SubagentStart와 일치하는 PreToolUse intent가 없어 "
+            "step_started를 기록하지 않았습니다. 현재 run 상태를 확인하세요."
+        )
+        _emit_hook_context("SubagentStart", context)
+        return 0
+    if pending.get("background"):
+        _emit_hook_context("SubagentStart", context)
+        return 0
+
+    mode = _mode_or_none(pending.get("mode"))
+    tool_use_id = pending.get("tool_use_id") or ""
+    try:
+        live = read_live(sid, base_dir=base_dir) or {}
+        slot = live.get("active_runs", {}).get(rid, {})
+        current = slot.get("current_step") if isinstance(slot, dict) else None
+        if isinstance(current, dict):
+            transition(
+                sid,
+                "step_identity_bound",
+                run_id=rid,
+                agent=agent,
+                mode=mode,
+                tool_use_id=tool_use_id,
+                agent_id=agent_id,
+                lifecycle_owner="hook",
+                base_dir=base_dir,
+            )
+        elif pending.get("auto_start") and mode is None:
+            transition(
+                sid,
+                "step_started",
+                run_id=rid,
+                agent=agent,
+                mode=None,
+                tool_use_id=tool_use_id,
+                agent_id=agent_id,
+                lifecycle_owner="hook",
+                strict_identity=True,
+                base_dir=base_dir,
+            )
+        else:
+            raise ValueError("modeful Agent requires explicit begin-step")
+        transition(
+            sid,
+            "active_agent_set",
+            agent=agent,
+            mode=mode,
+            base_dir=base_dir,
+        )
+    except (OSError, ValueError) as exc:
+        context.append(
+            "[lifecycle 복구] SubagentStart identity mismatch — "
+            f"step_started 미기록: {exc}"
+        )
+    _emit_hook_context("SubagentStart", context)
+    return 0
+
+
+def handle_posttooluse_agent(
+    stdin_data: Optional[Dict[str, Any]] = None,
+    cc_pid: Optional[int] = None,
+    *,
+    base_dir: Optional[Path] = None,
+) -> int:
+    """PostToolUse Agent — completed foreground prose만 receipt로 확정한다."""
+    if stdin_data is None:
+        try:
+            raw = sys.stdin.read()
+            stdin_data = json.loads(raw) if raw.strip() else {}
+        except (json.JSONDecodeError, OSError):
+            return 0
+    if not isinstance(stdin_data, dict):
+        return 0
     sid = _extract_sid(stdin_data)
     if not valid_session_id(sid):
         return 0
-
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
+    tool_use_id = stdin_data.get("tool_use_id") or ""
+    if not rid or not tool_use_id:
+        return 0
+    if _completed_agent_tool_use(
+        sid, rid, tool_use_id, base_dir=base_dir
+    ):
+        return 0
 
-    # Staging failure diagnostics remain visible to the model.
+    pending = _pending_agent_for_tool(
+        sid, rid, tool_use_id, base_dir=base_dir
+    )
+    status = _agent_response_status(stdin_data.get("tool_response"))
     diagnostics: list[str] = []
 
-    # prose auto-staging — tool_response → run_dir 에 저장, current_step.prose_file 기록
-    # #272 W2 진짜 fix — robust extraction. 도입(2026-05-01) 시 dict 만 가정 → fail.
-    # issue-232 가 list[{type:"text",text:...}] 한 형식만 추가 → jajang 보고에서 또 fail.
-    # 이번엔 *어떤 nested 형식이든* first non-empty text 추출 (CC schema 변동·
-    # undocumented 변형 robust). 추출 실패 시에만 stderr 진단.
-    if rid:
-        raw_response = stdin_data.get("tool_response")
-        prose_text = ""
-        try:
-            prose_text = _extract_prose_text(raw_response)
-        except Exception as e:  # noqa: BLE001
-            print(
-                f"[hook prose stage] tool_response 추출 예외: "
-                f"{type(e).__name__}: {e}",
-                file=sys.stderr,
-            )
-            diagnostics.append(
-                f"prose 추출 예외 ({type(e).__name__}) — sub 결과 prose 가 run_dir 에 "
-                f"미저장. 다음 step 전 직전 sub 의 결론을 메인이 직접 확인할 것."
-            )
-
-        if not prose_text.strip():
-            # robust extraction 도 fail 한 진짜 예외 — 다음 진단용
-            if isinstance(raw_response, dict):
-                _shape = f"dict keys={list(raw_response.keys())[:5]}"
-            elif isinstance(raw_response, list):
-                _shape = f"list len={len(raw_response)}"
-                if raw_response and isinstance(raw_response[0], dict):
-                    _shape += f" item0_keys={list(raw_response[0].keys())[:5]}"
-                    _shape += f" item0_type={raw_response[0].get('type', '?')}"
-            elif isinstance(raw_response, str):
-                _shape = f"str len={len(raw_response)}"
-            else:
-                _shape = f"type={type(raw_response).__name__}"
-            print(
-                f"[hook prose stage] robust extraction 실패 — staging skip. {_shape}",
-                file=sys.stderr,
-            )
-            diagnostics.append(
-                "sub 결과에서 prose 텍스트를 못 뽑아 run_dir staging skip "
-                f"({_shape}) — 직전 sub 결론을 메인이 직접 확인 후 진행."
-            )
-        else:
-            try:
-                live_data = read_live(sid, base_dir=base_dir) or {}
-                active = live_data.get("active_runs", {}) or {}
-                slot = active.get(rid, {}) if isinstance(active, dict) else {}
-                cur_step = (
-                    slot.get("current_step") if isinstance(slot, dict) else None
-                )
-
-                if not isinstance(cur_step, dict):
-                    print(
-                        f"[hook prose stage] current_step 부재 (rid={rid[:8]}…) — "
-                        f"begin-step 호출 누락 의심. staging skip.",
-                        file=sys.stderr,
-                    )
-                    diagnostics.append(
-                        "current_step 부재 — begin-step 호출 누락 의심. 이번 sub 결과가 "
-                        "run_dir 에 미staging. 다음 step 은 begin-step 먼저 호출할 것."
-                    )
-                else:
-                    step_agent = cur_step.get("agent")
-                    step_mode = cur_step.get("mode") or None
-                    if not step_agent:
-                        print(
-                            "[hook prose stage] current_step.agent 비어있음 — "
-                            "staging skip.",
-                            file=sys.stderr,
-                        )
-                        diagnostics.append(
-                            "current_step.agent 공백 — staging skip. begin-step 에 agent "
-                            "인자가 빠졌는지 확인."
-                        )
-                    else:
-                        from harness.signal_io import write_prose as _write_prose
-                        from harness.ledger import count_step_completed
-
-                        base = session_dir(sid, base_dir=base_dir) / "runs"
-                        occ = count_step_completed(
-                            sid, rid, step_agent, step_mode, base_dir=base_dir
-                        )
-                        prose_path = _write_prose(
-                            step_agent, rid, prose_text,
-                            mode=step_mode, base_dir=base, occurrence=occ,
-                        )
-                        transition(
-                            sid,
-                            "prose_staged",
-                            run_id=rid,
-                            base_dir=base_dir,
-                            prose_file=prose_path,
-                        )
-
-                        # issue #392 — routing_telemetry.record_agent_call 폐기.
-                        # #281 baseline 비교 끝남 + jajang 실측 record_cascade 0건.
-            except Exception as e:  # noqa: BLE001
-                print(
-                    f"[hook prose stage] write 예외: {type(e).__name__}: {e}",
-                    file=sys.stderr,
-                )
-                diagnostics.append(
-                    f"prose write 예외 ({type(e).__name__}) — run_dir staging 실패. "
-                    f"직전 sub 결론을 메인이 직접 확인 후 진행."
-                )
-
-    # Invocation identity is lifecycle state, so clear only the matching pending
-    # slot.  Per-tool traces and derived histograms are post-run analysis and are
-    # intentionally not recorded by the runtime.
-    if rid:
-        try:
-            tuid_now = stdin_data.get("tool_use_id", "") or ""
-            transition(
+    if status == "async_launched":
+        if isinstance(pending, dict):
+            _abort_agent_step(
                 sid,
-                "pending_agent_cleared",
-                run_id=rid,
-                tool_use_id=tuid_now or None,
+                rid,
+                pending,
+                category="async_launched",
+                detail="background launch is not a completed foreground result",
                 base_dir=base_dir,
             )
-        except Exception:  # noqa: BLE001 # nosec B110
-            pass
+        _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
+        return 0
 
-    # active_agent 해제 (기존 동작)
+    if status != "completed":
+        if isinstance(pending, dict):
+            _abort_agent_step(
+                sid,
+                rid,
+                pending,
+                category="unknown_status",
+                detail=f"unexpected Agent status: {status or '<missing>'}",
+                base_dir=base_dir,
+            )
+        _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
+        diagnostics.append(
+            "[lifecycle 복구] Agent status가 completed가 아니어서 receipt를 기록하지 "
+            f"않았습니다(status={status or '<missing>'})."
+        )
+        _emit_hook_context("PostToolUse", diagnostics)
+        return 0
+
+    if not isinstance(pending, dict) or not pending.get("agent_id"):
+        diagnostics.append(
+            "[lifecycle 복구] PostToolUse identity mismatch — spawn identity가 없어 "
+            "receipt를 기록하지 않았습니다."
+        )
+        _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
+        _emit_hook_context("PostToolUse", diagnostics)
+        return 0
+
+    agent = normalize_agent_type(pending.get("sub_type") or "") or ""
+    mode = _mode_or_none(pending.get("mode"))
+    agent_id = pending.get("agent_id") or ""
     try:
-        transition(sid, "active_agent_set", base_dir=base_dir, agent=None)
-    except (OSError, ValueError):
-        pass
+        live = read_live(sid, base_dir=base_dir) or {}
+        slot = live.get("active_runs", {}).get(rid, {})
+        current = slot.get("current_step") if isinstance(slot, dict) else None
+        expected = (agent, mode, tool_use_id, agent_id)
+        actual = (
+            current.get("agent"),
+            current.get("mode"),
+            current.get("tool_use_id"),
+            current.get("agent_id"),
+        ) if isinstance(current, dict) else None
+        if actual != expected:
+            raise ValueError(f"identity mismatch expected={expected!r} current={actual!r}")
+    except (OSError, ValueError) as exc:
+        diagnostics.append(f"[lifecycle 복구] {exc}; receipt append를 거부했습니다.")
+        _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
+        _emit_hook_context("PostToolUse", diagnostics)
+        return 0
 
-    # Preserve the public PostToolUse diagnostic meaning for staging failures.
-    if diagnostics:
-        ctx = "[staging 진단] " + " / ".join(diagnostics)
+    raw_response = stdin_data.get("tool_response")
+    try:
+        prose_text = _extract_prose_text(raw_response)
+    except Exception as exc:  # noqa: BLE001
+        prose_text = ""
+        diagnostics.append(f"prose 추출 예외: {type(exc).__name__}: {exc}")
+    if not prose_text.strip():
+        _abort_agent_step(
+            sid,
+            rid,
+            pending,
+            category="empty_prose",
+            detail="completed Agent response did not contain non-empty prose",
+            base_dir=base_dir,
+        )
+        _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
+        _clear_active_agent_if_matches(sid, agent, base_dir=base_dir)
+        diagnostics.append(
+            "[lifecycle 복구] completed Agent 응답의 prose가 비어 step_aborted로 "
+            "종료했고 step_completed는 기록하지 않았습니다."
+        )
+        _emit_hook_context("PostToolUse", diagnostics)
+        return 0
+
+    try:
+        from harness.signal_io import write_prose
+
+        base = session_dir(sid, base_dir=base_dir) / "runs"
+        occurrence = len(
+            [
+                event
+                for event in read_step_completed(sid, rid, base_dir=base_dir)
+                if event.get("agent") == agent and event.get("mode") == mode
+            ]
+        )
+        prose_path = write_prose(
+            agent,
+            rid,
+            prose_text,
+            mode=mode,
+            base_dir=base,
+            occurrence=occurrence,
+        )
+        transition(
+            sid,
+            "step_completed",
+            run_id=rid,
+            agent=agent,
+            mode=mode,
+            enum="PROSE_LOGGED",
+            prose=prose_text,
+            prose_path=prose_path,
+            provider="claude-main",
+            tool_use_id=tool_use_id,
+            agent_id=agent_id,
+            strict_identity=True,
+            base_dir=base_dir,
+        )
+    except Exception as exc:  # noqa: BLE001
+        diagnostics.append(
+            "[lifecycle 복구] prose/receipt 기록 실패 — "
+            f"{type(exc).__name__}: {exc}"
+        )
+        _emit_hook_context("PostToolUse", diagnostics)
+        return 0
+
+    _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
+    _clear_active_agent_if_matches(sid, agent, base_dir=base_dir)
+    _emit_hook_context(
+        "PostToolUse",
+        [
+            f"[lifecycle] {agent}{':' + mode if mode else ''} foreground step이 "
+            "자동 기록되었습니다. 별도 end-step 호출은 필요하지 않습니다."
+        ],
+    )
+    return 0
+
+
+def handle_posttooluse_failure_agent(
+    stdin_data: Optional[Dict[str, Any]] = None,
+    cc_pid: Optional[int] = None,
+    *,
+    base_dir: Optional[Path] = None,
+) -> int:
+    """PostToolUseFailure Agent — matching started step을 abort하고 복구 진단을 준다."""
+    if stdin_data is None:
         try:
-            output = {
-                "hookSpecificOutput": {
-                    "hookEventName": "PostToolUse",
-                    "additionalContext": ctx,
-                }
-            }
-            print(json.dumps(output, ensure_ascii=False))
-        except Exception:  # noqa: BLE001 # nosec B110
-            pass
-
+            raw = sys.stdin.read()
+            stdin_data = json.loads(raw) if raw.strip() else {}
+        except (json.JSONDecodeError, OSError):
+            return 0
+    if not isinstance(stdin_data, dict):
+        return 0
+    sid = _extract_sid(stdin_data)
+    if not valid_session_id(sid):
+        return 0
+    rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
+    tool_use_id = stdin_data.get("tool_use_id") or ""
+    if not rid or not tool_use_id:
+        return 0
+    pending = _pending_agent_for_tool(
+        sid, rid, tool_use_id, base_dir=base_dir
+    )
+    aborted = False
+    agent = ""
+    if isinstance(pending, dict):
+        agent = normalize_agent_type(pending.get("sub_type") or "") or ""
+        aborted = _abort_agent_step(
+            sid,
+            rid,
+            pending,
+            category="tool_failure",
+            detail=str(stdin_data.get("error") or "Agent tool failed"),
+            base_dir=base_dir,
+        )
+    _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
+    if agent:
+        _clear_active_agent_if_matches(sid, agent, base_dir=base_dir)
+    state = "step_aborted 기록" if aborted else "spawn 전 실패 또는 identity 불일치"
+    _emit_hook_context(
+        "PostToolUseFailure",
+        [
+            "[lifecycle 복구] Agent 실패로 step_completed를 기록하지 않았습니다. "
+            f"{state}; run 상태와 오류를 확인한 뒤 같은 task를 재시도하세요."
+        ],
+    )
     return 0
 
 
@@ -1341,13 +1640,15 @@ def _maybe_emit_continuation_signal(
         else:
             next_hint = (
                 "CODEBASE_SANITY PASS는 Epic 누적 코드 감사만 닫으므로 "
-                "`begin-step impl-validator`로 같은 final merge candidate의 일반 merge "
+                "mode 없는 foreground `impl-validator` Agent를 lifecycle hook "
+                "경로로 호출해 같은 final merge candidate의 일반 merge "
                 "review를 이어가야 함. "
             )
     elif acceptance_after_pr:
         next_hint = (
             "이 run 은 story/epic 마감 acceptance 대상이므로 "
-            "begin-step product-acceptance 후 inline 검수를 진행해야 함. "
+            "`begin-step product-acceptance <MODE>` 후 modeful foreground Agent로 "
+            "inline 검수를 진행해야 함(PostToolUse가 완료 기록). "
         )
     else:
         next_hint = (
@@ -1355,7 +1656,7 @@ def _maybe_emit_continuation_signal(
             "git/PR, FAIL 이면 build-worker 재시도 분기. "
             if enum == "VALIDATION_BLOCKED"
             else "정의된 다음 agent 호출 또는 PR/review/merge 영역 "
-            "(예: begin-step impl-validator + Agent impl-validator + end-step + PR 머지). "
+            "(예: mode 없는 impl-validator Agent를 lifecycle hook 경로로 호출 후 PR 머지). "
         )
     reason = (
         f"[dcness Stop hook · issue #469 결함 A] sub-step "
@@ -1393,8 +1694,20 @@ def _main(argv: Optional[list] = None) -> int:
     p_fo.add_argument("--cc-pid", type=int, default=None)
 
     p_pa = sub.add_parser("posttooluse-agent",
-                          help="PostToolUse Agent — live.json.active_agent 해제")
+                          help="PostToolUse Agent — foreground lifecycle 완료")
     p_pa.add_argument("--cc-pid", type=int, default=None)
+
+    p_paf = sub.add_parser(
+        "posttooluse-failure-agent",
+        help="PostToolUseFailure Agent — lifecycle abort/복구 진단",
+    )
+    p_paf.add_argument("--cc-pid", type=int, default=None)
+
+    p_sast = sub.add_parser(
+        "subagent-start",
+        help="SubagentStart 훅 — actual spawn lifecycle 시작",
+    )
+    p_sast.add_argument("--cc-pid", type=int, default=None)
 
     p_st = sub.add_parser("stop",
                           help="Stop 훅 — 메인 응답 종료 시 자동 end-run (issue #382)")
@@ -1424,6 +1737,10 @@ def _main(argv: Optional[list] = None) -> int:
             rc = handle_pretooluse_file_op(cc_pid=cc_pid)
         elif args.cmd == "posttooluse-agent":
             rc = handle_posttooluse_agent(cc_pid=cc_pid)
+        elif args.cmd == "posttooluse-failure-agent":
+            rc = handle_posttooluse_failure_agent(cc_pid=cc_pid)
+        elif args.cmd == "subagent-start":
+            rc = handle_subagent_start(cc_pid=cc_pid)
         elif args.cmd == "stop":
             rc = handle_stop()
         elif args.cmd == "subagent-stop":

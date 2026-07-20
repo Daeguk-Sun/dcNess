@@ -23,11 +23,9 @@ _state = _parent_state_module()
 _PPID_LOOKUP_TIMEOUT_SEC = _state._PPID_LOOKUP_TIMEOUT_SEC
 _VALID_DESIGN_STAGES = _state._VALID_DESIGN_STAGES
 _VALID_LANES = _state._VALID_LANES
-_active_worktree_root_for_prompt = _state._active_worktree_root_for_prompt
 _clear_default_base_cache = _state._clear_default_base_cache
 _default_base = _state._default_base
 _now_iso = _state._now_iso
-_prompt_slot_check_text = _state._prompt_slot_check_text
 _resolve_state_root_for_cwd = _state._resolve_state_root_for_cwd
 _scan_recent_active_run_slot = _state._scan_recent_active_run_slot
 _validate_design_doc = _state._validate_design_doc
@@ -343,8 +341,8 @@ def _cli_prev_tasks_append(args: Any) -> int:
 
     Usage: dcness-helper prev-tasks-append <slug> "<산출 요약 한 줄>"
 
-    다음 task 진입 시 메인의 `begin-step build-worker` 가 [PREVIOUS_TASKS] 로
-    emit → 메인이 build-worker prompt 에 포함. task 간 인터페이스 misalign 완화.
+    다음 task 진입 시 SubagentStart hook 또는 headless worker wrapper가
+    [PREVIOUS_TASKS]로 첫 prompt에 직접 포함. task 간 인터페이스 misalign 완화.
     """
     from harness.prev_tasks import append
 
@@ -415,22 +413,6 @@ def _cli_begin_step(args: Any) -> int:
     )
 
     print("ok")
-
-    prompt_slot_check = _prompt_slot_check_text(sid, rid, agent=agent)
-    if prompt_slot_check:
-        print(f"\n{prompt_slot_check}")
-
-    # #525: build-worker 진입 시 직전 task 산출 요약 stdout 주입. 메인 Claude 가
-    # Bash 결과로 읽고 build-worker prompt 에 포함시킨다. 자기 task 는 phase 3
-    # 종료 시 append 되므로 여기서는 직전 task까지만 보인다.
-    if args.agent == "build-worker":
-        try:
-            from harness.prev_tasks import read as _pt_read
-            _prev = _pt_read()
-            if _prev:
-                print(f"\n[PREVIOUS_TASKS]\n{_prev}")
-        except Exception:  # nosec B110
-            pass  # 주입 실패 silent — 본 step 차단 X
 
     return 0
 
@@ -529,7 +511,8 @@ def _cli_ledger_event(args: Any) -> int:
     강제 아님 — 메인/skill 이 PR 생성·머지·차단 같은 checkpoint 를 *선택적* 으로
     남기는 경로.
 
-    🔴 helper-owned lifecycle event (run_started/step_started/step_completed/run_finished)
+    🔴 helper/hook-owned lifecycle event
+    (run_started/step_started/step_aborted/step_completed/run_finished)
     는 거부한다 (codex review). 수동 CLI 로 receipt 필드 없는 가짜 step_completed 를
     넣으면 read_step_completed/list_runs/finalize-run 이 진짜 step 으로 취급해
     prose-as-SSOT invariant 가 깨진다 — lifecycle 은 begin-run/begin-step/end-step/
@@ -546,7 +529,7 @@ def _cli_ledger_event(args: Any) -> int:
         print(
             f"[session_state] ledger-event 는 수동 checkpoint 만 허용: "
             f"{sorted(ledger.MANUAL_EVENT_TYPES)}. "
-            f"lifecycle event(run_started/step_started/step_completed/run_finished)는 "
+            f"lifecycle event(run_started/step_started/step_aborted/step_completed/run_finished)는 "
             f"begin-run/begin-step/end-step/end-run 코드 경로 전용 — 수동 위조 차단.",
             file=sys.stderr,
         )

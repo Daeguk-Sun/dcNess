@@ -93,10 +93,6 @@ FAIL_OPEN_EVENTS_NAME = "fail-open-events.jsonl"
 FAIL_OPEN_RECENT_HOURS = 24
 FAIL_OPEN_RECENT_LIMIT = 5
 _FAIL_OPEN_DETAIL_MAX = 500
-_PROMPT_SLOT_CHECK_ENTRY_POINTS = {"impl", "design"}
-_PROMPT_SLOT_TEMPLATE_REL = Path("docs/plugin/templates/agent-prompt-slots.md")
-_DESIGN_SSOT_REMINDER_AGENTS = {"module-architect", "architecture-validator"}
-_CONFIRMED_MOCKUP_DIR_REL = Path("docs/design-variants")
 
 
 class StateFormatError(ValueError):
@@ -536,10 +532,12 @@ _RUN_TRANSITIONS = {
     "run_completed",
     "ledger_checkpoint",
 }
-_STEP_TRANSITIONS = {"step_started", "step_completed"}
+_STEP_TRANSITIONS = {"step_started", "step_aborted", "step_completed"}
 _RUNTIME_TRANSITIONS = {
     "pending_agent_set",
+    "pending_agent_spawned",
     "pending_agent_cleared",
+    "step_identity_bound",
     "active_agent_set",
     "prose_staged",
     "stop_block_recorded",
@@ -723,7 +721,26 @@ def _apply_step_transition(
     agent = normalize_agent_type(raw_agent) or raw_agent
     data["agent"] = agent
 
+    def identity_mismatch(current: Dict[str, Any]) -> str:
+        expected = (agent, data.get("mode"))
+        actual = (current.get("agent"), current.get("mode"))
+        if actual != expected:
+            return f"agent/mode expected={expected!r} current={actual!r}"
+        for key in ("tool_use_id", "agent_id"):
+            value = data.get(key)
+            if value and current.get(key) != value:
+                return (
+                    f"{key} expected={value!r} current={current.get(key)!r}"
+                )
+        return ""
+
     if action == "step_started":
+        current = slot.get("current_step")
+        if data.get("strict_identity") and isinstance(current, dict):
+            mismatch = identity_mismatch(current)
+            if mismatch:
+                raise ValueError(f"lifecycle identity mismatch: {mismatch}")
+            return current, False
         _warn_stale_step(slot)
         now = _now_iso()
         slot["current_step"] = {
@@ -733,24 +750,91 @@ def _apply_step_transition(
             "steps_count_at_begin": len(
                 ledger.read_step_completed(session_id, run_id, base_dir=base_dir)
             ),
+            **{
+                key: data[key]
+                for key in ("tool_use_id", "agent_id", "lifecycle_owner")
+                if data.get(key)
+            },
         }
         slot["last_confirmed_at"] = now
         active[run_id] = slot
+        event_fields = {
+            "agent": agent,
+            "mode": data.get("mode"),
+            **{
+                key: data[key]
+                for key in ("tool_use_id", "agent_id", "lifecycle_owner")
+                if data.get(key)
+            },
+        }
         _append_ledger_record(
             session_id, run_id, "step_started", base_dir=base_dir,
-            agent=agent, mode=data.get("mode"),
+            **event_fields,
         )
         return None, True
+
+    if action == "step_aborted":
+        current = slot.get("current_step")
+        if not isinstance(current, dict):
+            if data.get("strict_identity"):
+                raise ValueError("lifecycle identity mismatch: current_step missing")
+            return None, False
+        mismatch = identity_mismatch(current)
+        if mismatch:
+            if data.get("strict_identity"):
+                raise ValueError(f"lifecycle identity mismatch: {mismatch}")
+            return None, False
+        event_fields = {
+            key: data[key]
+            for key in (
+                "agent",
+                "mode",
+                "tool_use_id",
+                "agent_id",
+                "category",
+                "detail",
+            )
+            if data.get(key) is not None
+        }
+        result = _append_ledger_record(
+            session_id,
+            run_id,
+            "step_aborted",
+            base_dir=base_dir,
+            **event_fields,
+        )
+        slot["current_step"] = None
+        slot["last_confirmed_at"] = _now_iso()
+        active[run_id] = slot
+        return result, True
+
+    if data.get("strict_identity") and data.get("tool_use_id"):
+        for event in reversed(
+            ledger.read_events(session_id, run_id, base_dir=base_dir)
+        ):
+            if (
+                event.get("event") == "step_completed"
+                and event.get("tool_use_id") == data["tool_use_id"]
+            ):
+                return event, False
+
+    current = slot.get("current_step")
+    if data.get("strict_identity"):
+        if not isinstance(current, dict):
+            raise ValueError("lifecycle identity mismatch: current_step missing")
+        mismatch = identity_mismatch(current)
+        if mismatch:
+            raise ValueError(f"lifecycle identity mismatch: {mismatch}")
 
     receipt = ledger.build_receipt(
         agent, data.get("mode"), data.get("enum", "PROSE_LOGGED"),
         data.get("prose", ""), data.get("prose_path"), provider=data.get("provider"),
+        tool_use_id=data.get("tool_use_id"), agent_id=data.get("agent_id"),
     )
     result = _append_ledger_record(
         session_id, run_id, "step_completed", base_dir=base_dir, **receipt
     )
     _record_headless_validation_block(session_id, run_id, base_dir, data)
-    current = slot.get("current_step")
     if not isinstance(current, dict) or (
         current.get("agent"), current.get("mode")
     ) != (agent, data.get("mode")):
@@ -793,6 +877,86 @@ def _record_headless_validation_block(
     )
 
 
+def _claim_pending_agent_spawn(
+    run_id: Optional[str],
+    active: Dict[str, Any],
+    data: Dict[str, Any],
+) -> tuple[Any, bool]:
+    """Bind a SubagentStart agent_id to the newest matching PreToolUse intent."""
+    from harness.agent_names import normalize_agent_type
+
+    resolved_run_id = _required_run_id(run_id)
+    slot = _active_slot(active, resolved_run_id, missing_ok=True)
+    agent_id = data.get("agent_id")
+    agent = normalize_agent_type(data.get("agent") or "") or ""
+    if slot is None or not agent_id or not agent:
+        return None, False
+    pending = dict(slot.get("pending_agents") or {})
+    for record in pending.values():
+        if isinstance(record, dict) and record.get("agent_id") == agent_id:
+            return dict(record), False
+    candidates = [
+        (tool_use_id, record)
+        for tool_use_id, record in pending.items()
+        if isinstance(record, dict)
+        and not record.get("agent_id")
+        and (
+            normalize_agent_type(record.get("sub_type") or "")
+            or record.get("sub_type")
+        )
+        == agent
+    ]
+    if not candidates:
+        return None, False
+    tool_use_id, record = max(
+        candidates, key=lambda item: str(item[1].get("started_at") or "")
+    )
+    claimed = dict(record)
+    claimed["agent_id"] = agent_id
+    claimed["spawned_at"] = _now_iso()
+    pending[tool_use_id] = claimed
+    slot["pending_agents"] = pending
+    active[resolved_run_id] = slot
+    return claimed, True
+
+
+def _bind_current_step_identity(
+    run_id: Optional[str],
+    active: Dict[str, Any],
+    data: Dict[str, Any],
+) -> tuple[Any, bool]:
+    """Attach hook correlation identity to an explicit current step."""
+    from harness.agent_names import normalize_agent_type
+
+    resolved_run_id = _required_run_id(run_id)
+    slot = _active_slot(active, resolved_run_id)
+    current = slot.get("current_step")
+    if not isinstance(current, dict):
+        raise ValueError("lifecycle identity mismatch: current_step missing")
+    expected_agent = normalize_agent_type(data.get("agent") or "") or data.get("agent")
+    expected = (expected_agent, data.get("mode"))
+    actual = (current.get("agent"), current.get("mode"))
+    if actual != expected:
+        raise ValueError(
+            f"lifecycle identity mismatch: agent/mode expected={expected!r} "
+            f"current={actual!r}"
+        )
+    for key in ("tool_use_id", "agent_id"):
+        value = data.get(key)
+        existing = current.get(key)
+        if existing and value and existing != value:
+            raise ValueError(
+                f"lifecycle identity mismatch: {key} expected={value!r} "
+                f"current={existing!r}"
+            )
+        if value:
+            current[key] = value
+    current["lifecycle_owner"] = data.get("lifecycle_owner") or "hook"
+    slot["current_step"] = current
+    active[resolved_run_id] = slot
+    return dict(current), True
+
+
 def _apply_runtime_transition(
     run_id: Optional[str],
     action: str,
@@ -811,11 +975,15 @@ def _apply_runtime_transition(
             "tool_use_id": tool_use_id,
             "sub_type": data.get("sub_type") or "",
             "mode": data.get("mode") or None,
+            "background": bool(data.get("background", False)),
+            "auto_start": bool(data.get("auto_start", False)),
             "started_at": _now_iso(),
         }
         slot["pending_agents"] = pending
         active[run_id] = slot
         return None, True
+    if action == "pending_agent_spawned":
+        return _claim_pending_agent_spawn(run_id, active, data)
     if action == "pending_agent_cleared":
         run_id = _required_run_id(run_id)
         slot = _active_slot(active, run_id, missing_ok=True)
@@ -826,7 +994,7 @@ def _apply_runtime_transition(
         result = None
         if tool_use_id in pending:
             result = pending.pop(tool_use_id)
-        elif len(pending) == 1:
+        elif not data.get("require_exact") and len(pending) == 1:
             result = pending.popitem()[1]
         if result is None:
             return None, False
@@ -836,6 +1004,8 @@ def _apply_runtime_transition(
             slot.pop("pending_agents", None)
         active[run_id] = slot
         return result, True
+    if action == "step_identity_bound":
+        return _bind_current_step_identity(run_id, active, data)
     if action == "active_agent_set":
         agent = data.get("agent")
         if agent:
@@ -1323,113 +1493,6 @@ def _active_worktree_root_for_prompt(*, cwd: Optional[Path] = None) -> Optional[
     if root_path is None:
         return None
     return str(root_path) if _is_dcness_worktree_path(root_path) else None
-
-
-def _repo_root_for_prompt_check(*, cwd: Optional[Path] = None) -> Path:
-    """Return repo root for advisory prompt checks, falling back to cwd."""
-    probe_cwd = Path(cwd or Path.cwd()).resolve()
-    return _git_show_toplevel_cached(probe_cwd) or probe_cwd
-
-
-def _confirmed_mockup_paths_for_prompt(*, cwd: Optional[Path] = None) -> tuple[str, ...]:
-    """Find confirmed screen mockups for prompt-writing reminders.
-
-    This is deliberately broad and advisory. It detects top-level confirmed screen
-    HTML files under ``docs/design-variants/`` and ignores canvas/drafts seed files.
-    """
-    root = _repo_root_for_prompt_check(cwd=cwd)
-    mockup_dir = root / _CONFIRMED_MOCKUP_DIR_REL
-    if not mockup_dir.is_dir():
-        return ()
-    try:
-        from harness.mockup_node_check import is_confirmed_mockup_html
-    except Exception:  # nosec B110
-        return ()
-    paths: list[str] = []
-    for path in sorted(mockup_dir.glob("*.html")):
-        if not is_confirmed_mockup_html(path):
-            continue
-        try:
-            paths.append(path.relative_to(root).as_posix())
-        except ValueError:
-            paths.append(str(path))
-    return tuple(paths)
-
-
-def _design_ssot_reminder_line(
-    *,
-    agent: Optional[str],
-    cwd: Optional[Path] = None,
-) -> Optional[str]:
-    """Return a design SSOT advisory line for design agents when mockups exist."""
-    if not agent:
-        return None
-    try:
-        from harness.agent_names import normalize_agent_type
-
-        agent_name = normalize_agent_type(agent) or agent
-    except Exception:  # nosec B110
-        agent_name = agent
-    if agent_name not in _DESIGN_SSOT_REMINDER_AGENTS:
-        return None
-    mockups = _confirmed_mockup_paths_for_prompt(cwd=cwd)
-    if not mockups:
-        return None
-    preview = ", ".join(f"`{path}`" for path in mockups[:3])
-    if len(mockups) > 3:
-        preview = f"{preview}, ..."
-    return (
-        "- design SSOT: 확정 목업 감지("
-        f"{preview}). 확정 목업 존재 UI epic 이면 슬롯 1에 `docs/design.md`, "
-        "확정 목업 파일, `docs/design-variants/canvas.html`, node-id 매핑 출처를 "
-        "포함했는지 확인."
-    )
-
-
-def _prompt_slot_check_text(
-    session_id: str,
-    run_id: str,
-    *,
-    base_dir: Optional[Path] = None,
-    cwd: Optional[Path] = None,
-    agent: Optional[str] = None,
-) -> str:
-    """Advisory self-check emitted immediately before Agent prompt writing."""
-    try:
-        live = read_live(session_id, base_dir=base_dir) or {}
-        active = live.get("active_runs", {})
-        slot = active.get(run_id, {}) if isinstance(active, dict) else {}
-        entry_point = slot.get("entry_point") if isinstance(slot, dict) else None
-    except Exception:  # nosec B110
-        return ""
-    if entry_point not in _PROMPT_SLOT_CHECK_ENTRY_POINTS:
-        return ""
-
-    template_path = Path(__file__).resolve().parents[1] / _PROMPT_SLOT_TEMPLATE_REL
-    worktree_root = _active_worktree_root_for_prompt(cwd=cwd)
-    if worktree_root:
-        worktree_line = (
-            f"- worktree: 활성 — Agent prompt 에 worktree 절대경로 `{worktree_root}` 포함. "
-            "main repo 절대경로 금지."
-        )
-    else:
-        worktree_line = (
-            "- worktree: 비활성이 확실하면 생략. 활성 여부가 애매하면 "
-            "`pwd` / `git rev-parse --show-toplevel` 확인 후 절대경로 포함."
-        )
-    lines = [
-        "[PROMPT_SLOT_CHECK]",
-        f"- template: `{template_path}`",
-        "- 대상+읽을 진본: 이번 호출 단위와 agent 가 자체 read 할 SSOT 경로만 둔다.",
-        worktree_line,
-    ]
-    design_line = _design_ssot_reminder_line(agent=agent, cwd=cwd)
-    if design_line:
-        lines.append(design_line)
-    lines.append(
-        "- 이 호출 특유: 진본에 없는 제약/신호만 둔다. 정규식·구현 단계·알고리즘·테스트 assert 방식 등 방법 처방 금지."
-    )
-    return "\n".join(lines)
 
 
 def cleanup_stale_run_dirs(
