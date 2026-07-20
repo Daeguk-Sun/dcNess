@@ -144,7 +144,11 @@ if [ "$PROVIDER" = "claude" ]; then
   Agent(subagent_type="<agent>", ...)
 else
   rc=0
-  "$PLUGIN_ROOT/scripts/dcness-implementation-chain" <agent> [MODE] --provider "$PROVIDER" --prompt-file "$PROMPT_FILE" || rc=$?
+  "$PLUGIN_ROOT/scripts/dcness-implementation-chain" <agent> [MODE] \
+    --provider "$PROVIDER" \
+    --provider-provenance routing \
+    --chain-state .dcness-work/story-run.json \
+    --prompt-file "$PROMPT_FILE" || rc=$?
   if [ "$rc" -eq 75 ]; then
     # mode가 있으면 Agent 전에 "$HELPER" begin-step <agent> <MODE>
     Agent(subagent_type="<agent>", ...)
@@ -154,7 +158,13 @@ else
 fi
 ```
 
-`dcness-implementation-chain` 은 `headless-chain`(Codex headless → Claude headless → Claude main), `claude-headless`, `claude` 를 같은 routing config 로 실행한다. Headless wrapper 가 성공하면 마지막 응답을 저장하고 `end-step` 까지 수행한다. Codex headless worker 도 `DCNESS_CODEX_MODEL` / `DCNESS_CODEX_EFFORT` 가 설정된 경우에만 같은 override 를 전달하고, 미설정 시 사용자 Codex config 를 상속한다. CLI/auth/timeout/empty-output 처럼 workspace 변경 전 실패한 경우에만 다음 provider 로 넘어간다. Headless provider 가 파일을 변경한 뒤 실패하거나 boundary 밖 파일을 변경하면 자동 폴백하지 않는다. chain 이 Claude main 에 도달하면 `FALLBACK_TO_CLAUDE_MAIN` 과 exit 75 를 반환하므로 메인이 기존 Agent 경로를 실행하고 성공 receipt는 PostToolUse lifecycle hook이 `provider=claude-main`으로 기록한다. raw headless session log 는 run 디렉터리의 `headless-logs/` 파일로 보존한다. 단, `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 와 active run scan 이 모두 실패하면 wrapper 는 telemetry 미귀속 상태를 경고하고 provider 실행을 계속하며, raw log 와 최종 prose 를 `.dcness-work/headless-logs/unattributed/` 에 남긴다. 이 degraded 경로에서는 `end-step` 기록 실패가 provider exit code 를 덮지 않는다. Claude headless wrapper 는 자식 `claude -p` 실행 전 부모 세션 식별 env 를 제거하되, `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 는 유지해 run 기록을 이어간다. Headless build-worker 가 `VALIDATION_BLOCKED` 를 보고하면 `ledger.jsonl` 에 `blocked` event 와 `category=headless_validation_blocked` 가 추가로 남으므로, 검증 명령 권한 문제 빈도는 `run-review` 또는 ledger 조회로 확인한다. Codex raw log가 좁은 sandbox 거부 signature와 일치하면 wrapper가 추가로 `permission_required` receipt와 ledger evidence를 생성한다. 이 경우 다음 호출 판단은 [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)의 사용자 승인·Codex 1회 제한 재시도 경로를 따르며, 일반 메인 검증 대행이나 provider fallback으로 우회하지 않는다.
+`dcness-implementation-chain` 은 `headless-chain`(Codex headless → Claude headless → Claude main), `claude-headless`, `claude` 를 같은 routing config 로 실행한다. Headless wrapper 가 성공하면 마지막 응답을 저장하고 `end-step` 까지 수행한다. Codex headless worker 도 `DCNESS_CODEX_MODEL` / `DCNESS_CODEX_EFFORT` 가 설정된 경우에만 같은 override 를 전달하고, 미설정 시 사용자 Codex config 를 상속한다. workspace 변경 전 실패한 경우에만 다음 provider 로 넘어가며, workspace/HEAD 변경 뒤 실패하거나 boundary 밖 파일을 변경하면 자동 폴백하지 않는다. chain 이 Claude main 에 도달하면 `FALLBACK_TO_CLAUDE_MAIN` 과 exit 75 를 반환하므로 메인이 기존 Agent 경로를 실행하고 성공 receipt는 PostToolUse lifecycle hook이 `provider=claude-main`으로 기록한다. raw headless session log 는 run 디렉터리의 `headless-logs/` 파일로 보존한다. 단, `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 와 active run scan 이 모두 실패하면 wrapper 는 telemetry 미귀속 상태를 경고하고 provider 실행을 계속하며, raw log 와 최종 prose 를 `.dcness-work/headless-logs/unattributed/` 에 남긴다. 이 degraded 경로에서는 `end-step` 기록 실패가 provider exit code 를 덮지 않는다. Claude headless wrapper 는 자식 `claude -p` 실행 전 부모 세션 식별 env 를 제거하되, `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 는 유지해 run 기록을 이어간다. Headless build-worker 가 `VALIDATION_BLOCKED` 를 보고하면 `ledger.jsonl` 에 `blocked` event 와 `category=headless_validation_blocked` 가 추가로 남으므로, 검증 명령 권한 문제 빈도는 `run-review` 또는 ledger 조회로 확인한다. Codex raw log가 좁은 sandbox 거부 signature와 일치하면 wrapper가 추가로 `permission_required` receipt와 ledger evidence를 생성한다. 이 경우 다음 호출 판단은 [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)의 사용자 승인·Codex 1회 제한 재시도 경로를 따르며, 일반 메인 검증 대행이나 provider fallback으로 우회하지 않는다.
+
+`/impl-loop`는 task 1개 single 모드도 `dcness-story-runner init`으로 one-task state를 만들고, single/chain 모드 모두 `--chain-state`를 넘겨 provider capability cache를 활성화한다. story-runner state의 `chain_id`가 수명 진본이며 cache sidecar는 같은 state 디렉터리의 `provider-failure-cache/<chain_id>.json`이다. 새 chain/reinit은 새 `chain_id`를 받고, 완료 chain은 cache를 소비하지 않으며 archive/force init 시 기존 sidecar를 무효화한다. state의 `project_root`가 현재 project/worktree와 다르면 실행을 거부한다. `/impl-loop`가 아닌 single `/impl`과 다른 project/worktree는 cache를 공유하지 않는다. sidecar update는 file lock과 atomic replace를 사용해 같은 chain의 동시 접근에도 JSON을 손상시키지 않는다.
+
+worker가 `DCNESS_PROVIDER_FAILURE_FILE` 내부 JSON으로 전달하는 failure category 중 `cli_missing`, `auth_unavailable`, `config_unavailable`만 같은 chain에서 재시도 가치가 없는 cacheable capability 실패다. `timeout`, `idle_timeout`, `empty_output`, `interrupt`, `network_transient`, 그 밖의 `provider_error`와 agent의 구현/검증 결론은 cache하지 않는다. chain은 workspace/HEAD 불변을 다시 확인한 뒤에만 cache를 기록한다. cache hit 진단에는 provider, category, 최초 실패 `first_raw_log`, `scope=chain:<chain_id>`와 현재 skip log가 남는다.
+
+기본 routing 결과는 `--provider-provenance routing`으로 전달한다. 사용자가 provider를 직접 골랐으면 `--provider-provenance explicit`으로 호출해 기존 cache를 우회하며, Codex permission retry도 cache를 우회한다. 우회 실행이 성공하면 해당 provider의 오래된 cache entry를 지운다. `--provider`를 주고 provenance를 생략한 호출은 안전하게 `explicit`으로 간주한다.
 
 #### 호출 prompt 슬림 포인터 규약
 

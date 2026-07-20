@@ -16,7 +16,7 @@ description: Story/공통 impl task 파일(SDD 설계도)을 받아 단일 build
 - **implementation**: `build-worker` 하나. `build-worker` 는 test + impl + self-validate + task local commit 을 수행한다.
 - **review**: 모든 대상 task 와 `journey_deferred`가 아닌 자동 `(JOURNEY)` 수렴이 completed 된 뒤 merge candidate diff 를 대상으로 `impl-validator` 1회 통합 리뷰. Epic close를 발동하는 최종 candidate만 그 앞에서 `impl-validator:CODEBASE_SANITY`를 1회 수행한다.
 - **main-owned**: push / PR 생성 / PR merge / issue mutation 은 메인 전담. 최초 PR은 acceptance·AC close audit·tree-preserving consolidate 뒤에만 만든다.
-- **state**: `dcness-story-runner` 가 task 순서와 task commit 상태만 저장하고 story PR/run 종결은 task 에서 계산한다.
+- **state**: `dcness-story-runner` 가 chain identity, task 순서, task commit 상태만 저장하고 story PR/run 종결은 task 에서 계산한다. provider capability failure는 chain identity를 키로 둔 sidecar에 보존한다.
 - **분기 규칙**: [`impl-loop-routing.md`](impl-loop-routing.md)
 
 UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint 이며 helper begin/end-step 비대상이다. draft가 필요할 때 ledger에 기록되는 실제 mode 없는 foreground designer step은 lifecycle hook이 소유한다.
@@ -104,8 +104,9 @@ retry 시 기존 sub-step 을 재활용하고 신규 TaskCreate 를 만들지 �
 
 1. `journey_deferred`가 아닌 자동 `(JOURNEY)`가 있으면 task loop보다 먼저 같은 provider·sandbox 설정의 `JOURNEY_ENV_PREFLIGHT` mode를 호출한다. 이 호출은 tracked write/commit 없이 worker 실행 컨텍스트의 runtime 도달성을 판정한다. main host probe나 product-acceptance 실행으로 대행하지 않는다.
 2. `dcness-helper prev-tasks-reset` 은 chain 첫 task 또는 single 모드에서 build-worker 호출 전에 1회 실행한다. chain 2번째+ task 는 직전 task 산출을 hook/wrapper가 `[PREVIOUS_TASKS]`로 직접 넣으므로 reset하지 않는다.
-3. implementation provider를 먼저 resolve한다. 기본 provider는 `headless-chain`이다. headless provider면 wrapper 소유권을 위해 `begin-step build-worker`로 열고, mode 없는 foreground Claude Agent면 명시적 begin/end-step 없이 lifecycle hook에 맡긴다. modeful Claude Agent는 `begin-step build-worker <MODE>`를 유지한다.
-4. `dcness-implementation-chain build-worker --provider <provider> --prompt-file <file>` 를 실행한다. prompt 에는 target GitHub issue AC snapshot 을 진본 포인터로 포함한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다.
+3. implementation provider를 먼저 resolve한다. 기본 provider는 `headless-chain`이다. routing 결과는 provenance=`routing`, 사용자가 직접 고른 override는 provenance=`explicit`으로 보존한다. headless provider면 wrapper 소유권을 위해 `begin-step build-worker`로 열고, mode 없는 foreground Claude Agent면 명시적 begin/end-step 없이 lifecycle hook에 맡긴다. modeful Claude Agent는 `begin-step build-worker <MODE>`를 유지한다.
+4. `/impl-loop`는 `dcness-implementation-chain build-worker --provider <provider> --provider-provenance <routing|explicit> --chain-state .dcness-work/story-run.json --prompt-file <file>`을 실행한다. task 1개 single `/impl-loop`도 진입 직후 one-task story-runner state를 초기화하고 `--chain-state`로 넘긴다. prompt 에는 target GitHub issue AC snapshot 을 진본 포인터로 포함한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다. `/impl-loop`가 아닌 single `/impl`만 `--chain-state`를 생략하고 provider failure cache를 사용하지 않는다.
+   기본 routing 호출은 `--provider-provenance routing`, 사용자가 고른 override는 `--provider-provenance explicit`으로 넘겨 cache 적용 여부와 선택 출처를 섞지 않는다.
 5. build-worker 는 test → impl → self-validate 를 한 task 안에서 수행하고, gates 가 green 이면 로컬 task commit 을 만든다.
    - `task_index: total/total` 인 Story 마지막 task 는 impl 문서의 종합 검증 REQ 로 해당 Story AC 전항목을 다시 실행·관찰한다. 앞 task 의 PASS 를 대신 재사용하지 않는다. 마지막 task 에 전수 검증 REQ 가 없으면 구현 완료로 간주하지 않고 `SPEC_GAP_FOUND` 로 설계 보강을 요청한다.
 6. task local commit 은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)을 따른다. build-worker 는 한 task 안에서도 독립 검토 가능한 의미 단위로 쪼개되, 각 커밋은 hook 을 통과할 수 있는 일관 상태여야 한다.
@@ -124,9 +125,19 @@ fi
 [ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
 HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
 
-PROVIDER="${DCNESS_IMPLEMENTATION_PROVIDER:-headless-chain}"
+if [ -n "${DCNESS_IMPLEMENTATION_PROVIDER:-}" ]; then
+  PROVIDER="$DCNESS_IMPLEMENTATION_PROVIDER"
+  PROVIDER_PROVENANCE="explicit"
+else
+  PROVIDER=$("$HELPER" routing resolve build-worker)
+  PROVIDER_PROVENANCE="routing"
+fi
 PROMPT_FILE="<prompt-file>"
-"$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker --provider "$PROVIDER" --prompt-file "$PROMPT_FILE"
+"$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker \
+  --provider "$PROVIDER" \
+  --provider-provenance "$PROVIDER_PROVENANCE" \
+  --chain-state .dcness-work/story-run.json \
+  --prompt-file "$PROMPT_FILE"
 ```
 
 최초 resolve한 plugin root/helper 절대경로를 이후 독립 Bash 호출에 literal로 넣는다. 위 변수는 한 Bash 프로세스 안의 예시일 뿐 호출 간 지속 상태가 아니다.
@@ -145,11 +156,14 @@ phase prose:
 - `permission_required`이면 메인은 사용자에게 승인 전에 다음 사실을 한 번 설명한다: 필요한 capability, `network_access`가 loopback 전용이 아니라 Codex workspace-write의 **outbound network** 전체 허용이라는 범위, 제안 writable root 절대경로와 로그 근거, `workspace-write` 유지, `danger-full-access` 미사용. 선택지는 **이번 실행에만 허용 / 이 프로젝트에 저장 / 거부** 세 가지다.
 - 사용자가 선택하면 `"$PLUGIN_ROOT/scripts/dcness-codex-permission" retry --receipt <receipt> --decision once|project|deny --prompt-file "$PROMPT_FILE" --project-root "$PROJECT_ROOT" --helper "$HELPER"`를 실행한다. `once`는 승인 env를 해당 Codex worker 프로세스에만 전달하고 설정 파일을 쓰지 않는다. `project`는 기존 최상위/`env` 키를 보존해 `.claude/settings.local.json`에 승인한 키만 병합하고 현재 재시도에도 같은 env를 명시적으로 전달한다.
 - permission retry는 provider chain이 아니라 Codex build-worker를 직접 `-s workspace-write`로 한 번만 재호출한다. malformed settings, 사용자 `deny`, 안전한 root 추론 실패, 승인 후 같은 거부 반복은 설정·권한을 더 바꾸지 않고 `VALIDATION_BLOCKED`를 유지한다. 이 상태에서 host 직접 검증, 다른 provider, `danger-full-access`로 우회하지 않고 증거와 남은 선택지를 사용자에게 보고한다.
+- permission retry는 chain capability cache를 우회한다. 사용자 명시 provider 호출도 provenance=`explicit`으로 cache를 우회하며, 우회 실행 성공 시 해당 provider의 오래된 entry를 무효화한다.
 - 검증 미실행 상태로 commit/push/PR 진행 금지.
 
 ## story/epic runner task 단일 상태 (#1019, #1041)
 
-`/impl-loop` 은 story/epic 진행을 자연어로 암기하지 않는다. 진입 직후 `dcness-story-runner plan/init` 이 impl task 목록을 path 순으로 정렬한다. 정렬 결과에서 같은 frontmatter `story` 값(숫자 story 와 `공통` 모두)이 둘 이상의 비연속 block 으로 재등장하면 `plan/init` 은 관련 task 경로를 보고하고 fail-fast 한다. `init` 은 이 검증을 기존 state 의 아카이브·교체보다 먼저 수행해 실패 시 state 를 변경하지 않는다. story 간 의존성을 표현할 수 있는 path 순서를 runner 가 임의로 재정렬하지 않으며, 각 story 가 한 연속 block 인 입력은 기존 순서를 그대로 보존한다. state file 에는 각 task 의 `pending / running / completed / error / blocked` 와 `attempts / commit / provider / note` 만 저장한다. story/run status 와 PR 번호는 저장하지 않는다.
+`/impl-loop` 은 single/chain 모드를 가리지 않고 진행을 자연어로 암기하지 않는다. task 1개 single 모드도 진입 직후 `dcness-story-runner plan/init` 으로 one-task state를 만들고, 여러 task의 story/epic 모드도 같은 runner가 impl task 목록을 path 순으로 정렬한다. 정렬 결과에서 같은 frontmatter `story` 값(숫자 story 와 `공통` 모두)이 둘 이상의 비연속 block 으로 재등장하면 `plan/init` 은 관련 task 경로를 보고하고 fail-fast 한다. `init` 은 이 검증을 기존 state 의 아카이브·교체보다 먼저 수행해 실패 시 state 를 변경하지 않는다. story 간 의존성을 표현할 수 있는 path 순서를 runner 가 임의로 재정렬하지 않으며, 각 story 가 한 연속 block 인 입력은 기존 순서를 그대로 보존한다. state file에는 chain 수명 식별자인 `chain_id`와 각 task의 `pending / running / completed / error / blocked`, `attempts / commit / provider / note`만 저장한다. story/run status와 PR 번호는 저장하지 않는다.
+
+provider capability cache는 `.dcness-work/provider-failure-cache/<chain_id>.json` sidecar다. `cli_missing`, `auth_unavailable`, `config_unavailable`만 cacheable하며 `timeout`, `idle_timeout`, `empty_output`, `interrupt`, `network_transient`, 일반 `provider_error`, agent 결론은 매 task 재실행한다. workspace/HEAD 변경 뒤 실패는 cache write와 fallback 없이 중단한다. cache hit는 provider/category/최초 `first_raw_log`/`scope=chain:<chain_id>`를 남긴다. 새 chain·다른 project/worktree·완료/reinit chain은 cache를 이어받지 않고, 동시 access는 lock+atomic replace로 보호한다.
 
 실행 단위는 **task commit** 과 **story PR** 이다. build-worker가 각 task local commit을 만든 뒤 mark 성공에만 next-action을 실행하는 한 Bash 호출로 `dcness-story-runner mark ... && dcness-story-runner next-action ...`을 묶는다. `&&` 계약 때문에 mark 실패 시 next-action은 실행되지 않는다. `error` / `blocked` 는 서로 다른 task 상태로 기록하고 `--note <사유>` 를 반드시 남긴다.
 
