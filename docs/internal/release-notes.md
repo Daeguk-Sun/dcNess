@@ -11,6 +11,7 @@
 - 구현 시작 전마다 반복하던 전역 boundary suggestion, generated TDD 설치 상태 확인, `impl-preview`를 구현 경로에서 제거했다. 자연어 구현 의도가 충분하면 issue 등록 여부를 묻지 않고 관련 코드와 테스트를 찾아 RED 또는 첫 수정으로 진행한다.
 - 설계 task의 정확한 `수정 허용` 경로는 run 동안 재사용하되 실제 mutation 시점에만 적용한다. infra/exclusive/project-remove hard deny는 그대로 우선하며 폐기된 `impl-preview`와 plan 전용 suggestion 코드·테스트는 삭제했다.
 - headless worker 기본 한도를 total 3000초/idle 900초로 늘리고 `/impl-loop`는 background로 실행한다. timeout·idle timeout·empty prose·boundary/TDD post-run guard 실패가 변경 후 발생하면 diff를 보존한 같은 provider/workspace에서 기본 2회 bounded continuation하고, stage 최초 HEAD 기준으로 worker commit까지 포함해 guard를 다시 검사한다. 이 반복 절차는 메인의 수동 재지시가 아니라 기존 implementation chain이 소유하며, 새 권한·제품 의미·파괴적 결정이 아니라면 사용자 질문으로 넘기지 않는다.
+- Codex sandbox permission 분류를 post-run boundary/TDD guard보다 먼저 수행한다. guard 실패와 `permission_required`가 겹치면 primary guard evidence와 permission receipt를 모두 남기고, implementation chain은 새 권한 없이는 해결되지 않는 동일 실패를 반복하지 않은 채 첫 시도에서 사용자 승인 경로로 멈춘다.
 
 ---
 

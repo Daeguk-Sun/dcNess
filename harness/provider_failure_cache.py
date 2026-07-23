@@ -189,6 +189,7 @@ def emit_failure(
     provider: str,
     category: str,
     raw_log: Path,
+    permission_receipt: Path | None = None,
 ) -> dict[str, Any]:
     if category not in FAILURE_CATEGORIES:
         raise ValueError(f"unsupported provider failure category: {category}")
@@ -201,6 +202,9 @@ def emit_failure(
         "raw_log": str(Path(raw_log).resolve()),
         "recorded_at": _now_iso(),
     }
+    if permission_receipt is not None:
+        payload["permission_required"] = True
+        payload["permission_receipt"] = str(Path(permission_receipt).resolve())
     _atomic_write_json(Path(output), payload)
     return payload
 
@@ -223,6 +227,20 @@ def _load_failure(path: Path, expected_provider: str) -> dict[str, Any]:
     expected_cacheable = category in CACHEABLE_CATEGORIES
     if failure.get("cacheable") is not expected_cacheable:
         raise ValueError("provider failure cacheable flag does not match category")
+    permission_required = failure.get("permission_required", False)
+    permission_receipt = failure.get("permission_receipt")
+    if not isinstance(permission_required, bool):
+        raise ValueError("provider failure permission_required must be boolean")
+    if permission_required and (
+        not isinstance(permission_receipt, str) or not permission_receipt
+    ):
+        raise ValueError(
+            "provider failure permission_required needs a permission_receipt"
+        )
+    if not permission_required and permission_receipt is not None:
+        raise ValueError(
+            "provider failure permission_receipt needs permission_required"
+        )
     return failure
 
 
@@ -351,6 +369,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     emit.add_argument("--exit-code", type=int, default=1)
     emit.add_argument("--raw-log", required=True)
     emit.add_argument("--cause", default="")
+    emit.add_argument("--permission-receipt")
 
     for name in ("check", "clear"):
         command = sub.add_parser(name)
@@ -382,6 +401,11 @@ def main(argv: Sequence[str] | None = None) -> int:
                     provider=args.provider,
                     category=category,
                     raw_log=Path(args.raw_log),
+                    permission_receipt=(
+                        Path(args.permission_receipt)
+                        if args.permission_receipt
+                        else None
+                    ),
                 )
             )
             return 0

@@ -19,6 +19,156 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CodexSandboxPermissionClassificationTests(unittest.TestCase):
+    def _assert_post_run_guard_preserves_permission_receipt(
+        self, guard_kind: str
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            sid = f"sid-{guard_kind}-permission"
+            rid = "run-c0de1180"
+            state_base = project / ".claude" / "harness-state"
+            transition(
+                sid,
+                "run_started",
+                run_id=rid,
+                base_dir=state_base,
+                entry_point="impl",
+                lane="lite",
+            )
+            transition(
+                sid,
+                "step_started",
+                run_id=rid,
+                base_dir=state_base,
+                agent="build-worker",
+                mode=None,
+            )
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement and validate.\n", encoding="utf-8")
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            codex = bin_dir / "codex"
+            codex.write_text(
+                textwrap.dedent(
+                    """\
+                    #!/bin/sh
+                    if [ "$1" = "--help" ]; then
+                      echo "Usage: codex [OPTIONS]"
+                      exit 0
+                    fi
+                    out=""
+                    while [ "$#" -gt 0 ]; do
+                      case "$1" in
+                        --output-last-message)
+                          out="$2"
+                          shift 2
+                          ;;
+                        *) shift ;;
+                      esac
+                    done
+                    cat >/dev/null
+                    case "$GUARD_KIND" in
+                      boundary)
+                        mkdir -p hooks
+                        printf 'outside boundary\\n' > hooks/catastrophic-gate.sh
+                        ;;
+                      tdd)
+                        mkdir -p src
+                        printf 'export const value = 1;\\n' > src/feature.ts
+                        ;;
+                    esac
+                    printf 'java.net.SocketException: Operation not permitted\\n' >&2
+                    printf 'Validation could not run.\\n\\nVALIDATION_BLOCKED\\n' > "$out"
+                    """
+                ),
+                encoding="utf-8",
+            )
+            codex.chmod(0o755)
+
+            env = os.environ.copy()
+            for key in (
+                permission.NETWORK_ENV,
+                permission.WRITABLE_ROOTS_ENV,
+                permission.RETRY_RECEIPT_ENV,
+            ):
+                env.pop(key, None)
+            env.update(
+                {
+                    "DCNESS_FORCE_ENABLE": "1",
+                    "DCNESS_RUN_ID": rid,
+                    "DCNESS_SESSION_ID": sid,
+                    "GUARD_KIND": guard_kind,
+                    "PATH": (
+                        f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin"
+                    ),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(ROOT / "scripts" / "dcness-codex-worker"),
+                    "build-worker",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(ROOT / "scripts" / "dcness-helper"),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+                timeout=30,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            expected_guard = (
+                "changed files outside build-worker boundary"
+                if guard_kind == "boundary"
+                else "TDD GUARD failed"
+            )
+            self.assertIn(expected_guard, result.stderr)
+            self.assertIn("permission_required receipt", result.stderr)
+
+            receipt_paths = list(
+                run_dir(sid, rid, base_dir=state_base).glob(
+                    "codex-sandbox-permission-build-worker-*.json"
+                )
+            )
+            self.assertEqual(len(receipt_paths), 1)
+            receipt = json.loads(receipt_paths[0].read_text(encoding="utf-8"))
+            self.assertEqual(receipt["state"], "permission_required")
+            self.assertEqual(receipt["capabilities"], ["network_access"])
+
+            events = ledger.read_events(sid, rid, base_dir=state_base)
+            permission_events = [
+                event
+                for event in events
+                if event.get("event") == "blocked"
+                and event.get("category")
+                == "codex_sandbox_permission_required"
+            ]
+            self.assertEqual(len(permission_events), 1)
+            if guard_kind == "boundary":
+                boundary_events = [
+                    event
+                    for event in events
+                    if event.get("event") == "blocked"
+                    and event.get("category") == "worker_boundary"
+                ]
+                self.assertEqual(len(boundary_events), 1)
+
+    def test_boundary_guard_preserves_sandbox_permission_receipt(self) -> None:
+        self._assert_post_run_guard_preserves_permission_receipt("boundary")
+
+    def test_tdd_guard_preserves_sandbox_permission_receipt(self) -> None:
+        self._assert_post_run_guard_preserves_permission_receipt("tdd")
+
     def test_codex_worker_records_permission_receipt_and_ledger_evidence(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
