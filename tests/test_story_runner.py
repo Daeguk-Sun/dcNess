@@ -55,6 +55,7 @@ class StoryRunnerTests(unittest.TestCase):
         story: str,
         task_index: str,
         title: str,
+        depends_on: str = "[]",
     ) -> Path:
         path = self.impl_dir / name
         path.write_text(
@@ -64,6 +65,7 @@ class StoryRunnerTests(unittest.TestCase):
                     f"title: {title}",
                     f"story: {story}",
                     f"task_index: {task_index}",
+                    f"depends_on: {depends_on}",
                     "---",
                     "",
                     "# Task",
@@ -125,6 +127,24 @@ class StoryRunnerTests(unittest.TestCase):
             [task["story"] for task in state["tasks"]],
             ["공통", "1", "1", "2"],
         )
+
+    def test_plan_rejects_dependency_that_appears_later_in_path_order(self) -> None:
+        self._write_task(
+            "01-ui.md",
+            story="1",
+            task_index="1/2",
+            title="UI slice",
+            depends_on="[02-api]",
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "dependency order violation after path sorting",
+        ) as raised:
+            build_state([str(self.impl_dir)], cwd=self.root, scope="epic")
+
+        self.assertIn("01-ui.md", str(raised.exception))
+        self.assertIn("depends_on=02-api", str(raised.exception))
 
     def test_plan_applies_contiguity_rule_to_common_story(self) -> None:
         common_start = self._write_task(

@@ -2,10 +2,12 @@
 design: optional|required
 story: <N|공통>
 task_index: <i>/<total>|—
-depends_on:             # [<NN-slug>, ...] 선행 task 순서의 단일 SSOT. semantic produces/consumes 는 아래 owner/entrypoint 요약에 기록. 선행 없으면 [] 로 명시. 비운 채로 두면(미작성) 미상 → 병렬에서 직렬 강등
+depends_on:             # [<NN-slug>, ...] 선행 의존 그래프의 단일 SSOT. semantic produces/consumes 는 아래 owner/entrypoint 요약에 기록. 선행 없으면 [] 로 명시. 비운 채로 두면(미작성) 미상 → 병렬에서 직렬 강등
 ---
 
 # <NN-task-slug>
+
+> 파일명 `NN-<task-slug>.md` 의 zero-padded `NN` 은 이 설계 pack 의 전역 serial traversal 순번이다. path 정렬 결과가 `depends_on` 위상 순서를 지키고, 같은 `story` 값의 task 를 하나의 연속 block 으로 배치해야 한다. `task_index` 는 Story 내부 순번이므로 파일명 `NN` 과 별개다.
 
 ## 사전 준비
 
@@ -20,7 +22,7 @@ depends_on:             # [<NN-slug>, ...] 선행 task 순서의 단일 SSOT. se
 - 읽을 코드:
   -
 
-> 전역 고정 문서 목록을 복제하지 않는다. 단, `docs/conventions.md` 는 코드 변경 task 의 전역 코딩 규약 전달 경로이므로 기본으로 둔다. 선행 task 순서는 frontmatter `depends_on` 이 단일 SSOT 다 (병렬 독립성 판정 입력). 생산·소비하는 상태 의미는 아래 owner/entrypoint 요약에서 복구한다.
+> 전역 고정 문서 목록을 복제하지 않는다. 단, `docs/conventions.md` 는 코드 변경 task 의 전역 코딩 규약 전달 경로이므로 기본으로 둔다. 선행 의존 그래프는 frontmatter `depends_on` 이 단일 SSOT 다(병렬 독립성 판정 입력). serial traversal 은 파일명 `NN-`, Story 내부 완료 위치는 `task_index` 가 소유한다. 생산·소비하는 상태 의미는 아래 owner/entrypoint 요약에서 복구한다.
 
 ## 무엇을 만드나
 

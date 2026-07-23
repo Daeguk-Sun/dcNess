@@ -150,7 +150,7 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 
 - 대상 경로: `.github/workflows/doc-sync.yml`
 - 템플릿: [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml)
-- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표가 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사한다. `docs/index.md` 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다.
+- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표가 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 agent-first 핵심 섹션·line budget·impl story/의존 순서를 감사한다. `docs/index.md` 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다.
 
 ### github-project-lifecycle.yml
 

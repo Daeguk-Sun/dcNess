@@ -4,7 +4,7 @@
 
 ## 현재 공개 evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.26.0","measured_at":"2026-07-23","unit_tests":{"passed":1168,"total":1168},"guard":{"passed":50,"total":50},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.26.0","measured_at":"2026-07-23","unit_tests":{"passed":1173,"total":1173},"guard":{"passed":50,"total":50},"source_project_count":2} -->
 
 현재 plugin version은 **v0.26.0**, 측정일은 **2026-07-23**이다. unit과 guard 수치는 dcNess source checkout의 기계적 계약 evidence이며 보안 증명이나 제품 성공률이 아니다.
 

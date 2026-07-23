@@ -415,7 +415,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표가 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사한다.
+**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표가 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사하고, `dcness-story-runner plan` 을 재사용해 path 정렬 후 story 비연속 block 또는 알려진 `depends_on` 역순인 pack 을 설계 PR 단계에서 차단한다.
 
 **빈 환경**: `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 갓 시드된 프로젝트에서는 no-op PASS 한다.
 
