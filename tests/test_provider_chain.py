@@ -1648,6 +1648,130 @@ class ImplementationChainTests(unittest.TestCase):
             )
             self.assertIn("category=empty_output", result.stderr)
 
+    def test_boundary_recovery_exhaustion_blocks_run_durably(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            sid = "sid-chain-exhausted"
+            rid = "run-baddc0de"
+            state_base = project / ".claude" / "harness-state"
+            transition(
+                sid,
+                "run_started",
+                run_id=rid,
+                base_dir=state_base,
+                entry_point="impl",
+                lane="lite",
+            )
+            transition(
+                sid,
+                "step_started",
+                run_id=rid,
+                base_dir=state_base,
+                agent="build-worker",
+                mode=None,
+            )
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement through chain.\n", encoding="utf-8")
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+            call_count = tmp / "codex-count.txt"
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "codex",
+                """\
+                #!/bin/sh
+                if [ "$1" = "--help" ]; then
+                  echo "Usage: codex"
+                  exit 0
+                fi
+                out=""
+                while [ "$#" -gt 0 ]; do
+                  if [ "$1" = "--output-last-message" ]; then
+                    out="$2"
+                    shift 2
+                    continue
+                  fi
+                  shift
+                done
+                cat >/dev/null
+                count="$(cat "$CALL_COUNT" 2>/dev/null || printf 0)"
+                count=$((count + 1))
+                printf '%s' "$count" > "$CALL_COUNT"
+                mkdir -p hooks src
+                printf 'attempt %s\\n' "$count" > hooks/catastrophic-gate.sh
+                printf 'partial %s\\n' "$count" > src/generated.py
+                printf 'Worker prose\\n\\nPASS\\n' > "$out"
+                """,
+            )
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "CALL_COUNT": str(call_count),
+                    "DCNESS_IMPLEMENTATION_RECOVERY_LIMIT": "1",
+                    "DCNESS_RUN_ID": rid,
+                    "DCNESS_SESSION_ID": sid,
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CHAIN),
+                    "build-worker",
+                    "--provider",
+                    "headless-chain",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 1)
+            self.assertEqual(call_count.read_text(encoding="utf-8"), "2")
+            self.assertIn("category=boundary_violation", result.stderr)
+            self.assertIn("attempts=1/1", result.stderr)
+            self.assertFalse(helper_args.exists())
+
+            events = ledger.read_events(sid, rid, base_dir=state_base)
+            blocked_events = [
+                event
+                for event in events
+                if event.get("event") == "blocked"
+                and event.get("category") == "worker_boundary"
+            ]
+            self.assertEqual(len(blocked_events), 1)
+            self.assertEqual(blocked_events[0].get("agent"), "build-worker")
+            self.assertEqual(blocked_events[0].get("provider"), "codex-headless")
+            self.assertEqual(
+                blocked_events[0].get("reason"),
+                "mutation-time boundary recovery exhausted",
+            )
+
+            from harness.session_state import read_live
+
+            live = read_live(sid, base_dir=state_base)
+            marker = live["active_runs"][rid].get("blocked")
+            self.assertIsInstance(marker, dict)
+            self.assertEqual(marker.get("category"), "worker_boundary")
+
     def test_post_run_tdd_guard_failure_retries_and_rechecks_guard(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)

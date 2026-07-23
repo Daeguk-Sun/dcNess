@@ -94,6 +94,12 @@ class ImplFastStartContractTests(unittest.TestCase):
         self.assertIn('DCNESS_CLAUDE_IDLE_TIMEOUT:-900', claude)
         self.assertIn("validator `600`, worker `3000`", common)
         self.assertGreaterEqual(common.count("| `900` | X |"), 2)
+        self.assertIn(
+            "| `DCNESS_IMPLEMENTATION_RECOVERY_LIMIT` "
+            "| `dcness-implementation-chain` 의 동일 provider·동일 workspace 자동 복구 "
+            "추가 시도 한도 | `2` | X |",
+            common,
+        )
 
 
 if __name__ == "__main__":

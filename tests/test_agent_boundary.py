@@ -193,6 +193,19 @@ class WriteBoundaryTests(unittest.TestCase):
                         )
                     )
 
+    def test_impl_task_scope_cannot_open_write_zero_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, external_boundary():
+            root = Path(directory)
+            reason = check_write_allowed(
+                "impl-validator",
+                "custom/report.md",
+                cwd=root,
+                task_scope_paths=("custom/report.md",),
+            )
+
+            self.assertIsNotNone(reason)
+            self.assertIn("write-zero", reason or "")
+
 
 class ProjectOverrideTests(unittest.TestCase):
     def _repo(self, directory: str, payload: object) -> Path:

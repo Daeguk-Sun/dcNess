@@ -684,27 +684,28 @@ def check_write_allowed(
                 f"(.dcness/boundary.json — 코어 기본값에서 제거)"
             )
 
+    allowed = ALLOW_MATRIX.get(agent)
+    # write-zero agent (판정/검증 전용 — impl-validator / architecture-validator /
+    # product-acceptance 의 빈 ALLOW) 는
+    # 프로젝트 add 나 impl task-scope 로도 write 를 열 수 없다 (#696 codex P2).
+    # "검증자는 자기가 검증하는 것을 못 고친다" 는 역할 격리는 catastrophic gate
+    # 신뢰의 근간이라 되돌릴 수 없는 경계다 — mutation agent 내부 경계만 run scope 로
+    # 확장할 수 있고 검증자를 mutation agent 로 승격할 수는 없다.
+    if allowed == ():
+        return (
+            f"{agent} 는 write-zero(판정/검증 전용) — 프로젝트 boundary add나 impl task-scope로도 "
+            f"write 를 열 수 없다 (`{norm}`): 검증자 역할 격리는 되돌릴 수 없는 경계."
+        )
+
     # 3b. 현재 impl task-scope — plan 에 이미 승인된 정확한 경로만 이 run 에서 허용.
-    #     INFRA/exclusive deny/remove 를 모두 통과한 뒤라 hard boundary 는 열 수 없다.
-    if _matches_task_scope(norm, task_scope_paths):
+    #     INFRA/exclusive deny/remove/write-zero 를 모두 통과한 build-worker 만 열 수 있다.
+    if agent == "build-worker" and _matches_task_scope(norm, task_scope_paths):
         return None
 
     # 3c. ALLOW_MATRIX (코어 + 프로젝트 add) 미매칭 → 차단.
-    allowed = ALLOW_MATRIX.get(agent)
     if allowed is None:
         # 미정의 agent — false positive 회피로 통과.
         return None
-    # write-zero agent (판정/검증 전용 — impl-validator / architecture-validator /
-    # product-acceptance 의 빈 ALLOW) 는
-    # 프로젝트 add 로도 write 를 열 수 없다 (#696 codex P2). "검증자는 자기가 검증하는
-    # 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는
-    # 경계다 — add 로 mutation agent 로 승격시키면 gate forge 위험. 이슈가 "프로젝트
-    # 감수" 로 연 것은 mutation agent 내부 경계(build-worker의 tests/)이지 검증자 승격이 아니다.
-    if allowed == ():
-        return (
-            f"{agent} 는 write-zero(판정/검증 전용) — 프로젝트 boundary add 로도 "
-            f"write 를 열 수 없다 (`{norm}`): 검증자 역할 격리는 되돌릴 수 없는 경계."
-        )
     effective = allowed + add_patterns
     if not _matches_any(norm, effective):
         return (
