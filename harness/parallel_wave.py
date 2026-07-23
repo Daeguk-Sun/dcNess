@@ -35,6 +35,7 @@ __all__ = [
     "parse_impl_task",
     "compute_waves",
     "scopes_disjoint",
+    "scope_path_matches",
     "normalize_scope_text",
     "normalize_scope_file",
     "normalize_scope_paths",
@@ -540,7 +541,7 @@ def _glob_to_regex(pattern: str) -> str:
     return "".join(out)
 
 
-def _glob_match(path: str, pattern: str) -> bool:
+def scope_path_matches(path: str, pattern: str) -> bool:
     """구체 path 가 glob pattern 에 full-match (segment-aware). glob 없으면 정확 비교.
 
     `fnmatch` 와 달리 `*` 가 `/` 를 넘지 않는다 — `src/*.py` 는 `src/a.py` 만 매치하고
@@ -575,9 +576,9 @@ def _paths_overlap(a: str, b: str) -> bool:
         return True
     a_glob, b_glob = _has_glob(a), _has_glob(b)
     if a_glob and not b_glob:
-        return _glob_match(b, a)
+        return scope_path_matches(b, a)
     if b_glob and not a_glob:
-        return _glob_match(a, b)
+        return scope_path_matches(a, b)
     if a_glob and b_glob:
         # glob-vs-glob: 정적 디렉토리 prefix 가 nested/equal 이면 보수적으로 충돌 가정.
         pa, pb = _glob_dir_prefix(a), _glob_dir_prefix(b)

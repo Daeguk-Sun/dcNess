@@ -52,6 +52,8 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
         case_ids = {case["id"] for case in report["cases"]}
         for case_id in (
             "file_boundary_blocks_infra",
+            "file_boundary_allows_exact_impl_task_scope",
+            "file_boundary_task_scope_cannot_open_infra",
             "read_boundary_allows_own_agent_instructions",
             "read_boundary_blocks_plugin_loop_procedure",
             "read_boundary_blocks_home_claude_outside_plugin",

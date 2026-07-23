@@ -322,7 +322,7 @@ done
 
 #### workflow 변경 PR
 
-자동 PR 대상은 `/init-dcness` 가 배포한 `.github/workflows/*.yml` 변경만이다. Generated TDD hook 은 사용자 repo 의 `.dcness/`, `.claude/`, `.codex/` 에 project-local 파일을 쓸 수 있지만 activation bootstrap 산출물이라 자동 workflow PR 대상은 아니다. in-place 실행은 디스크 실존·등록만으로 impl pre-flight 를 통과하지만, 새 linked worktree/headless worker 도 같은 TDD 계약을 쓰려면 이 생성 파일들은 별도 bootstrap commit 에 포함돼야 한다. docs/design seed 는 사용자 콘텐츠라 자동 infra PR 에 섞지 않는다.
+자동 PR 대상은 `/init-dcness` 가 배포한 `.github/workflows/*.yml` 변경만이다. Generated TDD hook 은 사용자 repo 의 `.dcness/`, `.claude/`, `.codex/` 에 project-local 파일을 쓸 수 있지만 activation bootstrap 산출물이라 자동 workflow PR 대상은 아니다. 새 linked worktree/headless worker 도 같은 TDD 계약을 쓰려면 이 생성 파일들은 별도 bootstrap commit 에 포함돼야 한다. 설치 health 확인은 `/init-dcness`/`status`가 소유하며 일반 구현 착수에 선행하지 않는다. docs/design seed 는 사용자 콘텐츠라 자동 infra PR 에 섞지 않는다.
 
 ```bash
 cd "$PROJECT_ROOT"

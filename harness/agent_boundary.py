@@ -34,6 +34,7 @@ import subprocess  # nosec B404
 from pathlib import Path
 from typing import Iterable, Optional
 
+from harness.parallel_wave import scope_path_matches
 from harness.session_state_activation import _resolve_project_root
 
 
@@ -552,6 +553,27 @@ def _matches_any(path: str, patterns: Iterable[str]) -> Optional[str]:
     return None
 
 
+def _matches_task_scope(path: str, scope_paths: Iterable[str]) -> Optional[str]:
+    """Match a path against the active impl task's already-approved scope.
+
+    This is a mutation-time capability, not a persisted boundary override.
+    Catastrophic INFRA/exclusive-deny/project-remove checks still run first, so
+    an impl plan can authorize a nonstandard task path without widening any
+    hard boundary or future run.
+    """
+    for raw_scope in scope_paths:
+        scope = raw_scope.strip()
+        if not scope or scope.startswith(("/", "~")) or ".." in Path(scope).parts:
+            continue
+        if scope.endswith("/") and path.startswith(scope):
+            return scope
+        if any(char in scope for char in "*?[") and scope_path_matches(path, scope):
+            return scope
+        if path == scope:
+            return scope
+    return None
+
+
 # ── 검사 ─────────────────────────────────────────────────────────────
 
 
@@ -561,6 +583,7 @@ def check_write_allowed(
     *,
     cwd: Optional[Path] = None,
     shell_context: bool = False,
+    task_scope_paths: Iterable[str] = (),
 ) -> Optional[str]:
     """Write/Edit 검사 — block reason str / None=allow.
 
@@ -661,7 +684,12 @@ def check_write_allowed(
                 f"(.dcness/boundary.json — 코어 기본값에서 제거)"
             )
 
-    # 3b. ALLOW_MATRIX (코어 + 프로젝트 add) 미매칭 → 차단.
+    # 3b. 현재 impl task-scope — plan 에 이미 승인된 정확한 경로만 이 run 에서 허용.
+    #     INFRA/exclusive deny/remove 를 모두 통과한 뒤라 hard boundary 는 열 수 없다.
+    if _matches_task_scope(norm, task_scope_paths):
+        return None
+
+    # 3c. ALLOW_MATRIX (코어 + 프로젝트 add) 미매칭 → 차단.
     allowed = ALLOW_MATRIX.get(agent)
     if allowed is None:
         # 미정의 agent — false positive 회피로 통과.

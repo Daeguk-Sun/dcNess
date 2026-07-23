@@ -154,9 +154,9 @@ claude plugin install dcness@dcness
 | `/impl` | 구현·수정·버그픽스를 실제 PR 로 끝낼 때 |
 | `/acceptance` | PRD / Epic / Story 기준으로 "정말 다 됐는지" 제품 검수할 때 |
 
-`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 파일·이슈·테스트 같은 concrete signal 이 있으면 메인이 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(direct), 설계도 경로가 있으면 그 설계도대로 구현한다(design-doc). 새 기능이나 위험이 큰 작업은 설계 선행을 권장하지만, 사용자가 그대로 진행을 택하면 구현한다.
+`/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 파일·이슈·테스트 같은 concrete signal 이 있거나 자연어 구현 의도가 충분하면 관련 코드를 찾아 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(direct), 설계도 경로가 있으면 그 설계도대로 구현한다(design-doc). 새 기능이나 위험이 큰 작업은 설계 선행을 권장하지만, 사용자가 그대로 진행을 택하면 구현한다.
 
-`/impl` 이 내부적으로 issue-intake/direct/design-doc echo 와 review provider 를 고른다. 일반 `/impl` 구현은 메인이 맡고, 격리되는 것은 `impl-validator` 검토다.
+`/impl` 은 direct/design-doc 경로와 review provider 를 내부에서 고른다. 시작 전 전역 진단을 반복하지 않고 RED 또는 첫 수정으로 진행하며, 일상적인 파일·테스트 선택과 복구 가능한 실패는 사용자에게 되묻지 않는다. 일반 `/impl` 구현은 메인이 맡고, 격리되는 것은 `impl-validator` 검토다.
 
 보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next-work`(issue/label 에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름·디자인 시스템/토큰 베이스라인 먼저).
 
@@ -190,7 +190,7 @@ claude plugin install dcness@dcness
 |---|---|---|
 | 기본 workflow | `/spec` | 새 기능 spec + 검수 체크포인트 |
 | 기본 workflow | `/design` | 화면·시스템·모듈 설계 |
-| 기본 workflow | `/impl` | 구현 진입 — issue-intake/direct/design-doc echo 와 review provider 를 내부 판정 |
+| 기본 workflow | `/impl` | 구현 진입 — direct/design-doc 경로와 review provider 를 내부 판정 |
 | 기본 workflow | `/acceptance` | story/epic 제품 검수 |
 | support | `/to-issue` | 자연어 → Issue Brief → 승인 대기 없이 GitHub 선등록 (web 에서 확인·수정) |
 | 고급 | `/tech-review` | 위험한 설계의 사전 기술 검증 |

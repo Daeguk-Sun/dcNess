@@ -29,6 +29,8 @@ NON_CACHEABLE_CATEGORIES = frozenset(
         "timeout",
         "idle_timeout",
         "empty_output",
+        "boundary_violation",
+        "tdd_guard",
         "interrupt",
         "network_transient",
         "provider_error",

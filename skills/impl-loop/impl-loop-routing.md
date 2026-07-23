@@ -92,6 +92,7 @@ env 확실 미충족 + 자동 준비 불가에서 사용자가 검수 분리를 
 |---|---|
 | **build-worker:`JOURNEY_ENV_PREFLIGHT`** | 자동 `(JOURNEY)`가 있을 때 구현 전 1회, main이 아니라 실제 worker 실행 컨텍스트에서 probe · 충족 또는 자동 준비 성공 → `PASS` 후 task loop · 검출 불확실 → 불확실 근거를 남긴 `PASS` 후 task loop · 확실한 미충족 + 자동 준비 불가 → 구현 전에 사용자에게 환경 먼저 준비 / 구현만 진행하고 journey 검수 분리 중 하나를 1회 확인 · 분리 선택 → 해당 journey를 run-local `journey_deferred`로 보존하고 수렴·sealed acceptance·close 경계에서 제외. journey 미선언과 설계상 `human_verification`은 mode 자체가 비발동 |
 | **build-worker** | `PASS` + local commit sha + clean status → `dcness-story-runner mark --status completed --commit <sha>` 후 `next-action` · `TESTS_FAIL` → build-worker rework(≤3) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` + `permission_required` → outbound network 범위·제안 root·근거·`workspace-write` 유지·`danger-full-access` 미사용을 설명하고 사용자에게 이번 실행에만 허용/이 프로젝트에 저장/거부 선택 요청. 승인하면 Codex만 1회 제한 재시도, 거부·malformed settings·안전한 root 없음·반복 sandbox 거부면 권한 확대/host 직접 검증/다른 provider 우회 없이 사용자 위임 · permission receipt 없음 → 메인이 같은 worktree cwd에서 worker 검증 명령 실행, exit 0이면 PASS와 동일, 실패면 build-worker rework(≤3), 메인도 실행 불가면 사용자 위임 · `IMPLEMENTATION_ESCALATE` → 사용자 |
+| **headless execution recovery** | mutation 뒤 `timeout` / `idle_timeout` / `empty_output` / `boundary_violation` / `tdd_guard` → 같은 provider + 같은 workspace bounded continuation, 기존 diff 보존, mutation-time guard 재검사(기본 ≤2) · hard boundary 자동 확대 / `tdd-exempt` 자동 삽입 / dirty cross-provider fallback 금지 · 한도 소진 또는 제품 의미·새 권한 필요 → 사용자 |
 | **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `story-pr` → 응답의 `pr_base`와 직전 story tip만 봉인하고 PR 없이 `next_branch_base`의 직전 story 브랜치에서 재분기 · `done` → `final_story` tip과 `stack_tip` vs main candidate를 확정하고 조건부 journey 수렴으로 진행 · `blocked` / `error` → task note를 근거로 retry 한도 내 재시도 또는 사용자 위임 |
 | **build-worker:`JOURNEY_CONVERGENCE`** | 모든 task 뒤 final stack tip의 fresh context에서 `journey_deferred`가 아닌 자동 journey를 먼저 1회 실행 · 첫 실행 PASS → 즉시 review · 실패 → 실행→관찰→배관 수정→재실행 · production gap → 재현 테스트 RED→GREEN + 의미 단위 commit · 설계·AC 충돌 → `SPEC_GAP_FOUND`로 중단 · device 유실은 자동 재준비 1회 · 무진행/총 iteration 상한 초과 → 커밋 보존 후 사용자 처분 3택 |
 | **impl-validator:CODEBASE_SANITY** | Epic close final candidate에서만 실행. 작은 repo는 전체 repo, 큰 repo는 affected module과 affected dependency cone + cheap global signals · `PASS` → local receipt 보존 후 일반 merge review · `FAIL [quality-gap]` → build-worker rework 후 새 code revision에서 Sanity 재감사(≤3) · `ESCALATE` → 사용자 |
@@ -110,6 +111,7 @@ task 구현 호출에서 `(JOURNEY)` REQ는 PASS 블로커가 아니다. build-w
 | 재시도 경로 | 한도 | 초과 시 |
 |---|---|---|
 | build-worker `TESTS_FAIL` 또는 메인 게이트 대행 실패 | 3 | 사용자 위임 |
+| headless mutation 뒤 recoverable 실행/guard 실패 | 2 | diff 보존 + 사용자 위임 |
 | Codex `permission_required` 사용자 승인 재시도 | 1 | 추가 확대 없이 사용자 위임 |
 | `JOURNEY_CONVERGENCE` 같은 실패 서명이 수정 시도 후 반복되는 무진행 라운드 | 3 | 커밋 보존 후 사용자 처분 3택 |
 | `JOURNEY_CONVERGENCE` 총 iteration | 12 | 실패 서명 변화와 무관하게 커밋 보존 후 사용자 처분 3택 |

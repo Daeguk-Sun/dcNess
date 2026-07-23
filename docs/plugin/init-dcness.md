@@ -66,7 +66,7 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 
 Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소유 영역은 **TDD 계약**과 **self-test** 이며, self-test fixture 는 `무-test 구현 파일 → deny`, `매칭 test 있음 → allow`, `test 파일 자체 → allow` 를 검증한다. helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있고, 프리셋 미지원 플랫폼은 사람 승인된 `.dcness/tdd-hooks.json` 계약을 우선 사용한다. 모든 계약은 `source_roots`, `impl_exts` 가 필요하고, custom 플랫폼은 `test_candidate_templates` 도 필요하다. 선택 `test_file_globs` 로 test 파일 자체 allow 규칙을 보강한다. `/init-dcness` 에서 생성할 때는 CC hook 후보를 먼저 self-test 하고 통과해야 `.claude/settings.json` 에 등록한다. 그 다음 Codex hook 후보를 같은 계약으로 self-test 하고 `.codex/hooks.json` 에 등록한다. 빈 프로젝트·project-local 계약 없는 미지원 플랫폼·생성 실패는 no-op 으로 안전 통과한다.
 
-생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 자동 workflow PR 에 섞지 않는다. in-place 실행은 현재 디스크의 hook 파일이 실존·등록돼 있으면 커밋 없이도 impl pre-flight 를 통과한다. 다만 linked worktree 나 headless worker 체크아웃에서 project-local hook 을 재사용하려면 이 파일들이 Git 에 커밋돼 있어야 하며, 없으면 중앙 fallback 으로 내려간다. `scripts/dcness-tdd-hooks status` 와 `ensure` 는 linked worktree 에서 커밋이 필요한 경우 `commit-required`, in-place 에서만 실존하는 경우 `commit-advisory` 를 출력한다.
+생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 자동 workflow PR 에 섞지 않는다. linked worktree 나 headless worker 체크아웃에서 project-local hook 을 재사용하려면 이 파일들이 Git 에 커밋돼 있어야 하며, 없으면 중앙 fallback 으로 내려간다. `scripts/dcness-tdd-hooks status` 와 `ensure` 는 linked worktree 에서 커밋이 필요한 경우 `commit-required`, in-place 에서만 실존하는 경우 `commit-advisory` 를 출력한다. 이 설치 health는 `/init-dcness`/`status`가 소유하며 일반 구현 착수 앞에서 반복하지 않는다.
 
 `docs/index.md` 의 epic/module 표와 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. 전역 architecture 인간용 요약은 필요할 때 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 로 `.dcness-work/reports/architecture-map.md` 에 온디맨드 생성한다. `/design` 산출물 구조 감사도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
 
@@ -81,7 +81,7 @@ provider config는 프로젝트별 파일이 아니라 plugin 공용 `~/.claude/
 - implementation custom은 `routing enable-headless-implementation`, `routing enable-claude-headless-implementation` 또는 `routing set-implementation build-worker claude|claude-headless|headless-chain`을 사용한다. Claude-only는 `routing set-implementation build-worker claude`다.
 - schema v3만 지원한다. `routing doctor`가 version 오류로 실패하는 config는 삭제하고 `routing enable-role-split-routing`으로 현행 파일을 새로 만든 뒤 필요한 custom override를 적용한다.
 
-config 형식 검증과 runtime provider fallback은 다른 계약이다. `headless-chain`은 provider가 workspace를 바꾸기 전에 실패했을 때만 다음 provider로 진행하고, 변경 뒤 실패하면 중단한다.
+config 형식 검증과 runtime provider fallback은 다른 계약이다. `headless-chain`은 provider가 workspace를 바꾸기 전에 실패했을 때만 다음 provider로 진행한다. 변경 뒤 recoverable timeout/empty output/guard failure는 같은 provider·같은 workspace에서 bounded continuation하고, 복구 불가 또는 한도 소진이면 diff를 보존해 중단한다.
 
 ## Provider Mirror Sync
 
@@ -197,14 +197,14 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | plugin 본체 문서/skill/hook 만 갱신 | 아니오 | `claude plugin update dcness@dcness` 로 plug-in cache 가 갱신된다. |
 | plugin uninstall/reinstall | 예 | plugin data 디렉토리가 정리되어 whitelist 가 사라진다. |
 | `.git/hooks/*` thin shim 갱신 | 예 | 사용자 repo `.git/hooks/` 파일은 plugin update 만으로 바뀌지 않는다. |
-| 파일 경계 override 후보 재확인 | 아니오 | `/init-dcness` 와 `/impl` 시작 시 `dcness-helper boundary-suggestions` 가 read-only 로 다시 감지한다. |
+| 파일 경계 override 후보 재확인 | 아니오 | `/init-dcness` 설정/진단 시 `dcness-helper boundary-suggestions` 로 read-only 재감지한다. 일반 구현 착수에는 선행하지 않는다. |
 | `.claude/harness-state/` gitignore 보강 | 예 | runtime state ignore 는 사용자 repo `.gitignore` append 라서 `/init-dcness` 재실행 때 적용된다. |
 | `CLAUDE.md` seed/migration 로직 갱신 | 예 | 기존 활성 프로젝트의 root `CLAUDE.md` 생성·cold-start 앵커 append 는 `/init-dcness` 재실행 때 적용된다. |
 | 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index 집계기를 1회 실행해야 한다. 전역 architecture 요약은 온디맨드다. |
 | Provider routing preset/custom 변경 | 예 | 기존 활성 프로젝트도 plugin 공용 local data 를 갱신해야 한다. 추천 preset 은 `dcness-helper routing enable-role-split-routing` 뒤 `dcness-helper routing doctor` 로 적용·검증하고, custom은 [Provider Routing](#provider-routing)의 현행 값만 사용한다. Native Codex skill 등록/fallback 용 `$CODEX_HOME/skills` 도 최신화된다. |
 | Project lifecycle 좌표 저장/변경 | 예 | repo variables 와 선택형 workflow 를 갱신해야 한다. |
 | docs/design + docs/design-variants seed 추가 | 예 | 부재 파일 seed 는 사용자 repo 에 직접 생성된다. draft 는 `docs/design-variants/drafts/` 에 두고 `.gitignore` 로 무시하되 `drafts/.gitkeep` 으로 디렉터리를 보존한다. |
-| TDD Guard 정책 갱신 | 아니오 | 중앙 fallback 과 self-test 본체는 plug-in update 로 갱신된다. project-local generated hook 이 없는 기존 프로젝트는 `/init-dcness` 또는 `/impl` 진입 시 생성 제안을 다시 받을 수 있다. |
+| TDD Guard 정책 갱신 | 아니오 | 중앙 fallback 과 self-test 본체는 plug-in update 로 갱신된다. project-local generated hook 설치 제안은 `/init-dcness`/`status`가 소유한다. |
 
 ## Auto PR Scope
 

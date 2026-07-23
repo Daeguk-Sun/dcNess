@@ -656,6 +656,7 @@ def handle_pretooluse_file_op(
         is_infra_project,
         is_opt_out,
     )
+    from harness.session_state import impl_scope_paths_for_run
 
     if stdin_data is None:
         try:
@@ -721,6 +722,11 @@ def handle_pretooluse_file_op(
 
     cwd = Path.cwd()
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
+    task_scope_paths: tuple[str, ...] = ()
+    if acting_agent == "build-worker" and rid:
+        task_scope_paths = impl_scope_paths_for_run(
+            sid, rid, base_dir=base_dir
+        )
     context = GuardContext(
         guard="file-guard",
         session_id=sid,
@@ -748,7 +754,12 @@ def handle_pretooluse_file_op(
     elif tool_name in ("Edit", "Write", "NotebookEdit"):
         fp = tool_input.get("file_path", "") or ""
         if fp:
-            reason = check_write_allowed(acting_agent, fp, cwd=cwd)
+            reason = check_write_allowed(
+                acting_agent,
+                fp,
+                cwd=cwd,
+                task_scope_paths=task_scope_paths,
+            )
             if reason:
                 return _emit_guard_decision(
                     GuardDecision.block(context.with_category("write_boundary"), reason),
@@ -770,7 +781,13 @@ def handle_pretooluse_file_op(
         for fp in extract_bash_paths(cmd):
             # shell_context=True — Bash 추출 경로의 $VAR/$()/backtick 셸 확장 토큰 차단
             # (#694 codex P2). Edit/Write 의 literal 경로 검사(위)는 기본 False 라 영향 없음.
-            reason = check_write_allowed(acting_agent, fp, cwd=cwd, shell_context=True)
+            reason = check_write_allowed(
+                acting_agent,
+                fp,
+                cwd=cwd,
+                shell_context=True,
+                task_scope_paths=task_scope_paths,
+            )
             if reason:
                 return _emit_guard_decision(
                     GuardDecision.block(

@@ -7,11 +7,11 @@ from pathlib import Path
 
 from harness.parallel_wave import (
     ImplTask,
-    _glob_match,
     compute_waves,
     normalize_scope_file,
     normalize_scope_text,
     parse_impl_task,
+    scope_path_matches,
     scopes_disjoint,
     wave_plan_from_paths,
 )
@@ -155,7 +155,7 @@ class ScopeCollisionTests(unittest.TestCase):
             ("src/[x.py", "src/[x.py", True),
         ]
         for path, pattern, expected in cases:
-            self.assertEqual(_glob_match(path, pattern), expected)
+            self.assertEqual(scope_path_matches(path, pattern), expected)
 
 
 class WavePlanContractTests(unittest.TestCase):

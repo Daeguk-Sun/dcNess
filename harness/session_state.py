@@ -73,6 +73,7 @@ __all__ = [
     "read_live",
     "transition",
     "evaluate_order_gate_for_step",
+    "impl_scope_paths_for_run",
     "run_prose_has_pass",
     "cleanup_stale_run_dirs",
 ]
@@ -1222,127 +1223,30 @@ def _run_design_doc_path(
         return None
 
 
-def _project_root_from_design_doc(doc: Path) -> Optional[Path]:
-    """`.../docs/...` 설계 산출물 경로에서 프로젝트 루트를 복원한다."""
-    try:
-        resolved = doc.resolve()
-    except (OSError, RuntimeError):
-        resolved = doc
-    parts = resolved.parts
-    for idx in range(len(parts) - 1, 0, -1):
-        if parts[idx] == "docs":
-            return Path(*parts[:idx])
-    return None
-
-
-def _is_dcness_self_project(project_root: Path) -> bool:
-    manifest = project_root / ".claude-plugin" / "plugin.json"
-    try:
-        data = json.loads(manifest.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return False
-    return isinstance(data, dict) and data.get("name") == "dcness"
-
-
-def _impl_run_project_root(
+def impl_scope_paths_for_run(
     session_id: str,
     run_id: str,
     *,
     base_dir: Optional[Path] = None,
-) -> Path:
-    doc = _run_design_doc_path(session_id, run_id, base_dir=base_dir)
-    if doc is not None:
-        root = _project_root_from_design_doc(doc)
-        if root is not None:
-            return root
-    return Path.cwd().resolve()
+) -> tuple[str, ...]:
+    """Return normalized `### 수정 허용` paths for the active impl run.
 
-
-def _impl_plan_boundary_preflight_message(
-    session_id: str,
-    run_id: str,
-    *,
-    base_dir: Optional[Path] = None,
-) -> Optional[str]:
+    Missing or stale plans intentionally yield no extra authority. If a task
+    mixes exact paths with ambiguous prose, only the exact parsed paths are
+    reused; ambiguity never widens authority.
+    """
     doc = _run_design_doc_path(session_id, run_id, base_dir=base_dir)
     if doc is None or not doc.is_file():
-        return None
-    project_root = _project_root_from_design_doc(doc)
-    if project_root is None:
-        return None
-
+        return ()
     try:
-        from harness.boundary_suggestions import (
-            collect_boundary_suggestions,
-            format_boundary_suggestions,
-        )
+        from harness.parallel_wave import parse_impl_task
 
-        report = collect_boundary_suggestions(project_root, impl_plan=doc)
-    except Exception as exc:
-        return (
-            "[순서 차단 훅: impl pre-flight boundary] impl 계획의 `### 수정 허용` "
-            f"boundary 대조 실패: {exc}. 계획 scope 를 확인한 뒤 재시도하세요."
-        )
-    if not report.suggestions and not report.blocking_reasons:
-        return None
-    return (
-        "[순서 차단 훅: impl pre-flight boundary] impl 계획의 `### 수정 허용` "
-        "경로 중 build-worker boundary 로 커버되지 않거나 차단되는 항목이 "
-        "있습니다. ALLOW_MATRIX 미커버 경로는 사람 승인 후 `.dcness/boundary.json` "
-        "build-worker.add override 를 기록하고, INFRA/docs 등 되돌릴 수 없는 deny 경로는 "
-        "계획 scope 를 수정하기 전까지 구현 step 을 시작할 수 없습니다.\n"
-        f"{format_boundary_suggestions(report)}"
-    )
-
-
-def _generated_tdd_preflight_message(project_root: Path) -> Optional[str]:
-    if _is_dcness_self_project(project_root):
-        return None
-    try:
-        from harness.tdd_hooks import inspect_installation
-
-        report = inspect_installation(project_root)
-    except Exception as exc:
-        return (
-            "[순서 차단 훅: impl pre-flight TDD] generated TDD hook 상태 확인 실패: "
-            f"{exc}. `scripts/dcness-tdd-hooks status --project-root <project>` 로 "
-            "상태를 확인하세요."
-        )
-
-    platform = report.get("platform")
-    if not platform:
-        return None
-
-    cc_registered = bool(report.get("cc_registered"))
-    codex_registered = bool(report.get("codex_registered"))
-    committed = bool(report.get("generated_files_committed"))
-    commit_required = bool(report.get("generated_files_commit_required"))
-    linked_worktree = bool(report.get("linked_worktree"))
-    if cc_registered and codex_registered and (committed or not commit_required):
-        return None
-
-    uncommitted = report.get("uncommitted_generated_files") or []
-    detail = ""
-    if isinstance(uncommitted, list) and uncommitted:
-        detail = f", uncommitted={', '.join(str(item) for item in uncommitted[:5])}"
-    recovery = (
-        "사람 승인 후 `scripts/dcness-tdd-hooks ensure --project-root <project> "
-        "--targets cc,codex --plugin-root <plugin-root>` 를 실행하세요."
-    )
-    if commit_required:
-        recovery = (
-            "사람 승인 후 `scripts/dcness-tdd-hooks ensure --project-root <project> "
-            "--targets cc,codex --plugin-root <plugin-root>` 를 실행하고 생성 파일을 "
-            "linked worktree/headless 재사용 가능하도록 bootstrap commit 에 포함하세요."
-        )
-    return (
-        "[순서 차단 훅: impl pre-flight TDD] generated TDD hook 이 구현 진입 전 "
-        "준비되지 않았습니다. "
-        f"platform={platform}, cc={cc_registered}, codex={codex_registered}, "
-        f"generated_files_committed={committed}, linked_worktree={linked_worktree}, "
-        f"generated_files_commit_required={commit_required}{detail}. "
-        f"{recovery}"
-    )
+        parsed = parse_impl_task(doc)
+    except (OSError, ValueError):
+        return ()
+    if not parsed.scope_paths:
+        return ()
+    return tuple(sorted(parsed.scope_paths))
 
 
 def _run_lane(
@@ -1460,17 +1364,6 @@ def evaluate_order_gate_for_step(
                 "시작할 때 `begin-run impl --design-doc <설계문서>` 를 기록하세요. "
                 "명시적 direct 구현 경로라면 `begin-run impl --lane lite` 로 시작하세요."
             )
-        boundary_message = _impl_plan_boundary_preflight_message(
-            session_id, run_id, base_dir=base_dir,
-        )
-        if boundary_message:
-            return boundary_message
-        tdd_message = _generated_tdd_preflight_message(
-            _impl_run_project_root(session_id, run_id, base_dir=base_dir)
-        )
-        if tdd_message:
-            return tdd_message
-
     return None
 
 

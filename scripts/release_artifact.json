@@ -22,7 +22,6 @@
     "harness/guard_core.py",
     "harness/guard_telemetry.py",
     "harness/hooks.py",
-    "harness/impl_preview.py",
     "harness/ledger.py",
     "harness/merge_lock.py",
     "harness/mockup_node_check.py",
@@ -84,7 +83,7 @@
     "harness/agent_boundary.py": "installed file/agent/Bash guards and public validator boundary checks",
     "harness/agent_names.py": "installed hook and run helper agent-name normalization",
     "harness/agent_routing.py": "advanced /impl-loop provider routing",
-    "harness/boundary_suggestions.py": "public /init-dcness and /impl boundary suggestion preflight",
+    "harness/boundary_suggestions.py": "public /init-dcness boundary suggestion diagnostic",
     "harness/chain_view.py": "public dcness-helper run-chain diagnostics",
     "harness/codex_sandbox_permission.py": "advanced /impl-loop user-approved Codex retry workflow",
     "harness/context_docs.py": "public /init-dcness context seeding and /run-review context audit",
@@ -94,7 +93,6 @@
     "harness/guard_core.py": "shared context and decision contract for installed guards",
     "harness/guard_telemetry.py": "installed guard receipts and dcness-helper diagnostics",
     "harness/hooks.py": "installed Claude hook handlers enforcing workflow order and boundaries",
-    "harness/impl_preview.py": "public /impl and advanced /impl-loop routing preview",
     "harness/ledger.py": "public workflow step/run receipt ledger",
     "harness/merge_lock.py": "advanced /impl-loop parallel PR merge lock",
     "harness/mockup_node_check.py": "public /design confirmed-mockup preflight",
@@ -112,7 +110,7 @@
     "harness/session_state_status.py": "public /init-dcness status diagnostics",
     "harness/signal_io.py": "installed hook and helper validator prose I/O",
     "harness/story_runner.py": "advanced public /impl-loop deterministic story runner",
-    "harness/tdd_hooks.py": "public /init-dcness and /impl generated TDD guard",
+    "harness/tdd_hooks.py": "public /init-dcness generated TDD setup and installed guard runtime",
     "harness/wave_board.py": "advanced /impl-loop parallel claim board"
   },
   "allowed_cache_metadata": [

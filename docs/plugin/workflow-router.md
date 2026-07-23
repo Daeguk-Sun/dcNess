@@ -21,7 +21,7 @@
 6. deep impl task 파일 목록/story/epic 을 headless 로 처리하는 요청인가? → `/impl-loop`
 7. 구현 완료 후 제품 관점 검수인가? → `/acceptance`
 
-자연어뿐이고 concrete signal 이 0개인 구현 요청은 `/impl` 안에서 issue-intake 로 처리한다. 즉 `/to-issue` 등록 여부를 한 번 묻고, OK 면 생성된 issue 번호 기준으로 구현한다.
+자연어뿐이어도 구현 의도와 기대 결과가 충분하면 `/impl` 이 관련 파일과 테스트를 찾아 direct 로 시작한다. issue 등록은 사용자가 이슈 초안·등록을 요청했을 때만 `/to-issue` 로 분기한다. 제품 의미가 실제로 둘 이상이라 구현 결과가 달라질 때만 짧게 한 번 묻는다.
 
 ## high-risk 신호 — warn-don't-block
 
@@ -64,8 +64,7 @@ flowchart TB
 
 | 구현 경로 | 트리거 | 진입점 | 왜 이 경로 |
 |---|---|---|---|
-| **issue-intake** | 구현 요청이 자연어뿐이고 concrete signal 이 없음 | `/impl` 이 사용자에게 `/to-issue` 등록 후 구현 진행 여부 확인 | issue 본문이 AC·맥락·히스토리 기준이 되어 바로 코드 수정으로 밀지 않음 |
-| **direct** | 파일 path · 함수/클래스/symbol · 이미 분류/승인된 issue/PR 번호 · 명시 테스트 명령 · 작은 docs-only/refactor 등 concrete signal 이 있음 | `/impl` — 메인 직접 `test -> impl -> test pass -> impl-validator -> PR` | 의도·범위·수용 기준이 신호로 이미 명확. high-risk 신호는 권고로 표시하되 차단하지 않음 |
+| **direct** | 파일 path · 함수/클래스/symbol · issue/PR 번호 · 명시 테스트 명령 · 작은 docs-only/refactor 또는 충분한 자연어 구현 의도 | `/impl` — 관련 파일과 테스트를 찾아 메인 직접 `test -> impl -> test pass -> impl-validator -> PR` | 일상적인 파일·테스트 선택과 탐색은 메인이 해결한다. high-risk 신호는 권고로 표시하되 차단하지 않음 |
 | **design-doc** | 설계 문서 경로가 입력됨 | `/impl` — `--design-doc` 기록 후 받은 설계도로 메인이 구현 + 격리 `impl-validator` | impl 은 설계 생성 X. 받은 설계도 충실 구현과 review gate 유지 |
 | **shape: chain** | story/epic deep task 파일 목록을 처리 | `/impl-loop` — build-worker task commit 누적 후 merge candidate `impl-validator` 1회 | 실행 형태. 일반 구현 진입점이 아니라 SDD 설계도 기반 headless runner |
 

@@ -48,15 +48,25 @@ UI 작업이면 구현 전 **UI 기준 확보 분기**를 먼저 본다. 내부 
 
 단일 story worktree는 `main`에서 시작한다. 다중 story는 첫 story를 `main`, 다음 story를 직전 story 브랜치에서 재분기한다. PR 생성 시 stack base를 유지하고 merge 승인 시점에만 main으로 리타겟·리베이스한다. mechanics는 [`loop-procedure.md` story 브랜치 스택](../../docs/plugin/loop-procedure.md#story-브랜치-스택), naming/trailer는 [`git-spec.md` story 브랜치 스택](../../docs/plugin/git-spec.md#story-브랜치-스택)이 진본이다.
 
-## Pre-flight
+## Fast start
 
 1. `docs/epics/**/stories.md` 상단의 `**GitHub Epic Issue:** [#N]` 또는 `미등록 (사유: …)` 를 확인한다. 없으면 STOP.
 2. parent epic/story issue 본문을 진입 preflight 에서 한 번 read 하고 target GitHub issue AC snapshot 을 만든다. task 자체는 GitHub issue 가 아니라 impl 파일 + task commit 으로 추적한다. snapshot 은 task/story 진행 전체에서 재사용하며 반복 issue 조회를 추가하지 않는다. AC가 없거나 검증 주체가 미기재됐으면 close 전에 현행 typed AC로 갱신하고, agent가 의미를 임의 추론해 체크·재분류하지 않는다. 현행 typed 일반론 AC 는 snapshot 에서 구체화해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
 3. task 가 이미 머지됐는지 `git log --grep <task-slug>` 와 task tail 로 확인한다.
-4. `begin-run impl --design-doc <task impl 문서>` 로 설계 문서를 기록한다. 이 값은 build-worker gate, boundary pre-flight, impl-validator review 근거다.
-5. `boundary-suggestions --impl-plan <task>` 로 `### 수정 허용` 경로가 `ALLOW_MATRIX ∪ .dcness/boundary.json` 으로 커버되는지 확인한다. 미커버 경로는 사람 승인 후 boundary override 가 필요하다.
-6. generated TDD hook 상태를 확인한다. 플랫폼 또는 project-local 계약이 있는데 hook 이 없거나 linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않았으면 구현 step 시작을 STOP 한다.
-7. task 목록에서 `(JOURNEY)` 선언과 `acceptance_environment`를 수집한다. journey 미선언 run과 `automation=human_verification`만 있는 run은 추가 호출 없이 no-op이다. 자동 journey가 있으면 구현 전에 `begin-step build-worker JOURNEY_ENV_PREFLIGHT`를 열어 실제 worker 실행 컨텍스트에서 probe·자동 준비를 1회 수행한다. 준비 완료 또는 검출 불확실은 `PASS`로 task 구현에 진행하고, 확실한 미충족 + 자동 준비 불가만 사용자에게 환경 먼저 준비 / 구현만 진행하고 journey 검수 분리 중 하나를 1회 확인한다. 분리를 선택하면 해당 `journey_id`를 현재 run의 `journey_deferred` 목록으로 진행 뷰와 이후 모든 build-worker·impl-validator·product-acceptance prompt에 보존한다. 해당 journey는 수렴·sealed acceptance·종료 조건의 수렴 PASS Must 비대상이며 human verification/follow-up으로 남고, 그 AC가 속한 story/epic issue는 닫지 않으며 PR body에 `Closes`를 붙이지 않는다. 다른 자동 journey는 정상 진행한다.
+4. `begin-run impl --design-doc <task impl 문서>` 로 설계 문서를 한 번 기록한다. 이 run-level 값에서 `### 수정 허용` 경로를 mutation-time guard가 재사용한다.
+5. task 목록에서 `(JOURNEY)` 선언과 `acceptance_environment`를 수집한다. journey 미선언 run과 `automation=human_verification`만 있는 run은 추가 호출 없이 no-op이다. 자동 journey가 있으면 구현 전에 `begin-step build-worker JOURNEY_ENV_PREFLIGHT`를 열어 실제 worker 실행 컨텍스트에서 probe·자동 준비를 1회 수행한다. 준비 완료 또는 검출 불확실은 `PASS`로 task 구현에 진행하고, 확실한 미충족 + 자동 준비 불가만 사용자에게 환경 먼저 준비 / 구현만 진행하고 journey 검수 분리 중 하나를 1회 확인한다. 분리를 선택하면 해당 `journey_id`를 현재 run의 `journey_deferred` 목록으로 진행 뷰와 이후 모든 build-worker·impl-validator·product-acceptance prompt에 보존한다. 해당 journey는 수렴·sealed acceptance·종료 조건의 수렴 PASS Must 비대상이며 human verification/follow-up으로 남고, 그 AC가 속한 story/epic issue는 닫지 않으며 PR body에 `Closes`를 붙이지 않는다. 다른 자동 journey는 정상 진행한다.
+
+전체 repo boundary scan, generated TDD 설치 health, provider별 preview는 task 시작 전에 실행하지 않는다. hard boundary와 TDD는 실제 mutation-time/post-run guard에서 검사하며, 같은 plan/config/tree를 task·retry·provider마다 다시 preflight하지 않는다.
+
+첫 진행 이정표는 task/AC snapshot과 worktree가 준비되는 즉시 `착수: <task> · worker 시작`으로 남긴다. 이후 `진행: RED/첫 edit 확인`, `진행: 구현·검증 green`, `진행: 통합 review 시작`처럼 사용자에게 의미 있는 변화만 알리고 helper PASS/no-op은 진행 성과처럼 echo하지 않는다.
+
+## 질문 budget과 자율 복구
+
+관련 코드 선택, scope bullet의 기계적 오타, 설계 문서가 이미 허용한 비표준 경로, timeout/idle timeout/empty prose, post-run TDD·soft boundary 실패, 일반 test/lint 실패는 묻지 않는다. wrapper가 같은 provider와 같은 workspace에서 변경분을 보존한 채 bounded continuation/rework를 수행하고 guard를 다시 검사한다.
+
+제품 의미가 달라지는 선택, repo 밖 접근·새 dependency/secret·보안/데이터 파괴 등 새 권한, hard boundary 변경, 자동 복구 한도 소진, merge 승인만 사용자에게 묻는다. hard boundary 자동 확대, `.dcness/boundary.json` 자동 작성, `tdd-exempt` 자동 삽입, provider 간 dirty diff 인계는 금지한다.
+
+반복 가능한 provider 실행·상태 보존·복구 prompt·guard 재검사는 `dcness-implementation-chain`과 story runner가 소유한다. 메인이 task마다 같은 명령/판정을 재작성하지 않으며, 새 side script를 늘리기 전에 기존 runner를 확장하고 대체된 helper·분기·문서는 함께 삭제한다.
 
 ## TaskCreate / TaskUpdate
 
@@ -105,7 +115,7 @@ retry 시 기존 sub-step 을 재활용하고 신규 TaskCreate 를 만들지 �
 1. `journey_deferred`가 아닌 자동 `(JOURNEY)`가 있으면 task loop보다 먼저 같은 provider·sandbox 설정의 `JOURNEY_ENV_PREFLIGHT` mode를 호출한다. 이 호출은 tracked write/commit 없이 worker 실행 컨텍스트의 runtime 도달성을 판정한다. main host probe나 product-acceptance 실행으로 대행하지 않는다.
 2. `dcness-helper prev-tasks-reset` 은 chain 첫 task 또는 single 모드에서 build-worker 호출 전에 1회 실행한다. chain 2번째+ task 는 직전 task 산출을 hook/wrapper가 `[PREVIOUS_TASKS]`로 직접 넣으므로 reset하지 않는다.
 3. implementation provider를 먼저 resolve한다. 기본 provider는 `headless-chain`이다. routing 결과는 provenance=`routing`, 사용자가 직접 고른 override는 provenance=`explicit`으로 보존한다. headless provider면 wrapper 소유권을 위해 `begin-step build-worker`로 열고, mode 없는 foreground Claude Agent면 명시적 begin/end-step 없이 lifecycle hook에 맡긴다. modeful Claude Agent는 `begin-step build-worker <MODE>`를 유지한다.
-4. `/impl-loop`는 `dcness-implementation-chain build-worker --provider <provider> --provider-provenance <routing|explicit> --chain-state .dcness-work/story-run.json --prompt-file <file>`을 실행한다. task 1개 single `/impl-loop`도 진입 직후 one-task story-runner state를 초기화하고 `--chain-state`로 넘긴다. prompt 에는 target GitHub issue AC snapshot 을 진본 포인터로 포함한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다. `/impl-loop`가 아닌 single `/impl`만 `--chain-state`를 생략하고 provider failure cache를 사용하지 않는다.
+4. `/impl-loop`는 `dcness-implementation-chain build-worker --provider <provider> --provider-provenance <routing|explicit> --chain-state .dcness-work/story-run.json --prompt-file <file>`을 Bash tool의 `run_in_background: true`로 실행하고, foreground tool timeout에 종속되지 않게 workspace/raw log 진행을 polling한다. task 1개 single `/impl-loop`도 진입 직후 one-task story-runner state를 초기화하고 `--chain-state`로 넘긴다. prompt 에는 target GitHub issue AC snapshot 을 진본 포인터로 포함한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다. `/impl-loop`가 아닌 single `/impl`만 `--chain-state`를 생략하고 provider failure cache를 사용하지 않는다.
    기본 routing 호출은 `--provider-provenance routing`, 사용자가 고른 override는 `--provider-provenance explicit`으로 넘겨 cache 적용 여부와 선택 출처를 섞지 않는다.
 5. build-worker 는 test → impl → self-validate 를 한 task 안에서 수행하고, gates 가 green 이면 로컬 task commit 을 만든다.
    - `task_index: total/total` 인 Story 마지막 task 는 impl 문서의 종합 검증 REQ 로 해당 Story AC 전항목을 다시 실행·관찰한다. 앞 task 의 PASS 를 대신 재사용하지 않는다. 마지막 task 에 전수 검증 REQ 가 없으면 구현 완료로 간주하지 않고 `SPEC_GAP_FOUND` 로 설계 보강을 요청한다.
@@ -133,6 +143,7 @@ else
   PROVIDER_PROVENANCE="routing"
 fi
 PROMPT_FILE="<prompt-file>"
+# 이 Bash tool 호출 자체를 `run_in_background: true` 로 발행한다.
 "$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker \
   --provider "$PROVIDER" \
   --provider-provenance "$PROVIDER_PROVENANCE" \
@@ -163,7 +174,7 @@ phase prose:
 
 `/impl-loop` 은 single/chain 모드를 가리지 않고 진행을 자연어로 암기하지 않는다. task 1개 single 모드도 진입 직후 `dcness-story-runner plan/init` 으로 one-task state를 만들고, 여러 task의 story/epic 모드도 같은 runner가 impl task 목록을 path 순으로 정렬한다. 정렬 결과에서 같은 frontmatter `story` 값(숫자 story 와 `공통` 모두)이 둘 이상의 비연속 block 으로 재등장하면 `plan/init` 은 관련 task 경로를 보고하고 fail-fast 한다. `init` 은 이 검증을 기존 state 의 아카이브·교체보다 먼저 수행해 실패 시 state 를 변경하지 않는다. story 간 의존성을 표현할 수 있는 path 순서를 runner 가 임의로 재정렬하지 않으며, 각 story 가 한 연속 block 인 입력은 기존 순서를 그대로 보존한다. state file에는 chain 수명 식별자인 `chain_id`와 각 task의 `pending / running / completed / error / blocked`, `attempts / commit / provider / note`만 저장한다. story/run status와 PR 번호는 저장하지 않는다.
 
-provider capability cache는 `.dcness-work/provider-failure-cache/<chain_id>.json` sidecar다. `cli_missing`, `auth_unavailable`, `config_unavailable`만 cacheable하며 `timeout`, `idle_timeout`, `empty_output`, `interrupt`, `network_transient`, 일반 `provider_error`, agent 결론은 매 task 재실행한다. workspace/HEAD 변경 뒤 실패는 cache write와 fallback 없이 중단한다. cache hit는 provider/category/최초 `first_raw_log`/`scope=chain:<chain_id>`를 남긴다. 새 chain·다른 project/worktree·완료/reinit chain은 cache를 이어받지 않고, 동시 access는 lock+atomic replace로 보호한다.
+provider capability cache는 `.dcness-work/provider-failure-cache/<chain_id>.json` sidecar다. `cli_missing`, `auth_unavailable`, `config_unavailable`만 cacheable하며 `timeout`, `idle_timeout`, `empty_output`, `boundary_violation`, `tdd_guard`, `interrupt`, `network_transient`, 일반 `provider_error`, agent 결론은 cache하지 않는다. workspace/HEAD 변경 뒤 recoverable category는 같은 provider/같은 workspace에서 기본 2회 bounded continuation하고 매번 boundary/TDD guard를 재검사한다. 복구 불가 category나 한도 소진은 diff를 보존하고 중단하며 다른 provider로 fallback하지 않는다. cache hit는 provider/category/최초 `first_raw_log`/`scope=chain:<chain_id>`를 남긴다. 새 chain·다른 project/worktree·완료/reinit chain은 cache를 이어받지 않고, 동시 access는 lock+atomic replace로 보호한다.
 
 실행 단위는 **task commit** 과 **story PR** 이다. build-worker가 각 task local commit을 만든 뒤 mark 성공에만 next-action을 실행하는 한 Bash 호출로 `dcness-story-runner mark ... && dcness-story-runner next-action ...`을 묶는다. `&&` 계약 때문에 mark 실패 시 next-action은 실행되지 않는다. `error` / `blocked` 는 서로 다른 task 상태로 기록하고 `--note <사유>` 를 반드시 남긴다.
 

@@ -19,9 +19,9 @@ Options:
   --help, -h          Show this help.
 
 Environment:
-  DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 1200.
+  DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 3000.
   DCNESS_CODEX_IDLE_TIMEOUT  Seconds without stdout/prose/workspace progress
-                         before early kill. Default: 180.
+                         before early kill. Default: 900.
   DCNESS_CODEX_MODEL    Optional Codex model override. Default: inherit user config.
   DCNESS_CODEX_EFFORT   Optional reasoning effort override. Default: inherit user config.
   DCNESS_CODEX_NETWORK_ACCESS  Opt in to workspace-write network access with
@@ -44,8 +44,9 @@ Raw Codex session logs are preserved under the active run directory. The main
 context only receives short status messages and the final prose receipt.
 
 On Codex infrastructure failure with no workspace mutation, callers may fall
-back to the existing Claude Agent path. If Codex changed files and then failed,
-this wrapper exits non-zero and does not auto-revert.
+back to the existing Claude Agent path. After mutation it emits a recovery
+receipt and preserves the diff; the implementation chain may continue the same
+provider/workspace but never auto-reverts or hands a dirty diff to another provider.
 USAGE
 }
 
@@ -81,8 +82,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
-CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-1200}"
-CODEX_IDLE_TIMEOUT="${DCNESS_CODEX_IDLE_TIMEOUT:-180}"
+CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-3000}"
+CODEX_IDLE_TIMEOUT="${DCNESS_CODEX_IDLE_TIMEOUT:-900}"
 CODEX_MODEL="${DCNESS_CODEX_MODEL:-}"
 CODEX_EFFORT="${DCNESS_CODEX_EFFORT:-}"
 CODEX_NETWORK_ACCESS="${DCNESS_CODEX_NETWORK_ACCESS:-}"
@@ -211,7 +212,20 @@ git_status_without_harness_state() {
 }
 
 BEFORE_STATUS="$(git_status_without_harness_state)"
-BEFORE_HEAD="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
+BEFORE_HEAD="$(git -C "$PROJECT_ROOT" rev-parse --verify HEAD 2>/dev/null || true)"
+GUARD_BASE_HEAD="${DCNESS_MUTATION_BASE_HEAD:-$BEFORE_HEAD}"
+if [ -n "$GUARD_BASE_HEAD" ]; then
+  case "$GUARD_BASE_HEAD" in
+    *[!0-9a-f]*)
+      echo "[dcness-codex-worker] invalid DCNESS_MUTATION_BASE_HEAD: $GUARD_BASE_HEAD" >&2
+      exit 2
+      ;;
+  esac
+  if ! git -C "$PROJECT_ROOT" cat-file -e "$GUARD_BASE_HEAD^{commit}" 2>/dev/null; then
+    echo "[dcness-codex-worker] DCNESS_MUTATION_BASE_HEAD is not a commit in this project: $GUARD_BASE_HEAD" >&2
+    exit 2
+  fi
+fi
 
 TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-${AGENT}.XXXXXX")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-prompt-${AGENT}.XXXXXX")"
@@ -439,7 +453,7 @@ with open(prompt, "rb") as stdin, open(log, "ab") as raw:
 
 workspace_changed() {
   AFTER_STATUS="$(git_status_without_harness_state)"
-  AFTER_HEAD="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
+  AFTER_HEAD="$(git -C "$PROJECT_ROOT" rev-parse --verify HEAD 2>/dev/null || true)"
   [ "$BEFORE_STATUS" != "$AFTER_STATUS" ] || [ "$BEFORE_HEAD" != "$AFTER_HEAD" ]
 }
 
@@ -478,43 +492,53 @@ run_codex_once
 CODEX_RC=$?
 
 if [ "$CODEX_RC" -ne 0 ]; then
+  FAILURE_CAUSE="$(cat "$TMP_FAILURE_CAUSE" 2>/dev/null || true)"
   if workspace_changed; then
-    echo "[dcness-codex-worker] BLOCKED: Codex failed after changing workspace. Automatic Claude fallback/revert is forbidden." >&2
+    emit_provider_failure "$CODEX_RC" "$FAILURE_CAUSE"
+    echo "[dcness-codex-worker] RECOVERY_REQUIRED: Codex failed after changing workspace. Diff preserved; cross-provider fallback/revert is forbidden." >&2
     echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
     git -C "$PROJECT_ROOT" status --short >&2 || true
     exit 1
   fi
-  FAILURE_CAUSE="$(cat "$TMP_FAILURE_CAUSE" 2>/dev/null || true)"
   emit_provider_failure "$CODEX_RC" "$FAILURE_CAUSE"
   echo "[dcness-codex-worker] codex exec failed before workspace mutation (exit $CODEX_RC); raw log: $RAW_LOG" >&2
   exit "$CODEX_RC"
 fi
 
 if [ ! -s "$TMP_PROSE" ]; then
+  printf '\n[dcness-codex-worker] empty final prose\n' >> "$RAW_LOG"
+  emit_provider_failure 1 empty_output
   if workspace_changed; then
-    echo "[dcness-codex-worker] BLOCKED: Codex changed workspace but produced empty prose." >&2
+    echo "[dcness-codex-worker] RECOVERY_REQUIRED: Codex changed workspace but produced empty prose. Diff preserved." >&2
     echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
     git -C "$PROJECT_ROOT" status --short >&2 || true
     exit 1
   fi
-  emit_provider_failure 1 empty_output
   echo "[dcness-codex-worker] Codex produced empty prose; raw log: $RAW_LOG" >&2
   exit 1
 fi
 dcness_append_final_prose_to_raw_log "CODEX OUTPUT-LAST-MESSAGE" "$TMP_PROSE" "$RAW_LOG"
 
 BOUNDARY_PROBLEMS="$(
-  BEFORE_HEAD="$BEFORE_HEAD" PYTHONPATH="$SCRIPT_DIR/.." python3 - "$AGENT" "$PROJECT_ROOT" <<'PY'
+  GUARD_BASE_HEAD="$GUARD_BASE_HEAD" PYTHONPATH="$SCRIPT_DIR/.." python3 - "$AGENT" "$PROJECT_ROOT" <<'PY'
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 from harness.agent_boundary import check_write_allowed
+from harness.session_state import impl_scope_paths_for_run
 
 agent = sys.argv[1]
 root = Path(sys.argv[2])
-before_head = os.environ.get("BEFORE_HEAD", "").strip()
+guard_base_head = os.environ.get("GUARD_BASE_HEAD", "").strip()
+sid = os.environ.get("DCNESS_SESSION_ID", "")
+rid = os.environ.get("DCNESS_RUN_ID", "")
+task_scope_paths = (
+    impl_scope_paths_for_run(sid, rid)
+    if sid and rid
+    else ()
+)
 
 paths = set()
 commands = [
@@ -522,7 +546,7 @@ commands = [
     ["git", "-C", str(root), "diff", "--cached", "--name-only", "--diff-filter=ACMRTD"],
     ["git", "-C", str(root), "ls-files", "--others", "--exclude-standard"],
 ]
-if before_head:
+if guard_base_head:
     commands.append(
         [
             "git",
@@ -531,7 +555,7 @@ if before_head:
             "diff",
             "--name-only",
             "--diff-filter=ACMRTD",
-            f"{before_head}..HEAD",
+            f"{guard_base_head}..HEAD",
         ]
     )
 for cmd in commands:
@@ -550,13 +574,26 @@ for path in sorted(paths):
         continue
     if path.startswith(".dcness-work/story-run"):
         continue
-    reason = check_write_allowed(agent, path, cwd=root)
+    reason = check_write_allowed(
+        agent,
+        path,
+        cwd=root,
+        task_scope_paths=task_scope_paths,
+    )
     if reason:
         print(f"{path}: {reason}")
 PY
 )"
 if [ -n "$BOUNDARY_PROBLEMS" ]; then
-  record_boundary_block "codex-headless"
+  {
+    echo
+    echo "----- MUTATION-TIME BOUNDARY GUARD -----"
+    printf '%s\n' "$BOUNDARY_PROBLEMS"
+  } >> "$RAW_LOG"
+  emit_provider_failure 1 boundary_violation
+  if [ "${DCNESS_RECOVERY_OWNER:-}" != "implementation-chain" ]; then
+    record_boundary_block "codex-headless"
+  fi
   echo "[dcness-codex-worker] BLOCKED: Codex changed files outside ${AGENT} boundary." >&2
   echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$BOUNDARY_PROBLEMS" >&2
@@ -568,8 +605,8 @@ TDD_CHANGED_PATHS="$(
     git -C "$PROJECT_ROOT" diff --name-only --diff-filter=ACMRT 2>/dev/null || true
     git -C "$PROJECT_ROOT" diff --cached --name-only --diff-filter=ACMRT 2>/dev/null || true
     git -C "$PROJECT_ROOT" ls-files --others --exclude-standard 2>/dev/null || true
-    if [ -n "$BEFORE_HEAD" ]; then
-      git -C "$PROJECT_ROOT" diff --name-only --diff-filter=ACMRT "$BEFORE_HEAD..HEAD" 2>/dev/null || true
+    if [ -n "$GUARD_BASE_HEAD" ]; then
+      git -C "$PROJECT_ROOT" diff --name-only --diff-filter=ACMRT "$GUARD_BASE_HEAD..HEAD" 2>/dev/null || true
     fi
   } | grep -v '^\.claude/harness-state/' \
     | grep -v '^\.dcness-work/headless-logs/' \
@@ -619,6 +656,12 @@ EOF
 )"
 TDD_RC=$?
 if [ "$TDD_RC" -eq 1 ]; then
+  {
+    echo
+    echo "----- MUTATION-TIME TDD GUARD -----"
+    printf '%s\n' "$TDD_PROBLEMS"
+  } >> "$RAW_LOG"
+  emit_provider_failure 1 tdd_guard
   echo "[dcness-codex-worker] BLOCKED: TDD GUARD failed for Codex-changed implementation files." >&2
   echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$TDD_PROBLEMS" >&2
