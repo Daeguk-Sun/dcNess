@@ -25,3 +25,11 @@ worker 실행은 foreground Bash 호출 제한보다 오래 걸릴 수 있다. w
 ## D. authority boundary
 
 복구 도중 계획 밖의 `hooks/file-guard.sh` 수정과 `tdd-exempt` marker 추가가 필요하다는 제안이 나왔다. 이는 원래 task 권한과 제품 의미를 넘어선다.
+
+## E. progress transcript
+
+메인이 사용자에게 `boundary scan PASS`, `TDD status PASS`, `provider preview PASS`, `begin-step PASS`를 차례로 중계했지만 아직 RED, 첫 edit, green 여부는 말하지 않았다. 사용자는 실제 개발이 진행되는지 알기 어렵다고 한다.
+
+## F. repeated orchestration
+
+기존 `dcness-implementation-chain`과 story runner가 provider 실행, 상태 보존, recovery prompt, guard 재검사를 지원한다. 그런데 메인은 두 번째 task에서도 각각의 provider 명령과 실패 판정, recovery prompt를 대화 안에서 다시 조립하려 한다.
