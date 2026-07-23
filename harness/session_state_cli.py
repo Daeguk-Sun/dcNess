@@ -637,53 +637,12 @@ def _cli_boundary_suggestions(args: Any) -> int:
         format_boundary_suggestions,
     )
 
-    impl_plan = Path(args.impl_plan) if args.impl_plan else None
-    report = collect_boundary_suggestions(
-        Path(args.cwd) if args.cwd else None,
-        impl_plan=impl_plan,
-    )
+    report = collect_boundary_suggestions(Path(args.cwd) if args.cwd else None)
     if args.json:
         print(json.dumps(report.to_dict(), ensure_ascii=False))
     else:
         print(format_boundary_suggestions(report))
     return 0
-
-
-def _cli_impl_preview(args: Any) -> int:
-    """Deterministic `/impl` lane/review preview (#1019)."""
-    from harness import agent_routing
-    from harness import impl_preview
-
-    argv: list[str] = []
-    try:
-        review_provider = args.review_provider or agent_routing.resolve_provider(
-            "impl-validator"
-        )
-    except ValueError as exc:
-        print(
-            f"[dcness impl-preview] routing config rejected: {exc}",
-            file=sys.stderr,
-        )
-        return 1
-    for opt, value in (
-        ("--design-doc", args.design_doc),
-        ("--cwd", args.cwd),
-        ("--workflow-risk", args.workflow_risk),
-        ("--review-provider", review_provider),
-    ):
-        if value:
-            argv.extend([opt, value])
-    for opt, enabled in (
-        ("--concrete", args.concrete),
-        ("--natural-language-only", args.natural_language_only),
-        ("--ambiguous", args.ambiguous),
-        ("--needs-design", args.needs_design),
-        ("--skip-design", args.skip_design),
-        ("--json", args.json),
-    ):
-        if enabled:
-            argv.append(opt)
-    return impl_preview.main(argv)
 
 
 def _cli_routing(args: Any) -> int:
@@ -1118,29 +1077,8 @@ def _build_arg_parser() -> Any:
         help="#910 read-only: 비표준 소스 디렉터리 boundary override 후보 출력",
     )
     p_bsug.add_argument("--cwd", default="", help="검사할 프로젝트 cwd (기본 현재 cwd)")
-    p_bsug.add_argument(
-        "--impl-plan",
-        default="",
-        help="impl 문서의 `### 수정 허용` 경로를 ALLOW_MATRIX 와 대조",
-    )
     p_bsug.add_argument("--json", action="store_true")
     p_bsug.set_defaults(func=_cli_boundary_suggestions)
-
-    p_ip = sub.add_parser(
-        "impl-preview",
-        help="/impl route/engine/begin-run 후보를 결정론적으로 출력",
-    )
-    p_ip.add_argument("--design-doc", default="")
-    p_ip.add_argument("--cwd", default="")
-    p_ip.add_argument("--concrete", action="store_true")
-    p_ip.add_argument("--natural-language-only", action="store_true")
-    p_ip.add_argument("--ambiguous", action="store_true")
-    p_ip.add_argument("--needs-design", action="store_true")
-    p_ip.add_argument("--workflow-risk", choices=["normal", "high"], default="normal")
-    p_ip.add_argument("--skip-design", action="store_true")
-    p_ip.add_argument("--review-provider", choices=["claude", "codex"], default="")
-    p_ip.add_argument("--json", action="store_true")
-    p_ip.set_defaults(func=_cli_impl_preview)
 
     p_rt = sub.add_parser(
         "routing",

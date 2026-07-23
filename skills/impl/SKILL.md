@@ -1,13 +1,13 @@
 ---
 name: impl
-description: 구현 요청을 받아 메인이 직접 구현하고 격리 impl-validator 리뷰까지 거쳐 PR 로 끝내는 기본 구현 진입점. 사용자가 "구현해줘", "수정해줘", "고쳐줘", "버그픽스", "한 줄 수정", "리뷰까지 돌려", "/impl" 등을 말할 때 사용한다. 이슈번호/링크/파일/테스트처럼 concrete signal 이 있으면 읽고 바로 구현한다. 자연어뿐이면 GitHub issue 1개 등록 여부를 한 번 확인한다. high-risk 신호는 설계 선행 권장으로 경고하되, 사용자가 진행을 선택하면 구현한다. 일반 구현을 별도 구현 worker 로 넘기지 않는다.
+description: 구현 요청을 받아 메인이 직접 구현하고 격리 impl-validator 리뷰까지 거쳐 PR 로 끝내는 기본 구현 진입점. 사용자가 "구현해줘", "수정해줘", "고쳐줘", "버그픽스", "한 줄 수정", "리뷰까지 돌려", "/impl" 등을 말할 때 사용한다. 이슈번호/링크/파일/테스트처럼 concrete signal 이 있으면 읽고 바로 구현한다. 자연어 요청도 의도와 repo 범위가 충분하면 관련 코드를 찾아 바로 구현하며, 제품 의미나 새 권한이 실제로 필요한 경우에만 묻는다. high-risk 신호는 설계 선행 권장으로 경고하되, 사용자가 `/impl` 을 지시했다면 구현한다. 일반 구현을 별도 구현 worker 로 넘기지 않는다.
 ---
 
 # Impl Skill — 기본 구현 진입점
 
 > `/impl` 은 사용자-facing 기본 구현 진입점이다. 공개 command 는 하나이고, 메인이 직접 구현한다. 격리되는 것은 `impl-validator` review step 이다. 공개 진입점 계약은 [`docs/plugin/positioning.md`](../../docs/plugin/positioning.md), 자유 요청의 진입점 선택은 [`docs/plugin/workflow-router.md`](../../docs/plugin/workflow-router.md), 용어는 [`docs/plugin/terms.md`](../../docs/plugin/terms.md) 를 따른다.
 
-> 🔴 **분기 규칙 SSOT** — `/impl` 내부의 issue-intake / direct / design-doc echo, retry, review provider 설명은 [`impl-routing.md`](impl-routing.md) 가 소유한다. 본 파일은 실행 절차를 담는다.
+> 🔴 **분기 규칙 SSOT** — `/impl` 내부의 direct / design-doc, retry, review provider 설명은 [`impl-routing.md`](impl-routing.md) 가 소유한다. 본 파일은 실행 절차를 담는다.
 
 ## 구현 모델 — 메인 구현 + 격리 리뷰
 
@@ -23,8 +23,8 @@ description: 구현 요청을 받아 메인이 직접 구현하고 격리 impl-v
 ## 입력 처리
 
 - **이슈번호/링크/파일/symbol/테스트 명령**: 실존을 확인하고 바로 구현한다.
-- **설계 문서 경로**: `begin-run impl --design-doc <경로>` 로 기록하고 받은 설계도대로 구현한다. design-doc 기반 구현 — 설계도 기반 구현에서도 구현은 여전히 메인이 직접 수행하고, review 만 격리 provider 로 보낸다. 이 기록은 boundary pre-flight 와 review 근거다.
-- **자연어뿐인 구현 요청**: 바로 코드를 고치지 않는다. `지금까지 이야기한 내용을 GitHub issue로 등록하고, 그 이슈 번호 기준으로 구현을 진행할까요?` 를 한 번만 묻는다. OK 면 `/to-issue` 로 이슈를 만들고 그 번호를 concrete signal 로 삼아 진행한다.
+- **설계 문서 경로**: `begin-run impl --design-doc <경로>` 로 기록하고 받은 설계도대로 구현한다. design-doc 기반 구현 — 설계도 기반 구현에서도 구현은 여전히 메인이 직접 수행하고, review 만 격리 provider 로 보낸다. 이 기록은 mutation-time task scope 와 review 근거다.
+- **자연어뿐인 구현 요청**: 대화에서 원하는 동작과 repo 범위가 충분하면 `rg`로 관련 entrypoint/test를 찾아 direct로 진행한다. 이슈 등록 여부만 묻는 질문은 하지 않는다. 제품 의미가 둘 이상으로 갈려 결과가 달라질 때만 한 번 묻는다. 사용자가 이슈 추적도 요청하면 `/to-issue`를 사용한다.
 - **high-risk 신호**: 새 product feature/epic, 외부 dependency/API/SDK/model 선택, auth/security/PII/compliance, migration/destructive change, public API breakage, cross-module/cross-story interface 등은 "설계 선행을 권장"한다고 한 줄 경고한다. 사용자가 그대로 진행을 택하면 `/impl` 안에서 구현한다. LLM 판단만으로 `/spec`·`/design` 으로 되돌리지 않는다.
 - **신규 시각 구조 UI 작업**: UI 기준 확보 분기에서 목업부터 만드는 것을 권장한다고 한 줄 안내한다. 내부 `canvas-design` wrapper 로 확정 목업을 만들 수 있지만, 사용자가 "그냥 가" 또는 "목업 없이"라고 하면 기존 `ux-flow` / 확정본이 있으면 참고하고, 없으면 메인이 구현한다.
 
@@ -36,74 +36,33 @@ UI 기준: 신규 시각 구조 + 기준 없음 — 목업 선행 권장, 동의
 UI 기준: 시각 구조 불변 — 목업 없이 구현
 ```
 
-## Step 0 — 실존 검증
+## Step 0 — 최소 실존 검증 후 즉시 착수
 
 추측으로 시작하지 않는다.
 
 - GitHub issue/PR 이 입력이면 `gh issue view <N> --comments` 또는 `gh pr view <N>` 로 본문과 댓글을 확인한다.
 - 파일/symbol 입력이면 `rg` / 부분 read 로 현재 상태를 확인한다.
 - 선행 조건/의존 PR 이 있으면 merge 여부를 확인한다.
-- 이 repo 의 실제 lint/build/test 명령, PR helper, hook 존재 여부를 확인한다.
 - GitHub issue 번호가 대상이면 구현 실행 전 [`issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#issuelabel-status-lifecycle)에 따라 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 Project `Status=In progress` 도 best-effort 로 미러한다.
+- repo 전체 탐색, boundary 후보 scan, generated TDD 설치 확인, 경로 preview를 착수 앞에 두지 않는다. 실제 lint/build/test 명령과 PR helper는 각각 필요한 실행 경계에서 찾는다.
 
 GitHub issue 가 대상이면 이 진입 preflight 에서 한 번 읽은 본문을 run 전체의 **target GitHub issue AC** snapshot 으로 재사용한다. 각 AC 에 구현 범위와 검증 증거를 대응시키고, task/commit/validator 단계마다 issue 를 반복 조회하지 않는다. `[command]` 는 명령과 종료코드, `[agent-read]` 는 읽은 산출물·diff·계약과 관찰 사실로 판정한다. AC가 없거나 검증 주체가 미기재됐으면 close 전에 현행 typed AC로 갱신하고, agent가 의미를 임의 추론해 체크·재분류하지 않는다. `구현이 완료된다`나 `정상 동작한다` 같은 일반론은 snapshot 에서 구체적인 관측 조건으로 교체해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
 
-## Step 0.2 — 파일 경계 override 후보 확인
-
-구현 전 한 번 실행한다.
-
-```bash
-"$HELPER" boundary-suggestions
-# 설계 문서 경로가 있으면:
-"$HELPER" boundary-suggestions --impl-plan <docs/epics/.../impl/...md>
-```
-
-코어 `ALLOW_MATRIX` 로 커버되지 않는 비표준 소스 디렉터리가 있으면 `.dcness/boundary.json` 의 implementation add 후보만 출력한다. 설계 문서가 있는 design-doc 구현에서는 설계 문서의 `### 수정 허용` 경로도 같은 기준으로 대조한다. 후보가 있으면 사람 승인 후에만 메인이 boundary 파일을 작성한다.
-
-표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다. 이 pre-flight 는 `/impl-loop` 의 `begin-step build-worker` 에도 provider-independent 로 강제된다. 직접 구현은 계획 파일 없이 메인 직접 구현이므로 plan-specific boundary 대조 대상이 아니다.
-
-## Step 0.3 — generated TDD hook 부재 확인
-
-구현 진입 전에 project-local TDD hook 상태를 확인한다.
-
-프로젝트 로컬 **TDD 계약**은 `.dcness/tdd-hooks.json` 이 SSOT 다. custom 플랫폼은 `test_candidate_templates` 를 포함해야 하며, 생성 전 `self-test` 로 계약을 먼저 검증한다.
-
-```bash
-"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"
-```
-
-플랫폼 또는 project-local 계약이 있는데 generated hook 이 없으면 사용자에게 생성 제안을 보여준다. 승인 시 self-test fixture 확인 → CC hook 후보 생성/self-test/등록 → Codex hook 후보 생성/self-test/등록 순서로 진행한다.
-
-```bash
-"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" ensure --project-root "$PROJECT_ROOT" --targets cc,codex --plugin-root "$PLUGIN_ROOT"
-```
-
-`status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 bootstrap commit 에 포함해야 한다. `commit-advisory` 는 linked worktree/headless worker 체크아웃 재사용을 위해 commit 이 필요하다는 뜻이다.
-
-## Step 1 — advisory preview echo
-
-`impl-preview` 는 deterministic echo helper 다. 더 이상 `/spec`·`/design` 되돌림 route 를 만들지 않는다. 출력 route 는 `issue-intake`, `direct`, `design-doc` 만 사용한다. `--needs-design` / `--workflow-risk high` 는 경고 reason 으로 남기되 구현을 차단하지 않는다.
-
-```bash
-"$HELPER" impl-preview \
-  [--design-doc <docs/epics/.../impl/...md>] \
-  [--concrete | --natural-language-only | --ambiguous | --needs-design] \
-  [--workflow-risk normal|high] \
-  [--review-provider claude|codex] \
-  [--skip-design]
-```
-
-메인 echo:
+첫 진행 이정표는 위 최소 확인 직후 바로 남긴다.
 
 ```text
-구현 경로: issue-intake — concrete signal 없음, next = /to-issue 등록 여부 확인
-구현 경로: direct — concrete signal = <파일/이슈/테스트>, 구현 = 메인 직접, review_provider = <claude|codex>
-구현 경로: design-doc — 설계도 = <경로>, 구현 = 메인 직접, review_provider = <claude|codex>
-권고: high-risk 신호 감지 — 설계 선행을 권장하지만 사용자가 진행하면 구현
-UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 지시하면 ux-flow 참고 후 구현
+착수: <target> 확인 · worktree 준비 · RED/첫 edit 진행
 ```
 
-## Step 2 — 구현 완료조건
+## 질문 budget과 자율 복구
+
+다음은 묻지 않고 처리한다: 관련 파일/테스트 탐색, 구현 방식 선택, task scope의 기계적 경로 오타 교정, 이미 설계 문서 `### 수정 허용`에 든 비표준 경로, recoverable timeout/empty prose, 일반 test/lint 실패, 같은 범위의 재시도.
+
+질문은 제품 의미가 실제로 둘 이상일 때, repo 밖 접근·새 dependency/secret/보안·데이터 파괴처럼 새 권한이나 위험 수용이 필요할 때, 자동 복구 한도를 소진했을 때, merge 승인처럼 사용자가 소유한 결정일 때만 한다. hard boundary를 자동으로 넓히거나 `tdd-exempt`를 자동 삽입하지 않는다.
+
+같은 기계적 명령·판정·복구가 run 안에서 반복되면 메인이 같은 절차를 다시 타이핑하지 않는다. 기존 프로젝트 script/helper에 입력과 종료 조건을 묶어 재실행 가능하게 만들고, 대체된 일회성 helper·분기·문서는 같은 변경에서 삭제한다.
+
+## Step 1 — 구현 완료조건
 
 메인 직접 구현도 [`build-worker` 완료 기준](../../docs/plugin/agents/build-worker/build-worker-agent.md)과 같은 수준의 완료조건을 만족해야 종료한다.
 
@@ -126,7 +85,7 @@ direct와 design-doc 구현 모두 메인이 작성한 Cartography impact, merge
 
 standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-validator` 종료 경계가 최소 freshness 책임이다. 미해소 route-only stale이나 system backpressure가 있으면 commit/PR clean 판정으로 진행하지 않는다.
 
-## Step 3 — 실행 절차
+## Step 2 — 실행 절차
 
 1. branch/worktree 격리
    - git-spec 이 있으면 [`git-spec.md`](../../docs/plugin/git-spec.md) 패턴을 따른다.
@@ -136,11 +95,13 @@ standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-vali
 2. 테스트 선작성
    - 테스트 가능한 코드 변경은 구현 전에 실패 테스트를 먼저 쓴다.
    - docs-only / 단순 설정 변경은 TDD skip 사유를 명시한다.
+   - RED 확인 또는 skip 사유 확정 시 `진행: RED 확인 · 구현 시작` 이정표를 남긴다.
 3. 구현
    - 메인이 직접 Edit/Write 한다. 별도 구현 agent 를 호출하지 않는다.
 4. lint/build/test green
    - 프로젝트에 실제 존재하는 명령만 실행한다.
    - 하나라도 red 면 commit/PR 로 가지 않는다.
+   - green 확보 시 `진행: 구현 완료 · 검증 green · review 시작` 이정표를 남긴다.
 5. `impl-validator` review
    - `begin-run impl` 또는 `begin-run impl --design-doc <경로>` → mode 없는 foreground Claude `impl-validator`는 lifecycle hook으로 merge candidate를 리뷰한다. Codex/headless wrapper 또는 modeful 호출만 명시적 `begin-step`을 연다.
    - 검토 대상이 커밋으로 존재하면 커밋 id와 변경 파일 목록을 1급 입력으로 선행 전달하고, validator가 `git show` / `git diff` / `git log`로 커밋 진본을 직접 펼치게 한다. 호출자는 별도 diff 파일을 덤프하지 않는다. 커밋이 없는 uncommitted local diff일 때만 diff 파일 전달을 폴백으로 사용한다.

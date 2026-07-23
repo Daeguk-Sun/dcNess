@@ -189,12 +189,13 @@ PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality
 | `EVAL_RUNS` / `EVAL_MODEL` / `EVAL_OUTPUT_DIR` / `EVAL_RELEASE_CHECK` / `EVAL_STRICT_CASES` | `evals/run.sh` 행동 eval — 반복 수 / 모델 / 산출물 위치 / 릴리즈 N/N 모드 / 핵심 케이스 목록 | `1` / `sonnet` / `.metrics/evals/run-*` / `0` / 핵심 2케이스 | X |
 | `EVAL_PARALLEL` | `evals/run.sh` 행동 eval 의 동시 실행 `(case, run)` 셀 상한. `1` = 직렬(회귀 안전판). headless `claude -p` quota 는 메인 세션과 공유하므로 보수적 값 유지 | `4` | X |
 | `DCNESS_FORCE_ENABLE` | is-active 게이트 임시 활성 (디버깅) | 미설정 | X |
-| `DCNESS_CODEX_TIMEOUT` | `dcness-codex-validator` / `dcness-codex-worker` Codex attempt timeout | validator `600`, worker `1200` | X |
-| `DCNESS_CODEX_IDLE_TIMEOUT` | `dcness-codex-worker` Codex attempt 의 stdout/prose/workspace 무진행 조기 kill timeout | `180` | X |
+| `DCNESS_CODEX_TIMEOUT` | `dcness-codex-validator` / `dcness-codex-worker` Codex attempt timeout | validator `600`, worker `3000` | X |
+| `DCNESS_CODEX_IDLE_TIMEOUT` | `dcness-codex-worker` Codex attempt 의 stdout/prose/workspace 무진행 조기 kill timeout | `900` | X |
 | `DCNESS_CODEX_NETWORK_ACCESS` | `dcness-codex-worker` 의 `workspace-write` network opt-in (`1` / `true` / `on`; `0` / `false` / `off` 는 비활성) | 미설정 | X |
 | `DCNESS_CODEX_WRITABLE_ROOTS` | `dcness-codex-worker` 의 추가 writable roots. 플랫폼 path separator(macOS/Linux `:`)로 여러 절대경로 구분 | 미설정 | X |
-| `DCNESS_CLAUDE_TIMEOUT` | `dcness-claude-worker` Claude headless attempt timeout | `1200` | X |
-| `DCNESS_CLAUDE_IDLE_TIMEOUT` | `dcness-claude-worker` Claude attempt 의 stdout/stderr/workspace 무진행 조기 kill timeout (codex worker 와 패리티) | `180` | X |
+| `DCNESS_CLAUDE_TIMEOUT` | `dcness-claude-worker` Claude headless attempt timeout | `3000` | X |
+| `DCNESS_CLAUDE_IDLE_TIMEOUT` | `dcness-claude-worker` Claude attempt 의 stdout/stderr/workspace 무진행 조기 kill timeout (codex worker 와 패리티) | `900` | X |
+| `DCNESS_IMPLEMENTATION_RECOVERY_LIMIT` | `dcness-implementation-chain` 의 동일 provider·동일 workspace 자동 복구 추가 시도 한도 | `2` | X |
 | `DCNESS_CODEX_MODEL` / `DCNESS_CODEX_EFFORT` | Codex headless wrapper model / reasoning effort opt-in override. 미설정 시 사용자 Codex config 상속 | 미설정 | X |
 | `DCNESS_PROJECTS_FILE` | `scripts/loop_diagnose.py` 의 활성 프로젝트 whitelist 경로 override (테스트용) | `~/.claude/plugins/data/dcness-dcness/projects.json` | X |
 | `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` | git hook telemetry 히트의 active run 귀속 (headless worker 컨텍스트) | 미설정 | X |

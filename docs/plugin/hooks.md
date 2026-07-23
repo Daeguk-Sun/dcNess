@@ -89,28 +89,26 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 
 **시점**: 메인 Claude 가 `Agent` tool 로 sub-agent 를 호출하기 직전, 그리고 `dcness-helper begin-step` 이 headless/modeful step 시작을 기록하기 직전. Claude Agent provider 는 전자를 타고, Codex/headless provider 는 후자를 탄다.
 
-**역할**: 작업 순서와 호출 적합성만 검사한다. 모든 matching PreToolUse hook은 병렬 평가되므로 이 시점에는 `step_started`/`active_agent`를 확정하지 않고, `tool_use_id` correlation intent만 runtime state에 둔다. sibling hook deny 뒤 실제 spawn이 없으면 ledger lifecycle event도 없다. build-worker 사전 조건, impl-validator step 순서, impl entry pre-flight는 provider와 무관하게 같은 판정 함수를 쓴다.
+**역할**: 작업 순서와 호출 적합성만 검사한다. 모든 matching PreToolUse hook은 병렬 평가되므로 이 시점에는 `step_started`/`active_agent`를 확정하지 않고, `tool_use_id` correlation intent만 runtime state에 둔다. sibling hook deny 뒤 실제 spawn이 없으면 ledger lifecycle event도 없다. build-worker 설계 산출물 사전 조건과 impl-validator step 순서를 provider와 무관하게 같은 판정 함수로 검사한다. repo scan이나 generated TDD 설치 health 같은 advisory preflight는 여기서 실행하지 않는다.
 
 PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉 `<agent>.md`, 재호출 occurrence 인 `<agent>-1.md`, mode-suffix 인 `<agent>-MODE.md`, mode 재호출인 `<agent>-MODE-1.md` 안의 `PASS` 모두 같은 agent 의 완료 증거로 인정한다.
 
 | Gate | 차단 조건 |
 |---|---|
 | implementation gate | 설계 산출물 없이 build-worker 가 src 구현으로 진입 — 같은 run 의 module-architect PASS *또는* `begin-run --design-doc` 으로 기록된 설계 문서 실존 *또는* direct 구현 경로 기록, 셋 중 하나로 충족 |
-| impl boundary pre-flight | `begin-run --design-doc` 이 가리키는 impl 문서의 `### 수정 허용` 경로가 build-worker boundary(`ALLOW_MATRIX ∪ .dcness/boundary.json`)로 커버되지 않음 |
-| impl TDD pre-flight | 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated TDD hook 이 등록되지 않았거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않음 |
 | 진행 순서 검사 | 명시적 modeful/current step과 다른 agent/mode 호출, 이미 완료된 stale step. mode 없는 foreground Claude Agent의 current step 부재는 SubagentStart 자동 시작 대상으로 허용 |
 
 **진행 순서 검사 대상**: `entry_point=design|impl|ux`. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 진행 순서 검사를 탄다. module-architect 는 `/design` 기본 선두 진입, greenfield thin bootstrap 이후 진입, opt-in system checkpoint 이후 재진입 모두 별도 validator 게이트 없이 허용한다. checkpoint 필요 여부와 재진입 흐름은 `skills/design/design-routing.md` 의 agent enum(`SYSTEM_CHECKPOINT_REQUIRED`)과 lifecycle identity/mode 검사로만 다룬다.
 
 **implementation gate 의 design_doc 경로**: 설계(impl 문서)가 *별도 run* 에서 작성·머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` story/epic runner)에서는 같은 run 안에 module-architect prose 가 없다. 이때 `begin-run impl --design-doc <머지된 설계 문서 경로>` 로 run 에 설계 산출물을 기록하면 implementation gate 가 그 실존을 사전 조건 증거로 인정한다. 경로는 설계 산출물 규약(`docs/epics/**`) 안의 실존 `.md` 만 허용 — 기록 시점에 resolve 절대경로로 fail-fast 검증(traversal / repo 밖 경로 거부)하고, 게이트 시점에 실존을 재확인한다. `--design-doc` 은 `entry_point=impl` run 에서만 수용된다(다른 entry_point 는 begin-run 이 거부) — design / architect-loop run 의 기존 module-architect PASS 강제는 코드 보장으로 유지된다.
 
-**impl entry pre-flight**: build-worker 의 구현 step 시작 직전에 추가로 확인한다. `--design-doc` 이 있으면 해당 impl 문서의 `### 수정 허용` 경로를 `ALLOW_MATRIX ∪ .dcness/boundary.json` 과 대조한다. 미커버 경로가 있으면 `[순서 차단 훅: impl pre-flight boundary]` 로 STOP 하며, 사람 승인 후 `.dcness/boundary.json` override 가 필요하다. 또한 프로젝트 플랫폼 또는 project-local TDD 계약이 감지됐는데 CC+Codex generated hook 이 없거나, linked worktree/headless 재사용에 필요한 생성 파일이 커밋되지 않았으면 `[순서 차단 훅: impl pre-flight TDD]` 로 STOP 한다. in-place 실행은 hook 파일이 디스크에 실존·등록돼 있으면 생성 파일 커밋 없이 통과한다. 빈 프로젝트·미지원 플랫폼·dcNess self repo 는 no-op 이다.
+**impl mutation-time scope**: `begin-run --design-doc`이 가리키는 impl 문서의 정규화된 `### 수정 허용` 경로는 현재 run에 한해 task-scope capability로 재사용한다. 이 경로는 preflight scan이나 `.dcness/boundary.json` 영구 확장이 아니다. INFRA, 코드 agent 전용 deny, 프로젝트 `remove`, repo 밖 경로는 먼저 차단되므로 hard boundary를 열 수 없다. task-scope 밖 변경은 실제 file-op 또는 headless post-run boundary guard에서 차단하고, headless chain은 같은 provider/workspace에서 bounded rework 뒤 guard를 다시 실행한다.
 
 **implementation gate 의 direct 경로 면제 (#714)**: `/impl` direct 경로(설계도 없음)는 module-architect PASS 도 design_doc 도 없으므로, `begin-run impl --lane lite` 로 run 슬롯에 구현 경로를 기록하면 implementation gate 가 그 기록을 build-worker 설계 산출물 사전 조건 면제 신호로 인정한다. **면제 경계** — (1) `--lane` 값은 닫힌 enum(`lite` / `standard`)만 수용(임의 문자열 거부), (2) `--lane lite` 는 `entry_point=impl` run 에서만 수용(다른 entry_point 는 begin-run 이 거부)되어 design / architect-loop 의 module-architect PASS 강제는 영향받지 않음, (3) 면제는 *명시적으로 기록된* `lane=lite` 한정 — 값 미기록(`/impl-loop` story/epic runner / 기본)과 `lane=standard` 는 종전대로 설계 산출물을 요구한다.
 
 **tech-review 관례**: `/design` 진입 후 tech-reviewer 재호출은 관례상 비권장이지만 코드 차단은 아니다. /design 도중 미검증 새 외부 의존이 발견되면 design 의 `NEW_DEP_ESCALATE` 경로로 처리한다.
 
-**차단**: Claude Code PreToolUse 에서는 위반 시 `exit 2` + stderr, helper `begin-step` 에서는 비-0 종료 + stderr. implementation / impl pre-flight / 진행 순서 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다. 게이트 자체 예외는 fail-open 계측으로 남기고 과차단하지 않는다.
+**차단**: Claude Code PreToolUse 에서는 위반 시 `exit 2` + stderr, helper `begin-step` 에서는 비-0 종료 + stderr. implementation / 진행 순서 게이트 위반은 `[순서 차단 훅: <gate>]`, 진행 순서 검사 위반은 `[진행 순서 검사]` 접두사를 포함한다. 게이트 자체 예외는 fail-open 계측으로 남기고 과차단하지 않는다.
 차단이 발생하면 `guard-telemetry.jsonl` 에 `guard=catastrophic-gate` 로 기록된다.
 
 ### subagent-start-lifecycle.sh
@@ -163,7 +161,7 @@ PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추�
 - **`add`**: 코어 `ALLOW_MATRIX` 에 없는 경로를 그 agent 에 허용 (비표준 레이아웃 / 의도적 기본 제외 완화).
 - **`remove`**: 코어 기본 허용 경로를 이 프로젝트에서 제거 (ALLOW 보다 우선하는 DENY 오버레이).
 - **탐색**: `harness/agent_boundary.py` 가 cwd 에서 **working tree top-level(`git rev-parse --show-toplevel`)까지만** 조상을 거슬러 이 파일을 찾는다. nested·linked worktree 와 하위 디렉토리에서도 worktree 루트 설정이 적용되지만, 그 *위* 상위 워크스페이스·home 디렉토리의 `.dcness/boundary.json` 은 무시된다 (무관한 상위 설정이 경계를 약화하지 못하도록).
-- **제안 트리거**: `/init-dcness` 와 `/impl` 시작 시 `dcness-helper boundary-suggestions` 가 비표준 소스 디렉터리의 `build-worker.add` 후보를 read-only 로 출력한다. 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이며, 실제 파일 작성은 사람 승인 뒤 메인이 수행한다.
+- **제안 트리거**: `/init-dcness` 설정/진단 시 `dcness-helper boundary-suggestions` 가 비표준 소스 디렉터리의 `build-worker.add` 후보를 read-only 로 출력한다. 일반 `/impl`·`/impl-loop` 착수 앞에서는 실행하지 않으며, 실제 파일 작성은 사람 승인 뒤 메인이 수행한다.
 - **build-worker override**: `/impl-loop` 의 mutation agent 는 build-worker 이므로 `build-worker` 키로 `add`·`remove` 를 선언한다. 다른 agent key는 build-worker에 전파되지 않는다.
 - **안전 degrade**: 파일 부재·깨진 JSON·형식 위반·컴파일 불가 정규식은 조용히 무시하고 코어 기본값을 유지한다 (잘못된 설정이 경계를 깨뜨리지 않는다).
 - **배포**: 읽는 로직은 plugin 본체(`harness/`)라 plugin 버전업으로 자동 적용 (cp 0). 설정 파일은 프로젝트가 직접 작성한다.
@@ -201,7 +199,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **생성/등록 순서**: CC hook 이 먼저다. `.claude/hooks/dcness-tdd-guard.sh` 후보가 self-test 를 통과해야 `.claude/settings.json` PreToolUse(`Edit|Write|NotebookEdit|Bash`) 에 등록된다. Codex hook 은 그 다음 같은 패턴으로 `.codex/hooks/dcness-tdd-guard.sh` 와 `.codex/hooks.json` PreToolUse(`Edit|Write|apply_patch`) 에 등록된다. 기존 `.claude/settings.json` 또는 `.codex/hooks.json` 이 깨진 JSON 이면 등록을 거부하고 파일을 덮어쓰지 않는다. Codex 쪽은 CLI 의 사용자 신뢰 승인(`~/.codex/config.toml` trusted hash 흐름)이 추가로 필요할 수 있으므로, `registered` 는 project-local 파일 등록 상태이지 사용자 trust 승인 완료를 뜻하지 않는다.
 
-**Git 도달성**: 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 linked worktree 와 headless worker 체크아웃에서 같은 계약을 재사용하려면 Git 에 커밋되어야 한다. in-place 실행은 현재 디스크의 hook 파일이 실존·등록돼 있으면 커밋 없이도 같은 프로세스에서 guard 배선을 확인할 수 있으므로 impl pre-flight 를 통과한다. 자동 workflow PR 대상은 아니지만 worktree/headless 재사용이 필요한 프로젝트에서는 activation bootstrap commit 대상이다. `scripts/dcness-tdd-hooks status` 는 linked worktree 에서 커밋이 필요한 생성 파일을 `commit-required` 로 표시하고, in-place 에서만 실존하는 생성 파일은 `commit-advisory` 로 표시한다. `dcness-helper status` 는 linked worktree 에서 커밋이 필요한 경우만 WARN 으로 표시한다.
+**Git 도달성**: 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 linked worktree 와 headless worker 체크아웃에서 같은 계약을 재사용하려면 Git 에 커밋되어야 한다. 자동 workflow PR 대상은 아니지만 worktree/headless 재사용이 필요한 프로젝트에서는 activation bootstrap commit 대상이다. `scripts/dcness-tdd-hooks status` 는 linked worktree 에서 커밋이 필요한 생성 파일을 `commit-required` 로 표시하고, in-place 에서만 실존하는 생성 파일은 `commit-advisory` 로 표시한다. `dcness-helper status` 는 linked worktree 에서 커밋이 필요한 경우만 WARN 으로 표시한다.
 
 **공존 규칙**: generated hook 이 interactive CC project hook 으로 등록되어 있으면 중앙 hook 은 중복 실행하지 않는다. Headless/synthetic 경로는 중앙 hook 이 generated hook 에 위임한 뒤 종료한다. 따라서 TS/JS 프로젝트에서도 중앙 fallback 과 project-local hook 이 같은 파일을 이중 deny 하지 않는다. generated hook 이 실패하거나 self-test 를 통과하지 못한 후보는 등록되지 않으며, 미설정·생성 실패 시 no-op 으로 안전 통과한다.
 

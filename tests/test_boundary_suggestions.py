@@ -108,67 +108,6 @@ class BoundarySuggestionsTests(unittest.TestCase):
             self.assertEqual([], report.suggestions)
             self.assertEqual("covered", report.reason)
 
-    def test_impl_plan_scope_detects_nonstandard_non_source_path(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            plan = root / "docs" / "epics" / "epic-01-x" / "impl" / "01-bootstrap.md"
-            self._write(
-                plan,
-                "## Scope\n\n"
-                "### 수정 허용\n\n"
-                "- gradle/libs.versions.toml\n",
-            )
-
-            report = collect_boundary_suggestions(root, impl_plan=plan)
-
-            self.assertEqual("impl_plan_uncovered", report.reason)
-            self.assertEqual(1, len(report.suggestions))
-            suggestion = report.suggestions[0]
-            self.assertEqual("gradle/libs.versions.toml", suggestion.directory)
-            self.assertEqual(r"^gradle/libs\.versions\.toml$", suggestion.pattern)
-            self.assertEqual(["gradle/libs.versions.toml"], suggestion.examples)
-
-    def test_impl_plan_scope_respects_existing_boundary_override(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            plan = root / "docs" / "epics" / "epic-01-x" / "impl" / "01-bootstrap.md"
-            self._write(
-                plan,
-                "## Scope\n\n"
-                "### 수정 허용\n\n"
-                "- gradle/libs.versions.toml\n",
-            )
-            self._write_boundary(
-                root,
-                {"build-worker": {"add": [r"^gradle/libs\.versions\.toml$"]}},
-            )
-
-            report = collect_boundary_suggestions(root, impl_plan=plan)
-
-            self.assertEqual([], report.suggestions)
-            self.assertEqual("impl_plan_covered", report.reason)
-
-    def test_impl_plan_scope_reports_non_override_boundary_block(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            plan = root / "docs" / "epics" / "epic-01-x" / "impl" / "01-bootstrap.md"
-            self._write(
-                plan,
-                "## Scope\n\n"
-                "### 수정 허용\n\n"
-                "- docs/notes.md\n",
-            )
-
-            report = collect_boundary_suggestions(root, impl_plan=plan)
-
-            self.assertEqual("impl_plan_uncovered", report.reason)
-            self.assertEqual(1, report.uncovered_files)
-            self.assertEqual([], report.suggestions)
-            self.assertIn("docs/notes.md", report.blocking_reasons)
-            formatted = format_boundary_suggestions(report)
-            self.assertIn("boundary 차단 경로", formatted)
-            self.assertIn("계획 scope", formatted)
-
     def test_ignores_tests_docs_dependencies_and_build_outputs(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root = Path(td)
@@ -211,41 +150,6 @@ class BoundarySuggestionsTests(unittest.TestCase):
 
             self.assertEqual("uncovered", payload["reason"])
             self.assertEqual(r"^remotion/", payload["suggestions"][0]["pattern"])
-
-    def test_helper_cli_accepts_impl_plan(self) -> None:
-        with tempfile.TemporaryDirectory() as td:
-            root = Path(td)
-            plan = root / "docs" / "epics" / "epic-01-x" / "impl" / "bootstrap.md"
-            self._write(
-                plan,
-                "## Scope\n\n"
-                "### 수정 허용\n\n"
-                "- settings.gradle.kts\n",
-            )
-
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-m",
-                    "harness.session_state",
-                    "boundary-suggestions",
-                    "--cwd",
-                    str(root),
-                    "--impl-plan",
-                    str(plan),
-                    "--json",
-                ],
-                cwd=str(REPO_ROOT),
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-                check=True,
-            )
-            payload = json.loads(proc.stdout)
-
-            self.assertEqual("impl_plan_uncovered", payload["reason"])
-            self.assertEqual(r"^settings\.gradle\.kts$", payload["suggestions"][0]["pattern"])
-
 
 if __name__ == "__main__":
     unittest.main()

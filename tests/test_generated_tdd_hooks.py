@@ -753,11 +753,13 @@ class GeneratedTddHookDocsTests(unittest.TestCase):
         hooks_doc = (ROOT / "docs" / "plugin" / "hooks.md").read_text(encoding="utf-8")
         impl_skill = (ROOT / "skills" / "impl" / "SKILL.md").read_text(encoding="utf-8")
 
-        for text in (init_skill, hooks_doc, impl_skill):
+        for text in (init_skill, hooks_doc):
             with self.subTest(text=text[:20]):
                 self.assertIn("TDD 계약", text)
                 self.assertIn("self-test", text)
                 self.assertIn("test_candidate_templates", text)
+        self.assertNotIn("test_candidate_templates", impl_skill)
+        self.assertIn("TDD 게이트는 삭제하지 않는다", impl_skill)
 
         ordered = [
             "TDD 계약",

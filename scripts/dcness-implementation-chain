@@ -2,8 +2,9 @@
 # Run a dcNess implementation step through the configured provider chain.
 #
 # Headless fallback is only allowed when a provider fails before workspace
-# mutation. If a provider changes the workspace and then fails, this script
-# stops without revert or fallback so the caller can inspect the diff.
+# mutation. Recoverable post-mutation failures continue with the same provider
+# in the same workspace; exhaustion stops without revert or cross-provider
+# fallback so the caller can inspect the preserved diff.
 
 set -uo pipefail
 
@@ -28,6 +29,10 @@ Options:
   --project-root, -C  Repository root. Default: git rev-parse --show-toplevel.
   --helper            dcness-helper path. Default: sibling script.
   --help, -h          Show this help.
+
+Environment:
+  DCNESS_IMPLEMENTATION_RECOVERY_LIMIT  Same-provider continuation attempts
+      after recoverable mutation failures. Default: 2.
 
 Exit codes:
   0   Headless provider completed and recorded end-step.
@@ -74,6 +79,7 @@ PROVIDER=""
 PROVIDER_ARG_SEEN=0
 PROVIDER_PROVENANCE=""
 CHAIN_STATE=""
+RECOVERY_LIMIT="${DCNESS_IMPLEMENTATION_RECOVERY_LIMIT:-2}"
 
 abs_path() {
   case "$1" in
@@ -168,6 +174,13 @@ if ! command -v python3 >/dev/null 2>&1; then
   echo "[dcness-implementation-chain] python3 not found; required for routing and context resolution" >&2
   exit 127
 fi
+
+case "$RECOVERY_LIMIT" in
+  ''|*[!0-9]*)
+    echo "[dcness-implementation-chain] DCNESS_IMPLEMENTATION_RECOVERY_LIMIT must be a non-negative integer: $RECOVERY_LIMIT" >&2
+    exit 2
+    ;;
+esac
 
 cd "$PROJECT_ROOT"
 
@@ -303,20 +316,77 @@ if [ "${#STAGES[@]}" -eq 0 ]; then
   exit 2
 fi
 
+recovery_eligible() {
+  case "$1" in
+    timeout|idle_timeout|empty_output|boundary_violation|tdd_guard) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+write_recovery_prompt() {
+  local output="$1"
+  local stage="$2"
+  local category="$3"
+  local raw_log="$4"
+  local attempt="$5"
+  {
+    echo "----- BEGIN ORIGINAL TASK -----"
+    cat "$PROMPT_FILE"
+    echo "----- END ORIGINAL TASK -----"
+    echo
+    echo "----- AUTOMATIC RECOVERY -----"
+    echo "The same $stage worker is continuing attempt $attempt in the same workspace."
+    echo "Failure category: $category"
+    echo "Previous raw log: $raw_log"
+    echo "Inspect the existing diff and raw log, preserve valid work, and finish the original task."
+    echo "Fix the failure's root cause and rerun the relevant checks; mutation-time boundary and TDD guards will run again."
+    echo "Do not widen a hard boundary, add a tdd-exempt marker automatically, revert valid work, or ask the user about a routine mechanical recovery."
+    echo "Only report a need for user input if product meaning or authority must change."
+    echo "----- END AUTOMATIC RECOVERY -----"
+  } > "$output"
+}
+
+record_exhausted_boundary_block() {
+  local stage="$1"
+  local raw_log="$2"
+  [ -n "$RESOLVED_SID" ] && [ -n "$RESOLVED_RID" ] || return 0
+  PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 - "$RESOLVED_SID" "$RESOLVED_RID" "$AGENT" "$MODE" "$stage" "$raw_log" <<'PY' || true
+import sys
+from harness.session_state import transition
+
+sid, rid, agent, mode, provider, raw_log = sys.argv[1:7]
+transition(
+    sid,
+    "run_blocked",
+    run_id=rid,
+    category="worker_boundary",
+    agent=agent,
+    mode=mode or None,
+    provider=provider,
+    reason="mutation-time boundary recovery exhausted",
+    raw_log=raw_log,
+)
+PY
+}
+
 run_headless_stage() {
   local stage="$1"
   local wrapper=""
-  local before_status=""
   local after_status=""
-  local before_head=""
   local after_head=""
+  local stage_initial_status=""
+  local stage_initial_head=""
   local log=""
   local failure_file=""
   local failure_info=""
   local failure_category=""
-  local record_info=""
+  local failure_raw_log=""
   local record_rc=0
   local rc=0
+  local attempt=0
+  local prompt_path="$PROMPT_FILE"
+  local recovery_prompt=""
   local cmd=()
 
   case "$stage" in
@@ -332,73 +402,104 @@ run_headless_stage() {
       ;;
   esac
 
-  log="$RAW_LOG_DIR/chain-${stage}-${AGENT}${MODE:+-$MODE}-$$.log"
-  failure_file="$(mktemp "${TMPDIR:-/tmp}/dcness-provider-failure-${stage}.XXXXXX")"
-  dcness_write_headless_context_header "dcness-implementation-chain" "$log"
-  before_status="$(git_status_without_harness_state)"
-  before_head="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
+  stage_initial_status="$(git_status_without_harness_state)"
+  stage_initial_head="$(git -C "$PROJECT_ROOT" rev-parse --verify HEAD 2>/dev/null || true)"
 
-  cmd=("$wrapper" "$AGENT")
-  if [ -n "$MODE" ]; then
-    cmd+=("$MODE")
-  fi
-  cmd+=(--prompt-file "$PROMPT_FILE" --project-root "$PROJECT_ROOT" --helper "$HELPER")
+  while true; do
+    log="$RAW_LOG_DIR/chain-${stage}-${AGENT}${MODE:+-$MODE}-attempt-$((attempt + 1))-$$.log"
+    failure_file="$(mktemp "${TMPDIR:-/tmp}/dcness-provider-failure-${stage}.XXXXXX")"
+    dcness_write_headless_context_header "dcness-implementation-chain" "$log"
 
-  {
-    printf 'PROVIDER: %s\n' "$stage"
-    printf 'COMMAND:'
-    printf ' %s' "${cmd[@]}"
-    printf '\n'
-  } >> "$log"
-
-  DCNESS_PROVIDER_FAILURE_FILE="$failure_file" "${cmd[@]}" >> "$log" 2>&1
-  rc=$?
-
-  after_status="$(git_status_without_harness_state)"
-  after_head="$(git -C "$PROJECT_ROOT" rev-parse HEAD 2>/dev/null || true)"
-  if [ "$rc" -eq 0 ]; then
-    if [ -n "$CACHE_BYPASS_REASON" ]; then
-      provider_cache_clear "$stage"
+    cmd=("$wrapper" "$AGENT")
+    if [ -n "$MODE" ]; then
+      cmd+=("$MODE")
     fi
-    rm -f "$failure_file"
-    return 0
-  fi
+    cmd+=(--prompt-file "$prompt_path" --project-root "$PROJECT_ROOT" --helper "$HELPER")
 
-  if [ "$before_status" != "$after_status" ] || [ "$before_head" != "$after_head" ]; then
-    echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and failed; no fallback." >&2
-    echo "[dcness-implementation-chain] raw log: $log" >&2
-    git -C "$PROJECT_ROOT" status --short >&2 || true
-    rm -f "$failure_file"
-    exit 1
-  fi
+    {
+      printf 'PROVIDER: %s\n' "$stage"
+      printf 'ATTEMPT: %s\n' "$((attempt + 1))"
+      printf 'COMMAND:'
+      printf ' %s' "${cmd[@]}"
+      printf '\n'
+    } >> "$log"
 
-  if [ -s "$failure_file" ]; then
-    failure_info="$(cat "$failure_file")"
-    failure_category="$(printf '%s' "$failure_info" | python3 -c '
+    DCNESS_MUTATION_BASE_HEAD="$stage_initial_head" \
+      DCNESS_RECOVERY_OWNER=implementation-chain \
+      DCNESS_PROVIDER_FAILURE_FILE="$failure_file" \
+      "${cmd[@]}" >> "$log" 2>&1
+    rc=$?
+
+    after_status="$(git_status_without_harness_state)"
+    after_head="$(git -C "$PROJECT_ROOT" rev-parse --verify HEAD 2>/dev/null || true)"
+    if [ "$rc" -eq 0 ]; then
+      if [ -n "$CACHE_BYPASS_REASON" ]; then
+        provider_cache_clear "$stage"
+      fi
+      rm -f "$failure_file"
+      [ -z "$recovery_prompt" ] || rm -f "$recovery_prompt"
+      return 0
+    fi
+
+    failure_category=""
+    failure_raw_log="$log"
+    if [ -s "$failure_file" ]; then
+      failure_info="$(cat "$failure_file")"
+      failure_category="$(printf '%s' "$failure_info" | python3 -c '
 import json, sys
 print(json.load(sys.stdin).get("category", ""))
 ' 2>/dev/null || true)"
-  fi
-  if [ -n "$CHAIN_STATE" ] && [ -z "$CACHE_BYPASS_REASON" ] && [ -s "$failure_file" ]; then
-    record_info="$(
+      failure_raw_log="$(printf '%s' "$failure_info" | python3 -c '
+import json, sys
+print(json.load(sys.stdin).get("raw_log", ""))
+' 2>/dev/null || printf '%s' "$log")"
+      [ -n "$failure_raw_log" ] || failure_raw_log="$log"
+    fi
+
+    if [ "$stage_initial_status" != "$after_status" ] || [ "$stage_initial_head" != "$after_head" ]; then
+      if recovery_eligible "$failure_category" && [ "$attempt" -lt "$RECOVERY_LIMIT" ]; then
+        attempt=$((attempt + 1))
+        [ -z "$recovery_prompt" ] || rm -f "$recovery_prompt"
+        recovery_prompt="$(mktemp "${TMPDIR:-/tmp}/dcness-recovery-${stage}.XXXXXX")"
+        write_recovery_prompt \
+          "$recovery_prompt" "$stage" "$failure_category" "$failure_raw_log" "$attempt"
+        prompt_path="$recovery_prompt"
+        echo "[dcness-implementation-chain] RECOVERY provider=$stage category=$failure_category attempt=$attempt/$RECOVERY_LIMIT workspace=preserved guard=recheck" >&2
+        rm -f "$failure_file"
+        continue
+      fi
+
+      if [ "$failure_category" = "boundary_violation" ]; then
+        record_exhausted_boundary_block "$stage" "$failure_raw_log"
+      fi
+      echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and recovery stopped (category=${failure_category:-unclassified}, attempts=$attempt/$RECOVERY_LIMIT); no cross-provider fallback or revert." >&2
+      echo "[dcness-implementation-chain] raw log: $failure_raw_log" >&2
+      git -C "$PROJECT_ROOT" status --short >&2 || true
+      rm -f "$failure_file"
+      [ -z "$recovery_prompt" ] || rm -f "$recovery_prompt"
+      exit 1
+    fi
+
+    if [ -n "$CHAIN_STATE" ] && [ -z "$CACHE_BYPASS_REASON" ] && [ -s "$failure_file" ]; then
       PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
         python3 -m harness.provider_failure_cache record \
           --state "$CHAIN_STATE" \
           --project-root "$PROJECT_ROOT" \
           --provider "$stage" \
-          --failure-file "$failure_file"
-    )"
-    record_rc=$?
-    if [ "$record_rc" -eq 0 ]; then
-      echo "[dcness-implementation-chain] provider cache recorded provider=$stage category=$failure_category" >&2
-    elif [ "$record_rc" -ne 3 ]; then
-      echo "[dcness-implementation-chain] provider cache record failed for $stage; continuing without memoization." >&2
+          --failure-file "$failure_file" >/dev/null
+      record_rc=$?
+      if [ "$record_rc" -eq 0 ]; then
+        echo "[dcness-implementation-chain] provider cache recorded provider=$stage category=$failure_category" >&2
+      elif [ "$record_rc" -ne 3 ]; then
+        echo "[dcness-implementation-chain] provider cache record failed for $stage; continuing without memoization." >&2
+      fi
     fi
-  fi
-  rm -f "$failure_file"
+    rm -f "$failure_file"
+    [ -z "$recovery_prompt" ] || rm -f "$recovery_prompt"
 
-  echo "[dcness-implementation-chain] provider $stage failed before workspace mutation (exit $rc, category=${failure_category:-unclassified}); continuing. raw log: $log" >&2
-  return "$rc"
+    echo "[dcness-implementation-chain] provider $stage failed before workspace mutation (exit $rc, category=${failure_category:-unclassified}); continuing. raw log: $log" >&2
+    return "$rc"
+  done
 }
 
 for STAGE in "${STAGES[@]}"; do

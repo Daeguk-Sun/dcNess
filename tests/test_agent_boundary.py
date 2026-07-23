@@ -150,6 +150,62 @@ class WriteBoundaryTests(unittest.TestCase):
             self.assertIsNotNone(check_write_allowed("build-worker", run + "impl-validator.md", cwd=root))
             self.assertIsNotNone(check_write_allowed("module-architect", run + "build-impl.md", cwd=root))
 
+    def test_impl_task_scope_opens_nonstandard_path_but_not_hard_boundary(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, external_boundary():
+            root = Path(directory)
+            scope = ("gradlew", "gradle/libs.versions.toml", "custom/**/*.kt")
+
+            self.assertIsNotNone(
+                check_write_allowed("build-worker", "gradlew", cwd=root)
+            )
+            self.assertIsNone(
+                check_write_allowed(
+                    "build-worker",
+                    "gradlew",
+                    cwd=root,
+                    task_scope_paths=scope,
+                )
+            )
+            self.assertIsNone(
+                check_write_allowed(
+                    "build-worker",
+                    "custom/app/Main.kt",
+                    cwd=root,
+                    task_scope_paths=scope,
+                )
+            )
+            self.assertIsNotNone(
+                check_write_allowed(
+                    "build-worker",
+                    "custom/app/Nested.kt",
+                    cwd=root,
+                    task_scope_paths=("custom/*.kt",),
+                )
+            )
+            for protected in ("hooks/file-guard.sh", ".dcness/boundary.json", "../outside.kt"):
+                with self.subTest(protected=protected):
+                    self.assertIsNotNone(
+                        check_write_allowed(
+                            "build-worker",
+                            protected,
+                            cwd=root,
+                            task_scope_paths=scope + (protected,),
+                        )
+                    )
+
+    def test_impl_task_scope_cannot_open_write_zero_agent(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, external_boundary():
+            root = Path(directory)
+            reason = check_write_allowed(
+                "impl-validator",
+                "custom/report.md",
+                cwd=root,
+                task_scope_paths=("custom/report.md",),
+            )
+
+            self.assertIsNotNone(reason)
+            self.assertIn("write-zero", reason or "")
+
 
 class ProjectOverrideTests(unittest.TestCase):
     def _repo(self, directory: str, payload: object) -> Path:

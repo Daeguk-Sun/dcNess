@@ -80,10 +80,22 @@ def _reason_decision(reason: str | None) -> tuple[Decision, str]:
     return ("block", reason) if reason else ("allow", "")
 
 
-def _file_write(agent: str, path: str) -> Probe:
+def _file_write(
+    agent: str,
+    path: str,
+    *,
+    task_scope_paths: tuple[str, ...] = (),
+) -> Probe:
     def probe() -> tuple[Decision, str]:
         with tempfile.TemporaryDirectory() as td, _external_project_boundary():
-            return _reason_decision(check_write_allowed(agent, path, cwd=Path(td)))
+            return _reason_decision(
+                check_write_allowed(
+                    agent,
+                    path,
+                    cwd=Path(td),
+                    task_scope_paths=task_scope_paths,
+                )
+            )
 
     return probe
 
@@ -485,6 +497,28 @@ def build_cases() -> list[GuardCase]:
             "block",
             "code agents cannot write design-owned docs.",
             _file_write("build-worker", "docs/architecture.md"),
+        ),
+        GuardCase(
+            "file_boundary_allows_exact_impl_task_scope",
+            "file-boundary",
+            "allow",
+            "an exact active task path can open a nonstandard implementation directory.",
+            _file_write(
+                "build-worker",
+                "custom/search/handler.kt",
+                task_scope_paths=("custom/**/*.kt",),
+            ),
+        ),
+        GuardCase(
+            "file_boundary_task_scope_cannot_open_infra",
+            "file-boundary",
+            "block",
+            "active task scope never overrides the plugin infra hard boundary.",
+            _file_write(
+                "build-worker",
+                "hooks/file-guard.sh",
+                task_scope_paths=("hooks/file-guard.sh",),
+            ),
         ),
         GuardCase(
             "file_boundary_allows_module_architect_docs",

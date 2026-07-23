@@ -34,6 +34,7 @@ import subprocess  # nosec B404
 from pathlib import Path
 from typing import Iterable, Optional
 
+from harness.parallel_wave import scope_path_matches
 from harness.session_state_activation import _resolve_project_root
 
 
@@ -552,6 +553,27 @@ def _matches_any(path: str, patterns: Iterable[str]) -> Optional[str]:
     return None
 
 
+def _matches_task_scope(path: str, scope_paths: Iterable[str]) -> Optional[str]:
+    """Match a path against the active impl task's already-approved scope.
+
+    This is a mutation-time capability, not a persisted boundary override.
+    Catastrophic INFRA/exclusive-deny/project-remove checks still run first, so
+    an impl plan can authorize a nonstandard task path without widening any
+    hard boundary or future run.
+    """
+    for raw_scope in scope_paths:
+        scope = raw_scope.strip()
+        if not scope or scope.startswith(("/", "~")) or ".." in Path(scope).parts:
+            continue
+        if scope.endswith("/") and path.startswith(scope):
+            return scope
+        if any(char in scope for char in "*?[") and scope_path_matches(path, scope):
+            return scope
+        if path == scope:
+            return scope
+    return None
+
+
 # ── 검사 ─────────────────────────────────────────────────────────────
 
 
@@ -561,6 +583,7 @@ def check_write_allowed(
     *,
     cwd: Optional[Path] = None,
     shell_context: bool = False,
+    task_scope_paths: Iterable[str] = (),
 ) -> Optional[str]:
     """Write/Edit 검사 — block reason str / None=allow.
 
@@ -661,22 +684,28 @@ def check_write_allowed(
                 f"(.dcness/boundary.json — 코어 기본값에서 제거)"
             )
 
-    # 3b. ALLOW_MATRIX (코어 + 프로젝트 add) 미매칭 → 차단.
     allowed = ALLOW_MATRIX.get(agent)
+    # write-zero agent (판정/검증 전용 — impl-validator / architecture-validator /
+    # product-acceptance 의 빈 ALLOW) 는
+    # 프로젝트 add 나 impl task-scope 로도 write 를 열 수 없다 (#696 codex P2).
+    # "검증자는 자기가 검증하는 것을 못 고친다" 는 역할 격리는 catastrophic gate
+    # 신뢰의 근간이라 되돌릴 수 없는 경계다 — mutation agent 내부 경계만 run scope 로
+    # 확장할 수 있고 검증자를 mutation agent 로 승격할 수는 없다.
+    if allowed == ():
+        return (
+            f"{agent} 는 write-zero(판정/검증 전용) — 프로젝트 boundary add나 impl task-scope로도 "
+            f"write 를 열 수 없다 (`{norm}`): 검증자 역할 격리는 되돌릴 수 없는 경계."
+        )
+
+    # 3b. 현재 impl task-scope — plan 에 이미 승인된 정확한 경로만 이 run 에서 허용.
+    #     INFRA/exclusive deny/remove/write-zero 를 모두 통과한 build-worker 만 열 수 있다.
+    if agent == "build-worker" and _matches_task_scope(norm, task_scope_paths):
+        return None
+
+    # 3c. ALLOW_MATRIX (코어 + 프로젝트 add) 미매칭 → 차단.
     if allowed is None:
         # 미정의 agent — false positive 회피로 통과.
         return None
-    # write-zero agent (판정/검증 전용 — impl-validator / architecture-validator /
-    # product-acceptance 의 빈 ALLOW) 는
-    # 프로젝트 add 로도 write 를 열 수 없다 (#696 codex P2). "검증자는 자기가 검증하는
-    # 것을 못 고친다" 는 역할 격리는 catastrophic gate 신뢰의 근간이라 되돌릴 수 없는
-    # 경계다 — add 로 mutation agent 로 승격시키면 gate forge 위험. 이슈가 "프로젝트
-    # 감수" 로 연 것은 mutation agent 내부 경계(build-worker의 tests/)이지 검증자 승격이 아니다.
-    if allowed == ():
-        return (
-            f"{agent} 는 write-zero(판정/검증 전용) — 프로젝트 boundary add 로도 "
-            f"write 를 열 수 없다 (`{norm}`): 검증자 역할 격리는 되돌릴 수 없는 경계."
-        )
     effective = allowed + add_patterns
     if not _matches_any(norm, effective):
         return (

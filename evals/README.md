@@ -171,6 +171,7 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 
 | 케이스 | 입력 | 기대 |
 |---|---|---|
+| `impl-fast-start-recovery` | (실사고 #1185/#1181) 자연어 direct 구현, 반복 loop task, 변경 후 timeout·빈 prose·TDD guard 실패, 권한 확대 제안이 이어지는 trace | 사전 ceremony·routine 질문 없이 개발을 시작하고 같은 provider/workspace에서 bounded 복구하되 hard boundary·test 면제는 자동 승인하지 않아야 한다 |
 | `story-slice-partfirst` | (합성) 기능 영역(인테이크/템플릿/오디오/렌더/업로드) 부품 단위로 잘려 마지막 story 까지 동작이 안 나오는 backlog | 분할·순서 결함이 지적돼야 한다 |
 | `story-slice-skeleton` | (합성) 첫 story 가 얇은 end-to-end 골격이고 매 story 가 확인 가능한 증분인 backlog | 분할·순서를 이유로 퇴짜 놓으면 안 된다 |
 | `shorts-real-spec` | (L3 실사고) youTubeGenerator v03 쇼츠 epic 의 실제 stories.md — 완성 쇼츠 동작 검증이 Story 3 까지 밀려 런타임 gap(youTubeGenerator #214)이 났던 backlog. 합성 케이스보다 미묘함(각 story 가 표면상 멀쩡) | 순서 결함(첫 완성 동작이 뒤 story 로 밀림)이 지적돼야 한다 (옛 지침은 통과시켰던 입력) |

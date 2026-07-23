@@ -29,6 +29,64 @@ def _run(*args: str, cwd: Path | None = None, check: bool = True) -> subprocess.
     )
 
 
+def _current_candidate_ref() -> str:
+    """Return a commit-like ref for the candidate visible to the test gate.
+
+    A pre-commit test must inspect the staged tree rather than combine the new
+    working-tree contract with the old HEAD archive. Outside pre-commit, fall
+    back to Git's non-mutating stash snapshot for tracked worktree changes.
+    The created objects are unreachable and no ref or worktree state changes.
+    """
+    staged = subprocess.run(
+        ["git", "diff", "--cached", "--quiet"],
+        cwd=ROOT,
+        check=False,
+    ).returncode
+    if staged == 1:
+        tree = subprocess.run(
+            ["git", "write-tree"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        parent = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout.strip()
+        env = os.environ.copy()
+        env.update(
+            {
+                "GIT_AUTHOR_NAME": "dcness test",
+                "GIT_AUTHOR_EMAIL": "test@dcness.local",
+                "GIT_AUTHOR_DATE": "2000-01-01T00:00:00Z",
+                "GIT_COMMITTER_NAME": "dcness test",
+                "GIT_COMMITTER_EMAIL": "test@dcness.local",
+                "GIT_COMMITTER_DATE": "2000-01-01T00:00:00Z",
+            }
+        )
+        return subprocess.run(
+            ["git", "commit-tree", tree, "-p", parent, "-m", "test candidate"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+            env=env,
+        ).stdout.strip()
+
+    snapshot = subprocess.run(
+        ["git", "stash", "create", "release-artifact-test-candidate"],
+        cwd=ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+    return snapshot or "HEAD"
+
+
 class ReleaseArtifactContractTests(unittest.TestCase):
     def test_contract_is_a_positive_product_allowlist(self) -> None:
         contract = json.loads(CONTRACT.read_text(encoding="utf-8"))
@@ -1061,12 +1119,13 @@ class ReleaseArtifactContractTests(unittest.TestCase):
         self.assertEqual(broken, [], "distributed artifact has broken relative links")
 
     def test_current_candidate_passes_runtime_smoke(self) -> None:
+        candidate_ref = _current_candidate_ref()
         result = _run(
             "smoke",
             "--repo-root",
             str(ROOT),
             "--ref",
-            "HEAD",
+            candidate_ref,
             "--contract",
             str(CONTRACT),
         )
@@ -1079,7 +1138,7 @@ class ReleaseArtifactContractTests(unittest.TestCase):
                 "--repo-root",
                 str(ROOT),
                 "--ref",
-                "HEAD",
+                candidate_ref,
                 "--output",
                 str(bundle),
                 "--contract",

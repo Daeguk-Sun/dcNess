@@ -280,11 +280,12 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("기본/support/고급/유틸리티/내부 agent 분류", self.readme)
         self.assertNotIn("호환 workflow", self.readme)
         self.assertNotIn("호환 alias", self.readme)
-        # #1032 — impl internal echo includes issue-intake/direct/design-doc, worker engine axis removed.
+        # #1185 — implementation intent starts direct; issue creation is explicit.
         self.assertIn(
-            "`/impl` 이 내부적으로 issue-intake/direct/design-doc",
+            "`/impl` 은 direct/design-doc",
             self.readme,
         )
+        self.assertNotIn("issue-intake", self.readme)
         self.assertNotIn("Lite / Standard / Deep lane", self.readme)
 
     def test_init_summary_uses_same_lifecycle_surface(self) -> None:
@@ -750,28 +751,27 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 self.assertIn(".gitignore", text)
 
     def test_issue_910_boundary_suggestion_trigger_is_documented(self) -> None:
-        """#910 — init/impl start suggests boundary override without writing it."""
-        for text in (self.init_doc, self.impl_skill, self.init_reference, self.hooks_doc):
+        """#910/#1185 — init owns advisory scan; implementation stays fast-start."""
+        for text in (self.init_doc, self.init_reference, self.hooks_doc):
             with self.subTest(source=text[:30]):
                 self.assertIn("boundary-suggestions", text)
                 self.assertIn(".dcness/boundary.json", text)
                 self.assertIn("사람 승인", text)
         self.assertIn("read-only", self.init_reference)
-        self.assertIn("표준 레이아웃·빈 프로젝트", self.impl_skill)
+        self.assertNotIn("boundary-suggestions", self.impl_skill)
 
-    def test_issue_1019_impl_uses_deterministic_preview_helper(self) -> None:
-        """#1019 — /impl keeps route/review preview in helper code."""
-        self.assertIn('"$HELPER" impl-preview', self.impl_skill)
-        self.assertIn("--workflow-risk normal|high", self.impl_skill)
-        self.assertIn("--natural-language-only", self.impl_skill)
-        self.assertIn("issue-intake", self.impl_skill)
-        self.assertIn("review_provider", self.impl_skill)
+    def test_issue_1185_impl_removes_advisory_preview_before_first_edit(self) -> None:
+        """#1185 — /impl reaches RED/first edit without preview/preflight helpers."""
+        self.assertNotIn("impl-preview", self.impl_skill)
+        self.assertNotIn("boundary-suggestions", self.impl_skill)
+        self.assertIn("첫 진행 이정표", self.impl_skill)
+        self.assertIn("RED", self.impl_skill)
 
     def test_issue_1019_impl_external_copy_uses_current_naming(self) -> None:
         """#1019/#1023 — external-facing impl docs use current route names."""
         self.assertIn("direct", self.impl_skill)
         self.assertIn("design-doc", self.impl_skill)
-        self.assertIn("구현을 진행할까요?", self.impl_skill)
+        self.assertIn("제품 의미", self.impl_skill)
 
     def test_issue_1019_general_impl_does_not_expose_headless_engine_axis(self) -> None:
         """#1019 — general /impl is main-owned; headless worker engines belong to /impl-loop."""
