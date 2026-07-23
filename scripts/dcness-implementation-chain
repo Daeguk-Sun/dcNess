@@ -346,16 +346,17 @@ write_recovery_prompt() {
   } > "$output"
 }
 
-record_exhausted_boundary_block() {
+record_boundary_block() {
   local stage="$1"
   local raw_log="$2"
+  local reason="$3"
   [ -n "$RESOLVED_SID" ] && [ -n "$RESOLVED_RID" ] || return 0
   PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 - "$RESOLVED_SID" "$RESOLVED_RID" "$AGENT" "$MODE" "$stage" "$raw_log" <<'PY' || true
+    python3 - "$RESOLVED_SID" "$RESOLVED_RID" "$AGENT" "$MODE" "$stage" "$raw_log" "$reason" <<'PY' || true
 import sys
 from harness.session_state import transition
 
-sid, rid, agent, mode, provider, raw_log = sys.argv[1:7]
+sid, rid, agent, mode, provider, raw_log, reason = sys.argv[1:8]
 transition(
     sid,
     "run_blocked",
@@ -364,7 +365,7 @@ transition(
     agent=agent,
     mode=mode or None,
     provider=provider,
-    reason="mutation-time boundary recovery exhausted",
+    reason=reason,
     raw_log=raw_log,
 )
 PY
@@ -380,8 +381,11 @@ run_headless_stage() {
   local log=""
   local failure_file=""
   local failure_info=""
+  local failure_fields=""
   local failure_category=""
   local failure_raw_log=""
+  local failure_permission_required="false"
+  local failure_permission_receipt=""
   local record_rc=0
   local rc=0
   local attempt=0
@@ -443,21 +447,29 @@ run_headless_stage() {
 
     failure_category=""
     failure_raw_log="$log"
+    failure_permission_required="false"
+    failure_permission_receipt=""
     if [ -s "$failure_file" ]; then
       failure_info="$(cat "$failure_file")"
-      failure_category="$(printf '%s' "$failure_info" | python3 -c '
+      failure_fields="$(printf '%s' "$failure_info" | python3 -c '
 import json, sys
-print(json.load(sys.stdin).get("category", ""))
+failure = json.load(sys.stdin)
+print(failure.get("category", ""))
+print(failure.get("raw_log", ""))
+print("true" if failure.get("permission_required") is True else "false")
+print(failure.get("permission_receipt", ""))
 ' 2>/dev/null || true)"
-      failure_raw_log="$(printf '%s' "$failure_info" | python3 -c '
-import json, sys
-print(json.load(sys.stdin).get("raw_log", ""))
-' 2>/dev/null || printf '%s' "$log")"
+      failure_category="$(printf '%s\n' "$failure_fields" | sed -n '1p')"
+      failure_raw_log="$(printf '%s\n' "$failure_fields" | sed -n '2p')"
+      failure_permission_required="$(printf '%s\n' "$failure_fields" | sed -n '3p')"
+      failure_permission_receipt="$(printf '%s\n' "$failure_fields" | sed -n '4p')"
       [ -n "$failure_raw_log" ] || failure_raw_log="$log"
     fi
 
     if [ "$stage_initial_status" != "$after_status" ] || [ "$stage_initial_head" != "$after_head" ]; then
-      if recovery_eligible "$failure_category" && [ "$attempt" -lt "$RECOVERY_LIMIT" ]; then
+      if [ "$failure_permission_required" != "true" ] \
+        && recovery_eligible "$failure_category" \
+        && [ "$attempt" -lt "$RECOVERY_LIMIT" ]; then
         attempt=$((attempt + 1))
         [ -z "$recovery_prompt" ] || rm -f "$recovery_prompt"
         recovery_prompt="$(mktemp "${TMPDIR:-/tmp}/dcness-recovery-${stage}.XXXXXX")"
@@ -470,9 +482,24 @@ print(json.load(sys.stdin).get("raw_log", ""))
       fi
 
       if [ "$failure_category" = "boundary_violation" ]; then
-        record_exhausted_boundary_block "$stage" "$failure_raw_log"
+        if [ "$failure_permission_required" = "true" ]; then
+          record_boundary_block \
+            "$stage" "$failure_raw_log" \
+            "mutation-time boundary blocked pending sandbox permission"
+        else
+          record_boundary_block \
+            "$stage" "$failure_raw_log" \
+            "mutation-time boundary recovery exhausted"
+        fi
       fi
-      echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and recovery stopped (category=${failure_category:-unclassified}, attempts=$attempt/$RECOVERY_LIMIT); no cross-provider fallback or revert." >&2
+      if [ "$failure_permission_required" = "true" ]; then
+        echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and reported permission_required with category=${failure_category:-unclassified}; automatic recovery and cross-provider fallback stopped pending user approval." >&2
+        if [ -n "$failure_permission_receipt" ]; then
+          echo "[dcness-implementation-chain] permission receipt: $failure_permission_receipt" >&2
+        fi
+      else
+        echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and recovery stopped (category=${failure_category:-unclassified}, attempts=$attempt/$RECOVERY_LIMIT); no cross-provider fallback or revert." >&2
+      fi
       echo "[dcness-implementation-chain] raw log: $failure_raw_log" >&2
       git -C "$PROJECT_ROOT" status --short >&2 || true
       rm -f "$failure_file"

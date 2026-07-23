@@ -233,6 +233,7 @@ TMP_FAILURE_CAUSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-worker-failure-${AGENT
 RAW_LOG="$RAW_LOG_DIR/codex-headless-${AGENT}${MODE:+-$MODE}-$$.log"
 dcness_write_headless_context_header "dcness-codex-worker" "$RAW_LOG"
 trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT" "$TMP_FAILURE_CAUSE"' EXIT
+DETECTED_PERMISSION_RECEIPT=""
 
 emit_provider_failure() {
   local rc="$1"
@@ -248,6 +249,9 @@ emit_provider_failure() {
   )
   if [ -n "$cause" ]; then
     args+=(--cause "$cause")
+  fi
+  if [ -n "$DETECTED_PERMISSION_RECEIPT" ]; then
+    args+=(--permission-receipt "$DETECTED_PERMISSION_RECEIPT")
   fi
   PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
     python3 -m harness.provider_failure_cache "${args[@]}" >/dev/null 2>&1 || true
@@ -519,6 +523,37 @@ if [ ! -s "$TMP_PROSE" ]; then
 fi
 dcness_append_final_prose_to_raw_log "CODEX OUTPUT-LAST-MESSAGE" "$TMP_PROSE" "$RAW_LOG"
 
+if [ "${DCNESS_HEADLESS_CONTEXT_DEGRADED:-0}" = "1" ]; then
+  PERMISSION_RECEIPT="$RAW_LOG_DIR/codex-sandbox-permission-${AGENT}${MODE:+-$MODE}-$$.json"
+else
+  PERMISSION_RECEIPT="$(dirname "$RAW_LOG_DIR")/codex-sandbox-permission-${AGENT}${MODE:+-$MODE}-$$.json"
+fi
+PERMISSION_ARGS=(
+  detect
+  --prose-file "$TMP_PROSE"
+  --raw-log "$RAW_LOG"
+  --project-root "$PROJECT_ROOT"
+  --receipt "$PERMISSION_RECEIPT"
+)
+if [ -n "$CODEX_PERMISSION_RECEIPT" ]; then
+  PERMISSION_ARGS+=(--retry-receipt "$CODEX_PERMISSION_RECEIPT")
+fi
+if [ -n "$RESOLVED_SID" ] && [ -n "$RESOLVED_RID" ]; then
+  PERMISSION_ARGS+=(--sid "$RESOLVED_SID" --run-id "$RESOLVED_RID")
+fi
+
+PERMISSION_OUTPUT="$(
+  PYTHONPATH="$SCRIPT_DIR/..:${PYTHONPATH:-}" \
+    python3 -m harness.codex_sandbox_permission "${PERMISSION_ARGS[@]}"
+)"
+PERMISSION_RC=$?
+if [ "$PERMISSION_RC" -eq 0 ]; then
+  DETECTED_PERMISSION_RECEIPT="$PERMISSION_OUTPUT"
+  echo "[dcness-codex-worker] permission_required receipt: $PERMISSION_OUTPUT" >&2
+elif [ "$PERMISSION_RC" -ne 4 ]; then
+  echo "[dcness-codex-worker] WARN: sandbox permission evidence classification failed (exit $PERMISSION_RC); VALIDATION_BLOCKED remains unchanged." >&2
+fi
+
 BOUNDARY_PROBLEMS="$(
   GUARD_BASE_HEAD="$GUARD_BASE_HEAD" PYTHONPATH="$SCRIPT_DIR/.." python3 - "$AGENT" "$PROJECT_ROOT" <<'PY'
 import os
@@ -666,36 +701,6 @@ if [ "$TDD_RC" -eq 1 ]; then
   echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$TDD_PROBLEMS" >&2
   exit 1
-fi
-
-if [ "${DCNESS_HEADLESS_CONTEXT_DEGRADED:-0}" = "1" ]; then
-  PERMISSION_RECEIPT="$RAW_LOG_DIR/codex-sandbox-permission-${AGENT}${MODE:+-$MODE}-$$.json"
-else
-  PERMISSION_RECEIPT="$(dirname "$RAW_LOG_DIR")/codex-sandbox-permission-${AGENT}${MODE:+-$MODE}-$$.json"
-fi
-PERMISSION_ARGS=(
-  detect
-  --prose-file "$TMP_PROSE"
-  --raw-log "$RAW_LOG"
-  --project-root "$PROJECT_ROOT"
-  --receipt "$PERMISSION_RECEIPT"
-)
-if [ -n "$CODEX_PERMISSION_RECEIPT" ]; then
-  PERMISSION_ARGS+=(--retry-receipt "$CODEX_PERMISSION_RECEIPT")
-fi
-if [ -n "$RESOLVED_SID" ] && [ -n "$RESOLVED_RID" ]; then
-  PERMISSION_ARGS+=(--sid "$RESOLVED_SID" --run-id "$RESOLVED_RID")
-fi
-
-PERMISSION_OUTPUT="$(
-  PYTHONPATH="$SCRIPT_DIR/..:${PYTHONPATH:-}" \
-    python3 -m harness.codex_sandbox_permission "${PERMISSION_ARGS[@]}"
-)"
-PERMISSION_RC=$?
-if [ "$PERMISSION_RC" -eq 0 ]; then
-  echo "[dcness-codex-worker] permission_required receipt: $PERMISSION_OUTPUT" >&2
-elif [ "$PERMISSION_RC" -ne 4 ]; then
-  echo "[dcness-codex-worker] WARN: sandbox permission evidence classification failed (exit $PERMISSION_RC); VALIDATION_BLOCKED remains unchanged." >&2
 fi
 
 dcness_record_end_step "dcness-codex-worker" "codex-headless" "$HELPER" "$AGENT" "$MODE" "$TMP_PROSE" "$RAW_LOG"
