@@ -52,6 +52,18 @@ class ModuleDecisionContractModelTests(unittest.TestCase):
                 self.assertIn("공통 기반 task", text)
                 self.assertIn("사유를 주석", text)
 
+    def test_impl_task_order_axes_have_distinct_owners(self) -> None:
+        template = read("docs/plugin/agents/module-architect/templates/impl-task.md")
+        module_architect = read("docs/plugin/agents/module-architect/module-architect-agent.md")
+        deliverables = read("docs/plugin/deliverables-map.md")
+
+        for text in (template, module_architect, deliverables):
+            with self.subTest(text=text[:40]):
+                self.assertIn("전역 serial traversal 순번", text)
+                self.assertIn("선행 의존 그래프", text)
+                self.assertIn("Story 내부", text)
+                self.assertIn("연속 block", text)
+
     def test_agents_treat_module_list_and_decisions_as_contract_sources(self) -> None:
         module_architect = read("docs/plugin/agents/module-architect/module-architect-agent.md")
         validator = read(

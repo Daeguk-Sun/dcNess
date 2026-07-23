@@ -82,8 +82,10 @@ peer task 는 PR 생성까지 독립적으로 갈 수 있지만, merge 단계는
 
 | 축 | 의미 | 입력 위치 |
 |---|---|---|
-| `depends_on` | task 실행 선후의 단일 SSOT. semantic produces/consumes 는 owner/entrypoint 요약에서 복구 | impl task frontmatter + `인터페이스` |
+| `depends_on` | task 선행 의존 그래프의 단일 SSOT. 같은 wave 가능 여부와 실행 준비 조건을 판정하며, semantic produces/consumes 는 owner/entrypoint 요약에서 복구 | impl task frontmatter + `인터페이스` |
 | Scope 파일집합 | 두 task 의 `수정 허용` 파일 경로 교집합이 있으면 동시 금지 | impl task `Scope > 수정 허용` |
+
+직렬 `/impl-loop` traversal은 impl 파일명의 전역 `NN-` path 순서를 따른다. 이 순서는 `depends_on` 그래프의 위상 순서를 만족해야 하며, 병렬 wave가 가능한 task끼리도 serial fallback 순서는 파일명으로 결정한다. `task_index` 는 Story 내부 완료 위치일 뿐 전역 순서 축이 아니다.
 
 `수정 허용` 은 **bullet 당 순수 파일 경로 하나**(또는 끝 `/` 디렉토리) 형식이어야 파서가 경로로 인식한다. `/design` Step 5 는 `wave-plan` 전에 `dcness-helper normalize-scope <impl dir>` 를 실행해 볼드/라벨/괄호 설명처럼 단일 경로 후보가 분명한 bullet 을 기계 교정한다. 다중 토큰/산문/빈 bullet 처럼 의미 판단이 필요한 항목은 고치지 않는다. normalizer 이후에도 남은 형식 미정규화 slug 는 `wave-plan` 출력의 `format_unnormalized_slugs`(+ `serial_demotions[].cause = scope_unnormalized`)로 노출되어, 설계 검증(`/design` Step 5)·소비측 dry preview 가 "진짜 의존성 직렬"과 구분해 교정 방향을 안내한다([#693](https://github.com/alruminum/dcNess/issues/693), [#833](https://github.com/alruminum/dcNess/issues/833)).
 

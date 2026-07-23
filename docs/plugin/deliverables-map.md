@@ -88,6 +88,8 @@ docs/
 
 Cross-task 계약 의미는 epic `architecture.md` 의 `## 모듈 목록` 책임/공개 인터페이스/검증 경로 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 산출물은 module id 와 decision id/link 만 남긴다. invariant, ordering, error mode, config, forbidden alternative 전문은 `impl/NN-*.md` 에 복제하지 않는다. task 내부 한정 private interface 는 cross-task 사본 문제가 없으므로 impl 문서 `## 인터페이스` 에 둘 수 있다.
 
+impl task 파일명 `NN-<task-slug>.md` 의 zero-padded `NN` 은 새 설계 pack 의 전역 serial traversal 순번이다. path 정렬 결과는 `depends_on` 의 위상 순서를 지키면서 같은 `story` 값(숫자와 `공통`)을 하나의 연속 block 으로 배치한다. 역할은 겹치지 않는다: `depends_on` 은 선행 의존 그래프와 병렬 실행 가능 조건, 파일명 `NN-` 은 serial runner 순회, `task_index` 는 Story 내부 완료 위치를 소유한다. 기존 pack 의 다른 sortable prefix 는 runner 호환 대상으로 보존한다.
+
 기술 스택, naming, formatter, runtime, package manager, dependency policy 같은 반복 입력은 `docs/conventions.md` 에 둔다. 전역 architecture 는 시스템 topology 와 cross-epic map 에 집중한다.
 
 기술 검토의 본문 결론만 `docs/tech-review.md` 에 남긴다. raw evidence, 통합 HTML report, screenshots, logs 는 `.dcness-work/reviews/` 에 저장하고 git-tracked 산출물로 취급하지 않는다.

@@ -13,6 +13,11 @@
 - headless worker 기본 한도를 total 3000초/idle 900초로 늘리고 `/impl-loop`는 background로 실행한다. timeout·idle timeout·empty prose·boundary/TDD post-run guard 실패가 변경 후 발생하면 diff를 보존한 같은 provider/workspace에서 기본 2회 bounded continuation하고, stage 최초 HEAD 기준으로 worker commit까지 포함해 guard를 다시 검사한다. 이 반복 절차는 메인의 수동 재지시가 아니라 기존 implementation chain이 소유하며, 새 권한·제품 의미·파괴적 결정이 아니라면 사용자 질문으로 넘기지 않는다.
 - Codex sandbox permission 분류를 post-run boundary/TDD guard보다 먼저 수행한다. guard 실패와 `permission_required`가 겹치면 primary guard evidence와 permission receipt를 모두 남기고, implementation chain은 새 권한 없이는 해결되지 않는 동일 실패를 반복하지 않은 채 첫 시도에서 사용자 승인 경로로 멈춘다.
 
+### `/design` impl task 실행 순서 계약
+
+- module-architect가 새 impl task를 만들 때 파일명의 `NN-`을 zero-padded 전역 serial traversal 순번으로 사용하고, `depends_on` 선행 의존 그래프 및 Story 내부 `task_index`와 역할을 분리한다. path 정렬은 의존 그래프의 위상 순서를 지키면서 같은 story를 연속 block으로 배치한다.
+- doc-sync의 design artifact 감사가 기존 `dcness-story-runner plan`을 재사용해 story 비연속 배치와 알려진 `depends_on` 선행 task보다 앞선 path 배치를 설계 PR 단계에서 차단한다. 기존 sortable prefix pack은 runner 호환을 유지하며 자동 리네임하지 않는다.
+
 ---
 
 ## v0.26.0 (2026-07-20)

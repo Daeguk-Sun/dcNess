@@ -15,6 +15,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
+from harness.parallel_wave import parse_impl_task as parse_parallel_impl_task
+
 
 VALID_SCOPES = {"auto", "story", "epic"}
 VALID_STATUSES = {"pending", "running", "completed", "error", "blocked"}
@@ -27,6 +29,7 @@ class ImplTask:
     story: str
     task_index: str
     title: str
+    depends_on: tuple[str, ...] | None
 
     def to_state(self, task_id: int) -> dict[str, Any]:
         return {
@@ -134,6 +137,7 @@ def task_from_path(path: Path, *, cwd: Path | None = None) -> ImplTask:
         title=title,
         story=fm.get("story") or "unknown",
         task_index=fm.get("task_index") or "",
+        depends_on=parse_parallel_impl_task(path).depends_on,
     )
 
 
@@ -161,6 +165,26 @@ def _validate_story_contiguity(tasks: Sequence[ImplTask]) -> None:
         )
 
 
+def _validate_dependency_order(tasks: Sequence[ImplTask]) -> None:
+    positions = {task.slug: index for index, task in enumerate(tasks)}
+    violations: list[str] = []
+    for index, task in enumerate(tasks):
+        for dependency in task.depends_on or ():
+            dependency_index = positions.get(dependency)
+            if dependency_index is None or dependency_index < index:
+                continue
+            violations.append(
+                f"{task.path} depends_on={dependency} at "
+                f"{tasks[dependency_index].path}"
+            )
+    if violations:
+        raise ValueError(
+            "dependency order violation after path sorting: "
+            f"{'; '.join(violations)}; rename or relocate task paths so each "
+            "known dependency appears before its dependent task"
+        )
+
+
 def build_state(
     inputs: Sequence[str],
     *,
@@ -175,6 +199,7 @@ def build_state(
         for path in discover_tasks(inputs, cwd=root)
     ]
     _validate_story_contiguity(impl_tasks)
+    _validate_dependency_order(impl_tasks)
     tasks = [task.to_state(idx) for idx, task in enumerate(impl_tasks, start=1)]
     story_ids = sorted({str(task["story"]) for task in tasks})
     resolved_scope = "story" if scope == "auto" and len(story_ids) == 1 else scope

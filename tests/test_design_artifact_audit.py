@@ -136,5 +136,99 @@ class DesignArtifactAuditTests(unittest.TestCase):
             any(w["code"] == "design-pack-over-target" for w in payload["warnings"])
         )
 
+    def test_non_contiguous_story_group_is_a_design_violation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _seed_project(
+                root,
+                impl_body="""
+                ---
+                story: 1
+                task_index: 1/2
+                depends_on: []
+                ---
+                # Story 1 first task
+                """,
+            )
+            _write(
+                root / "docs/epics/epic-01-alpha/impl/02-story-two.md",
+                """
+                ---
+                story: 2
+                task_index: 1/1
+                depends_on: [01-auth]
+                ---
+                # Story 2 task
+                """,
+            )
+            _write(
+                root / "docs/epics/epic-01-alpha/impl/03-story-one.md",
+                """
+                ---
+                story: 1
+                task_index: 2/2
+                depends_on: [02-story-two]
+                ---
+                # Story 1 second task
+                """,
+            )
+
+            proc = _run(root, "--json")
+
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        payload = json.loads(proc.stdout)
+        violation = next(
+            item
+            for item in payload["violations"]
+            if item["code"] == "impl-story-non-contiguous"
+        )
+        self.assertEqual(
+            violation["file"],
+            "docs/epics/epic-01-alpha/impl",
+        )
+        self.assertIn("story=1", violation["message"])
+
+    def test_dependency_after_dependent_is_a_design_violation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _seed_project(
+                root,
+                impl_body="""
+                ---
+                story: 1
+                task_index: 1/2
+                depends_on: [02-api]
+                ---
+                # Consumer before dependency
+                """,
+            )
+            _write(
+                root / "docs/epics/epic-01-alpha/impl/02-api.md",
+                """
+                ---
+                story: 1
+                task_index: 2/2
+                depends_on: []
+                ---
+                # Dependency
+                """,
+            )
+
+            proc = _run(root, "--json")
+
+        self.assertEqual(proc.returncode, 1, proc.stderr)
+        payload = json.loads(proc.stdout)
+        violation = next(
+            item
+            for item in payload["violations"]
+            if item["code"] == "impl-runner-plan-invalid"
+        )
+        self.assertIn(
+            "dependency order violation after path sorting",
+            violation["message"],
+        )
+        self.assertIn("depends_on=02-api", violation["message"])
+
+
 if __name__ == "__main__":
     unittest.main()

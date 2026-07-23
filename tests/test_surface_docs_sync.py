@@ -601,6 +601,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         for needle in (
             "scripts/check_design_artifact_structure.mjs",
             "Validate /design artifact structure",
+            "actions/setup-python@",
+            "python-version: '3.11'",
         ):
             self.assertIn(needle, self.doc_sync_action)
 
@@ -612,6 +614,29 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         ):
             with self.subTest(source=text[:30]):
                 self.assertIn("check_design_artifact_structure.mjs", text)
+
+    def test_design_audit_dependencies_trigger_self_repo_gates(self) -> None:
+        doc_sync_workflow = (
+            ROOT / ".github" / "workflows" / "doc-sync.yml"
+        ).read_text(encoding="utf-8")
+        python_workflow = (
+            ROOT / ".github" / "workflows" / "python-tests.yml"
+        ).read_text(encoding="utf-8")
+        pre_commit_gate = (
+            ROOT / "scripts" / "check_python_tests.sh"
+        ).read_text(encoding="utf-8")
+
+        for path in (
+            "scripts/check_design_artifact_structure.mjs",
+            "scripts/dcness-story-runner",
+            "harness/story_runner.py",
+            "harness/parallel_wave.py",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(path, doc_sync_workflow)
+
+        self.assertIn("scripts/dcness-story-runner", python_workflow)
+        self.assertIn("scripts/dcness-story-runner", pre_commit_gate)
 
     def test_issue_810_tech_review_skill_supports_epic_option4(self) -> None:
         """#810 AC7 — /tech-review skill must define both root and epic invocation contracts."""

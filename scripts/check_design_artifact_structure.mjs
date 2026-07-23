@@ -14,10 +14,13 @@ import {
   readFileSync,
   readdirSync,
 } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { join, relative, resolve, sep } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const DESIGN_PACK_LINE_TARGET = 1500;
 const DESIGN_PACK_LINE_HARD_WARNING = 2000;
+const STORY_RUNNER = fileURLToPath(new URL('./dcness-story-runner', import.meta.url));
 function usage() {
   return [
     'Usage: node scripts/check_design_artifact_structure.mjs [--root <path>] [--json]',
@@ -204,6 +207,33 @@ function auditDesignPackBudgets(root, epics, warnings) {
   }
 }
 
+function auditImplStoryOrder(root, epic, violations) {
+  if (epic.implPaths.length === 0) return;
+
+  const implDir = join(epic.dir, 'impl');
+  const result = spawnSync(STORY_RUNNER, ['plan', implDir], {
+    cwd: root,
+    encoding: 'utf8',
+  });
+  if (result.status === 0) return;
+
+  const detail = (result.stderr || result.stdout || result.error?.message || '')
+    .trim()
+    .replace(/^story-runner:\s*/, '');
+  const nonContiguous = detail.includes('non-contiguous story group');
+  violations.push(
+    makeProblem(
+      nonContiguous ? 'impl-story-non-contiguous' : 'impl-runner-plan-invalid',
+      rel(root, implDir),
+      detail || 'dcness-story-runner plan failed without diagnostic output',
+      {
+        epic: epic.name,
+        runner_exit_code: result.status,
+      }
+    )
+  );
+}
+
 function audit(root) {
   const violations = [];
   const warnings = [];
@@ -213,6 +243,7 @@ function audit(root) {
 
   for (const epic of epics) {
     auditArchitecture(root, epic, warnings);
+    auditImplStoryOrder(root, epic, violations);
   }
 
   return {

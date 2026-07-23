@@ -186,9 +186,15 @@ class ModuleArchitectStateContractTests(unittest.TestCase):
             "validation path",
         ):
             self.assertIn(needle, self.impl_template)
-        self.assertIn("`depends_on` 은 순서의 단일 SSOT", self.module_architect)
+        self.assertIn(
+            "`depends_on` 은 **선행 의존 그래프의 단일 SSOT**",
+            self.module_architect,
+        )
+        self.assertIn("파일명의 `NN-`", self.module_architect)
+        self.assertIn("Story 내부 `task_index`", self.module_architect)
         self.assertIn("semantic produces/consumes", self.module_architect)
-        self.assertIn("task 실행 선후의 단일 SSOT", self.parallel_policy)
+        self.assertIn("task 선행 의존 그래프의 단일 SSOT", self.parallel_policy)
+        self.assertIn("직렬 `/impl-loop` traversal", self.parallel_policy)
         self.assertIn("owner/entrypoint 요약에서 복구", self.parallel_policy)
         self.assertNotIn(
             "contract produces/consumes 와 ordering 을 흡수한 단일 SSOT",

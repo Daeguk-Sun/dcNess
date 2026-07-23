@@ -8,6 +8,11 @@ runs:
       with:
         node-version: '20'
 
+    - name: Setup Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      with:
+        python-version: '3.11'
+
     - name: Validate docs/index.md epic/module tables
       shell: bash
       run: |
