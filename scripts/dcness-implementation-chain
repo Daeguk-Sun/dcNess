@@ -28,7 +28,7 @@ Options:
   --chain-state       Story-runner state. Enables lifecycle setup and chain cache.
   --init-path         Impl task path used to initialize a missing chain state.
                       Repeat for a multi-task chain. Existing matching state is reused.
-  --direct-run        Create/reuse one lite /impl run without story state.
+  --direct-run        Create/reuse one lite or design-doc /impl run without story state.
                       Requires an isolated feature worktree.
   --design-doc        Optional merged design document for --direct-run.
   --rework            Open a new build-worker step for validator finding repair.
@@ -546,19 +546,23 @@ ensure_direct_run() {
   )"
   run_action="$(
     PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
-      python3 - "$sid" "$rid" "$PROJECT_ROOT" "$DIRECT_DESIGN_DOC" <<'PY'
+      python3 - "$sid" "$rid" "$PROJECT_ROOT" "$DIRECT_DESIGN_DOC" "$REWORK" <<'PY'
 import sys
 from pathlib import Path
 
 from harness.session_state import read_live
 
-sid, rid, root_text, design_text = sys.argv[1:5]
+sid, rid, root_text, design_text, rework_text = sys.argv[1:6]
+rework = rework_text == "1"
 if not rid:
-    print("new")
+    print("missing" if rework else "new")
     raise SystemExit(0)
 slot = (read_live(sid) or {}).get("active_runs", {}).get(rid)
 if not isinstance(slot, dict) or slot.get("entry_point") != "impl":
-    print("new")
+    print("missing" if rework else "new")
+    raise SystemExit(0)
+if rework:
+    print("reuse")
     raise SystemExit(0)
 if design_text:
     expected = (Path(root_text).resolve() / design_text).resolve()
@@ -580,6 +584,9 @@ PY
       begin_args+=(--issue-num "$ISSUE_NUM")
     fi
     rid="$("$HELPER" "${begin_args[@]}")" || return $?
+  elif [ "$run_action" = "missing" ]; then
+    echo "[dcness-implementation-chain] --rework requires an active direct /impl run to resume" >&2
+    return 2
   elif [ "$run_action" != "reuse" ]; then
     echo "[dcness-implementation-chain] invalid direct run preparation action: $run_action" >&2
     return 1

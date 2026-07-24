@@ -39,6 +39,11 @@ class DirectHeadlessImplTests(unittest.TestCase):
         _git(primary, "config", "user.name", "dcNess Test")
         _git(primary, "config", "user.email", "dcness-test@example.invalid")
         (primary / "README.md").write_text("fixture\n", encoding="utf-8")
+        (primary / "docs" / "epics").mkdir(parents=True)
+        (primary / "docs" / "epics" / "issue-1192.md").write_text(
+            "# fixture design\n",
+            encoding="utf-8",
+        )
         _git(primary, "add", ".")
         _git(primary, "commit", "-qm", "fixture")
         _git(
@@ -292,6 +297,71 @@ class DirectHeadlessImplTests(unittest.TestCase):
                 ],
             )
             self.assertEqual(rework_events[-1]["provider"], "claude-headless")
+
+    def test_design_doc_rework_reuses_completed_run_without_repassing_doc(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            primary, worktree = self._fixture(base)
+
+            result = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                extra_args=("--design-doc", "docs/epics/issue-1192.md"),
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            run_root = (
+                primary
+                / ".claude"
+                / "harness-state"
+                / ".sessions"
+                / "sid-direct-impl"
+                / "runs"
+            )
+            run_dirs = list(run_root.glob("run-*"))
+            self.assertEqual(len(run_dirs), 1)
+            initial_events = [
+                json.loads(line)
+                for line in (run_dirs[0] / "ledger.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            self.assertEqual(
+                Path(initial_events[0]["design_doc"]).resolve(),
+                (worktree / "docs" / "epics" / "issue-1192.md").resolve(),
+            )
+            self.assertNotIn("lane", initial_events[0])
+
+            rework = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                provider=None,
+                extra_args=(
+                    "--rework",
+                    "--resume-provider",
+                    "claude-headless",
+                ),
+            )
+            self.assertEqual(rework.returncode, 0, rework.stderr)
+            self.assertEqual(len(list(run_root.glob("run-*"))), 1)
+            events = [
+                json.loads(line)
+                for line in (run_dirs[0] / "ledger.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            self.assertEqual(
+                [event["event"] for event in events],
+                [
+                    "run_started",
+                    "step_started",
+                    "step_completed",
+                    "step_started",
+                    "step_completed",
+                ],
+            )
+            self.assertEqual(events[-1]["provider"], "claude-headless")
 
     def test_direct_pre_mutation_failure_falls_back_and_reports_actual_provider(
         self,
