@@ -25,11 +25,13 @@ __all__ = [
     "ROUTABLE_VALIDATION_AGENTS",
     "VALID_IMPLEMENTATION_PROVIDERS",
     "VALID_VALIDATION_PROVIDERS",
+    "ACTUAL_IMPLEMENTATION_PROVIDERS",
     "IMPLEMENTATION_PROVIDER_CHAINS",
     "routing_path",
     "load_routing",
     "save_routing",
     "resolve_provider",
+    "review_route_for_actual_provider",
     "implementation_provider_chain",
     "set_provider",
     "set_implementation_provider",
@@ -55,6 +57,11 @@ VALID_IMPLEMENTATION_PROVIDERS = (
     "claude",
     "claude-headless",
     "headless-chain",
+)
+ACTUAL_IMPLEMENTATION_PROVIDERS = (
+    "codex-headless",
+    "claude-headless",
+    "claude-main",
 )
 IMPLEMENTATION_PROVIDER_CHAINS = {
     "headless-chain": ("codex-headless", "claude-headless", "claude-main"),
@@ -130,6 +137,47 @@ def _default_validation_provider(
     if camp == "codex":
         return "claude"
     return "codex" if _codex_cli_available(codex_available) else "claude"
+
+
+def review_route_for_actual_provider(
+    actual_implementation_provider: str,
+    *,
+    codex_available: Optional[bool] = None,
+) -> Dict[str, Optional[str]]:
+    """Resolve impl-validator from the provider that actually finished.
+
+    This intentionally ignores a same-camp local validator override. A headless
+    chain is only a preference before execution; after fallback, the terminal
+    provider receipt is the source of truth for independent review.
+    """
+    if actual_implementation_provider not in ACTUAL_IMPLEMENTATION_PROVIDERS:
+        allowed = "|".join(ACTUAL_IMPLEMENTATION_PROVIDERS)
+        raise ValueError(
+            "unsupported actual implementation provider: "
+            f"{actual_implementation_provider} (allowed: {allowed})"
+        )
+    implementation_camp = (
+        "codex"
+        if actual_implementation_provider == "codex-headless"
+        else "claude"
+    )
+    preferred_review_provider = (
+        "claude" if implementation_camp == "codex" else "codex"
+    )
+    review_provider = preferred_review_provider
+    fallback_reason: Optional[str] = None
+    if preferred_review_provider == "codex" and not _codex_cli_available(
+        codex_available
+    ):
+        review_provider = "claude"
+        fallback_reason = "codex-cli-unavailable"
+    return {
+        "actual_implementation_provider": actual_implementation_provider,
+        "implementation_camp": implementation_camp,
+        "preferred_review_provider": preferred_review_provider,
+        "review_provider": review_provider,
+        "fallback_reason": fallback_reason,
+    }
 
 
 def _atomic_write_json(target: Path, payload: Dict[str, Any]) -> None:

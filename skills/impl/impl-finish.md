@@ -15,10 +15,10 @@
 1. 검토 대상이 commit이면 commit id와 변경 파일 목록을 전달한다. uncommitted diff일 때만 diff 파일을 사용한다.
 2. [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)를 이 호출 직전에 읽는다.
 3. prompt에는 target/읽을 진본, review 대상, Cartography impact, affected Root 좌표, 관련 epic/decision, 진본에 없는 현재 finding만 넣는다. 구현 방법을 처방하거나 과거 대화 전체를 넣지 않는다.
-4. review provider는 [`impl-routing.md`](impl-routing.md)의 현행 규칙으로 한 번 resolve한다. Codex면 `dcness-codex-validator impl-validator`, 그 밖에는 mode 없는 foreground `impl-validator`를 사용한다.
-5. validator는 read-only다. 수정은 메인이 한다.
+4. terminal receipt의 실제 구현 provider로 `dcness-helper routing resolve impl-validator --actual-implementation-provider <provider> --explain`을 한 번 호출한다. Codex면 `dcness-codex-validator impl-validator`, 그 밖에는 mode 없는 foreground `impl-validator`를 사용한다.
+5. validator는 read-only다. 수정은 최초에 선택한 구현 owner가 한다. headless owner라면 새 slim rework prompt로 implementation chain에 `--direct-run --rework --resume-provider <actual-provider>`를 주어 동일 provider·동일 workspace에서 고친다.
 
-MUST FIX가 있으면 최대 3회 root-cause 수정 루프를 돈다. 같은 계열 결함과 삭제된 로직의 잔여 호출·문서·테스트도 함께 찾고, 매 round마다 관련 gate를 다시 실행한 뒤 새 diff를 재검증한다. MUST FIX가 없으면 NICE TO HAVE를 merge blocker로 승격하지 않는다.
+MUST FIX가 있으면 최대 3회 root-cause 수정 루프를 돈다. 같은 계열 결함과 삭제된 로직의 잔여 호출·문서·테스트도 함께 찾고, 매 round마다 관련 gate를 다시 실행한 뒤 새 diff를 재검증한다. 구현 owner를 중간에 바꾸지 않는다. MUST FIX가 없으면 NICE TO HAVE를 merge blocker로 승격하지 않는다.
 
 ## Cartography freshness
 

@@ -21,6 +21,9 @@ class ImplFastStartContractTests(unittest.TestCase):
 
         self.assertIn("착수: <target>", skill)
         self.assertIn("RED", skill)
+        self.assertIn("첫 source edit 전에", skill)
+        self.assertIn("애매하면 main-direct", skill)
+        self.assertIn("--direct-run", skill)
         self.assertIn("첫 tool call은 pointer만", skill)
         self.assertIn("둘째 tool call 하나에서", skill)
         self.assertIn("다음 tool-bearing turn은 RED test 또는 첫 edit", skill)
@@ -33,7 +36,7 @@ class ImplFastStartContractTests(unittest.TestCase):
         finish = self.read("skills/impl/impl-finish.md")
 
         self.assertLess(len(skill.encode("utf-8")), 12_000)
-        self.assertIn("target 확인 → 격리 → focused read → RED/첫 edit", skill)
+        self.assertIn("target 확인 → owner 1회 선택 → 격리 → RED/첫 edit", skill)
         self.assertIn("GREEN 뒤에만", skill)
         self.assertNotIn("## Review Provider", skill)
         self.assertNotIn("### Cartography freshness boundary", skill)
@@ -159,6 +162,32 @@ class ImplFastStartContractTests(unittest.TestCase):
         )
         self.assertFalse(
             evidence["ab_decision"]["conditional_fresh_executor"]
+        )
+        complex_analysis = evidence["complex_impl_owner_analysis"]
+        self.assertEqual(complex_analysis["decision"], "shape-conditional")
+        self.assertTrue(
+            complex_analysis["owner_selection_before_first_source_edit"]
+        )
+        self.assertEqual(
+            complex_analysis["ambiguous_default"],
+            "main-direct",
+        )
+        self.assertFalse(complex_analysis["midstream_handoff"])
+        self.assertGreater(
+            complex_analysis["historical_complex_main_observation"][
+                "decision_to_first_source_edit_seconds"
+            ],
+            60,
+        )
+        direct_replays = complex_analysis["direct_chain_integration_replays"]
+        self.assertEqual(len(direct_replays), 3)
+        self.assertTrue(
+            all(
+                row["under_60_seconds"]
+                and row["provider_receipt"]
+                and row["elapsed_seconds"] < 60
+                for row in direct_replays
+            )
         )
 
     def test_headless_workers_receive_canonical_phase_and_tdd_contracts(self) -> None:

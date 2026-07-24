@@ -59,6 +59,39 @@ class AgentRoutingTests(unittest.TestCase):
             "codex",
         )
 
+    def test_actual_implementation_provider_controls_opposite_review_camp(self) -> None:
+        agent_routing.set_provider("impl-validator", "codex")
+        codex_route = agent_routing.review_route_for_actual_provider(
+            "codex-headless",
+            codex_available=True,
+        )
+        self.assertEqual(codex_route["implementation_camp"], "codex")
+        self.assertEqual(codex_route["preferred_review_provider"], "claude")
+        self.assertEqual(codex_route["review_provider"], "claude")
+        self.assertIsNone(codex_route["fallback_reason"])
+
+        agent_routing.set_provider("impl-validator", "claude")
+        claude_route = agent_routing.review_route_for_actual_provider(
+            "claude-headless",
+            codex_available=True,
+        )
+        self.assertEqual(claude_route["implementation_camp"], "claude")
+        self.assertEqual(claude_route["preferred_review_provider"], "codex")
+        self.assertEqual(claude_route["review_provider"], "codex")
+        self.assertIsNone(claude_route["fallback_reason"])
+
+    def test_opposite_review_route_records_codex_unavailable_fallback(self) -> None:
+        route = agent_routing.review_route_for_actual_provider(
+            "claude-main",
+            codex_available=False,
+        )
+        self.assertEqual(route["preferred_review_provider"], "codex")
+        self.assertEqual(route["review_provider"], "claude")
+        self.assertEqual(route["fallback_reason"], "codex-cli-unavailable")
+
+        with self.assertRaisesRegex(ValueError, "actual implementation provider"):
+            agent_routing.review_route_for_actual_provider("headless-chain")
+
     def test_enable_codex_validation_routes_only_validators(self) -> None:
         agent_routing.enable_codex_validation()
         for agent in agent_routing.ROUTABLE_VALIDATION_AGENTS:
@@ -206,6 +239,19 @@ class AgentRoutingCliTests(unittest.TestCase):
         self.assertEqual(ns.implementation_provider, "headless-chain")
 
         ns = parser.parse_args(
+            [
+                "routing",
+                "resolve",
+                "impl-validator",
+                "--actual-implementation-provider",
+                "codex-headless",
+                "--explain",
+            ]
+        )
+        self.assertEqual(ns.actual_implementation_provider, "codex-headless")
+        self.assertTrue(ns.explain)
+
+        ns = parser.parse_args(
             ["routing", "set-implementation", "build-worker", "claude-headless"]
         )
         self.assertEqual(ns.routing_cmd, "set-implementation")
@@ -264,6 +310,26 @@ class AgentRoutingCliTests(unittest.TestCase):
             )
         self.assertEqual(rc, 0)
         self.assertEqual(out.getvalue().strip(), "claude")
+
+    def test_cli_resolve_impl_validator_from_actual_provider_with_provenance(self) -> None:
+        agent_routing.set_provider("impl-validator", "codex")
+        out = StringIO()
+        with redirect_stdout(out):
+            rc = _cli_routing(
+                SimpleNamespace(
+                    routing_cmd="resolve",
+                    agent="impl-validator",
+                    implementation_provider=None,
+                    actual_implementation_provider="codex-headless",
+                    main_provider="claude",
+                    explain=True,
+                )
+            )
+        self.assertEqual(rc, 0)
+        payload = json.loads(out.getvalue())
+        self.assertEqual(payload["actual_implementation_provider"], "codex-headless")
+        self.assertEqual(payload["review_provider"], "claude")
+        self.assertIsNone(payload["fallback_reason"])
 
     def test_cli_implementation_modes_and_resolve(self) -> None:
 

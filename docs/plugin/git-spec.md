@@ -57,7 +57,7 @@
 
 ## 의미 단위 커밋 분할
 
-모든 구현 흐름은 독립 검토 가능한 의미 단위로 commit 을 쪼갠다. 적용 대상은 `/impl` 메인 직접 구현, `/impl-loop` build-worker task local commit, review finding 대응 commit, fix PR commit 을 모두 포함한다.
+모든 구현 흐름은 독립 검토 가능한 의미 단위로 commit 을 쪼갠다. 적용 대상은 `/impl` main-direct·headless 구현, `/impl-loop` build-worker task local commit, review finding 대응 commit, fix PR commit 을 모두 포함한다.
 
 - 각 commit 은 hook 을 통과할 수 있는 일관된 상태여야 한다. 테스트가 깨진 중간 저장용 commit 은 금지한다.
 - 변경량이 크면 테스트/결정적 helper/문서 surface/후속 cleanup 처럼 리뷰어가 단계별로 따라갈 수 있는 단위로 나눈다.

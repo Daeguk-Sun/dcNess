@@ -51,7 +51,7 @@ Epic당 최종 clean candidate 1회만 affected dependency cone을 `impl-validat
 
 ### 격리 review
 
-구현 provider의 반대 진영을 기본 review provider로 resolve한다. validator는 read-only다. MUST FIX가 있으면 최대 3회 root-cause 수정하고 관련 gate를 재실행한다. build-worker rework가 코드나 harness를 바꾸면 필요한 earlier evidence부터 다시 수집한다.
+설정된 chain이 아니라 terminal receipt의 실제 구현 성공 provider의 반대 진영을 기본 review provider로 resolve한다. Codex 구현이면 Claude review, Claude 구현이면 Codex review다. Codex reviewer가 불가하면 Claude로 폴백하고 이유를 기록한다. validator는 read-only다. MUST FIX가 있으면 실제 구현 provider와 동일한 build-worker가 최대 3회 root-cause 수정하고 관련 gate를 재실행한다. build-worker rework가 코드나 harness를 바꾸면 필요한 earlier evidence부터 다시 수집한다.
 
 `impl-validator review 출력은 merge candidate 경계에서 1회`가 기본이다. 모든 task마다 full review를 반복하지 않는다.
 

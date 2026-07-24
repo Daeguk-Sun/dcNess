@@ -67,14 +67,14 @@ fail-open은 hook이 정책 판단을 못 해서 차단 대신 통과한 의심 
 
 [![guard-efficacy](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml/badge.svg)](https://github.com/Daeguk-Sun/dcNess/actions/workflows/guard-efficacy.yml)
 
-<!-- public-evidence-snapshot {"plugin_version":"0.27.0","measured_at":"2026-07-24","unit_tests":{"passed":1173,"total":1173},"guard":{"passed":50,"total":50},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.27.0","measured_at":"2026-07-24","unit_tests":{"passed":1187,"total":1187},"guard":{"passed":50,"total":50},"source_project_count":2} -->
 
 현재 공개 snapshot은 **v0.27.0, 2026-07-24 측정**이다. 숫자마다 분모와 source 수를
 붙이고, 서로 다른 evidence 영역을 합산하거나 대신 쓰지 않는다.
 
 | evidence 영역 | 관측 결과 | denominator / source | 재현 명령 | 이 수치가 말하지 않는 것 |
 |---|---|---|---|---|
-| 하네스·기계적 guard | unittest 1,173/1,173 PASS, 결정적 guard 50/50 PASS | test 1,173, guard case 50 / dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 보안 증명이나 제품 성공률이 아니다 |
+| 하네스·기계적 guard | unittest 1,187/1,187 PASS, 결정적 guard 50/50 PASS | test 1,187, guard case 50 / dcNess checkout 1 | `node scripts/check_public_evidence.mjs` | 보안 증명이나 제품 성공률이 아니다 |
 | Agent effectiveness | 실측 개선 관측 — 오경로 `1→0`, 영향 과다 포함 `2→0`, 전체 탐색 tool `15→13`; fixture task AC `7/8→8/8` | task×variant run 4, task 2 / 실측 fixture 1 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-13-agent-effectiveness-실측-paired-screening)의 trace→record 재현 명령 | model `claude-sonnet-4-6` 단일 frozen fixture 1회 paired 실측(1+1). downstream MUST-FIX·회귀·사람 복구·context 재작업·cross-session은 실행하지 않아 측정 불가다. 1차 거부와 2차 채택 trace는 host metadata를 비식별화했고 세션 ID·SHA-256·capture/rebuild 명령이 provenance에 있다. 공개 우위 주장이 아니다 |
 | PR·validator 운영 | finished run 26/28, measurable PR merge 7/7, validator verdict 33건 | candidate run 28 / 외부 활성 프로젝트 2 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#재현-명령)의 source-ref 고정 명령 | merge와 validator FAIL은 과정 evidence이지 제품 outcome이 아니다 |
 | 실제 제품 outcome | non-UI journey 1/1 PASS, 제품 AC 1/1 | journey 1, AC 1 / 외부 활성 프로젝트 1 | [`docs/internal/outcome-baseline.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/docs/internal/outcome-baseline.md#2026-07-12-non-ui-제품-journey-pilot)의 receipt 집계 명령 | 단일 pilot이며 일반 제품 성공률이나 공개 우위가 아니다 |
@@ -156,7 +156,7 @@ claude plugin install dcness@dcness
 
 `/impl` 은 설계도를 직접 그리지 않고, 들어온 요청을 보고 **가장 작은 안전한 경로** 를 스스로 고른다. 파일·이슈·테스트 같은 concrete signal 이 있거나 자연어 구현 의도가 충분하면 관련 코드를 찾아 바로 `테스트 → 구현 → 리뷰 → PR` 로 끝내고(direct), 설계도 경로가 있으면 그 설계도대로 구현한다(design-doc). 새 기능이나 위험이 큰 작업은 설계 선행을 권장하지만, 사용자가 그대로 진행을 택하면 구현한다.
 
-`/impl` 은 direct/design-doc 경로와 review provider 를 내부에서 고른다. 시작 전 전역 진단을 반복하지 않고 RED 또는 첫 수정으로 진행하며, 일상적인 파일·테스트 선택과 복구 가능한 실패는 사용자에게 되묻지 않는다. 일반 `/impl` 구현은 메인이 맡고, 격리되는 것은 `impl-validator` 검토다.
+`/impl` 은 direct/design-doc 경로와 구현 소유자를 내부에서 고른다. 이미 보이는 task shape가 단순하거나 애매하면 메인이 바로 구현하고, 여러 module·runtime seam·넓은 검증이 명확한 복잡 작업이면 첫 source edit 전에 headless one-shot으로 시작한다. 중간 handoff 없이 실제 구현 성공 provider가 review finding까지 고치며, `impl-validator`는 그 반대 진영이 맡는다.
 
 보조 진입점 — `/to-issue`(자연어를 GitHub 이슈로), `/next-work`(issue/label 에서 다음 할 일 조회), `/tech-review`(위험한 설계의 사전 기술 검증), `/impl-loop`(deep task 파일 단위 구현 러너), `/ux`(구현 없이 시안·흐름·디자인 시스템/토큰 베이스라인 먼저).
 
@@ -168,7 +168,7 @@ claude plugin install dcness@dcness
 
 ## Provider와 기록
 
-검증·리뷰 단계를 어느 provider 로 돌릴지는 프로젝트별로 고를 수 있다(Claude 서브에이전트 / Codex headless / Claude headless). provider 를 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. 일반 `/impl` 구현은 메인이 맡고, story/epic deep task runner 인 `/impl-loop` 만 구현 worker provider 를 사용한다. provider 구성을 새로 켜거나 바꿀 때만 `/init-dcness` 를 다시 실행한다.
+구현·검증 단계를 어느 provider로 돌릴지는 프로젝트별로 고를 수 있다(Claude / Codex headless / Claude headless). provider를 바꿔도 순서·파일 경계 규칙은 그대로 걸린다. `/impl`은 단순 작업을 main-direct로, 명확한 복잡 작업을 headless one-shot으로 실행한다. `/impl-loop`는 story/epic deep task를 항상 headless worker로 처리한다. 최종 review는 설정값이 아니라 실제 구현 성공 provider의 반대 진영으로 정한다.
 
 `/impl-loop` deep task 는 `build-worker → impl-validator` 흐름을 사용한다. build-worker 는 task 별 로컬 커밋까지 만들고, 모든 대상 task 구현 뒤 merge candidate diff 를 impl-validator 가 1회 통합 리뷰한다. 각 run의 단계 완료는 `ledger.jsonl`에 기록되며, prose 파일과 sha256 receipt로 검증 가능한 작업 기록을 남긴다.
 
@@ -180,7 +180,7 @@ claude plugin install dcness@dcness
 | 형식 강제 | 없음 — 형식·flag·schema 는 agent 자율. 강제는 작업 순서 + 접근 영역 |
 | 컨텍스트 구조 | 2 layer (`CLAUDE.md` + agent 지침) |
 | 게이트 | 거버넌스 + 10개 CI (cross-ref · doc-sync · git-naming · plugin-manifest · pr-body · public-surface · python-tests · static-quality · release-sync · github-project-lifecycle) |
-| provider 선택 | 검증·리뷰 단계를 Claude 서브에이전트 또는 Codex 로 돌릴 수 있고, provider 가 바뀌어도 규칙은 동일. 일반 `/impl` 구현은 메인이 맡음 |
+| provider 선택 | `/impl`은 task shape로 main-direct/headless owner를 한 번 고르고, `/impl-loop`는 headless. review는 실제 구현 성공 provider의 반대 진영 |
 
 ## 공개 진입점
 
@@ -190,7 +190,7 @@ claude plugin install dcness@dcness
 |---|---|---|
 | 기본 workflow | `/spec` | 새 기능 spec + 검수 체크포인트 |
 | 기본 workflow | `/design` | 화면·시스템·모듈 설계 |
-| 기본 workflow | `/impl` | 구현 진입 — direct/design-doc 경로와 review provider 를 내부 판정 |
+| 기본 workflow | `/impl` | 구현 진입 — direct/design-doc 경로, 구현 owner, 반대 진영 review를 내부 판정 |
 | 기본 workflow | `/acceptance` | story/epic 제품 검수 |
 | support | `/to-issue` | 자연어 → Issue Brief → 승인 대기 없이 GitHub 선등록 (web 에서 확인·수정) |
 | 고급 | `/tech-review` | 위험한 설계의 사전 기술 검증 |

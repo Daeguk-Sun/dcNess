@@ -59,24 +59,25 @@ class SkillScenarioRegressionTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-    # ----- 시나리오 1 — /impl 메인 구현 + 격리 리뷰 -----
-    def test_impl_uses_main_implementation_and_isolated_review(self) -> None:
-        """/impl keeps implementation on main and isolates only impl-validator."""
+    # ----- 시나리오 1 — /impl 소유자 1회 선택 + 반대 진영 리뷰 -----
+    def test_impl_selects_one_owner_and_opposite_review(self) -> None:
+        """/impl selects one owner before mutation and crosses camps for review."""
         for needle in (
-            "`/impl`의 기본 구현자는 메인",
-            "별도 구현 sub-agent나 headless worker를 먼저 만들지 않는다",
-            "격리되는 것은 GREEN 이후 review",
+            "구현 소유자를 첫 source edit 전에 한 번만",
+            "애매하면 main-direct",
+            "headless one-shot",
+            "중간 handoff",
             "impl-validator",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_contract)
 
         for needle in (
-            "일반 `/impl` 의 구현 주체는 항상 메인",
-            "격리되는 것은 review step",
-            "direct · 메인 직접",
-            "design-doc · 메인 직접",
-            "review provider",
+            "내부 소유권",
+            "단순·애매한 작업은 main-direct",
+            "중간 handoff를 금지",
+            "terminal receipt",
+            "실제 구현 성공 provider",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_routing)
@@ -137,19 +138,19 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         # impl 직접 구현 최소 gate 에도 false-clean 방지 명시.
         self.assertIn("clean으로 보고하지 않는다", self.impl_finish)
 
-    def test_impl_design_doc_main_path_keeps_pr_reviewer_gate(self) -> None:
-        """#851/#1019 — design-doc main-owned path keeps the impl-validator gate."""
+    def test_impl_design_doc_keeps_owner_and_reviewer_gate(self) -> None:
+        """#851/#1192 — design-doc keeps one implementation owner and review gate."""
         for needle in (
             "design-doc 입력",
-            "메인이 직접 구현",
-            "격리 `impl-validator`",
+            "선택한 소유자",
+            "반대 진영 `impl-validator`",
             "MUST FIX",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.impl_contract)
 
         self.assertIn(
-            "design-doc · 메인 직접",
+            "design-doc",
             (ROOT / "skills" / "impl" / "impl-routing.md").read_text(encoding="utf-8"),
         )
         for relpath in (
@@ -166,7 +167,7 @@ class SkillScenarioRegressionTests(unittest.TestCase):
         for needle in (
             "## 의미 단위 커밋 분할",
             "모든 구현 흐름",
-            "`/impl` 메인 직접 구현",
+            "`/impl` main-direct·headless 구현",
             "`/impl-loop` build-worker task local commit",
             "각 commit 은 hook 을 통과",
             "push, PR 생성, merge, issue mutation",

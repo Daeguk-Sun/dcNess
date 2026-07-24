@@ -171,7 +171,7 @@ worker가 `DCNESS_PROVIDER_FAILURE_FILE` 내부 JSON으로 전달하는 failure 
 - 슬롯 1 ↔ 4요소 (1)(2)(4), 슬롯 2 ↔ worktree MUST(아래), 슬롯 3 ↔ 4요소 (3) + 미기록 결정 예외. 4요소를 줄인 게 아니라 *담는 칸* 을 고정한 것이다.
 - `이 호출 특유` 칸이 방법 처방을 막는 가드다 — 채울 게 없으면 비우고, 채워도 "무엇" 까지만 적는다.
 - **진본 충실 시 수렴**: module-architect 산출물(impl task 파일)이 인터페이스·수용기준 통과조건·테스트 스켈레톤·Scope 까지 담으면, 호출은 포인터+worktree(+미기록 사실 한 줄)로 수렴한다. agent 본업(RED·lint·결론 형식)이나 진본 사본(AC 통과조건·Scope·인터페이스 시그니처)을 prompt 에 다시 적으면 슬림 포인터 규약 위반이다 — 진본이 진본임을 prompt 가 명시하면서 그 사본을 욱여넣는 자기모순.
-- direct 기본 경로(메인 직접 구현)는 sub-agent 호출 자체가 없어 본 슬롯 대상이 아니다. 슬롯이 적용되는 곳은 *sub-agent 에 prompt 가 나가는* 경로다. `/impl-loop` build-worker 시작은 별도 slim prompt 계약이고, 본 슬롯은 GREEN 이후 validator/acceptance 호출에 적용된다.
+- direct의 main-direct 구현은 sub-agent 호출 자체가 없어 본 슬롯 대상이 아니다. 복잡 `/impl`과 `/impl-loop`의 build-worker 시작은 별도 slim prompt 계약이고, 본 슬롯은 GREEN 이후 validator/acceptance 호출에 적용된다.
 
 **worktree 활성 시 worktree 절대 경로 전달 — MUST**: foreground Claude Agent는 SubagentStart hook, headless worker는 wrapper가 worktree 절대경로를 첫 prompt에 직접 넣는다. main repo abs path 사용 금지 — 머지 전 옛 코드 read 로 false positive가 난다. hook/wrapper가 동적 경로를 전달하므로 메인이 Bash stdout을 다시 prompt로 relay하지 않는다.
 
