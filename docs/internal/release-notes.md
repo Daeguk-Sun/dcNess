@@ -6,17 +6,35 @@
 
 ## Unreleased
 
-### `/impl`·`/impl-loop` fast-start와 bounded self-recovery
+_(다음 릴리즈 대기 항목 없음)_
 
-- 구현 시작 전마다 반복하던 전역 boundary suggestion, generated TDD 설치 상태 확인, `impl-preview`를 구현 경로에서 제거했다. 자연어 구현 의도가 충분하면 issue 등록 여부를 묻지 않고 관련 코드와 테스트를 찾아 RED 또는 첫 수정으로 진행한다.
-- 설계 task의 정확한 `수정 허용` 경로는 run 동안 재사용하되 실제 mutation 시점에만 적용한다. infra/exclusive/project-remove hard deny는 그대로 우선하며 폐기된 `impl-preview`와 plan 전용 suggestion 코드·테스트는 삭제했다.
-- headless worker 기본 한도를 total 3000초/idle 900초로 늘리고 `/impl-loop`는 background로 실행한다. timeout·idle timeout·empty prose·boundary/TDD post-run guard 실패가 변경 후 발생하면 diff를 보존한 같은 provider/workspace에서 기본 2회 bounded continuation하고, stage 최초 HEAD 기준으로 worker commit까지 포함해 guard를 다시 검사한다. 이 반복 절차는 메인의 수동 재지시가 아니라 기존 implementation chain이 소유하며, 새 권한·제품 의미·파괴적 결정이 아니라면 사용자 질문으로 넘기지 않는다.
-- Codex sandbox permission 분류를 post-run boundary/TDD guard보다 먼저 수행한다. guard 실패와 `permission_required`가 겹치면 primary guard evidence와 permission receipt를 모두 남기고, implementation chain은 새 권한 없이는 해결되지 않는 동일 실패를 반복하지 않은 채 첫 시도에서 사용자 승인 경로로 멈춘다.
+---
 
-### `/design` impl task 실행 순서 계약
+## v0.27.0 (2026-07-24)
 
-- module-architect가 새 impl task를 만들 때 파일명의 `NN-`을 zero-padded 전역 serial traversal 순번으로 사용하고, `depends_on` 선행 의존 그래프 및 Story 내부 `task_index`와 역할을 분리한다. path 정렬은 의존 그래프의 위상 순서를 지키면서 같은 story를 연속 block으로 배치한다.
-- doc-sync의 design artifact 감사가 기존 `dcness-story-runner plan`을 재사용해 story 비연속 배치와 알려진 `depends_on` 선행 task보다 앞선 path 배치를 설계 PR 단계에서 차단한다. 기존 sortable prefix pack은 runner 호환을 유지하며 자동 리네임하지 않는다.
+**커밋 범위**: `v0.26.0..v0.27.0` (머지 PR 4개, [#1178](https://github.com/Daeguk-Sun/dcNess/pull/1178) · [#1186](https://github.com/Daeguk-Sun/dcNess/pull/1186) · [#1187](https://github.com/Daeguk-Sun/dcNess/pull/1187) · [#1188](https://github.com/Daeguk-Sun/dcNess/pull/1188))
+**핵심 변경**: **`/impl`·`/impl-loop` 구현 진입을 fast-start 로 경량화하고 headless worker 의 late failure 를 diff 를 보존한 같은 workspace 에서 bounded 자동 복구하도록 하며, `/design` 의 impl task 실행 순서 계약을 설계 PR 단계에서 결정적으로 강제한** minor 릴리즈. (1) 구현 전마다 반복하던 boundary/TDD health scan·`impl-preview`·issue-intake 를 구현 경로에서 제거해 첫 RED/수정까지의 cold-start tax 를 없애고, timeout·빈 prose·post-run guard 실패를 같은 provider/workspace 에서 기본 2회 bounded 복구하되 stage 최초 HEAD 기준으로 worker commit 까지 다시 검사, (2) Codex sandbox permission 분류를 post-run boundary/TDD guard 보다 먼저 수행해 guard 실패와 permission 이 겹쳐도 두 receipt 를 모두 남기고 새 권한 없이는 풀리지 않는 동일 실패의 blind 재시도를 차단, (3) module-architect 가 impl task 의 `NN-` 전역 serial·`depends_on`·`task_index` 역할을 분리하고 doc-sync design artifact 감사가 story runner plan 을 재사용해 story 비연속·의존 역순 배치를 설계 PR 에서 fail-fast, (4) v0.26.0 의 `shorts-real-spec` 순서 판정 회귀 수정(노트 이월)을 이어 story 순서 판정 계약의 정적 테스트를 축별 marker 로 리팩터했다.
+
+### 무엇이 바뀌나
+
+1. **`/impl`·`/impl-loop` fast-start + bounded self-recovery + permission 신호 보존** ([#1186](https://github.com/Daeguk-Sun/dcNess/pull/1186) Closes [#1185](https://github.com/Daeguk-Sun/dcNess/issues/1185) [#1181](https://github.com/Daeguk-Sun/dcNess/issues/1181), [#1187](https://github.com/Daeguk-Sun/dcNess/pull/1187) Closes [#1180](https://github.com/Daeguk-Sun/dcNess/issues/1180)) — `/impl`·`/impl-loop` 가 실제 구현 전에 boundary/TDD 설치 진단·`impl-preview`·반복 lifecycle 조립을 직렬로 수행해 첫 RED/수정까지 cold-start tax 를 내고, headless worker 가 timeout·빈 prose·post-run guard 실패를 변경 후 만나면 부분 diff 를 남긴 채 terminal block 되어 매번 수동 복구해야 하던 문제를 해소. 구현 전 전역 boundary suggestion·generated TDD 설치 상태 확인·`impl-preview` 를 구현 경로에서 제거하고, 자연어 구현 의도가 충분하면 issue 등록 여부를 묻지 않고 관련 코드·테스트를 찾아 RED 또는 첫 수정으로 바로 진입한다. 설계 task 의 정확한 `수정 허용` 경로는 run 동안 재사용하되 실제 mutation 시점에만 적용하고 infra/exclusive/project-remove hard deny 는 그대로 우선한다. headless worker 기본 한도를 total 3000초/idle 900초로 맞추고 `/impl-loop` 를 background 로 실행하며, timeout·idle timeout·empty prose·boundary/TDD post-run guard 실패가 변경 후 발생하면 diff 를 보존한 같은 provider/workspace 에서 기본 2회 bounded continuation 하고 stage 최초 HEAD 기준으로 worker commit 까지 포함해 guard 를 다시 검사한다. 이 반복은 메인의 수동 재지시가 아니라 기존 implementation chain 이 소유하며 새 권한·제품 의미·파괴적 결정이 아니면 사용자 질문으로 넘기지 않는다(`DCNESS_IMPLEMENTATION_RECOVERY_LIMIT` 로 한도 조정). 이어서 Codex sandbox permission 분류를 post-run boundary/TDD guard 보다 먼저 수행해, guard 실패와 `permission_required` 가 겹치면 primary guard evidence 와 permission receipt 를 모두 남기고 implementation chain 은 새 권한 없이는 풀리지 않는 동일 실패를 반복하지 않은 채 첫 시도에서 사용자 승인 경로로 멈춘다. 폐기된 `harness/impl_preview.py`·plan 전용 boundary suggestion 경로·관련 CLI/테스트를 삭제하고 release artifact 계약을 정리했다.
+
+2. **`/design` impl task 실행 순서 계약 — 설계 PR 단계 fail-fast** ([#1188](https://github.com/Daeguk-Sun/dcNess/pull/1188) Closes [#1179](https://github.com/Daeguk-Sun/dcNess/issues/1179)) — module-architect 가 `depends_on` 을 정확히 써도 파일명 `NN-` 의 전역 의미와 story 연속 배치 계약을 몰라 정상 설계 pack 이 `/impl-loop` 진입에서 뒤늦게 차단되고, 같은 결함을 설계 PR 에서 잡을 결정적 게이트가 없던 문제를 해소. 새 설계 pack 의 zero-padded `NN-` 을 전역 serial traversal 순번으로 정의하고 `depends_on` 은 선행 의존 그래프, `task_index` 는 Story 내부 완료 위치로 역할을 분리하며, path 정렬은 의존 그래프의 위상 순서를 지키면서 같은 story 를 연속 block 으로 배치한다. doc-sync 의 design artifact 감사가 기존 `dcness-story-runner plan` 을 재사용해 story 비연속 배치와 알려진 `depends_on` 선행 task 보다 앞선 path 배치를 설계 PR 단계에서 차단하고, runner 는 기존 parallel-wave frontmatter parser 를 재사용해 path 순서가 위상 순서를 지키는지 검증한다. 외부 프로젝트가 호출하는 `.github/actions/doc-sync/action.yml` 에 Python 3.11 을 명시하고 self CI/pre-commit path filter 와 init/hooks/release 문서를 동기화했다. 기존 sortable prefix pack 은 runner 호환을 유지하며 자동 rename 하지 않는다.
+
+3. **story 순서 판정 계약 marker 리팩터 + v0.26.0 `shorts-real-spec` 회귀 수정 노트 이월** ([#1178](https://github.com/Daeguk-Sun/dcNess/pull/1178) Closes [#1177](https://github.com/Daeguk-Sun/dcNess/issues/1177); 이월: [#1176](https://github.com/Daeguk-Sun/dcNess/pull/1176) Closes [#1175](https://github.com/Daeguk-Sun/dcNess/issues/1175)) — **노트 이월**: v0.26.0 코드에 이미 포함됐으나 노트에서 누락된 [#1176](https://github.com/Daeguk-Sun/dcNess/pull/1176)(머지 커밋이 v0.26.0 태그 커밋)은, `shorts-real-spec` 의 최종 사용자 가치 경계(upload)가 Story 4 에서 처음 닫히는데도 product-acceptance 가 정상 의존 순서로 해석해 release preflight `core_behavior` 를 실패시키던 순서 판정 회귀를 복구했다. Story 순서 SSOT 의 골격 닫힘을 "모든 기능 완성" 이 아니라 "최소 동선의 최종 사용자 가치 경계 통과" 로 명시하고, product-acceptance 단일 규칙을 정상 walking skeleton 보호 → Story 2 이후 지연 결함 유지의 순서 있는 3단계 판정으로 재구성했으며 Claude/Codex architecture-validator mirror 에 같은 축을 동기화했다. **v0.27.0 범위**([#1178](https://github.com/Daeguk-Sun/dcNess/pull/1178))는 그 회귀 방지 테스트가 판정 지침의 장문 전체를 needle 로 고정해 의미 보존 문구 개선까지 실패시키던 것을, `boundary_closure_not_feature_completion`·`walking_skeleton_guard`·`delayed_sequence_defect`·`no_invented_impossibility` 등 이름 붙은 축별 최소 marker 로 교체하고 Story 순서 section·product-acceptance 단일 규칙 block·Claude/Codex 구현 순서 block 을 각각 잘라 그 범위 안에서 검사하도록 리팩터했다. 정적 검사는 축의 존재·순서만 보장하고 실제 판정 행동은 핵심 eval 이 담당함을 테스트 머리말에 명시했으며, 테스트 메서드 수를 유지해 공개 evidence 분모를 흔들지 않는다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 `/impl`·`/impl-loop` 구현 진입·headless worker recovery·Codex permission 분류·order gate 인접 영역과 `/design` doc-sync artifact 감사·story 순서 판정 계약을 건드려 결정적 guard-efficacy 를 재실행 — **50/50 PASS**(v0.26.0 48/48 → impl fast-start recovery·permission 케이스 확장 반영), 회귀 없음. 전체 unittest 도 재실행해 공개 수치를 실측 동기화 — **1,173/1,173 PASS**. 네 머지 PR 은 각각 개별 CI(pytest·static-quality·public-surface·cross-ref·index-map·doc-sync·plugin-manifest·pr-body)를 통과했다.
+- Decide: 소멸 후보 없음. follow-up 없음. (구현 전 preflight 진단·`impl-preview` 를 제거하고 order 계약을 설계 단계 재사용 게이트로 합류시켜 하네스를 오히려 감량했다.)
+- Verify: fast-start 경로·bounded recovery(`worker_boundary` 소진 전이)·permission-before-guard·`/design` 순서 계약(story 비연속·의존 역순)·story 순서 판정 marker 신규/회귀 테스트 통과. 공개 evidence snapshot(README·`docs/plugin/benchmark.md`)을 v0.27.0 / 2026-07-24 실측(unit 1,173/1,173 · guard 50/50)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측 대조를 검증한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `skills/**`·`harness/**`·`hooks/**`·`scripts/**`·`docs/plugin/**`·`agents/**`·`.github/actions/**` 변경.
+- **`/impl`·`/impl-loop` 사용 프로젝트** — 자연어 구현 의도가 충분하면 구현 전 boundary/TDD 진단·`impl-preview` 없이 관련 코드·테스트를 찾아 바로 RED/수정으로 진입한다. headless worker 의 timeout·빈 prose·post-run guard 실패는 diff 를 보존한 같은 workspace 에서 기본 2회 자동 복구되고, guard 재검사는 worker 중간 commit 까지 포함한다. Codex sandbox 권한 부족은 guard 실패와 겹쳐도 permission receipt 가 보존되며 새 권한 없이 풀리지 않는 실패는 blind 재시도 대신 첫 시도에서 사용자 승인 경로로 멈춘다.
+- **`/design` 으로 epic 을 설계하는 프로젝트** — module-architect 산출물의 impl task `NN-`·`depends_on`·`task_index` 역할이 문서로 분리되고, story 비연속 배치나 알려진 `depends_on` 선행 task 역순 배치는 `/impl-loop` 진입이 아니라 설계 PR 의 doc-sync 감사에서 차단된다. 기존 pack 은 자동 rename 없이 그대로 호환된다.
+- **`/spec`·`/acceptance` 로 순서를 검수하는 프로젝트** — 골격 닫힘 판정이 "최소 동선의 최종 사용자 가치 경계 통과" 기준으로 고정돼(v0.26.0 #1176) 정상 walking skeleton 과 지연 순서 결함을 안정적으로 구분하고, 그 계약을 지키는 정적 테스트가 축별 marker 로 바뀌어 의미 보존 문구 개선이 테스트를 깨지 않는다.
 
 ---
 
