@@ -4,9 +4,9 @@
 
 ## 현재 공개 evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.27.0","measured_at":"2026-07-24","unit_tests":{"passed":1187,"total":1187},"guard":{"passed":50,"total":50},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.28.0","measured_at":"2026-07-24","unit_tests":{"passed":1187,"total":1187},"guard":{"passed":50,"total":50},"source_project_count":2} -->
 
-현재 plugin version은 **v0.27.0**, 측정일은 **2026-07-24**이다. unit과 guard 수치는 dcNess source checkout의 기계적 계약 evidence이며 보안 증명이나 제품 성공률이 아니다.
+현재 plugin version은 **v0.28.0**, 측정일은 **2026-07-24**이다. unit과 guard 수치는 dcNess source checkout의 기계적 계약 evidence이며 보안 증명이나 제품 성공률이 아니다.
 
 | evidence | 관측값 | 재현 명령 | 한계 |
 |---|---:|---|---|

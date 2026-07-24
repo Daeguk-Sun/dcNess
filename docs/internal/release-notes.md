@@ -10,6 +10,32 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.28.0 (2026-07-24)
+
+**커밋 범위**: `v0.27.0..v0.28.0` (머지 PR 2개, [#1191](https://github.com/Daeguk-Sun/dcNess/pull/1191) · [#1193](https://github.com/Daeguk-Sun/dcNess/pull/1193))
+**핵심 변경**: **v0.27.0 의 fast-start 흐름을 이어, `/impl`·`/impl-loop` 의 구현 착수 지연을 실측 기반으로 더 줄이고, `/impl` 이 첫 source edit 전에 구현 소유자(main-direct vs headless)를 한 번 선택해 끝까지 유지하며, 실제 성공한 구현 provider 기준으로 반대 진영 reviewer 를 자동 선택하도록 한** minor 릴리즈. 실측상 착수 지연의 대부분은 외부 명령이 아니라 메인 LLM 의 반복 판단·설명·context 재처리였다. (1) `/impl` 을 target 확인→격리→focused read→RED/첫 edit 의 main-direct action-first 경로로 축소하고 GREEN 이후 절차를 `impl-finish.md` 로 지연 로드하며, `/impl-loop` 의 worktree 이후 deterministic setup(run/step lifecycle·provider resolve·prompt 합성·same-workspace recovery)을 `dcness-implementation-chain` 한 호출이 소유하고 canonical phase prose 와 프로젝트별 TDD 계약을 Claude/Codex worker 에 동일 주입·검증, (2) `/impl` 이 별도 사용자 질문 없이 task shape 만으로 단순 작업은 main-direct 즉시 구현, 명확히 복잡한 작업은 첫 edit 전 headless build-worker 가 끝까지 소유하도록 구현 소유자를 한 번 선택하고, 실제 terminal provider 기준으로 반대 진영 reviewer 와 fallback provenance 를 자동 계산한다.
+
+### 무엇이 바뀌나
+
+1. **`/impl`·`/impl-loop` 착수 속도 개선 — main-direct action-first + setup 단일 소유** ([#1191](https://github.com/Daeguk-Sun/dcNess/pull/1191) Closes [#1190](https://github.com/Daeguk-Sun/dcNess/issues/1190)) — 확정된 구현 요청 뒤에도 `/impl`·`/impl-loop` 가 실제 파일 작업보다 규칙 재확인과 main-context 추론에 시간을 써 첫 RED/edit 또는 worker fork 까지 수 분이 걸리던 문제를 해소. 실측에서 `/impl-loop` 는 승인부터 worker 시작까지 24개 tool call 실제 실행 4.714초에도 지연의 약 98.6% 가 메인 LLM 의 반복 판단이었고, `/impl` 은 late-stage review·Cartography·close 규칙까지 처음부터 함께 고려하며 focused 요청을 다시 설계 문제로 열었다. `/impl` 을 target 확인→격리→focused read→RED/첫 edit 의 main-direct action-first 경로로 축소하고 GREEN 이후 review/PR/close 절차를 `impl-finish.md`(`/impl-loop` 는 `impl-loop-finish.md`)로 지연 로드한다. `/impl-loop` 는 worktree 이후 story state·run/step lifecycle·provider resolve·prompt 합성·same-workspace recovery 를 `dcness-implementation-chain` 한 호출이 소유하고, canonical phase prose 와 프로젝트별 TDD 계약을 Claude/Codex worker 에 동일하게 주입·검증해 PASS 만 phase clean gate 를 통과시키며 `IMPLEMENTATION_ESCALATE` 같은 non-PASS receipt 는 원형 보존한다. UI canvas mutation 을 worktree 이후로 고정하고 acceptance marker 는 chain 의 마지막 task 에만 기록한다. 동일 frozen fixture 의 main-direct/fresh executor A/B 각 3회에서 main-direct 첫 edit 중앙값 9.964초, fresh executor 18.272초라 기본 경로는 main-direct 를 유지하고, `/impl-loop` 실제 worker fork 는 11.054~17.960초였다. fast-start 회귀 테스트를 문자열 존재 확인에서 실제 fork 순서·중복 state·A/B 정확성 검증으로 강화했다.
+
+2. **`/impl` 복잡도 기반 구현 소유자 선택 + 반대 진영 리뷰 자동화** ([#1193](https://github.com/Daeguk-Sun/dcNess/pull/1193) Closes [#1192](https://github.com/Daeguk-Sun/dcNess/issues/1192)) — 모든 `/impl` 을 main-direct 로 처리하면 실제 완주한 복잡 작업(외부 세션 실측: 선택 확정→첫 RED/edit 10분 56초, 선택 확정→구현 준비 완료 66분 13초, request 당 context 약 26만→55만 token)의 context debt 가 해소되지 않고, 반대로 모두 headless 로 넘기면 단순 수정의 시작·context 전달 비용이 커지던 문제를 해소. `/impl` 이 이미 보이는 task shape 만으로 작은 버그·한 test seam·한 bounded module 의 coherent change 는 main-direct 즉시 구현, 여러 모듈/계층 결선·DI/storage/runtime entrypoint·schema/API/security 경계·device/E2E 검증·다중 의미 단위 commit/review-repair 가 예상되는 작업은 첫 source edit 전 headless build-worker 로 보내도록 구현 소유자를 한 번 선택한다(애매하면 main-direct; 소유자 판정에 repo 전체 scan·별도 SSOT preflight·사용자 질문을 추가하지 않는다). 한 번 선택한 구현자는 RED→구현→GREEN→validator finding 의 root-cause 수정까지 계속 소유하고 midstream handoff 는 금지한다. 기존 `dcness-implementation-chain` 에 `--direct-run`·선택적 `--design-doc`·동일 실제 provider rework 용 `--rework --resume-provider` 를 추가하고, 실제 terminal provider 와 반대 진영 reviewer/fallback provenance 를 계산하는 routing API·CLI 와 completion receipt 를 추가했다. 구현자가 Codex 면 Claude, Claude 면 Codex 를 우선 reviewer 로 선택하며 Codex 사용 불가 시에만 사유를 남기고 Claude 로 fallback 한다. midstream handoff 없이 첫 선택으로 소유권을 고정하는 반사실 시뮬레이션은 선택 확정→준비 완료 약 15.8% 단축을 예상하나, 이는 실측이 아니라 후속 A/B 로 검증할 시뮬레이션임을 명시했다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 `/impl`·`/impl-loop` 구현 진입 경로·`dcness-implementation-chain`·Claude/Codex worker·provider routing·order gate 인접 영역을 건드려 결정적 guard-efficacy 를 재실행 — **50/50 PASS**(v0.27.0 50/50 유지), 회귀 없음. 전체 unittest 도 재실행해 공개 수치를 실측 동기화 — **1,187/1,187 PASS**. 두 머지 PR 은 각각 개별 CI(pytest·static-quality·public-surface·cross-ref·index-map·doc-sync·plugin-manifest·pr-body)를 통과했다.
+- Decide: 소멸 후보 없음. follow-up 없음. (구현 전 late-stage 절차를 `impl-finish.md`·`impl-loop-finish.md` 지연 로드로 빼고 `/impl-loop` setup 을 chain 한 호출로 통합해 하네스를 오히려 감량했다.)
+- Verify: main-direct action-first 경로·fast-start A/B·소유자 선택(main-direct vs upfront headless)·`--direct-run`/`--rework --resume-provider`·반대 진영 reviewer routing·midstream handoff 금지 신규/회귀 테스트 통과. 공개 evidence snapshot(README·`docs/plugin/benchmark.md`)을 v0.28.0 / 2026-07-24 실측(unit 1,187/1,187 · guard 50/50)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측 대조를 검증한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `skills/impl/**`·`skills/impl-loop/**`·`skills/acceptance/**`·`scripts/**`·`harness/**`·`docs/plugin/**` 변경.
+- **`/impl` 사용 프로젝트** — 별도 질문 없이 task shape 만으로 단순 작업은 메인이 즉시 RED/수정으로 진입하고, 명확히 복잡한 작업은 첫 source edit 전 headless build-worker 가 끝까지 소유한다. 한 번 선택한 구현자가 RED→GREEN→validator finding 수정까지 유지하며 정상 경로에서 midstream handoff 는 없다. GREEN 이후 review/PR/close 절차는 `impl-finish.md` 로 지연 로드된다.
+- **`/impl-loop` 사용 프로젝트** — worktree 이후 run/step lifecycle·provider resolve·prompt 합성·same-workspace recovery 를 `dcness-implementation-chain` 한 호출이 소유해, 승인부터 worker 시작까지 메인이 여러 턴에 걸쳐 수동 조립하던 반복이 사라진다. canonical phase prose 와 프로젝트별 TDD 계약이 worker 에 동일 주입되고 PASS 만 phase clean gate 를 통과한다.
+- **구현/리뷰 진영을 나누는 프로젝트** — reviewer 를 설정상의 최초 provider 가 아니라 실제 성공한 구현 provider 기준 반대 진영으로 선택한다(구현자 Codex→reviewer Claude, 구현자 Claude→reviewer Codex; Codex 불가 시 사유를 남기고 Claude fallback). provider chain fallback 뒤에도 같은 진영이 리뷰하던 경로를 막는다.
+
+---
+
 ## v0.27.0 (2026-07-24)
 
 **커밋 범위**: `v0.26.0..v0.27.0` (머지 PR 4개, [#1178](https://github.com/Daeguk-Sun/dcNess/pull/1178) · [#1186](https://github.com/Daeguk-Sun/dcNess/pull/1186) · [#1187](https://github.com/Daeguk-Sun/dcNess/pull/1187) · [#1188](https://github.com/Daeguk-Sun/dcNess/pull/1188))
