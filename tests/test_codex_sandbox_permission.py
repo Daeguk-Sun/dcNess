@@ -694,9 +694,9 @@ class CodexSandboxPermissionRetryTests(unittest.TestCase):
 
 class CodexSandboxPermissionSurfaceTests(unittest.TestCase):
     def test_impl_loop_and_user_docs_describe_the_approval_journey(self) -> None:
-        impl_loop = (ROOT / "skills" / "impl-loop" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
+        impl_loop = (
+            ROOT / "skills" / "impl-loop" / "impl-loop-routing.md"
+        ).read_text(encoding="utf-8")
         hooks = (ROOT / "docs" / "plugin" / "hooks.md").read_text(encoding="utf-8")
 
         for text in (impl_loop, hooks):

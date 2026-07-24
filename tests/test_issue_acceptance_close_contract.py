@@ -13,21 +13,24 @@ class IssueAcceptanceCloseContractTests(unittest.TestCase):
         return (ROOT / relative_path).read_text(encoding="utf-8")
 
     def test_impl_reads_target_issue_once_and_blocks_clean_close_on_unchecked_ac(self) -> None:
-        skill = self.read("skills/impl/SKILL.md")
+        skill = self.read("skills/impl/SKILL.md") + self.read(
+            "skills/impl/impl-finish.md"
+        )
         routing = self.read("skills/impl/impl-routing.md")
 
         for text in (skill, routing):
             self.assertIn("target GitHub issue AC", text)
             self.assertIn("require-complete", text)
             self.assertIn("미체크", text)
-        self.assertIn("진입 preflight 에서 한 번", skill)
+        self.assertIn("본문과 댓글을 한 번", skill)
         self.assertIn("close 경계에서 한 번", skill)
 
     def test_impl_loop_clean_contract_includes_target_issue_ac(self) -> None:
-        skill = self.read("skills/impl-loop/SKILL.md")
-        routing = self.read("skills/impl-loop/impl-loop-routing.md")
+        skill = self.read("skills/impl-loop/SKILL.md") + self.read(
+            "skills/impl-loop/impl-loop-finish.md"
+        )
 
-        for text in (skill, routing):
+        for text in (skill,):
             self.assertIn("target GitHub issue AC", text)
             self.assertIn("require-complete", text)
             self.assertIn("미체크", text)
@@ -52,8 +55,8 @@ class IssueAcceptanceCloseContractTests(unittest.TestCase):
 
     def test_human_verification_wait_is_not_blocked(self) -> None:
         surfaces = (
-            self.read("skills/impl/SKILL.md"),
-            self.read("skills/impl-loop/impl-loop-routing.md"),
+            self.read("skills/impl/impl-finish.md"),
+            self.read("skills/impl-loop/impl-loop-finish.md"),
             self.read("docs/plugin/issue-lifecycle.md"),
         )
 

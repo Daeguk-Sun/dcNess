@@ -101,10 +101,9 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
         self.assertNotIn("merge review", reason)
 
     def test_impl_loop_defines_epic_only_sanity_lifecycle(self) -> None:
-        skill = read("skills/impl-loop/SKILL.md")
-        routing = read("skills/impl-loop/impl-loop-routing.md")
+        skill = read("skills/impl-loop/impl-loop-finish.md")
 
-        for text in (skill, routing):
+        for text in (skill,):
             self.assertIn("impl-validator:CODEBASE_SANITY", text)
             self.assertIn("Epic", text)
             self.assertIn("affected dependency cone", text)
@@ -227,7 +226,7 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
         )
 
         for path in (
-            "skills/impl-loop/SKILL.md",
+            "skills/impl-loop/impl-loop-finish.md",
             "skills/design/SKILL.md",
             "skills/design-system/SKILL.md",
         ):

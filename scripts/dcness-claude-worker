@@ -159,6 +159,16 @@ cd "$PROJECT_ROOT"
 
 dcness_resolve_headless_context "dcness-claude-worker" "$PROJECT_ROOT" "$SCRIPT_DIR"
 
+TDD_PROMPT_GUIDANCE="$(
+  PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 -m harness.tdd_hooks guidance --project-root "$PROJECT_ROOT"
+)"
+TDD_GUIDANCE_RC=$?
+if [ "$TDD_GUIDANCE_RC" -ne 0 ]; then
+  echo "[dcness-claude-worker] invalid project-local TDD contract" >&2
+  exit "$TDD_GUIDANCE_RC"
+fi
+
 git_status_without_harness_state() {
   git -C "$PROJECT_ROOT" status --porcelain=v1 -uall 2>/dev/null \
     | sed '/^.. \.claude\/harness-state\//d' \
@@ -240,6 +250,19 @@ fi
   echo "project/worktree root: $PROJECT_ROOT"
   echo "session id: ${DCNESS_SESSION_ID:-UNATTRIBUTED}"
   echo "run id: ${DCNESS_RUN_ID:-UNATTRIBUTED}"
+  if [ -n "$CANONICAL_RUN_DIR" ]; then
+    echo "canonical run directory: $CANONICAL_RUN_DIR"
+    echo "required phase prose:"
+    echo "- $CANONICAL_RUN_DIR/build-test.md"
+    echo "- $CANONICAL_RUN_DIR/build-impl.md"
+    echo "- $CANONICAL_RUN_DIR/build-validate.md"
+  fi
+  if [ -n "$TDD_PROMPT_GUIDANCE" ]; then
+    echo
+    echo "----- BEGIN PROJECT TDD CONTRACT -----"
+    printf '%s\n' "$TDD_PROMPT_GUIDANCE"
+    echo "----- END PROJECT TDD CONTRACT -----"
+  fi
   echo
   echo "You are executing this dcNess implementation worker step through Claude headless."
   echo "Run with hooks and plugins enabled; do not use safe-mode, bare mode, or hook-skipping modes."
@@ -271,6 +294,9 @@ fi
 } > "$TMP_PROMPT"
 
 CLAUDE_CMD=(claude -p --permission-mode acceptEdits --output-format text)
+if [ -n "$CANONICAL_RUN_DIR" ]; then
+  CLAUDE_CMD+=(--add-dir "$CANONICAL_RUN_DIR")
+fi
 
 run_claude_once() {
   python3 -c '
@@ -279,6 +305,7 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 
 timeout = int(sys.argv[1])
 idle_timeout = int(sys.argv[2])
@@ -381,6 +408,12 @@ with open(prompt, "rb") as stdin, open(output, "wb") as stdout, open(log, "ab") 
         stderr=raw,
         env=child_env,
         start_new_session=True,
+    )
+    raw.write(
+        (
+            f"PROCESS_FORK: pid={proc.pid} "
+            f"started_at={datetime.now(timezone.utc).isoformat()}\n"
+        ).encode("utf-8", "replace")
     )
     raw.flush()
     started = time.monotonic()
@@ -648,6 +681,25 @@ if [ "$TDD_RC" -eq 1 ]; then
   echo "[dcness-claude-worker] BLOCKED: TDD GUARD failed for Claude-changed implementation files." >&2
   echo "[dcness-claude-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$TDD_PROBLEMS" >&2
+  exit 1
+fi
+
+MISSING_PHASE_PROSE=""
+if [ "${DCNESS_PHASE_EVIDENCE_REQUIRED:-0}" = "1" ] \
+  && [ "$AGENT" = "build-worker" ] \
+  && [ -z "$MODE" ] \
+  && dcness_build_outcome_requires_phase_prose "$SCRIPT_DIR" "$TMP_PROSE"; then
+  MISSING_PHASE_PROSE="$(dcness_missing_build_phase_prose)"
+fi
+if [ -n "$MISSING_PHASE_PROSE" ]; then
+  {
+    echo
+    echo "----- REQUIRED PHASE PROSE MISSING -----"
+    printf '%s\n' "$MISSING_PHASE_PROSE"
+  } >> "$RAW_LOG"
+  emit_provider_failure 1 phase_evidence
+  echo "[dcness-claude-worker] BLOCKED: required build-worker phase prose is missing from the canonical run directory." >&2
+  printf '%s\n' "$MISSING_PHASE_PROSE" >&2
   exit 1
 fi
 

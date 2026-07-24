@@ -1,129 +1,85 @@
 ---
 name: impl-loop
-description: Story/공통 impl task 파일(SDD 설계도)을 받아 단일 build-worker headless runner 로 구현한다. task 1개(single) 또는 여러 개(chain/story/epic) 를 처리하며, build-worker 가 task 별 로컬 커밋까지 소유하고, 모든 대상 task 구현 후 merge candidate diff 를 impl-validator 가 1회 통합 리뷰한다. push/PR/merge 는 메인만 수행한다. 사용자가 "/impl-loop <task>", "이 deep task 구현", "전부 구현", "task 다 돌려", "epic 전체 구현", "끝까지 구현", "/design 후 자동"처럼 impl task 경로/목록/story/epic 을 명시할 때 사용한다. 일반 구현·버그픽스·한 줄 수정은 기본 진입점 `/impl`.
+description: Story/공통 impl task 파일을 받아 build-worker로 구현하는 runner. worktree 이후 run/state/step/provider launch를 기존 implementation chain 한 호출로 준비한다. task 1개 또는 story/epic chain을 처리하고, 모든 구현이 끝난 뒤에만 통합 review·acceptance·PR 마감 진본을 읽는다. 일반 구현은 /impl.
 ---
 
-# Impl Loop Skill — story/epic build-worker runner
+# Impl Loop — one-shot worker start
 
-> 본 스킬 = `/design` 이 만든 SDD story/epic 설계도(`docs/epics/**/impl/NN-*.md`)를 단일 구현 엔진 `build-worker` headless runner 로 처리한다. 일반 구현 요청은 [`/impl`](../impl/SKILL.md) 이 맡는다.
+`/impl-loop`는 `docs/epics/**/impl/NN-*.md`를 단일 구현 엔진 `build-worker`로 처리한다. 일반 버그픽스·한 줄 수정·설계 문서 없는 구현은 [`/impl`](../impl/SKILL.md)로 간다.
 
-> 🔴 **분기 규칙 SSOT** — build-worker 결론 → 다음 호출 / retry 한도 / acceptance gap 처리는 [`impl-loop-routing.md`](impl-loop-routing.md) 가 본 skill 의 단일 진본. 본 파일은 진행 절차만 담는다.
+```text
+target/AC snapshot → worktree → implementation-chain 한 호출 → worker
+```
 
-## Loop
+구현 전 메인은 provider resolve, `prev-tasks-reset`, `begin-run`, `begin-step`, prompt-slot 문서 확인을 따로 수행하지 않는다. 기존 `dcness-implementation-chain`이 story runner와 helper를 호출해 한 번에 소유한다.
 
-- **loop**: `impl-task-loop` (UI 감지 시 `impl-ui-design-loop`)
-- **entry_point**: `impl`
-- **implementation**: `build-worker` 하나. `build-worker` 는 test + impl + self-validate + task local commit 을 수행한다.
-- **review**: 모든 대상 task 와 `journey_deferred`가 아닌 자동 `(JOURNEY)` 수렴이 completed 된 뒤 merge candidate diff 를 대상으로 `impl-validator` 1회 통합 리뷰. Epic close를 발동하는 최종 candidate만 그 앞에서 `impl-validator:CODEBASE_SANITY`를 1회 수행한다.
-- **main-owned**: push / PR 생성 / PR merge / issue mutation 은 메인 전담. 최초 PR은 acceptance·AC close audit·tree-preserving consolidate 뒤에만 만든다.
-- **state**: `dcness-story-runner` 가 chain identity, task 순서, task commit 상태만 저장하고 story PR/run 종결은 task 에서 계산한다. provider capability failure는 chain identity를 키로 둔 sidecar에 보존한다.
-- **분기 규칙**: [`impl-loop-routing.md`](impl-loop-routing.md)
+모든 task가 completed 되기 전에는 validator provider, Cartography freshness, CODEBASE_SANITY, product acceptance, close audit, PR/merge 상세를 읽지 않는다. 그 경계에서만 [`impl-loop-finish.md`](impl-loop-finish.md)를 읽는다. worker 실패 분기가 실제로 생겼을 때만 [`impl-loop-routing.md`](impl-loop-routing.md)를 읽는다.
 
-UI expected_steps 의 `canvas-design` 은 진행 뷰용 main-owned checkpoint 이며 helper begin/end-step 비대상이다. draft가 필요할 때 ledger에 기록되는 실제 mode 없는 foreground designer step은 lifecycle hook이 소유한다.
+## 입력과 소유권
 
-## Inputs
+- 입력: impl task 1개, task 목록, glob 또는 epic impl 디렉터리
+- 구현: `build-worker` 하나가 test → impl → self-validate → task local commit 수행
+- 상태: `dcness-story-runner`가 chain identity, 정렬된 task, commit/status를 저장
+- 외부 상태: push, PR, merge, issue mutation은 메인만 수행
+- merge: 자동 merge 금지, 사용자가 유일한 merge gate
 
-- deep task 경로 (필수): 단일 task, task list, glob, 또는 epic impl 디렉터리.
-- 이슈 번호 (있으면): parent epic/story 본문과 target GitHub issue AC read 에 사용한다.
-- 선택 `--retry-limit N`: task 당 자동 재시도 한도. 기본 3.
-- 선택 `--no-acceptance`: story/epic 마감 acceptance 비활성. 미지정 시 기본 ON.
-
-## 비대상
-
-- 일반 구현 / 버그픽스 / 한 줄 수정 / 설계 문서 없는 작은 구현 → `/impl`
-- spec / design 단계 → `/spec` (PRD) 또는 `/design` (설계)
-- deep task 부재 → 기본 진입점 `/impl`
-
-## UI 작업 시 canvas-design 선두
-
-UI 작업이면 구현 전 **UI 기준 확보 분기**를 먼저 본다. 내부 [`canvas-design`](../canvas-design/SKILL.md) 은 main-owned checkpoint 이며 helper begin/end-step 비대상이다. 기준 있음 / 신규 시각 구조 + 기준 없음 / 시각 구조 불변을 판정하고, 필요한 경우 mode 없는 foreground designer Agent를 lifecycle hook 경로로 호출해 draft 생성 → 사용자 PICK → 확정본 승격 → `docs/design-variants/canvas.html` frame 등록을 수행한다.
-
-반환값은 `docs/design-variants/<screen-id>.html` 확정 목업 경로와 핵심 node-id 매핑이다. `build-worker` 는 그 경로를 디자인 정합 기준으로 읽고, 레이아웃 계층·상태·토큰·의도적 차이를 보고한다. 사용자 PICK 은 draft 생성 시 canvas-design 내부 조건부 절차이며 chain sub-step 으로 세지 않는다.
-
-## 워크트리와 story stack
-
-진입 시 worktree 격리를 기본으로 사용한다. 자세한 mechanics 는 [`loop-procedure.md`](../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정)를 따른다.
-
-### Story branch base
-
-단일 story worktree는 `main`에서 시작한다. 다중 story는 첫 story를 `main`, 다음 story를 직전 story 브랜치에서 재분기한다. PR 생성 시 stack base를 유지하고 merge 승인 시점에만 main으로 리타겟·리베이스한다. mechanics는 [`loop-procedure.md` story 브랜치 스택](../../docs/plugin/loop-procedure.md#story-브랜치-스택), naming/trailer는 [`git-spec.md` story 브랜치 스택](../../docs/plugin/git-spec.md#story-브랜치-스택)이 진본이다.
+같은 story 값은 path 정렬 결과에서 한 연속 block이어야 한다. 다중 story는 `story1(base=main) → story2(base=story1)` branch stack이며, 다음 story는 직전 story 브랜치에서 재분기한다.
 
 ## Fast start
 
-1. `docs/epics/**/stories.md` 상단의 `**GitHub Epic Issue:** [#N]` 또는 `미등록 (사유: …)` 를 확인한다. 없으면 STOP.
-2. parent epic/story issue 본문을 진입 preflight 에서 한 번 read 하고 target GitHub issue AC snapshot 을 만든다. task 자체는 GitHub issue 가 아니라 impl 파일 + task commit 으로 추적한다. snapshot 은 task/story 진행 전체에서 재사용하며 반복 issue 조회를 추가하지 않는다. AC가 없거나 검증 주체가 미기재됐으면 close 전에 현행 typed AC로 갱신하고, agent가 의미를 임의 추론해 체크·재분류하지 않는다. 현행 typed 일반론 AC 는 snapshot 에서 구체화해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
-3. task 가 이미 머지됐는지 `git log --grep <task-slug>` 와 task tail 로 확인한다.
-4. `begin-run impl --design-doc <task impl 문서>` 로 설계 문서를 한 번 기록한다. 이 run-level 값에서 `### 수정 허용` 경로를 mutation-time guard가 재사용한다.
-5. task 목록에서 `(JOURNEY)` 선언과 `acceptance_environment`를 수집한다. journey 미선언 run과 `automation=human_verification`만 있는 run은 추가 호출 없이 no-op이다. 자동 journey가 있으면 구현 전에 `begin-step build-worker JOURNEY_ENV_PREFLIGHT`를 열어 실제 worker 실행 컨텍스트에서 probe·자동 준비를 1회 수행한다. 준비 완료 또는 검출 불확실은 `PASS`로 task 구현에 진행하고, 확실한 미충족 + 자동 준비 불가만 사용자에게 환경 먼저 준비 / 구현만 진행하고 journey 검수 분리 중 하나를 1회 확인한다. 분리를 선택하면 해당 `journey_id`를 현재 run의 `journey_deferred` 목록으로 진행 뷰와 이후 모든 build-worker·impl-validator·product-acceptance prompt에 보존한다. 해당 journey는 수렴·sealed acceptance·종료 조건의 수렴 PASS Must 비대상이며 human verification/follow-up으로 남고, 그 AC가 속한 story/epic issue는 닫지 않으며 PR body에 `Closes`를 붙이지 않는다. 다른 자동 journey는 정상 진행한다.
+### 1. 최소 snapshot
 
-전체 repo boundary scan, generated TDD 설치 health, provider별 preview는 task 시작 전에 실행하지 않는다. hard boundary와 TDD는 실제 mutation-time/post-run guard에서 검사하며, 같은 plan/config/tree를 task·retry·provider마다 다시 preflight하지 않는다.
+warm handoff나 사용자 입력이 exact task path·AC snapshot pointer·slim prompt와
+feature worktree 상태를 이미 확정했으면 이 snapshot을 다시 `ls`/`find`/`cat`하지
+않는다. one-shot launch가 첫 tool call이다. worktree/default-branch 정합은 chain이
+mutation 전에 검증한다.
 
-첫 진행 이정표는 task/AC snapshot과 worktree가 준비되는 즉시 `착수: <task> · worker 시작`으로 남긴다. 이후 `진행: RED/첫 edit 확인`, `진행: 구현·검증 green`, `진행: 통합 review 시작`처럼 사용자에게 의미 있는 변화만 알리고 helper PASS/no-op은 진행 성과처럼 echo하지 않는다.
+1. `stories.md`의 parent epic/story issue pointer를 확인한다.
+2. 대상 issue 본문을 한 번 읽어 target GitHub issue AC snapshot을 보관한다. 진행 중 재조회하지 않는다.
+3. AC가 없거나 검증 주체가 없으면 close 때 현행 typed AC로 갱신한다. 의미를 임의 추론해 체크하거나 재분류하지 않는다.
+4. task가 이미 머지됐는지만 `git log --grep <task-slug>`로 확인한다.
 
-## 질문 budget과 자율 복구
+전체 repo scan, generated TDD 설치 health, provider preview, branch naming SSOT, 후기 validator/Cartography/close 문서는 worker 전에 읽지 않는다.
 
-관련 코드 선택, scope bullet의 기계적 오타, 설계 문서가 이미 허용한 비표준 경로, timeout/idle timeout/empty prose, post-run TDD·soft boundary 실패, 일반 test/lint 실패는 묻지 않는다. wrapper가 같은 provider와 같은 workspace에서 변경분을 보존한 채 bounded continuation/rework를 수행하고 guard를 다시 검사한다.
+### 2. worktree가 첫 mutation보다 먼저
 
-제품 의미가 달라지는 선택, repo 밖 접근·새 dependency/secret·보안/데이터 파괴 등 새 권한, hard boundary 변경, 자동 복구 한도 소진, merge 승인만 사용자에게 묻는다. hard boundary 자동 확대, `.dcness/boundary.json` 자동 작성, `tdd-exempt` 자동 삽입, provider 간 dirty diff 인계는 금지한다.
+- 사용자가 “워크트리 없이”라고 하지 않았으면 즉시 `EnterWorktree`를 사용한다.
+- story branch는 main 또는 직전 story branch를 base로 만든다.
+- worktree 진입 뒤 task pointer와 test seam만 다시 잡는다.
+- `.dcness-work` state, `begin-run`, issue lifecycle mutation은 worktree 진입 전 실행하지 않는다.
+- canvas-design의 seed·draft·확정본 mutation도 worktree 안에서만 수행한다.
 
-반복 가능한 provider 실행·상태 보존·복구 prompt·guard 재검사는 `dcness-implementation-chain`과 story runner가 소유한다. 메인이 task마다 같은 명령/판정을 재작성하지 않으며, 새 side script를 늘리기 전에 기존 runner를 확장하고 대체된 helper·분기·문서는 함께 삭제한다.
+첫 메시지는 다음 한 줄이면 충분하다.
 
-## TaskCreate / TaskUpdate
+```text
+착수: <task> · worker 시작
+```
 
-본 skill 의 모든 step 은 Claude Code 의 **TaskCreate / TaskUpdate 호출과 한 묶음**이다. 자율 skip 금지.
+### 3. UI checkpoint와 slim prompt
 
-WHY: lifecycle hook/helper는 run state를, TaskCreate/TaskUpdate는 사용자가 직접 보는 진행 표시를 소유한다. 둘은 중복이 아니라 보완 관계다.
+UI 기준은 task/handoff에 드러난 정보만 3분기한다. 확정 목업·사용자 이미지가 있으면
+그 pointer를 slim prompt로 넘기고, 시각 구조 불변이면 그대로 진행한다. 신규 시각
+구조인데 기준이 없을 때만 main-owned `canvas-design` checkpoint를 열어 사용자
+PICK 뒤 `docs/design-variants/<screen-id>.html` 확정본 승격을 마친다. `canvas-design`은
+helper begin/end-step 비대상이며 mode 없는 foreground designer Agent의
+SubagentStart/PostToolUse lifecycle hook만 사용한다. 이 조건을 알아내려고 별도 UI
+전수조사를 하지 않는다.
 
-**중대 차단 안티패턴**: "begin-step 으로 트래킹 충분하다 자율 판단해서 TaskCreate skip" — 사용자 진행 상태가 보이지 않아 회귀한다.
+prompt에는 다음만 둔다.
 
-호출 시점:
+- 현재 impl task path
+- target issue AC snapshot pointer
+- 확정된 사용자 선택이 있으면 그 선택 한 줄
+- 진본에 없는 scope/test 제약
 
-- 진입 직후 task list 생성.
-- 각 step 전환 때 `TaskUpdate(status=in_progress | completed)`. `in_progress`와 mode 없는 foreground Claude Agent 호출이 서로 결과 의존성이 없으면 같은 assistant turn의 독립 tool batch로 발행한다.
-- 종료 직전 헤더와 sub-step 전부 completed.
+과거 transcript, review/close 절차, provider 설명, worktree 경로, `[PREVIOUS_TASKS]`를 복사하지 않는다. wrapper가 worktree와 이전 task 요약을 동적으로 합성한다. 구현 방법·assert 방식·알고리즘을 처방하지 않는다.
 
-retry 시 기존 sub-step 을 재활용하고 신규 TaskCreate 를 만들지 않는다.
+### 4. one-shot launch
 
-## Sub-agent prompt 작성 checkpoint (#780)
-
-`build-worker` / `impl-validator` / `product-acceptance` 호출 전, Agent tool input을 쓰기 전에 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)를 직접 읽고 3슬롯을 점검한다. 정적 원칙은 `begin-step` stdout relay가 아니다. foreground Claude Agent의 worktree와 `[PREVIOUS_TASKS]`는 SubagentStart hook이, headless build-worker는 wrapper가 첫 prompt에 직접 넣는다.
-
-- **대상 + 읽을 진본**: impl 파일 경로, preflight 에서 확보한 parent epic/story target GitHub issue AC snapshot, merge candidate diff, build-worker Cartography impact 자유 prose, affected Root Cartography 좌표, 관련 epic/decision 같은 SSOT 포인터만 둔다.
-- **리뷰 대상 전달 우선순위**: build-worker task 결과처럼 검토 대상이 커밋으로 존재하면 커밋 id와 변경 파일 목록을 선행 전달하고, validator가 `git show` / `git diff` / `git log`로 커밋 진본을 직접 펼치게 한다. 호출자는 별도 diff 파일을 덤프하지 않는다. 커밋이 없는 uncommitted local diff일 때만 diff 파일 전달을 폴백으로 사용한다.
-- **worktree**: foreground Claude Agent는 SubagentStart hook, headless는 wrapper가 worktree 절대경로를 동적으로 넣는다. 메인은 Bash stdout을 prompt로 재전달하지 않는다.
-- **이 호출 특유**: 재호출 finding, wave-plan 신호, 검증 대행 결과처럼 진본에 아직 없는 신호만 둔다.
-- agent 본업의 구현 방식, 테스트 assert 방식, 알고리즘 같은 방법 처방은 prompt 에 넣지 않는다.
-
-## impl 파일 사전 read 의무 (MUST — module-architect 7 원칙 + cost-aware #436)
-
-진입 시 `build-worker` 가 impl 파일의 `## 사전 준비` 섹션을 따라 다음 파일을 read 한다. **통째 read 금지** — `CLAUDE.md` 의 cost-aware 행동 (#402) 과 맞춘다. 200 line 초과 doc 은 grep + offset/limit 부분 read 를 사용한다.
-
-| 항목 | read 범위 |
-|---|---|
-| `docs/architecture.md` | 200 line 초과 시 본 task 관련 섹션만 grep + offset read. 100 line 이하면 통째 OK |
-| `docs/decisions/` | 본 task 영향 decision 만 read. 부재 시 silent skip |
-| `docs/prd.md` | 본 task 의 Story 항목 섹션만. 통째 read 금지 |
-| 의존 task 머지 PR | `gh pr view <num> --json body --jq '.body' | head -20` |
-| 형제 PR 환기 | `gh pr list --search "[epic<N>]" --state merged --limit 10 --json title,url` |
-| 의존 모듈 (수정 X 영역) | grep + 시그니처만 read. 예: `grep "^export" path/to/file.ts | head -10` |
-| 의존 모듈 (수정 영역) | 통째 read OK |
-
-메인 직접 read 는 **진입 분기 판단 최소**만 수행한다. 메인이 통째 read 하지 말 것. agent prompt 에 경로를 넣으면 build-worker 가 위 룰로 자체 read 한다.
-
-## build-worker 실행
-
-1. `journey_deferred`가 아닌 자동 `(JOURNEY)`가 있으면 task loop보다 먼저 같은 provider·sandbox 설정의 `JOURNEY_ENV_PREFLIGHT` mode를 호출한다. 이 호출은 tracked write/commit 없이 worker 실행 컨텍스트의 runtime 도달성을 판정한다. main host probe나 product-acceptance 실행으로 대행하지 않는다.
-2. `dcness-helper prev-tasks-reset` 은 chain 첫 task 또는 single 모드에서 build-worker 호출 전에 1회 실행한다. chain 2번째+ task 는 직전 task 산출을 hook/wrapper가 `[PREVIOUS_TASKS]`로 직접 넣으므로 reset하지 않는다.
-3. implementation provider를 먼저 resolve한다. 기본 provider는 `headless-chain`이다. routing 결과는 provenance=`routing`, 사용자가 직접 고른 override는 provenance=`explicit`으로 보존한다. headless provider면 wrapper 소유권을 위해 `begin-step build-worker`로 열고, mode 없는 foreground Claude Agent면 명시적 begin/end-step 없이 lifecycle hook에 맡긴다. modeful Claude Agent는 `begin-step build-worker <MODE>`를 유지한다.
-4. `/impl-loop`는 `dcness-implementation-chain build-worker --provider <provider> --provider-provenance <routing|explicit> --chain-state .dcness-work/story-run.json --prompt-file <file>`을 Bash tool의 `run_in_background: true`로 실행하고, foreground tool timeout에 종속되지 않게 workspace/raw log 진행을 polling한다. task 1개 single `/impl-loop`도 진입 직후 one-task story-runner state를 초기화하고 `--chain-state`로 넘긴다. prompt 에는 target GitHub issue AC snapshot 을 진본 포인터로 포함한다. 성공 경로는 마지막 응답 저장과 `end-step build-worker` 까지 수행한다. `/impl-loop`가 아닌 single `/impl`만 `--chain-state`를 생략하고 provider failure cache를 사용하지 않는다.
-   기본 routing 호출은 `--provider-provenance routing`, 사용자가 고른 override는 `--provider-provenance explicit`으로 넘겨 cache 적용 여부와 선택 출처를 섞지 않는다.
-5. build-worker 는 test → impl → self-validate 를 한 task 안에서 수행하고, gates 가 green 이면 로컬 task commit 을 만든다.
-   - `task_index: total/total` 인 Story 마지막 task 는 impl 문서의 종합 검증 REQ 로 해당 Story AC 전항목을 다시 실행·관찰한다. 앞 task 의 PASS 를 대신 재사용하지 않는다. 마지막 task 에 전수 검증 REQ 가 없으면 구현 완료로 간주하지 않고 `SPEC_GAP_FOUND` 로 설계 보강을 요청한다.
-6. task local commit 은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)을 따른다. build-worker 는 한 task 안에서도 독립 검토 가능한 의미 단위로 쪼개되, 각 커밋은 hook 을 통과할 수 있는 일관 상태여야 한다.
-7. build-worker 는 `git status`, `git diff`, `git diff --check`, `git add`, `git commit`, `git rev-parse HEAD` 만 사용할 수 있다. `git push`, `gh pr create`, `gh pr merge`, `gh issue` mutation 은 금지다.
-8. build-worker report 에 commit sha, 검증 명령, clean status 가 없으면 task clean 으로 보지 않는다.
-
-provider wrapper:
+첫 task는 아래 명령 하나를 Bash `run_in_background: true`로 실행한다. shell 안에
+`nohup`, `&`, `disown`, redirect, `sleep`/polling을 덧붙이지 않고
+`.dcness-work`를 미리 만들지 않는다. `--init-path`는 전체 대상 task에 대해
+반복한다. provider를 미리 resolve하지 않는다.
 
 ```bash
 PLUGIN_ROOT=""
@@ -135,233 +91,81 @@ fi
 [ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
 HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
 
-if [ -n "${DCNESS_IMPLEMENTATION_PROVIDER:-}" ]; then
-  PROVIDER="$DCNESS_IMPLEMENTATION_PROVIDER"
-  PROVIDER_PROVENANCE="explicit"
-else
-  PROVIDER=$("$HELPER" routing resolve build-worker)
-  PROVIDER_PROVENANCE="routing"
-fi
-PROMPT_FILE="<prompt-file>"
-# 이 Bash tool 호출 자체를 `run_in_background: true` 로 발행한다.
 "$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker \
-  --provider "$PROVIDER" \
-  --provider-provenance "$PROVIDER_PROVENANCE" \
   --chain-state .dcness-work/story-run.json \
-  --prompt-file "$PROMPT_FILE"
+  --init-path <impl-task-1> \
+  --init-path <impl-task-N> \
+  --prompt-file <slim-prompt> \
+  --issue-num <target-issue> \
+  --acceptance-required
 ```
 
-최초 resolve한 plugin root/helper 절대경로를 이후 독립 Bash 호출에 literal로 넣는다. 위 변수는 한 Bash 프로세스 안의 예시일 뿐 호출 간 지속 상태가 아니다.
+사용자가 provider를 직접 골랐을 때만 `--provider <provider> --provider-provenance explicit`을 추가한다. 기본 호출은 chain 내부 routing이며 provider option을 생략한다.
 
-phase prose:
+이 한 호출의 소유권은 다음과 같다.
 
-- build-worker 는 `build-test.md`, `build-impl.md`, `build-validate.md` phase prose 를 남긴다.
-- 이 세 파일은 worker 내부 phase 증거이며 outer Agent lifecycle receipt가 아니다. phase별 outer begin/end-step을 추가하거나 phase 파일을 outer completion으로 중복 append하지 않는다.
-- `build-{test,impl,validate}.md` 3개 실존 확인은 false-clean 방지 닻이다.
-- phase prose 부재 또는 worker/validator 흔적 없이 clean 표기 = false-clean → blocked.
+- chain: feature worktree 여부를 state mutation 전에 검사
+- story runner: state를 올바른 worktree에서 정확히 한 번 초기화
+- chain: chain 최초 1회만 previous tasks 초기화
+- chain/helper: 현재 task의 `begin-run impl --design-doc`를 필요할 때 정확히 한 번 생성
+- chain/helper: `--acceptance-required`를 chain의 마지막 task run에만 기록
+- chain/helper: completed 이전 task run이 있으면 다음 호출 안에서 닫고 현재 task run을 정확히 한 번 생성
+- chain: 같은 run의 `begin-step build-worker`를 provider fork 전에 정확히 한 번 기록
+- chain: provider resolve·fallback·same-workspace recovery
+- worker wrapper: 마지막 prose와 대응 `step_completed` terminal receipt
 
-검증 대행:
+같은 state와 같은 `--init-path` 재호출은 task 목록·project root가 일치할 때 기존 state를 재사용하고 중복 초기화하지 않는다. default branch에서 초기 launch하거나 state의 project root가 다르면 provider fork 전에 실패한다.
+background task notification의 최종 exit code가 실행 진본이다. exit 0이면 stage 중간
+stderr나 partial output에 provider 실패가 보여도 fallback을 포함한 chain이 terminal
+prose를 기록한 것이므로 재호출하지 않는다. 최신 prose가 `PASS`일 때만 mark하고,
+`TESTS_FAIL`·`SPEC_GAP_FOUND`·`VALIDATION_BLOCKED`·`IMPLEMENTATION_ESCALATE`는
+[`impl-loop-routing.md`](impl-loop-routing.md)대로 처리한다. 같은 current run에 이미
+`step_completed`가 있으면 chain 재호출도 provider를 다시 fork하지 않는 성공 no-op이다.
 
-- build-worker 가 `VALIDATION_BLOCKED` 를 보고하면 먼저 같은 run ledger의 최신 `codex_sandbox_permission_required` event가 가리키는 `codex-sandbox-permission-*.json` receipt와 `permission_required` 상태를 확인한다. 이 receipt는 Codex wrapper가 자유 prose와 raw log의 좁은 sandbox signature를 post-run boundary/TDD guard 종료보다 먼저 읽어 생성하며 agent 출력 JSON/marker가 아니다. guard도 실패했다면 permission receipt와 `worker_boundary` 또는 `tdd_guard` 실패가 함께 남고, 어느 한쪽이 다른 신호를 지우지 않는다.
-- permission receipt가 없을 때만 기존 경로대로 메인이 같은 worktree cwd에서 worker가 남긴 검증 명령을 직접 실행한다. assertion/compile/test 실패, 일반 `Permission denied`, Codex CLI/auth/timeout 실패에는 receipt가 생기지 않는다. permission receipt가 있으면 implementation chain은 같은 권한으로 해결 불가능한 guard 실패를 bounded continuation으로 반복하거나 dirty workspace를 다른 provider에 넘기지 않고 즉시 사용자 승인 경로로 멈춘다.
-- `permission_required`이면 메인은 사용자에게 승인 전에 다음 사실을 한 번 설명한다: 필요한 capability, `network_access`가 loopback 전용이 아니라 Codex workspace-write의 **outbound network** 전체 허용이라는 범위, 제안 writable root 절대경로와 로그 근거, `workspace-write` 유지, `danger-full-access` 미사용. 선택지는 **이번 실행에만 허용 / 이 프로젝트에 저장 / 거부** 세 가지다.
-- 사용자가 선택하면 `"$PLUGIN_ROOT/scripts/dcness-codex-permission" retry --receipt <receipt> --decision once|project|deny --prompt-file "$PROMPT_FILE" --project-root "$PROJECT_ROOT" --helper "$HELPER"`를 실행한다. `once`는 승인 env를 해당 Codex worker 프로세스에만 전달하고 설정 파일을 쓰지 않는다. `project`는 기존 최상위/`env` 키를 보존해 `.claude/settings.local.json`에 승인한 키만 병합하고 현재 재시도에도 같은 env를 명시적으로 전달한다.
-- permission retry는 provider chain이 아니라 Codex build-worker를 직접 `-s workspace-write`로 한 번만 재호출한다. malformed settings, 사용자 `deny`, 안전한 root 추론 실패, 승인 후 같은 거부 반복은 설정·권한을 더 바꾸지 않고 `VALIDATION_BLOCKED`를 유지한다. 이 상태에서 host 직접 검증, 다른 provider, `danger-full-access`로 우회하지 않고 증거와 남은 선택지를 사용자에게 보고한다.
-- permission retry는 chain capability cache를 우회한다. 사용자 명시 provider 호출도 provenance=`explicit`으로 cache를 우회하며, 우회 실행 성공 시 해당 provider의 오래된 entry를 무효화한다.
-- 검증 미실행 상태로 commit/push/PR 진행 금지.
+### 5. worker task loop
 
-## story/epic runner task 단일 상태 (#1019, #1041)
+- worker는 impl 파일의 `## 사전 준비` pointer만 따라 focused read한다.
+- 200 line 초과 문서는 관련 section만 `rg` + offset read하고, 수정하지 않는 모듈은 signature만 읽는다. 메인은 worker 대신 문서를 통째로 읽지 않는다.
+- task local commit과 실제 검증 명령·exit code·clean status가 report에 있어야 PASS다.
+- Story 마지막 task는 Story AC 전항목을 종합 검증한다. 종합 REQ가 없으면 `SPEC_GAP_FOUND`다.
+- 기본 build-worker는 task를 읽은 직후 자동 `(JOURNEY)` 선언을 감지하고, 같은
+  worker context에서 source read/edit보다 먼저 `JOURNEY_ENV_PREFLIGHT`를 내부
+  phase로 한 번 수행한다. journey 미선언은 no-op이며 별도 main/provider launch를
+  만들지 않는다.
 
-`/impl-loop` 은 single/chain 모드를 가리지 않고 진행을 자연어로 암기하지 않는다. task 1개 single 모드도 진입 직후 `dcness-story-runner plan/init` 으로 one-task state를 만들고, 여러 task의 story/epic 모드도 같은 runner가 impl task 목록을 path 순으로 정렬한다. 정렬 결과에서 같은 frontmatter `story` 값(숫자 story 와 `공통` 모두)이 둘 이상의 비연속 block 으로 재등장하면 `plan/init` 은 관련 task 경로를 보고하고 fail-fast 한다. `init` 은 이 검증을 기존 state 의 아카이브·교체보다 먼저 수행해 실패 시 state 를 변경하지 않는다. story 간 의존성을 표현할 수 있는 path 순서를 runner 가 임의로 재정렬하지 않으며, 각 story 가 한 연속 block 인 입력은 기존 순서를 그대로 보존한다. state file에는 chain 수명 식별자인 `chain_id`와 각 task의 `pending / running / completed / error / blocked`, `attempts / commit / provider / note`만 저장한다. story/run status와 PR 번호는 저장하지 않는다.
-
-provider capability cache는 `.dcness-work/provider-failure-cache/<chain_id>.json` sidecar다. `cli_missing`, `auth_unavailable`, `config_unavailable`만 cacheable하며 `timeout`, `idle_timeout`, `empty_output`, `boundary_violation`, `tdd_guard`, `interrupt`, `network_transient`, 일반 `provider_error`, agent 결론은 cache하지 않는다. workspace/HEAD 변경 뒤 recoverable category는 같은 provider/같은 workspace에서 기본 2회 bounded continuation하고 매번 boundary/TDD guard를 재검사한다. 단, 같은 실패 receipt에 `permission_required`가 함께 있으면 새 권한 없이는 self-recovery할 수 없으므로 반복하지 않는다. 복구 불가 category나 한도 소진은 diff를 보존하고 중단하며 다른 provider로 fallback하지 않는다. cache hit는 provider/category/최초 `first_raw_log`/`scope=chain:<chain_id>`를 남긴다. 새 chain·다른 project/worktree·완료/reinit chain은 cache를 이어받지 않고, 동시 access는 lock+atomic replace로 보호한다.
-
-실행 단위는 **task commit** 과 **story PR** 이다. build-worker가 각 task local commit을 만든 뒤 mark 성공에만 next-action을 실행하는 한 Bash 호출로 `dcness-story-runner mark ... && dcness-story-runner next-action ...`을 묶는다. `&&` 계약 때문에 mark 실패 시 next-action은 실행되지 않는다. `error` / `blocked` 는 서로 다른 task 상태로 기록하고 `--note <사유>` 를 반드시 남긴다.
-
-`next-action` 의 파생 결과만 다음 행동을 정한다.
-
-- `action=task`: 미완 task 를 build-worker 로 실행한다.
-- `action=story-pr`: 직전 story 의 task commit 이 모두 완료됐다. 응답의 `story`와 `pr_base`로 PR base 메타와 story branch tip을 봉인하되 원격 PR은 아직 만들지 않는다. `next_branch_base`가 가리키는 직전 story 브랜치에서 재분기한 뒤 `next_task`를 시작한다.
-- `action=done`: 모든 task commit 이 완료됐다. `final_story`와 `pr_base`의 마지막 story branch tip을 봉인하고 `stack_tip` vs main merge candidate를 확정한다. `journey_deferred`를 제외한 수렴 대상만 다음 호출로 보내며, 최초 PR cut은 필요한 수렴·review·acceptance·AC audit·consolidate 뒤다.
-- `action=error` / `action=blocked`: 해당 task 의 note 를 근거로 retry 또는 사용자 위임한다.
-
-task 가 모두 completed 면 run 은 PR 생성·머지 여부와 무관하게 종결된 것이다. 다음 `init` 은 기존 state 를 `story-run.completed-<UTC>.json` 으로 자동 보관하고 `--force` 없이 새 run 을 시작한다.
+성공 뒤 task commit을 mark하고 `next-action`을 같은 Bash 호출로 묶는다.
 
 ```bash
-"<PLUGIN_ROOT_ABS>/scripts/dcness-story-runner" plan <impl-glob-or-dir>
-"<PLUGIN_ROOT_ABS>/scripts/dcness-story-runner" init --state .dcness-work/story-run.json <impl-glob-or-dir>
-"<PLUGIN_ROOT_ABS>/scripts/dcness-story-runner" mark --state .dcness-work/story-run.json --task <id> --status completed --commit <sha> && \
-  "<PLUGIN_ROOT_ABS>/scripts/dcness-story-runner" next-action --state .dcness-work/story-run.json
+"$PLUGIN_ROOT/scripts/dcness-story-runner" mark \
+  --state .dcness-work/story-run.json \
+  --task <id> --status completed --commit <sha> &&
+"$PLUGIN_ROOT/scripts/dcness-story-runner" next-action \
+  --state .dcness-work/story-run.json
 ```
 
-`<PLUGIN_ROOT_ABS>`는 진입 시 최초 resolve한 literal 절대경로다. `$PLUGIN_ROOT` shell 변수가 독립 Bash tool 호출 사이에 지속된다고 가정하지 않는다. `dcness-helper`의 self-location은 이미 발견된 executable 내부 root 해소일 뿐 executable 발견 경로가 아니다.
+- `action=task`: 다음 task용 slim prompt로 chain을 다시 호출한다. 기존 state이므로 `--init-path`는 생략하며, chain이 이전 run 종료와 새 run 시작을 같은 호출 안에서 처리한다.
+- `action=story-pr`: 직전 story tip/base를 봉인하고 PR 없이 다음 story branch를 만든다.
+- `action=done`: worker loop를 끝내고 GREEN 이후 진본으로 이동한다.
+- `action=error|blocked`: 그때만 routing 문서를 읽어 bounded recovery 또는 사용자 결정을 수행한다.
 
-완료 state 는 `story-run.completed-<UTC>.json` 으로 보관한다. 이 state file 은 직렬 chain driver 전용이며, 메인이 path glob 를 다시 정렬하거나 frontmatter 를 재해석하지 않는다.
+진행 메시지는 `진행: RED/첫 edit 확인`, `진행: 구현·검증 green`, `진행: 통합 review 시작`처럼 사용자에게 의미 있는 변화만 남긴다. helper PASS/no-op과 polling 자체를 성과처럼 반복 출력하지 않는다.
 
-story branch / PR 경계:
+## 질문 budget과 안전
 
-- 단일 story run: `final_story` branch 1개를 base=`main`으로 봉인한다. review/acceptance/AC audit/consolidate 뒤 PR 1개를 처음 만든다.
-- 다중 story/epic run: story branch를 `story1(base=main) → story2(base=story1) → …`로 쌓는다. `action=story-pr`마다 현재 tip과 base를 봉인하고 다음 branch는 **직전 story 브랜치에서 재분기**한다. 원격 story PR은 아직 만들지 않는다.
-- 마지막 `action=done`: `stack_tip` vs main을 최종 candidate로 삼는다. tracked cross-cutting 보정이 생기면 stack tip 기반 QA branch가 흡수하고, 변경이 없으면 빈 QA branch/PR을 만들지 않는다. 모든 PR은 clean cut 경계에서 한 번에 만든다.
-- loop의 자동 merge 금지: 사용자가 유일한 merge gate다. 승인 전 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 호출은 금지한다.
+관련 코드 선택, scope 오타, 일반 test/lint 실패, timeout/empty prose, 같은 workspace recovery는 묻지 않는다. 제품 의미·새 권한·hard boundary·데이터 파괴·복구 한도 소진·merge 승인만 묻는다.
 
-dry preview echo:
+- hard boundary 자동 확대, `tdd-exempt`, provider 간 dirty diff 인계 금지
+- build-worker의 push/PR/merge/issue mutation 금지
+- TDD와 mutation-time boundary guard 유지
+- 새 side script보다 기존 chain/runner 확장 우선
+- 대체한 helper·분기·문서·테스트는 함께 삭제하고 옛 호출을 `rg`로 확인
 
-```text
-전체: K task commit · S story PR · tracked 마감 보정이 있으면 QA PR 1개
-stack: story1(base=main) → story2(base=story1) → … → QA(조건부)
-acceptance 경계: story #<M>…#<N> · epic #<E>   ← 각 main 리타겟/merge 전 검수 대상 (기본 ON, --no-acceptance 시 생략)
-```
+## GREEN 이후
 
-issue close 가 실제 발동되는 story PR 또는 epic 마감 PR 을 포함한 chain 은 task 수와 무관하게 계획 표 echo + `진행할까요? (Y/n)` 1회 확인 후 진입한다. 확인 응답 전에는 task1 또는 story PR merge 준비로 진입하지 않는다. 구현 완료 뒤 각 story PR 의 main 리타겟 직전에 1회 확인한다. yolo 모드에서는 생략한다.
-
-## Story PR / integrated review / merge
-
-story 의 target task 가 completed 될 때마다 메인은 story branch tip과 base만 봉인한다. 다중 story run 은 local branch stack을 먼저 완성하고, `impl-validator review 출력은 merge candidate 경계에서 1회`만 수행한다. 단일 story는 story→main candidate diff, 다중 story/epic은 **스택 tip vs main** diff를 넘긴다. QA branch가 있으면 그 branch가 stack tip이다. 모든 Story/PR마다 full-repo semantic audit을 강제하지 않으며, repo-wide Codebase Sanity cadence는 Epic당 최종 clean candidate 1회가 기본이다.
-
-정상 순서:
-
-1. 한 story 의 build-worker task commit 들과 `git status --porcelain` clean 을 확인한다. runner의 `pr_base`와 story branch tip을 기록한 뒤, 다중 story/epic이면 `next_branch_base`가 가리키는 직전 story branch에서 다음 story branch를 만든다. 자동 merge 금지다.
-2. 모든 target task가 completed 되면 `journey_deferred`가 아닌 자동 `(JOURNEY)`가 있는 final stack tip에서 `begin-step build-worker JOURNEY_CONVERGENCE`로 fresh context 수렴 호출을 연다. 첫 실행 PASS면 1회로 끝내고, 실패하면 실행·관찰·배관 수정·재실행을 수행한다. 단일 story tracked 수정은 해당 story branch에 둔다. N-story 수렴의 story-local production 수정은 해당 story branch에 commit하고 downstream branch를 restack하며, cross-cutting production 수정과 tracked flow/manifest 보정은 QA branch에 둔다.
-3. 수렴 호출이 발동했다면 `JOURNEY_CONVERGENCE` PASS 뒤, 수렴 대상이 없어 비발동했다면 바로 final tip에서 통합 test/E2E 증거를 확정한다. 수렴이 production code를 바꾸면 재현 테스트 RED→GREEN과 의미 단위 commit이 있어야 한다. 설계·AC 충돌, 수렴 한도 초과는 분기 규칙대로 중단한다.
-4. Epic close를 발동할 최종 stack tip에서 메인이 repo의 실제 test/lint/build/typecheck/coverage 명령을 발견·실행하고 code revision 또는 tree identity, 명령별 exit code, warning, coverage 도구·리포트 유무를 수집한다. coverage 도구가 없으면 `UNKNOWN`이며 test count로 추정하지 않는다. 작은 단일-module repo는 전체 repo, 큰 repo는 affected module과 affected dependency cone을 semantic scope로 잡고 cheap global signals를 함께 남긴다.
-5. `begin-step impl-validator CODEBASE_SANITY`로 `impl-validator:CODEBASE_SANITY`를 연다. 같은 read-only impl-validator에 final merge candidate, task별 build-worker 보고, 수렴 증거, 수집한 기계적 증거, scope, Cartography 상태를 전달한다. finding이면 build-worker rework로 코드를 고친 뒤 수렴과 Sanity를 새 revision에서 재감사한다. PASS이면 `SANITY_RECEIPT_DIR="$("$HELPER" sanity-receipt-dir --project-root "$PROJECT_ROOT")"`로 persistent primary-worktree 경로를 구해 prose의 최소 의미를 `$SANITY_RECEIPT_DIR/<tree-identity>.md` local receipt로 보존한다. helper는 linked worktree의 `git --git-common-dir`을 기준으로 primary worktree의 `.dcness-work/codebase-sanity/`를 반환하므로 `ExitWorktree`가 임시 worktree를 제거해도 receipt가 남는다. local-only/ignored 정책이면 code PR에 포함하지 않는다.
-6. mode 없는 foreground `impl-validator`는 lifecycle hook 경로로 열고, build-worker provider의 반대편으로 review provider를 resolve 한다. 최종 stack tip 커밋 id와 변경 파일 목록을 선행 전달해 일반 merge-review mode가 커밋 진본을 직접 펼치게 하고, task별 build-worker Cartography impact, affected Root Cartography 좌표, 관련 epic/decision을 plan ∪ target GitHub issue AC와 함께 리뷰한다. `(JOURNEY)`가 있으면 선언된 각 `target_ac` ↔ flow의 실제 assertion 대조를 고정 항목으로 수행한다. Story-only close는 Step 4~5 없이 이 단계로 바로 온다.
-7. 영향 없음 또는 Root와 일치하면 기존 경로를 계속한다. system boundary는 유지되지만 route/state/as-built edge가 stale이면 메인이 기존 `module-architect:CARTOGRAPHY_REFRESH`를 호출해 affected Root 좌표만 bounded refresh하고 같은 diff+갱신 Root로 impl-validator 재검증한다. system boundary·global decision 변경이면 route-only patch로 흡수하지 않고 `/design --revise` 또는 system checkpoint backpressure에서 멈춘다.
-8. 일반 merge review `PASS` 후 close를 발동할 final tip에서 `product-acceptance`의 `STORY_ACCEPTANCE` × N을 story별로 판정하고, epic close 시 `EPIC_ACCEPTANCE`를 수행한다. `journey_deferred`가 담당하는 story는 close candidate에서 제외해 sealed journey 실행을 발동하지 않고 human verification/follow-up으로 보고한다. build-worker 수렴 PASS는 나머지 journey의 sealed 실행과 final tip cross-story 스위프를 대체하지 않는다.
-9. product-acceptance PASS 뒤 close를 발동할 `target GitHub issue AC close audit`을 수행하고 자동 typed AC 전항목을 close 경계에서 한 번 갱신·감사한다. `journey_deferred` target AC가 있는 story/epic은 close audit을 발동하지 않는다. checklist 밖 사람 항목은 미체크로 둔 별도 merge gate로 보존하며, 자동 audit PASS 뒤 clean cut은 계속한다.
-10. close audit 뒤 수렴 iteration 노이즈가 있을 때만 **커밋 consolidate**를 수행해 독립 검토 가능한 의미 단위로 재구성한다. 작업 전후 `git rev-parse <tip>^{tree}`가 같아 최종 tree 불변임을 확인하며, 이미 의미 단위면 no-op이다. tree가 바뀌면 기존 Sanity·review·acceptance·AC 증거를 stale 처리하고 수렴 이후부터 다시 수행한다.
-11. consolidate가 끝난 clean branch stack에서 repo git-spec의 push + `gh pr create` 절차로 **PR 생성**을 처음 수행한다. task commit으로 이미 clean인 branch에 새 commit을 요구하는 `scripts/pr-create.sh`는 이 경계에 사용하지 않는다. 단일 story close candidate는 acceptance PASS·AC close audit 뒤 최초 PR 1개를 cut한다. `journey_deferred` production-only candidate는 review와 consolidate 뒤 close 없이 PR을 cut한다. 다중 story는 봉인한 base로 story PR과 조건부 QA PR을 clean 상태에서 cut해 수렴 노이즈가 열린 PR에 append되지 않게 한다.
-12. 숫자 story close candidate PR body에는 `Closes #story`를 두고, QA PR 유무를 확정한 마지막 merge 대상 PR body에만 `Closes #epic`을 둔다. `journey_deferred` target AC가 있는 production-only PR에는 `Closes`를 붙이지 않고 `Part of`와 `Document-Exception-PR-Close: journey deferred human verification/follow-up` 사유로 연결한다. 그 외 story/QA PR에는 epic `Closes`가 남지 않았는지 확인한다.
-13. PR 이후 CI 실패가 rerun이나 외부 인프라 복구만으로 해소돼 tree가 같으면 acceptance verdict와 tree-identity Sanity receipt는 유효하다. tracked code나 harness를 수정하면 기존 증거를 stale 처리하고 수렴·검증·acceptance·audit·consolidate 뒤 PR에 새 commit을 반영한다.
-14. 사용자가 merge를 승인할 때 story PR을 순서대로 base=`main`으로 리타겟·리베이스한다. checklist 밖 사람 항목이 남아 있으면 먼저 `human verification 대기`로 멈춘다. 현재 story tip이 바뀌면 아직 열린 downstream branch를 새 tip 위에 순서대로 restack하고 `--force-with-lease`로 갱신한다. restack 충돌 해결로 최종 tree가 달라지면 기존 review/acceptance 증거를 stale 처리하고 통합 review부터 다시 수행한다. 각 PR은 해당 story acceptance verdict와 AC close audit을 확인한 뒤 `$PLUGIN_ROOT/scripts/pr-finalize.sh`를 호출한다. QA PR이 있으면 마지막에 같은 절차로 merge한다.
-
-### QA 산출물 배치
-
-- **1-story**: branch 1개 = PR 1개다. 수렴/review/acceptance가 찾은 fix와 tracked flow/manifest 보정은 PR cut 전 해당 story branch에 반영한다. 별도 QA PR은 만들지 않는다.
-- **N-story**: 최종 stack tip에서 수렴과 sealed acceptance를 실행해 story별 verdict를 만든다. story-local production 수정은 해당 story branch에 commit하고 downstream branch를 restack한다. cross-cutting production 수정과 tracked flow/manifest 보정은 마지막 story branch 기반 **QA branch/PR**이 흡수한다. tracked 변경이 없으면 빈 QA PR을 만들지 않는다.
-- receipt/log/screenshot은 ignored `.dcness-work/product-journey/`에만 두고 어떤 PR에도 commit하지 않는다. acceptance 보고에는 receipt 경로만 참조한다.
-- impl-validator의 story-local FAIL은 해당 story PR 브랜치에 commit하고 downstream branch를 restack한다. story PR 이 2개 이상인 run의 cross-cutting FAIL은 QA branch가 흡수하며 모든 PR은 재검증·consolidate 뒤 cut한다.
-
-Epic 마감의 고정 순서는 `JOURNEY_CONVERGENCE → impl-validator:CODEBASE_SANITY → impl-validator:merge review → 필요 시 CARTOGRAPHY_REFRESH → 같은 diff+갱신 Root impl-validator 재검증 → product-acceptance → close audit → commit consolidate → PR cut → 사용자 merge gate`다. Sanity PASS 이후 어떤 단계에서든 코드가 다시 바뀌면 기존 Sanity와 일반 impl-validator 증거를 모두 stale 처리하고 새 기계적 증거를 수집해 수렴과 Sanity부터 재진입한다. Cartography 문서만 bounded refresh되고 code tree가 같거나 consolidate가 tree identity를 보존하면 Sanity receipt는 그대로 유효하지만 일반 impl-validator는 같은 diff와 갱신 Root를 재검증한다.
-
-Sanity receipt에는 rigid JSON/marker 없이 code revision/tree identity, 실제 scope, 명령·exit/warning, coverage 값 또는 `UNKNOWN` 근거, dead-code 후보별 `removable`/`intentional stub`/`planned seam`/`framework-reachable`/`unknown`, example/scaffold·duplicate path·stale suppression/deprecation·convention drift·code-smell, clean 여부와 남은 finding/rework surface를 보존한다. receipt는 canonical Root refresh 완료 증거나 다음 `/design`의 affected capability/entrypoint 현재 코드 대조를 대신하지 않는다. `ExitWorktree` 전에 위 persistent 경로에 receipt가 실존하는지 확인한다.
-
-`CARTOGRAPHY_REFRESH`는 새 agent나 공개 진입점이 아니라 기존 bounded module-architect write 계약을 구현 종료 경계에서 재사용하는 workflow mode다. tracked docs는 현재 branch/PR 정책으로 반영한다. local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local Root를 갱신하거나 exact affected 좌표·상태 증거·다음 producer를 durable impact handoff로 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root refresh 확인 전에는 최종 clean이 아니다. build-worker와 읽기 전용 impl-validator는 docs write를 떠안지 않는다.
-
-producer 호출은 `begin-step module-architect CARTOGRAPHY_REFRESH`로 열고, module-architect prose를 `end-step module-architect CARTOGRAPHY_REFRESH --prose-file <cartography-refresh-prose>`로 기록한다. `PASS` 뒤에만 같은 merge candidate diff와 갱신 Root로 mode 없는 foreground `impl-validator` lifecycle hook 재검증을 열고, `SYSTEM_CHECKPOINT_REQUIRED`이면 Root patch 없이 `/design --revise` 또는 system checkpoint backpressure로 보낸다.
-
-close 를 발동할 각 PR candidate 는 product-acceptance 와 impl-validator PASS 만으로 clean 이 아니다. 최종 acceptance verdict가 확정되면 최초 PR cut 전에 메인이 `Closes` 대상 story/epic issue의 target GitHub issue AC를 대조한다. verdict가 자동 판정 또는 `(JOURNEY)`로 충족했다고 판정한 AC만 체크하고, `사람 확인 안내`는 미체크로 둔다. 그 뒤 이슈 본문 write를 issue별 close 경계에서 한 번 수행한다. 진행 중 task/story 경계에서는 issue mutation이나 재조회를 추가하지 않는다. 각 최종 body는 다음 감사가 PASS 해야 한다.
-
-```bash
-node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
-  --body-file <issue-body.md> \
-  --acceptance-only \
-  --require-complete
-```
-
-미충족·미체크 typed target GitHub issue AC 가 하나라도 있으면 clean 마감과 merge 를 금지한다. close audit의 정확한 `PASS`만 close 경로를 연다. AC 부재·검증 주체 미기재 항목은 실패하며 body를 현행 typed AC로 갱신하기 전 merge를 정지한다. 사람 판정은 checklist와 분리한 human verification 목록으로 보고한다.
-
-`impl-validator:CODEBASE_SANITY FAIL`이면 finding의 affected surface를 build-worker rework로 넘기고 수렴·Sanity부터 재감사한다. 일반 `impl-validator FAIL`의 story-local FAIL은 해당 story PR 브랜치에 commit하고 downstream story/QA branch를 restack한다. story PR 이 2개 이상인 run의 cross-cutting FAIL은 QA branch가 흡수한다. 단일 story는 해당 branch에 commit한다. 어느 경로든 코드가 바뀌면 수렴·Sanity·merge-review 증거가 stale이며 같은 finding을 줄 단위 점 패치로 반복하지 않는다. cycle 한도는 routing 문서가 소유한다.
-
-review provider resolve:
-
-```bash
-IMPLEMENTATION_PROVIDER="${DCNESS_IMPLEMENTATION_PROVIDER:-headless-chain}"
-REVIEW_PROVIDER=$("$HELPER" routing resolve impl-validator --implementation-provider "$IMPLEMENTATION_PROVIDER")
-```
-
-`routing.json` 에 `impl-validator` 가 명시되어 있으면 그 값이 우선한다. 명시값이 없으면 headless-chain build-worker 의 리뷰는 Claude, claude-headless/claude build-worker 의 리뷰는 Codex 가능 시 Codex·불가 시 Claude 다.
-
-## 마감 acceptance
-
-story/epic 마감마다 제품 검수(`product-acceptance`)를 끼워 **PASS 후에만 마감 PR 을 머지**한다. 기본 ON — `--no-acceptance` 또는 "검수 없이" 발화 시에만 생략한다. 자동 merge 금지이며 사용자가 유일한 merge gate다.
-
-다중 story는 최종 stack tip에서 `product-acceptance:STORY_ACCEPTANCE`를 story × N으로 수행해 story별 acceptance verdict를 만든 뒤, epic close가 실제 발동되면 `product-acceptance:EPIC_ACCEPTANCE`를 1회 수행한다. merge 순서에서 각 PR의 코드가 이 tip verdict와 동일함을 확인하고 해당 verdict를 story-close gate에 사용한다. gap 수정 commit이 생기면 이전 STORY PASS는 stale이므로 STORY_ACCEPTANCE부터 다시 돌린다.
-
-product-acceptance 는 외부 상태 변경(`gh` issue/PR mutation, push, merge) 금지 경계라 `gh` 호출이 불가다. 아직 PR을 만들지 않은 branch stack/base 메타·final tip commit·검증 결과·동작 증거·UI 목업 정합 증거와 build-worker Cartography impact, affected Root Cartography 좌표, 상태 증거, 관련 epic/decision, 현재 run의 `journey_deferred` 목록을 메인이 prompt 에 직접 담는다. UI task 는 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 함께 넣어 목업 불일치와 화면 증거 부재를 판정할 수 있게 한다. 핵심 AC 증거가 mock-only green 이거나 대상 사용자에게 부적합한 입력/진행 동선이면 gap 이다.
-
-핵심 journey가 마감 AC이면 build-worker가 인계한 `(JOURNEY)` REQ, `JOURNEY_CONVERGENCE` 증거와 owner module/소스 영역의 journey 매니페스트/e2e flow 경로를 product-acceptance prompt에 넣는다. `journey_deferred`가 아닌 journey는 수렴 receipt를 acceptance 판정에 재사용하지 않고 product-acceptance가 최종 tip에서 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 `"$PLUGIN_ROOT/scripts/dcness-product-journey" run --project-root "$PROJECT_ROOT" --config <contract>`를 다시 실행해 sealed receipt를 만든다. deferred journey는 sealed 실행 비발동이며 PASS/close 증거로 세지 않고 human verification/follow-up으로 남긴다. exit 1은 구현 gap 증거이며 mock-only, app-not-started, journey 미실행, assertion 미평가, UI evidence 누락을 PASS로 세지 않는다. helper가 쓰는 영역은 ignored `.dcness-work/product-journey/`로 한정되고 tracked 구현·설계는 write-zero로 유지한다. receipt는 어떤 PR에도 commit하지 않고 경로만 acceptance 보고에 남긴다.
-
-호출(modeful foreground Claude Agent; 완료는 PostToolUse가 기록하므로 별도 end-step 없음):
-
-```text
-begin-step product-acceptance STORY_ACCEPTANCE
-Agent(subagent_type="product-acceptance")  # current explicit mode=STORY_ACCEPTANCE
-begin-step product-acceptance EPIC_ACCEPTANCE
-Agent(subagent_type="product-acceptance")  # current explicit mode=EPIC_ACCEPTANCE
-```
-
-`PASS` → target GitHub issue AC close audit 로 진행한다. `FAIL` → auto-fixable gap 은 build-worker rework 로 수정한다. 코드 수정이면 Epic close run은 `JOURNEY_CONVERGENCE`와 Sanity부터 재진입하고, Story-only run은 수렴·impl-validator 재리뷰 후 acceptance를 재검수한다. capability 상태 drift가 route-only stale이면 `module-architect:CARTOGRAPHY_REFRESH` → 같은 diff+갱신 Root impl-validator 재검증 → acceptance 재검수 순서로 닫는다. system boundary/global decision gap이면 `/design --revise` 또는 system checkpoint backpressure로 보낸다. `ESCALATE` → 사용자 위임. acceptance FAIL, Cartography freshness 미해소, AC close audit 미해소 상태로 최초 PR cut이나 `pr-finalize.sh`를 강행하지 않는다.
-
-## 진행 뷰 task 리스트
-
-진행 뷰는 [`harness/chain_view.py`](../../harness/chain_view.py) helper 가 산출한다. 입력은 task list JSON `{tasks:[{name, engine:"build-worker", closes?}], current}` 이며, UI task 는 `engine:"ui-build-worker"` 로 표현한다. 그 외 변종은 `substeps:[...]` 명시 라벨을 사용한다. 구현 주체 enum 을 늘리지 않는다.
-
-sub-step:
-
-- 기본 task: `build-worker` → `impl-validator`
-- UI task: `canvas-design` → `build-worker` → `impl-validator`
-- story close: `build-worker:JOURNEY_CONVERGENCE`(조건부) → `impl-validator` → `product-acceptance`
-- epic close: `build-worker:JOURNEY_CONVERGENCE`(조건부) → `impl-validator:CODEBASE_SANITY` → `impl-validator` → `product-acceptance:STORY` → `product-acceptance:EPIC`
-
-완료 task 는 한 줄, 현재 task 만 sub-step 펼침, 예정 task 는 대기 줄이다. 총 task 수 기준 redraw strategy 는 ≤10 full / 11~20 partial / >20 minimal 이다.
-
-## review 출력 재정의 (#446)
-
-chain 안에서는 매 task 전수 review.md 출력을 하지 않는다. 메인 컨텍스트 출력 = 5줄 요약이며 자유 형식 단축 금지.
-
-```text
-[task<i> · <slug>] <clean|error|blocked>
-build-worker: N tests RED→GREEN · M files +X -Y · validate PASS|FAIL · commit <sha>
-finding: <PASS 시 "없음" / FAIL·NICE TO HAVE 시 1-2 문장>
-PR <#NNN> open · base <branch> · closes #<MMM>
-next: <다음 task slug 진입 | story-pr | integrated-review | 정지 사유>
-```
-
-PR cut 전에는 `PR pending · acceptance/AC audit/consolidate 선행`으로, cut 뒤 열린 stack은 `PR <#NNN> open · base <branch>`로 표시한다. close 발동 PR은 acceptance 줄을 PR 상태 줄 앞에 추가한다. 디스크의 `<run_dir>/review.md`는 원본 그대로 저장한다.
-
-## 종료 조건
-
-전체 완료 후 메인은 처리 N/N, task commit sha, story PR URL, 조건부 QA PR URL, stack tip, impl-validator round, acceptance 결과, target GitHub issue AC close audit 결과를 보고한다. clean 판정 전에는 다음 흔적을 확인한다.
-
-- build-worker phase prose 3개.
-- build-worker local commit sha.
-- `dcness-story-runner` state mark.
-- `journey_deferred`가 아닌 수렴 대상 자동 journey가 있으면 worker 실행 컨텍스트의 `JOURNEY_ENV_PREFLIGHT` 증거와 final tip `JOURNEY_CONVERGENCE` PASS. deferred journey는 종료 조건의 수렴 PASS Must 비대상이다.
-- merge candidate impl-validator PASS.
-- Epic close이면 현재 code revision을 덮는 `.dcness-work/codebase-sanity/` receipt와 `impl-validator:CODEBASE_SANITY` PASS.
-- 필요한 product-acceptance PASS.
-- build-worker Cartography impact가 affected Root Cartography 및 관련 epic/decision과 대조됐고 route-only stale 또는 system backpressure가 남지 않음.
-- target issue 가 있으면 자동 판정 가능한 typed AC 전항목 충족·체크 + `require-complete`의 정확한 `PASS`.
-- 수렴 노이즈가 있으면 tree identity 불변 commit consolidate, 이미 의미 단위면 no-op 근거, 그 뒤 최초 PR URL.
-- 자동 판정할 수 없는 사람 확인 항목이 남으면 `human verification 대기`로 보고하고 merge 전에 정지한다.
-- `journey_deferred` production-only PR은 해당 story/epic issue를 닫지 않고 `Closes` 미부착, human verification/follow-up과 남은 target AC를 보고한다.
-
-이 중 하나라도 없는데 clean 이라고 쓰면 false-clean → blocked.
-
-전체 완료 보고 뒤 메인이 이슈 등록, cleanup, 측정 같은 자율 작업으로 이어갈 때는 진입 전 `dcness-helper post-task-begin --reason "<사유>"` 를 호출한다. 이 marker 는 task ROI 측정 분리를 위한 #472 계약이다.
-
-## 안티패턴
-
-- task N 개를 한 build-worker 호출에 묶어 한 번에 처리.
-- task commit/mark 전 다음 task 진입.
-- build-worker 가 push / PR 생성 / merge / issue mutation 수행.
-- main 컨텍스트가 worker 대신 env probe나 journey 수렴 실행을 떠안기.
-- acceptance·AC close audit 전에 최초 story/QA PR을 만들거나 수렴 iteration commit을 열린 PR에 누적하기.
-- story PR을 건너뛰고 epic 구현을 단일 PR로 묶기.
-- story PR을 사용자 승인 없이 자동 merge하거나 merge 전 main 리타겟·리베이스를 생략하기.
-- 모든 구현 뒤 impl-validator 통합 리뷰 없이 stack PR을 머지하기.
-- story/epic close 발동 PR 에서 acceptance 생략 또는 FAIL 미해소 상태로 `$PLUGIN_ROOT/scripts/pr-finalize.sh` 강행.
-- TaskCreate / TaskUpdate skip.
-- chain 전체 완료 후 자율 작업 (이슈 등록 / cleanup / 분석) 진입 시 `post-task-begin` marker 누락.
+모든 target task가 completed 된 뒤에만 [`impl-loop-finish.md`](impl-loop-finish.md)를 읽어 통합 review, journey convergence, Cartography, acceptance, AC close audit, consolidate, PR cut을 수행한다.
 
 ## 참조
 
-- 분기 규칙: [`impl-loop-routing.md`](impl-loop-routing.md)
-- 기본 구현 진입점: [`/impl`](../impl/SKILL.md)
-- loop mechanics: [`loop-procedure.md`](../../docs/plugin/loop-procedure.md)
-- branch / commit / PR: [`git-spec.md`](../../docs/plugin/git-spec.md)
-- build-worker: [`build-worker.md`](../../agents/build-worker.md)
-- impl-validator: [`impl-validator.md`](../../agents/impl-validator.md)
-- product acceptance: [`/acceptance`](../acceptance/SKILL.md)
+- 실패·retry 분기(필요할 때만): [`impl-loop-routing.md`](impl-loop-routing.md)
+- completed 이후 마감(필요할 때만): [`impl-loop-finish.md`](impl-loop-finish.md)
+- worker 계약: [`build-worker-agent.md`](../../docs/plugin/agents/build-worker/build-worker-agent.md)

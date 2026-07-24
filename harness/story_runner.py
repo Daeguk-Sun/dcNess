@@ -215,6 +215,9 @@ def build_state(
         "updated_at": _now_iso(),
         "scope": resolved_scope,
         "project_root": str(root),
+        "setup": {
+            "previous_tasks_reset": False,
+        },
         "tasks": tasks,
     }
 
@@ -373,6 +376,15 @@ def next_task(state: dict[str, Any]) -> dict[str, Any] | None:
     if action.get("action") == "task":
         return action.get("task")
     return None
+
+
+def task_requires_acceptance(state: dict[str, Any], ref: str) -> bool:
+    """Return whether *ref* is the final task that hands off to loop acceptance."""
+    tasks = state.get("tasks", [])
+    if not isinstance(tasks, list) or not tasks:
+        return False
+    task = find_task(state, ref)
+    return task is tasks[-1]
 
 
 def next_action(state: dict[str, Any]) -> dict[str, Any]:

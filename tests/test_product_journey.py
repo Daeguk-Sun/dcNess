@@ -565,7 +565,13 @@ class ProductJourneyContractDocumentTests(unittest.TestCase):
     ) -> None:
         contract = (ROOT / "docs/plugin/product-journey.md").read_text(encoding="utf-8")
         acceptance = (ROOT / "skills/acceptance/SKILL.md").read_text(encoding="utf-8")
-        impl_loop = (ROOT / "skills/impl-loop/SKILL.md").read_text(encoding="utf-8")
+        impl_loop = (
+            (ROOT / "skills/impl-loop/SKILL.md").read_text(encoding="utf-8")
+            + "\n"
+            + (ROOT / "skills/impl-loop/impl-loop-finish.md").read_text(
+                encoding="utf-8"
+            )
+        )
         product_acceptance = (
             ROOT
             / "docs/plugin/agents/product-acceptance/product-acceptance-agent.md"

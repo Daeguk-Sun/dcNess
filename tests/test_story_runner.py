@@ -13,6 +13,7 @@ from harness.story_runner import (
     next_action,
     next_task,
     prepare_init_state,
+    task_requires_acceptance,
 )
 
 
@@ -270,6 +271,8 @@ class StoryRunnerTests(unittest.TestCase):
 
         first = next_task(state)
         self.assertEqual(first["id"], 1)
+        self.assertFalse(task_requires_acceptance(state, "1"))
+        self.assertTrue(task_requires_acceptance(state, "2"))
         mark_task(state, "1", "running", provider="codex-headless")
         self.assertEqual(next_task(state)["id"], 1)
         mark_task(state, "1", "completed", commit="abc123")

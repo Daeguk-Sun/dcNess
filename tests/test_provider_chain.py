@@ -238,6 +238,10 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             self.assertEqual(len(logs), 1)
             raw_log = logs[0].read_text(encoding="utf-8")
             self.assertIn("UNATTRIBUTED", raw_log)
+            self.assertRegex(
+                raw_log,
+                r"PROCESS_FORK: pid=[1-9][0-9]* started_at=.+\+00:00",
+            )
             self.assertIn("Claude worker degraded prose", raw_log)
 
     def test_codex_worker_degraded_context_runs_provider(self) -> None:
@@ -339,6 +343,10 @@ class ClaudeHeadlessWrapperTests(unittest.TestCase):
             self.assertEqual(len(logs), 1)
             raw_log = logs[0].read_text(encoding="utf-8")
             self.assertIn("UNATTRIBUTED", raw_log)
+            self.assertRegex(
+                raw_log,
+                r"PROCESS_FORK: pid=[1-9][0-9]* started_at=.+\+00:00",
+            )
             self.assertIn("Codex worker degraded prose", raw_log)
 
     def test_claude_validator_degraded_context_runs_provider(self) -> None:

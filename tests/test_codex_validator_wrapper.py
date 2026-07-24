@@ -719,18 +719,30 @@ class CodexWorkerWrapperTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         return args, project
 
-    def test_worker_default_sandbox_args_remain_workspace_write_only(self) -> None:
+    def test_worker_default_sandbox_adds_only_canonical_run_writable_root(self) -> None:
         for network_access in (None, "0", "false", "off"):
             with self.subTest(network_access=network_access):
                 args, project = self._capture_worker_args(
                     network_access=network_access,
                 )
+                canonical_run_dir = str(
+                    Path(project).resolve()
+                    / ".claude"
+                    / "harness-state"
+                    / ".sessions"
+                    / "sid-worker-sandbox"
+                    / "runs"
+                    / "run-sandbox1"
+                )
 
                 self.assertEqual(
-                    args[:7],
+                    args[:9],
                     [
                         "-a",
                         "never",
+                        "-c",
+                        "sandbox_workspace_write.writable_roots="
+                        + json.dumps([canonical_run_dir], ensure_ascii=False),
                         "exec",
                         "-C",
                         project,
@@ -738,10 +750,10 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                         "workspace-write",
                     ],
                 )
-                self.assertEqual(args[7], "--output-last-message")
-                self.assertTrue(args[8])
-                self.assertEqual(args[9:], ["-"])
-                self.assertNotIn("-c", args)
+                self.assertEqual(args[9], "--output-last-message")
+                self.assertTrue(args[10])
+                self.assertEqual(args[11:], ["-"])
+                self.assertEqual(args.count("-c"), 1)
 
     def test_worker_adds_only_opted_in_sandbox_config_with_toml_escaping(self) -> None:
         writable_roots = [
@@ -754,6 +766,15 @@ class CodexWorkerWrapperTests(unittest.TestCase):
             network_access="true",
             writable_roots=writable_roots,
         )
+        canonical_run_dir = str(
+            Path(project).resolve()
+            / ".claude"
+            / "harness-state"
+            / ".sessions"
+            / "sid-worker-sandbox"
+            / "runs"
+            / "run-sandbox1"
+        )
 
         self.assertEqual(
             args[:11],
@@ -764,7 +785,10 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 "sandbox_workspace_write.network_access=true",
                 "-c",
                 "sandbox_workspace_write.writable_roots="
-                + json.dumps(writable_roots, ensure_ascii=False),
+                + json.dumps(
+                    [*writable_roots, canonical_run_dir],
+                    ensure_ascii=False,
+                ),
                 "exec",
                 "-C",
                 project,
@@ -789,18 +813,31 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 "roots-only",
                 None,
                 writable_roots,
-                [
-                    "sandbox_workspace_write.writable_roots="
-                    + json.dumps(writable_roots, ensure_ascii=False)
-                ],
+                [],
             ),
         )
 
         for name, network_access, roots, expected_configs in cases:
             with self.subTest(name=name):
-                args, _project = self._capture_worker_args(
+                args, project = self._capture_worker_args(
                     network_access=network_access,
                     writable_roots=roots,
+                )
+                canonical_run_dir = str(
+                    Path(project).resolve()
+                    / ".claude"
+                    / "harness-state"
+                    / ".sessions"
+                    / "sid-worker-sandbox"
+                    / "runs"
+                    / "run-sandbox1"
+                )
+                expected_configs.append(
+                    "sandbox_workspace_write.writable_roots="
+                    + json.dumps(
+                        [*(roots or []), canonical_run_dir],
+                        ensure_ascii=False,
+                    )
                 )
                 actual_configs = [
                     args[index + 1]
@@ -808,7 +845,7 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                     if arg == "-c"
                 ]
                 self.assertEqual(actual_configs, expected_configs)
-                self.assertEqual(args.count("-c"), 1)
+                self.assertEqual(args.count("-c"), len(expected_configs))
                 self.assertIn("workspace-write", args)
 
     def test_worker_rejects_invalid_network_access_before_codex(self) -> None:
@@ -930,8 +967,10 @@ class CodexWorkerWrapperTests(unittest.TestCase):
             self.assertIn("dcNess implementation agent: build-worker", prompt)
             self.assertIn("build-worker 지침", prompt)
             self.assertIn("Implement the task from docs/impl.md.", prompt)
-            self.assertIn("-a\nnever\nexec", args_capture.read_text(encoding="utf-8"))
-            self.assertIn("workspace-write", args_capture.read_text(encoding="utf-8"))
+            captured_args = args_capture.read_text(encoding="utf-8")
+            self.assertIn("-a\nnever", captured_args)
+            self.assertIn("exec", captured_args)
+            self.assertIn("workspace-write", captured_args)
             self.assertTrue((project / "src" / "generated.py").exists())
             self.assertTrue(
                 helper_args.read_text(encoding="utf-8")

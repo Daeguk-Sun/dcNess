@@ -62,12 +62,22 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.impl_skill = (ROOT / "skills" / "impl" / "SKILL.md").read_text(
             encoding="utf-8"
         )
+        self.impl_finish = (
+            ROOT / "skills" / "impl" / "impl-finish.md"
+        ).read_text(encoding="utf-8")
+        self.impl_contract = self.impl_skill + "\n" + self.impl_finish
         self.impl_routing = (
             ROOT / "skills" / "impl" / "impl-routing.md"
         ).read_text(encoding="utf-8")
         self.impl_loop_skill = (
             ROOT / "skills" / "impl-loop" / "SKILL.md"
         ).read_text(encoding="utf-8")
+        self.impl_loop_finish = (
+            ROOT / "skills" / "impl-loop" / "impl-loop-finish.md"
+        ).read_text(encoding="utf-8")
+        self.impl_loop_contract = (
+            self.impl_loop_skill + "\n" + self.impl_loop_finish
+        )
         self.tech_review_skill = (
             ROOT / "skills" / "tech-review" / "SKILL.md"
         ).read_text(encoding="utf-8")
@@ -432,7 +442,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertNotIn("impl 밖 — 설계 선행", self.impl_routing)
         self.assertNotIn("없으면 `/spec` / `/tech-review` / `/design` 선행", self.impl_routing)
         self.assertIn(
-            "spec / design 단계 → `/spec` (PRD) 또는 `/design` (설계)",
+            "일반 버그픽스·한 줄 수정·설계 문서 없는 구현",
             self.impl_loop_skill,
         )
 
@@ -579,11 +589,9 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.loop_procedure)
 
-        self.assertIn(
-            "../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정",
-            self.impl_skill,
-        )
-        self.assertIn("ExitWorktree", self.impl_skill)
+        self.assertNotIn("loop-procedure.md#worktree", self.impl_skill)
+        self.assertIn("loop-procedure.md#worktree", self.impl_finish)
+        self.assertIn("dirty/unmerged", self.impl_finish)
 
     def test_issue_832_design_runs_mechanical_artifact_audit(self) -> None:
         """#832 — design loop runs the artifact audit before final validator/PR."""
@@ -789,7 +797,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         """#1185 — /impl reaches RED/first edit without preview/preflight helpers."""
         self.assertNotIn("impl-preview", self.impl_skill)
         self.assertNotIn("boundary-suggestions", self.impl_skill)
-        self.assertIn("첫 진행 이정표", self.impl_skill)
+        self.assertIn("착수: <target>", self.impl_skill)
         self.assertIn("RED", self.impl_skill)
 
     def test_issue_1019_impl_external_copy_uses_current_naming(self) -> None:
@@ -819,16 +827,12 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "task commit",
             "story PR",
             "action=story-pr",
-            "final_story",
-            "task 단일 상태",
             "직전 story 브랜치에서 재분기",
-            "스택 tip vs main",
-            "story-run.completed-<UTC>.json",
-            "직렬 chain driver 전용",
+            "stack tip vs main",
             "impl-validator review 출력은 merge candidate 경계에서 1회",
         ):
             with self.subTest(needle=needle):
-                self.assertIn(needle, self.impl_loop_skill)
+                self.assertIn(needle, self.impl_loop_contract)
         for stale in (
             "PR 1개 = task 1개",
             "N task = N run = N review.md",
@@ -838,7 +842,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             "mark-story",
         ):
             with self.subTest(stale=stale):
-                self.assertNotIn(stale, self.impl_loop_skill)
+                self.assertNotIn(stale, self.impl_loop_contract)
 
     def test_issue_885_claude_md_seed_and_audit_stays_inside_existing_surfaces(self) -> None:
         """#885 — CLAUDE.md seed/migration and audit wire into init/run-review only."""
@@ -946,8 +950,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("단계 내부 되돌림", self.router)
 
         # impl records design-doc when supplied, but does not auto-return to design.
-        self.assertIn("LLM 판단만으로 `/spec`·`/design` 으로 되돌리지 않는다", self.impl_skill)
-        self.assertIn("/design", self.impl_skill)
+        self.assertIn("확정된 handoff", self.impl_skill)
+        self.assertIn("다시 열", self.impl_skill)
         self.assertIn("--design-doc", self.impl_skill)
         self.assertNotIn("compact-design", self.impl_routing)
 
@@ -1000,16 +1004,17 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         )
         self.assertNotIn("[INSIGHTS]", self.loop_procedure)
 
-        for label, text in (
-            ("impl", self.impl_skill),
-            ("impl-loop", self.impl_loop_skill),
-            ("design", self.design_skill),
+        for label, front, finish in (
+            ("impl", self.impl_skill, self.impl_finish),
+            ("impl-loop", self.impl_loop_skill, self.impl_loop_finish),
         ):
             with self.subTest(label=label):
-                self.assertIn("Sub-agent prompt 작성 checkpoint (#780)", text)
-                self.assertIn("agent-prompt-slots.md", text)
-                self.assertIn("worktree 절대경로", text)
-                self.assertIn("방법 처방", text)
+                self.assertNotIn("agent-prompt-slots.md", front)
+                self.assertIn("agent-prompt-slots.md", finish)
+        self.assertIn("Sub-agent prompt 작성 checkpoint (#780)", self.design_skill)
+        self.assertIn("agent-prompt-slots.md", self.design_skill)
+        self.assertIn("worktree 절대경로", self.design_skill)
+        self.assertIn("방법 처방", self.design_skill)
 
     def _section(self, text: str, start: str, end: str) -> str:
         match = re.search(start + r"(?P<body>.*?)" + end, text, flags=re.S)

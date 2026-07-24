@@ -259,6 +259,7 @@ def _cli_next_task(args: Any) -> int:
         return 1
 
     entry_point = getattr(args, "entry_point", "impl") or "impl"
+    issue_num = getattr(args, "issue_num", None)
     design_doc = getattr(args, "design_doc", None)
     acceptance_required = bool(getattr(args, "acceptance_required", False))
     if acceptance_required and entry_point != "impl":
@@ -296,7 +297,7 @@ def _cli_next_task(args: Any) -> int:
     try:
         transition(
             sid, "run_started", run_id=new_rid, entry_point=entry_point,
-            issue_num=None, design_doc=design_doc,
+            issue_num=issue_num, design_doc=design_doc,
             acceptance_required=acceptance_required,
         )
     except Exception as exc:
@@ -780,6 +781,7 @@ def _build_arg_parser() -> Any:
         "--design-doc", default=None, dest="design_doc",
         help="다음 task 가 참조하는 머지된 설계 문서 경로 (begin-run --design-doc 동일)",
     )
+    p_nt.add_argument("--issue-num", type=int, default=None)
     p_nt.add_argument(
         "--acceptance-required", action="store_true",
         help="다음 task 가 story/epic 마감 acceptance 대상임을 기록 (#722)",

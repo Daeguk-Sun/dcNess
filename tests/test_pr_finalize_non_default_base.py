@@ -169,7 +169,7 @@ class PrFinalizeBaseGuardTests(unittest.TestCase):
 
     def test_user_facing_finalize_paths_use_plugin_root_for_active_projects(self) -> None:
         surfaces = [
-            REPO_ROOT / "skills" / "impl-loop" / "SKILL.md",
+            REPO_ROOT / "skills" / "impl-loop" / "impl-loop-finish.md",
             REPO_ROOT / "skills" / "design" / "SKILL.md",
             REPO_ROOT / "skills" / "spec" / "spec-delivery-reference.md",
             REPO_ROOT / "docs" / "plugin" / "git-spec.md",
