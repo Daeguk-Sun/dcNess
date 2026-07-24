@@ -446,16 +446,30 @@ def _cli_begin_step(args: Any) -> int:
                 check=False,
                 timeout=5,
             )
-            if head.returncode != 0 or tree.returncode != 0:
+            root = subprocess.run(  # nosec B603, B607
+                ["git", "rev-parse", "--show-toplevel"],
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if (
+                head.returncode != 0
+                or tree.returncode != 0
+                or root.returncode != 0
+                or not root.stdout.strip()
+            ):
                 print(
                     "[begin-step] FAIL — close validation sequence candidate identity "
-                    "could not be resolved",
+                    "or workspace root could not be resolved",
                     file=sys.stderr,
                 )
                 return 1
             candidate = {
                 "candidate_head": head.stdout.strip(),
                 "candidate_tree": tree.stdout.strip(),
+                "candidate_root": str(Path(root.stdout.strip()).resolve()),
             }
     except (OSError, subprocess.SubprocessError, ValueError) as exc:
         print(f"[begin-step] FAIL — candidate freeze probe: {exc}", file=sys.stderr)
@@ -468,6 +482,7 @@ def _cli_begin_step(args: Any) -> int:
             mode,
             candidate_head=candidate.get("candidate_head"),
             candidate_tree=candidate.get("candidate_tree"),
+            candidate_root=candidate.get("candidate_root"),
         )
     except Exception as exc:  # noqa: BLE001
         record_fail_open_event(

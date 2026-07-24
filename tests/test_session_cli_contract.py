@@ -6,6 +6,7 @@ from io import StringIO
 import json
 import os
 from pathlib import Path
+import subprocess
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -96,6 +97,47 @@ class SessionCliLifecycleContractTests(unittest.TestCase):
             )
         self.assertEqual(rc, 1)
         self.assertIn("hook staging 없음", missing.getvalue())
+
+    def test_close_begin_step_freezes_absolute_worktree_root(self) -> None:
+        close_rid = "run-c1d2e3f4"
+        session_state.transition(
+            self.sid,
+            "run_started",
+            run_id=close_rid,
+            entry_point="impl",
+            lane="lite",
+            acceptance_required=True,
+        )
+        session_state.write_pid_current_run(self.cc_pid, close_rid)
+        subprocess.run(["git", "init", "-q", "-b", "main"], check=True)
+        subprocess.run(
+            ["git", "config", "user.email", "test@example.com"],
+            check=True,
+        )
+        subprocess.run(["git", "config", "user.name", "Test"], check=True)
+        (self.base / "tracked.txt").write_text("candidate\n", encoding="utf-8")
+        subprocess.run(["git", "add", "tracked.txt"], check=True)
+        subprocess.run(["git", "commit", "-q", "-m", "candidate"], check=True)
+
+        stdout = StringIO()
+        stderr = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            rc = cli._cli_begin_step(
+                SimpleNamespace(agent="impl-validator", mode=None)
+            )
+
+        self.assertEqual(rc, 0, stderr.getvalue())
+        current = session_state.read_live(self.sid)["active_runs"][close_rid][
+            "current_step"
+        ]
+        self.assertEqual(current["candidate_root"], str(self.base.resolve()))
+        self.assertEqual(
+            current["candidate_head"],
+            subprocess.check_output(
+                ["git", "rev-parse", "HEAD"],
+                text=True,
+            ).strip(),
+        )
 
     def test_finalize_run_emits_status_persists_snapshot_and_chains_review(self) -> None:
         source = self._complete("impl-validator", "MUST FIX 없음\n\nPASS\n")

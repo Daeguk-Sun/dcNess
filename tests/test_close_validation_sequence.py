@@ -4,8 +4,10 @@ from __future__ import annotations
 from contextlib import redirect_stdout
 from io import StringIO
 import json
+import os
 from pathlib import Path
 import statistics
+import subprocess
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
@@ -13,6 +15,7 @@ from unittest.mock import patch
 from harness import ledger, session_state
 from harness.chain_view import ChainTask, substeps_for
 from harness.hooks import (
+    _close_validation_sequence_status,
     _maybe_emit_continuation_signal,
     _strict_conveyor_gate_message,
 )
@@ -34,6 +37,8 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
         self.tmp = TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
         self.base = Path(self.tmp.name)
+        self.candidate_root = str((self.base / "candidate").resolve())
+        Path(self.candidate_root).mkdir()
         session_state.transition(
             SID,
             "run_started",
@@ -54,6 +59,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
             mode=mode,
             candidate_head=HEAD,
             candidate_tree=TREE,
+            candidate_root=self.candidate_root,
         )
 
     def _complete(
@@ -85,6 +91,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
         *,
         head: str = HEAD,
         tree: str = TREE,
+        root: str | None = None,
     ) -> str | None:
         return session_state.evaluate_order_gate_for_step(
             SID,
@@ -94,6 +101,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
             base_dir=self.base,
             candidate_head=head,
             candidate_tree=tree,
+            candidate_root=root or self.candidate_root,
         )
 
     def test_acceptance_is_blocked_until_validator_passes(self) -> None:
@@ -157,6 +165,57 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
         self.assertIn("product-acceptance is not terminal PASS", reason)
         self.assertIn("validator PASS를 유지하고 acceptance만 재실행", reason)
 
+    def test_candidate_probe_unknown_warns_bounded_then_allows_stop_only(
+        self,
+    ) -> None:
+        self._start("impl-validator", None)
+        self._complete("impl-validator", None)
+        self._start("product-acceptance", "EPIC_ACCEPTANCE")
+        self._complete("product-acceptance", "EPIC_ACCEPTANCE")
+
+        outputs = []
+        for _ in range(3):
+            slot = session_state.read_live(SID, base_dir=self.base)[
+                "active_runs"
+            ][RID]
+            stdout = StringIO()
+            with patch(
+                "harness.hooks._current_tracked_candidate",
+                return_value=None,
+            ), redirect_stdout(stdout):
+                blocked = _maybe_emit_continuation_signal(
+                    sid=SID,
+                    rid=RID,
+                    slot=slot,
+                    active={RID: slot},
+                    last_agent="product-acceptance",
+                    last_mode="EPIC_ACCEPTANCE",
+                    base_dir=self.base,
+                )
+            self.assertTrue(blocked)
+            outputs.append(stdout.getvalue())
+
+        self.assertEqual(
+            [json.loads(value)["decision"] for value in outputs[:2]],
+            ["block", "block"],
+        )
+        self.assertEqual(outputs[2], "")
+        slot = session_state.read_live(SID, base_dir=self.base)["active_runs"][RID]
+        self.assertEqual(
+            slot["stop_block_count"],
+            {"close-validation-sequence:workspace_unverified": 2},
+        )
+        diagnostics = [
+            json.loads(line)
+            for line in (self.base / "fail-open-events.jsonl")
+            .read_text(encoding="utf-8")
+            .splitlines()
+        ]
+        self.assertEqual(
+            diagnostics[-1]["category"],
+            "close_candidate_probe_unavailable",
+        )
+
     def test_exhausted_close_signal_budget_never_silently_allows_stop(self) -> None:
         self._start("impl-validator", None)
         self._complete("impl-validator", None)
@@ -198,14 +257,22 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
             RID
         ]["current_step"]
         self.assertEqual(
-            (current["candidate_head"], current["candidate_tree"]),
-            (HEAD, TREE),
+            (
+                current["candidate_head"],
+                current["candidate_tree"],
+                current["candidate_root"],
+            ),
+            (HEAD, TREE, self.candidate_root),
         )
 
         completed = ledger.read_step_completed(SID, RID, base_dir=self.base)
         self.assertEqual(
-            (completed[-1]["candidate_head"], completed[-1]["candidate_tree"]),
-            (HEAD, TREE),
+            (
+                completed[-1]["candidate_head"],
+                completed[-1]["candidate_tree"],
+                completed[-1]["candidate_root"],
+            ),
+            (HEAD, TREE, self.candidate_root),
         )
 
     def test_acceptance_rejects_validator_candidate_drift(self) -> None:
@@ -215,6 +282,31 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
         message = self._acceptance_gate(head="c" * 40)
         self.assertIsNotNone(message)
         self.assertIn("HEAD/tree가 다릅니다", message)
+
+    def test_acceptance_rejects_validator_workspace_drift(self) -> None:
+        self._start("impl-validator", None)
+        self._complete("impl-validator", None)
+
+        message = self._acceptance_gate(root=str(self.base / "other-worktree"))
+        self.assertIsNotNone(message)
+        self.assertIn("workspace root가 다릅니다", message)
+
+    def test_acceptance_rejects_validator_receipt_without_workspace(self) -> None:
+        session_state.transition(
+            SID,
+            "step_started",
+            run_id=RID,
+            base_dir=self.base,
+            agent="impl-validator",
+            mode=None,
+            candidate_head=HEAD,
+            candidate_tree=TREE,
+        )
+        self._complete("impl-validator", None)
+
+        message = self._acceptance_gate()
+        self.assertIsNotNone(message)
+        self.assertIn("workspace root가 없습니다", message)
 
     def test_stop_after_validator_pass_requests_acceptance(self) -> None:
         self._start("impl-validator", None)
@@ -262,6 +354,86 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
                 )
             )
 
+    def test_stop_join_reads_frozen_worktree_not_hook_cwd(self) -> None:
+        repo = self.base / "repo"
+        worktree = self.base / "worktree"
+        subprocess.run(
+            ["git", "init", "-q", "-b", "main", str(repo)],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.email", "test@example.com"],
+            check=True,
+        )
+        subprocess.run(
+            ["git", "-C", str(repo), "config", "user.name", "Test"],
+            check=True,
+        )
+        (repo / "tracked.txt").write_text("main\n", encoding="utf-8")
+        subprocess.run(["git", "-C", str(repo), "add", "tracked.txt"], check=True)
+        subprocess.run(
+            ["git", "-C", str(repo), "commit", "-q", "-m", "main"],
+            check=True,
+        )
+        subprocess.run(
+            [
+                "git",
+                "-C",
+                str(repo),
+                "worktree",
+                "add",
+                "-q",
+                "-b",
+                "feature",
+                str(worktree),
+            ],
+            check=True,
+        )
+        (worktree / "tracked.txt").write_text("feature\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(worktree), "commit", "-qam", "feature"],
+            check=True,
+        )
+        head = subprocess.check_output(
+            ["git", "-C", str(worktree), "rev-parse", "HEAD"],
+            text=True,
+        ).strip()
+        tree = subprocess.check_output(
+            ["git", "-C", str(worktree), "rev-parse", "HEAD^{tree}"],
+            text=True,
+        ).strip()
+        workspace = str(worktree.resolve())
+
+        for agent, mode in (
+            ("impl-validator", None),
+            ("product-acceptance", "STORY_ACCEPTANCE"),
+        ):
+            session_state.transition(
+                SID,
+                "step_started",
+                run_id=RID,
+                base_dir=self.base,
+                agent=agent,
+                mode=mode,
+                candidate_head=head,
+                candidate_tree=tree,
+                candidate_root=workspace,
+            )
+            self._complete(agent, mode)
+
+        previous = Path.cwd()
+        try:
+            os.chdir(repo)
+            status = _close_validation_sequence_status(
+                SID,
+                RID,
+                base_dir=self.base,
+            )
+        finally:
+            os.chdir(previous)
+
+        self.assertEqual(status, ("pass", "same frozen candidate; both terminal PASS"))
+
     def test_stop_join_rejects_tree_change_after_both_receipts(self) -> None:
         self._start("impl-validator", None)
         self._complete("impl-validator", None)
@@ -302,6 +474,21 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
 
         self.assertIsNotNone(message)
         self.assertIn("begin-step 누락", message)
+
+    def test_legacy_cartography_refresh_pass_is_not_design_evidence(self) -> None:
+        run_dir = self.base / "legacy-run"
+        run_dir.mkdir()
+        (run_dir / "module-architect-CARTOGRAPHY_REFRESH.md").write_text(
+            "legacy close mode\n\nPASS\n",
+            encoding="utf-8",
+        )
+
+        self.assertFalse(session_state._run_has_module_architect_pass(run_dir))
+        (run_dir / "module-architect.md").write_text(
+            "actual design\n\nPASS\n",
+            encoding="utf-8",
+        )
+        self.assertTrue(session_state._run_has_module_architect_pass(run_dir))
 
 
 class CloseValidationSequenceDocumentationTests(unittest.TestCase):
@@ -376,6 +563,13 @@ class CloseValidationSequenceDocumentationTests(unittest.TestCase):
         self.assertIn("device/external transient", finish)
         self.assertIn("validator PASS를 유지", finish)
         self.assertIn("acceptance만 재실행", finish)
+
+    def test_close_steps_document_explicit_candidate_freeze_lifecycle(self) -> None:
+        procedure = read("docs/plugin/loop-procedure.md")
+
+        self.assertIn("acceptance_required=true", procedure)
+        self.assertIn("명시적 `begin-step`", procedure)
+        self.assertIn("candidate HEAD/tree/workspace root", procedure)
 
     def test_three_close_replays_reduce_median_time_without_quality_loss(self) -> None:
         metadata = json.loads(read("evals/impl-fast-start-metadata.json"))

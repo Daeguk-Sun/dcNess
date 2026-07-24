@@ -552,6 +552,7 @@ _TRANSITIONS_WITHOUT_RUN_ID = {
     "stale_runs_cleaned",
 }
 
+
 def transition(
     session_id: str,
     action: str,
@@ -758,6 +759,7 @@ def _apply_step_transition(
                     "lifecycle_owner",
                     "candidate_head",
                     "candidate_tree",
+                    "candidate_root",
                 )
                 if data.get(key)
             },
@@ -776,6 +778,7 @@ def _apply_step_transition(
                     "lifecycle_owner",
                     "candidate_head",
                     "candidate_tree",
+                    "candidate_root",
                 )
                 if data.get(key)
             },
@@ -845,7 +848,7 @@ def _apply_step_transition(
         tool_use_id=data.get("tool_use_id"), agent_id=data.get("agent_id"),
     )
     if isinstance(current, dict):
-        for key in ("candidate_head", "candidate_tree"):
+        for key in ("candidate_head", "candidate_tree", "candidate_root"):
             if current.get(key):
                 receipt[key] = current[key]
     result = _append_ledger_record(
@@ -1181,8 +1184,22 @@ def run_prose_has_pass(rd: Path, agent: str) -> bool:
 
 
 def _run_has_module_architect_pass(rd: Path) -> bool:
-    """설계 gate 를 충족하는 module-architect PASS 확인."""
-    return run_prose_has_pass(rd, "module-architect")
+    """설계 gate 를 충족하는 module-architect PASS 확인.
+
+    폐기된 ``CARTOGRAPHY_REFRESH`` mode는 설계 산출물이 아니었다. 업그레이드
+    중 이어진 legacy run의 해당 PASS를 build-worker 설계 증거로 승격하지 않는다.
+    """
+    agent = "module-architect"
+    refresh_stem = f"{agent}-CARTOGRAPHY_REFRESH"
+    for prose in _run_prose_paths_for_agent(rd, agent):
+        stem = prose.stem
+        if stem == refresh_stem or re.fullmatch(
+            rf"{re.escape(refresh_stem)}-[1-9][0-9]*", stem
+        ):
+            continue
+        if "PASS" in _read_or_empty(prose):
+            return True
+    return False
 
 
 def _slot_for_run(
@@ -1333,6 +1350,7 @@ def evaluate_order_gate_for_step(
     base_dir: Optional[Path] = None,
     candidate_head: Optional[str] = None,
     candidate_tree: Optional[str] = None,
+    candidate_root: Optional[str] = None,
 ) -> Optional[str]:
     """provider-independent step start order gate.
 
@@ -1392,16 +1410,20 @@ def evaluate_order_gate_for_step(
                 "수정하고 새 candidate에서 validator부터 재실행하세요."
             )
         requested_identity = (candidate_head, candidate_tree)
-        if not all(requested_identity):
+        requested_root = candidate_root
+        if not all(requested_identity) or not requested_root:
             current = slot.get("current_step")
             if isinstance(current, dict) and (
                 current.get("agent"),
                 current.get("mode"),
             ) == (norm_agent, mode):
-                requested_identity = (
-                    current.get("candidate_head"),
-                    current.get("candidate_tree"),
-                )
+                if not all(requested_identity):
+                    requested_identity = (
+                        current.get("candidate_head"),
+                        current.get("candidate_tree"),
+                    )
+                if not requested_root:
+                    requested_root = current.get("candidate_root")
         validator_identity = (
             validator.get("candidate_head"),
             validator.get("candidate_tree"),
@@ -1413,6 +1435,21 @@ def evaluate_order_gate_for_step(
             return (
                 "[순서 차단 훅: close fail-fast] validator PASS candidate와 현재 "
                 "acceptance candidate HEAD/tree가 다릅니다. Cartography sync와 "
+                "candidate freeze 뒤 validator부터 재실행하세요."
+            )
+        validator_root = validator.get("candidate_root")
+        if any(validator_identity) and not validator_root:
+            return (
+                "[순서 차단 훅: close fail-fast] validator PASS receipt에 frozen "
+                "candidate workspace root가 없습니다. validator부터 새 candidate "
+                "freeze로 재실행하세요."
+            )
+        if validator_root and (
+            not requested_root or requested_root != validator_root
+        ):
+            return (
+                "[순서 차단 훅: close fail-fast] validator PASS candidate와 현재 "
+                "acceptance candidate workspace root가 다릅니다. 같은 worktree에서 "
                 "candidate freeze 뒤 validator부터 재실행하세요."
             )
 
