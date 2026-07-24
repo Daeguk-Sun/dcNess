@@ -1667,7 +1667,7 @@ def _close_validation_sequence_status(
     validator_conclusion = conclusion_for(validator)
     if validator_conclusion != "PASS":
         return (
-            "failed",
+            "validator_failed",
             "holistic impl-validator is not terminal PASS: "
             f"{validator_conclusion or 'MISSING'}",
         )
@@ -1711,9 +1711,9 @@ def _close_validation_sequence_status(
     if all(value == "PASS" for value in conclusions.values()):
         return ("pass", "same frozen candidate; both terminal PASS")
     return (
-        "failed",
-        "validation sequence is not terminal PASS: "
-        + ", ".join(f"{key}={value or 'MISSING'}" for key, value in conclusions.items()),
+        "acceptance_failed",
+        "product-acceptance is not terminal PASS: "
+        f"{conclusions['product-acceptance'] or 'MISSING'}",
     )
 
 
@@ -1749,7 +1749,10 @@ def _maybe_emit_continuation_signal(
         status, detail = close_sequence
         if status == "pass":
             return False
-        step_key = "close-validation-sequence"
+        # Different failure classes must not consume each other's signal budget.
+        # Detail includes the terminal enum/missing receipt so a later state
+        # transition gets an independent bounded diagnostic counter.
+        step_key = f"close-validation-sequence:{status}:{detail}"
         block_counts = slot.get("stop_block_count")
         if not isinstance(block_counts, dict):
             block_counts = {}
@@ -1757,31 +1760,38 @@ def _maybe_emit_continuation_signal(
             cur_count = int(block_counts.get(step_key, 0) or 0)
         except (TypeError, ValueError):
             cur_count = 0
-        if cur_count >= _STOP_BLOCK_COUNT_MAX:
-            # Never auto-close an incomplete or mismatched frozen sequence. The
-            # bounded signal suppresses hook loops while the active run remains
-            # available for explicit recovery/abort.
-            return True
-        try:
-            transition(
-                sid,
-                "stop_block_recorded",
-                run_id=rid,
-                base_dir=base_dir,
-                step_key=step_key,
-            )
-        except Exception:  # nosec B110
-            pass
-        if status == "failed":
+        exhausted = cur_count >= _STOP_BLOCK_COUNT_MAX
+        if not exhausted:
+            try:
+                transition(
+                    sid,
+                    "stop_block_recorded",
+                    run_id=rid,
+                    base_dir=base_dir,
+                    step_key=step_key,
+                )
+            except Exception:  # nosec B110
+                pass
+        if status == "validator_failed":
             recovery = (
                 "product-acceptance를 시작하지 말고 finding을 same implementation "
                 "owner가 수정한 뒤 Cartography sync와 새 candidate validator부터 재실행"
+            )
+        elif status == "acceptance_failed":
+            recovery = (
+                "tracked tree가 그대로인 device/external transient면 validator PASS를 "
+                "유지하고 acceptance만 재실행; code/harness finding이면 same "
+                "implementation owner 수정 뒤 새 candidate validator부터 재실행"
             )
         elif status == "incomplete":
             recovery = "같은 candidate에서 required next validation step을 실행"
         else:
             recovery = (
                 "Cartography sync와 candidate freeze부터 새 validation sequence를 시작"
+            )
+        if exhausted:
+            recovery += (
+                "; 자동 안내 한도 소진 — false-close하지 말고 명시적 복구 또는 run abort 필요"
             )
         reason = (
             "[dcness Stop hook · close validation sequence] "

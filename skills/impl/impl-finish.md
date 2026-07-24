@@ -18,6 +18,7 @@ GREEN 뒤 final mutation owner인 메인 오케스트레이터가 merge candidat
 - system boundary는 유지되지만 route/state/as-built edge가 stale: final mutation owner가 affected Root만 한 번 bounded sync한다. tracked 문서면 같은 branch에 commit한다.
 - system boundary/global decision 변경: route-only patch로 흡수하지 않고 `/design --revise` 또는 system checkpoint를 사용자에게 제시한다.
 
+`planned/stub → landed`는 실제 코드 경로와 제품 동작·검증 증거가 모두 있을 때만 반영한다.
 읽기 전용 validator와 headless build worker는 Cartography 문서를 직접 수정하지 않는다. 별도 module-architect 회귀 없이 final mutation owner가 정상 마감 sync를 소유한다. local-only/ignored Root는 code PR에 강제 포함하지 않되 canonical local Root를 갱신한다. durable impact handoff만으로 freshness가 해소되지는 않는다.
 
 Cartography sync/no-op과 의미 단위 commit이 끝나고 tracked tree가 clean할 때 HEAD와 `HEAD^{tree}`를 candidate identity로 freeze한다.

@@ -52,6 +52,7 @@ Epic close의 dead code, stale registration, duplicate/example/scaffold, suppres
 - system boundary가 유지되는 capability 상태 drift 또는 route/state/as-built edge stale: final mutation owner가 affected Root 좌표만 한 번 갱신하고 tracked 문서면 같은 branch에 commit한다.
 - system boundary/global decision 변경: `/design --revise` 또는 system checkpoint로 보낸다.
 
+`planned/stub → landed`는 실제 코드 경로와 제품 동작·검증 증거가 모두 있을 때만 반영한다.
 durable impact handoff만으로 freshness가 해소되지는 않는다. canonical Root sync/no-op 확인 뒤에만 candidate를 freeze한다.
 local-only/ignored Root는 code PR에 강제 포함하지 않고 canonical local Root에서 갱신한다.
 

@@ -128,6 +128,66 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
         self.assertIn("impl-validator is not terminal PASS", reason)
         self.assertIn("product-acceptance를 시작하지 말고", reason)
 
+    def test_acceptance_fail_preserves_validator_for_unchanged_tree_transient(
+        self,
+    ) -> None:
+        self._start("impl-validator", None)
+        self._complete("impl-validator", None)
+        self._start("product-acceptance", "EPIC_ACCEPTANCE")
+        self._complete("product-acceptance", "EPIC_ACCEPTANCE", "FAIL")
+
+        slot = session_state.read_live(SID, base_dir=self.base)["active_runs"][RID]
+        stdout = StringIO()
+        with patch(
+            "harness.hooks._current_tracked_candidate",
+            return_value=(HEAD, TREE, True),
+        ), redirect_stdout(stdout):
+            blocked = _maybe_emit_continuation_signal(
+                sid=SID,
+                rid=RID,
+                slot=slot,
+                active={RID: slot},
+                last_agent="product-acceptance",
+                last_mode="EPIC_ACCEPTANCE",
+                base_dir=self.base,
+            )
+
+        self.assertTrue(blocked)
+        reason = json.loads(stdout.getvalue())["reason"]
+        self.assertIn("product-acceptance is not terminal PASS", reason)
+        self.assertIn("validator PASS를 유지하고 acceptance만 재실행", reason)
+
+    def test_exhausted_close_signal_budget_never_silently_allows_stop(self) -> None:
+        self._start("impl-validator", None)
+        self._complete("impl-validator", None)
+
+        outputs = []
+        for _ in range(3):
+            slot = session_state.read_live(SID, base_dir=self.base)[
+                "active_runs"
+            ][RID]
+            stdout = StringIO()
+            with redirect_stdout(stdout):
+                blocked = _maybe_emit_continuation_signal(
+                    sid=SID,
+                    rid=RID,
+                    slot=slot,
+                    active={RID: slot},
+                    last_agent="impl-validator",
+                    last_mode=None,
+                    base_dir=self.base,
+                )
+            self.assertTrue(blocked)
+            outputs.append(json.loads(stdout.getvalue())["reason"])
+
+        self.assertNotIn("자동 안내 한도 소진", outputs[0])
+        self.assertNotIn("자동 안내 한도 소진", outputs[1])
+        self.assertIn("false-close하지 말고", outputs[2])
+        slot = session_state.read_live(SID, base_dir=self.base)["active_runs"][RID]
+        counts = slot["stop_block_count"]
+        self.assertEqual(len(counts), 1)
+        self.assertEqual(next(iter(counts.values())), 2)
+
     def test_acceptance_starts_after_validator_pass_on_same_candidate(self) -> None:
         self._start("impl-validator", None)
         self._complete("impl-validator", None)
