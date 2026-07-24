@@ -9,7 +9,7 @@ description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행�
 
 > 🔴 **분기 규칙 SSOT** — `product-acceptance` 결론(`PASS` / `FAIL` / `ESCALATE`) → 다음 행동은 [`acceptance-routing.md`](acceptance-routing.md) 가 본 skill 의 단일 진본이다. 본 파일은 입력 정형화와 진행 절차만 담는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
-> `/impl-loop` 는 story/epic 마감 task 의 머지 *전* 에 같은 `product-acceptance` agent 로 inline 검수를 돈다 — 그 경로의 결론→다음(gap 수정 루프 포함)은 [`impl-loop-finish.md` product acceptance](../impl-loop/impl-loop-finish.md#product-acceptance) 가 소유하고, 본 skill 의 prompt 규약(아래 Story/Epic Acceptance 호출 형식)만 재사용한다.
+> `/impl-loop` 는 story/epic 마감 task 의 머지 *전* 에 같은 `product-acceptance` agent 로 inline 검수를 돈다 — 그 경로의 결론→다음(gap 수정 루프 포함)은 [`impl-loop-finish.md` fail-fast validation sequence](../impl-loop/impl-loop-finish.md#fail-fast-validation-sequence와-product-acceptance) 가 소유하고, 본 skill 의 prompt 규약(아래 Story/Epic Acceptance 호출 형식)만 재사용한다.
 
 ## Inputs
 
@@ -140,7 +140,7 @@ mode: EPIC_ACCEPTANCE
 standalone `/acceptance`는 tracked 구현·설계에 대해 write-zero를 유지하며 stale Root를 직접 수정하지 않는다. 명시된 project-local journey 계약 실행이 만드는 ignored evidence만 예외다. product-acceptance prose의 gap을 메인이 읽고 다음 producer를 명시한다.
 
 - 영향 없음 또는 Root와 일치: 기존 완료 후보 보고를 계속한다.
-- system boundary가 유지된 route/state/as-built edge 또는 capability 상태 drift: 기존 `module-architect:CARTOGRAPHY_REFRESH`가 affected Root Cartography 좌표만 bounded refresh해야 한다고 보고한다. local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local Root 갱신 또는 exact durable impact handoff를 다음 producer에 남긴다. durable impact handoff만으로 freshness가 해소되지는 않으므로 canonical local Root refresh 확인 전에는 PASS하지 않는다.
+- system boundary가 유지된 route/state/as-built edge 또는 capability 상태 drift: originating `/impl`·`/impl-loop`의 final mutation owner가 review 전에 affected Root Cartography 좌표만 bounded sync해야 한다고 보고한다. standalone 검수에서 발견했으면 `/impl` 후속으로 넘긴다. local-only/ignored private docs는 code PR에 강제 포함하지 않고 canonical local Root 갱신 또는 exact durable impact handoff를 다음 producer에 남긴다. durable impact handoff만으로 freshness가 해소되지는 않으므로 canonical local Root sync 확인 전에는 PASS하지 않는다.
 - system boundary·global decision 변경: route-only refresh로 흡수하지 않고 `/design --revise` 또는 system checkpoint backpressure를 보고한다.
 
 standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을 수정하지 않는다. product-acceptance가 project-local journey 계약을 실행할 때 ignored `.dcness-work/product-journey/` evidence만 생성할 수 있다. direct `/impl`에서 acceptance가 생략되더라도 impl-validator 종료 경계가 최소 Cartography freshness 책임을 가진다.
@@ -151,7 +151,7 @@ standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을
 2. 핵심 journey가 검수 대상이면 owner module/소스 영역의 journey 매니페스트와 연결된 e2e flow 경로를 확인한다. 기존 receipt가 있으면 함께 전달하고, 없으면 product-acceptance가 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 tip에서 `dcness-product-journey run --config <매니페스트 경로>`를 실행하게 한다. UI boundary이면 단계별 screenshot/state/log 경로도 판정하되, exit 1 receipt의 mock-only/app-not-started/journey 미실행/assertion 미평가/UI evidence 누락을 PASS로 바꾸지 않는다.
 3. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE`를 호출한다. product-acceptance가 journey를 직접 실행했다면 receipt 경로, 판정, 사람 확인 잔여 목록만 메인에 반환하고 화면 dump 원본은 싣지 않는다.
 4. `PASS`면 완료 후보로 보고한다.
-5. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `module-architect:CARTOGRAPHY_REFRESH` 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
+5. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `/impl` final mutation owner 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
 6. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
 7. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
 

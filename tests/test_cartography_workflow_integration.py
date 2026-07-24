@@ -55,15 +55,15 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
         for text in (skill, routing):
             self.assertIn("영향 없음 또는 Root와 일치", text)
             self.assertIn("route/state/as-built edge", text)
-            self.assertIn("CARTOGRAPHY_REFRESH", text)
-            self.assertIn("재검증", text)
+            self.assertIn("final mutation owner", text)
+            self.assertIn("candidate", text)
             self.assertIn("/design --revise", text)
             self.assertIn("system checkpoint", text)
             self.assertIn("local-only/ignored", text)
             self.assertIn("durable impact handoff", text)
             self.assertIn("durable impact handoff만으로 freshness가 해소되지는 않", text)
 
-        self.assertIn("module-architect", skill)
+        self.assertIn("별도 module-architect 회귀 없이", skill)
         self.assertIn("읽기 전용", skill)
 
     def test_impl_loop_preserves_impact_through_review_and_acceptance(self) -> None:
@@ -74,14 +74,14 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
         for text in (skill,):
             self.assertIn("build-worker Cartography impact", text)
             self.assertIn("affected Root Cartography", text)
-            self.assertIn("CARTOGRAPHY_REFRESH", text)
-            self.assertIn("impl-validator 재검증", text)
+            self.assertIn("final mutation owner", text)
+            self.assertIn("candidate freeze", text)
             self.assertIn("capability 상태 drift", text)
             self.assertIn("최종 clean", text)
             self.assertIn("/design --revise", text)
             self.assertIn("durable impact handoff만으로 freshness가 해소되지는 않", text)
 
-        self.assertIn("acceptance 재검수", skill)
+        self.assertIn("acceptance만 재실행", skill)
         self.assertIn("system boundary/global decision", skill)
 
     def test_validator_does_not_treat_durable_handoff_as_refresh_completion(self) -> None:
@@ -95,35 +95,23 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             self.assertIn("route-only drift가 남아 있으면 PASS하지 않는다", validator)
             self.assertIn("canonical local Root refresh", validator)
 
-    def test_module_architect_owns_the_bounded_refresh_producer_contract(self) -> None:
+    def test_module_architect_no_longer_owns_close_path_refresh(self) -> None:
         producer = read(
             "docs/plugin/agents/module-architect/module-architect-agent.md"
         )
 
-        for needle in (
-            "`CARTOGRAPHY_REFRESH` mode",
-            "affected Root Cartography 좌표",
-            "merge candidate diff",
-            "implementation Cartography impact",
-            "tracked/local-only",
-            "affected Root route/state/as-built edge만",
-            "epic architecture·impl task·system boundary·global decision 재설계 금지",
-            "실제 runtime entrypoint와 제품 동작·검증 증거가 모두 있을 때만 `landed`",
-            "`SYSTEM_CHECKPOINT_REQUIRED`",
-            "같은 merge candidate diff와 갱신 Root로 impl-validator 재검증",
-        ):
-            self.assertIn(needle, producer)
+        self.assertNotIn("begin-step module-architect", producer)
+        self.assertIn("epic-batch", producer)
+        self.assertIn("revision mode", producer)
+        self.assertIn("SYSTEM_CHECKPOINT_REQUIRED", producer)
 
         for workflow in (
             read("skills/impl/impl-finish.md"),
             read("skills/impl-loop/impl-loop-finish.md"),
         ):
-            self.assertIn(
-                "begin-step module-architect CARTOGRAPHY_REFRESH", workflow
-            )
-            self.assertIn(
-                "end-step module-architect CARTOGRAPHY_REFRESH --prose-file", workflow
-            )
+            self.assertIn("final mutation owner", workflow)
+            self.assertNotIn("begin-step module-architect", workflow)
+            self.assertNotIn("end-step module-architect", workflow)
 
     def test_standalone_acceptance_reports_the_next_freshness_producer(self) -> None:
         skill = read("skills/acceptance/SKILL.md")
@@ -131,8 +119,8 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
 
         for text in (skill, routing):
             self.assertIn("affected Root Cartography", text)
-            self.assertIn("CARTOGRAPHY_REFRESH", text)
-            self.assertIn("module-architect", text)
+            self.assertIn("final mutation owner", text)
+            self.assertIn("/impl", text)
             self.assertIn("durable impact handoff", text)
             self.assertIn("/design --revise", text)
             self.assertIn("write-zero", text)
@@ -147,8 +135,8 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             "cartography-validator-drift": ("as-built", "route-only refresh"),
             "cartography-acceptance-stale-state": ("landed", "제품 동작"),
             "cartography-lifecycle-smoke": ("design(planned/stub)", "다음 design"),
-            "cartography-producer-contract": (
-                "prewritten refreshed Root fixture 없이",
+            "cartography-final-sync": (
+                "prewritten synced Root fixture 없이",
                 "SYSTEM_CHECKPOINT_REQUIRED",
             ),
         }
@@ -166,13 +154,13 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
         lifecycle_expected = (lifecycle / "expected.md").read_text(encoding="utf-8")
         self.assertIn("bounded refresh → code revalidation → acceptance", lifecycle_expected)
 
-        producer = ROOT / "evals" / "cases" / "cartography-producer-contract"
+        producer = ROOT / "evals" / "cases" / "cartography-final-sync"
         producer_prompt = (producer / "prompt.md").read_text(encoding="utf-8")
         self.assertIn(
-            "docs/plugin/agents/module-architect/module-architect-agent.md",
+            "skills/impl-loop/impl-loop-finish.md",
             producer_prompt,
         )
-        self.assertNotIn("design-root-refreshed.md", producer_prompt)
+        self.assertIn("module-architect를 호출하거나", producer_prompt)
 
 
 if __name__ == "__main__":

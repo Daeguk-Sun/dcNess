@@ -12,6 +12,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - 검수 단위: spec / story / epic / release 식별자
 - 기준 문서: `docs/index.md`, 기능·유저 시나리오를 담은 `docs/prd.md`, Story AC·Epic 완료 기준을 담은 `docs/epics/<epic>/stories.md`, `docs/decisions/`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
+- same-tree terminal evidence: 호출자가 frozen candidate identity와 함께 제공한 lint/build/unit-test 명령·exit·warning. candidate identity가 일치하면 정상 마감에서 full unit suite를 다시 실행하지 않는다.
 - 제품 journey receipt: 호출자가 제공한 `receipt.json`과 단계별 log. `app_started`, `journey_executed`, assertion 평가·결과, 대상 AC, command exit, evidence sha256을 포함한다. UI boundary이면 `ui_evidence.steps`의 화면·상태·log path와 최종 단계 AC 대응도 함께 읽는다.
 - `(JOURNEY)` REQ: 대상 AC, build-worker가 작성한 project-local e2e flow와 `.dcness/` 밖 owner module/소스 영역의 journey 매니페스트 경로, 수렴 호출의 실행·수정 증거, 호출자가 전달한 현재 run의 `journey_deferred` 목록. STORY/EPIC_ACCEPTANCE는 수렴 receipt를 판정 증거로 재사용하지 않고 수렴 대상 매니페스트를 final tip에서 다시 실행한다.
 - UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
@@ -154,7 +155,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 2. 기준 문서에서 Story AC, Epic 완료 기준, PRD 유저 시나리오, release readiness 기준을 추출한다.
    SPEC_ACCEPTANCE이면 작업에 관련된 결정 범위와 중요한 선택의 근거 상태도 함께 추출한다.
 3. STORY/EPIC_ACCEPTANCE의 `(JOURNEY)` REQ별 project-local 매니페스트/e2e와 `journey_deferred` 목록을 확인한다. deferred가 아닌 journey만 tip에서 `dcness-product-journey run`을 호출해 새 sealed receipt를 만들고, deferred journey는 human verification/follow-up 잔여로 분리한다. build-worker 수렴 receipt나 이전 acceptance receipt는 현재 final tip 판정을 대신하지 않는다. 수렴 대상 매니페스트/e2e가 없으면 실행 불가 gap으로 분리한다.
-4. 구현 증거를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다. EPIC_ACCEPTANCE이면 epic이 인수한 capability의 상태 before/after, affected Root 좌표, 실제 동작·검증 증거도 함께 대조한다.
+4. 구현 증거와 same-tree terminal evidence를 읽고 각 기준이 어떤 PR, 테스트, smoke, 정적 타입검사/compile, 실데이터 통합 테스트, UI 자동화, 화면/API/CLI 설명과 연결되는지 대조한다. frozen candidate와 identity가 일치하면 full unit suite를 다시 실행하지 않는다. receipt가 없거나 identity가 다르면 실행 결과를 꾸미거나 자체 full suite로 대체하지 않고 evidence gap으로 보고한다. EPIC_ACCEPTANCE이면 epic이 인수한 capability의 상태 before/after, affected Root 좌표, 실제 동작·검증 증거도 함께 대조한다.
 5. 대상 사용자를 식별하고 핵심 입력/진행 동선이 제품 언어인지, 내부 구현 계약을 사용자에게 떠넘기는지 대조한다.
 6. 충족된 기준, mock-only green 인 기준, 화면 증거 부재 기준, 목업 불일치 기준, 사용자 동선 부적합 기준, 증거 없는 기준을 분리한다.
 7. gap 이 있으면 기준 문서, 증거, 누락 사실, 후속 분기를 함께 쓴다.
@@ -180,6 +181,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 ## 권한 경계
 
 - 조건부 실행 허용: `(JOURNEY)` REQ 대상 AC이고 project-local journey 매니페스트/e2e가 있으면 Bash로 `dcness-product-journey run`을 tip에서 호출해 receipt를 생성한다.
+- 같은 frozen candidate의 lint/build/unit-test terminal evidence는 읽기만 한다. 정상 경로에서 full unit suite를 다시 실행하지 않는다.
 - tracked 구현·설계 소스는 수정하지 않는다. `ALLOW_MATRIX["product-acceptance"] = ()` write-zero를 유지하며, 증거 write는 러너가 봉인한 `.dcness-work/product-journey/`에만 생성된다.
 - 특정 e2e 도구를 강제하거나 receipt·log·screenshot을 손으로 만들거나 사후 수정하지 않는다.
 - GitHub issue 생성, PR 수정, merge 같은 외부 상태 변경을 하지 않는다.

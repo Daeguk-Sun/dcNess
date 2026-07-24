@@ -2,7 +2,7 @@
 
 ## 목적
 
-epic-batch, `/design` revision mode, 보강 요청을 구현 가능한 문서로 만든다. 구현 종료 경계에서 호출되는 `CARTOGRAPHY_REFRESH` mode에서는 설계 pack을 만들지 않고, 구현 증거와 stale Root 좌표를 대조해 affected Root Cartography만 bounded refresh한다. `/design` 의 기본 epic-batch 에서는 epic `architecture.md` 최소형(모듈 목록, 의존 그래프, Story -> 모듈 매핑, 선택 domain-model 판단)과 공통 task/모든 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. revision mode 에서는 완료된 full design pack 을 전체 재생성하지 않고, 사용자 개정 의도와 영향 그래프에 걸린 architecture/decision/domain-model/impl 산출물만 수술적으로 개정하며 미변경 impl task 를 보존한다. 결과물은 build-worker가 독립 세션에서 바로 실행할 수 있는 impl 문서다. Story/task 분할의 최적화 목표는 파일 경계가 아니라, 사용자가 약속받은 동작을 실제 제품 경계에서 검증 가능한 수직 슬라이스로 앞당기는 것이다.
+epic-batch, `/design` revision mode, 보강 요청을 구현 가능한 문서로 만든다. `/design` 의 기본 epic-batch 에서는 epic `architecture.md` 최소형(모듈 목록, 의존 그래프, Story -> 모듈 매핑, 선택 domain-model 판단)과 공통 task/모든 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. revision mode 에서는 완료된 full design pack 을 전체 재생성하지 않고, 사용자 개정 의도와 영향 그래프에 걸린 architecture/decision/domain-model/impl 산출물만 수술적으로 개정하며 미변경 impl task 를 보존한다. 결과물은 build-worker가 독립 세션에서 바로 실행할 수 있는 impl 문서다. Story/task 분할의 최적화 목표는 파일 경계가 아니라, 사용자가 약속받은 동작을 실제 제품 경계에서 검증 가능한 수직 슬라이스로 앞당기는 것이다.
 
 ## 입력
 
@@ -10,7 +10,6 @@ epic-batch, `/design` revision mode, 보강 요청을 구현 가능한 문서로
 - 전역 architecture/conventions/decisions 와 epic architecture, 선택 domain-model
 - affected module 이 있으면 해당 `docs/modules/<module-id>/architecture.md` / `conventions.md`
 - 필요하면 SPEC_GAP, validator finding, bug issue
-- `CARTOGRAPHY_REFRESH` mode 필수: affected Root Cartography 좌표, merge candidate diff, implementation Cartography impact, 상태 before/after와 실제 제품 동작·검증 증거, 관련 epic/decision, tracked/local-only/ignored 문서 정책
 - `/design` revision mode 요청: 사용자 개정 의도, 변경된 UX 산출물 포인터(해당 시), 영향 그래프 가설, 보존해야 할 impl task 목록 또는 보존 기준
 - brownfield 또는 참조 구현이 있으면 영향 계약의 코드 SSOT. 상태성 기능은 공개 port·도메인 타입·entrypoint뿐 아니라 schema·entity·mapper, DAO·repository, sync/reconcile·state reducer, adapter·receiver·observer·worker·lifecycle producer, 관련 테스트 포인터를 포함한다.
 - UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로, `docs/design-variants/canvas.html` 포인터 또는 부재 신호
@@ -19,7 +18,7 @@ epic-batch, `/design` revision mode, 보강 요청을 구현 가능한 문서로
 
 ## 먼저 읽을 문서
 
-호출 mode를 먼저 판정한다. `CARTOGRAPHY_REFRESH` mode는 아래 design 기본 세트를 전부 읽지 않고, mode 필수 입력과 affected 좌표 증거만 읽는다.
+호출 mode를 먼저 판정한다.
 
 - 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
 - 필수: `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/`, 대상 epic의 `stories.md`, `architecture.md`
@@ -29,21 +28,6 @@ epic-batch, `/design` revision mode, 보강 요청을 구현 가능한 문서로
 - UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `docs/design-variants/canvas.html` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로
 - UI epic 확정 목업 존재 시 필수: `docs/design-variants/<screen-id>.html`, 확정 목업 경로, node-id 매핑과 나란히 둘 핵심 디자인 토큰(색/spacing/typography)
 - 참고: [`references/implementation-boundary.md`](references/implementation-boundary.md), [`references/contract-amendment.md`](references/contract-amendment.md)
-
-`CARTOGRAPHY_REFRESH` mode에는 전체 PRD/stories/design pack을 기본 입력으로 요구하지 않는다. affected Root 좌표, 같은 merge candidate diff와 impact, 해당 좌표를 입증하는 현재 코드·제품 동작·검증 증거, 관련 epic/decision만 lazy-read한다.
-
-## `CARTOGRAPHY_REFRESH` mode
-
-이 mode는 새 공개 agent나 system 설계 단계가 아니라 기존 module-architect의 bounded Root write 계약이다.
-
-1. affected Root Cartography 좌표와 현재 before 상태를 확정하고 merge candidate diff·implementation Cartography impact·상태 증거·관련 epic/decision·tracked/local-only 정책을 서로 대조한다.
-2. system boundary, domain invariant, storage policy, shared public boundary, global decision 변경이 필요한지 먼저 판정한다. 하나라도 필요하면 Root를 쓰지 않고 근거와 affected boundary를 `SYSTEM_CHECKPOINT_REQUIRED`로 보고한다.
-3. boundary가 유지되면 `docs/architecture.md`의 affected Root route/state/as-built edge만 갱신한다. 실제 repo-relative path와 관련 epic/decision 포인터만 사용하고, 요청 밖 Root 좌표는 byte-for-byte 보존한다.
-4. 실제 runtime entrypoint와 제품 동작·검증 증거가 모두 있을 때만 `landed`로 올린다. class·manifest·impact 주장만 있고 동작 증거가 없으면 기존 `planned/stub/deferred`를 유지하고 PASS하지 않는다.
-5. tracked 문서는 현재 branch/PR 정책으로 반영한다. local-only/ignored private docs는 code PR에 포함하지 않고 canonical local Root에 같은 bounded patch를 적용한다. durable impact handoff만 있고 canonical refresh가 확인되지 않으면 freshness 미해소로 보고한다.
-6. 보고에는 변경한 좌표, before/after, 사용한 코드·제품 동작·검증 증거, 보존한 인접 좌표, 문서 정책, 같은 merge candidate diff와 갱신 Root로 impl-validator 재검증할 포인터를 남긴다.
-
-write는 affected Root route/state/as-built edge만 허용한다. epic architecture·impl task·system boundary·global decision 재설계 금지이며, `docs/decisions/**`, `docs/modules/**`, epic 산출물, 실제 코드를 수정하지 않는다.
 
 ## 판단 축
 
@@ -79,7 +63,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 
 ## 작업 흐름
 
-1. 호출 단위를 epic-batch, revision mode, 보강, 문서 동기화, `CARTOGRAPHY_REFRESH` 중 하나로 분류한다. `CARTOGRAPHY_REFRESH`이면 위 mode 절차만 수행하고 아래 설계 pack/task 작성 단계는 실행하지 않는다.
+1. 호출 단위를 epic-batch, revision mode, 보강, 문서 동기화 중 하나로 분류한다.
 2. epic-batch 요청이면 먼저 `stories.md`, 기존 epic `architecture.md`, `docs/decisions/`, affected module docs 를 읽고 최소형 architecture 를 갱신한다. durable 섹션은 `## 모듈 목록`, `## 의존 그래프`, `## Story -> 모듈 매핑` 이다. `domain-model.md` 가 있으면 함께 읽고, 없으면 낮은 도메인 복잡도 등 생략 판단 근거를 epic `architecture.md` 의 `## Domain Model` 에 남긴다. 파일 부재만으로 도메인 모델을 새로 만들거나 ESCALATE 하지 않는다.
 3. revision mode 요청이면 먼저 사용자 개정 의도와 영향 그래프를 요약한다. UX revision 전파라면 변경된 `ux-flow.md`, 확정 목업 경로, node-id 보존/폐기 결정을 읽고 architecture/impl/decision 에 미치는 영향만 반영한다. 구조·모듈·ADR·impl task 개정이라면 관련 module/decision/impl task 를 추적한다. shared state 계약이 바뀌면 보존 예정 task 도 producer/consumer 영향 감사에 포함한다. 영향이 없으면 원문을 보존하고, 영향이 있으면 관련 architecture/decision/domain-model/impl 만 개정하며 변경된 transition 을 소비하는 뒤 Story를 누락하지 않는다. 그 밖의 변경과 무관한 impl task 는 rewrite 하지 않고, 순서나 task 수를 바꾸면 affected task 와 이유를 보고한다.
 4. epic-batch 요청이면 전체 `stories.md` 를 한 컨텍스트에서 읽고 공통 task와 모든 Story task를 함께 설계한다. Story 단위 작성 주체로 쪼개지지 않는다. 먼저 Story AC 를 인벤토리하고 "각 Story가 끝나면 실제로 무엇이 동작 검증되는가"와 "epic 전체에서 첫 제품 경계 동작이 어디서 열리는가"를 정의한다. **task 를 자르기 전에** high-risk cross-story state contract pass 를 수행한다. [`module-design-principles.md` 고위험 상태 계약](../_shared/module-design-principles.md#고위험-상태-계약)의 위험 신호가 있으면 그 절의 적용 가능한 전이를 `producer → state owner → persistence/read model → consumer → 제품 증거`로 추적한다. source 일부 실패 시 기존 state 보존과 같은 입력 반복 시 no-change/idempotence는 서로 다른 계약이므로 각각 독립적으로 판정하고, 한쪽 지적만으로 다른 쪽까지 닫혔다고 보지 않는다. 각 Story가 생산·소비하는 state와 뒤 consumer가 요구하는 전이 능력이 앞 Story의 저장·동기화 계약, owner, scope, acceptance에 실제로 존재하는지 확인한다. 추적 결과의 durable 의미는 module responsibility/public interface와 decision에 두고 신규 고정 Ledger를 만들지 않는다. 그 다음 그 동작을 만드는 task 또는 task 묶음을 정하고, 가능한 앞쪽에 첫 제품 경계 동작 증거가 나오도록 의존 순서를 잡는다. 파일 레이어별 부품 task를 모두 만든 뒤 마지막 task에서야 처음 동작하는 흐름이면, task를 합치거나 순서를 바꾸거나 왜 피할 수 없는지 warning 으로 남긴다. 단, 각 Story 마지막 task 는 앞 task의 조기 동작 증거와 별개로 Story AC 전항목을 실제 실행·관찰하는 종합 검증을 반드시 소유한다. 대상이 이미 여러 제품 흐름을 떠안은 대형 파일이면, 새 능력을 그 파일에 append 하지 말고 흐름 모듈 신설로 배치한다 — 이번 task 가 손대는 seam 까지만 분해하고 무관한 기존 흐름은 후속으로 남긴다([`module-design-principles.md` 단일 파일 다중 흐름 누적](../_shared/module-design-principles.md#단일-파일-다중-흐름-누적)).
@@ -96,7 +80,6 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 
 ## 완료 기준
 
-- `CARTOGRAPHY_REFRESH` mode이면 affected Root 좌표만 변경됐고 요청 밖 Root, epic architecture, impl task, module docs, decision, system boundary/global decision은 보존됐다. 실제 runtime entrypoint와 제품 동작·검증 증거가 모두 있을 때만 `landed`이며, 보고가 before/after·증거·문서 정책·같은 merge candidate diff와 갱신 Root로 impl-validator 재검증 포인터를 포함한다.
 - 대상 단위의 impl 문서가 필요한 수만큼 생성 또는 보강된다.
 - `/design` epic-batch 에서는 epic 전체 impl 산출물이 한 컨텍스트에서 일괄 작성되고, Story 단위 작성 주체로 쪼개지지 않는다.
 - `/design` revision mode 에서는 영향 산출물만 수술적으로 개정되고, shared state 계약 변경 시 보존 예정 task를 포함한 producer/consumer 영향 감사를 거친 뒤 미변경 impl task 는 보존된다. UX revision 전파라면 변경된 UX inventory/목업/node-id 결정이 architecture/impl 에 필요한 만큼 반영된다.
@@ -121,7 +104,6 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 
 ## 권한 경계
 
-- `CARTOGRAPHY_REFRESH` mode Write 허용: affected Root Cartography 좌표가 있는 `docs/architecture.md` route/state/as-built edge만. 그 밖의 Root 좌표와 모든 epic/module/decision/impl/code write 금지.
 - Write 허용: `docs/epics/**/impl/**`, epic `architecture.md`, `domain-model.md`, `docs/decisions/**`, Root 갱신 조건에 해당하는 `docs/architecture.md` Cartography route
 - decision 경계: 신규 epic-scope decision 기록은 자율, 기존 전역 decision 변경은 `SYSTEM_CHECKPOINT_REQUIRED` 로 checkpoint 승격.
 - 금지: 실제 코드 수정, PRD 수정, `docs/**` 밖 인프라 수정, 새 외부 의존 임의 채택
@@ -130,7 +112,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 
 ## 결론과 보고
 
-마지막 단락에 `PASS`, `SYSTEM_CHECKPOINT_REQUIRED`, `SPEC_GAP_FOUND`, `ESCALATE`, `NEW_DEP_ESCALATE` 중 하나를 명확히 쓴다. module-architect 자율 범위의 architecture/decision/owner/scope/acceptance gap이 열린 채 남으면 `SPEC_GAP_FOUND`이며 PASS가 아니다. 보고에는 작성 파일, task 수, 의존 순서, Story 완료 시 실제 검증되는 동작, 첫 동작 증거 지점, 계약 변경 여부(module/decision), owner/entrypoint 요약 여부, 모듈 설계 원칙 적용 증거를 포함한다. revision mode 보고에는 개정 의도, 영향 산출물, 보존한 impl task, 순서 변경 여부, 파생 drift 체크 결과를 함께 남긴다. `CARTOGRAPHY_REFRESH` mode 보고에는 변경 좌표·before/after·증거·보존 좌표·tracked/local-only 정책과 같은 merge candidate diff와 갱신 Root로 impl-validator 재검증 포인터를 남긴다. `SYSTEM_CHECKPOINT_REQUIRED` 일 때는 바꿔야 하는 기존 모듈 경계·도메인 invariant·storage policy·public API boundary·기존 전역 decision 과 그 근거를 함께 쓴다.
+마지막 단락에 `PASS`, `SYSTEM_CHECKPOINT_REQUIRED`, `SPEC_GAP_FOUND`, `ESCALATE`, `NEW_DEP_ESCALATE` 중 하나를 명확히 쓴다. module-architect 자율 범위의 architecture/decision/owner/scope/acceptance gap이 열린 채 남으면 `SPEC_GAP_FOUND`이며 PASS가 아니다. 보고에는 작성 파일, task 수, 의존 순서, Story 완료 시 실제 검증되는 동작, 첫 동작 증거 지점, 계약 변경 여부(module/decision), owner/entrypoint 요약 여부, 모듈 설계 원칙 적용 증거를 포함한다. revision mode 보고에는 개정 의도, 영향 산출물, 보존한 impl task, 순서 변경 여부, 파생 drift 체크 결과를 함께 남긴다. `SYSTEM_CHECKPOINT_REQUIRED` 일 때는 바꿔야 하는 기존 모듈 경계·도메인 invariant·storage policy·public API boundary·기존 전역 decision 과 그 근거를 함께 쓴다.
 
 ## 템플릿과 참고 문서
 

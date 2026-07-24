@@ -744,7 +744,7 @@ def _apply_step_transition(
             return current, False
         _warn_stale_step(slot)
         now = _now_iso()
-        slot["current_step"] = {
+        next_step = {
             "agent": agent,
             "mode": data.get("mode"),
             "started_at": now,
@@ -753,10 +753,18 @@ def _apply_step_transition(
             ),
             **{
                 key: data[key]
-                for key in ("tool_use_id", "agent_id", "lifecycle_owner")
+                for key in (
+                    "tool_use_id",
+                    "agent_id",
+                    "lifecycle_owner",
+                    "candidate_head",
+                    "candidate_tree",
+                    "candidate_root",
+                )
                 if data.get(key)
             },
         }
+        slot["current_step"] = next_step
         slot["last_confirmed_at"] = now
         active[run_id] = slot
         event_fields = {
@@ -764,7 +772,14 @@ def _apply_step_transition(
             "mode": data.get("mode"),
             **{
                 key: data[key]
-                for key in ("tool_use_id", "agent_id", "lifecycle_owner")
+                for key in (
+                    "tool_use_id",
+                    "agent_id",
+                    "lifecycle_owner",
+                    "candidate_head",
+                    "candidate_tree",
+                    "candidate_root",
+                )
                 if data.get(key)
             },
         }
@@ -832,6 +847,10 @@ def _apply_step_transition(
         data.get("prose", ""), data.get("prose_path"), provider=data.get("provider"),
         tool_use_id=data.get("tool_use_id"), agent_id=data.get("agent_id"),
     )
+    if isinstance(current, dict):
+        for key in ("candidate_head", "candidate_tree", "candidate_root"):
+            if current.get(key):
+                receipt[key] = current[key]
     result = _append_ledger_record(
         session_id, run_id, "step_completed", base_dir=base_dir, **receipt
     )
@@ -1167,9 +1186,8 @@ def run_prose_has_pass(rd: Path, agent: str) -> bool:
 def _run_has_module_architect_pass(rd: Path) -> bool:
     """설계 gate 를 충족하는 module-architect PASS 확인.
 
-    ``CARTOGRAPHY_REFRESH``는 구현 종료 뒤 Root Cartography를 갱신하는
-    bounded producer mode다. 설계 산출물을 만드는 step이 아니므로 해당 mode의
-    PASS는 build-worker implementation gate의 설계 증거로 인정하지 않는다.
+    폐기된 ``CARTOGRAPHY_REFRESH`` mode는 설계 산출물이 아니었다. 업그레이드
+    중 이어진 legacy run의 해당 PASS를 build-worker 설계 증거로 승격하지 않는다.
     """
     agent = "module-architect"
     refresh_stem = f"{agent}-CARTOGRAPHY_REFRESH"
@@ -1330,6 +1348,9 @@ def evaluate_order_gate_for_step(
     mode: Optional[str] = None,
     *,
     base_dir: Optional[Path] = None,
+    candidate_head: Optional[str] = None,
+    candidate_tree: Optional[str] = None,
+    candidate_root: Optional[str] = None,
 ) -> Optional[str]:
     """provider-independent step start order gate.
 
@@ -1347,6 +1368,91 @@ def evaluate_order_gate_for_step(
     if boundary_block:
         return _boundary_block_gate_message(boundary_block)
 
+    slot = _slot_for_run(session_id, run_id, base_dir=base_dir)
+    if (
+        norm_agent == "product-acceptance"
+        and mode in {"STORY_ACCEPTANCE", "EPIC_ACCEPTANCE"}
+        and slot.get("entry_point") == "impl"
+        and slot.get("acceptance_required") is True
+    ):
+        from harness import ledger
+        from harness.run_review import _extract_conclusion_enum
+
+        validator = next(
+            (
+                step
+                for step in reversed(
+                    ledger.read_step_completed(
+                        session_id, run_id, base_dir=base_dir
+                    )
+                )
+                if step.get("agent") == "impl-validator"
+                and step.get("mode") is None
+            ),
+            None,
+        )
+        if not isinstance(validator, dict):
+            return (
+                "[순서 차단 훅: close fail-fast] product-acceptance는 같은 frozen "
+                "candidate의 holistic impl-validator 완료 뒤에만 시작할 수 있습니다."
+            )
+        try:
+            prose = Path(str(validator.get("prose_file"))).read_text(
+                encoding="utf-8", errors="ignore"
+            )
+        except OSError:
+            prose = ""
+        conclusion = _extract_conclusion_enum(prose)
+        if conclusion != "PASS":
+            return (
+                "[순서 차단 훅: close fail-fast] holistic impl-validator가 terminal "
+                f"PASS가 아닙니다(conclusion={conclusion or 'MISSING'}). finding을 "
+                "수정하고 새 candidate에서 validator부터 재실행하세요."
+            )
+        requested_identity = (candidate_head, candidate_tree)
+        requested_root = candidate_root
+        if not all(requested_identity) or not requested_root:
+            current = slot.get("current_step")
+            if isinstance(current, dict) and (
+                current.get("agent"),
+                current.get("mode"),
+            ) == (norm_agent, mode):
+                if not all(requested_identity):
+                    requested_identity = (
+                        current.get("candidate_head"),
+                        current.get("candidate_tree"),
+                    )
+                if not requested_root:
+                    requested_root = current.get("candidate_root")
+        validator_identity = (
+            validator.get("candidate_head"),
+            validator.get("candidate_tree"),
+        )
+        if any(validator_identity) and (
+            not all(requested_identity)
+            or requested_identity != validator_identity
+        ):
+            return (
+                "[순서 차단 훅: close fail-fast] validator PASS candidate와 현재 "
+                "acceptance candidate HEAD/tree가 다릅니다. Cartography sync와 "
+                "candidate freeze 뒤 validator부터 재실행하세요."
+            )
+        validator_root = validator.get("candidate_root")
+        if any(validator_identity) and not validator_root:
+            return (
+                "[순서 차단 훅: close fail-fast] validator PASS receipt에 frozen "
+                "candidate workspace root가 없습니다. validator부터 새 candidate "
+                "freeze로 재실행하세요."
+            )
+        if validator_root and (
+            not requested_root or requested_root != validator_root
+        ):
+            return (
+                "[순서 차단 훅: close fail-fast] validator PASS candidate와 현재 "
+                "acceptance candidate workspace root가 다릅니다. 같은 worktree에서 "
+                "candidate freeze 뒤 validator부터 재실행하세요."
+            )
+
     if norm_agent in _IMPLEMENTATION_ORDER_GATE_AGENTS:
         lane_lite = _run_lane(session_id, run_id, base_dir=base_dir) == "lite"
         if (
@@ -1358,7 +1464,7 @@ def evaluate_order_gate_for_step(
                 "[순서 차단 훅: implementation gate] build-worker 호출은 "
                 "설계 산출물 확보 후만 — "
                 "같은 run 의 module-architect PASS prose (module-architect*.md 안 "
-                "PASS 마커, CARTOGRAPHY_REFRESH mode 제외) 또는 begin-run "
+                "PASS 마커) 또는 begin-run "
                 "--design-doc 으로 기록된 설계 문서 실존. "
                 "충족 방법: module-architect step 을 PASS 로 완료하거나, 구현 run 을 "
                 "시작할 때 `begin-run impl --design-doc <설계문서>` 를 기록하세요. "

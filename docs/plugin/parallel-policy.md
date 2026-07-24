@@ -24,7 +24,7 @@ terminal C: /impl-loop <canonical path C> ─ claim C ─ PR C ─ pr-finalize �
 ```
 
 - 병렬 실행 주체는 **별도 interactive Claude Code 세션**이다. 별도 세션이므로 각자 `live.json`, run dir, worktree, branch 를 갖는다.
-- 한 세션 안 동시 Agent fan-out 은 지원하지 않는다. 진행 순서 검사는 `current_step` 단일 슬롯을 전제로 하므로 한 세션 안 병렬 Agent 는 상태 모델을 깨뜨린다.
+- 한 세션 안 동시 Agent fan-out 은 지원하지 않는다. 진행 순서 검사는 `current_step` 단일 슬롯을 전제로 하므로 close 검증도 holistic validator → PASS → product-acceptance 순서로 실행한다.
 - peer mode 미등록 상태에서 `/impl-loop <impl-path>` 를 실행하면 기존 single flow 로 동작한다. 병렬 opt-in 이 기존 사용 경로를 바꾸면 안 된다.
 
 ## 3. wave planning / registration

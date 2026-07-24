@@ -49,12 +49,12 @@ def _task(name, engine="build-worker", closes=None):
 
 
 class TestSubsteps(unittest.TestCase):
-    """단일 build-worker sub-step 펼침 + 마감 acceptance."""
+    """단일 build-worker sub-step 펼침 + 마감 validation sequence."""
 
-    def test_build_worker_two_substeps(self):
+    def test_build_worker_has_one_implementation_substep(self):
         self.assertEqual(
             substeps_for(_task("m", "build-worker")),
-            ["build-worker", "impl-validator"],
+            ["build-worker"],
         )
 
     def test_engine_enum(self):
@@ -71,7 +71,6 @@ class TestSubsteps(unittest.TestCase):
             [
                 "canvas-design",
                 "build-worker",
-                "impl-validator",
             ],
         )
 
@@ -92,7 +91,7 @@ class TestSubsteps(unittest.TestCase):
         )
         self.assertEqual(
             substeps_for(t),
-            ["designer", "build-worker", "product-acceptance"],
+            ["designer", "build-worker", "validation-sequence:STORY"],
         )
 
     def test_empty_substeps_override_rejected(self):
@@ -106,7 +105,7 @@ class TestSubsteps(unittest.TestCase):
     def test_story_closing_appends_one_acceptance(self):
         steps = substeps_for(_task("m", "build-worker", closes="story"))
         self.assertEqual(
-            steps, ["build-worker", "impl-validator", "product-acceptance"]
+            steps, ["build-worker", "validation-sequence:STORY"]
         )
 
     def test_epic_closing_appends_two_acceptance(self):
@@ -115,16 +114,13 @@ class TestSubsteps(unittest.TestCase):
             steps,
             [
                 "build-worker",
-                "impl-validator:CODEBASE_SANITY",
-                "impl-validator",
-                "product-acceptance:STORY",
-                "product-acceptance:EPIC",
+                "validation-sequence:EPIC",
             ],
         )
 
     def test_no_close_no_acceptance(self):
         steps = substeps_for(_task("m", "build-worker", closes=None))
-        self.assertNotIn("product-acceptance", steps)
+        self.assertNotIn("validation-sequence", " ".join(steps))
 
 
 class TestRedrawStrategy(unittest.TestCase):
@@ -165,7 +161,6 @@ class TestRenderView(unittest.TestCase):
         self.assertIn("▾ task2 · beta", view)
         self.assertIn("   ㄴ canvas-design", view)
         self.assertIn("   ㄴ build-worker", view)
-        self.assertIn("   ㄴ impl-validator", view)
 
     def test_pending_waiting_line(self):
         view = render_view(self.tasks, current=1)
@@ -187,8 +182,7 @@ class TestRenderView(unittest.TestCase):
             _task("omega", "build-worker", closes="epic"),
         ]
         view = render_view(tasks, current=1)
-        self.assertIn("   ㄴ product-acceptance:STORY", view)
-        self.assertIn("   ㄴ product-acceptance:EPIC", view)
+        self.assertIn("   ㄴ validation-sequence:EPIC", view)
 
 
 class TestTransitionOperations(unittest.TestCase):
@@ -261,15 +255,14 @@ class TestTransitionOperations(unittest.TestCase):
             )
 
     def test_closing_task_expands_substeps_even_in_large_chain(self):
-        # 마감 task 는 chain 크기와 무관하게 sub-step(product-acceptance 포함) 펼침.
+        # 마감 task 는 chain 크기와 무관하게 validation sequence를 펼친다.
         tasks = [_task(f"m{i}", "build-worker") for i in range(24)]
         tasks.append(
             _task("final", "build-worker", closes="epic")
         )  # total 25 → minimal
         ops = transition_operations(tasks, prev=23, current=24)
         labels = [o["label"] for o in ops if o["op"] == "create_substep"]
-        self.assertIn("product-acceptance:STORY", labels)
-        self.assertIn("product-acceptance:EPIC", labels)
+        self.assertIn("validation-sequence:EPIC", labels)
         # 마감 경계는 재생성 경로 → create_header 존재.
         self.assertTrue(any(o["op"] == "create_header" for o in ops))
 
@@ -302,7 +295,7 @@ class TestTransitionOperations(unittest.TestCase):
         substep_labels = [
             o["label"] for o in ops if o["op"] == "create_substep"
         ]
-        self.assertIn("product-acceptance", substep_labels)
+        self.assertIn("validation-sequence:STORY", substep_labels)
 
 
 class TestInitialOperations(unittest.TestCase):
@@ -357,7 +350,7 @@ class TestBuildChainViewAndParse(unittest.TestCase):
         self.assertIn("▾ task2 · beta", payload["view"])
         self.assertEqual(
             payload["current_substeps"],
-            ["canvas-design", "build-worker", "impl-validator"],
+            ["canvas-design", "build-worker"],
         )
         self.assertTrue(payload["operations"])
 

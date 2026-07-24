@@ -1,7 +1,7 @@
 """chain_view — impl-loop chain 진행 뷰 자동 렌더 (#755).
 
 진행 뷰 규칙 SSOT = `skills/impl-loop/SKILL.md` "진행 뷰 (task 리스트)" 절.
-본 모듈은 그 규칙(엔진별 sub-step / 마감 acceptance / task 총수별 다시그리기
+본 모듈은 그 규칙(엔진별 sub-step / 마감 validation sequence / task 총수별 다시그리기
 분기 / 완료-현재-예정 마킹)을 *코드로 옮길 뿐* 새 규칙을 만들지 않는다.
 
 성격 — **도구이지 게이트 아님**:
@@ -17,12 +17,11 @@
 진행 뷰 규칙(SSOT 인용):
 
 - sub-step 수 = 단일 구현 엔진 기준:
-    build-worker 2 (`build-worker` / `impl-validator`).
+    build-worker 1 (`build-worker`).
     UI 감지 시 canvas-design progress checkpoint 선두:
-    ui-build-worker 3 (`canvas-design` / `build-worker` / `impl-validator`).
-    story 마감 task +1 (`product-acceptance`),
-    epic 마감 task는 merge review 앞에 `impl-validator:CODEBASE_SANITY` +1,
-    뒤에 `product-acceptance:STORY` / `product-acceptance:EPIC` +2.
+    ui-build-worker 2 (`canvas-design` / `build-worker`).
+    story 마감 task +1 (`validation-sequence:STORY`),
+    epic 마감 task는 Sanity 렌즈를 포함한 `validation-sequence:EPIC` +1.
 - task 완료 → 다음 다시그리기 (SKILL 비용 분기): ≤10 full / 11~20 partial /
     >20 minimal. prev 헤더 완료(✓)는 **모든 tier 공통 불변식**(O(1), 생략 시
     in_progress 누적). 비용 분기가 제어하는 비싼 부분은 tail 재생성뿐이고,
@@ -59,14 +58,13 @@ __all__ = [
 # canvas-design 선두)는 같은 build-worker 경로 앞에 main-owned checkpoint 를 더한다.
 # 여기에 없는 변종은 task 입력의 `substeps` 명시 override 로 표현한다([`substeps_for`]).
 ENGINE_SUBSTEPS: Dict[str, List[str]] = {
-    "build-worker": ["build-worker", "impl-validator"],
+    "build-worker": ["build-worker"],
     # UI + build-worker, canvas-design 선두 — 3 step. 사용자 PICK 은
     # canvas-design 내부 조건부 절차다. 기존 확정본/목업 없이 분기에는 draft 가
     # 없으므로 독립 sub-step 으로 세지 않는다.
     "ui-build-worker": [
         "canvas-design",
         "build-worker",
-        "impl-validator",
     ],
 }
 
@@ -80,10 +78,10 @@ _ENGINES: Dict[str, str] = {
 # draft가 필요하면 mode 없는 designer Agent lifecycle은 hook이 소유한다.
 MAIN_OWNED_SUBSTEPS = frozenset({"canvas-design"})
 
-# 마감 task 의 추가 sub-step (SKILL line 435 + 마감 acceptance 절).
-_CLOSE_ACCEPTANCE: Dict[str, List[str]] = {
-    "story": ["product-acceptance"],
-    "epic": ["product-acceptance:STORY", "product-acceptance:EPIC"],
+# 마감 task 의 추가 sub-step (holistic validator → acceptance fail-fast sequence).
+_CLOSE_VALIDATION_SEQUENCE: Dict[str, List[str]] = {
+    "story": ["validation-sequence:STORY"],
+    "epic": ["validation-sequence:EPIC"],
 }
 
 # 진행 뷰 글리프 (SKILL lines 427-432).
@@ -115,7 +113,7 @@ class ChainTask:
     substeps — base sub-step 명시 override (tuple). 지정 시 engine preset 대신
                이 라벨들을 base 로 쓴다 — SKILL 진행 뷰 절이 enum 하지 않은
                변종(미래 flow 등)을 메인이 직접 라벨로 표현하는 escape hatch.
-               마감 acceptance 는 override 여부와 무관하게 append.
+               마감 validation sequence 는 override 여부와 무관하게 append.
     """
 
     name: str
@@ -134,28 +132,22 @@ class ChainTask:
                 raise ValueError("substeps override 는 비지 않은 문자열 목록이어야 한다")
             if self.engine is not None and self.engine not in ENGINE_SUBSTEPS:
                 raise ValueError(f"미지원 engine 키: {self.engine!r}")
-        if self.closes is not None and self.closes not in _CLOSE_ACCEPTANCE:
+        if self.closes is not None and self.closes not in _CLOSE_VALIDATION_SEQUENCE:
             raise ValueError(
                 f"closes 는 None/story/epic 만: {self.closes!r}"
             )
 
 
 def substeps_for(task: ChainTask) -> List[str]:
-    """현재 task 의 sub-step 라벨 = (명시 substeps 또는 엔진 base) + 마감 acceptance."""
+    """현재 task sub-step = 구현 base + 마감 validation sequence."""
     if task.substeps is not None:
         steps = list(task.substeps)
     else:
         if task.engine is None:
             raise ValueError("engine or substeps is required")
         steps = list(ENGINE_SUBSTEPS[task.engine])
-    if task.closes == "epic" and "impl-validator:CODEBASE_SANITY" not in steps:
-        try:
-            review_index = steps.index("impl-validator")
-        except ValueError:
-            review_index = len(steps)
-        steps.insert(review_index, "impl-validator:CODEBASE_SANITY")
     if task.closes:
-        steps.extend(_CLOSE_ACCEPTANCE[task.closes])
+        steps.extend(_CLOSE_VALIDATION_SEQUENCE[task.closes])
     return steps
 
 
@@ -189,7 +181,7 @@ def _expands_substeps(strategy: str, task: Optional[ChainTask]) -> bool:
     경로에서만 가능하다:
 
     - full(≤10): 매 경계 재생성 → 펼침.
-    - 마감 task(story/epic close): chain 크기와 무관하게 펼침 — `product-acceptance`
+    - 마감 task(story/epic close): chain 크기와 무관하게 펼침 — validation sequence
       sub-step 가시성이 마감 게이트에 중요하므로 그 경계만 재생성한다(AC).
     - partial/minimal 의 비-마감 task: 재생성 skip → 미펼침(SKILL 비용 분기).
     """
@@ -444,7 +436,7 @@ def parse_tasks(raw: Any) -> List[ChainTask]:
         closes = item.get("closes")
         if closes in ("", None):
             closes = None
-        elif closes not in _CLOSE_ACCEPTANCE:
+        elif closes not in _CLOSE_VALIDATION_SEQUENCE:
             raise ValueError(
                 f"tasks[{i}].closes 는 None/story/epic 만: {closes!r}"
             )

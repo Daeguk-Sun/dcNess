@@ -1,4 +1,4 @@
-# Root Cartography before refresh
+# Root Cartography before final sync
 
 ## Capability 상태
 

@@ -22,9 +22,10 @@ bash 훅 (`hooks/*.sh`) 이 stdin payload + cc_pid 를 본 모듈의 핸들러�
 from __future__ import annotations
 
 import json
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, cast, Dict, Optional
 
 from harness.agent_names import normalize_agent_type
 from harness.guard_core import GuardContext, GuardDecision, HookRequest
@@ -491,7 +492,13 @@ def handle_pretooluse_agent(
                 if isinstance(cur_step, dict):
                     step_mode = _mode_or_none(cur_step.get("mode"))
                 else:
-                    auto_start = True
+                    close_sequence_role = (
+                        slot.get("entry_point") == "impl"
+                        and slot.get("acceptance_required") is True
+                        and norm_subagent
+                        in {"impl-validator", "product-acceptance"}
+                    )
+                    auto_start = not close_sequence_role
             strict_msg = _strict_conveyor_gate_message(
                 sid=sid,
                 rid=rid,
@@ -1563,8 +1570,177 @@ _CONTINUE_ENUMS: frozenset[str] = frozenset({
 })
 # 종료 agent — 본 agent 의 PASS는 run 끝 = block 안 함.
 _TERMINAL_AGENTS: frozenset[str] = frozenset({"impl-validator"})
-# 무한 루프 가드 — 같은 step 에서 block 쓴 횟수 상한.
+# 무한 루프 가드 — 같은 진단 status의 block count 기록 상한.
 _STOP_BLOCK_COUNT_MAX = 2
+
+
+def _current_tracked_candidate(
+    candidate_root: str,
+) -> Optional[tuple[str, str, bool]]:
+    """Return HEAD/tree/clean from the workspace frozen by ``begin-step``."""
+    root = Path(candidate_root)
+    if not root.is_absolute():
+        return None
+    commands = (
+        ["git", "-C", str(root), "rev-parse", "--show-toplevel"],
+        ["git", "-C", str(root), "status", "--porcelain", "--untracked-files=no"],
+        ["git", "-C", str(root), "rev-parse", "HEAD"],
+        ["git", "-C", str(root), "rev-parse", "HEAD^{tree}"],
+    )
+    results = []
+    try:
+        for command in commands:
+            results.append(
+                subprocess.run(  # nosec B603, B607
+                    command,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=5,
+                )
+            )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if any(result.returncode != 0 for result in results):
+        return None
+    top_level, status, head, tree = results
+    try:
+        resolved_top_level = Path(top_level.stdout.strip()).resolve()
+        resolved_root = root.resolve()
+    except (OSError, RuntimeError):
+        return None
+    if resolved_top_level != resolved_root:
+        return None
+    return head.stdout.strip(), tree.stdout.strip(), not status.stdout.strip()
+
+
+def _close_validation_sequence_status(
+    sid: str,
+    rid: str,
+    *,
+    base_dir: Optional[Path],
+) -> Optional[tuple[str, str]]:
+    """Return the frozen close-sequence status when candidate receipts exist.
+
+    ``None`` preserves compatibility with runs created before candidate identity
+    was recorded. New close sequences are terminal only when the latest validator
+    and acceptance receipts refer to the same non-empty HEAD/tree/workspace
+    root and both prose conclusions are PASS.
+    """
+    try:
+        from harness.ledger import read_step_completed
+        from harness.run_review import _extract_conclusion_enum
+
+        steps = read_step_completed(sid, rid, base_dir=base_dir)
+    except Exception:
+        return None
+
+    validator = next(
+        (
+            step
+            for step in reversed(steps)
+            if step.get("agent") == "impl-validator" and step.get("mode") is None
+        ),
+        None,
+    )
+    acceptance = next(
+        (
+            step
+            for step in reversed(steps)
+            if step.get("agent") == "product-acceptance"
+            and step.get("mode") in {"STORY_ACCEPTANCE", "EPIC_ACCEPTANCE"}
+        ),
+        None,
+    )
+    receipts = tuple(
+        step for step in (validator, acceptance) if isinstance(step, dict)
+    )
+    if not any(
+        step.get("candidate_head")
+        or step.get("candidate_tree")
+        or step.get("candidate_root")
+        for step in receipts
+    ):
+        return None
+    if not isinstance(validator, dict):
+        return (
+            "validator_missing",
+            "frozen validation sequence required next receipt missing: impl-validator",
+        )
+
+    def conclusion_for(step: dict) -> Optional[str]:
+        prose_file = step.get("prose_file")
+        try:
+            prose = Path(str(prose_file)).read_text(
+                encoding="utf-8", errors="ignore"
+            )
+        except OSError:
+            return None
+        return _extract_conclusion_enum(prose)
+
+    validator_conclusion = conclusion_for(validator)
+    if validator_conclusion != "PASS":
+        return (
+            "validator_failed",
+            "holistic impl-validator is not terminal PASS: "
+            f"{validator_conclusion or 'MISSING'}",
+        )
+    if not isinstance(acceptance, dict):
+        return (
+            "acceptance_missing",
+            "frozen validation sequence required next receipt missing: "
+            "product-acceptance",
+        )
+
+    identities = {
+        (
+            step.get("candidate_head"),
+            step.get("candidate_tree"),
+            step.get("candidate_root"),
+        )
+        for step in (validator, acceptance)
+    }
+    identity = (
+        next(iter(identities))
+        if len(identities) == 1
+        else (None, None, None)
+    )
+    if (
+        len(identities) != 1
+        or not all(isinstance(value, str) and value for value in identity)
+    ):
+        return (
+            "receipt_mismatch",
+            "validator and acceptance candidate HEAD/tree/workspace receipts "
+            "do not match",
+        )
+    acceptance_conclusion = conclusion_for(acceptance)
+    if acceptance_conclusion != "PASS":
+        return (
+            "acceptance_failed",
+            "product-acceptance is not terminal PASS: "
+            f"{acceptance_conclusion or 'MISSING'}",
+        )
+
+    frozen_head = cast(str, identity[0])
+    frozen_tree = cast(str, identity[1])
+    frozen_root = cast(str, identity[2])
+    current = _current_tracked_candidate(frozen_root)
+    if current is None:
+        return (
+            "workspace_unverified",
+            "frozen candidate workspace identity could not be confirmed",
+        )
+    current_head, current_tree, tracked_clean = current
+    if not tracked_clean or (current_head, current_tree) != (
+        frozen_head,
+        frozen_tree,
+    ):
+        return (
+            "current_drift",
+            "current tracked HEAD/tree changed after validation sequence freeze",
+        )
+    return ("pass", "same frozen candidate; both terminal PASS")
 
 
 def _maybe_emit_continuation_signal(
@@ -1584,23 +1760,102 @@ def _maybe_emit_continuation_signal(
        acceptance_required run 의 impl-validator 는 product-acceptance 전 단계라 종료 agent
        로 취급하지 않음 (#722).
     2. 마지막 step prose 파일 존재 + 결론 enum 이 다음 step 진입 가능 enum
-    3. stop_block_count[step_key] < _STOP_BLOCK_COUNT_MAX (무한 루프 가드)
+    3. probe 불능 경고는 stop_block_count 상한 뒤 fail-open. 확인된 close
+       결함은 false-close를 막기 위해 상한 뒤에도 block 유지.
 
     반환:
-        True  — decision:block JSON stdout 씀 + 호출자는 return 0 해야 함
+        True  — close 신호 처리 완료. decision:block을 썼거나 probe 불능
+                fail-open이라도 active run 자동 종료는 보류; 호출자는 return 0.
         False — 조건 미충족, 호출자는 기존 분기 (end-run 자동 호출) 진행
     """
     if not last_agent:
         return False
+    close_sequence = _close_validation_sequence_status(
+        sid, rid, base_dir=base_dir
+    )
+    if close_sequence is not None:
+        status, detail = close_sequence
+        if status == "pass":
+            return False
+        # Finite machine statuses keep counters bounded and let independent
+        # recovery classes retain their own diagnostic budget.
+        step_key = f"close-validation-sequence:{status}"
+        block_counts = slot.get("stop_block_count")
+        if not isinstance(block_counts, dict):
+            block_counts = {}
+        try:
+            cur_count = int(block_counts.get(step_key, 0) or 0)
+        except (TypeError, ValueError):
+            cur_count = 0
+        exhausted = cur_count >= _STOP_BLOCK_COUNT_MAX
+        if status == "workspace_unverified" and exhausted:
+            _record_fail_open_safe(
+                "stop-hook",
+                "close_candidate_probe_unavailable",
+                detail,
+                base_dir=base_dir,
+            )
+            print(
+                "[stop-hook] WARN — frozen candidate probe unavailable after "
+                "bounded retries; allowing Stop without auto-closing the active run",
+                file=sys.stderr,
+            )
+            return True
+        if not exhausted:
+            try:
+                transition(
+                    sid,
+                    "stop_block_recorded",
+                    run_id=rid,
+                    base_dir=base_dir,
+                    step_key=step_key,
+                )
+            except Exception:  # nosec B110
+                pass
+        if status == "validator_failed":
+            recovery = (
+                "product-acceptance를 시작하지 말고 finding을 same implementation "
+                "owner가 수정한 뒤 Cartography sync와 새 candidate validator부터 재실행"
+            )
+        elif status == "acceptance_failed":
+            recovery = (
+                "tracked tree가 그대로인 device/external transient면 validator PASS를 "
+                "유지하고 acceptance만 재실행; code/harness finding이면 same "
+                "implementation owner 수정 뒤 새 candidate validator부터 재실행"
+            )
+        elif status in {"validator_missing", "acceptance_missing"}:
+            recovery = "같은 candidate에서 required next validation step을 실행"
+        elif status == "workspace_unverified":
+            recovery = (
+                "frozen worktree 경로와 git 접근을 확인한 뒤 candidate probe를 재시도"
+            )
+        else:
+            recovery = (
+                "Cartography sync와 candidate freeze부터 새 validation sequence를 시작"
+            )
+        if exhausted:
+            recovery += (
+                "; 자동 안내 한도 소진 — false-close하지 말고 명시적 복구 또는 run abort 필요"
+            )
+        reason = (
+            "[dcness Stop hook · close validation sequence] "
+            f"{detail}. 다음: {recovery}."
+        )
+        print(json.dumps({"decision": "block", "reason": reason}))
+        return True
     sanity_review = (
         last_agent == "impl-validator" and last_mode == "CODEBASE_SANITY"
     )
-    acceptance_after_pr = (
+    legacy_acceptance_after_review = (
         last_agent == "impl-validator"
         and not sanity_review
         and slot.get("acceptance_required") is True
     )
-    if last_agent in _TERMINAL_AGENTS and not acceptance_after_pr and not sanity_review:
+    if (
+        last_agent in _TERMINAL_AGENTS
+        and not legacy_acceptance_after_review
+        and not sanity_review
+    ):
         return False
     rdir = slot.get("run_dir")
     if not isinstance(rdir, str) or not rdir:
@@ -1661,7 +1916,7 @@ def _maybe_emit_continuation_signal(
                 "경로로 호출해 같은 final merge candidate의 일반 merge "
                 "review를 이어가야 함. "
             )
-    elif acceptance_after_pr:
+    elif legacy_acceptance_after_review:
         next_hint = (
             "이 run 은 story/epic 마감 acceptance 대상이므로 "
             "`begin-step product-acceptance <MODE>` 후 modeful foreground Agent로 "

@@ -61,7 +61,7 @@ echo "[<entry>] run started: $RUN_ID"
 
 `--design-doc <path>` — 이 run 이 참조하는 **머지된 설계 문서**(impl task 문서) 경로. 설계가 별도 run 에서 머지된 뒤 구현 run 으로 진입하는 흐름(예: `/impl-loop` story/epic runner)에서 기록하면, implementation gate 가 같은-run module-architect PASS 의 등가 사전 조건으로 인정한다 ([`hooks.md` 순서 차단 훅](hooks.md#catastrophic-gatesh)). `entry_point=impl` 전용이며, 설계 산출물 규약 경로(`docs/epics/**`)의 실존 `.md` 만 허용 — 아니면 begin-run 이 fail-fast 거부한다. 기록값은 resolve 된 절대경로(hook 프로세스와 cwd 가 달라도 안전). chain 의 다음 task 진입은 `next-task --design-doc <path>` 로 동일 기록.
 
-`--acceptance-required` — story/epic 마감 task 처럼 `impl-validator` 뒤 inline `product-acceptance` 를 거쳐야 run 이 정상 종료되는 경우에만 기록한다. Stop hook 은 이 marker 가 있는 `entry_point=impl` run 에서 `impl-validator` 를 종료 agent 로 취급하지 않고 product-acceptance 진입 turn 을 재발화한다. 중간 task / `--no-acceptance` run / verify-only run 은 이 플래그를 주지 않는다. chain 의 다음 task 진입은 `next-task --acceptance-required` 로 동일 기록한다.
+`--acceptance-required` — story/epic 마감 task처럼 frozen candidate의 `impl-validator` PASS 뒤 `product-acceptance`가 필요한 run에만 기록한다. normal close에서는 validator step이 candidate HEAD/tree/workspace root를 기록하고 먼저 끝난 뒤, PASS일 때만 acceptance step이 같은 identity를 기록한다. Stop hook은 기록된 workspace root에서 현재 candidate를 확인하며, validator만 PASS한 상태에서 acceptance 진입 turn을 재발화하고 둘 다 terminal PASS이며 현재 candidate가 같을 때만 정상 종료한다. 중간 task / `--no-acceptance` run / verify-only run 은 이 플래그를 주지 않는다. chain 의 다음 task 진입은 `next-task --acceptance-required` 로 동일 기록한다.
 
 > `/impl-loop` driver 자체는 run을 갖지 않는다. single/chain 모두 implementation chain이 task마다 독립 `begin-run impl`과 terminal receipt를 만들며, merge candidate `impl-validator` 통합 review는 모든 target task가 completed 된 뒤 1회 수행한다. 자세한 시작은 [`/impl-loop`](../../skills/impl-loop/SKILL.md), 마감은 [`impl-loop-finish.md`](../../skills/impl-loop/impl-loop-finish.md)가 소유한다.
 
@@ -98,6 +98,10 @@ Agent tool input을 만들기 **전** [`agent-prompt-slots.md`](templates/agent-
 - `[PREVIOUS_TASKS]`는 build-worker가 phase 3 통과 시 `prev-tasks-append`로 누적한 직전 task 산출 요약이며, 메인 Bash stdout relay 대상이 아니다.
 
 active run(`entry_point=design|impl|ux`)의 mode 없는 foreground Claude Agent는 PreToolUse가 순서/호출 적합성을 검사하고 correlation intent만 둔다. sibling PreToolUse hook이 deny하면 `SubagentStart`가 발화하지 않으므로 `step_started`도 없다. 실제 spawn 뒤 `SubagentStart`가 `tool_use_id`와 `agent_id`를 current step에 묶고, `PostToolUse Agent`는 `status=completed`인 비어 있지 않은 최종 prose만 `<run_dir>/<agent>.md`에 저장해 `step_completed` receipt를 만든다. `async_launched`, Agent 실패, 빈 prose는 `step_completed`를 만들지 않으며 시작된 foreground step은 `step_aborted` 진단으로 닫힌다. 같은 lifecycle payload 재전달은 멱등이고 identity가 current step과 다르면 prose/receipt append 전에 거부한다.
+
+한 세션 동시 Agent fan-out은 close에서도 사용하지 않는다. `acceptance_required=true` impl run은 holistic validator를 cheap fail-fast로 먼저 끝내고 terminal PASS일 때만 acceptance를 시작한다.
+
+단, 이 close sequence의 mode 없는 `impl-validator`도 Agent 호출 전에 명시적 `begin-step impl-validator`를 실행한다. modeful acceptance와 함께 두 step 모두 helper가 clean candidate HEAD/tree/workspace root를 원자적으로 freeze해야 하기 때문이다. 이후 spawn identity bind와 completion receipt는 일반 foreground lifecycle과 같다.
 
 modeful Claude Agent는 공개 Agent tool field로 mode를 안정 전달할 수 없으므로 Agent 호출 전에 `begin-step <agent> <mode>`를 명시한다. `SubagentStart`가 그 step에 spawn identity를 bind하고 성공 `PostToolUse`가 완료를 기록하므로 메인의 별도 `end-step`은 없다. `/impl-loop` headless build-worker는 implementation chain이 provider fork 전에 `begin-step`을 정확히 한 번 기록하고 worker wrapper가 성공 `end-step`을 기록한다. 메인이 둘 중 어느 것도 선행 호출하지 않는다.
 
@@ -224,7 +228,7 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 
 ### step 명명 + prose 파일 자동 명명
 
-**step 명명 규칙**: 명시적 helper lifecycle은 `agent mode` 두 인자 형식만 허용한다. mode 없는 foreground Claude Agent는 hook-owned라 이 명령을 호출하지 않는다.
+**step 명명 규칙**: 명시적 helper lifecycle은 `agent mode` 두 인자 형식만 허용한다. mode 없는 foreground Claude Agent는 원칙적으로 hook-owned라 이 명령을 호출하지 않는다. 예외는 `acceptance_required=true` impl close의 mode 없는 `impl-validator`이며 candidate freeze를 위해 명시적 `begin-step`을 호출한다.
 
 ```bash
 "$HELPER" begin-step <agent> [<mode>]
@@ -247,7 +251,7 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 | impl-validator 재리뷰 | `begin-step impl-validator retry` | `impl-validator-retry.md` |
 | `/design` epic batch | `begin-step module-architect epic-batch` | `module-architect-epic-batch.md` |
 
-headless wrapper의 동일-provider bounded recovery는 같은 active outer step 안에서 이어지고, 최종 성공 wrapper가 대응 `end-step`을 한 번 기록한다. terminal 실패 뒤 별도 rework launch를 열 때만 implementation chain이 새 outer `begin-step`을 만든다. 메인은 어느 경우에도 lifecycle 호출을 추가하지 않는다. Claude Agent 재호출은 mode가 있을 때만 명시적 begin-step을 다시 열고, mode 없는 foreground 경로는 lifecycle hook이 occurrence를 관리한다. `--prose-file` 명시적 전달은 wrapper/helper override로 허용한다.
+headless wrapper의 동일-provider bounded recovery는 같은 active outer step 안에서 이어지고, 최종 성공 wrapper가 대응 `end-step`을 한 번 기록한다. terminal 실패 뒤 별도 rework launch를 열 때만 implementation chain이 새 outer `begin-step`을 만든다. 메인은 어느 경우에도 lifecycle 호출을 추가하지 않는다. Claude Agent 재호출은 mode가 있을 때만 명시적 begin-step을 다시 열고, mode 없는 foreground 경로는 lifecycle hook이 occurrence를 관리한다. 단, `acceptance_required=true` impl close의 validator 재호출은 위 candidate freeze 예외에 따라 명시적 `begin-step`을 다시 연다. `--prose-file` 명시적 전달은 wrapper/helper override로 허용한다.
 
 **안티패턴** (begin/end-step 쌍 누락): ❌ build-worker local commit 후 git status 확인 → end-step skip / ❌ FAIL 후 build-worker rework 호출 시 begin/end-step 미포함 / ❌ end-step 보류 중 다음 step 진입으로 망각 / ❌ task 간 보고 작성 후 begin-step 재호출 누락.
 
@@ -334,9 +338,10 @@ RESOLVE_JSON=$("$HELPER" auto-resolve "<agent>:<enum_or_mode>")
 | runner `plan/init` | path 정렬 뒤 동일 frontmatter `story` 값의 비연속 재등장을 state 변경 전에 차단하고 관련 task 경로를 보고한다. runner 는 story 순서를 임의 재정렬하지 않는다. |
 | build-worker PASS 직후 | task local commit sha 확인 + `dcness-story-runner mark --status completed --commit <sha>` |
 | 한 story 의 task 전부 completed | story branch tip/base 봉인. PR 없이 다음 story branch를 직전 story branch tip에서 재분기 |
-| 모든 target task completed | 자동 journey면 worker 실행 컨텍스트 수렴 호출 → 스택 tip vs main merge candidate diff에 impl-validator 통합 리뷰 1회 |
-| impl-validator / STORY_ACCEPTANCE × N / 필요한 EPIC_ACCEPTANCE / target issue AC audit PASS | iteration 노이즈가 있을 때만 tree-preserving commit consolidate, no-op이면 근거 보존 |
-| consolidate 완료 | story/조건부 QA PR 최초 생성. 그 뒤 사용자 승인 시 main 리타겟·리베이스 후 merge 결정 대기 |
+| 모든 target task completed | 자동 journey면 worker 실행 컨텍스트 수렴 호출 → final mutation owner Cartography sync/no-op → tree-preserving consolidate → candidate freeze |
+| frozen candidate | 반대 진영 holistic impl-validator(Sanity 렌즈 포함)를 먼저 실행 |
+| validator PASS | 같은 candidate에서 close 단위 product-acceptance sealed Journey 실행 |
+| validator·acceptance 둘 다 PASS + target issue AC audit PASS | story/조건부 QA PR 최초 생성. 그 뒤 사용자 승인 시 main 리타겟·리베이스 후 merge 결정 대기 |
 
 > `docs/.../impl/NN-*.md` 는 `/design` 산출물이 *미리 머지* 된 상태 — impl-task-loop 안에서 별도 commit X. fallback 모드 (정식 위치 부재) 는 module-architect 산출물을 본 PR src commit 에 같이 포함.
 

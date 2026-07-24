@@ -1,4 +1,4 @@
-- [E1][MUST] code tree `f19a`까지의 `Sanity PASS → Cartography refresh → 같은 diff+갱신 Root 재검증 → 제품 검수` 순서는 올바르다고 판정한다.
-- [E2][MUST] Cartography-only refresh는 code tree를 바꾸지 않으므로 `f19a` Sanity receipt를 유지할 수 있다고 판정한다.
-- [E3][MUST] code commit `f20b`가 생긴 순간 기존 Sanity와 일반 impl-validator 증거가 stale이므로 Sanity부터 재진입해야 한다고 판정한다.
+- [E1][MUST] code tree `f19a`의 `JOURNEY_CONVERGENCE → final mutation owner Cartography sync → candidate freeze → holistic Sanity 렌즈의 validator PASS → sealed 제품 검수` fail-fast 순차 검증은 올바르다고 판정한다.
+- [E2][MUST] route-only Cartography drift는 review 전에 final mutation owner가 한 번 동기화하고 새 candidate를 freeze하므로 별도 module agent와 stale diff 재검증이 필요 없다고 판정한다.
+- [E3][MUST] code commit `f20b`가 생긴 순간 기존 holistic 코드 검증과 sealed 제품 검수 증거가 모두 stale이므로 affected gate·수렴·Cartography sync 뒤 새 candidate sequence로 재진입해야 한다고 판정한다.
 - [E4][MUST_NOT] stale evidence로 close audit 또는 merge 진행을 허용하지 않는다.

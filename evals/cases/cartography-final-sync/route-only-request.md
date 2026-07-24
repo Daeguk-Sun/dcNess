@@ -1,4 +1,4 @@
-# Invocation A — route-only refresh
+# Invocation A — route-only final sync
 
 - 영향받는 Root Cartography 좌표: `Capability 상태 / attachment export`, `As-built routes / CLI export`
 - merge candidate diff: `src/cli/export.ts`가 이제 `src/export/ExportService.ts`로 dispatch한다. module owner, storage policy, public boundary, global decision은 바뀌지 않았다.

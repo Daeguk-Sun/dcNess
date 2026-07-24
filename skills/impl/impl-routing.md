@@ -102,10 +102,10 @@ Cartography freshness 결과는 위 PASS/FAIL 의미 안에서 다음처럼 결�
 | 결과 | 다음 |
 |---|---|
 | 영향 없음 또는 Root와 일치 | 기존 commit/PR/CI 경로 계속 |
-| system boundary 유지 + route/state/as-built edge stale | `module-architect:CARTOGRAPHY_REFRESH`가 affected Root 좌표만 bounded refresh → 같은 merge candidate diff, 갱신 Root, 관련 epic/decision으로 impl-validator 재검증 |
+| system boundary 유지 + route/state/as-built edge stale | `final mutation owner`인 메인이 review 전에 affected Root 좌표만 bounded sync → commit/tree freeze → 같은 merge candidate와 갱신 Root를 holistic impl-validator가 1회 검증 |
 | system boundary·global decision 변경 | route-only patch 금지 → clean 진행 중지 → `/design --revise` 또는 system checkpoint backpressure를 사용자에게 제시 |
 
-`CARTOGRAPHY_REFRESH`는 새 공개 진입점이나 새 agent가 아니다. tracked docs는 branch/PR에 포함할 수 있지만 local-only/ignored private docs는 code PR에 강제 포함하지 않는다. canonical local Root 갱신이 불가능하면 affected 좌표, before/after 상태, 증거, 다음 producer를 durable impact handoff로 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으므로 canonical local Root refresh 확인 전에는 PASS하지 않는다. 읽기 전용 validator는 어느 경우에도 문서를 직접 수정하지 않는다.
+tracked docs는 branch/PR에 포함할 수 있지만 local-only/ignored private docs는 code PR에 강제 포함하지 않는다. canonical local Root 갱신이 불가능하면 affected 좌표, before/after 상태, 증거, 다음 producer를 durable impact handoff로 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으므로 canonical local Root sync 확인 전에는 candidate를 freeze하지 않는다. 읽기 전용 validator는 어느 경우에도 문서를 직접 수정하지 않는다.
 
 ## Retry 한도
 

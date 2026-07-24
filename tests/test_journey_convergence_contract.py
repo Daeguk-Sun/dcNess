@@ -79,21 +79,23 @@ class JourneyConvergenceContractTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, finish)
 
-    def test_clean_sequence_consolidates_after_acceptance_before_first_pr(self) -> None:
+    def test_clean_sequence_freezes_before_fail_fast_validation_and_first_pr(self) -> None:
         section = read("skills/impl-loop/impl-loop-finish.md")
+        section = section[section.index("마감 순서는 다음과 같다.") :]
 
         sequence = (
             "JOURNEY_CONVERGENCE",
-            "impl-validator:CODEBASE_SANITY",
-            "product-acceptance",
+            "final mutation owner",
+            "candidate freeze",
+            "holistic `impl-validator`",
+            "validator가 terminal `PASS`일 때만",
             "target GitHub issue AC close audit",
-            "커밋 consolidate",
             "PR 생성",
         )
         positions = [section.index(item) for item in sequence]
         self.assertEqual(positions, sorted(positions))
-        self.assertIn("최종 tree", section)
-        self.assertIn("불변", section)
+        self.assertIn("tracked tree", section)
+        self.assertIn("immutable candidate", section)
         self.assertIn("no-op", section)
         self.assertIn("최초 PR", section)
 
