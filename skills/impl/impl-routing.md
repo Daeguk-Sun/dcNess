@@ -52,7 +52,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 
 | 경로 | 다음 |
 |---|---|
-| direct · 메인 직접 | concrete signal 또는 충분한 자연어 의도에서 관련 파일을 찾고 메인 직접 `test -> impl -> test pass` 후 `begin-run impl` → `impl-validator` local diff |
+| direct · 메인 직접 | 격리 뒤 `begin-run impl`을 기록하고 concrete signal 또는 충분한 자연어 의도에서 관련 파일을 찾아 메인 직접 `test -> impl -> test pass` → `impl-validator` local diff |
 | design-doc · 메인 직접 | `begin-run impl --design-doc <경로>` 기록 후 받은 설계도로 메인 직접 `test -> impl -> test pass` → `impl-validator` local diff |
 
 일반 `/impl` 도 `impl-validator` 를 호출한다. direct 에 대상 issue 가 있으면 계획 파일이 없어도 spec 렌즈를 켜고 **target GitHub issue AC** 를 대조한다. design-doc 경로의 spec 기준은 plan ∪ target GitHub issue AC 이며, 대상 issue 가 없는 direct 만 quality 렌즈로 검토한다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.

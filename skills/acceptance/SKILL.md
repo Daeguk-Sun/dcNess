@@ -9,7 +9,7 @@ description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행�
 
 > 🔴 **분기 규칙 SSOT** — `product-acceptance` 결론(`PASS` / `FAIL` / `ESCALATE`) → 다음 행동은 [`acceptance-routing.md`](acceptance-routing.md) 가 본 skill 의 단일 진본이다. 본 파일은 입력 정형화와 진행 절차만 담는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
-> `/impl-loop` 는 story/epic 마감 task 의 머지 *전* 에 같은 `product-acceptance` agent 로 inline 검수를 돈다 — 그 경로의 결론→다음(gap 수정 루프 포함)은 [`impl-loop-routing.md` 마감 acceptance 분기](../impl-loop/impl-loop-routing.md#마감-acceptance-분기) 가 소유하고, 본 skill 의 prompt 규약(아래 Story/Epic Acceptance 호출 형식)만 재사용한다.
+> `/impl-loop` 는 story/epic 마감 task 의 머지 *전* 에 같은 `product-acceptance` agent 로 inline 검수를 돈다 — 그 경로의 결론→다음(gap 수정 루프 포함)은 [`impl-loop-finish.md` product acceptance](../impl-loop/impl-loop-finish.md#product-acceptance) 가 소유하고, 본 skill 의 prompt 규약(아래 Story/Epic Acceptance 호출 형식)만 재사용한다.
 
 ## Inputs
 

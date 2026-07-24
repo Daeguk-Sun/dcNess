@@ -13,7 +13,7 @@ class AcceptanceSkillContractTests(unittest.TestCase):
     def setUp(self) -> None:
         self.skill = ROOT / "skills" / "acceptance" / "SKILL.md"
         self.routing = ROOT / "skills" / "acceptance" / "acceptance-routing.md"
-        self.impl_loop = ROOT / "skills" / "impl-loop" / "impl-loop-routing.md"
+        self.impl_loop = ROOT / "skills" / "impl-loop" / "impl-loop-finish.md"
 
     def test_acceptance_skill_exists_as_story_epic_mvp(self) -> None:
         text = self.skill.read_text(encoding="utf-8")
@@ -96,16 +96,16 @@ class AcceptanceSkillContractTests(unittest.TestCase):
 
     def test_inline_acceptance_owns_cross_pr_story_behavior(self) -> None:
         text = self.impl_loop.read_text(encoding="utf-8")
-        self.assertIn("여러 PR 이 합쳐진 story 동작", text)
-        self.assertIn("여러 story 가 합쳐진 epic 동작", text)
-        self.assertIn("product-acceptance 가 맡는다", text)
-        self.assertIn("mock-only green / 동작 증거 부족", text)
-        self.assertIn("사용자 동선 부적합 / 내부 계약 노출", text)
+        self.assertIn("여러 PR이 합쳐진 story 동작", text)
+        self.assertIn("여러 story가 합쳐진 epic 동작", text)
+        self.assertIn("product-acceptance가 맡는다", text)
+        self.assertIn("mock-only green/동작 증거 부족", text)
+        self.assertIn("사용자 동선 부적합/내부 계약 노출", text)
 
     def test_inline_acceptance_injects_ui_mock_and_screen_evidence(self) -> None:
-        text = (ROOT / "skills" / "impl-loop" / "SKILL.md").read_text(
-            encoding="utf-8"
-        )
+        text = (
+            ROOT / "skills" / "impl-loop" / "impl-loop-finish.md"
+        ).read_text(encoding="utf-8")
         for needle in (
             "확정 목업 경로",
             "구현 화면 스크린샷",

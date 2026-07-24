@@ -48,18 +48,17 @@ class ImplValidatorCommitInputContractTests(unittest.TestCase):
         self,
     ) -> None:
         callers = (
-            self.read("skills/impl/SKILL.md"),
-            self.read("skills/impl-loop/SKILL.md"),
+            self.read("skills/impl/impl-finish.md"),
+            self.read("skills/impl-loop/impl-loop-finish.md"),
         )
 
         for caller in callers:
             with self.subTest(caller=caller[:40]):
                 for needle in (
-                    "커밋 id",
+                    "commit id",
                     "변경 파일 목록",
                     "diff 파일",
-                    "uncommitted local diff",
-                    "폴백",
+                    "uncommitted diff",
                 ):
                     self.assertIn(needle, caller)
 

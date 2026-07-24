@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Run a dcNess implementation worker through Codex and store prose via
-# dcness-helper end-step. The caller still owns begin-step and fallback policy.
+# dcness-helper end-step. The implementation chain owns begin-step and fallback.
 
 set -uo pipefail
 
@@ -184,24 +184,42 @@ case "$CODEX_NETWORK_ACCESS" in
     ;;
 esac
 
+cd "$PROJECT_ROOT"
+
+dcness_resolve_headless_context "dcness-codex-worker" "$PROJECT_ROOT" "$SCRIPT_DIR"
+
+TDD_PROMPT_GUIDANCE="$(
+  PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 -m harness.tdd_hooks guidance --project-root "$PROJECT_ROOT"
+)"
+TDD_GUIDANCE_RC=$?
+if [ "$TDD_GUIDANCE_RC" -ne 0 ]; then
+  echo "[dcness-codex-worker] invalid project-local TDD contract" >&2
+  exit "$TDD_GUIDANCE_RC"
+fi
+
 CODEX_WRITABLE_ROOTS_CONFIG=""
-if [ -n "$CODEX_WRITABLE_ROOTS" ]; then
+if [ -n "$CODEX_WRITABLE_ROOTS" ] || [ -n "$CANONICAL_RUN_DIR" ]; then
+  export DCNESS_CANONICAL_RUN_DIR="$CANONICAL_RUN_DIR"
   if ! CODEX_WRITABLE_ROOTS_TOML="$(python3 -c '
 import json
 import os
 
-roots = [root for root in os.environ["DCNESS_CODEX_WRITABLE_ROOTS"].split(os.pathsep) if root]
+roots = [
+    root
+    for root in os.environ.get("DCNESS_CODEX_WRITABLE_ROOTS", "").split(os.pathsep)
+    if root
+]
+canonical = os.environ.get("DCNESS_CANONICAL_RUN_DIR", "")
+if canonical and canonical not in roots:
+    roots.append(canonical)
 print(json.dumps(roots, ensure_ascii=False))
 ')"; then
-    echo "[dcness-codex-worker] failed to encode DCNESS_CODEX_WRITABLE_ROOTS as a TOML string array" >&2
+    echo "[dcness-codex-worker] failed to encode writable roots as a TOML string array" >&2
     exit 2
   fi
   CODEX_WRITABLE_ROOTS_CONFIG="sandbox_workspace_write.writable_roots=$CODEX_WRITABLE_ROOTS_TOML"
 fi
-
-cd "$PROJECT_ROOT"
-
-dcness_resolve_headless_context "dcness-codex-worker" "$PROJECT_ROOT" "$SCRIPT_DIR"
 
 git_status_without_harness_state() {
   git -C "$PROJECT_ROOT" status --porcelain=v1 -uall 2>/dev/null \
@@ -288,6 +306,19 @@ fi
   echo "project/worktree root: $PROJECT_ROOT"
   echo "session id: ${DCNESS_SESSION_ID:-UNATTRIBUTED}"
   echo "run id: ${DCNESS_RUN_ID:-UNATTRIBUTED}"
+  if [ -n "$CANONICAL_RUN_DIR" ]; then
+    echo "canonical run directory: $CANONICAL_RUN_DIR"
+    echo "required phase prose:"
+    echo "- $CANONICAL_RUN_DIR/build-test.md"
+    echo "- $CANONICAL_RUN_DIR/build-impl.md"
+    echo "- $CANONICAL_RUN_DIR/build-validate.md"
+  fi
+  if [ -n "$TDD_PROMPT_GUIDANCE" ]; then
+    echo
+    echo "----- BEGIN PROJECT TDD CONTRACT -----"
+    printf '%s\n' "$TDD_PROMPT_GUIDANCE"
+    echo "----- END PROJECT TDD CONTRACT -----"
+  fi
   echo
   echo "You are executing this dcNess implementation worker step through Codex headless."
   echo "You may edit files in the project/worktree only within the embedded agent boundary."
@@ -342,6 +373,7 @@ import signal
 import subprocess
 import sys
 import time
+from datetime import datetime, timezone
 
 timeout = int(sys.argv[1])
 idle_timeout = int(sys.argv[2])
@@ -409,6 +441,13 @@ with open(prompt, "rb") as stdin, open(log, "ab") as raw:
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
+    raw.write(
+        (
+            f"PROCESS_FORK: pid={proc.pid} "
+            f"started_at={datetime.now(timezone.utc).isoformat()}\n"
+        ).encode("utf-8", "replace")
+    )
+    raw.flush()
     started = time.monotonic()
     deadline = started + timeout
     last_progress = started
@@ -700,6 +739,25 @@ if [ "$TDD_RC" -eq 1 ]; then
   echo "[dcness-codex-worker] BLOCKED: TDD GUARD failed for Codex-changed implementation files." >&2
   echo "[dcness-codex-worker] raw log: $RAW_LOG" >&2
   printf '%s\n' "$TDD_PROBLEMS" >&2
+  exit 1
+fi
+
+MISSING_PHASE_PROSE=""
+if [ "${DCNESS_PHASE_EVIDENCE_REQUIRED:-0}" = "1" ] \
+  && [ "$AGENT" = "build-worker" ] \
+  && [ -z "$MODE" ] \
+  && dcness_build_outcome_requires_phase_prose "$SCRIPT_DIR" "$TMP_PROSE"; then
+  MISSING_PHASE_PROSE="$(dcness_missing_build_phase_prose)"
+fi
+if [ -n "$MISSING_PHASE_PROSE" ]; then
+  {
+    echo
+    echo "----- REQUIRED PHASE PROSE MISSING -----"
+    printf '%s\n' "$MISSING_PHASE_PROSE"
+  } >> "$RAW_LOG"
+  emit_provider_failure 1 phase_evidence
+  echo "[dcness-codex-worker] BLOCKED: required build-worker phase prose is missing from the canonical run directory." >&2
+  printf '%s\n' "$MISSING_PHASE_PROSE" >&2
   exit 1
 fi
 

@@ -32,6 +32,9 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         self.impl_loop_routing = (
             ROOT / "skills" / "impl-loop" / "impl-loop-routing.md"
         )
+        self.impl_loop_finish = (
+            ROOT / "skills" / "impl-loop" / "impl-loop-finish.md"
+        )
         self.acceptance_skill = ROOT / "skills" / "acceptance" / "SKILL.md"
         self.impl_loop_skill = ROOT / "skills" / "impl-loop" / "SKILL.md"
         self.module_architect_prompt = (
@@ -160,12 +163,12 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
             self.assertIn(needle, text)
 
     def test_pipeline_assigns_cross_pr_story_behavior_to_product_acceptance(self) -> None:
-        text = self.impl_loop_routing.read_text(encoding="utf-8")
-        self.assertIn("impl-validator 는 계획 대비 구현 정합", text)
-        self.assertIn("impl-validator 는 계획 대비 구현 정합과 merge candidate diff 위험", text)
-        self.assertIn("여러 PR 이 합쳐진 story 동작", text)
-        self.assertIn("여러 story 가 합쳐진 epic 동작", text)
-        self.assertIn("마감 product-acceptance 가 맡는다", text)
+        text = self.impl_loop_finish.read_text(encoding="utf-8")
+        self.assertIn("impl-validator는 계획 대비 구현 정합", text)
+        self.assertIn("merge candidate diff 위험", text)
+        self.assertIn("여러 PR이 합쳐진 story 동작", text)
+        self.assertIn("여러 story가 합쳐진 epic 동작", text)
+        self.assertIn("마감 product-acceptance가 맡는다", text)
 
     def test_write_zero_boundary_and_no_codex_route(self) -> None:
         self.assertEqual(ALLOW_MATRIX["product-acceptance"], ())
@@ -190,7 +193,9 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         init_dcness = self.init_dcness.read_text(encoding="utf-8")
         acceptance_skill = self.acceptance_skill.read_text(encoding="utf-8")
         acceptance_routing = self.acceptance_routing.read_text(encoding="utf-8")
-        impl_loop_skill = self.impl_loop_skill.read_text(encoding="utf-8")
+        impl_loop_skill = (
+            ROOT / "skills" / "impl-loop" / "impl-loop-finish.md"
+        ).read_text(encoding="utf-8")
         impl_loop_routing = self.impl_loop_routing.read_text(encoding="utf-8")
 
         self.assertIn("(JOURNEY) <flow/매니페스트 경로>", template)

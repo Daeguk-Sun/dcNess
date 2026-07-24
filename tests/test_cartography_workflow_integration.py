@@ -30,7 +30,7 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
         self.assertNotIn("전역 Cartography의 단일 write owner", skill)
 
     def test_direct_impl_hands_impact_and_root_coordinates_to_validator(self) -> None:
-        skill = read("skills/impl/SKILL.md")
+        skill = read("skills/impl/SKILL.md") + read("skills/impl/impl-finish.md")
         routing = read("skills/impl/impl-routing.md")
 
         for text in (skill, routing):
@@ -49,7 +49,7 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             self.assertIn(meaning, skill)
 
     def test_direct_impl_routes_three_freshness_results(self) -> None:
-        skill = read("skills/impl/SKILL.md")
+        skill = read("skills/impl/SKILL.md") + read("skills/impl/impl-finish.md")
         routing = read("skills/impl/impl-routing.md")
 
         for text in (skill, routing):
@@ -67,10 +67,11 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
         self.assertIn("읽기 전용", skill)
 
     def test_impl_loop_preserves_impact_through_review_and_acceptance(self) -> None:
-        skill = read("skills/impl-loop/SKILL.md")
-        routing = read("skills/impl-loop/impl-loop-routing.md")
+        skill = read("skills/impl-loop/SKILL.md") + read(
+            "skills/impl-loop/impl-loop-finish.md"
+        )
 
-        for text in (skill, routing):
+        for text in (skill,):
             self.assertIn("build-worker Cartography impact", text)
             self.assertIn("affected Root Cartography", text)
             self.assertIn("CARTOGRAPHY_REFRESH", text)
@@ -80,8 +81,8 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             self.assertIn("/design --revise", text)
             self.assertIn("durable impact handoff만으로 freshness가 해소되지는 않", text)
 
-        self.assertIn("acceptance 재검수", routing)
-        self.assertIn("CR -->|SYSTEM_CHECKPOINT_REQUIRED| DESIGN", routing)
+        self.assertIn("acceptance 재검수", skill)
+        self.assertIn("system boundary/global decision", skill)
 
     def test_validator_does_not_treat_durable_handoff_as_refresh_completion(self) -> None:
         validators = (
@@ -114,8 +115,8 @@ class CartographyWorkflowIntegrationTests(unittest.TestCase):
             self.assertIn(needle, producer)
 
         for workflow in (
-            read("skills/impl/SKILL.md"),
-            read("skills/impl-loop/SKILL.md"),
+            read("skills/impl/impl-finish.md"),
+            read("skills/impl-loop/impl-loop-finish.md"),
         ):
             self.assertIn(
                 "begin-step module-architect CARTOGRAPHY_REFRESH", workflow

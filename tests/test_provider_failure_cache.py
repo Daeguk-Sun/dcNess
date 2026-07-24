@@ -37,7 +37,13 @@ def _write_chain_state(path: Path, project: Path, chain_id: str = "chain-a") -> 
                 "kind": "dcness-story-run",
                 "chain_id": chain_id,
                 "project_root": str(project.resolve()),
-                "tasks": [{"id": 1, "status": "pending"}],
+                "tasks": [
+                    {
+                        "id": 1,
+                        "path": "docs/epics/fixture/impl/01-cache.md",
+                        "status": "pending",
+                    }
+                ],
             }
         ),
         encoding="utf-8",
@@ -418,10 +424,8 @@ class ImplementationChainMemoizationTests(unittest.TestCase):
 
 class ProviderFailureCacheDocsTests(unittest.TestCase):
     def test_impl_loop_docs_publish_scope_categories_bypass_and_diagnostics(self) -> None:
-        paths = (
-            ROOT / "docs" / "plugin" / "loop-procedure.md",
-            ROOT / "skills" / "impl-loop" / "SKILL.md",
-        )
+        procedure_path = ROOT / "docs" / "plugin" / "loop-procedure.md"
+        skill_path = ROOT / "skills" / "impl-loop" / "SKILL.md"
         required = (
             "--chain-state",
             "--provider-provenance routing",
@@ -437,15 +441,16 @@ class ProviderFailureCacheDocsTests(unittest.TestCase):
             "first_raw_log",
             "chain_id",
         )
-        for path in paths:
-            text = path.read_text(encoding="utf-8")
-            for needle in required:
-                with self.subTest(path=path.name, needle=needle):
-                    self.assertIn(needle, text)
-        skill_text = paths[1].read_text(encoding="utf-8")
-        procedure_text = paths[0].read_text(encoding="utf-8")
-        self.assertIn("task 1개 single `/impl-loop`도", skill_text)
-        self.assertIn("single/chain 모드 모두 `--chain-state`", procedure_text)
+        procedure_text = procedure_path.read_text(encoding="utf-8")
+        for needle in required:
+            with self.subTest(path=procedure_path.name, needle=needle):
+                self.assertIn(needle, procedure_text)
+
+        skill_text = skill_path.read_text(encoding="utf-8")
+        self.assertIn("--chain-state", skill_text)
+        self.assertIn("task 1개 또는 story/epic chain", skill_text)
+        self.assertIn("impl-loop-routing.md", skill_text)
+        self.assertIn("single/chain 모두 implementation chain에 `--chain-state`", procedure_text)
 
 
 if __name__ == "__main__":

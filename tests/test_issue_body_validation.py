@@ -362,10 +362,22 @@ class IssueBodyValidationDocsTests(unittest.TestCase):
         self.assertIn("hard gate", text)
         self.assertIn("AC 또는 Acceptance criteria가 없는 body는 실패", text)
 
-        for relative in ("CLAUDE.md", "skills/impl/SKILL.md", "skills/impl-loop/SKILL.md"):
-            skill = (ROOT / relative).read_text(encoding="utf-8")
-            self.assertIn("현행 typed AC로 갱신", skill, relative)
-            self.assertIn("임의 추론", skill, relative)
+        surfaces = {
+            "CLAUDE.md": (ROOT / "CLAUDE.md").read_text(encoding="utf-8"),
+            "impl": (
+                (ROOT / "skills/impl/SKILL.md").read_text(encoding="utf-8")
+                + (ROOT / "skills/impl/impl-finish.md").read_text(encoding="utf-8")
+            ),
+            "impl-loop": (
+                (ROOT / "skills/impl-loop/SKILL.md").read_text(encoding="utf-8")
+                + (ROOT / "skills/impl-loop/impl-loop-finish.md").read_text(
+                    encoding="utf-8"
+                )
+            ),
+        }
+        for label, skill in surfaces.items():
+            self.assertIn("현행 typed AC로 갱신", skill, label)
+            self.assertIn("임의 추론", skill, label)
 
     def test_workflow_router_mentions_non_to_issue_agent_creation_still_validates(self) -> None:
         text = (ROOT / "docs" / "plugin" / "workflow-router.md").read_text(

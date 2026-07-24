@@ -1,186 +1,94 @@
 ---
 name: impl
-description: 구현 요청을 받아 메인이 직접 구현하고 격리 impl-validator 리뷰까지 거쳐 PR 로 끝내는 기본 구현 진입점. 사용자가 "구현해줘", "수정해줘", "고쳐줘", "버그픽스", "한 줄 수정", "리뷰까지 돌려", "/impl" 등을 말할 때 사용한다. 이슈번호/링크/파일/테스트처럼 concrete signal 이 있으면 읽고 바로 구현한다. 자연어 요청도 의도와 repo 범위가 충분하면 관련 코드를 찾아 바로 구현하며, 제품 의미나 새 권한이 실제로 필요한 경우에만 묻는다. high-risk 신호는 설계 선행 권장으로 경고하되, 사용자가 `/impl` 을 지시했다면 구현한다. 일반 구현을 별도 구현 worker 로 넘기지 않는다.
+description: 구현 요청을 받아 메인이 즉시 격리·focused read·RED/첫 edit로 진행하고, GREEN 뒤 격리 impl-validator와 PR 마감을 수행하는 기본 구현 진입점. 이슈번호/링크/파일/테스트처럼 concrete signal이 있으면 다시 설계하지 않고 구현한다. 제품 의미나 새 권한이 실제로 필요한 경우에만 묻는다. 일반 구현을 별도 worker로 넘기지 않는다.
 ---
 
-# Impl Skill — 기본 구현 진입점
+# Impl — main-direct action-first
 
-> `/impl` 은 사용자-facing 기본 구현 진입점이다. 공개 command 는 하나이고, 메인이 직접 구현한다. 격리되는 것은 `impl-validator` review step 이다. 공개 진입점 계약은 [`docs/plugin/positioning.md`](../../docs/plugin/positioning.md), 자유 요청의 진입점 선택은 [`docs/plugin/workflow-router.md`](../../docs/plugin/workflow-router.md), 용어는 [`docs/plugin/terms.md`](../../docs/plugin/terms.md) 를 따른다.
-
-> 🔴 **분기 규칙 SSOT** — `/impl` 내부의 direct / design-doc, retry, review provider 설명은 [`impl-routing.md`](impl-routing.md) 가 소유한다. 본 파일은 실행 절차를 담는다.
-
-## 구현 모델 — 메인 구현 + 격리 리뷰
-
-일반 `/impl` 구현 주체는 **항상 메인**이다. 일반 `/impl` 은 별도 구현 agent 를 구현자로 호출하지 않는다. `dcness-implementation-chain` 과 `build-worker` 는 story/epic impl task 파일을 처리하는 [`/impl-loop`](../impl-loop/SKILL.md) 영역이다.
-
-격리되는 것은 review step 이며, `impl-validator` 는 read-only provider 분기 대상이다. 기본 review provider 는 구현자와 반대 진영이다.
-
-- `/impl` 메인 구현(Claude) → Codex CLI 가 있으면 Codex `impl-validator`, 없으면 Claude `impl-validator` 폴백.
-- `/impl-loop` build-worker 구현 → 구현 provider 의 반대 진영. codex-headless 구현이면 Claude 리뷰, claude-headless 구현이면 Codex 리뷰(불가 시 Claude).
-- `routing.json` 에 명시 provider 가 있으면 override 를 존중한다.
-- Codex wrapper 가 실행 중 비정상 종료해도 같은 provider 로 밀어붙이지 말고 Claude `impl-validator` 로 재시도한 뒤, 폴백 사실을 한 줄로 보고한다.
-
-## 입력 처리
-
-- **이슈번호/링크/파일/symbol/테스트 명령**: 실존을 확인하고 바로 구현한다.
-- **설계 문서 경로**: `begin-run impl --design-doc <경로>` 로 기록하고 받은 설계도대로 구현한다. design-doc 기반 구현 — 설계도 기반 구현에서도 구현은 여전히 메인이 직접 수행하고, review 만 격리 provider 로 보낸다. 이 기록은 mutation-time task scope 와 review 근거다.
-- **자연어뿐인 구현 요청**: 대화에서 원하는 동작과 repo 범위가 충분하면 `rg`로 관련 entrypoint/test를 찾아 direct로 진행한다. 이슈 등록 여부만 묻는 질문은 하지 않는다. 제품 의미가 둘 이상으로 갈려 결과가 달라질 때만 한 번 묻는다. 사용자가 이슈 추적도 요청하면 `/to-issue`를 사용한다.
-- **high-risk 신호**: 새 product feature/epic, 외부 dependency/API/SDK/model 선택, auth/security/PII/compliance, migration/destructive change, public API breakage, cross-module/cross-story interface 등은 "설계 선행을 권장"한다고 한 줄 경고한다. 사용자가 그대로 진행을 택하면 `/impl` 안에서 구현한다. LLM 판단만으로 `/spec`·`/design` 으로 되돌리지 않는다.
-- **신규 시각 구조 UI 작업**: UI 기준 확보 분기에서 목업부터 만드는 것을 권장한다고 한 줄 안내한다. 내부 `canvas-design` wrapper 로 확정 목업을 만들 수 있지만, 사용자가 "그냥 가" 또는 "목업 없이"라고 하면 기존 `ux-flow` / 확정본이 있으면 참고하고, 없으면 메인이 구현한다.
-
-UI 기준 확보 분기 echo:
+`/impl`의 기본 구현자는 메인이다. 별도 구현 sub-agent나 headless worker를 먼저 만들지 않는다. 격리되는 것은 GREEN 이후 review뿐이다.
 
 ```text
-UI 기준: 기준 있음 — 사용자 제공 이미지·스케치·HTML 또는 기존 확정본을 구현 입력으로 사용
-UI 기준: 신규 시각 구조 + 기준 없음 — 목업 선행 권장, 동의 시 canvas-design 으로 확정본 승격
-UI 기준: 시각 구조 불변 — 목업 없이 구현
+target 확인 → 격리 → focused read → RED/첫 edit
 ```
 
-## Step 0 — 최소 실존 검증 후 즉시 착수
+후기 절차를 미리 정합하려고 멈추지 않는다. validator provider, Cartography freshness, target issue close audit, commit/PR/CI/merge 상세는 GREEN 뒤에만 [`impl-finish.md`](impl-finish.md)를 읽어 수행한다. direct/design-doc·위험 분기가 실제로 필요할 때만 [`impl-routing.md`](impl-routing.md)를 읽는다.
 
-추측으로 시작하지 않는다.
+## 질문 경계
 
-- GitHub issue/PR 이 입력이면 `gh issue view <N> --comments` 또는 `gh pr view <N>` 로 본문과 댓글을 확인한다.
-- 파일/symbol 입력이면 `rg` / 부분 read 로 현재 상태를 확인한다.
-- 선행 조건/의존 PR 이 있으면 merge 여부를 확인한다.
-- GitHub issue 번호가 대상이면 구현 실행 전 [`issue-lifecycle.md`](../../docs/plugin/issue-lifecycle.md#issuelabel-status-lifecycle)에 따라 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 Project `Status=In progress` 도 best-effort 로 미러한다.
-- repo 전체 탐색, boundary 후보 scan, generated TDD 설치 확인, 경로 preview를 착수 앞에 두지 않는다. 실제 lint/build/test 명령과 PR helper는 각각 필요한 실행 경계에서 찾는다.
+묻지 않고 진행한다:
 
-GitHub issue 가 대상이면 이 진입 preflight 에서 한 번 읽은 본문을 run 전체의 **target GitHub issue AC** snapshot 으로 재사용한다. 각 AC 에 구현 범위와 검증 증거를 대응시키고, task/commit/validator 단계마다 issue 를 반복 조회하지 않는다. `[command]` 는 명령과 종료코드, `[agent-read]` 는 읽은 산출물·diff·계약과 관찰 사실로 판정한다. AC가 없거나 검증 주체가 미기재됐으면 close 전에 현행 typed AC로 갱신하고, agent가 의미를 임의 추론해 체크·재분류하지 않는다. `구현이 완료된다`나 `정상 동작한다` 같은 일반론은 snapshot 에서 구체적인 관측 조건으로 교체해 구현 계약으로 쓰되 사용자 판단 없이는 구체화하지 않는다.
+- concrete issue/handoff/design-doc에 target·scope·검증이 이미 확정된 경우
+- 관련 파일과 test seam 탐색, 구현 방식 선택, 기계적 경로 오타 교정
+- 미래 story·out-of-scope 대안·후기 review/close 요구
+- 일반 test/lint 실패와 같은 범위의 재시도
 
-첫 진행 이정표는 위 최소 확인 직후 바로 남긴다.
+한 번 질문하는 경우는 제품 의미가 실제 결과를 둘 이상으로 가르거나, repo 밖 접근·새 dependency/secret·보안·데이터 파괴·hard boundary 변경처럼 새 권한이 필요한 때뿐이다. merge 승인은 사용자가 소유한다. 확정된 handoff나 사용자 선택을 다시 열어 wiki/web 조사나 설계 선택지로 되돌리지 않는다.
+
+fresh executor는 기본값도 자동 복구값도 아니다. decision-heavy A/B 실측이 main-direct보다 시간과 정확성에서 우세하다고 증명되기 전에는 같은 메인이 계속 구현한다.
+
+## 즉시 착수
+
+### 1. target 최소 확인
+
+- GitHub issue/PR이면 본문과 댓글을 한 번 읽고 target GitHub issue AC snapshot을 보관한다. AC가 없거나 검증 주체가 없으면 close 때 현행 typed AC로 갱신하며 의미를 임의 추론하지 않는다.
+- 파일/symbol이면 `rg`와 관련 부분만 읽는다.
+- 명시된 선행 PR이 있으면 merge 여부만 확인한다.
+- repo 전체 scan, branch naming 문서, 전체 SSOT, wiki/web, validator/provider, generated TDD 설치 상태는 읽지 않는다.
+- issue lifecycle state 변경은 기존 helper가 있으면 격리와 같은 첫 실행 묶음에서 처리한다. 그 helper 구현을 조사하지 않는다.
+
+첫 메시지는 다음 한 줄이면 충분하다.
 
 ```text
 착수: <target> 확인 · worktree 준비 · RED/첫 edit 진행
 ```
 
-## 질문 budget과 자율 복구
+### 2. 격리와 run 시작
 
-다음은 묻지 않고 처리한다: 관련 파일/테스트 탐색, 구현 방식 선택, task scope의 기계적 경로 오타 교정, 이미 설계 문서 `### 수정 허용`에 든 비표준 경로, recoverable timeout/empty prose, 일반 test/lint 실패, 같은 범위의 재시도.
+- 사용자가 “워크트리 없이”라고 하지 않았으면 즉시 `EnterWorktree`를 사용한다.
+- worktree 진입 뒤 모든 read/edit/test 경로를 새 cwd 기준으로 다시 잡는다.
+- 그 worktree에서 `dcness-helper begin-run impl --lane lite` 또는 design-doc 입력이면 `begin-run impl --design-doc <path>`를 한 번 실행한다.
+- 브랜치·커밋 네이밍은 commit 경계의 기존 hook을 우선한다. RED 전에 naming SSOT를 읽지 않는다.
 
-질문은 제품 의미가 실제로 둘 이상일 때, repo 밖 접근·새 dependency/secret/보안·데이터 파괴처럼 새 권한이나 위험 수용이 필요할 때, 자동 복구 한도를 소진했을 때, merge 승인처럼 사용자가 소유한 결정일 때만 한다. hard boundary를 자동으로 넓히거나 `tdd-exempt`를 자동 삽입하지 않는다.
+### 3. focused read
 
-같은 기계적 명령·판정·복구가 run 안에서 반복되면 메인이 같은 절차를 다시 타이핑하지 않는다. 기존 프로젝트 script/helper에 입력과 종료 조건을 묶어 재실행 가능하게 만들고, 대체된 일회성 helper·분기·문서는 같은 변경에서 삭제한다.
+- issue/handoff가 지정한 pointer와 test seam만 읽는다.
+- 파일을 통째로 읽기 전에 `rg`로 symbol과 기존 테스트를 찾는다.
+- 구현에 필요한 signature·인접 코드까지만 확장한다.
+- 사용자 선택이 이미 확정된 run은 선택 확정 뒤 blocking assistant turn 2회 안에 RED 또는 첫 edit를 만든다.
+- concrete pointer path가 주어졌으면 다음 순서를 바꾸거나 쪼개지 않는다.
+  1. 첫 tool call은 pointer만 읽어 exact source·test path를 얻는다. repo 탐색을 섞지 않는다.
+  2. 둘째 tool call 하나에서 그 exact source와 matching test를 함께 읽는다. 별도 `Read`, `find`, `ls`, 디렉터리별 `grep`/`cat`을 추가하지 않는다.
+  3. 다음 tool-bearing turn은 RED test 또는 첫 edit다.
+- source·test exact path까지 처음부터 주어졌으면 1·2를 한 tool call로 합친다.
 
-## Step 1 — 구현 완료조건
+### 4. RED → 구현 → GREEN
 
-메인 직접 구현도 [`build-worker` 완료 기준](../../docs/plugin/agents/build-worker/build-worker-agent.md)과 같은 수준의 완료조건을 만족해야 종료한다.
+- 테스트 가능한 변경은 실패 테스트를 먼저 작성하고 실제 RED를 확인한다.
+- docs-only·단순 설정처럼 테스트할 수 없으면 skip 사유를 한 줄 남긴다.
+- 메인이 직접 구현한다. 구현 중 routine 선택을 질문으로 올리지 않는다.
+- 관련 lint/build/test/typecheck/compile을 실제 실행한다.
+- 첫 edit 뒤 `진행: RED/첫 edit 확인`, green 뒤 `진행: 구현·검증 green · review 시작`만 알린다.
 
-- **TDD 신뢰성**: 테스트 가능한 코드 변경은 테스트를 먼저 RED 로 확인하고, 구현 후 GREEN 을 실제 실행으로 확인한다. docs-only / 단순 설정 변경은 TDD skip 사유를 남긴다.
-- **자체 검증 실제 실행**: lint/build/test/typecheck/compile 게이트를 명령 실제 실행 + 종료코드로 판정한다. 코드 읽기만으로 PASS 처리하지 않는다. 실행 불가 시 `VALIDATION_BLOCKED` 로 남기고 가능한 환경에서 복원한다.
-- **동작 증거**: 핵심 AC 를 mock-only green 으로 닫지 않는다. AC 성격에 맞게 정적 타입검사/compile, 실데이터 통합테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 중 적절한 증거를 확보한다.
-- **경계**: 변경 파일이 impl scope / 권한 경계 안에 있어야 한다.
-- **커밋**: green 변경은 독립 검토 가능한 단위 commit 으로 닫는다.
-- **UI**: 확정 목업이 있으면 레이아웃·상태·`design:required` 토큰 정합을 대조하고 보고한다.
-- **Cartography impact**: 구현 결과에서 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after와 증거, 관련 epic/decision의 변화 여부를 자유 prose로 남긴다. 영향이 없으면 `영향 없음`과 대조한 Root 좌표를 명시한다.
-- **target issue AC**: 대상 GitHub issue 가 있으면 typed target GitHub issue AC 전항목 충족과 자동 판정 가능한 체크박스 전부 check가 공통 자동 종료 조건이다. 하나라도 미충족·미체크면 `require-complete` 감사가 실패하므로 clean 마감, `Closes` PR 머지, 완료 보고를 금지한다. checklist와 분리된 사람 확인 항목은 human verification 대기이며 이 계약은 계획 파일 유무와 무관하다.
+## GREEN 이후
 
-### Cartography freshness boundary
+관련 검증이 GREEN이 된 뒤에만 [`impl-finish.md`](impl-finish.md)를 읽고 다음을 마친다.
 
-direct와 design-doc 구현 모두 메인이 작성한 Cartography impact, merge candidate diff, affected Root Cartography 좌표, 관련 epic/decision을 `impl-validator` 입력에 전달한다. `impl-validator`는 읽기 전용이므로 직접 문서를 수정하지 않으며, 메인이 prose를 읽어 다음 세 결과로 분기한다.
+1. 동작·경계·Cartography impact 증거 수집
+2. 격리 `impl-validator`와 최대 3회 root-cause 수정
+3. 의미 단위 commit, PR, CI
+4. target GitHub issue AC close audit와 최종 보고
 
-- **영향 없음 또는 Root와 일치**: 기존 review/PR 경로를 계속한다.
-- **system boundary는 유지되지만 route/state/as-built edge가 stale**: 기존 `module-architect`를 workflow 내부 `CARTOGRAPHY_REFRESH` producer로 호출한다. affected Root 좌표만 bounded하게 갱신하고 system boundary나 impl task를 재설계하지 않는다. tracked docs는 현재 branch/PR 정책으로 반영하고, local-only/ignored 문서는 code PR에 강제 포함하지 않은 채 canonical local Root를 갱신하거나 exact affected 좌표·상태 증거를 durable impact handoff로 보존한다. durable impact handoff만으로 freshness가 해소되지는 않으며, 그 뒤 같은 merge candidate diff와 갱신된 Root를 `impl-validator`가 재검증해야 한다.
-- **system boundary·global decision 변경**: route-only patch로 흡수하지 않는다. clean 진행을 멈추고 `/design --revise` 또는 system checkpoint backpressure와 영향 범위를 사용자에게 제시한다. 사용자의 구현 지시를 무시한 자동 재설계는 하지 않는다.
+GREEN 전에는 이 후기 진본이나 그 포인터가 가리키는 문서를 선행 read하지 않는다.
 
-standalone acceptance가 생략 가능한 direct `/impl`에서는 이 `impl-validator` 종료 경계가 최소 freshness 책임이다. 미해소 route-only stale이나 system backpressure가 있으면 commit/PR clean 판정으로 진행하지 않는다.
+## 안전 불변식
 
-## Step 2 — 실행 절차
-
-1. branch/worktree 격리
-   - git-spec 이 있으면 [`git-spec.md`](../../docs/plugin/git-spec.md) 패턴을 따른다.
-   - 사용자가 "워크트리 없이"라고 하지 않으면 worktree 격리를 기본으로 한다.
-   - worktree 진입 후 Read/Edit/Write 대상은 worktree 절대경로 또는 worktree cwd 상대경로로 다시 잡는다.
-   - 종료 시 `ExitWorktree` 정리 판단은 [`loop-procedure` worktree 분기](../../docs/plugin/loop-procedure.md#worktree-분기-action-루프-한정)를 따른다. 커밋 diff 흡수와 clean worktree 가 모두 확인될 때만 remove/discard 하고, dirty 상태는 keep 한다.
-2. 테스트 선작성
-   - 테스트 가능한 코드 변경은 구현 전에 실패 테스트를 먼저 쓴다.
-   - docs-only / 단순 설정 변경은 TDD skip 사유를 명시한다.
-   - RED 확인 또는 skip 사유 확정 시 `진행: RED 확인 · 구현 시작` 이정표를 남긴다.
-3. 구현
-   - 메인이 직접 Edit/Write 한다. 별도 구현 agent 를 호출하지 않는다.
-4. lint/build/test green
-   - 프로젝트에 실제 존재하는 명령만 실행한다.
-   - 하나라도 red 면 commit/PR 로 가지 않는다.
-   - green 확보 시 `진행: 구현 완료 · 검증 green · review 시작` 이정표를 남긴다.
-5. `impl-validator` review
-   - `begin-run impl` 또는 `begin-run impl --design-doc <경로>` → mode 없는 foreground Claude `impl-validator`는 lifecycle hook으로 merge candidate를 리뷰한다. Codex/headless wrapper 또는 modeful 호출만 명시적 `begin-step`을 연다.
-   - 검토 대상이 커밋으로 존재하면 커밋 id와 변경 파일 목록을 1급 입력으로 선행 전달하고, validator가 `git show` / `git diff` / `git log`로 커밋 진본을 직접 펼치게 한다. 호출자는 별도 diff 파일을 덤프하지 않는다. 커밋이 없는 uncommitted local diff일 때만 diff 파일 전달을 폴백으로 사용한다.
-   - prompt에 위 리뷰 대상, 메인의 Cartography impact 자유 prose, affected Root Cartography 좌표, 관련 epic/decision을 필요한 만큼 넣는다.
-   - provider 가 `codex` 이면 `dcness-codex-validator impl-validator` wrapper 를 사용한다.
-   - Codex CLI 부재나 wrapper 비정상 종료 시 Claude `impl-validator` 로 폴백하고 폴백 사실을 보고한다.
-   - review-only 다. 코드 수정은 메인이 한다. PASS 전 commit/PR 로 가지 않는다.
-6. finding 및 Cartography freshness 수정 루프
-   - 최대 3회. finding 의 줄만 고치지 말고 root cause 와 같은 계열 결함을 함께 확인한다.
-   - route/state/as-built edge stale은 `module-architect:CARTOGRAPHY_REFRESH` 후 impl-validator 재검증하고, system boundary/global decision 변경은 `/design --revise` 또는 system checkpoint 사용자 backpressure에서 멈춘다.
-   - producer 실행은 `begin-step module-architect CARTOGRAPHY_REFRESH`로 열고, 결과 prose를 `end-step module-architect CARTOGRAPHY_REFRESH --prose-file <cartography-refresh-prose>`로 기록한다. `PASS`이면 같은 merge candidate diff와 갱신 Root로 mode 없는 foreground `impl-validator` lifecycle hook 재검증을 열며, `SYSTEM_CHECKPOINT_REQUIRED`이면 Root patch를 적용하지 않고 backpressure에서 멈춘다.
-   - 각 round 마다 lint/build/test 재통과 후 `impl-validator` 재호출.
-7. 단위 commit + PR 생성
-   - 의미 단위 커밋 분할은 [`git-spec.md#의미-단위-커밋-분할`](../../docs/plugin/git-spec.md#의미-단위-커밋-분할)이 SSOT 다. hook 우회 금지.
-   - 독립 검토 가능한 의미 단위로 commit 을 나누고, 각 커밋은 hook 을 통과해야 한다.
-   - PR body 는 template, 관련 issue trailer, 배경/문제, 근본원인, 작업내용, 결정근거, Test Plan 을 포함한다.
-   - dcNess plugin 배포물 변경이면 PR body 에 배포 경로 검증을 적는다.
-8. CI / merge policy
-   - PR 생성 후 CI 를 확인한다.
-   - CI green 과 최종 review 증거가 확정된 뒤, target issue 를 `Closes` 하는 PR 경계에서 메인이 보관한 AC 증거를 전수 대조한다. `Closes` 대상이 여러 개면 issue 별로 모두 수행한다. 자동 판정 가능한 typed 항목을 모두 충족한 뒤 이슈 본문 체크박스 write 를 issue 별 close 경계에서 한 번 수행하고, 같은 body 를 `node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" --body-file <issue-body.md> --acceptance-only --require-complete` 로 감사한다. 정확한 `PASS`만 자동 close 경로를 열며, 사람 확인 항목은 checklist 밖에서 완료될 때까지 merge를 멈춘다. 진행 중에는 issue mutation 을 하지 않는다.
-   - 머지는 host repo 정책을 따른다. 사용자 승인 대기 정책 repo 에서는 임의 머지하지 않는다.
-
-최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다. TDD 게이트는 삭제하지 않는다.
-
-사람이 직접 판정해야 하는 항목은 `Human verification / 사람 확인 안내`에 체크박스 없이 있어야 한다. 기존 이슈의 AC 체크박스에 사람 판정 항목이 남아 있으면 agent 가 체크하지 않는다. 자동 항목을 모두 충족·체크한 뒤 잔여 human verification 목록을 보고하고 merge 전에 정지한다. 이 상태는 구현·자동 검증 실패를 뜻하는 `blocked` 가 아니라 `human verification 대기`다.
-
-## Sub-agent prompt 작성 checkpoint (#780)
-
-`impl-validator` review를 격리 provider로 호출하기 전에 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)를 직접 읽고 3슬롯을 점검한다. 이 정적 checkpoint는 `begin-step` stdout relay가 아니다. foreground Claude Agent의 worktree 절대경로는 SubagentStart lifecycle context가 첫 prompt 전에 전달하고, headless wrapper는 자기 prompt에 직접 합성한다.
-
-- **대상 + 읽을 진본**: 이슈·설계도·task 파일·merge candidate diff·Cartography impact·affected Root Cartography 좌표·관련 epic/decision 등 agent 가 자체 read 할 SSOT 포인터만 둔다.
-- **리뷰 대상 전달 우선순위**: 커밋이 있으면 커밋 id와 변경 파일 목록을 선행 전달한다. diff 파일은 커밋이 없는 uncommitted local diff의 폴백으로만 전달한다.
-- **worktree**: foreground Claude Agent는 SubagentStart hook, headless는 wrapper가 동적으로 넣는다. 메인은 Bash stdout을 prompt로 재전달하지 않는다.
-- **이 호출 특유**: 진본에 없는 제약·신호만 둔다.
-- **방법 처방 금지**: 구현 방식, 테스트 assert 방식, 알고리즘 같은 방법 처방은 넣지 않는다.
-
-## Review Provider
-
-`impl-validator` provider resolve 예시:
-
-```bash
-PLUGIN_ROOT=""
-if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
-  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
-else
-  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
-fi
-[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
-HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
-PROVIDER=$("$HELPER" routing resolve impl-validator)
-if [ "$PROVIDER" = "codex" ]; then
-  if command -v codex >/dev/null 2>&1; then
-    "$PLUGIN_ROOT/scripts/dcness-codex-validator" impl-validator --prompt-file "$PROMPT_FILE" \
-      || Agent(subagent_type="impl-validator", ...)
-  else
-    echo "[dcness] Codex unavailable; falling back to Claude impl-validator"
-    Agent(subagent_type="impl-validator", ...)
-  fi
-else
-  Agent(subagent_type="impl-validator", ...)
-fi
-```
-
-최초 resolve한 `PLUGIN_ROOT`/`HELPER` 절대경로는 이후 독립 Bash 호출에 literal로 넣는다. 서로 다른 Bash tool 호출 사이에서 shell 변수가 지속된다고 가정하지 않는다.
-
-Codex 분기는 review provider 구현일 뿐 별도 public workflow 가 아니다. Codex wrapper receipt 는 실제 provider 를 `codex-headless` 로 기록한다.
-
-## 종료 보고
-
-최종 보고에는 구현 경로, review provider, 변경 요약, 검증 명령 결과, review round 수, PR URL 을 포함한다. 실패 시에는 남은 finding 과 다음 판단 지점을 명확히 쓴다.
-
-helper 기반 `begin-run impl` 이 열린 경로에서는 대표 workflow 종료 시 `"$HELPER" end-run` 으로 review.md 를 만들며, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션이 포함된다. 이 섹션은 제안만 출력하고 CLAUDE.md/AGENTS.md 를 자동 수정하지 않는다.
-
-대표 구현 workflow 완료 후 메인이 이슈 등록, cleanup, 측정 같은 자율 작업으로 이어갈 때는 진입 전 `dcness-helper post-task-begin --reason "<사유>"` 를 호출한다. 이 marker 는 task ROI 측정 분리를 위한 #472 계약이다.
+- TDD, lint/build/test, hard boundary, branch→PR, 격리 review, CI를 제거하지 않는다.
+- `tdd-exempt`나 boundary 확대를 자동 삽입하지 않는다.
+- 대체한 helper·분기·문서·테스트는 같은 변경에서 삭제하고 옛 이름·호출 예시가 남지 않았는지 `rg`로 확인한다.
+- 새 공개 command/skill/agent를 추가하지 않는다.
 
 ## 참조
 
-- 용어 사전: [`docs/plugin/terms.md`](../../docs/plugin/terms.md)
-- 공개 진입점: [`docs/plugin/positioning.md`](../../docs/plugin/positioning.md)
-- 진입점 분기 규칙: [`docs/plugin/workflow-router.md`](../../docs/plugin/workflow-router.md)
-- 구현 분기 규칙: [`impl-routing.md`](impl-routing.md)
-- branch / commit / PR: [`docs/plugin/git-spec.md`](../../docs/plugin/git-spec.md)
+- 초기 위험 분기(필요할 때만): [`impl-routing.md`](impl-routing.md)
+- GREEN 이후 마감(필요할 때만): [`impl-finish.md`](impl-finish.md)
+- 기본/고급 공개 진입점: [`positioning.md`](../../docs/plugin/positioning.md)

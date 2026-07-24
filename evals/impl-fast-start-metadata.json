@@ -1,0 +1,154 @@
+{
+  "schema_version": 1,
+  "issue": 1190,
+  "measured_at": "2026-07-24",
+  "source_project": "Daeguk-Sun/alrimjang",
+  "runtime": {
+    "claude_code": "2.1.215",
+    "model": "claude-sonnet-5",
+    "effort": "medium",
+    "provider": "claude-main"
+  },
+  "fixture": {
+    "id": "alrimjang-fast-start-probe",
+    "ab_commit": "fc092581f121faa391bbee354df4be0f8232bb04",
+    "loop_commit": "6f35f3d3eaa669c54ddf729fcf0b248bd31ee822",
+    "contract_sha256": "78df5e03e1f9b4e812aa2722c77dbee3b6674edf81e6aa9304d52f873577628d",
+    "product_ac": "The first RED test asserts outer trim plus collapsed internal whitespace."
+  },
+  "impl_main_direct": [
+    {
+      "session_id": "34c930f7-307f-4572-91d3-16ffbf3c1c34",
+      "trace_sha256": "9115a26bf763730f837538ada15eb615787941016f0eedbc11328829ba8b623e",
+      "time_to_first_edit_seconds": 9.964,
+      "blocking_assistant_requests": 2,
+      "all_total_input_tokens": 175125,
+      "all_output_tokens": 696,
+      "product_ac_passed": true
+    },
+    {
+      "session_id": "768c1a54-ebc0-4d3c-8e9a-7981ad129731",
+      "trace_sha256": "3c5e21a573c4099ecac139b92f11ca2260a1ef46bef3bbaa9a4d6f194d8e7245",
+      "time_to_first_edit_seconds": 12.616,
+      "blocking_assistant_requests": 2,
+      "all_total_input_tokens": 175400,
+      "all_output_tokens": 677,
+      "product_ac_passed": true
+    },
+    {
+      "session_id": "fc0b16d3-7037-494b-8f32-b74154433386",
+      "trace_sha256": "fe0f6da791ad46d96e4d0f5365c2fc59efbd6a272857805c2135a07783f190bd",
+      "time_to_first_edit_seconds": 8.627,
+      "blocking_assistant_requests": 2,
+      "all_total_input_tokens": 175078,
+      "all_output_tokens": 715,
+      "product_ac_passed": true
+    }
+  ],
+  "impl_fresh_executor": {
+    "prompt_fields": [
+      "target",
+      "confirmed_choice",
+      "scope",
+      "test",
+      "ssot_pointer"
+    ],
+    "excluded_prompt_context": [
+      "past_transcript",
+      "review_procedure",
+      "close_procedure"
+    ],
+    "trials": [
+      {
+        "session_id": "213280ca-b64c-43f8-94f3-e7d6d7096cc9",
+        "trace_sha256": "6a75354fac7b6c0bc1686f2bc6556c007307f874ce1f990507c91e63f6850dca",
+        "time_to_first_edit_seconds": 17.527,
+        "blocking_assistant_requests": 2,
+        "all_total_input_tokens": 221690,
+        "all_output_tokens": 170,
+        "product_ac_passed": true
+      },
+      {
+        "session_id": "7c84c41a-2735-495e-9065-1119814c6a73",
+        "trace_sha256": "70a237b165d8413d4f694af35b6765e7b7dfa1c3d4ced0c1d1132c06b6ea247a",
+        "time_to_first_edit_seconds": 18.513,
+        "blocking_assistant_requests": 1,
+        "all_total_input_tokens": 154086,
+        "all_output_tokens": 744,
+        "product_ac_passed": true
+      },
+      {
+        "session_id": "9b460da8-5866-45ef-bb22-b817e8d2eff7",
+        "trace_sha256": "27235bd9ad57f52babd9a3c45a71de81f1a3c56c73e56886dde394ed0f650d02",
+        "time_to_first_edit_seconds": 18.272,
+        "blocking_assistant_requests": 2,
+        "all_total_input_tokens": 219431,
+        "all_output_tokens": 130,
+        "product_ac_passed": true
+      }
+    ]
+  },
+  "ab_decision": {
+    "main_direct_median_first_edit_seconds": 9.964,
+    "fresh_executor_median_first_edit_seconds": 18.272,
+    "quality_regressed": false,
+    "default": "main-direct",
+    "conditional_fresh_executor": false,
+    "reason": "Fresh execution was accurate but slower and used more median all-executor input."
+  },
+  "impl_loop_real_forks": [
+    {
+      "session_id": "1eded949-7d58-4d2a-bd23-c0c6d7229514",
+      "run_id": "run-2584b584",
+      "trace_sha256": "753c3987d238b7378cd0e719caedcf777acdecf89c573e976acd4fdd99227433",
+      "request_start": "2026-07-24T03:22:52.442000+00:00",
+      "step_started": "2026-07-24T03:23:03+00:00",
+      "log_birth": "2026-07-24T03:23:03.996685+00:00",
+      "process_fork": "2026-07-24T03:23:03.997939+00:00",
+      "seconds_to_fork": 11.556,
+      "provider_pid": 12655,
+      "provider_log_sha256": "274caacbec974ce4b176cc6c87d6f192fe6243ba90c1ca1ba7ba42697d74fbb4"
+    },
+    {
+      "session_id": "448774a3-e818-4add-b989-54db0f217cbe",
+      "run_id": "run-180b6c44",
+      "trace_sha256": "5c140a5c6fbc8f71e4f42eead2c09c927782f3bb70ea3196e55350d8bbc11bec",
+      "request_start": "2026-07-24T03:23:43.094000+00:00",
+      "step_started": "2026-07-24T03:24:00+00:00",
+      "log_birth": "2026-07-24T03:24:01.052070+00:00",
+      "process_fork": "2026-07-24T03:24:01.053597+00:00",
+      "seconds_to_fork": 17.96,
+      "provider_pid": 14276,
+      "provider_log_sha256": "5bd16c274ab850996d8dc78cacc3812a38ff78824cc7849a46ff9ac100eb3b1c"
+    },
+    {
+      "session_id": "ce8081c9-a254-44b9-a39e-9db237d4e301",
+      "run_id": "run-d3d3d3a4",
+      "trace_sha256": "fd9f2a3f1a6ec3fcd18ed7f4728f0fe9381d42dfb8686a58b8807475133cba72",
+      "request_start": "2026-07-24T03:24:20.225000+00:00",
+      "step_started": "2026-07-24T03:24:30+00:00",
+      "log_birth": "2026-07-24T03:24:31.277577+00:00",
+      "process_fork": "2026-07-24T03:24:31.279156+00:00",
+      "seconds_to_fork": 11.054,
+      "provider_pid": 15431,
+      "provider_log_sha256": "fcfdc94f448b3a116839a74aad83d7ab053e813a12a31141c00060c25c758e2a"
+    }
+  ],
+  "terminal_receipt_evidence": {
+    "scope": "isolated integration replay because non-interactive Claude print mode terminates background jobs after returning the launch receipt",
+    "tests": [
+      "tests.test_impl_loop_launch.ImplLoopLaunchTests.test_one_call_initializes_in_worktree_and_starts_step_before_provider",
+      "tests.test_impl_loop_launch.ImplLoopLaunchTests.test_completed_current_run_is_idempotent_without_second_provider_fork",
+      "tests.test_impl_loop_launch.ImplLoopLaunchTests.test_missing_canonical_phase_prose_recovers_without_duplicate_step"
+    ],
+    "required_ledger": [
+      "run_started",
+      "step_started",
+      "step_completed"
+    ]
+  },
+  "measurement": {
+    "tool": "scripts/measure_main_turns.py",
+    "claim_boundary": "Repeated frozen-fixture screening supports only the /impl ownership decision and the measured external /impl-loop fork boundary; it is not provider or model superiority evidence."
+  }
+}

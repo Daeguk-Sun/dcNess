@@ -63,13 +63,13 @@ echo "[<entry>] run started: $RUN_ID"
 
 `--acceptance-required` — story/epic 마감 task 처럼 `impl-validator` 뒤 inline `product-acceptance` 를 거쳐야 run 이 정상 종료되는 경우에만 기록한다. Stop hook 은 이 marker 가 있는 `entry_point=impl` run 에서 `impl-validator` 를 종료 agent 로 취급하지 않고 product-acceptance 진입 turn 을 재발화한다. 중간 task / `--no-acceptance` run / verify-only run 은 이 플래그를 주지 않는다. chain 의 다음 task 진입은 `next-task --acceptance-required` 로 동일 기록한다.
 
-> `/impl-loop` 의 **chain 모드(N task)** 는 자기 run 을 갖지 않는 driver 다 — `impl-task-loop × N` 이므로 각 task 가 독립 `begin-run impl` … `end-run` run 1개씩 (N task = N run = N review.md). **single 모드(1 task)** 는 `impl` entry_point 로 run 1개. 자세히 = [`/impl-loop`](../../skills/impl-loop/SKILL.md).
+> `/impl-loop` driver 자체는 run을 갖지 않는다. single/chain 모두 implementation chain이 task마다 독립 `begin-run impl`과 terminal receipt를 만들며, merge candidate `impl-validator` 통합 review는 모든 target task가 completed 된 뒤 1회 수행한다. 자세한 시작은 [`/impl-loop`](../../skills/impl-loop/SKILL.md), 마감은 [`impl-loop-finish.md`](../../skills/impl-loop/impl-loop-finish.md)가 소유한다.
 
 ---
 
 ## Step 1 — TaskCreate
 
-해당 skill 의 `## Loop` 의 `task_list` 필드대로 일괄 등록. **단 `/impl-loop` chain 모드 아래의 `impl` run 은 TaskCreate skip** — task 리스트는 impl-loop skill 이 진행 뷰로 일괄 관리한다 ([진행 뷰](../../skills/impl-loop/SKILL.md#진행-뷰-task-리스트)). impl run 은 이미 생성된 sub-step task 를 TaskUpdate 만 한다.
+해당 skill 의 `## Loop` 의 `task_list` 필드대로 일괄 등록한다. **단 `/impl-loop`는 이 절을 적용하지 않는다.** story runner state와 implementation chain의 lifecycle receipt가 진행 진본이므로 worker 시작 전에 `TaskCreate`/`TaskUpdate`를 만들지 않는다.
 
 ```
 TaskCreate("<agent>: <mode 또는 짧은 설명>")
@@ -99,7 +99,7 @@ Agent tool input을 만들기 **전** [`agent-prompt-slots.md`](templates/agent-
 
 active run(`entry_point=design|impl|ux`)의 mode 없는 foreground Claude Agent는 PreToolUse가 순서/호출 적합성을 검사하고 correlation intent만 둔다. sibling PreToolUse hook이 deny하면 `SubagentStart`가 발화하지 않으므로 `step_started`도 없다. 실제 spawn 뒤 `SubagentStart`가 `tool_use_id`와 `agent_id`를 current step에 묶고, `PostToolUse Agent`는 `status=completed`인 비어 있지 않은 최종 prose만 `<run_dir>/<agent>.md`에 저장해 `step_completed` receipt를 만든다. `async_launched`, Agent 실패, 빈 prose는 `step_completed`를 만들지 않으며 시작된 foreground step은 `step_aborted` 진단으로 닫힌다. 같은 lifecycle payload 재전달은 멱등이고 identity가 current step과 다르면 prose/receipt append 전에 거부한다.
 
-modeful Claude Agent는 공개 Agent tool field로 mode를 안정 전달할 수 없으므로 Agent 호출 전에 `begin-step <agent> <mode>`를 명시한다. `SubagentStart`가 그 step에 spawn identity를 bind하고 성공 `PostToolUse`가 완료를 기록하므로 메인의 별도 `end-step`은 없다. Codex/Claude headless wrapper는 기존처럼 자기 경로의 `begin-step`/`end-step` 소유권을 유지한다.
+modeful Claude Agent는 공개 Agent tool field로 mode를 안정 전달할 수 없으므로 Agent 호출 전에 `begin-step <agent> <mode>`를 명시한다. `SubagentStart`가 그 step에 spawn identity를 bind하고 성공 `PostToolUse`가 완료를 기록하므로 메인의 별도 `end-step`은 없다. `/impl-loop` headless build-worker는 implementation chain이 provider fork 전에 `begin-step`을 정확히 한 번 기록하고 worker wrapper가 성공 `end-step`을 기록한다. 메인이 둘 중 어느 것도 선행 호출하지 않는다.
 
 이 순서 검사는 `entry_point=design|impl|ux` 에 공통이다. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 lifecycle 검사를 탄다.
 
@@ -126,7 +126,7 @@ fi
 
 Codex wrapper 는 설치된 `dcness-<agent>/SKILL.md` 내용을 prompt 에 직접 포함한 뒤 `codex exec -C "$PROJECT_ROOT" -s read-only` 로 실행한다. 마지막 응답은 `/tmp` prose 파일에 받은 뒤 `dcness-helper end-step <agent> --provider codex-headless --prose-file ...` 로 저장한다. 따라서 Codex 분기 경로에서는 메인이 별도 `end-step` 을 한 번 더 부르지 않는다. Claude Agent의 완료는 PostToolUse lifecycle hook이, Codex wrapper의 완료는 wrapper가 소유하며 둘 다 메인이 prose를 읽어 집계한다. wrapper가 end-step까지 수행해도 counter 소유자는 메인이다. `DCNESS_CODEX_MODEL` 을 설정하면 wrapper 가 `-m` 모델 override 를, `DCNESS_CODEX_EFFORT` 를 설정하면 `-c model_reasoning_effort=...` override 를 전달한다. 둘 다 미설정이면 사용자 Codex config 를 그대로 상속하며, dcNess 는 특정 Codex 모델명을 하드코딩하지 않는다. 분기 config 파일명은 `routing.json` 이고 repo 파일이 아니라 `~/.claude/plugins/data/dcness-dcness/routing.json` 에 있으며, validation 비활성/미설정 기본값은 Claude 다.
 
-**implementation provider 분기 (headless-chain 기본)**: `build-worker` 는 호출 직전 provider 를 resolve 한다.
+**implementation provider 분기 (headless-chain 기본)**: `/impl-loop` 메인은 provider resolve·state init·previous-task reset·run/step lifecycle을 각각 호출하지 않는다. feature worktree에서 implementation chain 한 호출이 순서대로 소유한다.
 
 ```bash
 PLUGIN_ROOT=""
@@ -136,33 +136,18 @@ else
   PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
 fi
 [ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
-HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
-
-PROVIDER=$("$HELPER" routing resolve <agent>)
-if [ "$PROVIDER" = "claude" ]; then
-  # mode가 있으면 Agent 전에 "$HELPER" begin-step <agent> <MODE>
-  Agent(subagent_type="<agent>", ...)
-else
-  rc=0
-  # /impl-loop는 이 Bash tool 호출을 run_in_background=true로 발행하고
-  # workspace/raw log 진행을 polling한다.
-  "$PLUGIN_ROOT/scripts/dcness-implementation-chain" <agent> [MODE] \
-    --provider "$PROVIDER" \
-    --provider-provenance routing \
-    --chain-state .dcness-work/story-run.json \
-    --prompt-file "$PROMPT_FILE" || rc=$?
-  if [ "$rc" -eq 75 ]; then
-    # mode가 있으면 Agent 전에 "$HELPER" begin-step <agent> <MODE>
-    Agent(subagent_type="<agent>", ...)
-  elif [ "$rc" -ne 0 ]; then
-    exit "$rc"
-  fi
-fi
+"$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker \
+  --chain-state .dcness-work/story-run.json \
+  --init-path <impl-task-1> \
+  --init-path <impl-task-N> \
+  --prompt-file "$PROMPT_FILE"
 ```
 
-`dcness-implementation-chain` 은 `headless-chain`(Codex headless → Claude headless → Claude main), `claude-headless`, `claude` 를 같은 routing config 로 실행한다. Headless wrapper 가 성공하면 마지막 응답을 저장하고 `end-step` 까지 수행한다. Codex headless worker 도 `DCNESS_CODEX_MODEL` / `DCNESS_CODEX_EFFORT` 가 설정된 경우에만 같은 override 를 전달하고, 미설정 시 사용자 Codex config 를 상속한다. workspace 변경 전 실패한 경우에만 다음 provider 로 넘어간다. workspace/HEAD 변경 뒤 `timeout`·`idle_timeout`·`empty_output`·`boundary_violation`·`tdd_guard`는 기존 diff를 보존하고 같은 provider/같은 workspace에서 기본 2회 bounded continuation하며 mutation-time guard를 다시 실행한다. 단, failure receipt에 `permission_required`가 함께 있으면 같은 권한으로 반복해도 해결되지 않으므로 첫 실패에서 사용자 승인 경로로 멈춘다. 복구 불가 category나 한도 소진은 자동 폴백·revert 없이 중단한다. 기본 total/idle timeout은 두 headless worker 모두 3000초/900초이며 호출 자체는 background로 실행해 foreground Bash timeout과 분리한다. chain 이 Claude main 에 도달하면 `FALLBACK_TO_CLAUDE_MAIN` 과 exit 75 를 반환하므로 메인이 기존 Agent 경로를 실행하고 성공 receipt는 PostToolUse lifecycle hook이 `provider=claude-main`으로 기록한다. raw headless session log 는 run 디렉터리의 `headless-logs/` 파일로 보존한다. 단, `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 와 active run scan 이 모두 실패하면 wrapper 는 telemetry 미귀속 상태를 경고하고 provider 실행을 계속하며, raw log 와 최종 prose 를 `.dcness-work/headless-logs/unattributed/` 에 남긴다. 이 degraded 경로에서는 `end-step` 기록 실패가 provider exit code 를 덮지 않는다. Claude headless wrapper 는 자식 `claude -p` 실행 전 부모 세션 식별 env 를 제거하되, `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 는 유지해 run 기록을 이어간다. Headless build-worker 가 `VALIDATION_BLOCKED` 를 보고하면 `ledger.jsonl` 에 `blocked` event 와 `category=headless_validation_blocked` 가 추가로 남으므로, 검증 명령 권한 문제 빈도는 `run-review` 또는 ledger 조회로 확인한다. Codex raw log가 좁은 sandbox 거부 signature와 일치하면 wrapper가 post-run boundary/TDD guard보다 먼저 `permission_required` receipt와 ledger evidence를 생성한다. guard도 실패한 경우 primary guard category와 permission receipt를 모두 보존한다. 이 경우 다음 호출 판단은 [`impl-loop-routing.md`](../../skills/impl-loop/impl-loop-routing.md)의 사용자 승인·Codex 1회 제한 재시도 경로를 따르며, 일반 메인 검증 대행이나 provider fallback으로 우회하지 않는다.
+`dcness-implementation-chain` 은 worktree/default-branch 검사를 state mutation보다 먼저 수행하고, story state·previous tasks·현재 task run·`step_started`를 한 번만 준비한 뒤 provider를 fork한다. wrapper는 `.dcness/tdd-hooks.json`을 scan 없이 prompt 계약으로 변환하고 canonical primary run directory 및 phase prose 절대경로를 주입한다. Codex에는 그 exact run directory만 추가 writable root로 연다. PASS 전 wrapper가 phase prose 3개, task boundary, post-run TDD guard를 검사한다. source mutation 전 환경 미충족 같은 routed non-PASS 결론은 phase prose clean 게이트로 재시도하지 않고 원래 terminal receipt를 보존한다.
 
-`/impl-loop`는 task 1개 single 모드도 `dcness-story-runner init`으로 one-task state를 만들고, single/chain 모드 모두 `--chain-state`를 넘겨 provider capability cache를 활성화한다. story-runner state의 `chain_id`가 수명 진본이며 cache sidecar는 같은 state 디렉터리의 `provider-failure-cache/<chain_id>.json`이다. 새 chain/reinit은 새 `chain_id`를 받고, 완료 chain은 cache를 소비하지 않으며 archive/force init 시 기존 sidecar를 무효화한다. state의 `project_root`가 현재 project/worktree와 다르면 실행을 거부한다. `/impl-loop`가 아닌 single `/impl`과 다른 project/worktree는 cache를 공유하지 않는다. sidecar update는 file lock과 atomic replace를 사용해 같은 chain의 동시 접근에도 JSON을 손상시키지 않는다.
+chain은 `headless-chain`(Codex headless → Claude headless → Claude main), `claude-headless`, `claude` 를 같은 routing config 로 실행한다. workspace 변경 전 실패만 다음 provider로 넘어간다. workspace/HEAD 변경 뒤 `timeout`·`idle_timeout`·`empty_output`·`boundary_violation`·`tdd_guard`·`phase_evidence`는 기존 diff를 보존하고 같은 provider/같은 workspace에서 기본 2회 bounded continuation한다. permission receipt가 있으면 첫 실패에서 사용자 승인 경로로 멈춘다. 복구 불가 category나 한도 소진은 자동 폴백·revert 없이 중단한다.
+
+`/impl-loop`는 single/chain 모두 implementation chain에 `--chain-state`와 전체 `--init-path`를 넘긴다. chain이 missing state를 story runner로 한 번 초기화하고, 같은 task 목록·project root 재호출은 기존 state를 재사용한다. state의 `chain_id`가 수명 진본이며 cache sidecar는 같은 state 디렉터리의 `provider-failure-cache/<chain_id>.json`이다. 완료 chain은 cache를 소비하지 않으며 archive/force init 시 기존 sidecar를 무효화한다. state의 `project_root`가 현재 project/worktree와 다르면 provider fork 전에 거부한다.
 
 worker가 `DCNESS_PROVIDER_FAILURE_FILE` 내부 JSON으로 전달하는 failure category 중 `cli_missing`, `auth_unavailable`, `config_unavailable`만 같은 chain에서 재시도 가치가 없는 cacheable capability 실패다. `timeout`, `idle_timeout`, `empty_output`, `boundary_violation`, `tdd_guard`, `interrupt`, `network_transient`, 그 밖의 `provider_error`와 agent의 구현/검증 결론은 cache하지 않는다. chain은 workspace/HEAD 불변을 다시 확인한 뒤에만 cache를 기록한다. cache hit 진단에는 provider, category, 최초 실패 `first_raw_log`, `scope=chain:<chain_id>`와 현재 skip log가 남는다.
 
@@ -172,7 +157,7 @@ worker가 `DCNESS_PROVIDER_FAILURE_FILE` 내부 JSON으로 전달하는 failure 
 
 **MUST.** 호출 직전 해당 `agent.md` 의 "입력" / "호출자가 prompt 로 전달하는 정보" 항목 read 후 prompt 작성 (형식 자유, 정보 명시 의무). prompt 에는 **(1) 읽을 SSOT 문서 포인터 (agent 가 자체 read 할 경로) (2) 대상 단위 (어떤 task / Story / 모듈) (3) 그 호출에 특유한 제약·주의 (4) 산출 경로·번호 규약·write 경계** 만 담는다.
 
-**호출 직전 self-check (#780).** `/impl`·`/impl-loop`·`/design`·`/ux` action loop는 Agent tool input을 쓰기 전에 정적 템플릿을 직접 읽고 아래 3가지를 확인한다. (a) 대상+읽을 진본이 슬롯 1에 있는가, (b) 슬롯 2가 동적 lifecycle context와 충돌하지 않는가, (c) 슬롯 3이 방법 처방이 아니라 이 호출 특유의 미기록 제약·신호만 담는가. 코드 hook은 prompt 내용을 판정하거나 차단하지 않는다.
+**호출 직전 self-check (#780).** `/impl`·`/design`·`/ux` action loop가 Agent tool input을 쓸 때와 `/impl-loop`가 GREEN 이후 validator/acceptance Agent를 호출할 때 정적 템플릿을 읽고 아래 3가지를 확인한다. worker 시작 prompt는 `/impl-loop`의 slim prompt 계약이 소유하므로 이 후기 템플릿을 preflight로 읽지 않는다. (a) 대상+읽을 진본이 슬롯 1에 있는가, (b) 슬롯 2가 동적 lifecycle context와 충돌하지 않는가, (c) 슬롯 3이 방법 처방이 아니라 이 호출 특유의 미기록 제약·신호만 담는가. 코드 hook은 prompt 내용을 판정하거나 차단하지 않는다.
 
 - ❌ **이미 SSOT 문서에 기록된 결정의 사본을 prompt 에 재기입 금지** — 합의 스택·계약·설계 결정은 agent 가 자기 "먼저 읽을 문서" 규약대로 SSOT 문서를 직접 읽어 획득한다. 같은 결정이 prompt 와 문서 두 곳에 살면 진본이 둘이 되어, 한쪽만 갱신될 때 어느 쪽이 맞는지 모르는 drift 가 생긴다 (dcNess 가 본래 막으려는 사본 drift 를 절차 자신이 유발).
 - ❌ **agent 본업을 "뭐뭐 해라"로 절차 재지시 금지** — 판단 축·작업 흐름·완료 기준은 각 `agent.md` 가 소유한다. 메인은 컨텍스트·제약·사실관계만 넘기고 *어떻게 할지* 는 agent 가 정한다 (아래 [finding 수용 원칙](#finding-수용-원칙-점-패치-금지-근본-수정) 의 relay 와 동형 — "해법 메커니즘은 메인이 처방하지 말 것").
@@ -186,7 +171,7 @@ worker가 `DCNESS_PROVIDER_FAILURE_FILE` 내부 JSON으로 전달하는 failure 
 - 슬롯 1 ↔ 4요소 (1)(2)(4), 슬롯 2 ↔ worktree MUST(아래), 슬롯 3 ↔ 4요소 (3) + 미기록 결정 예외. 4요소를 줄인 게 아니라 *담는 칸* 을 고정한 것이다.
 - `이 호출 특유` 칸이 방법 처방을 막는 가드다 — 채울 게 없으면 비우고, 채워도 "무엇" 까지만 적는다.
 - **진본 충실 시 수렴**: module-architect 산출물(impl task 파일)이 인터페이스·수용기준 통과조건·테스트 스켈레톤·Scope 까지 담으면, 호출은 포인터+worktree(+미기록 사실 한 줄)로 수렴한다. agent 본업(RED·lint·결론 형식)이나 진본 사본(AC 통과조건·Scope·인터페이스 시그니처)을 prompt 에 다시 적으면 슬림 포인터 규약 위반이다 — 진본이 진본임을 prompt 가 명시하면서 그 사본을 욱여넣는 자기모순.
-- direct 기본 경로(메인 직접 구현)는 sub-agent 호출 자체가 없어 본 슬롯 대상이 아니다. 슬롯이 적용되는 곳은 *sub-agent 에 prompt 가 나가는* 경로다 (`/impl-loop` build-worker · design 의 설계 agent 호출).
+- direct 기본 경로(메인 직접 구현)는 sub-agent 호출 자체가 없어 본 슬롯 대상이 아니다. 슬롯이 적용되는 곳은 *sub-agent 에 prompt 가 나가는* 경로다. `/impl-loop` build-worker 시작은 별도 slim prompt 계약이고, 본 슬롯은 GREEN 이후 validator/acceptance 호출에 적용된다.
 
 **worktree 활성 시 worktree 절대 경로 전달 — MUST**: foreground Claude Agent는 SubagentStart hook, headless worker는 wrapper가 worktree 절대경로를 첫 prompt에 직접 넣는다. main repo abs path 사용 금지 — 머지 전 옛 코드 read 로 false positive가 난다. hook/wrapper가 동적 경로를 전달하므로 메인이 Bash stdout을 다시 prompt로 relay하지 않는다.
 
@@ -205,7 +190,7 @@ worker가 `DCNESS_PROVIDER_FAILURE_FILE` 내부 JSON으로 전달하는 failure 
 평가: PASS / REDO_SAME / REDO_BACK / REDO_DIFF — <사유>
 ```
 
-- `<task-id>` = step 이름 (`/impl-loop` chain 모드 아래선 진행 뷰 sub-step task — [진행 뷰](../../skills/impl-loop/SKILL.md#진행-뷰-task-리스트))
+- `<task-id>` = step 이름. `/impl-loop` build-worker는 Task UI가 아니라 story runner state와 ledger receipt를 사용한다.
 - `▎` 글자 (U+258E) 그대로 — 사용자 인식 패턴
 - 5줄 미만 / 12줄 초과 = 룰 위반
 
@@ -262,15 +247,15 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 | impl-validator 재리뷰 | `begin-step impl-validator retry` | `impl-validator-retry.md` |
 | `/design` epic batch | `begin-step module-architect epic-batch` | `module-architect-epic-batch.md` |
 
-headless/wrapper 재호출은 별도 begin/end-step 1쌍이 필요하다. Claude Agent 재호출은 mode가 있을 때만 명시적 begin-step을 다시 열고, mode 없는 foreground 경로는 lifecycle hook이 occurrence를 관리한다. `--prose-file` 명시적 전달은 wrapper/helper override로 허용한다.
+headless wrapper의 동일-provider bounded recovery는 같은 active outer step 안에서 이어지고, 최종 성공 wrapper가 대응 `end-step`을 한 번 기록한다. terminal 실패 뒤 별도 rework launch를 열 때만 implementation chain이 새 outer `begin-step`을 만든다. 메인은 어느 경우에도 lifecycle 호출을 추가하지 않는다. Claude Agent 재호출은 mode가 있을 때만 명시적 begin-step을 다시 열고, mode 없는 foreground 경로는 lifecycle hook이 occurrence를 관리한다. `--prose-file` 명시적 전달은 wrapper/helper override로 허용한다.
 
 **안티패턴** (begin/end-step 쌍 누락): ❌ build-worker local commit 후 git status 확인 → end-step skip / ❌ FAIL 후 build-worker rework 호출 시 begin/end-step 미포함 / ❌ end-step 보류 중 다음 step 진입으로 망각 / ❌ task 간 보고 작성 후 begin-step 재호출 누락.
 
 ### build-worker phase prose (`/impl-loop` Hybrid A 한정)
 
-build-worker 는 한 sub-agent 호출(= 메인 outer step) 안에서 3 phase (test → impl → validate) 를 직렬 진행하며 phase prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 를 *자체 Write* 한다. phase prose는 inner 작업 증거이지 outer Agent lifecycle receipt가 아니다. worker가 phase마다 outer `begin-step`/`end-step`을 다시 호출하거나 phase prose를 outer completion으로 append하면 중복 기록이다. outer Claude Agent는 SubagentStart/PostToolUse가 1쌍으로 기록하고, headless worker는 wrapper가 outer begin/end-step 1쌍을 소유한다. phase 분할·각 phase 책임·검증 항목 풀스펙 = [`agents/build-worker.md`](../../agents/build-worker.md) + [`skills/impl-loop/SKILL.md`](../../skills/impl-loop/SKILL.md).
+build-worker 는 한 sub-agent 호출(= 메인 outer step) 안에서 3 phase (test → impl → validate) 를 직렬 진행하며 phase prose (`build-test.md` / `build-impl.md` / `build-validate.md`) 를 *자체 Write* 한다. phase prose는 inner 작업 증거이지 outer Agent lifecycle receipt가 아니다. worker가 phase마다 outer `begin-step`/`end-step`을 다시 호출하거나 phase prose를 outer completion으로 append하면 중복 기록이다. outer Claude Agent는 SubagentStart/PostToolUse가 1쌍으로 기록하고, headless worker는 chain `step_started` + wrapper `step_completed` 한 쌍으로 기록한다. phase 분할·각 phase 책임·검증 항목 풀스펙은 [`build-worker-agent.md`](agents/build-worker/build-worker-agent.md)가 소유한다.
 
-phase prose 실제 기록 디렉토리 = `dcness-helper run-dir` 이 출력하는 harness-state run_dir (`.claude/harness-state/.sessions/<sid>/runs/<run-id>`). worktree 안 `phases/<RUN_ID>/` 는 현행 규약이 아니다. build-worker 는 phase prose 3개를 쓴 뒤 `ls <run_dir>/build-test.md <run_dir>/build-impl.md <run_dir>/build-validate.md` 로 실존을 확인하고, 부재 시 PASS 를 내지 않는다.
+phase prose 실제 기록 디렉토리 = wrapper가 prompt에 주입하는 canonical absolute run directory (`.claude/harness-state/.sessions/<sid>/runs/<run-id>`). linked worktree 안에서 같은 상대경로를 다시 계산하거나 `phases/<RUN_ID>/`를 만들지 않는다. build-worker 는 PASS 전에 phase prose 3개를 쓴 뒤 실존을 확인하고, chain-owned wrapper도 PASS terminal receipt 전에 다시 검사한다.
 
 선택적 polish/retry 기록이 필요하면 `build-polish.md` 도 같은 run_dir 에만 둔다. clean 게이트가 요구하는 필수 phase prose 는 `build-test.md` / `build-impl.md` / `build-validate.md` 3개다.
 
@@ -302,9 +287,9 @@ Claude Agent 와 Codex wrapper 모두 메인이 집계한다. Codex wrapper 는 
 
 ```
 TaskUpdate(<기존 task>, in_progress)   # 신규 TaskCreate 금지
-"$HELPER" begin-step <agent> <mode>    # modeful Claude/headless만 명시
+"$HELPER" begin-step <agent> <mode>    # modeful Claude만 메인이 명시
 Agent(...)                              # mode 없음: begin/end 모두 lifecycle hook 소유
-# headless wrapper만 end-step, foreground Claude Agent는 PostToolUse가 완료
+# headless는 chain begin + wrapper end, foreground Claude Agent는 PostToolUse가 완료
 TaskUpdate(<기존 task>, completed)
 ```
 
@@ -475,7 +460,7 @@ review 리포트의 must-fix / waste finding / per-Agent metric 즉시 인지 + 
 
 **자동 기록 event** (코드 경로):
 - `run_started` (begin-run) — entry_point / issue_num / design_doc(기록 시)
-- `step_started` (SubagentStart 또는 wrapper `begin-step`) — agent / mode + Claude Agent면 tool_use_id / agent_id
+- `step_started` (SubagentStart 또는 implementation chain `begin-step`) — agent / mode + Claude Agent면 tool_use_id / agent_id
 - `step_aborted` (PostToolUseFailure·빈 prose·비완료 상태 복구) — false completion 없이 시작된 step을 닫는 진단 event
 - `step_completed` (성공 PostToolUse 또는 wrapper `end-step`) — = **receipt**: agent / mode / enum / prose_excerpt / must_fix / prose_file / sha256 / evidence_paths / next_action(hint), Claude Agent면 tool_use_id / agent_id
 - `run_finished` (end-run)

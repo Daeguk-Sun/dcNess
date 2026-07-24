@@ -295,6 +295,43 @@ def _load_project_contract_config(project_root: Path) -> Optional[dict[str, Any]
     return _normalize_contract_config(config)
 
 
+def format_prompt_guidance(
+    project_root: Path,
+    config_path: Optional[Path] = None,
+) -> str:
+    """Render the generated TDD contract without scanning project sources."""
+    root = project_root.resolve()
+    path = (config_path or root / CONFIG_REL).resolve()
+    if not path.is_file():
+        return ""
+    config = _normalize_contract_config(_read_json(path, strict=True))
+    roots = ", ".join(_string_list(config, "source_roots"))
+    extensions = ", ".join(_string_list(config, "impl_exts"))
+    templates = _string_list(config, TEST_CANDIDATE_TEMPLATES_KEY)
+    globs = _string_list(config, TEST_FILE_GLOBS_KEY)
+    lines = [
+        "Project-local generated TDD guard is active.",
+        f"Implementation scope: source roots [{roots}], extensions [{extensions}].",
+        (
+            "For every implementation file in that scope, create a substantive "
+            "matching test before writing the implementation file."
+        ),
+        (
+            "A broad feature test with a different basename does not satisfy this "
+            "matching test contract."
+        ),
+    ]
+    if templates:
+        lines.append("Configured matching-test templates:")
+        lines.extend(f"- {template}" for template in templates)
+    if globs:
+        lines.append(f"Recognized test-file globs: {', '.join(globs)}")
+    lines.append(
+        f"Use `{TDD_EXEMPT_DISPLAY}` only when a matching test is genuinely inapplicable."
+    )
+    return "\n".join(lines)
+
+
 def _iter_project_files(root: Path, suffixes: tuple[str, ...]) -> Iterable[Path]:
     for path in root.rglob("*"):
         rel_parts = path.relative_to(root).parts
@@ -1315,6 +1352,21 @@ def _cmd_status(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_guidance(args: argparse.Namespace) -> int:
+    config_path = Path(args.config) if args.config else None
+    try:
+        guidance = format_prompt_guidance(
+            Path(args.project_root),
+            config_path=config_path,
+        )
+    except JsonConfigError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    if guidance:
+        print(guidance)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="dcness-tdd-hooks",
@@ -1346,6 +1398,14 @@ def build_parser() -> argparse.ArgumentParser:
     p_status.add_argument("--project-root", default=".")
     p_status.add_argument("--json", action="store_true")
     p_status.set_defaults(func=_cmd_status)
+
+    p_guidance = sub.add_parser(
+        "guidance",
+        help="render the project-local TDD contract for a headless worker",
+    )
+    p_guidance.add_argument("--project-root", required=True)
+    p_guidance.add_argument("--config", default="")
+    p_guidance.set_defaults(func=_cmd_guidance)
     return parser
 
 

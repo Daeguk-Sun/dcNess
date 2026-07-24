@@ -9,7 +9,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from harness.tdd_hooks import inspect_installation
+from harness.tdd_hooks import format_prompt_guidance, inspect_installation
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -89,6 +89,38 @@ def _run_central_guard(
 
 
 class GeneratedTddHookContractTests(unittest.TestCase):
+    def test_prompt_guidance_exposes_matching_test_contract_without_repo_scan(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td)
+            config = project / ".dcness" / "tdd-hooks.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(
+                json.dumps(
+                    {
+                        "version": 1,
+                        "platform": "android",
+                        "impl_exts": [".kt", ".java"],
+                        "source_roots": ["app/src/main"],
+                        "test_candidate_templates": [
+                            "app/src/test/java/{stem}Test{ext}",
+                        ],
+                        "test_file_globs": ["**/*Test.kt", "**/*Test.java"],
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            guidance = format_prompt_guidance(project)
+
+        self.assertIn("Project-local generated TDD guard is active", guidance)
+        self.assertIn("app/src/main", guidance)
+        self.assertIn(".kt, .java", guidance)
+        self.assertIn("app/src/test/java/{stem}Test{ext}", guidance)
+        self.assertIn("matching test", guidance)
+        self.assertIn("before writing the implementation file", guidance)
+
     def test_self_test_rejects_allow_all_hook_before_generation(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             project = Path(td) / "project"
@@ -759,7 +791,8 @@ class GeneratedTddHookDocsTests(unittest.TestCase):
                 self.assertIn("self-test", text)
                 self.assertIn("test_candidate_templates", text)
         self.assertNotIn("test_candidate_templates", impl_skill)
-        self.assertIn("TDD 게이트는 삭제하지 않는다", impl_skill)
+        self.assertIn("TDD", impl_skill)
+        self.assertIn("제거하지 않는다", impl_skill)
 
         ordered = [
             "TDD 계약",

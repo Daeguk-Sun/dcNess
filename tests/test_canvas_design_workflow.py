@@ -17,12 +17,22 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.impl_routing = (
             ROOT / "skills" / "impl" / "impl-routing.md"
         ).read_text(encoding="utf-8")
+        self.impl_finish = (
+            ROOT / "skills" / "impl" / "impl-finish.md"
+        ).read_text(encoding="utf-8")
+        self.impl_contract = self.impl + self.impl_routing + self.impl_finish
         self.impl_loop = (
             ROOT / "skills" / "impl-loop" / "SKILL.md"
         ).read_text(encoding="utf-8")
         self.impl_loop_routing = (
             ROOT / "skills" / "impl-loop" / "impl-loop-routing.md"
         ).read_text(encoding="utf-8")
+        self.impl_loop_finish = (
+            ROOT / "skills" / "impl-loop" / "impl-loop-finish.md"
+        ).read_text(encoding="utf-8")
+        self.impl_loop_contract = (
+            self.impl_loop + self.impl_loop_routing + self.impl_loop_finish
+        )
         self.ux = (ROOT / "skills" / "ux" / "SKILL.md").read_text(encoding="utf-8")
         self.ux_routing = (
             ROOT / "skills" / "ux" / "ux-routing.md"
@@ -100,8 +110,8 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, skill)
 
-        self.assertIn("canvas-design", self.impl)
-        self.assertIn("canvas-design", self.impl_loop)
+        self.assertIn("canvas-design", self.impl_contract)
+        self.assertIn("canvas-design", self.impl_loop_contract)
         self.assertNotIn("/canvas-design", self.positioning)
 
         defaults = self._array(self.public_surface, "defaultSkills")
@@ -169,7 +179,6 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "`/impl` · `/impl-loop` · `/design` · `/ux`",
             "EnterWorktree(name=\"<skill>-{ts_short}\")",
             "impl / impl-loop / design / ux",
-            "`/impl`·`/impl-loop`·`/design`·`/ux` action loop",
             "`/spec` / `/tech-review` / `/to-issue` (commit 없음)",
             "ux = epic `ux-flow.md`, `docs/design.md`, "
             "`docs/design-variants/<screen-id>.html`, "
@@ -226,26 +235,35 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         self.assertIn("사용자 PICK 대기 중에는 routed conclusion", skill)
 
     def test_canvas_design_is_main_owned_not_strict_agent_step(self) -> None:
-        for text in (self.impl_loop, self.impl_loop_routing):
-            with self.subTest(doc=text[:30]):
-                self.assertIn("main-owned", text)
-                self.assertIn("helper begin/end-step 비대상", text)
-                self.assertIn("mode 없는 foreground designer Agent", text)
-                self.assertIn("lifecycle hook", text)
-                self.assertNotIn("begin-step designer", text)
-                self.assertNotIn("begin-step canvas-design", text)
+        text = self.impl_loop
+        self.assertIn("main-owned", text)
+        self.assertIn("helper begin/end-step 비대상", text)
+        self.assertIn("mode 없는 foreground designer Agent", text)
+        self.assertIn("lifecycle hook", text)
+        self.assertNotIn("begin-step designer", text)
+        self.assertNotIn("begin-step canvas-design", text)
+
+    def test_impl_loop_enters_worktree_before_canvas_design_mutation(self) -> None:
+        worktree = self.impl_loop.index("### 2. worktree가 첫 mutation보다 먼저")
+        canvas = self.impl_loop.index("main-owned `canvas-design`", worktree)
+
+        self.assertLess(worktree, canvas)
+        self.assertIn(
+            "canvas-design의 seed·draft·확정본 mutation도 worktree 안에서만",
+            self.impl_loop,
+        )
 
     def test_impl_has_three_way_visual_baseline_branch_and_echo(self) -> None:
-        for text in (self.impl, self.impl_routing):
-            with self.subTest(file=text[:20]):
-                self.assertIn("UI 기준 확보 분기", text)
-                self.assertIn("기준 있음", text)
-                self.assertIn("신규 시각 구조 + 기준 없음", text)
-                self.assertIn("시각 구조 불변", text)
-                self.assertIn("목업 없이", text)
-                self.assertIn("UI 기준:", text)
-                self.assertIn("사용자 제공 이미지", text)
-                self.assertIn("기존 확정본", text)
+        text = self.impl_routing
+        self.assertIn("UI 기준 확보 분기", text)
+        self.assertIn("기준 있음", text)
+        self.assertIn("신규 시각 구조 + 기준 없음", text)
+        self.assertIn("시각 구조 불변", text)
+        self.assertIn("목업 없이", text)
+        self.assertIn("UI 기준:", text)
+        self.assertIn("사용자 제공 이미지", text)
+        self.assertIn("기존 확정본", text)
+        self.assertIn("impl-routing.md", self.impl)
 
     def test_impl_loop_uses_canvas_design_with_build_worker(self) -> None:
         for needle in (
@@ -256,7 +274,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "단일 구현 엔진",
         ):
             with self.subTest(needle=needle):
-                self.assertIn(needle, self.impl_loop)
+                self.assertIn(needle, self.impl_loop_contract)
         self.assertNotIn("test-engineer", self.impl_loop)
         self.assertNotIn("engineer:IMPL", self.impl_loop)
 

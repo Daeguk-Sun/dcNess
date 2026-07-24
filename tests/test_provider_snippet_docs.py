@@ -56,7 +56,6 @@ class ProviderSnippetDocsTests(unittest.TestCase):
         expected = {
             Path("docs/plugin/loop-procedure.md"),
             Path("skills/design/SKILL.md"),
-            Path("skills/impl/SKILL.md"),
             Path("skills/impl-loop/SKILL.md"),
         }
         self.assertTrue(
