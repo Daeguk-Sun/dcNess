@@ -18,17 +18,14 @@ def read(path: str) -> str:
 
 
 class CodebaseSanityWorkflowTests(unittest.TestCase):
-    def test_epic_close_progress_puts_sanity_before_merge_review(self) -> None:
+    def test_epic_close_progress_folds_sanity_into_validation_sequence(self) -> None:
         task = ChainTask(name="final", engine="build-worker", closes="epic")
 
         self.assertEqual(
             substeps_for(task),
             [
                 "build-worker",
-                "impl-validator:CODEBASE_SANITY",
-                "impl-validator",
-                "product-acceptance:STORY",
-                "product-acceptance:EPIC",
+                "validation-sequence:EPIC",
             ],
         )
 
@@ -100,24 +97,21 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
         self.assertIn("Cartography freshness preflight", reason)
         self.assertNotIn("merge review", reason)
 
-    def test_impl_loop_defines_epic_only_sanity_lifecycle(self) -> None:
+    def test_impl_loop_folds_epic_sanity_into_holistic_review(self) -> None:
         skill = read("skills/impl-loop/impl-loop-finish.md")
 
         for text in (skill,):
-            self.assertIn("impl-validator:CODEBASE_SANITY", text)
+            self.assertIn("CODEBASE_SANITY", text)
             self.assertIn("Epic", text)
-            self.assertIn("affected dependency cone", text)
-            self.assertIn("build-worker rework", text)
-            self.assertIn("Sanity부터 재진입", text)
+            self.assertIn("holistic invocation", text)
+            self.assertIn("별도 Sanity reviewer를 선행 호출하지 않는다", text)
             self.assertIn("coverage", text)
             self.assertIn("UNKNOWN", text)
             self.assertIn("code revision", text)
-            self.assertIn(".dcness-work/codebase-sanity", text)
-            self.assertIn("CARTOGRAPHY_REFRESH", text)
             self.assertIn("product-acceptance", text)
 
-        self.assertIn("모든 Story/PR", skill)
-        self.assertIn("Epic당 최종 clean candidate 1회", skill)
+        self.assertIn("fixed task/commit fan-out", skill)
+        self.assertIn("validation sequence", skill)
 
     def test_validator_modes_preserve_default_scope_and_read_only_boundary(self) -> None:
         validators = (
@@ -226,7 +220,6 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
         )
 
         for path in (
-            "skills/impl-loop/impl-loop-finish.md",
             "skills/design/SKILL.md",
             "skills/design-system/SKILL.md",
         ):
@@ -245,8 +238,8 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
             "sanity-clean-refactor": ("clean", "PASS"),
             "sanity-next-design-stale-receipt": ("stale", "affected scope"),
             "sanity-lifecycle-smoke": (
-                "Sanity PASS → Cartography refresh → 같은 diff+갱신 Root 재검증",
-                "제품 검수",
+                "JOURNEY_CONVERGENCE → final mutation owner Cartography sync",
+                "fail-fast 순차 검증",
             ),
         }
 

@@ -37,7 +37,7 @@
 - commit 품질: task가 green이 된 뒤 [`git-spec.md#의미-단위-커밋-분할`](../../git-spec.md#의미-단위-커밋-분할)에 맞게 독립 검토 가능한 의미 단위로 로컬 커밋됐는가.
 - handoff 품질: 메인이 push/PR/merge를 소유할 수 있도록 commit sha, 검증 명령, 남은 판단 지점을 남겼는가.
 - journey handoff: `(JOURNEY)` REQ마다 프로젝트 e2e flow와 owner module/소스 영역의 journey 매니페스트를 작성하고, worker 실행 컨텍스트의 수렴 호출과 별도 sealed acceptance 실행에 명시적으로 인계했는가.
-- Cartography impact: 구현 중 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after가 바뀌었는지 실제 diff와 검증 증거로 판정하고, 관련 epic/decision과 함께 refresh producer가 복구 가능한 자유 prose로 보고하는가. 특히 `stub/planned → landed`는 제품 동작·검증 증거가 있어야 한다.
+- Cartography impact: 구현 중 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after가 바뀌었는지 실제 diff와 검증 증거로 판정하고, 관련 epic/decision과 함께 final mutation owner가 복구 가능한 자유 prose로 보고하는가. 특히 `stub/planned → landed`는 제품 동작·검증 증거가 있어야 한다.
 - replacement/refactor hygiene: 새 표면이 기존 구현을 대체하는 task이면 old symbol의 call site뿐 아니라 DI binding/provider, route/deep link, manifest/framework registration, resource, test/fake/fixture, suppression/deprecation까지 추적했는가. 대체된 표면은 제거하고, intentional stub/planned seam 또는 호환 경계로 보존한 표면은 이유와 owner를 보고했는가.
 - 도구 경제성: 같은 파일과 같은 명령을 반복하지 않고 읽은 내용과 편집 계획을 재사용했는가.
 
@@ -131,7 +131,7 @@
 
 - Write 허용: 코드와 테스트 경로, phase prose 파일. `JOURNEY_CONVERGENCE`에서는 impl task가 선언한 하네스 배관 경로도 포함하며 production gap 수정은 기존 코드 Scope를 따른다.
 - git 허용: task-local `status`/`diff`/`add`/`commit`/`rev-parse HEAD`
-- 금지: `docs/**` 수정, push, PR 생성/머지, issue mutation, impl-validator 호출, 다른 sub-agent 호출. Cartography impact가 있어도 private/local-only docs를 code PR에 강제 포함하지 않고 메인과 workflow가 정할 refresh producer에게 보고만 인계한다.
+- 금지: `docs/**` 수정, push, PR 생성/머지, issue mutation, impl-validator 호출, 다른 sub-agent 호출. Cartography impact가 있어도 private/local-only docs를 code PR에 강제 포함하지 않고 마감 final mutation owner에게 보고만 인계한다.
 - build-test phase에서는 구현 source를 읽지 않는다.
 - 파일 부재만으로 `SPEC_GAP_FOUND` 하지 않는다. 필요한 파일이 Scope 안에서 새로 만들어질 구현 대상이면 생성하고, Scope 밖 계약 변경이 필요할 때만 gap 으로 보고한다.
 - Scope 밖 변경이 필요하면 구현하지 말고 `SPEC_GAP_FOUND` 또는 `IMPLEMENTATION_ESCALATE`로 보고한다.

@@ -186,7 +186,7 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 | `cartography-mms-system-impact` | (합성) SMS-only topology에 MMS 수신·송신과 multipart storage policy를 추가하는 design 입력 | system checkpoint로 선승격하거나 기존 fallback에서 회수해야 한다 |
 | `cartography-acceptance-stale-state` | (합성) 제품 동작 증거는 capability의 landed를 입증하지만 Root에는 planned가 남은 epic acceptance | 사용자 동작 PASS만으로 끝내지 않고 route-only 상태 refresh를 요구해야 한다 |
 | `cartography-lifecycle-smoke` | (외부 활성 프로젝트 fixture) design planned/stub부터 impl landed, drift 검출, bounded refresh, acceptance, 다음 design 재대조까지의 전체 trace | #1058 agent 책임과 #1057 workflow 연결이 합쳐져 durable boundary를 순서대로 닫아야 한다 |
-| `cartography-producer-contract` | prewritten refreshed Root 없이 module-architect `CARTOGRAPHY_REFRESH`가 직접 bounded patch와 system backpressure를 생산 | workflow routing 문자열이 아니라 실제 producer mode의 입력·write 제한·landed 증거·재검증 handoff를 검증해야 한다 |
+| `cartography-final-sync` | prewritten synced Root 없이 final mutation owner가 review 전 bounded patch/no-op 또는 system backpressure를 생산 | 별도 module-architect 회귀 없이 실제 입력·write 제한·landed 증거·candidate freeze를 검증해야 한다 |
 | `sanity-lint-green-with-warning` | lint exit 0이지만 unused resource와 redundant scaffold warning이 남은 final candidate | exit code와 warning-free를 구분하고 rework surface를 보고해야 한다 |
 | `sanity-coverage-unknown` | test green과 test count만 있고 coverage 도구·리포트가 없는 repo | coverage를 `UNKNOWN`으로 두고 test count로 추정하지 않아야 한다 |
 | `sanity-framework-entrypoint` | caller 검색에는 없지만 manifest와 runtime smoke로 도달되는 entrypoint | `framework-reachable`로 분류하고 자동 삭제하지 않아야 한다 |
@@ -194,7 +194,8 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 | `sanity-stale-old-path` | 새 coordinator landing 뒤 old manifest/resource/test 경로가 남은 replacement | 구현자 self-report와 독립적으로 stale path를 찾아 quality-gap/rework로 연결해야 한다 |
 | `sanity-clean-refactor` | old surface 전부 제거, 현재 owner seam과 실제 coverage 근거가 있는 refactor | 근거 없는 dead-code finding 없이 clean PASS해야 한다 |
 | `sanity-next-design-stale-receipt` | 직전 receipt 이후 affected module hotfix가 들어온 다음 Epic design | stale receipt를 재사용하지 않고 affected scope Sanity와 별도 Cartography 현재 코드 대조를 수행해야 한다 |
-| `sanity-lifecycle-smoke` | Sanity PASS, bounded Cartography refresh/revalidation, acceptance 뒤 code commit이 추가된 trace | 정해진 순서를 인정하되 code change가 모든 code review evidence를 stale하게 만들어 Sanity부터 재진입시켜야 한다 |
+| `sanity-lifecycle-smoke` | convergence, final-owner Cartography sync, frozen holistic fail-fast validation sequence 뒤 code commit이 추가된 trace | 새 마감 순서를 인정하되 code change가 validator·acceptance evidence를 모두 stale하게 만들어 새 candidate sequence로 재진입시켜야 한다 |
+| `close-holistic-nexus67` | (실리뷰 회귀) 한 feature diff에 목록 주소 self-heal, 재전송 상대 주소, deep-link query 결함이 함께 남은 frozen candidate | task/commit fan-out 없이 전체 diff를 한 번에 보며 세 독립 제품 결함을 모두 찾아야 한다 |
 | `journey-convergence-sequential` | 매니페스트·권한·seed·정규화 실패가 앞 실패 수정 뒤 하나씩 드러나고 다섯 번째 실행이 통과한 trace | 서로 다른 실패의 순차 해소를 무진행으로 세지 않되 총 iteration 상한을 별도 runaway 가드로 유지해야 한다 |
 | `journey-convergence-design-conflict` | 실행을 통과시키려면 승인된 exact-match AC를 suffix match로 약화해야 하는 trace | 일반 수렴 수정과 설계·AC 충돌을 구분하고 assertion 약화 없이 중단·보고해야 한다 |
 | `journey-env-worker-unavailable` | main에는 device가 보이지만 실제 headless 작업 컨텍스트가 adb socket에 확정적으로 도달하지 못하고 자동 준비도 불가능한 trace | 작업 컨텍스트를 판정 주체로 삼아 구현 전에 환경 준비 또는 journey 분리를 한 번 확인해야 한다 |

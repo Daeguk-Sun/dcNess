@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -397,8 +398,77 @@ def _cli_begin_step(args: Any) -> int:
     # ledger checkpoint까지 같은 표기로 일관시킨다.
     from harness.agent_names import normalize_agent_type
     agent = normalize_agent_type(args.agent) or args.agent
+    candidate: dict[str, str] = {}
     try:
-        gate_message = evaluate_order_gate_for_step(sid, rid, agent, mode)
+        live = read_live(sid) or {}
+        slot = live.get("active_runs", {}).get(rid, {})
+        close_role = (
+            isinstance(slot, dict)
+            and slot.get("entry_point") == "impl"
+            and slot.get("acceptance_required") is True
+            and (
+                (agent == "impl-validator" and mode is None)
+                or (
+                    agent == "product-acceptance"
+                    and mode in {"STORY_ACCEPTANCE", "EPIC_ACCEPTANCE"}
+                )
+            )
+        )
+        if close_role:
+            status = subprocess.run(  # nosec B603, B607
+                ["git", "status", "--porcelain", "--untracked-files=no"],
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if status.returncode != 0 or status.stdout.strip():
+                print(
+                    "[begin-step] FAIL — close validation sequence requires a clean "
+                    "tracked candidate before review/acceptance launch",
+                    file=sys.stderr,
+                )
+                return 1
+            head = subprocess.run(  # nosec B603, B607
+                ["git", "rev-parse", "HEAD"],
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            tree = subprocess.run(  # nosec B603, B607
+                ["git", "rev-parse", "HEAD^{tree}"],
+                cwd=Path.cwd(),
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            if head.returncode != 0 or tree.returncode != 0:
+                print(
+                    "[begin-step] FAIL — close validation sequence candidate identity "
+                    "could not be resolved",
+                    file=sys.stderr,
+                )
+                return 1
+            candidate = {
+                "candidate_head": head.stdout.strip(),
+                "candidate_tree": tree.stdout.strip(),
+            }
+    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        print(f"[begin-step] FAIL — candidate freeze probe: {exc}", file=sys.stderr)
+        return 1
+    try:
+        gate_message = evaluate_order_gate_for_step(
+            sid,
+            rid,
+            agent,
+            mode,
+            candidate_head=candidate.get("candidate_head"),
+            candidate_tree=candidate.get("candidate_tree"),
+        )
     except Exception as exc:  # noqa: BLE001
         record_fail_open_event(
             hook="begin-step-order-gate",
@@ -409,9 +479,13 @@ def _cli_begin_step(args: Any) -> int:
     if gate_message:
         print(gate_message, file=sys.stderr)
         return 1
-    transition(
-        sid, "step_started", run_id=rid, agent=agent, mode=mode
-    )
+    try:
+        transition(
+            sid, "step_started", run_id=rid, agent=agent, mode=mode, **candidate
+        )
+    except (OSError, ValueError) as exc:
+        print(f"[begin-step] FAIL — {exc}", file=sys.stderr)
+        return 1
 
     print("ok")
 

@@ -14,16 +14,16 @@
 마감 순서는 다음과 같다.
 
 1. 자동 journey가 있으면 final tip에서 fresh context `JOURNEY_CONVERGENCE`
-2. Epic close이면 `impl-validator:CODEBASE_SANITY`
-3. merge candidate `impl-validator` 통합 review
-4. 필요하면 `module-architect:CARTOGRAPHY_REFRESH`와 impl-validator 재검증
-5. `product-acceptance`
-6. target GitHub issue AC close audit
-7. tree-preserving 커밋 consolidate
+2. `final mutation owner`가 Cartography route/state/as-built를 1회 동기화하거나 no-op 확인
+3. tree-preserving 커밋 consolidate 후 HEAD/tree `candidate freeze`
+4. 같은 immutable candidate를 반대 진영 holistic `impl-validator`로 먼저 검증
+5. validator가 terminal `PASS`일 때만 `product-acceptance`의 sealed Journey 시작
+6. acceptance terminal `PASS`와 같은 candidate identity 확인
+7. target GitHub issue AC close audit
 8. 최초 PR 생성
 9. 별도 merge gate
 
-`JOURNEY_CONVERGENCE → impl-validator:CODEBASE_SANITY → product-acceptance → target GitHub issue AC close audit → 커밋 consolidate → PR 생성` 순서를 바꾸지 않는다. 최종 tree가 불변이면 review/acceptance 증거를 유지하고, 의미 단위 commit이 이미 clean하면 consolidate는 no-op이다. 최초 PR은 이 순서가 끝난 뒤에만 만든다.
+`JOURNEY_CONVERGENCE → final mutation owner Cartography sync/no-op → candidate freeze → holistic validator PASS → sealed product acceptance PASS → target GitHub issue AC close audit → PR 생성` 순서를 바꾸지 않는다. 의미 단위 commit이 이미 clean하면 consolidate는 no-op이다. 최초 PR은 이 순서가 끝난 뒤에만 만든다.
 
 ### journey
 
@@ -36,51 +36,46 @@
 - 서로 다른 실패가 이전 실패를 고친 뒤 순차 노출되면 무진행으로 세지 않는다. 전체 iteration 12회가 실패 서명과 별개인 실질 runaway 가드다.
 - 상한 소진 시 커밋을 보존하고 `수렴 재개 / production만 착지하고 journey 분리 / run 폐기` 중 사용자 처분을 받는다. production만 착지하면 human verification/follow-up으로 남기고 issue를 닫지 않는다.
 
-### CODEBASE_SANITY
-
-Epic당 최종 clean candidate 1회만 affected dependency cone을 `impl-validator:CODEBASE_SANITY`로 감사한다. 모든 Story/PR마다 반복하지 않는다.
-
-- code revision/tree identity와 실제 lint/build/test/typecheck 명령·exit·warning을 기록한다.
-- coverage 도구가 없으면 `UNKNOWN`으로 기록한다.
-- dead code, stale registration, duplicate/example/scaffold, suppression/deprecation, convention drift를 분류한다.
-- receipt는 primary worktree의 `.dcness-work/codebase-sanity/`에 보존한다.
-- receipt 경로는 `dcness-helper sanity-receipt-dir --project-root "$PROJECT_ROOT"`로 계산한다.
-- finding은 build-worker rework로 수정하고 journey convergence와 Sanity부터 재진입한다.
-
-코드가 바뀌면 기존 Sanity와 merge review 증거는 stale이다. Cartography 문서만 bounded refresh되고 code tree가 같으면 Sanity receipt는 유지할 수 있으나 merge review는 갱신 Root로 다시 수행한다.
-
 ### 격리 review
 
 설정된 chain이 아니라 terminal receipt의 실제 구현 성공 provider의 반대 진영을 기본 review provider로 resolve한다. Codex 구현이면 Claude review, Claude 구현이면 Codex review다. Codex reviewer가 불가하면 Claude로 폴백하고 이유를 기록한다. validator는 read-only다. MUST FIX가 있으면 실제 구현 provider와 동일한 build-worker가 최대 3회 root-cause 수정하고 관련 gate를 재실행한다. build-worker rework가 코드나 harness를 바꾸면 필요한 earlier evidence부터 다시 수집한다.
 
-`impl-validator review 출력은 merge candidate 경계에서 1회`가 기본이다. 모든 task마다 full review를 반복하지 않는다.
+`impl-validator`는 base부터 final stack tip까지를 한 번에 보는 반대 진영 holistic reviewer다. task/commit 목록은 추적 근거이지 fixed task/commit fan-out 계획이 아니다. task별·commit별 child reviewer를 자동 생성하지 않고, 실제 unresolved high-risk 또는 넓은 context가 발견된 경우에만 같은 reviewer가 selective extra investigation을 수행한다.
+
+Epic close의 dead code, stale registration, duplicate/example/scaffold, suppression/deprecation, convention drift와 replacement 잔존 감사도 이 holistic invocation의 `CODEBASE_SANITY` 렌즈에 합친다. 별도 Sanity reviewer를 선행 호출하지 않는다. code revision/tree identity와 같은-tree lint/build/test/typecheck/coverage terminal evidence를 소비하고, coverage 도구가 없으면 `UNKNOWN`으로 기록한다.
 
 ## Cartography freshness
 
-build-worker Cartography impact와 affected Root Cartography를 merge candidate 및 관련 epic/decision과 대조한다.
+`JOURNEY_CONVERGENCE`가 끝난 뒤 final mutation owner인 메인 오케스트레이터가 build-worker Cartography impact와 affected Root Cartography를 merge candidate 및 관련 epic/decision과 대조한다. 이 단계는 별도 agent 호출이 아니라 마감 mutation을 소유한 메인의 bounded sync다.
 
 - 영향 없음/일치: 계속한다.
-- capability 상태 drift 또는 route/state/as-built edge stale: `begin-step module-architect CARTOGRAPHY_REFRESH`로 bounded producer를 열고 `end-step module-architect CARTOGRAPHY_REFRESH --prose-file <path>`로 기록한 뒤 같은 diff+갱신 Root를 impl-validator 재검증한다.
+- system boundary가 유지되는 capability 상태 drift 또는 route/state/as-built edge stale: final mutation owner가 affected Root 좌표만 한 번 갱신하고 tracked 문서면 같은 branch에 commit한다.
 - system boundary/global decision 변경: `/design --revise` 또는 system checkpoint로 보낸다.
 
-durable impact handoff만으로 freshness가 해소되지는 않는다. canonical Root refresh와 impl-validator 재검증 없이 최종 clean으로 보고하지 않는다.
+durable impact handoff만으로 freshness가 해소되지는 않는다. canonical Root sync/no-op 확인 뒤에만 candidate를 freeze한다.
 local-only/ignored Root는 code PR에 강제 포함하지 않고 canonical local Root에서 갱신한다.
 
-## product acceptance
+## fail-fast validation sequence와 product acceptance
+
+Cartography sync와 commit이 끝난 clean tracked tree에서 HEAD와 `HEAD^{tree}`를 candidate identity로 고정한다. 먼저 mode 없는 `impl-validator` step을 열고 holistic review를 완료한다. validator가 terminal `PASS`가 아니면 product-acceptance를 시작하지 않고 finding을 same implementation owner에게 돌린다. PASS일 때만 같은 HEAD/tree에서 `product-acceptance:{STORY_ACCEPTANCE|EPIC_ACCEPTANCE}` step을 열어 sealed Journey를 실행한다. 두 Agent는 한 세션에서 동시에 호출하지 않는다. 값싼 read-only review를 비싼 device/Journey 검수보다 앞세워 초회 FAIL 때 acceptance 실행과 token을 버리지 않는 fail-fast 계약이다.
 
 story/epic 마감마다 read-only `product-acceptance`를 수행한다. product-acceptance는 외부 상태 변경(`gh` issue/PR mutation, push, merge)을 하지 않는다. UI면 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 포함해 화면 증거 부재와 목업 불일치를 판정한다. 자동 journey는 final tip에서 `dcness-product-journey`를 다시 실행한 sealed receipt로 판정한다. mock-only, app-not-started, assertion 미평가, UI evidence 누락은 PASS가 아니다.
 
 impl-validator는 계획 대비 구현 정합과 merge candidate diff 위험을 맡는다. 여러 PR이 합쳐진 story 동작과 여러 story가 합쳐진 epic 동작의 사용자 관찰 가능 동작은 마감 product-acceptance가 맡는다.
 
-acceptance gap 수정으로 code가 바뀌면 convergence/Sanity/review 증거를 stale 처리하고 다시 진입한다. route-only Cartography stale이면 refresh → impl-validator 재검증 → acceptance 재검수 순서로 닫는다.
+product-acceptance는 candidate identity가 일치하는 lint/build/unit-test terminal evidence를 소비하고 정상 경로에서 동일 full unit suite를 다시 실행하지 않는다. 이 재사용은 `JOURNEY_CONVERGENCE` receipt를 최종 판정으로 재사용한다는 뜻이 아니다. 자동 journey는 product-acceptance가 final tip에서 독립 sealed 실행한다.
 
 auto-fixable gap은 PRD/Story AC 미충족, 검수 증거 부족, smoke 실패, mock-only green/동작 증거 부족, 화면 증거 부재, 구현으로 닫히는 목업 불일치, 사용자 동선 부적합/내부 계약 노출이다. 설계 결함, 범위 재정의, 사용자/UX 선택, 보안·권한·데이터 위험은 비자동 gap으로 사용자에게 넘긴다.
 
-## 마감 복구 한도
+## 마감 복구와 증거 invalidation
+
+- code/harness finding은 same implementation owner가 root-cause 수정한다. tracked tree가 바뀌면 이전 validation sequence 결과는 stale이며, 영향받은 lint/build/test, journey convergence, Cartography sync를 다시 모은 뒤 새 candidate를 freeze하고 validator부터 다시 시작한다.
+- device/external transient가 발생했지만 tracked HEAD/tree가 그대로면 validator PASS를 유지하고 acceptance만 재실행한다.
+- validator provider/tool transient에서 tracked HEAD/tree가 그대로면 acceptance PASS를 유지하고 validator만 재실행한다.
+- validator PASS 뒤 tracked tree가 바뀌거나 두 receipt의 candidate identity가 다르면 acceptance 결과와 close를 거부한다.
 
 | 경로 | 한도 | 초과 시 |
 |---|---|---|
-| Codebase Sanity `FAIL` → build-worker rework → 재감사 | 3 | 사용자 위임 |
 | impl-validator `FAIL` → root-cause 수정 → 재리뷰 | 3 | 사용자 위임 |
 | product-acceptance auto-fixable gap → rework → 재검수 | 3 | 사용자 위임 |
 

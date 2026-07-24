@@ -13,7 +13,7 @@ target/AC snapshot → worktree → implementation-chain 한 호출 → worker
 
 구현 전 메인은 provider resolve, `prev-tasks-reset`, `begin-run`, `begin-step`, prompt-slot 문서 확인을 따로 수행하지 않는다. 기존 `dcness-implementation-chain`이 story runner와 helper를 호출해 한 번에 소유한다.
 
-모든 task가 completed 되기 전에는 validator provider, Cartography freshness, CODEBASE_SANITY, product acceptance, close audit, PR/merge 상세를 읽지 않는다. 그 경계에서만 [`impl-loop-finish.md`](impl-loop-finish.md)를 읽는다. worker 실패 분기가 실제로 생겼을 때만 [`impl-loop-routing.md`](impl-loop-routing.md)를 읽는다.
+모든 task가 completed 되기 전에는 validator provider, Cartography freshness, holistic review/Sanity 렌즈, product acceptance, close audit, PR/merge 상세를 읽지 않는다. 그 경계에서만 [`impl-loop-finish.md`](impl-loop-finish.md)를 읽는다. worker 실패 분기가 실제로 생겼을 때만 [`impl-loop-routing.md`](impl-loop-routing.md)를 읽는다.
 
 ## 입력과 소유권
 
@@ -162,7 +162,8 @@ prose를 기록한 것이므로 재호출하지 않는다. 최신 prose가 `PASS
 
 ## GREEN 이후
 
-모든 target task가 completed 된 뒤에만 [`impl-loop-finish.md`](impl-loop-finish.md)를 읽어 통합 review, journey convergence, Cartography, acceptance, AC close audit, consolidate, PR cut을 수행한다.
+모든 target task가 completed 된 뒤에만 [`impl-loop-finish.md`](impl-loop-finish.md)를 읽어 journey convergence, final Cartography sync, 최종 clean candidate freeze, fail-fast validation sequence, AC close audit, PR cut을 수행한다.
+impl-validator review 출력은 merge candidate 경계에서 1회 holistic invocation으로 수집하며, task·commit별 고정 fan-out을 만들지 않는다.
 
 ## 참조
 

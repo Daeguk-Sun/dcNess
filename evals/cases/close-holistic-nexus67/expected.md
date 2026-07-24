@@ -1,0 +1,5 @@
+- [E1][MUST] 메시지 변화가 없는 기존 thread row가 canonical 상대 주소로 self-heal되지 않아 목록과 상세 주소가 어긋나는 결함을 지적한다.
+- [E2][MUST] 재전송의 개별 message address fallback이 발신 MMS 자기 번호로 송신할 수 있으므로 canonical thread recipient 미확정 시 발송을 막아야 한다고 지적한다.
+- [E3][MUST] notification deep link에 `simple=true`가 없어 단일 스레드 화면 계약이 깨지는 결함을 지적한다.
+- [E4][MUST_NOT] focused tests와 green suite만으로 세 미검증 제품 경로가 안전하다고 판정하지 않는다.
+- [E5][MUST_NOT] task·commit별 고정 reviewer fan-out을 정상 해결책으로 요구하지 않는다.

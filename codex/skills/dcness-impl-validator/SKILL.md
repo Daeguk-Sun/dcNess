@@ -13,9 +13,9 @@ dcNess가 `impl-validator`를 Codex 교차 검토로 보낼 때 사용한다. �
 
 Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 가 제공된 plan과 현재 repository state를 만족하는지 보고, 동시에 merge risk와 유지보수성을 본다. 병합의 핵심은 분리돼 있던 구현 검증과 머지 리뷰 호출을 하나로 줄이되 `impl-validator`를 머지 리뷰어로 세우는 것이다. 재진입 라우팅은 finding-class로 보존한다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../../docs/plugin/terms.md)를 확인한다.
 
-검토 단위는 "지금 merge 하려는 diff" 이다. 단일 story 또는 `/impl` PR이면 그 PR diff를 보고, 다중 story/epic invocation이면 개별 PR을 순차 리뷰하지 않고 호출자가 제공한 stack tip vs main diff를 1회 통합 리뷰한다. 제품 AC 검수는 `product-acceptance` 책임이다.
+검토 단위는 "지금 merge 하려는 diff" 이다. 단일 story 또는 `/impl` PR이면 그 PR diff를 보고, 다중 story/epic invocation이면 개별 PR을 순차 리뷰하지 않고 호출자가 제공한 stack tip vs main diff를 1회 holistic 통합 리뷰한다. fixed task/commit fan-out은 금지한다. 실제 unresolved high-risk 또는 넓은 context가 발견된 경우에만 같은 reviewer가 selective extra investigation을 하고 child reviewer를 기본 생성하지 않는다. 제품 AC 검수는 `product-acceptance` 책임이다.
 
-`CODEBASE_SANITY`는 Epic 최종 clean candidate에서 쓰고, 다음 `/design`의 직전 receipt가 stale일 때 affected scope 재감사에도 재사용하는 내부 mode다. 기본 merge-review mode의 diff scope와 PR 밖 legacy 비차단 계약은 바꾸지 않는다. 이 mode에서만 전체 repo 또는 affected dependency cone을 semantic scope로 받아 dead code·warning·scaffold·replacement/refactor 잔존을 감사한다. 별도 public command나 agent가 아니다.
+Epic close에서는 같은 holistic merge-review invocation에 `CODEBASE_SANITY` semantic 렌즈를 포함한다. 다음 `/design`의 직전 receipt가 stale일 때 affected scope 재감사에는 기존 내부 mode를 재사용할 수 있다. 전체 repo 또는 affected dependency cone을 semantic scope로 받아 dead code·warning·scaffold·replacement/refactor 잔존을 감사한다. 별도 public command나 agent가 아니다.
 
 ## 입력
 
@@ -45,7 +45,7 @@ Claude-side `impl-validator` prompt의 clone이 아니다. merge candidate diff 
 
 ### `CODEBASE_SANITY` semantic 렌즈
 
-mode가 명시됐을 때만 적용한다. 작은 repo는 전체 repo, 큰 repo는 affected module과 dependency cone을 기본 scope로 하며 cheap global signals를 함께 본다. Release 경계에서는 호출자가 명시한 full-repo scope로 확장할 수 있다.
+Epic close holistic invocation 또는 mode가 명시됐을 때 적용한다. 작은 repo는 전체 repo, 큰 repo는 affected module과 dependency cone을 기본 scope로 하며 cheap global signals를 함께 본다. Release 경계에서는 호출자가 명시한 full-repo scope로 확장할 수 있다.
 
 - lint exit 0을 warning-free로 보지 않는다. warning 원문과 affected surface를 읽는다.
 - coverage 도구·리포트가 없으면 coverage는 `UNKNOWN`이다. test count나 green 결과로 추정하지 않는다.
@@ -97,7 +97,7 @@ mode가 명시됐을 때만 적용한다. 작은 repo는 전체 repo, 큰 repo�
 
 ## 작업 흐름
 
-1. mode를 확인한다. 기본 merge-review mode는 changed code를 본다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic이면 stack tip vs main diff를 우선한다. `CODEBASE_SANITY`는 code revision과 repo/affected dependency cone scope를 확정한다.
+1. mode와 close 단위를 확인한다. 기본 merge-review mode는 changed code를 본다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic이면 stack tip vs main diff를 우선하고 Epic close이면 같은 호출에서 `CODEBASE_SANITY` scope도 확정한다.
 2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. plan 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
 3. quality 렌즈로 merge blocker를 찾는다. `CODEBASE_SANITY`이면 warning·coverage·dead-code·replacement 분류를 함께 수행한다.
 4. Cartography impact가 있거나 diff에서 entrypoint/owner/edge/public surface 변화가 보이면 implementation freshness 렌즈로 affected Root와 상태 증거를 대조한다.
@@ -132,6 +132,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 ## 권한 경계
 
 - 읽기 전용이다.
+- 다른 Agent를 호출하지 않는다. fixed task/commit fan-out 없이 이 호출이 holistic review를 끝낸다.
 - as-built drift를 발견해도 코드나 docs를 직접 수정하지 않는다. 원인, affected Root 범위, 필요한 route-only refresh 또는 system backpressure만 보고한다.
 - 파일 생성, 수정, 삭제, commit, push, PR 생성, 외부 상태 변경 명령을 실행하지 않는다.
 - 계획 자체가 모호한 경우 구현자에게 정책을 새로 요구하지 않고 source gap으로 분리한다.

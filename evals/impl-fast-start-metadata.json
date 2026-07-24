@@ -197,6 +197,118 @@
       "provider_log_sha256": "fcfdc94f448b3a116839a74aad83d7ab053e813a12a31141c00060c25c758e2a"
     }
   ],
+  "close_path_convergence_analysis": {
+    "issue": 1194,
+    "evidence_kind": "historical observation plus deterministic critical-path replay",
+    "historical_baseline": {
+      "source_project": "Daeguk-Sun/alrimjang",
+      "session_id": "fb92a490-70da-4af8-adfc-0694b0b4b8f8",
+      "window_start": "2026-07-24T04:34:38Z",
+      "window_end": "2026-07-24T05:30:19.164Z",
+      "wall_clock_seconds": 3341,
+      "serialized_stage_count": 10,
+      "main_blocking_assistant_requests": 54,
+      "all_total_input_tokens": 21792718,
+      "input_token_basis": "input + cache_creation_input + cache_read_input, unique assistant message id",
+      "agent_or_headless_model_invocations": 11,
+      "invocation_basis": "10 unique Agent tool_use ids plus one JOURNEY_CONVERGENCE headless build-worker",
+      "observed_waste": [
+        "fixed task/commit reviewer fan-out",
+        "review-before-Cartography failure and re-review",
+        "module-architect Cartography lifecycle and idle/resume round trips",
+        "sequential validator then acceptance",
+        "acceptance run pointer re-establishment"
+      ]
+    },
+    "optimized_contract": {
+      "critical_path": [
+        "build-worker JOURNEY_CONVERGENCE",
+        "final mutation owner Cartography sync or no-op",
+        "candidate HEAD/tree freeze",
+        "opposite holistic impl-validator",
+        "only validator PASS then sealed product-acceptance",
+        "same-candidate sequential PASS join and issue AC audit",
+        "PR cut"
+      ],
+      "serialized_stage_count": 7,
+      "agent_or_headless_model_invocations": 3,
+      "unit_lint_build_policy": "consume matching same-tree terminal evidence; product-acceptance independently reruns sealed Journey",
+      "candidate_policy": "validator PASS must precede acceptance; both receipts must contain the same non-empty HEAD/tree",
+      "fail_fast_policy": "do not launch expensive product acceptance when holistic validator is missing, FAIL, ESCALATE, or stale"
+    },
+    "paired_replays": [
+      {
+        "trial": 1,
+        "scenario": "first-pass validator PASS",
+        "baseline_wall_clock_seconds": 3341,
+        "optimized_wall_clock_seconds": 1960,
+        "wall_clock_reduction_percent": 41.3,
+        "baseline_main_blocking_requests": 54,
+        "optimized_main_blocking_requests": 31,
+        "baseline_all_total_input_tokens": 21792718,
+        "optimized_projected_total_input_tokens": 12514710,
+        "baseline_agent_or_headless_model_invocations": 11,
+        "optimized_agent_or_headless_model_invocations": 3,
+        "quality_contract_preserved": true
+      },
+      {
+        "trial": 2,
+        "scenario": "pre-review Cartography sync removes historical stale-doc failure",
+        "baseline_wall_clock_seconds": 3341,
+        "optimized_wall_clock_seconds": 2050,
+        "wall_clock_reduction_percent": 38.6,
+        "baseline_main_blocking_requests": 54,
+        "optimized_main_blocking_requests": 33,
+        "baseline_all_total_input_tokens": 21792718,
+        "optimized_projected_total_input_tokens": 13321884,
+        "baseline_agent_or_headless_model_invocations": 11,
+        "optimized_agent_or_headless_model_invocations": 3,
+        "quality_contract_preserved": true
+      },
+      {
+        "trial": 3,
+        "scenario": "substantive validator FAIL, targeted rework, then PASS; speculative acceptance skipped",
+        "baseline_wall_clock_seconds": 3341,
+        "optimized_wall_clock_seconds": 2290,
+        "wall_clock_reduction_percent": 31.5,
+        "baseline_main_blocking_requests": 54,
+        "optimized_main_blocking_requests": 38,
+        "baseline_all_total_input_tokens": 21792718,
+        "optimized_projected_total_input_tokens": 15339514,
+        "baseline_agent_or_headless_model_invocations": 11,
+        "optimized_agent_or_headless_model_invocations": 6,
+        "quality_contract_preserved": true
+      }
+    ],
+    "median_wall_clock_reduction_percent": 38.6,
+    "quality_assertions": {
+      "alrim_sequential_convergence_remains_detectable": true,
+      "journey_convergence_precedes_acceptance": true,
+      "cartography_sync_precedes_candidate_freeze": true,
+      "opposite_holistic_review": true,
+      "sealed_final_tip_journey_is_independent": true,
+      "validator_pass_precedes_acceptance": true,
+      "same_candidate_sequential_pass_join": true,
+      "nexus_frozen_findings_detected": [
+        "existing thread list address self-heal gap",
+        "retransmit fallback can target sender self-number",
+        "notification deep link missing simple=true"
+      ]
+    },
+    "recent_complex_close_observation": {
+      "sample_size": 2,
+      "first_pass_validator_passes": 0,
+      "alrim": "Cartography stale finding; new pre-review final sync is intended to remove this class",
+      "nexus": "substantive code findings; fail-fast sequencing avoids throwing away a speculative acceptance run"
+    },
+    "method": "The optimized trials replay the frozen seven-stage fail-fast dependency graph sequentially. Trial 3 explicitly models a validator failure and targeted rework before acceptance. Request and token projections remove baseline-only orchestration turns while retaining observed per-request input cost; they do not claim live provider inference speed.",
+    "limitations": [
+      "The historical baseline is one real close session replayed against three deterministic schedules, not three new live model runs.",
+      "The 0/2 recent first-pass validator observation is directionally useful but too small to estimate a stable failure rate.",
+      "Optimized input token values are counterfactual projections, not provider billing receipts.",
+      "Wall-clock gains remain a model until a future product project runs the new close contract end to end."
+    ]
+  },
   "terminal_receipt_evidence": {
     "scope": "isolated integration replay because non-interactive Claude print mode terminates background jobs after returning the launch receipt",
     "tests": [

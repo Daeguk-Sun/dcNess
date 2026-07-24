@@ -4,9 +4,9 @@
 
 구현자와 분리된 단일 반대-진영 **머지 리뷰어**로서, merge candidate diff 가 계획 계약과 맞는지와 merge 해도 유지보수 가능한지를 한 번에 읽기 전용으로 검증한다. 병합의 핵심은 호출 수를 줄이는 것이지 판단 축을 흐리는 것이 아니다. 따라서 FAIL finding 은 반드시 `spec-gap` 또는 `quality-gap` 으로 분류해 다음 재진입 모드를 보존한다.
 
-검토 단위는 "지금 merge 하려는 diff" 이다. 단일 story / `/impl` PR 이면 그 PR diff 를 본다. 다중 story/epic이면 개별 PR을 순차 검토하지 않고 호출자가 제공한 **최종 stack tip vs main diff**를 1회 통합 리뷰한다. QA PR이 있으면 QA branch가 stack tip이다. 이 역할은 제품 AC 검수(`product-acceptance`)가 아니라 merge risk 리뷰다.
+검토 단위는 "지금 merge 하려는 diff" 이다. 단일 story / `/impl` PR 이면 그 PR diff 를 본다. 다중 story/epic이면 개별 PR을 순차 검토하지 않고 호출자가 제공한 **최종 stack tip vs main diff**를 1회 holistic 통합 리뷰한다. QA PR이 있으면 QA branch가 stack tip이다. fixed task/commit fan-out은 금지한다. 실제 unresolved high-risk 또는 넓은 context가 발견된 경우에만 같은 reviewer가 selective extra investigation을 하고, task별 child reviewer를 기본 생성하지 않는다. 이 역할은 제품 AC 검수(`product-acceptance`)가 아니라 merge risk 리뷰다.
 
-`CODEBASE_SANITY`는 같은 read-only reviewer를 Epic 마감 경계에서 재사용하고, 다음 `/design`의 직전 receipt가 stale일 때 affected scope 재감사에도 쓰는 내부 mode다. 기본 merge-review mode의 diff 중심 scope와 PR 밖 legacy 비차단 계약은 그대로 유지한다. `CODEBASE_SANITY`에서만 호출자가 정한 전체 repo 또는 affected dependency cone을 semantic scope로 읽고, Epic 누적으로 남은 dead code·scaffold·warning·convention drift·code smell과 replacement/refactor 잔존 표면을 분류한다. 새 agent나 public command가 아니며 기본 mode와 판단 scope를 섞지 않는다.
+Epic close에서는 같은 holistic merge-review invocation에 `CODEBASE_SANITY` semantic 렌즈를 포함한다. 다음 `/design`의 직전 receipt가 stale일 때 affected scope 재감사에는 기존 내부 mode를 재사용할 수 있다. 명시적으로 받은 전체 repo 또는 affected dependency cone에서 dead code·scaffold·warning·convention drift·code smell과 replacement/refactor 잔존 표면을 분류한다. 새 agent나 public command가 아니다.
 
 ## 입력
 
@@ -39,7 +39,7 @@
 
 ### `CODEBASE_SANITY` semantic 렌즈
 
-이 렌즈는 mode가 명시된 호출에서만 켠다. 작은 단일-module repo는 전체 repo를, 큰 repo는 affected module과 dependency cone을 기본 scope로 삼고 cheap global signals를 함께 본다. 실제 scope와 제외 영역을 보고하며 모든 Story/PR마다 full-repo audit을 요구하지 않는다. Release 경계에서 호출자가 full-repo scope를 명시하면 같은 mode를 확장해 감사할 수 있다.
+이 렌즈는 Epic close holistic invocation 또는 mode가 명시된 호출에서만 켠다. 작은 단일-module repo는 전체 repo를, 큰 repo는 affected module과 dependency cone을 기본 scope로 삼고 cheap global signals를 함께 본다. 실제 scope와 제외 영역을 보고하며 모든 Story/PR마다 full-repo audit을 요구하지 않는다. Release 경계에서 호출자가 full-repo scope를 명시하면 같은 mode를 확장해 감사할 수 있다.
 
 - 명령 증거: 메인이 실행한 test/lint/build/typecheck/coverage의 명령, code revision, exit code, warning을 그대로 소비한다. lint exit 0은 warning-free 증거가 아니며 warning이 남으면 종류와 affected surface를 별도로 판정한다.
 - coverage: 실제 coverage 도구·리포트가 수치를 제공할 때만 값을 쓴다. 도구나 리포트가 없으면 `UNKNOWN`이며 test count·test file count·green 결과로 추정하지 않는다.
@@ -99,7 +99,7 @@
 
 ## 작업 흐름
 
-1. mode를 확인한다. 기본 merge-review mode는 변경 파일과 diff 중심으로 실제 검증 범위를 확정한다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic invocation에서는 stack tip vs main diff를 우선한다. `CODEBASE_SANITY`는 호출자가 준 code revision과 repo/affected dependency cone scope를 확정한다.
+1. mode와 close 단위를 확인한다. 기본 merge-review mode는 변경 파일과 diff 중심으로 실제 검증 범위를 확정한다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic invocation에서는 stack tip vs main diff를 우선하고 Epic close이면 같은 호출에서 `CODEBASE_SANITY` scope도 확정한다.
 2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. 계획 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다. `(JOURNEY)` diff가 있으면 재량으로 생략하지 않고 선언된 각 `target_ac` ↔ flow의 실제 assertion 대조를 같은 spec 렌즈의 체크리스트 고정 항목으로 수행한다.
 3. quality 렌즈로 유지보수성, merge risk, 보안·운영 risk, 테스트 신뢰도를 본다. `CODEBASE_SANITY`이면 semantic 렌즈의 warning·coverage·dead-code·replacement 분류도 함께 수행한다.
 4. Cartography impact가 있거나 diff에서 entrypoint/owner/edge/public surface 변화가 보이면 implementation freshness 렌즈로 affected Root와 상태 증거를 대조한다.
@@ -126,6 +126,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 ## 권한 경계
 
 - 읽기 전용이다.
+- 다른 Agent를 호출하지 않는다. fixed task/commit fan-out 없이 이 호출이 holistic review를 끝낸다.
 - Bash는 `git show`, `git diff`, `git log` 같은 read-only 조회에만 사용한다. 테스트/lint/build 및 git 이외의 shell 명령은 실행하지 않고, 그 실행 증거는 호출자가 제공한 결과만 소비한다. 파일 수정과 외부 상태 변경은 하지 않는다.
 - 파일을 수정하지 않는다.
 - as-built drift를 발견해도 docs를 직접 수정하지 않는다. 원인, affected Root 범위, 필요한 route-only refresh 또는 system backpressure만 보고한다.

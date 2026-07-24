@@ -47,7 +47,7 @@ Cartography freshness gap은 standalone `/acceptance`의 tracked 구현·설계 
 | Cartography 결과 | 다음 producer |
 |---|---|
 | 영향 없음 또는 Root와 일치 | 기존 story/epic 완료 후보 보고 |
-| system boundary 유지 + route/state/as-built edge 또는 capability 상태 drift | `module-architect:CARTOGRAPHY_REFRESH`가 affected Root Cartography만 bounded refresh. local-only/ignored이면 canonical local refresh 또는 durable impact handoff를 보존하고 private docs를 code PR에 강제 포함하지 않음. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root refresh 확인 전에는 PASS 금지 |
+| system boundary 유지 + route/state/as-built edge 또는 capability 상태 drift | originating 구현 flow의 `final mutation owner`가 review 전에 affected Root Cartography만 bounded sync. standalone 검수면 `/impl` 후속. local-only/ignored이면 canonical local sync 또는 durable impact handoff를 보존하고 private docs를 code PR에 강제 포함하지 않음. durable impact handoff만으로 freshness가 해소되지는 않으며 canonical local Root sync 확인 전에는 PASS 금지 |
 | system boundary·global decision 변경 | route-only patch 금지. `/design --revise` 또는 system checkpoint backpressure 보고 |
 
 standalone `/acceptance`는 이 producer를 직접 호출하지 않고 gap과 근거를 보고한다. product-acceptance가 receipt 없는 `(JOURNEY)` REQ의 journey 매니페스트를 tip에서 실행해 ignored evidence를 생성·판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 보고한다. tracked 구현·설계는 write-zero로 유지한다.
@@ -94,7 +94,7 @@ UI story 인데 실제 실행 화면을 확인할 화면 증거가 없으면 `�
 | UX 미완성 | `/ux` |
 | 성능 병목 / 리팩토링 필요 | `/to-issue` 후보 + `/impl` 또는 `/design` |
 | 보안 / 권한 / 데이터 리스크 | `/to-issue` 후보 + `/design` 또는 사용자 위임 |
-| Root route/state/as-built edge 또는 capability 상태 drift | `module-architect:CARTOGRAPHY_REFRESH` + affected Root Cartography + durable impact handoff |
+| Root route/state/as-built edge 또는 capability 상태 drift | `/impl` final mutation owner + affected Root Cartography + durable impact handoff |
 | system boundary / global decision Cartography gap | `/design --revise` 또는 system checkpoint backpressure |
 
 story acceptance 는 주로 PRD 유저 시나리오 / Story AC 미충족, 검수 증거 부족 / 스모크 실패, mock-only green / 동작 증거 부족, 화면 증거 부재, 목업 불일치, 사용자 동선 부적합 / 내부 계약 노출을 만든다. epic acceptance 는 cross-story gap, 화면 증거 부재, cross-story 목업 불일치, cross-story 사용자 동선 부적합, 성능 병목 / 리팩토링 필요, 보안 / 권한 / 데이터 리스크까지 같이 본다.

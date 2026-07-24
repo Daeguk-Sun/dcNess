@@ -345,9 +345,9 @@ class WasteDetectionTests(unittest.TestCase):
             StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
                        enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
                        prose_excerpt="", prose_full=prose),
-            StepRecord(idx=1, ts="t2", agent="module-architect", mode="CARTOGRAPHY_REFRESH",
+            StepRecord(idx=1, ts="t2", agent="engineer", mode="POLISH",
                        enum="PROSE_LOGGED", must_fix=False,
-                       conclusion_enum="CARTOGRAPHY_REFRESHED", prose_excerpt="fixed"),
+                       conclusion_enum="POLISH_DONE", prose_excerpt="fixed"),
         ]
         wastes = detect_wastes(steps)
         self.assertFalse(any(w.pattern == "MUST_FIX_GHOST" for w in wastes))

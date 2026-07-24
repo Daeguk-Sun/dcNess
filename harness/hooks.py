@@ -22,6 +22,7 @@ bash 훅 (`hooks/*.sh`) 이 stdin payload + cc_pid 를 본 모듈의 핸들러�
 from __future__ import annotations
 
 import json
+import subprocess  # nosec B404
 import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -491,7 +492,13 @@ def handle_pretooluse_agent(
                 if isinstance(cur_step, dict):
                     step_mode = _mode_or_none(cur_step.get("mode"))
                 else:
-                    auto_start = True
+                    close_sequence_role = (
+                        slot.get("entry_point") == "impl"
+                        and slot.get("acceptance_required") is True
+                        and norm_subagent
+                        in {"impl-validator", "product-acceptance"}
+                    )
+                    auto_start = not close_sequence_role
             strict_msg = _strict_conveyor_gate_message(
                 sid=sid,
                 rid=rid,
@@ -1567,6 +1574,149 @@ _TERMINAL_AGENTS: frozenset[str] = frozenset({"impl-validator"})
 _STOP_BLOCK_COUNT_MAX = 2
 
 
+def _current_tracked_candidate() -> Optional[tuple[str, str, bool]]:
+    """Return current HEAD/tree and whether the tracked worktree is clean."""
+    commands = (
+        ["git", "status", "--porcelain", "--untracked-files=no"],
+        ["git", "rev-parse", "HEAD"],
+        ["git", "rev-parse", "HEAD^{tree}"],
+    )
+    results = []
+    try:
+        for command in commands:
+            results.append(
+                subprocess.run(  # nosec B603, B607
+                    command,
+                    cwd=Path.cwd(),
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=5,
+                )
+            )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if any(result.returncode != 0 for result in results):
+        return None
+    status, head, tree = results
+    return head.stdout.strip(), tree.stdout.strip(), not status.stdout.strip()
+
+
+def _close_validation_sequence_status(
+    sid: str,
+    rid: str,
+    *,
+    base_dir: Optional[Path],
+) -> Optional[tuple[str, str]]:
+    """Return the frozen close-sequence status when candidate receipts exist.
+
+    ``None`` preserves compatibility with runs created before candidate identity
+    was recorded. New close sequences are terminal only when the latest validator
+    and acceptance receipts refer to the same non-empty HEAD/tree and both
+    prose conclusions are PASS.
+    """
+    try:
+        from harness.ledger import read_step_completed
+        from harness.run_review import _extract_conclusion_enum
+
+        steps = read_step_completed(sid, rid, base_dir=base_dir)
+    except Exception:
+        return None
+
+    validator = next(
+        (
+            step
+            for step in reversed(steps)
+            if step.get("agent") == "impl-validator" and step.get("mode") is None
+        ),
+        None,
+    )
+    acceptance = next(
+        (
+            step
+            for step in reversed(steps)
+            if step.get("agent") == "product-acceptance"
+            and step.get("mode") in {"STORY_ACCEPTANCE", "EPIC_ACCEPTANCE"}
+        ),
+        None,
+    )
+    receipts = tuple(
+        step for step in (validator, acceptance) if isinstance(step, dict)
+    )
+    if not any(
+        step.get("candidate_head") or step.get("candidate_tree")
+        for step in receipts
+    ):
+        return None
+    if not isinstance(validator, dict):
+        return (
+            "incomplete",
+            "frozen validation sequence required next receipt missing: impl-validator",
+        )
+
+    def conclusion_for(step: dict) -> Optional[str]:
+        prose_file = step.get("prose_file")
+        try:
+            prose = Path(str(prose_file)).read_text(
+                encoding="utf-8", errors="ignore"
+            )
+        except OSError:
+            return None
+        return _extract_conclusion_enum(prose)
+
+    validator_conclusion = conclusion_for(validator)
+    if validator_conclusion != "PASS":
+        return (
+            "failed",
+            "holistic impl-validator is not terminal PASS: "
+            f"{validator_conclusion or 'MISSING'}",
+        )
+    if not isinstance(acceptance, dict):
+        return (
+            "incomplete",
+            "frozen validation sequence required next receipt missing: "
+            "product-acceptance",
+        )
+
+    identities = {
+        (step.get("candidate_head"), step.get("candidate_tree"))
+        for step in (validator, acceptance)
+    }
+    identity = next(iter(identities)) if len(identities) == 1 else (None, None)
+    if (
+        len(identities) != 1
+        or not all(isinstance(value, str) and value for value in identity)
+    ):
+        return (
+            "mismatch",
+            "validator and acceptance candidate HEAD/tree receipts do not match",
+        )
+    current = _current_tracked_candidate()
+    if current is None:
+        return (
+            "mismatch",
+            "current tracked candidate identity could not be confirmed",
+        )
+    current_head, current_tree, tracked_clean = current
+    if not tracked_clean or (current_head, current_tree) != identity:
+        return (
+            "mismatch",
+            "current tracked HEAD/tree changed after validation sequence freeze",
+        )
+
+    conclusions = {
+        "impl-validator": validator_conclusion,
+        "product-acceptance": conclusion_for(acceptance),
+    }
+    if all(value == "PASS" for value in conclusions.values()):
+        return ("pass", "same frozen candidate; both terminal PASS")
+    return (
+        "failed",
+        "validation sequence is not terminal PASS: "
+        + ", ".join(f"{key}={value or 'MISSING'}" for key, value in conclusions.items()),
+    )
+
+
 def _maybe_emit_continuation_signal(
     *,
     sid: str,
@@ -1592,15 +1742,66 @@ def _maybe_emit_continuation_signal(
     """
     if not last_agent:
         return False
+    close_sequence = _close_validation_sequence_status(
+        sid, rid, base_dir=base_dir
+    )
+    if close_sequence is not None:
+        status, detail = close_sequence
+        if status == "pass":
+            return False
+        step_key = "close-validation-sequence"
+        block_counts = slot.get("stop_block_count")
+        if not isinstance(block_counts, dict):
+            block_counts = {}
+        try:
+            cur_count = int(block_counts.get(step_key, 0) or 0)
+        except (TypeError, ValueError):
+            cur_count = 0
+        if cur_count >= _STOP_BLOCK_COUNT_MAX:
+            # Never auto-close an incomplete or mismatched frozen sequence. The
+            # bounded signal suppresses hook loops while the active run remains
+            # available for explicit recovery/abort.
+            return True
+        try:
+            transition(
+                sid,
+                "stop_block_recorded",
+                run_id=rid,
+                base_dir=base_dir,
+                step_key=step_key,
+            )
+        except Exception:  # nosec B110
+            pass
+        if status == "failed":
+            recovery = (
+                "product-acceptance를 시작하지 말고 finding을 same implementation "
+                "owner가 수정한 뒤 Cartography sync와 새 candidate validator부터 재실행"
+            )
+        elif status == "incomplete":
+            recovery = "같은 candidate에서 required next validation step을 실행"
+        else:
+            recovery = (
+                "Cartography sync와 candidate freeze부터 새 validation sequence를 시작"
+            )
+        reason = (
+            "[dcness Stop hook · close validation sequence] "
+            f"{detail}. 다음: {recovery}."
+        )
+        print(json.dumps({"decision": "block", "reason": reason}))
+        return True
     sanity_review = (
         last_agent == "impl-validator" and last_mode == "CODEBASE_SANITY"
     )
-    acceptance_after_pr = (
+    legacy_acceptance_after_review = (
         last_agent == "impl-validator"
         and not sanity_review
         and slot.get("acceptance_required") is True
     )
-    if last_agent in _TERMINAL_AGENTS and not acceptance_after_pr and not sanity_review:
+    if (
+        last_agent in _TERMINAL_AGENTS
+        and not legacy_acceptance_after_review
+        and not sanity_review
+    ):
         return False
     rdir = slot.get("run_dir")
     if not isinstance(rdir, str) or not rdir:
@@ -1661,7 +1862,7 @@ def _maybe_emit_continuation_signal(
                 "경로로 호출해 같은 final merge candidate의 일반 merge "
                 "review를 이어가야 함. "
             )
-    elif acceptance_after_pr:
+    elif legacy_acceptance_after_review:
         next_hint = (
             "이 run 은 story/epic 마감 acceptance 대상이므로 "
             "`begin-step product-acceptance <MODE>` 후 modeful foreground Agent로 "
