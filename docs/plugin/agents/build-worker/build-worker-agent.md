@@ -2,7 +2,7 @@
 
 ## 목적
 
-`/impl-loop` 단일 구현 엔진으로 한 impl task의 조건부 `JOURNEY_ENV_PREFLIGHT`, 테스트 작성, 구현, 자체 검증, 로컬 커밋을 한 호출 안에서 끝낸다. 같은 agent를 completed 이후 `JOURNEY_CONVERGENCE` mode로 재사용해 자동 `(JOURNEY)`의 final tip 하네스도 수렴시킨다. 신규 agent나 공개 진입점을 만들지 않으며, 비용을 줄이되 검증 증거와 커밋 가능 상태를 생략하지 않는다.
+`/impl-loop`와 복잡 `/impl`의 headless 구현 엔진으로 한 task의 조건부 `JOURNEY_ENV_PREFLIGHT`, 테스트 작성, 구현, 자체 검증, 로컬 커밋을 한 호출 안에서 끝낸다. `/impl-loop`에서는 같은 agent를 completed 이후 `JOURNEY_CONVERGENCE` mode로 재사용해 자동 `(JOURNEY)`의 final tip 하네스도 수렴시킨다. 신규 agent나 공개 진입점을 만들지 않으며, 비용을 줄이되 검증 증거와 커밋 가능 상태를 생략하지 않는다.
 
 ## 입력
 
@@ -54,7 +54,7 @@
 
 ### `JOURNEY_ENV_PREFLIGHT`
 
-- `/impl-loop` 기본 one-shot worker가 impl task를 읽은 직후, source read/edit 전에 자동 `(JOURNEY)`가 하나라도 있을 때만 내부 phase로 1회 수행한다. 별도 main turn, provider fork, outer lifecycle step을 만들지 않는다. journey 미선언 run과 `acceptance_environment.automation=human_verification`만 있는 run은 비발동이다.
+- `/impl-loop` 기본 one-shot worker 또는 복잡 `/impl` headless worker가 task를 읽은 직후, source read/edit 전에 자동 `(JOURNEY)`가 하나라도 있을 때만 내부 phase로 1회 수행한다. 별도 main turn, provider fork, outer lifecycle step을 만들지 않는다. journey 미선언 run과 `acceptance_environment.automation=human_verification`만 있는 run은 비발동이다.
 - main 컨텍스트가 아니라 build-worker가 실제 실행될 동일 provider·sandbox의 worker 실행 컨텍스트에서 `requirements[].probe`를 수행한다. mobile은 device/emulator+`adb` socket, web은 browser/driver, CLI는 기동 service+writable fixture, API는 provisioned tenant처럼 해당 runtime 의존에 실제로 도달하는지 본다.
 - 확실한 미충족이라도 `requirements[].prepare`로 emulator boot, container/service 기동, socket 노출 같은 자동 준비가 가능하면 질문 없이 먼저 준비하고 다시 probe한다. 검출이 불확실하면 차단하지 않고 그 불확실성을 보고한 `PASS`로 task 구현에 진행해 수렴 호출이 흡수하게 한다.
 - 확실한 미충족이고 자동 준비가 불가능할 때만 근거와 함께 `IMPLEMENTATION_ESCALATE`를 보고한다. main이 host에서 대신 probe하거나 journey를 실행해 worker substrate 부재를 숨기지 않는다. 이 phase는 tracked file을 수정하거나 commit하지 않는다.
@@ -71,7 +71,7 @@
 ## phase prose 경로
 
 - headless wrapper가 prompt에 넣은 `canonical run directory` 절대경로가 phase prose의 유일한 기록 위치다. linked worktree 안의 상대 `.claude/harness-state`를 다시 계산하지 않는다.
-- phase prose는 worker 내부 test/impl/validate 증거다. outer Agent 호출의 `step_started`/`step_completed` receipt가 아니며, phase마다 outer `begin-step`/`end-step`을 호출하거나 phase 파일을 outer completion으로 append하지 않는다. foreground Claude outer lifecycle은 hook이 소유한다. `/impl-loop` headless outer lifecycle은 implementation chain이 provider fork 전 `step_started`, worker wrapper가 최종 prose의 `step_completed`를 각각 정확히 한 번 소유한다.
+- phase prose는 worker 내부 test/impl/validate 증거다. outer Agent 호출의 `step_started`/`step_completed` receipt가 아니며, phase마다 outer `begin-step`/`end-step`을 호출하거나 phase 파일을 outer completion으로 append하지 않는다. foreground Claude outer lifecycle은 hook이 소유한다. `/impl-loop`와 복잡 `/impl`의 headless outer lifecycle은 implementation chain이 provider fork 전 `step_started`, worker wrapper가 최종 prose의 `step_completed`를 각각 정확히 한 번 소유한다.
 - `phases/<RUN_ID>/` 같은 별도 worktree 경로를 만들거나 보고하지 않는다.
 - `build-test.md`, `build-impl.md`, `build-validate.md`를 쓴 뒤 `ls <run_dir>/build-test.md <run_dir>/build-impl.md <run_dir>/build-validate.md`로 3개 실존을 확인한다.
 - impl-validator finding 대응 등 별도 polish 기록이 필요하면 `build-polish.md`도 같은 `<run_dir>`에만 쓴다. 이 파일은 선택 기록이며 clean 게이트의 필수 3개에는 포함하지 않는다.

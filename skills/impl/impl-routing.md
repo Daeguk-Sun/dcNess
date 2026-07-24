@@ -1,13 +1,13 @@
 # impl 분기 규칙 SSOT
 
 > **Status**: ACTIVE
-> **Scope**: `/impl` skill 전용. 자유 구현 요청을 direct / design-doc 으로 판정하고, high-risk 권고, review provider, retry 를 정한다. 진행 절차는 [`SKILL.md`](SKILL.md). 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때는 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
+> **Scope**: `/impl` skill 전용. 자유 구현 요청을 direct / design-doc 으로 판정하고, 내부 구현 소유자, high-risk 권고, review provider, retry 를 정한다. 진행 절차는 [`SKILL.md`](SKILL.md). 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때는 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
 ## 읽는 법
 
 분기 규칙은 권고다. hard safety gate 는 branch/PR/test/review/CI 와 순서 차단 훅이 보존한다. 사용자는 구현 경로 이름을 외우지 않고 `/impl <작업>`만 말하면 된다.
 
-일반 `/impl` 의 구현 주체는 항상 메인이다. 별도 구현 agent 는 일반 `/impl` 구현자로 호출하지 않는다. 격리되는 것은 review step 이며, `impl-validator` provider 만 local routing 으로 Claude sub-agent 또는 Codex headless wrapper 중 하나를 쓴다. deep task 파일을 headless story/epic runner 로 돌리는 흐름은 [`/impl-loop`](../impl-loop/SKILL.md) 의 영역이다.
+`/impl`의 공개 경로는 그대로 direct/design-doc 두 개다. 구현 엔진은 공개 축이 아니라 첫 source edit 전에 이미 보이는 task shape로 한 번 선택하는 내부 소유권이다. 단순·애매한 작업은 main-direct, 명확한 복잡 작업은 headless one-shot이다. 선택을 위해 추가 scan이나 질문을 하지 않으며 중간 handoff를 금지한다. deep task 파일 목록을 story/epic runner로 돌리는 흐름은 계속 [`/impl-loop`](../impl-loop/SKILL.md)의 영역이다.
 
 구현 후에는 메인의 자유 prose Cartography impact와 merge candidate diff, affected Root Cartography 좌표, 관련 epic/decision을 읽기 전용 `impl-validator`에 함께 전달한다. 이 freshness boundary는 direct와 design-doc 모두 동일하다.
 
@@ -35,15 +35,21 @@ flowchart TB
   HR -->|예| WARN["warn-don't-block: 설계 선행 권장"]
   HR -->|아니오| DOC
   WARN --> DOC{"설계 문서 경로가 입력됐나?"}
-  DOC -->|예| DD["design-doc: begin-run --design-doc<br/>메인 구현 + impl-validator"]
-  DOC -->|아니오| DR["direct: 메인 구현 + impl-validator"]
+  DOC -->|예| DD["design-doc"]
+  DOC -->|아니오| DR["direct"]
+  DD --> OWNER{"이미 명확한 복잡 신호?"}
+  DR --> OWNER
+  OWNER -->|예| HW["headless one-shot 구현"]
+  OWNER -->|아니오/애매| MD["main-direct 구현"]
+  HW --> RV["실제 구현자의 반대 진영 review"]
+  MD --> RV
 ```
 
 필요한 경우의 짧은 경로 echo:
 
 ```text
-구현 경로: direct — concrete signal = <파일/이슈/테스트>, 구현 = 메인 직접, review_provider = <claude|codex>
-구현 경로: design-doc — 설계도 = <경로>, 구현 = 메인 직접, review_provider = <claude|codex>
+구현 경로: direct — concrete signal = <파일/이슈/테스트>, owner = <main-direct|headless>
+구현 경로: design-doc — 설계도 = <경로>, owner = <main-direct|headless>
 권고: high-risk 신호 감지 — 설계 선행을 권장하지만 사용자가 진행하면 구현
 UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 지시하면 ux-flow 참고 후 구현
 ```
@@ -52,8 +58,8 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 
 | 경로 | 다음 |
 |---|---|
-| direct · 메인 직접 | 격리 뒤 `begin-run impl`을 기록하고 concrete signal 또는 충분한 자연어 의도에서 관련 파일을 찾아 메인 직접 `test -> impl -> test pass` → `impl-validator` local diff |
-| design-doc · 메인 직접 | `begin-run impl --design-doc <경로>` 기록 후 받은 설계도로 메인 직접 `test -> impl -> test pass` → `impl-validator` local diff |
+| direct | main-direct면 격리 뒤 `begin-run impl`; 명확한 복잡 작업이면 격리 뒤 implementation chain `--direct-run` one-shot. 선택한 owner가 `test -> impl -> test pass` → `impl-validator` |
+| design-doc | main-direct면 `begin-run impl --design-doc`; 명확한 복잡 작업이면 chain `--direct-run --design-doc <경로>`. 선택한 owner가 설계도로 `test -> impl -> test pass` → `impl-validator` |
 
 일반 `/impl` 도 `impl-validator` 를 호출한다. direct 에 대상 issue 가 있으면 계획 파일이 없어도 spec 렌즈를 켜고 **target GitHub issue AC** 를 대조한다. design-doc 경로의 spec 기준은 plan ∪ target GitHub issue AC 이며, 대상 issue 가 없는 direct 만 quality 렌즈로 검토한다. 최소 gate 는 테스트 선작성 또는 skip 사유, lint/build/test green, 격리 `impl-validator`, 단위 commit/PR, CI, false-clean 방지다.
 
@@ -75,22 +81,21 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 
 ## Review Provider
 
-`impl-validator` 기본 provider 는 구현자의 상대 진영이다.
+`impl-validator` 기본 provider는 설정된 chain이 아니라 **terminal receipt의 실제 구현 성공 provider**의 상대 진영이다.
 
 | 구현자 | 기본 review provider |
 |---|---|
-| `/impl` 메인 Claude | Codex 가능 시 Codex, 불가 시 Claude |
-| `/impl-loop` codex-headless build-worker | Claude |
-| `/impl-loop` claude-headless build-worker | Codex 가능 시 Codex, 불가 시 Claude |
+| `codex-headless` | Claude |
+| `claude-headless` 또는 `claude-main` | Codex 가능 시 Codex, 불가 시 Claude |
 
-`routing.json` 명시 provider 는 계속 존중한다. Codex CLI 가 없거나 `dcness-codex-validator` wrapper 가 비정상 종료하면 Claude `impl-validator` 로 폴백하고 폴백 사실을 한 줄로 고지한다.
+성공한 provider가 Codex→Claude로 폴백했다면 review는 Codex다. local routing의 same-camp validator override로 이 교차 검토를 무력화하지 않는다. Codex CLI가 없거나 `dcness-codex-validator` wrapper가 비정상 종료하면 Claude `impl-validator`로 폴백하고 `fallback_reason`을 기록·고지한다.
 
 ## 결론 → 다음 호출
 
 | 단계 | 결론 → 다음 |
 |---|---|
-| direct `impl-validator` | `PASS` → commit/PR/CI · target issue 가 있으면 AC close audit · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정 + test 재통과 + impl-validator 재호출(≤3) |
-| design-doc `impl-validator` | `PASS` → commit/PR/CI · `FAIL`(`[spec-gap]` 포함) → 메인 로직 수정 · `FAIL`(`[quality-gap]`만) → 메인 polish 수정 · 이후 test 재통과 + impl-validator 재호출(≤3) |
+| direct `impl-validator` | `PASS` → commit/PR/CI · target issue가 있으면 AC close audit · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 같은 구현 owner가 root-cause 수정 + test 재통과 + impl-validator 재호출(≤3) |
+| design-doc `impl-validator` | `PASS` → commit/PR/CI · `FAIL`(`[spec-gap]` 포함) → 같은 구현 owner가 로직 수정 · `FAIL`(`[quality-gap]`만) → 같은 owner가 polish 수정 · 이후 test 재통과 + impl-validator 재호출(≤3) |
 
 Cartography freshness 결과는 위 PASS/FAIL 의미 안에서 다음처럼 결정적으로 연결한다.
 
@@ -106,8 +111,8 @@ Cartography freshness 결과는 위 PASS/FAIL 의미 안에서 다음처럼 결�
 
 | 경로 | 한도 | 초과 시 |
 |---|---|---|
-| direct impl-validator FAIL(`[quality-gap]`) → 메인 root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
-| design-doc impl-validator FAIL(`[spec-gap]` 또는 `[quality-gap]`) → 메인 root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
+| direct impl-validator FAIL(`[quality-gap]`) → 같은 owner root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
+| design-doc impl-validator FAIL(`[spec-gap]` 또는 `[quality-gap]`) → 같은 owner root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
 
 finding 수용 원칙은 `/impl-loop` 와 같다. 같은 영역 finding 이 반복되면 줄 단위 점 패치가 아니라 root cause 를 재검토한다.
 

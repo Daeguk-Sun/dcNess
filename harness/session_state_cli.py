@@ -710,6 +710,23 @@ def _cli_routing(args: Any) -> int:
         return 0
     if action == "resolve":
         try:
+            actual_provider = getattr(
+                args, "actual_implementation_provider", None
+            )
+            if actual_provider:
+                if args.agent != "impl-validator":
+                    raise ValueError(
+                        "--actual-implementation-provider is only valid for "
+                        "impl-validator"
+                    )
+                route = agent_routing.review_route_for_actual_provider(
+                    actual_provider
+                )
+                if getattr(args, "explain", False):
+                    print(json.dumps(route, ensure_ascii=False, sort_keys=True))
+                else:
+                    print(route["review_provider"])
+                return 0
             provider = agent_routing.resolve_provider(
                 args.agent,
                 implementation_provider=getattr(args, "implementation_provider", None),
@@ -1153,10 +1170,21 @@ def _build_arg_parser() -> Any:
         help="impl-validator 기본값을 계산할 때 구현 provider camp 를 반영",
     )
     rt_resolve.add_argument(
+        "--actual-implementation-provider",
+        choices=("codex-headless", "claude-headless", "claude-main"),
+        default=None,
+        help="실제 구현 완료 receipt provider로 반대 진영 impl-validator를 계산",
+    )
+    rt_resolve.add_argument(
         "--main-provider",
         choices=("claude", "codex"),
         default="claude",
         help="implementation provider 가 없을 때 main 구현 provider camp",
+    )
+    rt_resolve.add_argument(
+        "--explain",
+        action="store_true",
+        help="actual implementation provider review route를 JSON provenance로 출력",
     )
     rt_resolve.set_defaults(func=_cli_routing)
 

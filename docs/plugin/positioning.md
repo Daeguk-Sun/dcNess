@@ -10,10 +10,10 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 |---|---|---|
 | `/spec` | 새 제품 기능, 큰 기획, PRD 변경처럼 의도 합의가 먼저 필요할 때 | PRD 초안/최종화 / stories / 필요한 tech-review preflight + `SPEC_ACCEPTANCE` |
 | `/design` | PRD 이후 구현 전 product/technical design, 즉 설계 전체가 필요할 때 | UX / 시스템 / 모듈 / 기술 선택 설계. 구현 없이 visual design 만 먼저 탐색하려면 `/ux` |
-| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | direct/design-doc 경로 + review provider 를 내부 판정 |
+| `/impl` | 구현, 수정, 버그픽스, 작은 리팩터링을 실제 PR 로 끝낼 때 | direct/design-doc 경로 + 구현 소유자 + 반대 진영 review를 내부 판정 |
 | `/acceptance` | PRD / Epic / Story 기준 제품 검수와 gap 후속 연결이 필요할 때 | story/epic acceptance. 핵심 AC별 동작 증거와 mock-only gap 을 구분한다. 사람 full E2E 는 MVP 범위 밖 |
 
-사용자는 구현 경로 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 파일·이슈·테스트 같은 concrete signal 이 있거나 자연어 구현 의도가 충분하면 관련 코드를 찾아 바로 구현한다. 설계도 경로가 있으면 design-doc 으로 받은 설계도를 구현한다. issue 등록은 사용자가 요청했을 때만 `/to-issue` 로 분기하고, 제품 의미가 실제로 둘 이상일 때만 짧게 묻는다. 일반 `/impl` 의 구현 주체는 메인이고, 격리되는 단계는 `impl-validator` 검토다. high-risk trigger 나 새 epic/product feature 는 설계 선행을 권장하는 신호지만, 사용자가 그대로 진행을 택하면 `/impl` 이 구현한다. 조건과 권고 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
+사용자는 구현 경로나 엔진 이름을 외울 필요가 없다. `/impl` 은 설계를 하지 않고 파일·이슈·테스트 같은 concrete signal 이 있거나 자연어 구현 의도가 충분하면 바로 구현한다. 설계도 경로가 있으면 design-doc 으로 받은 설계도를 구현한다. 이미 명확한 복잡 신호가 있으면 첫 source edit 전에 headless owner를 선택하고, 단순하거나 애매하면 main-direct로 진행한다. 구현 도중 owner를 바꾸지 않으며 review는 실제 구현 성공 provider의 반대 진영이다. issue 등록은 사용자가 요청했을 때만 `/to-issue` 로 분기하고, 제품 의미가 실제로 둘 이상일 때만 짧게 묻는다. high-risk trigger 나 새 epic/product feature 는 설계 선행을 권장하는 신호지만, 사용자가 그대로 진행을 택하면 `/impl` 이 구현한다. 조건과 권고 기준은 [`workflow-router.md#구현-경로-표`](workflow-router.md#구현-경로-표) 가 소유한다. 본 문서는 공개 진입점과 사용자-facing 노출 범위만 소유한다.
 
 ## Support Entrypoints
 
@@ -65,7 +65,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 agent 는 사용자가 외워야 하는 command 가 아니다. `architecture-validator`, `build-worker`, `impl-validator`, `designer`, `module-architect`, `product-acceptance`, `system-architect`, `tech-reviewer`, `ux-architect` 는 workflow 내부에서 호출되는 gate/worker/reviewer 로 분류한다.
 
-특히 `impl-validator`, `architecture-validator` 는 read-only validation provider 분기 대상이다. `build-worker` 는 `/impl-loop` 같은 deep task runner 의 implementation provider 분기 대상이지 일반 `/impl` 구현자가 아니다. provider 가 Claude 든 Codex 든 사용자-facing 단계 이름은 `impl-validator` / `build-worker` 같은 agent 이름으로 유지한다.
+특히 `impl-validator`, `architecture-validator` 는 read-only validation provider 분기 대상이다. `build-worker` 는 `/impl-loop`와 복잡 `/impl`의 내부 headless implementation provider이며 새 공개 구현 경로가 아니다. provider가 Claude든 Codex든 사용자-facing 단계 이름은 `impl-validator` / `build-worker` 같은 agent 이름으로 유지한다.
 
 ## Contract Gate
 

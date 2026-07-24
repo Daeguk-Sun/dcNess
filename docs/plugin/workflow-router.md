@@ -9,7 +9,7 @@
 
 분기 규칙은 **권고**다. 코드가 강제하는 것은 작업 순서와 접근 영역이고, 진입점 선택은 메인/사용자의 판단이다. 사용자가 명시적으로 `/impl` 또는 "구현해줘"를 지시했고 concrete signal 이 있으면 구현을 우선한다. high-risk 신호는 설계 선행 권장 근거이지 자동 차단 근거가 아니다.
 
-기본 공개 진입점은 `/spec -> /design -> /impl -> /acceptance` 다. direct / design-doc 은 `/impl` 내부 echo 이름이고 공개 command 가 아니다. 기본 공개 진입점 계약은 [`positioning.md`](positioning.md) 가 진본이다.
+기본 공개 진입점은 `/spec -> /design -> /impl -> /acceptance` 다. direct / design-doc 은 `/impl` 내부 echo 이름이고 공개 command 가 아니다. main-direct / headless는 첫 source edit 전에 한 번 고르는 내부 구현 소유자이며 공개 command가 아니다. 기본 공개 진입점 계약은 [`positioning.md`](positioning.md) 가 진본이다.
 
 ## gate 축 — 어떤 공개 진입점으로 갈까
 
@@ -64,8 +64,8 @@ flowchart TB
 
 | 구현 경로 | 트리거 | 진입점 | 왜 이 경로 |
 |---|---|---|---|
-| **direct** | 파일 path · 함수/클래스/symbol · issue/PR 번호 · 명시 테스트 명령 · 작은 docs-only/refactor 또는 충분한 자연어 구현 의도 | `/impl` — 관련 파일과 테스트를 찾아 메인 직접 `test -> impl -> test pass -> impl-validator -> PR` | 일상적인 파일·테스트 선택과 탐색은 메인이 해결한다. high-risk 신호는 권고로 표시하되 차단하지 않음 |
-| **design-doc** | 설계 문서 경로가 입력됨 | `/impl` — `--design-doc` 기록 후 받은 설계도로 메인이 구현 + 격리 `impl-validator` | impl 은 설계 생성 X. 받은 설계도 충실 구현과 review gate 유지 |
+| **direct** | 파일 path · 함수/클래스/symbol · issue/PR 번호 · 명시 테스트 명령 · 작은 docs-only/refactor 또는 충분한 자연어 구현 의도 | `/impl` — 단순·애매하면 main-direct, 여러 module/runtime seam/넓은 검증이 명확하면 첫 source edit 전 headless one-shot → 반대 진영 `impl-validator` → PR | 구현 소유자 판정을 위해 추가 scan·질문하지 않고 중간 handoff도 하지 않음 |
+| **design-doc** | 설계 문서 경로가 입력됨 | `/impl` — 같은 task-shape 기준으로 owner를 한 번 정하고 받은 설계도로 구현 + 반대 진영 `impl-validator` | impl은 설계 생성 X. 받은 설계도 충실 구현과 review gate 유지 |
 | **shape: chain** | story/epic deep task 파일 목록을 처리 | `/impl-loop` — build-worker task commit 누적 후 merge candidate `impl-validator` 1회 | 실행 형태. 일반 구현 진입점이 아니라 SDD 설계도 기반 headless runner |
 
 ## tech-review / architecture-validator 조건
@@ -99,7 +99,7 @@ flowchart TB
 |---|---|---|---|
 | **design → spec** | design 중 PRD/요구사항 부족 발견 → 메인 `/spec` 재진입 권고 | 설계 agent가 PRD 충돌/누락(`ESCALATE`) 또는 미검증 새 외부 의존(`NEW_DEP_ESCALATE`) 보고 | 진본 = [`design-routing.md` escalate 처리](../../skills/design/design-routing.md#escalate-처리) |
 | **impl → 사용자 결정** | 구현 중 되돌리기 어려운 영향 발견 → 사용자에게 설계 선행/계속 진행 선택지 보고 | high-risk 영향이 실제 코드 변경 지점에서 구체화 | 자동 `/spec`·`/design` 되돌림 금지 |
-| **review → 구현** | impl-validator FAIL → finding-class 에 따라 메인 root-cause 수정 | finding 발생 | 단계 내부 되돌림. retry 한도는 [`impl-routing.md`](../../skills/impl/impl-routing.md) |
+| **review → 구현** | impl-validator FAIL → finding-class에 따라 최초 구현 owner가 root-cause 수정 | finding 발생 | 단계 내부 되돌림. retry 한도는 [`impl-routing.md`](../../skills/impl/impl-routing.md) |
 
 단계 내부 되돌림과 단계 간 되돌림은 같은 원리의 다른 반경이다. 같은 영역 부족이 반복되면 점 패치 retry 로 한도를 소진하지 말고 근본 원인을 본다.
 

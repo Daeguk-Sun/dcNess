@@ -11,7 +11,7 @@ set -uo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  dcness-implementation-chain <agent> [MODE] --prompt-file <file> [--provider <provider>] [--provider-provenance <routing|explicit>] [--chain-state <file>] [--init-path <impl-path>]... [--project-root <dir>]
+  dcness-implementation-chain <agent> [MODE] --prompt-file <file> [--provider <provider>] [--provider-provenance <routing|explicit>] [--chain-state <file>] [--init-path <impl-path>]... [--direct-run] [--design-doc <path>] [--rework --resume-provider <actual-provider>] [--project-root <dir>]
 
 Agents:
   build-worker
@@ -28,6 +28,11 @@ Options:
   --chain-state       Story-runner state. Enables lifecycle setup and chain cache.
   --init-path         Impl task path used to initialize a missing chain state.
                       Repeat for a multi-task chain. Existing matching state is reused.
+  --direct-run        Create/reuse one lite /impl run without story state.
+                      Requires an isolated feature worktree.
+  --design-doc        Optional merged design document for --direct-run.
+  --rework            Open a new build-worker step for validator finding repair.
+  --resume-provider   Reuse the exact terminal implementation provider for rework.
   --issue-num         Target GitHub issue number recorded on an auto-created run.
   --acceptance-required  Enable acceptance on the final chain task only.
                          Requires --chain-state.
@@ -85,6 +90,10 @@ PROVIDER_ARG_SEEN=0
 PROVIDER_PROVENANCE=""
 CHAIN_STATE=""
 INIT_PATHS=()
+DIRECT_RUN=0
+DIRECT_DESIGN_DOC=""
+REWORK=0
+RESUME_PROVIDER=""
 ISSUE_NUM=""
 ACCEPTANCE_REQUIRED=0
 RECOVERY_LIMIT="${DCNESS_IMPLEMENTATION_RECOVERY_LIMIT:-2}"
@@ -124,6 +133,22 @@ while [ $# -gt 0 ]; do
       ;;
     --init-path)
       INIT_PATHS+=("${2:-}")
+      shift 2
+      ;;
+    --direct-run)
+      DIRECT_RUN=1
+      shift
+      ;;
+    --design-doc)
+      DIRECT_DESIGN_DOC="${2:-}"
+      shift 2
+      ;;
+    --rework)
+      REWORK=1
+      shift
+      ;;
+    --resume-provider)
+      RESUME_PROVIDER="${2:-}"
       shift 2
       ;;
     --issue-num)
@@ -180,6 +205,37 @@ if [ "${#INIT_PATHS[@]}" -gt 0 ] && [ -z "$CHAIN_STATE" ]; then
   echo "[dcness-implementation-chain] --init-path requires --chain-state" >&2
   exit 2
 fi
+if [ "$DIRECT_RUN" -eq 1 ] && [ -n "$CHAIN_STATE" ]; then
+  echo "[dcness-implementation-chain] --direct-run and --chain-state are mutually exclusive" >&2
+  exit 2
+fi
+if [ -n "$DIRECT_DESIGN_DOC" ] && [ "$DIRECT_RUN" -ne 1 ]; then
+  echo "[dcness-implementation-chain] --design-doc requires --direct-run" >&2
+  exit 2
+fi
+if [ "$REWORK" -eq 1 ] && [ "$DIRECT_RUN" -ne 1 ]; then
+  echo "[dcness-implementation-chain] --rework requires --direct-run" >&2
+  exit 2
+fi
+if [ "$REWORK" -eq 1 ] && [ -z "$RESUME_PROVIDER" ]; then
+  echo "[dcness-implementation-chain] --rework requires --resume-provider" >&2
+  exit 2
+fi
+if [ -n "$RESUME_PROVIDER" ] && [ "$REWORK" -ne 1 ]; then
+  echo "[dcness-implementation-chain] --resume-provider requires --rework" >&2
+  exit 2
+fi
+case "$RESUME_PROVIDER" in
+  ""|codex-headless|claude-headless|claude-main) ;;
+  *)
+    echo "[dcness-implementation-chain] unsupported --resume-provider: $RESUME_PROVIDER" >&2
+    exit 2
+    ;;
+esac
+if [ -n "$RESUME_PROVIDER" ] && [ "$PROVIDER_ARG_SEEN" -eq 1 ]; then
+  echo "[dcness-implementation-chain] --resume-provider and --provider are mutually exclusive" >&2
+  exit 2
+fi
 if [ "$ACCEPTANCE_REQUIRED" -eq 1 ] && [ -z "$CHAIN_STATE" ]; then
   echo "[dcness-implementation-chain] --acceptance-required requires --chain-state" >&2
   exit 2
@@ -189,7 +245,9 @@ if [ -n "$ISSUE_NUM" ] && [[ ! "$ISSUE_NUM" =~ ^[1-9][0-9]*$ ]]; then
   exit 2
 fi
 
-if [ -z "$PROVIDER_PROVENANCE" ]; then
+if [ -n "$RESUME_PROVIDER" ]; then
+  PROVIDER_PROVENANCE="explicit"
+elif [ -z "$PROVIDER_PROVENANCE" ]; then
   if [ "$PROVIDER_ARG_SEEN" -eq 1 ]; then
     PROVIDER_PROVENANCE="explicit"
   else
@@ -223,40 +281,44 @@ esac
 
 cd "$PROJECT_ROOT"
 
-prepare_chain_state() {
+verify_isolated_project_root() {
   local git_root=""
   local current_branch=""
   local default_branch=""
-  local plan_rc=0
-  local setup_required=""
-
-  [ -n "$CHAIN_STATE" ] || return 0
 
   git_root="$(git -C "$PROJECT_ROOT" rev-parse --show-toplevel 2>/dev/null || true)"
   if [ -z "$git_root" ] || [ "$(cd "$git_root" && pwd -P)" != "$PROJECT_ROOT" ]; then
     echo "[dcness-implementation-chain] project root is not a git worktree root: $PROJECT_ROOT" >&2
     return 2
   fi
+  if [ "$(pwd -P)" != "$PROJECT_ROOT" ]; then
+    echo "[dcness-implementation-chain] initial launch must run from its project/worktree root: $PROJECT_ROOT" >&2
+    return 2
+  fi
+  current_branch="$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true)"
+  default_branch="$(
+    git -C "$PROJECT_ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null \
+      | sed 's#^[^/]*/##' || true
+  )"
+  if [ -z "$default_branch" ]; then
+    case "$current_branch" in
+      main|master) default_branch="$current_branch" ;;
+    esac
+  fi
+  if [ -n "$default_branch" ] && [ "$current_branch" = "$default_branch" ]; then
+    echo "[dcness-implementation-chain] refusing default branch initial launch: $current_branch; enter an isolated feature worktree first." >&2
+    return 2
+  fi
+}
+
+prepare_chain_state() {
+  local plan_rc=0
+  local setup_required=""
+
+  [ -n "$CHAIN_STATE" ] || return 0
 
   if [ "${#INIT_PATHS[@]}" -gt 0 ]; then
-    if [ "$(pwd -P)" != "$PROJECT_ROOT" ]; then
-      echo "[dcness-implementation-chain] initial launch must run from its project/worktree root: $PROJECT_ROOT" >&2
-      return 2
-    fi
-    current_branch="$(git -C "$PROJECT_ROOT" branch --show-current 2>/dev/null || true)"
-    default_branch="$(
-      git -C "$PROJECT_ROOT" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null \
-        | sed 's#^[^/]*/##' || true
-    )"
-    if [ -z "$default_branch" ]; then
-      case "$current_branch" in
-        main|master) default_branch="$current_branch" ;;
-      esac
-    fi
-    if [ -n "$default_branch" ] && [ "$current_branch" = "$default_branch" ]; then
-      echo "[dcness-implementation-chain] refusing default branch initial launch: $current_branch; enter an isolated feature worktree first." >&2
-      return 2
-    fi
+    verify_isolated_project_root || return $?
 
     PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
       python3 - "$PROJECT_ROOT" "$CHAIN_STATE" "${INIT_PATHS[@]}" <<'PY'
@@ -462,10 +524,74 @@ PY
   export DCNESS_RUN_ID="$rid"
 }
 
+ensure_direct_run() {
+  local sid=""
+  local rid=""
+  local run_action=""
+  local begin_args=()
+
+  [ "$DIRECT_RUN" -eq 1 ] || return 0
+  verify_isolated_project_root || return $?
+  sid="$(
+    PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+      python3 -c 'from harness.session_state import auto_detect_session_id; print(auto_detect_session_id())'
+  )"
+  if [ -z "$sid" ]; then
+    echo "[dcness-implementation-chain] --direct-run could not resolve session id" >&2
+    return 2
+  fi
+  rid="$(
+    PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+      python3 -c 'from harness.session_state import auto_detect_run_id; print(auto_detect_run_id())'
+  )"
+  run_action="$(
+    PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+      python3 - "$sid" "$rid" "$PROJECT_ROOT" "$DIRECT_DESIGN_DOC" <<'PY'
+import sys
+from pathlib import Path
+
+from harness.session_state import read_live
+
+sid, rid, root_text, design_text = sys.argv[1:5]
+if not rid:
+    print("new")
+    raise SystemExit(0)
+slot = (read_live(sid) or {}).get("active_runs", {}).get(rid)
+if not isinstance(slot, dict) or slot.get("entry_point") != "impl":
+    print("new")
+    raise SystemExit(0)
+if design_text:
+    expected = (Path(root_text).resolve() / design_text).resolve()
+    actual_text = str(slot.get("design_doc") or "")
+    actual = Path(actual_text).resolve() if actual_text else None
+    print("reuse" if actual == expected else "new")
+else:
+    print("reuse" if slot.get("lane") == "lite" else "new")
+PY
+  )" || return $?
+  if [ "$run_action" = "new" ]; then
+    begin_args=(begin-run impl)
+    if [ -n "$DIRECT_DESIGN_DOC" ]; then
+      begin_args+=(--design-doc "$DIRECT_DESIGN_DOC")
+    else
+      begin_args+=(--lane lite)
+    fi
+    if [ -n "$ISSUE_NUM" ]; then
+      begin_args+=(--issue-num "$ISSUE_NUM")
+    fi
+    rid="$("$HELPER" "${begin_args[@]}")" || return $?
+  elif [ "$run_action" != "reuse" ]; then
+    echo "[dcness-implementation-chain] invalid direct run preparation action: $run_action" >&2
+    return 1
+  fi
+  export DCNESS_SESSION_ID="$sid"
+  export DCNESS_RUN_ID="$rid"
+}
+
 ensure_chain_step() {
   local state=""
 
-  [ -n "$CHAIN_STATE" ] || return 0
+  [ -n "$CHAIN_STATE" ] || [ "$DIRECT_RUN" -eq 1 ] || return 0
   [ -n "$RESOLVED_SID" ] && [ -n "$RESOLVED_RID" ] || return 0
   state="$(
     PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
@@ -525,7 +651,15 @@ PY
       return $?
       ;;
     completed)
-      echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal build-worker receipt; mark the story task before launching the next task." >&2
+      if [ "$REWORK" -eq 1 ]; then
+        if [ -n "$MODE" ]; then
+          "$HELPER" begin-step "$AGENT" "$MODE" >/dev/null
+        else
+          "$HELPER" begin-step "$AGENT" >/dev/null
+        fi
+        return $?
+      fi
+      echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal build-worker receipt; use --rework with the actual provider for finding repair, or advance the story task." >&2
       return 10
       ;;
     conflict:*)
@@ -542,6 +676,7 @@ PY
 prepare_chain_state || exit $?
 CURRENT_CHAIN_TASK="$(current_chain_task_path)" || exit $?
 ensure_chain_run || exit $?
+ensure_direct_run || exit $?
 dcness_resolve_headless_context "dcness-implementation-chain" "$PROJECT_ROOT" "$SCRIPT_DIR"
 ensure_chain_step
 STEP_RC=$?
@@ -629,8 +764,13 @@ provider_cache_clear() {
       --provider "$stage" >/dev/null 2>&1 || true
 }
 
-ROUTING_INFO="$(
-  PYTHONPATH="$SCRIPT_DIR/.." python3 - "$AGENT" "$PROVIDER" <<'PY'
+STAGES=()
+if [ -n "$RESUME_PROVIDER" ]; then
+  PROVIDER="resume:$RESUME_PROVIDER"
+  STAGES=("$RESUME_PROVIDER")
+else
+  ROUTING_INFO="$(
+    PYTHONPATH="$SCRIPT_DIR/.." python3 - "$AGENT" "$PROVIDER" <<'PY'
 import sys
 
 from harness.agent_routing import (
@@ -661,21 +801,21 @@ print(provider)
 for stage in implementation_provider_chain(provider):
     print(stage)
 PY
-)"
-ROUTING_RC=$?
-if [ "$ROUTING_RC" -ne 0 ]; then
-  exit "$ROUTING_RC"
-fi
+  )"
+  ROUTING_RC=$?
+  if [ "$ROUTING_RC" -ne 0 ]; then
+    exit "$ROUTING_RC"
+  fi
 
-PROVIDER="$(printf '%s\n' "$ROUTING_INFO" | sed -n '1p')"
-STAGES_RAW="$(printf '%s\n' "$ROUTING_INFO" | sed '1d')"
-STAGES=()
-while IFS= read -r STAGE_LINE; do
-  [ -n "$STAGE_LINE" ] || continue
-  STAGES+=("$STAGE_LINE")
-done <<EOF
+  PROVIDER="$(printf '%s\n' "$ROUTING_INFO" | sed -n '1p')"
+  STAGES_RAW="$(printf '%s\n' "$ROUTING_INFO" | sed '1d')"
+  while IFS= read -r STAGE_LINE; do
+    [ -n "$STAGE_LINE" ] || continue
+    STAGES+=("$STAGE_LINE")
+  done <<EOF
 $STAGES_RAW
 EOF
+fi
 
 if [ "${#STAGES[@]}" -eq 0 ]; then
   echo "[dcness-implementation-chain] provider resolved to empty chain: $PROVIDER" >&2
@@ -757,6 +897,7 @@ run_headless_stage() {
   local attempt=0
   local prompt_path="$PROMPT_FILE"
   local recovery_prompt=""
+  local phase_evidence_required=0
   local cmd=()
 
   case "$stage" in
@@ -774,6 +915,9 @@ run_headless_stage() {
 
   stage_initial_status="$(git_status_without_harness_state)"
   stage_initial_head="$(git -C "$PROJECT_ROOT" rev-parse --verify HEAD 2>/dev/null || true)"
+  if [ -n "$CHAIN_STATE" ] || [ "$DIRECT_RUN" -eq 1 ]; then
+    phase_evidence_required=1
+  fi
 
   while true; do
     log="$RAW_LOG_DIR/chain-${stage}-${AGENT}${MODE:+-$MODE}-attempt-$((attempt + 1))-$$.log"
@@ -796,7 +940,7 @@ run_headless_stage() {
 
     DCNESS_MUTATION_BASE_HEAD="$stage_initial_head" \
       DCNESS_RECOVERY_OWNER=implementation-chain \
-      DCNESS_PHASE_EVIDENCE_REQUIRED="$([ -n "$CHAIN_STATE" ] && printf 1 || printf 0)" \
+      DCNESS_PHASE_EVIDENCE_REQUIRED="$phase_evidence_required" \
       DCNESS_PROVIDER_FAILURE_FILE="$failure_file" \
       "${cmd[@]}" >> "$log" 2>&1
     rc=$?
@@ -896,6 +1040,26 @@ print(failure.get("permission_receipt", ""))
   done
 }
 
+emit_completion_route() {
+  local actual_provider="$1"
+  PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 - "$actual_provider" <<'PY'
+import sys
+
+from harness.agent_routing import review_route_for_actual_provider
+
+route = review_route_for_actual_provider(sys.argv[1])
+fallback = route["fallback_reason"] or "none"
+print(
+    "[dcness-implementation-chain] IMPLEMENTATION_COMPLETED "
+    f"provider={route['actual_implementation_provider']} "
+    f"review_provider={route['review_provider']} "
+    f"fallback={fallback}",
+    file=sys.stderr,
+)
+PY
+}
+
 for STAGE in "${STAGES[@]}"; do
   case "$STAGE" in
     codex-headless|claude-headless)
@@ -914,6 +1078,7 @@ for STAGE in "${STAGES[@]}"; do
       run_headless_stage "$STAGE"
       STAGE_RC=$?
       if [ "$STAGE_RC" -eq 0 ]; then
+        emit_completion_route "$STAGE"
         exit 0
       fi
       ;;

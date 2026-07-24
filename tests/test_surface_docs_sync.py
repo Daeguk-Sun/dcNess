@@ -426,19 +426,20 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertNotIn("Deep: /spec 내부 tech-review", self.router)
         self.assertIn("설계 선행을 권장하는 신호", self.positioning)
         self.assertIn("`/impl` direct", self.router)
-        self.assertIn("high-risk 신호는 권고로 표시하되 차단하지 않음", self.router)
+        self.assertIn("high-risk 신호는 설계 선행 권장 근거이지 자동 차단 근거가 아니다", self.router)
         self.assertIn(
             "concrete signal 이라 곧장 `/impl`",
             self.router,
         )
-        self.assertIn("일반 `/impl` 의 구현 주체는 메인", self.positioning)
-        self.assertIn("격리되는 단계는 `impl-validator`", self.positioning)
+        self.assertIn("첫 source edit 전에 headless owner", self.positioning)
+        self.assertIn("review는 실제 구현 성공 provider의 반대 진영", self.positioning)
 
     def test_internal_routing_docs_prefer_lifecycle_names(self) -> None:
         # #1032 — /impl no longer auto-routes high-risk work back to spec/design.
         self.assertIn("warn-don't-block", self.impl_routing)
         self.assertIn("권고 → 강제 자동 승격 금지", self.impl_routing)
-        self.assertIn("일반 `/impl` 의 구현 주체는 항상 메인", self.impl_routing)
+        self.assertIn("단순·애매한 작업은 main-direct", self.impl_routing)
+        self.assertIn("중간 handoff를 금지", self.impl_routing)
         self.assertNotIn("impl 밖 — 설계 선행", self.impl_routing)
         self.assertNotIn("없으면 `/spec` / `/tech-review` / `/design` 선행", self.impl_routing)
         self.assertIn(
@@ -806,15 +807,16 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("design-doc", self.impl_skill)
         self.assertIn("제품 의미", self.impl_skill)
 
-    def test_issue_1019_general_impl_does_not_expose_headless_engine_axis(self) -> None:
-        """#1019 — general /impl is main-owned; headless worker engines belong to /impl-loop."""
+    def test_issue_1192_impl_keeps_owner_axis_internal(self) -> None:
+        """#1192 — conditional owner selection stays internal to /impl."""
         for text in (self.impl_skill, self.impl_routing, self.positioning, self.readme):
             with self.subTest(source=text[:40]):
                 self.assertIn("메인", text)
                 self.assertNotIn("Standard · 경량 build-worker", text)
                 self.assertNotIn("구현 경로(설계도 유무)와 엔진", text)
-        self.assertIn("story/epic deep task runner", self.readme)
-        self.assertIn("일반 `/impl` 구현은 메인이 맡고", self.readme)
+        self.assertIn("story/epic deep task를 항상 headless worker", self.readme)
+        self.assertIn("명확한 복잡 작업이면 첫 source edit 전에 headless", self.readme)
+        self.assertIn("terminal receipt의 실제 구현 성공 provider", self.impl_routing)
 
     def test_issue_1019_impl_loop_uses_story_runner_boundaries(self) -> None:
         """#1019/#1023/#1041 — task state, story PRs, and one integrated review."""

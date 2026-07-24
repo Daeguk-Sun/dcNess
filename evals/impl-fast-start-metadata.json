@@ -96,6 +96,69 @@
     "conditional_fresh_executor": false,
     "reason": "Fresh execution was accurate but slower and used more median all-executor input."
   },
+  "complex_impl_owner_analysis": {
+    "issue": 1192,
+    "decision": "shape-conditional",
+    "owner_selection_before_first_source_edit": true,
+    "ambiguous_default": "main-direct",
+    "midstream_handoff": false,
+    "historical_complex_main_observation": {
+      "source_project": "Daeguk-Sun/NexusMessenger",
+      "session_id": "4cc35c28-f840-4bf7-9698-d1417d529f35",
+      "trace_sha256": "4d049fe6ebc50ba60f2fb6078f9b180d77e2c585c4141a38274c3aca26ce745b",
+      "decision_timestamp": "2026-07-24T02:07:12.806000+00:00",
+      "first_source_edit_timestamp": "2026-07-24T02:18:08.674000+00:00",
+      "decision_to_first_source_edit_seconds": 655.868,
+      "blocking_assistant_requests": 8,
+      "tool_calls": 12,
+      "tool_histogram": {
+        "Bash": 6,
+        "Read": 5,
+        "Write": 1
+      },
+      "model": "claude-opus-4-8",
+      "effort": "xhigh"
+    },
+    "historical_impl_loop_observation": {
+      "source_project": "Daeguk-Sun/alrimjang",
+      "session_id": "fb92a490-70da-4af8-adfc-0694b0b4b8f8",
+      "trace_sha256": "41d5582696c438e2e55bc1d7519c2604046400493c795bfbff52d880d5d89181",
+      "approval_timestamp": "2026-07-24T01:23:16.126000+00:00",
+      "headless_provider_start_timestamp": "2026-07-24T01:29:47+00:00",
+      "approval_to_provider_start_seconds": 390.874,
+      "root_cause": "main assembled run, step, routing, prompt, and launch serially before the provider fork"
+    },
+    "direct_chain_integration_replays": [
+      {
+        "trial": 1,
+        "elapsed_seconds": 4.68,
+        "lifecycle": "run_started -> step_started -> step_completed",
+        "provider_receipt": true,
+        "under_60_seconds": true
+      },
+      {
+        "trial": 2,
+        "elapsed_seconds": 4.72,
+        "lifecycle": "run_started -> step_started -> step_completed",
+        "provider_receipt": true,
+        "under_60_seconds": true
+      },
+      {
+        "trial": 3,
+        "elapsed_seconds": 4.57,
+        "lifecycle": "run_started -> step_started -> step_completed",
+        "provider_receipt": true,
+        "under_60_seconds": true
+      }
+    ],
+    "replay_command": "/usr/bin/time -p python3.11 -m unittest tests.test_impl_direct_headless.DirectHeadlessImplTests.test_direct_one_shot_creates_lite_run_and_opposite_review_receipt",
+    "interpretation": "The three existing simple-fixture trials keep main-direct because fresh execution was slower. The complex incident and the direct-chain integration replays justify selecting headless before mutation only when complexity is already clear.",
+    "limitations": [
+      "The historical complex observation and deterministic chain replay are not a same-fixture model-speed comparison.",
+      "The chain replay measures orchestration and lifecycle completion with a fake provider, not provider inference latency.",
+      "The result supports a scoped ownership policy, not provider or model superiority."
+    ]
+  },
   "impl_loop_real_forks": [
     {
       "session_id": "1eded949-7d58-4d2a-bd23-c0c6d7229514",
