@@ -10,6 +10,30 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.29.0 (2026-07-24)
+
+**커밋 범위**: `v0.28.0..v0.29.0` (머지 PR 1개, [#1196](https://github.com/Daeguk-Sun/dcNess/pull/1196))
+**핵심 변경**: **`/impl`·`/impl-loop` 의 구현 마감(close) 검증 경로를, validator 와 product-acceptance 를 동시에 돌리는 병렬 대신 값싼 read-only holistic review 를 먼저 통과시킨 뒤에만 비싼 sealed acceptance 를 여는 fail-fast 순차 검증으로 단순화한** minor 릴리즈. 실측상 어느 복잡 마감은 task 5/5 이후 PR 준비까지 55분 41초(3,341초)가 걸렸고, route-only as-built 문서 정합을 architecture 재설계로 되돌린 module-architect 왕복과 task/commit 별 reviewer fan-out 이 큰 비중을 차지했다. 처음 검토한 validator/acceptance 병렬화는 최근 복잡 마감 2건의 validator 초회 PASS 가 0/2 였다는 관찰상 happy path 는 짧아도 validator finding 이 흔한 실제 구현에서 device/Journey 검수 전체가 폐기될 위험이 커, 사용자 피드백에 따라 fail-fast 순차 검증으로 수정했다.
+
+### 무엇이 바뀌나
+
+1. **`/impl`·`/impl-loop` 마감 검증 fail-fast 순차화 + Cartography 1회 bounded sync + tree drift 차단** ([#1196](https://github.com/Daeguk-Sun/dcNess/pull/1196) Closes [#1194](https://github.com/Daeguk-Sun/dcNess/issues/1194)) — 마감에서 route-only as-built 문서 정합이 architecture 재설계 역할까지 회귀하고, 최종 merge candidate 를 한 번 보는 대신 validator 가 task/commit 별 하위 검토를 기본 생성하며, product-acceptance 가 같은 tree 의 unit/lint/build 를 반복 실행하고, close receipt 에 candidate HEAD/tree 가 없어 검증 사이 tracked tree drift 를 기계적으로 차단할 수 없던 문제를 해소. `JOURNEY_CONVERGENCE` 뒤 final mutation owner 가 Cartography 를 1회 bounded sync/no-op 하고 candidate 를 freeze 하도록 `/impl` 과 `/impl-loop` 계약을 통일하고, module-architect 의 폐기된 `CARTOGRAPHY_REFRESH` mode 와 전용 fixture 를 제거했다. 반대 진영 impl-validator 를 final diff 1회 holistic review 로 바꾸고 Epic Sanity 렌즈를 같은 호출에 합쳤으며, validator terminal PASS 뒤에만 같은 HEAD/tree 의 product-acceptance 를 열도록 provider-independent order gate 와 close join 을 추가했다. product-acceptance 는 same-tree terminal unit/lint/build evidence 를 소비하고 sealed Journey 만 독립 재실행한다. Alrim baseline(3,341초)과 Nexus 실제 finding 을 고정한 회귀 fixture, 순차 close 상태 테스트, 3개 deterministic replay 를 추가했다. 보수적인 순차 counterfactual 3개에서 task-complete→PR-ready median 감소 추정치는 38.6%(목표 30% 초과)이나, 이는 실측이 아니라 deterministic replay 기반 추정임을 명시한다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 `/impl`·`/impl-loop` 마감 경로·impl-validator·product-acceptance·provider-independent order gate·`session_state`/hooks 의 close join 인접 영역을 건드려 결정적 guard-efficacy 를 재실행 — **50/50 PASS**(v0.28.0 50/50 유지), 회귀 없음. 전체 unittest 도 재실행해 공개 수치를 실측 동기화 — **1,210/1,210 PASS**(v0.28.0 1,187 → close 순차 검증 회귀 fixture·상태 테스트·replay 확장 반영). 머지 PR 은 개별 CI(pytest·static-quality·public-surface·cross-ref·index-map·doc-sync·plugin-manifest·pr-body)를 통과했다.
+- Decide: 소멸 후보 없음. follow-up 없음. (module-architect 의 `CARTOGRAPHY_REFRESH` mode 와 전용 fixture, validator 의 task/commit 별 하위 검토 fan-out 을 제거해 하네스를 오히려 감량했다.)
+- Verify: fail-fast 순차 close(validator final-diff holistic review → provider-independent order gate → same HEAD/tree product-acceptance)·Cartography 1회 bounded sync·candidate freeze 와 tracked tree drift 차단·순차 close 상태·deterministic replay 신규/회귀 테스트 통과. 공개 evidence snapshot(README·`docs/plugin/benchmark.md`)을 v0.29.0 / 2026-07-24 실측(unit 1,210/1,210 · guard 50/50)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측 대조를 검증한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `skills/impl/**`·`skills/impl-loop/**`·`skills/acceptance/**`·`harness/**`·`docs/plugin/**`(agents·loop-procedure·parallel-policy)·`codex/skills/dcness-impl-validator/**` 변경.
+- **`/impl`·`/impl-loop` 로 마감하는 프로젝트** — validator 가 task/commit 별로 나눠 보지 않고 final merge candidate diff 1회를 Epic Sanity 렌즈까지 합쳐 holistic 하게 리뷰한다. validator 가 terminal PASS 를 낸 뒤에만 같은 HEAD/tree 의 product-acceptance 가 열리고(순차 fail-fast), acceptance 는 그 tree 의 unit/lint/build 를 다시 돌리지 않고 sealed Journey 만 독립 재실행한다. validator finding 이 나오면 비싼 device/Journey 검수 전체가 폐기되던 병렬 낭비가 사라진다.
+- **`/design` 으로 epic 을 설계하는 프로젝트** — module-architect 의 `CARTOGRAPHY_REFRESH` 작성 mode 가 제거되고, as-built Cartography 정합은 마감의 final mutation owner 가 1회 bounded sync/no-op 로 소유한다. 정상 route-only 문서 정합이 architecture 재설계로 회귀하지 않는다.
+- **구현/리뷰 진영을 나누는 프로젝트** — 반대 진영 리뷰 계약은 그대로 유지된다(#1196 구현 provider 는 Codex, merge review 는 반대 진영 Claude). close receipt 에 candidate HEAD/tree 가 기록돼 검증 사이 tracked tree drift 가 기계적으로 차단된다.
+
+---
+
 ## v0.28.0 (2026-07-24)
 
 **커밋 범위**: `v0.27.0..v0.28.0` (머지 PR 2개, [#1191](https://github.com/Daeguk-Sun/dcNess/pull/1191) · [#1193](https://github.com/Daeguk-Sun/dcNess/pull/1193))
