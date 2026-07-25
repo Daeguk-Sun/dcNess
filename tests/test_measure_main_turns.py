@@ -178,6 +178,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
         plugin_version: str = "0.29.0",
         blocking_requests: int = 1,
         include_prior_edit: bool = False,
+        reasoning_before_edit: bool = False,
     ) -> None:
         command_at = datetime(2026, 7, 20, 0, 10, tzinfo=timezone.utc)
 
@@ -286,6 +287,24 @@ class MeasureMainTurnsTests(unittest.TestCase):
                         },
                     },
                 ]
+            )
+        if reasoning_before_edit:
+            rows.append(
+                {
+                    "type": "assistant",
+                    "timestamp": timestamp(edit_second - 1),
+                    "message": {
+                        "id": "implementation-edit",
+                        "role": "assistant",
+                        "usage": {"output_tokens": 6000},
+                        "content": [
+                            {
+                                "type": "thinking",
+                                "thinking": "compare contracts before edit",
+                            }
+                        ],
+                    },
+                }
             )
         rows.append(
             {
@@ -431,24 +450,61 @@ class MeasureMainTurnsTests(unittest.TestCase):
         self.assertEqual(rows[0]["first_edit_evidence"]["line"], 9)
         self.assertEqual(rows[0]["result"], "PASS")
 
-    def test_flow_health_separates_tool_time_and_marks_slow_flow_degraded(self) -> None:
+    def test_flow_health_separates_startup_visibility_and_observed_reasoning(self) -> None:
         with TemporaryDirectory() as td:
             trace = Path(td) / "session.jsonl"
             self._flow_trace(
                 trace,
-                edit_second=75,
+                edit_second=100,
                 blocking_requests=3,
+                reasoning_before_edit=True,
             )
 
             report = build_flow_health([trace], plugin_version="0.29.0")
 
-        self.assertEqual(report["status"], "DEGRADED")
+        self.assertEqual(report["startup_slo"]["status"], "MISS")
+        self.assertEqual(report["flow_visibility"]["status"], "DEGRADED")
+        self.assertEqual(
+            report["agent_activity"]["status"],
+            "ACTIVE_REASONING_OBSERVED",
+        )
+        self.assertEqual(report["relative_speed"]["status"], "UNPROVEN")
         self.assertEqual(report["sample_count"], 1)
         row = report["invocations"][0]
         self.assertEqual(row["pre_action_tool_execution_seconds"], 6.0)
-        self.assertEqual(row["pre_action_non_tool_wait_ratio"], 0.92)
-        self.assertEqual(row["max_post_tool_silence_seconds"], 48.0)
+        self.assertEqual(row["pre_action_non_tool_elapsed_ratio"], 0.94)
+        self.assertEqual(row["max_post_tool_silence_seconds"], 73.0)
+        self.assertEqual(row["long_silence_count"], 1)
+        self.assertEqual(row["reasoning_observed_long_silence_count"], 1)
+        self.assertEqual(
+            row["max_post_tool_silence_evidence"][
+                "next_progress_has_thinking"
+            ],
+            True,
+        )
+        self.assertEqual(
+            row["max_post_tool_silence_evidence"][
+                "next_progress_output_tokens"
+            ],
+            6000,
+        )
         self.assertEqual(row["result"], "FAIL")
+
+    def test_flow_health_labels_long_silence_without_thinking_as_unattributed(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._flow_trace(trace, edit_second=75)
+
+            report = build_flow_health([trace], plugin_version="0.29.0")
+
+        self.assertEqual(report["startup_slo"]["status"], "MISS")
+        self.assertEqual(report["flow_visibility"]["status"], "DEGRADED")
+        self.assertEqual(
+            report["agent_activity"]["status"],
+            "UNATTRIBUTED_WAIT_OBSERVED",
+        )
 
     def test_flow_health_uses_headless_worker_launch_as_impl_loop_start(self) -> None:
         with TemporaryDirectory() as td:
@@ -539,7 +595,13 @@ class MeasureMainTurnsTests(unittest.TestCase):
             report = build_flow_health([trace], plugin_version="0.29.0")
 
         row = report["invocations"][0]
-        self.assertEqual(report["status"], "DEGRADED")
+        self.assertEqual(report["startup_slo"]["status"], "MISS")
+        self.assertEqual(report["flow_visibility"]["status"], "UNVERIFIED")
+        self.assertEqual(
+            report["agent_activity"]["status"],
+            "NO_LONG_SILENCE_OBSERVED",
+        )
+        self.assertEqual(report["relative_speed"]["status"], "UNPROVEN")
         self.assertEqual(row["startup_target"], "headless_worker_launch")
         self.assertEqual(row["time_to_first_action_seconds"], 70.0)
         self.assertEqual(
@@ -549,7 +611,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
         self.assertIsNone(row["time_to_first_edit_seconds"])
         self.assertEqual(row["first_action_evidence"]["tool"], "WorkerLaunch")
 
-    def test_flow_health_requires_three_current_version_passes_for_healthy(self) -> None:
+    def test_flow_health_requires_three_current_version_passes(self) -> None:
         with TemporaryDirectory() as td:
             base = Path(td)
             traces = []
@@ -567,7 +629,13 @@ class MeasureMainTurnsTests(unittest.TestCase):
 
             report = build_flow_health(traces, plugin_version="0.29.0")
 
-        self.assertEqual(report["status"], "HEALTHY")
+        self.assertEqual(report["startup_slo"]["status"], "PASS")
+        self.assertEqual(report["flow_visibility"]["status"], "CLEAR")
+        self.assertEqual(
+            report["agent_activity"]["status"],
+            "NO_LONG_SILENCE_OBSERVED",
+        )
+        self.assertEqual(report["relative_speed"]["status"], "UNPROVEN")
         self.assertEqual(report["sample_count"], 3)
         self.assertEqual(report["excluded_version_count"], 1)
 
@@ -578,7 +646,13 @@ class MeasureMainTurnsTests(unittest.TestCase):
 
             report = build_flow_health([trace], plugin_version="0.29.0")
 
-        self.assertEqual(report["status"], "UNVERIFIED")
+        self.assertEqual(report["startup_slo"]["status"], "UNVERIFIED")
+        self.assertEqual(report["flow_visibility"]["status"], "UNVERIFIED")
+        self.assertEqual(
+            report["agent_activity"]["status"],
+            "NO_LONG_SILENCE_OBSERVED",
+        )
+        self.assertEqual(report["relative_speed"]["status"], "UNPROVEN")
         self.assertEqual(report["sample_count"], 1)
 
     def test_process_start_falls_back_before_fresh_edit_when_root_duration_is_short(self) -> None:

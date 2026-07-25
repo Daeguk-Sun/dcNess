@@ -82,7 +82,8 @@ _FLOW_DEFAULT_COMMANDS = ("dcness:impl", "dcness:impl-loop")
 _FLOW_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
 _FLOW_MAX_FIRST_ACTION_SECONDS = 60.0
 _FLOW_MAX_BLOCKING_REQUESTS = 2
-_FLOW_HEALTHY_MINIMUM_SAMPLES = 3
+_FLOW_MAX_PROGRESS_SILENCE_SECONDS = 60.0
+_FLOW_MINIMUM_CONFIDENT_SAMPLES = 3
 _FLOW_OPERATIONAL_PATHS = {".claude", ".dcness-work", ".git", ".metrics"}
 
 
@@ -416,18 +417,67 @@ def _next_visible_progress(
     return None
 
 
+def _progress_activity_evidence(
+    events: list[dict[str, Any]],
+    progress: dict[str, Any],
+) -> dict[str, Any]:
+    request_key = _assistant_request_key(progress)
+    has_thinking = False
+    output_tokens = 0
+    for event in events:
+        event_at = event.get("_at")
+        if (
+            not _is_root_assistant_event(event)
+            or _assistant_request_key(event) != request_key
+            or not isinstance(event_at, datetime)
+            or event_at > progress["_at"]
+        ):
+            continue
+        has_thinking = has_thinking or any(
+            isinstance(block, dict) and block.get("type") == "thinking"
+            for block in _assistant_content(event)
+        )
+        message = event.get("message") or {}
+        usage = message.get("usage") or event.get("usage") or {}
+        if isinstance(usage, dict):
+            output_tokens = max(
+                output_tokens,
+                int(usage.get("output_tokens") or 0),
+            )
+    return {
+        "next_progress_has_thinking": has_thinking,
+        "next_progress_output_tokens": output_tokens,
+    }
+
+
 def _flow_silence_observations(
     events: list[dict[str, Any]],
     start_at: datetime,
     stop_at: datetime,
     tool_results: list[dict[str, Any]],
-) -> tuple[float | None, dict[str, Any] | None, float | None]:
+) -> tuple[
+    float | None,
+    dict[str, Any] | None,
+    float | None,
+    list[dict[str, Any]],
+]:
     first_progress = _next_visible_progress(events, start_at, stop_at)
     time_to_first_progress = None
+    long_silences: list[dict[str, Any]] = []
     if first_progress is not None:
         time_to_first_progress = (
             first_progress["_at"] - start_at
         ).total_seconds()
+        if time_to_first_progress >= _FLOW_MAX_PROGRESS_SILENCE_SECONDS:
+            long_silences.append(
+                {
+                    "source": "command_start",
+                    "seconds": time_to_first_progress,
+                    "next_progress_line": first_progress["_line"],
+                    "next_progress_timestamp": first_progress["_at"].isoformat(),
+                    **_progress_activity_evidence(events, first_progress),
+                }
+            )
 
     longest_seconds: float | None = None
     longest_evidence: dict[str, Any] | None = None
@@ -436,15 +486,26 @@ def _flow_silence_observations(
         if progress is None:
             continue
         seconds = (progress["_at"] - result["timestamp"]).total_seconds()
+        evidence = {
+            "source": "tool_result",
+            "seconds": seconds,
+            "tool_result_line": result["line"],
+            "tool_result_timestamp": result["timestamp"].isoformat(),
+            "next_progress_line": progress["_line"],
+            "next_progress_timestamp": progress["_at"].isoformat(),
+            **_progress_activity_evidence(events, progress),
+        }
         if longest_seconds is None or seconds > longest_seconds:
             longest_seconds = seconds
-            longest_evidence = {
-                "tool_result_line": result["line"],
-                "tool_result_timestamp": result["timestamp"].isoformat(),
-                "next_progress_line": progress["_line"],
-                "next_progress_timestamp": progress["_at"].isoformat(),
-            }
-    return time_to_first_progress, longest_evidence, longest_seconds
+            longest_evidence = evidence
+        if seconds >= _FLOW_MAX_PROGRESS_SILENCE_SECONDS:
+            long_silences.append(evidence)
+    return (
+        time_to_first_progress,
+        longest_evidence,
+        longest_seconds,
+        long_silences,
+    )
 
 
 def _flow_plugin_version(events: list[dict[str, Any]]) -> str | None:
@@ -535,13 +596,14 @@ def _flow_invocation(
         time_to_first_progress,
         longest_silence_evidence,
         longest_silence_seconds,
+        long_silence_evidence,
     ) = _flow_silence_observations(
         events,
         start_at,
         stop_at,
         tool_results,
     )
-    non_tool_ratio = (
+    non_tool_elapsed_ratio = (
         max(elapsed_seconds - tool_seconds, 0.0) / elapsed_seconds
         if elapsed_seconds
         else None
@@ -586,8 +648,10 @@ def _flow_invocation(
         ),
         "blocking_assistant_requests_before_first_action": blocking_requests,
         "pre_action_tool_execution_seconds": round(tool_seconds, 3),
-        "pre_action_non_tool_wait_ratio": (
-            round(non_tool_ratio, 6) if non_tool_ratio is not None else None
+        "pre_action_non_tool_elapsed_ratio": (
+            round(non_tool_elapsed_ratio, 6)
+            if non_tool_elapsed_ratio is not None
+            else None
         ),
         "time_to_first_progress_seconds": (
             round(time_to_first_progress, 3)
@@ -600,6 +664,12 @@ def _flow_invocation(
             else None
         ),
         "max_post_tool_silence_evidence": longest_silence_evidence,
+        "long_silence_count": len(long_silence_evidence),
+        "reasoning_observed_long_silence_count": sum(
+            bool(evidence["next_progress_has_thinking"])
+            for evidence in long_silence_evidence
+        ),
+        "long_silence_evidence": long_silence_evidence,
         "start_evidence": {
             "timestamp": start_at.isoformat(),
             "line": start_event["_line"],
@@ -651,7 +721,7 @@ def build_flow_health(
     command_names: tuple[str, ...] | list[str] | None = None,
     plugin_version: str | None = None,
 ) -> dict[str, Any]:
-    """Aggregate command-scoped observations into a non-compensating status."""
+    """Aggregate command traces without conflating speed, visibility, and activity."""
     observed = [
         row
         for path in paths
@@ -671,13 +741,56 @@ def build_flow_health(
     pass_count = sum(row["result"] == "PASS" for row in evaluated)
     fail_count = sum(row["result"] == "FAIL" for row in evaluated)
     if fail_count:
-        status = "DEGRADED"
-    elif pass_count >= _FLOW_HEALTHY_MINIMUM_SAMPLES:
-        status = "HEALTHY"
+        startup_status = "MISS"
+    elif pass_count >= _FLOW_MINIMUM_CONFIDENT_SAMPLES:
+        startup_status = "PASS"
     else:
-        status = "UNVERIFIED"
+        startup_status = "UNVERIFIED"
+
+    visibility_evaluated = [
+        row
+        for row in evaluated
+        if row["time_to_first_progress_seconds"] is not None
+    ]
+    visibility_degraded_count = sum(
+        (
+            row["time_to_first_progress_seconds"]
+            >= _FLOW_MAX_PROGRESS_SILENCE_SECONDS
+            or (
+                row["max_post_tool_silence_seconds"] is not None
+                and row["max_post_tool_silence_seconds"]
+                >= _FLOW_MAX_PROGRESS_SILENCE_SECONDS
+            )
+        )
+        for row in visibility_evaluated
+    )
+    if visibility_degraded_count:
+        visibility_status = "DEGRADED"
+    elif len(visibility_evaluated) >= _FLOW_MINIMUM_CONFIDENT_SAMPLES:
+        visibility_status = "CLEAR"
+    else:
+        visibility_status = "UNVERIFIED"
+
+    long_silences = [
+        evidence
+        for row in visibility_evaluated
+        for evidence in row["long_silence_evidence"]
+    ]
+    reasoning_observed_count = sum(
+        bool(evidence["next_progress_has_thinking"])
+        for evidence in long_silences
+    )
+    unattributed_count = len(long_silences) - reasoning_observed_count
+    if not visibility_evaluated:
+        activity_status = "UNVERIFIED"
+    elif not long_silences:
+        activity_status = "NO_LONG_SILENCE_OBSERVED"
+    elif unattributed_count:
+        activity_status = "UNATTRIBUTED_WAIT_OBSERVED"
+    else:
+        activity_status = "ACTIVE_REASONING_OBSERVED"
+
     return {
-        "status": status,
         "plugin_version": plugin_version,
         "sample_count": len(evaluated),
         "pass_count": pass_count,
@@ -686,16 +799,47 @@ def build_flow_health(
             row["result"] == "INCOMPLETE" for row in invocations
         ),
         "excluded_version_count": excluded_version_count,
+        "startup_slo": {
+            "status": startup_status,
+            "sample_count": len(evaluated),
+            "pass_count": pass_count,
+            "miss_count": fail_count,
+        },
+        "flow_visibility": {
+            "status": visibility_status,
+            "sample_count": len(visibility_evaluated),
+            "clear_count": (
+                len(visibility_evaluated) - visibility_degraded_count
+            ),
+            "degraded_count": visibility_degraded_count,
+        },
+        "agent_activity": {
+            "status": activity_status,
+            "long_silence_count": len(long_silences),
+            "reasoning_observed_count": reasoning_observed_count,
+            "unattributed_count": unattributed_count,
+        },
+        "relative_speed": {
+            "status": "UNPROVEN",
+            "basis": (
+                "Command-scoped Flow Health has no matched baseline. Relative "
+                "speed requires repeated same-fixture, same-runtime paired "
+                "trials with non-regressed quality."
+            ),
+        },
         "thresholds": {
             "time_to_first_action_seconds": "<60",
             "blocking_assistant_requests_before_first_action": "<=2",
-            "healthy_minimum_samples": _FLOW_HEALTHY_MINIMUM_SAMPLES,
+            "time_to_first_progress_seconds": "<60",
+            "max_post_tool_silence_seconds": "<60",
+            "minimum_confident_samples": _FLOW_MINIMUM_CONFIDENT_SAMPLES,
         },
         "invocations": invocations,
         "claim_boundary": (
-            "Current-version external command traces only. DEGRADED is a "
-            "measured breach; HEALTHY requires at least three passing samples; "
-            "otherwise the status is UNVERIFIED."
+            "Current-version external command traces only. Startup SLO and "
+            "visibility are separate absolute observations. Thinking blocks "
+            "prove model activity, not productivity. Relative speed remains "
+            "UNPROVEN without matched repeated trials."
         ),
     }
 
@@ -1284,7 +1428,10 @@ def format_text(r: dict) -> str:
 
 def format_flow_health_text(report: dict[str, Any]) -> str:
     lines = [
-        f"Flow Health: {report['status']}",
+        f"Startup SLO: {report['startup_slo']['status']}",
+        f"Flow Visibility: {report['flow_visibility']['status']}",
+        f"Agent Activity: {report['agent_activity']['status']}",
+        f"Relative Speed: {report['relative_speed']['status']}",
         (
             "  samples (pass/fail/incomplete): "
             f"{report['sample_count']} "
@@ -1294,7 +1441,7 @@ def format_flow_health_text(report: dict[str, Any]) -> str:
         (
             "  contract: first edit or headless worker launch <60s, "
             "blocking assistant requests <=2; "
-            "HEALTHY requires >=3 passing current-version samples"
+            "PASS/CLEAR require >=3 current-version samples"
         ),
     ]
     if report["plugin_version"]:
@@ -1308,7 +1455,9 @@ def format_flow_health_text(report: dict[str, Any]) -> str:
             "blocking="
             f"{row['blocking_assistant_requests_before_first_action']}, "
             f"tool_time={row['pre_action_tool_execution_seconds']}s, "
-            f"non_tool_wait={row['pre_action_non_tool_wait_ratio']}"
+            "non_tool_elapsed="
+            f"{row['pre_action_non_tool_elapsed_ratio']}, "
+            f"max_silence={row['max_post_tool_silence_seconds']}s"
         )
     return "\n".join(lines)
 

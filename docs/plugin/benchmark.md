@@ -4,13 +4,13 @@
 
 ## 현재 공개 evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.29.0","measured_at":"2026-07-25","unit_tests":{"passed":1215,"total":1215},"guard":{"passed":50,"total":50},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.29.0","measured_at":"2026-07-25","unit_tests":{"passed":1216,"total":1216},"guard":{"passed":50,"total":50},"source_project_count":2} -->
 
 현재 plugin version은 **v0.29.0**, 측정일은 **2026-07-24**이다. unit과 guard 수치는 dcNess source checkout의 기계적 계약 evidence이며 보안 증명이나 제품 성공률이 아니다.
 
 | evidence | 관측값 | 재현 명령 | 한계 |
 |---|---:|---|---|
-| 전체 unit 계약 | 1,215/1,215 PASS | `python3.11 -m unittest discover -s tests -v` | source checkout 1개의 코드·문서 계약 |
+| 전체 unit 계약 | 1,216/1,216 PASS | `python3.11 -m unittest discover -s tests -v` | source checkout 1개의 코드·문서 계약 |
 | guard fixture | 50/50 PASS | `python3.11 evals/guard_efficacy.py --json` | deterministic payload의 allow/block/exit/stdout 계약 |
 | 공개 snapshot drift | README/benchmark 일치 | `node scripts/check_public_evidence.mjs` | 위 두 명령 결과와 문서 marker만 대조 |
 
@@ -56,7 +56,18 @@ python3.11 scripts/measure_main_turns.py <session-jsonl-or-project-session-direc
   --flow-health --plugin-version <audited-plugin-version> --json
 ```
 
-dcNess source checkout의 이 모드는 활성 프로젝트 세션 안 `/impl`·`/impl-loop` 호출마다 첫 구현 action(메인 직접 구현 edit 또는 headless worker launch)까지의 시간, blocking main request, 실제 tool 시간, 비도구 대기 비율, 최장 tool 후 무응답을 다시 계산한다. 첫 action `<60초`·blocking request `≤2회`가 fast-start 계약이며, 위반 실측이 하나라도 있으면 `DEGRADED`, 위반 없이 현행 버전 표본 3개 이상이면 `HEALTHY`, 그 전에는 `UNVERIFIED`다. 이 판정은 maturity audit의 Workflow·Legibility·Observability 근거로 쓰되 release artifact `GO`/`HOLD`와 합치지 않는다. 사용자 prompt·session ID·절대경로는 감사 보고서에 노출하지 않는다.
+dcNess source checkout의 이 모드는 활성 프로젝트 세션 안 `/impl`·`/impl-loop` 호출마다 첫 구현 action(메인 직접 구현 edit 또는 headless worker launch)까지의 시간, blocking main request, 실제 tool 시간, 비도구 경과 비율, 첫 progress와 tool 후 최장 무응답을 다시 계산한다. 비도구 경과에는 모델 생성·오케스트레이션·사용자 판단 시간이 함께 들어갈 수 있으므로 낭비나 idle 시간으로 해석하지 않는다.
+
+단일 `Flow Health` 등급으로 서로 다른 사실을 합치지 않고 네 축을 따로 보고한다.
+
+| 축 | 판정 |
+|---|---|
+| Startup SLO | 첫 action `<60초`·blocking request `≤2회`. 위반 표본이 있으면 `MISS`, 위반 없이 현행 버전 표본 3개 이상이면 `PASS`, 그 전에는 `UNVERIFIED` |
+| Flow Visibility | 첫 progress와 tool 후 다음 progress가 각각 `<60초`. 위반 표본이 있으면 `DEGRADED`, 위반 없이 표본 3개 이상이면 `CLEAR`, 그 전에는 `UNVERIFIED` |
+| Agent Activity | 60초 이상 무응답 뒤 같은 assistant request에 thinking block이 관측되면 `ACTIVE_REASONING_OBSERVED`; thinking 근거가 없는 구간이 있으면 `UNATTRIBUTED_WAIT_OBSERVED`. 이는 활동 증거이지 reasoning의 생산성 증명이 아니다 |
+| Relative Speed | 이 command-only 측정에서는 항상 `UNPROVEN`. 같은 fixture·model·effort·provider의 반복 paired trial과 품질 비회귀가 있어야 상대 속도를 주장한다 |
+
+Startup SLO는 Workflow, Flow Visibility는 Legibility, 이 네 축을 자동 산출하는 능력은 Observability 근거로 쓴다. release artifact `GO`/`HOLD`와는 합치지 않으며 사용자 prompt·session ID·절대경로는 감사 보고서에 노출하지 않는다.
 
 ### guard 공개 계약
 
