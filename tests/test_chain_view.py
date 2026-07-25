@@ -28,7 +28,7 @@
         - JSON-ish 입력 파싱 → payload
         - 순수 변환(run state mutation 없음 — 도구이지 게이트 아님)
 """
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import json
 from pathlib import Path
@@ -487,6 +487,15 @@ class TestBuildChainViewAndParse(unittest.TestCase):
             payload["current_substeps"],
             ["build-worker", "validation-sequence:EPIC"],
         )
+
+    def test_empty_inline_json_reports_input_error_without_traceback(self):
+        stderr = StringIO()
+        with redirect_stderr(stderr):
+            rc = chain_view_main(["--tasks-json", ""])
+
+        self.assertEqual(rc, 1)
+        self.assertIn("[chain-view] 입력 오류:", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_helper_cli_renders_initial_and_task_completion_transition(self):
         data = json.dumps(

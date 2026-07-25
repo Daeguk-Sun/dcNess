@@ -578,7 +578,7 @@ def _cli_chain_view(args: Any) -> int:
     return chain_view.main(
         (
             ["--tasks", args.tasks]
-            if getattr(args, "tasks", None)
+            if getattr(args, "tasks", None) is not None
             else ["--tasks-json", args.tasks_json]
         )
         + (["--current", str(args.current)] if args.current is not None else [])

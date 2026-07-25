@@ -508,7 +508,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        if args.tasks_json:
+        if args.tasks_json is not None:
             data = json.loads(args.tasks_json)
             if not isinstance(data, dict):
                 raise ValueError("입력 JSON 은 {tasks, current} 객체여야 한다")
