@@ -82,6 +82,8 @@ Task 진행 표시는 [`impl-loop` 진행 뷰](../../skills/impl-loop/SKILL.md#�
 유지하면서 `dcness-helper chain-view`의 operations를 TaskCreate/TaskUpdate로
 적용한다. chain-view와 background implementation-chain은 같은 assistant turn의
 독립 tool batch이며, Task UI 적용을 기다리느라 worker 시작을 늦추지 않는다.
+batch 미지원 환경에서는 chain-view를 별도 호출하지 않고 기존 진행 메시지의
+수동 완료/현재/예정 view로 폴백해 helper 전용 tool turn을 만들지 않는다.
 
 ```
 TaskCreate("<agent>: <mode 또는 짧은 설명>")

@@ -30,7 +30,7 @@ task id를 재사용한다.
 
 1. `구현 · <target> (<main-direct|headless>)`
 2. `검증 · impl-validator`
-3. `마감 · commit/PR/CI`
+3. `마감 · PR/CI/AC audit`
 
 첫 task는 실행 시작과 함께 `in_progress`, 나머지는 `pending`으로 표시한다.
 lifecycle state와 implementation-chain receipt가 실행 진본이고 Task 목록은
@@ -56,12 +56,13 @@ focused read의 `첫 tool call은 pointer만`은 work action의 read 경계를 �
 
 상태 변경은 기존 필수 작업과 같은 tool-bearing turn에 `TaskUpdate`로 묶는다.
 
-1. 구현과 관련 gate가 GREEN이면 구현 task를 `completed`, 검증 task를
-   `in_progress`로 바꾸고 candidate freeze/impl-validator 경로를 계속한다.
+1. 구현 관련 gate, Cartography sync와 candidate commit까지 끝나면 구현 task를
+   `completed`, 검증 task를 `in_progress`로 바꾸고 candidate
+   freeze/impl-validator 경로를 계속한다.
 2. validator가 MUST FIX를 내면 같은 task를 새로 만들지 않고 구현 task를
    `in_progress`, 검증 task를 `pending`으로 되돌려 같은 owner의 rework를 표시한다.
 3. validator PASS면 검증 task를 `completed`, 마감 task를 `in_progress`로 바꾸고
-   commit·PR·CI·target AC audit을 진행한다.
+   PR·CI·target AC audit을 진행한다.
 4. 자동 마감이 끝나면 마감 task를 `completed`로 바꾼다. 사람 확인이 남으면
    Task를 늘리지 않고 `human verification 대기`를 별도 메시지로 유지한다.
 

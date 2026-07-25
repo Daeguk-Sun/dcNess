@@ -44,9 +44,11 @@ epic 마감이면 값은 `"epic"`이다.
 정상 fast-start에서는 `chain-view`와 background `dcness-implementation-chain`을
 같은 assistant turn의 독립 tool batch로 발행한다. 두 호출은 서로 결과를 입력으로
 쓰지 않는다. implementation-chain은 chain-view 결과나 TaskCreate/TaskUpdate
-완료를 기다리지 않는다. batch 발행이 불가능한 환경이면 implementation-chain을
-먼저 launch하고 바로 chain-view를 호출한다. 진행 뷰 때문에 별도 직렬 tool call을
-추가하지 않는다. helper 결과가 돌아오면 worker가 실행되는 동안 `operations`를
+완료를 기다리지 않는다. batch를 지원하지 않으면 chain-view를 독립 호출하지 않는다.
+implementation-chain을 먼저 launch하고 같은 진행 메시지에
+수동 완료/현재/예정 view를 붙인다. 이후 경계도 진행 뷰 때문에
+별도 직렬 tool call을 추가하지 않는다.
+helper 결과가 돌아오면 worker가 실행되는 동안 `operations`를
 순서 그대로 Task 시스템에 적용하고 `view`를 사용자에게 진행 메시지로 표시한다.
 
 호출 경계는 다음 세 곳이다.

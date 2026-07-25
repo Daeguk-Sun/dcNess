@@ -53,7 +53,8 @@ class ImplFastStartContractTests(unittest.TestCase):
         self.assertIn("## 진행 뷰 (task 리스트)", skill)
         self.assertIn("구현 · <target> (<main-direct|headless>)", skill)
         self.assertIn("검증 · impl-validator", skill)
-        self.assertIn("마감 · commit/PR/CI", skill)
+        self.assertIn("마감 · PR/CI/AC audit", skill)
+        self.assertIn("Cartography sync와 candidate commit까지 끝나면", skill)
         self.assertIn("TaskCreate", skill)
         self.assertIn("TaskUpdate", skill)
         self.assertIn("첫 tool-bearing turn의 독립 tool batch", skill)
@@ -102,6 +103,12 @@ class ImplFastStartContractTests(unittest.TestCase):
         self.assertIn("같은 assistant turn의 독립 tool batch", skill)
         self.assertIn("implementation-chain은 chain-view", skill)
         self.assertIn("완료를 기다리지 않는다", skill)
+        self.assertIn(
+            "batch를 지원하지 않으면 chain-view를 독립 호출하지 않는다",
+            skill,
+        )
+        self.assertIn("수동 완료/현재/예정 view", skill)
+        self.assertNotIn("먼저 launch하고 바로 chain-view를 호출", skill)
         self.assertIn("`nohup`, `&`, `disown`", skill)
         self.assertIn("`.dcness-work`를 미리 만들지 않는다", skill)
         self.assertIn("same-workspace recovery", skill)
