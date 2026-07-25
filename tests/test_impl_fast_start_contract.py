@@ -46,6 +46,52 @@ class ImplFastStartContractTests(unittest.TestCase):
         self.assertIn("target GitHub issue AC close audit", finish)
         self.assertIn("PR", finish)
 
+    def test_impl_progress_tasks_do_not_delay_main_or_headless_start(self) -> None:
+        skill = self.read("skills/impl/SKILL.md")
+        procedure = self.read("docs/plugin/loop-procedure.md")
+
+        self.assertIn("## 진행 뷰 (task 리스트)", skill)
+        self.assertIn("구현 · <target> (<main-direct|headless>)", skill)
+        self.assertIn("검증 · impl-validator", skill)
+        self.assertIn("마감 · commit/PR/CI", skill)
+        self.assertIn("TaskCreate", skill)
+        self.assertIn("TaskUpdate", skill)
+        self.assertIn("첫 tool-bearing turn의 독립 tool batch", skill)
+        self.assertIn("EnterWorktree 또는 첫 work action", skill)
+        self.assertIn(
+            "`TaskCreate`가 기본\n`pending`으로 만들어 반환한 id",
+            skill,
+        )
+        self.assertIn(
+            "다음의 **이미 필요했던** work action",
+            skill,
+        )
+        self.assertIn(
+            "implementation-chain은 TaskCreate나 TaskUpdate 결과를 기다리지 않는다",
+            skill,
+        )
+        self.assertIn("batch 발행이 불가능하면 work action을 먼저", skill)
+        self.assertIn("다음의 이미 필요한 tool-bearing turn에 붙인다", skill)
+        self.assertIn(
+            "진행 뷰만을 위한 추가 assistant turn을 만들지 않는다",
+            skill,
+        )
+        self.assertIn(
+            "같은 batch의 Task sidecar는 추가 repo read나 blocking assistant turn이 아니다",
+            skill,
+        )
+        self.assertIn("추가 helper subprocess를 호출하지 않는다", skill)
+        self.assertIn("중복 생성하지 않는다", skill)
+        self.assertIn("Task tool이 없거나 호출이 실패하면", skill)
+        self.assertIn("도구이지 gate가 아니다", skill)
+        self.assertIn(
+            "[`/impl` 진행 뷰](../../skills/impl/SKILL.md#진행-뷰-task-리스트)",
+            procedure,
+        )
+        self.assertNotIn("TaskCreate 완료 후 EnterWorktree", skill)
+        self.assertNotIn("TaskCreate 완료 후 implementation-chain", skill)
+        self.assertNotIn("dcness-helper chain-view", skill)
+
     def test_impl_loop_launches_worker_in_background_without_repeat_preflight(self) -> None:
         skill = self.read("skills/impl-loop/SKILL.md")
 

@@ -69,7 +69,14 @@ echo "[<entry>] run started: $RUN_ID"
 
 ## Step 1 — TaskCreate
 
-해당 skill 의 `## Loop` 의 `task_list` 필드대로 일괄 등록한다. `/impl-loop`의
+해당 skill 이 정의한 task list를 일괄 등록한다. `/impl`은
+[`/impl` 진행 뷰](../../skills/impl/SKILL.md#진행-뷰-task-리스트)의 고정 3개
+task를 TaskCreate/TaskUpdate로 적용한다. Task 호출은 EnterWorktree·첫 work
+action·validator·마감 호출과 같은 assistant turn의 독립 tool batch다.
+TaskCreate가 반환한 id를 쓰는 첫 TaskUpdate도 다음의 이미 필요한 work action에
+붙여 main-direct 첫 edit나 background implementation-chain을 기다리게 하지 않는다.
+
+`/impl-loop`의
 Task 진행 표시는 [`impl-loop` 진행 뷰](../../skills/impl-loop/SKILL.md#진행-뷰-task-리스트)가
 소유한다. story runner state와 implementation chain receipt를 실행 진본으로
 유지하면서 `dcness-helper chain-view`의 operations를 TaskCreate/TaskUpdate로

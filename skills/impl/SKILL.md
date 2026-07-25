@@ -23,6 +23,53 @@ owner 선택을 위한 별도 repo scan·SSOT read·질문은 하지 않는다. 
 
 선택 뒤에는 같은 구현 소유자가 GREEN과 review finding 수정을 모두 맡는다. headless가 workspace를 바꾼 뒤에는 다른 provider로 넘기지 않고 same-workspace recovery 또는 BLOCKED만 허용한다. 메인은 제품 결정, 진행 보고, 외부 issue/PR mutation을 계속 소유한다.
 
+## 진행 뷰 (task 리스트)
+
+메인은 owner와 target을 확정하면 다음 고정 3개 task를 만들고 run 동안 반환된
+task id를 재사용한다.
+
+1. `구현 · <target> (<main-direct|headless>)`
+2. `검증 · impl-validator`
+3. `마감 · commit/PR/CI`
+
+첫 task는 실행 시작과 함께 `in_progress`, 나머지는 `pending`으로 표시한다.
+lifecycle state와 implementation-chain receipt가 실행 진본이고 Task 목록은
+사용자 UI에 진행을 투영하는 표시다. 고정 3개이므로 이 `/impl` 진행 뷰는
+추가 helper subprocess를 호출하지 않는다.
+
+정상 fast-start에서는 세 `TaskCreate`와 `EnterWorktree 또는 첫 work action`을
+같은 첫 tool-bearing turn의 독립 tool batch로 발행한다. `TaskCreate`가 기본
+`pending`으로 만들어 반환한 id는 바로 다음의 **이미 필요했던** work action에서
+첫 task를 `in_progress`로 바꾸는 `TaskUpdate`에 쓴다. 예를 들어 격리 결과를
+받은 뒤 main-direct는 `TaskUpdate`와 `begin-run`·exact pointer read·RED/첫 edit
+중 그 시점의 호출을, headless는 `TaskUpdate`와 background
+implementation-chain launch를 같은 독립 batch로 발행한다. headless
+implementation-chain은 TaskCreate나 TaskUpdate 결과를 기다리지 않는다.
+
+이미 격리된 상태에서는 `TaskCreate`를 target 확인·exact pointer read·slim
+prompt 준비처럼 원래 필요한 호출에 붙이고, 다음 원래 work action에
+`TaskUpdate`를 붙인다. batch 발행이 불가능하면 work action을 먼저 실행하고
+Task 호출은 다음의 이미 필요한 tool-bearing turn에 붙인다. Task만 처리하는
+사이 turn이나 진행 뷰만을 위한 추가 assistant turn을 만들지 않는다. 아래
+focused read의 `첫 tool call은 pointer만`은 work action의 read 경계를 뜻한다.
+같은 batch의 Task sidecar는 추가 repo read나 blocking assistant turn이 아니다.
+
+상태 변경은 기존 필수 작업과 같은 tool-bearing turn에 `TaskUpdate`로 묶는다.
+
+1. 구현과 관련 gate가 GREEN이면 구현 task를 `completed`, 검증 task를
+   `in_progress`로 바꾸고 candidate freeze/impl-validator 경로를 계속한다.
+2. validator가 MUST FIX를 내면 같은 task를 새로 만들지 않고 구현 task를
+   `in_progress`, 검증 task를 `pending`으로 되돌려 같은 owner의 rework를 표시한다.
+3. validator PASS면 검증 task를 `completed`, 마감 task를 `in_progress`로 바꾸고
+   commit·PR·CI·target AC audit을 진행한다.
+4. 자동 마감이 끝나면 마감 task를 `completed`로 바꾼다. 사람 확인이 남으면
+   Task를 늘리지 않고 `human verification 대기`를 별도 메시지로 유지한다.
+
+resume 시 같은 제목의 기존 `/impl` task가 있으면 id와 상태를 재사용하고
+`TaskCreate`를 중복 생성하지 않는다. Task tool이 없거나 호출이 실패하면 같은
+3줄 완료/현재/예정 ASCII 뷰를 진행 메시지에 표시하고 구현은 계속한다. 진행
+표시는 도구이지 gate가 아니다.
+
 ## 질문 경계
 
 묻지 않고 진행한다:
