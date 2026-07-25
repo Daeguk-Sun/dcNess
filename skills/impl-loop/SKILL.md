@@ -25,14 +25,65 @@ target/AC snapshot → worktree → implementation-chain 한 호출 → worker
 
 같은 story 값은 path 정렬 결과에서 한 연속 block이어야 한다. 다중 story는 `story1(base=main) → story2(base=story1)` branch stack이며, 다음 story는 직전 story 브랜치에서 재분기한다.
 
+## 진행 뷰 (task 리스트)
+
+메인은 impl-loop의 실제 진행을 사용자에게 보이도록 `dcness-helper chain-view`
+출력을 적용한다. story runner state와 implementation chain receipt는 실행
+진본이고, 진행 뷰는 그 상태를 사용자 UI에 투영하는 표시다. 둘은 대체 관계가
+아니다.
+
+확정된 순서의 전체 target task는
+`{"tasks":[{"name":"<task>","engine":"build-worker","closes":"story"}]}`
+형태로 한 번 만들고 run 동안 재사용한다. 별도 파일은 만들지 않고
+`chain-view --tasks-json '<json>' --compact`로 넘긴다. UI checkpoint가 있는 task만
+`engine: "ui-build-worker"`를 쓴다. `closes`는 마감 task에만 지정한다.
+epic 마감이면 값은 `"epic"`이다.
+메인이 완료·현재·예정 글리프, 들여쓰기, sub-step 또는 task 수별 다시 그리기
+전략을 다시 계산하지 않는다.
+
+정상 fast-start에서는 `chain-view`와 background `dcness-implementation-chain`을
+같은 assistant turn의 독립 tool batch로 발행한다. 두 호출은 서로 결과를 입력으로
+쓰지 않는다. implementation-chain은 chain-view 결과나 TaskCreate/TaskUpdate
+완료를 기다리지 않는다. batch 발행이 불가능한 환경이면 implementation-chain을
+먼저 launch하고 바로 chain-view를 호출한다. 진행 뷰 때문에 별도 직렬 tool call을
+추가하지 않는다. helper 결과가 돌아오면 worker가 실행되는 동안 `operations`를
+순서 그대로 Task 시스템에 적용하고 `view`를 사용자에게 진행 메시지로 표시한다.
+
+호출 경계는 다음 세 곳이다.
+
+1. **chain 진입**: worktree 진입 뒤
+   `chain-view --tasks-json '<json>' --current 0 --initial --compact`와 one-shot
+   implementation-chain을 같은 첫 tool-bearing turn에 발행한다. worker launch가
+   진행 뷰 렌더를 기다리지 않는다.
+2. **task 완료마다**: task `i`를 completed로 mark하고 `next-action`을 받은 뒤
+   다음 task가 있으면 `chain-view --prev <i> --current <i+1>`과 다음
+   implementation-chain을 같은 assistant turn에 발행한다. story branch 전환이
+   필요하면 branch를 만든 직후 이 batch를 발행한다. resume처럼 사용자 Task
+   목록이 비어 있으면 `--initial`로 현재 index 전체를 다시 그린다.
+3. **마감 시퀀스 진입**: 마지막 build-worker가 끝나 `action=done`이면 이미
+   펼쳐진 마감 task에서 `build-worker` sub-step을 completed,
+   `validation-sequence:STORY|EPIC`을 in_progress로 TaskUpdate하고 그 `view`를
+   다시 표시한 뒤 `impl-loop-finish.md`로 이동한다. `--initial`을 기존
+   Task 목록 위에 다시 적용해 중복 생성하지 않는다. 마감 시퀀스까지 PASS한
+   뒤에만 `--prev <last-index> --current <task-total>` payload를 적용해 전체
+   완료를 표시한다.
+
+각 payload의 `create_header`·`create_substep`은 TaskCreate, 상태 변경과 삭제는
+TaskUpdate로 적용한다. Task tool이 없거나 helper가 실패하면 같은 완료/현재/예정
+표현을 수동으로 다시 만들고 run은 계속한다. helper는 도구이지 gate가 아니며
+run state를 변경하지 않는다. 현재 run에 `journey_deferred`가 있으면 렌더된
+`view` 바로 아래에 해당 journey id 목록을 유지하고 이후 worker prompt에도
+같은 목록을 전달한다.
+
 ## Fast start
 
 ### 1. 최소 snapshot
 
 warm handoff나 사용자 입력이 exact task path·AC snapshot pointer·slim prompt와
 feature worktree 상태를 이미 확정했으면 이 snapshot을 다시 `ls`/`find`/`cat`하지
-않는다. one-shot launch가 첫 tool call이다. worktree/default-branch 정합은 chain이
-mutation 전에 검증한다.
+않는다. one-shot launch가 첫 tool-bearing turn의 독립 batch에 포함된다. 같은
+turn의 chain-view는 launch를 기다리게 하는 선행 호출이 아니다.
+worktree/default-branch 정합은 chain이 mutation 전에 검증한다.
 
 1. `stories.md`의 parent epic/story issue pointer를 확인한다.
 2. 대상 issue 본문을 한 번 읽어 target GitHub issue AC snapshot을 보관한다. 진행 중 재조회하지 않는다.
@@ -145,7 +196,7 @@ prose를 기록한 것이므로 재호출하지 않는다. 최신 prose가 `PASS
 
 - `action=task`: 다음 task용 slim prompt로 chain을 다시 호출한다. 기존 state이므로 `--init-path`는 생략하며, chain이 이전 run 종료와 새 run 시작을 같은 호출 안에서 처리한다.
 - `action=story-pr`: 직전 story tip/base를 봉인하고 PR 없이 다음 story branch를 만든다.
-- `action=done`: worker loop를 끝내고 GREEN 이후 진본으로 이동한다.
+- `action=done`: 진행 뷰를 마감 시퀀스 상태로 갱신하고 worker loop를 끝낸 뒤 GREEN 이후 진본으로 이동한다.
 - `action=error|blocked`: 그때만 routing 문서를 읽어 bounded recovery 또는 사용자 결정을 수행한다.
 
 진행 메시지는 `진행: RED/첫 edit 확인`, `진행: 구현·검증 green`, `진행: 통합 review 시작`처럼 사용자에게 의미 있는 변화만 남긴다. helper PASS/no-op과 polling 자체를 성과처럼 반복 출력하지 않는다.

@@ -473,10 +473,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         prog="chain-view",
         description="impl-loop chain 진행 뷰 자동 렌더 (#755) — 도구이지 게이트 아님",
     )
-    parser.add_argument(
+    source = parser.add_mutually_exclusive_group(required=True)
+    source.add_argument(
         "--tasks",
-        required=True,
         help="task list JSON 경로 ('-' = stdin). {tasks:[{name,engine,closes?}], current?}",
+    )
+    source.add_argument(
+        "--tasks-json",
+        help="task list inline JSON. 별도 파일 없이 first tool batch에서 사용.",
     )
     parser.add_argument(
         "--current",
@@ -496,12 +500,26 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         action="store_true",
         help="전체 task list 최초 생성/재생성 operation 산출 (임의 current 점프 포함).",
     )
+    parser.add_argument(
+        "--compact",
+        action="store_true",
+        help="Task tool batch 전달용 단일 줄 JSON 출력.",
+    )
     args = parser.parse_args(argv)
 
     try:
-        data = _load_input(args.tasks)
+        if args.tasks_json:
+            data = json.loads(args.tasks_json)
+            if not isinstance(data, dict):
+                raise ValueError("입력 JSON 은 {tasks, current} 객체여야 한다")
+        else:
+            data = _load_input(args.tasks)
         tasks = parse_tasks(data.get("tasks", []))
-        current = args.current if args.current is not None else int(data.get("current", 0))
+        current = (
+            args.current
+            if args.current is not None
+            else int(data.get("current", 0))
+        )
         payload = build_chain_view(
             tasks, current, prev=args.prev, initial=args.initial
         )
@@ -509,7 +527,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         print(f"[chain-view] 입력 오류: {exc}", file=sys.stderr)
         return 1
 
-    print(json.dumps(payload, ensure_ascii=False, indent=2))
+    print(
+        json.dumps(
+            payload,
+            ensure_ascii=False,
+            indent=None if args.compact else 2,
+            separators=(",", ":") if args.compact else None,
+        )
+    )
     return 0
 
 

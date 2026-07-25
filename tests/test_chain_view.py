@@ -28,6 +28,11 @@
         - JSON-ish 입력 파싱 → payload
         - 순수 변환(run state mutation 없음 — 도구이지 게이트 아님)
 """
+from contextlib import redirect_stdout
+from io import StringIO
+import json
+from pathlib import Path
+import subprocess
 import unittest
 
 from harness.chain_view import (
@@ -35,6 +40,7 @@ from harness.chain_view import (
     MAIN_OWNED_SUBSTEPS,
     build_chain_view,
     initial_operations,
+    main as chain_view_main,
     normalize_engine,
     parse_tasks,
     redraw_strategy,
@@ -42,6 +48,8 @@ from harness.chain_view import (
     substeps_for,
     transition_operations,
 )
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _task(name, engine="build-worker", closes=None):
@@ -448,6 +456,97 @@ class TestBuildChainViewAndParse(unittest.TestCase):
         self.assertIn("   ㄴ canvas-design", payload["view"])
         self.assertNotIn("   ㄴ 사용자 PICK", payload["view"])
         self.assertIn("canvas-design", payload["current_substeps"])
+
+    def test_inline_cli_emits_compact_payload_without_task_list_file(self):
+        data = {
+            "tasks": [
+                {
+                    "name": "alpha",
+                    "engine": "build-worker",
+                    "closes": "epic",
+                },
+            ],
+        }
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            rc = chain_view_main(
+                [
+                    "--tasks-json",
+                    json.dumps(data, ensure_ascii=False),
+                    "--initial",
+                    "--compact",
+                ]
+            )
+
+        self.assertEqual(rc, 0)
+        rendered = stdout.getvalue().strip()
+        self.assertEqual(len(rendered.splitlines()), 1)
+        payload = json.loads(rendered)
+        self.assertIn("▾ task1 · alpha", payload["view"])
+        self.assertEqual(
+            payload["current_substeps"],
+            ["build-worker", "validation-sequence:EPIC"],
+        )
+
+    def test_helper_cli_renders_initial_and_task_completion_transition(self):
+        data = json.dumps(
+            {
+                "tasks": [
+                    {"name": "alpha", "engine": "build-worker"},
+                    {
+                        "name": "beta",
+                        "engine": "build-worker",
+                        "closes": "story",
+                    },
+                ]
+            },
+            ensure_ascii=False,
+        )
+
+        initial = subprocess.run(
+            [
+                str(ROOT / "scripts" / "dcness-helper"),
+                "chain-view",
+                "--tasks-json",
+                data,
+                "--current",
+                "0",
+                "--initial",
+                "--compact",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        transition = subprocess.run(
+            [
+                str(ROOT / "scripts" / "dcness-helper"),
+                "chain-view",
+                "--tasks-json",
+                data,
+                "--prev",
+                "0",
+                "--current",
+                "1",
+                "--compact",
+            ],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(initial.returncode, 0, initial.stderr)
+        self.assertEqual(transition.returncode, 0, transition.stderr)
+        self.assertIn("▾ task1 · alpha", json.loads(initial.stdout)["view"])
+        updated = json.loads(transition.stdout)
+        self.assertIn("✓ task1 · alpha", updated["view"])
+        self.assertIn("▾ task2 · beta", updated["view"])
+        self.assertIn(
+            "validation-sequence:STORY",
+            updated["current_substeps"],
+        )
 
 
 class TestViewOperationsConsistency(unittest.TestCase):
