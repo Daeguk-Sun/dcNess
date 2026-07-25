@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
 from scripts.measure_main_turns import (
+    build_flow_health,
     build_paired_screening,
     build_repeated_screening,
+    parse_flow_invocations,
     parse_session,
 )
 
@@ -167,6 +170,148 @@ class MeasureMainTurnsTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _flow_trace(
+        self,
+        path: Path,
+        *,
+        edit_second: int,
+        plugin_version: str = "0.29.0",
+        blocking_requests: int = 1,
+        include_prior_edit: bool = False,
+    ) -> None:
+        command_at = datetime(2026, 7, 20, 0, 10, tzinfo=timezone.utc)
+
+        def timestamp(offset_seconds: int) -> str:
+            return (
+                (command_at + timedelta(seconds=offset_seconds))
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
+
+        rows: list[dict[str, object]] = []
+        if include_prior_edit:
+            rows.extend(
+                [
+                    {
+                        "type": "user",
+                        "timestamp": "2026-07-20T00:00:00Z",
+                        "message": {"role": "user", "content": "unrelated task"},
+                    },
+                    {
+                        "type": "assistant",
+                        "timestamp": "2026-07-20T00:00:01Z",
+                        "message": {
+                            "id": "prior-edit",
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "id": "prior-write",
+                                    "name": "Write",
+                                    "input": {"file_path": "unrelated.txt"},
+                                }
+                            ],
+                        },
+                    },
+                ]
+            )
+        rows.extend(
+            [
+                {
+                    "type": "user",
+                    "timestamp": timestamp(0),
+                    "cwd": "/tmp/project",
+                    "message": {
+                        "role": "user",
+                        "content": (
+                            "<command-message>dcness:impl</command-message>\n"
+                            "<command-name>/dcness:impl</command-name>\n"
+                            "<command-args>issue 80</command-args>"
+                        ),
+                    },
+                },
+                {
+                    "type": "user",
+                    "timestamp": timestamp(0),
+                    "isMeta": True,
+                    "message": {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Base directory for this skill: "
+                                    f"/tmp/dcness/dcness/{plugin_version}/skills/impl"
+                                    "\n\n# Impl"
+                                ),
+                            }
+                        ],
+                    },
+                },
+            ]
+        )
+        for index in range(blocking_requests):
+            second = 5 + index * 10
+            tool_id = f"read-{index}"
+            rows.extend(
+                [
+                    {
+                        "type": "assistant",
+                        "timestamp": timestamp(second),
+                        "message": {
+                            "id": f"blocking-{index}",
+                            "role": "assistant",
+                            "content": [
+                                {
+                                    "type": "tool_use",
+                                    "id": tool_id,
+                                    "name": "Read",
+                                    "input": {"file_path": "src/fixture.py"},
+                                }
+                            ],
+                        },
+                    },
+                    {
+                        "type": "user",
+                        "timestamp": timestamp(second + 2),
+                        "message": {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "tool_result",
+                                    "tool_use_id": tool_id,
+                                    "content": "ok",
+                                }
+                            ],
+                        },
+                    },
+                ]
+            )
+        rows.append(
+            {
+                "type": "assistant",
+                "timestamp": timestamp(edit_second),
+                "message": {
+                    "id": "implementation-edit",
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "source-write",
+                            "name": "Write",
+                            "input": {
+                                "file_path": "/tmp/project/src/fixture_test.py",
+                            },
+                        }
+                    ],
+                },
+            }
+        )
+        path.write_text(
+            "\n".join(json.dumps(row) for row in rows) + "\n",
+            encoding="utf-8",
+        )
+
     def test_parse_session_collects_requests_tools_time_tokens_and_runtime(self) -> None:
         with TemporaryDirectory() as td:
             trace = Path(td) / "baseline.jsonl"
@@ -262,6 +407,179 @@ class MeasureMainTurnsTests(unittest.TestCase):
         )
         self.assertEqual(result["all_total_input_tokens"], 150)
         self.assertEqual(result["all_output_tokens"], 17)
+
+    def test_flow_health_scopes_measurement_to_impl_command(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._flow_trace(
+                trace,
+                edit_second=45,
+                blocking_requests=2,
+                include_prior_edit=True,
+            )
+
+            rows = parse_flow_invocations(trace)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["command"], "dcness:impl")
+        self.assertEqual(rows[0]["plugin_version"], "0.29.0")
+        self.assertEqual(rows[0]["time_to_first_edit_seconds"], 45.0)
+        self.assertEqual(
+            rows[0]["blocking_assistant_requests_before_first_action"],
+            2,
+        )
+        self.assertEqual(rows[0]["first_edit_evidence"]["line"], 9)
+        self.assertEqual(rows[0]["result"], "PASS")
+
+    def test_flow_health_separates_tool_time_and_marks_slow_flow_degraded(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._flow_trace(
+                trace,
+                edit_second=75,
+                blocking_requests=3,
+            )
+
+            report = build_flow_health([trace], plugin_version="0.29.0")
+
+        self.assertEqual(report["status"], "DEGRADED")
+        self.assertEqual(report["sample_count"], 1)
+        row = report["invocations"][0]
+        self.assertEqual(row["pre_action_tool_execution_seconds"], 6.0)
+        self.assertEqual(row["pre_action_non_tool_wait_ratio"], 0.92)
+        self.assertEqual(row["max_post_tool_silence_seconds"], 48.0)
+        self.assertEqual(row["result"], "FAIL")
+
+    def test_flow_health_uses_headless_worker_launch_as_impl_loop_start(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            rows = [
+                {
+                    "type": "user",
+                    "timestamp": "2026-07-20T00:00:00Z",
+                    "cwd": "/tmp/project",
+                    "message": {
+                        "role": "user",
+                        "content": (
+                            "<command-name>/dcness:impl-loop</command-name>"
+                        ),
+                    },
+                },
+                {
+                    "type": "user",
+                    "timestamp": "2026-07-20T00:00:00Z",
+                    "isMeta": True,
+                    "message": {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": (
+                                    "Base directory for this skill: "
+                                    "/tmp/dcness/dcness/0.29.0/skills/impl-loop"
+                                ),
+                            }
+                        ],
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-07-20T00:00:10Z",
+                    "cwd": "/tmp/project",
+                    "message": {
+                        "id": "prompt-file",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "scratch",
+                                "name": "Write",
+                                "input": {"file_path": "/tmp/slim-prompt.md"},
+                            }
+                        ],
+                    },
+                },
+                {
+                    "type": "user",
+                    "timestamp": "2026-07-20T00:00:40Z",
+                    "message": {
+                        "role": "user",
+                        "content": "확정했으니 진행",
+                    },
+                },
+                {
+                    "type": "assistant",
+                    "timestamp": "2026-07-20T00:01:10Z",
+                    "cwd": "/tmp/project/.claude/worktrees/feature",
+                    "message": {
+                        "id": "worker-launch",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "tool_use",
+                                "id": "chain",
+                                "name": "Bash",
+                                "input": {
+                                    "command": (
+                                        "CHAIN=/tmp/dcness-implementation-chain\n"
+                                        '"$CHAIN" build-worker \\\n'
+                                        "  --direct-run"
+                                    ),
+                                },
+                            }
+                        ],
+                    },
+                },
+            ]
+            trace.write_text(
+                "\n".join(json.dumps(row) for row in rows) + "\n",
+                encoding="utf-8",
+            )
+
+            report = build_flow_health([trace], plugin_version="0.29.0")
+
+        row = report["invocations"][0]
+        self.assertEqual(report["status"], "DEGRADED")
+        self.assertEqual(row["startup_target"], "headless_worker_launch")
+        self.assertEqual(row["time_to_first_action_seconds"], 70.0)
+        self.assertEqual(
+            row["last_user_input_to_first_action_seconds"],
+            30.0,
+        )
+        self.assertIsNone(row["time_to_first_edit_seconds"])
+        self.assertEqual(row["first_action_evidence"]["tool"], "WorkerLaunch")
+
+    def test_flow_health_requires_three_current_version_passes_for_healthy(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            traces = []
+            for index, seconds in enumerate((20, 30, 40), start=1):
+                trace = base / f"session-{index}.jsonl"
+                self._flow_trace(trace, edit_second=seconds)
+                traces.append(trace)
+            old_trace = base / "old.jsonl"
+            self._flow_trace(
+                old_trace,
+                edit_second=75,
+                plugin_version="0.28.0",
+            )
+            traces.append(old_trace)
+
+            report = build_flow_health(traces, plugin_version="0.29.0")
+
+        self.assertEqual(report["status"], "HEALTHY")
+        self.assertEqual(report["sample_count"], 3)
+        self.assertEqual(report["excluded_version_count"], 1)
+
+    def test_flow_health_is_unverified_with_too_few_passing_samples(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._flow_trace(trace, edit_second=20)
+
+            report = build_flow_health([trace], plugin_version="0.29.0")
+
+        self.assertEqual(report["status"], "UNVERIFIED")
+        self.assertEqual(report["sample_count"], 1)
 
     def test_process_start_falls_back_before_fresh_edit_when_root_duration_is_short(self) -> None:
         with TemporaryDirectory() as td:

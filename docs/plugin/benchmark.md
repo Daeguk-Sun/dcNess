@@ -4,13 +4,13 @@
 
 ## 현재 공개 evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.29.0","measured_at":"2026-07-24","unit_tests":{"passed":1210,"total":1210},"guard":{"passed":50,"total":50},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.29.0","measured_at":"2026-07-25","unit_tests":{"passed":1215,"total":1215},"guard":{"passed":50,"total":50},"source_project_count":2} -->
 
 현재 plugin version은 **v0.29.0**, 측정일은 **2026-07-24**이다. unit과 guard 수치는 dcNess source checkout의 기계적 계약 evidence이며 보안 증명이나 제품 성공률이 아니다.
 
 | evidence | 관측값 | 재현 명령 | 한계 |
 |---|---:|---|---|
-| 전체 unit 계약 | 1,210/1,210 PASS | `python3.11 -m unittest discover -s tests -v` | source checkout 1개의 코드·문서 계약 |
+| 전체 unit 계약 | 1,215/1,215 PASS | `python3.11 -m unittest discover -s tests -v` | source checkout 1개의 코드·문서 계약 |
 | guard fixture | 50/50 PASS | `python3.11 evals/guard_efficacy.py --json` | deterministic payload의 allow/block/exit/stdout 계약 |
 | 공개 snapshot drift | README/benchmark 일치 | `node scripts/check_public_evidence.mjs` | 위 두 명령 결과와 문서 marker만 대조 |
 
@@ -48,6 +48,15 @@ scripts/dcness-efficiency summary --repo "$(pwd)"
 ```
 
 `/efficiency`는 Claude Code session JSONL의 usage를 합산한다. dashboard와 heuristic pattern 판정은 만들지 않는다.
+
+### maintainer Flow Health
+
+```bash
+python3.11 scripts/measure_main_turns.py <session-jsonl-or-project-session-directory> \
+  --flow-health --plugin-version <audited-plugin-version> --json
+```
+
+dcNess source checkout의 이 모드는 활성 프로젝트 세션 안 `/impl`·`/impl-loop` 호출마다 첫 구현 action(메인 직접 구현 edit 또는 headless worker launch)까지의 시간, blocking main request, 실제 tool 시간, 비도구 대기 비율, 최장 tool 후 무응답을 다시 계산한다. 첫 action `<60초`·blocking request `≤2회`가 fast-start 계약이며, 위반 실측이 하나라도 있으면 `DEGRADED`, 위반 없이 현행 버전 표본 3개 이상이면 `HEALTHY`, 그 전에는 `UNVERIFIED`다. 이 판정은 maturity audit의 Workflow·Legibility·Observability 근거로 쓰되 release artifact `GO`/`HOLD`와 합치지 않는다. 사용자 prompt·session ID·절대경로는 감사 보고서에 노출하지 않는다.
 
 ### guard 공개 계약
 

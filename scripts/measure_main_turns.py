@@ -33,6 +33,8 @@ Tool histogram 은 tool_use block 의 `name` 빈도. Agent 호출은 `name=Task`
       --paired-with variant.jsonl --outcomes outcomes.json --json
     python3 scripts/measure_main_turns.py baseline-trials/ \
       --paired-with fresh-trials/ --outcomes repeated-outcomes.json --json
+    python3 scripts/measure_main_turns.py <project-session-directory> \
+      --flow-health --plugin-version 0.29.0 --json
 
 예시 (jajang impl 1-task 세션 측정):
     python3 scripts/measure_main_turns.py \\
@@ -59,6 +61,29 @@ _TOKEN_FIELDS = (
     "cache_read_input_tokens",
     "output_tokens",
 )
+_FLOW_COMMAND_PATTERN = re.compile(
+    r"<command-name>\s*/?(?P<name>[^<\s]+)\s*</command-name>"
+)
+_FLOW_PLUGIN_VERSION_PATTERN = re.compile(
+    r"/dcness/dcness/(?P<version>[^/]+)/skills/(?:impl|impl-loop)(?:/|\s|$)"
+)
+_FLOW_WORKER_LAUNCH_PATTERN = re.compile(
+    r"""(?mx)
+    ^\s*
+    (?:
+        ["']?\$(?:\{?[A-Z_][A-Z0-9_]*\}?)["']?
+        |
+        ["']?[^\s\n]*dcness-implementation-chain["']?
+    )
+    \s+build-worker(?:\s|\\|$)
+    """
+)
+_FLOW_DEFAULT_COMMANDS = ("dcness:impl", "dcness:impl-loop")
+_FLOW_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
+_FLOW_MAX_FIRST_ACTION_SECONDS = 60.0
+_FLOW_MAX_BLOCKING_REQUESTS = 2
+_FLOW_HEALTHY_MINIMUM_SAMPLES = 3
+_FLOW_OPERATIONAL_PATHS = {".claude", ".dcness-work", ".git", ".metrics"}
 
 
 def _parse_timestamp(value: Any) -> datetime | None:
@@ -140,6 +165,539 @@ def _first_edit_observation(
                 ),
             }
     return None
+
+
+def _event_text(event: dict[str, Any]) -> str:
+    content = (event.get("message") or {}).get("content")
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(
+        str(block.get("text") or "")
+        for block in content
+        if isinstance(block, dict) and block.get("type") == "text"
+    )
+
+
+def _normalize_flow_command(value: str) -> str:
+    command = value.strip().lstrip("/")
+    if command in {"impl", "impl-loop"}:
+        return f"dcness:{command}"
+    return command
+
+
+def _flow_command(event: dict[str, Any]) -> str | None:
+    if event.get("type") != "user":
+        return None
+    match = _FLOW_COMMAND_PATTERN.search(_event_text(event))
+    if match is None:
+        return None
+    return _normalize_flow_command(match.group("name"))
+
+
+def _load_timed_events(path: Path) -> list[dict[str, Any]]:
+    events: list[dict[str, Any]] = []
+    with path.open() as source:
+        for line_number, line in enumerate(source, start=1):
+            try:
+                raw = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(raw, dict):
+                continue
+            event = dict(raw)
+            event["_line"] = line_number
+            event["_at"] = _parse_timestamp(raw.get("timestamp"))
+            events.append(event)
+    return events
+
+
+def _assistant_content(event: dict[str, Any]) -> list[Any]:
+    if event.get("type") != "assistant":
+        return []
+    message = event.get("message") or {}
+    if message.get("role") != "assistant":
+        return []
+    content = message.get("content")
+    return content if isinstance(content, list) else []
+
+
+def _is_root_assistant_event(event: dict[str, Any]) -> bool:
+    return (
+        bool(_assistant_content(event))
+        and event.get("parent_tool_use_id") in (None, "")
+    )
+
+
+def _assistant_request_key(event: dict[str, Any]) -> str:
+    message = event.get("message") or {}
+    return str(
+        event.get("request_id")
+        or message.get("id")
+        or event.get("uuid")
+        or f"line-{event['_line']}"
+    )
+
+
+def _is_implementation_path(path_value: Any, cwd_value: Any) -> bool:
+    if not isinstance(path_value, str) or not path_value:
+        return True
+    path = Path(path_value)
+    if not path.is_absolute():
+        relative = path
+    elif isinstance(cwd_value, str) and cwd_value:
+        try:
+            relative = path.relative_to(Path(cwd_value))
+        except ValueError:
+            return False
+    else:
+        return False
+    return not relative.parts or relative.parts[0] not in _FLOW_OPERATIONAL_PATHS
+
+
+def _flow_edit_observation(
+    event: dict[str, Any],
+    project_root: Any = None,
+) -> dict[str, Any] | None:
+    timestamp = event.get("_at")
+    if not isinstance(timestamp, datetime):
+        return None
+    for block in _assistant_content(event):
+        if not isinstance(block, dict) or block.get("type") != "tool_use":
+            continue
+        if block.get("name") not in _FLOW_EDIT_TOOLS:
+            continue
+        tool_input = block.get("input") or {}
+        path = tool_input.get("file_path") or tool_input.get("path") or ""
+        if not _is_implementation_path(
+            path,
+            event.get("cwd") or project_root,
+        ):
+            continue
+        return {
+            "timestamp": timestamp.isoformat(),
+            "line": event["_line"],
+            "tool": block.get("name"),
+            "path": path,
+            "executor": (
+                "main"
+                if event.get("parent_tool_use_id") in (None, "")
+                else "fresh"
+            ),
+        }
+    return None
+
+
+def _flow_worker_observation(
+    event: dict[str, Any],
+) -> dict[str, Any] | None:
+    timestamp = event.get("_at")
+    if not isinstance(timestamp, datetime):
+        return None
+    for block in _assistant_content(event):
+        if (
+            not isinstance(block, dict)
+            or block.get("type") != "tool_use"
+            or block.get("name") != "Bash"
+        ):
+            continue
+        command = str((block.get("input") or {}).get("command") or "")
+        if (
+            "dcness-implementation-chain" not in command
+            or _FLOW_WORKER_LAUNCH_PATTERN.search(command) is None
+        ):
+            continue
+        return {
+            "timestamp": timestamp.isoformat(),
+            "line": event["_line"],
+            "tool": "WorkerLaunch",
+            "path": "",
+            "executor": "headless",
+        }
+    return None
+
+
+def _tool_result_ids(event: dict[str, Any]) -> list[str]:
+    if event.get("type") != "user":
+        return []
+    content = (event.get("message") or {}).get("content")
+    if not isinstance(content, list):
+        return []
+    return [
+        str(block["tool_use_id"])
+        for block in content
+        if (
+            isinstance(block, dict)
+            and block.get("type") == "tool_result"
+            and block.get("tool_use_id")
+        )
+    ]
+
+
+def _merged_interval_seconds(
+    intervals: list[tuple[datetime, datetime]],
+) -> float:
+    if not intervals:
+        return 0.0
+    merged: list[list[datetime]] = []
+    for start, end in sorted(intervals):
+        if end < start:
+            continue
+        if not merged or start > merged[-1][1]:
+            merged.append([start, end])
+        else:
+            merged[-1][1] = max(merged[-1][1], end)
+    return sum((end - start).total_seconds() for start, end in merged)
+
+
+def _pre_action_tool_observations(
+    events: list[dict[str, Any]],
+    start_at: datetime,
+    stop_at: datetime,
+) -> tuple[float, list[dict[str, Any]]]:
+    calls: dict[str, tuple[datetime, int]] = {}
+    intervals: list[tuple[datetime, datetime]] = []
+    results: list[dict[str, Any]] = []
+    for event in events:
+        timestamp = event.get("_at")
+        if not isinstance(timestamp, datetime):
+            continue
+        for block in _assistant_content(event):
+            if not isinstance(block, dict) or block.get("type") != "tool_use":
+                continue
+            tool_id = block.get("id")
+            if tool_id and start_at <= timestamp < stop_at:
+                calls[str(tool_id)] = (timestamp, int(event["_line"]))
+        if not start_at <= timestamp < stop_at:
+            continue
+        for tool_id in _tool_result_ids(event):
+            call = calls.get(tool_id)
+            if call is None:
+                continue
+            call_at, call_line = call
+            intervals.append((call_at, timestamp))
+            results.append(
+                {
+                    "timestamp": timestamp,
+                    "line": event["_line"],
+                    "tool_use_line": call_line,
+                }
+            )
+    return _merged_interval_seconds(intervals), results
+
+
+def _has_visible_progress(event: dict[str, Any]) -> bool:
+    if not _is_root_assistant_event(event):
+        return False
+    for block in _assistant_content(event):
+        if not isinstance(block, dict):
+            continue
+        if block.get("type") == "tool_use":
+            return True
+        if block.get("type") == "text" and str(block.get("text") or "").strip():
+            return True
+    return False
+
+
+def _next_visible_progress(
+    events: list[dict[str, Any]],
+    after: datetime,
+    stop_at: datetime,
+) -> dict[str, Any] | None:
+    for event in events:
+        timestamp = event.get("_at")
+        if (
+            isinstance(timestamp, datetime)
+            and after < timestamp <= stop_at
+            and _has_visible_progress(event)
+        ):
+            return event
+    return None
+
+
+def _flow_silence_observations(
+    events: list[dict[str, Any]],
+    start_at: datetime,
+    stop_at: datetime,
+    tool_results: list[dict[str, Any]],
+) -> tuple[float | None, dict[str, Any] | None, float | None]:
+    first_progress = _next_visible_progress(events, start_at, stop_at)
+    time_to_first_progress = None
+    if first_progress is not None:
+        time_to_first_progress = (
+            first_progress["_at"] - start_at
+        ).total_seconds()
+
+    longest_seconds: float | None = None
+    longest_evidence: dict[str, Any] | None = None
+    for result in tool_results:
+        progress = _next_visible_progress(events, result["timestamp"], stop_at)
+        if progress is None:
+            continue
+        seconds = (progress["_at"] - result["timestamp"]).total_seconds()
+        if longest_seconds is None or seconds > longest_seconds:
+            longest_seconds = seconds
+            longest_evidence = {
+                "tool_result_line": result["line"],
+                "tool_result_timestamp": result["timestamp"].isoformat(),
+                "next_progress_line": progress["_line"],
+                "next_progress_timestamp": progress["_at"].isoformat(),
+            }
+    return time_to_first_progress, longest_evidence, longest_seconds
+
+
+def _flow_plugin_version(events: list[dict[str, Any]]) -> str | None:
+    for event in events:
+        match = _FLOW_PLUGIN_VERSION_PATTERN.search(_event_text(event))
+        if match is not None:
+            return match.group("version")
+    return None
+
+
+def _flow_invocation(
+    path: Path,
+    command: str,
+    events: list[dict[str, Any]],
+) -> dict[str, Any]:
+    start_event = events[0]
+    start_at = start_event.get("_at")
+    if not isinstance(start_at, datetime):
+        raise ValueError("flow command timestamp is required")
+    timed_events = [
+        event for event in events if isinstance(event.get("_at"), datetime)
+    ]
+    observed_end_at = max(
+        (event["_at"] for event in timed_events),
+        default=start_at,
+    )
+    first_action: dict[str, Any] | None = None
+    first_action_event: dict[str, Any] | None = None
+    for event in events[1:]:
+        first_action = _flow_edit_observation(event, start_event.get("cwd"))
+        if first_action is None:
+            first_action = _flow_worker_observation(event)
+        if first_action is not None:
+            first_action_event = event
+            break
+    stop_at = (
+        first_action_event["_at"]
+        if first_action_event is not None
+        else observed_end_at
+    )
+    elapsed_seconds = max((stop_at - start_at).total_seconds(), 0.0)
+    last_user_input_at = max(
+        (
+            event["_at"]
+            for event in events[1:]
+            if (
+                isinstance(event.get("_at"), datetime)
+                and event["_at"] < stop_at
+                and event.get("type") == "user"
+                and event.get("parent_tool_use_id") in (None, "")
+                and event.get("isMeta") is not True
+                and event.get("isSynthetic") is not True
+                and _flow_command(event) is None
+                and _is_direct_user_request(
+                    (event.get("message") or {}).get("content")
+                )
+            )
+        ),
+        default=None,
+    )
+    first_action_request_key = (
+        _assistant_request_key(first_action_event)
+        if first_action_event is not None
+        and _is_root_assistant_event(first_action_event)
+        else None
+    )
+    request_first_seen: dict[str, datetime] = {}
+    for event in events:
+        timestamp = event.get("_at")
+        if (
+            not isinstance(timestamp, datetime)
+            or timestamp < start_at
+            or timestamp >= stop_at
+            or not _is_root_assistant_event(event)
+        ):
+            continue
+        request_first_seen.setdefault(_assistant_request_key(event), timestamp)
+    blocking_requests = sum(
+        request_key != first_action_request_key
+        for request_key in request_first_seen
+    )
+    tool_seconds, tool_results = _pre_action_tool_observations(
+        events,
+        start_at,
+        stop_at,
+    )
+    (
+        time_to_first_progress,
+        longest_silence_evidence,
+        longest_silence_seconds,
+    ) = _flow_silence_observations(
+        events,
+        start_at,
+        stop_at,
+        tool_results,
+    )
+    non_tool_ratio = (
+        max(elapsed_seconds - tool_seconds, 0.0) / elapsed_seconds
+        if elapsed_seconds
+        else None
+    )
+    failure_reasons: list[str] = []
+    if elapsed_seconds >= _FLOW_MAX_FIRST_ACTION_SECONDS:
+        failure_reasons.append("time_to_first_action")
+    if blocking_requests > _FLOW_MAX_BLOCKING_REQUESTS:
+        failure_reasons.append("blocking_assistant_requests")
+    if first_action is not None:
+        result = "FAIL" if failure_reasons else "PASS"
+    else:
+        result = "FAIL" if failure_reasons else "INCOMPLETE"
+    return {
+        "session": path.name,
+        "command": command,
+        "plugin_version": _flow_plugin_version(events),
+        "result": result,
+        "failure_reasons": failure_reasons,
+        "startup_target": (
+            "headless_worker_launch"
+            if first_action is not None
+            and first_action["tool"] == "WorkerLaunch"
+            else "implementation_edit"
+        ),
+        "time_to_first_action_seconds": (
+            round(elapsed_seconds, 3) if first_action is not None else None
+        ),
+        "last_user_input_to_first_action_seconds": (
+            round((stop_at - last_user_input_at).total_seconds(), 3)
+            if first_action is not None and last_user_input_at is not None
+            else None
+        ),
+        "time_to_first_edit_seconds": (
+            round(elapsed_seconds, 3)
+            if first_action is not None
+            and first_action["tool"] != "WorkerLaunch"
+            else None
+        ),
+        "observed_without_action_seconds": (
+            round(elapsed_seconds, 3) if first_action is None else None
+        ),
+        "blocking_assistant_requests_before_first_action": blocking_requests,
+        "pre_action_tool_execution_seconds": round(tool_seconds, 3),
+        "pre_action_non_tool_wait_ratio": (
+            round(non_tool_ratio, 6) if non_tool_ratio is not None else None
+        ),
+        "time_to_first_progress_seconds": (
+            round(time_to_first_progress, 3)
+            if time_to_first_progress is not None
+            else None
+        ),
+        "max_post_tool_silence_seconds": (
+            round(longest_silence_seconds, 3)
+            if longest_silence_seconds is not None
+            else None
+        ),
+        "max_post_tool_silence_evidence": longest_silence_evidence,
+        "start_evidence": {
+            "timestamp": start_at.isoformat(),
+            "line": start_event["_line"],
+            "kind": "command_invocation",
+        },
+        "first_action_evidence": first_action,
+        "first_edit_evidence": (
+            first_action
+            if first_action is not None
+            and first_action["tool"] != "WorkerLaunch"
+            else None
+        ),
+    }
+
+
+def parse_flow_invocations(
+    path: Path,
+    command_names: tuple[str, ...] | list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Measure each selected /impl command inside a session independently."""
+    selected = {
+        _normalize_flow_command(value)
+        for value in (command_names or _FLOW_DEFAULT_COMMANDS)
+    }
+    events = _load_timed_events(path)
+    command_indexes = [
+        (index, command)
+        for index, event in enumerate(events)
+        if (command := _flow_command(event)) is not None
+    ]
+    rows: list[dict[str, Any]] = []
+    for position, (start_index, command) in enumerate(command_indexes):
+        if command not in selected:
+            continue
+        end_index = (
+            command_indexes[position + 1][0]
+            if position + 1 < len(command_indexes)
+            else len(events)
+        )
+        window = events[start_index:end_index]
+        if isinstance(window[0].get("_at"), datetime):
+            rows.append(_flow_invocation(path, command, window))
+    return rows
+
+
+def build_flow_health(
+    paths: list[Path],
+    *,
+    command_names: tuple[str, ...] | list[str] | None = None,
+    plugin_version: str | None = None,
+) -> dict[str, Any]:
+    """Aggregate command-scoped observations into a non-compensating status."""
+    observed = [
+        row
+        for path in paths
+        for row in parse_flow_invocations(path, command_names)
+    ]
+    if plugin_version is None:
+        invocations = observed
+        excluded_version_count = 0
+    else:
+        invocations = [
+            row for row in observed if row["plugin_version"] == plugin_version
+        ]
+        excluded_version_count = len(observed) - len(invocations)
+    evaluated = [
+        row for row in invocations if row["result"] in {"PASS", "FAIL"}
+    ]
+    pass_count = sum(row["result"] == "PASS" for row in evaluated)
+    fail_count = sum(row["result"] == "FAIL" for row in evaluated)
+    if fail_count:
+        status = "DEGRADED"
+    elif pass_count >= _FLOW_HEALTHY_MINIMUM_SAMPLES:
+        status = "HEALTHY"
+    else:
+        status = "UNVERIFIED"
+    return {
+        "status": status,
+        "plugin_version": plugin_version,
+        "sample_count": len(evaluated),
+        "pass_count": pass_count,
+        "fail_count": fail_count,
+        "incomplete_count": sum(
+            row["result"] == "INCOMPLETE" for row in invocations
+        ),
+        "excluded_version_count": excluded_version_count,
+        "thresholds": {
+            "time_to_first_action_seconds": "<60",
+            "blocking_assistant_requests_before_first_action": "<=2",
+            "healthy_minimum_samples": _FLOW_HEALTHY_MINIMUM_SAMPLES,
+        },
+        "invocations": invocations,
+        "claim_boundary": (
+            "Current-version external command traces only. DEGRADED is a "
+            "measured breach; HEALTHY requires at least three passing samples; "
+            "otherwise the status is UNVERIFIED."
+        ),
+    }
 
 
 def parse_session(path: Path) -> dict:
@@ -724,6 +1282,37 @@ def format_text(r: dict) -> str:
     return "\n".join(lines)
 
 
+def format_flow_health_text(report: dict[str, Any]) -> str:
+    lines = [
+        f"Flow Health: {report['status']}",
+        (
+            "  samples (pass/fail/incomplete): "
+            f"{report['sample_count']} "
+            f"({report['pass_count']}/{report['fail_count']}/"
+            f"{report['incomplete_count']})"
+        ),
+        (
+            "  contract: first edit or headless worker launch <60s, "
+            "blocking assistant requests <=2; "
+            "HEALTHY requires >=3 passing current-version samples"
+        ),
+    ]
+    if report["plugin_version"]:
+        lines.append(f"  plugin version: {report['plugin_version']}")
+    for row in report["invocations"]:
+        lines.append(
+            "  - "
+            f"{row['session']} {row['command']} {row['result']}: "
+            f"first_action={row['time_to_first_action_seconds']}s "
+            f"({row['startup_target']}), "
+            "blocking="
+            f"{row['blocking_assistant_requests_before_first_action']}, "
+            f"tool_time={row['pre_action_tool_execution_seconds']}s, "
+            f"non_tool_wait={row['pre_action_non_tool_wait_ratio']}"
+        )
+    return "\n".join(lines)
+
+
 def _session_files(path: Path) -> list[Path]:
     if path.is_dir():
         return sorted(path.glob("*.jsonl"))
@@ -751,9 +1340,41 @@ def main(argv: list[str] | None = None) -> int:
         "--outcomes",
         help="JSON with frozen fixture identity and product AC/MUST-FIX/regression/human-intervention axes",
     )
+    ap.add_argument(
+        "--flow-health",
+        action="store_true",
+        help="Measure command-scoped /impl and /impl-loop startup flow",
+    )
+    ap.add_argument(
+        "--command-name",
+        action="append",
+        help="Command to include in Flow Health (repeatable; default: dcness:impl and dcness:impl-loop)",
+    )
+    ap.add_argument(
+        "--plugin-version",
+        help="Only include Flow Health invocations expanded from this dcNess version",
+    )
     args = ap.parse_args(argv)
 
     p = Path(args.path).expanduser()
+    if args.flow_health and args.paired_with:
+        print(
+            "ERROR: --flow-health cannot be combined with --paired-with",
+            file=sys.stderr,
+        )
+        return 2
+    if args.plugin_version and not args.flow_health:
+        print(
+            "ERROR: --plugin-version requires --flow-health",
+            file=sys.stderr,
+        )
+        return 2
+    if args.command_name and not args.flow_health:
+        print(
+            "ERROR: --command-name requires --flow-health",
+            file=sys.stderr,
+        )
+        return 2
     if args.paired_with:
         baseline_files = _session_files(p)
         if not baseline_files:
@@ -790,6 +1411,18 @@ def main(argv: list[str] | None = None) -> int:
     if not files:
         print(f"ERROR: not found: {p}", file=sys.stderr)
         return 2
+
+    if args.flow_health:
+        report = build_flow_health(
+            files,
+            command_names=args.command_name,
+            plugin_version=args.plugin_version,
+        )
+        if args.json:
+            print(json.dumps(report, ensure_ascii=False, indent=2))
+        else:
+            print(format_flow_health_text(report))
+        return 0
 
     results = [parse_session(f) for f in files]
 
