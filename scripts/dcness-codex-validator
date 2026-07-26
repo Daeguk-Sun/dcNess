@@ -20,7 +20,8 @@ Options:
   --help, -h          Show this help.
 
 Environment:
-  DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 600.
+  DCNESS_CODEX_TIMEOUT  Seconds per Codex attempt. Default: 3000.
+  DCNESS_CODEX_IDLE_TIMEOUT  Seconds without stdout/prose progress. Default: 900.
   DCNESS_CODEX_MODEL    Optional Codex model override. Default: inherit user config.
   DCNESS_CODEX_EFFORT   Optional reasoning effort override. Default: inherit user config.
   CLAUDE_PLUGIN_ROOT    Optional plugin root fallback. Default: wrapper parent.
@@ -75,7 +76,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
-CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-600}"
+CODEX_TIMEOUT="${DCNESS_CODEX_TIMEOUT:-3000}"
+CODEX_IDLE_TIMEOUT="${DCNESS_CODEX_IDLE_TIMEOUT:-900}"
 CODEX_MODEL="${DCNESS_CODEX_MODEL:-}"
 CODEX_EFFORT="${DCNESS_CODEX_EFFORT:-}"
 
@@ -143,6 +145,16 @@ if [ "$CODEX_TIMEOUT" -lt 1 ]; then
   echo "[dcness-codex-validator] DCNESS_CODEX_TIMEOUT must be >= 1" >&2
   exit 2
 fi
+case "$CODEX_IDLE_TIMEOUT" in
+  ''|*[!0-9]*)
+    echo "[dcness-codex-validator] DCNESS_CODEX_IDLE_TIMEOUT must be a positive integer: $CODEX_IDLE_TIMEOUT" >&2
+    exit 2
+    ;;
+esac
+if [ "$CODEX_IDLE_TIMEOUT" -lt 1 ]; then
+  echo "[dcness-codex-validator] DCNESS_CODEX_IDLE_TIMEOUT must be >= 1" >&2
+  exit 2
+fi
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "[dcness-codex-validator] python3 not found; required for timeout and context resolution" >&2
@@ -177,9 +189,10 @@ fi
 # 끝나야 한다 (GNU mktemp 는 embedded X 도 처리하므로 Linux CI 에선 안 드러남).
 TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-${AGENT}.XXXXXX")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-prompt-${AGENT}.XXXXXX")"
+TMP_FAILURE_CAUSE="$(mktemp "${TMPDIR:-/tmp}/dcness-codex-validator-cause-${AGENT}.XXXXXX")"
 RAW_LOG="$RAW_LOG_DIR/codex-headless-${AGENT}${MODE:+-$MODE}-$$.log"
 dcness_write_headless_context_header "dcness-codex-validator" "$RAW_LOG"
-trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
+trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT" "$TMP_FAILURE_CAUSE"' EXIT
 
 SKILL_NAME="dcness-${AGENT}"
 CODEX_HOME_DIR="${CODEX_HOME:-${HOME:-}/.codex}"
@@ -249,13 +262,41 @@ import os
 import signal
 import subprocess
 import sys
+import time
+from datetime import datetime, timezone
 
 timeout = int(sys.argv[1])
-prompt = sys.argv[2]
-log = sys.argv[3]
-cmd = sys.argv[4:]
+idle_timeout = int(sys.argv[2])
+prompt = sys.argv[3]
+log = sys.argv[4]
+prose = sys.argv[5]
+failure_cause = sys.argv[6]
+cmd = sys.argv[7:]
+
+def file_size(path):
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+def terminate(exit_code):
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+    sys.exit(exit_code)
+
 with open(prompt, "rb") as stdin, open(log, "ab") as raw:
     raw.write(("COMMAND: " + " ".join(cmd) + "\n").encode("utf-8", "replace"))
+    raw.flush()
     proc = subprocess.Popen(
         cmd,
         stdin=stdin,
@@ -263,31 +304,69 @@ with open(prompt, "rb") as stdin, open(log, "ab") as raw:
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
-    try:
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            proc.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            proc.wait()
-        sys.exit(124)
-    sys.exit(proc.returncode)
-' "$CODEX_TIMEOUT" "$TMP_PROMPT" "$RAW_LOG" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}"
+    raw.write(
+        (
+            f"PROCESS_FORK: pid={proc.pid} "
+            f"started_at={datetime.now(timezone.utc).isoformat()}\n"
+        ).encode("utf-8", "replace")
+    )
+    raw.flush()
+    started = time.monotonic()
+    deadline = started + timeout
+    last_progress = started
+    last_log_size = file_size(log)
+    last_prose_size = file_size(prose)
+
+    while True:
+        rc = proc.poll()
+        if rc is not None:
+            sys.exit(rc)
+
+        now = time.monotonic()
+        log_size = file_size(log)
+        prose_size = file_size(prose)
+        if log_size != last_log_size or prose_size != last_prose_size:
+            last_progress = now
+            last_log_size = log_size
+            last_prose_size = prose_size
+
+        if now >= deadline:
+            raw.write(f"\n[dcness-codex-validator] total timeout after {timeout}s\n".encode())
+            raw.flush()
+            with open(failure_cause, "w", encoding="utf-8") as marker:
+                marker.write("timeout")
+            terminate(124)
+        if now - last_progress >= idle_timeout:
+            raw.write(
+                f"\n[dcness-codex-validator] idle timeout after {idle_timeout}s "
+                "(no stdout/prose progress)\n".encode()
+            )
+            raw.flush()
+            with open(failure_cause, "w", encoding="utf-8") as marker:
+                marker.write("idle_timeout")
+            terminate(124)
+        sleep_for = min(
+            1.0,
+            max(0.05, deadline - now),
+            max(0.05, idle_timeout - (now - last_progress)),
+        )
+        time.sleep(sleep_for)
+' "$CODEX_TIMEOUT" "$CODEX_IDLE_TIMEOUT" "$TMP_PROMPT" "$RAW_LOG" "$TMP_PROSE" "$TMP_FAILURE_CAUSE" "${CODEX_CMD[@]}" "${CODEX_ARGS[@]}"
 }
 
 write_timeout_prose() {
+  FAILURE_CAUSE="$1"
+  if [ "$FAILURE_CAUSE" = "idle_timeout" ]; then
+    TIMEOUT_TITLE="idle timeout"
+    TIMEOUT_DETAIL="produced no stdout/prose progress for ${CODEX_IDLE_TIMEOUT}s"
+  else
+    TIMEOUT_TITLE="total timeout"
+    TIMEOUT_DETAIL="did not finish within ${CODEX_TIMEOUT}s"
+  fi
   cat > "$TMP_PROSE" <<EOF
-# Codex validation timeout
+# Codex validation ${TIMEOUT_TITLE}
 
-dcNess Codex validation did not finish within ${CODEX_TIMEOUT}s. The wrapper killed the hung codex exec process, retried once, and the retry timed out as well.
+dcNess Codex validation ${TIMEOUT_DETAIL}. The wrapper killed the codex exec process, retried once, and the retry also reached a timeout guard.
 
 검증이 완료되지 않았으므로 이 결과를 PASS 또는 FAIL로 간주하면 안 된다. 호출 측은 이 task를 수동 검증하거나 사용자에게 에스컬레이트해야 한다.
 
@@ -299,15 +378,23 @@ ATTEMPT=1
 MAX_ATTEMPTS=2
 CODEX_RC=0
 TIMED_OUT=0
+TIMEOUT_CAUSE=""
 while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
   : > "$TMP_PROSE"
+  : > "$TMP_FAILURE_CAUSE"
   run_codex_once
   CODEX_RC=$?
   if [ "$CODEX_RC" -eq 0 ]; then
     break
   fi
   if [ "$CODEX_RC" -eq 124 ]; then
-    echo "[dcness-codex-validator] codex exec timed out after ${CODEX_TIMEOUT}s (attempt ${ATTEMPT}/${MAX_ATTEMPTS}); raw log: $RAW_LOG" >&2
+    TIMEOUT_CAUSE="$(cat "$TMP_FAILURE_CAUSE" 2>/dev/null || true)"
+    if [ "$TIMEOUT_CAUSE" = "idle_timeout" ]; then
+      echo "[dcness-codex-validator] codex exec idle timeout after ${CODEX_IDLE_TIMEOUT}s (attempt ${ATTEMPT}/${MAX_ATTEMPTS}); raw log: $RAW_LOG" >&2
+    else
+      TIMEOUT_CAUSE="timeout"
+      echo "[dcness-codex-validator] codex exec total timeout after ${CODEX_TIMEOUT}s; timed out after ${CODEX_TIMEOUT}s (attempt ${ATTEMPT}/${MAX_ATTEMPTS}); raw log: $RAW_LOG" >&2
+    fi
     if [ "$ATTEMPT" -lt "$MAX_ATTEMPTS" ]; then
       ATTEMPT=$((ATTEMPT + 1))
       continue
@@ -320,7 +407,7 @@ while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
 done
 
 if [ "$TIMED_OUT" = "1" ]; then
-  write_timeout_prose
+  write_timeout_prose "$TIMEOUT_CAUSE"
   dcness_append_final_prose_to_raw_log "CODEX TIMEOUT" "$TMP_PROSE" "$RAW_LOG"
   if [ -n "$MODE" ]; then
     "$HELPER" end-step "$AGENT" "$MODE" --provider codex-headless --prose-file "$TMP_PROSE" || true

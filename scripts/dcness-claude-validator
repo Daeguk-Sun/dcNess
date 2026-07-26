@@ -21,7 +21,8 @@ Options:
   --help, -h          Show this help.
 
 Environment:
-  DCNESS_CLAUDE_TIMEOUT  Seconds per Claude attempt. Default: 600.
+  DCNESS_CLAUDE_TIMEOUT  Seconds per Claude attempt. Default: 3000.
+  DCNESS_CLAUDE_IDLE_TIMEOUT  Seconds without stdout/stderr progress. Default: 900.
 
 The wrapper runs Claude Code in print mode with hooks/plugins enabled:
   claude -p --permission-mode dontAsk --allowedTools Read,Grep,Glob --output-format text
@@ -63,7 +64,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT=""
 PROMPT_FILE=""
 HELPER="$SCRIPT_DIR/dcness-helper"
-CLAUDE_TIMEOUT="${DCNESS_CLAUDE_TIMEOUT:-600}"
+CLAUDE_TIMEOUT="${DCNESS_CLAUDE_TIMEOUT:-3000}"
+CLAUDE_IDLE_TIMEOUT="${DCNESS_CLAUDE_IDLE_TIMEOUT:-900}"
 
 abs_path() {
   case "$1" in
@@ -129,6 +131,16 @@ if [ "$CLAUDE_TIMEOUT" -lt 1 ]; then
   echo "[dcness-claude-validator] DCNESS_CLAUDE_TIMEOUT must be >= 1" >&2
   exit 2
 fi
+case "$CLAUDE_IDLE_TIMEOUT" in
+  ''|*[!0-9]*)
+    echo "[dcness-claude-validator] DCNESS_CLAUDE_IDLE_TIMEOUT must be a positive integer: $CLAUDE_IDLE_TIMEOUT" >&2
+    exit 2
+    ;;
+esac
+if [ "$CLAUDE_IDLE_TIMEOUT" -lt 1 ]; then
+  echo "[dcness-claude-validator] DCNESS_CLAUDE_IDLE_TIMEOUT must be >= 1" >&2
+  exit 2
+fi
 
 if ! command -v python3 >/dev/null 2>&1; then
   echo "[dcness-claude-validator] python3 not found; required for timeout and context resolution" >&2
@@ -159,9 +171,10 @@ fi
 
 TMP_PROSE="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-validator-${AGENT}.XXXXXX")"
 TMP_PROMPT="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-validator-prompt-${AGENT}.XXXXXX")"
+TMP_FAILURE_CAUSE="$(mktemp "${TMPDIR:-/tmp}/dcness-claude-validator-cause-${AGENT}.XXXXXX")"
 RAW_LOG="$RAW_LOG_DIR/claude-headless-${AGENT}${MODE:+-$MODE}-$$.log"
 dcness_write_headless_context_header "dcness-claude-validator" "$RAW_LOG"
-trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT"' EXIT
+trap 'rm -f "$TMP_PROSE" "$TMP_PROMPT" "$TMP_FAILURE_CAUSE"' EXIT
 
 AGENT_DOC="$SCRIPT_DIR/../agents/$AGENT.md"
 AGENT_DETAIL="$SCRIPT_DIR/../docs/plugin/agents/$AGENT/$AGENT-agent.md"
@@ -212,12 +225,16 @@ import os
 import signal
 import subprocess
 import sys
+import time
+from datetime import datetime, timezone
 
 timeout = int(sys.argv[1])
-prompt = sys.argv[2]
-output = sys.argv[3]
-log = sys.argv[4]
-cmd = sys.argv[5:]
+idle_timeout = int(sys.argv[2])
+prompt = sys.argv[3]
+output = sys.argv[4]
+log = sys.argv[5]
+failure_cause = sys.argv[6]
+cmd = sys.argv[7:]
 
 def child_env_without_nested_session_markers():
     env = os.environ.copy()
@@ -252,6 +269,27 @@ def child_env_without_nested_session_markers():
             env.pop(key, None)
     return env, sorted(removed)
 
+def file_size(path):
+    try:
+        return os.path.getsize(path)
+    except OSError:
+        return 0
+
+def terminate(exit_code):
+    try:
+        os.killpg(proc.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+    try:
+        proc.wait(timeout=1)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+    sys.exit(exit_code)
+
 with open(prompt, "rb") as stdin, open(output, "wb") as stdout, open(log, "ab") as raw:
     raw.write(("COMMAND: " + " ".join(cmd) + "\n").encode("utf-8", "replace"))
     child_env, removed_env = child_env_without_nested_session_markers()
@@ -265,24 +303,54 @@ with open(prompt, "rb") as stdin, open(output, "wb") as stdout, open(log, "ab") 
         env=child_env,
         start_new_session=True,
     )
-    try:
-        proc.wait(timeout=timeout)
-    except subprocess.TimeoutExpired:
-        try:
-            os.killpg(proc.pid, signal.SIGTERM)
-        except ProcessLookupError:
-            pass
-        try:
-            proc.wait(timeout=1)
-        except subprocess.TimeoutExpired:
-            try:
-                os.killpg(proc.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-            proc.wait()
-        sys.exit(124)
-    sys.exit(proc.returncode)
-' "$CLAUDE_TIMEOUT" "$TMP_PROMPT" "$TMP_PROSE" "$RAW_LOG" "${CLAUDE_CMD[@]}"
+    raw.write(
+        (
+            f"PROCESS_FORK: pid={proc.pid} "
+            f"started_at={datetime.now(timezone.utc).isoformat()}\n"
+        ).encode("utf-8", "replace")
+    )
+    raw.flush()
+    started = time.monotonic()
+    deadline = started + timeout
+    last_progress = started
+    last_output_size = file_size(output)
+    last_log_size = file_size(log)
+
+    while True:
+        rc = proc.poll()
+        if rc is not None:
+            sys.exit(rc)
+
+        now = time.monotonic()
+        output_size = file_size(output)
+        log_size = file_size(log)
+        if output_size != last_output_size or log_size != last_log_size:
+            last_progress = now
+            last_output_size = output_size
+            last_log_size = log_size
+
+        if now >= deadline:
+            raw.write(f"\n[dcness-claude-validator] total timeout after {timeout}s\n".encode())
+            raw.flush()
+            with open(failure_cause, "w", encoding="utf-8") as marker:
+                marker.write("timeout")
+            terminate(124)
+        if now - last_progress >= idle_timeout:
+            raw.write(
+                f"\n[dcness-claude-validator] idle timeout after {idle_timeout}s "
+                "(no stdout/stderr progress)\n".encode()
+            )
+            raw.flush()
+            with open(failure_cause, "w", encoding="utf-8") as marker:
+                marker.write("idle_timeout")
+            terminate(124)
+        sleep_for = min(
+            1.0,
+            max(0.05, deadline - now),
+            max(0.05, idle_timeout - (now - last_progress)),
+        )
+        time.sleep(sleep_for)
+' "$CLAUDE_TIMEOUT" "$CLAUDE_IDLE_TIMEOUT" "$TMP_PROMPT" "$TMP_PROSE" "$RAW_LOG" "$TMP_FAILURE_CAUSE" "${CLAUDE_CMD[@]}"
 }
 
 CLAUDE_RC=0
@@ -303,6 +371,15 @@ if [ "$CLAUDE_RC" -ne 0 ]; then
     echo "[dcness-claude-validator] raw log: $RAW_LOG" >&2
     git -C "$PROJECT_ROOT" status --short >&2 || true
     exit 1
+  fi
+  if [ "$CLAUDE_RC" -eq 124 ]; then
+    TIMEOUT_CAUSE="$(cat "$TMP_FAILURE_CAUSE" 2>/dev/null || true)"
+    if [ "$TIMEOUT_CAUSE" = "idle_timeout" ]; then
+      echo "[dcness-claude-validator] claude -p idle timeout after ${CLAUDE_IDLE_TIMEOUT}s; raw log: $RAW_LOG" >&2
+    else
+      echo "[dcness-claude-validator] claude -p total timeout after ${CLAUDE_TIMEOUT}s; raw log: $RAW_LOG" >&2
+    fi
+    exit 124
   fi
   echo "[dcness-claude-validator] claude -p failed before workspace mutation (exit $CLAUDE_RC); raw log: $RAW_LOG" >&2
   exit "$CLAUDE_RC"

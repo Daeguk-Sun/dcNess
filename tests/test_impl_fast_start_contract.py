@@ -198,15 +198,20 @@ class ImplFastStartContractTests(unittest.TestCase):
         self.assertIn("task-scope", source)
 
     def test_timeout_defaults_cover_long_headless_work(self) -> None:
-        codex = self.read("scripts/dcness-codex-worker")
-        claude = self.read("scripts/dcness-claude-worker")
+        codex_worker = self.read("scripts/dcness-codex-worker")
+        codex_validator = self.read("scripts/dcness-codex-validator")
+        claude_worker = self.read("scripts/dcness-claude-worker")
+        claude_validator = self.read("scripts/dcness-claude-validator")
         common = self.read("CLAUDE.md")
 
-        self.assertIn('DCNESS_CODEX_TIMEOUT:-3000', codex)
-        self.assertIn('DCNESS_CODEX_IDLE_TIMEOUT:-900', codex)
-        self.assertIn('DCNESS_CLAUDE_TIMEOUT:-3000', claude)
-        self.assertIn('DCNESS_CLAUDE_IDLE_TIMEOUT:-900', claude)
-        self.assertIn("validator `600`, worker `3000`", common)
+        for source in (codex_worker, codex_validator):
+            self.assertIn('DCNESS_CODEX_TIMEOUT:-3000', source)
+            self.assertIn('DCNESS_CODEX_IDLE_TIMEOUT:-900', source)
+        for source in (claude_worker, claude_validator):
+            self.assertIn('DCNESS_CLAUDE_TIMEOUT:-3000', source)
+            self.assertIn('DCNESS_CLAUDE_IDLE_TIMEOUT:-900', source)
+        self.assertNotIn("validator `600`, worker `3000`", common)
+        self.assertGreaterEqual(common.count("| `3000` | X |"), 2)
         self.assertGreaterEqual(common.count("| `900` | X |"), 2)
         self.assertIn(
             "| `DCNESS_IMPLEMENTATION_RECOVERY_LIMIT` "
