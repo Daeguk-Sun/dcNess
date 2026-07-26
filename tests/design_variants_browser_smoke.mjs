@@ -157,6 +157,7 @@ async function injectProbe(file) {
       stable >= 3
       && diagnostics.frames.length
       && diagnostics.frames.every(frame => frame.scrollWidth !== null)
+      && diagnostics.frames.every(frame => frame.hasInternalScroll === false)
     ) break;
   }
   document.documentElement.dataset.smoke =
@@ -235,7 +236,11 @@ function smokeData(dom) {
 function assertNoInternalScroll(diagnostics, board) {
   assert.ok(diagnostics.frames.length > 0, `${board}: no frames rendered`);
   for (const frame of diagnostics.frames) {
-    assert.equal(frame.hasInternalScroll, false, `${board}: internal scroll in ${frame.src}`);
+    assert.equal(
+      frame.hasInternalScroll,
+      false,
+      `${board}: internal scroll in ${frame.src} ${JSON.stringify(frame)}`,
+    );
     assert.ok(
       frame.scrollWidth <= frame.width + 1 && frame.scrollHeight <= frame.height + 1,
       `${board}: clipped frame ${frame.src} ${JSON.stringify(frame)}`,
