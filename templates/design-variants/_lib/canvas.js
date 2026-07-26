@@ -13,6 +13,7 @@
   const CURVE_SAMPLES = 32;
   const ZOOM = { min: 0.08, max: 3 };
   const arrowSpecCache = new WeakMap();
+  const geometryDiagnostics = new WeakMap();
   let scale = 1;
   let panX = 0;
   let panY = 0;
@@ -481,7 +482,15 @@
 
   function drawArrows(inner) {
     const svg = inner.querySelector('.flow-arrows');
-    if (!svg) return;
+    if (!svg) {
+      geometryDiagnostics.set(inner, {
+        arrowCount: 0,
+        arrowNodeHits: 0,
+        labelNodeHits: 0,
+        labelPairHits: 0,
+      });
+      return;
+    }
     const specs = readArrowSpecs(svg);
     svg.replaceChildren();
     const defs = document.createElementNS(SVG_NS, 'defs');
@@ -495,11 +504,22 @@
       height: node.offsetHeight,
     }));
     const labels = [];
+    let arrowCount = 0;
+    let arrowNodeHits = 0;
+    let labelNodeHits = 0;
     for (const spec of specs) {
       const from = nodeBox(inner, spec.from);
       const to = nodeBox(inner, spec.to);
       if (!from || !to) continue;
       const selected = chooseCurve(spec, anchors(from, to), nodeBoxes, labels);
+      arrowCount += 1;
+      arrowNodeHits += nodeBoxes.filter(box =>
+        box.id !== spec.from
+        && box.id !== spec.to
+        && curveHitsBox(selected.value, box)).length;
+      labelNodeHits += selected.label
+        ? nodeBoxes.filter(box => overlaps(selected.label, box)).length
+        : 0;
       if (selected.label) labels.push(selected.label);
       const group = document.createElementNS(SVG_NS, 'g');
       group.classList.add('flow-arrow');
@@ -518,6 +538,18 @@
       drawLabel(group, spec, selected.label);
       svg.appendChild(group);
     }
+    let labelPairHits = 0;
+    for (let left = 0; left < labels.length; left += 1) {
+      for (let right = left + 1; right < labels.length; right += 1) {
+        if (overlaps(labels[left], labels[right])) labelPairHits += 1;
+      }
+    }
+    geometryDiagnostics.set(inner, {
+      arrowCount,
+      arrowNodeHits,
+      labelNodeHits,
+      labelPairHits,
+    });
   }
 
   function applyTransform(inner) {
@@ -603,12 +635,34 @@
         height: frame.clientHeight,
         scrollWidth: frame.contentDocument?.documentElement.scrollWidth ?? null,
         scrollHeight: frame.contentDocument?.documentElement.scrollHeight ?? null,
+        hasInternalScroll: frame.contentDocument
+          ? (
+            frame.contentDocument.documentElement.scrollWidth > frame.clientWidth
+            || frame.contentDocument.documentElement.scrollHeight > frame.clientHeight
+          )
+          : null,
+      })),
+      variantFrames: [...inner.querySelectorAll('.variant-frame')].map(frame => ({
+        nodeId: frame.closest('.screen-node')?.dataset.nodeId || '',
+        id: frame.dataset.variantId || '',
+        column: frame.dataset.axisColumn || '',
+        row: frame.dataset.axisRow || '',
+        left: frame.offsetLeft,
+        top: frame.offsetTop,
+        width: frame.offsetWidth,
+        height: frame.offsetHeight,
       })),
       arrows: [...inner.querySelectorAll('.flow-arrow')].map(arrow => ({
         from: arrow.dataset.from,
         to: arrow.dataset.to,
         bend: Number(arrow.dataset.bend),
       })),
+      geometry: geometryDiagnostics.get(inner) || {
+        arrowCount: 0,
+        arrowNodeHits: 0,
+        labelNodeHits: 0,
+        labelPairHits: 0,
+      },
     };
   }
 

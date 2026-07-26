@@ -489,6 +489,12 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         ):
             self.assertIn(generator, doc_sync)
 
+        workflow = (
+            ROOT / ".github" / "workflows" / "python-tests.yml"
+        ).read_text(encoding="utf-8")
+        self.assertIn("tests/design_variants_browser_smoke.mjs", workflow)
+        self.assertEqual(workflow.count("'templates/design-variants/**'"), 2)
+
 
 if __name__ == "__main__":
     unittest.main()

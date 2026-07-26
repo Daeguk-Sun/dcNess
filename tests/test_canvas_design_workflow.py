@@ -388,6 +388,9 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "layoutVariantGrid",
             "syncVariantFrames",
             "const arrowSpecCache = new WeakMap()",
+            "arrowNodeHits",
+            "labelPairHits",
+            "variantFrames",
             "zoomToFit",
             "dcnessCanvasDiagnostics",
         ):
