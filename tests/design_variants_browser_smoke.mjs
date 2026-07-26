@@ -58,6 +58,12 @@ function screenHtml(screenId, variants) {
 </head>
 <body>
 ${sections}
+<script>
+  const loadKey = location.pathname + location.hash;
+  parent.__dcnessSmokeFrameLoads ||= {};
+  parent.__dcnessSmokeFrameLoads[loadKey] =
+    (parent.__dcnessSmokeFrameLoads[loadKey] || 0) + 1;
+</script>
 <script defer src="../_lib/only-variant.js"></script>
 <script defer src="../_lib/report-size.js"></script>
 <script defer src="../_lib/show-ids.js"></script>
@@ -151,6 +157,7 @@ async function injectProbe(file) {
     await new Promise(resolve => setTimeout(resolve, 100));
     if (typeof window.dcnessCanvasDiagnostics !== 'function') continue;
     diagnostics = window.dcnessCanvasDiagnostics();
+    diagnostics.frameLoads = window.__dcnessSmokeFrameLoads || {};
     const signature = JSON.stringify(diagnostics);
     stable = signature === previous ? stable + 1 : 0;
     previous = signature;
@@ -159,6 +166,9 @@ async function injectProbe(file) {
       && diagnostics.frames.length
       && diagnostics.frames.every(frame => frame.scrollWidth !== null)
       && diagnostics.frames.every(frame => frame.hasInternalScroll === false)
+      && diagnostics.frames.every(frame => frame.sizeWarning === false)
+      && diagnostics.frames.every(frame =>
+        ['direct', 'report'].includes(frame.measurementSource))
     ) break;
   }
   document.documentElement.dataset.smoke =
@@ -246,6 +256,18 @@ function assertNoInternalScroll(diagnostics, board) {
       frame.scrollWidth <= frame.width + 1 && frame.scrollHeight <= frame.height + 1,
       `${board}: clipped frame ${frame.src} ${JSON.stringify(frame)}`,
     );
+    assert.equal(
+      frame.sizeWarning,
+      false,
+      `${board}: unresolved frame size in ${frame.src} ${JSON.stringify(frame)}`,
+    );
+    assert.ok(
+      ['direct', 'report'].includes(frame.measurementSource),
+      `${board}: unmeasured frame ${frame.src} ${JSON.stringify(frame)}`,
+    );
+  }
+  for (const [src, loads] of Object.entries(diagnostics.frameLoads)) {
+    assert.equal(loads, 1, `${board}: iframe reloaded ${loads} times: ${src}`);
   }
 }
 

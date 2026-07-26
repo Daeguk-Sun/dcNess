@@ -525,6 +525,13 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertIn("syncVariantFrames(node, data.variants)", engine)
         self.assertIn("node.dataset.screenSrc", engine)
         self.assertIn("seedFrameSize(node, iframe)", engine)
+        self.assertIn("measureSameOriginFrame(frame)", engine)
+        self.assertIn("frame-size-warning", engine)
+        self.assertNotIn("frame.clientWidth || 1", engine)
+        self.assertNotIn(
+            "querySelectorAll(':scope > .variant-grid, :scope > .variant-facet')",
+            engine,
+        )
         self.assertIn("new MutationObserver(records =>", engine)
 
     def test_check_detects_source_drift_and_stale_journey_board(self) -> None:

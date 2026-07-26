@@ -45,9 +45,9 @@ function renderGrid(screen) {
       ].join('\n');
     }).join('\n');
     const facetLabel = facet
-      ? `        <h3 class="variant-facet">${escapeHtml(facet)}</h3>\n`
+      ? `        <h3 class="variant-facet" data-facet-key="${escapeHtml(facet)}">${escapeHtml(facet)}</h3>\n`
       : '';
-    return `${facetLabel}        <div class="variant-grid" data-column-axis="${escapeHtml(columnAxis)}" data-row-axis="${escapeHtml(rowAxis)}">
+    return `${facetLabel}        <div class="variant-grid" data-facet-key="${escapeHtml(facet)}" data-column-axis="${escapeHtml(columnAxis)}" data-row-axis="${escapeHtml(rowAxis)}">
 ${frames}
         </div>`;
   }).join('\n');

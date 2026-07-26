@@ -63,22 +63,97 @@
   }
 
   function frameSize(frame) {
-    return {
-      width: Number(frame.dataset.measuredWidth) || frame.clientWidth || 1,
-      height: Number(frame.dataset.measuredHeight) || frame.clientHeight || 1,
-    };
+    const width = Number(frame.dataset.measuredWidth);
+    const height = Number(frame.dataset.measuredHeight);
+    return width && height ? { width, height } : null;
+  }
+
+  function setFrameSizeWarning(frame, visible) {
+    const host = frame.closest('.variant-frame, .screen-node');
+    if (!host) return;
+    let warning = host.querySelector(':scope > .frame-size-warning');
+    if (!visible) {
+      warning?.remove();
+      return;
+    }
+    if (!warning) {
+      warning = document.createElement('div');
+      warning.className = 'frame-size-warning';
+      Object.assign(warning.style, {
+        margin: '.4rem 0',
+        padding: '.45rem .6rem',
+        borderRadius: '.35rem',
+        background: '#b42318',
+        color: '#fff',
+        font: '600 12px/1.4 system-ui, sans-serif',
+      });
+      host.appendChild(warning);
+    }
+    warning.textContent = `화면 크기를 확인하지 못했습니다: ${frame.getAttribute('src') || 'unknown'}`;
+  }
+
+  function rememberFrameSize(frame, size, source) {
+    if (!size?.width || !size?.height) return false;
+    const changed = (
+      frame.dataset.measuredWidth !== String(size.width)
+      || frame.dataset.measuredHeight !== String(size.height)
+      || frame.dataset.measurementSource !== source
+    );
+    frame.dataset.measuredWidth = String(size.width);
+    frame.dataset.measuredHeight = String(size.height);
+    frame.dataset.measurementSource = source;
+    return changed;
+  }
+
+  function measureSameOriginFrame(frame) {
+    try {
+      const content = frame.contentDocument;
+      if (
+        !content?.documentElement
+        || !content.body
+        || content.readyState !== 'complete'
+        || content.location.href === 'about:blank'
+      ) return null;
+      const root = content.documentElement;
+      const body = content.body;
+      return {
+        width: Math.ceil(Math.max(
+          root.scrollWidth,
+          root.offsetWidth,
+          body.scrollWidth,
+          body.offsetWidth,
+        )),
+        height: Math.ceil(Math.max(
+          root.scrollHeight,
+          root.offsetHeight,
+          body.scrollHeight,
+          body.offsetHeight,
+        )),
+      };
+    } catch {
+      return null;
+    }
   }
 
   function styleFrame(frame) {
     const size = frameSize(frame);
+    if (size) {
+      frame.style.width = `${size.width}px`;
+      frame.style.height = `${size.height}px`;
+    } else {
+      frame.style.removeProperty('width');
+      frame.style.removeProperty('height');
+    }
     Object.assign(frame.style, {
-      width: `${size.width}px`,
-      height: `${size.height}px`,
       border: `${BORDER}px solid ${theme.border}`,
       borderRadius: '.55rem',
       background: theme.surface,
       boxSizing: 'content-box',
     });
+    setFrameSizeWarning(
+      frame,
+      !['direct', 'report'].includes(frame.dataset.measurementSource),
+    );
   }
 
   function uniqueInOrder(values) {
@@ -118,6 +193,21 @@
     if (!measured) return;
     frame.dataset.measuredWidth = measured.dataset.measuredWidth;
     frame.dataset.measuredHeight = measured.dataset.measuredHeight;
+    frame.dataset.measurementSource = 'seed';
+  }
+
+  function createVariantFrame(node, variant) {
+    const frame = document.createElement('figure');
+    frame.className = 'variant-frame';
+    frame.dataset.variantId = variant.id;
+    const label = document.createElement('figcaption');
+    label.textContent = variant.id;
+    const iframe = document.createElement('iframe');
+    iframe.src = `${node.dataset.screenSrc}#only=${encodeURIComponent(variant.id)}`;
+    iframe.title = `${node.dataset.nodeId} ${variant.id}`;
+    seedFrameSize(node, iframe);
+    frame.append(label, iframe);
+    return frame;
   }
 
   function syncVariantFrames(node, variants) {
@@ -134,8 +224,6 @@
         frame,
       ]),
     );
-    node.querySelectorAll(':scope > .variant-grid, :scope > .variant-facet')
-      .forEach(element => element.remove());
 
     const axes = [];
     for (const variant of variants) {
@@ -155,39 +243,76 @@
       groups.get(facet).push(variant);
     }
 
-    const caption = node.querySelector(':scope > .node-caption');
-    for (const [facet, members] of groups) {
-      if (facet) {
-        const heading = document.createElement('h3');
-        heading.className = 'variant-facet';
-        heading.textContent = facet;
-        node.insertBefore(heading, caption);
+    const wantedIds = new Set(variants.map(variant => variant.id));
+    for (const [id, frame] of existing) {
+      if (!wantedIds.has(id)) {
+        frame.remove();
+        existing.delete(id);
       }
-      const grid = document.createElement('div');
-      grid.className = 'variant-grid';
+    }
+    const existingGrids = [...node.querySelectorAll(':scope > .variant-grid')];
+    const existingHeadings = [...node.querySelectorAll(':scope > .variant-facet')];
+    const usedGrids = new Set();
+    const usedHeadings = new Set();
+    const caption = node.querySelector(':scope > .node-caption');
+    let groupIndex = 0;
+    for (const [facet, members] of groups) {
+      let grid = existingGrids.find(candidate => (
+        !usedGrids.has(candidate) && candidate.dataset.facetKey === facet
+      ));
+      if (!grid) {
+        const candidate = existingGrids[groupIndex];
+        if (candidate && !usedGrids.has(candidate) && !candidate.dataset.facetKey) {
+          grid = candidate;
+        }
+      }
+      if (!grid) {
+        grid = document.createElement('div');
+        grid.className = 'variant-grid';
+        node.insertBefore(grid, caption);
+      }
+      usedGrids.add(grid);
+      grid.dataset.facetKey = facet;
       grid.dataset.columnAxis = columnAxis;
       grid.dataset.rowAxis = rowAxis;
-      for (const variant of members) {
+
+      if (facet) {
+        let heading = existingHeadings.find(candidate => (
+          !usedHeadings.has(candidate)
+          && (candidate.dataset.facetKey === facet || candidate.textContent === facet)
+        ));
+        if (!heading) {
+          heading = document.createElement('h3');
+          heading.className = 'variant-facet';
+        }
+        heading.dataset.facetKey = facet;
+        heading.textContent = facet;
+        if (heading.nextElementSibling !== grid) node.insertBefore(heading, grid);
+        usedHeadings.add(heading);
+      }
+
+      for (const [order, variant] of members.entries()) {
         let frame = existing.get(variant.id);
+        if (frame && frame.parentElement !== grid) {
+          frame.remove();
+          existing.delete(variant.id);
+          frame = null;
+        }
         if (!frame) {
-          frame = document.createElement('figure');
-          frame.className = 'variant-frame';
-          frame.dataset.variantId = variant.id;
-          const label = document.createElement('figcaption');
-          label.textContent = variant.id;
-          const iframe = document.createElement('iframe');
-          iframe.src = `${node.dataset.screenSrc}#only=${encodeURIComponent(variant.id)}`;
-          iframe.title = `${node.dataset.nodeId} ${variant.id}`;
-          seedFrameSize(node, iframe);
-          frame.append(label, iframe);
+          frame = createVariantFrame(node, variant);
+          existing.set(variant.id, frame);
+          grid.appendChild(frame);
         }
         frame.dataset.axisColumn = variant.axes?.[columnAxis] || variant.id;
         frame.dataset.axisRow = rowAxis ? variant.axes?.[rowAxis] || '' : '';
-        grid.appendChild(frame);
+        frame.style.order = String(order);
       }
-      node.insertBefore(grid, caption);
       layoutVariantGrid(grid);
+      groupIndex += 1;
     }
+    existingGrids.filter(grid => !usedGrids.has(grid)).forEach(grid => grid.remove());
+    existingHeadings.filter(heading => !usedHeadings.has(heading))
+      .forEach(heading => heading.remove());
     node.dataset.variants = variants.map(variant => variant.id).join(' / ');
     return true;
   }
@@ -635,14 +760,7 @@
       const width = Number(data.width);
       const height = Number(data.height);
       if (!width || !height) return;
-      const sizeChanged = (
-        frame.dataset.measuredWidth !== String(width)
-        || frame.dataset.measuredHeight !== String(height)
-      );
-      if (sizeChanged) {
-        frame.dataset.measuredWidth = String(width);
-        frame.dataset.measuredHeight = String(height);
-      }
+      const sizeChanged = rememberFrameSize(frame, { width, height }, 'report');
       const node = frame.closest('.screen-node');
       const variantsChanged = node && syncVariantFrames(node, data.variants);
       if (sizeChanged || variantsChanged) {
@@ -652,21 +770,43 @@
     function requestSize(frame) {
       if (!frame.dataset.sizeRequestBound) {
         frame.dataset.sizeRequestBound = 'true';
-        frame.addEventListener('load', () => requestSize(frame));
+        frame.addEventListener('load', () => {
+          const sizeChanged = rememberFrameSize(
+            frame,
+            measureSameOriginFrame(frame),
+            'direct',
+          );
+          frame.contentWindow?.postMessage({ type: 'dcness-request-frame-size' }, '*');
+          if (sizeChanged) relayout();
+        });
       }
+      const sizeChanged = rememberFrameSize(
+        frame,
+        measureSameOriginFrame(frame),
+        'direct',
+      );
       frame.contentWindow?.postMessage({ type: 'dcness-request-frame-size' }, '*');
+      return sizeChanged;
     }
     const observer = new MutationObserver(records => {
+      let sizeChanged = false;
       for (const record of records) {
         for (const node of record.addedNodes) {
           if (!(node instanceof Element)) continue;
-          if (node.matches('iframe')) requestSize(node);
-          node.querySelectorAll?.('iframe').forEach(requestSize);
+          if (node.matches('iframe')) sizeChanged = requestSize(node) || sizeChanged;
+          node.querySelectorAll?.('iframe').forEach(frame => {
+            sizeChanged = requestSize(frame) || sizeChanged;
+          });
         }
       }
+      if (sizeChanged) relayout();
     });
     observer.observe(inner, { childList: true, subtree: true });
-    inner.querySelectorAll('iframe').forEach(requestSize);
+    let sizeChanged = false;
+    inner.querySelectorAll('iframe').forEach(frame => {
+      sizeChanged = requestSize(frame) || sizeChanged;
+    });
+    if (sizeChanged) relayout();
   }
 
   function diagnostics(inner) {
@@ -679,6 +819,11 @@
           height: frame.clientHeight,
           scrollWidth: root?.scrollWidth ?? null,
           scrollHeight: root?.scrollHeight ?? null,
+          measurementSource: frame.dataset.measurementSource || '',
+          sizeWarning: Boolean(
+            frame.closest('.variant-frame, .screen-node')
+              ?.querySelector(':scope > .frame-size-warning'),
+          ),
           hasInternalScroll: root
             ? (
               root.scrollWidth > frame.clientWidth
