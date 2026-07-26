@@ -393,14 +393,70 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertTrue(first_board.is_file())
         self.assertTrue(second_board.is_file())
 
+    def test_shared_screen_metadata_conflict_lists_each_flow_and_value(self) -> None:
+        second = self.project / "docs" / "epics" / "epic-two" / "ux-flow.md"
+        second.parent.mkdir(parents=True)
+        second.write_text(
+            _second_ux_flow()
+            .replace(
+                "| S01 | 홈 | 알림 목록 |",
+                "| S13 | 화면3 | 다른 역할 |",
+            )
+            .replace('state "홈 (S01)" as Home', 'state "화면3 (S13)" as Home'),
+            encoding="utf-8",
+        )
+
+        for generator in (
+            "build-journey-boards.mjs",
+            "build-screen-states.mjs",
+            "build-design-index.mjs",
+        ):
+            with self.subTest(generator=generator):
+                result = self._run_no_flow(generator, check=False)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("화면 메타데이터가 충돌합니다: home", result.stderr)
+                self.assertIn("docs/epics/epic-ui/ux-flow.md", result.stderr)
+                self.assertIn("S01 | 홈 | 알림 목록", result.stderr)
+                self.assertIn("docs/epics/epic-two/ux-flow.md", result.stderr)
+                self.assertIn("S13 | 화면3 | 다른 역할", result.stderr)
+
+    def test_duplicate_journey_ids_are_scoped_and_scope_collision_fails(self) -> None:
+        second_flow = _second_ux_flow().replace("second-goal", "review-notice")
+        second = self.project / "docs" / "epics" / "epic-two" / "ux-flow.md"
+        second.parent.mkdir(parents=True)
+        second.write_text(second_flow, encoding="utf-8")
+
+        self._run_no_flow("build-journey-boards.mjs")
+        self._run_no_flow("build-screen-states.mjs")
+        self._run_no_flow("build-design-index.mjs")
+
+        boards = self.design / "boards"
+        self.assertTrue(
+            (boards / "journey-epic-ui-review-notice.html").is_file()
+        )
+        self.assertTrue(
+            (boards / "journey-epic-two-review-notice.html").is_file()
+        )
+        self.assertFalse((boards / "journey-review-notice.html").exists())
+        readme = (self.design / "README.md").read_text(encoding="utf-8")
+        self.assertIn("journey-epic-ui-review-notice.html", readme)
+        self.assertIn("journey-epic-two-review-notice.html", readme)
+
+        colliding = self.project / "docs" / "epics" / "epic.two" / "ux-flow.md"
+        colliding.parent.mkdir(parents=True)
+        colliding.write_text(second_flow, encoding="utf-8")
+        result = self._run_no_flow("build-journey-boards.mjs", check=False)
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("여러 ux-flow의 여정 보드 파일명이 충돌합니다", result.stderr)
+
     def test_multi_variant_screen_requires_one_explicit_journey_representative(
         self,
     ) -> None:
         home = self.design / "screens" / "home.html"
+        original = home.read_text(encoding="utf-8")
         home.write_text(
-            home.read_text(encoding="utf-8").replace(
-                ' data-journey-representative="true"', ""
-            ),
+            original.replace(' data-journey-representative="true"', ""),
             encoding="utf-8",
         )
 
@@ -408,6 +464,21 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
 
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn("data-journey-representative", missing.stderr)
+
+        home.write_text(
+            original.replace(
+                'data-variant="desktop-ready"',
+                (
+                    'data-variant="desktop-ready" '
+                    'data-journey-representative="true"'
+                ),
+            ),
+            encoding="utf-8",
+        )
+        duplicate = self._run("build-journey-boards.mjs", check=False)
+        self.assertNotEqual(duplicate.returncode, 0)
+        self.assertIn("data-journey-representative", duplicate.stderr)
+        self.assertIn("중복", duplicate.stderr)
 
     def test_labels_keep_project_text_and_canvas_measures_rendered_width(self) -> None:
         self.ux_flow.write_text(

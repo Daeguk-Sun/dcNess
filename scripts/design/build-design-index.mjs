@@ -16,6 +16,7 @@ import {
   scanScreens,
   screenMetadata,
   sha12,
+  validateScreenMetadata,
   warnEngineDrift,
 } from './ux-flow.mjs';
 
@@ -225,6 +226,7 @@ try {
   const models = readModels(options.projectRoot, options.uxFlow);
   const scan = scanScreens(options.projectRoot, { validateDrafts: false });
   if (scan.problems.length) throw new Error(scan.problems.join('\n'));
+  validateScreenMetadata(models, scan.screens);
   warnEngineDrift(options.projectRoot);
   const journeys = resolveProjectJourneys(models, scan.screens);
   const boards = boardState(options.projectRoot, journeys);

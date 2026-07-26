@@ -448,13 +448,13 @@ export function scanScreens(projectRoot, { validateDrafts = true } = {}) {
     const ids = variants.map(variant => variant.id);
     if (new Set(ids).size !== ids.length) problems.push(`${file}: data-variant 값이 중복됩니다.`);
     const representatives = variants.filter(variant => variant.representative);
-    if (variants.length > 1 && representatives.length !== 1) {
-      problems.push(
-        `${file}: 여러 변형 중 data-journey-representative="true"가 정확히 하나 필요합니다.`,
-      );
-    } else if (representatives.length > 1) {
+    if (representatives.length > 1) {
       problems.push(
         `${file}: data-journey-representative="true"가 중복됩니다.`,
+      );
+    } else if (variants.length > 1 && representatives.length === 0) {
+      problems.push(
+        `${file}: 여러 변형 중 data-journey-representative="true"가 정확히 하나 필요합니다.`,
       );
     }
     const helperSources = [...html.matchAll(/<script\b[^>]*>/gi)]
@@ -544,18 +544,29 @@ export function readModel(projectRoot, requestedUxFlow = null) {
 
 export function screenMetadata(modelsOrModel, screen) {
   const models = Array.isArray(modelsOrModel) ? modelsOrModel : [modelsOrModel];
-  const inventoryItems = models.flatMap(model =>
-    [...model.inventory.values()].filter(item => item.screenId === screen.id));
-  const signatures = new Set(inventoryItems.map(item =>
+  const declarations = models.flatMap(model =>
+    [...model.inventory.values()]
+      .filter(item => item.screenId === screen.id)
+      .map(item => ({ model, item })));
+  const signatures = new Set(declarations.map(({ item }) =>
     JSON.stringify([item.id, item.name, item.description])));
   if (signatures.size > 1) {
-    throw new Error(`여러 ux-flow의 화면 메타데이터가 충돌합니다: ${screen.id}`);
+    const details = declarations.map(({ model, item }) =>
+      `  - ${model.uxFlowRelative}: ${item.id} | ${item.name} | ${item.description}`);
+    throw new Error(
+      `여러 ux-flow의 화면 메타데이터가 충돌합니다: ${screen.id}\n`
+      + details.join('\n'),
+    );
   }
-  const inventory = inventoryItems[0];
+  const inventory = declarations[0]?.item;
   return {
     title: inventory ? `${inventory.id} ${inventory.name}` : screen.id,
     description: inventory?.description ?? '',
   };
+}
+
+export function validateScreenMetadata(models, screens) {
+  for (const screen of screens.values()) screenMetadata(models, screen);
 }
 
 export function warnEngineDrift(projectRoot) {
