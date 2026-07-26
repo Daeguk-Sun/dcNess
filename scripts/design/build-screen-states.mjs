@@ -10,7 +10,7 @@ import { join } from 'node:path';
 import {
   escapeHtml,
   parseCli,
-  readModel,
+  readModels,
   regenerationCommand,
   scanScreens,
   screenMetadata,
@@ -52,18 +52,23 @@ ${frames}
   }).join('\n');
 }
 
-function renderBoard(model, screens, command) {
+function sourcePaths(models) {
+  return [...new Set(models.map(model => model.uxFlowRelative))].join('; ');
+}
+
+function renderBoard(models, screens, command) {
   const sourceHash = sha12(
-    `${model.uxFlowHash}:${[...screens.values()].map(screen => screen.hash).join(':')}`,
+    `${models.map(model => model.uxFlowHash).join(':')}:`
+    + [...screens.values()].map(screen => screen.hash).join(':'),
   );
   const nodes = [...screens.values()].map(screen => {
-    const meta = screenMetadata(model, screen);
+    const meta = screenMetadata(models, screen);
     return [
       `    <section class="screen-node" data-node-id="${escapeHtml(screen.id)}"`,
       `             data-title="${escapeHtml(meta.title)}"`,
       `             data-desc="${escapeHtml(meta.description)}"`,
       `             data-screen-src="../screens/${escapeHtml(screen.file)}"`,
-      `             data-states="${escapeHtml(screen.variants.map(variant => variant.id).join(' / '))}">`,
+      `             data-variants="${escapeHtml(screen.variants.map(variant => variant.id).join(' / '))}">`,
       renderGrid(screen),
       '    </section>',
     ].join('\n');
@@ -87,7 +92,7 @@ function renderBoard(model, screens, command) {
   <!--
     생성물 — 손으로 고치지 않는다.
     재생성: ${command}
-    진본: ${model.uxFlowRelative}; docs/design-variants/screens/*.html
+    진본: ${sourcePaths(models)}; docs/design-variants/screens/*.html
     진본 해시: ${sourceHash}
     변형 축 순서의 첫 축은 열, 둘째 축은 행, 나머지는 facet으로 파생한다.
     프레임 크기와 화면 그룹 배치는 런타임 보고와 엔진이 결정한다.
@@ -111,14 +116,14 @@ try {
 }
 
 try {
-  const model = readModel(options.projectRoot, options.uxFlow);
+  const models = readModels(options.projectRoot, options.uxFlow);
   const scan = scanScreens(options.projectRoot);
   if (scan.problems.length) throw new Error(scan.problems.join('\n'));
   warnEngineDrift(options.projectRoot);
   const boardsDir = join(options.projectRoot, 'docs', 'design-variants', 'boards');
   const target = join(boardsDir, 'screen-states.html');
-  const command = regenerationCommand('build-screen-states.mjs', model.uxFlowRelative);
-  const content = renderBoard(model, scan.screens, command);
+  const command = regenerationCommand('build-screen-states.mjs', models);
+  const content = renderBoard(models, scan.screens, command);
 
   if (options.check) {
     if (!existsSync(target) || readFileSync(target, 'utf8') !== content) {

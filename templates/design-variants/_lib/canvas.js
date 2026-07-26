@@ -14,6 +14,8 @@
   const ZOOM = { min: 0.08, max: 3 };
   const arrowSpecCache = new WeakMap();
   const geometryDiagnostics = new WeakMap();
+  const labelWidthCache = new Map();
+  let labelMeasureContext;
   let scale = 1;
   let panX = 0;
   let panY = 0;
@@ -176,7 +178,7 @@
       node.insertBefore(grid, caption);
       layoutVariantGrid(grid);
     }
-    node.dataset.states = variants.map(variant => variant.id).join(' / ');
+    node.dataset.variants = variants.map(variant => variant.id).join(' / ');
     return true;
   }
 
@@ -211,15 +213,15 @@
       });
       caption.appendChild(description);
     }
-    if (node.dataset.states) {
-      const states = document.createElement('p');
-      states.textContent = node.dataset.states;
-      Object.assign(states.style, {
+    if (node.dataset.variants) {
+      const variants = document.createElement('p');
+      variants.textContent = node.dataset.variants;
+      Object.assign(variants.style, {
         margin: '.45rem 0 0',
         color: theme.arrow,
         fontSize: '.75rem',
       });
-      caption.appendChild(states);
+      caption.appendChild(variants);
     }
     node.appendChild(caption);
   }
@@ -256,13 +258,25 @@
   function arrowLabelGap(inner) {
     const svg = inner.querySelector('.flow-arrows');
     const labels = svg
-      ? readArrowSpecs(svg).map(spec => spec.fullLabel || spec.label)
+      ? readArrowSpecs(svg).map(spec => spec.label)
       : [];
     if (!labels.length) return 96;
-    const canvas = document.createElement('canvas');
-    const context = canvas.getContext('2d');
-    context.font = `13px ${theme.font}`;
-    return Math.ceil(Math.max(...labels.map(label => context.measureText(label).width)) + 48);
+    return Math.ceil(Math.max(...labels.map(label => labelTextWidth(label, 13))) + 48);
+  }
+
+  function labelTextWidth(label, fontSize = 12) {
+    const key = `${fontSize}:${label}`;
+    if (labelWidthCache.has(key)) return labelWidthCache.get(key);
+    labelMeasureContext ||= document.createElement('canvas').getContext('2d');
+    let width;
+    if (labelMeasureContext) {
+      labelMeasureContext.font = `${fontSize}px ${theme.font}`;
+      width = labelMeasureContext.measureText(label).width;
+    } else {
+      width = [...label].length * fontSize;
+    }
+    labelWidthCache.set(key, width);
+    return width;
   }
 
   function layoutNodes(stage, inner, nodes) {
@@ -421,7 +435,7 @@
   function labelBox(spec, value) {
     if (!spec.label) return null;
     const point = pointAt(value, 0.5);
-    const width = Math.max(44, spec.label.length * 7.5 + 18);
+    const width = Math.max(44, labelTextWidth(spec.label) + 18);
     return { x: point.x - width / 2, y: point.y - 12, width, height: 24 };
   }
 

@@ -54,24 +54,31 @@ function walkForUxFlows(dir, found) {
   }
 }
 
+function discoveredUxFlows(projectRoot) {
+  const found = [];
+  walkForUxFlows(join(projectRoot, 'docs', 'epics'), found);
+  return found.sort();
+}
+
+export function resolveUxFlows(projectRoot, requested = null) {
+  const found = discoveredUxFlows(projectRoot);
+  if (requested) {
+    const path = resolve(projectRoot, requested);
+    if (!existsSync(path)) throw new Error(`ux-flow가 없습니다: ${relative(projectRoot, path)}`);
+    return found.includes(path) ? found : [path];
+  }
+  if (found.length === 0) throw new Error('docs/epics/**/ux-flow.md를 찾지 못했습니다.');
+  return found;
+}
+
 export function resolveUxFlow(projectRoot, requested = null) {
   if (requested) {
     const path = resolve(projectRoot, requested);
     if (!existsSync(path)) throw new Error(`ux-flow가 없습니다: ${relative(projectRoot, path)}`);
     return path;
   }
-  const found = [];
-  walkForUxFlows(join(projectRoot, 'docs', 'epics'), found);
-  if (found.length === 0) throw new Error('docs/epics/**/ux-flow.md를 찾지 못했습니다.');
-  if (found.length > 1) {
-    const readme = join(projectRoot, 'docs', 'design-variants', 'README.md');
-    if (existsSync(readme)) {
-      const generatedTarget = readFileSync(readme, 'utf8').match(/--ux-flow\s+([^\s]+)/)?.[1];
-      const path = generatedTarget ? resolve(projectRoot, generatedTarget) : null;
-      if (path && found.includes(path)) return path;
-    }
-  }
-  if (found.length > 1) {
+  const found = resolveUxFlows(projectRoot);
+  if (found.length !== 1) {
     throw new Error(
       `ux-flow가 ${found.length}개입니다. --ux-flow로 대상을 지정하십시오:\n`
       + found.map(path => `  - ${relative(projectRoot, path)}`).join('\n'),
@@ -218,8 +225,24 @@ function parseJourneyContract(md) {
   if (!contract.unit || !contract.journeyHeadingPattern) {
     throw new Error('journey contract의 unit/journeyHeadingPattern이 필요합니다.');
   }
-  const pattern = new RegExp(contract.journeyHeadingPattern);
-  if (!pattern.exec('')?.groups && !contract.journeyHeadingPattern.includes('?<id>')) {
+  new RegExp(contract.journeyHeadingPattern);
+  const token = '(?<id>';
+  let hasIdGroup = false;
+  for (
+    let at = contract.journeyHeadingPattern.indexOf(token);
+    at >= 0;
+    at = contract.journeyHeadingPattern.indexOf(token, at + token.length)
+  ) {
+    let escapes = 0;
+    for (let index = at - 1; index >= 0 && contract.journeyHeadingPattern[index] === '\\'; index -= 1) {
+      escapes += 1;
+    }
+    if (escapes % 2 === 0) {
+      hasIdGroup = true;
+      break;
+    }
+  }
+  if (!hasIdGroup) {
     throw new Error('journeyHeadingPattern은 id named group을 가져야 합니다.');
   }
   return contract;
@@ -336,6 +359,34 @@ export function resolveJourneys(model, screens) {
   });
 }
 
+function journeyScope(model) {
+  const epicPath = dirname(model.uxFlowRelative)
+    .replace(/^docs[/\\]epics[/\\]?/, '')
+    .replace(/[/\\]+/g, '-');
+  return safeJourneyId(epicPath || 'root');
+}
+
+export function resolveProjectJourneys(models, screens) {
+  const journeys = models.flatMap(model =>
+    resolveJourneys(model, screens).map(journey => ({ ...journey, model })));
+  const byFile = new Map();
+  for (const journey of journeys) {
+    if (!byFile.has(journey.file)) byFile.set(journey.file, []);
+    byFile.get(journey.file).push(journey);
+  }
+  for (const collisions of byFile.values()) {
+    if (collisions.length < 2) continue;
+    for (const journey of collisions) {
+      journey.file = `journey-${journeyScope(journey.model)}-${safeJourneyId(journey.id)}.html`;
+    }
+  }
+  const files = journeys.map(journey => journey.file);
+  if (new Set(files).size !== files.length) {
+    throw new Error('여러 ux-flow의 여정 보드 파일명이 충돌합니다.');
+  }
+  return journeys;
+}
+
 function parseAttributes(tag) {
   const attributes = new Map();
   for (const match of tag.matchAll(/([\w:-]+)\s*=\s*(["'])(.*?)\2/g)) {
@@ -380,6 +431,7 @@ export function scanScreens(projectRoot, { validateDrafts = true } = {}) {
       variants.push({
         id: attributes.get('data-variant'),
         axes: parseAxisValues(attributes.get('data-variant-values')),
+        representative: attributes.get('data-journey-representative') === 'true',
       });
     }
     for (const match of html.matchAll(/<[^>]*\bdata-variant-values\s*=[^>]*>/g)) {
@@ -395,6 +447,16 @@ export function scanScreens(projectRoot, { validateDrafts = true } = {}) {
     }
     const ids = variants.map(variant => variant.id);
     if (new Set(ids).size !== ids.length) problems.push(`${file}: data-variant 값이 중복됩니다.`);
+    const representatives = variants.filter(variant => variant.representative);
+    if (variants.length > 1 && representatives.length !== 1) {
+      problems.push(
+        `${file}: 여러 변형 중 data-journey-representative="true"가 정확히 하나 필요합니다.`,
+      );
+    } else if (representatives.length > 1) {
+      problems.push(
+        `${file}: data-journey-representative="true"가 중복됩니다.`,
+      );
+    }
     const helperSources = [...html.matchAll(/<script\b[^>]*>/gi)]
       .map(match => parseAttributes(match[0]).get('src'))
       .filter(Boolean)
@@ -435,6 +497,7 @@ export function scanScreens(projectRoot, { validateDrafts = true } = {}) {
       html,
       hash: sha12(html),
       variants,
+      representative: representatives[0]?.id ?? variants[0]?.id ?? null,
       axes,
       nodeIds,
       nodePrefix: commonNodePrefix(nodeIds),
@@ -449,8 +512,7 @@ function commonNodePrefix(nodeIds) {
   return prefixes.every(prefix => prefix === prefixes[0]) ? prefixes[0] : '혼합';
 }
 
-export function readModel(projectRoot, requestedUxFlow = null) {
-  const uxFlowPath = resolveUxFlow(projectRoot, requestedUxFlow);
+function readModelPath(projectRoot, uxFlowPath) {
   const markdown = readFileSync(uxFlowPath, 'utf8');
   const inventory = parseInventory(markdown);
   const flow = parseFlow(markdown, inventory);
@@ -471,8 +533,25 @@ export function readModel(projectRoot, requestedUxFlow = null) {
   };
 }
 
-export function screenMetadata(model, screen) {
-  const inventory = [...model.inventory.values()].find(item => item.screenId === screen.id);
+export function readModels(projectRoot, requestedUxFlow = null) {
+  return resolveUxFlows(projectRoot, requestedUxFlow)
+    .map(uxFlowPath => readModelPath(projectRoot, uxFlowPath));
+}
+
+export function readModel(projectRoot, requestedUxFlow = null) {
+  return readModelPath(projectRoot, resolveUxFlow(projectRoot, requestedUxFlow));
+}
+
+export function screenMetadata(modelsOrModel, screen) {
+  const models = Array.isArray(modelsOrModel) ? modelsOrModel : [modelsOrModel];
+  const inventoryItems = models.flatMap(model =>
+    [...model.inventory.values()].filter(item => item.screenId === screen.id));
+  const signatures = new Set(inventoryItems.map(item =>
+    JSON.stringify([item.id, item.name, item.description])));
+  if (signatures.size > 1) {
+    throw new Error(`여러 ux-flow의 화면 메타데이터가 충돌합니다: ${screen.id}`);
+  }
+  const inventory = inventoryItems[0];
   return {
     title: inventory ? `${inventory.id} ${inventory.name}` : screen.id,
     description: inventory?.description ?? '',
@@ -498,6 +577,12 @@ export function warnEngineDrift(projectRoot) {
   return warnings;
 }
 
-export function regenerationCommand(scriptName, uxFlowRelative) {
-  return `node "$CLAUDE_PLUGIN_ROOT/scripts/design/${scriptName}" --project-root . --ux-flow ${uxFlowRelative}`;
+export function regenerationCommand(scriptName, modelsOrUxFlow) {
+  const base = `node "$CLAUDE_PLUGIN_ROOT/scripts/design/${scriptName}" --project-root .`;
+  if (Array.isArray(modelsOrUxFlow)) {
+    return modelsOrUxFlow.length === 1
+      ? `${base} --ux-flow ${modelsOrUxFlow[0].uxFlowRelative}`
+      : base;
+  }
+  return modelsOrUxFlow ? `${base} --ux-flow ${modelsOrUxFlow}` : base;
 }

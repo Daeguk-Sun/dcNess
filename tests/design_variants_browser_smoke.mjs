@@ -40,8 +40,9 @@ function chromeExecutable() {
 }
 
 function screenHtml(screenId, variants) {
-  const sections = variants.map(({ id, axes }) => (
+  const sections = variants.map(({ id, axes, representative = false }) => (
     `<section data-variant="${id}" data-variant-values="${axes}" `
+    + `${representative ? 'data-journey-representative="true" ' : ''}`
     + `data-node-id="${screenId}.${id}">${screenId} · ${id}</section>`
   )).join('\n');
   return `<!doctype html>
@@ -290,7 +291,11 @@ async function main() {
     await writeFile(path.join(screens, 'inbox.html'), screenHtml('inbox', [
       { id: 'mobile-loading', axes: 'breakpoint=mobile;state=loading' },
       { id: 'desktop-loading', axes: 'breakpoint=desktop;state=loading' },
-      { id: 'mobile-ready', axes: 'breakpoint=mobile;state=ready' },
+      {
+        id: 'mobile-ready',
+        axes: 'breakpoint=mobile;state=ready',
+        representative: true,
+      },
       { id: 'desktop-ready', axes: 'breakpoint=desktop;state=ready' },
     ]));
     for (const id of ['review', 'done']) {

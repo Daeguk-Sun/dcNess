@@ -15,22 +15,32 @@ SCRIPTS = ROOT / "scripts" / "design"
 TEMPLATE = ROOT / "templates" / "design-variants"
 
 
-def _screen(screen_id: str, variants: list[tuple[str, str]]) -> str:
-    blocks = "\n".join(
-        (
-            f'<section data-variant="{variant}" '
-            f'data-variant-values="{axes}" data-node-id="{screen_id}.{variant}">'
-            f"{variant}</section>"
+def _screen(
+    screen_id: str,
+    variants: list[tuple[str, str]],
+    *,
+    representative: str | None = None,
+) -> str:
+    blocks = []
+    for variant, axes in variants:
+        marker = (
+            ' data-journey-representative="true"'
+            if variant == representative
+            else ""
         )
-        for variant, axes in variants
-    )
+        blocks.append(
+            f'<section data-variant="{variant}" '
+            f'data-variant-values="{axes}"{marker} '
+            f'data-node-id="{screen_id}.{variant}">{variant}</section>'
+        )
+    blocks_html = "\n".join(blocks)
     return textwrap.dedent(
         f"""\
         <!doctype html>
         <html lang="ko">
         <head><meta charset="utf-8"><title>{screen_id}</title></head>
         <body>
-          {blocks}
+          {blocks_html}
           <script defer src="../_lib/only-variant.js"></script>
           <script defer src="../_lib/report-size.js"></script>
           <script defer src="../_lib/show-ids.js"></script>
@@ -112,6 +122,60 @@ def _ux_flow(*, include_journeys: bool = True, ambiguous: bool = False) -> str:
     )
 
 
+def _second_ux_flow() -> str:
+    return textwrap.dedent(
+        """\
+        # Second UX flow
+
+        ## 화면 인벤토리
+
+        | 화면 ID | 화면명 | 역할 | 확정 목업 경로 |
+        |---|---|---|---|
+        | S01 | 홈 | 알림 목록 | `docs/design-variants/screens/home.html` |
+        | S02 | 검토 | 알림 검토 | `docs/design-variants/screens/review.html` |
+        | S03 | 상세 | 알림 상세 | `docs/design-variants/screens/detail.html` |
+
+        ## 화면 흐름
+
+        ```mermaid
+        stateDiagram-v2
+          state "홈 (S01)" as Home
+          state "검토 (S02)" as Review
+          state "상세 (S03)" as Detail
+          Home --> Review: 두 번째 진입
+          Review --> Detail: 두 번째 완료
+        ```
+
+        ```json dcness-journey-contract
+        {
+          "unit": "user-goal",
+          "journeyHeadingPattern": "^Goal (?<id>[a-z0-9-]+)$",
+          "nameSource": {
+            "kind": "table",
+            "path": "ux-flow.md",
+            "section": "여정 카탈로그",
+            "idColumn": "여정 ID",
+            "nameColumn": "이름"
+          }
+        }
+        ```
+
+        ### 여정 카탈로그
+
+        | 여정 ID | 이름 |
+        |---|---|
+        | second-goal | 두 번째 목표 |
+
+        ### 여정 경로
+
+        #### Goal second-goal
+
+        - Home --> Review
+        - Review --> Detail
+        """
+    )
+
+
 class DesignVariantsGeneratorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -137,6 +201,7 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
                     ("mobile-ready", "breakpoint=mobile;state=ready"),
                     ("desktop-ready", "breakpoint=desktop;state=ready"),
                 ],
+                representative="mobile-ready",
             ),
             encoding="utf-8",
         )
@@ -168,6 +233,27 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
             self.fail(f"{name} failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}")
         return result
 
+    def _run_no_flow(
+        self, name: str, *args: str, check: bool = True
+    ) -> subprocess.CompletedProcess[str]:
+        result = subprocess.run(
+            [
+                "node",
+                str(SCRIPTS / name),
+                "--project-root",
+                str(self.project),
+                *args,
+            ],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        if check and result.returncode != 0:
+            self.fail(
+                f"{name} failed:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}"
+            )
+        return result
+
     def _generate_all(self) -> None:
         self._run("build-journey-boards.mjs")
         self._run("build-screen-states.mjs")
@@ -183,6 +269,7 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertIn("home", text)
         self.assertIn("review", text)
         self.assertIn("detail", text)
+        self.assertIn("screens/home.html#only=mobile-ready", text)
         self.assertNotIn("Story", text)
         for hand_value in ("data-pos=", "data-bend=", "data-gap-", "data-w=", "data-h="):
             self.assertNotIn(hand_value, text)
@@ -272,6 +359,71 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertNotIn("data-pos=", board)
         self.assertNotIn("data-w=", board)
         self.assertNotIn("data-h=", board)
+
+    def test_multiple_epics_generate_and_check_one_project_wide_board_set(self) -> None:
+        second = self.project / "docs" / "epics" / "epic-two" / "ux-flow.md"
+        second.parent.mkdir(parents=True)
+        second.write_text(_second_ux_flow(), encoding="utf-8")
+        self.assertFalse((self.design / "README.md").exists())
+
+        for generator in (
+            "build-journey-boards.mjs",
+            "build-screen-states.mjs",
+            "build-design-index.mjs",
+        ):
+            self._run_no_flow(generator)
+        for generator in (
+            "build-journey-boards.mjs",
+            "build-screen-states.mjs",
+            "build-design-index.mjs",
+        ):
+            self._run_no_flow(generator, "--check")
+
+        first_board = self.design / "boards" / "journey-review-notice.html"
+        second_board = self.design / "boards" / "journey-second-goal.html"
+        self.assertTrue(first_board.is_file())
+        self.assertTrue(second_board.is_file())
+        readme = (self.design / "README.md").read_text(encoding="utf-8")
+        self.assertIn("epic-ui/ux-flow.md", readme)
+        self.assertIn("epic-two/ux-flow.md", readme)
+        self.assertIn("알림 확인", readme)
+        self.assertIn("두 번째 목표", readme)
+
+        self._run("build-journey-boards.mjs")
+        self.assertTrue(first_board.is_file())
+        self.assertTrue(second_board.is_file())
+
+    def test_multi_variant_screen_requires_one_explicit_journey_representative(
+        self,
+    ) -> None:
+        home = self.design / "screens" / "home.html"
+        home.write_text(
+            home.read_text(encoding="utf-8").replace(
+                ' data-journey-representative="true"', ""
+            ),
+            encoding="utf-8",
+        )
+
+        missing = self._run("build-journey-boards.mjs", check=False)
+
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn("data-journey-representative", missing.stderr)
+
+    def test_labels_keep_project_text_and_canvas_measures_rendered_width(self) -> None:
+        self.ux_flow.write_text(
+            _ux_flow().replace("알림 선택", "AC-12 (중요) 알림 선택"),
+            encoding="utf-8",
+        )
+
+        self._run("build-journey-boards.mjs")
+
+        board = (
+            self.design / "boards" / "journey-review-notice.html"
+        ).read_text(encoding="utf-8")
+        self.assertIn('data-label="AC-12 (중요) 알림 선택"', board)
+        engine = (TEMPLATE / "_lib" / "canvas.js").read_text(encoding="utf-8")
+        self.assertIn("labelTextWidth(spec.label)", engine)
+        self.assertNotIn("spec.label.length * 7.5", engine)
 
     def test_screen_variant_inventory_is_runtime_reported_for_stale_board_recovery(
         self,
@@ -452,6 +604,12 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertEqual(docs_index.count("dcness-design-variants-entry"), 1)
         self.assertIn("(docs/design-variants/README.md)", claude)
         self.assertIn("(design-variants/README.md)", docs_index)
+
+        (self.project / "CLAUDE.md").write_text(
+            claude + "\n",
+            encoding="utf-8",
+        )
+        self._run("build-design-index.mjs", "--check")
 
         (self.project / "CLAUDE.md").write_text(
             claude + "- duplicate <!-- dcness-design-variants-entry -->\n",

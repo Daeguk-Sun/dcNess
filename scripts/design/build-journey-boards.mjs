@@ -12,9 +12,9 @@ import { join } from 'node:path';
 import {
   escapeHtml,
   parseCli,
-  readModel,
+  readModels,
   regenerationCommand,
-  resolveJourneys,
+  resolveProjectJourneys,
   scanScreens,
   screenMetadata,
   sha12,
@@ -22,30 +22,29 @@ import {
 } from './ux-flow.mjs';
 
 function shortenLabel(raw) {
-  const words = raw
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/\bAC-\d+\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-  return words.length > 40 ? `${words.slice(0, 39).trim()}…` : words;
+  const label = raw.replace(/\s+/g, ' ').trim();
+  const characters = [...label];
+  return characters.length > 40
+    ? `${characters.slice(0, 39).join('').trim()}…`
+    : label;
 }
 
-function renderBoard(journey, model, screens, command) {
+function renderBoard(journey, models, screens, command) {
+  const model = journey.model;
   const screenHashes = journey.nodes.map(id => screens.get(id)?.hash ?? '').join(':');
   const sourceHash = sha12(
     `${model.uxFlowHash}:${model.nameSource.hash}:${screenHashes}:${journey.id}`,
   );
   const nodes = journey.nodes.map(id => {
     const screen = screens.get(id);
-    const meta = screenMetadata(model, screen);
+    const meta = screenMetadata(models, screen);
     const variants = screen.variants.map(variant => variant.id);
-    const representative = variants[0];
     return [
       `    <div class="screen-node" data-node-id="${escapeHtml(id)}"`,
       `         data-title="${escapeHtml(meta.title)}"`,
       `         data-desc="${escapeHtml(meta.description)}"`,
-      `         data-states="${escapeHtml(variants.join(' / '))}">`,
-      `      <iframe src="../screens/${escapeHtml(screen.file)}#only=${encodeURIComponent(representative)}" title="${escapeHtml(meta.title)}"></iframe>`,
+      `         data-variants="${escapeHtml(variants.join(' / '))}">`,
+      `      <iframe src="../screens/${escapeHtml(screen.file)}#only=${encodeURIComponent(screen.representative)}" title="${escapeHtml(meta.title)}"></iframe>`,
       '    </div>',
     ].join('\n');
   }).join('\n');
@@ -94,16 +93,16 @@ try {
 }
 
 try {
-  const model = readModel(options.projectRoot, options.uxFlow);
+  const models = readModels(options.projectRoot, options.uxFlow);
   const scan = scanScreens(options.projectRoot, { validateDrafts: false });
   if (scan.problems.length) throw new Error(scan.problems.join('\n'));
   warnEngineDrift(options.projectRoot);
-  const journeys = resolveJourneys(model, scan.screens);
+  const journeys = resolveProjectJourneys(models, scan.screens);
   const boardsDir = join(options.projectRoot, 'docs', 'design-variants', 'boards');
-  const command = regenerationCommand('build-journey-boards.mjs', model.uxFlowRelative);
+  const command = regenerationCommand('build-journey-boards.mjs', models);
   const targets = journeys.filter(journey => journey.wanted).map(journey => ({
     ...journey,
-    content: renderBoard(journey, model, scan.screens, command),
+    content: renderBoard(journey, models, scan.screens, command),
     path: join(boardsDir, journey.file),
   }));
   const wantedFiles = new Set(targets.map(target => target.file));

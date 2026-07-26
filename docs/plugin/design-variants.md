@@ -42,6 +42,7 @@ docs/design-variants/
 - 파일은 `screens/<screen-id>.html`이며 버전 접미사를 쓰지 않는다.
 - 모든 변형 블록은 고유한 `data-variant`를 갖는다.
 - 변형 축이 있으면 같은 블록의 `data-variant-values`에 `축=값` 쌍을 선언한다. 축 이름과 값 체계는 프로젝트가 정한다.
+- 변형이 여러 개면 저니에서 화면을 대표할 블록 하나에 `data-journey-representative="true"`를 선언한다. designer가 사용자 동선의 의미로 선택하며 작성 순서나 `loading`·`ready` 같은 이름에서 추정하지 않는다.
 - 첫 축은 전수 보드의 열, 둘째 축은 행, 나머지는 facet으로 파생한다.
 - `_lib/only-variant.js`, `_lib/report-size.js`, `_lib/show-ids.js`를 참조한다.
 - `#only=<variant>`가 없는 값을 가리키면 눈에 보이는 경고를 표시한다.
@@ -52,7 +53,7 @@ designer는 PICK 설명을 HTML 밖의 보고에 둔다. 확정본 형식을 바
 
 ## 여정 선언
 
-ux-flow는 전이 개요를 한 번만 소유한다. 여정 경로는 개요 전이를 순서대로 가리키며 라벨을 복제하지 않는다. 같은 화면쌍에 전이가 여러 개일 때만 라벨 일부로 구분한다.
+각 ux-flow는 자기 epic의 전이 개요를 한 번만 소유한다. 여정 경로는 개요 전이를 순서대로 가리키며 라벨을 복제하지 않는다. 같은 화면쌍에 전이가 여러 개일 때만 라벨 일부로 구분한다.
 
 프로젝트는 ux-flow 안의 `dcness-journey-contract` JSON으로 다음을 선언한다.
 
@@ -91,7 +92,7 @@ ux-flow는 전이 개요를 한 번만 소유한다. 여정 경로는 개요 전
 | `scripts/design/build-design-index.mjs` | `README.md`, `index.html`, 프로젝트 문서의 포인터 한 줄 |
 | `scripts/design/ux-flow.mjs` | 세 생성기의 공용 모델 |
 
-각 생성기는 project root와 대상 ux-flow를 입력받고 `--check`에서 현재 산출물과 재생성 결과를 비교한다. ux-flow 또는 screen 변경 경로는 세 생성과 세 검사를 함께 수행한다. doc-sync CI도 같은 검사를 실행한다.
+각 생성기는 project root 아래의 모든 `docs/epics/**/ux-flow.md`를 합집합으로 읽고 `--check`에서 현재 산출물과 재생성 결과를 비교한다. `--ux-flow`는 경로 검증과 단일 flow 외부 사용을 위한 선택 인자이며, 프로젝트 안의 flow 하나를 지정해도 전역 산출물을 부분 생성하지 않는다. 여정 ID가 여러 flow에서 겹치면 epic 경로를 파일명에 붙여 충돌을 피한다. ux-flow 또는 screen 변경 경로는 세 생성과 세 검사를 함께 수행한다. doc-sync CI도 같은 검사를 실행한다.
 
 검사는 다음 drift를 조용히 넘기지 않는다.
 

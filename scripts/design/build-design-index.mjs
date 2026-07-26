@@ -10,9 +10,9 @@ import { spawnSync } from 'node:child_process';
 import {
   escapeHtml,
   parseCli,
-  readModel,
+  readModels,
   regenerationCommand,
-  resolveJourneys,
+  resolveProjectJourneys,
   scanScreens,
   screenMetadata,
   sha12,
@@ -32,16 +32,12 @@ function projectName(projectRoot) {
   return basename(projectRoot);
 }
 
-function confirmedEdges(model, screens) {
-  return model.flow.edges.filter(edge => {
-    const fromId = model.inventory.get(
-      model.flow.aliasToInventoryId.get(edge.fromAlias),
-    )?.screenId;
-    const toId = model.inventory.get(
-      model.flow.aliasToInventoryId.get(edge.toAlias),
-    )?.screenId;
+function confirmedEdges(models, screens) {
+  return models.flatMap(model => model.flow.edges.filter(edge => {
+    const fromId = model.inventory.get(model.flow.aliasToInventoryId.get(edge.fromAlias))?.screenId;
+    const toId = model.inventory.get(model.flow.aliasToInventoryId.get(edge.toAlias))?.screenId;
     return fromId && toId && fromId !== toId && screens.has(fromId) && screens.has(toId);
-  });
+  }));
 }
 
 function boardState(projectRoot, journeys) {
@@ -62,15 +58,24 @@ function entryPoint(path, link) {
   }
   const current = readFileSync(path, 'utf8');
   const line = `- [디자인 산출물](${link}) ${ENTRY_MARKER}`;
-  const lines = current.replace(/\n*$/, '').split('\n');
+  const newline = current.includes('\r\n') ? '\r\n' : '\n';
+  const lines = current.split(/\r?\n/);
   const markerAt = lines.findIndex(item => item.includes(ENTRY_MARKER));
+  const insertAt = markerAt >= 0
+    ? lines.slice(0, markerAt).filter(item => !item.includes(ENTRY_MARKER)).length
+    : Math.max(0, lines.length - (current.endsWith('\n') ? 1 : 0));
   const withoutMarkers = lines.filter(item => !item.includes(ENTRY_MARKER));
-  if (markerAt >= 0) withoutMarkers.splice(markerAt, 0, line);
-  else withoutMarkers.push('', line);
-  return `${withoutMarkers.join('\n')}\n`;
+  if (markerAt >= 0) withoutMarkers.splice(insertAt, 0, line);
+  else withoutMarkers.splice(insertAt, 0, '', line);
+  return withoutMarkers.join(newline);
 }
 
-function renderReadme({ model, screens, journeys, transitionCount, command, sourceHash }) {
+function sourcePaths(models) {
+  return [...new Set(models.flatMap(model =>
+    [model.uxFlowRelative, model.nameSource.relativePath]))];
+}
+
+function renderReadme({ models, screens, journeys, transitionCount, command, sourceHash }) {
   const built = journeys.filter(journey => journey.wanted);
   const omitted = journeys.filter(journey => !journey.wanted);
   const totalVariants = [...screens.values()]
@@ -83,14 +88,14 @@ function renderReadme({ model, screens, journeys, transitionCount, command, sour
     ? omitted.map(journey => `| ${journey.name} | ${journey.reason} | ${journey.skipped.join('<br>') || '—'} |`).join('\n')
     : '| — | 없음 | — |';
   const screenRows = [...screens.values()].map(screen => {
-    const meta = screenMetadata(model, screen);
+    const meta = screenMetadata(models, screen);
     const axes = screen.axes.length ? screen.axes.join(' × ') : '단일 변형';
     return `| [${screen.id}](screens/${screen.file}) | ${meta.title} | ${screen.variants.map(variant => variant.id).join(', ')} | ${axes} | ${screen.nodePrefix} |`;
   }).join('\n');
   return `<!--
 생성물 — 손으로 고치지 않는다.
 재생성: ${command}
-진본: ${model.uxFlowRelative}; ${model.nameSource.relativePath}; docs/design-variants/screens/*.html
+진본: ${sourcePaths(models).join('; ')}; docs/design-variants/screens/*.html
 진본 해시: ${sourceHash}
 -->
 # 디자인 산출물
@@ -126,7 +131,8 @@ ${screenRows}
 
 ## 진본과 파생 규칙
 
-- 화면 그림의 진본은 \`screens/*.html\`, 화면·전이·여정 선언의 진본은 \`${model.uxFlowRelative}\`이다.
+- 화면 그림의 진본은 \`screens/*.html\`, 화면·전이·여정 선언의 진본은 프로젝트의 모든 \`docs/epics/**/ux-flow.md\`이다.
+- 현재 ux-flow: ${models.map(model => `\`${model.uxFlowRelative}\``).join(', ')}
 - \`boards/*.html\`, 이 README, \`index.html\`은 생성물이다. 진본을 고친 뒤 위 재생성 명령을 실행한다.
 - 보드는 확정본을 링크할 뿐 화면 사본을 소유하지 않는다. 크기·배치·곡률·간격은 런타임에서 파생한다.
 - \`_lib/\`는 플러그인 엔진 사본이며 프로젝트에서 수정하지 않는다.
@@ -134,7 +140,7 @@ ${screenRows}
 `;
 }
 
-function renderIndex({ project, model, screens, journeys, transitionCount, command, sourceHash }) {
+function renderIndex({ project, models, screens, journeys, transitionCount, command, sourceHash }) {
   const built = journeys.filter(journey => journey.wanted);
   const omitted = journeys.filter(journey => !journey.wanted);
   const totalVariants = [...screens.values()]
@@ -154,7 +160,7 @@ ${omitted.length ? `    <p class="note">보드를 만들지 않은 여정 — ${
   </section>`
     : '';
   const screenLinks = [...screens.values()].map(screen => {
-    const meta = screenMetadata(model, screen);
+    const meta = screenMetadata(models, screen);
     return `<li><a href="screens/${escapeHtml(screen.file)}">${escapeHtml(meta.title)}</a><small>변형 ${screen.variants.length}</small></li>`;
   }).join('\n      ');
   return `<!doctype html>
@@ -166,7 +172,7 @@ ${omitted.length ? `    <p class="note">보드를 만들지 않은 여정 — ${
   <!--
     생성물 — 손으로 고치지 않는다.
     재생성: ${command}
-    진본: ${model.uxFlowRelative}; ${model.nameSource.relativePath}; docs/design-variants/screens/*.html
+    진본: ${sourcePaths(models).join('; ')}; docs/design-variants/screens/*.html
     진본 해시: ${sourceHash}
   -->
   <style>
@@ -216,26 +222,26 @@ try {
 }
 
 try {
-  const model = readModel(options.projectRoot, options.uxFlow);
+  const models = readModels(options.projectRoot, options.uxFlow);
   const scan = scanScreens(options.projectRoot, { validateDrafts: false });
   if (scan.problems.length) throw new Error(scan.problems.join('\n'));
   warnEngineDrift(options.projectRoot);
-  const journeys = resolveJourneys(model, scan.screens);
+  const journeys = resolveProjectJourneys(models, scan.screens);
   const boards = boardState(options.projectRoot, journeys);
   if (boards.missing.length) {
     throw new Error(
       `먼저 보드를 생성하십시오. 누락: ${boards.missing.join(', ')}`,
     );
   }
-  const transitionCount = confirmedEdges(model, scan.screens).length;
-  const command = regenerationCommand('build-design-index.mjs', model.uxFlowRelative);
+  const transitionCount = confirmedEdges(models, scan.screens).length;
+  const command = regenerationCommand('build-design-index.mjs', models);
   const sourceHash = sha12(
-    `${model.uxFlowHash}:${model.nameSource.hash}:`
+    `${models.map(model => `${model.uxFlowHash}:${model.nameSource.hash}`).join(':')}:`
     + [...scan.screens.values()].map(screen => screen.hash).join(':'),
   );
   const input = {
     project: projectName(options.projectRoot),
-    model,
+    models,
     screens: scan.screens,
     journeys,
     transitionCount,

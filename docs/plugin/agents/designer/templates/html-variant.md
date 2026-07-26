@@ -17,6 +17,7 @@
 <body>
   <main data-screen-id="{screen-id}">
     <section data-variant="default" data-variant-values="state=default"
+             data-journey-representative="true"
              data-node-id="{screen-id}.section">
       <h1 data-node-id="{screen-id}.title">화면 제목</h1>
     </section>
