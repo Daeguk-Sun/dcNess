@@ -452,6 +452,7 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertIn("variants: variants()", report)
         self.assertIn("syncVariantFrames(node, data.variants)", engine)
         self.assertIn("node.dataset.screenSrc", engine)
+        self.assertIn("seedFrameSize(node, iframe)", engine)
 
     def test_check_detects_source_drift_and_stale_journey_board(self) -> None:
         self._generate_all()

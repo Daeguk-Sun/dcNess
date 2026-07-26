@@ -111,6 +111,15 @@
     })));
   }
 
+  function seedFrameSize(node, frame) {
+    const measured = node.querySelector(
+      'iframe[data-measured-width][data-measured-height]',
+    );
+    if (!measured) return;
+    frame.dataset.measuredWidth = measured.dataset.measuredWidth;
+    frame.dataset.measuredHeight = measured.dataset.measuredHeight;
+  }
+
   function syncVariantFrames(node, variants) {
     if (!node.dataset.screenSrc || !Array.isArray(variants) || !variants.length) {
       return false;
@@ -169,6 +178,7 @@
           const iframe = document.createElement('iframe');
           iframe.src = `${node.dataset.screenSrc}#only=${encodeURIComponent(variant.id)}`;
           iframe.title = `${node.dataset.nodeId} ${variant.id}`;
+          seedFrameSize(node, iframe);
           frame.append(label, iframe);
         }
         frame.dataset.axisColumn = variant.axes?.[columnAxis] || variant.id;
