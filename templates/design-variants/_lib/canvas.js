@@ -101,6 +101,84 @@
     }
   }
 
+  function variantSignature(variants) {
+    return JSON.stringify(variants.map(variant => ({
+      id: variant.id,
+      axes: variant.axes || {},
+    })));
+  }
+
+  function syncVariantFrames(node, variants) {
+    if (!node.dataset.screenSrc || !Array.isArray(variants) || !variants.length) {
+      return false;
+    }
+    const signature = variantSignature(variants);
+    if (node.dataset.runtimeVariantSignature === signature) return false;
+    node.dataset.runtimeVariantSignature = signature;
+
+    const existing = new Map(
+      [...node.querySelectorAll('.variant-frame')].map(frame => [
+        frame.dataset.variantId,
+        frame,
+      ]),
+    );
+    node.querySelectorAll(':scope > .variant-grid, :scope > .variant-facet')
+      .forEach(element => element.remove());
+
+    const axes = [];
+    for (const variant of variants) {
+      for (const axis of Object.keys(variant.axes || {})) {
+        if (!axes.includes(axis)) axes.push(axis);
+      }
+    }
+    const columnAxis = axes[0] || 'variant';
+    const rowAxis = axes[1] || '';
+    const facetAxes = axes.slice(2);
+    const groups = new Map();
+    for (const variant of variants) {
+      const facet = facetAxes
+        .map(axis => `${axis}=${variant.axes?.[axis] || ''}`)
+        .join(';');
+      if (!groups.has(facet)) groups.set(facet, []);
+      groups.get(facet).push(variant);
+    }
+
+    const caption = node.querySelector(':scope > .node-caption');
+    for (const [facet, members] of groups) {
+      if (facet) {
+        const heading = document.createElement('h3');
+        heading.className = 'variant-facet';
+        heading.textContent = facet;
+        node.insertBefore(heading, caption);
+      }
+      const grid = document.createElement('div');
+      grid.className = 'variant-grid';
+      grid.dataset.columnAxis = columnAxis;
+      grid.dataset.rowAxis = rowAxis;
+      for (const variant of members) {
+        let frame = existing.get(variant.id);
+        if (!frame) {
+          frame = document.createElement('figure');
+          frame.className = 'variant-frame';
+          frame.dataset.variantId = variant.id;
+          const label = document.createElement('figcaption');
+          label.textContent = variant.id;
+          const iframe = document.createElement('iframe');
+          iframe.src = `${node.dataset.screenSrc}#only=${encodeURIComponent(variant.id)}`;
+          iframe.title = `${node.dataset.nodeId} ${variant.id}`;
+          frame.append(label, iframe);
+        }
+        frame.dataset.axisColumn = variant.axes?.[columnAxis] || variant.id;
+        frame.dataset.axisRow = rowAxis ? variant.axes?.[rowAxis] || '' : '';
+        grid.appendChild(frame);
+      }
+      node.insertBefore(grid, caption);
+      layoutVariantGrid(grid);
+    }
+    node.dataset.states = variants.map(variant => variant.id).join(' / ');
+    return true;
+  }
+
   function removeCaption(node) {
     node.querySelector(':scope > .node-caption')?.remove();
   }
@@ -501,13 +579,19 @@
       const width = Number(data.width);
       const height = Number(data.height);
       if (!width || !height) return;
-      if (
-        frame.dataset.measuredWidth === String(width)
-        && frame.dataset.measuredHeight === String(height)
-      ) return;
-      frame.dataset.measuredWidth = String(width);
-      frame.dataset.measuredHeight = String(height);
-      relayout();
+      const sizeChanged = (
+        frame.dataset.measuredWidth !== String(width)
+        || frame.dataset.measuredHeight !== String(height)
+      );
+      if (sizeChanged) {
+        frame.dataset.measuredWidth = String(width);
+        frame.dataset.measuredHeight = String(height);
+      }
+      const node = frame.closest('.screen-node');
+      const variantsChanged = node && syncVariantFrames(node, data.variants);
+      if (sizeChanged || variantsChanged) {
+        relayout();
+      }
     });
   }
 

@@ -386,6 +386,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "dcness-frame-size",
             "chooseCurve",
             "layoutVariantGrid",
+            "syncVariantFrames",
             "const arrowSpecCache = new WeakMap()",
             "zoomToFit",
             "dcnessCanvasDiagnostics",

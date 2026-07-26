@@ -6,6 +6,18 @@
 
   let previous = '';
 
+  function variants() {
+    return [...document.querySelectorAll('[data-variant]')].map(element => ({
+      id: element.dataset.variant,
+      axes: Object.fromEntries(
+        (element.dataset.variantValues || '').split(';').filter(Boolean).map(pair => {
+          const [axis, ...rest] = pair.split('=');
+          return [axis.trim(), rest.join('=').trim()];
+        }),
+      ),
+    }));
+  }
+
   function measure() {
     const root = document.documentElement;
     const body = document.body;
@@ -29,6 +41,7 @@
       width,
       height,
       variant: document.documentElement.dataset.dcnessOnlyVariant || null,
+      variants: variants(),
     }, '*');
   }
 

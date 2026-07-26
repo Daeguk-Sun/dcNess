@@ -37,7 +37,7 @@ function renderGrid(screen) {
       const column = variant.axes.get(columnAxis) ?? variant.id;
       const row = rowAxis ? variant.axes.get(rowAxis) : '';
       return [
-        `          <figure class="variant-frame" data-axis-column="${escapeHtml(column)}" data-axis-row="${escapeHtml(row)}">`,
+        `          <figure class="variant-frame" data-variant-id="${escapeHtml(variant.id)}" data-axis-column="${escapeHtml(column)}" data-axis-row="${escapeHtml(row)}">`,
         `            <figcaption>${escapeHtml(variant.id)}</figcaption>`,
         `            <iframe src="../screens/${escapeHtml(screen.file)}#only=${encodeURIComponent(variant.id)}" title="${escapeHtml(screen.id)} ${escapeHtml(variant.id)}"></iframe>`,
         '          </figure>',
@@ -62,6 +62,7 @@ function renderBoard(model, screens, command) {
       `    <section class="screen-node" data-node-id="${escapeHtml(screen.id)}"`,
       `             data-title="${escapeHtml(meta.title)}"`,
       `             data-desc="${escapeHtml(meta.description)}"`,
+      `             data-screen-src="../screens/${escapeHtml(screen.file)}"`,
       `             data-states="${escapeHtml(screen.variants.map(variant => variant.id).join(' / '))}">`,
       renderGrid(screen),
       '    </section>',

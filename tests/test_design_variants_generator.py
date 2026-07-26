@@ -264,12 +264,42 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         )
         self.assertIn('data-column-axis="breakpoint"', board)
         self.assertIn('data-row-axis="state"', board)
+        self.assertIn('data-screen-src="../screens/home.html"', board)
+        self.assertIn('data-variant-id="mobile-loading"', board)
         self.assertIn("#only=mobile-loading", board)
         self.assertIn("#only=desktop-ready", board)
         self.assertEqual(len(list((self.design / "screens").glob("*.html"))), 3)
         self.assertNotIn("data-pos=", board)
         self.assertNotIn("data-w=", board)
         self.assertNotIn("data-h=", board)
+
+    def test_screen_variant_inventory_is_runtime_reported_for_stale_board_recovery(
+        self,
+    ) -> None:
+        self._run("build-screen-states.mjs")
+        board_path = self.design / "boards" / "screen-states.html"
+        board_before = board_path.read_text(encoding="utf-8")
+        home = self.design / "screens" / "home.html"
+        home.write_text(
+            home.read_text(encoding="utf-8").replace(
+                "</body>",
+                (
+                    '<section data-variant="tablet-ready" '
+                    'data-variant-values="breakpoint=tablet;state=ready">'
+                    "tablet</section></body>"
+                ),
+            ),
+            encoding="utf-8",
+        )
+
+        self.assertEqual(board_path.read_text(encoding="utf-8"), board_before)
+        report = (
+            TEMPLATE / "_lib" / "report-size.js"
+        ).read_text(encoding="utf-8")
+        engine = (TEMPLATE / "_lib" / "canvas.js").read_text(encoding="utf-8")
+        self.assertIn("variants: variants()", report)
+        self.assertIn("syncVariantFrames(node, data.variants)", engine)
+        self.assertIn("node.dataset.screenSrc", engine)
 
     def test_check_detects_source_drift_and_stale_journey_board(self) -> None:
         self._generate_all()

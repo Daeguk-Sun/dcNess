@@ -46,7 +46,7 @@ docs/design-variants/
 - `_lib/only-variant.js`, `_lib/report-size.js`, `_lib/show-ids.js`를 참조한다.
 - `#only=<variant>`가 없는 값을 가리키면 눈에 보이는 경고를 표시한다.
 
-크기는 확정본이 부모 보드에 보고한다. 파일 안의 보드 크기 선언은 진본이 아니다.
+확정본은 자연 크기와 변형·축 목록을 부모 보드에 보고한다. 전수 보드는 이 보고로 프레임 격자를 동기화하므로, 보드 파일의 크기나 변형 목록은 진본이 아니다.
 
 designer는 PICK 설명을 HTML 밖의 보고에 둔다. 확정본 형식을 바꾸는 draft 전용 마커나 `draft N` 라벨을 HTML에 넣지 않는다. 승격은 같은 깊이의 `drafts/`에서 `screens/`로 이동하는 것으로 끝나며, 같은 화면의 탈락 후보만 제거한다.
 
