@@ -24,3 +24,16 @@ runs:
       run: |
         set -euo pipefail
         node "${{ github.action_path }}/../../../scripts/check_design_artifact_structure.mjs"
+
+    - name: Validate design-variants generated views
+      shell: bash
+      run: |
+        set -euo pipefail
+        DESIGN_ROOT="docs/design-variants"
+        if ! compgen -G "$DESIGN_ROOT/screens/*.html" >/dev/null; then
+          exit 0
+        fi
+        DESIGN_SCRIPTS="${{ github.action_path }}/../../../scripts/design"
+        node "$DESIGN_SCRIPTS/build-journey-boards.mjs" --project-root . --check
+        node "$DESIGN_SCRIPTS/build-screen-states.mjs" --project-root . --check
+        node "$DESIGN_SCRIPTS/build-design-index.mjs" --project-root . --check

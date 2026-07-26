@@ -20,8 +20,8 @@
 - 필수: impl 계획 파일
 - 필수: epic architecture와 대상 impl 문서. `domain-model.md` 는 산출물이 있을 때 읽는다.
 - 필수: [`agents/_shared/module-design-principles.md`](../_shared/module-design-principles.md)
-- design:required 필수: `docs/design.md` 토큰 적용은 필수 입력이다. impl 문서의 `## 디자인 참조` 가 가리키는 `docs/design-variants/<screen-id>.html`, 핵심 디자인 토큰, 의도적 차이도 함께 읽는다.
-- 상황별: 기존 테스트 설정, design 문서, impl 문서의 `## 디자인 참조` 가 가리키는 `docs/design-variants/<screen-id>.html`, 의존 모듈 source
+- design:required 필수: `docs/design.md` 토큰 적용은 필수 입력이다. impl 문서의 `## 디자인 참조` 가 가리키는 `docs/design-variants/screens/<screen-id>.html`, 핵심 디자인 토큰, 의도적 차이도 함께 읽는다.
+- 상황별: 기존 테스트 설정, design 문서, impl 문서의 `## 디자인 참조` 가 가리키는 `docs/design-variants/screens/<screen-id>.html`, 의존 모듈 source
 - `(JOURNEY)` 필수: 활성 plugin 의 [`docs/plugin/product-journey.md`](../../product-journey.md). journey 매니페스트 필드, `boundary=ui` 의 `ux_integrity.snapshots`, layout report schema 의 진본이다. 스키마를 기억이나 추측으로 쓰지 않는다.
 
 ## 판단 축
@@ -32,7 +32,7 @@
 - TDD 신뢰성: 테스트가 먼저 실패하고 구현 뒤 통과했는가.
 - 자체 검증: 구현 계획, 계약, lint 또는 프로젝트 표준 검증 명령을 실제로 실행해 종료코드로 판정했는가. 실행하지 못한 검증을 코드 읽기만으로 통과 처리하지 않았는가.
 - 동작 증거: 핵심 AC 를 mock-only green 으로 닫지 않고, 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 실제 앱 진입점 실행 중 AC 성격에 맞는 증거를 남겼는가. 기준 정의 = [`module-design-principles.md` 동작 증거 기준](../_shared/module-design-principles.md#동작-증거-기준).
-- 디자인 정합: 확정 목업이 있으면 레이아웃 계층, 상태, 토큰 대응이 `docs/design-variants/<screen-id>.html` 의 `data-node-id` 의도와 맞는가.
+- 디자인 정합: 확정 목업이 있으면 레이아웃 계층, 상태, 토큰 대응이 `docs/design-variants/screens/<screen-id>.html` 의 `data-node-id` 의도와 맞는가.
 - design:required 토큰 정합: node-id 구조 대응과 분리된 별개 완료 조건으로 앱 테마·컴포넌트 색이 `docs/design.md` 토큰대로 적용됐는가. 목업과 다른 색 테마, 스캐폴딩 기본 팔레트, boilerplate 테마 잔존 금지.
 - 신뢰 경계: 외부 HTTP, 파일/URL 입력, 보안, 도메인 invariant를 바꾸면 self-test가 놓친 실패 경로를 별도로 적발했는가.
 - commit 품질: task가 green이 된 뒤 [`git-spec.md#의미-단위-커밋-분할`](../../git-spec.md#의미-단위-커밋-분할)에 맞게 독립 검토 가능한 의미 단위로 로컬 커밋됐는가.

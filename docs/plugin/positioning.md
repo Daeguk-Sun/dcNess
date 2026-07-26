@@ -38,7 +38,7 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 | 유틸리티 | 역할 |
 |---|---|
-| `/ux` | 구현 없이 목업과 흐름을 먼저 탐색한다. 디자인 시스템 / 디자인 토큰 / 베이스라인 요청도 ad-hoc 문서가 아니라 `docs/design.md` 기준 신호로 정리한다. 내부 `canvas-design` wrapper 를 통해 drafts 반복 → 사용자 PICK → 확정본 승격 + canvas 등록 규약을 따른다 |
+| `/ux` | 구현 없이 목업과 흐름을 먼저 탐색한다. 디자인 시스템 / 디자인 토큰 / 베이스라인 요청도 ad-hoc 문서가 아니라 `docs/design.md` 기준 신호로 정리한다. 내부 `canvas-design` wrapper 를 통해 drafts 반복 → 사용자 PICK → 확정본 승격 + 보드·진입점 재생성 규약을 따른다 |
 | `/init-dcness` | 프로젝트 활성화. 비활성화(whitelist 제거) 요청도 같은 진입점이 처리한다 |
 | `/migrate-dcness` | 기존 비-dcness 프로젝트를 코드 역설계로 전역 docs(`prd.md`/`architecture.md`/`conventions.md`/`decisions/`/`index.md`)를 채워 부트스트랩하는 일회성 유틸리티. `/init-dcness`(활성화)의 짝. epic/story 산출물은 만들지 않는다 |
 | `/next-work` | GitHub issue open/closed 상태, `in-progress` label, Issue Brief Priority 로 다음 작업 후보를 read-only 조회 |
@@ -53,11 +53,11 @@ dcNess 의 기본 공개 workflow 는 제품 생명주기 기준으로 계획 / 
 
 | 내부 skill | 역할 |
 |---|---|
-| `canvas-design` | `/ux`, `/impl`, `/impl-loop` 이 UI 기준 확보나 선행 목업 탐색이 필요하다고 판정했을 때 호출하는 내부 wrapper. designer draft 생성, 사용자 PICK, 확정본 승격, `docs/design-variants/canvas.html` frame 등록을 한 경로로 수행하며 공개 진입점으로 노출하지 않음 |
+| `canvas-design` | `/ux`, `/impl`, `/impl-loop` 이 UI 기준 확보나 선행 목업 탐색이 필요하다고 판정했을 때 호출하는 내부 wrapper. designer draft 생성, 사용자 PICK, 확정본 승격, 보드·진입점 재생성을 한 경로로 수행하며 공개 진입점으로 노출하지 않음 |
 | `design-ux` | `/design` dispatcher 가 UI epic 의 UX 산출물이 아직 durable 하지 않다고 판정했을 때 호출하는 내부 stage 1. `ux-flow.md` / `docs/design.md` / `docs/design-variants/` 확정본을 자체 PR 로 머지하며 공개 진입점으로 노출하지 않음 |
 | `design-system` | `/design` dispatcher 가 UI-less epic 이거나 UX stage 완료 epic 이라고 판정했을 때 호출하는 내부 stage 2. 기존 system/module 설계 pack 계약을 자체 PR 로 머지하며 공개 진입점으로 노출하지 않음 |
 
-`canvas-design` 은 시각 기준 확보를 각 workflow 안에 중복 기술하지 않기 위한 내부 wrapper 다. 확정본 SSOT 는 `docs/design-variants/` 이며, designer 는 `drafts/` 만 쓰고 메인이 확정본과 canvas 를 갱신한다. `/ux` 는 이 경로를 얇게 감싸 선행 탐색 결과를 확정본으로 남기고, `/impl` 과 `/impl-loop` 은 이 경로를 호출해 확정 목업 경로와 node-id 매핑을 구현자에게 전달한다.
+`canvas-design` 은 시각 기준 확보를 각 workflow 안에 중복 기술하지 않기 위한 내부 wrapper 다. 확정본 SSOT 는 `docs/design-variants/screens/` 이며, designer 는 `drafts/` 만 쓰고 메인이 PICK과 승격을 소유한다. 파생 보드와 진입점은 생성기가 갱신한다. `/ux` 는 이 경로를 얇게 감싸고, `/impl` 과 `/impl-loop` 은 확정 목업 경로와 node-id 매핑을 구현자에게 전달한다.
 
 `design-ux` 와 `design-system` 은 `/design` 의 내부 stage 다. 사용자가 stage 이름을 호출하지 않고, `/design` 이 durable 산출물 실존 판정으로 자동 선택한다. `ux-flow.md` 존재 + 설계 pack 부재이면 `docs/index.md` 와 `/next-work` 가 "`/design` (ux 완료 · system 미완)" 을 표시해 다음 `/design` 진입이 system stage 로 이어진다.
 

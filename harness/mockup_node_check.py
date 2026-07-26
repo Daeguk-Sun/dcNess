@@ -19,7 +19,6 @@ _DESIGN_REF_HEADER_RE = re.compile(r"^##\s+디자인\s+참조\s*$")
 _SECTION_HEADER_RE = re.compile(r"^##\s+")
 _BACKTICK_RE = re.compile(r"`([^`]+)`")
 _DENY_LITERALS = {
-    "canvas.html",
     "data-node-id",
     "design",
     "docs",
@@ -45,8 +44,9 @@ def is_confirmed_mockup_html(path: Path) -> bool:
     parts = set(path.parts)
     return (
         path.suffix.lower() == ".html"
-        and path.name != "canvas.html"
+        and path.name not in {"canvas.html", "index.html", "screen-states.html"}
         and not path.name.startswith("_")
+        and "boards" not in parts
         and "drafts" not in parts
         and "_lib" not in parts
     )
@@ -58,6 +58,14 @@ def _resolve_mockup_files(mockup_dir: str | Path) -> list[Path]:
         return [root] if is_confirmed_mockup_html(root) else []
     if not root.is_dir():
         return []
+    screens = root / "screens"
+    screen_files = [
+        path
+        for path in sorted(screens.glob("*.html"))
+        if path.is_file() and is_confirmed_mockup_html(path)
+    ] if screens.is_dir() else []
+    if screen_files:
+        return screen_files
     return [
         path
         for path in sorted(root.glob("*.html"))

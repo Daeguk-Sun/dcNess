@@ -113,7 +113,7 @@ worktree/default-branch 정합은 chain이 mutation 전에 검증한다.
 UI 기준은 task/handoff에 드러난 정보만 3분기한다. 확정 목업·사용자 이미지가 있으면
 그 pointer를 slim prompt로 넘기고, 시각 구조 불변이면 그대로 진행한다. 신규 시각
 구조인데 기준이 없을 때만 main-owned `canvas-design` checkpoint를 열어 사용자
-PICK 뒤 `docs/design-variants/<screen-id>.html` 확정본 승격을 마친다. `canvas-design`은
+PICK 뒤 `docs/design-variants/screens/<screen-id>.html` 확정본 승격을 마친다. `canvas-design`은
 helper begin/end-step 비대상이며 mode 없는 foreground designer Agent의
 SubagentStart/PostToolUse lifecycle hook만 사용한다. 이 조건을 알아내려고 별도 UI
 전수조사를 하지 않는다.

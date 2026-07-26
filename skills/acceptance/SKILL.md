@@ -21,7 +21,7 @@ description: story 또는 epic 구현 완료 후 제품 단위 검수를 수행�
 - 필요한 `docs/decisions/` decision, 전역/epic architecture, impl 문서 경로
 - 구현 PR 목록
 - 핵심 AC별 동작 증거: 정적 타입검사/compile, 실데이터(non-mock) 통합 테스트, UI 자동화, API/CLI smoke, 화면/API/CLI 동작 기록 중 해당하는 것
-- UI story/epic 이면 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
+- UI story/epic 이면 확정 목업 경로(`docs/design-variants/screens/<screen-id>.html`), 보드 진입점, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - 대상 사용자와 핵심 입력/진행 동선
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제로 실행된 제품 경계
 - implementation Cartography impact, affected Root Cartography 좌표, 상태 before/after 증거, 관련 epic/decision, tracked 또는 local-only/ignored 문서 정책
@@ -52,7 +52,7 @@ direct `/impl` 단발 작업은 불필요하게 `/acceptance` 로 강제하지 �
 
 UI story/epic 검수에서 확정 목업과 구현 화면 증거가 주입되면 product-acceptance 는 양쪽을 Read 로 열어 구조적 일치를 판정한다. pixel-diff 자동화는 MVP 범위 밖이며 하드 게이트가 아니다.
 
-- 확정 목업 경로는 `docs/design-variants/<screen-id>.html` 또는 호출자가 제공한 동등한 기준이다.
+- 확정 목업 경로는 `docs/design-variants/screens/<screen-id>.html` 또는 호출자가 제공한 동등한 기준이다.
 - 구현 화면 증거는 구현 화면 스크린샷, UI 자동화 산출 이미지, visual smoke 결과처럼 실제 실행 화면을 확인할 수 있는 경로다.
 - 판정 축은 UI 목업 정합: 레이아웃 계층, 상태(default/empty/error/loading 등), 핵심 `data-node-id`, 토큰·간격·타이포 대응이 구조적으로 맞는가다.
 - UI story 인데 구현 화면 스크린샷 또는 동등한 화면 증거가 없으면 `화면 증거 부재` gap 이다. 확정 목업만 있거나 mock-only/component-only green 만 있으면 PASS 하지 않는다.

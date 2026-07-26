@@ -550,7 +550,7 @@ class DesignSurfaceContractTests(unittest.TestCase):
             "epic `ux-flow.md`",
             "`docs/design.md`",
             "화면별 확정 목업",
-            "`docs/design-variants/canvas.html`",
+            "`docs/design-variants/README.md`",
             "mockup-node-check",
         ):
             with self.subTest(needle=needle):
