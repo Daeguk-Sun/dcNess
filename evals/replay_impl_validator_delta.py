@@ -293,11 +293,12 @@ HEAD `2222222222222222222222222222222222222222`, tree
     rendered = json.dumps(result, ensure_ascii=False, indent=2) + "\n"
     metadata_path.write_text(rendered, encoding="utf-8")
     print(rendered, end="")
-    return not (
+    succeeded = (
         quality
         and reduction >= args.minimum_reduction_percent
         and reduction_seconds >= args.minimum_reduction_seconds
     )
+    return 0 if succeeded else 1
 
 
 if __name__ == "__main__":

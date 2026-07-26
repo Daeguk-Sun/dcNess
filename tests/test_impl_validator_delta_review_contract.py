@@ -1,9 +1,10 @@
 """Contracts for issue #1201 impl-validator delta re-review."""
 from __future__ import annotations
 
+import hashlib
 import json
 import statistics
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 import sys
 from tempfile import TemporaryDirectory
@@ -22,6 +23,16 @@ def read(path: str) -> str:
 
 
 class ImplValidatorDeltaReviewContractTests(unittest.TestCase):
+    def test_behavior_fixture_receipt_digest_matches_prompt(self) -> None:
+        receipt = (
+            ROOT
+            / "evals/cases/impl-validator-delta-rereview/prior-receipt.md"
+        ).read_bytes()
+        digest = hashlib.sha256(receipt).hexdigest()
+        prompt = read("evals/cases/impl-validator-delta-rereview/prompt.md")
+
+        self.assertIn(f"receipt sha256: `{digest}`", prompt)
+
     def test_impl_loop_reentry_supplies_receipt_identity_and_candidate_delta(
         self,
     ) -> None:
@@ -130,7 +141,9 @@ class ImplValidatorDeltaReviewContractTests(unittest.TestCase):
                 patch.object(replay, "_judge", return_value=(True, "RESULT: PASS")),
                 redirect_stdout(StringIO()),
             ):
-                self.assertEqual(replay.main(), 0)
+                result = replay.main()
+                self.assertEqual(result, 0)
+                self.assertIs(type(result), int)
 
             self.assertEqual(calls, 2)
             metadata = json.loads(
@@ -152,13 +165,16 @@ class ImplValidatorDeltaReviewContractTests(unittest.TestCase):
             "--output-dir",
             "/tmp/not-created-by-replay-test",
         ]
+        stderr = StringIO()
         with (
             patch.object(sys, "argv", argv),
             patch.object(replay.shutil, "which", return_value="/bin/claude"),
             redirect_stdout(StringIO()),
+            redirect_stderr(stderr),
             self.assertRaises(SystemExit),
         ):
             replay.main()
+        self.assertIn("--modules must be at least 103", stderr.getvalue())
 
 
 if __name__ == "__main__":
