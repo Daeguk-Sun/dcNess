@@ -576,13 +576,15 @@ def _cli_chain_view(args: Any) -> int:
     from harness import chain_view
 
     return chain_view.main(
-        [
-            "--tasks",
-            args.tasks,
-        ]
+        (
+            ["--tasks", args.tasks]
+            if getattr(args, "tasks", None) is not None
+            else ["--tasks-json", args.tasks_json]
+        )
         + (["--current", str(args.current)] if args.current is not None else [])
         + (["--prev", str(args.prev)] if args.prev is not None else [])
         + (["--initial"] if getattr(args, "initial", False) else [])
+        + (["--compact"] if getattr(args, "compact", False) else [])
     )
 
 
@@ -989,10 +991,15 @@ def _build_arg_parser() -> Any:
         "chain-view",
         help="impl-loop chain 진행 뷰 자동 렌더 JSON (task list + current → view/operations/strategy — #755)",
     )
-    p_cv.add_argument(
+    p_cv_source = p_cv.add_mutually_exclusive_group(required=True)
+    p_cv_source.add_argument(
         "--tasks",
-        required=True,
         help="task list JSON 경로 ('-' = stdin). {tasks:[{name,engine,closes?}], current?}",
+    )
+    p_cv_source.add_argument(
+        "--tasks-json",
+        dest="tasks_json",
+        help="task list inline JSON. 별도 파일 없이 first tool batch에서 사용.",
     )
     p_cv.add_argument(
         "--current",
@@ -1010,6 +1017,11 @@ def _build_arg_parser() -> Any:
         "--initial",
         action="store_true",
         help="전체 task list 최초 생성 operation 산출 (transition 대신).",
+    )
+    p_cv.add_argument(
+        "--compact",
+        action="store_true",
+        help="Task tool batch 전달용 단일 줄 JSON 출력.",
     )
     p_cv.set_defaults(func=_cli_chain_view)
 

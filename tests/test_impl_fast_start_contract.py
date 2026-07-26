@@ -46,11 +46,69 @@ class ImplFastStartContractTests(unittest.TestCase):
         self.assertIn("target GitHub issue AC close audit", finish)
         self.assertIn("PR", finish)
 
+    def test_impl_progress_tasks_do_not_delay_main_or_headless_start(self) -> None:
+        skill = self.read("skills/impl/SKILL.md")
+        procedure = self.read("docs/plugin/loop-procedure.md")
+
+        self.assertIn("## 진행 뷰 (task 리스트)", skill)
+        self.assertIn("구현 · <target> (<main-direct|headless>)", skill)
+        self.assertIn("검증 · impl-validator", skill)
+        self.assertIn("마감 · PR/CI/AC audit", skill)
+        self.assertIn("Cartography sync와 candidate commit까지 끝나면", skill)
+        self.assertIn("TaskCreate", skill)
+        self.assertIn("TaskUpdate", skill)
+        self.assertIn("첫 tool-bearing turn의 독립 tool batch", skill)
+        self.assertIn("EnterWorktree 또는 첫 work action", skill)
+        self.assertIn(
+            "`TaskCreate`가 기본\n`pending`으로 만들어 반환한 id",
+            skill,
+        )
+        self.assertIn(
+            "다음의 **이미 필요했던** work action",
+            skill,
+        )
+        self.assertIn(
+            "implementation-chain은 TaskCreate나 TaskUpdate 결과를 기다리지 않는다",
+            skill,
+        )
+        self.assertIn("batch 발행이 불가능하면 work action을 먼저", skill)
+        self.assertIn("다음의 이미 필요한 tool-bearing turn에 붙인다", skill)
+        self.assertIn(
+            "진행 뷰만을 위한 추가 assistant turn을 만들지 않는다",
+            skill,
+        )
+        self.assertIn(
+            "같은 batch의 Task sidecar는 추가 repo read나 blocking assistant turn이 아니다",
+            skill,
+        )
+        self.assertIn("추가 helper subprocess를 호출하지 않는다", skill)
+        self.assertIn("중복 생성하지 않는다", skill)
+        self.assertIn("Task tool이 없거나 호출이 실패하면", skill)
+        self.assertIn("도구이지 gate가 아니다", skill)
+        self.assertIn(
+            "[`/impl` 진행 뷰](../../skills/impl/SKILL.md#진행-뷰-task-리스트)",
+            procedure,
+        )
+        self.assertNotIn("TaskCreate 완료 후 EnterWorktree", skill)
+        self.assertNotIn("TaskCreate 완료 후 implementation-chain", skill)
+        self.assertNotIn("dcness-helper chain-view", skill)
+
     def test_impl_loop_launches_worker_in_background_without_repeat_preflight(self) -> None:
         skill = self.read("skills/impl-loop/SKILL.md")
 
         self.assertIn("run_in_background", skill)
-        self.assertIn("one-shot launch가 첫 tool call", skill)
+        self.assertIn("one-shot launch가 첫 tool-bearing turn", skill)
+        self.assertIn("별도 직렬 tool call을", skill)
+        self.assertIn("추가하지 않는다", skill)
+        self.assertIn("같은 assistant turn의 독립 tool batch", skill)
+        self.assertIn("implementation-chain은 chain-view", skill)
+        self.assertIn("완료를 기다리지 않는다", skill)
+        self.assertIn(
+            "batch를 지원하지 않으면 chain-view를 독립 호출하지 않는다",
+            skill,
+        )
+        self.assertIn("수동 완료/현재/예정 view", skill)
+        self.assertNotIn("먼저 launch하고 바로 chain-view를 호출", skill)
         self.assertIn("`nohup`, `&`, `disown`", skill)
         self.assertIn("`.dcness-work`를 미리 만들지 않는다", skill)
         self.assertIn("same-workspace recovery", skill)
@@ -60,6 +118,34 @@ class ImplFastStartContractTests(unittest.TestCase):
         self.assertNotIn("begin-step build-worker`로 열고", skill)
         self.assertNotIn("boundary-suggestions --impl-plan", skill)
         self.assertNotIn("generated TDD hook 상태를 확인", skill)
+
+    def test_impl_loop_chain_view_is_rendered_at_each_lifecycle_boundary(self) -> None:
+        skill = self.read("skills/impl-loop/SKILL.md")
+        procedure = self.read("docs/plugin/loop-procedure.md")
+
+        self.assertIn("## 진행 뷰 (task 리스트)", skill)
+        self.assertIn("dcness-helper chain-view", skill)
+        self.assertIn("chain 진입", skill)
+        self.assertIn("task 완료마다", skill)
+        self.assertIn("마감 시퀀스 진입", skill)
+        self.assertIn("--tasks-json", skill)
+        self.assertIn("`operations`를", skill)
+        self.assertIn("순서 그대로 Task 시스템에 적용", skill)
+        self.assertIn("`view`를", skill)
+        self.assertIn("사용자에게 진행", skill)
+        self.assertIn("메시지로 표시한다", skill)
+        self.assertIn("`--initial`을 기존", skill)
+        self.assertIn("중복 생성하지 않는다", skill)
+        self.assertIn("journey_deferred", skill)
+        self.assertIn("`/impl-loop`의", procedure)
+        self.assertIn(
+            "[`impl-loop` 진행 뷰](../../skills/impl-loop/SKILL.md#진행-뷰-task-리스트)",
+            procedure,
+        )
+        self.assertNotIn(
+            "worker 시작 전에 `TaskCreate`/`TaskUpdate`를 만들지 않는다",
+            procedure,
+        )
 
     def test_build_worker_order_gate_does_not_run_advisory_preflights(self) -> None:
         source = self.read("harness/session_state.py")
