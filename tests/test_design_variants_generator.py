@@ -450,9 +450,11 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
         engine = (TEMPLATE / "_lib" / "canvas.js").read_text(encoding="utf-8")
         self.assertIn("variants: variants()", report)
+        self.assertIn("dcness-request-frame-size", report)
         self.assertIn("syncVariantFrames(node, data.variants)", engine)
         self.assertIn("node.dataset.screenSrc", engine)
         self.assertIn("seedFrameSize(node, iframe)", engine)
+        self.assertIn("new MutationObserver(records =>", engine)
 
     def test_check_detects_source_drift_and_stale_journey_board(self) -> None:
         self._generate_all()

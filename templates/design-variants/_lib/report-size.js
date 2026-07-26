@@ -51,6 +51,11 @@
 
   window.addEventListener('load', schedule);
   window.addEventListener('hashchange', schedule);
+  window.addEventListener('message', event => {
+    if (event.data?.type !== 'dcness-request-frame-size') return;
+    previous = '';
+    schedule();
+  });
   if (typeof ResizeObserver === 'function') {
     const observer = new ResizeObserver(schedule);
     const start = () => observer.observe(document.documentElement);

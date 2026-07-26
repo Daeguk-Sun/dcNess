@@ -649,6 +649,24 @@
         relayout();
       }
     });
+    function requestSize(frame) {
+      if (!frame.dataset.sizeRequestBound) {
+        frame.dataset.sizeRequestBound = 'true';
+        frame.addEventListener('load', () => requestSize(frame));
+      }
+      frame.contentWindow?.postMessage({ type: 'dcness-request-frame-size' }, '*');
+    }
+    const observer = new MutationObserver(records => {
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches('iframe')) requestSize(node);
+          node.querySelectorAll?.('iframe').forEach(requestSize);
+        }
+      }
+    });
+    observer.observe(inner, { childList: true, subtree: true });
+    inner.querySelectorAll('iframe').forEach(requestSize);
   }
 
   function diagnostics(inner) {
