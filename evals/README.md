@@ -171,6 +171,7 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 
 | 케이스 | 입력 | 기대 |
 |---|---|---|
+| `impl-validator-delta-rereview` | (합성) 110파일 전체 holistic FAIL receipt 뒤 4파일 root-cause rework와 신규 authorization bypass가 들어온 2라운드 candidate delta | 직전 finding 전항목의 근본 해소와 신규 delta 위험을 판정하고, 이전 검토 이력 재사용 범위·전체 재독 승격 경계를 보고해야 한다 |
 | `impl-fast-start-recovery` | (실사고 #1185/#1181) 자연어 direct 구현, 반복 loop task, 변경 후 timeout·빈 prose·TDD guard 실패, 권한 확대 제안이 이어지는 trace | 사전 ceremony·routine 질문 없이 개발을 시작하고 같은 provider/workspace에서 bounded 복구하되 hard boundary·test 면제는 자동 승인하지 않아야 한다 |
 | `story-slice-partfirst` | (합성) 기능 영역(인테이크/템플릿/오디오/렌더/업로드) 부품 단위로 잘려 마지막 story 까지 동작이 안 나오는 backlog | 분할·순서 결함이 지적돼야 한다 |
 | `story-slice-skeleton` | (합성) 첫 story 가 얇은 end-to-end 골격이고 매 story 가 확인 가능한 증분인 backlog | 분할·순서를 이유로 퇴짜 놓으면 안 된다 |
