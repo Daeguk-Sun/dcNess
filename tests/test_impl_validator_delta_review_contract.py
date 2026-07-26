@@ -137,6 +137,7 @@ class ImplValidatorDeltaReviewContractTests(unittest.TestCase):
                 output.joinpath("metadata.json").read_text(encoding="utf-8")
             )
             self.assertEqual(metadata["fixture"]["first_candidate_files"], 110)
+            self.assertEqual(metadata["fixture"]["first_candidate_lines"], 5500)
             self.assertEqual(metadata["fixture"]["delta_files"], 4)
             self.assertEqual(metadata["reduction_seconds"], 100.0)
             self.assertEqual(metadata["reduction_percent"], 50.0)

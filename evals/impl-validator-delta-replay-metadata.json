@@ -74,7 +74,7 @@
   "verification_command": "python3.11 -m unittest tests.test_impl_validator_delta_review_contract.ImplValidatorDeltaReviewContractTests.test_two_round_replay_records_material_speedup_without_quality_loss -v",
   "limitations": [
     "Provider latency varies; this paired replay is evidence for the scoped contract, not a model-speed guarantee.",
-    "The fixture preserves the observed 110-file and roughly 5816-line shape but uses synthetic module summaries rather than product source.",
+    "The fixture preserves the observed 110-file and 5500-line shape but uses synthetic module summaries rather than product source.",
     "A separate human verification remains required on one real story close."
   ]
 }

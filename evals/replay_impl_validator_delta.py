@@ -285,7 +285,7 @@ HEAD `2222222222222222222222222222222222222222`, tree
         "limitations": [
             "Provider latency varies; this paired replay is evidence for the scoped "
             "contract, not a model-speed guarantee.",
-            "The fixture preserves the observed 110-file and roughly 5,816-line "
+            "The fixture preserves the observed 110-file and 5,500-line "
             "shape but uses synthetic module summaries rather than product source.",
             "A separate human verification remains required on one real story close.",
         ],
