@@ -62,6 +62,7 @@
     "scripts/dcness-review",
     "scripts/dcness-story-runner",
     "scripts/dcness-tdd-hooks",
+    "scripts/design",
     "scripts/ensure_docs_index_next_section.mjs",
     "scripts/github_project_lifecycle.mjs",
     "scripts/hooks/commit-msg",

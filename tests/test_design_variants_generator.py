@@ -447,6 +447,7 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         manifest = json.loads(
             (ROOT / "scripts" / "release_artifact.json").read_text(encoding="utf-8")
         )
+        self.assertIn("scripts/design", manifest["include_paths"])
         doc_sync = (
             ROOT / ".github" / "actions" / "doc-sync" / "action.yml"
         ).read_text(encoding="utf-8")
