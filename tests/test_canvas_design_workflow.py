@@ -391,6 +391,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "arrowNodeHits",
             "labelPairHits",
             "variantFrames",
+            "frame.contentDocument?.documentElement",
             "zoomToFit",
             "dcnessCanvasDiagnostics",
         ):

@@ -629,19 +629,22 @@
 
   function diagnostics(inner) {
     return {
-      frames: [...inner.querySelectorAll('iframe')].map(frame => ({
-        src: frame.getAttribute('src'),
-        width: frame.clientWidth,
-        height: frame.clientHeight,
-        scrollWidth: frame.contentDocument?.documentElement.scrollWidth ?? null,
-        scrollHeight: frame.contentDocument?.documentElement.scrollHeight ?? null,
-        hasInternalScroll: frame.contentDocument
-          ? (
-            frame.contentDocument.documentElement.scrollWidth > frame.clientWidth
-            || frame.contentDocument.documentElement.scrollHeight > frame.clientHeight
-          )
-          : null,
-      })),
+      frames: [...inner.querySelectorAll('iframe')].map(frame => {
+        const root = frame.contentDocument?.documentElement;
+        return {
+          src: frame.getAttribute('src'),
+          width: frame.clientWidth,
+          height: frame.clientHeight,
+          scrollWidth: root?.scrollWidth ?? null,
+          scrollHeight: root?.scrollHeight ?? null,
+          hasInternalScroll: root
+            ? (
+              root.scrollWidth > frame.clientWidth
+              || root.scrollHeight > frame.clientHeight
+            )
+            : null,
+        };
+      }),
       variantFrames: [...inner.querySelectorAll('.variant-frame')].map(frame => ({
         nodeId: frame.closest('.screen-node')?.dataset.nodeId || '',
         id: frame.dataset.variantId || '',
