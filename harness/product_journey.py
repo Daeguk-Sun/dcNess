@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import signal
@@ -188,6 +189,112 @@ def _validated_ui_evidence(config: dict[str, Any]) -> None:
         )
 
 
+def _validated_ux_elements(
+    snapshot: dict[str, Any], prefix: str, step_ac: set[str], needs_node_id: bool
+) -> set[str]:
+    elements = snapshot.get("elements")
+    if not isinstance(elements, list) or not elements:
+        raise JourneyConfigError(
+            f"{prefix}.elements must declare at least one screen element"
+        )
+    element_ids: set[str] = set()
+    covered_ac: set[str] = set()
+    for index, element in enumerate(elements):
+        item_prefix = f"{prefix}.elements[{index}]"
+        if not isinstance(element, dict):
+            raise JourneyConfigError(f"{item_prefix} must be an object")
+        element_id = _require_text(element, "element_id")
+        if element_id in element_ids:
+            raise JourneyConfigError(f"{item_prefix}.element_id must be unique")
+        element_ids.add(element_id)
+        element_ac = element.get("target_ac")
+        if (
+            not isinstance(element_ac, list)
+            or not element_ac
+            or any(not isinstance(item, str) or not item.strip() for item in element_ac)
+        ):
+            raise JourneyConfigError(f"{item_prefix}.target_ac must contain AC ids")
+        normalized_ac = {item.strip() for item in element_ac}
+        if not normalized_ac.issubset(step_ac):
+            raise JourneyConfigError(
+                f"{item_prefix}.target_ac must be declared by the referenced ui_evidence step"
+            )
+        covered_ac.update(normalized_ac)
+        if needs_node_id or element.get("node_id") is not None:
+            _require_text(element, "node_id")
+    return covered_ac
+
+
+def _validated_ux_integrity(config: dict[str, Any]) -> None:
+    boundary = config.get("boundary")
+    raw = config.get("ux_integrity")
+    if boundary != "ui":
+        if raw is not None:
+            raise JourneyConfigError("ux_integrity is only valid for boundary=ui")
+        return
+    if not isinstance(raw, dict):
+        raise JourneyConfigError("ux_integrity must be an object for boundary=ui")
+    snapshots = raw.get("snapshots")
+    if not isinstance(snapshots, list) or not snapshots:
+        raise JourneyConfigError(
+            "ux_integrity.snapshots must declare at least one screen snapshot"
+        )
+    declared_steps = {
+        str(step["step_id"]): {str(item).strip() for item in step["target_ac"]}
+        for step in config["ui_evidence"]["steps"]
+    }
+    final_steps = {
+        step_id: declared_steps[step_id]
+        for step in config["ui_evidence"]["steps"]
+        if step["final"]
+        for step_id in (str(step["step_id"]),)
+    }
+    snapshot_steps: set[str] = set()
+    snapshot_reports: set[str] = set()
+    snapshot_ac: dict[str, set[str]] = {}
+    for index, snapshot in enumerate(snapshots):
+        prefix = f"ux_integrity.snapshots[{index}]"
+        if not isinstance(snapshot, dict):
+            raise JourneyConfigError(f"{prefix} must be an object")
+        step_id = _require_text(snapshot, "step_id")
+        if step_id not in declared_steps:
+            raise JourneyConfigError(
+                f"{prefix}.step_id must name a declared ui_evidence step"
+            )
+        if step_id in snapshot_steps:
+            raise JourneyConfigError(f"{prefix}.step_id must be unique")
+        snapshot_steps.add(step_id)
+        layout_report = Path(_require_text(snapshot, "layout_report"))
+        if layout_report.is_absolute() or ".." in layout_report.parts:
+            raise JourneyConfigError(
+                f"{prefix}.layout_report must stay inside the run directory"
+            )
+        # casefold: on case-insensitive filesystems two spellings name one file,
+        # which would let two screens be judged against a single report.
+        report_key = layout_report.as_posix().casefold()
+        if report_key in snapshot_reports:
+            raise JourneyConfigError(
+                f"{prefix}.layout_report must not be shared between snapshots"
+            )
+        snapshot_reports.add(report_key)
+        mockup = snapshot.get("mockup_reference")
+        if mockup is not None:
+            reference = Path(_require_text(snapshot, "mockup_reference"))
+            if reference.is_absolute() or ".." in reference.parts:
+                raise JourneyConfigError(
+                    f"{prefix}.mockup_reference must be project-relative"
+                )
+        snapshot_ac[step_id] = _validated_ux_elements(
+            snapshot, prefix, declared_steps[step_id], mockup is not None
+        )
+    for step_id, required_ac in final_steps.items():
+        if not required_ac.issubset(snapshot_ac.get(step_id, set())):
+            raise JourneyConfigError(
+                "ux_integrity must judge every AC of each final ui_evidence step "
+                f"in that step's own snapshot: {step_id}"
+            )
+
+
 def _validated_config(
     project_root: Path, config_path: Path
 ) -> tuple[dict[str, Any], Path]:
@@ -208,6 +315,7 @@ def _validated_config(
     if boundary not in _BOUNDARIES:
         raise JourneyConfigError(f"boundary must be one of {sorted(_BOUNDARIES)}")
     _validated_ui_evidence(config)
+    _validated_ux_integrity(config)
     assertion = config.get("assertion")
     if not isinstance(assertion, dict):
         raise JourneyConfigError("assertion must be an object")
@@ -423,6 +531,247 @@ def _collect_ui_evidence(
     return {"steps": collected_steps}, complete, present_types
 
 
+def _number(payload: dict[str, Any], key: str, default: Any = None) -> Optional[float]:
+    value = payload.get(key, default)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        return None
+    try:
+        number = float(value)
+    except OverflowError:
+        return None
+    if not math.isfinite(number):
+        return None
+    return number
+
+
+def _bounds(payload: object) -> Optional[tuple[float, float, float, float]]:
+    if not isinstance(payload, dict):
+        return None
+    x = _number(payload, "x")
+    y = _number(payload, "y")
+    width = _number(payload, "width")
+    height = _number(payload, "height")
+    if x is None or y is None or width is None or height is None:
+        return None
+    if width <= 0 or height <= 0:
+        return None
+    return (x, y, width, height)
+
+
+def _within(inner: tuple[float, ...], outer: tuple[float, ...]) -> bool:
+    return (
+        inner[0] >= outer[0]
+        and inner[1] >= outer[1]
+        and inner[0] + inner[2] <= outer[0] + outer[2]
+        and inner[1] + inner[3] <= outer[1] + outer[3]
+    )
+
+
+def _covers(rect: tuple[float, ...], x: float, y: float) -> bool:
+    return rect[0] <= x < rect[0] + rect[2] and rect[1] <= y < rect[1] + rect[3]
+
+
+def _parse_layout_report(path: Path) -> Optional[dict[str, Any]]:
+    """Normalize a project-produced layout report into safe area and element bounds."""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict) or payload.get("version") != SCHEMA_VERSION:
+        return None
+    viewport = payload.get("viewport")
+    if not isinstance(viewport, dict):
+        return None
+    width = _number(viewport, "width")
+    height = _number(viewport, "height")
+    if width is None or height is None or width <= 0 or height <= 0:
+        return None
+    raw_safe_area = payload.get("safe_area")
+    if not isinstance(raw_safe_area, dict):
+        return None
+    insets: dict[str, float] = {}
+    for side in ("top", "right", "bottom", "left"):
+        inset = _number(raw_safe_area, side)
+        if inset is None or inset < 0:
+            return None
+        insets[side] = inset
+    safe_area = (
+        insets["left"],
+        insets["top"],
+        width - insets["left"] - insets["right"],
+        height - insets["top"] - insets["bottom"],
+    )
+    if safe_area[2] <= 0 or safe_area[3] <= 0:
+        return None
+    raw_elements = payload.get("elements")
+    if not isinstance(raw_elements, list) or not raw_elements:
+        return None
+    elements: dict[str, tuple[tuple[float, float, float, float], float]] = {}
+    for item in raw_elements:
+        if not isinstance(item, dict):
+            return None
+        element_id = item.get("element_id")
+        if not isinstance(element_id, str) or not element_id.strip():
+            return None
+        element_id = element_id.strip()
+        if element_id in elements:
+            return None
+        bounds = _bounds(item.get("bounds"))
+        order = _number(item, "z")
+        if bounds is None or order is None:
+            return None
+        elements[element_id] = (bounds, order)
+    return {"safe_area": safe_area, "elements": elements}
+
+
+def _judge_elements(
+    report: Optional[dict[str, Any]], declared: list[dict[str, Any]]
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Derive per-element verdicts from one screen snapshot's real bounds.
+
+    Both receipt generation and receipt validation call this so a recorded
+    verdict can always be recomputed from the hashed layout report.
+    """
+    reasons: list[str] = []
+    judged: list[dict[str, Any]] = []
+    for element in declared:
+        element_id = element["element_id"]
+        entry: dict[str, Any] = {
+            "element_id": element_id,
+            "target_ac": [str(item).strip() for item in element["target_ac"]],
+            "node_id": element.get("node_id"),
+            "evaluated": False,
+            "bounds": None,
+            "within_safe_area": None,
+            "occluded_by": [],
+        }
+        if report is not None:
+            found = report["elements"].get(element_id)
+            if found is None:
+                _append_once(reasons, "ux_integrity_element_missing")
+            else:
+                bounds, order = found
+                entry["evaluated"] = True
+                entry["bounds"] = {
+                    "x": bounds[0],
+                    "y": bounds[1],
+                    "width": bounds[2],
+                    "height": bounds[3],
+                }
+                within = _within(bounds, report["safe_area"])
+                entry["within_safe_area"] = within
+                if not within:
+                    _append_once(reasons, "ux_integrity_chrome_overlap")
+                center_x = bounds[0] + bounds[2] / 2
+                center_y = bounds[1] + bounds[3] / 2
+                occluded_by = sorted(
+                    other_id
+                    for other_id, (
+                        other_bounds,
+                        other_order,
+                    ) in report["elements"].items()
+                    if other_id != element_id
+                    and other_order > order
+                    and _covers(other_bounds, center_x, center_y)
+                    and not _within(other_bounds, bounds)
+                )
+                entry["occluded_by"] = occluded_by
+                if occluded_by:
+                    _append_once(reasons, "ux_integrity_occluded")
+        judged.append(entry)
+    return judged, reasons
+
+
+def _canonical_ux_declaration(declaration: dict[str, Any]) -> list[dict[str, Any]]:
+    """Normalize the manifest's UX declaration into the judged shape."""
+    return [
+        {
+            "step_id": snapshot["step_id"].strip(),
+            "layout_report": Path(snapshot["layout_report"].strip()).as_posix(),
+            "mockup_reference": snapshot.get("mockup_reference"),
+            "elements": [
+                {
+                    "element_id": element["element_id"].strip(),
+                    "target_ac": [str(item).strip() for item in element["target_ac"]],
+                    "node_id": element.get("node_id"),
+                }
+                for element in snapshot["elements"]
+            ],
+        }
+        for snapshot in declaration["snapshots"]
+    ]
+
+
+def _declaration_digest(canonical: list[dict[str, Any]]) -> str:
+    return hashlib.sha256(
+        json.dumps(canonical, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()
+
+
+def _layout_report_state(
+    declared_path: Path, run_dir: Path
+) -> tuple[bool, Optional[str]]:
+    try:
+        declared_path.resolve().relative_to(run_dir.resolve())
+    except ValueError:
+        return False, None
+    try:
+        present = (
+            declared_path.is_file()
+            and not declared_path.is_symlink()
+            and declared_path.stat().st_size > 0
+        )
+    except OSError:
+        return False, None
+    if not present:
+        return False, None
+    try:
+        return True, _sha256_file(declared_path)
+    except OSError:
+        return False, None
+
+
+def _evaluate_ux_integrity(
+    config: dict[str, Any], run_dir: Path, project_root: Path
+) -> tuple[dict[str, Any], list[str]]:
+    """Judge each declared screen snapshot from its own layout report."""
+    reasons: list[str] = []
+    snapshots: list[dict[str, Any]] = []
+    declaration = _canonical_ux_declaration(config["ux_integrity"])
+    for snapshot in declaration:
+        declared_path = run_dir / snapshot["layout_report"]
+        present, report_hash = _layout_report_state(declared_path, run_dir)
+        report: dict[str, Any] | None = None
+        if present:
+            report = _parse_layout_report(declared_path)
+            if report is None:
+                _append_once(reasons, "ux_integrity_report_invalid")
+        else:
+            _append_once(reasons, "ux_integrity_report_missing")
+        judged, element_reasons = _judge_elements(report, snapshot["elements"])
+        for reason in element_reasons:
+            _append_once(reasons, reason)
+        snapshots.append(
+            {
+                "step_id": snapshot["step_id"],
+                "layout_report": {
+                    "path": declared_path.relative_to(project_root).as_posix(),
+                    "present": present,
+                    "sha256": report_hash,
+                },
+                "mockup_reference": snapshot["mockup_reference"],
+                "elements": judged,
+            }
+        )
+    return (
+        {
+            "declaration_sha256": _declaration_digest(declaration),
+            "snapshots": snapshots,
+        },
+        reasons,
+    )
+
+
 def run_from_config(
     project_root: Path | str,
     *,
@@ -517,12 +866,18 @@ def run_from_config(
 
     ui_evidence: dict[str, Any] | None = None
     ui_evidence_types: set[str] = set()
+    ux_integrity: dict[str, Any] | None = None
     if config["boundary"] == "ui":
         ui_evidence, ui_complete, ui_evidence_types = _collect_ui_evidence(
             config, run_dir, root
         )
         if not ui_complete:
             _append_once(failures, "ui_evidence_missing")
+        ux_integrity, ux_integrity_reasons = _evaluate_ux_integrity(
+            config, run_dir, root
+        )
+        for reason in ux_integrity_reasons:
+            _append_once(failures, reason)
 
     outcome = (
         "PASS"
@@ -579,6 +934,8 @@ def run_from_config(
     }
     if ui_evidence is not None:
         receipt["ui_evidence"] = ui_evidence
+    if ux_integrity is not None:
+        receipt["ux_integrity"] = ux_integrity
     _write_receipt(receipt_path, receipt)
     return JourneyRunResult(0 if outcome == "PASS" else 1, receipt_path, receipt)
 
@@ -689,7 +1046,9 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
     if boundary == "ui":
         if not _valid_ui_receipt(payload, project_root, receipt_path):
             return False
-    elif "ui_evidence" in payload:
+        if not _valid_ux_integrity_receipt(payload, project_root, receipt_path):
+            return False
+    elif "ui_evidence" in payload or "ux_integrity" in payload:
         return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
 
@@ -777,6 +1136,124 @@ def _valid_ui_receipt(
         return False
     expected_types = {"command", "log", "ui", *declared_types}
     return set(payload["evidence_types"]) == expected_types
+
+
+def _ac_contract(payload: dict[str, Any]) -> tuple[Any, ...]:
+    """The AC ownership a UI journey claims, in a form manifest and receipt share."""
+    return (
+        [str(item).strip() for item in payload["target_ac"]],
+        [
+            (
+                str(step["step_id"]).strip(),
+                [str(item).strip() for item in step["target_ac"]],
+                bool(step["final"]),
+            )
+            for step in payload["ui_evidence"]["steps"]
+        ],
+    )
+
+
+def _receipt_ux_declaration(
+    payload: dict[str, Any], project_root: Path
+) -> Optional[list[dict[str, Any]]]:
+    """Re-derive the judged declaration from the tracked manifest, not the receipt.
+
+    Recomputing verdicts only proves internal consistency. Binding the declaration
+    to the manifest is what stops a receipt from re-pointing the lens at a
+    different, unobstructed element after the fact.
+    """
+    lens = payload["ux_integrity"]
+    digest = lens.get("declaration_sha256")
+    config_path = payload.get("config_path")
+    if not isinstance(digest, str) or not isinstance(config_path, str):
+        return None
+    path = (project_root / config_path).resolve()
+    try:
+        path.relative_to(project_root.resolve())
+    except ValueError:
+        return None
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    if not isinstance(config, dict):
+        return None
+    try:
+        _validated_ui_evidence(config)
+        _validated_ux_integrity(config)
+    except (JourneyConfigError, AttributeError, KeyError, TypeError):
+        return None
+    canonical = _canonical_ux_declaration(config["ux_integrity"])
+    if _declaration_digest(canonical) != digest:
+        return None
+    # Without this the receipt could restate which AC the journey closed while
+    # keeping the manifest-bound snapshots intact, crediting an untested AC.
+    if _ac_contract(config) != _ac_contract(payload):
+        return None
+    return canonical
+
+
+def _valid_ux_snapshot_receipt(
+    declared: dict[str, Any],
+    snapshot: object,
+    project_root: Path,
+    run_dir: Path,
+) -> Optional[bool]:
+    """Recompute one snapshot's verdicts and confirm they match what was recorded."""
+    if not isinstance(snapshot, dict):
+        return None
+    if snapshot.get("step_id") != declared["step_id"]:
+        return None
+    if snapshot.get("mockup_reference") != declared["mockup_reference"]:
+        return None
+    report_meta = snapshot.get("layout_report")
+    if not isinstance(report_meta, dict):
+        return None
+    declared_path = report_meta.get("path")
+    present = report_meta.get("present")
+    declared_hash = report_meta.get("sha256")
+    if not isinstance(declared_path, str) or not isinstance(present, bool):
+        return None
+    target = run_dir / declared["layout_report"]
+    if (project_root / declared_path).resolve() != target.resolve():
+        return None
+    # Reuse the generation-side probe so symlink, boundary, and hash rules
+    # cannot drift between writing a receipt and consuming it.
+    actual_present, actual_hash = _layout_report_state(target, run_dir)
+    if actual_present != present or actual_hash != declared_hash:
+        return None
+    report = _parse_layout_report(target) if actual_present else None
+    recomputed, _ = _judge_elements(report, declared["elements"])
+    if recomputed != snapshot.get("elements"):
+        return None
+    return all(
+        element["evaluated"]
+        and element["within_safe_area"] is True
+        and not element["occluded_by"]
+        for element in recomputed
+    )
+
+
+def _valid_ux_integrity_receipt(
+    payload: dict[str, Any], project_root: Path, receipt_path: Path
+) -> bool:
+    lens = payload.get("ux_integrity")
+    if not isinstance(lens, dict):
+        return False
+    snapshots = lens.get("snapshots")
+    if not isinstance(snapshots, list):
+        return False
+    declaration = _receipt_ux_declaration(payload, project_root)
+    if declaration is None or len(snapshots) != len(declaration):
+        return False
+    run_dir = receipt_path.parent.resolve()
+    unobstructed = True
+    for declared, snapshot in zip(declaration, snapshots):
+        judged = _valid_ux_snapshot_receipt(declared, snapshot, project_root, run_dir)
+        if judged is None:
+            return False
+        unobstructed = unobstructed and judged
+    return not (payload["outcome"] == "PASS" and not unobstructed)
 
 
 def _evidence_matches_receipt(
