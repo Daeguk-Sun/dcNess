@@ -1,7 +1,7 @@
 # Project-local 제품 journey 실행 계약
 
 > **Status**: ACTIVE
-> **Scope**: 외부 활성 프로젝트의 핵심 journey 한 건을 실제 제품 경계에서 실행하고 product-acceptance가 읽을 receipt를 생성한다. UI journey는 같은 실행 계약에 단계별 화면 증거만 선택적으로 추가한다.
+> **Scope**: 외부 활성 프로젝트의 핵심 journey 한 건을 실제 제품 경계에서 실행하고 product-acceptance가 읽을 receipt를 생성한다. UI journey는 같은 실행 계약에 단계별 화면 증거와 요소 bounds 기반 UX 정합성 판정을 더한다.
 
 ## 책임 경계
 
@@ -115,7 +115,7 @@ start가 실패하거나 service가 유예 시간 안에 종료되면 `app_not_s
 
 ## UI 증거 확장
 
-`boundary=ui`는 위 project-local 계약을 바꾸지 않고 `ui_evidence.steps`만 추가한다. 최소 두 단계가 필요하며 `final=true`인 단계들이 `target_ac` 전부를 덮어야 한다. 각 evidence path는 해당 run directory 내부의 상대 경로이고 type은 `screenshot`, `state`, `log` 중 하나다.
+`boundary=ui`는 위 project-local 계약에 `ui_evidence.steps`와 아래 [UX 정합성 렌즈](#ux-정합성-렌즈)의 `ux_integrity`를 함께 추가한다. 이 절의 예시는 `ui_evidence` 부분만 떼어 보인 조각이며, `ux_integrity` 없이 실행하면 계약 오류(exit 2)다. 최소 두 단계가 필요하며 `final=true`인 단계들이 `target_ac` 전부를 덮어야 한다. 각 evidence path는 해당 run directory 내부의 상대 경로이고 type은 `screenshot`, `state`, `log` 중 하나다.
 
 ```json
 {
@@ -151,6 +151,97 @@ helper는 command 환경에 `DCNESS_PRODUCT_JOURNEY_RUN_DIR` 절대경로를 주
 
 이는 UI 전용 실행기나 범용 E2E 플랫폼이 아니다. 기존 Playwright, AppTest, XCUITest 같은 project-local 도구 또는 수동으로 보존된 자동화 driver를 journey command가 선택하고, dcNess helper는 실행 순서·receipt·무결성만 맡는다.
 
+## UX 정합성 렌즈
+
+요소가 화면에 존재한다는 가시성 assertion만으로는 `boundary=ui`의 REQ를 닫을 수 없다. 요소가 시스템 chrome이나 다른 레이어에 가려 실제로 조작·판독이 불가능해도 "보인다"는 assertion은 그대로 통과하므로, 기능 assertion이 exit 0이어도 사람이 보면 깨진 화면이 제품 outcome PASS가 되는 false-green이 구조적으로 가능하다. 그래서 `boundary=ui` 매니페스트는 `ux_integrity`를 반드시 선언하고, helper가 요소의 실제 bounds를 근거로 겹침·가림을 판정한다. 선언이 없으면 `ui_evidence`와 같은 계약 오류(exit 2)이며, product-acceptance는 이를 실행 불가 gap으로 분리한다.
+
+책임 경계는 기존과 같다. 플랫폼별 화면 hierarchy를 어떤 도구로 dump하는지는 프로젝트 harness가 소유하고, dcNess는 그 결과를 읽어 판정하는 계약과 계약 부재의 gap 판정만 소유한다.
+
+요소 bounds는 한 화면 상태 안에서만 의미가 있으므로 판정 단위는 화면 snapshot이다. 각 snapshot은 `ui_evidence.steps`의 한 단계에 묶이고 자기 layout report를 가진다. 서로 다른 화면의 요소를 한 report에 합치면 남의 화면 요소끼리 가림 판정이 나므로, snapshot끼리 같은 layout report 경로를 공유할 수 없다. 요소가 닫는 AC도 그 단계가 evidence로 내세운 AC 안에서만 고를 수 있고, AC를 실제로 닫는 `final=true` 단계는 자기 snapshot으로 자기 AC를 전부 판정해야 한다. 그렇지 않으면 앞 화면 요소가 뒤 화면의 AC를 대신 닫아, 정작 가려진 최종 화면 판정을 통째로 생략할 수 있다.
+
+```json
+{
+  "boundary": "ui",
+  "target_ac": ["AC-ONBOARD-1", "AC-ONBOARD-2"],
+  "ux_integrity": {
+    "snapshots": [
+      {
+        "step_id": "onboarding",
+        "layout_report": "onboarding-layout.json",
+        "mockup_reference": "docs/design-variants/onboarding.html",
+        "elements": [
+          {
+            "element_id": "permission-banner-cta",
+            "target_ac": ["AC-ONBOARD-1"],
+            "node_id": "onboarding.permission-cta"
+          }
+        ]
+      },
+      {
+        "step_id": "result",
+        "layout_report": "result-layout.json",
+        "elements": [
+          {"element_id": "result-confirm-cta", "target_ac": ["AC-ONBOARD-2"]}
+        ]
+      }
+    ]
+  }
+}
+```
+
+| 필드 | 계약 |
+|---|---|
+| `ux_integrity.snapshots` | 화면 단위 판정 목록. 한 개 이상 필수이며 `final=true`인 각 `ui_evidence` 단계마다 그 단계 자신의 snapshot이 해당 단계의 AC를 전부 판정해야 한다 |
+| `ux_integrity.snapshots[].step_id` | 이 snapshot이 판정하는 화면. `ui_evidence.steps`에 선언한 `step_id` 중 하나여야 하고 snapshot 사이에서 유일하다. 그 단계가 evidence로 내세운 AC만 이 snapshot에서 닫을 수 있다 |
+| `ux_integrity.snapshots[].layout_report` | journey command가 run directory 안에 생성하는 그 화면의 layout report 상대 경로. snapshot끼리 공유할 수 없다 |
+| `ux_integrity.snapshots[].elements` | 그 화면에서 REQ를 닫는 근거가 되는 요소 목록. 한 개 이상 필수 |
+| `ux_integrity.snapshots[].elements[].element_id` | layout report의 같은 식별자와 대응하는 요소 id |
+| `ux_integrity.snapshots[].elements[].node_id` | 확정 목업의 `data-node-id`. 그 snapshot이 `mockup_reference`를 선언하면 요소마다 필수 |
+| `ux_integrity.snapshots[].mockup_reference` | 그 화면의 확정 목업 경로(`docs/design-variants/<screen-id>.html`). 선언하면 receipt에 보존돼 목업 기준 배치 판정의 입력이 된다 |
+
+### layout report 계약
+
+프로젝트 journey command는 `DCNESS_PRODUCT_JOURNEY_RUN_DIR` 아래에 화면마다 다음 형태의 layout report를 생성한다. 좌표계는 viewport 기준 픽셀이며 `safe_area`는 시스템 chrome(status bar, navigation bar, notch 등)이 점유한 inset이다.
+
+```json
+{
+  "version": 1,
+  "viewport": {"width": 1080, "height": 2400},
+  "safe_area": {"top": 96, "right": 0, "bottom": 48, "left": 0},
+  "elements": [
+    {
+      "element_id": "permission-banner-cta",
+      "bounds": {"x": 40, "y": 400, "width": 1000, "height": 120},
+      "z": 0
+    },
+    {
+      "element_id": "modal-scrim",
+      "bounds": {"x": 0, "y": 96, "width": 1080, "height": 2256},
+      "z": 5
+    }
+  ]
+}
+```
+
+`safe_area`의 네 inset과 요소별 `z`는 생략할 수 없고 모든 수치는 유한한 값이어야 한다. 둘 다 판정의 입력 자체이므로, 없는 값을 0으로 가정하거나 `NaN`을 그대로 받아들이면 chrome 침범과 가림이 검출 불가능한 상태가 조용히 PASS로 바뀐다. chrome이 없는 화면은 0을 명시하고, hierarchy dump가 draw order를 제공하지 못하면 그 report로는 판정하지 않는다. 선언하지 않은 요소도 report에 담아야 가림 판정의 상위 레이어로 쓰인다. 같은 `element_id`가 두 번 나오면 어느 요소를 판정할지 모호하므로 report 전체를 무효로 본다.
+
+### 판정 규칙
+
+helper는 snapshot마다 자기 layout report만 읽고, 선언한 요소마다 두 가지를 bounds에서 계산한다.
+
+- **`ux_integrity_chrome_overlap`** — 요소 bounds가 viewport ∩ safe area 안에 완전히 들어가지 않는다. 시스템 chrome 침범과 viewport 밖 잘림을 함께 잡는다.
+- **`ux_integrity_occluded`** — 요소 중심점을 같은 화면에서 `z`가 더 큰 요소가 덮는다. 조작·판독의 대표 지점이 상위 레이어에 막힌 상태다. 단, 대상 요소 bounds 안에 완전히 들어가는 요소는 그 요소의 구성 부분(버튼 안의 label·icon 등)으로 보고 가림 후보에서 제외한다. 이 제외가 없으면 자식 노드를 별도로 dump하는 흔한 hierarchy에서 정상 버튼이 전부 실패한다.
+
+layout report가 없거나 비었거나 run directory 밖 symlink면 `ux_integrity_report_missing`, 위 schema로 읽히지 않으면 `ux_integrity_report_invalid`, 선언한 요소가 그 화면 report에 없으면 `ux_integrity_element_missing`이다. 어느 하나라도 발생하면 journey exit이 0이어도 outcome은 FAIL이며, receipt에는 snapshot별로 요소 bounds, `within_safe_area`, `occluded_by`, layout report의 SHA-256이 남는다. 사람 확인으로 미루지 않고 journey 실행 경로에서 판정한다.
+
+receipt에 적힌 판정값은 근거를 대신하지 않는다. scorecard가 receipt를 읽을 때 무엇을 판정해야 했는지는 receipt가 아니라 tracked 매니페스트에서 다시 읽고(`declaration_sha256`로 대조), 그 선언과 해시가 일치하는 layout report로 판정을 다시 계산해 기록값과 대조한다. 그래서 `occluded_by`만 고쳐 쓴 receipt, 뒤 화면 snapshot을 지우고 그 AC를 앞 요소로 옮긴 receipt, 가려진 요소를 같은 report 안의 멀쩡한 다른 요소로 바꿔치기한 receipt가 모두 구조 무효로 버려진다. 매니페스트의 UX 선언을 바꾸면 그 이전 receipt는 다른 계약의 산물이므로 더 이상 집계되지 않는다.
+
+관찰 창이 sub-second인 상태나 픽셀 단위 시각 회귀는 여전히 이 렌즈의 대상이 아니다. 이 렌즈는 스크린샷 diff가 아니라 요소 bounds의 겹침·가림만 판정한다.
+
+### 확정 목업과의 연결
+
+확정 목업이 있는 화면은 impl task의 `디자인 참조` 절이 진본이다. 그 절의 확정 목업 경로와 핵심 `data-node-id` 매핑을 build-worker가 해당 화면 snapshot의 `mockup_reference`와 요소별 `node_id`로 materialize하고, helper가 그대로 receipt에 보존한다. product-acceptance는 이 링크로 목업 기준 배치와 실제 bounds를 같은 요소 단위에서 대조하며, 목업 없이 진행하기로 한 화면은 `mockup_reference`를 생략해 그 사실이 receipt에 드러나게 한다.
+
 ## 실행과 receipt
 
 ```sh
@@ -165,6 +256,7 @@ helper는 command 환경에 `DCNESS_PRODUCT_JOURNEY_RUN_DIR` 절대경로를 주
 - assertion의 설명·근거·평가 여부·결과.
 - 단계별 argv, exit code, timeout, wall-clock과 log 위치.
 - UI journey이면 핵심 단계 설명·대상 AC·최종 단계 여부·screenshot/state/log path와 SHA-256.
+- UI journey이면 UX 정합성 렌즈의 화면 snapshot별 layout report path·존재 여부·SHA-256, 확정 목업 링크, 요소별 bounds·`within_safe_area`·`occluded_by`.
 - 대상 AC의 passed/total denominator, 사람 개입, 실행 증거 종류.
 - log별 sha256과 failure reason.
 
