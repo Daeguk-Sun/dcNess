@@ -27,7 +27,7 @@ Epic close에서는 같은 holistic merge-review invocation에 `CODEBASE_SANITY`
 - `CODEBASE_SANITY`이면 code revision/tree identity, 적용 scope, 메인이 발견·실행한 test/lint/build/typecheck/coverage 명령별 exit code와 warning
 - 구현자가 자유 prose로 남긴 build-worker impact 보고. direct 구현이면 같은 의미 축의 Cartography impact 보고
 - impact가 가리키는 affected Root Cartography 좌표와 tracked/local-only 문서 정책
-- 필요하면 retry count, scope note, known constraint
+- 재리뷰이면 retry round, 직전 `step_completed` receipt 식별자인 `prose_file` + `sha256`, receipt 전문, 직전 candidate HEAD/tree/workspace root, 현재 candidate HEAD/tree/workspace root, 직전 candidate HEAD..현재 candidate HEAD의 commit·변경 파일 목록
 - 다중 story/epic invocation이면 포함된 story PR/조건부 QA PR 목록과 최종 stack tip
 
 ## 먼저 볼 기준
@@ -40,6 +40,22 @@ Epic close에서는 같은 holistic merge-review invocation에 `CODEBASE_SANITY`
 - 호출자가 제공한 test evidence
 - implementation Cartography impact가 있으면 구현 diff, build-worker impact 보고, affected Root Cartography 좌표, 상태 증거, 관련 epic/decision
 - 이전 impl-validator 결과가 있으면 재검증 delta
+
+## 재리뷰 delta mode
+
+첫 라운드는 base..candidate 전체 holistic 리뷰다. 첫 라운드 `FAIL` 뒤 root-cause 수정으로 새 candidate가 생긴 같은 close 재리뷰만 delta mode 후보다. 직전 receipt는 최종 판정 재사용이 아니라 직전 라운드의 검토 범위와 finding을 보존한 이력이다.
+
+delta mode에서는 직전 receipt의 모든 `MUST FIX` finding이 현재 tip에서 근본 원인으로 해소됐는지 다시 추적하고, 직전 candidate HEAD..현재 candidate HEAD의 commit·변경 파일과 직접 영향 표면에서 신규 spec/quality/Cartography 위험을 찾는다. Epic close면 활성 `CODEBASE_SANITY` 렌즈의 신규 위험도 같은 delta에서 판정한다. 직전 holistic 리뷰가 확인했고 candidate delta가 건드리지 않은 영역은 검토 이력으로 재사용할 수 있지만, 이는 안 본 영역을 새로 통과 처리하는 것이 아니다. 이전에 읽지 않은 영역, transitive 영향, finding 판정에 필요한 owner·registration·test·contract는 선택적으로 더 읽는다.
+
+다음 신호가 있으면 좁힌 범위를 고집하지 않고 전체 재독으로 승격한다. 이는 자동 threshold가 아니라 reviewer 판단 기준이다.
+
+- `prose_file`/`sha256` 부재 또는 digest 불일치
+- 직전 candidate HEAD/tree/workspace root나 현재 candidate HEAD/tree/workspace root 부재, history rewrite·base/workspace 변경으로 계보와 delta 증명 불가
+- public contract, module owner, dependency/registration, schema, security boundary, Cartography system boundary의 넓은 변경 또는 Epic close `CODEBASE_SANITY` cheap global signal이 가리키는 delta 밖 신규 위험
+- 직전 finding의 근본 원인 해소를 delta와 직접 영향만으로 판정할 수 없거나 반복 finding이 구조 결함을 시사함
+- changed files/영향 범위가 merge candidate 대부분과 겹쳐 delta mode 이점이 없음
+
+결과 prose에는 delta인지 전체 재독인지, 직전 receipt 식별자와 직전/현재 candidate identity, 실제로 읽은 finding·delta·추가 영향 표면, 판정 범위와 그 근거를 남긴다. delta mode에서도 전체 재독으로 승격할 조건을 어떤 근거로 검토했고 이번에는 왜 해당하지 않았는지 밝히며, 승격했다면 그 이유를 남긴다. 이전 holistic 검토 이력 중 재사용한 범위와 새로 읽은 범위를 밝혀 좁힘이 안 본 영역을 새로 통과 처리한 것으로 읽히지 않게 한다. 고정 heading이나 schema가 아닌 자유 prose 의미 요구다.
 
 ## 판단 축
 
@@ -97,7 +113,7 @@ Epic close holistic invocation 또는 mode가 명시됐을 때 적용한다. 작
 
 ## 작업 흐름
 
-1. mode와 close 단위를 확인한다. 기본 merge-review mode는 changed code를 본다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic이면 stack tip vs main diff를 우선하고 Epic close이면 같은 호출에서 `CODEBASE_SANITY` scope도 확정한다.
+1. mode와 close 단위를 확인한다. 첫 라운드는 changed code와 base..candidate 전체 diff를 holistic하게 읽는다. 재리뷰이면 receipt·candidate identity·candidate delta를 검증해 delta mode 또는 전체 재독을 스스로 고른다. 검토 대상 커밋 id가 있으면 그 커밋을 직접 조회하고, 커밋이 없는 uncommitted local diff에서만 전달된 diff 파일을 폴백으로 읽는다. 다중 story/epic이면 stack tip vs main diff를 우선하고 Epic close이면 같은 호출에서 `CODEBASE_SANITY` scope도 확정한다.
 2. plan ∪ target GitHub issue AC 가 있으면 spec 렌즈를 먼저 적용한다. plan 없는 direct 도 target issue 가 있으면 spec 렌즈를 켜고, 둘 다 없을 때만 건너뛴다.
 3. quality 렌즈로 merge blocker를 찾는다. `CODEBASE_SANITY`이면 warning·coverage·dead-code·replacement 분류를 함께 수행한다.
 4. Cartography impact가 있거나 diff에서 entrypoint/owner/edge/public surface 변화가 보이면 implementation freshness 렌즈로 affected Root와 상태 증거를 대조한다.
@@ -128,6 +144,7 @@ UI/API/CLI entrypoint 를 만지는 diff 는 새 flow append 인지, owner modul
 - 다중 story/epic invocation에서 stack tip vs main diff가 제공되지 않았고 개별 PR 단편만으로는 cross-story 결함을 판단할 수 없으면 ESCALATE할 수 있다.
 - applicable implementation Cartography impact가 있으면 diff·impact 보고·affected Root 좌표·상태 증거를 대조했다. as-built drift, 증거 없는 `landed`, route-only drift가 남아 있으면 PASS하지 않는다. local-only/ignored 정책에서도 canonical local Root refresh가 확인되지 않고 durable impact handoff만 있으면 같은 미해소 상태다. system backpressure가 남아 있어도 PASS하지 않는다.
 - `CODEBASE_SANITY` PASS이면 revision/scope와 기계적 증거가 명확하고 모든 후보가 근거로 분류됐으며 rework finding이 없다. merge 판단을 막는 unknown은 ESCALATE한다.
+- 재리뷰이면 직전 finding 전항목과 candidate delta 신규 위험을 판정했고 prose에 판정 범위와 그 근거가 있다. delta mode가 불충분한 신호가 있으면 전체 재독으로 승격했다.
 
 ## 권한 경계
 

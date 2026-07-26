@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "issue": 1201,
+  "measured_at": "2026-07-26",
+  "runtime": {
+    "provider": "claude-cli",
+    "claude_code": "2.1.220",
+    "model": "sonnet"
+  },
+  "fixture": {
+    "first_candidate_files": 110,
+    "first_candidate_lines": 5500,
+    "first_candidate_bytes": 486965,
+    "delta_files": 4,
+    "delta_bytes": 707
+  },
+  "material_reduction_contract": {
+    "minimum_relative_percent": 15,
+    "minimum_absolute_seconds": 30,
+    "quality_contract_must_be_preserved": true,
+    "rationale": "The issue did not prescribe a numeric threshold. A reduction must clear both a relative and an absolute floor so provider jitter or a tiny fast case cannot satisfy the claim."
+  },
+  "rounds": [
+    {
+      "round": 1,
+      "review_scope": "full",
+      "elapsed_seconds": 181.173,
+      "quality_contract_preserved": true,
+      "report_sha256": "f47be061466f2e94ff57b306cca5f8de7327a52fa48f469b2068065218d6ef35"
+    },
+    {
+      "round": 2,
+      "review_scope": "delta",
+      "elapsed_seconds": 148.274,
+      "quality_contract_preserved": true,
+      "report_sha256": "38d1d519060e02d0cc8dc164c31fe95f6d72fcc74db399d49a6120ffea0cc241"
+    }
+  ],
+  "observed_reduction": {
+    "seconds": 32.899,
+    "percent": 18.2
+  },
+  "judge": {
+    "result": "PASS",
+    "report_sha256": "9ae1aacafcc3b2b2b7d3730c9a114e07bbc43c9184af4972b47f9b58a8d6879f",
+    "assertions": [
+      "round 1 found all three seeded merge blockers after reading all 110 files",
+      "round 2 confirmed root-cause resolution of every prior finding",
+      "round 2 found the new authorization bypass in the four-file delta",
+      "round 2 explained scope, receipt and candidate identity, reused coverage, and full-read escalation"
+    ]
+  },
+  "invalid_attempts": [
+    {
+      "attempt": 1,
+      "first_candidate_shape": "one synthetic file, 36293 bytes",
+      "round_1_seconds": 152.796,
+      "round_2_seconds": 141.921,
+      "observed_reduction_percent": 7.1,
+      "quality_contract_preserved": false,
+      "invalid_reason": "The undersized one-file fixture did not reproduce the issue's 110-file read cost, and temporary reports were not preserved for diagnosis."
+    },
+    {
+      "attempt": 2,
+      "first_candidate_shape": "one synthetic file, 5507 lines and 487293 bytes",
+      "round_1_seconds": 152.572,
+      "round_2_seconds": 173.096,
+      "observed_reduction_percent": -13.5,
+      "quality_contract_preserved": false,
+      "invalid_reason": "The combined file still required only one Read while delta mode required several Reads. The judge also ran from the repository cwd and attempted an unrelated tool call instead of grading the inline reports."
+    }
+  ],
+  "replay_command": "python3.11 evals/replay_impl_validator_delta.py --model sonnet --modules 110 --minimum-reduction-percent 15 --minimum-reduction-seconds 30 --output-dir <empty-dir>",
+  "verification_command": "python3.11 -m unittest tests.test_impl_validator_delta_review_contract.ImplValidatorDeltaReviewContractTests.test_two_round_replay_records_material_speedup_without_quality_loss -v",
+  "limitations": [
+    "Provider latency varies; this paired replay is evidence for the scoped contract, not a model-speed guarantee.",
+    "The fixture preserves the observed 110-file and roughly 5816-line shape but uses synthetic module summaries rather than product source.",
+    "A separate human verification remains required on one real story close."
+  ]
+}

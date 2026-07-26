@@ -7,6 +7,7 @@
 - 단일 story는 story branch vs main, 다중 story는 최종 stack tip vs main을 merge candidate로 고정한다.
 - task별 commit, 검증 명령, phase prose, build-worker Cartography impact, affected Root Cartography, 관련 epic/decision, target GitHub issue AC snapshot을 수집한다.
 - review 대상이 commit이면 commit id와 변경 파일 목록을 선행한다. uncommitted diff일 때만 diff 파일을 쓴다.
+- 첫 라운드는 base..candidate 전체 holistic 입력을 준다. validator `FAIL` 뒤 재리뷰에서는 직전 `step_completed` receipt 식별자인 `prose_file` + `sha256`, receipt 전문, 직전 candidate HEAD/tree/workspace root, 현재 candidate HEAD/tree/workspace root, 직전 candidate HEAD..현재 candidate HEAD의 commit·변경 파일 목록을 함께 준다. history rewrite 등으로 두 candidate 사이 delta를 증명할 수 없으면 그 사실을 적고 전체 holistic 입력으로 되돌린다.
 - [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)는 validator/acceptance 호출 직전에만 읽는다.
 
 ## Story PR / integrated review / merge
@@ -40,7 +41,9 @@
 
 설정된 chain이 아니라 terminal receipt의 실제 구현 성공 provider의 반대 진영을 기본 review provider로 resolve한다. Codex 구현이면 Claude review, Claude 구현이면 Codex review다. Codex reviewer가 불가하면 Claude로 폴백하고 이유를 기록한다. validator는 read-only다. MUST FIX가 있으면 실제 구현 provider와 동일한 build-worker가 최대 3회 root-cause 수정하고 관련 gate를 재실행한다. build-worker rework가 코드나 harness를 바꾸면 필요한 earlier evidence부터 다시 수집한다.
 
-`impl-validator`는 base부터 final stack tip까지를 한 번에 보는 반대 진영 holistic reviewer다. task/commit 목록은 추적 근거이지 fixed task/commit fan-out 계획이 아니다. task별·commit별 child reviewer를 자동 생성하지 않고, 실제 unresolved high-risk 또는 넓은 context가 발견된 경우에만 같은 reviewer가 selective extra investigation을 수행한다.
+`impl-validator`의 첫 라운드는 base부터 final stack tip까지를 한 번에 보는 반대 진영 전체 holistic reviewer다. task/commit 목록은 추적 근거이지 fixed task/commit fan-out 계획이 아니다. task별·commit별 child reviewer를 자동 생성하지 않고, 실제 unresolved high-risk 또는 넓은 context가 발견된 경우에만 같은 reviewer가 selective extra investigation을 수행한다.
+
+`FAIL → root-cause 수정 → 재리뷰`는 직전 receipt와 candidate delta를 1급 입력으로 쓰는 delta mode다. validator는 직전 finding의 최종 tip 해소 여부와 rework delta가 만든 신규 위험을 우선 판정하고, 변경 영향이 넓거나 receipt/candidate 연결을 신뢰할 수 없으면 스스로 전체 재독으로 승격한다. 호출자는 좁힌 범위를 처방하거나 전체 재독을 막지 않는다. 재리뷰 한도는 현행 3회이며 provider 선택·첫 라운드 범위·제품 acceptance 순서는 바꾸지 않는다.
 
 Epic close의 dead code, stale registration, duplicate/example/scaffold, suppression/deprecation, convention drift와 replacement 잔존 감사도 이 holistic invocation의 `CODEBASE_SANITY` 렌즈에 합친다. 별도 Sanity reviewer를 선행 호출하지 않는다. code revision/tree identity와 같은-tree lint/build/test/typecheck/coverage terminal evidence를 소비하고, coverage 도구가 없으면 `UNKNOWN`으로 기록한다.
 
@@ -70,7 +73,7 @@ auto-fixable gap은 PRD/Story AC 미충족, 검수 증거 부족, smoke 실패, 
 
 ## 마감 복구와 증거 invalidation
 
-- code/harness finding은 same implementation owner가 root-cause 수정한다. tracked tree가 바뀌면 이전 validation sequence 결과는 stale이며, 영향받은 lint/build/test, journey convergence, Cartography sync를 다시 모은 뒤 새 candidate를 freeze하고 validator부터 다시 시작한다.
+- code/harness finding은 same implementation owner가 root-cause 수정한다. tracked tree가 바뀌면 이전 validation sequence의 terminal 판정은 stale이며, 영향받은 lint/build/test, journey convergence, Cartography sync를 다시 모은 뒤 새 candidate를 freeze하고 validator부터 다시 시작한다. 다만 직전 validator receipt는 폐기하지 않고 finding과 검토 이력을 증명하는 재리뷰 입력으로만 사용한다.
 - device/external transient가 발생했지만 tracked HEAD/tree가 그대로면 validator PASS를 유지하고 acceptance만 재실행한다.
 - validator provider/tool transient에서 tracked HEAD/tree가 그대로면 acceptance PASS를 유지하고 validator만 재실행한다.
 - validator PASS 뒤 tracked tree가 바뀌거나 두 receipt의 candidate identity가 다르면 acceptance 결과와 close를 거부한다.
