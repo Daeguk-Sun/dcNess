@@ -527,6 +527,8 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertIn("seedFrameSize(node, iframe)", engine)
         self.assertIn("measureSameOriginFrame(frame)", engine)
         self.assertIn("frame-size-warning", engine)
+        self.assertIn("grid.moveBefore(frame, null)", engine)
+        self.assertNotIn("frame.style.order", engine)
         self.assertNotIn("frame.clientWidth || 1", engine)
         self.assertNotIn(
             "querySelectorAll(':scope > .variant-grid, :scope > .variant-facet')",

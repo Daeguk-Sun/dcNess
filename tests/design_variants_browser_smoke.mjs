@@ -82,6 +82,8 @@ function uxFlow() {
 | S01 | 수신함 | 알림 목록 | \`docs/design-variants/screens/inbox.html\` |
 | S02 | 검토 | 알림 검토 | \`docs/design-variants/screens/review.html\` |
 | S03 | 완료 | 처리 완료 | \`docs/design-variants/screens/done.html\` |
+| S04 | facet 증가 | 런타임 facet 증가 검증 | \`docs/design-variants/screens/facet-grow.html\` |
+| S05 | facet 감소 | 런타임 facet 감소 검증 | \`docs/design-variants/screens/facet-shrink.html\` |
 
 ## 화면 흐름
 
@@ -272,7 +274,7 @@ function assertNoInternalScroll(diagnostics, board) {
 }
 
 function assertScreenGrid(diagnostics) {
-  assert.equal(diagnostics.frames.length, 7, 'runtime variant inventory did not add tablet');
+  assert.equal(diagnostics.frames.length, 11, 'runtime variant inventory did not converge');
   assert.ok(
     diagnostics.frames.some(frame => frame.src.includes('#only=tablet-ready')),
     'new tablet variant is missing from the stale board runtime',
@@ -294,6 +296,19 @@ function assertScreenGrid(diagnostics) {
     const positions = inbox.filter(frame => frame.row === row).map(frame => frame.top);
     assert.equal(new Set(positions).size, 1, `${row} variants are not row-aligned`);
   }
+  const facetGrow = diagnostics.variantFrames.filter(frame => frame.nodeId === 'facet-grow');
+  assert.deepEqual(
+    [...new Set(facetGrow.map(frame => frame.facet))].sort(),
+    ['theme=dark', 'theme=light'],
+    'runtime facet growth did not create both groups',
+  );
+  const facetShrink = diagnostics.variantFrames
+    .filter(frame => frame.nodeId === 'facet-shrink');
+  assert.deepEqual(
+    [...new Set(facetShrink.map(frame => frame.facet))],
+    [''],
+    'runtime facet shrink did not collapse to one group',
+  );
 }
 
 async function main() {
@@ -326,6 +341,14 @@ async function main() {
         screenHtml(id, [{ id: 'default', axes: 'state=default' }]),
       );
     }
+    await writeFile(path.join(screens, 'facet-grow.html'), screenHtml('facet-grow', [
+      { id: 'mobile-ready', axes: 'breakpoint=mobile;state=ready' },
+      { id: 'desktop-ready', axes: 'breakpoint=desktop;state=ready' },
+    ]));
+    await writeFile(path.join(screens, 'facet-shrink.html'), screenHtml('facet-shrink', [
+      { id: 'mobile-ready', axes: 'breakpoint=mobile;state=ready;theme=light' },
+      { id: 'desktop-ready', axes: 'breakpoint=desktop;state=ready;theme=dark' },
+    ]));
 
     requireSuccess(
       runGenerator(project, uxPath, 'build-journey-boards.mjs'),
@@ -353,6 +376,28 @@ async function main() {
           + 'data-variant-values="breakpoint=tablet;state=ready" '
           + 'data-node-id="inbox.tablet-ready">inbox · tablet-ready</section>\n</body>',
       ),
+    );
+    const facetGrowPath = path.join(screens, 'facet-grow.html');
+    const facetGrow = await readFile(facetGrowPath, 'utf8');
+    await writeFile(
+      facetGrowPath,
+      facetGrow
+        .replace(
+          'breakpoint=mobile;state=ready',
+          'breakpoint=mobile;state=ready;theme=light',
+        )
+        .replace(
+          'breakpoint=desktop;state=ready',
+          'breakpoint=desktop;state=ready;theme=dark',
+        ),
+    );
+    const facetShrinkPath = path.join(screens, 'facet-shrink.html');
+    const facetShrink = await readFile(facetShrinkPath, 'utf8');
+    await writeFile(
+      facetShrinkPath,
+      facetShrink
+        .replace(';theme=light', '')
+        .replace(';theme=dark', ''),
     );
     assert.equal(await readFile(statesBoard, 'utf8'), statesBefore);
     const stale = runGenerator(project, uxPath, 'build-screen-states.mjs', ['--check']);

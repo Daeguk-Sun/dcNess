@@ -210,6 +210,16 @@
     return frame;
   }
 
+  function placeVariantFrame(grid, frame) {
+    if (frame.parentElement === grid) return;
+    if (typeof grid.moveBefore === 'function') {
+      grid.moveBefore(frame, null);
+      return;
+    }
+    frame.dataset.measurementSource = 'seed';
+    grid.appendChild(frame);
+  }
+
   function syncVariantFrames(node, variants) {
     if (!node.dataset.screenSrc || !Array.isArray(variants) || !variants.length) {
       return false;
@@ -291,21 +301,17 @@
         usedHeadings.add(heading);
       }
 
-      for (const [order, variant] of members.entries()) {
+      for (const variant of members) {
         let frame = existing.get(variant.id);
-        if (frame && frame.parentElement !== grid) {
-          frame.remove();
-          existing.delete(variant.id);
-          frame = null;
-        }
         if (!frame) {
           frame = createVariantFrame(node, variant);
           existing.set(variant.id, frame);
           grid.appendChild(frame);
+        } else {
+          placeVariantFrame(grid, frame);
         }
         frame.dataset.axisColumn = variant.axes?.[columnAxis] || variant.id;
         frame.dataset.axisRow = rowAxis ? variant.axes?.[rowAxis] || '' : '';
-        frame.style.order = String(order);
       }
       layoutVariantGrid(grid);
       groupIndex += 1;
@@ -837,6 +843,7 @@
         id: frame.dataset.variantId || '',
         column: frame.dataset.axisColumn || '',
         row: frame.dataset.axisRow || '',
+        facet: frame.parentElement?.dataset.facetKey || '',
         left: frame.offsetLeft,
         top: frame.offsetTop,
         width: frame.offsetWidth,
