@@ -342,11 +342,19 @@ async function main() {
       );
     }
     await writeFile(path.join(screens, 'facet-grow.html'), screenHtml('facet-grow', [
-      { id: 'mobile-ready', axes: 'breakpoint=mobile;state=ready' },
+      {
+        id: 'mobile-ready',
+        axes: 'breakpoint=mobile;state=ready',
+        representative: true,
+      },
       { id: 'desktop-ready', axes: 'breakpoint=desktop;state=ready' },
     ]));
     await writeFile(path.join(screens, 'facet-shrink.html'), screenHtml('facet-shrink', [
-      { id: 'mobile-ready', axes: 'breakpoint=mobile;state=ready;theme=light' },
+      {
+        id: 'mobile-ready',
+        axes: 'breakpoint=mobile;state=ready;theme=light',
+        representative: true,
+      },
       { id: 'desktop-ready', axes: 'breakpoint=desktop;state=ready;theme=dark' },
     ]));
 
