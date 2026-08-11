@@ -112,13 +112,13 @@ def _write_eval_events(repo_root: Path) -> None:
                 "kind": "eval_case_result",
                 "case": "headless-prose-quality",
                 "passed": True,
-                "ts": "2026-07-01T00:00:00Z",
+                "ts": _iso_days_ago(2),
             },
             {
                 "kind": "eval_case_result",
                 "case": "headless-prose-quality",
                 "passed": True,
-                "ts": "2026-07-02T00:00:00Z",
+                "ts": _iso_days_ago(1),
             },
         ],
     )
@@ -408,13 +408,13 @@ class LoopDiagnoseTests(unittest.TestCase):
                         "kind": "eval_case_result",
                         "case": "flow-ownership-entrypoint-bad",
                         "passed": True,
-                        "ts": "2026-07-05T00:00:00Z",
+                        "ts": _iso_days_ago(2),
                     },
                     {
                         "kind": "eval_case_result",
                         "case": "flow-ownership-entrypoint-bad",
                         "passed": False,
-                        "ts": "2026-07-05T01:00:00Z",
+                        "ts": _iso_days_ago(1),
                     },
                 ],
             )
