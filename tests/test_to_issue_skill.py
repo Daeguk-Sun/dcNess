@@ -180,8 +180,8 @@ class ToIssueSkillTests(unittest.TestCase):
             self.assertIn("목업 없이", text)
 
         self.assertIn("후속 `/impl`", skill)
-        self.assertIn("docs/design-variants/<screen-id>.html", skill)
-        self.assertIn("docs/design-variants/canvas.html", skill)
+        self.assertIn("docs/design-variants/screens/<screen-id>.html", skill)
+        self.assertIn("docs/design-variants/README.md", skill)
         self.assertIn("docs/epics/.../ux-flow.md", skill)
         self.assertIn("나중에 정함", skill)
 

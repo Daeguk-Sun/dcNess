@@ -421,8 +421,13 @@ custom 은 기존 세부 기능을 유지하되 이미 결정 가능한 항목�
 design seed 를 명시 선택한 경우:
 
 ```bash
-mkdir -p "$PROJECT_ROOT/docs/design-variants/_lib" "$PROJECT_ROOT/docs/design-variants/drafts"
-for FILE in .gitignore _lib/show-ids.js _lib/canvas.js canvas.html drafts/.gitkeep; do
+mkdir -p "$PROJECT_ROOT/docs/design-variants/_lib" \
+  "$PROJECT_ROOT/docs/design-variants/boards" \
+  "$PROJECT_ROOT/docs/design-variants/screens" \
+  "$PROJECT_ROOT/docs/design-variants/drafts"
+for FILE in .gitignore \
+  _lib/show-ids.js _lib/canvas.js _lib/only-variant.js _lib/report-size.js \
+  boards/screen-states.html drafts/.gitkeep; do
   TARGET="$PROJECT_ROOT/docs/design-variants/$FILE"
   SOURCE="$PLUGIN_ROOT/templates/design-variants/$FILE"
   if [ -f "$TARGET" ]; then

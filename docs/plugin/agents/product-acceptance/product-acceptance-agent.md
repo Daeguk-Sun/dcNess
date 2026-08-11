@@ -15,7 +15,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - same-tree terminal evidence: 호출자가 frozen candidate identity와 함께 제공한 lint/build/unit-test 명령·exit·warning. candidate identity가 일치하면 정상 마감에서 full unit suite를 다시 실행하지 않는다.
 - 제품 journey receipt: 호출자가 제공한 `receipt.json`과 단계별 log. `app_started`, `journey_executed`, assertion 평가·결과, 대상 AC, command exit, evidence sha256을 포함한다. UI boundary이면 `ui_evidence.steps`의 화면·상태·log path와 최종 단계 AC 대응, `ux_integrity`의 layout report·확정 목업 링크·요소별 bounds 판정도 함께 읽는다.
 - `(JOURNEY)` REQ: 대상 AC, build-worker가 작성한 project-local e2e flow와 `.dcness/` 밖 owner module/소스 영역의 journey 매니페스트 경로, 수렴 호출의 실행·수정 증거, 호출자가 전달한 현재 run의 `journey_deferred` 목록. STORY/EPIC_ACCEPTANCE는 수렴 receipt를 판정 증거로 재사용하지 않고 수렴 대상 매니페스트를 final tip에서 다시 실행한다.
-- UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/<screen-id>.html`), canvas 경로, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
+- UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/screens/<screen-id>.html`), 보드 진입점, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
 - epic 구현에 대한 build-worker/impl-validator Cartography impact 보고, affected Root Cartography 좌표, tracked/local-only 문서 정책
 - 이전 acceptance 결과가 있으면 gap 재검수 맥락
@@ -56,7 +56,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 
 UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제공하면, 양쪽을 Read 로 열어 구조적으로 대조한다. 이 축은 pixel-diff 하드 게이트가 아니라 제품 검수 판단 축이다.
 
-- 확정 목업은 `docs/design-variants/<screen-id>.html` 또는 호출자가 제공한 동등한 기준이다. 구현 화면 증거는 스크린샷, 브라우저/앱 자동화 결과 이미지, visual smoke 산출물처럼 실제 실행 화면을 볼 수 있는 경로다.
+- 확정 목업은 `docs/design-variants/screens/<screen-id>.html` 또는 호출자가 제공한 동등한 기준이다. 구현 화면 증거는 스크린샷, 브라우저/앱 자동화 결과 이미지, visual smoke 산출물처럼 실제 실행 화면을 볼 수 있는 경로다.
 - 확정 목업과 화면 증거를 함께 받은 경우 레이아웃 계층, 주요 상태(default/empty/error/loading 등), 핵심 `data-node-id` 의도, 디자인 토큰·색·간격·타이포 수준 대응이 구조적으로 일치하는지 본다.
 - `(JOURNEY)` receipt 의 `ux_integrity.snapshots[].mockup_reference` 와 그 snapshot 의 `elements[].node_id` 는 impl task `디자인 참조` 절의 확정 목업 기준을 journey 판정으로 잇는 경로다. 화면 snapshot 단위로 이 링크가 있으면 목업의 해당 `data-node-id` 배치와 같은 snapshot 의 요소 bounds 를 대조하고, UI journey 인데 링크가 비어 있으면 확정 목업 유무와 진행 근거를 함께 확인한다.
 - pixel-diff 수치가 없다는 이유만으로 FAIL 하지 않는다. 반대로 자동 테스트가 green 이어도 확정 목업과 화면 증거의 구조가 명확히 어긋나면 `목업 불일치` gap 으로 분리한다.
@@ -69,7 +69,7 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 특정 렌더/스크린샷 도구를 dcness 코어에 번들하지 않는다. 호출자가 UI story/epic 검수를 요청할 때는 프로젝트의 기존 도구로 아래 산출물을 만들도록 권장한다.
 
 - 앱 화면 자동화 스크린샷: 실제 앱을 실행하고 브라우저/앱 자동화로 대상 route/state 를 열어 구현 화면 증거 파일을 저장한다.
-- 목업 headless 렌더: 확정 목업 `docs/design-variants/<screen-id>.html` 을 headless browser 로 같은 viewport 에서 렌더해 기준 이미지를 저장한다.
+- 목업 headless 렌더: 확정 목업 `docs/design-variants/screens/<screen-id>.html` 을 headless browser 로 같은 viewport 에서 렌더해 기준 이미지를 저장한다.
 - 대조 입력: 확정 목업 경로, 목업 렌더 이미지, 구현 화면 증거, viewport, 대상 state(default/empty/error/loading 등), 핵심 `data-node-id` 매핑을 함께 제공한다.
 - 판정: pixel-perfect 수치를 강제하지 않지만 실제 모양·토큰 일치, 레이아웃 계층, 주요 상태, 색·간격·타이포 대응을 화면 증거로 대조한다.
 

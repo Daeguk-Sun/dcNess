@@ -31,7 +31,7 @@ flowchart TB
   SEED2 --> DS2[designer]
   DS1 -->|PASS| PICK{사용자 PICK}
   DS2 -->|PASS| PICK
-  PICK -->|OK| PROMOTE[확정본 승격 + canvas 등록]
+  PICK -->|OK| PROMOTE[확정본 승격 + 보드·진입점 재생성]
   PICK -->|NG| SEED3[design-variants seed 보장]
   SEED3 --> RD[designer-ROUND-n 재생성]
   RD --> PICK
@@ -67,7 +67,7 @@ flowchart TB
 - **모드 전환** — UX_FLOW 진행 중 ux-architect 가 기존 화면 개선이 맞다고 판단해 `UX_REFINE_READY` 로 끝나면 UX_REFINE 절차로 전환한다.
 - **hi-fi 목업 범위** — 화면 인벤토리에서 `hi-fi 목업 필요` 가 `필요` 인 화면만 designer 대상이다. 전 화면 일괄 목업화 금지. `불필요` 화면은 `ux-flow.md` text wireframe 으로 충분하다.
 - **designer 재생성** — 사용자 PICK NG 는 round 한도가 없다 (사용자 자유 결정, sub_cycle `designer-ROUND-<n>`). 재생성 전에도 design-variants seed 보장을 다시 확인한다. cycle 한도는 self-check FAIL / 승인 거절 경로에만 적용한다.
-- **확정본 계약** — 완료 산출은 `docs/design-variants/<screen-id>.html` + `docs/design-variants/canvas.html` + 핵심 node-id 매핑이다. `/ux` 는 산출물 PR merge 와 main sync 뒤 종료하며, `/impl` 은 머지된 결과만 `기준 있음` 으로 이어받는다.
+- **확정본 계약** — 완료 산출은 `docs/design-variants/screens/<screen-id>.html` + `docs/design-variants/README.md` + 핵심 node-id 매핑이다. `/ux` 는 산출물 PR merge 와 main sync 뒤 종료하며, `/impl` 은 머지된 결과만 `기준 있음` 으로 이어받는다.
 
 ## cycle 한도
 

@@ -2,7 +2,7 @@
 
 ## 목적
 
-사용자가 확인할 수 있는 UI draft 를 만든다. 산출물은 `docs/design-variants/drafts/` 아래 static HTML 단일 파일이며, 실제 제품 코드는 build-worker가 구현한다. 확정본 승격과 canvas 등록은 내부 `canvas-design` 절차에서 메인이 수행한다.
+사용자가 확인할 수 있는 UI draft 를 만든다. 산출물은 `docs/design-variants/drafts/` 아래 static HTML 단일 파일이며, 실제 제품 코드는 build-worker가 구현한다. 확정본 승격과 파생 산출물 생성은 내부 `canvas-design` 절차에서 메인이 수행한다.
 
 ## 입력
 
@@ -24,7 +24,7 @@
 - 시각적 방향: 한 줄로 설명 가능한 명확한 컨셉이 있는가.
 - 디자인 시스템: 기존 토큰과 static HTML 시안 규약을 존중하는가.
 - 상태 완성도: default, hover, disabled, focus, empty, error 같은 필요한 상태가 빠지지 않는가.
-- 구현 handoff: canvas-design 이 확정본으로 승격한 뒤 build-worker가 data-node-id, token, animation 의도를 추적할 수 있는가.
+- 구현 handoff: canvas-design 이 확정본으로 승격한 뒤 build-worker가 data-node-id, variant, token, animation 의도를 추적할 수 있는가.
 - AI 흔한 느낌 회피: generic gradient, card grid, 의미 없는 장식으로 도망치지 않는가.
 
 ## 작업 흐름
@@ -33,14 +33,16 @@
 2. UX 목표와 디자인 가이드를 읽는다.
 3. `ux-flow.md` 화면 인벤토리가 있으면 `hi-fi 목업 필요` 가 `필요로 표시된 화면` 만 작업한다. 전 화면 일괄 목업화 금지.
 4. 한 가지 완성된 draft 를 만든다.
-5. `docs/design-variants/drafts/<screen-id>-draft<N>.html` 단독 파일로 저장하고, 주요 `data-node-id`와 토큰 의도를 보고한다.
-6. 사용자 PICK 이후의 `docs/design-variants/<screen-id>.html` 확정본 승격과 `canvas.html` frame 등록은 메인이 한다.
+5. `docs/design-variants/drafts/<screen-id>-draft<N>.html` 단독 파일로 저장하고, PICK 설명은 HTML이 아니라 보고에 둔다.
+6. 모든 변형에 `data-variant`와 필요한 `data-variant-values`를 붙이고 helper 3종을 참조한다.
+7. 사용자 PICK 이후의 `screens/<screen-id>.html` 승격과 보드·진입점 재생성은 메인이 한다.
 
 ## 완료 기준
 
 - 사용자가 바로 볼 수 있는 HTML draft 경로가 있다.
 - `ux-flow.md` 가 입력이면 `hi-fi 목업 필요` 범위 밖의 부수 화면은 목업화하지 않는다.
 - 핵심 상태와 주요 node-id가 보고된다.
+- draft HTML 자체에는 `draft N` 라벨이나 draft 전용 메타가 없다.
 - 색, 타이포, spacing, animation의 의도가 설명된다.
 - 실제 제품 코드는 수정하지 않는다.
 
@@ -49,9 +51,9 @@
 - src 제품 코드 수정 금지
 - Model, store, hook, API 호출 변경 금지
 - 외부 build 의존 없이 static HTML 단일 파일로 만든다.
-- HTML draft 는 `:root` CSS custom property 토큰과 `data-node-id`를 포함한다.
+- HTML draft 는 `:root` CSS custom property 토큰, `data-node-id`, `data-variant`를 포함한다.
 - Write 허용은 `docs/design-variants/drafts/` 뿐이다.
-- `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, `docs/design-variants/_lib/` 는 수정하지 않는다.
+- `docs/design-variants/screens/`, `docs/design-variants/boards/`, 진입점, `_lib/`는 수정하지 않는다.
 - design.md의 Components 영역은 참고할 수 있지만, 본 agent 가 갱신하지 않는다.
 
 ## 결론과 보고

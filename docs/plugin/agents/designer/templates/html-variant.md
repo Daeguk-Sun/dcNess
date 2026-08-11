@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>{screen-id} draft {N}</title>
+  <title>{screen-id}</title>
   <style>
     :root {
       --color-surface: #ffffff;
@@ -16,10 +16,14 @@
 </head>
 <body>
   <main data-screen-id="{screen-id}">
-    <section data-node-id="{screen-id}.section">
+    <section data-variant="default" data-variant-values="state=default"
+             data-journey-representative="true"
+             data-node-id="{screen-id}.section">
       <h1 data-node-id="{screen-id}.title">화면 제목</h1>
     </section>
   </main>
+  <script defer src="../_lib/only-variant.js"></script>
+  <script defer src="../_lib/report-size.js"></script>
   <script defer src="../_lib/show-ids.js"></script>
 </body>
 </html>

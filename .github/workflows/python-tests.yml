@@ -36,12 +36,15 @@ on:
       - 'skills/**'
       - 'commands/**'
       - 'templates/github-workflows/**'
+      - 'templates/design-variants/**'
       - 'evals/**'
       - 'scripts/check_git_naming.mjs'
       - 'scripts/check_doc_path_integrity.mjs'
       - 'scripts/check_design_artifact_structure.mjs'
+      - 'scripts/design/**'
       - 'scripts/dcness-story-runner'
       - '.github/actions/doc-path-integrity/**'
+      - '.github/actions/doc-sync/**'
       - 'docs/plugin/git-spec.md'
       - 'docs/plugin/loop-procedure.md'
       - '.github/workflows/python-tests.yml'
@@ -55,12 +58,15 @@ on:
       - 'skills/**'
       - 'commands/**'
       - 'templates/github-workflows/**'
+      - 'templates/design-variants/**'
       - 'evals/**'
       - 'scripts/check_git_naming.mjs'
       - 'scripts/check_doc_path_integrity.mjs'
       - 'scripts/check_design_artifact_structure.mjs'
+      - 'scripts/design/**'
       - 'scripts/dcness-story-runner'
       - '.github/actions/doc-path-integrity/**'
+      - '.github/actions/doc-sync/**'
       - 'docs/plugin/git-spec.md'
       - 'docs/plugin/loop-procedure.md'
       - '.github/workflows/python-tests.yml'
@@ -92,3 +98,8 @@ jobs:
         run: |
           set -e
           python3 -m unittest discover -s tests -v
+
+      - name: Verify design boards in headless Chrome
+        run: |
+          set -e
+          node tests/design_variants_browser_smoke.mjs

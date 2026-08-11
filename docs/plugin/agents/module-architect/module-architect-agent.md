@@ -12,8 +12,8 @@ epic-batch, `/design` revision mode, 보강 요청을 구현 가능한 문서로
 - 필요하면 SPEC_GAP, validator finding, bug issue
 - `/design` revision mode 요청: 사용자 개정 의도, 변경된 UX 산출물 포인터(해당 시), 영향 그래프 가설, 보존해야 할 impl task 목록 또는 보존 기준
 - brownfield 또는 참조 구현이 있으면 영향 계약의 코드 SSOT. 상태성 기능은 공개 port·도메인 타입·entrypoint뿐 아니라 schema·entity·mapper, DAO·repository, sync/reconcile·state reducer, adapter·receiver·observer·worker·lifecycle producer, 관련 테스트 포인터를 포함한다.
-- UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로, `docs/design-variants/canvas.html` 포인터 또는 부재 신호
-- `/design` stage 1 에서 확정 목업이 생성된 UI epic 은 확정 목업 `docs/design-variants/<screen-id>.html`, 확정 목업 경로, 핵심 node-id 매핑, docs/design.md 토큰이 필수 입력이다.
+- UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로, `docs/design-variants/README.md` 포인터 또는 부재 신호
+- `/design` stage 1 에서 확정 목업이 생성된 UI epic 은 확정 목업 `docs/design-variants/screens/<screen-id>.html`, 확정 목업 경로, 핵심 node-id 매핑, docs/design.md 토큰이 필수 입력이다.
 - UI-less epic 또는 목업 opt-out 화면은 확정 목업 입력을 요구하지 않는다. `ux-flow.md` 가 `확정본 없음` 으로 기록한 화면은 목업 경로를 관례로 추론하지 않는다.
 
 ## 먼저 읽을 문서
@@ -25,8 +25,8 @@ epic-batch, `/design` revision mode, 보강 요청을 구현 가능한 문서로
 - 모듈 작업: affected module 의 `docs/modules/<module-id>/architecture.md`, `conventions.md` 만 추가로 읽음. 같은 repo 의 다른 module docs 는 입력 세트에 넣지 않음
 - 상황별: 대상 epic의 `domain-model.md`, 기존 코드의 계약 표면 코드 SSOT. 저장·동기화·상태 전이가 있으면 schema·entity·mapper, DAO·repository, sync/reconcile·state reducer, adapter·receiver·observer·worker·lifecycle producer, 관련 테스트까지 읽음
 - 상황별: `docs/design.md`, 관련 기존 impl 문서
-- UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `docs/design-variants/canvas.html` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로
-- UI epic 확정 목업 존재 시 필수: `docs/design-variants/<screen-id>.html`, 확정 목업 경로, node-id 매핑과 나란히 둘 핵심 디자인 토큰(색/spacing/typography)
+- UI epic 조건부 필수: 대상 epic의 `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `docs/design-variants/README.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로
+- UI epic 확정 목업 존재 시 필수: `docs/design-variants/screens/<screen-id>.html`, 확정 목업 경로, node-id 매핑과 나란히 둘 핵심 디자인 토큰(색/spacing/typography)
 - 참고: [`references/implementation-boundary.md`](references/implementation-boundary.md), [`references/contract-amendment.md`](references/contract-amendment.md)
 
 ## 판단 축

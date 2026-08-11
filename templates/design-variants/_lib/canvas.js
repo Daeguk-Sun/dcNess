@@ -1,74 +1,40 @@
-/* docs/design-variants/_lib/canvas.js
- * dcness plug-in seed: pan/zoom design flow board.
+/* dcness-design-engine: 1.0.0
+ * Project-agnostic design board engine: natural-size frames, derived layout,
+ * pan/zoom, and collision-aware journey arrows.
  *
- *   <div class="screen-node" data-node-id="..." data-pos="<col>,<row>"
- *        data-title="..." data-desc="..." data-states="..." data-h="900">
- *     <iframe src="<screen-id>.html"></iframe>
- *   </div>
- *
- * Optional arrows:
- *   <svg class="flow-arrows">
- *     <path data-from="A" data-to="B" data-label="..." data-bend="0"/>
- *   </svg>
- *
- * Theme hooks:
- *   --dcness-canvas-arrow, --dcness-canvas-font, --dcness-canvas-bg
+ * 프로젝트는 이 파일을 수정하지 않는다. plugin 배포본에서 갱신한다.
  */
 (function () {
   'use strict';
 
-  const GRID_COLS = 4;
-  const FLOW_NODE_W = 390;
-  const FLOW_FRAME_H = 900;
-  const FLOW_GAP_X = 150;
-  const FLOW_GAP_Y = 120;
-  const BOARD_PAD = 80;
-  const ZOOM_MIN = 0.2;
-  const ZOOM_MAX = 2;
-
-  let zoom = 1, panX = 0, panY = 0;
-  let theme = {};
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const BORDER = 1;
+  const BOARD_PAD = 64;
+  const CURVE_SAMPLES = 32;
+  const ZOOM = { min: 0.08, max: 3 };
+  const arrowSpecCache = new WeakMap();
+  const geometryDiagnostics = new WeakMap();
+  const labelWidthCache = new Map();
+  let labelMeasureContext;
+  let scale = 1;
+  let panX = 0;
+  let panY = 0;
+  let theme;
 
   function cssVar(name, fallback) {
-    const styles = window.getComputedStyle(document.documentElement);
-    const value = styles.getPropertyValue(name).trim();
-    return value || fallback;
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim() || fallback;
   }
 
   function readTheme() {
     theme = {
-      arrow: cssVar('--dcness-canvas-arrow', '#6750A4'),
+      background: cssVar('--dcness-canvas-bg', '#f4f4f6'),
+      surface: cssVar('--dcness-canvas-surface', '#fff'),
+      border: cssVar('--dcness-canvas-border', '#c8c8d0'),
+      text: cssVar('--dcness-canvas-text', '#202027'),
+      muted: cssVar('--dcness-canvas-muted', '#60606b'),
+      arrow: cssVar('--dcness-canvas-arrow', '#6750a4'),
+      label: cssVar('--dcness-canvas-label', '#fff'),
       font: cssVar('--dcness-canvas-font', 'system-ui, sans-serif'),
-      bg: cssVar('--dcness-canvas-bg', '#f5f5f7'),
-      captionBg: cssVar('--dcness-canvas-caption-bg', '#ffffff'),
-      captionBorder: cssVar('--dcness-canvas-caption-border', '#d0d0d5'),
-      text: cssVar('--dcness-canvas-text', '#1f1f24'),
-      muted: cssVar('--dcness-canvas-muted', '#54545c'),
-      chipBg: cssVar('--dcness-canvas-chip-bg', '#efe7ff'),
-      chipText: cssVar('--dcness-canvas-chip-text', '#4f378b'),
-      labelBg: cssVar('--dcness-canvas-label-bg', '#ffffff'),
-      labelBorder: cssVar('--dcness-canvas-label-border', '#d7c9ff')
-    };
-  }
-
-  function cssEscape(value) {
-    if (window.CSS && typeof window.CSS.escape === 'function') {
-      return window.CSS.escape(value);
-    }
-    return String(value).replace(/["\\]/g, '\\$&');
-  }
-
-  function parsePositiveInt(value, fallback) {
-    const parsed = parseInt(value, 10);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-  }
-
-  function parsePos(value, fallbackCol, fallbackRow) {
-    if (!value) return { col: fallbackCol, row: fallbackRow };
-    const parts = value.split(',').map(n => parseInt(n.trim(), 10));
-    return {
-      col: Number.isFinite(parts[0]) && parts[0] >= 0 ? parts[0] : fallbackCol,
-      row: Number.isFinite(parts[1]) && parts[1] >= 0 ? parts[1] : fallbackRow
     };
   }
 
@@ -78,492 +44,855 @@
     Object.assign(stage.style, {
       position: 'fixed',
       inset: '0',
-      width: '100vw',
-      height: '100vh',
       overflow: 'hidden',
-      background: theme.bg,
+      background: theme.background,
       cursor: 'grab',
-      userSelect: 'none'
+      userSelect: 'none',
     });
     const inner = document.createElement('div');
     inner.className = 'canvas-inner';
     Object.assign(inner.style, {
       position: 'absolute',
-      top: '0',
       left: '0',
-      transformOrigin: '0 0'
+      top: '0',
+      transformOrigin: '0 0',
     });
     while (stage.firstChild) inner.appendChild(stage.firstChild);
     stage.appendChild(inner);
     return { stage, inner };
   }
 
-  function buildCaption(node) {
-    const old = node.querySelector('.node-caption');
-    if (old) old.remove();
-
-    const cap = document.createElement('div');
-    cap.className = 'node-caption';
-    Object.assign(cap.style, {
-      width: FLOW_NODE_W + 'px',
-      boxSizing: 'border-box',
-      marginTop: '10px',
-      padding: '12px 14px',
-      background: theme.captionBg,
-      border: '1px solid ' + theme.captionBorder,
-      borderRadius: '8px',
-      fontFamily: theme.font,
-      boxShadow: '0 1px 3px rgba(0,0,0,.06)'
-    });
-
-    const title = document.createElement('div');
-    title.textContent = node.dataset.title || node.dataset.nodeId || 'screen';
-    Object.assign(title.style, {
-      fontSize: '15px',
-      fontWeight: '700',
-      color: theme.text,
-      lineHeight: '1.35'
-    });
-    cap.appendChild(title);
-
-    if (node.dataset.desc) {
-      const desc = document.createElement('div');
-      desc.textContent = node.dataset.desc;
-      Object.assign(desc.style, {
-        fontSize: '13px',
-        color: theme.muted,
-        marginTop: '4px',
-        lineHeight: '1.4'
-      });
-      cap.appendChild(desc);
-    }
-
-    if (node.dataset.states) {
-      const states = document.createElement('div');
-      Object.assign(states.style, {
-        marginTop: '8px',
-        display: 'flex',
-        flexWrap: 'wrap',
-        gap: '5px'
-      });
-      node.dataset.states.split('/').forEach(raw => {
-        const state = raw.trim();
-        if (!state) return;
-        const chip = document.createElement('span');
-        chip.textContent = state;
-        Object.assign(chip.style, {
-          fontSize: '11px',
-          lineHeight: '1.4',
-          color: theme.chipText,
-          background: theme.chipBg,
-          borderRadius: '999px',
-          padding: '2px 8px'
-        });
-        states.appendChild(chip);
-      });
-      cap.appendChild(states);
-    }
-
-    return cap;
+  function frameSize(frame) {
+    const width = Number(frame.dataset.measuredWidth);
+    const height = Number(frame.dataset.measuredHeight);
+    return width && height ? { width, height } : null;
   }
 
-  function layoutScreenNodes(inner) {
-    const nodes = Array.from(inner.querySelectorAll('.screen-node'));
-    const placements = [];
-    let nextCol = 0, nextRow = 0;
+  function setFrameSizeWarning(frame, visible) {
+    const host = frame.closest('.variant-frame, .screen-node');
+    if (!host) return;
+    let warning = host.querySelector(':scope > .frame-size-warning');
+    if (!visible) {
+      warning?.remove();
+      return;
+    }
+    if (!warning) {
+      warning = document.createElement('div');
+      warning.className = 'frame-size-warning';
+      Object.assign(warning.style, {
+        margin: '.4rem 0',
+        padding: '.45rem .6rem',
+        borderRadius: '.35rem',
+        background: '#b42318',
+        color: '#fff',
+        font: '600 12px/1.4 system-ui, sans-serif',
+      });
+      host.appendChild(warning);
+    }
+    warning.textContent = `화면 크기를 확인하지 못했습니다: ${frame.getAttribute('src') || 'unknown'}`;
+  }
 
-    nodes.forEach(node => {
-      const pos = parsePos(node.dataset.pos, nextCol, nextRow);
-      const frameH = parsePositiveInt(node.dataset.h, FLOW_FRAME_H);
-      const iframe = node.querySelector('iframe');
-      if (iframe) {
-        Object.assign(iframe.style, {
-          width: FLOW_NODE_W + 'px',
-          height: frameH + 'px',
-          border: '1px solid #c8cdd6',
-          borderRadius: '8px',
-          background: '#fff',
-          display: 'block',
-          boxSizing: 'border-box',
-          boxShadow: '0 6px 24px rgba(0,0,0,.12)'
-        });
+  function rememberFrameSize(frame, size, source) {
+    if (!size?.width || !size?.height) return false;
+    const changed = (
+      frame.dataset.measuredWidth !== String(size.width)
+      || frame.dataset.measuredHeight !== String(size.height)
+      || frame.dataset.measurementSource !== source
+    );
+    frame.dataset.measuredWidth = String(size.width);
+    frame.dataset.measuredHeight = String(size.height);
+    frame.dataset.measurementSource = source;
+    return changed;
+  }
+
+  function measureSameOriginFrame(frame) {
+    try {
+      const content = frame.contentDocument;
+      if (
+        !content?.documentElement
+        || !content.body
+        || content.readyState !== 'complete'
+        || content.location.href === 'about:blank'
+      ) return null;
+      const root = content.documentElement;
+      const body = content.body;
+      return {
+        width: Math.ceil(Math.max(
+          root.scrollWidth,
+          root.offsetWidth,
+          body.scrollWidth,
+          body.offsetWidth,
+        )),
+        height: Math.ceil(Math.max(
+          root.scrollHeight,
+          root.offsetHeight,
+          body.scrollHeight,
+          body.offsetHeight,
+        )),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  function styleFrame(frame) {
+    const size = frameSize(frame);
+    if (size) {
+      frame.style.width = `${size.width}px`;
+      frame.style.height = `${size.height}px`;
+    } else {
+      frame.style.removeProperty('width');
+      frame.style.removeProperty('height');
+    }
+    Object.assign(frame.style, {
+      border: `${BORDER}px solid ${theme.border}`,
+      borderRadius: '.55rem',
+      background: theme.surface,
+      boxSizing: 'content-box',
+    });
+    setFrameSizeWarning(
+      frame,
+      !['direct', 'report'].includes(frame.dataset.measurementSource),
+    );
+  }
+
+  function uniqueInOrder(values) {
+    return [...new Set(values.filter(Boolean))];
+  }
+
+  function layoutVariantGrid(grid) {
+    const frames = [...grid.querySelectorAll(':scope > .variant-frame')];
+    const columns = uniqueInOrder(frames.map(frame => frame.dataset.axisColumn));
+    const rows = uniqueInOrder(frames.map(frame => frame.dataset.axisRow));
+    Object.assign(grid.style, {
+      display: 'grid',
+      gridTemplateColumns: `repeat(${Math.max(columns.length, 1)}, max-content)`,
+      gap: '1rem',
+      alignItems: 'start',
+    });
+    for (const frame of frames) {
+      const column = Math.max(columns.indexOf(frame.dataset.axisColumn), 0) + 1;
+      const row = Math.max(rows.indexOf(frame.dataset.axisRow), 0) + 1;
+      frame.style.gridColumn = String(column);
+      frame.style.gridRow = String(row);
+      frame.querySelectorAll('iframe').forEach(styleFrame);
+    }
+  }
+
+  function variantSignature(variants) {
+    return JSON.stringify(variants.map(variant => ({
+      id: variant.id,
+      axes: variant.axes || {},
+    })));
+  }
+
+  function seedFrameSize(node, frame) {
+    const measured = node.querySelector(
+      'iframe[data-measured-width][data-measured-height]',
+    );
+    if (!measured) return;
+    frame.dataset.measuredWidth = measured.dataset.measuredWidth;
+    frame.dataset.measuredHeight = measured.dataset.measuredHeight;
+    frame.dataset.measurementSource = 'seed';
+  }
+
+  function createVariantFrame(node, variant) {
+    const frame = document.createElement('figure');
+    frame.className = 'variant-frame';
+    frame.dataset.variantId = variant.id;
+    const label = document.createElement('figcaption');
+    label.textContent = variant.id;
+    const iframe = document.createElement('iframe');
+    iframe.src = `${node.dataset.screenSrc}#only=${encodeURIComponent(variant.id)}`;
+    iframe.title = `${node.dataset.nodeId} ${variant.id}`;
+    seedFrameSize(node, iframe);
+    frame.append(label, iframe);
+    return frame;
+  }
+
+  function placeVariantFrame(grid, frame) {
+    if (frame.parentElement === grid) return;
+    if (typeof grid.moveBefore === 'function') {
+      grid.moveBefore(frame, null);
+      return;
+    }
+    frame.dataset.measurementSource = 'seed';
+    grid.appendChild(frame);
+  }
+
+  function syncVariantFrames(node, variants) {
+    if (!node.dataset.screenSrc || !Array.isArray(variants) || !variants.length) {
+      return false;
+    }
+    const signature = variantSignature(variants);
+    if (node.dataset.runtimeVariantSignature === signature) return false;
+    node.dataset.runtimeVariantSignature = signature;
+
+    const existing = new Map(
+      [...node.querySelectorAll('.variant-frame')].map(frame => [
+        frame.dataset.variantId,
+        frame,
+      ]),
+    );
+
+    const axes = [];
+    for (const variant of variants) {
+      for (const axis of Object.keys(variant.axes || {})) {
+        if (!axes.includes(axis)) axes.push(axis);
+      }
+    }
+    const columnAxis = axes[0] || 'variant';
+    const rowAxis = axes[1] || '';
+    const facetAxes = axes.slice(2);
+    const groups = new Map();
+    for (const variant of variants) {
+      const facet = facetAxes
+        .map(axis => `${axis}=${variant.axes?.[axis] || ''}`)
+        .join(';');
+      if (!groups.has(facet)) groups.set(facet, []);
+      groups.get(facet).push(variant);
+    }
+
+    const wantedIds = new Set(variants.map(variant => variant.id));
+    for (const [id, frame] of existing) {
+      if (!wantedIds.has(id)) {
+        frame.remove();
+        existing.delete(id);
+      }
+    }
+    const existingGrids = [...node.querySelectorAll(':scope > .variant-grid')];
+    const existingHeadings = [...node.querySelectorAll(':scope > .variant-facet')];
+    const usedGrids = new Set();
+    const usedHeadings = new Set();
+    const caption = node.querySelector(':scope > .node-caption');
+    let groupIndex = 0;
+    for (const [facet, members] of groups) {
+      let grid = existingGrids.find(candidate => (
+        !usedGrids.has(candidate) && candidate.dataset.facetKey === facet
+      ));
+      if (!grid) {
+        const candidate = existingGrids[groupIndex];
+        if (candidate && !usedGrids.has(candidate) && !candidate.dataset.facetKey) {
+          grid = candidate;
+        }
+      }
+      if (!grid) {
+        grid = document.createElement('div');
+        grid.className = 'variant-grid';
+        node.insertBefore(grid, caption);
+      }
+      usedGrids.add(grid);
+      grid.dataset.facetKey = facet;
+      grid.dataset.columnAxis = columnAxis;
+      grid.dataset.rowAxis = rowAxis;
+
+      if (facet) {
+        let heading = existingHeadings.find(candidate => (
+          !usedHeadings.has(candidate)
+          && (candidate.dataset.facetKey === facet || candidate.textContent === facet)
+        ));
+        if (!heading) {
+          heading = document.createElement('h3');
+          heading.className = 'variant-facet';
+        }
+        heading.dataset.facetKey = facet;
+        heading.textContent = facet;
+        if (heading.nextElementSibling !== grid) node.insertBefore(heading, grid);
+        usedHeadings.add(heading);
       }
 
-      node.appendChild(buildCaption(node));
+      for (const variant of members) {
+        let frame = existing.get(variant.id);
+        if (!frame) {
+          frame = createVariantFrame(node, variant);
+          existing.set(variant.id, frame);
+          grid.appendChild(frame);
+        } else {
+          placeVariantFrame(grid, frame);
+        }
+        frame.dataset.axisColumn = variant.axes?.[columnAxis] || variant.id;
+        frame.dataset.axisRow = rowAxis ? variant.axes?.[rowAxis] || '' : '';
+      }
+      layoutVariantGrid(grid);
+      groupIndex += 1;
+    }
+    existingGrids.filter(grid => !usedGrids.has(grid)).forEach(grid => grid.remove());
+    existingHeadings.filter(heading => !usedHeadings.has(heading))
+      .forEach(heading => heading.remove());
+    node.dataset.variants = variants.map(variant => variant.id).join(' / ');
+    return true;
+  }
+
+  function removeCaption(node) {
+    node.querySelector(':scope > .node-caption')?.remove();
+  }
+
+  function buildCaption(node) {
+    removeCaption(node);
+    const caption = document.createElement('div');
+    caption.className = 'node-caption';
+    Object.assign(caption.style, {
+      marginTop: '.7rem',
+      padding: '.75rem .9rem',
+      border: `1px solid ${theme.border}`,
+      borderRadius: '.55rem',
+      background: theme.surface,
+      color: theme.text,
+      fontFamily: theme.font,
+      maxWidth: `${Math.max(node.scrollWidth, 1)}px`,
+    });
+    const title = document.createElement('strong');
+    title.textContent = node.dataset.title || node.dataset.nodeId || 'screen';
+    caption.appendChild(title);
+    if (node.dataset.desc) {
+      const description = document.createElement('p');
+      description.textContent = node.dataset.desc;
+      Object.assign(description.style, {
+        margin: '.3rem 0 0',
+        color: theme.muted,
+        fontSize: '.82rem',
+      });
+      caption.appendChild(description);
+    }
+    if (node.dataset.variants) {
+      const variants = document.createElement('p');
+      variants.textContent = node.dataset.variants;
+      Object.assign(variants.style, {
+        margin: '.45rem 0 0',
+        color: theme.arrow,
+        fontSize: '.75rem',
+      });
+      caption.appendChild(variants);
+    }
+    node.appendChild(caption);
+  }
+
+  function prepareNodes(inner) {
+    const nodes = [...inner.querySelectorAll('.screen-node')];
+    for (const node of nodes) {
+      node.querySelectorAll('.variant-grid').forEach(layoutVariantGrid);
+      node.querySelectorAll('iframe').forEach(styleFrame);
       Object.assign(node.style, {
         position: 'absolute',
-        width: FLOW_NODE_W + 'px',
-        boxSizing: 'border-box',
         left: '0',
         top: '0',
-        zIndex: '10'
+        zIndex: '2',
+        width: 'max-content',
       });
+      buildCaption(node);
+    }
+    return nodes;
+  }
 
-      placements.push({ node, col: pos.col, row: pos.row });
-      nextCol++;
-      if (nextCol >= GRID_COLS) { nextCol = 0; nextRow++; }
-    });
+  function readArrowSpecs(svg) {
+    if (!arrowSpecCache.has(svg)) {
+      arrowSpecCache.set(svg, [...svg.querySelectorAll(':scope > path')].map(path => ({
+        from: path.dataset.from,
+        to: path.dataset.to,
+        label: path.dataset.label || '',
+        fullLabel: path.dataset.labelFull || path.dataset.label || '',
+      })));
+    }
+    return arrowSpecCache.get(svg);
+  }
 
-    const maxRow = placements.reduce((max, item) => Math.max(max, item.row), 0);
-    const rowHeights = new Map();
-    placements.forEach(item => {
-      rowHeights.set(item.row, Math.max(rowHeights.get(item.row) || 0, item.node.offsetHeight));
-    });
+  function arrowLabelGap(inner) {
+    const svg = inner.querySelector('.flow-arrows');
+    const labels = svg
+      ? readArrowSpecs(svg).map(spec => spec.label)
+      : [];
+    if (!labels.length) return 96;
+    return Math.ceil(Math.max(...labels.map(label => labelTextWidth(label, 13))) + 48);
+  }
 
-    const rowTops = new Map();
-    let top = 0;
-    for (let row = 0; row <= maxRow; row++) {
-      rowTops.set(row, top);
-      top += (rowHeights.get(row) || (FLOW_FRAME_H + 100)) + FLOW_GAP_Y;
+  function labelTextWidth(label, fontSize = 12) {
+    const key = `${fontSize}:${label}`;
+    if (labelWidthCache.has(key)) return labelWidthCache.get(key);
+    labelMeasureContext ||= document.createElement('canvas').getContext('2d');
+    let width;
+    if (labelMeasureContext) {
+      labelMeasureContext.font = `${fontSize}px ${theme.font}`;
+      width = labelMeasureContext.measureText(label).width;
+    } else {
+      width = [...label].length * fontSize;
+    }
+    labelWidthCache.set(key, width);
+    return width;
+  }
+
+  function layoutNodes(stage, inner, nodes) {
+    const boardKind = stage.dataset.boardKind;
+    const gap = arrowLabelGap(inner);
+    const sizes = nodes.map(node => ({
+      node,
+      width: Math.max(node.scrollWidth, 1),
+      height: Math.max(node.scrollHeight, 1),
+    }));
+    if (boardKind === 'screen-states') {
+      let top = 0;
+      for (const item of sizes) {
+        item.node.style.left = '0px';
+        item.node.style.top = `${top}px`;
+        top += item.height + gap;
+      }
+      return;
     }
 
-    placements.forEach(item => {
-      Object.assign(item.node.style, {
-        left: (item.col * (FLOW_NODE_W + FLOW_GAP_X)) + 'px',
-        top: (rowTops.get(item.row) || 0) + 'px'
-      });
-      item.node.addEventListener('click', event => {
-        event.stopPropagation();
-        focusNode(inner, item.node.dataset.nodeId);
-      });
+    const columns = Math.max(1, Math.ceil(Math.sqrt(sizes.length)));
+    const columnWidths = Array(columns).fill(0);
+    const rows = Math.ceil(sizes.length / columns);
+    const rowHeights = Array(rows).fill(0);
+    const placements = sizes.map((item, index) => {
+      const row = Math.floor(index / columns);
+      const offset = index % columns;
+      const column = row % 2 === 0 ? offset : columns - 1 - offset;
+      columnWidths[column] = Math.max(columnWidths[column], item.width);
+      rowHeights[row] = Math.max(rowHeights[row], item.height);
+      return { ...item, row, column };
     });
-  }
-
-  function readArrowSpecs(inner) {
-    const svg = inner.querySelector('svg.flow-arrows');
-    if (!svg) return [];
-    return Array.from(svg.querySelectorAll('path[data-from][data-to]')).map(path => ({
-      from: path.dataset.from,
-      to: path.dataset.to,
-      label: path.dataset.label || '',
-      bend: parseInt(path.dataset.bend, 10) || 0
-    }));
-  }
-
-  function nodeBox(inner, id) {
-    const escaped = cssEscape(id);
-    const node = inner.querySelector(`.screen-node[data-node-id="${escaped}"]`);
-    if (!node) return null;
-    return {
-      el: node,
-      x: node.offsetLeft,
-      y: node.offsetTop,
-      w: node.offsetWidth,
-      h: node.offsetHeight
-    };
-  }
-
-  function boardItems(inner) {
-    return Array.from(inner.querySelectorAll('.screen-node'));
+    const lefts = [];
+    const tops = [];
+    let left = 0;
+    for (const width of columnWidths) {
+      lefts.push(left);
+      left += width + gap;
+    }
+    let top = 0;
+    for (const height of rowHeights) {
+      tops.push(top);
+      top += height + gap;
+    }
+    for (const item of placements) {
+      item.node.style.left = `${lefts[item.column]}px`;
+      item.node.style.top = `${tops[item.row]}px`;
+    }
   }
 
   function boardBounds(inner) {
-    const items = boardItems(inner);
-    if (!items.length) return { minX: 0, minY: 0, maxX: 0, maxY: 0, w: BOARD_PAD, h: BOARD_PAD };
-
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    items.forEach(item => {
-      minX = Math.min(minX, item.offsetLeft);
-      minY = Math.min(minY, item.offsetTop);
-      maxX = Math.max(maxX, item.offsetLeft + item.offsetWidth);
-      maxY = Math.max(maxY, item.offsetTop + item.offsetHeight);
-    });
-    return {
-      minX,
-      minY,
-      maxX,
-      maxY,
-      w: maxX - minX + BOARD_PAD * 2,
-      h: maxY - minY + BOARD_PAD * 2
-    };
+    const nodes = [...inner.querySelectorAll('.screen-node')];
+    const right = Math.max(0, ...nodes.map(node => node.offsetLeft + node.offsetWidth));
+    const bottom = Math.max(0, ...nodes.map(node => node.offsetTop + node.offsetHeight));
+    return { width: right + BOARD_PAD * 2, height: bottom + BOARD_PAD * 2 };
   }
 
   function sizeInner(inner) {
     const bounds = boardBounds(inner);
-    inner.style.width = (bounds.maxX + BOARD_PAD) + 'px';
-    inner.style.height = (bounds.maxY + BOARD_PAD) + 'px';
+    inner.style.width = `${bounds.width}px`;
+    inner.style.height = `${bounds.height}px`;
+    const svg = inner.querySelector('.flow-arrows');
+    if (svg) {
+      Object.assign(svg.style, {
+        position: 'absolute',
+        inset: '0',
+        width: `${bounds.width}px`,
+        height: `${bounds.height}px`,
+        overflow: 'visible',
+        pointerEvents: 'none',
+        zIndex: '1',
+      });
+      svg.setAttribute('viewBox', `0 0 ${bounds.width} ${bounds.height}`);
+    }
+  }
+
+  function nodeBox(inner, id) {
+    const escaped = window.CSS?.escape ? CSS.escape(id) : id.replace(/["\\]/g, '\\$&');
+    const node = inner.querySelector(`.screen-node[data-node-id="${escaped}"]`);
+    if (!node) return null;
+    return {
+      id,
+      x: node.offsetLeft,
+      y: node.offsetTop,
+      width: node.offsetWidth,
+      height: node.offsetHeight,
+    };
   }
 
   function anchors(from, to) {
-    const fromCenter = { x: from.x + from.w / 2, y: from.y + from.h / 2 };
-    const toCenter = { x: to.x + to.w / 2, y: to.y + to.h / 2 };
-    const dx = toCenter.x - fromCenter.x;
-    const dy = toCenter.y - fromCenter.y;
-    let start, end, dir;
-
-    if (Math.abs(dx) >= Math.abs(dy)) {
-      dir = 'h';
-      if (dx >= 0) {
-        start = { x: from.x + from.w, y: fromCenter.y };
-        end = { x: to.x, y: toCenter.y };
-      } else {
-        start = { x: from.x, y: fromCenter.y };
-        end = { x: to.x + to.w, y: toCenter.y };
-      }
-    } else {
-      dir = 'v';
-      if (dy >= 0) {
-        start = { x: fromCenter.x, y: from.y + from.h };
-        end = { x: toCenter.x, y: to.y };
-      } else {
-        start = { x: fromCenter.x, y: from.y };
-        end = { x: toCenter.x, y: to.y + to.h };
-      }
+    const fromCenter = { x: from.x + from.width / 2, y: from.y + from.height / 2 };
+    const toCenter = { x: to.x + to.width / 2, y: to.y + to.height / 2 };
+    const horizontal = Math.abs(toCenter.x - fromCenter.x) >= Math.abs(toCenter.y - fromCenter.y);
+    if (horizontal) {
+      const direction = toCenter.x >= fromCenter.x ? 1 : -1;
+      return {
+        direction: 'horizontal',
+        start: { x: fromCenter.x + direction * from.width / 2, y: fromCenter.y },
+        end: { x: toCenter.x - direction * to.width / 2, y: toCenter.y },
+      };
     }
-
-    return { start, end, dir };
+    const direction = toCenter.y >= fromCenter.y ? 1 : -1;
+    return {
+      direction: 'vertical',
+      start: { x: fromCenter.x, y: fromCenter.y + direction * from.height / 2 },
+      end: { x: toCenter.x, y: toCenter.y - direction * to.height / 2 },
+    };
   }
 
-  function arrowPathData(anchor, bend) {
-    const k = 70;
-    let c1, c2;
-    if (anchor.dir === 'h') {
-      const sign = anchor.end.x >= anchor.start.x ? 1 : -1;
-      c1 = { x: anchor.start.x + sign * k, y: anchor.start.y + bend };
-      c2 = { x: anchor.end.x - sign * k, y: anchor.end.y + bend };
-    } else {
-      const sign = anchor.end.y >= anchor.start.y ? 1 : -1;
-      c1 = { x: anchor.start.x + bend, y: anchor.start.y + sign * k };
-      c2 = { x: anchor.end.x + bend, y: anchor.end.y - sign * k };
+  function curve(anchor, bend) {
+    const reach = Math.max(
+      60,
+      Math.hypot(anchor.end.x - anchor.start.x, anchor.end.y - anchor.start.y) / 3,
+    );
+    if (anchor.direction === 'horizontal') {
+      const direction = Math.sign(anchor.end.x - anchor.start.x) || 1;
+      return {
+        p0: anchor.start,
+        c1: { x: anchor.start.x + direction * reach, y: anchor.start.y + bend },
+        c2: { x: anchor.end.x - direction * reach, y: anchor.end.y + bend },
+        p3: anchor.end,
+      };
     }
-    return `M${anchor.start.x},${anchor.start.y} C${c1.x},${c1.y} ${c2.x},${c2.y} ${anchor.end.x},${anchor.end.y}`;
+    const direction = Math.sign(anchor.end.y - anchor.start.y) || 1;
+    return {
+      p0: anchor.start,
+      c1: { x: anchor.start.x + bend, y: anchor.start.y + direction * reach },
+      c2: { x: anchor.end.x + bend, y: anchor.end.y - direction * reach },
+      p3: anchor.end,
+    };
   }
 
-  function drawArrowLabel(group, spec, anchor) {
-    if (!spec.label) return;
-    const ns = 'http://www.w3.org/2000/svg';
-    const bendOffset = spec.bend * 0.6;
-    const mx = (anchor.start.x + anchor.end.x) / 2 + (anchor.dir === 'v' ? bendOffset : 0);
-    const my = (anchor.start.y + anchor.end.y) / 2 + (anchor.dir === 'h' ? bendOffset : 0);
-    const width = Math.max(34, spec.label.length * 13 + 18);
+  function pointAt(value, time) {
+    const inverse = 1 - time;
+    const a = inverse ** 3;
+    const b = 3 * inverse ** 2 * time;
+    const c = 3 * inverse * time ** 2;
+    const d = time ** 3;
+    return {
+      x: a * value.p0.x + b * value.c1.x + c * value.c2.x + d * value.p3.x,
+      y: a * value.p0.y + b * value.c1.y + c * value.c2.y + d * value.p3.y,
+    };
+  }
 
-    const rect = document.createElementNS(ns, 'rect');
-    rect.classList.add('flow-arrow-label-bg');
-    rect.setAttribute('x', mx - width / 2);
-    rect.setAttribute('y', my - 12);
-    rect.setAttribute('width', width);
-    rect.setAttribute('height', 22);
-    rect.setAttribute('rx', 11);
-    rect.setAttribute('fill', theme.labelBg);
-    rect.setAttribute('stroke', theme.labelBorder);
+  function pathData(value) {
+    return `M${value.p0.x},${value.p0.y} C${value.c1.x},${value.c1.y} ${value.c2.x},${value.c2.y} ${value.p3.x},${value.p3.y}`;
+  }
 
-    const text = document.createElementNS(ns, 'text');
-    text.classList.add('flow-arrow-label-text');
-    text.textContent = spec.label;
-    text.setAttribute('x', mx);
-    text.setAttribute('y', my + 4);
+  function overlaps(left, right) {
+    return left.x < right.x + right.width
+      && left.x + left.width > right.x
+      && left.y < right.y + right.height
+      && left.y + left.height > right.y;
+  }
+
+  function labelBox(spec, value) {
+    if (!spec.label) return null;
+    const point = pointAt(value, 0.5);
+    const width = Math.max(44, labelTextWidth(spec.label) + 18);
+    return { x: point.x - width / 2, y: point.y - 12, width, height: 24 };
+  }
+
+  function curveHitsBox(value, box) {
+    for (let index = 1; index < CURVE_SAMPLES; index += 1) {
+      const point = pointAt(value, index / CURVE_SAMPLES);
+      if (
+        point.x > box.x + 3
+        && point.x < box.x + box.width - 3
+        && point.y > box.y + 3
+        && point.y < box.y + box.height - 3
+      ) return true;
+    }
+    return false;
+  }
+
+  function chooseCurve(spec, anchor, nodeBoxes, labels) {
+    const step = Math.max(80, arrowLabelGap(document));
+    const candidates = [0];
+    for (let index = 1; index <= 20; index += 1) candidates.push(index * step, -index * step);
+    let best = null;
+    for (const bend of candidates) {
+      const value = curve(anchor, bend);
+      const label = labelBox(spec, value);
+      const nodeHits = nodeBoxes.filter(box =>
+        box.id !== spec.from && box.id !== spec.to && curveHitsBox(value, box)).length;
+      const labelHits = label
+        ? nodeBoxes.filter(box => overlaps(label, box)).length
+          + labels.filter(box => overlaps(label, box)).length
+        : 0;
+      const score = nodeHits * 10 + labelHits * 5;
+      if (!score) return { value, label, bend };
+      if (!best || score < best.score) best = { value, label, bend, score };
+    }
+    return best;
+  }
+
+  function drawLabel(group, spec, box) {
+    if (!box) return;
+    const rect = document.createElementNS(SVG_NS, 'rect');
+    rect.setAttribute('x', String(box.x));
+    rect.setAttribute('y', String(box.y));
+    rect.setAttribute('width', String(box.width));
+    rect.setAttribute('height', String(box.height));
+    rect.setAttribute('rx', '12');
+    rect.setAttribute('fill', theme.label);
+    rect.setAttribute('stroke', theme.arrow);
+    const text = document.createElementNS(SVG_NS, 'text');
+    text.setAttribute('x', String(box.x + box.width / 2));
+    text.setAttribute('y', String(box.y + 16));
     text.setAttribute('text-anchor', 'middle');
     text.setAttribute('font-family', theme.font);
-    text.setAttribute('font-size', 13);
-    text.setAttribute('font-weight', 600);
-    text.setAttribute('fill', theme.chipText);
-
-    group.appendChild(rect);
-    group.appendChild(text);
+    text.setAttribute('font-size', '12');
+    text.setAttribute('fill', theme.text);
+    text.textContent = spec.label;
+    group.append(rect, text);
   }
 
-  function drawArrows(inner, specs) {
-    const svg = inner.querySelector('svg.flow-arrows');
-    if (!svg) return;
-
-    const bounds = boardBounds(inner);
-    Object.assign(svg.style, {
-      position: 'absolute',
-      top: '0',
-      left: '0',
-      overflow: 'visible',
-      pointerEvents: 'none',
-      zIndex: '5'
-    });
-    svg.setAttribute('width', bounds.maxX + BOARD_PAD);
-    svg.setAttribute('height', bounds.maxY + BOARD_PAD);
-    svg.innerHTML =
-      '<defs><marker id="dcness-flow-arrow-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">' +
-      '<path d="M0,0 L10,5 L0,10 Z" fill="' + theme.arrow + '"/></marker></defs>';
-
-    const ns = 'http://www.w3.org/2000/svg';
-    specs.forEach(spec => {
+  function drawArrows(inner) {
+    const svg = inner.querySelector('.flow-arrows');
+    if (!svg) {
+      geometryDiagnostics.set(inner, {
+        arrowCount: 0,
+        arrowNodeHits: 0,
+        labelNodeHits: 0,
+        labelPairHits: 0,
+      });
+      return;
+    }
+    const specs = readArrowSpecs(svg);
+    svg.replaceChildren();
+    const defs = document.createElementNS(SVG_NS, 'defs');
+    defs.innerHTML = `<marker id="dcness-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="${theme.arrow}"/></marker>`;
+    svg.appendChild(defs);
+    const nodeBoxes = [...inner.querySelectorAll('.screen-node')].map(node => ({
+      id: node.dataset.nodeId,
+      x: node.offsetLeft,
+      y: node.offsetTop,
+      width: node.offsetWidth,
+      height: node.offsetHeight,
+    }));
+    const labels = [];
+    let arrowCount = 0;
+    let arrowNodeHits = 0;
+    let labelNodeHits = 0;
+    for (const spec of specs) {
       const from = nodeBox(inner, spec.from);
       const to = nodeBox(inner, spec.to);
-      if (!from || !to) return;
-
-      const anchor = anchors(from, to);
-      const group = document.createElementNS(ns, 'g');
+      if (!from || !to) continue;
+      const selected = chooseCurve(spec, anchors(from, to), nodeBoxes, labels);
+      arrowCount += 1;
+      arrowNodeHits += nodeBoxes.filter(box =>
+        box.id !== spec.from
+        && box.id !== spec.to
+        && curveHitsBox(selected.value, box)).length;
+      labelNodeHits += selected.label
+        ? nodeBoxes.filter(box => overlaps(selected.label, box)).length
+        : 0;
+      if (selected.label) labels.push(selected.label);
+      const group = document.createElementNS(SVG_NS, 'g');
       group.classList.add('flow-arrow');
       group.dataset.from = spec.from;
       group.dataset.to = spec.to;
-      group.dataset.label = spec.label;
-      group.style.pointerEvents = 'auto';
-      group.style.cursor = 'pointer';
-
-      const path = document.createElementNS(ns, 'path');
-      path.setAttribute('d', arrowPathData(anchor, spec.bend));
+      group.dataset.bend = String(selected.bend);
+      const title = document.createElementNS(SVG_NS, 'title');
+      title.textContent = spec.fullLabel;
+      const path = document.createElementNS(SVG_NS, 'path');
+      path.setAttribute('d', pathData(selected.value));
+      path.setAttribute('fill', 'none');
       path.setAttribute('stroke', theme.arrow);
       path.setAttribute('stroke-width', '2.5');
-      path.setAttribute('fill', 'none');
-      path.setAttribute('marker-end', 'url(#dcness-flow-arrow-head)');
-      path.dataset.from = spec.from;
-      path.dataset.to = spec.to;
-      path.dataset.label = spec.label;
-      path.style.pointerEvents = 'stroke';
-
-      group.appendChild(path);
-      drawArrowLabel(group, spec, anchor);
-      group.addEventListener('click', event => {
-        event.stopPropagation();
-        focusEdge(inner, spec.from, spec.to);
-      });
+      path.setAttribute('marker-end', 'url(#dcness-arrow)');
+      group.append(title, path);
+      drawLabel(group, spec, selected.label);
       svg.appendChild(group);
-    });
-  }
-
-  function selectableNodes(inner) {
-    return Array.from(inner.querySelectorAll('.screen-node'));
-  }
-
-  function nodeId(node) {
-    return node.dataset.nodeId;
-  }
-
-  function styleNodeFocus(node, on, dim) {
-    node.style.opacity = dim ? '0.45' : '1';
-    node.style.outline = on ? '3px solid ' + theme.arrow : 'none';
-    node.style.outlineOffset = '4px';
-    node.style.borderRadius = on ? '8px' : '';
-  }
-
-  function focusNode(inner, id) {
-    if (!id) return;
-    selectableNodes(inner).forEach(node => {
-      const connected = nodeId(node) === id;
-      styleNodeFocus(node, connected, !connected);
-    });
-    inner.querySelectorAll('g.flow-arrow').forEach(group => {
-      const on = group.dataset.from === id || group.dataset.to === id;
-      group.style.opacity = on ? '1' : '0.2';
-      const path = group.querySelector('path');
-      if (path) path.setAttribute('stroke-width', on ? '4' : '1.5');
-    });
-  }
-
-  function focusEdge(inner, fromId, toId) {
-    selectableNodes(inner).forEach(node => {
-      const id = nodeId(node);
-      const on = id === fromId || id === toId;
-      styleNodeFocus(node, on, !on);
-    });
-    inner.querySelectorAll('g.flow-arrow').forEach(group => {
-      const on = group.dataset.from === fromId && group.dataset.to === toId;
-      group.style.opacity = on ? '1' : '0.18';
-      const path = group.querySelector('path');
-      if (path) path.setAttribute('stroke-width', on ? '4' : '1.5');
-    });
-  }
-
-  function clearFocus(inner) {
-    selectableNodes(inner).forEach(node => styleNodeFocus(node, false, false));
-    inner.querySelectorAll('g.flow-arrow').forEach(group => {
-      group.style.opacity = '1';
-      const path = group.querySelector('path');
-      if (path) path.setAttribute('stroke-width', '2.5');
+    }
+    let labelPairHits = 0;
+    for (let left = 0; left < labels.length; left += 1) {
+      for (let right = left + 1; right < labels.length; right += 1) {
+        if (overlaps(labels[left], labels[right])) labelPairHits += 1;
+      }
+    }
+    geometryDiagnostics.set(inner, {
+      arrowCount,
+      arrowNodeHits,
+      labelNodeHits,
+      labelPairHits,
     });
   }
 
   function applyTransform(inner) {
-    inner.style.transform = `translate(${panX}px, ${panY}px) scale(${zoom})`;
+    inner.style.transform = `translate(${panX}px,${panY}px) scale(${scale})`;
+  }
+
+  function zoomToFit(stage, inner) {
+    const bounds = boardBounds(inner);
+    if (!bounds.width || !bounds.height) return;
+    scale = Math.min(
+      1,
+      Math.max(
+        ZOOM.min,
+        Math.min((stage.clientWidth - 32) / bounds.width, (stage.clientHeight - 32) / bounds.height),
+      ),
+    );
+    panX = (stage.clientWidth - bounds.width * scale) / 2;
+    panY = (stage.clientHeight - bounds.height * scale) / 2;
+    applyTransform(inner);
   }
 
   function setupPanZoom(stage, inner) {
-    let dragging = false, moved = false, lastX = 0, lastY = 0;
-    stage.addEventListener('mousedown', event => {
-      if (event.target.closest('iframe')) return;
-      dragging = true;
-      moved = false;
-      lastX = event.clientX;
-      lastY = event.clientY;
+    let drag = null;
+    stage.addEventListener('pointerdown', event => {
+      drag = { x: event.clientX, y: event.clientY, panX, panY };
+      stage.setPointerCapture(event.pointerId);
       stage.style.cursor = 'grabbing';
     });
-    window.addEventListener('mousemove', event => {
-      if (!dragging) return;
-      panX += event.clientX - lastX;
-      panY += event.clientY - lastY;
-      lastX = event.clientX;
-      lastY = event.clientY;
-      moved = true;
+    stage.addEventListener('pointermove', event => {
+      if (!drag) return;
+      panX = drag.panX + event.clientX - drag.x;
+      panY = drag.panY + event.clientY - drag.y;
       applyTransform(inner);
     });
-    window.addEventListener('mouseup', () => {
-      dragging = false;
+    stage.addEventListener('pointerup', () => {
+      drag = null;
       stage.style.cursor = 'grab';
-    });
-    stage.addEventListener('click', event => {
-      if (!moved && !event.target.closest('.screen-node') && !event.target.closest('g.flow-arrow')) {
-        clearFocus(inner);
-      }
     });
     stage.addEventListener('wheel', event => {
       event.preventDefault();
-      const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, zoom - event.deltaY * 0.0012));
+      const previous = scale;
+      scale = Math.min(ZOOM.max, Math.max(ZOOM.min, scale * Math.exp(-event.deltaY * 0.001)));
       const rect = stage.getBoundingClientRect();
-      const cx = event.clientX - rect.left;
-      const cy = event.clientY - rect.top;
-      panX = cx - (cx - panX) * (next / zoom);
-      panY = cy - (cy - panY) * (next / zoom);
-      zoom = next;
+      const x = event.clientX - rect.left;
+      const y = event.clientY - rect.top;
+      panX = x - (x - panX) * (scale / previous);
+      panY = y - (y - panY) * (scale / previous);
       applyTransform(inner);
     }, { passive: false });
   }
 
-  function zoomToFit(stage, inner) {
-    const items = boardItems(inner);
-    if (!items.length) return;
-    const bounds = boardBounds(inner);
-    const vw = stage.clientWidth;
-    const vh = stage.clientHeight;
-    zoom = Math.min(vw / bounds.w, vh / bounds.h, 1);
-    panX = (vw - bounds.w * zoom) / 2 - (bounds.minX - BOARD_PAD) * zoom;
-    panY = (vh - bounds.h * zoom) / 2 - (bounds.minY - BOARD_PAD) * zoom;
-    applyTransform(inner);
+  function setupSizeReports(inner, relayout) {
+    window.addEventListener('message', event => {
+      const data = event.data;
+      if (!data || data.type !== 'dcness-frame-size') return;
+      const frame = [...inner.querySelectorAll('iframe')]
+        .find(candidate => candidate.contentWindow === event.source);
+      if (!frame) return;
+      const width = Number(data.width);
+      const height = Number(data.height);
+      if (!width || !height) return;
+      const sizeChanged = rememberFrameSize(frame, { width, height }, 'report');
+      const node = frame.closest('.screen-node');
+      const variantsChanged = node && syncVariantFrames(node, data.variants);
+      if (sizeChanged || variantsChanged) {
+        relayout();
+      }
+    });
+    function requestSize(frame) {
+      if (!frame.dataset.sizeRequestBound) {
+        frame.dataset.sizeRequestBound = 'true';
+        frame.addEventListener('load', () => {
+          const sizeChanged = rememberFrameSize(
+            frame,
+            measureSameOriginFrame(frame),
+            'direct',
+          );
+          frame.contentWindow?.postMessage({ type: 'dcness-request-frame-size' }, '*');
+          if (sizeChanged) relayout();
+        });
+      }
+      const sizeChanged = rememberFrameSize(
+        frame,
+        measureSameOriginFrame(frame),
+        'direct',
+      );
+      frame.contentWindow?.postMessage({ type: 'dcness-request-frame-size' }, '*');
+      return sizeChanged;
+    }
+    const observer = new MutationObserver(records => {
+      let sizeChanged = false;
+      for (const record of records) {
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue;
+          if (node.matches('iframe')) sizeChanged = requestSize(node) || sizeChanged;
+          node.querySelectorAll?.('iframe').forEach(frame => {
+            sizeChanged = requestSize(frame) || sizeChanged;
+          });
+        }
+      }
+      if (sizeChanged) relayout();
+    });
+    observer.observe(inner, { childList: true, subtree: true });
+    let sizeChanged = false;
+    inner.querySelectorAll('iframe').forEach(frame => {
+      sizeChanged = requestSize(frame) || sizeChanged;
+    });
+    if (sizeChanged) relayout();
   }
 
-  function setupShowIdsBroadcast(inner) {
-    const observer = new MutationObserver(() => {
-      const on = document.documentElement.classList.contains('dcness-show-ids');
-      inner.querySelectorAll('iframe').forEach(frame => {
-        try { frame.contentWindow.postMessage(on ? 'show-ids:on' : 'show-ids:off', '*'); } catch (_) {}
-      });
-    });
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+  function diagnostics(inner) {
+    return {
+      frames: [...inner.querySelectorAll('iframe')].map(frame => {
+        const root = frame.contentDocument?.documentElement;
+        return {
+          src: frame.getAttribute('src'),
+          width: frame.clientWidth,
+          height: frame.clientHeight,
+          scrollWidth: root?.scrollWidth ?? null,
+          scrollHeight: root?.scrollHeight ?? null,
+          measurementSource: frame.dataset.measurementSource || '',
+          sizeWarning: Boolean(
+            frame.closest('.variant-frame, .screen-node')
+              ?.querySelector(':scope > .frame-size-warning'),
+          ),
+          hasInternalScroll: root
+            ? (
+              root.scrollWidth > frame.clientWidth
+              || root.scrollHeight > frame.clientHeight
+            )
+            : null,
+        };
+      }),
+      variantFrames: [...inner.querySelectorAll('.variant-frame')].map(frame => ({
+        nodeId: frame.closest('.screen-node')?.dataset.nodeId || '',
+        id: frame.dataset.variantId || '',
+        column: frame.dataset.axisColumn || '',
+        row: frame.dataset.axisRow || '',
+        facet: frame.parentElement?.dataset.facetKey || '',
+        left: frame.offsetLeft,
+        top: frame.offsetTop,
+        width: frame.offsetWidth,
+        height: frame.offsetHeight,
+      })),
+      arrows: [...inner.querySelectorAll('.flow-arrow')].map(arrow => ({
+        from: arrow.dataset.from,
+        to: arrow.dataset.to,
+        bend: Number(arrow.dataset.bend),
+      })),
+      geometry: geometryDiagnostics.get(inner) || {
+        arrowCount: 0,
+        arrowNodeHits: 0,
+        labelNodeHits: 0,
+        labelPairHits: 0,
+      },
+    };
   }
 
   function init() {
     readTheme();
     const context = setupStage();
     if (!context) return;
-
     const { stage, inner } = context;
-    const specs = readArrowSpecs(inner);
-    layoutScreenNodes(inner);
-
-    sizeInner(inner);
-    drawArrows(inner, specs);
+    function relayout() {
+      const nodes = prepareNodes(inner);
+      layoutNodes(stage, inner, nodes);
+      sizeInner(inner);
+      drawArrows(inner);
+      applyTransform(inner);
+    }
+    relayout();
+    setupSizeReports(inner, relayout);
     setupPanZoom(stage, inner);
-    setupShowIdsBroadcast(inner);
-    applyTransform(inner);
-
+    window.dcnessCanvasDiagnostics = () => diagnostics(inner);
     setTimeout(() => {
-      sizeInner(inner);
-      drawArrows(inner, specs);
+      relayout();
       zoomToFit(stage, inner);
-    }, 350);
+    }, 250);
     window.addEventListener('load', () => {
-      sizeInner(inner);
-      drawArrows(inner, specs);
+      relayout();
       zoomToFit(stage, inner);
     });
     window.addEventListener('resize', () => zoomToFit(stage, inner));
   }
 
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
-  else init();
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
 })();

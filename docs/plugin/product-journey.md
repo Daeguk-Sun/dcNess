@@ -197,7 +197,7 @@ helper는 command 환경에 `DCNESS_PRODUCT_JOURNEY_RUN_DIR` 절대경로를 주
 | `ux_integrity.snapshots[].elements` | 그 화면에서 REQ를 닫는 근거가 되는 요소 목록. 한 개 이상 필수 |
 | `ux_integrity.snapshots[].elements[].element_id` | layout report의 같은 식별자와 대응하는 요소 id |
 | `ux_integrity.snapshots[].elements[].node_id` | 확정 목업의 `data-node-id`. 그 snapshot이 `mockup_reference`를 선언하면 요소마다 필수 |
-| `ux_integrity.snapshots[].mockup_reference` | 그 화면의 확정 목업 경로(`docs/design-variants/<screen-id>.html`). 선언하면 receipt에 보존돼 목업 기준 배치 판정의 입력이 된다 |
+| `ux_integrity.snapshots[].mockup_reference` | 그 화면의 확정 목업 경로(`docs/design-variants/screens/<screen-id>.html`). 선언하면 receipt에 보존돼 목업 기준 배치 판정의 입력이 된다 |
 
 ### layout report 계약
 

@@ -82,16 +82,15 @@ components:
 UI 없는 프로젝트 (dcness self 포함) 에서 `design.md` 미존재 시 silent skip.
 agent 는 파일 부재를 오류로 처리하지 않는다.
 
-### Static HTML 시안 / canvas SSOT 규약
+### Static HTML 시안 / design-variants 규약
 
-확정본 SSOT 는 `docs/design-variants/` 한 지붕이다.
+확정본·저니·화면 변형·draft·엔진의 구조와 생성 계약은
+[`design-variants.md`](design-variants.md)가 소유한다. 본 문서는 디자인 토큰 규격만
+소유하며 산출물 폴더 계약을 반복하지 않는다.
 
-- `docs/design-variants/canvas.html`: 프로젝트 전체 화면 지도와 흐름 화살표. `.screen-node[data-node-id][data-pos][data-title][data-desc][data-states][data-h]` 로 화면을 등록하며 `data-pos` 생략 시 자동 배치한다.
-- `docs/design-variants/_lib/`: canvas/show-id helper.
-- `docs/design-variants/<screen-id>.html`: 화면별 확정본. v 접미사는 쓰지 않고 히스토리는 git 이 보존한다.
-- `docs/design-variants/drafts/`: 탐색용 draft. `.gitignore` 로 draft 파일은 무시하되 `.gitkeep` 으로 디렉터리를 보존한다.
-
-designer 산출물은 `docs/design-variants/drafts/<screen-id>-draft<N>.html` 형태의 static HTML 단일 파일이다. 별도 build, dev server, 프레임워크 런타임을 요구하지 않는다. 사용자 PICK 후 내부 `canvas-design` 절차에서 메인이 `docs/design-variants/<screen-id>.html` 로 확정본 승격하고 `canvas.html` 에 frame 을 등록한다.
+designer 산출물은 `docs/design-variants/drafts/<screen-id>-draft<N>.html` 형태의 static
+HTML 단일 파일이다. 별도 build, dev server, 프레임워크 런타임을 요구하지 않는다.
+사용자 PICK 뒤 내부 `canvas-design` 절차가 확정본 이동과 파생 산출물 재생성을 수행한다.
 
 `/ux` 는 구현 없이 목업과 흐름을 먼저 탐색하는 utility 이며, 같은 `canvas-design` 절차를 따른다. `ux-flow.md` 화면 인벤토리는 `hi-fi 목업 필요` 열에 `필요/불필요` 를 표시하고, designer 는 `필요` 화면만 draft 로 만든다. 부수 화면은 text wireframe 으로 충분하며 전 화면 일괄 목업화하지 않는다.
 

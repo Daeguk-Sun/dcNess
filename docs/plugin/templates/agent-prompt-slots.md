@@ -12,9 +12,9 @@ agent 가 자체 read 할 SSOT 경로를 적는다.
     · system-architect(thin bootstrap)=docs/index.md + PRD + root architecture/conventions/decisions + stories
     · system-architect(checkpoint)=docs/index.md + 전역/epic SSOT + affected module docs + 코드 계약 표면
     · module-architect=epic-batch + docs/index.md + 전역 decisions + affected module docs + epic architecture·선택 domain-model·전체 stories + 코드 계약 표면
-      + 확정 목업 존재 UI epic 이면 docs/design.md + 확정 목업 파일 + docs/design-variants/canvas.html + node-id 매핑 + 핵심 디자인 토큰
+      + 확정 목업 존재 UI epic 이면 docs/design.md + 확정 목업 파일 + docs/design-variants/README.md + node-id 매핑 + 핵심 디자인 토큰
     · architecture-validator=검토 대상 산출물
-      + 확정 목업 존재 UI epic 이면 docs/design.md + 확정 목업 파일 + docs/design-variants/canvas.html + node-id 매핑}}
+      + 확정 목업 존재 UI epic 이면 docs/design.md + 확정 목업 파일 + docs/design-variants/README.md + node-id 매핑}}
 
 **worktree:** {{동적 lifecycle context가 전달한다.
 foreground Claude Agent는 SubagentStart hook, headless worker는 wrapper가 절대경로를 첫 prompt에 넣는다.

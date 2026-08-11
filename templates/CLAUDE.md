@@ -6,16 +6,16 @@ seed와 workflow snippet을 고칠 때의 컴퍼스이며, 그 자체가 외부 
 ## 소유 범위
 
 - `/init-dcness`가 사용자 프로젝트로 복사할 수 있는 GitHub workflow snippet.
-- `/design` 계열에서 사용하는 design variant canvas seed.
+- `/design` 계열에서 사용하는 design variant board seed.
 - 템플릿은 dcness self 안의 파일이지만, 내용은 사용자 프로젝트에서 실행되거나 편집될 수 있다.
 
 ## 먼저 볼 파일
 
 - [github-workflows/](github-workflows/): git naming, PR body, doc path, doc sync, GitHub Project
   lifecycle workflow snippets.
-- [design-variants/canvas.html](../templates/design-variants/canvas.html): design variant static HTML seed.
+- [design-variants/boards/screen-states.html](../templates/design-variants/boards/screen-states.html): generated screen-state board seed.
 - [design-variants/_lib/canvas.js](../templates/design-variants/_lib/canvas.js)와
-  [design-variants/_lib/show-ids.js](../templates/design-variants/_lib/show-ids.js): canvas 동작 helper.
+  [design-variants/_lib/](../templates/design-variants/_lib/): board engine helper.
 - [design-variants/drafts/.gitkeep](../templates/design-variants/drafts/.gitkeep): draft directory seed 유지 파일.
 - [../commands/init-dcness.md](../commands/init-dcness.md): workflow template 복사와 사용자 프로젝트 배포 흐름.
 - [../tests/test_canvas_design_workflow.py](../tests/test_canvas_design_workflow.py),

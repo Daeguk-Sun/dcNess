@@ -82,6 +82,78 @@ class MockupNodeCheckTests(unittest.TestCase):
         self.assertEqual(payload["mockup_files"], [str(mockup_dir / "checkout.html")])
         self.assertEqual(payload["missing_node_ids"], ["checkout.missing"])
 
+    def test_confirmed_mockup_scan_uses_screens_and_ignores_generated_outputs(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            mockup_dir = root / "docs" / "design-variants"
+            screens = mockup_dir / "screens"
+            boards = mockup_dir / "boards"
+            screens.mkdir(parents=True)
+            boards.mkdir()
+            (screens / "checkout.html").write_text(
+                '<main data-node-id="checkout.root"></main>',
+                encoding="utf-8",
+            )
+            (boards / "journey-checkout.html").write_text(
+                '<div data-node-id="generated.journey"></div>',
+                encoding="utf-8",
+            )
+            (boards / "screen-states.html").write_text(
+                '<div data-node-id="generated.states"></div>',
+                encoding="utf-8",
+            )
+            (mockup_dir / "index.html").write_text(
+                '<div data-node-id="generated.index"></div>',
+                encoding="utf-8",
+            )
+            impl = root / "impl" / "01-pay.md"
+            impl.parent.mkdir()
+            impl.write_text(
+                """
+## 디자인 참조
+
+- 핵심 `data-node-id` → 구현 컴포넌트/상태:
+  - `checkout.root` → CheckoutScreen
+  - `generated.index` → GeneratedLanding
+
+## Scope
+""",
+                encoding="utf-8",
+            )
+
+            payload = check_mockup_nodes([str(impl)], mockup_dir=mockup_dir)
+
+        self.assertEqual(payload["mockup_files"], [str(screens / "checkout.html")])
+        self.assertEqual(payload["available_node_ids"], ["checkout.root"])
+        self.assertEqual(payload["missing_node_ids"], ["generated.index"])
+
+    def test_empty_screens_directory_keeps_legacy_root_fallback(self) -> None:
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            mockup_dir = root / "docs" / "design-variants"
+            (mockup_dir / "screens").mkdir(parents=True)
+            legacy = mockup_dir / "checkout.html"
+            legacy.write_text(
+                '<main data-node-id="checkout.root"></main>',
+                encoding="utf-8",
+            )
+            impl = root / "impl.md"
+            impl.write_text(
+                """
+## 디자인 참조
+
+- `checkout.root` → CheckoutScreen
+""",
+                encoding="utf-8",
+            )
+
+            payload = check_mockup_nodes([str(impl)], mockup_dir=mockup_dir)
+
+        self.assertTrue(payload["ok"])
+        self.assertEqual(payload["mockup_files"], [str(legacy)])
+
     def test_right_side_backticked_component_name_is_not_treated_as_node_id(self) -> None:
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)

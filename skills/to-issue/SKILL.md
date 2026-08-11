@@ -87,7 +87,7 @@ gh issue list --state open --search "<핵심 키워드>" --json number,title,lab
 
 [`templates/issue-brief.md`](templates/issue-brief.md)를 읽고, [`issue-fields.md`](issue-fields.md)의 선택값으로 `{{IssueType}}`, `{{Priority}}` 를 채운다. `{{Priority}}` 는 [`issue-fields.md`](issue-fields.md)의 Priority 추론 가이드로 맥락에서 추론해 채우고, default `major` 로 조용히 수렴시키지 않는다. 템플릿의 섹션 구조를 임의로 축약하지 않는다. 안정적인 계약을 모르면 추측하지 말고 비워두거나 명확화 질문으로 남긴다.
 
-UI 성격 issue 는 `Key interfaces / Contracts` 에 `UI 기준:` 항목을 둔다. 값은 `docs/design-variants/<screen-id>.html`, `docs/design-variants/canvas.html`, `docs/epics/.../ux-flow.md`, 사용자 제공 이미지·스케치 링크, 또는 `목업 없이(시각 구조 불변 사유=<reason>)` 중 하나다. "나중에 정함" 으로 등록하지 않는다.
+UI 성격 issue 는 `Key interfaces / Contracts` 에 `UI 기준:` 항목을 둔다. 값은 `docs/design-variants/screens/<screen-id>.html`, `docs/design-variants/README.md`, `docs/epics/.../ux-flow.md`, 사용자 제공 이미지·스케치 링크, 또는 `목업 없이(시각 구조 불변 사유=<reason>)` 중 하나다. "나중에 정함" 으로 등록하지 않는다.
 
 Acceptance criteria 체크박스는 agent-verifiable 항목만 두고 각 항목을 `[command]` 또는 `[agent-read]` 로 분류한다. human verification 은 별도 안내 섹션에 체크박스 없이 둔다. 분류를 고를 수 없거나 일반론으로만 쓸 수 있는 항목은 criterion 을 구체화하거나 사람 확인 안내로 옮긴다.
 

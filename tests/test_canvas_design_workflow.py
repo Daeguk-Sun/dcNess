@@ -92,23 +92,23 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "공개 진입점이 아니다",
             "docs/design-variants/",
             "docs/design-variants/drafts/",
-            "seed 보장",
             "templates/design-variants/",
-            "부재 시만",
-            "canvas.html",
-            "<screen-id>.html",
+            "templates/design-variants/",
+            "screens/<screen-id>.html",
             "사용자 PICK",
-            "확정본 승격",
-            "canvas frame 등록",
+            "순수 이동",
+            "보드·진입점",
             "PASS",
             "ESCALATE",
             "helper begin/end-step 비대상",
             "SubagentStart/PostToolUse lifecycle hook",
-            "designer 는 drafts",
+            "designer:",
             "메인",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, skill)
+        self.assertLessEqual(len(skill.splitlines()), 80)
+        self.assertIn("docs/plugin/design-variants.md", skill)
 
         self.assertIn("canvas-design", self.impl_contract)
         self.assertIn("canvas-design", self.impl_loop_contract)
@@ -134,9 +134,9 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "drafts 반복",
             "사용자 PICK",
             "확정본 승격",
-            "canvas 등록",
-            "docs/design-variants/<screen-id>.html",
-            "docs/design-variants/canvas.html",
+            "보드·진입점 재생성",
+            "docs/design-variants/screens/<screen-id>.html",
+            "docs/design-variants/README.md",
             "후속 `/impl` 은 머지된 확정본만 `기준 있음`",
         ):
             with self.subTest(needle=needle):
@@ -181,8 +181,8 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             "impl / impl-loop / design / ux",
             "`/spec` / `/tech-review` / `/to-issue` (commit 없음)",
             "ux = epic `ux-flow.md`, `docs/design.md`, "
-            "`docs/design-variants/<screen-id>.html`, "
-            "`docs/design-variants/canvas.html`",
+            "`docs/design-variants/screens/**`, `boards/**`, "
+            "`README.md`, `index.html`",
             "해당 loop 산출물만 명시 pathspec",
         ):
             with self.subTest(needle=needle):
@@ -205,23 +205,17 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             with self.subTest(needle=needle):
                 self.assertIn(needle, self.ux)
 
-    def test_canvas_design_bootstraps_seed_and_requires_routing_enum(self) -> None:
+    def test_canvas_design_keeps_seed_detail_in_ssot_and_requires_enum(self) -> None:
         skill = (ROOT / "skills" / "canvas-design" / "SKILL.md").read_text(
             encoding="utf-8"
         )
 
         for needle in (
-            "docs/design-variants/_lib/show-ids.js",
-            "docs/design-variants/_lib/canvas.js",
-            "docs/design-variants/canvas.html",
-            "docs/design-variants/drafts/.gitkeep",
-            "templates/design-variants/.gitignore",
-            "templates/design-variants/_lib/show-ids.js",
-            "templates/design-variants/_lib/canvas.js",
-            "templates/design-variants/canvas.html",
-            "templates/design-variants/drafts/.gitkeep",
-            "덮어쓰지 않는다",
-            "마지막 단락",
+            "docs/plugin/design-variants.md",
+            "templates/design-variants/",
+            "기존 파일은 보존",
+            "사용자 PICK 대기 중",
+            "마지막 단락에 결론 enum",
             "PASS",
             "ESCALATE",
         ):
@@ -232,7 +226,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             line for line in skill.splitlines() if line.startswith("- `ESCALATE`")
         )
         self.assertNotIn("사용자 PICK 대기", escalate_line)
-        self.assertIn("사용자 PICK 대기 중에는 routed conclusion", skill)
+        self.assertIn("사용자 PICK 대기 중에는 결론", skill)
 
     def test_canvas_design_is_main_owned_not_strict_agent_step(self) -> None:
         text = self.impl_loop
@@ -268,7 +262,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
     def test_impl_loop_uses_canvas_design_with_build_worker(self) -> None:
         for needle in (
             "canvas-design",
-            "docs/design-variants/<screen-id>.html",
+            "docs/design-variants/screens/<screen-id>.html",
             "build-worker",
             "확정본 승격",
             "단일 구현 엔진",
@@ -288,7 +282,7 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
     def test_agents_use_confirmed_mockup_as_design_alignment_axis(self) -> None:
         for needle in (
             "디자인 정합",
-            "docs/design-variants/<screen-id>.html",
+            "docs/design-variants/screens/<screen-id>.html",
             "레이아웃 계층",
             "상태",
             "토큰",
@@ -308,7 +302,9 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
                 self.assertIn("docs/design-variants/", text)
                 self.assertIn("docs/design-variants/drafts/", text)
                 self.assertNotIn("과거 루트 `design-variants/`", text)
-        self.assertIn("canvas.html", self.init_skill)
+        self.assertIn("boards/screen-states.html", self.init_skill)
+        self.assertIn("_lib/only-variant.js", self.init_skill)
+        self.assertIn("_lib/report-size.js", self.init_skill)
         self.assertIn("templates/design-variants/**", self.init_ref)
         self.assertNotIn('TARGET="$PROJECT_ROOT/design-variants/$FILE"', self.init_skill)
         self.assertTrue((ROOT / "templates" / "design-variants" / ".gitignore").is_file())
@@ -328,9 +324,11 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
         for needle in (
             "designer 진입 공통 preflight",
             "templates/design-variants/.gitignore",
-            "templates/design-variants/canvas.html",
+            "templates/design-variants/boards/screen-states.html",
             "templates/design-variants/_lib/show-ids.js",
             "templates/design-variants/_lib/canvas.js",
+            "templates/design-variants/_lib/only-variant.js",
+            "templates/design-variants/_lib/report-size.js",
             "templates/design-variants/drafts/.gitkeep",
             "덮어쓰지 않는다",
             "designer-ROUND",
@@ -357,53 +355,51 @@ class CanvasDesignWorkflowTests(unittest.TestCase):
             (ROOT / "templates" / "design-variants" / "drafts" / ".gitkeep").is_file()
         )
 
-    def test_canvas_seed_uses_confirmed_screen_paths_without_version_suffix(self) -> None:
-        canvas = (ROOT / "templates" / "design-variants" / "canvas.html").read_text(
-            encoding="utf-8"
-        )
+    def test_screen_template_uses_variant_helpers_without_draft_metadata(self) -> None:
         html_variant = (
             ROOT / "docs" / "plugin" / "agents" / "designer" / "templates" / "html-variant.md"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('src="<screen-id>.html"', canvas)
-        self.assertNotIn('src="<screen-id>-v<N>.html"', canvas)
+        self.assertIn('data-variant="default"', html_variant)
+        self.assertIn('data-variant-values="state=default"', html_variant)
+        self.assertIn("../_lib/only-variant.js", html_variant)
+        self.assertIn("../_lib/report-size.js", html_variant)
         self.assertIn("../_lib/show-ids.js", html_variant)
+        self.assertNotIn("draft {N}", html_variant)
 
-    def test_canvas_seed_supports_flow_board_screen_nodes(self) -> None:
-        canvas_html = (
-            ROOT / "templates" / "design-variants" / "canvas.html"
+    def test_board_engine_derives_layout_size_and_curves(self) -> None:
+        board_html = (
+            ROOT / "templates" / "design-variants" / "boards" / "screen-states.html"
         ).read_text(encoding="utf-8")
         canvas_js = (
             ROOT / "templates" / "design-variants" / "_lib" / "canvas.js"
         ).read_text(encoding="utf-8")
 
-        for needle in (
-            'class="screen-node"',
-            'data-node-id="<screen-id>"',
-            'data-title="',
-            'data-desc="',
-            'data-states="',
-            'data-h="',
-        ):
-            with self.subTest(template=needle):
-                self.assertIn(needle, canvas_html)
-
-        self.assertNotIn("data-frame-id", canvas_html)
-        self.assertNotIn("layoutFrames", canvas_js)
+        self.assertIn('data-board-kind="screen-states"', board_html)
+        for stale in ("data-pos", "data-bend", "data-gap-", "data-w=", "data-h="):
+            self.assertNotIn(stale, board_html)
 
         for needle in (
             "querySelectorAll('.screen-node')",
             "dataset.nodeId",
-            "dataset.h",
             "node-caption",
-            "dataset.label",
-            "data-label",
-            "data-bend",
+            "dcness-frame-size",
+            "chooseCurve",
+            "layoutVariantGrid",
+            "syncVariantFrames",
+            "const arrowSpecCache = new WeakMap()",
+            "arrowNodeHits",
+            "labelPairHits",
+            "variantFrames",
+            "frame.contentDocument?.documentElement",
             "zoomToFit",
-            "focusNode",
+            "dcnessCanvasDiagnostics",
         ):
             with self.subTest(renderer=needle):
                 self.assertIn(needle, canvas_js)
+        self.assertGreaterEqual(canvas_js.count("readArrowSpecs("), 3)
+        self.assertNotIn("390", canvas_js)
+        self.assertNotIn("844", canvas_js)
 
     def _array(self, text: str, key: str) -> list[str]:
         match = re.search(rf"{key}:\s*\[([^\]]*)\]", text)

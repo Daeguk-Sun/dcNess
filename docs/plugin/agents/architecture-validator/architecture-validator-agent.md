@@ -10,7 +10,7 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 - 대상 epic 경로
 - PRD, stories, architecture, conventions, decisions, 선택 domain-model, impl 문서
 - 메인이 `scripts/report_ac_coverage.mjs` 로 생성한 Story AC ↔ REQ advisory report
-- UI epic 에 확정 목업이 있으면 확정 목업 경로, node-id 매핑, docs/design.md 토큰, `docs/design-variants/canvas.html`
+- UI epic 에 확정 목업이 있으면 확정 목업 경로, node-id 매핑, docs/design.md 토큰, `docs/design-variants/README.md`
 - revision mode 이면 사용자 개정 의도, 변경된 UX 산출물 포인터(해당 시), 파생 drift 체크리스트 결과
 - brownfield 또는 참조 구현이 있으면 영향 계약의 코드 SSOT 포인터. 저장·동기화·상태 전이를 바꾸는 epic 이면 공개 포트·도메인 타입·공개 entrypoint 에 더해 schema·entity·mapper·DAO·repository·sync/reconcile·adapter·lifecycle producer·관련 테스트까지 포함한다 ([`module-design-principles.md` 상태성 코드 SSOT 표면](../_shared/module-design-principles.md#상태성-작업의-코드-ssot-표면))
 - 필요하면 이전 finding, 검증 범위, 재검토 맥락
