@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -11,11 +12,41 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "release_artifact.py"
 CONTRACT = ROOT / "scripts" / "release_artifact.json"
+PUBLIC_SURFACE_CHECKER = ROOT / "scripts" / "check_public_surface.mjs"
+
+
+def _load_release_artifact() -> Any:
+    spec = importlib.util.spec_from_file_location("release_artifact", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    assert spec.loader is not None
+    # dataclass 처리가 sys.modules 조회에 의존하므로 exec 전에 등록한다.
+    sys.modules[spec.name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_minimal_agent_surface(bundle: Path) -> Path:
+    """Build the smallest bundle shape the agent surface check reads."""
+    entrypoint = bundle / "agents" / "impl-validator.md"
+    entrypoint.parent.mkdir(parents=True, exist_ok=True)
+    entrypoint.write_text("---\nname: impl-validator\n---\n", encoding="utf-8")
+    instruction = (
+        bundle / "docs" / "plugin" / "agents" / "impl-validator" / "impl-validator-agent.md"
+    )
+    instruction.parent.mkdir(parents=True, exist_ok=True)
+    instruction.write_text(
+        "# impl-validator\n\n판정 계약은 [product journey](../../product-journey.md) 를 따른다.\n",
+        encoding="utf-8",
+    )
+    reference = bundle / "docs" / "plugin" / "product-journey.md"
+    reference.write_text("# product journey\n", encoding="utf-8")
+    return bundle
 
 
 def _run(*args: str, cwd: Path | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
@@ -1158,6 +1189,54 @@ class ReleaseArtifactContractTests(unittest.TestCase):
             },
         )
         self.assertIsNone(smoke_metrics["previous_version_update"])
+        self.assertEqual(smoke_metrics["inactive_session_start_bytes"], 0)
+        self.assertGreaterEqual(smoke_metrics["write_boundary_blocks"], 1)
+
+    def test_nested_agent_entrypoint_fails_the_bundle_surface_check(self) -> None:
+        """v0.13.0 은 중첩 agent `.md` 42개를 배포했다. 같은 결함이 다시 통과하면 안 된다."""
+        module = _load_release_artifact()
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = _write_minimal_agent_surface(Path(tmp) / "bundle")
+            nested = bundle / "agents" / "impl-validator" / "references.md"
+            nested.parent.mkdir(parents=True, exist_ok=True)
+            nested.write_text("nested entrypoint\n", encoding="utf-8")
+
+            with self.assertRaises(module.ArtifactError) as caught:
+                module._verify_agent_surface(bundle, PUBLIC_SURFACE_CHECKER)
+
+        self.assertIn("agents/impl-validator/references.md", str(caught.exception))
+
+    def test_missing_agent_instruction_fails_the_bundle_surface_check(self) -> None:
+        """설치본에서 상세 지침이 빠지면 서브에이전트가 지침 없이 실행된다."""
+        module = _load_release_artifact()
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = _write_minimal_agent_surface(Path(tmp) / "bundle")
+            instruction = (
+                bundle
+                / "docs"
+                / "plugin"
+                / "agents"
+                / "impl-validator"
+                / "impl-validator-agent.md"
+            )
+            instruction.unlink()
+
+            with self.assertRaises(module.ArtifactError) as caught:
+                module._verify_agent_surface(bundle, PUBLIC_SURFACE_CHECKER)
+
+        self.assertIn("impl-validator-agent.md", str(caught.exception))
+
+    def test_missing_instruction_reference_fails_the_bundle_surface_check(self) -> None:
+        """지침이 직접 참조하는 문서가 bundle 에서 빠지면 지침 도달이 끊긴다."""
+        module = _load_release_artifact()
+        with tempfile.TemporaryDirectory() as tmp:
+            bundle = _write_minimal_agent_surface(Path(tmp) / "bundle")
+            (bundle / "docs" / "plugin" / "product-journey.md").unlink()
+
+            with self.assertRaises(module.ArtifactError) as caught:
+                module._verify_agent_surface(bundle, PUBLIC_SURFACE_CHECKER)
+
+        self.assertIn("product-journey.md", str(caught.exception))
 
 
 if __name__ == "__main__":

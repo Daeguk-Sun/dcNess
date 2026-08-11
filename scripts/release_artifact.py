@@ -478,6 +478,38 @@ def _run_checked(command: list[str], *, cwd: Path, env: dict[str, str] | None = 
     return result.stdout
 
 
+_MARKDOWN_LINK = re.compile(r"(?<!!)\[[^]]*\]\(([^)]+)\)")
+
+
+def _verify_instruction_references(bundle: Path, instruction: Path) -> None:
+    """지침이 직접 참조하는 상대 링크 대상이 bundle 안에 실존하는지 확인한다."""
+    root = bundle.resolve()
+    in_fence = False
+    for line in instruction.read_text(encoding="utf-8").splitlines():
+        if line.lstrip().startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        prose = re.sub(r"`[^`]*`", "", line)
+        for raw_target in _MARKDOWN_LINK.findall(prose):
+            target = raw_target.split("#", 1)[0].strip().strip("<>")
+            if not target or "://" in target or target.startswith(("/", "mailto:")):
+                continue
+            resolved = (instruction.parent / target).resolve()
+            source = instruction.relative_to(bundle).as_posix()
+            try:
+                resolved.relative_to(root)
+            except ValueError:
+                raise ArtifactError(
+                    f"agent instruction reference escapes the bundle: {source} -> {target}"
+                ) from None
+            if not resolved.exists():
+                raise ArtifactError(
+                    f"agent instruction reference missing: {source} -> {target}"
+                )
+
+
 def _verify_agent_surface(bundle: Path, public_surface_checker: Path) -> None:
     agents_root = bundle / "agents"
     recursive = sorted(path for path in agents_root.rglob("*.md") if path.is_file())
@@ -490,6 +522,7 @@ def _verify_agent_surface(bundle: Path, public_surface_checker: Path) -> None:
         instruction = bundle / "docs" / "plugin" / "agents" / name / f"{name}-agent.md"
         if not instruction.is_file():
             raise ArtifactError(f"agent instruction missing: {instruction.relative_to(bundle)}")
+        _verify_instruction_references(bundle, instruction)
     _run_checked([_executable("node"), str(public_surface_checker)], cwd=bundle)
 
 
@@ -643,6 +676,54 @@ print(count)
     return int(output.strip())
 
 
+def _session_start(
+    bundle: Path, project: Path, env: dict[str, str]
+) -> subprocess.CompletedProcess[str]:
+    payload = json.dumps({"session_id": "release-artifact-smoke", "cwd": str(project)})
+    return subprocess.run(  # nosec B603
+        [_executable("bash"), str(bundle / "hooks" / "session-start.sh")],
+        cwd=project,
+        env=env,
+        input=payload,
+        check=False,
+        text=True,
+        capture_output=True,
+        timeout=30,
+    )
+
+
+def _verify_inactive_noop(bundle: Path, project: Path, env: dict[str, str]) -> int:
+    """활성화 전 프로젝트는 hook 이 아무것도 주입하지 않아야 한다."""
+    result = _session_start(bundle, project, env)
+    if result.returncode != 0:
+        raise ArtifactError(f"inactive SessionStart failed: {result.stderr.strip()}")
+    if result.stdout.strip():
+        raise ArtifactError(
+            "inactive project received SessionStart output: " + result.stdout.strip()[:200]
+        )
+    return len(result.stdout.encode("utf-8"))
+
+
+def _verify_write_boundary(project: Path, env: dict[str, str]) -> int:
+    """활성 프로젝트에서 candidate 코드가 실제로 write 경계를 차단하는지 재현한다."""
+    code = """
+import sys
+from pathlib import Path
+from harness.agent_boundary import check_write_allowed
+
+project = Path(sys.argv[1])
+blocked = 0
+for agent in ('impl-validator', 'architecture-validator'):
+    reason = check_write_allowed(agent, str(project / 'src' / 'main.py'), cwd=project)
+    if not reason:
+        raise SystemExit(f'{agent}: write-zero boundary did not block')
+    blocked += 1
+print(blocked)
+"""
+    output = _run_checked([sys.executable, "-c", code, str(project)], cwd=project, env=env)
+    return int(output.strip())
+
+
 def _verify_external_runtime(bundle: Path, temp_root: Path) -> dict[str, int]:
     project = temp_root / "external-project"
     home = temp_root / "home"
@@ -670,19 +751,11 @@ def _verify_external_runtime(bundle: Path, temp_root: Path) -> dict[str, int]:
             "PYTHONDONTWRITEBYTECODE": "1",
         }
     )
+    inactive_bytes = _verify_inactive_noop(bundle, project, env)
     deployed_count = _deploy_init_core(bundle, project, home, env)
     agent_read_count = _verify_agent_reads(bundle, project, env)
-    payload = json.dumps({"session_id": "release-artifact-smoke", "cwd": str(project)})
-    result = subprocess.run(  # nosec B603
-        [_executable("bash"), str(bundle / "hooks" / "session-start.sh")],
-        cwd=project,
-        env=env,
-        input=payload,
-        check=False,
-        text=True,
-        capture_output=True,
-        timeout=30,
-    )
+    boundary_blocks = _verify_write_boundary(project, env)
+    result = _session_start(bundle, project, env)
     if result.returncode != 0:
         raise ArtifactError(f"SessionStart failed: {result.stderr.strip()}")
     try:
@@ -696,6 +769,8 @@ def _verify_external_runtime(bundle: Path, temp_root: Path) -> dict[str, int]:
         "init_core_deployed_files": deployed_count,
         "agent_instruction_reads": agent_read_count,
         "session_start_additional_context_bytes": len(context.encode("utf-8")),
+        "inactive_session_start_bytes": inactive_bytes,
+        "write_boundary_blocks": boundary_blocks,
     }
 
 
@@ -728,6 +803,8 @@ def smoke(
             "session_start_token_approx": (context_bytes + 3) // 4,
             "agent_instruction_reads": runtime["agent_instruction_reads"],
             "init_core_deployed_files": runtime["init_core_deployed_files"],
+            "inactive_session_start_bytes": runtime["inactive_session_start_bytes"],
+            "write_boundary_blocks": runtime["write_boundary_blocks"],
         }
 
 
