@@ -1,3 +1,0 @@
-- [E1][MUST] 구현자 self-report와 독립적으로 manifest/resource/test에 남은 old path를 찾는다.
-- [E2][MUST] 신·구 경로 공존과 duplicate scheduling을 `[quality-gap]` 및 build-worker rework로 연결한다.
-- [E3][MUST_NOT] test/lint/build green만으로 clean PASS하지 않는다.

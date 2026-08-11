@@ -1,2 +1,0 @@
-- [E1][MUST] caller 0만으로 삭제하지 않고 manifest registration과 runtime evidence를 근거로 `framework-reachable`로 분류한다.
-- [E2][MUST_NOT] 해당 entrypoint를 removable dead code 또는 rework finding으로 판정하지 않는다.

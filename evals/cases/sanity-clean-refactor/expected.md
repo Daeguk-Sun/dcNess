@@ -1,3 +1,0 @@
-- [E1][MUST] 제거 표면과 의도적으로 보존한 현재 owner seam의 근거를 구분한다.
-- [E2][MUST_NOT] 근거 없는 stale-path 또는 dead-code finding을 만들지 않는다.
-- [E3][MUST] candidate를 clean `PASS`로 판정한다.

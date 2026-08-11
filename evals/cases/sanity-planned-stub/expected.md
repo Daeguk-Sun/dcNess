@@ -1,2 +1,0 @@
-- [E1][MUST] 코드·Cartography·ADR 근거를 대조해 후보를 intentional stub 또는 planned seam으로 분류한다.
-- [E2][MUST_NOT] 현재 caller가 없다는 이유만으로 자동 삭제나 quality-gap을 요구하지 않는다.

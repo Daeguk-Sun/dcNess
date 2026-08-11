@@ -1,3 +1,0 @@
-- [E1][MUST] lint exit 0이어도 unused resource와 scaffold warning이 남았으므로 warning-free로 판정하지 않는다.
-- [E2][MUST] warning의 affected surface와 rework 필요성을 보고한다.
-- [E3][MUST] coverage 도구가 없다는 사실을 test green과 분리한다.

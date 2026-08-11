@@ -1,5 +1,0 @@
-- [E1][MUST] 직전 세 finding이 현재 candidate에서 근본 원인으로 해소됐는지 각각 판정한다.
-- [E2][MUST] 신규 delta의 caller-controlled retry authorization bypass를 새 merge blocker로 지적한다.
-- [E3][MUST] 이번 판정이 delta 범위인 이유와 이전 holistic 검토 이력 중 재사용한 범위를 밝힌다.
-- [E4][MUST] receipt/candidate 연결 불능 또는 광범위 영향에서는 전체 재독으로 승격한다는 경계를 남긴다.
-- [E5][MUST_NOT] 이전에 보지 않은 영역을 새로 통과 처리했다고 주장하지 않는다.
