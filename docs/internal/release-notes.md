@@ -10,6 +10,42 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.30.0 (2026-08-11)
+
+**커밋 범위**: `v0.29.0..v0.30.0` (머지 PR 8개, [#1198](https://github.com/Daeguk-Sun/dcNess/pull/1198) · [#1199](https://github.com/Daeguk-Sun/dcNess/pull/1199) · [#1206](https://github.com/Daeguk-Sun/dcNess/pull/1206) · [#1208](https://github.com/Daeguk-Sun/dcNess/pull/1208) · [#1210](https://github.com/Daeguk-Sun/dcNess/pull/1210) · [#1209](https://github.com/Daeguk-Sun/dcNess/pull/1209) · [#1212](https://github.com/Daeguk-Sun/dcNess/pull/1212) · [#1214](https://github.com/Daeguk-Sun/dcNess/pull/1214))
+**핵심 변경**: **UI 산출물과 제품 검수에서 사람이 손으로 유지하던 값과 눈으로만 잡히던 결함을 계약으로 옮긴** minor 릴리즈. (1) 단일 `canvas.html` 이 화면 진본·여정·변형 검수를 한 판에 섞고 프로젝트별 좌표·크기·곡률을 사람이 유지하던 구조를, 화면 확정본을 유일한 진본으로 두고 여정별 보드·변형 전수 보드·진입점을 선언에서 전량 파생하는 생성물 계약으로 바꿨다. (2) 제품 journey 의 `(JOURNEY)` 판정이 "요소가 존재하는가" 하나만 보던 것을 요소의 실제 배치(safe area 침범·가림)를 근거로 판정하는 축까지 확장해, 화면이 사람 눈에 명백히 깨져 있는데 acceptance 가 green 이던 false-green 을 구조적으로 막았다. 함께 `/impl`·`/impl-loop` 의 진행 표시를 복원하고, validator 재리뷰를 delta 기반으로 좁히고, validator 실행 감시를 worker 와 같은 2-knob(hard timeout + idle timeout)으로 정렬했다.
+
+### 무엇이 바뀌나
+
+1. **canvas-design 산출물 계약 일반화 — 사람은 PICK 과 검수만** ([#1212](https://github.com/Daeguk-Sun/dcNess/pull/1212) Closes [#1207](https://github.com/Daeguk-Sun/dcNess/issues/1207)) — 화면은 `screens/`, 후보는 `drafts/`, 파생 보드는 `boards/` 로 소유 경계를 나눴다. 공용 ux-flow 파서와 여정·변형·진입점 생성기 3종, `--check` drift 검사를 추가해 문서에서 여정을 추가·삭제하면 보드 파일도 따라 생기고 사라진다. 노드 위치는 선언된 경로 순서에서 파생하고 곡률은 렌더 시점에 자동 배정하므로 파일에 사람이 적는 배치값이 남지 않는다. 확정본이 자연 크기와 변형 축을 부모 보드에 보고하고 전수 보드 격자를 런타임 동기화한다. 다중 epic 프로젝트는 모든 `docs/epics/**/ux-flow.md` 를 합집합으로 읽어 서로를 stale 로 판정하지 않는다. `canvas-design` 스킬은 실행 wrapper 로 줄이고 상세 계약은 [`docs/plugin/design-variants.md`](../plugin/design-variants.md) SSOT 로 옮겼다.
+
+2. **journey 판정에 UX 정합성 렌즈 추가** ([#1209](https://github.com/Daeguk-Sun/dcNess/pull/1209) Closes [#1200](https://github.com/Daeguk-Sun/dcNess/issues/1200)) — UI 경계의 요구사항이 요소 가시성만으로 닫히던 탓에, 요소가 시스템 chrome 이나 다른 레이어에 가려 실제로는 조작·판독이 불가능해도 통과했다. `boundary=ui` 매니페스트에 `ux_integrity` 선언을 필수로 만들고, 화면 snapshot 단위로 viewport ∩ safe area 이탈과 `z` 상위 요소에 의한 중심점 가림을 판정한다. 버튼 안 label·icon 처럼 대상 요소에 완전히 포함되는 자식은 가림에서 제외해 정상 계층이 오판되지 않는다. receipt 에 snapshot 별 layout report 해시와 요소별 bounds 를 보존하고, 소비 시 판정을 tracked 매니페스트에서 다시 읽어 재계산하므로 판정값만 고쳐 쓴 receipt 가 무효다.
+
+3. **`/impl`·`/impl-loop` 진행 뷰 복원** ([#1206](https://github.com/Daeguk-Sun/dcNess/pull/1206) Closes [#1205](https://github.com/Daeguk-Sun/dcNess/issues/1205)) — 착수 속도 개선 과정에서 진행 표시 호출 지시가 helper 만 남기고 사라져, 긴 구현에서 현재·완료·예정 task 를 볼 수 없었다. `chain-view` 가 task JSON 을 파일 없이 직접 받도록 하고, `/impl-loop` 는 chain 진입·task 완료·마감 진입에서, `/impl` 은 `구현 → 검증 → 마감` 고정 3-task 로 진행 표시를 복원했다. 진행 표시는 worker 의 선행 조건이 아니라 독립 batch 로 발행해 착수를 지연시키지 않는다.
+
+4. **impl-validator 재리뷰 delta 모드** ([#1208](https://github.com/Daeguk-Sun/dcNess/pull/1208) Closes [#1201](https://github.com/Daeguk-Sun/dcNess/issues/1201)) — 첫 검증은 종전대로 전체 holistic 을 유지하고, 재리뷰에만 이전 receipt identity 와 candidate 간 commit/file delta 를 전달한다. lineage 가 불명하거나 변경이 광범위하면 validator 가 스스로 전체 재독으로 승격한다. retry 한도·provider 선택·acceptance 순서는 바꾸지 않았다.
+
+5. **validator 실행 감시를 worker 와 정렬** ([#1210](https://github.com/Daeguk-Sun/dcNess/pull/1210) Closes [#1202](https://github.com/Daeguk-Sun/dcNess/issues/1202)) — validator wrapper 의 600초 hard timeout 이 실제 holistic review 시간보다 짧아 정상 리뷰가 잘렸다. hard timeout 기본값을 worker 와 같은 3000초로 맞추고 900초 idle timeout 을 추가해, 정상 장기 실행과 무진행 hang 을 서로 다른 사유로 구분해 보고한다.
+
+6. **Flow Health 실세션 측정과 판정 축 분리** ([#1198](https://github.com/Daeguk-Sun/dcNess/pull/1198) · [#1199](https://github.com/Daeguk-Sun/dcNess/pull/1199)) — maintainer 측정기가 명령 window 별 첫 구현 action 을 측정하고, Startup SLO·Flow Visibility·Agent Activity·Relative Speed 를 독립 판정한다. 비도구 경과를 wait 로 부르지 않고, 같은 fixture·runtime 의 반복 paired trial 이 없으면 상대 속도는 UNPROVEN 으로 남긴다. 이 측정기는 source checkout 전용이며 release artifact 에 포함되지 않는다.
+
+7. **날짜 경과만으로 실패하던 테스트 제거** ([#1214](https://github.com/Daeguk-Sun/dcNess/pull/1214) Closes [#1213](https://github.com/Daeguk-Sun/dcNess/issues/1213)) — 자기개선 sweep 의 eval 후보 판정 테스트 fixture 가 절대 날짜를 써서, 최근 30일 집계 창 밖으로 밀리는 순간 코드 변경 없이 실패했다. fixture 를 같은 파일의 상대 시간 헬퍼로 되돌렸다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 design 산출물 생성기·product journey 판정·`/impl`·`/impl-loop` 진행 표시·validator 실행 감시 인접 영역을 건드려 결정적 guard-efficacy 를 재실행 — **50/50 PASS**(v0.29.0 50/50 유지), 회귀 없음. 전체 unittest 도 재실행해 공개 수치를 실측 동기화 — **1,270/1,270 PASS**(v0.29.0 1,216 → UX 정합성 판정·design 생성기·chain-view·validator delta 회귀 fixture 확장 반영). 릴리즈 착수 시점에 기본 브랜치 단위 테스트 CI 가 red 였고, 원인은 코드 회귀가 아니라 자기개선 sweep 테스트의 절대 날짜 fixture 가 최근 30일 집계 창 밖으로 밀린 것이었다. 릴리즈 전에 고쳐 green 을 복구했다.
+- Decide: 소멸 후보 없음. follow-up 2건을 식별했고 릴리즈 범위 밖으로 분리한다 — 보드 엔진에 배치에 영향을 주지 않는 잉여 CSS 속성이 남아 있는 점, 변형 축이 런타임에 늘거나 줄어드는 경로의 렌더 검증이 2축 fixture 로만 고정된 점. 같은 단위 테스트 CI 실행에서 리눅스 전용으로 1회 관측된 제품 journey 서비스 실행 실패는 재실행에서 재현되지 않아 타이밍 flaky 로 두고 관찰 대상으로 남긴다.
+- Verify: design 생성기 drift 검사·보드 렌더 smoke·UX 정합성 판정과 receipt 재계산·진행 뷰 비직렬 계약·validator delta 재리뷰·timeout/idle 종료 구분 신규·회귀 테스트가 통과한다. 공개 evidence snapshot(README·[`docs/plugin/benchmark.md`](../plugin/benchmark.md))을 v0.30.0 / 2026-08-11 실측(unit 1,270/1,270 · guard 50/50)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측을 대조한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `templates/design-variants/**`·`scripts/design/**`·`skills/**`(design·design-ux·design-system·canvas-design·ux·impl·impl-loop·acceptance·to-issue)·`docs/plugin/**`(design-variants·product-journey·agents)·`harness/**`·`scripts/dcness-*-validator` 변경.
+- **UI epic 을 `/design`·`/ux` 로 설계하는 프로젝트** — 화면 확정본만 진본이고 여정 보드·변형 전수 보드·진입점은 생성물이다. 문서에서 여정을 추가·삭제하면 보드 파일이 따라 생기고 사라지며, 좌표·곡률·크기를 사람이 파일에 적지 않는다. 기존 프로젝트의 구 구조를 강제로 옮기지 않아도 계속 열린다.
+- **`/acceptance`·journey 로 UI 를 검수하는 프로젝트** — `boundary=ui` 매니페스트에 `ux_integrity` 선언이 필수다. 미선언은 계약 오류로 실행이 막히고, 요소가 safe area 를 벗어나거나 다른 레이어에 가리면 기능 assertion 이 통과해도 journey 가 실패한다. 프로젝트는 화면마다 layout report 를 남겨야 한다.
+- **`/impl`·`/impl-loop` 사용 프로젝트** — 긴 구현에서 현재·완료·예정 단계가 다시 보인다. 재리뷰는 이전 검증 이후의 delta 를 우선 읽어 라운드가 쌓여도 검증 범위가 매번 전체로 돌아가지 않고, 정상적인 장기 리뷰가 timeout 으로 잘리지 않는다.
+
+---
+
 ## v0.29.0 (2026-07-24)
 
 **커밋 범위**: `v0.28.0..v0.29.0` (머지 PR 1개, [#1196](https://github.com/Daeguk-Sun/dcNess/pull/1196))
