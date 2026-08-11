@@ -74,6 +74,14 @@ python3 scripts/release_artifact.py snapshot --root <artifact-root>
 python3 scripts/release_artifact.py compare --expected <candidate-root> --actual <cache-root>
 ```
 
+`smoke`는 candidate bundle을 임시 경로에 구성한 뒤 세 축을 결정적으로 검사한다. **agent 등록 표면** —
+`agents/`를 재귀 탐색해 중첩 진입점을 거부하고, 진입점마다 상세 지침과 그 지침이 직접 참조하는
+문서가 bundle 안에 실존하는지 확인하며, 공개 surface SSOT 대조까지 실행한다. **지침 도달** — 격리된
+외부 프로젝트 cwd에서 각 agent가 자기 지침을 실제로 read 할 수 있는지 확인한다. **활성화와 경계** —
+활성화 전 SessionStart가 아무것도 주입하지 않는 no-op을 확인하고, 활성화 후 hook 진입과 write-zero
+agent의 파일 경계 차단을 candidate 코드로 재현한다. 세 축의 관측값은 `inactive_session_start_bytes`,
+`agent_instruction_reads`, `init_core_deployed_files`, `write_boundary_blocks`로 출력된다.
+
 baseline clean-install manifest는
 [`marketplace-artifact-baseline.json`](marketplace-artifact-baseline.json)에 저장한다. 릴리즈 PR에서는
 태그·공개 전에 위 smoke를 통과시킨다. FAIL이면 릴리즈를 중단하고, 현재 PR 범위에서 근본원인을
