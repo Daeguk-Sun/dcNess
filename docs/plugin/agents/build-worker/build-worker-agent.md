@@ -58,7 +58,7 @@
 - `/impl-loop` 기본 one-shot worker 또는 복잡 `/impl` headless worker가 task를 읽은 직후, source read/edit 전에 자동 `(JOURNEY)`가 하나라도 있을 때만 내부 phase로 1회 수행한다. 별도 main turn, provider fork, outer lifecycle step을 만들지 않는다. journey 미선언 run과 `acceptance_environment.automation=human_verification`만 있는 run은 비발동이다.
 - main 컨텍스트가 아니라 build-worker가 실제 실행될 동일 provider·sandbox의 worker 실행 컨텍스트에서 `requirements[].probe`를 수행한다. mobile은 device/emulator+`adb` socket, web은 browser/driver, CLI는 기동 service+writable fixture, API는 provisioned tenant처럼 해당 runtime 의존에 실제로 도달하는지 본다.
 - 확실한 미충족이라도 `requirements[].prepare`로 emulator boot, container/service 기동, socket 노출 같은 자동 준비가 가능하면 질문 없이 먼저 준비하고 다시 probe한다. 검출이 불확실하면 차단하지 않고 그 불확실성을 보고한 `PASS`로 task 구현에 진행해 수렴 호출이 흡수하게 한다.
-- 확실한 미충족이고 자동 준비가 불가능할 때만 근거와 함께 `IMPLEMENTATION_ESCALATE`를 보고한다. main이 host에서 대신 probe하거나 journey를 실행해 worker substrate 부재를 숨기지 않는다. 이 phase는 tracked file을 수정하거나 commit하지 않는다.
+- 확실한 미충족이고 자동 준비도 불가능하면 그 근거를 보고한 뒤 같은 호출에서 task 구현을 그대로 진행한다. 검수 환경과 구현은 독립이므로 이 phase는 환경 미충족을 이유로 `IMPLEMENTATION_ESCALATE`를 내거나 task를 중단하지 않는다. 해당 journey의 flow·매니페스트·오케스트레이션 산출물은 그대로 작성해 마감에 인계하고, 실행 여부와 사용자 처분은 마감의 수렴 직전 단계가 판단한다. main이 host에서 대신 probe하거나 journey를 실행해 worker substrate 부재를 숨기지 않는다. 이 phase는 tracked file을 수정하거나 commit하지 않는다.
 
 ### `JOURNEY_CONVERGENCE`
 
@@ -76,7 +76,7 @@
 - `phases/<RUN_ID>/` 같은 별도 worktree 경로를 만들거나 보고하지 않는다.
 - `build-test.md`, `build-impl.md`, `build-validate.md`를 쓴 뒤 `ls <run_dir>/build-test.md <run_dir>/build-impl.md <run_dir>/build-validate.md`로 3개 실존을 확인한다.
 - impl-validator finding 대응 등 별도 polish 기록이 필요하면 `build-polish.md`도 같은 `<run_dir>`에만 쓴다. 이 파일은 선택 기록이며 clean 게이트의 필수 3개에는 포함하지 않는다.
-- 하나라도 없으면 PASS를 내지 말고 즉시 재기록하거나 `TESTS_FAIL`/`IMPLEMENTATION_ESCALATE`로 보고한다. chain-owned 실행은 wrapper도 PASS terminal receipt 전에 같은 세 파일을 검사하고 `phase_evidence`로 차단한다. source read/edit 전 환경 미충족을 보고하는 `IMPLEMENTATION_ESCALATE` 같은 non-PASS receipt에는 이 clean 게이트를 적용하지 않는다.
+- 하나라도 없으면 PASS를 내지 말고 즉시 재기록하거나 `TESTS_FAIL`/`IMPLEMENTATION_ESCALATE`로 보고한다. chain-owned 실행은 wrapper도 PASS terminal receipt 전에 같은 세 파일을 검사하고 `phase_evidence`로 차단한다. 결론이 `PASS`가 아닌 terminal receipt에는 이 clean 게이트를 적용하지 않고 원래 결론을 그대로 보존한다.
 
 ## 로컬 커밋 소유
 
@@ -121,7 +121,7 @@
 - 핵심 AC별 동작 증거와 mock/stub/fake 사용 경계가 보고된다. TypeScript 등 정적 타입검사가 의미 있는 stack 에서 typecheck/compile 이 빠졌다면 품질 게이트 warning 또는 보강 필요성을 쓴다.
 - task 가 담당하는 target GitHub issue AC 와 impl task REQ 의 대응, 각 항목의 실행·관찰 증거가 보고된다. `(TEST)`/`(AGENT READ)`로 닫는 항목은 어느 하나라도 이 task 범위에서 충족되지 않았으면 PASS 하지 않는다. task 구현 mode의 `(JOURNEY)` REQ는 PASS 블로커에서 제외하되, flow 대본·journey 매니페스트·필요한 setup/teardown/상태전이 스크립트와 환경·배관 선언을 모두 작성하고 final tip 수렴 및 acceptance 인계를 보고한 경우에만 예외다.
 - 담당 `(JOURNEY)` REQ마다 flow 대본과 `.dcness/` 밖 journey 매니페스트가 작성됐고 수렴 대상이면 `JOURNEY_CONVERGENCE`와 sealed acceptance 실행에 인계됐다. `journey_deferred`이면 현재 run의 수렴·sealed 실행 비대상과 human verification/follow-up 인계를 보고한다. 메인이 대신 실행하는 `VALIDATION_BLOCKED` 경로와 다르며, 최종 clean에는 수렴 대상 journey의 별도 PASS가 필요하다.
-- 자동 journey가 있으면 내부 `JOURNEY_ENV_PREFLIGHT`가 ready 또는 검출 불확실 진행 근거를 보고했거나, 확실한 미충족·자동 준비 불가를 `IMPLEMENTATION_ESCALATE`로 보고했다. `JOURNEY_CONVERGENCE` PASS면 final tip 실행 결과, iteration별 실패 서명·수정·진행 여부, 최종 commit sha가 남는다.
+- 자동 journey가 있으면 내부 `JOURNEY_ENV_PREFLIGHT`가 ready, 자동 준비 완료, 검출 불확실 진행, 확실한 미충족 중 어느 판정인지 probe 근거와 함께 보고했다. 확실한 미충족도 task 구현을 막지 않으므로 그 판정과 마감 인계를 같은 `PASS` 결과에 남긴다. `JOURNEY_CONVERGENCE` PASS면 final tip 실행 결과, iteration별 실패 서명·수정·진행 여부, 최종 commit sha가 남는다.
 - 확정 목업이 있는 UI 작업에서는 디자인 정합(레이아웃 계층·상태·토큰 대응)과 의도적 차이가 보고된다.
 - design:required UI 작업에서는 node-id 매핑과 별개로 `docs/design.md` 토큰 적용 결과, 잔존 스캐폴딩 색 상수 여부, boilerplate 테마 잔존 금지 확인 결과가 보고된다.
 - PR 본문 초안에 close keyword가 불확실하면 메인 검토 요청을 남긴다.
@@ -143,7 +143,7 @@
 
 ## 결론과 보고
 
-마지막 단락에 `PASS`, `SPEC_GAP_FOUND`, `TESTS_FAIL`, `VALIDATION_BLOCKED`, `IMPLEMENTATION_ESCALATE` 중 하나를 쓴다. `PASS` 포함 모든 구현 결과에는 Cartography impact의 의미 축과 refresh 필요 여부를 자유 prose로 남긴다. 자동 journey가 있으면 내부 `JOURNEY_ENV_PREFLIGHT`의 ready/자동 준비 완료/검출불확실 진행 중 하나와 probe 근거를 같은 task 결과에 포함하고, `JOURNEY_CONVERGENCE` 결과에는 iteration·실패 서명·수정·commit 증거를 포함한다. `SPEC_GAP_FOUND`에는 small, medium, large 중 분량 메타를 함께 쓴다. `VALIDATION_BLOCKED`에는 메인이 대신 실행할 검증 명령 목록을 함께 쓰되, worker substrate 부재는 host 대행으로 우회하지 않는다.
+마지막 단락에 `PASS`, `SPEC_GAP_FOUND`, `TESTS_FAIL`, `VALIDATION_BLOCKED`, `IMPLEMENTATION_ESCALATE` 중 하나를 쓴다. `PASS` 포함 모든 구현 결과에는 Cartography impact의 의미 축과 refresh 필요 여부를 자유 prose로 남긴다. 자동 journey가 있으면 내부 `JOURNEY_ENV_PREFLIGHT`의 ready/자동 준비 완료/검출불확실 진행/확실한 미충족 중 하나와 probe 근거를 같은 task 결과에 포함하고, `JOURNEY_CONVERGENCE` 결과에는 iteration·실패 서명·수정·commit 증거를 포함한다. `SPEC_GAP_FOUND`에는 small, medium, large 중 분량 메타를 함께 쓴다. `VALIDATION_BLOCKED`에는 메인이 대신 실행할 검증 명령 목록을 함께 쓰되, worker substrate 부재는 host 대행으로 우회하지 않는다.
 
 ## 템플릿과 참고 문서
 

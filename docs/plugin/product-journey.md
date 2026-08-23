@@ -101,7 +101,7 @@ build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 
 
 새 `(JOURNEY)`는 design/impl-task가 `acceptance_environment`와 `harness_paths`를 먼저 소유하고, build-worker가 같은 값을 project-local 매니페스트에 materialize한다. `automation=automated`이면 `/impl-loop`가 run 진입 직후 worker 실행 컨텍스트에서 probe와 가능한 prepare를 수행하고, 모든 task 완료 뒤 같은 실행 substrate의 fresh build-worker 수렴 호출을 연다. journey 미선언 story와 `automation=human_verification` journey에는 env 선검증·수렴 호출이 비발동이며 기존 `사람 확인 안내`로 남는다.
 
-probe가 확실한 미충족을 보고하고 `prepare`가 없거나 실패 사유상 자동 준비가 불가능할 때만 구현 전에 사용자가 환경 준비 또는 journey 검수 분리를 한 번 선택한다. 도구 부재처럼 검출 자체가 불확실하면 차단하지 않고 구현·수렴으로 진행한다. main에서 보이는 device나 service는 worker 실행 컨텍스트의 도달성 증거를 대신하지 않는다.
+probe가 확실한 미충족을 보고하고 `prepare`가 없거나 실패 사유상 자동 준비가 불가능해도 구현은 그대로 진행한다. 검수 환경과 구현은 독립이므로 env 선검증은 구현의 blocker가 아니다. 그 미충족 보고는 모든 task 완료 뒤 수렴을 시작하기 전에 사용자가 환경 준비 또는 journey 검수 분리를 한 번 선택하는 입력이 된다. 도구 부재처럼 검출 자체가 불확실하면 마찬가지로 차단하지 않고 구현·수렴으로 진행한다. main에서 보이는 device나 service는 worker 실행 컨텍스트의 도달성 증거를 대신하지 않는다.
 
 사용자가 journey 검수 분리를 선택하면 메인은 해당 `journey_id`를 현재 run의 `journey_deferred` 목록으로 보존한다. 이는 설계가 소유한 `acceptance_environment.automation`을 바꾸거나 매니페스트를 다시 쓰지 않는다. 현재 run에서만 해당 journey를 `human_verification`/follow-up 처분으로 취급하며, 다른 자동 journey의 env 선검증·수렴·sealed 판정은 계속 수행한다.
 
