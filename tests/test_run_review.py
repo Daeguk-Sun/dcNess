@@ -1255,6 +1255,24 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertEqual(_extract_final_conclusion_enum(prose), expected)
 
+    def test_final_conclusion_reads_the_declaration_before_its_reason(self):
+        # 계약이 "결론 단어와 사유를 다시 쓴다" 이므로 첫 선언줄이 결론이고 뒤는 사유다.
+        for prose, expected in (
+            ("보고.\n\nTESTS_FAIL\nPASS criteria remain unmet\n", "TESTS_FAIL"),
+            ("보고.\n\nPASS\n사유: 전 게이트 green\n", "PASS"),
+            ("보고.\n\n사유: 전 게이트 green\nPASS\n", "PASS"),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(_extract_final_conclusion_enum(prose), expected)
+
+    def test_final_conclusion_negation_applies_only_to_the_declared_token(self):
+        # `PASS — TESTS_FAIL 없음` 은 성공 보고다. 뒤 토큰을 부정하는 설명을 선언 부정으로
+        # 보면 완료된 구현이 차단된다.
+        self.assertEqual(
+            _extract_final_conclusion_enum("보고.\n\nPASS — TESTS_FAIL 없음\n"), "PASS"
+        )
+        self.assertEqual(_extract_final_conclusion_enum("검토.\n\nPASS 아님\n"), "")
+
     def test_final_conclusion_accepts_narrative_enums_in_the_last_paragraph(self):
         # prose 형식은 agent 자율이다. 선언 형태가 아니어도 마지막 단락의 enum 은 결론이며,
         # 한국어 조사가 붙어도 읽어야 한다. 못 읽으면 실패 task 가 완료로 집계된다.

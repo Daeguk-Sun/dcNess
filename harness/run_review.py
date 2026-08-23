@@ -707,8 +707,13 @@ def _standalone_verdict_label(line: str) -> str:
     if not match:
         return ""
     label = match.group(1)
-    if label in _PASS_CLASS_VERDICTS and _NEGATION_RE.search(stripped):
-        return ""  # "PASS 아님" 류 — 선언이 부정됐으므로 결론 불명
+    if label in _PASS_CLASS_VERDICTS:
+        # 부정은 *선두 토큰 자체* 에만 적용한다. 뒤따르는 다른 verdict 를 부정하는 설명
+        # (`PASS — TESTS_FAIL 없음`) 까지 부정으로 보면 성공 보고가 차단된다.
+        following = _ANY_VERDICT_RE.search(stripped, match.end())
+        span = stripped[match.end():following.start()] if following else stripped[match.end():]
+        if _NEGATION_RE.search(span):
+            return ""  # "PASS 아님" 류 — 선언이 부정됐으므로 결론 불명
     return label
 
 
@@ -748,7 +753,10 @@ def _extract_final_conclusion_enum(prose: str) -> str:
         return ""
     paragraph = _final_paragraph_lines(prose)
 
-    for line in reversed(paragraph):
+    # 단락은 위에서 아래로 본다. 계약이 "결론 단어와 사유를 다시 쓴다" 이므로 첫 선언줄이
+    # 결론이고 뒤는 그 사유다. 거꾸로 보면 사유줄의 단어가 결론을 뒤집는다
+    # (`TESTS_FAIL` 뒤 `PASS criteria remain unmet`).
+    for line in paragraph:
         label = _standalone_verdict_label(line)
         if label:
             return label
