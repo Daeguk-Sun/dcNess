@@ -50,9 +50,11 @@ Exit codes:
       chain prints a WARN in that case so the caller verifies the workspace.
   75  Chain reached Claude main. Caller must run the main Agent path and record
       end-step with --provider claude-main.
-  76  Headless provider ran to completion but the agent conclusion is not PASS.
-      The terminal receipt is preserved; route on the reported conclusion
-      instead of advancing the task.
+  76  The agent conclusion recorded for this run is not PASS. Either the provider
+      just ran to completion with a non-PASS conclusion, or this launch was a
+      no-op on a run that already holds a non-PASS terminal receipt. The receipt
+      is preserved; route on the reported conclusion instead of advancing the
+      task.
 
 Raw provider logs are preserved under the active run directory in headless-logs/.
 USAGE
@@ -645,7 +647,25 @@ else:
         and terminal.get("agent") == agent
         and (terminal.get("mode") or "") == mode
     ):
-        print("completed")
+        # 이미 있는 terminal receipt 의 결론까지 본다. non-PASS 를 "completed" 로
+        # 뭉뚱그리면 재실행이 실패한 구현을 성공 종료 코드로 뒤집는다.
+        conclusion = ""
+        prose_file = terminal.get("prose_file")
+        if prose_file:
+            from pathlib import Path
+
+            from harness.run_review import _extract_final_conclusion_enum
+
+            try:
+                conclusion = _extract_final_conclusion_enum(
+                    Path(prose_file).read_text(encoding="utf-8", errors="replace")
+                )
+            except OSError:
+                conclusion = ""
+        if conclusion and conclusion != "PASS":
+            print(f"completed-non-pass:{conclusion}")
+        else:
+            print("completed")
     else:
         print("missing")
 PY
@@ -661,6 +681,25 @@ PY
         "$HELPER" begin-step "$AGENT" >/dev/null
       fi
       return $?
+      ;;
+    completed-non-pass:*)
+      STAGE_CONCLUSION="${state#completed-non-pass:}"
+      if [ "$REWORK" -eq 1 ]; then
+        if [ -n "$MODE" ]; then
+          "$HELPER" begin-step "$AGENT" "$MODE" >/dev/null
+        else
+          "$HELPER" begin-step "$AGENT" >/dev/null
+        fi
+        return $?
+      fi
+      echo "[dcness-implementation-chain] IMPLEMENTATION_NOT_COMPLETED conclusion=$STAGE_CONCLUSION provider=already-recorded" >&2
+      echo "[dcness-implementation-chain] current run already has a terminal $AGENT receipt with a non-PASS conclusion; this relaunch did not change it. Route on that conclusion." >&2
+      if [ -n "$CHAIN_STATE" ]; then
+        echo "[dcness-implementation-chain] To rerun this task, close the run with 'dcness-helper end-run' and call the chain again with the same --chain-state; --rework is --direct-run only." >&2
+      else
+        echo "[dcness-implementation-chain] Use --rework with the actual provider to reopen a build-worker step." >&2
+      fi
+      return 11
       ;;
     completed)
       if [ "$REWORK" -eq 1 ]; then
@@ -700,6 +739,9 @@ ensure_chain_step
 STEP_RC=$?
 if [ "$STEP_RC" -eq 10 ]; then
   exit 0
+fi
+if [ "$STEP_RC" -eq 11 ]; then
+  exit 76
 fi
 if [ "$STEP_RC" -ne 0 ]; then
   exit "$STEP_RC"

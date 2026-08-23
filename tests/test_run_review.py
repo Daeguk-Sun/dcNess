@@ -1245,10 +1245,26 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
             ("구현 실패.\n\n- TESTS_FAIL\n", "TESTS_FAIL"),
             # 템플릿대로 결론 단어와 사유를 함께 쓴 여러 줄 단락.
             ("보고.\n\nPASS\n사유: 전 게이트 green, commit abc1234\n", "PASS"),
-            # 마지막 단락에 선언이 없으면 판독 불가다.
-            ("# acceptance\n결론: **FAIL**\n\n## 근거\n비루팅 에뮬에서는 검사가 PASS.\n증거 없음.\n", ""),
-            ("구현 진행 중.\nunit tests PASS 확인.\n", ""),
+            # 앞 단락의 명시 결론은 창 밖이다. 마지막 단락에 남은 enum 이 결론이 된다.
+            ("# acceptance\n결론: **FAIL**\n\n## 근거\n비루팅 에뮬에서는 검사가 PASS.\n증거 없음.\n", "PASS"),
+            ("구현 진행 중.\nunit tests PASS 확인.\n", "PASS"),
+            # 마지막 단락에 enum 자체가 없으면 판독 불가다.
+            ("구현 진행 중.\n남은 작업을 계속한다.\n", ""),
             ("", ""),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(_extract_final_conclusion_enum(prose), expected)
+
+    def test_final_conclusion_accepts_narrative_enums_in_the_last_paragraph(self):
+        # prose 형식은 agent 자율이다. 선언 형태가 아니어도 마지막 단락의 enum 은 결론이며,
+        # 한국어 조사가 붙어도 읽어야 한다. 못 읽으면 실패 task 가 완료로 집계된다.
+        for prose, expected in (
+            ("구현 완료.\n\n검증 결과는 TESTS_FAIL입니다.\n", "TESTS_FAIL"),
+            ("완료.\n\n검증 결과는 PASS입니다.\n", "PASS"),
+            ("보고.\n\nConclusion: TESTS_FAIL\n", "TESTS_FAIL"),
+            ("보고.\n\n환경 문제로 IMPLEMENTATION_ESCALATE합니다.\n", "IMPLEMENTATION_ESCALATE"),
+            # enum 을 포함하는 더 긴 단어는 결론이 아니다.
+            ("보고.\n\nall tests PASSED_EXTRA\n", ""),
         ):
             with self.subTest(expected=expected):
                 self.assertEqual(_extract_final_conclusion_enum(prose), expected)

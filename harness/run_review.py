@@ -617,14 +617,20 @@ _FAIL_CLASS_VERDICTS = frozenset({
     "NEW_DEP_ESCALATE", "UX_FLOW_ESCALATE", "VALIDATION_BLOCKED",
 })
 _PASS_CLASS_VERDICTS = frozenset({"PASS"})
-_ANY_VERDICT_RE = re.compile(
-    r"\b(PASS|TESTS_FAIL|SPEC_GAP_FOUND|IMPLEMENTATION_ESCALATE|"
+_VERDICT_ALTERNATION = (
+    r"PASS|TESTS_FAIL|SPEC_GAP_FOUND|IMPLEMENTATION_ESCALATE|"
     r"SYSTEM_CHECKPOINT_REQUIRED|NEW_DEP_ESCALATE|UX_FLOW_ESCALATE|"
-    r"VALIDATION_BLOCKED|FAIL|ESCALATE)\b"
+    r"VALIDATION_BLOCKED|FAIL|ESCALATE"
+)
+_ANY_VERDICT_RE = re.compile(rf"\b({_VERDICT_ALTERNATION})\b")
+# `\b`는 뒤에 한글이 붙으면 끊긴다 — `TESTS_FAIL입니다`가 매칭되지 않는다. prose 형식은
+# agent 자율이므로 조사가 붙은 서술도 결론이다. ASCII 경계만 요구해 이를 받는다.
+_VERDICT_WITH_PARTICLE_RE = re.compile(
+    rf"(?<![A-Za-z0-9_])({_VERDICT_ALTERNATION})(?![A-Za-z0-9_])"
 )
 
 
-def _final_verdict_token(prose: str) -> str:
+def _final_verdict_token(prose: str, pattern: "re.Pattern[str]" = _ANY_VERDICT_RE) -> str:
     """prose 를 아래에서 위로 스캔해 *결론줄* 의 verdict 토큰을 반환 (없으면 빈 문자열).
 
     dcness agent 규약 = 마지막 단락에 결론. verdict 토큰을 가진 첫 줄(아래에서)이 결론줄.
@@ -632,7 +638,7 @@ def _final_verdict_token(prose: str) -> str:
     결론이다 (round4↔round5 진동 종결, issue #771).
     """
     for line in reversed([line for line in prose.splitlines() if line.strip()]):
-        matches = list(_ANY_VERDICT_RE.finditer(line))
+        matches = list(pattern.finditer(line))
         if not matches:
             continue  # verdict 없는 줄 — 위로
         last = matches[-1].group(1)
@@ -754,7 +760,10 @@ def _extract_final_conclusion_enum(prose: str) -> str:
             if label in _CONCLUSION_LABELS:
                 return label
 
-    return ""
+    # 선언 형태가 아니어도 마지막 단락 안의 enum 은 결론이다 — prose 형식은 agent
+    # 자율이라 `검증 결과는 TESTS_FAIL입니다.` 도 유효한 결론 서술이다. 이걸 판독 불가로
+    # 두면 phase prose 를 정상 기록한 실패 task 가 완료로 집계된다.
+    return _final_verdict_token("\n".join(paragraph), _VERDICT_WITH_PARTICLE_RE)
 
 
 def parse_steps(
