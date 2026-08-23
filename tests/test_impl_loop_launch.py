@@ -489,7 +489,12 @@ class ImplLoopLaunchTests(unittest.TestCase):
                 provider_conclusion="IMPLEMENTATION_ESCALATE",
             )
 
-            self.assertEqual(result.returncode, 0, result.stderr)
+            # The escalation is a terminal receipt, not a completed
+            # implementation: the chain must not report it as one (issue #1217).
+            self.assertEqual(result.returncode, 76, result.stderr)
+            self.assertIn("IMPLEMENTATION_NOT_COMPLETED", result.stderr)
+            self.assertIn("IMPLEMENTATION_ESCALATE", result.stderr)
+            self.assertNotIn("IMPLEMENTATION_COMPLETED", result.stderr)
             self.assertEqual(self.provider_count.read_text(encoding="utf-8"), "1")
             self.assertNotIn("category=phase_evidence", result.stderr)
 
@@ -519,6 +524,21 @@ class ImplLoopLaunchTests(unittest.TestCase):
             self.assertIn("IMPLEMENTATION_ESCALATE", terminal_prose)
             for phase in ("build-test.md", "build-impl.md", "build-validate.md"):
                 self.assertFalse((run_dirs[0] / phase).exists())
+
+            # 같은 run 재실행은 provider 를 다시 fork 하지 않는 no-op 이지만, 이미 있는
+            # receipt 가 non-PASS 이므로 성공 종료 코드로 뒤집히면 안 된다 (issue #1217).
+            relaunch = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                provider_conclusion="IMPLEMENTATION_ESCALATE",
+            )
+
+            self.assertEqual(relaunch.returncode, 76, relaunch.stderr)
+            self.assertIn("IMPLEMENTATION_NOT_COMPLETED", relaunch.stderr)
+            self.assertIn("IMPLEMENTATION_ESCALATE", relaunch.stderr)
+            self.assertNotIn("IMPLEMENTATION_COMPLETED", relaunch.stderr)
+            self.assertEqual(self.provider_count.read_text(encoding="utf-8"), "1")
 
 
 if __name__ == "__main__":

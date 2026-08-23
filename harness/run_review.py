@@ -617,31 +617,40 @@ _FAIL_CLASS_VERDICTS = frozenset({
     "NEW_DEP_ESCALATE", "UX_FLOW_ESCALATE", "VALIDATION_BLOCKED",
 })
 _PASS_CLASS_VERDICTS = frozenset({"PASS"})
-_ANY_VERDICT_RE = re.compile(
-    r"\b(PASS|TESTS_FAIL|SPEC_GAP_FOUND|IMPLEMENTATION_ESCALATE|"
+_VERDICT_ALTERNATION = (
+    r"PASS|TESTS_FAIL|SPEC_GAP_FOUND|IMPLEMENTATION_ESCALATE|"
     r"SYSTEM_CHECKPOINT_REQUIRED|NEW_DEP_ESCALATE|UX_FLOW_ESCALATE|"
-    r"VALIDATION_BLOCKED|FAIL|ESCALATE)\b"
+    r"VALIDATION_BLOCKED|FAIL|ESCALATE"
+)
+_ANY_VERDICT_RE = re.compile(rf"\b({_VERDICT_ALTERNATION})\b")
+# `\b`는 뒤에 한글이 붙으면 끊긴다 — `TESTS_FAIL입니다`가 매칭되지 않는다. prose 형식은
+# agent 자율이므로 조사가 붙은 서술도 결론이다. ASCII 경계만 요구해 이를 받는다.
+_VERDICT_WITH_PARTICLE_RE = re.compile(
+    rf"(?<![A-Za-z0-9_])({_VERDICT_ALTERNATION})(?![A-Za-z0-9_])"
 )
 
 
-def _prose_final_verdict_is_fail(prose: str) -> bool:
-    """prose 를 아래에서 위로 스캔해 *결론줄* 이 fail-class 결론인지.
+def _final_verdict_token(prose: str, pattern: "re.Pattern[str]" = _ANY_VERDICT_RE) -> str:
+    """prose 를 아래에서 위로 스캔해 *결론줄* 의 verdict 토큰을 반환 (없으면 빈 문자열).
 
     dcness agent 규약 = 마지막 단락에 결론. verdict 토큰을 가진 첫 줄(아래에서)이 결론줄.
-    혼합줄("PASS / FAIL 중 FAIL", "PASS 아님 — FAIL")은 **fail 우선** — fail-class 토큰이
-    하나라도 있으면 실패로 본다 (incidental pass 단어보다 fail 이 이김, issue #771).
+    혼합줄("PASS / FAIL 중 FAIL", "PASS 아님 — FAIL")은 위치상 *마지막*(rightmost) 토큰이
+    결론이다 (round4↔round5 진동 종결, issue #771).
     """
     for line in reversed([line for line in prose.splitlines() if line.strip()]):
-        matches = list(_ANY_VERDICT_RE.finditer(line))
+        matches = list(pattern.finditer(line))
         if not matches:
             continue  # verdict 없는 줄 — 위로
-        # 위치상 *마지막*(rightmost) 토큰이 결론. 혼합줄 "PASS / FAIL 중 FAIL" → FAIL,
-        # "PASS / FAIL 중 PASS" → PASS (round4↔round5 진동 종결, issue #771).
         last = matches[-1].group(1)
         if last in _PASS_CLASS_VERDICTS and _NEGATION_RE.search(line):
             continue  # 마지막 토큰이 부정된 pass — 결론 불명, 위로
-        return last in _FAIL_CLASS_VERDICTS
-    return False
+        return last
+    return ""
+
+
+def _prose_final_verdict_is_fail(prose: str) -> bool:
+    """결론줄이 fail-class 결론인지 (issue #771 GHOST 가드용)."""
+    return _final_verdict_token(prose) in _FAIL_CLASS_VERDICTS
 
 
 def _extract_conclusion_enum(prose: str) -> str:
@@ -677,6 +686,92 @@ def _extract_conclusion_enum(prose: str) -> str:
                     continue
                 return label
     return ""
+
+
+# 마지막 단락 안에서는 heading/emphasis/목록/인용 장식을 모두 허용한다. 이 창 안의 줄은
+# 계약상 결론 자리이므로 근거 bullet 과 구분할 필요가 없다.
+_VERDICT_DECLARATION_PREFIX_RE = re.compile(r"^[\s>#*\-+`_]*")
+
+
+def _standalone_verdict_label(line: str) -> str:
+    """줄이 결론 *선언*이면 그 verdict 토큰, 아니면 빈 문자열.
+
+    선언줄은 verdict 토큰으로 시작하고 뒤따르는 말은 그 결론의 설명이다 —
+    `PASS — 이전 TESTS_FAIL 해소`는 `PASS`이고 `TESTS_FAIL — 목표는 PASS`는
+    `TESTS_FAIL`이다. 선두 토큰이 아니라 마지막 토큰을 고르면 설명이 결론을 뒤집는다.
+
+    문장 안에 낀 verdict (`... fixture 검사가 PASS.`)는 근거이지 선언이 아니다.
+    """
+    stripped = _VERDICT_DECLARATION_PREFIX_RE.sub("", line)
+    match = _ANY_VERDICT_RE.match(stripped)
+    if not match:
+        return ""
+    label = match.group(1)
+    if label in _PASS_CLASS_VERDICTS:
+        # 부정은 *선두 토큰 자체* 에만 적용한다. 뒤따르는 다른 verdict 를 부정하는 설명
+        # (`PASS — TESTS_FAIL 없음`) 까지 부정으로 보면 성공 보고가 차단된다.
+        following = _ANY_VERDICT_RE.search(stripped, match.end())
+        span = stripped[match.end():following.start()] if following else stripped[match.end():]
+        if _NEGATION_RE.search(span):
+            return ""  # "PASS 아님" 류 — 선언이 부정됐으므로 결론 불명
+    return label
+
+
+def _final_paragraph_lines(prose: str) -> list[str]:
+    """빈 줄로 나눈 마지막 비어있지 않은 단락."""
+    paragraph: list[str] = []
+    for line in reversed(prose.splitlines()):
+        if line.strip():
+            paragraph.append(line)
+        elif paragraph:
+            break
+    paragraph.reverse()
+    return paragraph
+
+
+def _extract_final_conclusion_enum(prose: str) -> str:
+    """agent 가 *마지막 단락에 선언한* 결론 enum (없으면 빈 문자열).
+
+    `_extract_conclusion_enum` 과 질문이 다르다. 그쪽은 "이 prose 에 어떤 routing enum 이
+    보이는가" 를 문서 전체에서 라벨 우선순위로 답하므로, 이전 라운드의 `TESTS_FAIL` 해소를
+    서술한 뒤 `PASS` 로 끝낸 prose 도 `TESTS_FAIL` 로 읽는다. 리포트 라벨에는 충분하지만
+    "이 실행이 끝났는가" 를 판정하는 쪽이 그 값을 쓰면 정상 `PASS` 를 실패로 차단한다.
+
+    본 함수는 창을 계약 그대로 **마지막 단락** 하나로 고정한다 (`build-worker-agent.md`
+    의 "마지막 단락에 결론 enum 하나를 쓴다"). 그 단락 안의 결론 선언줄이 결론이고,
+    선언줄이 없으면 같은 단락의 명시 `결론:` 라인이며, 둘 다 없으면 판독 불가다. 앞선
+    본문·근거·인용은 창 밖이라 결론을 바꾸지 못한다.
+
+    **자유 prose 판독은 완전할 수 없다.** 표현이 무한하므로 규칙을 계속 늘리는 대신
+    오판의 *방향*을 안전한 쪽으로 고정한다. non-PASS 를 PASS·판독불가로 오판하면
+    `dcness_build_outcome_requires_phase_prose` 가 canonical phase prose 3개 실존을
+    요구해 산출물 없는 실행을 `phase_evidence` 로 차단한다. 반대로 PASS 를 non-PASS 로
+    오판하면 정상 구현이 차단되고 그 결정적 안전망이 없다. 따라서 모호하면 non-PASS 로
+    단정하지 않는다.
+    """
+    if not prose:
+        return ""
+    paragraph = _final_paragraph_lines(prose)
+
+    # 단락은 위에서 아래로 본다. 계약이 "결론 단어와 사유를 다시 쓴다" 이므로 첫 선언줄이
+    # 결론이고 뒤는 그 사유다. 거꾸로 보면 사유줄의 단어가 결론을 뒤집는다
+    # (`TESTS_FAIL` 뒤 `PASS criteria remain unmet`).
+    for line in paragraph:
+        label = _standalone_verdict_label(line)
+        if label:
+            return label
+
+    for line in reversed(paragraph):
+        match = _EXPLICIT_CONCLUSION_RE.match(line)
+        if match:
+            label = match.group("enum").upper()
+            if label in _CONCLUSION_LABELS:
+                return label
+
+    # 선언 형태가 아니어도 마지막 단락 안의 enum 은 결론이다 — prose 형식은 agent
+    # 자율이라 `검증 결과는 TESTS_FAIL입니다.` 도 유효한 결론 서술이다. 이걸 판독 불가로
+    # 두면 phase prose 를 정상 기록한 실패 task 가 완료로 집계된다.
+    return _final_verdict_token("\n".join(paragraph), _VERDICT_WITH_PARTICLE_RE)
 
 
 def parse_steps(

@@ -161,7 +161,7 @@ fi
   --prompt-file "$PROMPT_FILE"
 ```
 
-`dcness-implementation-chain` 은 worktree/default-branch 검사를 state mutation보다 먼저 수행하고, story state·previous tasks·현재 task run·`step_started`를 한 번만 준비한 뒤 provider를 fork한다. wrapper는 `.dcness/tdd-hooks.json`을 scan 없이 prompt 계약으로 변환하고 canonical primary run directory 및 phase prose 절대경로를 주입한다. Codex에는 그 exact run directory만 추가 writable root로 연다. PASS 전 wrapper가 phase prose 3개, task boundary, post-run TDD guard를 검사한다. source mutation 전 환경 미충족 같은 routed non-PASS 결론은 phase prose clean 게이트로 재시도하지 않고 원래 terminal receipt를 보존한다.
+`dcness-implementation-chain` 은 worktree/default-branch 검사를 state mutation보다 먼저 수행하고, story state·previous tasks·현재 task run·`step_started`를 한 번만 준비한 뒤 provider를 fork한다. wrapper는 `.dcness/tdd-hooks.json`을 scan 없이 prompt 계약으로 변환하고 canonical primary run directory 및 phase prose 절대경로를 주입한다. Codex에는 그 exact run directory만 추가 writable root로 연다. PASS 전 wrapper가 phase prose 3개, task boundary, post-run TDD guard를 검사한다. 결론이 `PASS`가 아닌 terminal receipt는 phase prose clean 게이트로 재시도하지 않고 원래 결론을 그대로 보존하며, chain은 그 결론을 읽어 `IMPLEMENTATION_NOT_COMPLETED conclusion=<enum>` + exit 76으로 노출한다. 자동 `(JOURNEY)` 검수 환경이 미충족이어도 구현은 중단하지 않는다 — 환경 처분은 마감의 수렴 직전이 소유한다.
 
 chain은 `headless-chain`(Codex headless → Claude headless → Claude main), `claude-headless`, `claude` 를 같은 routing config 로 실행한다. workspace 변경 전 실패만 다음 provider로 넘어간다. workspace/HEAD 변경 뒤 `timeout`·`idle_timeout`·`empty_output`·`boundary_violation`·`tdd_guard`·`phase_evidence`는 기존 diff를 보존하고 같은 provider/같은 workspace에서 기본 2회 bounded continuation한다. permission receipt가 있으면 첫 실패에서 사용자 승인 경로로 멈춘다. 복구 불가 category나 한도 소진은 자동 폴백·revert 없이 중단한다.
 

@@ -20,7 +20,7 @@ from harness.run_review import (  # noqa: E402
     parse_steps, render_report, list_runs, find_run_dir,
     _normalize_agent_type, assign_invocations_to_steps,
     DCNESS_AGENT_NAMES,
-    WINDOW_TS_PADDING, _extract_conclusion_enum,
+    WINDOW_TS_PADDING, _extract_conclusion_enum, _extract_final_conclusion_enum,
     audit_context_docs,
 )
 # issue #392 — detect_goods 폐기
@@ -1189,6 +1189,123 @@ class ConclusionEnumExtractionTests(unittest.TestCase):
         # 같은 줄에 TESTS_FAIL 과 FAIL 둘 다 있으면 TESTS_FAIL 우선 매칭.
         prose = "결과.\n\nTESTS_FAIL — 3회 FAIL 후 종료."
         self.assertEqual(_extract_conclusion_enum(prose), "TESTS_FAIL")
+
+    def test_final_conclusion_reads_position_not_label_priority(self):
+        # 이전 라운드 finding 해소를 서술한 PASS 는 PASS 다. 라벨 우선순위 추출기는
+        # 같은 prose 를 TESTS_FAIL 로 읽으므로 판정 소비자는 이 함수를 쓴다.
+        prose = (
+            "build-validate 결과입니다.\n\n"
+            "round 1 의 TESTS_FAIL 은 모두 근본 원인으로 닫혔습니다.\n"
+            "lint/build/unit test 전부 green 입니다.\n\nPASS\n"
+        )
+        self.assertEqual(_extract_conclusion_enum(prose), "TESTS_FAIL")
+        self.assertEqual(_extract_final_conclusion_enum(prose), "PASS")
+
+    def test_final_conclusion_keeps_genuine_non_pass_verdicts(self):
+        for prose, expected in (
+            ("unit test 3건 실패.\n\nTESTS_FAIL\n", "TESTS_FAIL"),
+            ("adb socket 도달 불가.\n\nIMPLEMENTATION_ESCALATE\n", "IMPLEMENTATION_ESCALATE"),
+            ("메인 대행 필요.\n\nVALIDATION_BLOCKED\n", "VALIDATION_BLOCKED"),
+            ("설계 공백.\n\nSPEC_GAP_FOUND (small)\n", "SPEC_GAP_FOUND"),
+            ("결론 없는 prose\n", ""),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(_extract_final_conclusion_enum(prose), expected)
+
+    def test_final_conclusion_honours_explicit_conclusion_line(self):
+        prose = "중간에 TESTS_FAIL 언급이 있다.\n\n결론: PASS\n"
+        self.assertEqual(_extract_final_conclusion_enum(prose), "PASS")
+
+    def test_final_conclusion_prefers_a_later_verdict_over_a_quoted_one(self):
+        # rework 보고가 이전 라운드의 명시 결론을 인용한 뒤 PASS 로 끝내는 경우.
+        prose = (
+            "round 1 보고를 인용합니다.\n\n결론: TESTS_FAIL\n\n"
+            "위 실패는 근본 원인으로 닫았습니다.\n\nPASS\n"
+        )
+        self.assertEqual(_extract_final_conclusion_enum(prose), "PASS")
+
+    def test_final_conclusion_takes_the_leading_token_of_the_declaration(self):
+        # 선언 뒤에 붙는 설명이 결론을 뒤집으면 안 된다. 양방향 모두 확인한다.
+        for prose, expected in (
+            ("보고.\n\nPASS — 이전 TESTS_FAIL 해소\n", "PASS"),
+            ("보고.\n\nTESTS_FAIL — 목표는 PASS\n", "TESTS_FAIL"),
+            ("검증 완료.\n\n**PASS**\n", "PASS"),
+            ("검토.\n\nPASS 아님\n", ""),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(_extract_final_conclusion_enum(prose), expected)
+
+    def test_final_conclusion_window_is_the_last_paragraph_only(self):
+        # 앞선 본문·근거·인용은 창 밖이라 결론을 바꾸지 못한다.
+        for prose, expected in (
+            # 마지막 단락이 결론 선언 — 앞선 인용/서술과 무관하다.
+            ("round 1 의 TESTS_FAIL 은 닫혔습니다.\n\nPASS\n", "PASS"),
+            ("인용.\n\n결론: TESTS_FAIL\n\n닫음.\n\nPASS\n", "PASS"),
+            # markdown 목록도 마지막 단락 안에서는 결론 선언이다.
+            ("구현 실패.\n\n- TESTS_FAIL\n", "TESTS_FAIL"),
+            # 템플릿대로 결론 단어와 사유를 함께 쓴 여러 줄 단락.
+            ("보고.\n\nPASS\n사유: 전 게이트 green, commit abc1234\n", "PASS"),
+            # 앞 단락의 명시 결론은 창 밖이다. 마지막 단락에 남은 enum 이 결론이 된다.
+            ("# acceptance\n결론: **FAIL**\n\n## 근거\n비루팅 에뮬에서는 검사가 PASS.\n증거 없음.\n", "PASS"),
+            ("구현 진행 중.\nunit tests PASS 확인.\n", "PASS"),
+            # 마지막 단락에 enum 자체가 없으면 판독 불가다.
+            ("구현 진행 중.\n남은 작업을 계속한다.\n", ""),
+            ("", ""),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(_extract_final_conclusion_enum(prose), expected)
+
+    def test_final_conclusion_reads_the_declaration_before_its_reason(self):
+        # 계약이 "결론 단어와 사유를 다시 쓴다" 이므로 첫 선언줄이 결론이고 뒤는 사유다.
+        for prose, expected in (
+            ("보고.\n\nTESTS_FAIL\nPASS criteria remain unmet\n", "TESTS_FAIL"),
+            ("보고.\n\nPASS\n사유: 전 게이트 green\n", "PASS"),
+            ("보고.\n\n사유: 전 게이트 green\nPASS\n", "PASS"),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(_extract_final_conclusion_enum(prose), expected)
+
+    def test_final_conclusion_negation_applies_only_to_the_declared_token(self):
+        # `PASS — TESTS_FAIL 없음` 은 성공 보고다. 뒤 토큰을 부정하는 설명을 선언 부정으로
+        # 보면 완료된 구현이 차단된다.
+        self.assertEqual(
+            _extract_final_conclusion_enum("보고.\n\nPASS — TESTS_FAIL 없음\n"), "PASS"
+        )
+        self.assertEqual(_extract_final_conclusion_enum("검토.\n\nPASS 아님\n"), "")
+
+    def test_final_conclusion_accepts_narrative_enums_in_the_last_paragraph(self):
+        # prose 형식은 agent 자율이다. 선언 형태가 아니어도 마지막 단락의 enum 은 결론이며,
+        # 한국어 조사가 붙어도 읽어야 한다. 못 읽으면 실패 task 가 완료로 집계된다.
+        for prose, expected in (
+            ("구현 완료.\n\n검증 결과는 TESTS_FAIL입니다.\n", "TESTS_FAIL"),
+            ("완료.\n\n검증 결과는 PASS입니다.\n", "PASS"),
+            ("보고.\n\nConclusion: TESTS_FAIL\n", "TESTS_FAIL"),
+            ("보고.\n\n환경 문제로 IMPLEMENTATION_ESCALATE합니다.\n", "IMPLEMENTATION_ESCALATE"),
+            # enum 을 포함하는 더 긴 단어는 결론이 아니다.
+            ("보고.\n\nall tests PASSED_EXTRA\n", ""),
+        ):
+            with self.subTest(expected=expected):
+                self.assertEqual(_extract_final_conclusion_enum(prose), expected)
+
+    def test_final_conclusion_never_guesses_non_pass_when_ambiguous(self):
+        """오판 방향을 안전한 쪽으로 고정한다.
+
+        non-PASS 를 PASS/판독불가로 오판하면 phase prose 실존 게이트가 산출물 없는
+        실행을 따로 차단한다. 반대로 PASS 를 non-PASS 로 오판하면 정상 구현이 차단되고
+        그 결정적 안전망이 없다.
+        """
+        for prose in (
+            # 최종 enum 을 빠뜨린 채 앞줄에 PASS 로 시작하는 소제목만 있는 malformed 보고.
+            "## PASS 조건 대조\nlint/build 확인함.\n구현 계속 진행 중.\n",
+            # 명시 결론 뒤 근거 항목으로 끝난 보고.
+            "결론: FAIL\n\n## 검증 근거\n- PASS: unit tests\n",
+        ):
+            with self.subTest(prose=prose):
+                self.assertNotIn(
+                    _extract_final_conclusion_enum(prose),
+                    {"TESTS_FAIL", "SPEC_GAP_FOUND", "VALIDATION_BLOCKED",
+                     "IMPLEMENTATION_ESCALATE"},
+                )
 
     def test_parse_steps_populates_conclusion_enum(self):
         with tempfile.TemporaryDirectory() as td:
