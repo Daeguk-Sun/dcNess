@@ -489,7 +489,12 @@ class ImplLoopLaunchTests(unittest.TestCase):
                 provider_conclusion="IMPLEMENTATION_ESCALATE",
             )
 
-            self.assertEqual(result.returncode, 0, result.stderr)
+            # The escalation is a terminal receipt, not a completed
+            # implementation: the chain must not report it as one (issue #1217).
+            self.assertEqual(result.returncode, 76, result.stderr)
+            self.assertIn("IMPLEMENTATION_NOT_COMPLETED", result.stderr)
+            self.assertIn("IMPLEMENTATION_ESCALATE", result.stderr)
+            self.assertNotIn("IMPLEMENTATION_COMPLETED", result.stderr)
             self.assertEqual(self.provider_count.read_text(encoding="utf-8"), "1")
             self.assertNotIn("category=phase_evidence", result.stderr)
 

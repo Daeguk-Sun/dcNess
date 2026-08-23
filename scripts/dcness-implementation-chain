@@ -45,9 +45,14 @@ Environment:
       after recoverable mutation failures. Default: 2.
 
 Exit codes:
-  0   Headless provider completed and recorded end-step.
+  0   Headless provider completed with a PASS conclusion and recorded end-step.
+      Also used when the conclusion could not be read from the final prose; the
+      chain prints a WARN in that case so the caller verifies the workspace.
   75  Chain reached Claude main. Caller must run the main Agent path and record
       end-step with --provider claude-main.
+  76  Headless provider ran to completion but the agent conclusion is not PASS.
+      The terminal receipt is preserved; route on the reported conclusion
+      instead of advancing the task.
 
 Raw provider logs are preserved under the active run directory in headless-logs/.
 USAGE
@@ -666,7 +671,13 @@ PY
         fi
         return $?
       fi
-      echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal build-worker receipt; use --rework with the actual provider for finding repair, or advance the story task." >&2
+      # --rework is --direct-run only, so a chain-state caller must be pointed at
+      # the recovery path that actually works for its entry point.
+      if [ -n "$CHAIN_STATE" ]; then
+        echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal $AGENT receipt. To rerun this task, close the run with 'dcness-helper end-run' and call the chain again with the same --chain-state; --rework is --direct-run only. Otherwise advance the story task." >&2
+      else
+        echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal $AGENT receipt; use --rework with the actual provider for finding repair, or advance the story task." >&2
+      fi
       return 10
       ;;
     conflict:*)
@@ -945,10 +956,12 @@ run_headless_stage() {
       printf '\n'
     } >> "$log"
 
+    : > "$STAGE_CONCLUSION_FILE"
     DCNESS_MUTATION_BASE_HEAD="$stage_initial_head" \
       DCNESS_RECOVERY_OWNER=implementation-chain \
       DCNESS_PHASE_EVIDENCE_REQUIRED="$phase_evidence_required" \
       DCNESS_PROVIDER_FAILURE_FILE="$failure_file" \
+      DCNESS_STAGE_CONCLUSION_FILE="$STAGE_CONCLUSION_FILE" \
       "${cmd[@]}" >> "$log" 2>&1
     rc=$?
 
@@ -1047,6 +1060,16 @@ print(failure.get("permission_receipt", ""))
   done
 }
 
+STAGE_CONCLUSION_FILE="$(mktemp "${TMPDIR:-/tmp}/dcness-stage-conclusion.XXXXXX")"
+trap 'rm -f "$STAGE_CONCLUSION_FILE"' EXIT
+
+read_stage_conclusion() {
+  local conclusion=""
+
+  conclusion="$(head -n 1 "$STAGE_CONCLUSION_FILE" 2>/dev/null || true)"
+  printf '%s' "${conclusion%%[[:space:]]*}"
+}
+
 emit_completion_route() {
   local actual_provider="$1"
   PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
@@ -1085,8 +1108,26 @@ for STAGE in "${STAGES[@]}"; do
       run_headless_stage "$STAGE"
       STAGE_RC=$?
       if [ "$STAGE_RC" -eq 0 ]; then
-        emit_completion_route "$STAGE"
-        exit 0
+        # A wrapper exit code of 0 only means the provider ran to completion and
+        # recorded its terminal receipt. The agent's own conclusion decides
+        # whether the implementation is done.
+        STAGE_CONCLUSION="$(read_stage_conclusion)"
+        case "$STAGE_CONCLUSION" in
+          PASS)
+            emit_completion_route "$STAGE"
+            exit 0
+            ;;
+          "")
+            echo "[dcness-implementation-chain] WARN: $AGENT conclusion could not be read from the final prose; falling back to the provider exit code. Verify the workspace before advancing." >&2
+            emit_completion_route "$STAGE"
+            exit 0
+            ;;
+          *)
+            echo "[dcness-implementation-chain] IMPLEMENTATION_NOT_COMPLETED conclusion=$STAGE_CONCLUSION provider=$STAGE" >&2
+            echo "[dcness-implementation-chain] $AGENT recorded a terminal receipt with a non-PASS conclusion. Route on that conclusion instead of advancing the task, and do not treat this run as a completed implementation." >&2
+            exit 76
+            ;;
+        esac
       fi
       ;;
     claude-main)
