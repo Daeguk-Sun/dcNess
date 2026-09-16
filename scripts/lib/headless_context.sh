@@ -115,26 +115,34 @@ dcness_missing_build_phase_prose() {
   done
 }
 
+# Positional final conclusion, not label-priority extraction: a rework PASS that
+# narrates the previously fixed TESTS_FAIL must read as PASS, or a correct
+# implementation gets blocked.
+dcness_prose_conclusion_enum() {
+  local script_dir="$1"
+  local prose_file="$2"
+
+  PYTHONPATH="$script_dir/..${PYTHONPATH:+:$PYTHONPATH}" \
+    python3 - "$prose_file" <<'PY'
+import sys
+from pathlib import Path
+
+from harness.run_review import _extract_final_conclusion_enum
+
+print(
+    _extract_final_conclusion_enum(
+        Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
+    )
+)
+PY
+}
+
 dcness_build_outcome_requires_phase_prose() {
   local script_dir="$1"
   local prose_file="$2"
   local conclusion=""
 
-  conclusion="$(
-    PYTHONPATH="$script_dir/..${PYTHONPATH:+:$PYTHONPATH}" \
-      python3 - "$prose_file" <<'PY'
-import sys
-from pathlib import Path
-
-from harness.run_review import _extract_conclusion_enum
-
-print(
-    _extract_conclusion_enum(
-        Path(sys.argv[1]).read_text(encoding="utf-8", errors="replace")
-    )
-)
-PY
-  )" || return 0
+  conclusion="$(dcness_prose_conclusion_enum "$script_dir" "$prose_file")" || return 0
 
   # Canonical phase prose is a clean/PASS invariant. Routed non-PASS outcomes
   # such as a pre-implementation environment escalation must still reach the
@@ -143,6 +151,20 @@ PY
     PASS|"") return 0 ;;
     *) return 1 ;;
   esac
+}
+
+# Hand the worker's own conclusion enum back to the caller that forked it. The
+# implementation chain reads this instead of trusting the wrapper exit code
+# alone, so a worker that stops at a non-PASS conclusion is not reported as a
+# completed implementation. Empty output means "could not be read".
+dcness_export_stage_conclusion() {
+  local script_dir="$1"
+  local prose_file="$2"
+
+  [ -n "${DCNESS_STAGE_CONCLUSION_FILE:-}" ] || return 0
+  dcness_prose_conclusion_enum "$script_dir" "$prose_file" \
+    > "$DCNESS_STAGE_CONCLUSION_FILE" 2>/dev/null || :
+  return 0
 }
 
 dcness_record_end_step() {

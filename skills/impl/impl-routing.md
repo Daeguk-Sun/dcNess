@@ -94,6 +94,7 @@ UI 기준: 신규 시각 구조 — 목업 선행 권장, 사용자가 생략 �
 
 | 단계 | 결론 → 다음 |
 |---|---|
+| headless `build-worker` (chain exit 76) | chain 이 `IMPLEMENTATION_NOT_COMPLETED conclusion=<enum>` 으로 결론을 노출한다. 완료로 넘기지 않는다. `TESTS_FAIL` → 같은 provider build-worker rework(≤3) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` + `permission_required` → `/impl-loop` 와 같은 사용자 sandbox 승인 선택 후 Codex 1회 제한 재시도, permission receipt 없음 → 메인이 같은 worktree cwd 에서 worker 검증 명령 실행, exit 0 이면 PASS 동일 · `IMPLEMENTATION_ESCALATE` → 사용자 위임 |
 | direct `impl-validator` | `PASS` → commit/PR/CI · target issue가 있으면 AC close audit · `FAIL`(`[spec-gap]` 또는 `[quality-gap]`) → 같은 구현 owner가 root-cause 수정 + test 재통과 + impl-validator 재호출(≤3) |
 | design-doc `impl-validator` | `PASS` → commit/PR/CI · `FAIL`(`[spec-gap]` 포함) → 같은 구현 owner가 로직 수정 · `FAIL`(`[quality-gap]`만) → 같은 owner가 polish 수정 · 이후 test 재통과 + impl-validator 재호출(≤3) |
 
@@ -111,8 +112,11 @@ tracked docs는 branch/PR에 포함할 수 있지만 local-only/ignored private 
 
 | 경로 | 한도 | 초과 시 |
 |---|---|---|
+| headless build-worker `TESTS_FAIL` → 같은 provider rework | 3 | 사용자에게 남은 실패 보고 |
 | direct impl-validator FAIL(`[quality-gap]`) → 같은 owner root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
 | design-doc impl-validator FAIL(`[spec-gap]` 또는 `[quality-gap]`) → 같은 owner root-cause 수정 | 3 | 사용자에게 남은 finding 보고 |
+
+headless build-worker 를 다시 돌릴 때는 중단된 run 에 이미 terminal receipt 가 있어 chain 재호출이 `ALREADY_COMPLETED` no-op 이 된다. `/impl` 의 `--direct-run` 진입점은 `--rework --resume-provider <actual-provider>` 로 같은 run 에 새 build-worker step 을 연다. `--chain-state` 진입점의 재개 수단은 [`impl-loop-routing.md`](../impl-loop/impl-loop-routing.md#escalate-처리) 가 소유한다.
 
 finding 수용 원칙은 `/impl-loop` 와 같다. 같은 영역 finding 이 반복되면 줄 단위 점 패치가 아니라 root cause 를 재검토한다.
 

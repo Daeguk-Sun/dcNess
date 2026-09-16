@@ -2157,5 +2157,195 @@ class ImplementationChainTests(unittest.TestCase):
             self.assertIn("FALLBACK_TO_CLAUDE_MAIN", result.stderr)
 
 
+class ChainWorkerConclusionTests(unittest.TestCase):
+    """Issue #1217 — a worker that exits 0 with a non-PASS conclusion is not done."""
+
+    def _run_chain_with_claude_prose(
+        self, tmp: Path, prose: str, *, provider: str = "claude-headless"
+    ) -> subprocess.CompletedProcess:
+        project = tmp / "project"
+        project.mkdir()
+        subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+        prompt_file = tmp / "prompt.md"
+        prompt_file.write_text("Implement through chain.\n", encoding="utf-8")
+        helper_args = tmp / "helper-args.txt"
+        prose_capture = tmp / "prose.md"
+        helper = tmp / "dcness-helper"
+        _write_helper(helper, helper_args, prose_capture)
+
+        bin_dir = tmp / "bin"
+        bin_dir.mkdir()
+        _write_executable(
+            bin_dir / "claude",
+            f"""\
+            #!/bin/sh
+            cat >/dev/null
+            printf '{prose}'
+            """,
+        )
+
+        env = os.environ.copy()
+        env.update(
+            {
+                "DCNESS_RUN_ID": "run-17171717",
+                "DCNESS_SESSION_ID": "sid-chain",
+                "HELPER_ARGS": str(helper_args),
+                "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                "PROSE_CAPTURE": str(prose_capture),
+            }
+        )
+
+        return subprocess.run(
+            [
+                str(CHAIN),
+                "build-worker",
+                "--provider",
+                provider,
+                "--prompt-file",
+                str(prompt_file),
+                "--project-root",
+                str(project),
+                "--helper",
+                str(helper),
+            ],
+            capture_output=True,
+            env=env,
+            text=True,
+        )
+
+    def test_non_pass_conclusion_is_not_reported_as_completed(self) -> None:
+        for conclusion in (
+            "IMPLEMENTATION_ESCALATE",
+            "SPEC_GAP_FOUND",
+            "TESTS_FAIL",
+            "VALIDATION_BLOCKED",
+        ):
+            with self.subTest(conclusion=conclusion), tempfile.TemporaryDirectory() as td:
+                result = self._run_chain_with_claude_prose(
+                    Path(td), f"worker stopped early\\n\\n{conclusion}\\n"
+                )
+
+                self.assertEqual(result.returncode, 76, result.stderr)
+                self.assertIn("IMPLEMENTATION_NOT_COMPLETED", result.stderr)
+                self.assertIn(conclusion, result.stderr)
+                self.assertNotIn("IMPLEMENTATION_COMPLETED", result.stderr)
+
+    def test_pass_conclusion_still_reports_completion(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            result = self._run_chain_with_claude_prose(
+                Path(td), "worker finished the task\\n\\nPASS\\n"
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("IMPLEMENTATION_COMPLETED", result.stderr)
+
+    def test_rework_pass_narrating_a_fixed_failure_is_not_blocked(self) -> None:
+        """A PASS that describes the previously fixed TESTS_FAIL is still a PASS."""
+        with tempfile.TemporaryDirectory() as td:
+            result = self._run_chain_with_claude_prose(
+                Path(td),
+                "round 1 의 TESTS_FAIL 은 모두 근본 원인으로 닫혔습니다.\\n"
+                "lint/build/unit test 전부 green 입니다.\\n\\nPASS\\n",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("IMPLEMENTATION_COMPLETED", result.stderr)
+            self.assertNotIn("IMPLEMENTATION_NOT_COMPLETED", result.stderr)
+
+    def test_unreadable_conclusion_completes_with_a_warning(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            result = self._run_chain_with_claude_prose(
+                Path(td), "worker wrote prose without any conclusion label\\n"
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("IMPLEMENTATION_COMPLETED", result.stderr)
+            self.assertIn("conclusion could not be read", result.stderr)
+
+    def test_non_pass_conclusion_does_not_fall_back_to_the_next_provider(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+
+            prompt_file = tmp / "prompt.md"
+            prompt_file.write_text("Implement through chain.\n", encoding="utf-8")
+            helper_args = tmp / "helper-args.txt"
+            prose_capture = tmp / "prose.md"
+            claude_called = tmp / "claude-called.txt"
+            helper = tmp / "dcness-helper"
+            _write_helper(helper, helper_args, prose_capture)
+
+            bin_dir = tmp / "bin"
+            bin_dir.mkdir()
+            _write_executable(
+                bin_dir / "codex",
+                """\
+                #!/bin/sh
+                if [ "$1" = "--help" ]; then
+                  echo "Usage: codex"
+                  exit 0
+                fi
+                out=""
+                while [ "$#" -gt 0 ]; do
+                  if [ "$1" = "--output-last-message" ]; then
+                    out="$2"
+                    shift 2
+                    continue
+                  fi
+                  shift
+                done
+                cat >/dev/null
+                printf 'env probe failed before any source edit\\n\\nIMPLEMENTATION_ESCALATE\\n' > "$out"
+                """,
+            )
+            _write_executable(
+                bin_dir / "claude",
+                """\
+                #!/bin/sh
+                printf called > "$CLAUDE_CALLED"
+                cat >/dev/null
+                printf 'should not run\\n\\nPASS\\n'
+                """,
+            )
+
+            env = os.environ.copy()
+            env.update(
+                {
+                    "CLAUDE_CALLED": str(claude_called),
+                    "DCNESS_RUN_ID": "run-12171217",
+                    "DCNESS_SESSION_ID": "sid-chain",
+                    "HELPER_ARGS": str(helper_args),
+                    "PATH": f"{bin_dir}{os.pathsep}/usr/bin:/bin:/usr/sbin:/sbin",
+                    "PROSE_CAPTURE": str(prose_capture),
+                }
+            )
+
+            result = subprocess.run(
+                [
+                    str(CHAIN),
+                    "build-worker",
+                    "--provider",
+                    "headless-chain",
+                    "--prompt-file",
+                    str(prompt_file),
+                    "--project-root",
+                    str(project),
+                    "--helper",
+                    str(helper),
+                ],
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+
+            self.assertEqual(result.returncode, 76, result.stderr)
+            self.assertIn("IMPLEMENTATION_ESCALATE", result.stderr)
+            self.assertNotIn("IMPLEMENTATION_COMPLETED", result.stderr)
+            self.assertFalse(claude_called.exists())
+
+
 if __name__ == "__main__":
     unittest.main()

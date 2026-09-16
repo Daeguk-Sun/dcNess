@@ -126,7 +126,7 @@ PROJECT_ROOT="$(git rev-parse --show-toplevel)"
 
 design-doc 입력이면 `--design-doc <path>`만 추가한다. 대화형 호스트에서는 이 one-shot을 background tool 실행으로 시작하고 메인이 `ps`, `tail`, 수동 polling loop를 만들지 않는다. chain이 run/step lifecycle, provider chain, phase evidence, same-workspace recovery를 소유한다.
 
-종료 receipt의 `provider=<actual>`이 실제 구현 소유자다. `exit 75` 전에는 workspace mutation이 없으므로 메인이 `claude-main` 소유자로 구현할 수 있다. 그 밖의 실패는 [`impl-routing.md`](impl-routing.md)에서 처리한다.
+종료 receipt의 `provider=<actual>`이 실제 구현 소유자다. `exit 75` 전에는 workspace mutation이 없으므로 메인이 `claude-main` 소유자로 구현할 수 있다. `exit 76` + `IMPLEMENTATION_NOT_COMPLETED conclusion=<enum>`은 provider가 끝까지 돌았지만 worker 결론이 `PASS`가 아니라는 뜻이므로 완료로 넘기지 않고 그 결론대로 분기한다. 그 밖의 실패는 [`impl-routing.md`](impl-routing.md)에서 처리한다.
 
 ### 3. focused read
 

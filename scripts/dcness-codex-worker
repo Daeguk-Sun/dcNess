@@ -761,4 +761,6 @@ if [ -n "$MISSING_PHASE_PROSE" ]; then
   exit 1
 fi
 
+dcness_export_stage_conclusion "$SCRIPT_DIR" "$TMP_PROSE"
+
 dcness_record_end_step "dcness-codex-worker" "codex-headless" "$HELPER" "$AGENT" "$MODE" "$TMP_PROSE" "$RAW_LOG"

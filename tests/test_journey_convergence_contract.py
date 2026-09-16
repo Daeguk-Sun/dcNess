@@ -122,7 +122,7 @@ class JourneyConvergenceContractTests(unittest.TestCase):
         for text in (skill, routing, acceptance, journey):
             with self.subTest(source=text[:40]):
                 self.assertIn("journey_deferred", text)
-        self.assertIn("ENVUSER -->|구현만 + journey 분리| DEFER", routing)
+        self.assertIn("ENVUSER -->|journey 검수 분리| DEFER", routing)
         self.assertIn("해당 journey", routing)
         self.assertIn("JOURNEY_CONVERGENCE 비발동", routing)
         self.assertIn("sealed journey 실행 비발동", routing)
@@ -130,6 +130,47 @@ class JourneyConvergenceContractTests(unittest.TestCase):
         self.assertIn("`Closes`를 붙이지 않는다", routing)
         self.assertIn("나머지 journey", acceptance)
         self.assertIn("매니페스트를 다시 쓰지 않는다", journey)
+
+    def test_env_preflight_does_not_block_implementation(self) -> None:
+        """Issue #1218 — 검수 환경 미충족은 구현의 blocker가 아니다."""
+        worker = read("docs/plugin/agents/build-worker/build-worker-agent.md")
+        routing = read("skills/impl-loop/impl-loop-routing.md")
+        finish = read("skills/impl-loop/impl-loop-finish.md")
+
+        self.assertIn("검수 환경과 구현은 독립", worker)
+        self.assertIn("task를 중단하지 않는다", worker)
+        self.assertIn("검수 환경과 구현은 독립", routing)
+        self.assertIn(
+            "preflight 는 `IMPLEMENTATION_ESCALATE` 를 내지 않는다", routing
+        )
+        # 사용자 처분은 사라지지 않고 마감으로 옮겨간다.
+        self.assertIn("수렴 직전 사용자 처분 1회", routing)
+        self.assertIn("환경 먼저 준비 / 해당 journey 검수 분리", finish)
+        self.assertIn("같은 journey의 환경 처분을 다시 묻지 않는다", finish)
+
+    def test_preflight_verdict_reaches_the_finish_sequence(self) -> None:
+        """Issue #1218 — PASS 로 완료한 task 의 환경 판정이 마감까지 전달돼야 한다."""
+        skill = read("skills/impl-loop/SKILL.md")
+        finish = read("skills/impl-loop/impl-loop-finish.md")
+
+        # chain stdout 은 환경 상태를 싣지 않으므로 task loop 가 판정을 보존한다.
+        self.assertIn("chain stdout이 환경 상태를 싣지 않는다", skill)
+        self.assertIn("진행 뷰에 남긴다", skill)
+        self.assertIn("마감의 수렴 직전 환경 처분 입력", skill)
+        # 마감은 그 값을 어디서 읽는지 알아야 한다.
+        self.assertIn("진행 뷰에 남긴 판정에서 확인한다", finish)
+
+    def test_escalate_resume_path_is_documented_per_entry_point(self) -> None:
+        """Issue #1218 — ALREADY_COMPLETED가 가리키는 복구 수단이 실제로 쓸 수 있어야 한다."""
+        routing = read("skills/impl-loop/impl-loop-routing.md")
+        chain = read("scripts/dcness-implementation-chain")
+
+        self.assertIn("ALREADY_COMPLETED", routing)
+        self.assertIn("dcness-helper end-run", routing)
+        self.assertIn("`--rework` 는 이 진입점에서 사용할 수 없다", routing)
+        self.assertIn("--rework --resume-provider", routing)
+        # chain 메시지도 --chain-state 진입점에 --rework를 권하지 않는다.
+        self.assertIn("--rework is --direct-run only", chain)
 
     def test_n_story_convergence_fix_ownership_is_unambiguous(self) -> None:
         skill = read("skills/impl-loop/impl-loop-finish.md")

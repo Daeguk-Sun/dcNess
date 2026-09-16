@@ -168,12 +168,24 @@ HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
 - worker wrapper: 마지막 prose와 대응 `step_completed` terminal receipt
 
 같은 state와 같은 `--init-path` 재호출은 task 목록·project root가 일치할 때 기존 state를 재사용하고 중복 초기화하지 않는다. default branch에서 초기 launch하거나 state의 project root가 다르면 provider fork 전에 실패한다.
-background task notification의 최종 exit code가 실행 진본이다. exit 0이면 stage 중간
-stderr나 partial output에 provider 실패가 보여도 fallback을 포함한 chain이 terminal
-prose를 기록한 것이므로 재호출하지 않는다. 최신 prose가 `PASS`일 때만 mark하고,
-`TESTS_FAIL`·`SPEC_GAP_FOUND`·`VALIDATION_BLOCKED`·`IMPLEMENTATION_ESCALATE`는
-[`impl-loop-routing.md`](impl-loop-routing.md)대로 처리한다. 같은 current run에 이미
-`step_completed`가 있으면 chain 재호출도 provider를 다시 fork하지 않는 성공 no-op이다.
+background task notification의 최종 exit code가 실행 진본이다. chain은 wrapper 종료
+코드만 보지 않고 worker가 기록한 결론까지 읽은 뒤 종료 코드를 정한다. `exit 0` +
+`IMPLEMENTATION_COMPLETED`는 최신 prose가 `PASS`라는 뜻이므로, stage 중간 stderr나
+partial output에 provider 실패가 보여도 fallback을 포함한 chain이 terminal prose를
+기록한 것이라 재호출하지 않는다. `exit 76` + `IMPLEMENTATION_NOT_COMPLETED
+conclusion=<enum>`은 worker가 non-PASS로 끝냈다는 뜻이며 완료가 아니다. mark하지
+말고 `TESTS_FAIL`·`SPEC_GAP_FOUND`·`VALIDATION_BLOCKED`·`IMPLEMENTATION_ESCALATE`를
+[`impl-loop-routing.md`](impl-loop-routing.md)대로 처리한다. chain이 결론을 읽지
+못했다는 WARN을 남기고 완료로 보고한 경우에만 메인이 commit sha·state mark·phase
+prose로 false-clean을 직접 확인한다. 같은 current run에 이미 `step_completed`가
+있으면 chain 재호출도 provider를 다시 fork하지 않는 no-op이며, 그 receipt가
+non-PASS면 `ALREADY_COMPLETED` 안내대로 run을 닫고 다시 호출한다.
+
+자동 `(JOURNEY)` task는 `PASS`로 완료해도 chain stdout이 환경 상태를 싣지 않는다.
+mark에 쓸 commit sha를 읽을 때 worker 보고의 `JOURNEY_ENV_PREFLIGHT` 판정도 함께
+읽어, 확실한 미충족이면 그 `journey_id`와 probe 근거를 진행 뷰에 남긴다. 이 값이
+마감의 수렴 직전 환경 처분 입력이다. 남기지 않으면 미충족을 아는 채로 수렴에 들어가
+iteration 한도를 소모한다.
 
 ### 5. worker task loop
 
@@ -184,7 +196,9 @@ prose를 기록한 것이므로 재호출하지 않는다. 최신 prose가 `PASS
 - 기본 build-worker는 task를 읽은 직후 자동 `(JOURNEY)` 선언을 감지하고, 같은
   worker context에서 source read/edit보다 먼저 `JOURNEY_ENV_PREFLIGHT`를 내부
   phase로 한 번 수행한다. journey 미선언은 no-op이며 별도 main/provider launch를
-  만들지 않는다.
+  만들지 않는다. 검수 환경과 구현은 독립이므로 환경이 확실히 미충족이어도 probe
+  근거만 보고하고 같은 호출에서 구현을 계속한다. 환경 처분은 마감의 수렴 직전에
+  메인이 사용자에게 1회 확인한다.
 
 성공 뒤 task commit을 mark하고 `next-action`을 같은 Bash 호출로 묶는다.
 

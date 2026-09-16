@@ -28,6 +28,8 @@
 
 ### journey
 
+- 수렴 대상 journey 중 build-worker의 `JOURNEY_ENV_PREFLIGHT`가 확실한 환경 미충족을 보고한 것이 있는지 task loop가 진행 뷰에 남긴 판정에서 확인한다. 진행 뷰에 없으면 해당 task의 worker 보고에서 다시 읽고, 그것도 없으면 미충족 보고가 없었던 것으로 본다.
+- 확실한 미충족이 있으면 수렴을 시작하기 전에 `환경 먼저 준비 / 해당 journey 검수 분리` 중 하나를 사용자에게 1회 확인한다. 구현은 이미 착지해 있으므로 이 확인은 구현을 되돌리지 않는다. 분리를 택하면 그 `journey_id`를 현재 run의 `journey_deferred`로 보존한다. 같은 run에서 같은 journey의 환경 처분을 다시 묻지 않는다.
 - `journey_deferred`가 아닌 자동 journey만 `JOURNEY_CONVERGENCE`를 실행한다.
 - 첫 실행 PASS면 끝내고, 실패하면 실행 → 관찰 → 배관 수정 → 재실행한다.
 - story-local production 수정은 해당 story branch에 commit하고 downstream branch를 restack한다.
