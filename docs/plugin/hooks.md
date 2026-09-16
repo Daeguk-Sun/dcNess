@@ -247,7 +247,8 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 - `DCNESS_CODEX_NETWORK_ACCESS=1|true|on`은 `-c sandbox_workspace_write.network_access=true`만 추가한다. 미설정 또는 `0|false|off`는 옵션을 추가하지 않으며, 그 밖의 값은 오타로 보고 worker 시작을 거부한다.
 - `DCNESS_CODEX_WRITABLE_ROOTS`는 플랫폼 path separator(macOS/Linux `:`)로 구분한 절대경로 목록이다. wrapper가 각 원소를 JSON 호환 TOML string array로 encode한 뒤 `-c sandbox_workspace_write.writable_roots=[...]`를 추가하므로 공백·따옴표·backslash가 한 CLI 인자 안에서 보존된다.
-- 두 opt-in은 서로 독립이며 `workspace-write`를 유지한다. `danger-full-access` 전환은 제공하지 않는다.
+- worker는 이 env와 별개로 대상 프로젝트의 git 메타데이터 위치를 git에 직접 물어 writable root에 자동으로 추가한다. linked worktree에서 `.git`은 디렉터리가 아니라 주 저장소를 가리키는 파일이고 실제 메타데이터는 워크스페이스 밖에 있으므로, 이 자동 확인이 없으면 구현·테스트·빌드가 모두 성공한 뒤 로컬 커밋만 실패한다. 공용 메타데이터와 worktree 전용 메타데이터를 함께 열며, 일반 체크아웃은 둘이 같은 경로라 한 번만 추가한다. git 저장소가 아닌 프로젝트에서는 조용히 no-op이고 실행을 막지 않는다. 호출자가 env로 넘긴 root는 이 자동 확인이 대체하지 않고 함께 유지한다.
+- 두 opt-in은 서로 독립이며 `workspace-write`를 유지한다. git 메타데이터 자동 확인도 sandbox를 `workspace-write` 위로 올리지 않는다. `danger-full-access` 전환은 제공하지 않는다.
 - 승인 후 자동 재시도는 최대 1회다. 같은 sandbox 거부가 반복되면 추가 root/network 확대 없이 중단한다. malformed settings는 덮어쓰지 않으며, 사용자 거부·안전한 root 추론 실패와 함께 `VALIDATION_BLOCKED` 상태를 유지한다. 이 permission 경로에서는 host 직접 검증이나 다른 provider로 우회하지 않는다.
 - 이 계약은 Codex 설정 키를 사용하는 `codex-headless` build-worker 전용이다. `claude-headless` worker는 Claude Code의 `--permission-mode acceptEdits` 경로이며 Codex sandbox 설정을 소비하지 않으므로 동일 env를 적용하지 않는다. 다른 provider로의 자동 확장은 범위 밖이다.
 
