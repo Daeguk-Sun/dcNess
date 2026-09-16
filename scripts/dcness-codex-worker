@@ -27,7 +27,9 @@ Environment:
   DCNESS_CODEX_NETWORK_ACCESS  Opt in to workspace-write network access with
                          1, true, or on. Unset/0/false/off keeps the default.
   DCNESS_CODEX_WRITABLE_ROOTS  Optional path-separator-delimited list of
-                         additional workspace-write writable roots.
+                         additional workspace-write writable roots. The git
+                         metadata of the target project is resolved and added
+                         on top of this list, so callers do not pass it.
   DCNESS_CODEX_PERMISSION_RECEIPT  Internal marker for the single
                          user-approved permission retry.
 
@@ -198,9 +200,40 @@ if [ "$TDD_GUIDANCE_RC" -ne 0 ]; then
   exit "$TDD_GUIDANCE_RC"
 fi
 
+# A linked worktree keeps its real git metadata outside the workspace, so the
+# path is asked of git instead of assumed to be "$PROJECT_ROOT/.git". Without
+# both the shared and the worktree-private directory the worker implements and
+# tests everything and then fails only at the local commit.
+# Both directories are reduced to their physical path so that the shared and
+# the worktree-private location compare equal in a plain checkout and are
+# listed once.
+git_metadata_physical_dir() {
+  local candidate="$1"
+  [ -n "$candidate" ] || return 0
+  case "$candidate" in
+    /*) ;;
+    *) candidate="$PROJECT_ROOT/$candidate" ;;
+  esac
+  (cd "$candidate" 2>/dev/null && pwd -P) || true
+}
+
+GIT_METADATA_DIR="$(
+  git_metadata_physical_dir \
+    "$(git -C "$PROJECT_ROOT" rev-parse --absolute-git-dir 2>/dev/null || true)"
+)"
+GIT_METADATA_COMMON_DIR=""
+if [ -n "$GIT_METADATA_DIR" ]; then
+  GIT_METADATA_COMMON_DIR="$(
+    git_metadata_physical_dir \
+      "$(git -C "$PROJECT_ROOT" rev-parse --git-common-dir 2>/dev/null || true)"
+  )"
+fi
+
 CODEX_WRITABLE_ROOTS_CONFIG=""
-if [ -n "$CODEX_WRITABLE_ROOTS" ] || [ -n "$CANONICAL_RUN_DIR" ]; then
+if [ -n "$CODEX_WRITABLE_ROOTS" ] || [ -n "$CANONICAL_RUN_DIR" ] || [ -n "$GIT_METADATA_DIR" ]; then
   export DCNESS_CANONICAL_RUN_DIR="$CANONICAL_RUN_DIR"
+  export DCNESS_GIT_METADATA_COMMON_DIR="$GIT_METADATA_COMMON_DIR"
+  export DCNESS_GIT_METADATA_DIR="$GIT_METADATA_DIR"
   if ! CODEX_WRITABLE_ROOTS_TOML="$(python3 -c '
 import json
 import os
@@ -210,9 +243,13 @@ roots = [
     for root in os.environ.get("DCNESS_CODEX_WRITABLE_ROOTS", "").split(os.pathsep)
     if root
 ]
-canonical = os.environ.get("DCNESS_CANONICAL_RUN_DIR", "")
-if canonical and canonical not in roots:
-    roots.append(canonical)
+for extra in (
+    os.environ.get("DCNESS_CANONICAL_RUN_DIR", ""),
+    os.environ.get("DCNESS_GIT_METADATA_COMMON_DIR", ""),
+    os.environ.get("DCNESS_GIT_METADATA_DIR", ""),
+):
+    if extra and extra not in roots:
+        roots.append(extra)
 print(json.dumps(roots, ensure_ascii=False))
 ')"; then
     echo "[dcness-codex-worker] failed to encode writable roots as a TOML string array" >&2

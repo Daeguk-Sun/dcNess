@@ -590,17 +590,72 @@ class CodexValidatorWrapperTests(unittest.TestCase):
 
 
 class CodexWorkerWrapperTests(unittest.TestCase):
+    @staticmethod
+    def _seed_repo(path: Path) -> None:
+        subprocess.run(["git", "init", "-q"], cwd=path, check=True)
+        (path / "README.md").write_text("seed\n", encoding="utf-8")
+        subprocess.run(["git", "add", "README.md"], cwd=path, check=True)
+        subprocess.run(
+            [
+                "git",
+                "-c",
+                "user.email=worker@example.com",
+                "-c",
+                "user.name=worker",
+                "commit",
+                "-q",
+                "-m",
+                "seed",
+            ],
+            cwd=path,
+            check=True,
+        )
+
+    @staticmethod
+    def _plain_checkout_git_root(project: str) -> str:
+        """The single git directory a plain checkout contributes."""
+        return str(Path(project).resolve() / ".git")
+
+    @staticmethod
+    def _writable_roots_from_args(args: list[str]) -> list[str]:
+        prefix = "sandbox_workspace_write.writable_roots="
+        for index, arg in enumerate(args):
+            if arg == "-c" and args[index + 1].startswith(prefix):
+                return json.loads(args[index + 1][len(prefix) :])
+        raise AssertionError(f"no writable_roots config in codex args: {args}")
+
     def _run_worker_for_args(
         self,
         *,
         network_access: str | None = None,
         writable_roots: list[str] | None = None,
+        project_kind: str = "plain",
     ) -> tuple[subprocess.CompletedProcess[str], list[str], str]:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
             project = tmp / "project"
             project.mkdir()
-            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            if project_kind == "plain":
+                self._seed_repo(project)
+            elif project_kind == "worktree":
+                self._seed_repo(project)
+                linked = tmp / "linked"
+                subprocess.run(
+                    [
+                        "git",
+                        "worktree",
+                        "add",
+                        "-q",
+                        str(linked),
+                        "-b",
+                        "linked-branch",
+                    ],
+                    cwd=project,
+                    check=True,
+                )
+                project = linked
+            elif project_kind != "non-git":
+                raise AssertionError(f"unknown project_kind: {project_kind}")
 
             prompt_file = tmp / "prompt.md"
             prompt_file.write_text("Implement the task.\n", encoding="utf-8")
@@ -711,15 +766,19 @@ class CodexWorkerWrapperTests(unittest.TestCase):
         *,
         network_access: str | None = None,
         writable_roots: list[str] | None = None,
+        project_kind: str = "plain",
     ) -> tuple[list[str], str]:
         result, args, project = self._run_worker_for_args(
             network_access=network_access,
             writable_roots=writable_roots,
+            project_kind=project_kind,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         return args, project
 
-    def test_worker_default_sandbox_adds_only_canonical_run_writable_root(self) -> None:
+    def test_worker_default_sandbox_adds_canonical_run_and_git_writable_roots(
+        self,
+    ) -> None:
         for network_access in (None, "0", "false", "off"):
             with self.subTest(network_access=network_access):
                 args, project = self._capture_worker_args(
@@ -742,7 +801,13 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                         "never",
                         "-c",
                         "sandbox_workspace_write.writable_roots="
-                        + json.dumps([canonical_run_dir], ensure_ascii=False),
+                        + json.dumps(
+                            [
+                                canonical_run_dir,
+                                self._plain_checkout_git_root(project),
+                            ],
+                            ensure_ascii=False,
+                        ),
                         "exec",
                         "-C",
                         project,
@@ -786,7 +851,11 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 "-c",
                 "sandbox_workspace_write.writable_roots="
                 + json.dumps(
-                    [*writable_roots, canonical_run_dir],
+                    [
+                        *writable_roots,
+                        canonical_run_dir,
+                        self._plain_checkout_git_root(project),
+                    ],
                     ensure_ascii=False,
                 ),
                 "exec",
@@ -835,7 +904,11 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 expected_configs.append(
                     "sandbox_workspace_write.writable_roots="
                     + json.dumps(
-                        [*(roots or []), canonical_run_dir],
+                        [
+                            *(roots or []),
+                            canonical_run_dir,
+                            self._plain_checkout_git_root(project),
+                        ],
                         ensure_ascii=False,
                     )
                 )
@@ -847,6 +920,49 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 self.assertEqual(actual_configs, expected_configs)
                 self.assertEqual(args.count("-c"), len(expected_configs))
                 self.assertIn("workspace-write", args)
+
+    # issue #1223 — a linked worktree keeps its real git metadata outside the
+    # workspace, so the worker must open it itself or local commits fail while
+    # implementation, tests and build all succeed.
+    def test_worker_opens_linked_worktree_git_metadata(self) -> None:
+        caller_root = "/tmp/gradle cache"
+
+        args, project = self._capture_worker_args(
+            writable_roots=[caller_root],
+            project_kind="worktree",
+        )
+        main_repo = Path(project).parent / "project"
+        roots = self._writable_roots_from_args(args)
+        resolved = {str(Path(root).resolve()) for root in roots}
+
+        self.assertIn(str((main_repo / ".git").resolve()), resolved)
+        self.assertIn(
+            str((main_repo / ".git" / "worktrees" / "linked").resolve()),
+            resolved,
+        )
+        # the caller-provided root survives alongside the resolved git metadata
+        self.assertIn(caller_root, roots)
+        self.assertTrue(
+            any(root.endswith("runs/run-sandbox1") for root in roots),
+            f"canonical run dir dropped from writable roots: {roots}",
+        )
+        # the sandbox mode is unchanged by opening git metadata
+        self.assertEqual(args[args.index("-s") + 1], "workspace-write")
+        self.assertNotIn("danger-full-access", args)
+
+    def test_worker_opens_plain_checkout_git_metadata(self) -> None:
+        args, project = self._capture_worker_args()
+        roots = self._writable_roots_from_args(args)
+        resolved = [str(Path(root).resolve()) for root in roots]
+
+        self.assertIn(str((Path(project) / ".git").resolve()), resolved)
+        # a plain checkout has one git directory, so it is not listed twice
+        self.assertEqual(len(resolved), len(set(resolved)))
+
+    def test_worker_runs_outside_git_repository(self) -> None:
+        result, _, _ = self._run_worker_for_args(project_kind="non-git")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_worker_rejects_invalid_network_access_before_codex(self) -> None:
         result, args, _project = self._run_worker_for_args(
