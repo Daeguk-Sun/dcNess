@@ -121,6 +121,34 @@ class ContextDocsTests(unittest.TestCase):
             self.assertFalse(audit.has_cold_start_anchor)
             self.assertEqual(claude.read_text(encoding="utf-8"), original)
 
+    def test_references_under_declared_external_base_are_not_broken(self) -> None:
+        """문서가 명시한 저장소 밖 기준 경로 아래 실존 파일은 broken 이 아니다 (#1203)."""
+        from harness.context_docs import _broken_references
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            repo = root / "repo"
+            repo.mkdir()
+            external = root / "llm-wiki"
+            (external / "wiki").mkdir(parents=True)
+            (external / "wiki" / "index.md").write_text("x\n", encoding="utf-8")
+            text = (
+                f"세컨드 브레인은 `{external}` 에 둔다.\n"
+                "- `wiki/index.md` 가 색인이다.\n"
+            )
+
+            self.assertEqual([], _broken_references(repo, text))
+
+    def test_references_outside_repo_are_not_declared_broken(self) -> None:
+        """기준을 알 수 없는 저장소 밖 경로는 존재 확인 없이 broken 으로 단정하지 않는다 (#1203)."""
+        from harness.context_docs import _broken_references
+
+        with TemporaryDirectory() as td:
+            repo = Path(td) / "repo"
+            repo.mkdir()
+
+            self.assertEqual([], _broken_references(repo, "- `../outside/thing.md`\n"))
+
     def test_audit_detects_common_monorepo_broken_paths(self) -> None:
         from harness.context_docs import audit_claude_md_file
 

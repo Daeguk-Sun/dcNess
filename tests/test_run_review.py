@@ -317,6 +317,187 @@ class WasteDetectionTests(unittest.TestCase):
         wastes = detect_wastes(steps)
         self.assertFalse(any(w.pattern == "MUST_FIX_GHOST" for w in wastes))
 
+    def test_must_fix_ghost_not_fired_when_rework_chain_precedes_pass(self):
+        """같은 게이트의 FAIL → rework → PASS 체인이면 해소 서술이다 (#1203)."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="FAIL",
+                       prose_excerpt="MUST FIX: x"),
+            StepRecord(idx=1, ts="t2", agent="build-worker", mode=None,
+                       enum="PROSE_LOGGED", must_fix=False, conclusion_enum="IMPLEMENTATION_DONE",
+                       prose_excerpt="fixed"),
+            StepRecord(idx=2, ts="t3", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
+                       prose_excerpt="round 1 MUST FIX 4건은 모두 근본 원인으로 닫혔습니다"),
+            StepRecord(idx=3, ts="t4", agent="product-acceptance", mode="STORY_ACCEPTANCE",
+                       enum="PROSE_LOGGED", must_fix=False, conclusion_enum="PASS",
+                       prose_excerpt="ok"),
+        ]
+
+        wastes = detect_wastes(steps)
+
+        self.assertFalse(any(w.pattern == "MUST_FIX_GHOST" for w in wastes))
+
+    def test_resolved_rework_chain_clears_has_must_fix_for_whole_run(self):
+        """해소된 라운드의 FAIL 도 미해결로 세지 않는다 (#1203 리뷰)."""
+        from harness.run_review import unresolved_must_fix_flags
+
+        rounds = [
+            ("impl-validator", None, True, "FAIL"),
+            ("build-worker", None, False, "IMPLEMENTATION_DONE"),
+            ("impl-validator", None, True, "PASS"),
+            ("product-acceptance", "STORY_ACCEPTANCE", False, "PASS"),
+        ]
+
+        self.assertEqual([False, False, False, False], unresolved_must_fix_flags(rounds))
+
+    def test_multi_round_rework_closes_every_earlier_fail(self):
+        """재리뷰가 두 번이어도 첫 실패까지 닫힌다 (#1203 리뷰 2)."""
+        from harness.run_review import unresolved_must_fix_flags
+
+        rounds = [
+            ("impl-validator", None, True, "FAIL"),
+            ("build-worker", None, False, "IMPLEMENTATION_DONE"),
+            ("impl-validator", None, True, "FAIL"),
+            ("build-worker", None, False, "IMPLEMENTATION_DONE"),
+            ("impl-validator", None, True, "PASS"),
+        ]
+
+        self.assertEqual([False] * 5, unresolved_must_fix_flags(rounds))
+
+    def test_other_mode_pass_does_not_close_a_different_scope(self):
+        """같은 agent 라도 mode 가 다르면 검증 범위가 다르다 (#1203 리뷰 2)."""
+        from harness.run_review import unresolved_must_fix_flags
+
+        rounds = [
+            ("product-acceptance", "STORY_ACCEPTANCE", True, "FAIL"),
+            ("build-worker", None, False, "IMPLEMENTATION_DONE"),
+            ("product-acceptance", "EPIC_ACCEPTANCE", False, "PASS"),
+        ]
+
+        self.assertEqual([True, False, False], unresolved_must_fix_flags(rounds))
+
+    def test_unclosed_gate_fail_is_still_unresolved(self):
+        """rework 후 PASS 가 없으면 그대로 미해결이다 (#1203 리뷰)."""
+        from harness.run_review import unresolved_must_fix_flags
+
+        rounds = [
+            ("impl-validator", None, True, "FAIL"),
+            ("build-worker", None, False, "IMPLEMENTATION_DONE"),
+        ]
+
+        self.assertEqual([True, False], unresolved_must_fix_flags(rounds))
+
+    def test_quoted_past_failure_does_not_block_a_resolved_chain(self):
+        """직전 라운드 결론을 인용한 재리뷰 PASS 는 해소다 (#1203 리뷰 3)."""
+        prose = (
+            "직전 보고를 인용합니다.\n\n결론: FAIL\n\n"
+            "MUST FIX 항목은 모두 근본 원인으로 닫혔습니다.\n\nPASS\n"
+        )
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="FAIL",
+                       prose_excerpt="MUST FIX: a"),
+            StepRecord(idx=1, ts="t2", agent="build-worker", mode=None,
+                       enum="PROSE_LOGGED", must_fix=False,
+                       conclusion_enum="IMPLEMENTATION_DONE", prose_excerpt="fixed"),
+            StepRecord(idx=2, ts="t3", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="FAIL",
+                       prose_excerpt=prose, prose_full=prose),
+        ]
+
+        from harness.run_review import _rounds_from_steps, unresolved_must_fix_flags
+
+        self.assertEqual(
+            [False, False, False],
+            unresolved_must_fix_flags(_rounds_from_steps(steps)),
+        )
+
+    def test_mid_prose_pass_does_not_clear_an_actual_failure(self):
+        """본문 중간 PASS 오인식이 실제 실패를 해소로 바꾸지 않는다 (#1203 리뷰 2)."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="FAIL",
+                       prose_excerpt="MUST FIX: a"),
+            StepRecord(idx=1, ts="t2", agent="build-worker", mode=None,
+                       enum="PROSE_LOGGED", must_fix=False,
+                       conclusion_enum="IMPLEMENTATION_DONE", prose_excerpt="fixed"),
+            StepRecord(idx=2, ts="t3", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
+                       prose_excerpt="tests PASS\n\nMUST FIX: b\n\nFAIL\n",
+                       prose_full="tests PASS\n\nMUST FIX: b\n\nFAIL\n"),
+        ]
+
+        from harness.run_review import _rounds_from_steps, unresolved_must_fix_flags
+
+        flags = unresolved_must_fix_flags(_rounds_from_steps(steps))
+
+        self.assertTrue(flags[2])
+
+    def test_must_fix_leak_not_fired_on_resolved_rework_citation(self):
+        """마지막 step 이 재리뷰 PASS 인용이면 caveat 통지 대상이 아니다 (#1203 리뷰)."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="FAIL",
+                       prose_excerpt="MUST FIX: x"),
+            StepRecord(idx=1, ts="t2", agent="build-worker", mode=None,
+                       enum="PROSE_LOGGED", must_fix=False,
+                       conclusion_enum="IMPLEMENTATION_DONE", prose_excerpt="fixed"),
+            StepRecord(idx=2, ts="t3", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
+                       prose_excerpt="round 1 MUST FIX 는 모두 닫혔습니다"),
+        ]
+
+        wastes = detect_wastes(steps)
+
+        self.assertFalse(any(w.pattern == "MUST_FIX_LEAK" for w in wastes))
+
+    def test_last_step_gate_pass_without_chain_is_not_high(self):
+        """체인 없는 게이트 PASS 는 마지막 step 이어도 확인 필요 수준이다 (#1203 리뷰 4)."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
+                       prose_excerpt="MUST FIX: x\n\nPASS\n",
+                       prose_full="MUST FIX: x\n\nPASS\n"),
+        ]
+
+        wastes = detect_wastes(steps)
+        leaks = [w for w in wastes if w.pattern == "MUST_FIX_LEAK"]
+
+        self.assertEqual(1, len(leaks))
+        self.assertNotEqual("HIGH", leaks[0].severity)
+
+    def test_last_step_non_gate_must_fix_stays_high(self):
+        """producer 의 미해결 caveat 는 종전대로 HIGH 통지 의무다."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="build-worker", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True,
+                       conclusion_enum="IMPLEMENTATION_DONE",
+                       prose_excerpt="MUST FIX: 남은 위험"),
+        ]
+
+        leaks = [w for w in detect_wastes(steps) if w.pattern == "MUST_FIX_LEAK"]
+
+        self.assertEqual(1, len(leaks))
+        self.assertEqual("HIGH", leaks[0].severity)
+
+    def test_must_fix_ghost_without_rework_chain_is_not_high(self):
+        """체인이 없는 PASS 는 후보로만 남기고 HIGH 로 단정하지 않는다 (#1203)."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=True, conclusion_enum="PASS",
+                       prose_excerpt="MUST FIX: x"),
+            StepRecord(idx=1, ts="t2", agent="build-worker", mode=None,
+                       enum="PROSE_LOGGED", must_fix=False, conclusion_enum="IMPLEMENTATION_DONE",
+                       prose_excerpt="b"),
+        ]
+
+        wastes = detect_wastes(steps)
+        ghosts = [w for w in wastes if w.pattern == "MUST_FIX_GHOST"]
+
+        self.assertEqual(1, len(ghosts))
+        self.assertNotEqual("HIGH", ghosts[0].severity)
+
     def test_must_fix_ghost_prose_final_fail_beats_incidental_pass(self):
         # #771 — PROSE_LOGGED 게이트의 prose 가 "tests PASS … FAIL" 로 끝나면 실제 실패.
         # conclusion_enum 이 PASS 로 오파싱돼도 위치상 마지막 결론(FAIL)이 이겨 GHOST 아님.
@@ -472,6 +653,71 @@ class ToolUsesColumnTests(unittest.TestCase):
                           matched_invocation=True, tool_use_count=153)
         text = render_report(self._make_report([step]))
         self.assertIn("**153**", text)
+
+    def test_last_step_elapsed_is_not_reported_as_zero(self):
+        """elapsed 는 다음 step 과의 차이라 마지막 step 은 계산 불가다 (#1203)."""
+        step = StepRecord(idx=0, ts="t", agent="build-worker", mode=None,
+                          enum="IMPL_DONE", must_fix=False, prose_excerpt="a",
+                          matched_invocation=True, tool_use_count=89,
+                          duration_ms=600_000, output_tokens=5000,
+                          total_tokens=9000, cost_usd=0.5)
+
+        row = [
+            line for line in render_report(self._make_report([step])).splitlines()
+            if line.startswith("| 0 |")
+        ][0]
+
+        self.assertNotRegex(row, r"\|\s*0\s*\|\s*600\s*\|")
+
+    def test_partial_metrics_do_not_fill_missing_ones_with_zero(self):
+        """duration 만 잡힌 invocation 의 토큰·비용을 0 으로 단정하지 않는다 (#1203 리뷰)."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="build-worker", mode=None,
+                       enum="IMPL_DONE", must_fix=False, prose_excerpt="a",
+                       matched_invocation=True, tool_use_count=89,
+                       duration_ms=600_000, output_tokens=0, total_tokens=0,
+                       cost_usd=0.0),
+            StepRecord(idx=1, ts="t2", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=False, prose_excerpt="b"),
+        ]
+
+        row = [
+            line for line in render_report(self._make_report(steps)).splitlines()
+            if line.startswith("| 0 |")
+        ][0]
+
+        self.assertIn("600", row)
+        self.assertNotIn("0.0000", row)
+        self.assertNotIn("| 0 | 0 |", row)
+
+    def test_call_flow_last_step_elapsed_is_not_zero_seconds(self):
+        """호출 흐름의 마지막 step 도 elapsed 0s 로 보이지 않는다 (#1203 리뷰)."""
+        step = StepRecord(idx=0, ts="t", agent="build-worker", mode=None,
+                          enum="IMPL_DONE", must_fix=False, prose_excerpt="a")
+
+        text = render_report(self._make_report([step]))
+        flow = text.split("## 호출 흐름")[1].split("```")[1]
+
+        self.assertNotIn("(0s)", flow)
+
+    def test_matched_invocation_without_usage_is_not_reported_as_zero(self):
+        """매칭은 됐지만 usage 가 비면 0 이 아니라 측정 불가로 보인다 (#1203)."""
+        steps = [
+            StepRecord(idx=0, ts="t1", agent="build-worker", mode=None,
+                       enum="IMPL_DONE", must_fix=False, prose_excerpt="a",
+                       matched_invocation=True, tool_use_count=89,
+                       duration_ms=0, output_tokens=0, total_tokens=0, cost_usd=0.0),
+            StepRecord(idx=1, ts="t2", agent="impl-validator", mode=None,
+                       enum="PROSE_LOGGED", must_fix=False, prose_excerpt="b"),
+        ]
+
+        row = [
+            line for line in render_report(self._make_report(steps)).splitlines()
+            if line.startswith("| 0 |")
+        ][0]
+
+        self.assertNotIn("| 0 | 0 |", row)
+        self.assertIn("-", row)
 
     def test_unmatched_invocation_dash(self):
         step = StepRecord(idx=0, ts="t", agent="engineer", mode="IMPL",

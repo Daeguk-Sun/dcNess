@@ -225,6 +225,55 @@ def _record_design_run_if_applicable(sid: str, rid: str) -> None:
         )
 
 
+def _has_unresolved_must_fix(steps: list, latest_steps: list) -> bool:
+    """재리뷰 체인으로 해소된 MUST FIX 인용을 뺀 미해결 여부 (#1203).
+
+    판정은 `run_review.unresolved_must_fix_flags` 가 소유한다. 같은 규칙을 두 곳에
+    적으면 한쪽만 고쳐져 리포트와 finalize 가 서로 다른 답을 낸다.
+    """
+    try:
+        from harness.run_review import (
+            _extract_conclusion_enum,
+            gate_verdict_from_prose,
+            unresolved_must_fix_flags,
+        )
+    except Exception:  # nosec B110 - fail-open: 판정 불가 시 기존 동작 유지
+        return any(s.get("must_fix") for s in latest_steps)
+
+    def verdict_of(step: dict) -> str:
+        # ledger receipt 는 `enum=PROSE_LOGGED` 만 담고 결론을 따로 저장하지 않는다.
+        # 결론 진본은 prose 이므로 거기서 읽고, 본문 중간의 PASS 오인식은 보정한다.
+        prose = ""
+        prose_file = step.get("prose_file")
+        if prose_file:
+            try:
+                prose = Path(str(prose_file)).read_text(
+                    encoding="utf-8", errors="ignore"
+                )
+            except OSError:
+                prose = ""
+        if not prose:
+            prose = str(step.get("prose_excerpt") or "")
+        return gate_verdict_from_prose(_extract_conclusion_enum(prose) or "", prose)
+
+    rounds = [
+        (
+            str(s.get("agent") or ""),
+            s.get("mode"),
+            bool(s.get("must_fix")),
+            verdict_of(s),
+        )
+        for s in steps
+        if isinstance(s, dict)
+    ]
+    flags = unresolved_must_fix_flags(rounds)
+    latest_ids = {id(s) for s in latest_steps}
+    dict_steps = [s for s in steps if isinstance(s, dict)]
+    return any(
+        flag for flag, step in zip(flags, dict_steps) if id(step) in latest_ids
+    )
+
+
 def _latest_step_per_role(steps: list) -> list:
     """`steps` 의 같은 (agent, mode) 쌍 중 *마지막* entry 만 골라 반환 (#272 W4).
 
@@ -269,7 +318,9 @@ def _cli_finalize_run(args: Any) -> int:
     # *마지막* 발생만 평가해서 후속 step 에서 해소된 신호를 정합 처리.
     latest_steps = _latest_step_per_role(steps)
     has_ambiguous = any(s.get("enum") == "AMBIGUOUS" for s in latest_steps)
-    has_must_fix = any(s.get("must_fix") for s in latest_steps)
+    # issue #1203 — 재리뷰 체인으로 해소된 MUST FIX 인용은 미해결로 세지 않는다.
+    # 같은 (agent, mode) 의 마지막 step 만 보면 PASS 라운드의 인용이 그대로 남는다.
+    has_must_fix = _has_unresolved_must_fix(steps, latest_steps)
 
     # DCN-CHG-20260430-25: --expected-steps 검증 — skill 이 정상 시퀀스 step 수
     # 명시 시 ledger.jsonl step_completed 수 미만이면 stderr WARN. /impl-loop 자기검증.

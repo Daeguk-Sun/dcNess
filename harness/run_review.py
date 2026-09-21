@@ -123,6 +123,113 @@ def _derive_gate_agents() -> set[str]:
 
 MUST_FIX_GATE_AGENTS = _derive_gate_agents()
 MUST_FIX_GHOST_PASS_ENUMS = {"PASS"}
+
+
+def unresolved_must_fix_flags(rounds: list[tuple]) -> list[bool]:
+    """각 step 의 MUST FIX 가 *미해소* 인지 판정한다 (#1203).
+
+    ``rounds`` 는 실행 순서대로의 ``(agent, mode, must_fix, verdict)`` 다. 재리뷰 run 은
+    직전 라운드 finding 의 해소를 prose 에 인용할 수밖에 없으므로, 같은 게이트 역할의
+    직전 non-PASS 라운드와 그 사이의 rework 가 ledger 로 확인되면 그 언급은 인용이며
+    미해소가 아니다. prose 표현이 아니라 step 순서로만 판정한다 — 해소·부정 표현의
+    blacklist 확장은 표현이 무한해 구조적으로 수렴하지 않는다.
+
+    역할은 ``(agent, mode)`` 다. 같은 agent 라도 mode 가 다르면 검증 범위가 달라서,
+    한쪽 mode 의 PASS 가 다른 mode 의 미해결을 닫으면 안 된다.
+    """
+    normalized = [_normalize_round(entry) for entry in rounds]
+    flags: list[bool] = []
+    for idx, (agent, _mode, must_fix, verdict) in enumerate(normalized):
+        if not must_fix:
+            flags.append(False)
+            continue
+        if agent not in MUST_FIX_GATE_AGENTS:
+            # producer 의 must_fix 재진술은 원래 게이트 신호가 아니다.
+            flags.append(True)
+            continue
+        cleared_citation = (
+            verdict in MUST_FIX_GHOST_PASS_ENUMS
+            and _has_rework_chain_before(normalized, idx)
+        )
+        # 그 라운드가 FAIL 이었더라도 이후 rework 를 거쳐 같은 역할이 PASS 로 닫았으면
+        # 해소다. 이걸 빼면 정상 재리뷰 run 이 리포트에서 계속 미해결로 남는다.
+        flags.append(not (cleared_citation or _closed_by_later_pass(normalized, idx)))
+    return flags
+
+
+def _normalize_round(entry: tuple) -> tuple[str, Optional[str], bool, str]:
+    agent, mode, must_fix, verdict = entry
+    return str(agent or ""), mode, bool(must_fix), str(verdict or "")
+
+
+def _same_role_indices(rounds: list[tuple], idx: int) -> tuple[str, Optional[str]]:
+    return rounds[idx][0], rounds[idx][1]
+
+
+def _closed_by_later_pass(rounds: list[tuple], idx: int) -> bool:
+    """이후 rework 를 거쳐 같은 역할이 PASS 로 닫았는가.
+
+    라운드가 여러 번이면 중간 FAIL 에서 멈추지 않고 마지막 결론까지 본다. 실제
+    재리뷰는 `FAIL → rework → FAIL → rework → PASS` 처럼 반복될 수 있다.
+    """
+    role = _same_role_indices(rounds, idx)
+    last_same_role = -1
+    for j in range(idx + 1, len(rounds)):
+        if (rounds[j][0], rounds[j][1]) == role:
+            last_same_role = j
+    if last_same_role < 0:
+        return False
+    if rounds[last_same_role][3] not in MUST_FIX_GHOST_PASS_ENUMS:
+        return False
+    return any(
+        (rounds[k][0], rounds[k][1]) != role for k in range(idx + 1, last_same_role)
+    )
+
+
+def _has_rework_chain_before(rounds: list[tuple], idx: int) -> bool:
+    """같은 역할의 직전 non-PASS 라운드 → rework → 현재 step 체인이 있는가."""
+    role = _same_role_indices(rounds, idx)
+    for j in range(idx - 1, -1, -1):
+        if (rounds[j][0], rounds[j][1]) != role:
+            continue
+        if rounds[j][3] in MUST_FIX_GHOST_PASS_ENUMS:
+            return False
+        # 같은 역할의 직전 non-PASS 라운드. 그 사이에 다른 역할의 rework 가 있어야
+        # 재리뷰 체인이다. 같은 역할이 연달아 두 번 돈 것은 rework 가 아니다.
+        return any(
+            (rounds[k][0], rounds[k][1]) != role for k in range(j + 1, idx)
+        )
+    return False
+
+
+def gate_verdict_from_prose(verdict: str, prose: str) -> str:
+    """해소 판정이 쓸 verdict — prose 의 *마지막* 결론을 진본으로 본다 (#1203).
+
+    라벨 우선순위 추출기(`_extract_conclusion_enum`)는 본문 중간의 `tests PASS` 나
+    이전 라운드의 `결론: FAIL` 인용을 집는다. 두 오인식이 반대 방향으로 작동해,
+    한쪽은 실제 실패를 해소로 지우고 다른 쪽은 정상 재리뷰를 미해결로 남긴다.
+    위치 기반 `_extract_final_conclusion_enum` 이 그 소비자용 진본이다.
+    """
+    final = _extract_final_conclusion_enum(prose) if prose else ""
+    if final:
+        return final
+    if verdict in MUST_FIX_GHOST_PASS_ENUMS and _prose_final_verdict_is_fail(prose):
+        return "FAIL"
+    return verdict
+
+
+def _rounds_from_steps(steps) -> list[tuple[str, Optional[str], bool, str]]:
+    return [
+        (
+            s.agent,
+            s.mode,
+            bool(s.must_fix),
+            gate_verdict_from_prose(
+                _resolved_verdict(s), s.prose_full or s.prose_excerpt
+            ),
+        )
+        for s in steps
+    ]
 def _resolved_verdict(step) -> str:
     """현재 prose SSOT에서 추출한 step verdict."""
     return step.conclusion_enum or ""
@@ -988,6 +1095,11 @@ def detect_wastes(
     # 실측 41/41 false positive. 진짜 신호는 *게이트가 advance(PASS)하면서
     # blocker 를 남긴* 경우뿐 — producer(build-worker)의 must_fix
     # 와 reviewer 의 FAIL 은 정상. 마지막 step 미해결은 MUST_FIX_LEAK 담당이라 제외.
+    # issue #1203 — 재리뷰 run 은 직전 라운드 finding 의 해소를 prose 에 인용할 수밖에
+    # 없다. 같은 게이트의 직전 FAIL → 그 사이 rework → 현재 PASS 체인이 ledger 로
+    # 확인되면 그 MUST FIX 언급은 인용이므로 발화하지 않는다. 표현 blacklist 확장으로
+    # 풀지 않는 이유는 해소·부정 표현이 무한해 구조적으로 수렴하지 않기 때문이다.
+    ghost_rounds = _rounds_from_steps(steps)
     for i, s in enumerate(steps):
         if not (s.must_fix and i + 1 < len(steps)):
             continue
@@ -1000,24 +1112,39 @@ def detect_wastes(
         # conclusion_enum이 잘못 집은 것이므로 정상 fail→fix 루프로 본다.
         if _prose_final_verdict_is_fail(s.prose_full or s.prose_excerpt):
             continue
+        if _has_rework_chain_before(ghost_rounds, i):
+            continue
         findings.append(WasteFinding(
             pattern="MUST_FIX_GHOST",
-            severity="HIGH",
+            severity="MEDIUM",
             step_idx=i,
             agent=s.agent,
-            detail=f"step {i} ({s.agent}) {verdict} 결론인데 prose 에 미해결 MUST FIX — 게이트 통과 모순",
-            fix=f"agents/{s.agent}.md 결론 일관성 — MUST FIX 가 있으면 PASS 가 아니라 FAIL",
+            detail=(
+                f"step {i} ({s.agent}) {verdict} 결론인데 prose 에 MUST FIX 언급 — "
+                "직전 라운드 해소 체인이 없어 확인이 필요합니다"
+            ),
+            fix=f"agents/{s.agent}.md 결론 일관성 — 미해결 MUST FIX 가 있으면 PASS 가 아니라 FAIL",
         ))
 
     # issue #383 B3 — MUST_FIX_LEAK. 마지막 step 의 must_fix=True (= caveat 신호)
     # 는 MUST_FIX_GHOST 룰이 *다음 step 없음* 으로 skip → wastes 비어있는
     # 회귀 발생 (jajang run-459cce99 impl-validator 케이스). 사용자에게 caveat
     # 통지 누락 회피 위해 wastes 1+ 써서 회귀 차단.
+    # issue #1203 — 마지막 step 이 재리뷰 PASS 면 그 MUST FIX 언급은 해소 인용이라
+    # caveat 통지 대상이 아니다. GHOST 와 같은 구조 판정을 쓴다.
     last = steps[-1] if steps else None
-    if last and last.must_fix:
+    leak_rounds = _rounds_from_steps(steps) if steps else []
+    last_unresolved = bool(leak_rounds and unresolved_must_fix_flags(leak_rounds)[-1])
+    if last and last_unresolved:
+        # 체인 없는 게이트 PASS 는 GHOST 와 같은 "확인 필요" 수준이다. 그 케이스가
+        # 마지막 step 이라는 이유만으로 HIGH 가 되면 severity 가 위치에 따라 갈린다.
+        gate_pass_without_chain = (
+            last.agent in MUST_FIX_GATE_AGENTS
+            and leak_rounds[-1][3] in MUST_FIX_GHOST_PASS_ENUMS
+        )
         findings.append(WasteFinding(
             pattern="MUST_FIX_LEAK",
-            severity="HIGH",
+            severity="MEDIUM" if gate_pass_without_chain else "HIGH",
             step_idx=len(steps) - 1,
             agent=last.agent,
             detail=f"마지막 step ({last.agent}) must_fix=True — caveat 통지 의무",
@@ -1420,7 +1547,9 @@ def render_report(report: RunReport) -> str:
         mode_str = f" [{s.mode}]" if s.mode else ""
         flag = " ⚠️" if s.must_fix else ""
         display_enum = s.conclusion_enum or s.enum
-        lines.append(f"{marker} {s.agent}{mode_str} ({s.elapsed_s}s) → {display_enum}{flag}")
+        # issue #1203 — elapsed 는 다음 step 과의 ts 차이라 마지막 step 은 계산 불가다.
+        elapsed_str = f"{s.elapsed_s}s" if i + 1 < len(report.steps) else "elapsed 미측정"
+        lines.append(f"{marker} {s.agent}{mode_str} ({elapsed_str}) → {display_enum}{flag}")
     lines.append("```")
     lines.append("")
 
@@ -1429,16 +1558,23 @@ def render_report(report: RunReport) -> str:
     lines.append("## 단계별 상세")
     lines.append("| # | 시작(local) | agent | mode | elapsed(s) | duration(s) | out_tok | total_tok | tool_uses | cost($) | enum | must_fix | prose줄 |")
     lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
-    for s in report.steps:
+    for pos, s in enumerate(report.steps):
         line_count = len([
             line for line in (s.prose_full or s.prose_excerpt).splitlines()
             if line.strip()
         ])
-        dur_s = f"{s.duration_ms / 1000:.0f}" if s.matched_invocation else "-"
-        out_tok = f"{s.output_tokens:,}" if s.matched_invocation else "-"
-        tot_tok = f"{s.total_tokens:,}" if s.matched_invocation else "-"
-        cost = f"{s.cost_usd:.4f}" if s.matched_invocation else "-"
-        if s.matched_invocation:
+        # issue #1203 — 0 은 "일하지 않았다" 로 읽힌다. 측정하지 못한 자리는 0 이 아니라
+        # `-` 로 구분한다. elapsed 는 다음 step 과의 ts 차이라 마지막 step 은 계산 불가고,
+        # invocation 이 매칭돼도 usage 가 비어 있으면 실제 0 이 아니라 미측정이다.
+        elapsed_str = str(s.elapsed_s) if pos + 1 < len(report.steps) else "-"
+        # metric 은 서로 독립적으로 빌 수 있다. duration 만 잡히고 usage 가 비는 경우가
+        # 실제로 있으므로 한 값이 있다고 나머지까지 0 으로 단정하지 않는다.
+        matched = s.matched_invocation
+        dur_s = f"{s.duration_ms / 1000:.0f}" if matched and s.duration_ms else "-"
+        out_tok = f"{s.output_tokens:,}" if matched and s.output_tokens else "-"
+        tot_tok = f"{s.total_tokens:,}" if matched and s.total_tokens else "-"
+        cost = f"{s.cost_usd:.4f}" if matched and s.cost_usd else "-"
+        if matched and s.tool_use_count:
             # ≥ 100 시 **bold** — TOOL_USE_OVERFLOW 임계와 동일 (run_review.py:465)
             tu_str = f"**{s.tool_use_count}**" if s.tool_use_count >= 100 else str(s.tool_use_count)
         else:
@@ -1451,7 +1587,7 @@ def render_report(report: RunReport) -> str:
         # issue #383 B4 — prose 결론 enum 우선 표시 (sentinel fallback).
         display_enum = s.conclusion_enum or s.enum
         lines.append(
-            f"| {s.idx} | {ts_local} | {s.agent} | {s.mode or '-'} | {s.elapsed_s} | "
+            f"| {s.idx} | {ts_local} | {s.agent} | {s.mode or '-'} | {elapsed_str} | "
             f"{dur_s} | {out_tok} | {tot_tok} | {tu_str} | {cost} | "
             f"`{display_enum}` | {'⚠️' if s.must_fix else ''} | {line_count} |"
         )
@@ -1557,7 +1693,7 @@ def build_report(
     final_enum = ""
     if steps:
         final_enum = steps[-1].conclusion_enum or steps[-1].enum
-    has_must_fix = any(s.must_fix for s in steps)
+    has_must_fix = any(unresolved_must_fix_flags(_rounds_from_steps(steps)))
     has_ambiguous = any(s.enum == "AMBIGUOUS" for s in steps)
     final_clean = bool(
         final_enum and not has_must_fix and not has_ambiguous
