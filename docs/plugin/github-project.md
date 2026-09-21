@@ -66,11 +66,13 @@ issue #663: Project IssueType=feature, repo label=bug. Set Project IssueType and
 
 ## Bootstrap Commands
 
+> 아래 bash 예시가 호출하는 스크립트는 활성 프로젝트 저장소가 아니라 plugin 배포본 안에만 있다. `$PLUGIN_ROOT` 는 `PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)}"` 로 해석하며 (경로에 공백이 있어도 보존되도록 확장 전체를 인용한다), Bash 변수는 독립 호출 사이에 유지되지 않으므로 실행 블록마다 다시 해석한다. dcNess self 저장소에서는 `node scripts/...` 상대경로가 그대로 유효하다.
+
 Project 번호를 아는 경우 선택적 Project 축과 lifecycle label 7종을 함께 점검한다.
 
 ```bash
-node scripts/github_project_lifecycle.mjs bootstrap --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER
-node scripts/github_project_lifecycle.mjs bootstrap --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER --apply
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER --apply
 ```
 
 Project 가 없는 경우:
@@ -78,5 +80,5 @@ Project 가 없는 경우:
 ```bash
 gh project create --owner OWNER --title "dcNess" --format json
 gh project link PROJECT_NUMBER --owner OWNER --repo REPO
-node scripts/github_project_lifecycle.mjs bootstrap --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER --apply
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER --apply
 ```

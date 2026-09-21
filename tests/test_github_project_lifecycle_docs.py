@@ -73,7 +73,7 @@ class GithubProjectLifecycleDocsTests(unittest.TestCase):
     def test_to_issue_contract_references_project_lifecycle_ssot(self) -> None:
         self.assertIn("[`../../docs/plugin/github-project.md`]", self.issue_fields)
         self.assertIn("open issue + `in-progress` label 없음", self.to_issue)
-        self.assertIn("scripts/github_project_lifecycle.mjs validate-issue", self.to_issue)
+        self.assertIn('github_project_lifecycle.mjs" validate-issue', self.to_issue)
         self.assertIn("Project backfill 을 수행한 경우", self.to_issue)
         self.assertIn("--expected-issue-type", self.to_issue)
         self.assertIn("--expected-priority", self.to_issue)
@@ -83,12 +83,12 @@ class GithubProjectLifecycleDocsTests(unittest.TestCase):
         text = self.issue_lifecycle
 
         self.assertIn("in-progress` label", text)
-        self.assertIn("scripts/github_project_lifecycle.mjs start-work", text)
+        self.assertIn('github_project_lifecycle.mjs" start-work', text)
         self.assertIn("/spec", text)
         self.assertIn("/design", text)
         self.assertIn("/impl", text)
         self.assertIn("close 를 발동", text)
-        self.assertIn("scripts/github_project_lifecycle.mjs pr-merged", text)
+        self.assertIn('github_project_lifecycle.mjs" pr-merged', text)
         self.assertIn("Part of #N", text)
         self.assertIn("완료 신호가 아니다", text)
         self.assertRegex(text, r"(?s)closed issue.+in-progress")

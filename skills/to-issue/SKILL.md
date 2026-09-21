@@ -35,6 +35,7 @@ description: 자연어 문제, 작업 후보, 계획 조각을 GitHub issue 로 
 - Issue/label lifecycle 전체 축과 optional Project backfill 은 [`../../docs/plugin/github-project.md`](../../docs/plugin/github-project.md)를 SSOT 로 사용한다.
 - Issue Brief 본문 구조는 [`templates/issue-brief.md`](templates/issue-brief.md)를 템플릿으로 사용한다.
 - Issue Brief 생성 직전 형식 검증은 [`../../scripts/check_issue_body.mjs`](../../scripts/check_issue_body.mjs)를 사용한다.
+- 이 스킬이 호출하는 스크립트는 소비 프로젝트 저장소가 아니라 plugin 배포본 안에만 있다. 따라서 상대경로가 아니라 `$PLUGIN_ROOT` 기준으로 호출한다. 아래 bash 예시는 각 블록 첫 줄에서 `PLUGIN_ROOT` 를 해석하며, Bash 변수는 독립 호출 사이에 유지되지 않으므로 블록마다 다시 해석한다.
 - 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`../../docs/plugin/terms.md`](../../docs/plugin/terms.md)를 확인한다.
 - `SKILL.md` 에 필드 선택지 목록이나 Issue Brief 본문 템플릿을 다시 쓰지 않는다. 선택지나 템플릿을 바꿔야 하면 기준 파일을 먼저 바꾼다.
 
@@ -93,9 +94,11 @@ Acceptance criteria 체크박스는 agent-verifiable 항목만 두고 각 항목
 
 초안을 미리 보여주거나 승인을 기다리지 않는다. 추론한 IssueType/Priority 와 그에 대응하는 repo label 을 그대로 적용해 바로 등록한다. 사용자는 등록된 issue 를 GitHub web 에서 확인하고 수정 요청으로 교정한다.
 
-등록 전 preflight 로 Issue Brief 본문과 repo label 이 실제 계약에 맞는지 확인한다. Project field/option 은 선택적 backfill 대상이다. 보드(Project)나 field/option 이 없거나 불완전하면 등록을 멈추지 말고, 사용자가 원할 때만 `node scripts/github_project_lifecycle.mjs bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 를 먼저) 로 셋업하고, 좌표를 `gh variable set DCNESS_PROJECT_NUMBER --body <number>` / `gh variable set DCNESS_PROJECT_OWNER --body <owner>` 로 저장한 뒤 Project 등록을 backfill 한다. 거부하면 보드 없이 issue 만 등록한다. 어떤 경우에도 Project 상태는 등록 자체를 막지 않는다.
+등록 전 preflight 로 Issue Brief 본문과 repo label 이 실제 계약에 맞는지 확인한다. Project field/option 은 선택적 backfill 대상이다. 보드(Project)나 field/option 이 없거나 불완전하면 등록을 멈추지 말고, 사용자가 원할 때만 `node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap --apply` (보드 자체가 없으면 `gh project create` + `gh project link` 를 먼저) 로 셋업하고, 좌표를 `gh variable set DCNESS_PROJECT_NUMBER --body <number>` / `gh variable set DCNESS_PROJECT_OWNER --body <owner>` 로 저장한 뒤 Project 등록을 backfill 한다. 거부하면 보드 없이 issue 만 등록한다. 어떤 경우에도 Project 상태는 등록 자체를 막지 않는다.
 
 ```bash
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)}"
+
 node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
   --body-file <brief.md> \
   --labels "<IssueType>"
@@ -108,7 +111,9 @@ validator 실패 시 `gh issue create` 를 실행하지 않는다. 실제 issue 
 보드 좌표가 있으면(또는 위에서 셋업했으면) 생성된 issue 를 Project 보드에 선택 등록한다. `register-issue` 가 item 추가(없으면 add, 멱등) + `Status=Todo` + 선택한 `IssueType` + 추론·확정한 `Priority` 설정 + drift 사후검증을 한 번에 처리한다. Project field 와 option id 는 스크립트가 `gh project field-list` 로 조회한 실제 값만 사용한다. `--priority` 에는 추론·확정한 Priority 를 항상 명시한다 — 생략하면 `register-issue` 가 스크립트 기본값(major)으로 fallback 하므로, 단발 등록에서는 생략하지 않는다 (epic/story 일괄 생성만 그 fallback 에 의존한다).
 
 ```bash
-node scripts/github_project_lifecycle.mjs register-issue \
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)}"
+
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" register-issue \
   --repo <owner/repo> \
   --owner <owner> \
   --project <project-number> \
@@ -132,8 +137,10 @@ node scripts/github_project_lifecycle.mjs register-issue \
 성공 안내 전 등록 상태를 다시 검증한다.
 
 ```bash
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)}"
+
 gh issue view <number> --json number,title,labels,url
-node scripts/github_project_lifecycle.mjs validate-issue \
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" validate-issue \
   --repo <owner/repo> \
   --issue <number>
 ```
@@ -141,7 +148,9 @@ node scripts/github_project_lifecycle.mjs validate-issue \
 Project backfill 을 수행한 경우에만 Project 기대값도 함께 검증한다.
 
 ```bash
-node scripts/github_project_lifecycle.mjs validate-issue \
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)}"
+
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" validate-issue \
   --repo <owner/repo> \
   --owner <owner> \
   --project <project-number> \
