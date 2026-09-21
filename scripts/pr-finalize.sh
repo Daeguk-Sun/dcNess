@@ -338,7 +338,8 @@ if [ "$MERGE_LOCK_MODE" = "peer" ]; then
     echo "[pr-finalize] WARN: gh pr update-branch 실패 또는 불필요 — merge/check 단계에서 재검증" >&2
   fi
   if ! gh pr checks "$PR" >&2; then
-    echo "[pr-finalize] WARN: 현재 CI 상태가 clean 이 아님 — --watch 단계에서 최종 판정" >&2
+    # 체크가 0개여도 같은 비정상 종료가 나므로 clean 아님으로 단정하지 않는다.
+    echo "[pr-finalize] WARN: 현재 CI 상태가 clean 이 아니거나 보고된 체크가 없음 — --watch 단계에서 최종 판정" >&2
   fi
 fi
 
@@ -365,10 +366,31 @@ MERGE_ERR=$(gh pr merge "$PR" --auto --merge 2>&1 >/dev/null) || {
 }
 
 # Step 2: CI 결과 대기
+# gh pr checks 는 보고된 체크가 하나도 없을 때도 비정상 종료한다. 종료 코드만으로는
+# "기다릴 CI 가 없다" 와 "CI 가 실패했다" 가 구분되지 않으므로 rollup 개수로 재확인한다.
+# rollup 조회 자체가 실패하면 보수적으로 CI 실패 경로를 탄다.
 echo "[pr-finalize] CI 결과 대기 (gh pr checks --watch)" >&2
 if ! gh pr checks "$PR" --watch >&2; then
-  echo "[pr-finalize] ERROR: CI FAIL — 머지 안 됨. sync skip" >&2
-  exit 1
+  CHECK_COUNT=$(gh pr view "$PR" --json statusCheckRollup -q '.statusCheckRollup|length' 2>/dev/null || true)
+  if [ "$CHECK_COUNT" = "0" ]; then
+    echo "[pr-finalize] 보고된 CI 체크 없음 — 대기할 결과가 없어 다음 단계로 진행" >&2
+  else
+    # merge 토글은 Step 1 에서 이미 끝났으므로 실제 상태를 확인하고 말한다.
+    # 상태를 못 읽었으면 어느 쪽으로도 단정하지 않는다.
+    CI_FAIL_STATE=$(gh pr view "$PR" --json state -q .state 2>/dev/null || true)
+    case "$CI_FAIL_STATE" in
+      MERGED)
+        echo "[pr-finalize] ERROR: CI FAIL — PR 은 이미 MERGED 다. sync 와 워크트리 정리만 건너뜁니다" >&2
+        ;;
+      "")
+        echo "[pr-finalize] ERROR: CI FAIL — 머지 여부를 확인하지 못했습니다. sync skip. 직접 확인: gh pr view $PR" >&2
+        ;;
+      *)
+        echo "[pr-finalize] ERROR: CI FAIL — 머지 안 됨 (state=$CI_FAIL_STATE). sync skip" >&2
+        ;;
+    esac
+    exit 1
+  fi
 fi
 
 # Step 3: auto-merge 완료 대기 (GitHub 백그라운드)
