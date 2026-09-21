@@ -2,7 +2,11 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -199,7 +203,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
     def test_project_registration_mechanics_have_single_owner(self) -> None:
         """#853 — GitHub Project axis doc points to lifecycle mechanics instead of restating them."""
         self.assertIn(
-            "node scripts/github_project_lifecycle.mjs register-issue",
+            'github_project_lifecycle.mjs" register-issue',
             self.issue_lifecycle,
         )
         self.assertIn(
@@ -211,7 +215,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.github_project,
         )
         self.assertNotIn(
-            "node scripts/github_project_lifecycle.mjs register-issue",
+            'github_project_lifecycle.mjs" register-issue',
             self.github_project,
         )
         self.assertIn("issue-lifecycle.md#issuelabel-status-lifecycle", self.github_project)
@@ -1017,6 +1021,91 @@ class SurfaceDocsSyncTests(unittest.TestCase):
         self.assertIn("agent-prompt-slots.md", self.design_skill)
         self.assertIn("worktree 절대경로", self.design_skill)
         self.assertIn("방법 처방", self.design_skill)
+
+    def test_skill_and_command_bodies_call_plugin_scripts_via_plugin_root(self) -> None:
+        """skills/ 와 commands/ 는 소비 프로젝트 cwd 에서 그대로 실행되는 절차다.
+
+        plugin 배포본에만 있는 스크립트를 상대경로로 호출하면 소비 프로젝트에서
+        모듈을 못 찾는다 (#1222). docs/plugin/ 은 이 검사 대상이 아니다 —
+        dcNess source checkout 에서 재현하는 self 명령이 섞여 있어 같은 규칙을
+        기계적으로 적용할 수 없다.
+        """
+        relative_call = re.compile(r"(?:node|bash|sh)\s+scripts/")
+        violations = []
+        for base in ("skills", "commands"):
+            for path in sorted((ROOT / base).rglob("*.md")):
+                for lineno, line in enumerate(
+                    path.read_text(encoding="utf-8").splitlines(), start=1
+                ):
+                    if relative_call.search(line):
+                        violations.append(f"{path.relative_to(ROOT)}:{lineno}")
+
+        self.assertEqual(
+            [],
+            violations,
+            msg=(
+                "plugin script 호출은 $PLUGIN_ROOT 기준으로 쓴다 — "
+                f"상대경로 호출: {violations}"
+            ),
+        )
+
+    def test_to_issue_skill_defines_plugin_root_before_each_use(self) -> None:
+        to_issue = (ROOT / "skills" / "to-issue" / "SKILL.md").read_text(encoding="utf-8")
+
+        self.assertIn("CLAUDE_PLUGIN_ROOT", to_issue)
+        for block in re.findall(r"```bash\n(.*?)```", to_issue, flags=re.S):
+            if "$PLUGIN_ROOT/scripts/" not in block:
+                continue
+            with self.subTest(block=block.splitlines()[0]):
+                lines = block.splitlines()
+                define = next(
+                    (i for i, line in enumerate(lines) if line.startswith("PLUGIN_ROOT=")),
+                    None,
+                )
+                use = next(
+                    (i for i, line in enumerate(lines) if "$PLUGIN_ROOT/scripts/" in line),
+                    None,
+                )
+                self.assertIsNotNone(define, "블록이 PLUGIN_ROOT 를 정의하지 않는다")
+                self.assertLess(define, use, "PLUGIN_ROOT 정의가 사용보다 뒤에 있다")
+
+    @unittest.skipUnless(shutil.which("bash"), "bash not installed")
+    def test_plugin_root_resolution_preserves_paths_with_spaces(self) -> None:
+        """공백이 든 plugin 경로에서도 해석이 값을 보존한다.
+
+        `ls -d ${VAR:-...}` 처럼 인용 없이 확장하면 공백에서 word splitting 이
+        일어나 PLUGIN_ROOT 가 빈 값이 되고, 이어지는 호출이 `/scripts/...` 로
+        깨진다 (#1222 리뷰에서 포착).
+        """
+        sources = (
+            ROOT / "skills" / "to-issue" / "SKILL.md",
+            ROOT / "docs" / "plugin" / "issue-lifecycle.md",
+            ROOT / "docs" / "plugin" / "github-project.md",
+        )
+        snippets = set()
+        for path in sources:
+            text = path.read_text(encoding="utf-8")
+            # 실행 블록 안의 정의 줄과, 산문에 인라인 코드로 인용된 같은 정의를 모두 본다.
+            snippets.update(
+                line for line in text.splitlines() if line.startswith("PLUGIN_ROOT=")
+            )
+            snippets.update(re.findall(r"`(PLUGIN_ROOT=[^`]+)`", text))
+
+        self.assertTrue(snippets, "PLUGIN_ROOT 해석 줄을 찾지 못했다")
+
+        with tempfile.TemporaryDirectory() as td:
+            spaced = Path(td) / "spaced dir" / "v1"
+            spaced.mkdir(parents=True)
+            for snippet in sorted(snippets):
+                with self.subTest(snippet=snippet):
+                    completed = subprocess.run(
+                        ["bash", "-c", f'{snippet}\nprintf "%s" "$PLUGIN_ROOT"'],
+                        env={**os.environ, "CLAUDE_PLUGIN_ROOT": str(spaced)},
+                        capture_output=True,
+                        text=True,
+                    )
+                    self.assertEqual(0, completed.returncode, completed.stderr)
+                    self.assertEqual(str(spaced), completed.stdout)
 
     def _section(self, text: str, start: str, end: str) -> str:
         match = re.search(start + r"(?P<body>.*?)" + end, text, flags=re.S)

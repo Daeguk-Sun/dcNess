@@ -39,6 +39,8 @@ task 는 GitHub 이슈 X — local commit sha 로 추적하고, story/epic 연�
 
 ## Issue pre-create validation
 
+> 본 문서의 bash 예시가 호출하는 스크립트는 활성 프로젝트 저장소가 아니라 plugin 배포본 안에만 있다. `$PLUGIN_ROOT` 는 `PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)}"` 로 해석하며 (경로에 공백이 있어도 보존되도록 확장 전체를 인용한다), Bash 변수는 독립 호출 사이에 유지되지 않으므로 실행 블록마다 다시 해석한다. dcNess self 저장소에서는 `node scripts/...` 상대경로가 그대로 유효하다.
+
 에이전트 workflow 가 `gh issue create` 를 실행하기 전에는 Issue Brief 본문과 repo label 매핑을 로컬에서 먼저 검증한다. 이 검증은 사람의 GitHub UI issue 생성을 막는 hard gate 가 아니다. 목적은 dcNess/Codex/Claude workflow 가 issue 생성 전에 같은 문서 형식과 IssueType/Priority/label 계약을 따르도록 하는 것이다. Acceptance criteria 체크박스는 `[command]` 또는 `[agent-read]` 로 분류된 agent-verifiable 항목만 허용하고, human verification 은 별도 안내에 체크박스 없이 둔다.
 
 ```bash
@@ -66,7 +68,7 @@ issue 생성 시 `epic`, `feature`, `story`, `task`, `subTask`, `bug` 중 정확
 선택적으로 Project 보드를 쓰는 repo 는 사람용 보드 미러를 위해 `register-issue` 로 Project item 을 backfill 할 수 있다. 이 경로는 item 이 없으면 추가하고 `Status=Todo` + `IssueType` + `Priority` 를 설정한다.
 
 ```bash
-node scripts/github_project_lifecycle.mjs register-issue \
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" register-issue \
   --repo OWNER/REPO --owner OWNER --project PROJECT_NUMBER \
   --issue ISSUE_NUMBER --issue-type epic|story [--priority major] --apply
 ```
@@ -78,7 +80,7 @@ node scripts/github_project_lifecycle.mjs register-issue \
 `/next-work` 는 open issue 목록의 label 과 body 를 읽어 L1→L2→L3 계층 후보를 결정한다. 이 명령은 read-only 유틸리티라 `--apply` 를 받지 않고 issue/label/Project/PR 상태를 변경하지 않는다.
 
 ```bash
-node scripts/github_project_lifecycle.mjs next-work --repo OWNER/REPO
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" next-work --repo OWNER/REPO
 ```
 
 - L1: `in-progress` label 이 붙은 open issue 전부.
@@ -94,7 +96,7 @@ GitHub 조회가 실패하면 실패를 명시하고 로컬 대안 경로를 안
 특정 GitHub issue 를 대상으로 `/spec`, `/design`, `/impl`, `/ux` 같은 설계나 구현 흐름을 실제 시작하면 메인은 시작 직전에 `in-progress` label 을 붙인다. Project 좌표가 설정된 repo 에서는 label 전이 뒤에 Project item `Status=In progress` 이동을 best-effort 로 1회 시도한다. 좌표 부재는 정상 skip 이고, item 부재·권한 실패·field/option 불일치·API 실패는 warning 으로만 보고한다.
 
 ```bash
-node scripts/github_project_lifecycle.mjs start-work \
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" start-work \
   --repo OWNER/REPO \
   --issue ISSUE_NUMBER \
   --apply
@@ -118,7 +120,7 @@ node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
 default branch 로 PR merge 가 끝난 뒤 GitHub closing reference 가 issue close 를 발동한다. 후처리 경로는 PR body 또는 GitHub closing issue reference 에서 완료 후보 issue 를 찾고, `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 label 제거 뒤에 Project item `Status=Done` 이동을 best-effort 로 1회 시도한다. 보드 미러 실패는 warning 으로만 보고하고 label cleanup 성공을 실패로 바꾸지 않는다.
 
 ```bash
-node scripts/github_project_lifecycle.mjs pr-merged \
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" pr-merged \
   --repo OWNER/REPO \
   --pr PR_NUMBER \
   --apply
@@ -131,7 +133,7 @@ node scripts/github_project_lifecycle.mjs pr-merged \
 issue 는 IssueType repo label 을 정확히 하나 가져야 하며, closed issue 에 `in-progress` label 이 남아 있으면 drift 다. `/next-work` 후보 선정과 drift 실패 판정은 보드를 읽지 않는다. 단, Project 좌표가 설정된 경우 drift 리포트는 보드 상태를 best-effort 로 읽어 Project `IssueType`/`Status`/`Priority` 불일치를 warning 으로만 출력할 수 있다.
 
 ```bash
-node scripts/github_project_lifecycle.mjs validate-issue \
+node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" validate-issue \
   --repo OWNER/REPO \
   --issue ISSUE_NUMBER
 ```
