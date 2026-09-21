@@ -8,6 +8,10 @@
 # Project v2 호환 보정에는 classic PAT 의 project + read:org scope 둘 다 필요: secrets.DCNESS_PROJECT_TOKEN
 #   (read:org 없으면 gh project owner 판별이 unknown owner type 으로 실패. 토큰 없거나 권한 부족이면
 #    github.token 폴백 → 스크립트가 warn+exit 0 으로 graceful degrade, CI 는 깨지지 않음).
+#   토큰이 전달됐으나 GitHub 이 거부하는 경우(만료·폐기 → HTTP 401 Bad credentials) 도 같은 degrade 경로를 탄다.
+#   이때는 issue/label lifecycle 정리 자체가 수행되지 않으므로 무엇을 왜 건너뛰었는지 WARN 으로 남긴다.
+#   degrade 대상은 본 workflow 가 호출하는 사후 보정 모드(validate-issue / pr-merged) 뿐이다. 사람이 직접 돌리는
+#   bootstrap / register-issue / start-work 와, 권한 부족(403)·잘못된 인자 등 그 밖의 오류는 종전대로 실패로 드러난다.
 # 토큰은 with.gh-token 으로 composite action 에 전달 (composite 은 부모 step env 미상속).
 # Project 좌표는 선택: vars.DCNESS_PROJECT_NUMBER / vars.DCNESS_PROJECT_OWNER.
 
