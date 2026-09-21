@@ -41,7 +41,7 @@ flowchart TB
 
 `JOURNEY_ENV_PREFLIGHT`는 기본 build-worker 호출 안의 내부 phase다. 신규 agent, mode, outer lifecycle step, 공개 진입점을 만들지 않으며 journey 미선언 run에는 비발동이다. 검수 환경과 구현은 독립이므로 확실한 미충족 판정도 task 를 중단시키지 않고 마감 처분의 입력이 될 뿐이다. completed 이후 `JOURNEY_CONVERGENCE` 계약은 마감 진본에서만 읽는다.
 
-마감의 수렴 직전 처분에서 사용자가 검수 분리를 선택하면 메인은 해당 `journey_id`를 현재 run의 `journey_deferred` 목록으로 진행 뷰와 이후 agent prompt에 보존한다. 이는 manifest의 설계 선언을 바꾸는 값이 아니다. 해당 journey는 현재 run에서 `JOURNEY_CONVERGENCE 비발동`, `product-acceptance sealed journey 실행 비발동`, `종료 조건의 수렴 PASS Must 비대상`이며 human verification/follow-up으로 남는다. 그 target AC가 속한 story/epic은 close candidate가 아니므로 AC close audit을 발동하지 않고 PR body에 `Closes`를 붙이지 않는다. 다른 수렴 대상 journey는 그대로 진행한다.
+마감의 수렴 직전 처분에서 사용자가 검수 분리를 선택하면 메인은 해당 `journey_id`를 `dcness-helper journey-deferred record`로 run 상태에 기록한다. 진행 뷰와 이후 agent prompt에도 계속 노출하지만 그 값의 출처는 저장된 run 상태이며, 세션이 바뀌어도 `journey-deferred list`로 같은 목록을 읽는다. 이는 manifest의 설계 선언을 바꾸는 값이 아니다. 해당 journey는 현재 run에서 `JOURNEY_CONVERGENCE 비발동`, `product-acceptance sealed journey 실행 비발동`, `종료 조건의 수렴 PASS Must 비대상`이며 human verification/follow-up으로 남는다. 그 target AC가 속한 story/epic은 close candidate가 아니므로 AC close audit을 발동하지 않고 PR body에 `Closes`를 붙이지 않는다. 다른 수렴 대상 journey는 그대로 진행한다.
 
 ## 결론 → 다음 호출
 

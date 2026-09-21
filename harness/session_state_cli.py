@@ -38,8 +38,10 @@ diagnose_sid_rid_resolution = _state.diagnose_sid_rid_resolution
 evaluate_order_gate_for_step = _state.evaluate_order_gate_for_step
 generate_run_id = _state.generate_run_id
 get_cc_pid_via_ppid_chain = _state.get_cc_pid_via_ppid_chain
+journey_deferred = _state.journey_deferred
 read_live = _state.read_live
 run_dir = _state.run_dir
+StateFormatError = _state.StateFormatError
 session_dir = _state.session_dir
 transition = _state.transition
 valid_cc_pid = _state.valid_cc_pid
@@ -178,6 +180,66 @@ def _cli_end_run(args: Any) -> int:
     cc_pid = get_cc_pid_via_ppid_chain()
     if cc_pid is not None:
         clear_pid_current_run(cc_pid)
+    return 0
+
+
+def _cli_journey_deferred(args: Any) -> int:
+    """issue #1224 — 검수 분리 결정을 run 상태에 기록하고 조회한다.
+
+    환경 미충족으로 자동 검수 여정을 분리하기로 한 결정은 마감 게이트와
+    product-acceptance 의 판정 입력이다. 대화 맥락에만 두면 세션이 바뀔 때
+    유실되고, 실행된 적 없는 여정이 덮는 수용 기준을 통과한 것으로 취급돼
+    이슈가 조용히 잘못 닫힌다.
+
+    Usage:
+        dcness-helper journey-deferred record --journey-id <id> [--journey-id <id> ...]
+        dcness-helper journey-deferred list
+
+    Exit codes:
+        0 — 정상. `list` 는 JSON 배열을 stdout 으로 낸다 (기록 없으면 `[]`).
+        1 — sid/rid 미해결 또는 run 상태를 읽을 수 없음. 빈 목록과 구분된다.
+    """
+    sid = auto_detect_session_id()
+    rid = auto_detect_run_id()
+    if not sid or not rid:
+        print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
+        return 1
+
+    action = getattr(args, "journey_action", "list")
+    if action == "record":
+        journey_ids = [
+            value.strip()
+            for value in (getattr(args, "journey_id", None) or [])
+            if value and value.strip()
+        ]
+        if not journey_ids:
+            print(
+                "[journey-deferred] FAIL — --journey-id 가 필요합니다",
+                file=sys.stderr,
+            )
+            return 1
+        try:
+            recorded = transition(
+                sid,
+                "journey_deferred_recorded",
+                run_id=rid,
+                journey_ids=journey_ids,
+            )
+        except (KeyError, ValueError, StateFormatError) as exc:
+            print(f"[journey-deferred] FAIL — {exc}", file=sys.stderr)
+            return 1
+        print(json.dumps(recorded, ensure_ascii=False))
+        return 0
+
+    deferred = journey_deferred(sid, rid)
+    if deferred is None:
+        print(
+            "[journey-deferred] FAIL — run 상태를 읽을 수 없습니다. 기록 없음과 "
+            "다른 상태이므로 분리 결정이 유실되지 않았는지 확인하십시오",
+            file=sys.stderr,
+        )
+        return 1
+    print(json.dumps(deferred, ensure_ascii=False))
     return 0
 
 
@@ -903,6 +965,20 @@ def _build_arg_parser() -> Any:
         help="다음 task 가 story/epic 마감 acceptance 대상임을 기록 (#722)",
     )
     p_nt.set_defaults(func=_cli_next_task)
+
+    p_jd = sub.add_parser(
+        "journey-deferred",
+        help="검수 분리 여정 식별자를 현재 run 에 기록/조회 (issue #1224)",
+    )
+    p_jd.add_argument(
+        "journey_action", choices=("record", "list"),
+        help="record = 분리 결정 기록, list = 저장된 목록을 JSON 배열로 출력",
+    )
+    p_jd.add_argument(
+        "--journey-id", action="append", default=None, dest="journey_id",
+        help="분리할 여정 식별자. record 에서 반복 지정 가능",
+    )
+    p_jd.set_defaults(func=_cli_journey_deferred)
 
     p_ptb = sub.add_parser(
         "post-task-begin",

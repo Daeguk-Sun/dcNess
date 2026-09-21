@@ -131,6 +131,24 @@ class JourneyConvergenceContractTests(unittest.TestCase):
         self.assertIn("나머지 journey", acceptance)
         self.assertIn("매니페스트를 다시 쓰지 않는다", journey)
 
+    def test_journey_deferred_is_read_and_written_by_runtime_code(self) -> None:
+        """문서에만 있던 값이 실행 코드의 읽기/쓰기 지점을 가진다 (#1224)."""
+        from harness import session_state
+
+        self.assertIn("journey_deferred_recorded", session_state._RUNTIME_TRANSITIONS)
+        self.assertTrue(hasattr(session_state, "journey_deferred"))
+
+    def test_close_contracts_read_journey_deferred_from_run_state(self) -> None:
+        """마감 게이트와 검수 계약이 저장된 값을 판정 입력으로 쓴다 (#1224)."""
+        finish = read("skills/impl-loop/impl-loop-finish.md")
+        acceptance = read(
+            "docs/plugin/agents/product-acceptance/product-acceptance-agent.md"
+        )
+
+        for source, text in (("finish", finish), ("acceptance", acceptance)):
+            with self.subTest(source=source):
+                self.assertIn("journey-deferred", text)
+
     def test_env_preflight_does_not_block_implementation(self) -> None:
         """Issue #1218 — 검수 환경 미충족은 구현의 blocker가 아니다."""
         worker = read("docs/plugin/agents/build-worker/build-worker-agent.md")

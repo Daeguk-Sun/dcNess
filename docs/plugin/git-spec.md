@@ -221,7 +221,7 @@ task 는 별도 GitHub 이슈를 만들지 않는다. build-worker 의 local com
 
 1. impl 파일 frontmatter의 `story`로 PR grouping key를 찾는다. 숫자 story인데 `task_index`가 `i/total` 형식이 아니면 설계 metadata drift로 중지하지만, `i == total` 여부는 PR 경계를 결정하지 않는다.
 2. `dcness-story-runner next-action`의 `pr_base`를 사용한다. 첫 story는 `default-branch(main)`, 이후 story는 직전 `story-branch`다.
-3. 숫자 story PR은 생성 base와 무관하게 `Closes #story`를 사용한다. 단, run-local `journey_deferred` target AC가 남은 production-only PR은 위 예외 사유와 `Part of`만 사용한다. 공통 task 묶음은 `Part of #epic`이다.
+3. 숫자 story PR은 생성 base와 무관하게 `Closes #story`를 사용한다. 단, run-local `journey_deferred` target AC가 남은 production-only PR은 위 예외 사유와 `Part of`만 사용한다. 이 판정은 `dcness-helper journey-deferred list`가 돌려주는 저장된 목록으로 하며, 대화 맥락의 기억으로 대신하지 않는다. 공통 task 묶음은 `Part of #epic`이다.
 4. QA PR 유무를 확정한 뒤 epic close trailer를 마지막 merge 대상 PR에 둔다. merge 직전에는 해당 PR을 main으로 리타겟·리베이스하고 close audit을 수행한다.
 
 **한 명령 구현 = [`scripts/pr-trailer.sh`](../../scripts/pr-trailer.sh)** — `"$PLUGIN_ROOT/scripts/pr-trailer.sh" <story의 impl파일>` 이 story 트레일러 블록을 stdout 으로 출력한다. stack base는 runner가 소유하며, 어떤 task 파일을 넘겨도 같은 story PR 트레일러가 나오고 `task-index` trailer는 출력하지 않는다.

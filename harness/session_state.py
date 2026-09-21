@@ -40,7 +40,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from contextlib import contextmanager
-from typing import Any, Dict, Iterator, Literal, Optional, overload
+from typing import Any, Dict, Iterator, List, Literal, Optional, overload
 
 __all__ = [
     "SESSION_ID_RE",
@@ -71,6 +71,7 @@ __all__ = [
     "run_dir",
     "live_path",
     "read_live",
+    "journey_deferred",
     "transition",
     "evaluate_order_gate_for_step",
     "impl_scope_paths_for_run",
@@ -398,6 +399,40 @@ def read_live(
     return data
 
 
+def _readable_journey_deferred(value: Any) -> Optional[List[str]]:
+    """Normalize a stored deferral list, or ``None`` when the value is corrupt.
+
+    손상된 값을 문자열화해 흘리면 "분리 없음" 과 구분되지 않는다. 읽기와 쓰기가
+    같은 기준을 써야 기록 경로가 손상을 정상 목록으로 바꾸지 않는다 (#1224).
+    """
+    if not isinstance(value, list):
+        return None
+    if not all(isinstance(item, str) and item.strip() for item in value):
+        return None
+    return [item.strip() for item in value]
+
+
+def journey_deferred(
+    session_id: str, run_id: str, *, base_dir: Optional[Path] = None
+) -> Optional[List[str]]:
+    """Return the run's deferred journey ids, or ``None`` when the run is unreadable.
+
+    기록이 없는 run 은 빈 목록이고, 읽을 수 없는 run 은 ``None`` 이다. 둘을 같게
+    취급하면 검수 분리 결정이 유실됐는데도 "분리 없음" 으로 보여 마감 게이트가
+    조용히 오판한다 (#1224).
+    """
+    try:
+        live = read_live(session_id, base_dir=base_dir)
+    except StateFormatError:
+        return None
+    slot = (live.get("active_runs") or {}).get(run_id)
+    if not isinstance(slot, dict):
+        return None
+    if "journey_deferred" not in slot:
+        return []
+    return _readable_journey_deferred(slot.get("journey_deferred"))
+
+
 def _state_format_error(path: Path, detail: str) -> StateFormatError:
     return StateFormatError(
         f"current run state is invalid at {path}: {detail}; "
@@ -542,6 +577,7 @@ _RUNTIME_TRANSITIONS = {
     "active_agent_set",
     "prose_staged",
     "stop_block_recorded",
+    "journey_deferred_recorded",
     "post_task_marked",
     "stale_runs_cleaned",
 }
@@ -1058,6 +1094,26 @@ def _apply_runtime_transition(
         slot["stop_block_count"] = counts
         active[run_id] = slot
         return counts[key], True
+    if action == "journey_deferred_recorded":
+        run_id = _required_run_id(run_id)
+        slot = _active_slot(active, run_id)
+        if "journey_deferred" in slot:
+            deferred = _readable_journey_deferred(slot.get("journey_deferred"))
+            if deferred is None:
+                # 손상된 값 위에 덧쓰면 유실된 분리 결정이 정상 목록으로 위장된다.
+                raise ValueError(
+                    "journey_deferred is corrupt; refusing to overwrite a lost "
+                    "deferral list — inspect the run state before recording again"
+                )
+        else:
+            deferred = []
+        for journey_id in data.get("journey_ids") or []:
+            value = str(journey_id).strip()
+            if value and value not in deferred:
+                deferred.append(value)
+        slot["journey_deferred"] = deferred
+        active[run_id] = slot
+        return list(deferred), True
     if action == "post_task_marked":
         markers = list(live.get("post_task_markers") or [])
         markers.append({"at": _now_iso(), "reason": str(data.get("reason") or "")})

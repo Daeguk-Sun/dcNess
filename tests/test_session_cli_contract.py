@@ -12,10 +12,15 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
+import sys
+
 from harness import ledger, session_state
 from harness import session_state_activation as activation
 from harness import session_state_cli as cli
 from harness import session_state_cli_finalize as finalize
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class SessionCliLifecycleContractTests(unittest.TestCase):
@@ -137,6 +142,118 @@ class SessionCliLifecycleContractTests(unittest.TestCase):
                 ["git", "rev-parse", "HEAD"],
                 text=True,
             ).strip(),
+        )
+
+    def _read_journey_deferred_in_new_process(self, rid: str) -> str:
+        completed = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "import json, sys;"
+                "from harness import session_state;"
+                "value = session_state.journey_deferred(sys.argv[1], sys.argv[2]);"
+                "print(json.dumps(value))",
+                self.sid,
+                rid,
+            ],
+            cwd=self.base,
+            capture_output=True,
+            text=True,
+            env={**os.environ, "PYTHONPATH": str(REPO_ROOT)},
+            timeout=30,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        return completed.stdout.strip()
+
+    def test_journey_deferred_record_survives_process_boundary(self) -> None:
+        """검수 분리 결정이 대화 맥락이 아니라 run 상태에 남는다 (#1224)."""
+        stdout = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(StringIO()):
+            rc = cli._cli_journey_deferred(
+                SimpleNamespace(
+                    journey_action="record",
+                    journey_id=["journey-sms-send", "journey-notify"],
+                )
+            )
+
+        self.assertEqual(0, rc)
+        self.assertEqual(
+            ["journey-sms-send", "journey-notify"],
+            json.loads(self._read_journey_deferred_in_new_process(self.rid)),
+        )
+
+    def test_journey_deferred_record_is_idempotent_and_ordered(self) -> None:
+        with redirect_stdout(StringIO()), redirect_stderr(StringIO()):
+            cli._cli_journey_deferred(
+                SimpleNamespace(journey_action="record", journey_id=["journey-a"])
+            )
+            cli._cli_journey_deferred(
+                SimpleNamespace(
+                    journey_action="record", journey_id=["journey-a", "journey-b"]
+                )
+            )
+
+        self.assertEqual(
+            ["journey-a", "journey-b"],
+            session_state.journey_deferred(self.sid, self.rid),
+        )
+
+    def test_journey_deferred_list_is_empty_without_record(self) -> None:
+        """기록이 없는 run 의 조회는 빈 목록이고 실패가 아니다 (#1224)."""
+        stdout = StringIO()
+        with redirect_stdout(stdout), redirect_stderr(StringIO()):
+            rc = cli._cli_journey_deferred(
+                SimpleNamespace(journey_action="list", journey_id=None)
+            )
+
+        self.assertEqual(0, rc)
+        self.assertEqual([], json.loads(stdout.getvalue().strip()))
+        self.assertEqual([], session_state.journey_deferred(self.sid, self.rid))
+
+    def test_journey_deferred_unknown_run_is_distinguished_from_empty(self) -> None:
+        """기록 없음과 읽을 수 없음을 같게 취급하지 않는다 (#1224)."""
+        self.assertIsNone(session_state.journey_deferred(self.sid, "run-deadbeef"))
+
+    def test_journey_deferred_corrupt_value_is_not_reported_as_empty(self) -> None:
+        """손상된 값을 빈 목록으로 흘리면 분리 결정 유실과 구분되지 않는다 (#1224 리뷰)."""
+        for corrupt in ("journey-a", {"journey": "a"}, ["journey-a", 7], [""], None):
+            with self.subTest(corrupt=corrupt):
+                live = session_state.read_live(self.sid)
+                live["active_runs"][self.rid]["journey_deferred"] = corrupt
+                session_state._write_live(self.sid, live)
+
+                self.assertIsNone(
+                    session_state.journey_deferred(self.sid, self.rid),
+                    f"corrupt value {corrupt!r} was reported as a readable list",
+                )
+                stderr = StringIO()
+                with redirect_stdout(StringIO()), redirect_stderr(stderr):
+                    rc = cli._cli_journey_deferred(
+                        SimpleNamespace(journey_action="list", journey_id=None)
+                    )
+                self.assertEqual(1, rc)
+                self.assertIn("읽을 수 없습니다", stderr.getvalue())
+
+    def test_journey_deferred_record_refuses_to_overwrite_corrupt_value(self) -> None:
+        """손상된 값 위에 덧쓰면 유실이 정상 목록으로 위장된다 (#1224 리뷰)."""
+        live = session_state.read_live(self.sid)
+        live["active_runs"][self.rid]["journey_deferred"] = "journey-a"
+        session_state._write_live(self.sid, live)
+
+        stderr = StringIO()
+        with redirect_stdout(StringIO()), redirect_stderr(stderr):
+            rc = cli._cli_journey_deferred(
+                SimpleNamespace(journey_action="record", journey_id=["journey-b"])
+            )
+
+        self.assertEqual(1, rc)
+        self.assertIn("corrupt", stderr.getvalue())
+        self.assertIsNone(session_state.journey_deferred(self.sid, self.rid))
+        self.assertEqual(
+            "journey-a",
+            session_state.read_live(self.sid)["active_runs"][self.rid][
+                "journey_deferred"
+            ],
         )
 
     def test_begin_step_warns_when_close_run_marker_is_missing(self) -> None:
