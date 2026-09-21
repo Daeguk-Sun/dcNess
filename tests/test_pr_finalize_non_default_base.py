@@ -185,7 +185,25 @@ class PrFinalizeBaseGuardTests(unittest.TestCase):
 
 
 class PrFinalizePostMergeWorktreeTests(unittest.TestCase):
-    def _write_fake_gh(self, bin_dir: Path) -> None:
+    def _write_fake_gh(
+        self,
+        bin_dir: Path,
+        *,
+        checks_exit: int = 0,
+        rollup_len: int = 1,
+        state: str | None = "MERGED",
+    ) -> None:
+        """`gh` 대역. checks_exit / rollup_len 으로 CI 상황을 바꾼다.
+
+        `gh pr checks` 는 체크가 하나도 없을 때도 exit 1 이므로, 그 상황은
+        checks_exit=1 + rollup_len=0 으로 재현한다 (#1228).
+        state=None 은 PR 상태 조회 자체가 실패하는 경우다.
+        """
+        state_branch = (
+            "  'pr view 123 --json state -q .state') exit 1 ;;\n"
+            if state is None
+            else f"  'pr view 123 --json state -q .state') echo {state} ;;\n"
+        )
         gh = bin_dir / "gh"
         gh.write_text(
             "#!/bin/sh\n"
@@ -193,16 +211,153 @@ class PrFinalizePostMergeWorktreeTests(unittest.TestCase):
             "  'repo view --json defaultBranchRef -q .defaultBranchRef.name') echo main ;;\n"
             "  'pr view 123 --json baseRefName -q .baseRefName') echo main ;;\n"
             "  'pr view 123 --json headRefName -q .headRefName') echo feature/a ;;\n"
-            "  'pr view 123 --json state -q .state') echo MERGED ;;\n"
+            + state_branch +
             "  'pr view 123 --json url -q .url') echo https://example.test/pull/123 ;;\n"
+            "  'pr view 123 --json statusCheckRollup -q .statusCheckRollup|length')"
+            f" echo {rollup_len} ;;\n"
             "  'pr merge 123 --auto --merge') exit 0 ;;\n"
-            "  'pr checks 123 --watch') exit 0 ;;\n"
-            "  'pr checks 123') exit 0 ;;\n"
+            "  'pr checks 123 --watch')\n"
+            f"    [ {checks_exit} -eq 0 ] || echo \"no checks reported on the 'feature/a' branch\" >&2\n"
+            f"    exit {checks_exit} ;;\n"
+            "  'pr checks 123')\n"
+            f"    exit {checks_exit} ;;\n"
             "esac\n"
             "exit 0\n",
             encoding="utf-8",
         )
         gh.chmod(0o755)
+
+    def test_no_reported_checks_does_not_block_sync_and_cleanup(self) -> None:
+        """체크가 0개면 `gh pr checks` 가 exit 1 이어도 CI 실패가 아니다 (#1228)."""
+        with tempfile.TemporaryDirectory() as td:
+            root, feature, _origin, origin_head = self._init_repo_with_remote_ahead(td)
+            bin_dir = Path(td) / "bin"
+            bin_dir.mkdir()
+            self._write_fake_gh(bin_dir, checks_exit=1, rollup_len=0)
+
+            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+            result = subprocess.run(
+                [str(SCRIPT_PATH), "123"],
+                cwd=feature,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(
+                subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
+                origin_head,
+            )
+            self.assertFalse(feature.exists(), result.stdout + result.stderr)
+            self.assertNotIn("CI FAIL", result.stderr)
+
+    def test_cleanup_keeps_the_merged_branch(self) -> None:
+        """워크트리만 정리하고 브랜치는 남긴다 — git-spec 의 브랜치 보존 규칙."""
+        with tempfile.TemporaryDirectory() as td:
+            root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
+            bin_dir = Path(td) / "bin"
+            bin_dir.mkdir()
+            self._write_fake_gh(bin_dir)
+
+            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+            result = subprocess.run(
+                [str(SCRIPT_PATH), "123"],
+                cwd=feature,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(feature.exists())
+            branches = subprocess.check_output(
+                ["git", "branch", "--list", "feature/a"], cwd=root, text=True
+            )
+            self.assertIn("feature/a", branches)
+
+    def test_failing_checks_still_block_sync(self) -> None:
+        """체크가 있고 실패가 섞여 있으면 종전대로 중단한다."""
+        with tempfile.TemporaryDirectory() as td:
+            root, feature, _origin, origin_head = self._init_repo_with_remote_ahead(td)
+            before = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], cwd=root, text=True
+            ).strip()
+            bin_dir = Path(td) / "bin"
+            bin_dir.mkdir()
+            self._write_fake_gh(bin_dir, checks_exit=1, rollup_len=3)
+
+            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+            result = subprocess.run(
+                [str(SCRIPT_PATH), "123"],
+                cwd=feature,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("CI FAIL", result.stderr)
+            self.assertTrue(feature.exists())
+            self.assertEqual(
+                subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
+                before,
+            )
+            self.assertNotEqual(before, origin_head)
+
+    def test_ci_failure_message_does_not_claim_unmerged_when_already_merged(self) -> None:
+        """머지가 끝난 뒤 CI FAIL 로 중단하면 「머지 안 됨」이라고 말하지 않는다."""
+        with tempfile.TemporaryDirectory() as td:
+            _root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
+            bin_dir = Path(td) / "bin"
+            bin_dir.mkdir()
+            self._write_fake_gh(bin_dir, checks_exit=1, rollup_len=3, state="MERGED")
+
+            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+            result = subprocess.run(
+                [str(SCRIPT_PATH), "123"],
+                cwd=feature,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("CI FAIL", result.stderr)
+            ci_fail_line = next(
+                line for line in result.stderr.splitlines() if "CI FAIL" in line
+            )
+            self.assertNotIn("머지 안 됨", ci_fail_line)
+            self.assertIn("MERGED", ci_fail_line)
+
+    def test_ci_failure_message_does_not_claim_unmerged_when_state_unknown(self) -> None:
+        """PR 상태를 못 읽으면 머지 여부를 어느 쪽으로도 단정하지 않는다."""
+        with tempfile.TemporaryDirectory() as td:
+            _root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
+            bin_dir = Path(td) / "bin"
+            bin_dir.mkdir()
+            self._write_fake_gh(bin_dir, checks_exit=1, rollup_len=3, state=None)
+
+            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+            result = subprocess.run(
+                [str(SCRIPT_PATH), "123"],
+                cwd=feature,
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=60,
+            )
+
+            self.assertNotEqual(result.returncode, 0)
+            ci_fail_line = next(
+                line for line in result.stderr.splitlines() if "CI FAIL" in line
+            )
+            self.assertNotIn("머지 안 됨", ci_fail_line)
+            self.assertIn("확인하지 못했습니다", ci_fail_line)
 
     def _init_repo_with_remote_ahead(self, td: str) -> tuple[Path, Path, Path, str]:
         root = Path(td) / "repo"
