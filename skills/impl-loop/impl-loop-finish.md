@@ -29,7 +29,8 @@
 ### journey
 
 - 수렴 대상 journey 중 build-worker의 `JOURNEY_ENV_PREFLIGHT`가 확실한 환경 미충족을 보고한 것이 있는지 task loop가 진행 뷰에 남긴 판정에서 확인한다. 진행 뷰에 없으면 해당 task의 worker 보고에서 다시 읽고, 그것도 없으면 미충족 보고가 없었던 것으로 본다.
-- 확실한 미충족이 있으면 수렴을 시작하기 전에 `환경 먼저 준비 / 해당 journey 검수 분리` 중 하나를 사용자에게 1회 확인한다. 구현은 이미 착지해 있으므로 이 확인은 구현을 되돌리지 않는다. 분리를 택하면 그 `journey_id`를 현재 run의 `journey_deferred`로 보존한다. 같은 run에서 같은 journey의 환경 처분을 다시 묻지 않는다.
+- 확실한 미충족이 있으면 수렴을 시작하기 전에 `환경 먼저 준비 / 해당 journey 검수 분리` 중 하나를 사용자에게 1회 확인한다. 구현은 이미 착지해 있으므로 이 확인은 구현을 되돌리지 않는다. 분리를 택하면 그 `journey_id`를 `"$PLUGIN_ROOT/scripts/dcness-helper" journey-deferred record --journey-id <id>`로 현재 run 상태에 기록한다. 대화 맥락에만 두면 세션이 바뀔 때 유실되고, 실행된 적 없는 journey가 덮는 수용 기준이 통과한 것으로 집계된다. 같은 run에서 같은 journey의 환경 처분을 다시 묻지 않는다.
+- 이후 판정 입력은 `journey-deferred list`가 돌려주는 저장된 목록이다. 진행 뷰와 worker 프롬프트에 목록을 계속 노출하되, 그 값의 출처는 대화 맥락이 아니라 run 상태다. 조회가 실패하면 빈 목록으로 간주하지 않고 그 자리에서 멈춘다 — 기록 없음과 읽지 못함은 다른 상태다.
 - `journey_deferred`가 아닌 자동 journey만 `JOURNEY_CONVERGENCE`를 실행한다.
 - 첫 실행 PASS면 끝내고, 실패하면 실행 → 관찰 → 배관 수정 → 재실행한다.
 - story-local production 수정은 해당 story branch에 commit하고 downstream branch를 restack한다.
