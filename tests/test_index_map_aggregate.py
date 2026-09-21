@@ -150,6 +150,42 @@ class IndexMapAggregateTests(unittest.TestCase):
             index = (project / "docs/index.md").read_text(encoding="utf-8")
             self.assertRegex(index, r"epic-01-alpha.*\| `/design` \(ux 완료 · system 미완\) \|")
 
+    def test_epic_table_marks_system_propagation_pending_after_ux_revision(self) -> None:
+        """완료된 pack 의 stage 1 개정 뒤 전파 대기를 설계 완료로 오판하지 않는다 (#1211)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(project / "docs/index.md", "# Index\n\n## 에픽\n\n")
+            _write(project / "docs/epics/epic-01-alpha/stories.md", "# Story Backlog\n")
+            _write(project / "docs/epics/epic-01-alpha/ux-flow.md", "# UX Flow\n")
+            _write(project / "docs/epics/epic-01-alpha/architecture.md", "# Architecture\n")
+            _write(project / "docs/epics/epic-01-alpha/impl/01-task.md", "# Task\n")
+            _write(
+                project / "docs/epics/epic-01-alpha/revision-pending.md",
+                "# Revision Pending\n\n- stage: system\n",
+            )
+
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+            index = (project / "docs/index.md").read_text(encoding="utf-8")
+            self.assertNotRegex(index, r"epic-01-alpha.*\| `/impl` \(설계 완료\) \|")
+            self.assertRegex(index, r"epic-01-alpha.*\| `/design` \(.*전파 대기\) \|")
+
+    def test_epic_table_returns_to_design_complete_when_pending_cleared(self) -> None:
+        """stage 2 가 끝나 상태가 사라지면 설계 완료로 돌아온다 (#1211)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp)
+            _write(project / "docs/index.md", "# Index\n\n## 에픽\n\n")
+            _write(project / "docs/epics/epic-01-alpha/stories.md", "# Story Backlog\n")
+            _write(project / "docs/epics/epic-01-alpha/architecture.md", "# Architecture\n")
+            _write(project / "docs/epics/epic-01-alpha/impl/01-task.md", "# Task\n")
+
+            proc = _run(project)
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+
+            index = (project / "docs/index.md").read_text(encoding="utf-8")
+            self.assertRegex(index, r"epic-01-alpha.*\| `/impl` \(설계 완료\) \|")
+
     def test_impl_task_must_match_nn_prefix_for_design_complete(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             project = Path(tmp)

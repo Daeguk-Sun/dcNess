@@ -41,8 +41,15 @@ stage 1 PR 에 포함되는 파일은 UX stage 가 실제로 생성/갱신한 �
 - 조건부: `docs/design-variants/boards/**`, `docs/design-variants/README.md`, `docs/design-variants/index.html`
 - 조건부 seed: `docs/design-variants/_lib/**`, `docs/design-variants/.gitignore`, `docs/design-variants/drafts/.gitkeep`
 - 조건부 metrics: `docs/metrics/design-runs.jsonl`
+- revision mode 필수: `docs/epics/<epic>/revision-pending.md`
 
 architecture, domain-model, impl task 는 이 stage 에서 만들지 않는다. 그 산출물은 `design-system` stage 의 책임이다.
+
+### revision mode 의 전파 대기 표식
+
+완료된 pack 을 개정할 때는 pack 파일이 이미 다 있어서 stage 1 을 머지해도 파일 존재만으로는 "전파가 남았다" 를 알 수 없다. 그래서 revision mode 의 stage 1 PR 은 `docs/epics/<epic>/revision-pending.md` 를 같은 커밋에 포함한다. 사람이 손으로 적는 값이 아니라 이 절차가 남기는 상태이며, `design-system` revision stage 가 끝나는 PR 이 지운다. 내용에는 어떤 UX 개정이 머지됐고 어떤 system/module 산출물 전파가 남았는지 한눈에 읽히게 적는다 — 다음 세션이 대화 맥락 없이 이 파일만 읽고 이어받는다.
+
+신규 설계(개정이 아닌 첫 stage 1)에서는 `ux-flow.md` 존재 + pack 부재가 이미 stage 경계를 드러내므로 이 표식을 만들지 않는다.
 
 ## 절차
 

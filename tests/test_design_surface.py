@@ -341,6 +341,37 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertIn("stage 2 PR", design_system)
         self.assertIn("기존 설계 pack 계약", design_system)
 
+    def test_staged_revision_pending_state_is_durable_and_owned(self) -> None:
+        """stage 1 이 남기고 stage 2 가 지우는 전파 대기 표식 (#1211)."""
+        design = (ROOT / "skills" / "design" / "SKILL.md").read_text(encoding="utf-8")
+        design_ux = (ROOT / "skills" / "design-ux" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        design_system = (ROOT / "skills" / "design-system" / "SKILL.md").read_text(
+            encoding="utf-8"
+        )
+        deliverables = (
+            ROOT / "docs" / "plugin" / "deliverables-map.md"
+        ).read_text(encoding="utf-8")
+        next_work = (ROOT / "commands" / "next-work.md").read_text(encoding="utf-8")
+
+        for label, text in (
+            ("design", design),
+            ("design-ux", design_ux),
+            ("design-system", design_system),
+            ("deliverables-map", deliverables),
+            ("next-work", next_work),
+        ):
+            with self.subTest(source=label):
+                self.assertIn("revision-pending.md", text)
+
+        # dispatcher 는 --revise 없이도 전파 mode 를 고르고, stage 2 가 표식을 지운다.
+        self.assertIn("system 전파 대기", design)
+        self.assertIn("`--revise` 인자나 대화 맥락 없이도", design)
+        self.assertIn("stage 2 revision PR 이 지우는 전파 대기 표식", design)
+        self.assertIn("revision 전파 mode 필수 삭제", design_system)
+        self.assertIn("이 stage 의 PR 이 지운다", design_system)
+
     def test_completed_design_pack_can_be_revised_surgically(self) -> None:
         """#997 — completed design packs need a first-class amend/re-open path."""
         design = (ROOT / "skills" / "design" / "SKILL.md").read_text(
