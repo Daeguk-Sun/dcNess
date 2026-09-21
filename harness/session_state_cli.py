@@ -402,18 +402,26 @@ def _cli_begin_step(args: Any) -> int:
     try:
         live = read_live(sid) or {}
         slot = live.get("active_runs", {}).get(rid, {})
+        close_agent = (agent == "impl-validator" and mode is None) or (
+            agent == "product-acceptance"
+            and mode in {"STORY_ACCEPTANCE", "EPIC_ACCEPTANCE"}
+        )
         close_role = (
             isinstance(slot, dict)
             and slot.get("entry_point") == "impl"
             and slot.get("acceptance_required") is True
-            and (
-                (agent == "impl-validator" and mode is None)
-                or (
-                    agent == "product-acceptance"
-                    and mode in {"STORY_ACCEPTANCE", "EPIC_ACCEPTANCE"}
-                )
-            )
+            and close_agent
         )
+        if close_agent and not close_role:
+            # 마감 시퀀스라면 여기서 candidate 를 얼려야 하는데 run 표시가 없다.
+            # 조용히 건너뛰면 종료 게이트가 한참 뒤에 다른 모습으로 실패한다.
+            print(
+                "[begin-step] WARN — run 에 마감 표시가 없어 candidate "
+                "HEAD/tree/workspace 를 기록하지 않습니다. story/epic 마감 시퀀스라면 "
+                "begin-run 또는 next-task 를 --acceptance-required 로 다시 열고 "
+                "리뷰·검수 step 을 여십시오",
+                file=sys.stderr,
+            )
         if close_role:
             status = subprocess.run(  # nosec B603, B607
                 ["git", "status", "--porcelain", "--untracked-files=no"],

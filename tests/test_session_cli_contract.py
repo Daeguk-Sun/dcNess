@@ -139,6 +139,53 @@ class SessionCliLifecycleContractTests(unittest.TestCase):
             ).strip(),
         )
 
+    def test_begin_step_warns_when_close_run_marker_is_missing(self) -> None:
+        """마감 역할 step 을 표시 없는 run 에서 열면 그 자리에서 알린다 (#1225)."""
+        open_rid = "run-a9b8c7d6"
+        session_state.transition(
+            self.sid,
+            "run_started",
+            run_id=open_rid,
+            entry_point="impl",
+            lane="lite",
+        )
+        session_state.write_pid_current_run(self.cc_pid, open_rid)
+
+        stderr = StringIO()
+        with redirect_stdout(StringIO()), redirect_stderr(stderr):
+            rc = cli._cli_begin_step(
+                SimpleNamespace(agent="impl-validator", mode=None)
+            )
+
+        self.assertEqual(rc, 0, stderr.getvalue())
+        warning = stderr.getvalue()
+        self.assertIn("--acceptance-required", warning)
+        current = session_state.read_live(self.sid)["active_runs"][open_rid][
+            "current_step"
+        ]
+        self.assertIsNone(current.get("candidate_head"))
+
+    def test_begin_step_does_not_warn_for_non_close_agents(self) -> None:
+        """마감 역할이 아닌 step 에는 같은 경고를 내지 않는다."""
+        open_rid = "run-b1c2d3e4"
+        session_state.transition(
+            self.sid,
+            "run_started",
+            run_id=open_rid,
+            entry_point="impl",
+            lane="lite",
+        )
+        session_state.write_pid_current_run(self.cc_pid, open_rid)
+
+        stderr = StringIO()
+        with redirect_stdout(StringIO()), redirect_stderr(stderr):
+            rc = cli._cli_begin_step(
+                SimpleNamespace(agent="build-worker", mode=None)
+            )
+
+        self.assertEqual(rc, 0, stderr.getvalue())
+        self.assertNotIn("--acceptance-required", stderr.getvalue())
+
     def test_finalize_run_emits_status_persists_snapshot_and_chains_review(self) -> None:
         source = self._complete("impl-validator", "MUST FIX 없음\n\nPASS\n")
         with redirect_stdout(StringIO()), redirect_stderr(StringIO()):

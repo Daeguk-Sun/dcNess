@@ -1614,6 +1614,11 @@ def _current_tracked_candidate(
     return head.stdout.strip(), tree.stdout.strip(), not status.stdout.strip()
 
 
+def _receipt_label(step: Dict[str, Any]) -> str:
+    mode = step.get("mode")
+    return f"{step.get('agent')}{'/' + str(mode) if mode else ''}"
+
+
 def _close_validation_sequence_status(
     sid: str,
     rid: str,
@@ -1626,6 +1631,10 @@ def _close_validation_sequence_status(
     was recorded. New close sequences are terminal only when the latest validator
     and acceptance receipts refer to the same non-empty HEAD/tree/workspace
     root and both prose conclusions are PASS.
+
+    A run marked ``acceptance_required`` is a close run, so missing identity is
+    reported instead of silently passing — and it is reported distinctly from an
+    actual mismatch, because the two have different causes and different fixes.
     """
     try:
         from harness.ledger import read_step_completed
@@ -1634,6 +1643,13 @@ def _close_validation_sequence_status(
         steps = read_step_completed(sid, rid, base_dir=base_dir)
     except Exception:
         return None
+
+    closing_run = False
+    try:
+        slot = (read_live(sid, base_dir=base_dir) or {}).get("active_runs", {}).get(rid)
+        closing_run = isinstance(slot, dict) and slot.get("acceptance_required") is True
+    except Exception:  # nosec B110
+        closing_run = False
 
     validator = next(
         (
@@ -1655,18 +1671,42 @@ def _close_validation_sequence_status(
     receipts = tuple(
         step for step in (validator, acceptance) if isinstance(step, dict)
     )
-    if not any(
+    has_identity = any(
         step.get("candidate_head")
         or step.get("candidate_tree")
         or step.get("candidate_root")
         for step in receipts
-    ):
+    )
+    if not has_identity and not closing_run:
         return None
     if not isinstance(validator, dict):
         return (
             "validator_missing",
             "frozen validation sequence required next receipt missing: impl-validator",
         )
+
+    # 같은 run 에 시작 기록이 없는 완료 기록은 마감 판정 증거로 쓰지 않는다.
+    # 시작과 완료가 서로 다른 run 에 나뉘면 그 receipt 의 candidate 를 신뢰할 수 없다.
+    try:
+        started = {
+            (event.get("agent"), event.get("mode"))
+            for event in read_events(sid, rid, base_dir=base_dir)
+            if event.get("event") == "step_started"
+        }
+    except Exception:  # nosec B110
+        started = None
+    if started is not None:
+        orphans = [
+            _receipt_label(step)
+            for step in receipts
+            if (step.get("agent"), step.get("mode")) not in started
+        ]
+        if orphans:
+            return (
+                "receipt_start_missing",
+                "close receipts without a matching step_started in this run are not "
+                f"close evidence: {', '.join(orphans)}",
+            )
 
     def conclusion_for(step: dict) -> Optional[str]:
         prose_file = step.get("prose_file")
@@ -1692,23 +1732,30 @@ def _close_validation_sequence_status(
             "product-acceptance",
         )
 
-    identities = {
-        (
+    def identity_of(step: dict) -> tuple[Any, Any, Any]:
+        return (
             step.get("candidate_head"),
             step.get("candidate_tree"),
             step.get("candidate_root"),
         )
+
+    # 부분 기록도 미기록으로 본다. 불일치 진단은 양쪽 식별자가 온전할 때만 쓰며,
+    # 그래야 "서로 다른 트리를 평가했다" 는 진단이 실제 그 경우만 가리킨다.
+    incomplete = [
+        _receipt_label(step)
         for step in (validator, acceptance)
-    }
-    identity = (
-        next(iter(identities))
-        if len(identities) == 1
-        else (None, None, None)
-    )
-    if (
-        len(identities) != 1
-        or not all(isinstance(value, str) and value for value in identity)
-    ):
+        if not all(isinstance(value, str) and value for value in identity_of(step))
+    ]
+    if incomplete:
+        return (
+            "receipt_identity_unrecorded",
+            "close receipts have no complete candidate HEAD/tree/workspace recorded: "
+            f"{', '.join(incomplete)} — reopen the review and acceptance steps on a "
+            "run started with --acceptance-required so begin-step freezes the candidate",
+        )
+
+    identity = identity_of(validator)
+    if identity != identity_of(acceptance):
         return (
             "receipt_mismatch",
             "validator and acceptance candidate HEAD/tree/workspace receipts "

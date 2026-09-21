@@ -242,7 +242,7 @@ REDO 판단 신호: 결과가 질문에 제대로 답하지 못함 / 같은 tool
 
 ### step 명명 + prose 파일 자동 명명
 
-**step 명명 규칙**: 명시적 helper lifecycle은 `agent mode` 두 인자 형식만 허용한다. mode 없는 foreground Claude Agent는 원칙적으로 hook-owned라 이 명령을 호출하지 않는다. 예외는 `acceptance_required=true` impl close의 mode 없는 `impl-validator`이며 candidate freeze를 위해 명시적 `begin-step`을 호출한다.
+**step 명명 규칙**: 명시적 helper lifecycle은 `agent mode` 두 인자 형식만 허용한다. mode 없는 foreground Claude Agent는 원칙적으로 hook-owned라 이 명령을 호출하지 않는다. 예외는 `acceptance_required=true` impl close의 mode 없는 `impl-validator`이며 candidate freeze를 위해 명시적 `begin-step`을 호출한다. 이 표시가 없는 run에서 마감 역할 step(`impl-validator` mode 없음, `product-acceptance` STORY/EPIC_ACCEPTANCE)을 열면 `begin-step`이 경고를 내고 candidate를 기록하지 않는다. 표시 없는 run은 Stop hook 마감 진단의 대상이 아니라 이 경고가 유일한 신호이므로, 경고를 보면 시퀀스를 다시 도는 대신 run을 `--acceptance-required`로 다시 열고 step을 연다. 표시가 있는 run에서 candidate가 비었거나 일부만 기록되면 Stop hook이 불일치가 아니라 「기록되지 않음」으로 구분해 막는다.
 
 ```bash
 "$HELPER" begin-step <agent> [<mode>]
