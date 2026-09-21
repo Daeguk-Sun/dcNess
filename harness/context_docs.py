@@ -307,17 +307,47 @@ def _candidate_paths(text: str) -> list[str]:
     return cleaned
 
 
+def _declared_base_paths(text: str) -> list[Path]:
+    """문서가 명시한 저장소 밖 기준 디렉터리 (#1203).
+
+    CLAUDE.md 가 외부 저장소 절대경로를 기준으로 선언하면 그 아래 상대 참조는
+    repo root 기준이 아니다. 실존하는 디렉터리만 기준으로 인정한다.
+    """
+    bases: list[Path] = []
+    for match in re.finditer(r"`(/[^`\n]+)`", text):
+        value = match.group(1).strip().rstrip("/")
+        if not value:
+            continue
+        try:
+            candidate = Path(value)
+            if candidate.is_dir():
+                bases.append(candidate)
+        except OSError:
+            continue
+    return bases
+
+
 def _broken_references(repo_path: Path, text: str) -> list[str]:
+    """repo 안에서 해소되지 않는 참조만 돌려준다.
+
+    저장소 밖으로 나가는 참조는 기준 경로를 알 수 없으므로 존재 확인 없이 broken 으로
+    단정하지 않는다. 문서가 기준 경로를 선언했으면 그 아래에서 먼저 찾는다 (#1203).
+    """
+    resolved_repo = repo_path.resolve()
+    bases = _declared_base_paths(text)
     broken: list[str] = []
     for candidate in sorted(set(_candidate_paths(text))):
         target = (repo_path / candidate).resolve()
         try:
-            target.relative_to(repo_path.resolve())
+            target.relative_to(resolved_repo)
         except ValueError:
-            broken.append(candidate)
+            # repo 밖 참조 — 판정 보류.
             continue
-        if not target.exists():
-            broken.append(candidate)
+        if target.exists():
+            continue
+        if any((base / candidate).exists() for base in bases):
+            continue
+        broken.append(candidate)
     return broken
 
 
