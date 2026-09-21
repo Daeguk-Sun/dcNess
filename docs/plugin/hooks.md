@@ -439,7 +439,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 **필수 설정**: label cleanup 에는 workflow `issues: write` 권한이 필요하다. Project v2 미러까지 쓰려면 `secrets.DCNESS_PROJECT_TOKEN`, `vars.DCNESS_PROJECT_NUMBER`, `vars.DCNESS_PROJECT_OWNER` 가 필요하다.
 
-**차단/보정**: issue/label drift 는 workflow 실패로 드러난다. Project field drift 와 미러 실패는 warning 으로만 보고한다. merged PR 보정은 `apply: "true"` 로 label 을 수정하고, 좌표가 있으면 선택적 Project 상태를 best-effort 로 미러한다.
+**차단/보정**: issue/label drift 는 workflow 실패로 드러난다. Project field drift 와 미러 실패는 warning 으로만 보고한다. 전달된 token 을 GitHub 이 거부하면(HTTP 401) 검증·보정을 수행할 수 없으므로 건너뛴 대상과 이유를 warning 으로 남기고 성공으로 끝낸다 — 권한 부족(403)이나 잘못된 인자는 종전대로 실패다. merged PR 보정은 `apply: "true"` 로 label 을 수정하고, 좌표가 있으면 선택적 Project 상태를 best-effort 로 미러한다.
 
 ## 문서 동기화 게이트
 

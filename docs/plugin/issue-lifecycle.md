@@ -145,7 +145,7 @@ issue #663: closed issue retains in-progress label; remove in-progress.
 
 ### CI/CD harness
 
-`/init-dcness` 는 선택적으로 `github-project-lifecycle` thin workflow 를 활성 repo 에 설치한다. 이 workflow 는 본 repo 의 composite action 을 호출해 issue label/type drift 를 PR/issue 이벤트에서 검증하고, merge 된 PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project v2 미러를 쓰는 repo 만 `DCNESS_PROJECT_TOKEN` secret 과 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` variables 가 필요하다. token 이 없거나 Project API 가 실패하면 Project 미러만 warning 으로 skip 되고 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
+`/init-dcness` 는 선택적으로 `github-project-lifecycle` thin workflow 를 활성 repo 에 설치한다. 이 workflow 는 본 repo 의 composite action 을 호출해 issue label/type drift 를 PR/issue 이벤트에서 검증하고, merge 된 PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project v2 미러를 쓰는 repo 만 `DCNESS_PROJECT_TOKEN` secret 과 `DCNESS_PROJECT_NUMBER` / `DCNESS_PROJECT_OWNER` variables 가 필요하다. token 이 없거나 Project API 가 실패하면 Project 미러만 warning 으로 skip 되고 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다. token 이 전달됐지만 GitHub 이 거부하면(만료·폐기 → HTTP 401) issue/label lifecycle 정리까지 건너뛰지만, 머지는 이미 끝난 뒤의 사후 보정이므로 workflow 는 무엇을 왜 건너뛰었는지 warning 으로 남기고 성공으로 끝난다.
 
 ## 미등록 허용 모드
 

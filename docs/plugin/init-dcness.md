@@ -161,7 +161,7 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 - 템플릿: [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml)
 - 역할: `Daeguk-Sun/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue/label drift 를 검출하고 merged PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 Project Status `Done` 미러를 best-effort 로 함께 시도한다.
 
-`in-progress` label 제거에는 `issues: write` 권한이 필요하다. Project v2 미러에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없거나 Project API 가 실패하면 Project 미러만 warning 으로 skip 되고 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다.
+`in-progress` label 제거에는 `issues: write` 권한이 필요하다. Project v2 미러에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없거나 Project API 가 실패하면 Project 미러만 warning 으로 skip 되고 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다. token 이 전달됐지만 GitHub 이 거부하면(만료·폐기 → HTTP 401) issue/label lifecycle 정리까지 건너뛰지만, workflow 는 건너뛴 대상과 이유를 warning 으로 남기고 성공으로 끝난다.
 
 ## Project Bootstrap Commands
 

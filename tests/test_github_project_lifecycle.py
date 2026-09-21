@@ -105,11 +105,8 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
                 stderr=subprocess.PIPE,
                 env=env,
             )
-            calls = [
-                json.loads(line)
-                for line in log_path.read_text(encoding="utf-8").splitlines()
-                if line.strip()
-            ]
+            raw_calls = log_path.read_text(encoding="utf-8") if log_path.exists() else ""
+            calls = [json.loads(line) for line in raw_calls.splitlines() if line.strip()]
             return completed, calls
 
     def test_standard_project_fields_require_all_options(self) -> None:
@@ -1304,6 +1301,110 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
 
         self.assertEqual(1, completed.returncode)
         self.assertIn("expected exactly one IssueType label", completed.stdout)
+
+    def test_pr_merged_degrades_with_warning_when_credentials_are_rejected(self) -> None:
+        completed, calls = self.run_cli_with_fake_gh(
+            [
+                "pr-merged",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--body",
+                "Closes #891",
+                "--apply",
+            ],
+            """
+            args = sys.argv[1:]
+            print('gh: HTTP 401: Bad credentials (https://api.github.com/graphql)', file=sys.stderr)
+            sys.exit(1)
+            """,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("WARN", completed.stderr)
+        self.assertIn("401", completed.stderr)
+        self.assertIn("DCNESS_PROJECT_TOKEN", completed.stderr)
+        self.assertIn("pr-merged", completed.stderr)
+        self.assertIn(["issue", "view", "891", "--repo", "Daeguk-Sun/dcNess", "--json", "number,labels,state,url"], calls)
+
+    def test_validate_issue_degrades_with_warning_when_credentials_are_rejected(self) -> None:
+        completed, _calls = self.run_cli_with_fake_gh(
+            [
+                "validate-issue",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--issue",
+                "891",
+            ],
+            """
+            args = sys.argv[1:]
+            print('gh: HTTP 401: Bad credentials (https://api.github.com/graphql)', file=sys.stderr)
+            sys.exit(1)
+            """,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("WARN", completed.stderr)
+        self.assertIn("401", completed.stderr)
+        self.assertIn("validate-issue", completed.stderr)
+
+    def test_lifecycle_still_fails_on_invalid_arguments_under_rejected_credentials(self) -> None:
+        completed, _calls = self.run_cli_with_fake_gh(
+            [
+                "validate-issue",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+            ],
+            """
+            args = sys.argv[1:]
+            print('gh: HTTP 401: Bad credentials (https://api.github.com/graphql)', file=sys.stderr)
+            sys.exit(1)
+            """,
+        )
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("--issue <number> is required", completed.stderr)
+        self.assertNotIn("WARN", completed.stderr)
+
+    def test_operator_commands_still_fail_when_credentials_are_rejected(self) -> None:
+        """사후 보정이 아닌 command 는 인증 거부를 성공으로 바꾸지 않는다."""
+        reject_credentials = """
+        args = sys.argv[1:]
+        print('gh: HTTP 401: Bad credentials (https://api.github.com/graphql)', file=sys.stderr)
+        sys.exit(1)
+        """
+        operator_commands = [
+            ["bootstrap", "--repo", "Daeguk-Sun/dcNess", "--owner", "Daeguk-Sun", "--project", "7"],
+            ["start-work", "--repo", "Daeguk-Sun/dcNess", "--issue", "891"],
+            [
+                "register-issue",
+                "--repo",
+                "Daeguk-Sun/dcNess",
+                "--owner",
+                "Daeguk-Sun",
+                "--project",
+                "7",
+                "--issue",
+                "891",
+                "--issue-type",
+                "bug",
+            ],
+        ]
+
+        for args in operator_commands:
+            with self.subTest(command=args[0]):
+                completed, _calls = self.run_cli_with_fake_gh(args, reject_credentials)
+
+                self.assertEqual(1, completed.returncode, completed.stderr)
+                self.assertIn("Bad credentials", completed.stderr)
+                self.assertNotIn("WARN", completed.stderr)
 
 
 class NextWorkStoryGroupPhaseTests(unittest.TestCase):

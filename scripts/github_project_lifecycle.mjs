@@ -7,6 +7,14 @@ import { epicPhase } from './lib/epic_phase.mjs';
 
 export const GH_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
+// 토큰이 전달됐지만 GitHub 이 거부한 경우(만료·폐기). 권한 부족(403)이나 그 밖의 오류는 계속 실패로 드러낸다.
+export const CREDENTIALS_REJECTED_PATTERN = /HTTP 401|Bad credentials/i;
+
+// 자격증명 거부를 warn 으로 흘려보내는 command. workflow 가 issue/merge 이벤트 뒤에 돌리는 사후 보정이라
+// 실패해도 이미 끝난 머지를 되돌리지 않는다. bootstrap / register-issue / start-work 처럼 사람이 직접 돌려
+// 결과를 기대하는 command 는 종전대로 실패로 드러낸다.
+export const CREDENTIALS_DEGRADE_COMMANDS = Object.freeze(['validate-issue', 'pr-merged']);
+
 export const PROJECT_FIELDS = Object.freeze({
   Status: Object.freeze(['Todo', 'In progress', 'Done']),
   IssueType: Object.freeze(['epic', 'feature', 'story', 'task', 'subTask', 'bug']),
@@ -367,7 +375,9 @@ function gh(args, { json = false, allowFailure = false } = {}) {
   } catch (error) {
     if (allowFailure) return null;
     const stderr = error.stderr ? String(error.stderr).trim() : error.message;
-    throw new Error(`gh ${args.join(' ')} failed: ${stderr}`);
+    const failure = new Error(`gh ${args.join(' ')} failed: ${stderr}`);
+    if (CREDENTIALS_REJECTED_PATTERN.test(stderr)) failure.credentialsRejected = true;
+    throw failure;
   }
 }
 
@@ -1438,7 +1448,17 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   try {
     process.exitCode = main();
   } catch (error) {
-    console.error(`[dcness-project] ${error.message}`);
-    process.exitCode = 1;
+    const [command = '<no-command>'] = parseArgs(process.argv.slice(2))._;
+    if (error?.credentialsRejected && CREDENTIALS_DEGRADE_COMMANDS.includes(command)) {
+      warnProjectMirror(
+        `GitHub 이 자격증명을 거부해(HTTP 401 Bad credentials) ${command} lifecycle 정리를 중단하고 건너뜁니다 — ${error.message}. `
+        + 'DCNESS_PROJECT_TOKEN secret 이 만료·폐기됐는지 확인하십시오 (classic PAT 의 project + read:org scope 필요). '
+        + '중단 지점 이전까지 출력된 변경은 이미 반영됐고, 그 뒤 대상은 처리되지 않았습니다.',
+      );
+      process.exitCode = 0;
+    } else {
+      console.error(`[dcness-project] ${error.message}`);
+      process.exitCode = 1;
+    }
   }
 }
