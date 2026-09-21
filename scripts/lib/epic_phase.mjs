@@ -13,11 +13,20 @@
  *   (선택 산출물 부재를 설계 미완으로 오판하지 않는다).
  *   단, ux-flow.md 존재 + full design pack 부재는 UI epic 의 stage 1 완료 신호로
  *   "`/design` (ux 완료 · system 미완)" 라벨만 세분화한다.
+ *
+ * 완료된 pack 의 staged revision (#1211):
+ *   신규 설계에서는 pack 부재가 stage 경계를 드러내지만, *개정* 에서는 pack 이 이미
+ *   완성돼 있어 stage 1 revision 을 머지한 직후에도 파일 존재만으로는 "설계 완료" 로
+ *   보인다. 그래서 stage 1 절차가 REVISION_PENDING_FILE 을 남기고 stage 2 절차가
+ *   지운다. 이 파일이 있으면 전파가 끝나지 않은 것이므로 impl 로 보내지 않는다.
  */
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 
 const IMPL_TASK_RE = /^\d+-.*\.md$/;
+
+/** stage 1 revision 이 남기고 stage 2 revision 이 지우는 전파 대기 표식 (#1211). */
+export const REVISION_PENDING_FILE = 'revision-pending.md';
 
 export function hasImplTask(epicDir) {
   const implDir = join(epicDir, 'impl');
@@ -39,6 +48,11 @@ export function isUxStageComplete(epicDir) {
   return existsSync(join(epicDir, 'ux-flow.md'));
 }
 
+/** 완료된 pack 의 stage 1 개정이 머지됐고 system/module 전파가 남았는가 (#1211). */
+export function isRevisionPropagationPending(epicDir) {
+  return existsSync(join(epicDir, REVISION_PENDING_FILE));
+}
+
 /**
  * @param {string} epicDir  docs/epics/epic-NN-<slug> 절대/상대 경로
  * @returns {{ phase: 'spec'|'design'|'impl', action: '/spec'|'/design'|'/impl', label: string }}
@@ -53,6 +67,13 @@ export function epicPhase(epicDir) {
       return { phase: 'design', action: '/design', label: '`/design` (ux 완료 · system 미완)' };
     }
     return { phase: 'design', action: '/design', label: '`/design` (설계 미완)' };
+  }
+  if (isRevisionPropagationPending(epicDir)) {
+    return {
+      phase: 'design',
+      action: '/design',
+      label: '`/design` (UX 개정 머지됨 · system 전파 대기)',
+    };
   }
   return { phase: 'impl', action: '/impl', label: '`/impl` (설계 완료)' };
 }

@@ -1419,11 +1419,16 @@ class NextWorkStoryGroupPhaseTests(unittest.TestCase):
         ux_flow: bool = False,
         architecture: bool = False,
         impl_task: bool = False,
+        revision_pending: bool = False,
     ) -> None:
         epic_dir = root / "docs" / "epics" / slug
         epic_dir.mkdir(parents=True, exist_ok=True)
         if stories:
             (epic_dir / "stories.md").write_text("# stories\n", encoding="utf-8")
+        if revision_pending:
+            (epic_dir / "revision-pending.md").write_text(
+                "# Revision Pending\n", encoding="utf-8"
+            )
         if ux_flow:
             (epic_dir / "ux-flow.md").write_text("# ux\n", encoding="utf-8")
         if architecture:
@@ -1437,6 +1442,45 @@ class NextWorkStoryGroupPhaseTests(unittest.TestCase):
         return run_node(
             f"lifecycle.formatStoryGroups({json.dumps(groups)}, {json.dumps(str(root))})"
         )
+
+    def _report(self, root: Path, candidates: dict) -> str:
+        payload = json.dumps(
+            {"repo": "o/r", "candidates": candidates, "limit": 10, "root": str(root)}
+        )
+        return run_node(f"lifecycle.formatNextWorkReport({payload})")
+
+    def _empty_candidates(self) -> dict:
+        return {
+            "l1": [],
+            "l2": [],
+            "l3": {"storyGroups": [], "feature": [], "task": [], "bug": []},
+        }
+
+    def test_propagation_pending_epic_surfaces_without_open_stories(self) -> None:
+        """열린 story 가 없어도 전파 대기 epic 이 후보로 드러난다 (#1211 리뷰)."""
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._epic(
+                root, "epic-01-alpha", stories=True, ux_flow=True,
+                architecture=True, impl_task=True, revision_pending=True,
+            )
+
+            out = self._report(root, self._empty_candidates())
+
+            self.assertIn("전파 대기", out)
+            self.assertIn("/design docs/epics/epic-01-alpha", out)
+
+    def test_propagation_pending_section_absent_when_nothing_is_pending(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            self._epic(
+                root, "epic-01-alpha", stories=True,
+                architecture=True, impl_task=True,
+            )
+
+            out = self._report(root, self._empty_candidates())
+
+            self.assertNotIn("전파 대기", out)
 
     def test_design_incomplete_epic_marks_design_action_without_impl_footnote(self) -> None:
         with tempfile.TemporaryDirectory() as td:

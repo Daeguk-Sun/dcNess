@@ -38,6 +38,9 @@ stage 2 PR 은 기존 full design pack 계약을 유지한다.
 - 선택 epic `tech-review.md`
 - epic `impl/NN-*.md`
 - `docs/metrics/design-runs.jsonl`
+- revision 전파 mode 필수 삭제: `docs/epics/<epic>/revision-pending.md`
+
+stage 1 revision 이 남긴 `revision-pending.md` 는 이 stage 의 PR 이 지운다. 지우지 않으면 전파가 끝났는데도 `/design`·`/next-work`·`docs/index.md` 가 계속 전파 대기로 보고한다. 삭제는 stage 2 산출물과 같은 커밋에 넣는다.
 
 UI epic 이면 stage 1 의 epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, 화면별 확정 목업 `docs/design-variants/screens/<screen-id>.html` 또는 `확정본 없음`, `docs/design-variants/README.md` 포인터 또는 부재 신호를 입력으로 읽는다. UX 산출물 자체 개정은 `design-ux` revision mode 의 책임이고, stage 2 가 UX 산출물을 다시 만드는 것이 기본값은 아니다. 확정 목업이 존재하면 확정 목업 경로, node-id 매핑, docs/design.md 토큰을 system-architect(조건부), module-architect(epic-batch 또는 revision mode), architecture-validator(final epic 검증) prompt 에 필수 입력으로 넣는다. 목업 미참조 설계 금지: 확정 목업이 있는데 epic architecture, impl task, final 검증 근거가 그 경로와 매핑을 전혀 대조하지 않으면 clean PASS 로 보지 않는다. UX 산출물 결함이 final 검증에서 발견되면 finding 영향에 맞춰 사용자에게 되돌림을 보고하고, UX 산출물 자체 수정이 필요하면 `design-ux` revision mode 로 되돌린다.
 
@@ -45,7 +48,7 @@ revision mode 에서는 full design pack 이 완료됐더라도 전체 재생성
 
 ## 절차
 
-1. **Stage 선택 확인** — `/design` dispatcher 가 넘긴 epic dir 를 기준으로 full design pack 이 아직 미완인지, 명시 system/module revision mode 인지, 또는 직전 `design-ux` revision 전파 mode 인지 확인한다. 이미 완료됐고 revision mode 가 아니면 `/impl` 을 안내한다.
+1. **Stage 선택 확인** — `/design` dispatcher 가 넘긴 epic dir 를 기준으로 full design pack 이 아직 미완인지, 명시 system/module revision mode 인지, 또는 직전 `design-ux` revision 전파 mode 인지 확인한다. `docs/epics/<epic>/revision-pending.md` 가 있으면 대화 맥락이나 `--revise` 인자가 없어도 전파 mode 이며, 그 파일 내용이 어떤 UX 개정이 머지됐고 무엇이 남았는지를 알려주는 입력이다. 이미 완료됐고 revision mode 도 표식도 없으면 `/impl` 을 안내한다.
 2. **Run 시작** — worktree와 stage 2 PR은 `/design`과 동일한 `main` base를 적용하고 `begin-run design --stage design-system`로 시작한다.
 3. **stage 1 입력 수집** — UI epic 이면 epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로, 화면별 확정 목업 `docs/design-variants/screens/<screen-id>.html` 또는 `확정본 없음`, `docs/design-variants/README.md` 포인터 또는 부재 신호를 먼저 확인한다. 확정본이 있으면 확정 목업 경로, node-id 매핑, docs/design.md 토큰을 이후 prompt 의 미기록 신호로 전달한다. 인벤토리가 `확정본 없음` 인 화면은 목업 부재로 전달하고 화면 ID 관례로 파일 경로를 추론하지 않는다. 직전 `design-ux` revision 이 있으면 변경 전후 화면 ID, 통합/분할/삭제된 화면, 유지/폐기된 확정 목업과 node-id 결정을 함께 전달한다.
 4. **Codebase Sanity receipt freshness preflight** — `SANITY_RECEIPT_DIR="$("$HELPER" sanity-receipt-dir --project-root "$PROJECT_ROOT")"`로 persistent primary-worktree의 `.dcness-work/codebase-sanity/`를 찾고 직전 Codebase Sanity receipt가 기록한 code revision/tree identity를 현재 code tree와 대조한다. 같으면 증거를 재사용한다. receipt 부재 또는 구현·hotfix로 stale이면 메인이 test/lint/build/typecheck/coverage 명령·exit/warning을 현재 revision에서 수집하고 `impl-validator:CODEBASE_SANITY`를 이번 epic의 affected scope로 재감사한다. PASS이면 메인이 현재 tree identity의 receipt를 같은 persistent local 경로에 보존한다. `ExitWorktree`가 stage worktree를 제거해도 receipt는 남고 local-only/ignored receipt는 code PR에 노출하지 않는다. 이 receipt는 canonical Root refresh 완료 증거나 다음 단계의 affected capability/entrypoint 현재 코드 대조를 대신하지 않는다.

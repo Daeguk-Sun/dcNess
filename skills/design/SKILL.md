@@ -94,9 +94,12 @@ Pre-flight gate 직후 메인이 epic durable 산출물과 명시 개정 의도�
 | UI-less epic + full design pack 부재 | `design-system` | `/design` (설계 미완) |
 | full design pack 완료 + UX 층 개정 신호(화면 통합/분할/삭제, `ux-flow.md`, 확정 목업, `docs/design.md` 토큰/화면 흐름 변경) | `design-ux` revision mode → `design-system` revision mode | `/design` (완료된 UX 개정) |
 | full design pack 완료 + system/module 층 개정 신호(구조·모듈·ADR·impl task 변경) | `design-system` revision mode | `/design` (완료된 pack 개정) |
-| `architecture.md` 존재 AND `impl/NN-*.md` 1개 이상 존재 + 개정 의도 없음 | 완료 | `/impl` 안내 |
+| full design pack 완료 + `revision-pending.md` 존재 | `design-system` revision mode | `/design` (UX 개정 머지됨 · system 전파 대기) |
+| `architecture.md` 존재 AND `impl/NN-*.md` 1개 이상 존재 + `revision-pending.md` 부재 + 개정 의도 없음 | 완료 | `/impl` 안내 |
 
 full design pack 판정에서 `domain-model.md`, `tech-review.md`, `ux-flow.md` 는 선택 산출물이므로 설계 완료 조건에 넣지 않는다. UI-less epic 은 `ux-flow.md` 가 없기 때문에 기존 "설계 미완" 라벨을 유지하며, UX 완료로 오판하지 않는다.
+
+`revision-pending.md` 는 stage 1 revision PR 이 남기고 stage 2 revision PR 이 지우는 전파 대기 표식이다. 개정에서는 pack 이 이미 완성돼 있어 파일 존재만으로는 stage 경계가 드러나지 않으므로, 이 표식이 있으면 `--revise` 인자나 대화 맥락 없이도 `design-system` revision mode 로 들어간다. 세션이 끊겨도 저장소 산출물만으로 중간 상태를 복구하는 것이 목적이며, 같은 신호를 `/next-work` 와 `docs/index.md` 의 다음 액션도 읽는다.
 
 명시 revision 의도는 durable 산출물 판정을 덮어쓰는 사용자 의도다. 완료된 pack 개정(re-open/amend)은 기존 설계 완료 상태를 깨진 상태로 오판하는 것이 아니라, 의도적으로 revision mode 에 재진입하는 경로다. UX 층 개정 의도는 `design-ux` revision mode 가 UX 산출물을 먼저 개정하고, 그 stage 1 revision PR 이 머지된 뒤 `design-system` revision mode 가 architecture/impl/decision 영향분을 전파한다. system/module 층 개정 의도는 곧장 `design-system` revision mode 로 들어간다. 개정 의도가 없으면 완료 pack 은 계속 `/impl` 안내가 기본이다.
 

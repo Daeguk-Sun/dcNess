@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parseField } from './check_issue_body.mjs';
-import { epicPhase } from './lib/epic_phase.mjs';
+import { epicPhase, isRevisionPropagationPending } from './lib/epic_phase.mjs';
 
 export const GH_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 
@@ -1107,10 +1107,45 @@ export function formatStoryGroups(groups, root = null) {
   return lines.join('\n');
 }
 
-function formatNextWorkReport({ repo, candidates, limit, root = null }) {
+/**
+ * 완료된 pack 의 stage 2 전파가 끝나지 않은 epic 을 로컬 산출물에서 모은다 (#1211).
+ *
+ * story 후보 경로와 독립이어야 한다. 전파 대기 epic 의 열린 story 가 없거나 전부
+ * in-progress 면 story 그룹에 나타나지 않아 방치 신호가 사라진다.
+ */
+function propagationPendingEpics(root) {
+  if (!root) return [];
+  const epicsDir = join(root, 'docs', 'epics');
+  if (!existsSync(epicsDir)) return [];
+  let entries;
+  try {
+    entries = readdirSync(epicsDir, { withFileTypes: true });
+  } catch {
+    return [];
+  }
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .filter((slug) => isRevisionPropagationPending(join(epicsDir, slug)))
+    .sort();
+}
+
+export function formatPropagationPendingSection(root) {
+  const pending = propagationPendingEpics(root);
+  if (pending.length === 0) return '';
+  const lines = ['## 전파 대기 (UX 개정 머지됨 · system 미전파)'];
+  for (const slug of pending) {
+    lines.push(`- ${slug} — \`/design docs/epics/${slug}\` (stage 2 전파가 끝나면 표식이 사라진다)`);
+  }
+  return lines.join('\n');
+}
+
+export function formatNextWorkReport({ repo, candidates, limit, root = null }) {
+  const pendingSection = formatPropagationPendingSection(root);
   return [
     `[dcness-next-work] repo=${repo}`,
     '[dcness-next-work] read-only: GitHub issue/label 상태를 변경하지 않았습니다.',
+    ...(pendingSection ? ['', pendingSection] : []),
     '',
     formatFlatNextSection('L1 이어하기 (in-progress)', candidates.l1),
     '',
