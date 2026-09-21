@@ -475,6 +475,174 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
         self.assertIsNotNone(message)
         self.assertIn("begin-step 누락", message)
 
+    def _start_without_identity(self, agent: str, mode: str | None) -> None:
+        """마감 run 표시 없이 begin-step 한 경우처럼 식별자 없이 시작한다 (#1225)."""
+        session_state.transition(
+            SID,
+            "step_started",
+            run_id=RID,
+            base_dir=self.base,
+            agent=agent,
+            mode=mode,
+        )
+
+    def _complete_orphan(self, agent: str, mode: str | None) -> None:
+        """시작 기록 없이 완료 기록만 남긴다 — 다른 run 에서 시작한 경우 (#1225)."""
+        prose = f"{agent} complete\n\nPASS\n"
+        path = (
+            session_state.run_dir(SID, RID, base_dir=self.base)
+            / f"{agent}-{mode or 'default'}.md"
+        )
+        path.write_text(prose, encoding="utf-8")
+        session_state.transition(
+            SID,
+            "step_completed",
+            run_id=RID,
+            base_dir=self.base,
+            agent=agent,
+            mode=mode,
+            prose=prose,
+            prose_path=path,
+        )
+
+    def test_close_gate_reports_unrecorded_identity_distinctly(self) -> None:
+        """식별자가 없는 것과 서로 다른 것을 구분해 보고한다 (#1225)."""
+        self._start_without_identity("impl-validator", None)
+        self._complete("impl-validator", None)
+        self._start_without_identity("product-acceptance", "STORY_ACCEPTANCE")
+        self._complete("product-acceptance", "STORY_ACCEPTANCE")
+
+        status = _close_validation_sequence_status(SID, RID, base_dir=self.base)
+
+        self.assertIsNotNone(status, "마감 run 의 식별자 누락이 조용히 통과했다")
+        reason, message = status
+        self.assertNotEqual("receipt_mismatch", reason)
+        self.assertNotIn("do not match", message)
+
+    def test_close_gate_reports_one_sided_identity_as_unrecorded(self) -> None:
+        """한쪽만 식별자가 있으면 불일치가 아니라 미기록이다 (#1225 리뷰)."""
+        self._start_without_identity("impl-validator", None)
+        self._complete("impl-validator", None)
+        self._start("product-acceptance", "STORY_ACCEPTANCE")
+        self._complete("product-acceptance", "STORY_ACCEPTANCE")
+
+        status = _close_validation_sequence_status(SID, RID, base_dir=self.base)
+
+        self.assertIsNotNone(status)
+        reason, message = status
+        self.assertEqual("receipt_identity_unrecorded", reason)
+        self.assertIn("impl-validator", message)
+        self.assertNotIn("do not match", message)
+
+    def test_close_gate_reports_partial_identity_as_unrecorded(self) -> None:
+        """일부 필드만 기록된 경우도 불일치가 아니라 미기록이다 (#1225 리뷰)."""
+        session_state.transition(
+            SID,
+            "step_started",
+            run_id=RID,
+            base_dir=self.base,
+            agent="impl-validator",
+            mode=None,
+            candidate_head=HEAD,
+            candidate_tree=TREE,
+        )
+        self._complete("impl-validator", None)
+        self._start("product-acceptance", "STORY_ACCEPTANCE")
+        self._complete("product-acceptance", "STORY_ACCEPTANCE")
+
+        status = _close_validation_sequence_status(SID, RID, base_dir=self.base)
+
+        self.assertIsNotNone(status)
+        reason, message = status
+        self.assertEqual("receipt_identity_unrecorded", reason)
+        self.assertNotIn("do not match", message)
+
+    def test_close_gate_stays_silent_for_runs_without_close_marker(self) -> None:
+        """마감 표시가 없는 run 은 이 게이트의 진단 대상이 아니다 (#1225 리뷰).
+
+        표시 없는 run 의 유일한 신호는 begin-step 경고다. 마감 문서가
+        종료 게이트 차단을 약속하지 않도록 이 동작을 고정한다.
+        """
+        open_rid = "run-1225open"
+        session_state.transition(
+            SID,
+            "run_started",
+            run_id=open_rid,
+            base_dir=self.base,
+            entry_point="impl",
+            lane="lite",
+        )
+        for agent, mode in (
+            ("impl-validator", None),
+            ("product-acceptance", "STORY_ACCEPTANCE"),
+        ):
+            session_state.transition(
+                SID,
+                "step_started",
+                run_id=open_rid,
+                base_dir=self.base,
+                agent=agent,
+                mode=mode,
+            )
+            prose = f"{agent} complete\n\nPASS\n"
+            path = (
+                session_state.run_dir(SID, open_rid, base_dir=self.base)
+                / f"{agent}-{mode or 'default'}.md"
+            )
+            path.write_text(prose, encoding="utf-8")
+            session_state.transition(
+                SID,
+                "step_completed",
+                run_id=open_rid,
+                base_dir=self.base,
+                agent=agent,
+                mode=mode,
+                prose=prose,
+                prose_path=path,
+                strict_identity=True,
+            )
+
+        self.assertIsNone(
+            _close_validation_sequence_status(SID, open_rid, base_dir=self.base)
+        )
+
+    def test_close_gate_message_for_mismatch_differs_from_unrecorded(self) -> None:
+        """실제 불일치 문구는 미기록 문구와 달라야 한다 (#1225)."""
+        self._start("impl-validator", None)
+        self._complete("impl-validator", None)
+        session_state.transition(
+            SID,
+            "step_started",
+            run_id=RID,
+            base_dir=self.base,
+            agent="product-acceptance",
+            mode="STORY_ACCEPTANCE",
+            candidate_head="c" * 40,
+            candidate_tree="d" * 40,
+            candidate_root=self.candidate_root,
+        )
+        self._complete("product-acceptance", "STORY_ACCEPTANCE")
+
+        status = _close_validation_sequence_status(SID, RID, base_dir=self.base)
+
+        self.assertIsNotNone(status)
+        reason, message = status
+        self.assertEqual("receipt_mismatch", reason)
+        self.assertIn("do not match", message)
+
+    def test_close_gate_ignores_completion_without_start_record(self) -> None:
+        """시작 기록 없는 완료 기록은 마감 증거로 쓰지 않는다 (#1225)."""
+        self._start("impl-validator", None)
+        self._complete("impl-validator", None)
+        self._complete_orphan("product-acceptance", "STORY_ACCEPTANCE")
+
+        status = _close_validation_sequence_status(SID, RID, base_dir=self.base)
+
+        self.assertIsNotNone(status, "시작 기록 없는 완료가 마감 증거로 쓰였다")
+        reason, message = status
+        self.assertNotEqual("pass", reason)
+        self.assertNotIn("do not match", message)
+
     def test_legacy_cartography_refresh_pass_is_not_design_evidence(self) -> None:
         run_dir = self.base / "legacy-run"
         run_dir.mkdir()
@@ -492,6 +660,27 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
 
 
 class CloseValidationSequenceDocumentationTests(unittest.TestCase):
+    def test_close_procedure_states_how_to_mark_the_close_run(self) -> None:
+        """마감 진본이 리뷰·검수 step 을 여는 run 표시 방법을 말한다 (#1225)."""
+        finish = read("skills/impl-loop/impl-loop-finish.md")
+
+        self.assertIn("--acceptance-required", finish)
+        self.assertIn("candidate", finish)
+
+    def test_close_procedure_does_not_promise_a_gate_that_never_fires(self) -> None:
+        """표시 없는 run 에 없는 차단을 약속하지 않는다 (#1225 리뷰).
+
+        동작 정합은 test_close_gate_stays_silent_for_runs_without_close_marker
+        가 고정한다. 여기서는 그 동작을 문서가 정직하게 서술하는지만 본다.
+        """
+        for path in (
+            "skills/impl-loop/impl-loop-finish.md",
+            "docs/plugin/loop-procedure.md",
+        ):
+            with self.subTest(path=path):
+                text = read(path)
+                self.assertIn("유일한 신호", text)
+
     def test_close_progress_exposes_one_fail_fast_sequence(self) -> None:
         story = ChainTask(name="final", engine="build-worker", closes="story")
         epic = ChainTask(name="final", engine="build-worker", closes="epic")
