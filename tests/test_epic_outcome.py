@@ -330,6 +330,102 @@ class EpicCloseJudgmentTests(unittest.TestCase):
             self.assertFalse(epic_outcome.collect(root, "epic-01-messaging")["close_ready"])
 
 
+def _ui_journey_command() -> dict[str, object]:
+    layout = {
+        "version": 1,
+        "viewport": {"width": 1080, "height": 2400},
+        "safe_area": {"top": 96, "right": 0, "bottom": 48, "left": 0},
+        "elements": [
+            {
+                "element_id": "send-cta",
+                "bounds": {"x": 40, "y": 400, "width": 1000, "height": 120},
+                "z": 0,
+            }
+        ],
+    }
+    code = (
+        "import os; from pathlib import Path; "
+        "run=Path(os.environ['DCNESS_PRODUCT_JOURNEY_RUN_DIR']); "
+        "(run/'compose.png').write_bytes(b'compose'); "
+        "(run/'thread.png').write_bytes(b'thread'); "
+        f"(run/'thread-layout.json').write_text({json.dumps(layout)!r}, encoding='utf-8'); "
+        "print('assertion passed')"
+    )
+    return _command(code)
+
+
+def _ui_config() -> dict[str, object]:
+    config = _config(journey_id="compose-and-send-ui", boundary="ui")
+    commands = config["commands"]
+    assert isinstance(commands, dict)
+    commands["journey"] = _ui_journey_command()
+    config["ui_evidence"] = {
+        "steps": [
+            {
+                "step_id": "compose",
+                "description": "받는 번호와 본문을 입력한 새 메시지 화면",
+                "target_ac": ["AC-MSG-4-1"],
+                "final": False,
+                "evidence": [{"path": "compose.png", "type": "screenshot"}],
+            },
+            {
+                "step_id": "thread",
+                "description": "발신 뒤 같은 화면이 대화 상태로 바뀐 최종 화면",
+                "target_ac": ["AC-MSG-4-1"],
+                "final": True,
+                "evidence": [{"path": "thread.png", "type": "screenshot"}],
+            },
+        ]
+    }
+    config["ux_integrity"] = {
+        "snapshots": [
+            {
+                "step_id": "thread",
+                "layout_report": "thread-layout.json",
+                "elements": [
+                    {"element_id": "send-cta", "target_ac": ["AC-MSG-4-1"]}
+                ],
+            }
+        ]
+    }
+    return config
+
+
+class EpicUiEvidenceTests(unittest.TestCase):
+    """AC6 — 기존 UI 증거 계약을 대표 흐름에 그대로 재사용한다."""
+
+    def test_ui_representative_flow_keeps_screen_evidence_and_epic_scope(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            result = run_from_config(root, config_path=_write_config(root, _ui_config()))
+            self.assertEqual(0, result.exit_code)
+            steps = result.receipt["ui_evidence"]["steps"]
+            self.assertEqual(["compose", "thread"], [step["step_id"] for step in steps])
+            self.assertTrue(
+                all(item["present"] for step in steps for item in step["evidence"])
+            )
+            self.assertIn("ux_integrity", result.receipt)
+            self.assertEqual(
+                "story-04-compose-and-send",
+                result.receipt["epic_scope"]["representative_story"],
+            )
+            summary = epic_outcome.collect(root, "epic-01-messaging")
+            self.assertTrue(summary["close_ready"])
+
+    def test_missing_screen_evidence_blocks_epic_close(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = _ui_config()
+            commands = config["commands"]
+            assert isinstance(commands, dict)
+            commands["journey"] = _command("print('no screens written')")
+            run_from_config(root, config_path=_write_config(root, config))
+            summary = epic_outcome.collect(root, "epic-01-messaging")
+            self.assertFalse(summary["close_ready"])
+            self.assertIn(
+                "핵심 단계의 화면 증거가 남지 않았다", summary["close_blockers"]
+            )
+
 class EpicSummaryReportTests(unittest.TestCase):
     """AC8·AC9 — 결과 요약은 제품 언어로 나오고, 실패 시 관련 story·AC를 제시한다."""
 
