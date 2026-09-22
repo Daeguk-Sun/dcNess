@@ -69,6 +69,7 @@ core activation 의 성공 기준은 whitelist, Read 권한, git hook shim, runt
 - `Provider routing` 은 INFO 로 상태만 확인한다. 추천 role-split preset 은 선택형 확장에서만 적용하고, custom 선택 때 기존 all-codex/Claude-only 조합을 명시 변경한다.
 - `Generated TDD hooks` 는 INFO/WARN 이다. 빈 프로젝트는 skip 하고, 미생성 non-empty 프로젝트는 아래 Core Step 7.5 의 역제안으로 처리한다.
 - `선택형 CI workflow` 는 INFO 다. core activation 성공/실패 판정에 넣지 않는다.
+- 실제 제품 확인은 활성화 시점에 묻지 않는다. Epic 종료 확인은 Epic의 모든 Story가 통합된 뒤에 선정하는 대표 사용자 흐름으로 하며, 빈 프로젝트에는 아직 실행 가능한 Epic 이 없다. 이것은 결함이 아니라 정상 상태이므로 대표 흐름이나 제품 확인 설정을 만들라고 요구하지 않고 "아직 실행 가능한 Epic 이 없다" 로만 알린다. 첫 Epic 의 Story 가 모두 통합되면 `/impl-loop` 마감과 `/acceptance epic` 이 그 자리에서 대표 흐름을 제안하고 사용자 승인을 받는다 ([`impl-loop-finish.md` 대표 사용자 흐름과 Epic 결과 요약](../skills/impl-loop/impl-loop-finish.md#대표-사용자-흐름과-epic-결과-요약)).
 
 ### Core Step 2 - 활성화
 

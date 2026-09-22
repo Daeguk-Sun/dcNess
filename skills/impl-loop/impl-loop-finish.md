@@ -74,6 +74,42 @@ product-acceptance는 candidate identity가 일치하는 lint/build/unit-test te
 
 auto-fixable gap은 PRD/Story AC 미충족, 검수 증거 부족, smoke 실패, mock-only green/동작 증거 부족, 화면 증거 부재, 구현으로 닫히는 목업 불일치, 사용자 동선 부적합/내부 계약 노출이다. 설계 결함, 범위 재정의, 사용자/UX 선택, 보안·권한·데이터 위험은 비자동 gap으로 사용자에게 넘긴다.
 
+## 대표 사용자 흐름과 Epic 결과 요약
+
+Epic의 모든 Story가 통합돼 Epic 마감으로 들어갈 때만 수행한다. Story 하나를 닫는 마감에는 발동하지 않는다. 아직 실행 가능한 Epic이 없는 프로젝트에서는 선정 대상이 없는 것이 정상이며, 이 절차를 억지로 열지 않는다.
+
+### 대표 흐름 선정
+
+Epic 목표, Epic 완료 기준, 각 Story AC, 최신 제품 결정을 읽고 그 Epic의 사용자 가치를 가장 많이 통과하는 흐름 **1개**를 고른다. 가장 나중에 붙은 Story나 가장 최근에 만진 코드가 기준이 아니라, 앞선 Story들이 만든 상태를 한 번에 지나가는 흐름이 기준이다.
+
+- 서로 독립된 핵심 약속이 있어 한 흐름으로 대표할 수 없을 때만 **최대 2개**까지 제안하고, 왜 하나로 묶이지 않는지 함께 적는다. 3개 이상으로 늘리지 않는다.
+- 특정 Story 번호를 대표로 못박지 않는다. 대표는 Epic마다 다시 고른다.
+- 대표로 고르지 않은 Story의 AC는 대표 흐름이 대신 닫지 않는다. 그 AC들은 기존 Story AC 증거로 계속 판정한다.
+
+### 사용자 승인
+
+실행 전에 사용자에게 다음 세 가지를 자연어로 보여주고 1회 승인받는다.
+
+- 무엇을 실행하는가 — 사용자가 앱에서 하는 동작으로 서술한다.
+- 무엇을 성공으로 보는가 — 화면이 어떻게 바뀌면 통과인지 서술한다.
+- 어떤 테스트 데이터를 정리하는가 — 실행이 남기는 데이터와 정리 범위를 서술한다.
+
+매니페스트 형태, 내부 helper 명령, 내부 지표 이름을 승인 화면에 노출하지 않는다. 사용자가 그 형태를 직접 조립해야 진행되는 상태면 승인 단계가 아니라 제품 gap이다. 승인 뒤에 build-worker가 해당 매니페스트에 [`product-journey.md`의 `epic_scope`](../../docs/plugin/product-journey.md#epic_scope)를 materialize하고, 이후 실행은 기존 `JOURNEY_CONVERGENCE`와 sealed product acceptance 경로를 그대로 탄다. UI 대표 흐름은 실제 앱 경계에서 실행하며 단계별 화면 상태·screenshot·log를 기존 UI 증거 계약대로 남긴다.
+
+### 결과 요약 보고
+
+sealed product acceptance가 끝나면 원시 집계 대신 Epic 결과 요약을 자동으로 보고한다.
+
+```bash
+"$PLUGIN_ROOT/scripts/dcness-product-journey" epic-summary \
+  --project-root "$PROJECT_ROOT" \
+  --epic <epic-id>
+```
+
+요약이 돌려주는 대표 흐름 결과·확인한 완료 기준·Epic 종료 가능 여부에, 이번 마감에서 모은 전체 Story AC 증거 상태, 회귀 결과, 남은 사람 확인, 남은 gap을 같은 제품 언어로 덧붙여 한 번에 보고한다. 사용자가 내부 명령을 직접 실행하거나 내부 지표를 해석해야 하는 상태로 넘기지 않는다.
+
+Epic 종료 가능이 아니면 close를 보류하고, 막은 이유마다 어느 Story의 어느 AC가 남았는지와 다음 구현 경로를 함께 제시한다. 코드로 닫히는 gap은 same implementation owner의 root-cause 수정으로, 설계·범위·사용자 선택이 걸린 gap은 `/design --revise` 또는 사용자 처분으로 보낸다. 실제 제품 확인 FAIL이나 미해소 product-acceptance gap이 남은 Epic은 close candidate가 아니다.
+
 ## 마감 복구와 증거 invalidation
 
 - code/harness finding은 same implementation owner가 root-cause 수정한다. tracked tree가 바뀌면 이전 validation sequence의 terminal 판정은 stale이며, 영향받은 lint/build/test, journey convergence, Cartography sync를 다시 모은 뒤 새 candidate를 freeze하고 validator부터 다시 시작한다. 다만 직전 validator receipt는 폐기하지 않고 finding과 검토 이력을 증명하는 재리뷰 입력으로만 사용한다.

@@ -28,6 +28,13 @@ _ASSERTION_SOURCES = {"journey_exit", "none"}
 _PHASES = ("start", "health", "journey", "cleanup")
 _UI_EVIDENCE_TYPES = {"log", "screenshot", "state"}
 _RUN_DIR_ENV = "DCNESS_PRODUCT_JOURNEY_RUN_DIR"
+_EPIC_SCOPE_ID_FIELDS = ("epic", "representative_story")
+_EPIC_SCOPE_TEXT_FIELDS = ("selection_rationale", "execution_environment")
+_EPIC_SCOPE_RECEIPT_FIELDS = frozenset(
+    _EPIC_SCOPE_ID_FIELDS + _EPIC_SCOPE_TEXT_FIELDS + ("code_revision",)
+)
+_REVISION_RE = re.compile(r"^[0-9a-f]{7,40}$")
+_UNKNOWN_REVISION = "unknown"
 
 
 class JourneyConfigError(ValueError):
@@ -86,6 +93,27 @@ def _require_text(payload: dict[str, Any], key: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise JourneyConfigError(f"{key} must be a non-empty string")
     return value.strip()
+
+
+def _validated_epic_scope(config: dict[str, Any]) -> Optional[dict[str, str]]:
+    """Validate the optional epic-close scope declaration and return it normalized."""
+    scope = config.get("epic_scope")
+    if scope is None:
+        return None
+    if not isinstance(scope, dict):
+        raise JourneyConfigError("epic_scope must be an object")
+    normalized: dict[str, str] = {}
+    for key in _EPIC_SCOPE_ID_FIELDS + _EPIC_SCOPE_TEXT_FIELDS:
+        value = scope.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise JourneyConfigError(f"epic_scope.{key} must be a non-empty string")
+        normalized[key] = value.strip()
+    for key in _EPIC_SCOPE_ID_FIELDS:
+        if not _ID_RE.fullmatch(normalized[key]):
+            raise JourneyConfigError(
+                f"epic_scope.{key} must match [a-z0-9][a-z0-9._-]{{2,63}}"
+            )
+    return normalized
 
 
 def _command_spec(commands: dict[str, Any], phase: str) -> dict[str, Any]:
@@ -316,6 +344,7 @@ def _validated_config(
         raise JourneyConfigError(f"boundary must be one of {sorted(_BOUNDARIES)}")
     _validated_ui_evidence(config)
     _validated_ux_integrity(config)
+    _validated_epic_scope(config)
     assertion = config.get("assertion")
     if not isinstance(assertion, dict):
         raise JourneyConfigError("assertion must be an object")
@@ -362,6 +391,25 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(65536), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _code_revision(project_root: Path) -> str:
+    """Return the tracked HEAD revision the journey ran against, or "unknown"."""
+    try:
+        completed = subprocess.run(  # nosec B603 B607
+            ["git", "rev-parse", "HEAD"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return _UNKNOWN_REVISION
+    revision = completed.stdout.strip()
+    if completed.returncode != 0 or not _REVISION_RE.fullmatch(revision):
+        return _UNKNOWN_REVISION
+    return revision
 
 
 def _run_command(
@@ -772,6 +820,19 @@ def _evaluate_ux_integrity(
     )
 
 
+def _next_run_id(evidence_root: Path) -> str:
+    """Allocate a fresh default run id so same-second runs of one epic do not collide."""
+    base = f"run-{int(time.time())}"
+    candidate = base
+    suffix = 1
+    while (evidence_root / candidate).exists():
+        candidate = f"{base}-{suffix}"
+        suffix += 1
+        if suffix > 999:
+            raise JourneyConfigError("could not allocate a unique run_id")
+    return candidate
+
+
 def run_from_config(
     project_root: Path | str,
     *,
@@ -792,7 +853,7 @@ def run_from_config(
     except ValueError as exc:
         raise JourneyConfigError("config must stay inside the project root") from exc
     config, evidence_root = _validated_config(root, resolved_config)
-    selected_run_id = run_id or f"run-{int(time.time())}"
+    selected_run_id = run_id or _next_run_id(evidence_root)
     if not _ID_RE.fullmatch(selected_run_id):
         raise JourneyConfigError("run_id must match [a-z0-9][a-z0-9._-]{2,63}")
     selected_measured_at = measured_at or _now_iso()
@@ -932,6 +993,9 @@ def run_from_config(
         "commands": command_results,
         "failure_reasons": failures,
     }
+    epic_scope = _validated_epic_scope(config)
+    if epic_scope is not None:
+        receipt["epic_scope"] = {**epic_scope, "code_revision": _code_revision(root)}
     if ui_evidence is not None:
         receipt["ui_evidence"] = ui_evidence
     if ux_integrity is not None:
@@ -1043,6 +1107,8 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
         return False
     if payload["outcome"] == "FAIL" and (passed != 0 or not failure_reasons):
         return False
+    if not _valid_epic_scope_receipt(payload):
+        return False
     if boundary == "ui":
         if not _valid_ui_receipt(payload, project_root, receipt_path):
             return False
@@ -1051,6 +1117,26 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
     elif "ui_evidence" in payload or "ux_integrity" in payload:
         return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
+
+
+def _valid_epic_scope_receipt(payload: dict[str, Any]) -> bool:
+    scope = payload.get("epic_scope")
+    if scope is None:
+        return True
+    if not isinstance(scope, dict) or set(scope) != _EPIC_SCOPE_RECEIPT_FIELDS:
+        return False
+    for key in _EPIC_SCOPE_ID_FIELDS:
+        value = scope.get(key)
+        if not isinstance(value, str) or not _ID_RE.fullmatch(value):
+            return False
+    for key in _EPIC_SCOPE_TEXT_FIELDS:
+        value = scope.get(key)
+        if not isinstance(value, str) or not value.strip():
+            return False
+    revision = scope.get("code_revision")
+    if not isinstance(revision, str):
+        return False
+    return revision == _UNKNOWN_REVISION or bool(_REVISION_RE.fullmatch(revision))
 
 
 def _valid_ui_receipt(
@@ -1316,12 +1402,22 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="project-local product journey runner"
     )
-    parser.add_argument("command", choices=["run"])
-    parser.add_argument("--project-root", default=".")
-    parser.add_argument("--config", required=True)
-    parser.add_argument("--run-id", default=None)
-    parser.add_argument("--measured-at", default=None)
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    run_parser = subparsers.add_parser("run", help="execute one journey contract")
+    run_parser.add_argument("--project-root", default=".")
+    run_parser.add_argument("--config", required=True)
+    run_parser.add_argument("--run-id", default=None)
+    run_parser.add_argument("--measured-at", default=None)
+    summary_parser = subparsers.add_parser(
+        "epic-summary", help="report one epic's representative-flow result"
+    )
+    summary_parser.add_argument("--project-root", default=".")
+    summary_parser.add_argument("--epic", required=True)
     args = parser.parse_args(argv)
+    if args.command == "epic-summary":
+        from harness import epic_outcome
+
+        return epic_outcome.cli_epic_summary(args.project_root, args.epic)
     try:
         result = run_from_config(
             args.project_root,
