@@ -132,6 +132,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - story 사이의 흐름, 상태, 권한, 데이터 ownership 이 서로 어긋나지 않는다.
 - 여러 PR/story 경계를 넘는 통합 동작이 동작 증거로 닫혔다. 각 PR 의 mock-only green 이 모여 있어도 실제 사용자 흐름이 한 번도 검증되지 않았으면 cross-story gap 이다.
 - `journey_deferred`가 아닌 `(JOURNEY)` REQ에 매니페스트가 있으면 기존 수렴 receipt와 무관하게 최종 tip에서 직접 sealed 실행한 뒤 cross-story 동작을 판정하며, 매니페스트/e2e가 없으면 실행 불가 gap과 도입 제안을 남긴다. 필수 journey가 deferred인 epic은 close candidate가 아니며 EPIC_ACCEPTANCE PASS 증거를 만들지 않는다.
+- 대표 사용자 흐름이 선정된 epic이면 그 흐름의 sealed 실행 결과를 cross-story 통합 동작의 대표 증거로 읽는다. 대표 흐름이 덮지 않는 Story AC는 대표 흐름 PASS로 닫지 않고 기존 Story AC 증거로 따로 판정한다. 대표 흐름이 실패했거나 실행되지 않은 epic은 close candidate가 아니다.
 - UI epic 이면 story 별 확정 목업과 최종 구현 화면 증거가 서로 이어지는지 보고, 화면 증거 부재나 cross-story 목업 불일치를 gap 으로 분리한다.
 - 여러 story 가 합쳐진 사용자 흐름이 내부 schema/payload 조립이 아니라 대상 사용자의 자연스러운 입력/진행 동선으로 이어진다.
 - 보안/권한/데이터 리스크가 새로 생겼는데 별도 후속 없이 묻히지 않았다.
@@ -180,6 +181,7 @@ epic 구현 완료 후 호출된다. 여러 story 가 합쳐졌을 때 Epic 완�
 - `(JOURNEY)`를 직접 실행했다면 메인에는 receipt 경로, 판정, 사람 확인 잔여 목록만 반환하고 화면 dump 원본은 싣지 않는다.
 - 파일/라인/링크 근거가 없으면 추측하지 않는다.
 - EPIC_ACCEPTANCE에서 증거 없는 `landed`, 미해소 route-only refresh, system boundary backpressure가 있으면 사용자 동작 PASS만으로 전체 PASS하지 않는다.
+- EPIC_ACCEPTANCE 보고에는 호출자가 Epic 결과 요약으로 합칠 수 있도록 대표 흐름 판정, 전체 Story AC 증거 상태, 회귀, 남은 사람 확인, 남은 gap을 제품 언어로 구분해 적는다. 내부 지표 이름과 원시 집계 수치를 사용자 보고 문장으로 쓰지 않는다.
 
 ## 권한 경계
 

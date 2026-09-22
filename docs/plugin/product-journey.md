@@ -87,6 +87,7 @@ build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 
 | `assertion.description` | command가 무엇을 판정하는지 제품 언어로 설명 |
 | `assertion.source` | `journey_exit`이면 journey exit 0을 assertion PASS로 사용. `none`은 미평가 fixture이며 PASS 불가 |
 | `human_intervention_count` | 실행 중 사람이 개입한 횟수. 없으면 0 |
+| `epic_scope` | Epic 종료 확인용 선택 블록. 선언하면 [Epic 결과 요약](#epic-결과-요약)의 집계 단위가 된다 |
 | `acceptance_environment.automation` | `automated` 또는 `human_verification`. 후자는 `자동 인수 불가, 사람 확인 필요`를 명시하는 값이며 env 선검증·수렴 호출 비발동 |
 | `acceptance_environment.requirements` | worker 실행 컨텍스트가 실제로 도달해야 하는 device/emulator+socket, browser/driver, service+writable fixture, provisioned tenant, 특수 seed 권한 같은 요건 목록 |
 | `acceptance_environment.requirements[].probe` | worker 실행 컨텍스트에서 요건 충족 여부를 확인하는 argv와 timeout. 판정 주체를 main 환경으로 바꾸지 않는다 |
@@ -261,6 +262,49 @@ receipt에 적힌 판정값은 근거를 대신하지 않는다. scorecard가 re
 - log별 sha256과 failure reason.
 
 repository operations의 `harness/outcome_scorecard.py`는 helper receipt 중 구조가 유효하고 snapshot cutoff 안에 있는 것만 읽는다. scorecard 구현은 release artifact에 포함되지 않으며 plug-in runtime이 이를 import하지 않는다. journey PASS/전체 실행 수와 제품 AC passed/total을 각각 보존하며 guard·validator·PR 지표를 제품 outcome 분자에 넣지 않는다.
+
+## Epic 결과 요약
+
+모든 Story가 통합된 Epic 종료 시점에는 그 Epic을 대표하는 사용자 흐름을 실행해 Epic 종료 가능 여부를 판정한다. 대표 흐름 선정과 사용자 승인은 [`/impl-loop` 마감](../../skills/impl-loop/impl-loop-finish.md#대표-사용자-흐름과-epic-결과-요약)과 [`/acceptance`](../../skills/acceptance/SKILL.md)가 소유하고, 본 계약은 승인된 흐름을 Epic 단위로 보존·집계하는 부분만 소유한다.
+
+### `epic_scope`
+
+대표 흐름으로 승인된 매니페스트는 `epic_scope`를 선언한다. 선언하지 않은 journey는 Story 단위 검수에는 그대로 쓰이지만 어떤 Epic에도 귀속되지 않는다.
+
+```json
+{
+  "epic_scope": {
+    "epic": "epic-01-messaging",
+    "representative_story": "story-04-compose-and-send",
+    "selection_rationale": "새 메시지 작성과 발신이 앱 진입·대화 목록·대화 화면·발신 상태를 한 흐름으로 통과한다",
+    "execution_environment": "android-emulator-api34"
+  }
+}
+```
+
+| 필드 | 계약 |
+|---|---|
+| `epic_scope.epic` | 이 흐름이 대표하는 Epic 식별자. `journey_id`와 같은 문자 규칙 |
+| `epic_scope.representative_story` | 대표로 고른 Story 식별자. 같은 문자 규칙 |
+| `epic_scope.selection_rationale` | 그 Story를 대표로 고른 이유를 제품 언어로 쓴 문장 |
+| `epic_scope.execution_environment` | 실제 앱 경계를 어디서 실행했는지 (에뮬레이터·기기·서비스 등) |
+
+네 필드는 선언하면 모두 필수이며 하나라도 비면 계약 오류(exit 2)다. helper는 실행 시점의 tracked HEAD를 `epic_scope.code_revision`으로 receipt에 덧붙인다. git 저장소가 아니거나 revision을 읽지 못하면 `unknown`을 기록한다. receipt의 `epic_scope`가 위 다섯 필드 정확히 그대로가 아니거나 `code_revision`이 revision 형태도 `unknown`도 아니면 그 receipt는 구조 무효로 버려진다. 그래서 다른 Epic의 결과를 자기 Epic으로 옮겨 적은 receipt, 대표 Story만 바꿔 쓴 receipt, 실행 버전을 지운 receipt가 집계에 들어오지 못한다.
+
+### 집계와 종료 판정
+
+```sh
+"$PLUGIN_ROOT/scripts/dcness-product-journey" epic-summary   --project-root "$PROJECT_ROOT"   --epic epic-01-messaging
+```
+
+Epic 종료 가능이면 exit 0, 아직 아니면 exit 1, 잘못된 Epic 식별자는 exit 2다. 집계 규칙은 다음과 같다.
+
+- 요약은 자기 `epic`을 선언한 receipt만 읽는다. 다른 Epic의 흐름과 `epic_scope` 없는 journey는 분자에도 분모에도 들어가지 않는다.
+- 같은 `journey_id`가 여러 번 실행됐으면 가장 최근 실행만 센다. 배관을 고쳐 다시 통과한 흐름은 이전 실패를 덮고, 통과 뒤 다시 실패한 흐름은 이전 통과를 덮는다.
+- Epic 종료 가능은 그 Epic의 대표 흐름이 하나 이상 있고 그 전부가 통과했을 때만 참이다. 실행 기록이 아예 없으면 종료 가능이 아니다.
+- `mock` boundary, 앱 미기동, 흐름 미실행, 성공 조건 미평가, 화면 증거 누락, UX 정합성 위반은 모두 실패이므로 제품 확인 통과로도 Epic 종료 가능으로도 집계되지 않는다.
+
+출력은 사용자가 그대로 읽는 제품 언어 문장이다. 대표 흐름이 무엇이고 왜 대표인지, 어떤 완료 기준을 어떤 환경과 구현 버전에서 확인했는지, 막혔다면 무엇이 막았고 어느 Story의 어느 기준을 다시 봐야 하는지를 적는다. 매니페스트 형태, 내부 지표 이름, 원시 집계 수치는 이 출력에 넣지 않는다.
 
 ## 배포와 보존
 

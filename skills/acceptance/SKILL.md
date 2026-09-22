@@ -135,6 +135,20 @@ mode: EPIC_ACCEPTANCE
 - security/ops risk 가 새로 생겼는데 후속 없이 묻히지 않았는가.
 - epic이 인수한 `planned/stub/deferred` capability와 `landed` 주장을 실제 제품 동작·검증 증거 및 affected Root Cartography에 대조했는가.
 
+### 대표 사용자 흐름과 Epic 결과 요약
+
+epic 검수는 Epic의 모든 Story가 통합된 뒤에 돈다. 그 시점에만 Epic 전체 사용자 가치를 대표하는 흐름을 고를 수 있다. 선정 기준, 최대 2개 제한, 실행 전 사용자 승인 형식은 [`impl-loop-finish.md` 대표 사용자 흐름과 Epic 결과 요약](../impl-loop/impl-loop-finish.md#대표-사용자-흐름과-epic-결과-요약)이 진본이며 standalone `/acceptance epic`도 같은 기준을 쓴다.
+
+검수가 끝나면 원시 집계를 그대로 보여주지 않고 Epic 결과 요약을 내놓는다.
+
+```bash
+"$PLUGIN_ROOT/scripts/dcness-product-journey" epic-summary \
+  --project-root "$PROJECT_ROOT" \
+  --epic <epic-id>
+```
+
+요약이 돌려주는 대표 흐름 결과·확인한 완료 기준·Epic 종료 가능 여부에, 이번 검수에서 확인한 전체 Story AC 증거 상태, 회귀, 남은 사람 확인, 남은 gap을 같은 제품 언어로 덧붙여 한 번에 보고한다. Epic 종료 가능이 아니면 close 후보로 보고하지 않고, 막은 이유마다 어느 Story의 어느 AC가 남았는지와 다음 구현 경로를 함께 제시한다.
+
 ### Cartography freshness 후속
 
 standalone `/acceptance`는 tracked 구현·설계에 대해 write-zero를 유지하며 stale Root를 직접 수정하지 않는다. 명시된 project-local journey 계약 실행이 만드는 ignored evidence만 예외다. product-acceptance prose의 gap을 메인이 읽고 다음 producer를 명시한다.
@@ -150,10 +164,11 @@ standalone `/acceptance`는 producer를 직접 호출하거나 tracked 파일을
 1. 입력 단위가 story 인지 epic 인지 확인한다.
 2. 핵심 journey가 검수 대상이면 owner module/소스 영역의 journey 매니페스트와 연결된 e2e flow 경로를 확인한다. 기존 receipt가 있으면 함께 전달하고, 없으면 product-acceptance가 [`product-journey.md`](../../docs/plugin/product-journey.md)에 따라 tip에서 `dcness-product-journey run --config <매니페스트 경로>`를 실행하게 한다. UI boundary이면 단계별 screenshot/state/log 경로도 판정하되, exit 1 receipt의 mock-only/app-not-started/journey 미실행/assertion 미평가/UI evidence 누락을 PASS로 바꾸지 않는다.
 3. story면 `product-acceptance:STORY_ACCEPTANCE`, epic이면 `product-acceptance:EPIC_ACCEPTANCE`를 호출한다. product-acceptance가 journey를 직접 실행했다면 receipt 경로, 판정, 사람 확인 잔여 목록만 메인에 반환하고 화면 dump 원본은 싣지 않는다.
-4. `PASS`면 완료 후보로 보고한다.
-5. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `/impl` final mutation owner 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
-6. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
-7. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
+4. epic 단위면 `dcness-product-journey epic-summary` 로 Epic 결과 요약을 만들고, 검수 결과·남은 gap·사람 확인을 같은 제품 언어로 합쳐 보고한다. Epic 종료 가능이 아니면 close 후보로 보고하지 않는다.
+5. `PASS`면 완료 후보로 보고한다.
+6. `FAIL`이면 자동 수정하지 않고 gap 목록과 후속 분기를 prose 로 보고한다. Cartography gap이면 affected Root Cartography, `/impl` final mutation owner 또는 `/design --revise`/system checkpoint, local-only/ignored 정책의 durable impact handoff를 포함한다.
+7. `ESCALATE`면 어떤 기준 문서, 구현 증거, 사용자 결정이 부족한지 보고하고 대기한다.
+8. standalone `/acceptance` 종료 직후 기존 `/run-review` 유틸리티의 context audit 옵션을 1회 실행해 CLAUDE.md/AGENTS.md 현행화 후보만 read-only 로 출력한다.
 
 ```bash
 "$PLUGIN_ROOT/scripts/dcness-product-journey" run \
