@@ -11,6 +11,7 @@
 
 사용:
     python3 -m harness.run_review --run-id RID
+    python3 -m harness.run_review --story story-02-conversation
     python3 -m harness.run_review --latest
     python3 -m harness.run_review --list
 
@@ -1643,6 +1644,314 @@ def render_report(report: RunReport) -> str:
     return "\n".join(lines)
 
 
+# ── story(chain) 단위 집계 ────────────────────────────────────────────
+
+# `/impl-loop` 은 task 마다 run 을 따로 열고 각 run 을 `begin-run impl --design-doc
+# <impl task 경로>` 로 시작한다. 그래서 run 기록의 `design_doc` 과 impl task
+# frontmatter 의 `story` 가 이미 run 과 story 를 잇는다 (#1204). 새 상태 파일을
+# 만들지 않고 이 두 값만 읽는다.
+_DESIGN_DOC_ROOT_MARKER = "docs/epics/"
+
+
+@dataclass
+class StoryFinding:
+    """여러 run 에 걸쳐 같은 내용으로 반복된 finding 을 한 줄로 합친 결과."""
+
+    pattern: str
+    agent: str
+    detail: str
+    severity: str = ""
+    fix: str = ""
+    occurrences: int = 0
+    run_ids: list[str] = field(default_factory=list)
+
+
+@dataclass
+class StoryRunEntry:
+    run_id: str
+    session_id: str
+    entry_point: str
+    task_path: str
+    report: RunReport
+
+
+@dataclass
+class StoryReport:
+    story: str
+    repo_path: Path
+    runs: list[StoryRunEntry] = field(default_factory=list)
+    total_cost_usd: float = 0.0
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_elapsed_s: int = 0
+    total_steps: int = 0
+    clean_runs: int = 0
+    wastes: list[StoryFinding] = field(default_factory=list)
+    notes: list[StoryFinding] = field(default_factory=list)
+
+
+def _run_started_event(run_dir: Path) -> Optional[dict]:
+    from harness import ledger
+
+    try:
+        events = ledger.read_events_at(run_dir)
+    except StateFormatError:
+        return None
+    for event in events:
+        if event.get("event") == "run_started":
+            return event
+    return None
+
+
+def _resolve_design_doc(recorded: str, repo_path: Path) -> Optional[Path]:
+    """begin-run 이 기록한 design_doc 경로를 현재 checkout 에서 다시 찾는다.
+
+    기록값은 begin-run 시점 cwd(보통 worktree) 기준 절대경로다. 그 worktree 가
+    사라진 뒤에도 story 를 확인할 수 있어야 하므로, 절대경로가 없으면 설계 산출물
+    규약 경로(`docs/epics/`)부터를 현재 repo 아래에서 다시 찾는다.
+    """
+    if not recorded.strip():
+        return None
+    path = Path(recorded.strip())
+    if path.is_file():
+        return path
+    posix = path.as_posix()
+    marker_at = posix.find(_DESIGN_DOC_ROOT_MARKER)
+    if marker_at < 0:
+        return None
+    candidate = repo_path / posix[marker_at:]
+    return candidate if candidate.is_file() else None
+
+
+def run_story_id(run_dir: Path, repo_path: Path) -> Optional[str]:
+    """run 이 어느 story 에 속하는지 기존 run 기록과 impl task frontmatter 로 판정한다."""
+    from harness.story_runner import parse_frontmatter
+
+    event = _run_started_event(run_dir)
+    if event is None:
+        return None
+    doc = _resolve_design_doc(str(event.get("design_doc") or ""), repo_path)
+    if doc is None:
+        return None
+    try:
+        story = parse_frontmatter(doc).get("story")
+    except OSError:
+        return None
+    if not isinstance(story, str) or not story.strip() or story.strip() == "unknown":
+        return None
+    return story.strip()
+
+
+def _run_start_sort_key(run_dir: Path) -> tuple[str, float, str]:
+    event = _run_started_event(run_dir)
+    ts = str((event or {}).get("ts") or "")
+    try:
+        mtime = run_dir.stat().st_mtime
+    except OSError:
+        mtime = 0.0
+    # ts 가 있으면 시간 순, 없으면 mtime 으로 밀어 뒤에 둔다.
+    return ("0" if ts else "1", mtime if not ts else 0.0, ts)
+
+
+def find_story_runs(
+    sessions_root: Path, story: str, repo_path: Path
+) -> list[Path]:
+    """같은 story 에 속한 완료 run 을 시작 시각 순서로 모은다."""
+    matched = [
+        run_dir
+        for run_dir in list_runs(sessions_root)
+        if run_story_id(run_dir, repo_path) == story
+    ]
+    return sorted(matched, key=_run_start_sort_key)
+
+
+def _aggregate_findings(
+    entries: list[StoryRunEntry], attribute: str
+) -> list[StoryFinding]:
+    merged: dict[tuple, StoryFinding] = {}
+    for entry in entries:
+        for finding in getattr(entry.report, attribute):
+            severity = getattr(finding, "severity", "")
+            fix = getattr(finding, "fix", "")
+            key = (finding.pattern, severity, finding.agent, finding.detail)
+            current = merged.get(key)
+            if current is None:
+                current = StoryFinding(
+                    pattern=finding.pattern,
+                    agent=finding.agent,
+                    detail=finding.detail,
+                    severity=severity,
+                    fix=fix,
+                )
+                merged[key] = current
+            current.occurrences += 1
+            if entry.run_id not in current.run_ids:
+                current.run_ids.append(entry.run_id)
+    severity_order = {"HIGH": 0, "MEDIUM": 1, "LOW": 2}
+    return sorted(
+        merged.values(),
+        key=lambda item: (
+            severity_order.get(item.severity, 9),
+            -item.occurrences,
+            item.pattern,
+        ),
+    )
+
+
+def build_story_report(
+    sessions_root: Path, story: str, repo_path: Path
+) -> StoryReport:
+    """story 하나에 속한 run 들을 한 리포트로 합친다."""
+    entries: list[StoryRunEntry] = []
+    for run_dir in find_story_runs(sessions_root, story, repo_path):
+        report = build_report(run_dir, repo_path, include_recurrence=False)
+        event = _run_started_event(run_dir) or {}
+        doc = _resolve_design_doc(str(event.get("design_doc") or ""), repo_path)
+        task_path = ""
+        if doc is not None:
+            try:
+                task_path = doc.resolve().relative_to(repo_path.resolve()).as_posix()
+            except ValueError:
+                task_path = doc.as_posix()
+        entries.append(
+            StoryRunEntry(
+                run_id=report.run_id,
+                session_id=report.session_id,
+                entry_point=str(event.get("entry_point") or ""),
+                task_path=task_path,
+                report=report,
+            )
+        )
+    return StoryReport(
+        story=story,
+        repo_path=repo_path,
+        runs=entries,
+        total_cost_usd=sum(entry.report.total_cost_usd for entry in entries),
+        total_input_tokens=sum(entry.report.total_input_tokens for entry in entries),
+        total_output_tokens=sum(entry.report.total_output_tokens for entry in entries),
+        total_elapsed_s=sum(entry.report.elapsed_s for entry in entries),
+        total_steps=sum(len(entry.report.steps) for entry in entries),
+        clean_runs=sum(1 for entry in entries if entry.report.final_clean),
+        wastes=_aggregate_findings(entries, "wastes"),
+        notes=_aggregate_findings(entries, "notes"),
+    )
+
+
+def _render_story_findings(
+    findings: list[StoryFinding], *, with_severity: bool
+) -> list[str]:
+    lines: list[str] = []
+    if with_severity:
+        lines.append("| # | 심각도 | 패턴 | agent | 발생 run | 상세 | 수정 |")
+        lines.append("|---|---|---|---|---:|---|---|")
+    else:
+        lines.append("| # | 패턴 | agent | 발생 run | 상세 |")
+        lines.append("|---|---|---|---:|---|")
+    for index, finding in enumerate(findings, 1):
+        runs = ", ".join(f"`{run_id}`" for run_id in finding.run_ids)
+        count = f"{finding.occurrences} ({runs})"
+        if with_severity:
+            lines.append(
+                f"| {index} | {finding.severity} | `{finding.pattern}` | {finding.agent} "
+                f"| {count} | {finding.detail} | {finding.fix} |"
+            )
+        else:
+            lines.append(
+                f"| {index} | `{finding.pattern}` | {finding.agent} | {count} "
+                f"| {finding.detail} |"
+            )
+    return lines
+
+
+def render_story_report(report: StoryReport) -> str:
+    lines = [f"# Story Review: {report.story}", ""]
+    lines.append("## 요약")
+    lines.append("| 항목 | 값 |")
+    lines.append("|---|---|")
+    lines.append(f"| story | `{report.story}` |")
+    lines.append(f"| run 수 | {len(report.runs)} |")
+    lines.append(f"| step 수 | {report.total_steps} |")
+    lines.append(f"| 소요 합계 | {report.total_elapsed_s}s |")
+    lines.append(f"| 비용 합계 (run window 내) | ${report.total_cost_usd:.4f} |")
+    lines.append(f"| input tokens 합계 | {report.total_input_tokens:,} |")
+    lines.append(f"| output tokens 합계 | {report.total_output_tokens:,} |")
+    lines.append(f"| clean run | {report.clean_runs}/{len(report.runs)} |")
+    lines.append("")
+
+    if not report.runs:
+        lines.append(
+            f"`{report.story}` 에 속한 완료 run 이 없다. run 기록의 `design_doc` 이 "
+            "가리키는 impl task frontmatter 의 `story` 로 판정하므로, "
+            "`--list` 로 run 을 확인하거나 단일 run 을 `--run-id` 로 리뷰한다."
+        )
+        lines.append("")
+        return "\n".join(lines)
+
+    fail_open_warning = format_fail_open_warning(
+        collect_fail_open_summary(cwd=report.repo_path)
+    )
+    if fail_open_warning:
+        lines.append(fail_open_warning)
+        lines.append("")
+
+    lines.append("## run 내역")
+    lines.append(
+        "| # | run_id | entry point | impl task | step | 소요(s) | 비용($) | 최종 enum | clean |"
+    )
+    lines.append("|---|---|---|---|---:|---:|---:|---|---|")
+    for index, entry in enumerate(report.runs, 1):
+        lines.append(
+            f"| {index} | `{entry.run_id}` | {entry.entry_point or '—'} "
+            f"| {entry.task_path or '—'} | {len(entry.report.steps)} "
+            f"| {entry.report.elapsed_s} | {entry.report.total_cost_usd:.4f} "
+            f"| `{entry.report.final_enum}` "
+            f"| {'✅' if entry.report.final_clean else '❌'} |"
+        )
+    lines.append("")
+
+    lines.append("## 호출 흐름 (story 순서)")
+    lines.append("```")
+    for entry in report.runs:
+        header = f"{entry.run_id}"
+        if entry.task_path:
+            header += f"  ({entry.task_path})"
+        lines.append(header)
+        if not entry.report.steps:
+            lines.append("  └─ step 없음")
+            continue
+        for step_index, step in enumerate(entry.report.steps):
+            marker = "└─" if step_index == len(entry.report.steps) - 1 else "├─"
+            mode_str = f" [{step.mode}]" if step.mode else ""
+            flag = " ⚠️" if step.must_fix else ""
+            display_enum = step.conclusion_enum or step.enum
+            elapsed_str = (
+                f"{step.elapsed_s}s"
+                if step_index + 1 < len(entry.report.steps)
+                else "elapsed 미측정"
+            )
+            lines.append(
+                f"  {marker} {step.agent}{mode_str} ({elapsed_str}) → {display_enum}{flag}"
+            )
+    lines.append("```")
+    lines.append("")
+
+    if report.wastes:
+        lines.append("## 잘못한 점 (story 집계 · 중복 제거)")
+        lines.extend(_render_story_findings(report.wastes, with_severity=True))
+    else:
+        lines.append("## 잘못한 점 — 없음 ✅")
+    lines.append("")
+
+    if report.notes:
+        lines.append("## ⚠️ 측정 noted (story 집계 · 중복 제거)")
+        lines.extend(_render_story_findings(report.notes, with_severity=False))
+        lines.append("")
+
+    lines.append(render_context_audit_section(report.repo_path))
+
+    return "\n".join(lines)
+
+
 # ── 실행 ──────────────────────────────────────────────────────────────
 
 def build_report(
@@ -1759,6 +2068,10 @@ def _detect_sessions_root(cwd: Path) -> Optional[Path]:
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="dcness-run-review", description="dcness run 사후 분석")
     p.add_argument("--run-id", help="명시 run_id")
+    p.add_argument(
+        "--story",
+        help="story 하나에 속한 run 전체를 한 리포트로 분석 (impl task frontmatter story 값)",
+    )
     p.add_argument("--latest", action="store_true", help="최신 run 분석")
     p.add_argument("--list", action="store_true", help="run list 만 출력")
     p.add_argument("--repo", default=".", help="저장소 cwd (default: cwd)")
@@ -1785,6 +2098,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     if not sessions_root:
         print("[run-review] sessions root 미탐지 — `.claude/harness-state/.sessions/` 부재", file=sys.stderr)
         return 2
+
+    if args.story:
+        story_report = build_story_report(sessions_root, args.story, repo_path)
+        print(render_story_report(story_report))
+        return 0 if story_report.runs else 1
 
     if args.list:
         runs = list_runs(sessions_root)[:args.limit]
