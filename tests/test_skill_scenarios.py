@@ -187,6 +187,23 @@ class SkillScenarioRegressionTests(unittest.TestCase):
 
         self.assertIn("git-spec.md#의미-단위-커밋-분할", self.build_worker)
 
+    def test_commit_split_uses_capability_sentence_not_task_boundary(self) -> None:
+        """#1220 — worker commit 과 마감 consolidate 가 같은 분할 판정 문장을 쓴다."""
+        for needle in (
+            "### 분할 판정",
+            "무엇을 할 수 있게 되는가",
+            "의존 방향",
+            "impl task 1개를 commit 1개로 닫지 않는다",
+            "### 커밋 재구성 안전 조건",
+            "HEAD^{tree}",
+            "Hilt",
+            "Compose",
+            "fake",
+        ):
+            with self.subTest(doc="git-spec", needle=needle):
+                self.assertIn(needle, self.git_spec)
+        self.assertNotIn("변경량이 크면", self.git_spec)
+
     def test_impl_paths_preserve_post_task_begin_marker(self) -> None:
         """#472 — after-task autonomous work must be separated from task ROI."""
         for doc_name, doc in (
