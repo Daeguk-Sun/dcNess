@@ -521,8 +521,167 @@ class PostAgentLifecycleContractTests(unittest.TestCase):
                         ]
                     )
                     self.assertIn("복구", output.getvalue())
+                elif case == "async":
+                    # #1227 — async launch keeps the started step open for SubagentStop.
+                    self.assertEqual(events[-1]["event"], "step_started")
+                    current = read_live(self.sid, base_dir=base)["active_runs"][self.rid][
+                        "current_step"
+                    ]
+                    self.assertEqual(current["agent_id"], f"agent-{index}")
                 else:
                     self.assertFalse(any(event["event"] == "step_started" for event in events))
+
+    def _spawn(self, base: Path, agent_id: str = "agent-async") -> None:
+        self.assertEqual(
+            handle_subagent_start(
+                {
+                    "session_id": self.sid,
+                    "agent_id": agent_id,
+                    "agent_type": "dcness:impl-validator",
+                },
+                base_dir=base,
+            ),
+            0,
+        )
+
+    def _async_launched(self, base: Path) -> str:
+        output = StringIO()
+        with redirect_stdout(output):
+            handle_posttooluse_agent(
+                {
+                    "session_id": self.sid,
+                    "tool_use_id": "tool-1",
+                    "tool_input": {"subagent_type": "dcness:impl-validator"},
+                    "tool_response": {"status": "async_launched"},
+                },
+                base_dir=base,
+            )
+        return output.getvalue()
+
+    def _subagent_stop(self, base: Path, payload_extra: dict, agent_id: str = "agent-async") -> None:
+        payload = {
+            "session_id": self.sid,
+            "agent_id": agent_id,
+            "agent_type": "dcness:impl-validator",
+        }
+        payload.update(payload_extra)
+        self.assertEqual(handle_subagent_stop(payload, base_dir=base), 0)
+
+    def test_async_launched_agent_is_recorded_at_subagent_stop(self) -> None:
+        """#1227 / #1240 — CC 가 Agent 를 비동기로 띄워도 종료 시 receipt 가 남는다."""
+        for background in (False, True):
+            with self.subTest(background=background), TemporaryDirectory() as td:
+                base = Path(td)
+                self._base(base)
+                self._pretool(base, background=background)
+                self._spawn(base)
+                self.assertIn("SubagentStop", self._async_launched(base))
+
+                events = ledger.read_events(self.sid, self.rid, base_dir=base)
+                self.assertFalse(any(e["event"] == "step_aborted" for e in events))
+                self.assertEqual(ledger.read_step_completed(self.sid, self.rid, base_dir=base), [])
+
+                self._subagent_stop(base, {"last_assistant_message": "검증 완료\n\nPASS\n"})
+
+                steps = ledger.read_step_completed(self.sid, self.rid, base_dir=base)
+                self.assertEqual(len(steps), 1)
+                self.assertEqual(steps[0]["agent"], "impl-validator")
+                self.assertEqual(steps[0]["tool_use_id"], "tool-1")
+                self.assertEqual(steps[0]["agent_id"], "agent-async")
+                self.assertIn("PASS", Path(steps[0]["prose_file"]).read_text(encoding="utf-8"))
+                slot = read_live(self.sid, base_dir=base)["active_runs"][self.rid]
+                self.assertIsNone(slot["current_step"])
+                self.assertNotIn("pending_agents", slot)
+
+    def test_async_close_sequence_step_keeps_explicit_begin_identity(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            transition(self.sid, "session_initialized", base_dir=base)
+            transition(
+                self.sid,
+                "run_started",
+                run_id=self.rid,
+                entry_point="impl",
+                lane="lite",
+                acceptance_required=True,
+                base_dir=base,
+            )
+            # `dcness-helper begin-step impl-validator` on a close sequence run.
+            transition(
+                self.sid,
+                "step_started",
+                run_id=self.rid,
+                agent="impl-validator",
+                mode=None,
+                candidate_head="a" * 40,
+                candidate_tree="b" * 40,
+                candidate_root=str(base),
+                base_dir=base,
+            )
+            self._pretool(base)
+            self._spawn(base)
+            self._async_launched(base)
+            self._subagent_stop(base, {"last_assistant_message": "PASS"})
+
+            started = [
+                e for e in ledger.read_events(self.sid, self.rid, base_dir=base)
+                if e["event"] == "step_started"
+            ]
+            self.assertEqual(len(started), 1)
+            steps = ledger.read_step_completed(self.sid, self.rid, base_dir=base)
+            self.assertEqual([(s["agent"], s["agent_id"]) for s in steps], [("impl-validator", "agent-async")])
+
+    def test_foreground_subagent_stop_then_posttooluse_records_once(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            self._base(base)
+            self._pretool(base)
+            self._spawn(base)
+            self._subagent_stop(base, {"last_assistant_message": "PASS"})
+            with redirect_stdout(StringIO()):
+                handle_posttooluse_agent(
+                    {
+                        "session_id": self.sid,
+                        "tool_use_id": "tool-1",
+                        "tool_input": {"subagent_type": "dcness:impl-validator"},
+                        "tool_response": {"status": "completed", "text": "PASS"},
+                    },
+                    base_dir=base,
+                )
+            self.assertEqual(len(ledger.read_step_completed(self.sid, self.rid, base_dir=base)), 1)
+
+    def test_subagent_stop_without_final_message_leaves_step_to_posttooluse(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            self._base(base)
+            self._pretool(base)
+            self._spawn(base)
+            self._subagent_stop(base, {})
+
+            events = ledger.read_events(self.sid, self.rid, base_dir=base)
+            self.assertEqual(events[-1]["event"], "step_started")
+            with redirect_stdout(StringIO()):
+                handle_posttooluse_agent(
+                    {
+                        "session_id": self.sid,
+                        "tool_use_id": "tool-1",
+                        "tool_input": {"subagent_type": "dcness:impl-validator"},
+                        "tool_response": {"status": "completed", "text": "PASS"},
+                    },
+                    base_dir=base,
+                )
+            self.assertEqual(len(ledger.read_step_completed(self.sid, self.rid, base_dir=base)), 1)
+
+    def test_subagent_stop_for_other_agent_does_not_close_step(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
+            self._base(base)
+            self._pretool(base)
+            self._spawn(base)
+            self._async_launched(base)
+            self._subagent_stop(base, {"last_assistant_message": "PASS"}, agent_id="agent-other")
+
+            self.assertEqual(ledger.read_step_completed(self.sid, self.rid, base_dir=base), [])
 
     def test_modeful_step_keeps_explicit_start_and_rejects_identity_drift(self) -> None:
         with TemporaryDirectory() as td:

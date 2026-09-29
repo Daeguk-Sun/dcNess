@@ -29,12 +29,12 @@ dcNess 의 강제 영역은 두 가지뿐이다.
 |---|---|---|---|---|
 | `session-start.sh` | `SessionStart` | 새 세션, resume, `/clear` 직후 | sid/live state 초기화 + 활성 안내 inject | X |
 | `catastrophic-gate.sh` | `PreToolUse / Agent` | sub-agent 호출 직전 | 작업 순서 보호 + 진행 순서 검사 | O |
-| `subagent-start-lifecycle.sh` | `SubagentStart` | 실제 sub-agent spawn 직후 | foreground step 시작 + 동적 context 주입 | X |
+| `subagent-start-lifecycle.sh` | `SubagentStart` | 실제 sub-agent spawn 직후 | Agent step 시작 + 동적 context 주입 | X |
 | `file-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Read|Bash|mcp__.*` | file/bash/MCP tool 호출 직전 | agent 별 파일 경계 + 외부 변경 차단 목록 검사 | O |
 | `tdd-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Bash` | 파일 수정 직전 | project-local generated TDD hook 우선 실행, 없으면 TS/JS fallback 으로 매칭 test 존재 확인 | O |
-| `post-agent-clear.sh` | `PostToolUse / Agent` | Agent tool 성공 결과 직후 | completed foreground prose + receipt 기록 | X |
+| `post-agent-clear.sh` | `PostToolUse / Agent` | Agent tool 성공 결과 직후 | completed foreground prose + receipt 기록, 비동기 실행은 step 유지 | X |
 | `post-agent-failure.sh` | `PostToolUseFailure / Agent` | Agent tool 실패 직후 | step abort + 복구 진단 | X |
-| `subagent-stop-clear.sh` | `SubagentStop` | sub-agent 컨텍스트 종료 직후 | active agent clear 보강 | X |
+| `subagent-stop-clear.sh` | `SubagentStop` | sub-agent 컨텍스트 종료 직후 | 최종 응답으로 receipt 기록(비동기 실행 포함) + active agent clear 보강 | X |
 | `stop-end-run.sh` | `Stop` | 메인 응답 종료 시 | end-run 자동화 + 다음 step continuation signal | 조건부 재발화 |
 
 ### CC hook 공통 실행 패턴
@@ -118,9 +118,8 @@ PASS prose 판정은 `end-step` 저장 규칙과 같은 파일명을 본다. 즉
 **역할**:
 
 - PreToolUse correlation intent의 agent type과 최신 미claim `tool_use_id`를 `agent_id`에 bind
-- mode 없는 foreground Claude Agent면 실제 spawn 뒤 `step_started`를 1건 기록
+- mode 없는 Claude Agent면 실제 spawn 뒤 `step_started`를 1건 기록. `run_in_background` 호출과 Claude Code 가 비동기로 띄운 호출도 같으며, 완료는 [subagent-stop-clear.sh](#subagent-stop-clearsh)가 기록
 - modeful Claude Agent면 선행 explicit `begin-step <agent> <mode>`에 identity만 bind하고 시작 receipt를 중복 생성하지 않음
-- background intent는 lifecycle step을 시작하지 않음
 - worktree 절대경로와 build-worker `[PREVIOUS_TASKS]`를 `additionalContext`로 sub-agent의 첫 prompt 처리 전에 직접 전달
 - 같은 `agent_id` 재전달은 멱등 처리
 
@@ -262,7 +261,8 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 - `tool_response.status=completed`인 foreground 최종 응답에서만 비어 있지 않은 prose를 `<run_dir>/<agent>[-<MODE>].md`로 저장
 - 동일 `tool_use_id`/`agent_id`로 `step_completed` receipt를 즉시 기록하고 `live.json.active_agent / active_mode` clear
-- `status=async_launched`, status 누락/미인식, 빈 prose는 false `step_completed`를 만들지 않음. 이미 시작된 foreground step은 `step_aborted` 진단으로 닫음
+- `status=async_launched`는 결과가 아니라 실행 시작이다. Claude Code 는 `run_in_background` 가 없어도 Agent 를 비동기로 띄울 수 있으므로, 시작된 step 과 spawn identity 를 닫지 않고 남겨 두어 [subagent-stop-clear.sh](#subagent-stop-clearsh)가 종료 시 receipt 를 기록하게 한다
+- status 누락/미인식, 빈 prose는 false `step_completed`를 만들지 않음. 이미 시작된 step은 `step_aborted` 진단으로 닫음
 - 같은 `tool_use_id` 재전달은 prose occurrence 파일과 ledger receipt를 중복 생성하지 않음
 - current step의 agent/mode/tool_use_id/agent_id가 다르면 prose write와 receipt append 전에 거부하고 `hookSpecificOutput.additionalContext`로 복구 진단
 
@@ -280,7 +280,11 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **시점**: sub-agent 컨텍스트 종료 직후.
 
-**역할**: `SubagentStop` payload 의 `agent_type` 을 사용해 active agent state 를 정리한다. PostToolUse Agent clear 보다 sub-agent 종료 시점에 더 가깝기 때문에 stale state 를 줄이는 보조 안전망이다.
+**역할**:
+
+- payload 의 `agent_id` 로 spawn 때 묶인 pending step 을 찾고, `last_assistant_message` 를 최종 prose 로 삼아 [post-agent-clear.sh](#post-agent-clearsh)와 같은 identity 검사·prose 저장·`step_completed` receipt 기록을 수행한다. 비동기로 실행된 Agent 는 `PostToolUse(completed)` 가 오지 않으므로 이 지점이 유일한 완료 기록이다. foreground Agent 도 여기서 먼저 기록되면 뒤이은 PostToolUse 는 같은 `tool_use_id` receipt 를 보고 중복 기록하지 않는다.
+- `last_assistant_message` 가 없으면 receipt 를 추측하지 않고 PostToolUse 에 맡긴다.
+- `agent_type` 으로 active agent state 를 정리한다. PostToolUse Agent clear 보다 sub-agent 종료 시점에 더 가깝기 때문에 stale state 를 줄이는 보조 안전망이다.
 
 **차단**: 없음. SubagentStop 은 차단 권한이 있지만 dcNess 는 state clear 만 수행하고 항상 종료를 허용한다.
 

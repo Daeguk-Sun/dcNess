@@ -111,13 +111,13 @@ Agent tool input을 만들기 **전** [`agent-prompt-slots.md`](templates/agent-
 - headless build-worker: worker wrapper가 project/worktree root와 `[PREVIOUS_TASKS]`를 최종 prompt에 직접 합성한다.
 - `[PREVIOUS_TASKS]`는 build-worker가 phase 3 통과 시 `prev-tasks-append`로 누적한 직전 task 산출 요약이며, 메인 Bash stdout relay 대상이 아니다.
 
-active run(`entry_point=design|impl|ux`)의 mode 없는 foreground Claude Agent는 PreToolUse가 순서/호출 적합성을 검사하고 correlation intent만 둔다. sibling PreToolUse hook이 deny하면 `SubagentStart`가 발화하지 않으므로 `step_started`도 없다. 실제 spawn 뒤 `SubagentStart`가 `tool_use_id`와 `agent_id`를 current step에 묶고, `PostToolUse Agent`는 `status=completed`인 비어 있지 않은 최종 prose만 `<run_dir>/<agent>.md`에 저장해 `step_completed` receipt를 만든다. `async_launched`, Agent 실패, 빈 prose는 `step_completed`를 만들지 않으며 시작된 foreground step은 `step_aborted` 진단으로 닫힌다. 같은 lifecycle payload 재전달은 멱등이고 identity가 current step과 다르면 prose/receipt append 전에 거부한다.
+active run(`entry_point=design|impl|ux`)의 mode 없는 Claude Agent는 PreToolUse가 순서/호출 적합성을 검사하고 correlation intent만 둔다. sibling PreToolUse hook이 deny하면 `SubagentStart`가 발화하지 않으므로 `step_started`도 없다. 실제 spawn 뒤 `SubagentStart`가 `tool_use_id`와 `agent_id`를 current step에 묶는다. 완료 receipt 는 Agent 가 끝난 지점에서 한 번 기록된다. foreground 는 `PostToolUse Agent`의 `status=completed` 최종 prose, 비동기 실행(`async_launched` — Claude Code 는 `run_in_background` 없이도 Agent 를 비동기로 띄울 수 있다)은 `SubagentStop`의 `last_assistant_message` 를 `<run_dir>/<agent>.md`에 저장해 `step_completed` receipt를 만든다. `async_launched` 자체는 결과가 아니므로 step 을 닫지 않는다. Agent 실패와 빈 prose는 `step_completed`를 만들지 않으며 시작된 step은 `step_aborted` 진단으로 닫힌다. 같은 lifecycle payload 재전달은 멱등이고 identity가 current step과 다르면 prose/receipt append 전에 거부한다.
 
 한 세션 동시 Agent fan-out은 close에서도 사용하지 않는다. `acceptance_required=true` impl run은 holistic validator를 cheap fail-fast로 먼저 끝내고 terminal PASS일 때만 acceptance를 시작한다.
 
-단, 이 close sequence의 mode 없는 `impl-validator`도 Agent 호출 전에 명시적 `begin-step impl-validator`를 실행한다. modeful acceptance와 함께 두 step 모두 helper가 clean candidate HEAD/tree/workspace root를 원자적으로 freeze해야 하기 때문이다. 이후 spawn identity bind와 completion receipt는 일반 foreground lifecycle과 같다.
+단, 이 close sequence의 mode 없는 `impl-validator`도 Agent 호출 전에 명시적 `begin-step impl-validator`를 실행한다. modeful acceptance와 함께 두 step 모두 helper가 clean candidate HEAD/tree/workspace root를 원자적으로 freeze해야 하기 때문이다. 이후 spawn identity bind와 completion receipt는 일반 Agent lifecycle과 같다(비동기 실행이면 `SubagentStop`이 기록).
 
-modeful Claude Agent는 공개 Agent tool field로 mode를 안정 전달할 수 없으므로 Agent 호출 전에 `begin-step <agent> <mode>`를 명시한다. `SubagentStart`가 그 step에 spawn identity를 bind하고 성공 `PostToolUse`가 완료를 기록하므로 메인의 별도 `end-step`은 없다. `/impl-loop` headless build-worker는 implementation chain이 provider fork 전에 `begin-step`을 정확히 한 번 기록하고 worker wrapper가 성공 `end-step`을 기록한다. 메인이 둘 중 어느 것도 선행 호출하지 않는다.
+modeful Claude Agent는 공개 Agent tool field로 mode를 안정 전달할 수 없으므로 Agent 호출 전에 `begin-step <agent> <mode>`를 명시한다. `SubagentStart`가 그 step에 spawn identity를 bind하고 성공 `PostToolUse` 또는 비동기 실행의 `SubagentStop`이 완료를 기록하므로 메인의 별도 `end-step`은 없다. `/impl-loop` headless build-worker는 implementation chain이 provider fork 전에 `begin-step`을 정확히 한 번 기록하고 worker wrapper가 성공 `end-step`을 기록한다. 메인이 둘 중 어느 것도 선행 호출하지 않는다.
 
 이 순서 검사는 `entry_point=design|impl|ux` 에 공통이다. 정상 `/design` 은 `begin-run design` 로 시작하며 같은 lifecycle 검사를 탄다.
 
