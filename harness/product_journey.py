@@ -24,6 +24,10 @@ SCHEMA_VERSION = 1
 RECEIPT_TYPE = "dcness.product-journey"
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 _BOUNDARIES = {"api", "cli", "integration", "mock", "ui"}
+# A device/emulator UI journey chains many screen flows and routinely runs past
+# ten minutes; the other phases stay at the original cap (#1219).
+_PHASE_TIMEOUT_MAX_SEC = {"journey": 1800}
+_TIMEOUT_WARNING_RATIO = 0.8
 _ASSERTION_SOURCES = {"journey_exit", "none"}
 _PHASES = ("start", "health", "journey", "cleanup")
 _UI_EVIDENCE_TYPES = {"log", "screenshot", "state"}
@@ -130,8 +134,9 @@ def _command_spec(commands: dict[str, Any], phase: str) -> dict[str, Any]:
     timeout = raw.get("timeout_sec", 60)
     if not isinstance(timeout, (int, float)) or isinstance(timeout, bool):
         raise JourneyConfigError(f"commands.{phase}.timeout_sec must be numeric")
-    if timeout <= 0 or timeout > 600:
-        raise JourneyConfigError(f"commands.{phase}.timeout_sec must be in (0, 600]")
+    limit = _PHASE_TIMEOUT_MAX_SEC.get(phase, 600)
+    if timeout <= 0 or timeout > limit:
+        raise JourneyConfigError(f"commands.{phase}.timeout_sec must be in (0, {limit}]")
     return raw
 
 
@@ -442,8 +447,29 @@ def _run_command(
         "exit_code": exit_code,
         "timed_out": timed_out,
         "duration_ms": round((time.monotonic() - started) * 1000),
+        "timeout_sec": spec.get("timeout_sec", 60),
         "log_path": _relative(log_path, project_root),
     }
+
+
+def _timeout_warnings(command_results: dict[str, Any]) -> list[dict[str, Any]]:
+    """Phases that passed but used most of their timeout — the next run may not."""
+    warnings: list[dict[str, Any]] = []
+    for phase, result in command_results.items():
+        timeout = result.get("timeout_sec")
+        if result.get("timed_out") or not isinstance(timeout, (int, float)) or timeout <= 0:
+            continue
+        ratio = round(result["duration_ms"] / (timeout * 1000), 3)
+        if ratio >= _TIMEOUT_WARNING_RATIO:
+            warnings.append(
+                {
+                    "phase": phase,
+                    "duration_ms": result["duration_ms"],
+                    "timeout_sec": timeout,
+                    "ratio": ratio,
+                }
+            )
+    return warnings
 
 
 def _start_service(
@@ -833,14 +859,10 @@ def _next_run_id(evidence_root: Path) -> str:
     return candidate
 
 
-def run_from_config(
-    project_root: Path | str,
-    *,
-    config_path: Path | str,
-    run_id: Optional[str] = None,
-    measured_at: Optional[str] = None,
-) -> JourneyRunResult:
-    """Execute start/health/journey/cleanup and return the generated receipt."""
+def validate_config(
+    project_root: Path | str, *, config_path: Path | str
+) -> tuple[Path, Path, dict[str, Any], Path]:
+    """Check the journey contract without executing any command or writing evidence."""
     root = Path(project_root).expanduser().resolve()
     raw_config_path = Path(config_path).expanduser()
     resolved_config = (
@@ -853,6 +875,20 @@ def run_from_config(
     except ValueError as exc:
         raise JourneyConfigError("config must stay inside the project root") from exc
     config, evidence_root = _validated_config(root, resolved_config)
+    return root, resolved_config, config, evidence_root
+
+
+def run_from_config(
+    project_root: Path | str,
+    *,
+    config_path: Path | str,
+    run_id: Optional[str] = None,
+    measured_at: Optional[str] = None,
+) -> JourneyRunResult:
+    """Execute start/health/journey/cleanup and return the generated receipt."""
+    root, resolved_config, config, evidence_root = validate_config(
+        project_root, config_path=config_path
+    )
     selected_run_id = run_id or _next_run_id(evidence_root)
     if not _ID_RE.fullmatch(selected_run_id):
         raise JourneyConfigError("run_id must match [a-z0-9][a-z0-9._-]{2,63}")
@@ -992,6 +1028,7 @@ def run_from_config(
         },
         "commands": command_results,
         "failure_reasons": failures,
+        "timeout_warnings": _timeout_warnings(command_results),
     }
     epic_scope = _validated_epic_scope(config)
     if epic_scope is not None:
@@ -1408,6 +1445,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     run_parser.add_argument("--config", required=True)
     run_parser.add_argument("--run-id", default=None)
     run_parser.add_argument("--measured-at", default=None)
+    validate_parser = subparsers.add_parser(
+        "validate", help="check one journey contract without running it"
+    )
+    validate_parser.add_argument("--project-root", default=".")
+    validate_parser.add_argument("--config", required=True)
     summary_parser = subparsers.add_parser(
         "epic-summary", help="report one epic's representative-flow result"
     )
@@ -1418,6 +1460,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         from harness import epic_outcome
 
         return epic_outcome.cli_epic_summary(args.project_root, args.epic)
+    if args.command == "validate":
+        try:
+            validate_config(args.project_root, config_path=args.config)
+        except JourneyConfigError as exc:
+            print(f"[product-journey] contract error: {exc}", file=sys.stderr)
+            return 2
+        print("[product-journey] contract PASS")
+        return 0
     try:
         result = run_from_config(
             args.project_root,

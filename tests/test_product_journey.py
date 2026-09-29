@@ -194,6 +194,87 @@ class ProductJourneyExecutionTests(unittest.TestCase):
             "evidence_dir": ".dcness-work/product-journey",
         }
 
+    def test_journey_phase_allows_long_ui_runs_but_other_phases_keep_600(self) -> None:
+        """#1219 — 실기기·에뮬레이터 UI 여정은 600초를 넘는다. 다른 단계 상한은 그대로다."""
+        cases = {
+            "journey-1800": ("journey", 1800, None),
+            "journey-1801": ("journey", 1801, "(0, 1800]"),
+            "start-601": ("start", 601, "(0, 600]"),
+            "cleanup-601": ("cleanup", 601, "(0, 600]"),
+        }
+        for name, (phase, timeout, error) in cases.items():
+            with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                config = self._base_config()
+                config["commands"][phase]["timeout_sec"] = timeout
+                config_path = _write_config(root, config)
+                if error is None:
+                    result = run_from_config(root, config_path=config_path, run_id=name)
+                    self.assertEqual(result.exit_code, 0)
+                else:
+                    with self.assertRaisesRegex(JourneyConfigError, error.replace("(", r"\(").replace("]", r"\]")):
+                        run_from_config(root, config_path=config_path, run_id=name)
+
+    def test_phase_close_to_its_timeout_is_warned_in_receipt(self) -> None:
+        """#1219 — 상한의 80% 이상을 쓰고 통과한 단계는 다음 실행에서 깨질 신호로 남긴다."""
+        from harness.product_journey import _timeout_warnings
+
+        # Fixed durations keep the ratio rule deterministic (no wall-clock sleeps).
+        warnings = _timeout_warnings(
+            {
+                "start": {"duration_ms": 22_300, "timeout_sec": 600, "timed_out": False},
+                "health": {"duration_ms": 150, "timeout_sec": 60, "timed_out": False},
+                "journey": {"duration_ms": 1_449_000, "timeout_sec": 1800, "timed_out": False},
+                "cleanup": {"duration_ms": 60_000, "timeout_sec": 60, "timed_out": True},
+                "service": {"duration_ms": 900_000, "timed_out": False},
+            }
+        )
+        self.assertEqual(
+            warnings,
+            [{"phase": "journey", "duration_ms": 1_449_000, "timeout_sec": 1800, "ratio": 0.805}],
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config_path = _write_config(root, self._base_config())
+            result = run_from_config(root, config_path=config_path, run_id="fast-run")
+            receipt = json.loads(result.receipt_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(receipt["commands"]["journey"]["timeout_sec"], 10)
+        self.assertEqual(receipt["timeout_warnings"], [])
+
+    def test_validate_checks_contract_without_running_journey(self) -> None:
+        """#1240 — 러너 계약 위반을 여정 실행 전에 build-worker 가 확인할 수 있다."""
+        from harness.product_journey import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._base_config()
+            config["commands"]["journey"] = _command("open('ran.txt','w').write('x')")
+            config_path = _write_config(root, config)
+
+            self.assertEqual(
+                main(["validate", "--project-root", str(root), "--config", str(config_path)]),
+                0,
+            )
+            self.assertFalse((root / "ran.txt").exists())
+            self.assertFalse((root / ".dcness-work").exists())
+
+            config["commands"]["health"]["timeout_sec"] = 900
+            _write_config(root, config)
+            self.assertEqual(
+                main(["validate", "--project-root", str(root), "--config", str(config_path)]),
+                2,
+            )
+
+        build_worker = (
+            ROOT / "docs/plugin/agents/build-worker/build-worker-agent.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("dcness-product-journey validate", build_worker)
+        convergence = build_worker.split("### `JOURNEY_CONVERGENCE`")[1]
+        self.assertIn("dcness-product-journey run", convergence)
+
     def test_service_journey_records_commands_assertion_logs_and_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -215,9 +296,18 @@ class ProductJourneyExecutionTests(unittest.TestCase):
                     "startup_grace_sec": 0.2,
                     "timeout_sec": 10,
                 },
+                # The service may still be binding after startup_grace_sec on a
+                # slow CI runner; poll like a real health probe instead of one shot.
                 "health": _command(
-                    "import urllib.request; "
-                    f"assert urllib.request.urlopen('http://127.0.0.1:{port}', timeout=2).status == 200"
+                    "import time, urllib.request\n"
+                    "for _ in range(50):\n"
+                    "    try:\n"
+                    f"        assert urllib.request.urlopen('http://127.0.0.1:{port}', timeout=2).status == 200\n"
+                    "        break\n"
+                    "    except Exception:\n"
+                    "        time.sleep(0.1)\n"
+                    "else:\n"
+                    "    raise SystemExit(1)\n"
                 ),
                 "journey": _command(
                     "import urllib.request; "
