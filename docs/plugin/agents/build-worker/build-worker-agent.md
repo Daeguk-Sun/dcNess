@@ -56,6 +56,7 @@
 ### `JOURNEY_ENV_PREFLIGHT`
 
 - `/impl-loop` 기본 one-shot worker 또는 복잡 `/impl` headless worker가 task를 읽은 직후, source read/edit 전에 자동 `(JOURNEY)`가 하나라도 있을 때만 내부 phase로 1회 수행한다. 별도 main turn, provider fork, outer lifecycle step을 만들지 않는다. journey 미선언 run과 `acceptance_environment.automation=human_verification`만 있는 run은 비발동이다.
+- 먼저 이 task 에서 쓸 journey 쓰기 경로(flow 대본, `--config` 매니페스트, setup/teardown 스크립트, 여정 등록 파일)가 impl task 의 `### 수정 허용` 안에 있는지 대조한다. `harness_paths` 는 write 권한을 열지 않으므로, grant 밖 경로가 있으면 구현을 시작하지 않고 그 경로 목록과 함께 `SPEC_GAP_FOUND`(small)로 끝낸다. 구현을 마친 뒤 boundary guard 에 막혀 복구 시도를 소진하지 않기 위해서다.
 - main 컨텍스트가 아니라 build-worker가 실제 실행될 동일 provider·sandbox의 worker 실행 컨텍스트에서 `requirements[].probe`를 수행한다. mobile은 device/emulator+`adb` socket, web은 browser/driver, CLI는 기동 service+writable fixture, API는 provisioned tenant처럼 해당 runtime 의존에 실제로 도달하는지 본다.
 - 확실한 미충족이라도 `requirements[].prepare`로 emulator boot, container/service 기동, socket 노출 같은 자동 준비가 가능하면 질문 없이 먼저 준비하고 다시 probe한다. 검출이 불확실하면 차단하지 않고 그 불확실성을 보고한 `PASS`로 task 구현에 진행해 수렴 호출이 흡수하게 한다.
 - 확실한 미충족이고 자동 준비도 불가능하면 그 근거를 보고한 뒤 같은 호출에서 task 구현을 그대로 진행한다. 검수 환경과 구현은 독립이므로 이 phase는 환경 미충족을 이유로 `IMPLEMENTATION_ESCALATE`를 내거나 task를 중단하지 않는다. 해당 journey의 flow·매니페스트·오케스트레이션 산출물은 그대로 작성해 마감에 인계하고, 실행 여부와 사용자 처분은 마감의 수렴 직전 단계가 판단한다. main이 host에서 대신 probe하거나 journey를 실행해 worker substrate 부재를 숨기지 않는다. 이 phase는 tracked file을 수정하거나 commit하지 않는다.
