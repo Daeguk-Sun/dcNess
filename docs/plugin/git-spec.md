@@ -60,9 +60,34 @@
 모든 구현 흐름은 독립 검토 가능한 의미 단위로 commit 을 쪼갠다. 적용 대상은 `/impl` main-direct·headless 구현, `/impl-loop` build-worker task local commit, review finding 대응 commit, fix PR commit 을 모두 포함한다.
 
 - 각 commit 은 hook 을 통과할 수 있는 일관된 상태여야 한다. 테스트가 깨진 중간 저장용 commit 은 금지한다.
-- 변경량이 크면 테스트/결정적 helper/문서 surface/후속 cleanup 처럼 리뷰어가 단계별로 따라갈 수 있는 단위로 나눈다.
+- commit 경계는 아래 [분할 판정](#분할-판정)으로 정한다.
 - 서로 다른 이슈, story, public surface 변경, generated deploy 경로를 한 commit 에 섞지 않는다. 불가피하면 PR body 에 묶은 이유를 적는다.
 - push, PR 생성, merge, issue mutation 의 소유 경계는 각 workflow 규칙을 따른다. commit 분할 규칙이 build-worker 에게 외부 상태 변경 권한을 주지 않는다.
+
+### 분할 판정
+
+commit 경계는 줄 수나 파일·폴더·레이어가 아니라 능력 단위로 정한다. 다음 세 문장으로 판정한다.
+
+1. **무엇으로 나누나** — commit 마다 "이 commit 이 끝나면 무엇을 할 수 있게 되는가" 를 한 문장으로 쓴다. 그 문장에 "그리고" 가 두 번 들어가면 나눈다.
+2. **어떤 순서로 놓나** — 의존 방향대로 부품 → 조립 → 화면 → 검수 대본 → 문서 순서로 놓는다. 리뷰어가 앞 commit 만 알면 다음 commit 을 읽을 수 있어야 한다.
+3. **impl task 1개를 commit 1개로 닫지 않는다** — task 는 작업 배분 단위이지 리뷰 단위가 아니다. 한 task 안에서도 1번 문장이 바뀌면 거기서 끊는다. task 전체가 1번 문장 하나로 설명될 때만 결과적으로 commit 1개가 된다.
+
+- 위 판정과 "각 commit 은 hook 을 통과하는 일관 상태" 제약이 부딪히면 후자가 이긴다. 그래서 나누지 못한 commit 은 PR body 에 묶은 이유를 적는다.
+- 판정 결과는 commit 마다 `제목 — 1번 문장` 한 줄로 남긴다. 이 목록이 분할 근거이며, 작업 흐름이 요구하는 보고에 그대로 쓴다.
+
+### 커밋 재구성 안전 조건
+
+이미 만든 commit 을 다시 나누거나 합칠 때는 다음을 지킨다.
+
+1. 재구성 전 tip sha 를 기록하거나 로컬 백업 ref 를 만든다.
+2. 재구성 후 `git rev-parse HEAD^{tree}` 가 재구성 전 tip 의 tree 해시와 같은지 확인한다. 다르면 내용이 바뀐 것이므로 중단하고 보존한 tip 으로 되돌린다.
+3. 각 commit 에서 프로젝트 검증 명령(lint·test 등 hook 이 실행하는 명령)이 통과해야 한다.
+
+컴파일 시점에 함께 검증되는 코드는 같은 commit 에 둔다. Android 실측 예:
+
+- Hilt 는 컴파일 시점에 DI 그래프를 검증한다. 주입 대상이 그래프에 들어가는 commit 에 그 binding 도 함께 넣는다. 여러 commit 에 걸친 DI 파일은 commit 마다 최종본의 부분집합으로 점진 추가한다.
+- Compose 화면에 필수 인자를 추가하면 호출자도 같은 commit 에서 고친다.
+- 인터페이스에 멤버를 추가하면 그 인터페이스의 테스트 fake 도 같은 commit 에서 모두 갱신한다.
 
 ## PR 제목
 
