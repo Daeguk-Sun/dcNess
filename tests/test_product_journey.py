@@ -296,9 +296,18 @@ class ProductJourneyExecutionTests(unittest.TestCase):
                     "startup_grace_sec": 0.2,
                     "timeout_sec": 10,
                 },
+                # The service may still be binding after startup_grace_sec on a
+                # slow CI runner; poll like a real health probe instead of one shot.
                 "health": _command(
-                    "import urllib.request; "
-                    f"assert urllib.request.urlopen('http://127.0.0.1:{port}', timeout=2).status == 200"
+                    "import time, urllib.request\n"
+                    "for _ in range(50):\n"
+                    "    try:\n"
+                    f"        assert urllib.request.urlopen('http://127.0.0.1:{port}', timeout=2).status == 200\n"
+                    "        break\n"
+                    "    except Exception:\n"
+                    "        time.sleep(0.1)\n"
+                    "else:\n"
+                    "    raise SystemExit(1)\n"
                 ),
                 "journey": _command(
                     "import urllib.request; "
