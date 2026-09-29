@@ -1,7 +1,8 @@
-"""/init-dcness CI workflow copy install (#1243).
+"""/init-dcness CI workflow copy install (#1243) + lint-build-test workflow (#1244).
 
 설치된 workflow 가 외부 저장소 action 없이 사용자 저장소 체크아웃만으로 도는지,
-중립 명명 설치 산출물에 하네스 이름이 남지 않는지 검증한다.
+중립 명명 설치 산출물에 하네스 이름이 남지 않는지, 플랫폼별 lint-build-test
+workflow 가 판정 결과에 따라 설치·skip 되는지 검증한다.
 """
 from __future__ import annotations
 
@@ -28,7 +29,7 @@ PR_CHECKS = (
     "doc-path-integrity",
     "doc-sync",
 )
-ALL_CHECKS = PR_CHECKS + ("github-project-lifecycle",)
+ALL_CHECKS = PR_CHECKS + ("github-project-lifecycle", "lint-build-test")
 
 
 def _write(path: Path, text: str) -> None:
@@ -106,8 +107,11 @@ class DocContractTests(unittest.TestCase):
         self.assertIn(".github/ci-checks/", snippets)
         self.assertIn("/init-dcness` 를 재실행", snippets)
         self.assertIn("--neutral-naming", snippets)
+        self.assertIn("### lint-build-test.yml", snippets)
+        self.assertIn("skip lint-build-test", snippets)
         self.assertIn("dcness-ci-workflows\" install", runbook)
         self.assertNotIn('cp "$PLUGIN_ROOT/templates/github-workflows', runbook)
+        self.assertIn("lint-build-test", runbook)
 
 
 _JS_RELATIVE = re.compile(
@@ -280,6 +284,7 @@ class InstallTests(unittest.TestCase):
                 self.assertNotIn("ENGINE WARNING", proc.stderr)
 
     def test_neutral_naming_install_has_no_harness_name(self) -> None:
+        _seed_android(self.root)
         result = self._install(ALL_CHECKS, neutral_naming=True)
 
         skipped = dict(result.skipped)
@@ -299,14 +304,33 @@ class InstallTests(unittest.TestCase):
         )
         self.assertEqual(grep.stdout, "")
 
+    def test_lint_build_test_android_installs_platform_commands(self) -> None:
+        _seed_android(self.root)
+        result = self._install(["lint-build-test"])
+
+        self.assertEqual(result.skipped, [])
+        wf = self.root / ".github" / "workflows" / "lint-build-test.yml"
+        self.assertEqual(result.written, [".github/workflows/lint-build-test.yml"])
+        text = wf.read_text(encoding="utf-8")
+        self.assertIn("pull_request:", text)
+        for task in (":app:lintDebug", ":app:assembleDebug", ":app:testDebugUnitTest"):
+            self.assertIn(task, text)
+        self.assertLess(text.index("lintDebug"), text.index("assembleDebug"))
+        self.assertLess(text.index("assembleDebug"), text.index("testDebugUnitTest"))
+        self.assertIn("cache: gradle", text)
+        self.assertNotRegex(text, re.compile("dcness", re.I))
+
     def test_copied_check_scripts_do_not_change_platform_detection(self) -> None:
         _seed_android(self.root)
         self._install(["doc-sync"])
 
         self.assertEqual(tdd_hooks.detect_platform(self.root), "android")
+        result = self._install(["lint-build-test"])
+        self.assertEqual(result.written, [".github/workflows/lint-build-test.yml"])
 
     @unittest.skipUnless(ACTIONLINT, "actionlint not installed")
     def test_installed_workflows_pass_actionlint(self) -> None:
+        _seed_android(self.root)
         self._install(ALL_CHECKS)
         workflows = sorted((self.root / ".github" / "workflows").glob("*.yml"))
         self.assertEqual(len(workflows), len(ALL_CHECKS))
@@ -318,6 +342,37 @@ class InstallTests(unittest.TestCase):
         )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
+    def test_lint_build_test_skips_when_platform_undetected(self) -> None:
+        result = self._install(["lint-build-test"])
+
+        self.assertEqual(result.written, [])
+        self.assertEqual([check for check, _ in result.skipped], ["lint-build-test"])
+        self.assertIn("플랫폼", result.skipped[0][1])
+        self.assertFalse((self.root / ".github" / "workflows" / "lint-build-test.yml").exists())
+
+    def test_lint_build_test_skips_platform_without_template(self) -> None:
+        _write(self.root / "pyproject.toml", "[project]\nname = 'x'\n")
+        result = self._install(["lint-build-test"])
+
+        self.assertEqual(result.written, [])
+        self.assertIn("python", result.skipped[0][1])
+
+    def test_lint_build_test_skips_android_without_app_module(self) -> None:
+        _write(self.root / "settings.gradle.kts", "\n")
+        _write(self.root / "gradlew", "#!/bin/sh\n")
+        result = self._install(["lint-build-test"])
+
+        self.assertEqual(result.written, [])
+        self.assertIn("app/build.gradle", result.skipped[0][1])
+
+    def test_explicit_platform_overrides_detection(self) -> None:
+        _write(self.root / "pyproject.toml", "[project]\nname = 'x'\n")
+        _write(self.root / "gradlew", "#!/bin/sh\n")
+        _write(self.root / "app" / "build.gradle", "\n")
+        result = self._install(["lint-build-test"], platform="android")
+
+        self.assertEqual(result.written, [".github/workflows/lint-build-test.yml"])
+
     def test_unknown_check_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             self._install(["nope"])
@@ -328,8 +383,7 @@ class InstallTests(unittest.TestCase):
             "--project-root",
             str(self.root),
             "--checks",
-            "git-naming-validation,doc-sync",
-            "--neutral-naming",
+            "git-naming-validation,lint-build-test",
         )
 
         self.assertEqual(proc.returncode, 0, proc.stderr)
@@ -340,7 +394,7 @@ class InstallTests(unittest.TestCase):
                 f"{ci_workflows.INSTALL_ROOT}/scripts/check_git_naming.mjs",
             ],
         )
-        self.assertIn("skip doc-sync:", proc.stderr)
+        self.assertIn("skip lint-build-test:", proc.stderr)
 
     def test_cli_rejects_unknown_check(self) -> None:
         proc = _run_wrapper("install", "--project-root", str(self.root), "--checks", "nope")

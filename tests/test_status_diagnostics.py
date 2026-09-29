@@ -219,6 +219,7 @@ class CiWorkflowTests(unittest.TestCase):
             self.assertFalse(result["doc-path-integrity.yml"])
             self.assertFalse(result["doc-sync.yml"])
             self.assertFalse(result["github-project-lifecycle.yml"])
+            self.assertFalse(result["lint-build-test.yml"])
 
     def test_legacy_remote_call_workflows_are_reported(self) -> None:
         with TemporaryDirectory() as td:

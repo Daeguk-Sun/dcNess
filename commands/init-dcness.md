@@ -224,7 +224,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 ### 추천 bundle 산출 기준
 
 - GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml` 추천 ON.
-- 중립 명명 설치는 기본 OFF 이며, 하네스를 비공개로 두고 공개 저장소에 산출물만 올리는 프로젝트는 custom 에서 켠다.
+- 같은 조건에서 판정된 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 플랫폼은 TDD 계약(`.dcness/tdd-hooks.json` 의 `platform`)을 먼저 보고, 없으면 파일 구성으로 판정한다. 현재 template 은 `android` 만 있다. 판정 실패, template 없음, Android 인데 `gradlew` 또는 `app/build.gradle(.kts)` 부재면 설치를 건너뛰고 이유를 출력한다. 중립 명명 설치는 기본 OFF 이며, 하네스를 비공개로 두고 공개 저장소에 산출물만 올리는 프로젝트는 custom 에서 켠다.
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
 - 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
@@ -239,7 +239,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 
 ```
 [dcness] 추천 적용 예정:
- - CI: git-naming + pr-body + doc-path-integrity + doc-sync 설치 (검사 스크립트 복사 방식)
+ - CI: git-naming + pr-body + doc-path-integrity + doc-sync + lint-build-test(android) 설치 (검사 스크립트 복사 방식)
  - docs: index.md + prd.md + conventions.md + decisions/ 시드 또는 index.md 진행 상태 섹션 보강
  - docs: root architecture.md 감지로 docs/architecture.md skip
  - design kit: skip
@@ -255,7 +255,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 
 추천 ON 이면 `dcness-ci-workflows install` 이 workflow template 을 사용자 repo 의 `.github/workflows/` 로, 그 workflow 가 실행하는 검사 스크립트를 `.github/ci-checks/` 로 함께 복사해 always-overwrite 한다. 설치된 workflow 는 외부 저장소 action 을 호출하지 않고 사용자 repo 체크아웃과 GitHub 공식 `actions/*` 만으로 실행된다. 복사본은 설치 시점의 plugin 버전에 고정되고, 규칙 갱신은 plugin 업데이트 뒤 `/init-dcness` 재실행으로 사용자가 선택해 반영한다. template inventory 는 [`docs/plugin/init-dcness.md#ci-workflow-snippets`](../docs/plugin/init-dcness.md#ci-workflow-snippets) 에서 확인한다.
 
-설치기는 실제로 쓴 파일 경로를 stdout 에 한 줄씩 출력하고, 건너뛴 항목은 `skip <workflow>: <이유>` 로 stderr 에 출력한다. 이번 run 이 쓴 파일만 추적하며, workflow PR 은 이 목록만 stage 한다. 기존 dirty workflow 파일은 자동으로 포함하지 않는다. 중립 명명 설치(`--neutral-naming`)는 산출물에 하네스 이름을 남기지 않으며 `doc-sync`·`github-project-lifecycle` 을 이유와 함께 건너뛴다.
+설치기는 실제로 쓴 파일 경로를 stdout 에 한 줄씩 출력하고, 건너뛴 항목은 `skip <workflow>: <이유>` 로 stderr 에 출력한다. 이번 run 이 쓴 파일만 추적하며, workflow PR 은 이 목록만 stage 한다. 기존 dirty workflow 파일은 자동으로 포함하지 않는다. 중립 명명 설치(`--neutral-naming`)는 산출물에 하네스 이름을 남기지 않으며 `doc-sync`·`github-project-lifecycle` 을 이유와 함께 건너뛴다. `lint-build-test.yml` 명령은 설치 후 수정해도 되지만, 재실행은 template 으로 덮어쓰므로 명령을 고친 프로젝트는 재실행 때 `CI_CHECKS` 에서 뺀다.
 
 ```bash
 DCNESS_WORKFLOW_CHANGES="${DCNESS_WORKFLOW_CHANGES:-}"
@@ -263,7 +263,7 @@ record_dcness_workflow_change() {
   DCNESS_WORKFLOW_CHANGES="$DCNESS_WORKFLOW_CHANGES $1"
 }
 
-CI_CHECKS="git-naming-validation,pr-body-validation,doc-path-integrity,doc-sync"
+CI_CHECKS="git-naming-validation,pr-body-validation,doc-path-integrity,doc-sync,lint-build-test"
 CI_NEUTRAL_FLAG=""   # 중립 명명 설치를 켜면 CI_NEUTRAL_FLAG="--neutral-naming"
 CI_WRITTEN="$("$PLUGIN_ROOT/scripts/dcness-ci-workflows" install --project-root "$PROJECT_ROOT" --checks "$CI_CHECKS" ${CI_NEUTRAL_FLAG:+"$CI_NEUTRAL_FLAG"})"
 while IFS= read -r f; do
@@ -396,6 +396,7 @@ $(for f in $CHANGES; do
     *doc-path-integrity.yml) echo "- \`doc-path-integrity\`" ;;
     *doc-sync.yml) echo "- \`doc-sync\`" ;;
     *github-project-lifecycle.yml) echo "- \`github-project-lifecycle\`" ;;
+    *lint-build-test.yml) echo "- \`lint-build-test\`" ;;
   esac
 done)
 EOF
@@ -410,7 +411,7 @@ fi
 
 custom 은 기존 세부 기능을 유지하되 이미 결정 가능한 항목은 질문하지 않는다.
 
-- CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `github-project-lifecycle.yml` 을 각각 선택하고 선택한 이름만 `CI_CHECKS` 에 넣는다. 중립 명명 설치 여부도 여기서 고른다.
+- CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `lint-build-test.yml`, `github-project-lifecycle.yml` 을 각각 선택하고 선택한 이름만 `CI_CHECKS` 에 넣는다. 중립 명명 설치 여부도 여기서 고른다. 플랫폼을 판정하지 못한 프로젝트는 `lint-build-test` 에 `--platform <name>` 을 명시해 설치할 수 있다.
 - docs seed: 이미 존재하는 파일은 묻지 않는다. 단 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 append 보강한다. 루트 `architecture.md` 가 있으면 `docs/architecture.md` 생성 질문을 생략하고 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - design seed: UI 프로젝트 여부가 불명확할 때만 묻는다. `docs/design.md` 는 부재 시 [`docs/plugin/design.md`](../docs/plugin/design.md) 기준 minimal template 생성 여부를 선택한다. `docs/design-variants/` 는 사용자가 명시 선택한 경우에만 설치한다. draft 는 `docs/design-variants/drafts/` 에 두고 gitignore 한다.
 - Provider routing: 추천 role-split 으로 복귀하려면 `enable-role-split-routing` 을 선택한다. all-codex validation 을 원하면 `enable-codex-validation`, Claude 검증 복귀를 원하면 `disable-codex-validation` 을 명시 선택한다.
@@ -500,7 +501,7 @@ FAIL 이 0 이면 core activation 은 완료 상태다. INFO·NA 행과 선택 W
 
 whitelist 에서 현재 프로젝트 root 항목만 제거한다. plug-in 중앙 hook 은 매 호출 `is-active` 를 확인하므로 현재 세션에서도 즉시 pass-through 되고, SessionStart 가 이미 주입한 안내만 세션 재시작으로 사라진다. 단 `DCNESS_FORCE_ENABLE=1` 이 설정된 프로세스는 whitelist 와 무관하게 활성이 유지되므로, 설정돼 있으면 해제한 뒤 Claude Code 를 재시작해야 비활성이 완성된다. 상위 디렉토리의 활성 항목으로 상속 활성된 중첩 repo 도 현재 root 항목 제거만으로는 꺼지지 않는다 — 실행 후 `"$HELPER" status` 로 비활성을 확인한다. 중첩 repo 만 선별해서 끄는 것은 미지원이며, 상위 repo 에서 disable 을 실행하면 상위와 그 하위 전체가 함께 비활성화된다는 영향 범위를 사용자에게 안내한 뒤 진행한다.
 
-나머지 설치물은 whitelist 와 무관하게 남아 계속 동작하므로 완전 제거를 원하면 dcNess 가 설치한 파일만 항목별로 정리한다 — `CLAUDE.md` 의 dcNess 안내(기존 파일에 append 한 경우 `## dcNess Cold Start` 섹션 삭제, seed 가 파일을 새로 생성한 경우 Architecture·Workflow 섹션의 dcNess/워크플로 안내 줄까지 정리), dcNess shim 4종 `pre-commit`·`commit-msg`·`post-checkout`·`pre-push`(파일 삭제 — `git rev-parse --path-format=absolute --git-path hooks` 가 해석한 경로와 `.git/hooks` 양쪽에서 dcNess shim 인지 확인 후 삭제: linked worktree 는 common dir, `core.hooksPath` 구성은 두 위치에 사본이 있을 수 있음), generated TDD hook(`.claude/settings.json` / `.codex/hooks.json` 의 `dcness-tdd-guard.sh` 등록 제거 + `.claude/hooks/dcness-tdd-guard.sh` · `.codex/hooks/dcness-tdd-guard.sh` · `.dcness/tdd-hooks.json` 파일 삭제), 설치한 dcNess workflow 템플릿 `git-naming-validation.yml`·`pr-body-validation.yml`·`doc-path-integrity.yml`·`doc-sync.yml`·`github-project-lifecycle.yml` 과 검사 스크립트 사본 `.github/ci-checks/`(remote 에서 PR 차단 지속 — PR 로 삭제). 프로젝트 자체 소유 hook/workflow 는 삭제 대상이 아니다. 재활성화는 core activation 재실행이다.
+나머지 설치물은 whitelist 와 무관하게 남아 계속 동작하므로 완전 제거를 원하면 dcNess 가 설치한 파일만 항목별로 정리한다 — `CLAUDE.md` 의 dcNess 안내(기존 파일에 append 한 경우 `## dcNess Cold Start` 섹션 삭제, seed 가 파일을 새로 생성한 경우 Architecture·Workflow 섹션의 dcNess/워크플로 안내 줄까지 정리), dcNess shim 4종 `pre-commit`·`commit-msg`·`post-checkout`·`pre-push`(파일 삭제 — `git rev-parse --path-format=absolute --git-path hooks` 가 해석한 경로와 `.git/hooks` 양쪽에서 dcNess shim 인지 확인 후 삭제: linked worktree 는 common dir, `core.hooksPath` 구성은 두 위치에 사본이 있을 수 있음), generated TDD hook(`.claude/settings.json` / `.codex/hooks.json` 의 `dcness-tdd-guard.sh` 등록 제거 + `.claude/hooks/dcness-tdd-guard.sh` · `.codex/hooks/dcness-tdd-guard.sh` · `.dcness/tdd-hooks.json` 파일 삭제), 설치한 dcNess workflow 템플릿 `git-naming-validation.yml`·`pr-body-validation.yml`·`doc-path-integrity.yml`·`doc-sync.yml`·`lint-build-test.yml`·`github-project-lifecycle.yml` 과 검사 스크립트 사본 `.github/ci-checks/`(remote 에서 PR 차단 지속 — PR 로 삭제). 프로젝트 자체 소유 hook/workflow 는 삭제 대상이 아니다. 재활성화는 core activation 재실행이다.
 
 ## 참조
 

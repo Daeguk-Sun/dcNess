@@ -404,6 +404,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 "doc-path-integrity.yml",
                 "doc-sync.yml",
                 "github-project-lifecycle.yml",
+                "lint-build-test.yml",
                 "pr-body-validation.yml",
             },
             workflows,

@@ -1235,11 +1235,18 @@ def ensure_generated_hooks(
     return messages
 
 
-def inspect_installation(project_root: Path) -> dict[str, Any]:
+def resolve_platform(project_root: Path) -> Optional[str]:
+    """Project-local contract platform first, then filesystem detection."""
     root = project_root.resolve()
     config = _read_json(root / CONFIG_REL)
     config_platform = config.get("platform") if isinstance(config.get("platform"), str) else None
-    platform = config_platform or detect_platform(root)
+    return config_platform or detect_platform(root)
+
+
+def inspect_installation(project_root: Path) -> dict[str, Any]:
+    root = project_root.resolve()
+    config = _read_json(root / CONFIG_REL)
+    platform = resolve_platform(root)
     registered_data = config.get("registered")
     registered: dict[str, Any] = registered_data if isinstance(registered_data, dict) else {}
     cc_hook = (root / CC_HOOK_REL).is_file()

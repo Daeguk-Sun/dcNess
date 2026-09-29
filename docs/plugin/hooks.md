@@ -378,6 +378,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 | `.github/workflows/pr-body-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | PR body issue trailer 검증 | 선택형 CI gate |
 | `.github/workflows/doc-path-integrity.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | repo-relative 경로 참조 실존 검증 | 선택형 CI gate |
 | `.github/workflows/doc-sync.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | index epic 표 drift 검증 + `/design` 산출물 구조 감사 | 선택형 CI gate |
+| `.github/workflows/lint-build-test.yml` | `pull_request` | PR 생성/동기화 | 판정된 플랫폼의 lint → 빌드 → 단위 테스트 | 선택형 CI gate |
 | `.github/workflows/github-project-lifecycle.yml` | `issues`, `pull_request closed` | issue 변경 또는 PR merge | issue/label drift 검출, merged PR `in-progress` label cleanup, 선택적 Project 미러 warning | 선택형 CI/CD |
 
 ### .github/workflows/git-naming-validation.yml
@@ -427,6 +428,16 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 **빈 환경**: `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 갓 시드된 프로젝트에서는 no-op PASS 한다.
 
 **차단**: workflow 실패. hard merge gate 여부는 사용자 repo 의 branch protection/ruleset 설정에 달려 있다.
+
+### .github/workflows/lint-build-test.yml
+
+**설치**: `/init-dcness` 의 선택형 CI workflow 질문에서 판정된 플랫폼에 template 이 있으면 추천 ON 으로 생성한다. 현재 template 은 Android 만 있으며, 플랫폼 미판정·template 없음·Android 모듈 구성 불일치면 설치를 건너뛰고 이유를 출력한다.
+
+**시점**: `main` 대상 PR 이 열리거나 동기화될 때.
+
+**역할**: 사용자 repo 의 빌드 도구로 lint → 빌드 → 단위 테스트를 실행한다. Android 기본 명령은 `./gradlew :app:lintDebug`, `:app:assembleDebug`, `:app:testDebugUnitTest` 이며 설치 후 수정할 수 있다. 결정 규칙은 [`init-dcness.md#lint-build-testyml`](init-dcness.md#lint-build-testyml) 가 SSOT 다.
+
+**차단**: 한 단계라도 실패하면 workflow 실패. hard merge gate 여부는 사용자 repo 의 branch protection/ruleset 설정에 달려 있다.
 
 ### .github/workflows/github-project-lifecycle.yml
 

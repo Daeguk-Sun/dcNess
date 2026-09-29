@@ -11,9 +11,9 @@ import shutil
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Sequence
+from typing import Optional, Sequence
 
-from harness.tdd_hooks import COPIED_CI_CHECKS_REL
+from harness.tdd_hooks import COPIED_CI_CHECKS_REL, resolve_platform
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_DIR = "templates/github-workflows"
@@ -47,12 +47,15 @@ _HARNESS_FORMAT_REASON = (
 
 @dataclass(frozen=True)
 class CheckSpec:
-    template: str
+    template: str = ""
     support_files: tuple[str, ...] = ()
     neutral_ok: bool = True
+    # platform -> template. 비어 있으면 단일 template 을 쓴다.
+    platform_templates: dict[str, str] = field(default_factory=dict)
 
     def template_sources(self) -> list[str]:
-        return [f"{TEMPLATE_DIR}/{self.template}"]
+        names = [self.template] if self.template else list(self.platform_templates.values())
+        return [f"{TEMPLATE_DIR}/{name}" for name in names]
 
 
 CHECKS: dict[str, CheckSpec] = {
@@ -82,6 +85,9 @@ CHECKS: dict[str, CheckSpec] = {
         ),
         neutral_ok=False,
     ),
+    "lint-build-test": CheckSpec(
+        platform_templates={"android": "lint-build-test/android.yml"},
+    ),
 }
 
 
@@ -89,6 +95,33 @@ CHECKS: dict[str, CheckSpec] = {
 class InstallResult:
     written: list[str] = field(default_factory=list)
     skipped: list[tuple[str, str]] = field(default_factory=list)
+
+
+def _android_skip_reason(root: Path) -> Optional[str]:
+    if not (root / "gradlew").is_file():
+        return "android: gradlew 없음 — Gradle wrapper 를 커밋한 뒤 재실행"
+    if not any((root / "app" / name).is_file() for name in ("build.gradle", "build.gradle.kts")):
+        return (
+            "android: app/build.gradle(.kts) 없음 — 기본 명령이 :app 모듈을 쓰므로 "
+            "모듈 이름에 맞게 template 을 고쳐 직접 설치"
+        )
+    return None
+
+
+def _lint_build_test_template(root: Path, platform: Optional[str]) -> tuple[Optional[str], str]:
+    spec = CHECKS["lint-build-test"]
+    resolved = platform or resolve_platform(root)
+    if not resolved:
+        return None, "플랫폼을 판정하지 못함 — --platform 으로 지정하거나 설치 후 직접 작성"
+    template = spec.platform_templates.get(resolved)
+    if template is None:
+        supported = ", ".join(sorted(spec.platform_templates))
+        return None, f"{resolved} 플랫폼 template 없음 (지원: {supported})"
+    if resolved == "android":
+        reason = _android_skip_reason(root)
+        if reason:
+            return None, reason
+    return template, ""
 
 
 def _copy(src: Path, dst: Path, *, executable: bool) -> None:
@@ -103,6 +136,7 @@ def install(
     checks: Sequence[str],
     *,
     neutral_naming: bool = False,
+    platform: Optional[str] = None,
     plugin_root: Path = PLUGIN_ROOT,
 ) -> InstallResult:
     unknown = [check for check in checks if check not in CHECKS]
@@ -116,8 +150,15 @@ def install(
         if neutral_naming and not spec.neutral_ok:
             result.skipped.append((check, _HARNESS_FORMAT_REASON))
             continue
+        template = spec.template
+        if spec.platform_templates:
+            platform_template, reason = _lint_build_test_template(root, platform)
+            if platform_template is None:
+                result.skipped.append((check, reason))
+                continue
+            template = platform_template
         target = f"{WORKFLOW_DIR}/{check}.yml"
-        _copy(plugin_root / TEMPLATE_DIR / spec.template, root / target, executable=False)
+        _copy(plugin_root / TEMPLATE_DIR / template, root / target, executable=False)
         result.written.append(target)
         for rel in spec.support_files:
             target = f"{INSTALL_ROOT}/{rel}"
@@ -134,6 +175,7 @@ def _cmd_install(args: argparse.Namespace) -> int:
             Path(args.project_root),
             checks,
             neutral_naming=args.neutral_naming,
+            platform=args.platform,
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
@@ -155,6 +197,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_install.add_argument("--project-root", required=True)
     p_install.add_argument("--checks", required=True, help="comma separated workflow names")
     p_install.add_argument("--neutral-naming", action="store_true")
+    p_install.add_argument("--platform", default=None)
     p_install.set_defaults(func=_cmd_install)
     args = parser.parse_args(argv)
     return args.func(args)

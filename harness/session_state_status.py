@@ -20,6 +20,7 @@ _CI_WORKFLOWS = (
     "doc-path-integrity.yml",
     "doc-sync.yml",
     "github-project-lifecycle.yml",
+    "lint-build-test.yml",
 )
 # 검사 본체를 dcNess 저장소 composite action 으로 원격 호출하던 구버전 workflow.
 _LEGACY_REMOTE_CI_RE = re.compile(r"uses:\s*\S+/dcNess/\.github/actions/", re.IGNORECASE)

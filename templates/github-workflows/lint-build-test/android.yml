@@ -1,0 +1,35 @@
+name: lint-build-test
+on:
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  lint-build-test:
+    name: lint, build, unit test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Setup JDK with Gradle cache
+        uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - name: Make Gradle wrapper executable
+        run: chmod +x ./gradlew
+
+      # 명령은 프로젝트 모듈 구성에 맞게 수정해도 된다.
+      - name: Lint
+        run: ./gradlew :app:lintDebug
+
+      - name: Build
+        run: ./gradlew :app:assembleDebug
+
+      - name: Unit test
+        run: ./gradlew :app:testDebugUnitTest
