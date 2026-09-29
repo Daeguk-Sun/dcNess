@@ -3,7 +3,7 @@
  * PR body 안 issue 트레일러 (`Closes #N` / `Fixes #N` / `Resolves #N` / `Part of #N`) 검증 게이트.
  * 규칙 정의: docs/plugin/git-spec.md 의 PR 트레일러 기본 룰 (SSOT)
  *
- * 본 프로젝트(및 dcness 활성 프로젝트) 는 regular merge 채택 (squash 금지).
+ * 이 규칙을 쓰는 프로젝트는 regular merge 채택 (squash 금지).
  * regular merge 시 GitHub auto-close 는 *PR body* 또는 *squash merge commit message* 만 인식.
  * 따라서 commit message 안 `Closes #N` 만으론 issue 자동 close 안 됨 — PR body 에 반드시 써야 함.
  *

@@ -37,7 +37,8 @@ class DocPathIntegrityTests(unittest.TestCase):
 
         self.assertIn("name: doc-path-integrity", workflow)
         self.assertIn("actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5", workflow)
-        self.assertIn("Daeguk-Sun/dcNess/.github/actions/doc-path-integrity@main", workflow)
+        self.assertNotIn("Daeguk-Sun", workflow)
+        self.assertIn(".github/ci-checks/scripts/check_doc_path_integrity.mjs", workflow)
         self.assertNotIn("paths:", workflow)
         self.assertIn("scripts/check_doc_path_integrity.mjs", action)
 
@@ -220,7 +221,8 @@ class DocPathIntegrityTests(unittest.TestCase):
             (root / "docs").mkdir()
             (root / "docs" / "index.md").write_text(
                 "Tech review: `docs/tech-review.md`\n"
-                "Volatile evidence: `.dcness-work/`\n",
+                "Volatile evidence: `.dcness-work/`\n"
+                "Report: `.dcness-work/reports/architecture-map.md`\n",
                 encoding="utf-8",
             )
 

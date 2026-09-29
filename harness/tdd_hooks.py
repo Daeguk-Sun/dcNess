@@ -35,6 +35,8 @@ EXCLUDED_SCAN_DIRS = {
     "dist",
     "build",
 }
+# /init-dcness 가 CI workflow 와 함께 복사하는 검사 스크립트. 프로젝트 소스가 아니다.
+COPIED_CI_CHECKS_REL = Path(".github/ci-checks")
 TEST_DIR_SEGMENTS = {
     "__tests__",
     "__test__",
@@ -336,6 +338,8 @@ def _iter_project_files(root: Path, suffixes: tuple[str, ...]) -> Iterable[Path]
     for path in root.rglob("*"):
         rel_parts = path.relative_to(root).parts
         if any(part in EXCLUDED_SCAN_DIRS for part in rel_parts):
+            continue
+        if rel_parts[: len(COPIED_CI_CHECKS_REL.parts)] == COPIED_CI_CHECKS_REL.parts:
             continue
         if path.is_file() and path.suffix in suffixes:
             yield path
@@ -1231,11 +1235,18 @@ def ensure_generated_hooks(
     return messages
 
 
-def inspect_installation(project_root: Path) -> dict[str, Any]:
+def resolve_platform(project_root: Path) -> Optional[str]:
+    """Project-local contract platform first, then filesystem detection."""
     root = project_root.resolve()
     config = _read_json(root / CONFIG_REL)
     config_platform = config.get("platform") if isinstance(config.get("platform"), str) else None
-    platform = config_platform or detect_platform(root)
+    return config_platform or detect_platform(root)
+
+
+def inspect_installation(project_root: Path) -> dict[str, Any]:
+    root = project_root.resolve()
+    config = _read_json(root / CONFIG_REL)
+    platform = resolve_platform(root)
     registered_data = config.get("registered")
     registered: dict[str, Any] = registered_data if isinstance(registered_data, dict) else {}
     cc_hook = (root / CC_HOOK_REL).is_file()

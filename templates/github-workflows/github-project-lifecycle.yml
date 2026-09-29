@@ -8,29 +8,56 @@ permissions:
   contents: read
   issues: write
   pull-requests: read
+env:
+  PROJECT_OWNER: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
+  PROJECT_NUMBER: ${{ vars.DCNESS_PROJECT_NUMBER }}
+  GH_TOKEN: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
 jobs:
   issue-drift:
     if: ${{ github.event_name == 'issues' }}
     runs-on: ubuntu-latest
     steps:
-      - uses: Daeguk-Sun/dcNess/.github/actions/github-project-lifecycle@main
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
-          mode: validate-issue
-          repo: ${{ github.repository }}
-          project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
-          project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
-          issue-number: ${{ github.event.issue.number }}
-          gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+
+      - name: Validate issue lifecycle
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          set -euo pipefail
+          ARGS=(validate-issue --repo "$GITHUB_REPOSITORY" --issue "$ISSUE_NUMBER")
+          if [ -n "$PROJECT_OWNER" ]; then ARGS+=(--owner "$PROJECT_OWNER"); fi
+          if [ -n "$PROJECT_NUMBER" ]; then ARGS+=(--project "$PROJECT_NUMBER"); fi
+          node .github/ci-checks/scripts/github_project_lifecycle.mjs "${ARGS[@]}"
+
   pr-merged:
     if: ${{ github.event_name == 'pull_request' && github.event.pull_request.merged == true }}
     runs-on: ubuntu-latest
     steps:
-      - uses: Daeguk-Sun/dcNess/.github/actions/github-project-lifecycle@main
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
-          mode: pr-merged
-          repo: ${{ github.repository }}
-          project-owner: ${{ vars.DCNESS_PROJECT_OWNER || github.repository_owner }}
-          project-number: ${{ vars.DCNESS_PROJECT_NUMBER }}
-          pr-body: ${{ github.event.pull_request.body }}
-          apply: "true"
-          gh-token: ${{ secrets.DCNESS_PROJECT_TOKEN || github.token }}
+          ref: ${{ github.event.pull_request.base.ref }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+
+      - name: Clean up merged PR lifecycle
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          ARGS=(pr-merged --repo "$GITHUB_REPOSITORY" --body-env PR_BODY --apply)
+          if [ -n "$PROJECT_OWNER" ]; then ARGS+=(--owner "$PROJECT_OWNER"); fi
+          if [ -n "$PROJECT_NUMBER" ]; then ARGS+=(--project "$PROJECT_NUMBER"); fi
+          node .github/ci-checks/scripts/github_project_lifecycle.mjs "${ARGS[@]}"

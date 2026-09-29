@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess  # nosec B404
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -19,7 +20,10 @@ _CI_WORKFLOWS = (
     "doc-path-integrity.yml",
     "doc-sync.yml",
     "github-project-lifecycle.yml",
+    "lint-build-test.yml",
 )
+# 검사 본체를 dcNess 저장소 composite action 으로 원격 호출하던 구버전 workflow.
+_LEGACY_REMOTE_CI_RE = re.compile(r"uses:\s*\S+/dcNess/\.github/actions/", re.IGNORECASE)
 _CODEX_VALIDATOR_SKILLS = (
     "dcness-impl-validator",
     "dcness-architecture-validator",
@@ -145,6 +149,20 @@ def _check_ci_workflows(project_root: Path) -> Dict[str, bool]:
     """선택형 CI workflow yml 존재 여부 (선택이라 부재해도 FAIL 아님)."""
     wf_dir = project_root / ".github" / "workflows"
     return {name: (wf_dir / name).exists() for name in _CI_WORKFLOWS}
+
+
+def _legacy_remote_ci_workflows(project_root: Path) -> list[str]:
+    """외부 저장소 action 을 원격 호출하는 구버전 workflow 목록."""
+    wf_dir = project_root / ".github" / "workflows"
+    legacy = []
+    for name in _CI_WORKFLOWS:
+        try:
+            text = (wf_dir / name).read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if _LEGACY_REMOTE_CI_RE.search(text):
+            legacy.append(name)
+    return legacy
 
 
 def _check_codex_validator_skills(plugin_root: Path, codex_home: Path) -> Dict[str, str]:
@@ -340,12 +358,22 @@ def collect_status_diagnostics(
         # 선택형 CI workflow (선택 — INFO)
         ci = _check_ci_workflows(project_root)
         installed = [k for k, present in ci.items() if present]
-        add(
-            "ci_workflows",
-            "선택형 CI workflow",
-            "INFO",
-            f"설치됨: {', '.join(installed)}" if installed else "없음 (선택 사항)",
-        )
+        legacy = _legacy_remote_ci_workflows(project_root)
+        if legacy:
+            add(
+                "ci_workflows",
+                "선택형 CI workflow",
+                "WARN",
+                f"외부 저장소 action 원격 호출 구버전: {', '.join(legacy)}",
+                "/init-dcness 재실행 — workflow 와 검사 스크립트를 사용자 repo 에 복사하는 방식으로 전환",
+            )
+        else:
+            add(
+                "ci_workflows",
+                "선택형 CI workflow",
+                "INFO",
+                f"설치됨: {', '.join(installed)}" if installed else "없음 (선택 사항)",
+            )
         try:
             from harness.tdd_hooks import inspect_installation
 

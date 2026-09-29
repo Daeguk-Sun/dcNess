@@ -404,6 +404,7 @@ class SurfaceDocsSyncTests(unittest.TestCase):
                 "doc-path-integrity.yml",
                 "doc-sync.yml",
                 "github-project-lifecycle.yml",
+                "lint-build-test.yml",
                 "pr-body-validation.yml",
             },
             workflows,
@@ -760,7 +761,8 @@ class SurfaceDocsSyncTests(unittest.TestCase):
             self.assertIn(workflow, self.init_reference)
             template = ROOT / "templates" / "github-workflows" / workflow
             self.assertTrue(template.exists(), template)
-            self.assertIn(f"templates/github-workflows/{workflow}", self.init_doc)
+            # runbook 은 설치기에 workflow 이름만 넘기고, template 경로는 reference 가 소유한다.
+            self.assertIn(workflow.removesuffix(".yml"), self.init_doc)
             self.assertIn(f"templates/github-workflows/{workflow}", self.init_reference)
 
             workflow_name = workflow.removesuffix(".yml")

@@ -16,6 +16,8 @@
 # - scripts/check_design_artifact_structure.mjs 변경 시
 #   (test_design_artifact_audit 게이트 회귀 차단)
 # - scripts/dcness-story-runner 변경 시 (story runner CLI 계약 회귀 차단)
+# - scripts/dcness-ci-workflows 와 그 설치기가 사용자 repo 로 복사하는 검사 스크립트 변경 시
+#   (test_ci_workflows_install 복사 설치·중립 명명 회귀 차단)
 # - docs/plugin/loop-procedure.md 변경 시 (test_loop_procedure_base_ref base-ref 회귀 차단)
 # - paths 필터로 docs-only PR 에서 불필요 실행 회피
 # - DCN-CHG-20260501-06: branch protection 폐기 후 paths 필터 복구
@@ -43,6 +45,12 @@ on:
       - 'scripts/check_design_artifact_structure.mjs'
       - 'scripts/design/**'
       - 'scripts/dcness-story-runner'
+      - 'scripts/dcness-ci-workflows'
+      - 'scripts/check_pr_body.mjs'
+      - 'scripts/aggregate_index_map.mjs'
+      - 'scripts/lib/**'
+      - 'scripts/github_project_lifecycle.mjs'
+      - 'scripts/check_issue_body.mjs'
       - '.github/actions/doc-path-integrity/**'
       - '.github/actions/doc-sync/**'
       - 'docs/plugin/git-spec.md'
@@ -65,6 +73,12 @@ on:
       - 'scripts/check_design_artifact_structure.mjs'
       - 'scripts/design/**'
       - 'scripts/dcness-story-runner'
+      - 'scripts/dcness-ci-workflows'
+      - 'scripts/check_pr_body.mjs'
+      - 'scripts/aggregate_index_map.mjs'
+      - 'scripts/lib/**'
+      - 'scripts/github_project_lifecycle.mjs'
+      - 'scripts/check_issue_body.mjs'
       - '.github/actions/doc-path-integrity/**'
       - '.github/actions/doc-sync/**'
       - 'docs/plugin/git-spec.md'

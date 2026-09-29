@@ -12,7 +12,9 @@ seed와 workflow snippet을 고칠 때의 컴퍼스이며, 그 자체가 외부 
 ## 먼저 볼 파일
 
 - [github-workflows/](github-workflows/): git naming, PR body, doc path, doc sync, GitHub Project
-  lifecycle workflow snippets.
+  lifecycle workflow snippets와 플랫폼별 lint-build-test(`lint-build-test/<platform>.yml`).
+  설치는 [../harness/ci_workflows.py](../harness/ci_workflows.py)가 workflow가 실행하는 검사 스크립트와
+  함께 사용자 repo의 `.github/ci-checks/`로 복사한다.
 - [design-variants/boards/screen-states.html](../templates/design-variants/boards/screen-states.html): generated screen-state board seed.
 - [design-variants/_lib/canvas.js](../templates/design-variants/_lib/canvas.js)와
   [design-variants/_lib/](../templates/design-variants/_lib/): board engine helper.
@@ -35,7 +37,7 @@ seed와 workflow snippet을 고칠 때의 컴퍼스이며, 그 자체가 외부 
 
 ## 검증
 
-- workflow template 변경: `python3.11 -m unittest tests.test_doc_path_integrity tests.test_index_map_aggregate -v < /dev/null`.
+- workflow template 변경: `python3.11 -m unittest tests.test_ci_workflows_install tests.test_doc_path_integrity tests.test_index_map_aggregate -v < /dev/null`.
 - design variant 변경: `python3.11 -m unittest tests.test_canvas_design_workflow -v < /dev/null`.
 - 문서/링크 영향: `node scripts/check_cross_refs.mjs`.
 - 범위가 섞이면 전체 suite `python3.11 -m unittest discover -s tests -v < /dev/null`를 돌린다.
