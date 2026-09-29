@@ -62,6 +62,8 @@ depends_on:             # [<NN-slug>, ...] 선행 의존 그래프의 단일 SSO
 ### 수정 허용
 
 > 기본값은 owner module directory grant 다. **한 bullet = 정확히 하나의 repo-relative 파일 경로 또는 끝 `/` 디렉토리**이고, 모듈 작업은 `src/<owner-module>/` 처럼 owner module directory 를 끝 `/` 로 연다. 그 디렉토리 안의 신규 파일은 구현자 재량이다. 같은 owner directory 를 여러 task 가 나눠 병렬/분할 구현할 때만 file-level path 로 좁힌다. 테스트 grant 는 test root 전체(예: `app/src/test/java/<root-package>/`)가 아니라 owner module 에 대응하는 하위 디렉토리(예: `app/src/test/java/<root-package>/<owner-module>/`)로 좁힌다. 대응 하위 경로를 특정할 수 없는 공통 기반 task 만 넓은 테스트 grant 를 허용하고 `# 사유: ...`처럼 사유를 주석으로 남긴다. 부가 설명은 `# 주석` 또는 blockquote 로 적는다.
+>
+> 수용 기준에 `(JOURNEY)` 가 있으면 journey 쓰기 경로(build-worker 가 만들거나 고치는 flow 대본, `--config` 로 넘길 매니페스트, setup/teardown·상태전이 스크립트, 프로젝트가 요구하는 여정 등록 파일)도 모두 이 목록에 넣는다. 파일 grant 든 끝 `/` 디렉토리 grant 든 된다. `harness_paths` 는 리뷰 handoff 목록이라 write 권한을 열지 않으므로, 여기 없는 journey 쓰기 경로는 build-worker 구현 도중 boundary guard 가 차단한다.
 
 - `src/<owner-module>/`
 
@@ -94,7 +96,7 @@ depends_on:             # [<NN-slug>, ...] 선행 의존 그래프의 단일 SSO
 | REQ-003 | Story AC | 로그인→홈 진입 | `(from AC-003)` | `(JOURNEY) <flow/매니페스트 경로>` | receipt outcome=PASS, app_started·journey_executed·assertion.passed=true, 대상 AC 전부 덮음, UI 경계면 `ux_integrity` 판정 요소가 `within_safe_area=true`·`occluded_by` 없음 |
 | REQ-TECH-001 | 기술 REQ |  | `(technical: <Story AC로 환원 불가한 이유>)` | `(TEST) <command>` |  |
 
-> `(JOURNEY)`는 실제 앱/디바이스를 띄워야 하는 자동화 검증이다. 각 `(JOURNEY)` REQ는 project-local 매니페스트에 materialize할 `acceptance_environment`(`automation: automated | human_verification`, worker 실행 컨텍스트의 `requirements[].probe`, 선택 `prepare`)와 flow/seed/runner/manifest/env adapter의 `harness_paths`를 이 표의 검증 명령 또는 통과 조건에서 경로와 함께 선언한다. UI 경계 `(JOURNEY)`는 요소가 보인다는 조건만으로 통과 조건을 쓰지 않고, 판정 근거가 될 화면 요소와 그 요소가 시스템 chrome·상위 레이어에 가리지 않아야 한다는 UX 정합성 조건(`ux_integrity`)을 함께 선언한다. 위 `디자인 참조` 절에 확정 목업이 있으면 핵심 `data-node-id` 를 그 판정 요소로 지목해 목업 기준과 journey 판정을 잇는다. task 구현 호출은 flow·매니페스트를 작성하고, 모든 task 뒤 fresh build-worker 수렴 호출이 tip에서 실행·관찰·수정하며, product-acceptance는 별도 sealed 실행으로 판정한다. 사람 눈이 반드시 필요한 항목은 가짜 journey로 만들지 않고 `automation: human_verification`과 기존 REQ 밖 `사람 확인 안내`로 분리한다.
+> `(JOURNEY)`는 실제 앱/디바이스를 띄워야 하는 자동화 검증이다. 각 `(JOURNEY)` REQ는 project-local 매니페스트에 materialize할 `acceptance_environment`(`automation: automated | human_verification`, worker 실행 컨텍스트의 `requirements[].probe`, 선택 `prepare`)와 flow/seed/runner/manifest/env adapter의 `harness_paths`를 이 표의 검증 명령 또는 통과 조건에서 경로와 함께 선언한다. 이 중 build-worker 가 쓰는 journey 쓰기 경로는 위 `### 수정 허용` 에도 넣는다. UI 경계 `(JOURNEY)`는 요소가 보인다는 조건만으로 통과 조건을 쓰지 않고, 판정 근거가 될 화면 요소와 그 요소가 시스템 chrome·상위 레이어에 가리지 않아야 한다는 UX 정합성 조건(`ux_integrity`)을 함께 선언한다. 위 `디자인 참조` 절에 확정 목업이 있으면 핵심 `data-node-id` 를 그 판정 요소로 지목해 목업 기준과 journey 판정을 잇는다. task 구현 호출은 flow·매니페스트를 작성하고, 모든 task 뒤 fresh build-worker 수렴 호출이 tip에서 실행·관찰·수정하며, product-acceptance는 별도 sealed 실행으로 판정한다. 사람 눈이 반드시 필요한 항목은 가짜 journey로 만들지 않고 `automation: human_verification`과 기존 REQ 밖 `사람 확인 안내`로 분리한다.
 >
 > negative 동작 계약은 대응하는 양성 프록시 event를 REQ 통과 조건에 명시한다. 양성 프록시가 없거나 관찰 창이 sub-second인 상태, 순수 위치·픽셀 판정은 flaky한 `(JOURNEY)`로 만들지 않고 `사람 확인 안내`로 분리한다.
 

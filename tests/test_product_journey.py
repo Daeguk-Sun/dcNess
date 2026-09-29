@@ -1430,6 +1430,25 @@ class ProductJourneyContractDocumentTests(unittest.TestCase):
             self.assertIn("ux_integrity", consumer)
         self.assertIn("data-node-id", impl_task)
 
+    def test_journey_write_paths_are_granted_by_task_scope(self) -> None:
+        """#1240 — journey 파일은 `### 수정 허용` 이 열어야 mutation-time guard 를 통과한다."""
+        docs = {
+            name: (ROOT / path).read_text(encoding="utf-8")
+            for name, path in {
+                "impl-task": "docs/plugin/agents/module-architect/templates/impl-task.md",
+                "module-architect": "docs/plugin/agents/module-architect/module-architect-agent.md",
+                "architecture-validator": "docs/plugin/agents/architecture-validator/architecture-validator-agent.md",
+                "codex-architecture-validator": "codex/skills/dcness-architecture-validator/SKILL.md",
+                "build-worker": "docs/plugin/agents/build-worker/build-worker-agent.md",
+            }.items()
+        }
+        for name, text in docs.items():
+            with self.subTest(doc=name):
+                self.assertIn("journey 쓰기 경로", text)
+                self.assertIn("### 수정 허용", text)
+        self.assertIn("--config", docs["impl-task"])
+        self.assertIn("SPEC_GAP_FOUND", docs["build-worker"].split("### `JOURNEY_CONVERGENCE`")[0].split("### `JOURNEY_ENV_PREFLIGHT`")[1])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -98,6 +98,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 - 확정 목업이 있는 UI epic 은 epic architecture 또는 impl task 의 `## 디자인 참조` 에 확정 목업 경로, 핵심 디자인 토큰(색/spacing/typography), node-id 매핑, docs/design.md 토큰 대조 근거가 있고, 목업 미참조 설계 금지 원칙을 어기지 않는다.
 - cross-task contract가 있으면 module responsibility 한 줄과 decision 문서에 의미가 있고 impl 문서는 module/decision 참조만 가리킨다.
 - 수용 기준의 검증은 실행 가능한 명령, `(AGENT READ)` 관찰 증거, 또는 도구 중립 `(JOURNEY)` flow이며, 자동 journey에는 worker 실행 컨텍스트 기준 `acceptance_environment`와 `harness_paths`가 있고 사람 판정 항목은 REQ 에 섞이지 않는다. negative 동작의 양성 프록시와 sub-second·순수 시각 판정의 사람 확인 분기도 명시된다.
+- `(JOURNEY)` task 는 journey 쓰기 경로(flow 대본, `--config` 매니페스트, setup/teardown 스크립트, 여정 등록 파일)가 모두 `### 수정 허용` 안에 있다. `harness_paths` 에만 있으면 build-worker 구현 도중 boundary guard 에 막힌다.
 - `주의사항` 의 모듈 설계 주의 또는 동등한 문구로 모듈 설계 원칙 적용 증거가 남는다.
 - owner/entrypoint 요약 또는 동등한 문구로 다음 agent 의 edit target, state owner, produced/consumed transition, validation path 증거가 남는다.
 - system checkpoint 가 필요하면 impl 산출물을 확정하지 않고 어떤 기존 모듈 경계·도메인 invariant·storage policy·public API boundary·기존 전역 decision 이 바뀌어야 하는지 근거를 남긴다.
