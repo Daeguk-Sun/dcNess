@@ -1019,10 +1019,6 @@ def handle_subagent_start(
         )
         _emit_hook_context("SubagentStart", context)
         return 0
-    if pending.get("background"):
-        _emit_hook_context("SubagentStart", context)
-        return 0
-
     mode = _mode_or_none(pending.get("mode"))
     tool_use_id = pending.get("tool_use_id") or ""
     try:
@@ -1106,16 +1102,19 @@ def handle_posttooluse_agent(
     diagnostics: list[str] = []
 
     if status == "async_launched":
+        # #1227 — Claude Code launches Agents asynchronously even without
+        # run_in_background. The launch is not a result: keep the step and pending
+        # identity open so SubagentStop records the final message.
         if isinstance(pending, dict):
-            _abort_agent_step(
-                sid,
-                rid,
-                pending,
-                category="async_launched",
-                detail="background launch is not a completed foreground result",
-                base_dir=base_dir,
+            agent = normalize_agent_type(pending.get("sub_type") or "") or ""
+            _emit_hook_context(
+                "PostToolUse",
+                [
+                    f"[lifecycle] {agent} 비동기 실행 — 종료 시 SubagentStop이 "
+                    "최종 응답으로 receipt를 자동 기록합니다. 별도 end-step 호출은 "
+                    "필요하지 않습니다."
+                ],
             )
-        _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
         return 0
 
     if status != "completed":
@@ -1145,6 +1144,34 @@ def handle_posttooluse_agent(
         _emit_hook_context("PostToolUse", diagnostics)
         return 0
 
+    raw_response = stdin_data.get("tool_response")
+    try:
+        prose_text = _extract_prose_text(raw_response)
+    except Exception as exc:  # noqa: BLE001
+        prose_text = ""
+        diagnostics.append(f"prose 추출 예외: {type(exc).__name__}: {exc}")
+    diagnostics.extend(
+        _finish_agent_step(sid, rid, pending, prose_text, base_dir=base_dir)
+    )
+    _emit_hook_context("PostToolUse", diagnostics)
+    return 0
+
+
+def _finish_agent_step(
+    sid: str,
+    rid: str,
+    pending: Dict[str, Any],
+    prose_text: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> list[str]:
+    """Close a spawned Agent step from its final prose.
+
+    PostToolUse(completed) and SubagentStop both land here, so a foreground result
+    and an asynchronous launch that finishes later share the identity check and
+    receipt shape (#1227). Returns the lines to surface to the main agent.
+    """
+    tool_use_id = pending.get("tool_use_id") or ""
     agent = normalize_agent_type(pending.get("sub_type") or "") or ""
     mode = _mode_or_none(pending.get("mode"))
     agent_id = pending.get("agent_id") or ""
@@ -1162,17 +1189,9 @@ def handle_posttooluse_agent(
         if actual != expected:
             raise ValueError(f"identity mismatch expected={expected!r} current={actual!r}")
     except (OSError, ValueError) as exc:
-        diagnostics.append(f"[lifecycle 복구] {exc}; receipt append를 거부했습니다.")
         _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
-        _emit_hook_context("PostToolUse", diagnostics)
-        return 0
+        return [f"[lifecycle 복구] {exc}; receipt append를 거부했습니다."]
 
-    raw_response = stdin_data.get("tool_response")
-    try:
-        prose_text = _extract_prose_text(raw_response)
-    except Exception as exc:  # noqa: BLE001
-        prose_text = ""
-        diagnostics.append(f"prose 추출 예외: {type(exc).__name__}: {exc}")
     if not prose_text.strip():
         _abort_agent_step(
             sid,
@@ -1184,12 +1203,10 @@ def handle_posttooluse_agent(
         )
         _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
         _clear_active_agent_if_matches(sid, agent, base_dir=base_dir)
-        diagnostics.append(
+        return [
             "[lifecycle 복구] completed Agent 응답의 prose가 비어 step_aborted로 "
             "종료했고 step_completed는 기록하지 않았습니다."
-        )
-        _emit_hook_context("PostToolUse", diagnostics)
-        return 0
+        ]
 
     try:
         from harness.signal_io import write_prose
@@ -1226,23 +1243,17 @@ def handle_posttooluse_agent(
             base_dir=base_dir,
         )
     except Exception as exc:  # noqa: BLE001
-        diagnostics.append(
+        return [
             "[lifecycle 복구] prose/receipt 기록 실패 — "
             f"{type(exc).__name__}: {exc}"
-        )
-        _emit_hook_context("PostToolUse", diagnostics)
-        return 0
+        ]
 
     _clear_pending_exact(sid, rid, tool_use_id, base_dir=base_dir)
     _clear_active_agent_if_matches(sid, agent, base_dir=base_dir)
-    _emit_hook_context(
-        "PostToolUse",
-        [
-            f"[lifecycle] {agent}{':' + mode if mode else ''} foreground step이 "
-            "자동 기록되었습니다. 별도 end-step 호출은 필요하지 않습니다."
-        ],
-    )
-    return 0
+    return [
+        f"[lifecycle] {agent}{':' + mode if mode else ''} step이 "
+        "자동 기록되었습니다. 별도 end-step 호출은 필요하지 않습니다."
+    ]
 
 
 def handle_posttooluse_failure_agent(
@@ -1296,8 +1307,55 @@ def handle_posttooluse_failure_agent(
     return 0
 
 
+def _pending_agent_for_agent_id(
+    sid: str,
+    rid: str,
+    agent_id: str,
+    *,
+    base_dir: Optional[Path] = None,
+) -> Optional[Dict[str, Any]]:
+    try:
+        live = read_live(sid, base_dir=base_dir) or {}
+        slot = live.get("active_runs", {}).get(rid, {})
+        pending = slot.get("pending_agents", {}) if isinstance(slot, dict) else {}
+        for record in pending.values() if isinstance(pending, dict) else ():
+            if isinstance(record, dict) and record.get("agent_id") == agent_id:
+                return dict(record)
+    except Exception:  # noqa: BLE001 # nosec B110
+        pass
+    return None
+
+
+def _record_subagent_stop(
+    stdin_data: Dict[str, Any],
+    sid: str,
+    cc_pid: Optional[int],
+    *,
+    base_dir: Optional[Path] = None,
+) -> None:
+    """Record the spawned step from SubagentStop's final message (#1227).
+
+    Asynchronous Agent launches never reach PostToolUse(completed), so this is
+    their only completion point. Without ``last_assistant_message`` the step is
+    left for PostToolUse rather than guessed.
+    """
+    agent_id = stdin_data.get("agent_id") or ""
+    final_message = stdin_data.get("last_assistant_message")
+    if not agent_id or not isinstance(final_message, str):
+        return
+    rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
+    if not rid:
+        return
+    pending = _pending_agent_for_agent_id(sid, rid, agent_id, base_dir=base_dir)
+    if pending is None:
+        return
+    for line in _finish_agent_step(sid, rid, pending, final_message, base_dir=base_dir):
+        print(line, file=sys.stderr)
+
+
 def handle_subagent_stop(
     stdin_data: Optional[Dict[str, Any]] = None,
+    cc_pid: Optional[int] = None,
     *,
     base_dir: Optional[Path] = None,
 ) -> int:
@@ -1327,6 +1385,8 @@ def handle_subagent_stop(
     sid = _extract_sid(stdin_data)
     if not valid_session_id(sid):
         return 0
+
+    _record_subagent_stop(stdin_data, sid, cc_pid, base_dir=base_dir)
 
     # issue #598 — namespaced(`dcness:build-worker`) 정규화 후 match-guard 비교.
     agent_type = normalize_agent_type(stdin_data.get("agent_type", "") or "") or ""
@@ -2063,7 +2123,7 @@ def _main(argv: Optional[list] = None) -> int:
         elif args.cmd == "stop":
             rc = handle_stop()
         elif args.cmd == "subagent-stop":
-            rc = handle_subagent_stop()
+            rc = handle_subagent_stop(cc_pid=args.cc_pid)
         else:
             rc = 0
     except Exception as exc:  # noqa: BLE001 — hook 버그가 도구 호출을 과차단하지 않게 fail-open
