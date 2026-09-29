@@ -630,6 +630,7 @@ class CodexWorkerWrapperTests(unittest.TestCase):
         network_access: str | None = None,
         writable_roots: list[str] | None = None,
         project_kind: str = "plain",
+        gradle_opts: str | None = None,
     ) -> tuple[subprocess.CompletedProcess[str], list[str], str]:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
@@ -675,6 +676,7 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                       exit 0
                     fi
                     printf '%s\\n' "$@" > "$ARGS_CAPTURE"
+                    printf '%s' "${GRADLE_OPTS-}" > "$ARGS_CAPTURE.gradle-opts"
                     out=""
                     while [ "$#" -gt 0 ]; do
                       case "$1" in
@@ -737,6 +739,9 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 env["DCNESS_CODEX_NETWORK_ACCESS"] = network_access
             if writable_roots is not None:
                 env["DCNESS_CODEX_WRITABLE_ROOTS"] = os.pathsep.join(writable_roots)
+            env.pop("GRADLE_OPTS", None)
+            if gradle_opts is not None:
+                env["GRADLE_OPTS"] = gradle_opts
 
             result = subprocess.run(
                 [
@@ -759,6 +764,12 @@ class CodexWorkerWrapperTests(unittest.TestCase):
                 if args_capture.exists()
                 else []
             )
+            gradle_capture = Path(f"{args_capture}.gradle-opts")
+            self.last_gradle_opts = (
+                gradle_capture.read_text(encoding="utf-8")
+                if gradle_capture.exists()
+                else None
+            )
             return result, args, str(project)
 
     def _capture_worker_args(
@@ -775,6 +786,17 @@ class CodexWorkerWrapperTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         return args, project
+
+    def test_worker_disables_gradle_daemon_inside_codex_sandbox(self) -> None:
+        """#1226 — sandbox 안에서 뜬 Gradle 데몬이 worker 뒤까지 남아 호스트 빌드를 막지 않는다."""
+        for existing, expected in (
+            (None, "-Dorg.gradle.daemon=false"),
+            ("-Xmx2g", "-Xmx2g -Dorg.gradle.daemon=false"),
+        ):
+            with self.subTest(existing=existing):
+                result, _, _ = self._run_worker_for_args(gradle_opts=existing)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(self.last_gradle_opts, expected)
 
     def test_worker_default_sandbox_adds_canonical_run_and_git_writable_roots(
         self,
