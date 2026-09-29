@@ -67,6 +67,33 @@ class SessionCliLifecycleContractTests(unittest.TestCase):
         source.write_text(prose, encoding="utf-8")
         return source
 
+    def test_acceptance_required_marked_is_idempotent_and_impl_only(self) -> None:
+        """#1240 — chain 이 재사용한 run 에 검수 표시를 한 번만 올린다."""
+        self.assertIs(
+            session_state.transition(self.sid, "acceptance_required_marked", run_id=self.rid),
+            True,
+        )
+        self.assertIs(
+            session_state.transition(self.sid, "acceptance_required_marked", run_id=self.rid),
+            False,
+        )
+        slot = session_state.read_live(self.sid)["active_runs"][self.rid]
+        self.assertIs(slot["acceptance_required"], True)
+        marked = [
+            event
+            for event in ledger.read_events(self.sid, self.rid)
+            if event["event"] == "acceptance_required_marked"
+        ]
+        self.assertEqual(len(marked), 1)
+        self.assertNotIn("acceptance_required_marked", ledger.MANUAL_EVENT_TYPES)
+
+        design_rid = "run-d1d2d3d4"
+        session_state.transition(
+            self.sid, "run_started", run_id=design_rid, entry_point="design", stage="design-ux"
+        )
+        with self.assertRaises(ValueError):
+            session_state.transition(self.sid, "acceptance_required_marked", run_id=design_rid)
+
     def test_end_step_logs_prose_receipt_and_rejects_missing_input(self) -> None:
         source = self._complete("impl-validator", "검증 완료\n\nPASS\n")
         stdout = StringIO()

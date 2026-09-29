@@ -567,6 +567,7 @@ _RUN_TRANSITIONS = {
     "run_finalized",
     "run_completed",
     "ledger_checkpoint",
+    "acceptance_required_marked",
 }
 _STEP_TRANSITIONS = {"step_started", "step_aborted", "step_completed"}
 _RUNTIME_TRANSITIONS = {
@@ -713,6 +714,21 @@ def _apply_run_transition(
         active[run_id] = slot
         _append_ledger_record(session_id, run_id, "blocked", base_dir=base_dir, **data)
         return marker, True
+    if action == "acceptance_required_marked":
+        # 다른 진입점이 먼저 연 같은 task run 을 story chain 이 이어 쓸 때,
+        # 마감 게이트가 보는 검수 표시를 chain 계약에 맞춘다.
+        slot = _active_slot(active, run_id)
+        if slot.get("entry_point") != "impl":
+            raise ValueError("acceptance_required is only valid for entry_point=impl")
+        if slot.get("acceptance_required") is True:
+            return False, False
+        slot["acceptance_required"] = True
+        slot["last_confirmed_at"] = _now_iso()
+        active[run_id] = slot
+        _append_ledger_record(
+            session_id, run_id, "acceptance_required_marked", base_dir=base_dir, **data
+        )
+        return True, True
     if action == "run_finalized":
         slot = _active_slot(active, run_id)
         slot["finalized_at"] = _now_iso()

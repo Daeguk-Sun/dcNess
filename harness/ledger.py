@@ -75,12 +75,20 @@ EVENT_TYPES = frozenset(
         "task_completed",
         "blocked",
         "run_finished",
+        "acceptance_required_marked",
     }
 )
 
 # helper-owned lifecycle events are never accepted by the manual checkpoint CLI.
 LIFECYCLE_EVENT_TYPES = frozenset(
-    {"run_started", "step_started", "step_aborted", "step_completed", "run_finished"}
+    {
+        "run_started",
+        "step_started",
+        "step_aborted",
+        "step_completed",
+        "run_finished",
+        "acceptance_required_marked",
+    }
 )
 
 # `ledger-event` CLI 가 허용하는 *수동* checkpoint event (이슈 #587 codex review).

@@ -435,6 +435,53 @@ class ImplLoopLaunchTests(unittest.TestCase):
                 [False, True],
             )
 
+    def test_reused_direct_impl_run_gets_story_acceptance_requirement(self) -> None:
+        """#1240 — /impl 로 먼저 연 같은 task 의 run 을 chain 이 이어 쓰면 검수 표시도 맞춘다."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            primary, worktree = self._fixture(base)
+            env = os.environ.copy()
+            env.update({"DCNESS_FORCE_ENABLE": "1", "DCNESS_SESSION_ID": "sid-fast-launch"})
+            direct = subprocess.run(
+                [
+                    str(ROOT / "scripts" / "dcness-helper"),
+                    "begin-run",
+                    "impl",
+                    "--design-doc",
+                    "docs/epics/epic-1/impl/01-fast.md",
+                ],
+                cwd=worktree,
+                capture_output=True,
+                env=env,
+                text=True,
+            )
+            self.assertEqual(direct.returncode, 0, direct.stderr)
+
+            result = self._launch(primary=primary, project=worktree, base=base)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            session = primary / ".claude" / "harness-state" / ".sessions" / "sid-fast-launch"
+            run_dirs = list((session / "runs").glob("run-*"))
+            self.assertEqual(len(run_dirs), 1, "chain must reuse the direct run")
+            events = [
+                json.loads(line)
+                for line in (run_dirs[0] / "ledger.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ]
+            self.assertNotIn("acceptance_required", events[0])
+            marked = [e for e in events if e["event"] == "acceptance_required_marked"]
+            self.assertEqual(len(marked), 1, [e["event"] for e in events])
+            self.assertLess(
+                [e["event"] for e in events].index("acceptance_required_marked"),
+                [e["event"] for e in events].index("step_started"),
+            )
+            from harness.session_state import read_live
+
+            live = read_live("sid-fast-launch", base_dir=primary / ".claude" / "harness-state")
+            slot = live["active_runs"][run_dirs[0].name]
+            self.assertIs(slot["acceptance_required"], True)
+
     def test_missing_canonical_phase_prose_recovers_without_duplicate_step(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             base = Path(td)
