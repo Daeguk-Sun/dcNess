@@ -251,7 +251,7 @@ receipt에 적힌 판정값은 근거를 대신하지 않는다. scorecard가 re
   --config app/.maestro/dcness-journey.json
 ```
 
-성공은 exit 0, 실행된 제품 gap은 exit 1, 잘못된 계약은 exit 2다. 각 run은 `evidence_dir/<run-id>/`에 단계별 log와 `receipt.json`을 남긴다. receipt는 다음 의미를 포함한다.
+성공은 exit 0, 실행된 제품 gap은 exit 1, 잘못된 계약은 exit 2다. 여정을 실행하지 않고 매니페스트 계약만 확인하려면 같은 인자로 `validate` 를 쓴다(통과 exit 0, 계약 위반 exit 2, 명령 실행·evidence 기록 없음). 각 run은 `evidence_dir/<run-id>/`에 단계별 log와 `receipt.json`을 남긴다. receipt는 다음 의미를 포함한다.
 
 - 실제 시작 여부 `app_started`, journey 실행 여부 `journey_executed`.
 - assertion의 설명·근거·평가 여부·결과.

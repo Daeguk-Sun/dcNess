@@ -244,6 +244,37 @@ class ProductJourneyExecutionTests(unittest.TestCase):
         self.assertEqual(receipt["commands"]["journey"]["timeout_sec"], 10)
         self.assertEqual(receipt["timeout_warnings"], [])
 
+    def test_validate_checks_contract_without_running_journey(self) -> None:
+        """#1240 — 러너 계약 위반을 여정 실행 전에 build-worker 가 확인할 수 있다."""
+        from harness.product_journey import main
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            config = self._base_config()
+            config["commands"]["journey"] = _command("open('ran.txt','w').write('x')")
+            config_path = _write_config(root, config)
+
+            self.assertEqual(
+                main(["validate", "--project-root", str(root), "--config", str(config_path)]),
+                0,
+            )
+            self.assertFalse((root / "ran.txt").exists())
+            self.assertFalse((root / ".dcness-work").exists())
+
+            config["commands"]["health"]["timeout_sec"] = 900
+            _write_config(root, config)
+            self.assertEqual(
+                main(["validate", "--project-root", str(root), "--config", str(config_path)]),
+                2,
+            )
+
+        build_worker = (
+            ROOT / "docs/plugin/agents/build-worker/build-worker-agent.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("dcness-product-journey validate", build_worker)
+        convergence = build_worker.split("### `JOURNEY_CONVERGENCE`")[1]
+        self.assertIn("dcness-product-journey run", convergence)
+
     def test_service_journey_records_commands_assertion_logs_and_cleanup(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

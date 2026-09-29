@@ -859,14 +859,10 @@ def _next_run_id(evidence_root: Path) -> str:
     return candidate
 
 
-def run_from_config(
-    project_root: Path | str,
-    *,
-    config_path: Path | str,
-    run_id: Optional[str] = None,
-    measured_at: Optional[str] = None,
-) -> JourneyRunResult:
-    """Execute start/health/journey/cleanup and return the generated receipt."""
+def validate_config(
+    project_root: Path | str, *, config_path: Path | str
+) -> tuple[Path, Path, dict[str, Any], Path]:
+    """Check the journey contract without executing any command or writing evidence."""
     root = Path(project_root).expanduser().resolve()
     raw_config_path = Path(config_path).expanduser()
     resolved_config = (
@@ -879,6 +875,20 @@ def run_from_config(
     except ValueError as exc:
         raise JourneyConfigError("config must stay inside the project root") from exc
     config, evidence_root = _validated_config(root, resolved_config)
+    return root, resolved_config, config, evidence_root
+
+
+def run_from_config(
+    project_root: Path | str,
+    *,
+    config_path: Path | str,
+    run_id: Optional[str] = None,
+    measured_at: Optional[str] = None,
+) -> JourneyRunResult:
+    """Execute start/health/journey/cleanup and return the generated receipt."""
+    root, resolved_config, config, evidence_root = validate_config(
+        project_root, config_path=config_path
+    )
     selected_run_id = run_id or _next_run_id(evidence_root)
     if not _ID_RE.fullmatch(selected_run_id):
         raise JourneyConfigError("run_id must match [a-z0-9][a-z0-9._-]{2,63}")
@@ -1435,6 +1445,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     run_parser.add_argument("--config", required=True)
     run_parser.add_argument("--run-id", default=None)
     run_parser.add_argument("--measured-at", default=None)
+    validate_parser = subparsers.add_parser(
+        "validate", help="check one journey contract without running it"
+    )
+    validate_parser.add_argument("--project-root", default=".")
+    validate_parser.add_argument("--config", required=True)
     summary_parser = subparsers.add_parser(
         "epic-summary", help="report one epic's representative-flow result"
     )
@@ -1445,6 +1460,14 @@ def main(argv: Optional[list[str]] = None) -> int:
         from harness import epic_outcome
 
         return epic_outcome.cli_epic_summary(args.project_root, args.epic)
+    if args.command == "validate":
+        try:
+            validate_config(args.project_root, config_path=args.config)
+        except JourneyConfigError as exc:
+            print(f"[product-journey] contract error: {exc}", file=sys.stderr)
+            return 2
+        print("[product-journey] contract PASS")
+        return 0
     try:
         result = run_from_config(
             args.project_root,
