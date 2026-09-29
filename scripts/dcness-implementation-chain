@@ -523,7 +523,21 @@ PY
       begin_args+=(--acceptance-required)
     fi
     rid="$("$HELPER" "${begin_args[@]}")" || return $?
-  elif [ "$run_action" != "reuse" ]; then
+  elif [ "$run_action" = "reuse" ]; then
+    # 재사용하는 run 은 다른 진입점(/impl direct)이 먼저 열었을 수 있다. 마감 게이트가
+    # 보는 검수 표시가 story chain 계약과 달라지지 않도록 여기서 맞춘다.
+    if [ "$current_acceptance_required" -eq 1 ]; then
+      PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+        python3 - "$sid" "$rid" <<'PY' || return $?
+import sys
+
+from harness.session_state import transition
+
+if transition(sys.argv[1], "acceptance_required_marked", run_id=sys.argv[2], reason="story chain reused run"):
+    print("[dcness-implementation-chain] reused run marked acceptance_required for the story task", file=sys.stderr)
+PY
+    fi
+  else
     echo "[dcness-implementation-chain] invalid run preparation action: $run_action" >&2
     return 1
   fi

@@ -161,7 +161,7 @@ HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
 - story runner: state를 올바른 worktree에서 정확히 한 번 초기화
 - chain: chain 최초 1회만 previous tasks 초기화
 - chain/helper: 현재 task의 `begin-run impl --design-doc`를 필요할 때 정확히 한 번 생성
-- chain/helper: `--acceptance-required`를 chain의 마지막 task run에만 기록
+- chain/helper: `--acceptance-required`를 chain의 마지막 task run에만 기록. 같은 task로 먼저 열린 run을 이어 쓸 때도 이 표시를 맞춘다
 - chain/helper: completed 이전 task run이 있으면 다음 호출 안에서 닫고 현재 task run을 정확히 한 번 생성
 - chain: 같은 run의 `begin-step build-worker`를 provider fork 전에 정확히 한 번 기록
 - chain: provider resolve·fallback·same-workspace recovery
