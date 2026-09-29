@@ -370,7 +370,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 ## Layer 3 — CI/CD workflows
 
-설치 경로: 사용자 repo 의 `.github/workflows/`. `/init-dcness` 에서 사용자가 Y 를 선택한 경우 thin workflow 를 생성한다. workflow 본체는 `Daeguk-Sun/dcNess` 의 composite action 을 호출한다.
+설치 경로: 사용자 repo 의 `.github/workflows/`. `/init-dcness` 에서 사용자가 Y 를 선택한 경우 workflow 와 그 workflow 가 실행하는 검사 스크립트 사본(`.github/ci-checks/`)을 함께 설치한다. 설치된 workflow 는 외부 저장소 action 을 호출하지 않고 사용자 repo 체크아웃과 GitHub 공식 `actions/*` 만으로 실행된다. 설치 목록·중립 명명 설치·갱신 경로는 [`init-dcness.md#ci-workflow-snippets`](init-dcness.md#ci-workflow-snippets) 가 SSOT 다.
 
 | Workflow | Trigger | 언제 | 하는 일 | 성격 |
 |---|---|---|---|---|
@@ -386,7 +386,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `Daeguk-Sun/dcNess/.github/actions/git-naming@main` 을 호출해 `github.head_ref` 와 PR title 을 검증한다.
+**역할**: 복사된 `.github/ci-checks/scripts/check_git_naming.mjs` 로 `github.head_ref` 와 PR title 을 검증한다.
 
 **차단**: workflow 실패. hard merge gate 여부는 사용자 repo 의 branch protection/ruleset 설정에 달려 있다.
 
@@ -396,7 +396,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `Daeguk-Sun/dcNess/.github/actions/pr-body@main` 을 호출해 PR body 에 issue trailer 가 있는지 확인한다.
+**역할**: 복사된 `.github/ci-checks/scripts/check_pr_body.mjs` 로 PR body 에 issue trailer 가 있는지 확인한다.
 
 허용 패턴:
 
@@ -412,7 +412,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때. 문서가 그대로여도 참조 대상 파일이 삭제·이동되면 stale path 가 생길 수 있으므로 path filter 를 두지 않는다.
 
-**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative path 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다.
+**역할**: 복사된 `.github/ci-checks/scripts/check_doc_path_integrity.mjs` 로 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative path 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다.
 
 **차단**: workflow 실패. hard merge gate 여부는 사용자 repo 의 branch protection/ruleset 설정에 달려 있다.
 
@@ -422,7 +422,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 **시점**: `main` 대상 PR 이 opened, synchronize, reopened, edited 될 때.
 
-**역할**: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표가 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서 파생된다. 같은 composite action 안에서 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사하고, `dcness-story-runner plan` 을 재사용해 path 정렬 후 story 비연속 block 또는 알려진 `depends_on` 역순인 pack 을 설계 PR 단계에서 차단한다.
+**역할**: 복사된 `.github/ci-checks/` 사본으로 활성 프로젝트의 `docs/index.md` `## 에픽` / `## 모듈` 생성 표가 파생 원본과 일치하는지 확인한다. index 표는 `docs/epics/epic-NN-*` 디렉토리, `stories.md` frontmatter, `docs/modules/<module-id>/` 에서 파생된다. 같은 workflow 안에서 복사된 `check_design_artifact_structure.mjs` 도 실행해 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 을 감사하고, `dcness-story-runner plan` 을 재사용해 path 정렬 후 story 비연속 block 또는 알려진 `depends_on` 역순인 pack 을 설계 PR 단계에서 차단한다.
 
 **빈 환경**: `docs/index.md`, `docs/architecture.md`, 또는 유효 epic/module 이 없는 갓 시드된 프로젝트에서는 no-op PASS 한다.
 
@@ -465,7 +465,7 @@ hook 또는 workflow 를 추가/삭제/이름 변경할 때 이 문서가 빠지
 
 **git hooks**: `/init-dcness` bootstrap 이 사용자 repo 의 `.git/hooks/` 에 thin shim 을 always-overwrite 한다. hook 본체는 self-repo, `CLAUDE_PLUGIN_ROOT`, plug-in cache 중 실행 문맥에 맞는 검증 script 를 resolve 한다.
 
-**CI/CD workflows**: `/init-dcness` 가 사용자 선택에 따라 thin workflow 를 `.github/workflows/` 에 always-overwrite 한다. 사용자가 tag pin 을 원하면 `@main` 대신 release tag 로 바꿀 수 있다.
+**CI/CD workflows**: `/init-dcness` 가 사용자 선택에 따라 workflow 를 `.github/workflows/` 에, 검사 스크립트 사본을 `.github/ci-checks/` 에 always-overwrite 한다. 사본은 설치 시점 plugin 버전에 고정되며 `/init-dcness` 재실행으로 갱신한다.
 
 `CLAUDE_PLUGIN_ROOT` 는 plug-in hook 실행 시 Claude Code 가 자동 설정하는 env 다. 이 값은 모든 활성 프로젝트 hook 에서 존재하므로 infra mode 신호로 쓰면 안 된다.
 

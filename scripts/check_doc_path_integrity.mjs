@@ -6,7 +6,7 @@
  * when repo-relative path references point to files or directories that do not
  * exist. It is intentionally narrower than check_cross_refs.mjs: active
  * projects have arbitrary docs, so this script validates path integrity without
- * enforcing dcNess self-repo naming or orphan-document rules.
+ * enforcing the harness repo's own naming or orphan-document rules.
  */
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { dirname, resolve, relative, join } from 'node:path';
@@ -33,7 +33,6 @@ const ROOT_FILES = new Set([
 
 const PATH_PREFIXES = [
   '.claude/',
-  '.dcness-work/',
   '.github/',
   'agents/',
   'app/',
@@ -51,12 +50,13 @@ const PATH_PREFIXES = [
   'tests/',
 ];
 
+// Volatile workdir references carry no path prefix above, so they are never
+// treated as repo paths.
 const OPTIONAL_SEED_PATHS = new Set([
-  '.dcness-work/',
   'docs/tech-review.md',
 ]);
 
-const DCNESS_SELF_ACTIVE_PROJECT_PATHS = new Set([
+const HARNESS_SELF_ACTIVE_PROJECT_PATHS = new Set([
   'docs/index.md',
   'docs/decisions/',
 ]);
@@ -192,17 +192,17 @@ function isSeedPlaceholderPath(value) {
 }
 
 function isOptionalSeedPath(value) {
-  return OPTIONAL_SEED_PATHS.has(value) || value.startsWith('.dcness-work/');
+  return OPTIONAL_SEED_PATHS.has(value);
 }
 
-function isDcnessSelfRepo(root) {
+function isHarnessSelfRepo(root) {
   return existsSync(resolve(root, '.claude-plugin/plugin.json'))
     && existsSync(resolve(root, 'docs/plugin/deliverables-map.md'))
     && existsSync(resolve(root, 'scripts/check_cross_refs.mjs'));
 }
 
-function isDcnessSelfActiveProjectPath(root, value) {
-  return isDcnessSelfRepo(root) && DCNESS_SELF_ACTIVE_PROJECT_PATHS.has(value);
+function isHarnessSelfActiveProjectPath(root, value) {
+  return isHarnessSelfRepo(root) && HARNESS_SELF_ACTIVE_PROJECT_PATHS.has(value);
 }
 
 function resolveInside(root, sourceDir, candidate, relativeToSource) {
@@ -219,7 +219,7 @@ function recordCandidate(out, root, file, lineNumber, raw, kind, relativeToSourc
   if (shouldIgnoreCandidate(cleaned)) return;
   if (isSeedPlaceholderPath(cleaned)) return;
   if (isOptionalSeedPath(cleaned)) return;
-  if (isDcnessSelfActiveProjectPath(root, cleaned)) return;
+  if (isHarnessSelfActiveProjectPath(root, cleaned)) return;
   if (!looksLikeRepoPath(cleaned)) return;
   const abs = resolveInside(root, sourceDir, cleaned, relativeToSource);
   if (!abs) {

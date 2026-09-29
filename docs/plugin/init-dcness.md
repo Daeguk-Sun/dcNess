@@ -45,8 +45,9 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 | git naming workflow | `.github/workflows/git-naming-validation.yml` | [`templates/github-workflows/git-naming-validation.yml`](../../templates/github-workflows/git-naming-validation.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | PR body workflow | `.github/workflows/pr-body-validation.yml` | [`templates/github-workflows/pr-body-validation.yml`](../../templates/github-workflows/pr-body-validation.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | doc path workflow | `.github/workflows/doc-path-integrity.yml` | [`templates/github-workflows/doc-path-integrity.yml`](../../templates/github-workflows/doc-path-integrity.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
-| doc sync workflow | `.github/workflows/doc-sync.yml` | [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
-| Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml) | custom 선택 | always-overwrite | O |
+| doc sync workflow | `.github/workflows/doc-sync.yml` | [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml) | GitHub remote 감지 시 추천 ON (중립 명명 설치에서는 제외) | always-overwrite | O |
+| Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml) | custom 선택 (중립 명명 설치에서는 제외) | always-overwrite | O |
+| CI 검사 스크립트 사본 | `.github/ci-checks/**` | 설치한 workflow 가 실행하는 plugin script (`scripts/**`, doc-sync 는 `harness/story_runner.py`·`harness/parallel_wave.py`·design 엔진 원본 `templates/design-variants/_lib/*.js` 포함) — [`harness/ci_workflows.py`](../../harness/ci_workflows.py) 가 목록 소유 | 해당 workflow 설치 시 | always-overwrite. 설치 시점 plugin 버전에 고정 | O |
 | project docs seed | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | authoring 템플릿 (`skills/spec/templates/index.md`, `skills/spec/templates/prd.md`, `docs/plugin/agents/system-architect/templates/root-architecture.md`, `docs/plugin/agents/system-architect/templates/conventions.md`) + `scripts/ensure_docs_index_next_section.mjs` — 시드와 산출 양식 단일 원본. 위치 SSOT [`deliverables-map.md`](deliverables-map.md) | 추천 bundle 또는 custom | 부재 시 생성. 기존 `docs/index.md` 는 진행 상태 섹션만 없을 때 append | X |
 | volatile workdir ignore | `.gitignore` 의 `.dcness-work/` + `.claude/harness-state/` 재확인 | `/init-dcness` append | 추천 bundle 또는 custom | 없을 때만 추가 | X |
 | design seed | `docs/design.md` | `docs/plugin/design.md` minimal 예시 | custom 선택 | 부재 시만 생성 | X |
@@ -71,7 +72,7 @@ Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소�
 
 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 자동 workflow PR 에 섞지 않는다. linked worktree 나 headless worker 체크아웃에서 project-local hook 을 재사용하려면 이 파일들이 Git 에 커밋돼 있어야 하며, 없으면 중앙 fallback 으로 내려간다. `scripts/dcness-tdd-hooks status` 와 `ensure` 는 linked worktree 에서 커밋이 필요한 경우 `commit-required`, in-place 에서만 실존하는 경우 `commit-advisory` 를 출력한다. 이 설치 health는 `/init-dcness`/`status`가 소유하며 일반 구현 착수 앞에서 반복하지 않는다.
 
-`docs/index.md` 의 epic/module 표와 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. 전역 architecture 인간용 요약은 필요할 때 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 로 `.dcness-work/reports/architecture-map.md` 에 온디맨드 생성한다. `/design` 산출물 구조 감사와 design-variants 생성기 3종도 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`, `$PLUGIN_ROOT/scripts/design/`) 로 처리한다. 활성 프로젝트에서는 이 스크립트를 현재 프로젝트 루트에서 실행한다.
+`docs/index.md` 의 epic/module 표와 기존 `docs/index.md` 의 진행 상태 섹션 보강은 사용자 repo 에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/aggregate_index_map.mjs`, `$PLUGIN_ROOT/scripts/ensure_docs_index_next_section.mjs`) 로 처리한다. 전역 architecture 인간용 요약은 필요할 때 `$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs` 로 `.dcness-work/reports/architecture-map.md` 에 온디맨드 생성한다. `/design` 산출물 구조 감사와 design-variants 생성기 3종도 plugin script (`$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs`, `$PLUGIN_ROOT/scripts/design/`) 로 처리한다. 활성 프로젝트 작업 중에는 이 스크립트를 현재 프로젝트 루트에서 실행한다. 단 `doc-sync.yml` 을 설치하면 PR CI 가 쓸 사본이 `.github/ci-checks/` 로 함께 복사된다 ([CI Workflow Snippets](#ci-workflow-snippets)).
 
 제품 journey runner도 사용자 repo에 복사하지 않는 plugin script (`$PLUGIN_ROOT/scripts/dcness-product-journey`)로 제공한다. project-local 계약은 owner module/소스 영역의 opt-in 매니페스트이며 `/init-dcness`가 자동 생성하거나 덮어쓰지 않는다. UI journey도 같은 계약과 helper를 재사용하고 project-owned command가 단계별 화면 증거를 생성한다. 실행 receipt와 log는 기존 ignored `.dcness-work/product-journey/`에 남고 [`outcome-scorecard.md`](outcome-scorecard.md)가 집계한다. 계약과 판정 경계는 [`product-journey.md`](product-journey.md)가 소유한다.
 
@@ -104,6 +105,7 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 `/init-dcness` 기본 경로는 core activation 완료 뒤 `Y/n/custom` 1질문만 사용한다. 엔터 = Y 다.
 
 - GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml` 추천 ON.
+- 중립 명명 설치는 기본 OFF 다. custom 에서 켠다.
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
 - 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
@@ -113,7 +115,7 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 - Provider routing 추천 bundle 은 `enable-role-split-routing` 단일 entrypoint 로 역할 분리 preset 을 적용한다: `build-worker=headless-chain`, `impl-validator=codex`, `architecture-validator=codex`.
 - 기존 활성 프로젝트가 추천 preset 만 소급 적용하려면 `dcness-helper routing enable-role-split-routing` 실행 뒤 `dcness-helper routing doctor` 로 PASS 를 확인한다.
 - custom 지원 범위와 설정 순서는 [Provider Routing](#provider-routing)을 따른다.
-- workflow 변경 PR 은 GitHub remote 가 있고, `gh auth status` 가 통과하고, 이번 `/init-dcness` run 이 쓴 `.github/workflows/*.yml` 변경이 있고, 현재 branch 가 `main` 이면 추천 ON. Y 선택 시 별도 질문 없이 해당 파일만 stage 해서 branch/commit/push/PR 을 진행한다. `gh` 미설치/미인증이면 자동 PR 은 skip 하고 custom/manual 안내만 남긴다. 기존 dirty workflow 파일은 자동 포함하지 않는다.
+- workflow 변경 PR 은 GitHub remote 가 있고, `gh auth status` 가 통과하고, 이번 `/init-dcness` run 이 쓴 `.github/workflows/*.yml` 또는 `.github/ci-checks/**` 변경이 있고, 현재 branch 가 `main` 이면 추천 ON. Y 선택 시 별도 질문 없이 해당 파일만 stage 해서 branch/commit/push/PR 을 진행한다. `gh` 미설치/미인증이면 자동 PR 은 skip 하고 custom/manual 안내만 남긴다. 기존 dirty workflow 파일은 자동 포함하지 않는다.
 
 ## Already Automatic
 
@@ -129,37 +131,47 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 
 ## CI Workflow Snippets
 
-이 섹션은 `/init-dcness` 가 사용자 repo 의 `.github/workflows/` 로 복사하는 workflow template inventory 를 제공한다. 검증 본체는 사용자 repo 에 복사하지 않고 dcNess composite action 을 호출한다.
+이 섹션은 `/init-dcness` 가 사용자 repo 에 설치하는 workflow template inventory 를 제공한다. 설치는 `scripts/dcness-ci-workflows install` 이 담당하며, workflow 를 `.github/workflows/` 로 복사하면서 그 workflow 가 실행하는 검사 스크립트도 plugin 안의 상대 경로 그대로 `.github/ci-checks/` 아래에 복사한다.
+
+- **자기 저장소만으로 실행**: 설치된 workflow 는 외부 저장소 action 이나 스크립트를 참조하지 않는다. `uses:` 는 GitHub 공식 `actions/*`(checkout, setup-node, setup-python)만 쓰고, 검사는 체크아웃한 `.github/ci-checks/` 사본을 실행한다. 따라서 plugin 저장소의 변경이 사용자 PR 검사 결과를 사용자 모르게 바꾸지 않는다.
+- **버전 고정과 갱신 경로**: 사본은 설치 시점의 plugin 버전에 고정된다. 규칙 갱신은 plugin 업데이트 뒤 `/init-dcness` 를 재실행해 사용자가 선택해 반영하며, 재실행은 workflow 와 사본을 always-overwrite 한다. 설치기가 쓴 파일만 workflow PR 에 stage 된다.
+- **구버전 이전**: 이전 버전은 workflow 가 `Daeguk-Sun/dcNess/.github/actions/<name>@main` 을 원격 호출했다. 이런 workflow 가 남아 있으면 `dcness-helper status` 의 `선택형 CI workflow` 행이 WARN 으로 알려 주고, `/init-dcness` 재실행이 복사 방식으로 덮어쓴다.
+- **중립 명명 설치**: `--neutral-naming` 을 켜면 설치 산출물의 경로·파일명·workflow 이름·job 이름·본문에 하네스 이름이 나오지 않는다. 하네스를 비공개로 두고 공개 저장소에 산출물만 올리는 프로젝트용이다. `doc-sync.yml` 과 `github-project-lifecycle.yml` 은 하네스 산출물 형식(생성 구역 표식, 설정 변수 이름)을 직접 검사하므로 이 설치에서 제외되고 건너뛴 이유가 출력된다.
 
 ### git-naming-validation.yml
 
 - 대상 경로: `.github/workflows/git-naming-validation.yml`
 - 템플릿: [`templates/github-workflows/git-naming-validation.yml`](../../templates/github-workflows/git-naming-validation.yml)
-- 역할: `Daeguk-Sun/dcNess/.github/actions/git-naming@main` 을 호출해 `github.head_ref` 와 PR title 을 검증한다.
+- 복사 스크립트: `scripts/check_git_naming.mjs`
+- 역할: 복사된 `check_git_naming.mjs` 로 `github.head_ref` 와 PR title 을 검증한다.
 
 ### pr-body-validation.yml
 
 - 대상 경로: `.github/workflows/pr-body-validation.yml`
 - 템플릿: [`templates/github-workflows/pr-body-validation.yml`](../../templates/github-workflows/pr-body-validation.yml)
-- 역할: `Daeguk-Sun/dcNess/.github/actions/pr-body@main` 을 호출해 PR body 에 issue trailer 가 있는지 확인한다.
+- 복사 스크립트: `scripts/check_pr_body.mjs`
+- 역할: 복사된 `check_pr_body.mjs` 로 PR body 에 issue trailer 가 있는지 확인한다.
 
 ### doc-path-integrity.yml
 
 - 대상 경로: `.github/workflows/doc-path-integrity.yml`
 - 템플릿: [`templates/github-workflows/doc-path-integrity.yml`](../../templates/github-workflows/doc-path-integrity.yml)
-- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-path-integrity@main` 을 호출해 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative 경로 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다. 문서가 그대로여도 참조 대상 파일 삭제·이동으로 stale path 가 생길 수 있어 PR마다 실행한다.
+- 복사 스크립트: `scripts/check_doc_path_integrity.mjs`
+- 역할: 복사된 `check_doc_path_integrity.mjs` 로 활성 프로젝트의 context/SSOT 문서(`CLAUDE.md`, `AGENTS.md`, root `architecture.md`, `docs/index.md`, `docs/project-context.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/modules/**`, `docs/decisions/**`) 안 repo-relative 경로 참조가 실제 파일 또는 디렉토리를 가리키는지 확인한다. 문서가 그대로여도 참조 대상 파일 삭제·이동으로 stale path 가 생길 수 있어 PR마다 실행한다.
 
 ### doc-sync.yml
 
 - 대상 경로: `.github/workflows/doc-sync.yml`
 - 템플릿: [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml)
-- 역할: `Daeguk-Sun/dcNess/.github/actions/doc-sync@main` 을 호출해 `docs/index.md` 의 epic/module 표가 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 agent-first 핵심 섹션·line budget·impl story/의존 순서를 감사한다. `docs/index.md` 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다.
+- 복사 스크립트: `scripts/aggregate_index_map.mjs`, `scripts/lib/epic_phase.mjs`, `scripts/check_design_artifact_structure.mjs`, `scripts/dcness-story-runner`, `harness/story_runner.py`, `harness/parallel_wave.py`, `scripts/design/*.mjs`, 그리고 design 생성기가 프로젝트 엔진 사본과 비교하려고 읽는 원본 `templates/design-variants/_lib/*.js`. 복사본이 plugin 원본 경로를 런타임에 읽지 않도록 의존 파일 전체를 함께 복사하며, `tests/test_ci_workflows_install.py` 가 이 의존 닫힘을 검사한다.
+- 역할: 복사된 사본으로 `docs/index.md` 의 epic/module 표가 파생 원본과 byte-level 로 일치하는지 확인하고, `/design` 산출물의 agent-first 핵심 섹션·line budget·impl story/의존 순서를 감사한다. story/의존 순서 판정은 복사된 story runner 를 Python 3.11 로 실행한다. `docs/index.md` 또는 유효 epic/module 이 없는 빈 환경은 no-op PASS 한다. 중립 명명 설치에서는 제외된다.
 
 ### github-project-lifecycle.yml
 
 - 대상 경로: `.github/workflows/github-project-lifecycle.yml`
 - 템플릿: [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml)
-- 역할: `Daeguk-Sun/dcNess/.github/actions/github-project-lifecycle@main` 을 호출해 issue/label drift 를 검출하고 merged PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 Project Status `Done` 미러를 best-effort 로 함께 시도한다.
+- 복사 스크립트: `scripts/github_project_lifecycle.mjs`, `scripts/check_issue_body.mjs`, `scripts/lib/epic_phase.mjs`
+- 역할: 복사된 `github_project_lifecycle.mjs` 로 issue/label drift 를 검출하고 merged PR 의 완료 후보 issue 에서 `in-progress` label 을 제거한다. Project 좌표가 설정된 repo 에서는 Project Status `Done` 미러를 best-effort 로 함께 시도한다.
 
 `in-progress` label 제거에는 `issues: write` 권한이 필요하다. Project v2 미러에는 `secrets.DCNESS_PROJECT_TOKEN` 에 classic PAT `project` + `read:org` scope 가 필요하다. token 이 없거나 Project API 가 실패하면 Project 미러만 warning 으로 skip 되고 issue/label lifecycle 은 GitHub token 권한으로 계속 동작한다. token 이 전달됐지만 GitHub 이 거부하면(만료·폐기 → HTTP 401) issue/label lifecycle 정리까지 건너뛰지만, workflow 는 건너뛴 대상과 이유를 warning 으로 남기고 성공으로 끝난다.
 
@@ -203,7 +215,7 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 | 파일 경계 override 후보 재확인 | 아니오 | `/init-dcness` 설정/진단 시 `dcness-helper boundary-suggestions` 로 read-only 재감지한다. 일반 구현 착수에는 선행하지 않는다. |
 | `.claude/harness-state/` gitignore 보강 | 예 | runtime state ignore 는 사용자 repo `.gitignore` append 라서 `/init-dcness` 재실행 때 적용된다. |
 | `CLAUDE.md` seed/migration 로직 갱신 | 예 | 기존 활성 프로젝트의 root `CLAUDE.md` 생성·cold-start 앵커 append 는 `/init-dcness` 재실행 때 적용된다. |
-| 선택형 `.github/workflows/*.yml` 갱신 | 예 | workflow 파일은 사용자 repo 에 배포된 사본이다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index 집계기를 1회 실행해야 한다. 전역 architecture 요약은 온디맨드다. |
+| 선택형 `.github/workflows/*.yml` 또는 검사 스크립트 갱신 | 예 | workflow 와 `.github/ci-checks/` 검사 스크립트는 사용자 repo 에 배포된 사본이라 plugin update 만으로 바뀌지 않는다. 원격 호출 구버전 workflow 도 재실행으로 복사 방식에 옮겨 간다. 기존 epic 또는 module docs 가 있는 프로젝트는 doc-sync 채택 직후 index 집계기를 1회 실행해야 한다. 전역 architecture 요약은 온디맨드다. |
 | Provider routing preset/custom 변경 | 예 | 기존 활성 프로젝트도 plugin 공용 local data 를 갱신해야 한다. 추천 preset 은 `dcness-helper routing enable-role-split-routing` 뒤 `dcness-helper routing doctor` 로 적용·검증하고, custom은 [Provider Routing](#provider-routing)의 현행 값만 사용한다. Native Codex skill 등록/fallback 용 `$CODEX_HOME/skills` 도 최신화된다. |
 | Project lifecycle 좌표 저장/변경 | 예 | repo variables 와 선택형 workflow 를 갱신해야 한다. |
 | docs/design + docs/design-variants seed 추가 | 예 | 부재한 엔진 4파일·빈 변형 전수 보드·ignore만 사용자 repo에 생성된다. 저니 보드와 두 진입점은 프로젝트 진본에서 생성한다. |
@@ -211,9 +223,9 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 
 ## Auto PR Scope
 
-`/init-dcness` 의 자동 commit + PR 단계는 `.github/workflows/*.yml` 만 대상으로 한다.
+`/init-dcness` 의 자동 commit + PR 단계는 이번 run 이 쓴 `.github/workflows/*.yml` 과 `.github/ci-checks/**` 검사 스크립트만 대상으로 한다.
 
-- 포함: `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `github-project-lifecycle.yml`
+- 포함: `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `github-project-lifecycle.yml`, 그리고 이 workflow 들이 실행하는 `.github/ci-checks/**` 사본
 - 제외: `.git/hooks/*` (git 내부 파일), generated TDD hook bootstrap(`.dcness/tdd-hooks.json`, `.claude/**`, `.codex/**` — 자동 workflow PR 제외. linked worktree/headless 재사용이 필요하면 별도 bootstrap commit 대상), `~/.claude/**`, `$CODEX_HOME/**`, `.gitignore` runtime/volatile ignore, `docs/*` seed, `docs/design-variants/*` seed, 자동 CC hook 설명
 - 선행 조건: GitHub remote 존재, 현재 branch `main`, `gh auth status` 통과. 조건이 안 맞으면 branch/commit/push 를 시작하지 않고 skip 안내만 출력한다.
 
@@ -224,7 +236,7 @@ seed 문서는 사용자 프로젝트 내용물이므로 사용자가 별도 작
 비활성화는 별도 command 가 아니라 `/init-dcness` 스킬이 겸한다("dcness 꺼줘" 류 발화). 실행 절차와 잔존물 정리 목록은 [`commands/init-dcness.md`](../../commands/init-dcness.md#비활성화) 의 비활성화 섹션이 runbook 진본이다.
 
 - `dcness-helper disable` 은 whitelist 에서 현재 main repo 항목만 제거한다. plug-in 중앙 hook 은 매 호출 `is-active` 판정이므로 즉시 pass-through 된다 (`DCNESS_FORCE_ENABLE=1` 프로세스 제외).
-- project-local 설치물(CLAUDE.md 의 dcNess 안내, git hook shim 4종, generated TDD hook, CI workflow 템플릿)은 whitelist 와 무관하게 잔존한다. 완전 제거는 runbook 의 dcNess 소유물 한정 항목별 정리를 따른다.
+- project-local 설치물(CLAUDE.md 의 dcNess 안내, git hook shim 4종, generated TDD hook, CI workflow 템플릿과 `.github/ci-checks/` 검사 스크립트 사본)은 whitelist 와 무관하게 잔존한다. 완전 제거는 runbook 의 dcNess 소유물 한정 항목별 정리를 따른다.
 
 ## References
 

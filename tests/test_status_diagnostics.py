@@ -5,7 +5,7 @@ Coverage matrix:
     _installed_plugin_version: 정상 / 파일 없음
     _check_read_permission   : PERM 존재 / 부재 / 파일 없음
     _check_git_hooks         : thin-shim ok / missing / foreign
-    _check_ci_workflows      : 존재 / 부재
+    _check_ci_workflows      : 존재 / 부재 / 원격 호출 구버전 WARN
     _check_codex_validator_skills: ok / missing / stale
     collect_status_diagnostics:
         self repo  → 외부 활성 항목 전부 NA
@@ -33,6 +33,7 @@ from harness.session_state_fail_open import (
 )
 from harness.session_state_status import (
     _check_ci_workflows,
+    _legacy_remote_ci_workflows,
     _check_codex_validator_skills,
     _check_git_hooks,
     _check_read_permission,
@@ -218,6 +219,38 @@ class CiWorkflowTests(unittest.TestCase):
             self.assertFalse(result["doc-path-integrity.yml"])
             self.assertFalse(result["doc-sync.yml"])
             self.assertFalse(result["github-project-lifecycle.yml"])
+
+    def test_legacy_remote_call_workflows_are_reported(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            wf = root / ".github" / "workflows"
+            wf.mkdir(parents=True, exist_ok=True)
+            _write(
+                wf / "doc-sync.yml",
+                "steps:\n  - uses: Daeguk-Sun/dcNess/.github/actions/doc-sync@main\n",
+            )
+            _write(
+                wf / "git-naming-validation.yml",
+                "steps:\n  - run: node .github/ci-checks/scripts/check_git_naming.mjs\n",
+            )
+            self.assertEqual(_legacy_remote_ci_workflows(root), ["doc-sync.yml"])
+
+    def test_legacy_remote_call_is_status_warning(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            wf = root / ".github" / "workflows"
+            wf.mkdir(parents=True, exist_ok=True)
+            _write(
+                wf / "pr-body-validation.yml",
+                "steps:\n  - uses: Daeguk-Sun/dcNess/.github/actions/pr-body@main\n",
+            )
+            result = collect_status_diagnostics(
+                cwd=root, check_gh=False, check_routing=False
+            )
+        check = next(c for c in result["checks"] if c["key"] == "ci_workflows")
+        self.assertEqual(check["status"], "WARN")
+        self.assertIn("pr-body-validation.yml", check["detail"])
+        self.assertIn("/init-dcness", check["fix"])
 
 
 class CodexValidatorSkillsTests(unittest.TestCase):

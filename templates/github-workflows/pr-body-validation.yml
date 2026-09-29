@@ -11,6 +11,17 @@ jobs:
     name: PR body close-keyword gate
     runs-on: ubuntu-latest
     steps:
-      - uses: Daeguk-Sun/dcNess/.github/actions/pr-body@main
+      - name: Checkout
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
-          body: ${{ github.event.pull_request.body }}
+          persist-credentials: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '20'
+
+      - name: Validate PR body trailer
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: printf '%s' "$PR_BODY" | node .github/ci-checks/scripts/check_pr_body.mjs --stdin

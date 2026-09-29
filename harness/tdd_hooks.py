@@ -35,6 +35,8 @@ EXCLUDED_SCAN_DIRS = {
     "dist",
     "build",
 }
+# /init-dcness 가 CI workflow 와 함께 복사하는 검사 스크립트. 프로젝트 소스가 아니다.
+COPIED_CI_CHECKS_REL = Path(".github/ci-checks")
 TEST_DIR_SEGMENTS = {
     "__tests__",
     "__test__",
@@ -336,6 +338,8 @@ def _iter_project_files(root: Path, suffixes: tuple[str, ...]) -> Iterable[Path]
     for path in root.rglob("*"):
         rel_parts = path.relative_to(root).parts
         if any(part in EXCLUDED_SCAN_DIRS for part in rel_parts):
+            continue
+        if rel_parts[: len(COPIED_CI_CHECKS_REL.parts)] == COPIED_CI_CHECKS_REL.parts:
             continue
         if path.is_file() and path.suffix in suffixes:
             yield path
