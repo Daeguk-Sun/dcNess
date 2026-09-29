@@ -24,6 +24,10 @@ SCHEMA_VERSION = 1
 RECEIPT_TYPE = "dcness.product-journey"
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 _BOUNDARIES = {"api", "cli", "integration", "mock", "ui"}
+# A device/emulator UI journey chains many screen flows and routinely runs past
+# ten minutes; the other phases stay at the original cap (#1219).
+_PHASE_TIMEOUT_MAX_SEC = {"journey": 1800}
+_TIMEOUT_WARNING_RATIO = 0.8
 _ASSERTION_SOURCES = {"journey_exit", "none"}
 _PHASES = ("start", "health", "journey", "cleanup")
 _UI_EVIDENCE_TYPES = {"log", "screenshot", "state"}
@@ -130,8 +134,9 @@ def _command_spec(commands: dict[str, Any], phase: str) -> dict[str, Any]:
     timeout = raw.get("timeout_sec", 60)
     if not isinstance(timeout, (int, float)) or isinstance(timeout, bool):
         raise JourneyConfigError(f"commands.{phase}.timeout_sec must be numeric")
-    if timeout <= 0 or timeout > 600:
-        raise JourneyConfigError(f"commands.{phase}.timeout_sec must be in (0, 600]")
+    limit = _PHASE_TIMEOUT_MAX_SEC.get(phase, 600)
+    if timeout <= 0 or timeout > limit:
+        raise JourneyConfigError(f"commands.{phase}.timeout_sec must be in (0, {limit}]")
     return raw
 
 
@@ -442,8 +447,29 @@ def _run_command(
         "exit_code": exit_code,
         "timed_out": timed_out,
         "duration_ms": round((time.monotonic() - started) * 1000),
+        "timeout_sec": spec.get("timeout_sec", 60),
         "log_path": _relative(log_path, project_root),
     }
+
+
+def _timeout_warnings(command_results: dict[str, Any]) -> list[dict[str, Any]]:
+    """Phases that passed but used most of their timeout — the next run may not."""
+    warnings: list[dict[str, Any]] = []
+    for phase, result in command_results.items():
+        timeout = result.get("timeout_sec")
+        if result.get("timed_out") or not isinstance(timeout, (int, float)) or timeout <= 0:
+            continue
+        ratio = round(result["duration_ms"] / (timeout * 1000), 3)
+        if ratio >= _TIMEOUT_WARNING_RATIO:
+            warnings.append(
+                {
+                    "phase": phase,
+                    "duration_ms": result["duration_ms"],
+                    "timeout_sec": timeout,
+                    "ratio": ratio,
+                }
+            )
+    return warnings
 
 
 def _start_service(
@@ -992,6 +1018,7 @@ def run_from_config(
         },
         "commands": command_results,
         "failure_reasons": failures,
+        "timeout_warnings": _timeout_warnings(command_results),
     }
     epic_scope = _validated_epic_scope(config)
     if epic_scope is not None:

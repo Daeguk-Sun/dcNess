@@ -95,7 +95,7 @@ build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 
 | `harness_paths` | flow, seed, runner, manifest, env adapter처럼 수렴 호출이 대조·수정할 project-relative 하네스 배관 경로. write 경계를 기계 강제하는 목록이 아니라 설계·리뷰 handoff 계약 |
 | `env` | 네 단계에 공통으로 추가할 문자열 환경 변수 |
 | `commands.*.argv` | shell 문자열이 아닌 argv 배열. setup/teardown/상태전이 오케스트레이션이 필요하면 `commands.journey.argv`에서 `bash`와 프로젝트 스크립트 경로를 명시적으로 선택 |
-| `commands.*.timeout_sec` | 단계별 600초 이하 timeout |
+| `commands.*.timeout_sec` | 단계별 timeout. `journey` 는 1800초 이하(실기기·에뮬레이터 UI 여정은 화면 흐름이 누적돼 10분을 넘기 쉽다), `start`·`health`·`cleanup` 은 600초 이하 |
 | `commands.start.mode` | 장기 실행 앱은 `service`, 종료되는 CLI 진입점은 `command` |
 | `commands.start.startup_grace_sec` | service가 조기 종료하지 않았는지 확인할 유예 시간 |
 | `evidence_dir` | `.dcness-work/product-journey/` 아래의 project-relative 위치 |
@@ -255,7 +255,8 @@ receipt에 적힌 판정값은 근거를 대신하지 않는다. scorecard가 re
 
 - 실제 시작 여부 `app_started`, journey 실행 여부 `journey_executed`.
 - assertion의 설명·근거·평가 여부·결과.
-- 단계별 argv, exit code, timeout, wall-clock과 log 위치.
+- 단계별 argv, exit code, timeout 여부와 선언 `timeout_sec`, wall-clock과 log 위치.
+- `timeout_warnings`: 통과했지만 선언 timeout 의 80% 이상을 쓴 단계의 소요·상한·비율. 같은 여정이 다음 실행에서 상한에 걸릴 수 있다는 신호다.
 - UI journey이면 핵심 단계 설명·대상 AC·최종 단계 여부·screenshot/state/log path와 SHA-256.
 - UI journey이면 UX 정합성 렌즈의 화면 snapshot별 layout report path·존재 여부·SHA-256, 확정 목업 링크, 요소별 bounds·`within_safe_area`·`occluded_by`.
 - 대상 AC의 passed/total denominator, 사람 개입, 실행 증거 종류.
