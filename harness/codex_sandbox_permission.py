@@ -28,9 +28,28 @@ _NETWORK_SIGNATURES = (
     re.compile(r"java\.net\.SocketException:\s*Operation not permitted", re.I),
     re.compile(r"(?:bind|listen|loopback|socket).{0,120}Operation not permitted", re.I),
 )
-_WRITABLE_SIGNATURE = re.compile(
-    r"(?:Codex\s+)?sandbox denied write to\s+(?P<path>/[^\r\n]+)", re.I
+# Codex does not print its own "denied" line; the denied tool reports EPERM in
+# its usual shape (BSD/GNU coreutils, Python, JVM). A quoted path runs to the
+# closing quote; an unquoted path starts at the line start or after a `prog: `
+# prefix and runs to the EPERM suffix, so paths with spaces stay whole.
+_QUOTE_OPEN = "'\"‘"
+_QUOTE_CLOSE = "'\"’"
+_NOT_QUOTE = "[^'\"‘’\\r\\n]"
+_WRITABLE_SIGNATURES = (
+    re.compile(r"(?:Codex\s+)?sandbox denied write to\s+(?P<path>/[^\r\n]+)", re.I),
+    re.compile(
+        rf"[{_QUOTE_OPEN}](?P<path>/{_NOT_QUOTE}+)[{_QUOTE_CLOSE}]:\s*Operation not permitted",
+        re.I,
+    ),
+    re.compile(
+        rf"Operation not permitted:\s*[{_QUOTE_OPEN}](?P<path>/{_NOT_QUOTE}+)[{_QUOTE_CLOSE}]",
+        re.I,
+    ),
+    re.compile(rf"(?:^|:\s)(?P<path>/{_NOT_QUOTE}+?):\s*Operation not permitted", re.I),
+    re.compile(rf"(?:^|:\s)(?P<path>/{_NOT_QUOTE}+?)\s+\(Operation not permitted\)", re.I),
 )
+_SESSION_ID = re.compile(r"^session id:\s*(?P<sid>[0-9A-Fa-f-]{8,})\s*$", re.M)
+_TOOL_OUTPUT_TYPES = {"function_call_output", "custom_tool_call_output"}
 _INFRA_FAILURES = (
     re.compile(r"codex CLI not found", re.I),
     re.compile(r"\b(?:401|403)\b.{0,80}(?:unauthorized|authentication|auth\b)", re.I),
@@ -123,13 +142,21 @@ def _root_is_safe(path: Path, project_root: Path) -> bool:
     return not _path_is_within(resolved, project)
 
 
+def _denied_paths_in_line(line: str) -> list[Path]:
+    paths: list[Path] = []
+    for signature in _WRITABLE_SIGNATURES:
+        for match in signature.finditer(line):
+            token = _clean_path_token(match.group("path"))
+            candidate = Path(os.path.expanduser(token))
+            if candidate.is_absolute():
+                paths.append(candidate.resolve(strict=False))
+    return paths
+
+
 def _sandbox_denied_paths(raw_log: str) -> list[Path]:
     paths: list[Path] = []
-    for match in _WRITABLE_SIGNATURE.finditer(raw_log):
-        token = _clean_path_token(match.group("path"))
-        candidate = Path(os.path.expanduser(token))
-        if candidate.is_absolute():
-            paths.append(candidate.resolve(strict=False))
+    for line in raw_log.splitlines():
+        paths.extend(_denied_paths_in_line(line))
     return paths
 
 
@@ -168,26 +195,21 @@ def _suggested_gradle_roots(raw_log: str, project_root: Path) -> list[Path]:
 
 def _writable_evidence_line(raw_log: str, roots: Sequence[Path]) -> Optional[str]:
     for line in raw_log.splitlines():
-        match = _WRITABLE_SIGNATURE.search(line)
-        if not match:
-            continue
-        token = _clean_path_token(match.group("path"))
-        denied = Path(os.path.expanduser(token))
-        if not denied.is_absolute():
-            continue
-        resolved = denied.resolve(strict=False)
-        if any(_path_is_within(resolved, root) for root in roots):
-            return line.strip()[:500]
+        for denied in _denied_paths_in_line(line):
+            if any(_path_is_within(denied, root) for root in roots):
+                return line.strip()[:500]
     return None
 
 
 def _classify(
-    *, prose: str, raw_log: str, project_root: Path
+    *, prose: str, raw_log: str, project_root: Path, tool_output: str = ""
 ) -> Optional[dict[str, Any]]:
     if not _conclusion_is_validation_blocked(prose):
         return None
     if any(pattern.search(raw_log) for pattern in _INFRA_FAILURES):
         return None
+    if tool_output:
+        raw_log = raw_log + "\n" + tool_output
 
     capabilities: list[str] = []
     evidence: list[dict[str, str]] = []
@@ -232,6 +254,62 @@ def _classify(
 def _provider_log_evidence(raw_log: str) -> str:
     """Exclude the wrapper-appended final prose from execution evidence."""
     return raw_log.split(_FINAL_PROSE_MARKER, 1)[0]
+
+
+def _tool_output_texts(output: Any) -> list[str]:
+    if isinstance(output, str):
+        parts = [output]
+    elif isinstance(output, list):
+        parts = [
+            item["text"]
+            for item in output
+            if isinstance(item, dict) and isinstance(item.get("text"), str)
+        ]
+    else:
+        return []
+    texts: list[str] = []
+    for part in parts:
+        try:
+            nested = json.loads(part)
+        except ValueError:
+            nested = None
+        if isinstance(nested, dict) and isinstance(nested.get("output"), str):
+            texts.append(nested["output"])
+        else:
+            texts.append(part)
+    return texts
+
+
+def _rollout_tool_evidence(provider_log: str) -> str:
+    """Tool outputs from the Codex session rollout.
+
+    Codex does not always echo command output to its stdout log (code-mode tool
+    calls are omitted), but the rollout keeps every tool result. Only tool
+    outputs are read; assistant messages stay out of execution evidence.
+    """
+    match = _SESSION_ID.search(provider_log)
+    if not match:
+        return ""
+    codex_home = Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
+    rollouts = sorted(
+        (codex_home / "sessions").glob(f"*/*/*/rollout-*-{match.group('sid')}.jsonl")
+    )
+    if not rollouts:
+        return ""
+    try:
+        lines = _read_text(rollouts[-1]).splitlines()
+    except OSError:
+        return ""
+    texts: list[str] = []
+    for line in lines:
+        try:
+            record = json.loads(line)
+        except ValueError:
+            continue
+        payload = record.get("payload") if isinstance(record, dict) else None
+        if isinstance(payload, dict) and payload.get("type") in _TOOL_OUTPUT_TYPES:
+            texts.extend(_tool_output_texts(payload.get("output")))
+    return "\n".join(texts)
 
 
 def _append_ledger_event(
@@ -289,10 +367,12 @@ def record_permission_required(
     if not _conclusion_is_validation_blocked(prose):
         return None
     raw_log = _read_text(raw_log_path)
+    provider_log = _provider_log_evidence(raw_log)
     classified = _classify(
         prose=prose,
-        raw_log=_provider_log_evidence(raw_log),
+        raw_log=provider_log,
         project_root=project_root,
+        tool_output=_rollout_tool_evidence(provider_log),
     )
     if classified is None:
         if retry_receipt_path is not None and _conclusion_is_validation_blocked(prose):

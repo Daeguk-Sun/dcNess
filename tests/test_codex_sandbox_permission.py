@@ -330,6 +330,172 @@ class CodexSandboxPermissionClassificationTests(unittest.TestCase):
             )
             self.assertNotIn("unrelated-cache", receipt["evidence"][-1]["signature"])
 
+    def test_real_sandbox_write_denial_formats_detect_gradle_root(self) -> None:
+        """#1240 — Codex 는 'sandbox denied write to' 를 출력하지 않는다. 도구가 남기는 실제 형식을 읽는다."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            gradle_root = tmp / "user" / ".gradle"
+            lock = gradle_root / "wrapper" / "dists" / "gradle-9.3.1-bin" / "abc" / "gradle-9.3.1-bin.zip.lck"
+            spaced_root = tmp / "build cache" / ".gradle"
+            spaced_lock = spaced_root / "caches" / "modules-2" / "modules-2.lock"
+            cases = {
+                "bsd-touch": (f"touch: {lock}: Operation not permitted", gradle_root),
+                "gnu-touch": (
+                    f"touch: cannot touch '{lock}': Operation not permitted",
+                    gradle_root,
+                ),
+                "gnu-touch-utf8-quotes": (
+                    f"touch: cannot touch ‘{lock}’: Operation not permitted",
+                    gradle_root,
+                ),
+                "python": (
+                    f"PermissionError: [Errno 1] Operation not permitted: '{lock}'",
+                    gradle_root,
+                ),
+                "java": (
+                    f"java.io.FileNotFoundException: {lock} (Operation not permitted)",
+                    gradle_root,
+                ),
+                "java-spaced-path": (
+                    f"java.io.FileNotFoundException: {spaced_lock} (Operation not permitted)",
+                    spaced_root,
+                ),
+                "bsd-touch-spaced-path": (
+                    f"touch: {spaced_lock}: Operation not permitted",
+                    spaced_root,
+                ),
+            }
+            for name, (line, expected_root) in cases.items():
+                with self.subTest(name=name):
+                    prose = tmp / f"{name}.md"
+                    raw_log = tmp / f"{name}.log"
+                    prose.write_text("Blocked\n\nVALIDATION_BLOCKED\n", encoding="utf-8")
+                    raw_log.write_text(line + "\n", encoding="utf-8")
+
+                    receipt = permission.record_permission_required(
+                        prose_path=prose,
+                        raw_log_path=raw_log,
+                        project_root=project,
+                        receipt_path=tmp / f"{name}.json",
+                    )
+
+                    self.assertIsNotNone(receipt)
+                    assert receipt is not None
+                    self.assertEqual(receipt["capabilities"], ["writable_roots"])
+                    self.assertEqual(
+                        receipt["suggested_writable_roots"],
+                        [str(expected_root.resolve())],
+                    )
+
+    def _write_rollout(self, codex_home: Path, sid: str, items: list[dict]) -> None:
+        sessions = codex_home / "sessions" / "2026" / "09" / "29"
+        sessions.mkdir(parents=True)
+        rollout = sessions / f"rollout-2026-09-29T11-08-46-{sid}.jsonl"
+        rollout.write_text(
+            "".join(
+                json.dumps({"type": "response_item", "payload": item}) + "\n"
+                for item in items
+            ),
+            encoding="utf-8",
+        )
+
+    def test_rollout_tool_output_is_execution_evidence(self) -> None:
+        """#1240 — code-mode tool 출력은 stdout 로그에 없고 rollout 에만 남는다."""
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            project = tmp / "project"
+            project.mkdir()
+            codex_home = tmp / "codex-home"
+            sid = "01a0eaeb-f35c-7321-bd5d-2646bfddd296"
+            gradle_root = tmp / "user" / ".gradle"
+            lock = gradle_root / "wrapper" / "dists" / "gradle-9.3.1-bin.zip.lck"
+            nested_output = json.dumps(
+                {
+                    "exit_code": 1,
+                    "output": (
+                        "> Task :app:compileDebugKotlin\n"
+                        "java.net.SocketException: Operation not permitted\n"
+                        f"java.io.FileNotFoundException: {lock} (Operation not permitted)\n"
+                    ),
+                }
+            )
+            self._write_rollout(
+                codex_home,
+                sid,
+                [
+                    {
+                        "type": "custom_tool_call_output",
+                        "output": [
+                            {"type": "input_text", "text": "Script completed\nOutput:\n"},
+                            {"type": "input_text", "text": nested_output},
+                        ],
+                    }
+                ],
+            )
+            prose = tmp / "build-worker.md"
+            raw_log = tmp / "codex.log"
+            prose.write_text("Blocked\n\nVALIDATION_BLOCKED\n", encoding="utf-8")
+            raw_log.write_text(
+                "OpenAI Codex v0.155.1\n--------\n"
+                f"session id: {sid}\n--------\ncodex\nGradle 을 실행합니다.\n",
+                encoding="utf-8",
+            )
+
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}):
+                receipt = permission.record_permission_required(
+                    prose_path=prose,
+                    raw_log_path=raw_log,
+                    project_root=project,
+                    receipt_path=tmp / "receipt.json",
+                )
+
+            self.assertIsNotNone(receipt)
+            assert receipt is not None
+            self.assertEqual(
+                receipt["capabilities"], ["network_access", "writable_roots"]
+            )
+            self.assertEqual(
+                receipt["suggested_writable_roots"], [str(gradle_root.resolve())]
+            )
+
+    def test_rollout_assistant_message_is_not_execution_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            tmp = Path(td)
+            codex_home = tmp / "codex-home"
+            sid = "01a0eaeb-0000-7000-8000-000000000001"
+            self._write_rollout(
+                codex_home,
+                sid,
+                [
+                    {
+                        "type": "message",
+                        "role": "assistant",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": "java.net.SocketException: Operation not permitted",
+                            }
+                        ],
+                    }
+                ],
+            )
+            prose = tmp / "build-worker.md"
+            raw_log = tmp / "codex.log"
+            prose.write_text("Blocked\n\nVALIDATION_BLOCKED\n", encoding="utf-8")
+            raw_log.write_text(f"session id: {sid}\n", encoding="utf-8")
+
+            with mock.patch.dict(os.environ, {"CODEX_HOME": str(codex_home)}):
+                receipt = permission.record_permission_required(
+                    prose_path=prose,
+                    raw_log_path=raw_log,
+                    project_root=tmp,
+                    receipt_path=tmp / "receipt.json",
+                )
+
+            self.assertIsNone(receipt)
+
     def test_pass_does_not_require_reading_raw_log(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             tmp = Path(td)
