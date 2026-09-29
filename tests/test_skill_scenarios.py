@@ -204,6 +204,17 @@ class SkillScenarioRegressionTests(unittest.TestCase):
                 self.assertIn(needle, self.git_spec)
         self.assertNotIn("변경량이 크면", self.git_spec)
 
+        self.assertIn("git-spec.md#분할-판정", self.build_worker)
+        self.assertIn("분할 근거", self.build_worker)
+
+        for needle in (
+            "git-spec.md#분할-판정",
+            "git-spec.md#커밋-재구성-안전-조건",
+            "근거 없는 no-op",
+        ):
+            with self.subTest(doc="impl-loop-finish", needle=needle):
+                self.assertIn(needle, self.impl_loop_finish)
+
     def test_impl_paths_preserve_post_task_begin_marker(self) -> None:
         """#472 — after-task autonomous work must be separated from task ROI."""
         for doc_name, doc in (

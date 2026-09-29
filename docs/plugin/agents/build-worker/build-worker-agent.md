@@ -35,7 +35,7 @@
 - 디자인 정합: 확정 목업이 있으면 레이아웃 계층, 상태, 토큰 대응이 `docs/design-variants/screens/<screen-id>.html` 의 `data-node-id` 의도와 맞는가.
 - design:required 토큰 정합: node-id 구조 대응과 분리된 별개 완료 조건으로 앱 테마·컴포넌트 색이 `docs/design.md` 토큰대로 적용됐는가. 목업과 다른 색 테마, 스캐폴딩 기본 팔레트, boilerplate 테마 잔존 금지.
 - 신뢰 경계: 외부 HTTP, 파일/URL 입력, 보안, 도메인 invariant를 바꾸면 self-test가 놓친 실패 경로를 별도로 적발했는가.
-- commit 품질: task가 green이 된 뒤 [`git-spec.md#의미-단위-커밋-분할`](../../git-spec.md#의미-단위-커밋-분할)에 맞게 독립 검토 가능한 의미 단위로 로컬 커밋됐는가.
+- commit 품질: task가 green이 된 뒤 [`git-spec.md#의미-단위-커밋-분할`](../../git-spec.md#의미-단위-커밋-분할)에 맞게 로컬 커밋됐는가. 자기판단으로 통과시키지 않고 [`git-spec.md#분할-판정`](../../git-spec.md#분할-판정)의 세 문장으로 확인한다. commit 마다 "이 commit 이 끝나면 무엇을 할 수 있게 되는가" 한 문장이 성립하고, commit 이 의존 방향 순서로 놓였으며, 한 문장으로 설명되지 않는 task 를 commit 1개로 닫지 않았을 때만 통과다.
 - handoff 품질: 메인이 push/PR/merge를 소유할 수 있도록 commit sha, 검증 명령, 남은 판단 지점을 남겼는가.
 - journey handoff: `(JOURNEY)` REQ마다 프로젝트 e2e flow와 owner module/소스 영역의 journey 매니페스트를 작성하고, worker 실행 컨텍스트의 수렴 호출과 별도 sealed acceptance 실행에 명시적으로 인계했는가.
 - Cartography impact: 구현 중 runtime entrypoint, capability/state owner, dependency edge, public surface, 상태 before/after가 바뀌었는지 실제 diff와 검증 증거로 판정하고, 관련 epic/decision과 함께 final mutation owner가 복구 가능한 자유 prose로 보고하는가. 특히 `stub/planned → landed`는 제품 동작·검증 증거가 있어야 한다.
@@ -51,7 +51,7 @@
    - impl 계획에 replacement/refactor/migration 신호가 있으면 old surface를 이름 검색 하나로 끝내지 않는다. call site, DI binding/provider, route/deep link, manifest/framework registration, resource, test/fake/fixture, suppression/deprecation을 전수 대조한다. 제거한 표면과 의도적으로 보존한 표면을 나누고, 보존 항목에는 이유와 owner를 남긴다. framework/runtime reachability 또는 후속 Epic의 intentional stub/planned seam 여부가 불명확하면 자동 삭제하지 않고 gap으로 보고한다.
 5. 각 phase 결과를 phase prose 파일로 남긴다.
 6. PASS 조건을 만족하면 `git status`, `git diff --check`, 필요한 `git add`, `git commit`을 실행해 task 변경을 로컬 커밋으로 닫는다. 커밋은 git-spec 의 의미 단위 커밋 분할 규칙으로 쪼개되 각 커밋은 hook을 통과하는 일관 상태여야 한다.
-7. PASS일 때만 다음 task를 위한 한 줄 요약, commit sha, 담당 target GitHub issue AC 별 충족 증거를 남긴다. `(JOURNEY)`가 있으면 이 Story의 REQ 목록, flow/매니페스트, `acceptance_environment`, `harness_paths`, 수렴·acceptance 실행 인계를 함께 보고한다. build-worker 는 issue mutation 권한이 없으므로 체크박스를 직접 수정하지 않고 메인에게 증거만 인계한다.
+7. PASS일 때만 다음 task를 위한 한 줄 요약, commit 마다 sha·제목·분할 근거(git-spec 분할 판정의 `제목 — 1번 문장` 목록), 담당 target GitHub issue AC 별 충족 증거를 남긴다. `(JOURNEY)`가 있으면 이 Story의 REQ 목록, flow/매니페스트, `acceptance_environment`, `harness_paths`, 수렴·acceptance 실행 인계를 함께 보고한다. build-worker 는 issue mutation 권한이 없으므로 체크박스를 직접 수정하지 않고 메인에게 증거만 인계한다.
 
 ### `JOURNEY_ENV_PREFLIGHT`
 
@@ -85,7 +85,7 @@
 - 금지되는 외부 상태 변경은 계속 메인 영역이다: `git push`, `gh pr create`, `gh pr merge`, `gh issue` mutation, `gh api` mutation.
 - 커밋 메시지와 의미 단위 분할은 repo 의 git-spec 를 따른다. 모르면 임의 close keyword 를 넣지 말고 메인에게 확인 요청을 남긴다.
 - 커밋 후 `git status --short` 가 harness-state 외 clean 인지 확인한다. clean 이 아니면 PASS 하지 않는다.
-- commit sha 를 완료 보고와 `dcness-story-runner mark --status completed --commit <sha>` 인계에 쓸 수 있게 명시한다.
+- commit 마다 sha·제목·분할 근거를 완료 보고에 남기고, 마지막 commit sha 를 `dcness-story-runner mark --status completed --commit <sha>` 인계에 쓸 수 있게 명시한다.
 
 ## self-check
 
@@ -117,7 +117,7 @@
 - RED와 GREEN 결과가 보고된다.
 - 변경 파일이 impl Scope와 권한 경계 안에 있다.
 - 자체 검증 결과가 실제 실행 증거(명령 + 종료코드)와 함께 `PASS` 또는 finding으로 남는다. 실행 불가였다면 `VALIDATION_BLOCKED` 로 보고했다.
-- green task 변경이 로컬 커밋으로 닫혔고 commit sha가 보고된다.
+- green task 변경이 로컬 커밋으로 닫혔고 commit 마다 sha·제목·분할 근거가 보고된다.
 - 핵심 AC별 동작 증거와 mock/stub/fake 사용 경계가 보고된다. TypeScript 등 정적 타입검사가 의미 있는 stack 에서 typecheck/compile 이 빠졌다면 품질 게이트 warning 또는 보강 필요성을 쓴다.
 - task 가 담당하는 target GitHub issue AC 와 impl task REQ 의 대응, 각 항목의 실행·관찰 증거가 보고된다. `(TEST)`/`(AGENT READ)`로 닫는 항목은 어느 하나라도 이 task 범위에서 충족되지 않았으면 PASS 하지 않는다. task 구현 mode의 `(JOURNEY)` REQ는 PASS 블로커에서 제외하되, flow 대본·journey 매니페스트·필요한 setup/teardown/상태전이 스크립트와 환경·배관 선언을 모두 작성하고 final tip 수렴 및 acceptance 인계를 보고한 경우에만 예외다.
 - 담당 `(JOURNEY)` REQ마다 flow 대본과 `.dcness/` 밖 journey 매니페스트가 작성됐고 수렴 대상이면 `JOURNEY_CONVERGENCE`와 sealed acceptance 실행에 인계됐다. `journey_deferred`이면 현재 run의 수렴·sealed 실행 비대상과 human verification/follow-up 인계를 보고한다. 메인이 대신 실행하는 `VALIDATION_BLOCKED` 경로와 다르며, 최종 clean에는 수렴 대상 journey의 별도 PASS가 필요하다.

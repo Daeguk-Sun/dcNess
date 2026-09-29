@@ -24,7 +24,15 @@
 8. 최초 PR 생성
 9. 별도 merge gate
 
-`JOURNEY_CONVERGENCE → final mutation owner Cartography sync/no-op → candidate freeze → holistic validator PASS → sealed product acceptance PASS → target GitHub issue AC close audit → PR 생성` 순서를 바꾸지 않는다. 의미 단위 commit이 이미 clean하면 consolidate는 no-op이다. 최초 PR은 이 순서가 끝난 뒤에만 만든다.
+`JOURNEY_CONVERGENCE → final mutation owner Cartography sync/no-op → candidate freeze → holistic validator PASS → sealed product acceptance PASS → target GitHub issue AC close audit → PR 생성` 순서를 바꾸지 않는다. 최초 PR은 이 순서가 끝난 뒤에만 만든다.
+
+### 커밋 consolidate
+
+step 3의 consolidate 여부는 [`git-spec.md#분할-판정`](../../docs/plugin/git-spec.md#분할-판정)의 세 문장으로 정한다. 메인은 PR로 cut할 범위의 commit마다 `제목 — 1번 문장` 목록을 만들고(build-worker 완료 보고의 분할 근거를 재사용할 수 있다) 세 문장을 모두 만족하는지 판정한다.
+
+- 만족하면 consolidate를 no-op으로 넘기되, 그 목록을 판정 근거로 마감 보고와 PR 본문에 남긴다. 근거 없는 no-op은 금지한다.
+- 만족하지 못하면 [`git-spec.md#커밋-재구성-안전-조건`](../../docs/plugin/git-spec.md#커밋-재구성-안전-조건)을 지켜 commit을 재구성한 뒤 candidate를 freeze한다. 재구성 후 tree 해시가 재구성 전과 다르면 중단한다.
+- 마감 복구로 새 candidate를 freeze할 때도 추가된 수정 commit을 포함해 다시 판정한다.
 
 ### journey
 
