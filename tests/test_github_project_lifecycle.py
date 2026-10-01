@@ -1373,6 +1373,45 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
         self.assertIn("--issue <number> is required", completed.stderr)
         self.assertNotIn("WARN", completed.stderr)
 
+    def test_malformed_arguments_fail_before_gh_under_rejected_credentials(self) -> None:
+        """인자 오류는 원격 호출 전에 드러나야 인증 거부 degrade 에 가려지지 않는다."""
+        reject_credentials = """
+        args = sys.argv[1:]
+        print('gh: HTTP 401: Bad credentials (https://api.github.com/graphql)', file=sys.stderr)
+        sys.exit(1)
+        """
+        cases = [
+            (["pr-merged", "--repo", "Daeguk-Sun/dcNess", "--pr", "abc"], "--pr"),
+            (["validate-issue", "--repo", "Daeguk-Sun/dcNess", "--issue", "12x"], "--issue"),
+            (["pr-merged", "--repo", "Daeguk-Sun/dcNess", "--project", "seven", "--body", "Closes #891"], "--project"),
+            (["pr-merged", "--repo", "Daeguk-Sun/dcNess", "--bogus", "--pr", "1251"], "--bogus"),
+            (["validate-issue", "--repo", "Daeguk-Sun/dcNess", "--issue"], "--issue"),
+            (["pr-merged", "--repo", "Daeguk-Sun/dcNess", "--pr", "--apply"], "--pr"),
+            (["pr-merged", "--repo", "Daeguk-Sun/dcNess", "--apply"], "--pr"),
+        ]
+        for args, expected in cases:
+            with self.subTest(args=args):
+                completed, calls = self.run_cli_with_fake_gh(args, reject_credentials)
+
+                self.assertEqual(1, completed.returncode, completed.stderr)
+                self.assertIn(expected, completed.stderr)
+                self.assertNotIn("WARN", completed.stderr)
+                self.assertNotIn("Traceback", completed.stderr)
+                self.assertEqual([], calls)
+
+    def test_pr_merged_accepts_empty_body_from_env(self) -> None:
+        """본문이 빈 PR 도 --body-env 로 받으면 인자 오류가 아니다."""
+        completed, calls = self.run_cli_with_fake_gh(
+            ["pr-merged", "--repo", "Daeguk-Sun/dcNess", "--body-env", "DCNESS_TEST_EMPTY_BODY"],
+            """
+            sys.exit(1)
+            """,
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("no completion issue candidates", completed.stdout)
+        self.assertEqual([], calls)
+
     def test_operator_commands_still_fail_when_credentials_are_rejected(self) -> None:
         """사후 보정이 아닌 command 는 인증 거부를 성공으로 바꾸지 않는다."""
         reject_credentials = """

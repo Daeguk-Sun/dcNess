@@ -344,6 +344,14 @@ export function validateIssueProjectRegistration({
   return { ok, messages };
 }
 
+const BOOLEAN_OPTIONS = new Set(['apply', 'help', 'preserve-existing']);
+const VALUE_OPTIONS = new Set([
+  'repo', 'owner', 'project', 'issue', 'issue-type', 'status', 'priority', 'limit',
+  'pr', 'body', 'body-file', 'body-env', 'expected-status', 'expected-issue-type', 'expected-priority',
+]);
+const NUMBER_OPTIONS = new Set(['project', 'issue', 'pr']);
+
+// 인자 오류는 원격 호출 전에 드러낸다. 원격 호출이 인증 거부로 degrade 되면 인자 오류까지 성공으로 가려진다.
 function parseArgs(argv) {
   const args = { _: [] };
   for (let i = 0; i < argv.length; i += 1) {
@@ -353,11 +361,20 @@ function parseArgs(argv) {
       continue;
     }
     const key = token.slice(2);
-    if (key === 'apply' || key === 'help' || key === 'preserve-existing') {
+    if (BOOLEAN_OPTIONS.has(key)) {
       args[key] = true;
       continue;
     }
-    args[key] = argv[i + 1];
+    if (!VALUE_OPTIONS.has(key)) throw new Error(`unknown option: ${token}`);
+    const value = argv[i + 1];
+    const nextIsOption = typeof value === 'string'
+      && value.startsWith('--')
+      && (BOOLEAN_OPTIONS.has(value.slice(2)) || VALUE_OPTIONS.has(value.slice(2)));
+    if (value === undefined || nextIsOption) throw new Error(`${token} requires a value.`);
+    if (NUMBER_OPTIONS.has(key) && !/^[1-9]\d*$/.test(value)) {
+      throw new Error(`${token} <number> must be a positive integer: ${value}`);
+    }
+    args[key] = value;
     i += 1;
   }
   return args;
@@ -1398,6 +1415,9 @@ function bodyFromArgs(args) {
 }
 
 function commandPrMerged(args) {
+  if (!['pr', 'body', 'body-file', 'body-env'].some((key) => key in args)) {
+    throw new Error('--pr <number>, --body-file <file>, or --body-env <name> is required.');
+  }
   const body = bodyFromArgs(args);
   const { refs } = parseCompletionIssueRefs(body, args.repo);
   if (refs.length === 0) {
@@ -1454,8 +1474,7 @@ function help() {
 `);
 }
 
-function main() {
-  const args = parseArgs(process.argv.slice(2));
+function main(args) {
   const [command] = args._;
   if (!command || args.help) {
     help();
@@ -1480,10 +1499,12 @@ function main() {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
+  let command = '<no-command>';
   try {
-    process.exitCode = main();
+    const args = parseArgs(process.argv.slice(2));
+    command = args._[0] ?? command;
+    process.exitCode = main(args);
   } catch (error) {
-    const [command = '<no-command>'] = parseArgs(process.argv.slice(2))._;
     if (error?.credentialsRejected && CREDENTIALS_DEGRADE_COMMANDS.includes(command)) {
       warnProjectMirror(
         `GitHub 이 자격증명을 거부해(HTTP 401 Bad credentials) ${command} lifecycle 정리를 중단하고 건너뜁니다 — ${error.message}. `
