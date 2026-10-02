@@ -655,6 +655,117 @@ class MeasureMainTurnsTests(unittest.TestCase):
         self.assertEqual(report["relative_speed"]["status"], "UNPROVEN")
         self.assertEqual(report["sample_count"], 1)
 
+    def _skill_flow_trace(self, path: Path, *, slash_command: bool = False) -> None:
+        def timestamp(offset_seconds: int) -> str:
+            return (
+                datetime(2026, 7, 20, 0, 10, offset_seconds, tzinfo=timezone.utc)
+                .isoformat()
+                .replace("+00:00", "Z")
+            )
+
+        def assistant(second: int, request: str, tool: str, tool_input: dict) -> dict:
+            return {
+                "type": "assistant",
+                "timestamp": timestamp(second),
+                "message": {
+                    "id": request,
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": f"{request}-tool",
+                            "name": tool,
+                            "input": tool_input,
+                        }
+                    ],
+                },
+            }
+
+        def tool_result(second: int, request: str) -> dict:
+            return {
+                "type": "user",
+                "timestamp": timestamp(second),
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": f"{request}-tool",
+                            "content": "ok",
+                        }
+                    ],
+                },
+            }
+
+        request_text = (
+            "<command-message>dcness:impl</command-message>\n"
+            "<command-name>/dcness:impl</command-name>"
+            if slash_command
+            else "fix the duplicate send bug"
+        )
+        rows = [
+            {
+                "type": "user",
+                "timestamp": timestamp(0),
+                "cwd": "/tmp/project",
+                "message": {"role": "user", "content": request_text},
+            },
+            assistant(5, "investigate", "Read", {"file_path": "src/send.py"}),
+            tool_result(6, "investigate"),
+            assistant(10, "route", "Skill", {"skill": "dcness:impl"}),
+            tool_result(10, "route"),
+            {
+                "type": "user",
+                "timestamp": timestamp(10),
+                "isMeta": True,
+                "message": {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Base directory for this skill: "
+                                "/tmp/dcness/dcness/0.30.0/skills/impl\n\n# Impl"
+                            ),
+                        }
+                    ],
+                },
+            },
+            assistant(30, "edit", "Edit", {"file_path": "/tmp/project/src/send.py"}),
+        ]
+        path.write_text(
+            "\n".join(json.dumps(row) for row in rows) + "\n",
+            encoding="utf-8",
+        )
+
+    def test_flow_health_measures_model_invoked_impl_skill_from_user_request(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._skill_flow_trace(trace)
+
+            rows = parse_flow_invocations(trace)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["command"], "dcness:impl")
+        self.assertEqual(rows[0]["plugin_version"], "0.30.0")
+        self.assertEqual(rows[0]["start_evidence"]["line"], 1)
+        self.assertEqual(rows[0]["start_evidence"]["kind"], "skill_invocation")
+        self.assertEqual(rows[0]["time_to_first_edit_seconds"], 30.0)
+        self.assertEqual(
+            rows[0]["blocking_assistant_requests_before_first_action"],
+            2,
+        )
+
+    def test_flow_health_does_not_double_count_skill_call_after_slash_command(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._skill_flow_trace(trace, slash_command=True)
+
+            rows = parse_flow_invocations(trace)
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["start_evidence"]["kind"], "command_invocation")
+
     def test_process_start_falls_back_before_fresh_edit_when_root_duration_is_short(self) -> None:
         with TemporaryDirectory() as td:
             trace = Path(td) / "fresh-no-user.jsonl"

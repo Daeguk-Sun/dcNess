@@ -56,7 +56,7 @@ python3.11 scripts/measure_main_turns.py <session-jsonl-or-project-session-direc
   --flow-health --plugin-version <audited-plugin-version> --json
 ```
 
-dcNess source checkout의 이 모드는 활성 프로젝트 세션 안 `/impl`·`/impl-loop` 호출마다 첫 구현 action(메인 직접 구현 edit 또는 headless worker launch)까지의 시간, blocking main request, 실제 tool 시간, 비도구 경과 비율, 첫 progress와 tool 후 최장 무응답을 다시 계산한다. 비도구 경과에는 모델 생성·오케스트레이션·사용자 판단 시간이 함께 들어갈 수 있으므로 낭비나 idle 시간으로 해석하지 않는다.
+dcNess source checkout의 이 모드는 활성 프로젝트 세션 안 `/impl`·`/impl-loop` 호출마다 첫 구현 action(메인 직접 구현 edit 또는 headless worker launch)까지의 시간, blocking main request, 실제 tool 시간, 비도구 경과 비율, 첫 progress와 tool 후 최장 무응답을 다시 계산한다. 비도구 경과에는 모델 생성·오케스트레이션·사용자 판단 시간이 함께 들어갈 수 있으므로 낭비나 idle 시간으로 해석하지 않는다. 사용자가 slash command를 입력하지 않고 모델이 Skill 도구로 `dcness:impl`·`dcness:impl-loop`를 호출한 경우도 측정하며, 이때 시작 시각은 그 호출 직전의 사용자 요청이다(`start_evidence.kind = skill_invocation`).
 
 단일 `Flow Health` 등급으로 서로 다른 사실을 합치지 않고 네 축을 따로 보고한다.
 

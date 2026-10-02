@@ -197,6 +197,32 @@ def _flow_command(event: dict[str, Any]) -> str | None:
     return _normalize_flow_command(match.group("name"))
 
 
+def _flow_skill_command(event: dict[str, Any]) -> str | None:
+    if not _is_root_assistant_event(event):
+        return None
+    for block in _assistant_content(event):
+        if (
+            isinstance(block, dict)
+            and block.get("type") == "tool_use"
+            and block.get("name") == "Skill"
+            and isinstance(block.get("input"), dict)
+            and isinstance(block["input"].get("skill"), str)
+        ):
+            return _normalize_flow_command(block["input"]["skill"])
+    return None
+
+
+def _is_flow_user_request(event: dict[str, Any]) -> bool:
+    return (
+        event.get("type") == "user"
+        and event.get("parent_tool_use_id") in (None, "")
+        and event.get("isMeta") is not True
+        and event.get("isSynthetic") is not True
+        and event.get("isSidechain") is not True
+        and _is_direct_user_request((event.get("message") or {}).get("content"))
+    )
+
+
 def _load_timed_events(path: Path) -> list[dict[str, Any]]:
     events: list[dict[str, Any]] = []
     with path.open() as source:
@@ -520,6 +546,7 @@ def _flow_invocation(
     path: Path,
     command: str,
     events: list[dict[str, Any]],
+    start_kind: str = "command_invocation",
 ) -> dict[str, Any]:
     start_event = events[0]
     start_at = start_event.get("_at")
@@ -673,7 +700,7 @@ def _flow_invocation(
         "start_evidence": {
             "timestamp": start_at.isoformat(),
             "line": start_event["_line"],
-            "kind": "command_invocation",
+            "kind": start_kind,
         },
         "first_action_evidence": first_action,
         "first_edit_evidence": (
@@ -695,13 +722,22 @@ def parse_flow_invocations(
         for value in (command_names or _FLOW_DEFAULT_COMMANDS)
     }
     events = _load_timed_events(path)
-    command_indexes = [
-        (index, command)
-        for index, event in enumerate(events)
-        if (command := _flow_command(event)) is not None
-    ]
+    # A model-invoked Skill call starts its window at the user request that led to it.
+    starts: dict[int, tuple[str, str]] = {}
+    last_request_index: int | None = None
+    for index, event in enumerate(events):
+        command = _flow_command(event)
+        if command is not None:
+            starts[index] = (command, "command_invocation")
+        if _is_flow_user_request(event):
+            last_request_index = index
+            continue
+        skill = _flow_skill_command(event)
+        if skill is not None and last_request_index is not None:
+            starts.setdefault(last_request_index, (skill, "skill_invocation"))
+    command_indexes = sorted(starts.items())
     rows: list[dict[str, Any]] = []
-    for position, (start_index, command) in enumerate(command_indexes):
+    for position, (start_index, (command, start_kind)) in enumerate(command_indexes):
         if command not in selected:
             continue
         end_index = (
@@ -711,7 +747,7 @@ def parse_flow_invocations(
         )
         window = events[start_index:end_index]
         if isinstance(window[0].get("_at"), datetime):
-            rows.append(_flow_invocation(path, command, window))
+            rows.append(_flow_invocation(path, command, window, start_kind))
     return rows
 
 
