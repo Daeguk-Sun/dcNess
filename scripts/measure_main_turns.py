@@ -78,6 +78,10 @@ _FLOW_WORKER_LAUNCH_PATTERN = re.compile(
     \s+build-worker(?:\s|\\|$)
     """
 )
+_FLOW_ISSUE_READ_PATTERN = re.compile(
+    r"\bgh\s+(?:issue\s+view|api\s+\S*issues/\d+)"
+)
+_FLOW_TEST_NAME_AFFIX = re.compile(r"^test_|[._-]?(?:[Tt]ests?|[Ss]pecs?)$")
 _FLOW_DEFAULT_COMMANDS = ("dcness:impl", "dcness:impl-loop")
 _FLOW_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
 _FLOW_MAX_FIRST_ACTION_SECONDS = 60.0
@@ -534,6 +538,84 @@ def _flow_silence_observations(
     )
 
 
+def _tool_result_text(block: dict[str, Any]) -> str:
+    content = block.get("content")
+    if isinstance(content, str):
+        return content
+    if not isinstance(content, list):
+        return ""
+    return "\n".join(
+        str(item.get("text") or "")
+        for item in content
+        if isinstance(item, dict) and item.get("type") == "text"
+    )
+
+
+def _event_visible_text(event: dict[str, Any]) -> str:
+    content = (event.get("message") or {}).get("content")
+    results = (
+        [
+            _tool_result_text(block)
+            for block in content
+            if isinstance(block, dict) and block.get("type") == "tool_result"
+        ]
+        if isinstance(content, list)
+        else []
+    )
+    return "\n".join([_event_text(event), *results])
+
+
+def _flow_request_text(
+    events: list[dict[str, Any]],
+    stop_at: datetime,
+    prior_text: str = "",
+) -> str:
+    """Where a target pointer can come from: earlier session context, the request, issue reads."""
+    texts = [prior_text, _event_text(events[0])]
+    issue_reads: set[str] = set()
+    for event in events[1:]:
+        timestamp = event.get("_at")
+        if isinstance(timestamp, datetime) and timestamp >= stop_at:
+            break
+        for block in _assistant_content(event):
+            if (
+                isinstance(block, dict)
+                and block.get("type") == "tool_use"
+                and block.get("name") == "Bash"
+                and _FLOW_ISSUE_READ_PATTERN.search(
+                    str((block.get("input") or {}).get("command") or "")
+                )
+            ):
+                issue_reads.add(str(block.get("id")))
+        content = (event.get("message") or {}).get("content")
+        if event.get("type") == "user" and isinstance(content, list):
+            texts.extend(
+                _tool_result_text(block)
+                for block in content
+                if isinstance(block, dict)
+                and block.get("type") == "tool_result"
+                and str(block.get("tool_use_id")) in issue_reads
+            )
+    return "\n".join(texts)
+
+
+def _flow_pointer_given(target_path: str, request_text: str) -> bool:
+    name = Path(target_path).name
+    stem, _, extension = name.partition(".")
+    source_stem = _FLOW_TEST_NAME_AFFIX.sub("", stem)
+    candidates = {name}
+    if source_stem and extension:
+        candidates.add(f"{source_stem}.{extension}")
+    # A bare stem counts only when it is a code identifier, not a prose word.
+    if re.search(r"[a-z][A-Z]|_", source_stem):
+        candidates.add(source_stem)
+    return any(
+        re.search(rf"(?<![\w.]){re.escape(candidate)}(?!\w)", request_text)
+        for candidate in candidates
+        if candidate
+    )
+
+
 def _flow_plugin_version(events: list[dict[str, Any]]) -> str | None:
     for event in events:
         match = _FLOW_PLUGIN_VERSION_PATTERN.search(_event_text(event))
@@ -547,6 +629,7 @@ def _flow_invocation(
     command: str,
     events: list[dict[str, Any]],
     start_kind: str = "command_invocation",
+    prior_text: str = "",
 ) -> dict[str, Any]:
     start_event = events[0]
     start_at = start_event.get("_at")
@@ -630,6 +713,17 @@ def _flow_invocation(
         stop_at,
         tool_results,
     )
+    if first_action is None:
+        startup_scope = "no_action"
+    elif first_action["tool"] == "WorkerLaunch":
+        startup_scope = "headless"
+    elif _flow_pointer_given(
+        first_action["path"],
+        _flow_request_text(events, stop_at, prior_text),
+    ):
+        startup_scope = "pointer_given"
+    else:
+        startup_scope = "exploration_required"
     non_tool_elapsed_ratio = (
         max(elapsed_seconds - tool_seconds, 0.0) / elapsed_seconds
         if elapsed_seconds
@@ -650,6 +744,7 @@ def _flow_invocation(
         "plugin_version": _flow_plugin_version(events),
         "result": result,
         "failure_reasons": failure_reasons,
+        "startup_scope": startup_scope,
         "startup_target": (
             "headless_worker_launch"
             if first_action is not None
@@ -747,7 +842,12 @@ def parse_flow_invocations(
         )
         window = events[start_index:end_index]
         if isinstance(window[0].get("_at"), datetime):
-            rows.append(_flow_invocation(path, command, window, start_kind))
+            prior_text = "\n".join(
+                _event_visible_text(event) for event in events[:start_index]
+            )
+            rows.append(
+                _flow_invocation(path, command, window, start_kind, prior_text)
+            )
     return rows
 
 
@@ -774,8 +874,12 @@ def build_flow_health(
     evaluated = [
         row for row in invocations if row["result"] in {"PASS", "FAIL"}
     ]
-    pass_count = sum(row["result"] == "PASS" for row in evaluated)
-    fail_count = sum(row["result"] == "FAIL" for row in evaluated)
+    # Main-direct edits without a target pointer must explore first; record, do not judge.
+    startup_rows = [
+        row for row in evaluated if row["startup_scope"] != "exploration_required"
+    ]
+    pass_count = sum(row["result"] == "PASS" for row in startup_rows)
+    fail_count = sum(row["result"] == "FAIL" for row in startup_rows)
     if fail_count:
         startup_status = "MISS"
     elif pass_count >= _FLOW_MINIMUM_CONFIDENT_SAMPLES:
@@ -837,9 +941,10 @@ def build_flow_health(
         "excluded_version_count": excluded_version_count,
         "startup_slo": {
             "status": startup_status,
-            "sample_count": len(evaluated),
+            "sample_count": len(startup_rows),
             "pass_count": pass_count,
             "miss_count": fail_count,
+            "exploration_required_count": len(evaluated) - len(startup_rows),
         },
         "flow_visibility": {
             "status": visibility_status,
@@ -1469,14 +1574,16 @@ def format_flow_health_text(report: dict[str, Any]) -> str:
         f"Agent Activity: {report['agent_activity']['status']}",
         f"Relative Speed: {report['relative_speed']['status']}",
         (
-            "  samples (pass/fail/incomplete): "
+            "  samples (pass/fail/exploration_required/incomplete): "
             f"{report['sample_count']} "
             f"({report['pass_count']}/{report['fail_count']}/"
+            f"{report['startup_slo']['exploration_required_count']}/"
             f"{report['incomplete_count']})"
         ),
         (
             "  contract: first edit or headless worker launch <60s, "
             "blocking assistant requests <=2; "
+            "main-direct edits without a target pointer are exploration_required; "
             "PASS/CLEAR require >=3 current-version samples"
         ),
     ]
@@ -1487,7 +1594,7 @@ def format_flow_health_text(report: dict[str, Any]) -> str:
             "  - "
             f"{row['session']} {row['command']} {row['result']}: "
             f"first_action={row['time_to_first_action_seconds']}s "
-            f"({row['startup_target']}), "
+            f"({row['startup_target']}, {row['startup_scope']}), "
             "blocking="
             f"{row['blocking_assistant_requests_before_first_action']}, "
             f"tool_time={row['pre_action_tool_execution_seconds']}s, "

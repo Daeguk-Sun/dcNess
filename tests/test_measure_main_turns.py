@@ -227,7 +227,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
                         "content": (
                             "<command-message>dcness:impl</command-message>\n"
                             "<command-name>/dcness:impl</command-name>\n"
-                            "<command-args>issue 80</command-args>"
+                            "<command-args>issue 80 src/fixture.py</command-args>"
                         ),
                     },
                 },
@@ -655,7 +655,16 @@ class MeasureMainTurnsTests(unittest.TestCase):
         self.assertEqual(report["relative_speed"]["status"], "UNPROVEN")
         self.assertEqual(report["sample_count"], 1)
 
-    def _skill_flow_trace(self, path: Path, *, slash_command: bool = False) -> None:
+    def _skill_flow_trace(
+        self,
+        path: Path,
+        *,
+        slash_command: bool = False,
+        request_text: str = "fix the duplicate send bug",
+        issue_body: str | None = None,
+        edit_path: str = "/tmp/project/src/send.py",
+        prior_context: str | None = None,
+    ) -> None:
         def timestamp(offset_seconds: int) -> str:
             return (
                 datetime(2026, 7, 20, 0, 10, offset_seconds, tzinfo=timezone.utc)
@@ -681,7 +690,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
                 },
             }
 
-        def tool_result(second: int, request: str) -> dict:
+        def tool_result(second: int, request: str, content: str = "ok") -> dict:
             return {
                 "type": "user",
                 "timestamp": timestamp(second),
@@ -691,7 +700,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
                         {
                             "type": "tool_result",
                             "tool_use_id": f"{request}-tool",
-                            "content": "ok",
+                            "content": content,
                         }
                     ],
                 },
@@ -701,17 +710,26 @@ class MeasureMainTurnsTests(unittest.TestCase):
             "<command-message>dcness:impl</command-message>\n"
             "<command-name>/dcness:impl</command-name>"
             if slash_command
-            else "fix the duplicate send bug"
+            else request_text
         )
-        rows = [
+        rows = []
+        if prior_context is not None:
+            rows.append(
+                {
+                    "type": "user",
+                    "timestamp": "2026-07-20T00:00:00Z",
+                    "message": {"role": "user", "content": prior_context},
+                }
+            )
+        rows += [
             {
                 "type": "user",
                 "timestamp": timestamp(0),
                 "cwd": "/tmp/project",
                 "message": {"role": "user", "content": request_text},
             },
-            assistant(5, "investigate", "Read", {"file_path": "src/send.py"}),
-            tool_result(6, "investigate"),
+            assistant(5, "investigate", "Bash", {"command": "gh issue view 7"}),
+            tool_result(6, "investigate", issue_body or "ok"),
             assistant(10, "route", "Skill", {"skill": "dcness:impl"}),
             tool_result(10, "route"),
             {
@@ -731,7 +749,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
                     ],
                 },
             },
-            assistant(30, "edit", "Edit", {"file_path": "/tmp/project/src/send.py"}),
+            assistant(30, "edit", "Edit", {"file_path": edit_path}),
         ]
         path.write_text(
             "\n".join(json.dumps(row) for row in rows) + "\n",
@@ -765,6 +783,54 @@ class MeasureMainTurnsTests(unittest.TestCase):
 
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["start_evidence"]["kind"], "command_invocation")
+
+    def test_flow_health_excludes_unpointed_main_direct_edit_from_startup_slo(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._skill_flow_trace(trace)
+
+            report = build_flow_health([trace], plugin_version="0.30.0")
+
+        row = report["invocations"][0]
+        self.assertEqual(row["startup_scope"], "exploration_required")
+        self.assertEqual(report["startup_slo"]["status"], "UNVERIFIED")
+        self.assertEqual(report["startup_slo"]["sample_count"], 0)
+        self.assertEqual(report["startup_slo"]["exploration_required_count"], 1)
+        self.assertEqual(report["flow_visibility"]["sample_count"], 1)
+
+    def test_flow_health_applies_startup_slo_when_issue_read_names_target(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._skill_flow_trace(trace, issue_body="Fix `src/send.py` retry")
+
+            report = build_flow_health([trace], plugin_version="0.30.0")
+
+        self.assertEqual(report["invocations"][0]["startup_scope"], "pointer_given")
+        self.assertEqual(report["startup_slo"]["status"], "UNVERIFIED")
+        self.assertEqual(report["startup_slo"]["sample_count"], 1)
+        self.assertEqual(report["startup_slo"]["exploration_required_count"], 0)
+
+    def test_flow_health_treats_target_named_earlier_in_session_as_pointer(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._skill_flow_trace(trace, prior_context="Earlier review found src/send.py")
+
+            rows = parse_flow_invocations(trace)
+
+        self.assertEqual(rows[0]["startup_scope"], "pointer_given")
+
+    def test_flow_health_pointer_match_accepts_code_identifier_stem(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._skill_flow_trace(
+                trace,
+                request_text="SendQueue drops retries",
+                edit_path="/tmp/project/src/SendQueueTest.kt",
+            )
+
+            rows = parse_flow_invocations(trace)
+
+        self.assertEqual(rows[0]["startup_scope"], "pointer_given")
 
     def test_process_start_falls_back_before_fresh_edit_when_root_duration_is_short(self) -> None:
         with TemporaryDirectory() as td:
