@@ -179,7 +179,7 @@ PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality
 - **main 직접 commit/push 금지**. 항상 branch → PR → regular merge.
 - **squash merge 금지** — 커밋별 히스토리 보존 목적.
 - **branch 는 merge 후에도 삭제하지 않는다**.
-- **pr-finalize 사용 권장** — 내부에서 peer merge guard(해당 시) + `gh pr merge --auto --merge` + `gh pr checks --watch` + auto-merge 완료 대기 + `git fetch origin main` ref 동기화 자동. 메인 Claude 가 main sync 까먹는 회귀 차단.
+- **pr-finalize 사용 권장** — 내부에서 peer merge guard(해당 시) + `gh pr checks --watch` 검사 통과 확인 + `gh pr merge --auto --merge` + 머지 완료 대기 + `git fetch origin main` ref 동기화 자동. 메인 Claude 가 main sync 까먹는 회귀 차단.
 - **argument 없이 호출 시** current branch 의 open PR 자동 검출. 명시 시 `pr-finalize.sh <PR_NUMBER>`.
 - **CI FAIL** 시 pr-finalize 가 exit 1 + 안내. 원인 수정 후 재시도.
 

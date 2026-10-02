@@ -168,9 +168,9 @@ Part of #N
 `pr-finalize.sh` 내부:
 - **pr-finalize 호출 = 머지 확정** — 별도 최종 승인 UI 없이 아래 merge 절차를 수행한다. 호출 전 PR diff/CI/마감 acceptance/사용자 확인이 필요한 흐름은 먼저 끝낸다.
 - peer claim guard 확인 (`merge-lock acquire`) — claim 없는 일반 PR 은 `mode=serial` 로 기존 흐름 유지. claim 이 있으면 repo-level mutex + 같은 story prior `task_index` 완료 evidence 를 확인한 뒤 merge 진입 ([`parallel-policy.md`](parallel-policy.md)).
-- `gh pr merge --auto --merge` (auto-merge 토글)
-- `gh pr checks --watch` (CI 결과 대기)
-- auto-merge 완료 대기 (GitHub 백그라운드 lag)
+- `gh pr checks --watch` (PR 검사 결과 대기) — 머지보다 먼저 실행한다. 기본 브랜치에 필수 검사가 지정되지 않은 저장소도 같은 순서다. 검사가 하나라도 실패·취소되거나 결과를 확인하지 못하면 머지 명령을 실행하지 않고 exit 1 로 끝나며 PR 은 열린 채로 남는다. 검사가 0개인 저장소는 짧게 재확인한 뒤 머지를 진행한다.
+- `gh pr merge --auto --merge --match-head-commit <검사한 head>` (머지 또는 auto-merge 예약) — 검사 대기 중 새 commit 이 push 되면 머지가 거부된다.
+- 머지 완료 대기 (리뷰 필수 등으로 auto-merge 가 예약된 경우의 GitHub 백그라운드 lag)
 - peer claim 이 있으면 completed 기록 (`merge-lock complete`)
 - `git fetch origin <default>` 후 default branch worktree fast-forward
 - clean linked feature worktree 와 stale worktree admin entry 를 안전 조건 안에서 정리하고, dirty/non-fast-forward/checkout 충돌은 `preserved` 목록에 이유와 함께 남긴다.
@@ -179,7 +179,7 @@ Part of #N
 
 argument 없이 호출 시 current branch 의 open PR 자동 검출. 명시 시 `pr-finalize.sh <PR_NUMBER>`.
 
-- **CI FAIL 시**: pr-finalize 가 exit 1 + 안내. 원인 파악 후 수정 커밋 → 재검증.
+- **CI FAIL 시**: pr-finalize 가 머지하지 않고 exit 1 + 안내. 원인 파악 후 수정 커밋 → 재검증.
 - **working tree dirty**: pr-finalize 가 사용자 확인 후 main sync skip 옵션.
 ---
 
