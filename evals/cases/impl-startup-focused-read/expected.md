@@ -1,0 +1,5 @@
+- [ISF-1][MUST] 수정 대상 source와 테스트 경로가 정확히 주어진 작업은 그 경로의 source와 테스트를 한 번에 읽고 바로 RED 또는 첫 수정으로 가야 하며, 반복 grep·부분 출력·관련 파일 확장 같은 탐색 반복은 결함으로 지적해야 한다.
+- [ISF-2][MUST] commit 시점 검사가 있는데 첫 테스트 전에 이름 규칙 검사나 이름 규칙 문서 확인을 하는 것은 착수를 늦추는 불필요한 선행 작업으로 지적해야 한다.
+- [ISF-3][MUST] worker prompt에서 worker가 이미 받는 작업 절차 재서술, worker 몫인 구현 설계 초안, 저장소 문서 본문 복사는 빼야 하며 문서는 경로만 가리키면 된다고 지적해야 한다.
+- [ISF-4][MUST_NOT] worker prompt에서 대상, 확정 결정, acceptance criteria, exact pointer, 검증 명령을 빼라고 요구하면 안 된다.
+- [ISF-5][MUST_NOT] worker가 프로젝트 지침 파일을 읽지 못하는 run에서 꼭 필요한 프로젝트 규칙을 짧게 요약해 넣은 것을 결함으로 지적하면 안 된다.
