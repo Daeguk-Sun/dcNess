@@ -43,3 +43,7 @@ worktree 진입부터 첫 RED test edit까지 140초가 걸렸다.
 ## D. 지침 파일을 읽지 못하는 worker
 
 다른 headless run에서 프로젝트 지침 파일은 git에서 제외된 로컬 전용 파일이다. 이번 worker provider는 그 파일을 자동으로 읽지 않는다. 메인은 worker prompt에 대상, 확정 결정, acceptance criteria, exact pointer, 검증 명령과 함께 "다른 계정용 GitHub token 사용 규칙"과 "클라이언트 repo에 커밋하면 안 되는 경로 목록" 두 가지 프로젝트 규칙을 다섯 줄로 요약했다. 작성에는 20초가 걸렸다.
+
+## E. acceptance criteria 옮겨 쓰기
+
+또 다른 headless run에서 worker prompt는 대상, 확정 결정 3개, exact pointer, 검증 명령만 담아 짧았다. 다만 메인은 issue의 acceptance criteria 원문 40줄을 응답 본문으로 한 글자씩 다시 써서 prompt 파일에 넣었고, 이 부분을 쓰는 데 50초가 걸렸다.
