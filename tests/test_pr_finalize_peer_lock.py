@@ -78,8 +78,20 @@ class PrFinalizePeerLockWiringTests(unittest.TestCase):
                 "  echo feature/a\n"
                 "  exit 0\n"
                 "fi\n"
+                "if [ \"$*\" = \"pr view 101 --json headRefOid -q .headRefOid\" ]; then\n"
+                "  echo abc123\n"
+                "  exit 0\n"
+                "fi\n"
+                "if [ \"$*\" = \"pr checks 101 --json bucket\" ]; then\n"
+                "  echo '[{\"bucket\": \"fail\", \"name\": \"test\"}]'\n"
+                "  exit 1\n"
+                "fi\n"
                 "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"checks\" ] && [ \"$4\" = \"--watch\" ]; then\n"
                 "  exit 1\n"
+                "fi\n"
+                "if [ \"$1\" = \"pr\" ] && [ \"$2\" = \"merge\" ]; then\n"
+                "  echo merge-called >&2\n"
+                "  exit 0\n"
                 "fi\n"
                 "exit 0\n",
                 encoding="utf-8",
@@ -97,6 +109,8 @@ class PrFinalizePeerLockWiringTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("CI FAIL", result.stderr)
+            self.assertNotIn("merge-called", result.stderr)
             record = WaveBoard(root).get_record(claim.key)
             self.assertEqual(record["state"], "failed")
             self.assertEqual(record["reason"], "pr-finalize exit 1")

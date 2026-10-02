@@ -1,6 +1,7 @@
 """pr-finalize default-branch merge guard와 post-merge worktree 회귀 테스트."""
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import tempfile
@@ -147,6 +148,25 @@ class PrFinalizeBaseGuardTests(unittest.TestCase):
             self.assertIn("base branch 조회 실패", result.stderr)
             self.assertNotIn("pr merge", gh_log.read_text(encoding="utf-8"))
 
+    def test_check_verdict_precedes_every_merge_command(self) -> None:
+        """머지 명령은 모두 검사 판정 뒤에 있다 — 필수 검사 지정에 기대지 않는다 (#1248)."""
+        verdict = self.script.index("CHECK_VERDICT=$(check_verdict)")
+        merge_calls = [
+            i for i in range(len(self.script))
+            if self.script.startswith('gh pr merge "$PR"', i)
+        ]
+        self.assertTrue(merge_calls)
+        for index in merge_calls:
+            self.assertLess(verdict, index)
+
+        git_spec = (REPO_ROOT / "docs" / "plugin" / "git-spec.md").read_text(
+            encoding="utf-8"
+        )
+        procedure = git_spec[git_spec.index("`pr-finalize.sh` 내부:"):]
+        self.assertLess(
+            procedure.index("gh pr checks --watch"), procedure.index("gh pr merge --auto --merge")
+        )
+
     def test_pr_finalize_documents_invocation_as_merge_commitment(self) -> None:
         self.assertIn("pr-finalize 호출 = 머지 확정", self.script)
         git_spec = (REPO_ROOT / "docs" / "plugin" / "git-spec.md").read_text(
@@ -189,63 +209,76 @@ class PrFinalizePostMergeWorktreeTests(unittest.TestCase):
         self,
         bin_dir: Path,
         *,
-        checks_exit: int = 0,
+        buckets: list[str] | None = ("pass",),
         rollup_len: int = 1,
-        state: str | None = "MERGED",
-    ) -> None:
-        """`gh` 대역. checks_exit / rollup_len 으로 CI 상황을 바꾼다.
+    ) -> Path:
+        """`gh` 대역. buckets 로 PR 검사 결과를 바꾸고, 호출 인자를 gh.log 에 남긴다.
 
-        `gh pr checks` 는 체크가 하나도 없을 때도 exit 1 이므로, 그 상황은
-        checks_exit=1 + rollup_len=0 으로 재현한다 (#1228).
-        state=None 은 PR 상태 조회 자체가 실패하는 경우다.
+        buckets=None 은 `gh pr checks --json` 이 검사 목록을 돌려주지 못하는 경우다.
+        실제 gh 는 검사가 0개일 때 이렇게 실패하므로, rollup_len=0 과 함께 쓰면
+        「검사 없음」 저장소를 재현한다 (#1228).
         """
-        state_branch = (
-            "  'pr view 123 --json state -q .state') exit 1 ;;\n"
-            if state is None
-            else f"  'pr view 123 --json state -q .state') echo {state} ;;\n"
-        )
+        checks_json = bin_dir / "checks.json"
+        if buckets is None:
+            checks_branch = (
+                "  'pr checks 123 --json bucket')"
+                " echo \"no checks reported on the 'feature/a' branch\" >&2; exit 1 ;;\n"
+            )
+            watch_exit = 1
+        else:
+            checks_json.write_text(
+                json.dumps([{"bucket": b, "name": f"check-{i}"} for i, b in enumerate(buckets)]),
+                encoding="utf-8",
+            )
+            checks_branch = f"  'pr checks 123 --json bucket') cat '{checks_json}' ;;\n"
+            watch_exit = 0 if all(b in ("pass", "skipping") for b in buckets) else 1
+        gh_log = bin_dir / "gh.log"
         gh = bin_dir / "gh"
         gh.write_text(
             "#!/bin/sh\n"
+            f"echo \"$*\" >> '{gh_log}'\n"
             "case \"$*\" in\n"
             "  'repo view --json defaultBranchRef -q .defaultBranchRef.name') echo main ;;\n"
             "  'pr view 123 --json baseRefName -q .baseRefName') echo main ;;\n"
             "  'pr view 123 --json headRefName -q .headRefName') echo feature/a ;;\n"
-            + state_branch +
+            "  'pr view 123 --json headRefOid -q .headRefOid') echo abc123 ;;\n"
+            "  'pr view 123 --json state -q .state') echo MERGED ;;\n"
             "  'pr view 123 --json url -q .url') echo https://example.test/pull/123 ;;\n"
             "  'pr view 123 --json statusCheckRollup -q .statusCheckRollup|length')"
             f" echo {rollup_len} ;;\n"
-            "  'pr merge 123 --auto --merge') exit 0 ;;\n"
-            "  'pr checks 123 --watch')\n"
-            f"    [ {checks_exit} -eq 0 ] || echo \"no checks reported on the 'feature/a' branch\" >&2\n"
-            f"    exit {checks_exit} ;;\n"
-            "  'pr checks 123')\n"
-            f"    exit {checks_exit} ;;\n"
+            "  'pr merge 123 '*) exit 0 ;;\n"
+            + checks_branch +
+            f"  'pr checks 123 --watch') exit {watch_exit} ;;\n"
             "esac\n"
             "exit 0\n",
             encoding="utf-8",
         )
         gh.chmod(0o755)
+        return gh_log
+
+    def _run_finalize(self, cwd: Path, bin_dir: Path) -> subprocess.CompletedProcess[str]:
+        env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
+        return subprocess.run(
+            [str(SCRIPT_PATH), "123"],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=90,
+        )
 
     def test_no_reported_checks_does_not_block_sync_and_cleanup(self) -> None:
-        """체크가 0개면 `gh pr checks` 가 exit 1 이어도 CI 실패가 아니다 (#1228)."""
+        """검사가 0개면 `gh pr checks` 가 실패해도 머지와 동기화를 진행한다 (#1228)."""
         with tempfile.TemporaryDirectory() as td:
             root, feature, _origin, origin_head = self._init_repo_with_remote_ahead(td)
             bin_dir = Path(td) / "bin"
             bin_dir.mkdir()
-            self._write_fake_gh(bin_dir, checks_exit=1, rollup_len=0)
+            gh_log = self._write_fake_gh(bin_dir, buckets=None, rollup_len=0)
 
-            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
-            result = subprocess.run(
-                [str(SCRIPT_PATH), "123"],
-                cwd=feature,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=60,
-            )
+            result = self._run_finalize(feature, bin_dir)
 
             self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn("pr merge 123", gh_log.read_text(encoding="utf-8"))
             self.assertEqual(
                 subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
                 origin_head,
@@ -278,86 +311,87 @@ class PrFinalizePostMergeWorktreeTests(unittest.TestCase):
             )
             self.assertIn("feature/a", branches)
 
-    def test_failing_checks_still_block_sync(self) -> None:
-        """체크가 있고 실패가 섞여 있으면 종전대로 중단한다."""
-        with tempfile.TemporaryDirectory() as td:
-            root, feature, _origin, origin_head = self._init_repo_with_remote_ahead(td)
-            before = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=root, text=True
-            ).strip()
-            bin_dir = Path(td) / "bin"
-            bin_dir.mkdir()
-            self._write_fake_gh(bin_dir, checks_exit=1, rollup_len=3)
-
-            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
-            result = subprocess.run(
-                [str(SCRIPT_PATH), "123"],
-                cwd=feature,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=60,
-            )
-
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("CI FAIL", result.stderr)
-            self.assertTrue(feature.exists())
-            self.assertEqual(
-                subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
-                before,
-            )
-            self.assertNotEqual(before, origin_head)
-
-    def test_ci_failure_message_does_not_claim_unmerged_when_already_merged(self) -> None:
-        """머지가 끝난 뒤 CI FAIL 로 중단하면 「머지 안 됨」이라고 말하지 않는다."""
+    def test_passing_checks_merge_the_checked_head_commit(self) -> None:
+        """검사 결과를 먼저 확인하고, 확인한 head commit 에 고정해 머지한다."""
         with tempfile.TemporaryDirectory() as td:
             _root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
             bin_dir = Path(td) / "bin"
             bin_dir.mkdir()
-            self._write_fake_gh(bin_dir, checks_exit=1, rollup_len=3, state="MERGED")
+            gh_log = self._write_fake_gh(bin_dir, buckets=["pass", "skipping"], rollup_len=2)
 
-            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
-            result = subprocess.run(
-                [str(SCRIPT_PATH), "123"],
-                cwd=feature,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=60,
-            )
+            result = self._run_finalize(feature, bin_dir)
 
-            self.assertNotEqual(result.returncode, 0)
-            self.assertIn("CI FAIL", result.stderr)
-            ci_fail_line = next(
-                line for line in result.stderr.splitlines() if "CI FAIL" in line
-            )
-            self.assertNotIn("머지 안 됨", ci_fail_line)
-            self.assertIn("MERGED", ci_fail_line)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = gh_log.read_text(encoding="utf-8").splitlines()
+            merge_calls = [c for c in calls if c.startswith("pr merge 123")]
+            self.assertTrue(merge_calls)
+            for call in merge_calls:
+                self.assertIn("--match-head-commit abc123", call)
+            first_merge = calls.index(merge_calls[0])
+            self.assertIn("pr checks 123 --json bucket", calls[:first_merge])
 
-    def test_ci_failure_message_does_not_claim_unmerged_when_state_unknown(self) -> None:
-        """PR 상태를 못 읽으면 머지 여부를 어느 쪽으로도 단정하지 않는다."""
+    def test_failed_or_cancelled_checks_never_reach_merge_command(self) -> None:
+        """필수 검사 지정이 없어도 검사가 실패·취소면 머지 명령을 부르지 않는다 (#1248)."""
+        for buckets in (["pass", "fail"], ["pass", "cancel"], ["pass", "unexpected"]):
+            with self.subTest(buckets=buckets), tempfile.TemporaryDirectory() as td:
+                root, feature, _origin, origin_head = self._init_repo_with_remote_ahead(td)
+                before = subprocess.check_output(
+                    ["git", "rev-parse", "HEAD"], cwd=root, text=True
+                ).strip()
+                bin_dir = Path(td) / "bin"
+                bin_dir.mkdir()
+                gh_log = self._write_fake_gh(bin_dir, buckets=buckets, rollup_len=len(buckets))
+
+                result = self._run_finalize(feature, bin_dir)
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertNotIn("pr merge", gh_log.read_text(encoding="utf-8"))
+                self.assertIn("머지하지 않았습니다", result.stderr)
+                self.assertTrue(feature.exists())
+                self.assertEqual(
+                    subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
+                    before,
+                )
+                self.assertNotEqual(before, origin_head)
+
+    def test_base_changed_during_check_wait_blocks_merge(self) -> None:
+        """검사 대기 중 base 가 바뀌면 head 가 같아도 머지하지 않는다."""
         with tempfile.TemporaryDirectory() as td:
             _root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
             bin_dir = Path(td) / "bin"
             bin_dir.mkdir()
-            self._write_fake_gh(bin_dir, checks_exit=1, rollup_len=3, state=None)
-
-            env = {**os.environ, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
-            result = subprocess.run(
-                [str(SCRIPT_PATH), "123"],
-                cwd=feature,
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=60,
+            gh_log = self._write_fake_gh(bin_dir)
+            gh = bin_dir / "gh"
+            # 검사 판정 전에는 main, 검사 판정 뒤에는 다른 브랜치를 base 로 보고한다.
+            gh.write_text(
+                gh.read_text(encoding="utf-8").replace(
+                    "'pr view 123 --json baseRefName -q .baseRefName') echo main ;;",
+                    "'pr view 123 --json baseRefName -q .baseRefName')\n"
+                    f"    if grep -q 'pr checks 123 --json bucket' '{gh_log}'; then"
+                    " echo feature/parent; else echo main; fi ;;",
+                ),
+                encoding="utf-8",
             )
+
+            result = self._run_finalize(feature, bin_dir)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("feature/parent", result.stderr)
+            self.assertNotIn("pr merge", gh_log.read_text(encoding="utf-8"))
+
+    def test_unreadable_check_result_fails_closed_before_merge(self) -> None:
+        """검사가 있다고 보고되는데 결과 목록을 읽지 못하면 머지하지 않는다."""
+        with tempfile.TemporaryDirectory() as td:
+            _root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
+            bin_dir = Path(td) / "bin"
+            bin_dir.mkdir()
+            gh_log = self._write_fake_gh(bin_dir, buckets=None, rollup_len=2)
+
+            result = self._run_finalize(feature, bin_dir)
 
             self.assertNotEqual(result.returncode, 0)
-            ci_fail_line = next(
-                line for line in result.stderr.splitlines() if "CI FAIL" in line
-            )
-            self.assertNotIn("머지 안 됨", ci_fail_line)
-            self.assertIn("확인하지 못했습니다", ci_fail_line)
+            self.assertNotIn("pr merge", gh_log.read_text(encoding="utf-8"))
+            self.assertIn("머지하지 않았습니다", result.stderr)
 
     def _init_repo_with_remote_ahead(self, td: str) -> tuple[Path, Path, Path, str]:
         root = Path(td) / "repo"

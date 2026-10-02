@@ -4,9 +4,10 @@
 # pr-finalize 호출 = 머지 확정. 이 스크립트는 별도 최종 승인 UI 없이 merge 를 시도한다.
 #
 # 한 명령으로 머지 절차 끝:
-#   1. gh pr merge --auto --merge (auto-merge 토글 ON)
-#   2. gh pr checks --watch (CI 결과 대기)
-#   3. auto-merge 완료 대기 (GitHub 백그라운드 lag)
+#   1. gh pr checks --watch 로 PR 검사 결과 대기 → 실패·취소면 머지하지 않고 종료
+#      (필수 검사 지정 여부와 무관. 검사가 0개인 저장소만 검사 없이 진행)
+#   2. gh pr merge --auto --merge --match-head-commit <검사한 head> (머지 또는 auto-merge 예약)
+#   3. 머지 완료 대기 (리뷰 필수 등으로 auto-merge 가 예약된 경우의 GitHub 백그라운드 lag)
 #   4. git fetch origin <default> + default branch worktree fast-forward
 #   5. clean feature worktree / stale worktree admin entry 정리
 #
@@ -19,7 +20,7 @@
 #
 # 안전:
 #   - 현재/대상 working tree dirty 면 강제 reset/stash 없이 preserved 목록에 이유 출력
-#   - CI FAIL 시 sync skip + 에러 코드
+#   - 검사 실패·취소·결과 미확인 시 머지 명령에 도달하지 않음 (PR 은 열린 채로 남음) + 에러 코드
 #   - 머지 안 됐으면 sync skip + 사용자 안내
 #
 # 멀티 worktree 호환:
@@ -100,6 +101,42 @@ require_default_base() {
   if [ "$BASE_REF" != "$DEFAULT_REF" ]; then
     echo "[pr-finalize] ERROR: base=$BASE_REF ≠ default=$DEFAULT_REF — merge 전에 PR을 ${DEFAULT_REF}으로 리타겟·리베이스할 것" >&2
     return 1
+  fi
+}
+
+# PR 검사 결과를 pass / fail / pending / none / unknown 중 하나로 출력한다.
+# gh pr checks 의 종료 코드는 「검사 0개」와 「검사 실패」를 구분하지 않으므로 bucket 으로 판정한다.
+# 알 수 없는 bucket 이나 읽을 수 없는 결과는 unknown 이다 (호출 측이 머지하지 않는다).
+check_verdict() {
+  local checks_json rollup_len
+  checks_json=$(gh pr checks "$PR" --json bucket 2>/dev/null || true)
+  if [ -n "$checks_json" ]; then
+    printf '%s' "$checks_json" | python3 -c '
+import json, sys
+try:
+    buckets = [check["bucket"] for check in json.load(sys.stdin)]
+except (ValueError, TypeError, KeyError):
+    print("unknown")
+    sys.exit(0)
+if not buckets:
+    print("none")
+elif any(b in ("fail", "cancel") for b in buckets):
+    print("fail")
+elif any(b == "pending" for b in buckets):
+    print("pending")
+elif all(b in ("pass", "skipping") for b in buckets):
+    print("pass")
+else:
+    print("unknown")
+'
+    return 0
+  fi
+  # 검사가 0개면 gh pr checks 가 목록 대신 오류를 낸다. rollup 개수로 「검사 없음」만 확정한다.
+  rollup_len=$(gh pr view "$PR" --json statusCheckRollup -q '.statusCheckRollup|length' 2>/dev/null || true)
+  if [ "$rollup_len" = "0" ]; then
+    echo none
+  else
+    echo unknown
   fi
 }
 
@@ -343,19 +380,67 @@ if [ "$MERGE_LOCK_MODE" = "peer" ]; then
   fi
 fi
 
-# 승인 대기·dirty 확인·peer lock 사이에 PR base가 바뀌었을 수 있으므로 merge
-# 명령 직전에 다시 fail-closed 검증한다.
+# 검사한 commit 과 머지하는 commit 이 같아야 하므로 head 를 고정한다.
+# 검사 대기 중 새 commit 이 push 되면 --match-head-commit 이 머지를 거부한다.
+HEAD_SHA=$(gh pr view "$PR" --json headRefOid -q .headRefOid 2>/dev/null || true)
+if [ -z "$HEAD_SHA" ] || [ "$HEAD_SHA" = "null" ]; then
+  echo "[pr-finalize] ERROR: PR #$PR head commit 조회 실패 — 검사한 commit 을 특정할 수 없어 머지하지 않았습니다" >&2
+  exit 1
+fi
+
+# Step 1: 머지 전에 PR 검사 결과 확인
+# 기본 브랜치에 필수 검사가 지정되지 않은 저장소는 auto-merge 가 검사를 기다리지 않고
+# 즉시 머지한다. 그래서 필수 검사 지정 여부와 관계없이 여기서 검사 결과를 먼저 판정한다.
+# push 직후에는 검사가 아직 등록되지 않았을 수 있으므로 「검사 없음」과 「진행 중」은
+# 짧게 재확인한 뒤 확정한다.
+CHECK_RECHECKS=0
+while :; do
+  echo "[pr-finalize] PR #$PR 검사 결과 대기 (gh pr checks --watch)" >&2
+  gh pr checks "$PR" --watch >&2 || true
+  CHECK_VERDICT=$(check_verdict)
+  case "$CHECK_VERDICT" in
+    pass)
+      echo "[pr-finalize] 모든 검사 통과 — 머지 진행" >&2
+      break
+      ;;
+    none|pending)
+      if [ "$CHECK_RECHECKS" -ge 3 ]; then
+        if [ "$CHECK_VERDICT" = "none" ]; then
+          echo "[pr-finalize] 보고된 검사 없음 — 기다릴 검사가 없어 머지 진행" >&2
+          break
+        fi
+        echo "[pr-finalize] ERROR: 검사가 끝나지 않았습니다 — 머지하지 않았습니다. PR #$PR 은 열린 상태로 남습니다" >&2
+        exit 1
+      fi
+      CHECK_RECHECKS=$((CHECK_RECHECKS + 1))
+      echo "[pr-finalize] 검사가 아직 없거나 진행 중 — 5초 뒤 재확인 ($CHECK_RECHECKS/3)" >&2
+      sleep 5
+      ;;
+    fail)
+      echo "[pr-finalize] ERROR: CI FAIL — 실패하거나 취소된 검사가 있어 머지하지 않았습니다. PR #$PR 은 열린 상태로 남습니다" >&2
+      exit 1
+      ;;
+    *)
+      echo "[pr-finalize] ERROR: 검사 결과를 확인하지 못해 머지하지 않았습니다. 직접 확인: gh pr checks $PR" >&2
+      exit 1
+      ;;
+  esac
+done
+
+# 승인 대기·dirty 확인·peer lock·검사 대기 사이에 PR base가 바뀌었을 수 있다.
+# base 변경은 head commit 을 바꾸지 않아 --match-head-commit 으로 막히지 않으므로
+# merge 명령 직전에 다시 fail-closed 검증한다.
 echo "[pr-finalize] merge 직전 default branch base 재확인" >&2
 require_default_base
 
-# Step 1: auto-merge 토글
-# PR 이 이미 clean status (CI 통과 + mergeable) 면 enablePullRequestAutoMerge mutation
+# Step 2: 머지 (또는 리뷰 필수 등 남은 조건을 위한 auto-merge 예약)
+# PR 이 이미 clean status (검사 통과 + mergeable) 면 enablePullRequestAutoMerge mutation
 # 이 "Pull request is in clean status" 로 거부 → 즉시 머지 fallback.
-echo "[pr-finalize] PR #$PR — auto-merge 토글 ON" >&2
-MERGE_ERR=$(gh pr merge "$PR" --auto --merge 2>&1 >/dev/null) || {
+echo "[pr-finalize] PR #$PR — 검사한 head ${HEAD_SHA} 로 머지 (auto-merge 토글 ON)" >&2
+MERGE_ERR=$(gh pr merge "$PR" --auto --merge --match-head-commit "$HEAD_SHA" 2>&1 >/dev/null) || {
   if echo "$MERGE_ERR" | grep -q "clean status"; then
     echo "[pr-finalize] PR 이미 clean status — auto-merge enable 의미 없음, 즉시 머지 fallback" >&2
-    gh pr merge "$PR" --merge >&2 || {
+    gh pr merge "$PR" --merge --match-head-commit "$HEAD_SHA" >&2 || {
       echo "[pr-finalize] ERROR: 즉시 머지 fallback 실패" >&2
       exit 1
     }
@@ -365,36 +450,8 @@ MERGE_ERR=$(gh pr merge "$PR" --auto --merge 2>&1 >/dev/null) || {
   fi
 }
 
-# Step 2: CI 결과 대기
-# gh pr checks 는 보고된 체크가 하나도 없을 때도 비정상 종료한다. 종료 코드만으로는
-# "기다릴 CI 가 없다" 와 "CI 가 실패했다" 가 구분되지 않으므로 rollup 개수로 재확인한다.
-# rollup 조회 자체가 실패하면 보수적으로 CI 실패 경로를 탄다.
-echo "[pr-finalize] CI 결과 대기 (gh pr checks --watch)" >&2
-if ! gh pr checks "$PR" --watch >&2; then
-  CHECK_COUNT=$(gh pr view "$PR" --json statusCheckRollup -q '.statusCheckRollup|length' 2>/dev/null || true)
-  if [ "$CHECK_COUNT" = "0" ]; then
-    echo "[pr-finalize] 보고된 CI 체크 없음 — 대기할 결과가 없어 다음 단계로 진행" >&2
-  else
-    # merge 토글은 Step 1 에서 이미 끝났으므로 실제 상태를 확인하고 말한다.
-    # 상태를 못 읽었으면 어느 쪽으로도 단정하지 않는다.
-    CI_FAIL_STATE=$(gh pr view "$PR" --json state -q .state 2>/dev/null || true)
-    case "$CI_FAIL_STATE" in
-      MERGED)
-        echo "[pr-finalize] ERROR: CI FAIL — PR 은 이미 MERGED 다. sync 와 워크트리 정리만 건너뜁니다" >&2
-        ;;
-      "")
-        echo "[pr-finalize] ERROR: CI FAIL — 머지 여부를 확인하지 못했습니다. sync skip. 직접 확인: gh pr view $PR" >&2
-        ;;
-      *)
-        echo "[pr-finalize] ERROR: CI FAIL — 머지 안 됨 (state=$CI_FAIL_STATE). sync skip" >&2
-        ;;
-    esac
-    exit 1
-  fi
-fi
-
-# Step 3: auto-merge 완료 대기 (GitHub 백그라운드)
-echo "[pr-finalize] auto-merge 완료 대기" >&2
+# Step 3: 머지 완료 대기 (auto-merge 예약 시 GitHub 백그라운드)
+echo "[pr-finalize] 머지 완료 대기" >&2
 STATE=""
 for i in 1 2 3 4 5 6 7 8; do
   STATE=$(gh pr view "$PR" --json state -q .state 2>/dev/null)
