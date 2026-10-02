@@ -105,7 +105,7 @@ resume 시 같은 제목의 기존 `/impl` task가 있으면 id와 상태를 재
 - main-direct면 그 worktree에서 `dcness-helper begin-run impl --lane lite` 또는 design-doc 입력이면 `begin-run impl --design-doc <path>`를 한 번 실행한다.
 - 브랜치·커밋 네이밍은 commit 경계의 기존 hook을 우선한다. RED 전에 naming SSOT를 읽지 않는다.
 
-headless one-shot이면 worktree 진입 직후 target, 보존할 결정, AC snapshot, exact pointer 또는 허용 scope, 검증 명령만 담은 slim prompt를 만들고 기존 chain을 첫 실행으로 호출한다. provider resolve, `begin-run`, `begin-step`, prompt-slot 문서 확인을 따로 하지 않는다.
+headless one-shot이면 worktree 진입 직후 target, 보존할 결정, AC snapshot, exact pointer 또는 허용 scope, 검증 명령만 담은 slim prompt를 만들고 기존 chain을 첫 실행으로 호출한다. provider resolve, `begin-run`, `begin-step`, prompt-slot 문서 확인을 따로 하지 않는다. AC 원문은 모델 출력으로 다시 쓰지 않고 `gh issue view <N> --json body --jq .body >> <slim-prompt>`처럼 명령 출력으로 붙인다(저장소의 `gh` token 규칙 적용).
 
 ```bash
 PLUGIN_ROOT=""
