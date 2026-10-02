@@ -1257,6 +1257,17 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
         self.assertIn("expected=In progress", completed.stderr)
 
     def test_validate_issue_still_fails_on_label_contract_violation(self) -> None:
+        # IssueType 이 아닌 label(예: 폐기한 improve)은 IssueType 개수에 들어가지 않는다 (#1254).
+        label_sets = {
+            "two IssueType labels": "[{'name': 'feature'}, {'name': 'bug'}]",
+            "non-IssueType labels only": "[{'name': 'improve'}, {'name': 'documentation'}]",
+            "no labels": "[]",
+        }
+        for case, labels in label_sets.items():
+            with self.subTest(case=case):
+                self._assert_validate_issue_label_violation(labels)
+
+    def _assert_validate_issue_label_violation(self, labels: str) -> None:
         completed, _calls = self.run_cli_with_fake_gh(
             [
                 "validate-issue",
@@ -1280,7 +1291,7 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
             if args[:2] == ['issue', 'view']:
                 print(json.dumps({
                     'number': 891,
-                    'labels': [{'name': 'feature'}, {'name': 'bug'}],
+                    'labels': LABELS,
                     'state': 'OPEN',
                     'url': 'https://github.com/Daeguk-Sun/dcNess/issues/891',
                 }))
@@ -1296,7 +1307,7 @@ class GithubProjectLifecycleScriptTests(unittest.TestCase):
                 sys.exit(0)
             print('unexpected gh call: ' + ' '.join(args), file=sys.stderr)
             sys.exit(2)
-            """,
+            """.replace("LABELS", labels),
         )
 
         self.assertEqual(1, completed.returncode)
