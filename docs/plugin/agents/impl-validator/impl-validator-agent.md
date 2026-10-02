@@ -76,6 +76,7 @@ delta mode에서는 다음 두 축을 우선 읽는다.
 계획 파일 또는 대상 issue 가 있으면 켠다. 대조 기준은 **plan ∪ target GitHub issue AC** 다. 계획 파일 없는 direct 경로도 대상 issue 가 있으면 target GitHub issue AC 로 spec 렌즈를 켠다. 계획과 대상 issue 가 모두 없는 direct 경로에서만 계획 부재 자체를 `spec-gap` 으로 만들지 않고 quality 렌즈만 본다.
 
 - 스펙 충실도: 계획한 생성/수정 파일, public interface, error behavior가 실제 코드와 맞는가.
+- state owner 대조 고정 항목: 계획이 지정한 state owner(상태를 소유하는 클래스·모듈)와 public interface 이름을 먼저 목록으로 뽑고, diff 의 실제 클래스 구조와 하나씩 대조한다. 지정한 state owner 가 그 상태를 실제로 소유하는지, 지정한 이름의 interface 가 그 책임을 가지는지 파일/라인 근거를 남긴다. 지정에 없는 새 상태 소유 클래스가 그 상태를 가져갔거나 지정한 owner 를 우회하면, 동작이 맞아도 `[spec-gap]` 이다. 계획이 owner 를 지정하지 않았으면 이 항목은 건너뛰고 Agent Operability 로 본다.
 - 이슈 충실도: target GitHub issue AC 전항목이 diff 와 실행·관찰 증거로 충족되는가. 계획이 AC 를 빠뜨렸거나 다르게 컴파일했어도 target issue 를 상위 계약으로 판정한다.
 - 범위 통제: 계획 밖 파일이나 기능이 섞이지 않았는가.
 - 의존 계약: 외부 API, 모듈 내부 import, DB schema, design token 계약을 어기지 않는가.

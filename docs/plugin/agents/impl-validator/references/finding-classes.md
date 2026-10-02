@@ -7,6 +7,7 @@
 구현 로직이나 범위가 계획 계약과 어긋난 경우다. 하나라도 있으면 build-worker rework 또는 설계 보강이 우선이다.
 
 - 계획한 public interface, data shape, error behavior 와 구현이 다름
+- 계획이 지정한 state owner 대신 지정에 없는 새 상태 소유 클래스가 그 상태를 가져감 (동작이 맞아도 해당)
 - 계획 밖 기능이나 파일이 섞임
 - domain invariant, architecture, design token, DB schema 계약 위반
 - design:required UI 계획이 요구한 디자인 토큰 적용 누락 또는 boilerplate 색 상수 잔존
