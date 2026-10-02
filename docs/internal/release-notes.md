@@ -10,6 +10,52 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.31.0 (2026-10-03)
+
+**커밋 범위**: `v0.30.0..v0.31.0` (머지 PR 26개, [#1216](https://github.com/Daeguk-Sun/dcNess/pull/1216) · [#1221](https://github.com/Daeguk-Sun/dcNess/pull/1221) · [#1229](https://github.com/Daeguk-Sun/dcNess/pull/1229) · [#1231](https://github.com/Daeguk-Sun/dcNess/pull/1231) · [#1232](https://github.com/Daeguk-Sun/dcNess/pull/1232) · [#1233](https://github.com/Daeguk-Sun/dcNess/pull/1233) · [#1234](https://github.com/Daeguk-Sun/dcNess/pull/1234) · [#1235](https://github.com/Daeguk-Sun/dcNess/pull/1235) · [#1236](https://github.com/Daeguk-Sun/dcNess/pull/1236) · [#1237](https://github.com/Daeguk-Sun/dcNess/pull/1237) · [#1238](https://github.com/Daeguk-Sun/dcNess/pull/1238) · [#1239](https://github.com/Daeguk-Sun/dcNess/pull/1239) · [#1241](https://github.com/Daeguk-Sun/dcNess/pull/1241) · [#1242](https://github.com/Daeguk-Sun/dcNess/pull/1242) · [#1245](https://github.com/Daeguk-Sun/dcNess/pull/1245) · [#1246](https://github.com/Daeguk-Sun/dcNess/pull/1246) · [#1247](https://github.com/Daeguk-Sun/dcNess/pull/1247) · [#1249](https://github.com/Daeguk-Sun/dcNess/pull/1249) · [#1250](https://github.com/Daeguk-Sun/dcNess/pull/1250) · [#1251](https://github.com/Daeguk-Sun/dcNess/pull/1251) · [#1252](https://github.com/Daeguk-Sun/dcNess/pull/1252) · [#1255](https://github.com/Daeguk-Sun/dcNess/pull/1255) · [#1257](https://github.com/Daeguk-Sun/dcNess/pull/1257) · [#1256](https://github.com/Daeguk-Sun/dcNess/pull/1256) · [#1258](https://github.com/Daeguk-Sun/dcNess/pull/1258) · [#1259](https://github.com/Daeguk-Sun/dcNess/pull/1259))
+**핵심 변경**: **외부 활성 프로젝트가 실제 사용 중에 겪은 마감·검수·CI 결함을 고친** minor 릴리즈. (1) 실기기 UI journey 가 600초 상한에 걸려 잘리던 문제를 단계별 상한 분리로 해결했다. (2) 필수 검사가 없는 저장소에서 `pr-finalize` 가 검사 결과를 보기 전에 머지하던 문제를 해결했다. (3) `/init-dcness` 가 CI 검사 스크립트를 사용자 저장소에 복사해 설치하고, 플랫폼별 lint-build-test workflow 를 함께 설치한다. 이 밖에 `/impl-loop` chain 의 결론 판독·상태 보존과 Codex worker 실행 환경 결함을 고쳤다.
+
+### 무엇이 바뀌나
+
+1. **journey 단계 상한 분리** ([#1247](https://github.com/Daeguk-Sun/dcNess/pull/1247) Closes [#1219](https://github.com/Daeguk-Sun/dcNess/issues/1219)) — `journey` 단계 상한을 1800초로 올리고, `start`·`health`·`cleanup` 은 600초를 유지한다. 실행 시간이 상한에 가까우면 receipt 에 경고를 남긴다. 러너 계약을 실행 전에 검사하고, 수렴 판정은 러너 실행 결과만 인정한다.
+
+2. **`pr-finalize` 가 검사 통과를 확인한 뒤에만 머지** ([#1256](https://github.com/Daeguk-Sun/dcNess/pull/1256) Closes [#1248](https://github.com/Daeguk-Sun/dcNess/issues/1248) · [#1233](https://github.com/Daeguk-Sun/dcNess/pull/1233) Closes [#1228](https://github.com/Daeguk-Sun/dcNess/issues/1228)) — 필수 검사가 없는 저장소에서 auto-merge 가 검사 결과를 기다리지 않고 즉시 머지했다. 이제 `gh pr checks` 결과로 판정하고, 검사가 실패하거나 취소되면 머지하지 않고 exit 1 로 끝난다. 검사가 0개인 저장소는 CI 실패로 오판하지 않고 머지 후 정리까지 진행한다.
+
+3. **`/init-dcness` CI 복사 설치와 lint-build-test** ([#1250](https://github.com/Daeguk-Sun/dcNess/pull/1250) Closes [#1243](https://github.com/Daeguk-Sun/dcNess/issues/1243) · [#1244](https://github.com/Daeguk-Sun/dcNess/issues/1244)) — CI workflow 가 plug-in 경로를 참조하지 않고, 검사 스크립트를 사용자 저장소의 `.github/ci-checks/` 에 복사해 사용한다. 플랫폼별 lint-build-test workflow 도 함께 설치한다.
+
+4. **GitHub Project lifecycle 안정화** ([#1231](https://github.com/Daeguk-Sun/dcNess/pull/1231) · [#1252](https://github.com/Daeguk-Sun/dcNess/pull/1252) Closes [#1230](https://github.com/Daeguk-Sun/dcNess/issues/1230) · [#1237](https://github.com/Daeguk-Sun/dcNess/pull/1237) Closes [#1211](https://github.com/Daeguk-Sun/dcNess/issues/1211)) — 자격증명 거부를 토큰 부재와 같은 degrade 경로로 처리한다. 인자 오류는 원격 호출 전에 검사해 degrade 에 가려지지 않게 한다. `/design` staged revision 의 전파 대기 상태를 저장소 산출물로 복구할 수 있다.
+
+5. **`/impl-loop` chain 결론 판독과 상태 보존** ([#1221](https://github.com/Daeguk-Sun/dcNess/pull/1221) Closes [#1217](https://github.com/Daeguk-Sun/dcNess/issues/1217) · [#1218](https://github.com/Daeguk-Sun/dcNess/issues/1218) · [#1234](https://github.com/Daeguk-Sun/dcNess/pull/1234) Closes [#1225](https://github.com/Daeguk-Sun/dcNess/issues/1225) · [#1235](https://github.com/Daeguk-Sun/dcNess/pull/1235) Closes [#1224](https://github.com/Daeguk-Sun/dcNess/issues/1224) · [#1245](https://github.com/Daeguk-Sun/dcNess/pull/1245) Closes [#1227](https://github.com/Daeguk-Sun/dcNess/issues/1227) · [#1251](https://github.com/Daeguk-Sun/dcNess/pull/1251) · [#1246](https://github.com/Daeguk-Sun/dcNess/pull/1246) Refs [#1240](https://github.com/Daeguk-Sun/dcNess/issues/1240)) — chain 이 worker 결론을 마지막 단락 계약으로 읽어 완료를 판정하고, 재실행 시 non-PASS 결론을 보존한다. journey 환경 미충족은 구현을 막지 않고 처분을 마감 단계로 옮긴다. `journey_deferred` 를 run 상태에 저장해 세션 경계를 넘긴다. 비동기 Agent 도 완료 receipt 를 남긴다. 먼저 열린 같은 task run 을 재사용할 때 검수 표시를 맞춘다. journey 쓰기 경로를 impl task 수정 허용 범위에 넣고, 누락을 구현 전에 드러낸다. 마감 candidate 식별자 미기록은 그 자리에서 알린다.
+
+6. **커밋 분할 판정 통일** ([#1241](https://github.com/Daeguk-Sun/dcNess/pull/1241) Closes [#1220](https://github.com/Daeguk-Sun/dcNess/issues/1220)) — `git-spec` 에 커밋 분할 판정과 재구성 안전 조건을 정의하고, build-worker 와 `/impl-loop` 마감이 같은 판정을 쓴다.
+
+7. **Codex worker 실행 환경** ([#1229](https://github.com/Daeguk-Sun/dcNess/pull/1229) Closes [#1223](https://github.com/Daeguk-Sun/dcNess/issues/1223) · [#1242](https://github.com/Daeguk-Sun/dcNess/pull/1242) Refs [#1240](https://github.com/Daeguk-Sun/dcNess/issues/1240) · [#1249](https://github.com/Daeguk-Sun/dcNess/pull/1249) Closes [#1226](https://github.com/Daeguk-Sun/dcNess/issues/1226)) — linked worktree 의 git 메타데이터 위치를 worker 가 직접 확인해 writable root 에 넣는다. 실제 실행 증거에서 sandbox 거부를 인식해 `permission_required` 를 만든다. worker 안에서 Gradle 데몬을 띄우지 않아 호스트 빌드 차단을 막는다.
+
+8. **impl-validator state owner 대조** ([#1255](https://github.com/Daeguk-Sun/dcNess/pull/1255) Closes [#1253](https://github.com/Daeguk-Sun/dcNess/issues/1253)) — 계획이 지정한 state owner 를 실제 클래스 구조와 대조한다. Claude·Codex 두 provider 지침을 함께 갱신했다.
+
+9. **Epic 종료 제품 확인** ([#1238](https://github.com/Daeguk-Sun/dcNess/pull/1238) Closes [#1087](https://github.com/Daeguk-Sun/dcNess/issues/1087)) — Epic 종료 시 대표 흐름 범위를 보존하고 종료 결과 요약을 남기는 실제 제품 확인 절차를 추가했다.
+
+10. **`/run-review` 정확도와 story 뷰** ([#1236](https://github.com/Daeguk-Sun/dcNess/pull/1236) Closes [#1203](https://github.com/Daeguk-Sun/dcNess/issues/1203) · [#1239](https://github.com/Daeguk-Sun/dcNess/pull/1239) Closes [#1204](https://github.com/Daeguk-Sun/dcNess/issues/1204)) — 오탐 3종을 구조 신호 판정으로 교체하고, story 단위 집계 뷰를 추가했다.
+
+11. **`/to-issue` 스크립트 경로** ([#1232](https://github.com/Daeguk-Sun/dcNess/pull/1232) Closes [#1222](https://github.com/Daeguk-Sun/dcNess/issues/1222)) — 스크립트 호출을 plug-in 배포본 기준 경로로 통일했다.
+
+12. **저장소 내부 작업** ([#1216](https://github.com/Daeguk-Sun/dcNess/pull/1216) Refs [#966](https://github.com/Daeguk-Sun/dcNess/issues/966) · [#1257](https://github.com/Daeguk-Sun/dcNess/pull/1257) · [#1258](https://github.com/Daeguk-Sun/dcNess/pull/1258) Closes [#1254](https://github.com/Daeguk-Sun/dcNess/issues/1254) · [#1259](https://github.com/Daeguk-Sun/dcNess/pull/1259)) — release bundle 소비 smoke 3축 완성, eval runner 테스트 race 제거, IssueType label 회귀 테스트, Flow Health 측정의 Skill 호출 포함. 사용자 동작은 바뀌지 않는다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 hook·session state·Codex worker·pr-finalize·lifecycle 영역을 건드려 결정적 guard-efficacy 를 재실행했다 — **50/50 PASS**(v0.30.0 50/50 유지), 회귀 없음. 전체 unittest 도 재실행해 공개 수치를 실측 동기화했다 — **1,427/1,427 PASS**(v0.30.0 1,270 → 신규 회귀 테스트 반영).
+- Decide: 소멸 후보 없음. 사람 확인이 남은 항목 2건은 릴리즈를 막지 않고 관찰 대상으로 둔다 — 실제 Android 저장소에서 `/init-dcness` CI 설치 후 lint 오류가 실패로 잡히는지([#1243](https://github.com/Daeguk-Sun/dcNess/issues/1243) · [#1244](https://github.com/Daeguk-Sun/dcNess/issues/1244)), 브랜치 보호가 없는 실제 저장소에서 실패 PR 에 `pr-finalize` 가 머지하지 않는지([#1248](https://github.com/Daeguk-Sun/dcNess/issues/1248)).
+- Verify: 공개 evidence snapshot(README·[`docs/plugin/benchmark.md`](../plugin/benchmark.md))을 v0.31.0 / 2026-10-03 실측(unit 1,427/1,427 · guard 50/50)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측을 대조한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `harness/**`·`skills/**`(impl·impl-loop·acceptance·design·to-issue)·`commands/**`(init-dcness·next-work·run-review)·`docs/plugin/**`·`scripts/dcness-*`·`scripts/pr-finalize.sh`·`scripts/github_project_lifecycle.mjs` 변경.
+- **기존 활성 프로젝트는 plug-in 업데이트 후 `/init-dcness` 를 다시 실행해야 한다** — CI workflow 와 `.github/ci-checks/` 사본은 사용자 저장소에 복사된 파일이라 plug-in 업데이트만으로 갱신되지 않는다([#1250](https://github.com/Daeguk-Sun/dcNess/pull/1250) 복사 방식 전환, [#1252](https://github.com/Daeguk-Sun/dcNess/pull/1252) lifecycle 스크립트 수정).
+- **`pr-finalize` 사용 프로젝트** — PR 검사가 실패하거나 취소되면 머지하지 않고 exit 1 로 끝난다. 원인을 고친 뒤 다시 실행한다.
+- **실기기·에뮬레이터 UI journey 사용 프로젝트** — `journey` 단계의 `timeout_sec` 를 1800초까지 선언할 수 있다.
+
+---
+
 ## v0.30.0 (2026-08-11)
 
 **커밋 범위**: `v0.29.0..v0.30.0` (머지 PR 8개, [#1198](https://github.com/Daeguk-Sun/dcNess/pull/1198) · [#1199](https://github.com/Daeguk-Sun/dcNess/pull/1199) · [#1206](https://github.com/Daeguk-Sun/dcNess/pull/1206) · [#1208](https://github.com/Daeguk-Sun/dcNess/pull/1208) · [#1210](https://github.com/Daeguk-Sun/dcNess/pull/1210) · [#1209](https://github.com/Daeguk-Sun/dcNess/pull/1209) · [#1212](https://github.com/Daeguk-Sun/dcNess/pull/1212) · [#1214](https://github.com/Daeguk-Sun/dcNess/pull/1214))
