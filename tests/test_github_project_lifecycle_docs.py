@@ -58,6 +58,31 @@ class GithubProjectLifecycleDocsTests(unittest.TestCase):
         self.assertIn("lifecycle repo label 7종", self.project_doc.read_text(encoding="utf-8"))
         self.assertIn("IssueType repo label 6종", self.issue_fields)
 
+    def test_issue_type_set_is_identical_across_script_docs_and_labels(self) -> None:
+        """lifecycle 스크립트·SSOT 문서·label bootstrap 의 IssueType 집합이 정확히 같다 (#1254).
+
+        한쪽에만 값이 추가되면 그 label 을 쓴 issue 가 lifecycle 검사에서 실패한다.
+        """
+        script = (ROOT / "scripts" / "github_project_lifecycle.mjs").read_text(encoding="utf-8")
+        match = re.search(r"IssueType: Object\.freeze\(\[([^\]]*)\]\)", script)
+        self.assertIsNotNone(match)
+        script_types = re.findall(r"'([^']+)'", match.group(1))
+
+        def table_types(text: str) -> list[str]:
+            section = re.search(r"(?ms)^## IssueType$(.+?)^## ", text)
+            self.assertIsNotNone(section)
+            return re.findall(r"(?m)^\|\s*`([^`]+)`\s*\|", section.group(1))
+
+        label_types = [
+            name
+            for name in re.findall(r'(?m)^_upsert_label "([^"]+)"', self.setup_labels)
+            if name != "in-progress"
+        ]
+        expected = sorted(script_types)
+        self.assertEqual(expected, sorted(table_types(self.project_doc.read_text(encoding="utf-8"))))
+        self.assertEqual(expected, sorted(table_types(self.issue_fields)))
+        self.assertEqual(expected, sorted(label_types))
+
     def test_init_dcness_checks_project_and_label_bootstrap(self) -> None:
         text = self.init_dcness + "\n" + self.init_reference
 
