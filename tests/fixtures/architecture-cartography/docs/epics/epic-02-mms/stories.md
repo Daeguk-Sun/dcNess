@@ -1,3 +1,0 @@
-# MMS stories
-
-Fixture only.

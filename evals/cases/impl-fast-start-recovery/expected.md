@@ -1,8 +1,0 @@
-- [IFR-1][MUST] 제품 의미가 하나인 자연어 구현 요청은 관련 코드와 테스트를 스스로 찾아 RED 또는 첫 수정으로 바로 진행해야 한다.
-- [IFR-2][MUST_NOT] 첫 수정 전에 전역 구조 진단, 설치 상태 점검, 구현 preview, issue 등록 여부 확인을 의무적으로 반복하면 안 된다.
-- [IFR-3][MUST] 같은 계획과 설정의 다음 task는 run에서 이미 확인한 정보를 재사용하고 task별 preflight를 반복하지 않으며, headless 실행은 runner가 workspace/raw-log를 보존하는 background one-shot으로 맡긴 뒤 메인이 `ps`/`tail`/수동 polling을 재조립하지 않아야 한다.
-- [IFR-4][MUST] 변경 뒤 timeout·idle timeout·빈 응답·boundary finding·post-run test guard 실패는 diff와 raw log를 보존한 같은 provider와 workspace에서 bounded continuation하고 관련 guard를 다시 확인해야 한다.
-- [IFR-5][MUST_NOT] 복구 가능한 timeout·빈 응답·일상적인 테스트 실패나 파일 선택을 곧바로 사용자 질문 또는 다른 provider fallback으로 넘기면 안 된다.
-- [IFR-6][MUST] 계획 밖 hard boundary 수정이나 test 면제는 자동 승인하지 않고 새 권한이 필요하다고 분리해 사용자 결정을 받아야 한다.
-- [IFR-7][MUST] 사용자 진행 출력은 helper 통과 보고보다 착수·RED·수정·검증·복구 같은 실제 개발 이정표를 우선해야 한다.
-- [IFR-8][MUST] 반복되는 provider 실행·상태 보존·복구·guard 재검사는 재실행 가능한 기존 runner나 helper가 소유해야 하며 메인이 task마다 수동 절차를 재작성하면 안 된다.
