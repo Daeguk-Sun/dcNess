@@ -664,6 +664,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
         issue_body: str | None = None,
         edit_path: str = "/tmp/project/src/send.py",
         prior_context: str | None = None,
+        action: tuple[str, dict] | None = None,
     ) -> None:
         def timestamp(offset_seconds: int) -> str:
             return (
@@ -749,7 +750,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
                     ],
                 },
             },
-            assistant(30, "edit", "Edit", {"file_path": edit_path}),
+            assistant(30, "edit", *(action or ("Edit", {"file_path": edit_path}))),
         ]
         path.write_text(
             "\n".join(json.dumps(row) for row in rows) + "\n",
@@ -769,10 +770,6 @@ class MeasureMainTurnsTests(unittest.TestCase):
         self.assertEqual(rows[0]["start_evidence"]["line"], 1)
         self.assertEqual(rows[0]["start_evidence"]["kind"], "skill_invocation")
         self.assertEqual(rows[0]["time_to_first_edit_seconds"], 30.0)
-        self.assertEqual(
-            rows[0]["blocking_assistant_requests_before_first_action"],
-            2,
-        )
 
     def test_flow_health_does_not_double_count_skill_call_after_slash_command(self) -> None:
         with TemporaryDirectory() as td:
@@ -831,6 +828,89 @@ class MeasureMainTurnsTests(unittest.TestCase):
             rows = parse_flow_invocations(trace)
 
         self.assertEqual(rows[0]["startup_scope"], "pointer_given")
+
+    def test_flow_health_skill_call_request_is_not_a_blocking_request(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            self._skill_flow_trace(trace)
+
+            rows = parse_flow_invocations(trace)
+
+        # The issue read is blocking; the request that only invoked the Skill is not.
+        self.assertEqual(
+            rows[0]["blocking_assistant_requests_before_first_action"],
+            1,
+        )
+
+    def test_flow_health_detects_worker_launch_with_env_assignment_prefix(self) -> None:
+        with TemporaryDirectory() as td:
+            trace = Path(td) / "session.jsonl"
+            command = (
+                "DCNESS_CODEX_WRITABLE_ROOTS=/home/u/.gradle DCNESS_CODEX_NETWORK_ACCESS=true "
+                "/home/u/.claude/plugins/cache/dcness/dcness/0.31.0/scripts/"
+                "dcness-implementation-chain build-worker --direct-run --issue-num 7 "
+                "--prompt-file p.md --project-root /tmp/project"
+            )
+            self._skill_flow_trace(trace, action=("Bash", {"command": command}))
+
+            rows = parse_flow_invocations(trace)
+
+        self.assertEqual(rows[0]["startup_target"], "headless_worker_launch")
+        self.assertEqual(rows[0]["time_to_first_action_seconds"], 30.0)
+
+    def test_flow_health_detects_bash_file_write_as_implementation_edit(self) -> None:
+        commands = {
+            "python": (
+                "python3 - <<'EOF'\n"
+                "p='src/send.py'\n"
+                "s=open(p).read()\n"
+                "open(p,'w').write(s.replace('a','b'))\n"
+                "EOF",
+                "src/send.py",
+            ),
+            "redirect": (
+                "cat >> src/send_test.py <<'EOF'\ndef test_x(): pass\nEOF",
+                "src/send_test.py",
+            ),
+            "sed": ("sed -i '' 's/a/b/' src/send.py", "src/send.py"),
+            "cd_into_project_worktree": (
+                "cd /tmp/project/.claude/worktrees/w && python3 - <<'EOF'\n"
+                "p='src/send.py'\nopen(p,'w').write('x')\nEOF",
+                "src/send.py",
+            ),
+            "sed_variable": (
+                "T=src/send_test.py; sed -i '' -e 's/Send.PHONE/Send.NUMBER/' \"$T\"",
+                "src/send_test.py",
+            ),
+        }
+        for label, (command, path) in commands.items():
+            with self.subTest(label=label), TemporaryDirectory() as td:
+                trace = Path(td) / "session.jsonl"
+                self._skill_flow_trace(trace, action=("Bash", {"command": command}))
+
+                rows = parse_flow_invocations(trace)
+
+                self.assertEqual(rows[0]["startup_target"], "implementation_edit")
+                self.assertEqual(rows[0]["first_action_evidence"]["path"], path)
+                self.assertEqual(rows[0]["time_to_first_action_seconds"], 30.0)
+
+    def test_flow_health_ignores_bash_writes_outside_implementation_paths(self) -> None:
+        commands = (
+            "./gradlew test > /tmp/test.log 2>&1",
+            "grep -n send src/send.py > /tmp/hits.txt",
+            "cat > .dcness-work/prompt.md <<'EOF'\nsend.py\nEOF",
+            "python3 -c \"open('/tmp/x.txt','w').write('src/send.py')\"",
+            "cd /home/u/scratch && python3 - <<'EOF'\np='notes.md'\nopen(p,'w').write('x')\nEOF",
+            "sed -n 's/Send.PHONE/x/p' src/send.py",
+        )
+        for command in commands:
+            with self.subTest(command=command), TemporaryDirectory() as td:
+                trace = Path(td) / "session.jsonl"
+                self._skill_flow_trace(trace, action=("Bash", {"command": command}))
+
+                rows = parse_flow_invocations(trace)
+
+                self.assertIsNone(rows[0]["first_action_evidence"])
 
     def test_process_start_falls_back_before_fresh_edit_when_root_duration_is_short(self) -> None:
         with TemporaryDirectory() as td:

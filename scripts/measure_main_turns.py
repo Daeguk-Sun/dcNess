@@ -70,6 +70,7 @@ _FLOW_PLUGIN_VERSION_PATTERN = re.compile(
 _FLOW_WORKER_LAUNCH_PATTERN = re.compile(
     r"""(?mx)
     ^\s*
+    (?:[A-Za-z_][A-Za-z0-9_]*=\S*\s+)*
     (?:
         ["']?\$(?:\{?[A-Z_][A-Z0-9_]*\}?)["']?
         |
@@ -78,6 +79,13 @@ _FLOW_WORKER_LAUNCH_PATTERN = re.compile(
     \s+build-worker(?:\s|\\|$)
     """
 )
+_FLOW_BASH_REDIRECT_TARGET = re.compile(r"(?<![<>&0-9])>>?\s*['\"]?([^\s;&|'\"<>]+)")
+_FLOW_BASH_IN_PLACE_EDIT = re.compile(r"\b(?:sed\s+-i|perl\s+-\w*i)\b[^;&|\n]*")
+_FLOW_PYTHON_WRITE_TARGET = re.compile(
+    r"open\(\s*([\w.]+|['\"][^'\"]+['\"])\s*,\s*['\"][wa]\+?['\"]"
+    r"|(?:Path\(\s*)?([\w.]+|['\"][^'\"]+['\"])\)?\.write_text\("
+)
+_FLOW_PATH_TOKEN = re.compile(r"[\w./-]+\.[A-Za-z][\w]{0,9}")
 _FLOW_ISSUE_READ_PATTERN = re.compile(
     r"\bgh\s+(?:issue\s+view|api\s+\S*issues/\d+)"
 )
@@ -317,6 +325,86 @@ def _flow_edit_observation(
                 else "fresh"
             ),
         }
+    return None
+
+
+def _python_write_target(argument: str, command: str) -> str:
+    if argument[:1] in "'\"":
+        return argument[1:-1]
+    # A variable: use the path literal it was assigned, e.g. p='src/a.kt' or p = Path("src/a.kt").
+    assigned = re.search(
+        rf"\b{re.escape(argument)}\s*=\s*(?:Path\(\s*)?['\"]([^'\"]+)['\"]",
+        command,
+    )
+    return assigned.group(1) if assigned else ""
+
+
+def _in_place_edit_paths(segment: str, command: str) -> list[str]:
+    def shell_value(match: re.Match[str]) -> str:
+        assigned = re.search(
+            rf"\b{match.group(1)}=['\"]?([^\s;'\"]+)",
+            command,
+        )
+        return assigned.group(1) if assigned else ""
+
+    # File operands are unquoted words or quoted variables; quoted text is the edit expression.
+    segment = re.sub(r"\"?\$\{?(\w+)\}?\"?", shell_value, segment)
+    segment = re.sub(r"'[^']*'|\"[^\"]*\"", " ", segment)
+    return _FLOW_PATH_TOKEN.findall(segment)
+
+
+def _bash_written_paths(command: str) -> list[str]:
+    targets = _FLOW_BASH_REDIRECT_TARGET.findall(command)
+    for segment in _FLOW_BASH_IN_PLACE_EDIT.findall(command):
+        targets.extend(_in_place_edit_paths(segment, command))
+    for match in _FLOW_PYTHON_WRITE_TARGET.finditer(command):
+        targets.append(_python_write_target(match.group(1) or match.group(2), command))
+    return [
+        target
+        for target in targets
+        if _FLOW_PATH_TOKEN.fullmatch(target) and not target.startswith("/dev/")
+    ]
+
+
+def _flow_bash_edit_observation(
+    event: dict[str, Any],
+    project_root: Any = None,
+) -> dict[str, Any] | None:
+    """A Bash command that writes a source file counts as an implementation edit."""
+    timestamp = event.get("_at")
+    if not isinstance(timestamp, datetime):
+        return None
+    for block in _assistant_content(event):
+        if (
+            not isinstance(block, dict)
+            or block.get("type") != "tool_use"
+            or block.get("name") != "Bash"
+        ):
+            continue
+        command = str((block.get("input") or {}).get("command") or "")
+        cwd = event.get("cwd") or project_root
+        moved = re.search(r"(?:^|[;&|]\s*)cd\s+['\"]?(/[^\s;&|'\"]+)", command)
+        # After `cd` to a directory outside the project, relative targets are not project files.
+        left_project = (
+            moved is not None
+            and isinstance(cwd, str)
+            and not Path(moved.group(1)).is_relative_to(Path(cwd))
+        )
+        for path in _bash_written_paths(command):
+            if left_project and not path.startswith("/"):
+                continue
+            if _is_implementation_path(path, cwd):
+                return {
+                    "timestamp": timestamp.isoformat(),
+                    "line": event["_line"],
+                    "tool": "Bash",
+                    "path": path,
+                    "executor": (
+                        "main"
+                        if event.get("parent_tool_use_id") in (None, "")
+                        else "fresh"
+                    ),
+                }
     return None
 
 
@@ -648,6 +736,8 @@ def _flow_invocation(
         first_action = _flow_edit_observation(event, start_event.get("cwd"))
         if first_action is None:
             first_action = _flow_worker_observation(event)
+        if first_action is None:
+            first_action = _flow_bash_edit_observation(event, start_event.get("cwd"))
         if first_action is not None:
             first_action_event = event
             break
@@ -693,8 +783,18 @@ def _flow_invocation(
         ):
             continue
         request_first_seen.setdefault(_assistant_request_key(event), timestamp)
+    # The request that only invoked the Skill plays the role of a typed slash command.
+    skill_request_key = next(
+        (
+            _assistant_request_key(event)
+            for event in events
+            if start_kind == "skill_invocation"
+            and _flow_skill_command(event) == command
+        ),
+        None,
+    )
     blocking_requests = sum(
-        request_key != first_action_request_key
+        request_key not in (first_action_request_key, skill_request_key)
         for request_key in request_first_seen
     )
     tool_seconds, tool_results = _pre_action_tool_observations(
