@@ -62,7 +62,7 @@ dcNess source checkout의 이 모드는 활성 프로젝트 세션 안 `/impl`·
 
 | 축 | 판정 |
 |---|---|
-| Startup SLO | 첫 action `<60초`·blocking request `≤2회`. 위반 표본이 있으면 `MISS`, 위반 없이 현행 버전 표본 3개 이상이면 `PASS`, 그 전에는 `UNVERIFIED`. headless launch는 항상 판정한다. main-direct edit는 수정 대상 파일이 요청·issue 조회 결과·요청 전 같은 세션 대화에 이미 나왔을 때(`startup_scope = pointer_given`)만 판정하고, 아니면 `exploration_required`로 시간만 기록한다 |
+| Startup SLO | 첫 action `<90초`·blocking request `≤6회`(`/impl` 착수 절차 자체가 4~5회 요청을 쓰고 모델 생성 시간이 든다). 위반 표본이 있으면 `MISS`, 위반 없이 현행 버전 표본 3개 이상이면 `PASS`, 그 전에는 `UNVERIFIED`. headless launch는 항상 판정한다. main-direct edit는 수정 대상 파일이 요청·issue 조회 결과·요청 전 같은 세션 대화에 이미 나왔을 때(`startup_scope = pointer_given`)만 판정하고, 아니면 `exploration_required`로 시간만 기록한다 |
 | Flow Visibility | 첫 progress와 tool 후 다음 progress가 각각 `<60초`. 위반 표본이 있으면 `DEGRADED`, 위반 없이 표본 3개 이상이면 `CLEAR`, 그 전에는 `UNVERIFIED` |
 | Agent Activity | 60초 이상 무응답 뒤 같은 assistant request에 thinking block이 관측되면 `ACTIVE_REASONING_OBSERVED`; thinking 근거가 없는 구간이 있으면 `UNATTRIBUTED_WAIT_OBSERVED`. 이는 활동 증거이지 reasoning의 생산성 증명이 아니다 |
 | Relative Speed | 이 command-only 측정에서는 항상 `UNPROVEN`. 같은 fixture·model·effort·provider의 반복 paired trial과 품질 비회귀가 있어야 상대 속도를 주장한다 |

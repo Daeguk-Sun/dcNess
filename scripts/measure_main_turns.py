@@ -92,8 +92,10 @@ _FLOW_ISSUE_READ_PATTERN = re.compile(
 _FLOW_TEST_NAME_AFFIX = re.compile(r"^test_|[._-]?(?:[Tt]ests?|[Ss]pecs?)$")
 _FLOW_DEFAULT_COMMANDS = ("dcness:impl", "dcness:impl-loop")
 _FLOW_EDIT_TOOLS = {"Edit", "Write", "NotebookEdit"}
-_FLOW_MAX_FIRST_ACTION_SECONDS = 60.0
-_FLOW_MAX_BLOCKING_REQUESTS = 2
+# /impl's own startup (tool load, issue read, Task+worktree batch, prompt or pointer read)
+# needs 4-5 requests; allow project setup margin and model generation time.
+_FLOW_MAX_FIRST_ACTION_SECONDS = 90.0
+_FLOW_MAX_BLOCKING_REQUESTS = 6
 _FLOW_MAX_PROGRESS_SILENCE_SECONDS = 60.0
 _FLOW_MINIMUM_CONFIDENT_SAMPLES = 3
 _FLOW_OPERATIONAL_PATHS = {".claude", ".dcness-work", ".git", ".metrics"}
@@ -1069,8 +1071,10 @@ def build_flow_health(
             ),
         },
         "thresholds": {
-            "time_to_first_action_seconds": "<60",
-            "blocking_assistant_requests_before_first_action": "<=2",
+            "time_to_first_action_seconds": f"<{_FLOW_MAX_FIRST_ACTION_SECONDS:.0f}",
+            "blocking_assistant_requests_before_first_action": (
+                f"<={_FLOW_MAX_BLOCKING_REQUESTS}"
+            ),
             "time_to_first_progress_seconds": "<60",
             "max_post_tool_silence_seconds": "<60",
             "minimum_confident_samples": _FLOW_MINIMUM_CONFIDENT_SAMPLES,
@@ -1681,8 +1685,9 @@ def format_flow_health_text(report: dict[str, Any]) -> str:
             f"{report['incomplete_count']})"
         ),
         (
-            "  contract: first edit or headless worker launch <60s, "
-            "blocking assistant requests <=2; "
+            "  contract: first edit or headless worker launch "
+            f"<{_FLOW_MAX_FIRST_ACTION_SECONDS:.0f}s, "
+            f"blocking assistant requests <={_FLOW_MAX_BLOCKING_REQUESTS}; "
             "main-direct edits without a target pointer are exploration_required; "
             "PASS/CLEAR require >=3 current-version samples"
         ),

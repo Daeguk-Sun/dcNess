@@ -495,7 +495,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
     ) -> None:
         with TemporaryDirectory() as td:
             trace = Path(td) / "session.jsonl"
-            self._flow_trace(trace, edit_second=75)
+            self._flow_trace(trace, edit_second=95)
 
             report = build_flow_health([trace], plugin_version="0.29.0")
 
@@ -565,7 +565,7 @@ class MeasureMainTurnsTests(unittest.TestCase):
                 },
                 {
                     "type": "assistant",
-                    "timestamp": "2026-07-20T00:01:10Z",
+                    "timestamp": "2026-07-20T00:01:40Z",
                     "cwd": "/tmp/project/.claude/worktrees/feature",
                     "message": {
                         "id": "worker-launch",
@@ -603,13 +603,32 @@ class MeasureMainTurnsTests(unittest.TestCase):
         )
         self.assertEqual(report["relative_speed"]["status"], "UNPROVEN")
         self.assertEqual(row["startup_target"], "headless_worker_launch")
-        self.assertEqual(row["time_to_first_action_seconds"], 70.0)
+        self.assertEqual(row["time_to_first_action_seconds"], 100.0)
         self.assertEqual(
             row["last_user_input_to_first_action_seconds"],
-            30.0,
+            60.0,
         )
         self.assertIsNone(row["time_to_first_edit_seconds"])
         self.assertEqual(row["first_action_evidence"]["tool"], "WorkerLaunch")
+
+    def test_startup_slo_allows_the_impl_procedure_requests_and_model_time(self) -> None:
+        cases = {
+            "procedure within budget": (85, 6, "PASS"),
+            "first action too late": (95, 3, "FAIL"),
+            "too many requests": (80, 7, "FAIL"),
+        }
+        for label, (edit_second, blocking, expected) in cases.items():
+            with self.subTest(label=label), TemporaryDirectory() as td:
+                trace = Path(td) / "session.jsonl"
+                self._flow_trace(
+                    trace,
+                    edit_second=edit_second,
+                    blocking_requests=blocking,
+                )
+
+                rows = parse_flow_invocations(trace)
+
+                self.assertEqual(rows[0]["result"], expected)
 
     def test_flow_health_requires_three_current_version_passes(self) -> None:
         with TemporaryDirectory() as td:
