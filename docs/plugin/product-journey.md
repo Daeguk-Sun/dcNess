@@ -96,6 +96,7 @@ build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 
 | `env` | 네 단계에 공통으로 추가할 문자열 환경 변수 |
 | `commands.*.argv` | shell 문자열이 아닌 argv 배열. setup/teardown/상태전이 오케스트레이션이 필요하면 `commands.journey.argv`에서 `bash`와 프로젝트 스크립트 경로를 명시적으로 선택 |
 | `commands.*.timeout_sec` | 단계별 timeout. `journey` 는 1800초 이하(실기기·에뮬레이터 UI 여정은 화면 흐름이 누적돼 10분을 넘기 쉽다), `start`·`health`·`cleanup` 은 600초 이하 |
+| `scenarios` | 선택. 화면 흐름 여러 개를 시나리오로 나눠 `commands.journey` 대신 선언한다. 자세한 규칙은 [시나리오 단위 실행](#시나리오-단위-실행) |
 | `commands.start.mode` | 장기 실행 앱은 `service`, 종료되는 CLI 진입점은 `command` |
 | `commands.start.startup_grace_sec` | service가 조기 종료하지 않았는지 확인할 유예 시간 |
 | `evidence_dir` | `.dcness-work/product-journey/` 아래의 project-relative 위치 |
@@ -107,6 +108,65 @@ probe가 확실한 미충족을 보고하고 `prepare`가 없거나 실패 사�
 사용자가 journey 검수 분리를 선택하면 메인은 해당 `journey_id`를 `dcness-helper journey-deferred record`로 현재 run의 `journey_deferred` 목록에 기록하고, 이후 판정은 `journey-deferred list`가 돌려주는 저장된 목록을 읽는다. 이는 설계가 소유한 `acceptance_environment.automation`을 바꾸거나 매니페스트를 다시 쓰지 않는다. 현재 run에서만 해당 journey를 `human_verification`/follow-up 처분으로 취급하며, 다른 자동 journey의 env 선검증·수렴·sealed 판정은 계속 수행한다.
 
 start가 실패하거나 service가 유예 시간 안에 종료되면 `app_not_started`다. health가 실패하면 journey를 실행하지 않고 `journey_not_executed`로 남긴다. journey가 실행되지 않았거나 `assertion.source=none`이면 `assertion_not_evaluated`다. `mock` boundary는 모든 command가 exit 0이어도 `mock_only_boundary`이므로 PASS가 아니다. cleanup은 항상 실행하며 실패하면 전체 outcome도 FAIL이다.
+
+### 시나리오 단위 실행
+
+한 story의 AC를 화면 흐름 여러 개로 확인해야 하면 매니페스트 하나에 `scenarios`를 선언한다. 흐름마다 매니페스트를 나누면 매니페스트마다 `start`(빌드·설치·실행)와 `cleanup`이 다시 실행되어 전체 시간이 늘어난다. 흐름을 스크립트 하나로 묶으면 흐름 하나의 실패가 모든 AC의 실패로 기록되고, 고칠 때마다 전체 흐름을 다시 실행해야 한다.
+
+```json
+{
+  "target_ac": ["AC-LOGIN-1", "AC-HOME-1"],
+  "commands": {
+    "start": { "argv": ["./scripts/install-and-launch.sh"], "mode": "command", "timeout_sec": 300 },
+    "health": { "argv": ["./scripts/app-ready.sh"], "timeout_sec": 30 },
+    "cleanup": { "argv": ["./scripts/cleanup.sh"], "timeout_sec": 60 }
+  },
+  "scenarios": [
+    {
+      "scenario_id": "login-flow",
+      "description": "새 계정으로 로그인하면 홈으로 진입한다",
+      "argv": ["maestro", "test", "app/.maestro/login.yaml"],
+      "timeout_sec": 300,
+      "target_ac": ["AC-LOGIN-1"]
+    },
+    {
+      "scenario_id": "home-flow",
+      "description": "홈에서 최근 항목 목록이 보인다",
+      "argv": ["maestro", "test", "app/.maestro/home.yaml"],
+      "timeout_sec": 300,
+      "target_ac": ["AC-HOME-1"]
+    }
+  ]
+}
+```
+
+| 규칙 | 계약 |
+|---|---|
+| 선언 | `scenarios`와 `commands.journey`는 함께 쓸 수 없다. 시나리오를 선언하면 `commands`에는 `start`·`health`·`cleanup`만 둔다 |
+| 시나리오 항목 | `scenario_id`(journey_id와 같은 문자 규칙, 매니페스트 안에서 유일), `description`, `argv`, `timeout_sec`(1800초 이하), `target_ac` |
+| AC 담당 | 각 시나리오의 `target_ac`는 top-level `target_ac` 안의 값이다. top-level AC는 모두 시나리오 하나 이상이 담당해야 하고, top-level `target_ac`에 같은 AC를 두 번 쓰지 않는다 |
+| UI 화면 단계 | `boundary=ui`이면 각 `ui_evidence.steps[]`에 그 화면을 남기는 시나리오의 `scenario_id`를 적는다. 단계의 `target_ac`는 그 시나리오가 담당하는 AC여야 한다. 시나리오가 없는 매니페스트의 단계에는 `scenario_id`를 쓰지 않는다 |
+| 실행 순서 | `start` → `health` → 시나리오를 선언 순서대로 → `cleanup`. `start`와 `cleanup`은 한 번씩만 실행한다. 시나리오 하나가 실패해도 다음 시나리오를 계속 실행한다 |
+| 독립 실행 | helper는 시나리오 사이에서 앱 상태를 정리하지 않는다. 각 시나리오는 시작할 때 자기 상태(로그인 여부, seed 데이터, 첫 화면)를 스스로 준비해야 한다. 그래야 실패한 시나리오만 다시 실행할 수 있다 |
+| AC 판정 | AC는 담당 시나리오가 모두 exit 0이고, UI 경계라면 그 AC를 선언한 `ui_evidence` 단계의 증거가 모두 있고 그 AC를 선언한 `ux_integrity` 요소가 모두 가려지지 않았을 때만 `PASS`다. `start`·`health`·`cleanup` 실패, `mock` boundary, `assertion.source=none`이면 모든 AC가 `FAIL`이다 |
+| outcome | 모든 AC가 `PASS`이고 failure reason이 없을 때만 `PASS`다. `product_ac.passed`는 `PASS`인 AC 수이므로 일부 AC만 통과한 실패 receipt도 통과한 AC 수를 보존한다 |
+
+수정 과정에서는 실패한 시나리오만 골라 다시 실행할 수 있다.
+
+```sh
+"$PLUGIN_ROOT/scripts/dcness-product-journey" run \
+  --project-root "$PROJECT_ROOT" \
+  --config app/.maestro/dcness-journey.json \
+  --scenario home-flow
+```
+
+- `--scenario`는 여러 번 쓸 수 있다. 선언되지 않은 id나 시나리오가 없는 매니페스트에 쓰면 계약 오류(exit 2)다.
+- 이때도 `start`·`health`·`cleanup`은 한 번씩 실행한다. UI 경계이면 선택한 시나리오의 화면 단계만 판정한다.
+- 담당 시나리오 중 실행하지 않은 것이 있는 AC는 `NOT_RUN`이다. 다만 실행한 시나리오가 실패했거나 그 시나리오의 화면 증거·UX 정합성 판정이 실패하면 그 AC는 `FAIL`이다.
+- 선택한 시나리오의 AC에 `FAIL`이 없으면 exit 0이다.
+- 이 receipt는 `partial=true`로 남는다. 부분 실행 receipt는 Epic 결과 요약과 outcome scorecard가 읽지 않는다. 수렴 PASS와 sealed acceptance 판정은 항상 전체 시나리오를 실행한 receipt로 한다.
+
+`scenarios`가 없는 기존 매니페스트는 `commands.journey` 하나로 지금과 같이 실행·판정한다.
 
 ### `(JOURNEY)` flow 설계 경계
 
@@ -256,7 +316,8 @@ receipt에 적힌 판정값은 근거를 대신하지 않는다. scorecard가 re
 - 실제 시작 여부 `app_started`, journey 실행 여부 `journey_executed`.
 - assertion의 설명·근거·평가 여부·결과.
 - 단계별 argv, exit code, timeout 여부와 선언 `timeout_sec`, wall-clock과 log 위치.
-- `timeout_warnings`: 통과했지만 선언 timeout 의 80% 이상을 쓴 단계의 소요·상한·비율. 같은 여정이 다음 실행에서 상한에 걸릴 수 있다는 신호다.
+- `timeout_warnings`: 통과했지만 선언 timeout 의 80% 이상을 쓴 단계의 소요·상한·비율. 같은 여정이 다음 실행에서 상한에 걸릴 수 있다는 신호다. 시나리오는 `scenario:<scenario_id>` 단계로 기록한다.
+- 시나리오 매니페스트이면 `scenarios`(시나리오별 담당 AC, 실행 여부, exit code, timeout 여부, 소요 시간, log 위치와 SHA-256), `ac_results`(AC별 `PASS`/`FAIL`/`NOT_RUN`), `partial`, `selected_scenarios`. 소비자는 시나리오와 AC 대응을 tracked 매니페스트와 대조하고 `ac_results`를 receipt 안의 결과로 다시 계산한다. 대응이나 판정이 다르면 그 receipt를 버린다.
 - UI journey이면 핵심 단계 설명·대상 AC·최종 단계 여부·screenshot/state/log path와 SHA-256.
 - UI journey이면 UX 정합성 렌즈의 화면 snapshot별 layout report path·존재 여부·SHA-256, 확정 목업 링크, 요소별 bounds·`within_safe_area`·`occluded_by`.
 - 대상 AC의 passed/total denominator, 사람 개입, 실행 증거 종류.
@@ -301,7 +362,7 @@ repository operations의 `harness/outcome_scorecard.py`는 helper receipt 중 �
 Epic 종료 가능이면 exit 0, 아직 아니면 exit 1, 잘못된 Epic 식별자는 exit 2다. 집계 규칙은 다음과 같다.
 
 - 요약은 자기 `epic`을 선언한 receipt만 읽는다. 다른 Epic의 흐름과 `epic_scope` 없는 journey는 분자에도 분모에도 들어가지 않는다.
-- 같은 `journey_id`가 여러 번 실행됐으면 가장 최근 실행만 센다. 배관을 고쳐 다시 통과한 흐름은 이전 실패를 덮고, 통과 뒤 다시 실패한 흐름은 이전 통과를 덮는다.
+- 같은 `journey_id`가 여러 번 실행됐으면 가장 최근 실행만 센다. 배관을 고쳐 다시 통과한 흐름은 이전 실패를 덮고, 통과 뒤 다시 실패한 흐름은 이전 통과를 덮는다. `--scenario`로 일부 시나리오만 실행한 부분 실행은 세지 않는다.
 - Epic 종료 가능은 그 Epic의 대표 흐름이 하나 이상 있고 그 전부가 통과했을 때만 참이다. 실행 기록이 아예 없으면 종료 가능이 아니다.
 - `mock` boundary, 앱 미기동, 흐름 미실행, 성공 조건 미평가, 화면 증거 누락, UX 정합성 위반은 모두 실패이므로 제품 확인 통과로도 Epic 종료 가능으로도 집계되지 않는다.
 

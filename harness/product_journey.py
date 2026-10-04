@@ -30,6 +30,10 @@ _PHASE_TIMEOUT_MAX_SEC = {"journey": 1800}
 _TIMEOUT_WARNING_RATIO = 0.8
 _ASSERTION_SOURCES = {"journey_exit", "none"}
 _PHASES = ("start", "health", "journey", "cleanup")
+# A scenario manifest replaces the single journey command with declared scenarios.
+_SCENARIO_PHASES = ("start", "health", "cleanup")
+_AC_VERDICTS = frozenset({"PASS", "FAIL", "NOT_RUN"})
+_SCENARIO_RECEIPT_KEYS = ("scenarios", "ac_results", "partial", "selected_scenarios")
 _UI_EVIDENCE_TYPES = {"log", "screenshot", "state"}
 _RUN_DIR_ENV = "DCNESS_PRODUCT_JOURNEY_RUN_DIR"
 _EPIC_SCOPE_ID_FIELDS = ("epic", "representative_story")
@@ -120,24 +124,155 @@ def _validated_epic_scope(config: dict[str, Any]) -> Optional[dict[str, str]]:
     return normalized
 
 
-def _command_spec(commands: dict[str, Any], phase: str) -> dict[str, Any]:
-    raw = commands.get(phase)
-    if not isinstance(raw, dict):
-        raise JourneyConfigError(f"commands.{phase} must be an object")
+def _checked_runnable(raw: dict[str, Any], label: str, limit: float) -> None:
     argv = raw.get("argv")
     if (
         not isinstance(argv, list)
         or not argv
         or any(not isinstance(item, str) or not item for item in argv)
     ):
-        raise JourneyConfigError(f"commands.{phase}.argv must be non-empty strings")
+        raise JourneyConfigError(f"{label}.argv must be non-empty strings")
     timeout = raw.get("timeout_sec", 60)
     if not isinstance(timeout, (int, float)) or isinstance(timeout, bool):
-        raise JourneyConfigError(f"commands.{phase}.timeout_sec must be numeric")
-    limit = _PHASE_TIMEOUT_MAX_SEC.get(phase, 600)
+        raise JourneyConfigError(f"{label}.timeout_sec must be numeric")
     if timeout <= 0 or timeout > limit:
-        raise JourneyConfigError(f"commands.{phase}.timeout_sec must be in (0, {limit}]")
+        raise JourneyConfigError(f"{label}.timeout_sec must be in (0, {limit}]")
+
+
+def _command_spec(commands: dict[str, Any], phase: str) -> dict[str, Any]:
+    raw = commands.get(phase)
+    if not isinstance(raw, dict):
+        raise JourneyConfigError(f"commands.{phase} must be an object")
+    _checked_runnable(raw, f"commands.{phase}", _PHASE_TIMEOUT_MAX_SEC.get(phase, 600))
     return raw
+
+
+def _validated_scenarios(config: dict[str, Any]) -> Optional[list[dict[str, Any]]]:
+    """Validate the optional scenario list that replaces the single journey command.
+
+    Each scenario owns a subset of `target_ac`, and every AC must be owned so a
+    per-AC verdict never credits an AC that no scenario actually exercised.
+    """
+    ui_steps = (config.get("ui_evidence") or {}).get("steps") or []
+    if "scenarios" not in config:
+        if any(isinstance(step, dict) and "scenario_id" in step for step in ui_steps):
+            raise JourneyConfigError(
+                "ui_evidence.steps[].scenario_id is only valid with scenarios"
+            )
+        return None
+    raw = config["scenarios"]
+    if not isinstance(raw, list) or not raw:
+        raise JourneyConfigError("scenarios must declare at least one scenario")
+    commands = config.get("commands")
+    if isinstance(commands, dict) and "journey" in commands:
+        raise JourneyConfigError(
+            "scenarios and commands.journey cannot both be declared"
+        )
+    target_ac = {str(item).strip() for item in config["target_ac"]}
+    # Per-AC verdicts are keyed by AC, so a repeated AC would split the
+    # denominator from the verdicts and fail a fully passing run.
+    if len(target_ac) != len(config["target_ac"]):
+        raise JourneyConfigError("target_ac must not repeat an AC in scenario manifests")
+    owned: set[str] = set()
+    seen: set[str] = set()
+    for index, scenario in enumerate(raw):
+        prefix = f"scenarios[{index}]"
+        if not isinstance(scenario, dict):
+            raise JourneyConfigError(f"{prefix} must be an object")
+        scenario_id = _require_text(scenario, "scenario_id")
+        if not _ID_RE.fullmatch(scenario_id):
+            raise JourneyConfigError(
+                f"{prefix}.scenario_id must match [a-z0-9][a-z0-9._-]{{2,63}}"
+            )
+        if scenario_id in seen:
+            raise JourneyConfigError(f"{prefix}.scenario_id must be unique")
+        seen.add(scenario_id)
+        _require_text(scenario, "description")
+        _checked_runnable(scenario, prefix, _PHASE_TIMEOUT_MAX_SEC["journey"])
+        scenario_ac = scenario.get("target_ac")
+        if (
+            not isinstance(scenario_ac, list)
+            or not scenario_ac
+            or any(not isinstance(item, str) or not item.strip() for item in scenario_ac)
+        ):
+            raise JourneyConfigError(f"{prefix}.target_ac must contain AC ids")
+        normalized = {item.strip() for item in scenario_ac}
+        if not normalized.issubset(target_ac):
+            raise JourneyConfigError(f"{prefix}.target_ac must be declared in target_ac")
+        owned.update(normalized)
+    orphans = sorted(target_ac - owned)
+    if orphans:
+        raise JourneyConfigError(
+            f"target_ac not owned by any scenario: {', '.join(orphans)}"
+        )
+    _validated_step_owners(ui_steps, raw)
+    return raw
+
+
+def _validated_step_owners(
+    ui_steps: list[Any], scenarios: list[dict[str, Any]]
+) -> None:
+    """Tie every UI evidence step to the scenario that captures it.
+
+    Without this a partial re-run cannot tell a screen its selected scenario
+    failed to capture from one an unselected scenario was meant to capture.
+    """
+    owned_ac = {
+        str(scenario["scenario_id"]).strip(): {
+            str(item).strip() for item in scenario["target_ac"]
+        }
+        for scenario in scenarios
+    }
+    for index, step in enumerate(ui_steps):
+        prefix = f"ui_evidence.steps[{index}]"
+        scenario_id = _require_text(step, "scenario_id")
+        if scenario_id not in owned_ac:
+            raise JourneyConfigError(f"{prefix}.scenario_id must name a declared scenario")
+        if not {str(item).strip() for item in step["target_ac"]}.issubset(
+            owned_ac[scenario_id]
+        ):
+            raise JourneyConfigError(
+                f"{prefix}.target_ac must be owned by its scenario {scenario_id}"
+            )
+
+
+def _ui_config_for(
+    config: dict[str, Any], selected: set[str], partial: bool
+) -> dict[str, Any]:
+    """The UI declaration a run judges: every screen, or a re-run's own screens."""
+    if not partial:
+        return config
+    # Compare ids the way the contract check normalized them; a raw comparison
+    # would silently drop a padded screen and leave its AC unjudged.
+    steps = [
+        step
+        for step in config["ui_evidence"]["steps"]
+        if str(step["scenario_id"]).strip() in selected
+    ]
+    step_ids = {str(step["step_id"]).strip() for step in steps}
+    return {
+        **config,
+        "ui_evidence": {**config["ui_evidence"], "steps": steps},
+        "ux_integrity": {
+            **config["ux_integrity"],
+            "snapshots": [
+                snapshot
+                for snapshot in config["ux_integrity"]["snapshots"]
+                if str(snapshot["step_id"]).strip() in step_ids
+            ],
+        },
+    }
+
+
+def _scenario_contract(scenarios: list[dict[str, Any]]) -> list[tuple[str, list[str]]]:
+    """Scenario order and AC ownership, in a form manifest and receipt share."""
+    return [
+        (
+            str(scenario["scenario_id"]).strip(),
+            [str(item).strip() for item in scenario["target_ac"]],
+        )
+        for scenario in scenarios
+    ]
 
 
 def _resolve_evidence_root(project_root: Path, raw: object) -> Path:
@@ -364,7 +499,8 @@ def _validated_config(
     commands = config.get("commands")
     if not isinstance(commands, dict):
         raise JourneyConfigError("commands must be an object")
-    for phase in _PHASES:
+    scenarios = _validated_scenarios(config)
+    for phase in _SCENARIO_PHASES if scenarios is not None else _PHASES:
         _command_spec(commands, phase)
     start_mode = commands["start"].get("mode")
     if start_mode not in {"command", "service"}:
@@ -846,6 +982,131 @@ def _evaluate_ux_integrity(
     )
 
 
+def _derive_ac_results(
+    target_ac: list[str],
+    scenarios: list[dict[str, Any]],
+    run_ok: bool,
+    ui_evidence: Optional[dict[str, Any]],
+    ux_integrity: Optional[dict[str, Any]],
+) -> dict[str, str]:
+    """Per-AC verdicts from scenario results and the AC-tagged UI evidence.
+
+    Both receipt generation and receipt validation call this, so a recorded
+    verdict can always be recomputed from what the receipt itself proves.
+    """
+    results: dict[str, str] = {}
+    for ac in target_ac:
+        owners = [scenario for scenario in scenarios if ac in scenario["target_ac"]]
+        executed = [scenario for scenario in owners if scenario["executed"]]
+        if not run_ok or any(scenario["exit_code"] != 0 for scenario in executed):
+            results[ac] = "FAIL"
+            continue
+        # The UI declaration only holds screens of executed scenarios, so a gap
+        # found there is a real failure even while another owner has not run.
+        evidence_ok = all(
+            item["present"]
+            for step in (ui_evidence or {}).get("steps", [])
+            if ac in step["target_ac"]
+            for item in step["evidence"]
+        )
+        layout_ok = all(
+            element["evaluated"]
+            and element["within_safe_area"] is True
+            and not element["occluded_by"]
+            for snapshot in (ux_integrity or {}).get("snapshots", [])
+            for element in snapshot["elements"]
+            if ac in element["target_ac"]
+        )
+        if not (evidence_ok and layout_ok):
+            results[ac] = "FAIL"
+        elif len(executed) != len(owners):
+            results[ac] = "NOT_RUN"
+        else:
+            results[ac] = "PASS"
+    return results
+
+
+def _scenario_run_ok(
+    boundary: object, app_started: object, commands: dict[str, Any], source: object
+) -> bool:
+    """Run-level conditions every scenario AC depends on, whatever its own exit."""
+
+    def _passed(phase: str) -> bool:
+        result = commands.get(phase)
+        return isinstance(result, dict) and result.get("exit_code") == 0
+
+    return (
+        isinstance(commands, dict)
+        and boundary != "mock"
+        and app_started is True
+        and _passed("health")
+        and _passed("cleanup")
+        and source == "journey_exit"
+    )
+
+
+def _selected_scenarios(
+    declared: Optional[list[dict[str, Any]]], requested: Optional[list[str]]
+) -> set[str]:
+    """Scenario ids to run: every declared one, or a validated re-run subset."""
+    declared_ids = {str(item["scenario_id"]).strip() for item in declared or []}
+    if requested is None:
+        return declared_ids
+    if declared is None:
+        raise JourneyConfigError("--scenario is only valid for scenario manifests")
+    unknown = sorted(set(requested) - declared_ids)
+    if unknown or not requested:
+        raise JourneyConfigError(f"unknown scenario: {', '.join(unknown) or '(none)'}")
+    return set(requested)
+
+
+def _run_scenarios(
+    declared: list[dict[str, Any]],
+    selected: set[str],
+    root: Path,
+    env: dict[str, str],
+    run_dir: Path,
+) -> list[dict[str, Any]]:
+    """Run the selected scenarios in declared order, continuing past failures."""
+    results: list[dict[str, Any]] = []
+    for scenario in declared:
+        scenario_id = str(scenario["scenario_id"]).strip()
+        if scenario_id in selected:
+            result = _run_command(
+                scenario, root, env, run_dir / f"scenario-{scenario_id}.log"
+            )
+            results.append({"scenario_id": scenario_id, **result})
+    return results
+
+
+def _scenario_entries(
+    declared: list[dict[str, Any]], results: list[dict[str, Any]], root: Path
+) -> list[dict[str, Any]]:
+    """One receipt entry per declared scenario, executed or not, with log hash."""
+    ran = {item["scenario_id"]: item for item in results}
+    entries: list[dict[str, Any]] = []
+    for scenario_id, scenario_ac in _scenario_contract(declared):
+        entry: dict[str, Any] = {
+            "scenario_id": scenario_id,
+            "target_ac": scenario_ac,
+            "executed": scenario_id in ran,
+            "exit_code": None,
+            "timed_out": False,
+            "duration_ms": None,
+            "timeout_sec": None,
+            "log_path": None,
+            "sha256": None,
+        }
+        if scenario_id in ran:
+            result = ran[scenario_id]
+            entry.update(
+                {key: value for key, value in result.items() if key != "scenario_id"}
+            )
+            entry["sha256"] = _sha256_file(root / result["log_path"])
+        entries.append(entry)
+    return entries
+
+
 def _next_run_id(evidence_root: Path) -> str:
     """Allocate a fresh default run id so same-second runs of one epic do not collide."""
     base = f"run-{int(time.time())}"
@@ -884,11 +1145,19 @@ def run_from_config(
     config_path: Path | str,
     run_id: Optional[str] = None,
     measured_at: Optional[str] = None,
+    scenarios: Optional[list[str]] = None,
 ) -> JourneyRunResult:
-    """Execute start/health/journey/cleanup and return the generated receipt."""
+    """Execute start/health/journey (or scenarios)/cleanup and return the receipt.
+
+    `scenarios` selects a subset of a scenario manifest for a fix-loop re-run.
+    Such a receipt is marked partial and never counts as acceptance evidence.
+    """
     root, resolved_config, config, evidence_root = validate_config(
         project_root, config_path=config_path
     )
+    declared_scenarios = _validated_scenarios(config)
+    partial = scenarios is not None
+    selected = _selected_scenarios(declared_scenarios, scenarios)
     selected_run_id = run_id or _next_run_id(evidence_root)
     if not _ID_RE.fullmatch(selected_run_id):
         raise JourneyConfigError("run_id must match [a-z0-9][a-z0-9._-]{2,63}")
@@ -906,7 +1175,9 @@ def run_from_config(
     env[_RUN_DIR_ENV] = str(run_dir)
     commands = config["commands"]
     command_results: dict[str, dict[str, Any]] = {}
-    log_paths = {phase: run_dir / f"{phase}.log" for phase in _PHASES}
+    phases = _SCENARIO_PHASES if declared_scenarios is not None else _PHASES
+    log_paths = {phase: run_dir / f"{phase}.log" for phase in phases}
+    scenario_results: list[dict[str, Any]] = []
     failures: list[str] = []
     service: _ServiceHandle | None = None
 
@@ -940,6 +1211,20 @@ def run_from_config(
             _append_once(failures, "health_failed")
             _append_once(failures, "journey_not_executed")
             _append_once(failures, "assertion_not_evaluated")
+        elif declared_scenarios is not None:
+            scenario_results = _run_scenarios(
+                declared_scenarios, selected, root, env, run_dir
+            )
+            journey_executed = True
+            if config["assertion"]["source"] == "journey_exit":
+                assertion_evaluated = True
+                assertion_passed = all(
+                    item["exit_code"] == 0 for item in scenario_results
+                )
+                if not assertion_passed:
+                    _append_once(failures, "journey_failed")
+            else:
+                _append_once(failures, "assertion_not_evaluated")
         else:
             command_results["journey"] = _run_command(
                 commands["journey"], root, env, log_paths["journey"]
@@ -965,27 +1250,62 @@ def run_from_config(
     ui_evidence_types: set[str] = set()
     ux_integrity: dict[str, Any] | None = None
     if config["boundary"] == "ui":
+        ui_config = _ui_config_for(config, selected, partial)
         ui_evidence, ui_complete, ui_evidence_types = _collect_ui_evidence(
-            config, run_dir, root
+            ui_config, run_dir, root
         )
         if not ui_complete:
             _append_once(failures, "ui_evidence_missing")
         ux_integrity, ux_integrity_reasons = _evaluate_ux_integrity(
-            config, run_dir, root
+            ui_config, run_dir, root
         )
         for reason in ux_integrity_reasons:
             _append_once(failures, reason)
 
-    outcome = (
-        "PASS"
-        if not failures
-        and app_started
-        and journey_executed
-        and assertion_evaluated
-        and assertion_passed
-        else "FAIL"
-    )
     target_ac = [str(item).strip() for item in config["target_ac"]]
+    scenario_entries: list[dict[str, Any]] = []
+    ac_results: dict[str, str] = {}
+    if declared_scenarios is not None:
+        scenario_entries = _scenario_entries(declared_scenarios, scenario_results, root)
+        ac_results = _derive_ac_results(
+            target_ac,
+            scenario_entries,
+            _scenario_run_ok(
+                config["boundary"],
+                app_started,
+                command_results,
+                config["assertion"]["source"],
+            ),
+            ui_evidence,
+            ux_integrity,
+        )
+
+    if declared_scenarios is None:
+        outcome = (
+            "PASS"
+            if not failures
+            and app_started
+            and journey_executed
+            and assertion_evaluated
+            and assertion_passed
+            else "FAIL"
+        )
+        passed_ac = len(target_ac) if outcome == "PASS" else 0
+    else:
+        passed_ac = sum(1 for verdict in ac_results.values() if verdict == "PASS")
+        if partial:
+            # A re-run judges only what it ran; ACs it skipped stay NOT_RUN.
+            outcome = (
+                "PASS"
+                if assertion_passed and "FAIL" not in ac_results.values()
+                else "FAIL"
+            )
+        else:
+            outcome = (
+                "PASS"
+                if not failures and passed_ac == len(target_ac)
+                else "FAIL"
+            )
     evidence_paths = {
         phase: _relative(path, root)
         for phase, path in log_paths.items()
@@ -1009,7 +1329,7 @@ def run_from_config(
         "boundary": config["boundary"],
         "target_ac": target_ac,
         "product_ac": {
-            "passed": len(target_ac) if outcome == "PASS" else 0,
+            "passed": passed_ac,
             "total": len(target_ac),
         },
         "human_intervention_count": config.get("human_intervention_count", 0),
@@ -1028,8 +1348,26 @@ def run_from_config(
         },
         "commands": command_results,
         "failure_reasons": failures,
-        "timeout_warnings": _timeout_warnings(command_results),
+        "timeout_warnings": _timeout_warnings(
+            {
+                **command_results,
+                **{
+                    f"scenario:{entry['scenario_id']}": entry
+                    for entry in scenario_entries
+                    if entry["executed"]
+                },
+            }
+        ),
     }
+    if declared_scenarios is not None:
+        receipt["scenarios"] = scenario_entries
+        receipt["ac_results"] = ac_results
+        receipt["partial"] = partial
+        receipt["selected_scenarios"] = [
+            entry["scenario_id"]
+            for entry in scenario_entries
+            if entry["scenario_id"] in selected
+        ]
     epic_scope = _validated_epic_scope(config)
     if epic_scope is not None:
         receipt["epic_scope"] = {**epic_scope, "code_revision": _code_revision(root)}
@@ -1057,7 +1395,13 @@ def read_receipts(
             payload = json.loads(path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
-        if not _is_valid_receipt(payload, root, path):
+        # A malformed receipt is discarded on its own; it must not abort the
+        # Epic summary or scorecard that aggregate every other receipt.
+        try:
+            valid = _is_valid_receipt(payload, root, path)
+        except (AttributeError, KeyError, TypeError, ValueError):
+            valid = False
+        if not valid:
             continue
         measured = _parse_ts(payload.get("measured_at"))
         if cutoff is not None and (measured is None or measured > cutoff):
@@ -1142,7 +1486,13 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
         and not failure_reasons
     ):
         return False
-    if payload["outcome"] == "FAIL" and (passed != 0 or not failure_reasons):
+    scenario_mode = "scenarios" in payload
+    if not _scenario_flags_consistent(payload):
+        return False
+    # Without scenarios one exit judges every AC; scenario receipts are recomputed below.
+    if payload["outcome"] == "FAIL" and (
+        not failure_reasons or (not scenario_mode and passed != 0)
+    ):
         return False
     if not _valid_epic_scope_receipt(payload):
         return False
@@ -1153,7 +1503,126 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
             return False
     elif "ui_evidence" in payload or "ux_integrity" in payload:
         return False
+    if scenario_mode and not _valid_scenario_receipt(payload, project_root, receipt_path):
+        return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
+
+
+def _scenario_flags_consistent(payload: dict[str, Any]) -> bool:
+    if "scenarios" not in payload:
+        return not any(key in payload for key in _SCENARIO_RECEIPT_KEYS)
+    # A partial re-run (or a malformed flag) is fix-loop output, never evidence.
+    return payload.get("partial") is False
+
+
+def _receipt_manifest(
+    payload: dict[str, Any], project_root: Path
+) -> Optional[dict[str, Any]]:
+    """Load the tracked manifest a receipt claims it ran, if it stays in the project."""
+    config_path = payload.get("config_path")
+    if not isinstance(config_path, str):
+        return None
+    path = (project_root / config_path).resolve()
+    try:
+        path.relative_to(project_root.resolve())
+    except ValueError:
+        return None
+    try:
+        config = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+    return config if isinstance(config, dict) else None
+
+
+def _valid_scenario_log(
+    entry: dict[str, Any], project_root: Path, run_dir: Path
+) -> bool:
+    log_path = entry.get("log_path")
+    declared_hash = entry.get("sha256")
+    if not isinstance(log_path, str) or not isinstance(declared_hash, str):
+        return False
+    path = (project_root / log_path).resolve()
+    try:
+        path.relative_to((project_root / EVIDENCE_ROOT_REL).resolve())
+        path.relative_to(run_dir)
+    except ValueError:
+        return False
+    if path.is_symlink() or not path.is_file():
+        return False
+    try:
+        return _sha256_file(path) == declared_hash
+    except OSError:
+        return False
+
+
+def _valid_scenario_receipt(
+    payload: dict[str, Any], project_root: Path, receipt_path: Path
+) -> bool:
+    """Bind scenario AC ownership to the manifest and recompute every AC verdict."""
+    scenarios = payload.get("scenarios")
+    ac_results = payload.get("ac_results")
+    selected = payload.get("selected_scenarios")
+    if (
+        not isinstance(scenarios, list)
+        or not isinstance(ac_results, dict)
+        or not isinstance(selected, list)
+        or any(not isinstance(entry, dict) for entry in scenarios)
+    ):
+        return False
+    config = _receipt_manifest(payload, project_root)
+    if config is None:
+        return False
+    try:
+        declared = _validated_scenarios(config)
+    except (JourneyConfigError, AttributeError, KeyError, TypeError):
+        return False
+    if declared is None:
+        return False
+    contract = _scenario_contract(declared)
+    # Without this a receipt could hand a failing scenario's AC to a passing one.
+    if [str(item).strip() for item in config["target_ac"]] != payload["target_ac"]:
+        return False
+    if [(entry.get("scenario_id"), entry.get("target_ac")) for entry in scenarios] != [
+        (scenario_id, scenario_ac) for scenario_id, scenario_ac in contract
+    ]:
+        return False
+    if selected != [scenario_id for scenario_id, _ in contract]:
+        return False
+    run_dir = receipt_path.parent.resolve()
+    for entry in scenarios:
+        executed = entry.get("executed")
+        # A full run executes every scenario exactly when the journey phase ran.
+        if executed is not payload["journey_executed"]:
+            return False
+        if executed:
+            exit_code = entry.get("exit_code")
+            if not isinstance(exit_code, int) or isinstance(exit_code, bool):
+                return False
+            if not _valid_scenario_log(entry, project_root, run_dir):
+                return False
+        elif any(entry.get(key) is not None for key in ("exit_code", "log_path", "sha256")):
+            return False
+    if set(ac_results) != set(payload["target_ac"]) or any(
+        not isinstance(verdict, str) or verdict not in _AC_VERDICTS
+        for verdict in ac_results.values()
+    ):
+        return False
+    recomputed = _derive_ac_results(
+        payload["target_ac"],
+        scenarios,
+        _scenario_run_ok(
+            payload["boundary"],
+            payload["app_started"],
+            payload["commands"],
+            payload["assertion"]["source"],
+        ),
+        payload.get("ui_evidence"),
+        payload.get("ux_integrity"),
+    )
+    if recomputed != ac_results:
+        return False
+    passed = sum(1 for verdict in recomputed.values() if verdict == "PASS")
+    return passed == payload["product_ac"]["passed"]
 
 
 def _valid_epic_scope_receipt(payload: dict[str, Any]) -> bool:
@@ -1287,19 +1756,10 @@ def _receipt_ux_declaration(
     """
     lens = payload["ux_integrity"]
     digest = lens.get("declaration_sha256")
-    config_path = payload.get("config_path")
-    if not isinstance(digest, str) or not isinstance(config_path, str):
+    if not isinstance(digest, str):
         return None
-    path = (project_root / config_path).resolve()
-    try:
-        path.relative_to(project_root.resolve())
-    except ValueError:
-        return None
-    try:
-        config = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return None
-    if not isinstance(config, dict):
+    config = _receipt_manifest(payload, project_root)
+    if config is None:
         return None
     try:
         _validated_ui_evidence(config)
@@ -1400,7 +1860,10 @@ def _evidence_matches_receipt(
         return False
     if not {"start", "cleanup"}.issubset(commands):
         return False
-    if payload["outcome"] == "PASS" and set(commands) != set(_PHASES):
+    phases = _SCENARIO_PHASES if "scenarios" in payload else _PHASES
+    if not set(commands).issubset(phases):
+        return False
+    if payload["outcome"] == "PASS" and set(commands) != set(phases):
         return False
     canonical_root = (project_root / EVIDENCE_ROOT_REL).resolve()
     for phase, result in commands.items():
@@ -1429,7 +1892,7 @@ def _evidence_matches_receipt(
         if actual_hash != declared_hash:
             return False
     if payload["outcome"] == "PASS":
-        for phase in ("health", "journey", "cleanup"):
+        for phase in phases[1:]:
             if commands[phase].get("exit_code") != 0:
                 return False
     return True
@@ -1445,6 +1908,13 @@ def main(argv: Optional[list[str]] = None) -> int:
     run_parser.add_argument("--config", required=True)
     run_parser.add_argument("--run-id", default=None)
     run_parser.add_argument("--measured-at", default=None)
+    run_parser.add_argument(
+        "--scenario",
+        dest="scenarios",
+        action="append",
+        default=None,
+        help="re-run only this scenario (repeatable); the receipt is partial",
+    )
     validate_parser = subparsers.add_parser(
         "validate", help="check one journey contract without running it"
     )
@@ -1474,6 +1944,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             config_path=args.config,
             run_id=args.run_id,
             measured_at=args.measured_at,
+            scenarios=args.scenarios,
         )
     except JourneyConfigError as exc:
         print(f"[product-journey] contract error: {exc}", file=sys.stderr)
