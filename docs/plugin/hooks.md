@@ -78,6 +78,7 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 - `hookSpecificOutput.additionalContext` 로 dcNess 활성 사실과 핵심 guard 안내 inject
 - 이전 세션이 `/handoff` 로 남긴 `.dcness-work/handoffs/next-session.md` 가 있으면 `.dcness-work/handoffs/archive/<ts>.md` 로 먼저 옮겨(mv) 원자적으로 소비한 뒤 그 내용을 `additionalContext` 최상단에 최우선 주입함(무손실 clear) — 다음다음 세션 stale 재주입 차단. mv(rename)를 read 보다 선행하므로 병렬 peer 세션 중 rename 에 성공한 first-consumer 만 소비(단일 소비자 계약). `.dcness-work/` 는 writable 이라 심어진 심링크(→ 로컬 시크릿)를 따라가 컨텍스트로 유출하지 않도록 정규 파일(심링크 아님)일 때만 소비. 파일 부재 시 기존 동작 그대로
 - 메인 Claude 첫 응답 첫 줄에 `[dcness 활성 확인]` 토큰을 요구해 활성 여부를 사용자가 바로 확인 가능하게 함
+- `## 응답 문체` 블록으로 메인 Claude 가 사용자에게 보내는 대화 응답을 ASD-STE100 원칙(결론 먼저, 한 문장 한 내용, 능동태·번호 절차, 용어 일관성, 3문장 이내 문단, 핵심만 굵게)으로 쓰도록 안내함. 응답 언어는 바꾸지 않고, 서브에이전트 출력·파일 산출물·commit/PR 본문은 대상이 아니며, 프로젝트·사용자 지침의 형식 지정이 우선한다. 권고이며 hook 이 검사하거나 차단하지 않는다
 - 프로젝트 상태나 다음 작업 질문에는 `docs/index.md` 와 `## 진행 상태 · 다음 작업` 섹션이 실제로 있을 때만 해당 포인터를 안내하고, 파일/섹션이 없으면 `/next-work` issue/label 조회와 `/init-dcness` 보강 경로를 안내함
 - 설치된 plug-in 버전과 `main` 의 최신 버전을 비교(하루 1회 캐시)해 더 높은 버전이 있을 때만 `claude plugin update` 알림을 함께 inject — 외부 활성 프로젝트가 옛 plug-in 버전 운영 룰에 묶이는 drift 회피
 
