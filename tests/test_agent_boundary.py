@@ -410,6 +410,10 @@ class BashPathContractTests(unittest.TestCase):
             ("T=hooks/evil.sh; (T=src/a.ts); printf x > \"$T\"", ["$T"]),
             ("T=hooks/evil.sh; if x; then T=src/a.ts; fi; printf x > \"$T\"", ["$T"]),
             ("T=hooks/evil.sh; T=src/a.ts | cat; printf x > \"$T\"", ["$T"]),
+            # 백그라운드 대입은 부모 셸에 반영되지 않는다 — 붙은 연산자 토큰(`&\n`)도 같다.
+            ("T=hooks/evil.sh; T=src/a.ts &\nprintf x > \"$T\"", ["$T"]),
+            ("T=hooks/evil.sh; T=src/a.ts & printf x > \"$T\"", ["$T"]),
+            ("T=src/a.ts &&\nprintf x > \"$T\"", ["src/a.ts"]),
             # 같은 segment 의 리다이렉션은 대입 전 값으로 확장된다.
             ("T=hooks/evil.sh; T=src/a.ts > \"$T\"", ["hooks/evil.sh"]),
             # 단어 분리·glob 결과가 하나로 확정되지 않는 값은 원형 유지.
