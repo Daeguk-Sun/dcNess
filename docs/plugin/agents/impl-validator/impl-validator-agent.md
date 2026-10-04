@@ -84,7 +84,7 @@ delta mode에서는 다음 두 축을 우선 읽는다.
 - 디자인 토큰 적용: design:required UI 작업에서 구현이 목업 디자인 토큰을 실제로 적용했는가. 이 축은 build-worker self-report 와 분리해 정적으로 본다.
 - 구현 위험: race, leak, 타입 우회, 부적절한 side effect처럼 실제 결함 가능성이 있는가.
 - bugfix 회귀: 원인이 제거됐고 주변 동작을 불필요하게 바꾸지 않았는가.
-- journey assertion 대조 고정 항목: merge candidate에 `(JOURNEY)`가 있으면 선언된 각 `target_ac`를 flow의 실제 assertion과 하나씩 정적으로 대조한다. 매니페스트의 AC 선언이나 journey exit 0만으로 실행 assertion이 존재한다고 보지 않고, 어떤 flow assertion이 어떤 AC를 판정하는지 파일/라인 근거를 남긴다. 누락·오태깅·assertion 약화는 `[spec-gap]`이다. build-worker `self-verify`는 저자가 manifest와 flow를 함께 쓰는 자기채점이므로 유일 관문으로 인정하지 않는다.
+- journey assertion 대조 고정 항목: merge candidate에 `(JOURNEY)`가 있으면 선언된 각 `target_ac`를 flow의 실제 assertion과 하나씩 정적으로 대조한다. 매니페스트의 AC 선언이나 journey exit 0만으로 실행 assertion이 존재한다고 보지 않고, 어떤 flow assertion이 어떤 AC를 판정하는지 파일/라인 근거를 남긴다. 누락·오태깅·assertion 약화는 `[spec-gap]`이다. 매니페스트가 `scenarios`를 선언하면 각 시나리오의 `target_ac`를 그 시나리오 `argv`가 실행하는 flow의 assertion과 대조한다. 다른 시나리오의 flow가 판정하는 AC를 담당으로 선언한 오태깅도 `[spec-gap]`이다. build-worker `self-verify`는 저자가 manifest와 flow를 함께 쓰는 자기채점이므로 유일 관문으로 인정하지 않는다.
 
 ### quality 렌즈
 

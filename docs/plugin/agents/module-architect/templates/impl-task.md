@@ -94,9 +94,12 @@ depends_on:             # [<NN-slug>, ...] 선행 의존 그래프의 단일 SSO
 | REQ-001 | Story AC |  | `(from AC-001)` | `(TEST) <command>` |  |
 | REQ-002 | Story AC |  | `(from AC-002)` | `(AGENT READ) <관찰 대상과 방법>` |  |
 | REQ-003 | Story AC | 로그인→홈 진입 | `(from AC-003)` | `(JOURNEY) <flow/매니페스트 경로>` | receipt outcome=PASS, app_started·journey_executed·assertion.passed=true, 대상 AC 전부 덮음, UI 경계면 `ux_integrity` 판정 요소가 `within_safe_area=true`·`occluded_by` 없음 |
+| REQ-004 | Story AC | 홈→상세 진입 | `(from AC-004)` | `(JOURNEY) <매니페스트 경로> 시나리오 home-to-detail` | 전체 시나리오 실행 receipt 의 `ac_results["AC-004"]=PASS`. 시작 상태: 로그인된 계정 + seed 항목 1개를 시나리오가 직접 준비 |
 | REQ-TECH-001 | 기술 REQ |  | `(technical: <Story AC로 환원 불가한 이유>)` | `(TEST) <command>` |  |
 
 > `(JOURNEY)`는 실제 앱/디바이스를 띄워야 하는 자동화 검증이다. 각 `(JOURNEY)` REQ는 project-local 매니페스트에 materialize할 `acceptance_environment`(`automation: automated | human_verification`, worker 실행 컨텍스트의 `requirements[].probe`, 선택 `prepare`)와 flow/seed/runner/manifest/env adapter의 `harness_paths`를 이 표의 검증 명령 또는 통과 조건에서 경로와 함께 선언한다. 이 중 build-worker 가 쓰는 journey 쓰기 경로는 위 `### 수정 허용` 에도 넣는다. UI 경계 `(JOURNEY)`는 요소가 보인다는 조건만으로 통과 조건을 쓰지 않고, 판정 근거가 될 화면 요소와 그 요소가 시스템 chrome·상위 레이어에 가리지 않아야 한다는 UX 정합성 조건(`ux_integrity`)을 함께 선언한다. 위 `디자인 참조` 절에 확정 목업이 있으면 핵심 `data-node-id` 를 그 판정 요소로 지목해 목업 기준과 journey 판정을 잇는다. task 구현 호출은 flow·매니페스트를 작성하고, 모든 task 뒤 fresh build-worker 수렴 호출이 tip에서 실행·관찰·수정하며, product-acceptance는 별도 sealed 실행으로 판정한다. 사람 눈이 반드시 필요한 항목은 가짜 journey로 만들지 않고 `automation: human_verification`과 기존 REQ 밖 `사람 확인 안내`로 분리한다.
+>
+> 한 Story의 `(JOURNEY)` AC를 화면 흐름 여러 개로 확인해야 하면 매니페스트 하나 안의 시나리오로 나눈다(REQ-004 형태). 시나리오마다 id, 담당 AC, 시작 상태를 스스로 준비하는 방법을 적는다. helper는 `start`·`cleanup`을 한 번씩만 실행하고 시나리오별·AC별로 판정하므로, 실패한 시나리오만 다시 실행할 수 있다. 흐름을 스크립트 하나로 묶거나 흐름마다 매니페스트를 나누지 않는다.
 >
 > negative 동작 계약은 대응하는 양성 프록시 event를 REQ 통과 조건에 명시한다. 양성 프록시가 없거나 관찰 창이 sub-second인 상태, 순수 위치·픽셀 판정은 flaky한 `(JOURNEY)`로 만들지 않고 `사람 확인 안내`로 분리한다.
 
