@@ -152,9 +152,18 @@ try:
     command = tool_input.get("command") or ""
     if not isinstance(command, str) or not command:
         sys.exit(0)
-    from harness.agent_boundary import extract_bash_paths
+    from harness.agent_boundary import extract_bash_paths, unresolved_bash_python_writes
     for path in extract_bash_paths(command):
         print(path)
+    unresolved = unresolved_bash_python_writes(command)
+    if unresolved:
+        # python write whose target cannot be resolved skips the TDD check — record it.
+        from harness.session_state_fail_open import record_fail_open_event
+        record_fail_open_event(
+            hook="tdd-guard",
+            category="bash_python_target_unresolved",
+            detail="; ".join(unresolved),
+        )
 except Exception as exc:
     print(f"{type(exc).__name__}: {exc}", file=sys.stderr)
     sys.exit(1)

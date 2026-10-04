@@ -19,6 +19,7 @@ from harness.agent_boundary import (
     extract_bash_paths,
     is_infra_project,
     load_project_boundary_overrides,
+    unresolved_bash_python_writes,
 )
 
 
@@ -350,6 +351,9 @@ class BashPathContractTests(unittest.TestCase):
             ("echo x > 1", ["1"]),
             ("cmd >& out.log", ["out.log"]),
             ("cmd 2> err.log", ["err.log"]),
+            # `\` 줄 연속은 명령 경계가 아니다.
+            ("sed -i '' \\\n  's/x/y/' \\\n  hooks/evil.sh", ["hooks/evil.sh"]),
+            ("printf x \\\n  > src/x.ts", ["src/x.ts"]),
         ]
         for command, expected in cases:
             with self.subTest(command=command):
@@ -360,6 +364,105 @@ class BashPathContractTests(unittest.TestCase):
             extract_bash_paths("printf x > src/x.ts; tee src/x.ts < input"),
             ["src/x.ts"],
         )
+
+    def test_python_file_writes_are_write_targets(self) -> None:
+        cases = [
+            (
+                "python3 - <<'EOF'\np='src/a.kt'\ns=open(p).read()\n"
+                "open(p,'w').write(s.replace('a','b'))\nEOF",
+                ["src/a.kt"],
+            ),
+            ("python3 -c \"open('src/a.kt','w').write('x')\"", ["src/a.kt"]),
+            (
+                "python3 - <<'EOF'\nfrom pathlib import Path\n"
+                "Path('src/a.kt').write_text('x')\nEOF",
+                ["src/a.kt"],
+            ),
+            (
+                "cd /repo && python3 <<'EOF'\nimport pathlib\n"
+                "root = pathlib.Path('src')\n(root / 'b.kt').write_bytes(b'x')\n"
+                "with open('src/c.kt', mode='a') as f:\n    f.write('x')\nEOF",
+                ["src/b.kt", "src/c.kt"],
+            ),
+            ("python3 -c \"import os; open(os.path.join('src', 'd.kt'), 'w')\"", ["src/d.kt"]),
+            ("python3 -c \"from pathlib import Path; Path('src/e.kt').open('w')\"", ["src/e.kt"]),
+            ("cat <<'EOF' | python3 -\nopen('src/f.kt','w')\nEOF", ["src/f.kt"]),
+            ("python3 -u - <<'EOF'\nopen('src/g.kt','w')\nEOF", ["src/g.kt"]),
+        ]
+        for command, expected in cases:
+            with self.subTest(command=command):
+                self.assertEqual(extract_bash_paths(command), expected)
+                self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_shell_variable_write_target_resolves_same_command_assignment(self) -> None:
+        cases = [
+            ("T=src/a.kt; sed -i '' -e 's/x/y/' \"$T\"", ["src/a.kt"]),
+            ("export D=src && sed -i '' 's/x/y/' \"${D}/b.kt\"", ["src/b.kt"]),
+            ("printf x > \"$UNSET\"", ["$UNSET"]),
+            ("for T in a b; do sed -i '' s/x/y/ \"$T\"; done", ["$T"]),
+            ("T=\"$HOME/a.kt\"; sed -i '' s/x/y/ \"$T\"", ["$T"]),
+            ("T=src/a.kt; T=src/b.kt; sed -i '' s/x/y/ \"$T\"", ["src/b.kt"]),
+            ("T=src/a.kt\nsed -i '' s/x/y/ \"$T\"", ["src/a.kt"]),
+            ("T=$(mktemp); sed -i '' s/x/y/ \"$T\"", ["$T"]),
+            # 실행 여부가 확정되지 않는 대입은 값으로 쓰지 않는다 — 원형 유지.
+            ("T=hooks/evil.sh; false && T=src/a.ts; printf x > \"$T\"", ["$T"]),
+            ("T=hooks/evil.sh; true || T=src/a.ts; printf x > \"$T\"", ["$T"]),
+            ("T=hooks/evil.sh; (T=src/a.ts); printf x > \"$T\"", ["$T"]),
+            ("T=hooks/evil.sh; if x; then T=src/a.ts; fi; printf x > \"$T\"", ["$T"]),
+            ("T=hooks/evil.sh; T=src/a.ts | cat; printf x > \"$T\"", ["$T"]),
+            # 같은 segment 의 리다이렉션은 대입 전 값으로 확장된다.
+            ("T=hooks/evil.sh; T=src/a.ts > \"$T\"", ["hooks/evil.sh"]),
+            # 단어 분리·glob 결과가 하나로 확정되지 않는 값은 원형 유지.
+            ("T='src/a.ts hooks/evil.sh'; rm $T", ["$T"]),
+            ("T='src/*.ts'; rm $T", ["$T"]),
+            ("T='~/a.ts'; rm $T", ["$T"]),
+            # 인식하지 못한 형태로 다시 대입하면 이전 값을 쓰지 않는다.
+            ("T=src/a.ts; declare -x T=hooks/evil.sh; printf x > \"$T\"", ["$T"]),
+            ("T=src/a.ts; printf -v T hooks/evil.sh; printf x > \"$T\"", ["$T"]),
+            ("T=src/a.ts; T+=.bak; printf x > \"$T\"", ["$T"]),
+            ("T=src/a.ts; read T; printf x > \"$T\"", ["$T"]),
+            ("T=src/a.ts; eval \"$CMD\"; printf x > \"$T\"", ["$T"]),
+            # 작은따옴표·`\$` 안의 `$T` 는 확장되지 않는 글자다 — 값으로 바꾸지 않는다.
+            ("T=src/a.ts; printf x > '$T'", ["$T"]),
+            ("T=src/a.ts; printf x > \\$T", ["$T"]),
+            ("T=src/a.ts; printf x > \"$T\"", ["src/a.ts"]),
+        ]
+        for command, expected in cases:
+            with self.subTest(command=command):
+                self.assertEqual(extract_bash_paths(command), expected)
+
+    def test_python_without_project_write_has_no_target(self) -> None:
+        commands = [
+            "python3 - <<'EOF'\np='src/a.kt'\nprint(open(p).read())\nEOF",
+            "python3 -c \"print(open('src/a.kt', 'r').read())\"",
+            "python3 -c \"open('/tmp/x.txt','w').write('src/send.py')\"",
+            "python3 - <<'EOF'\nfrom pathlib import Path\nPath('/private/tmp/x/y.json').write_text('{}')\nEOF",
+            "cat > notes.md <<'EOF'\nopen('src/a.kt','w')\nEOF",
+            # python 이 표준입력을 프로그램이 아니라 데이터로 읽는 경우.
+            "python3 -c 'import sys; print(sys.stdin.read())' <<'EOF'\nopen('src/a.kt','w')\nEOF",
+            "python3 -m json.tool <<'EOF'\nopen('src/a.kt','w')\nEOF",
+            "python3 tools/x.py <<'EOF'\nopen('src/a.kt','w')\nEOF",
+            "cat <<'EOF' | python3 tools/x.py\nopen('src/a.kt','w')\nEOF",
+        ]
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertNotIn("src/a.kt", extract_bash_paths(command))
+                self.assertFalse(
+                    any(p.startswith(("/tmp", "/private/tmp")) for p in extract_bash_paths(command))
+                )
+                self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_unresolvable_python_write_is_reported_not_guessed(self) -> None:
+        cases = [
+            "python3 -c \"import sys; open(sys.argv[1], 'w').write('x')\" src/a.kt",
+            "python3 - <<'EOF'\nfor p in ['src/a.kt']:\n    open(p, 'w').write('x')\nEOF",
+            "python3 - <<'EOF'\nopen(f'src/{name}.kt', 'w')\nEOF",
+            "python3 - <<'EOF'\nopen('src/a.kt', 'w'\nEOF",
+        ]
+        for command in cases:
+            with self.subTest(command=command):
+                self.assertEqual(extract_bash_paths(command), [])
+                self.assertNotEqual(unresolved_bash_python_writes(command), [])
 
 
 class ExternalMutationContractTests(unittest.TestCase):

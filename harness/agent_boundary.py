@@ -25,8 +25,10 @@
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
+import posixpath
 import re
 import shlex
 # Fixed git argv probes in this module run without shell and with timeouts.
@@ -48,6 +50,7 @@ __all__ = [
     "check_write_allowed",
     "check_read_allowed",
     "extract_bash_paths",
+    "unresolved_bash_python_writes",
     "check_bash_mutation",
     "check_github_mcp_mutation",
 ]
@@ -817,10 +820,14 @@ _BASH_WRITE_INDICATORS: tuple[str, ...] = (
     r'>\s*\S',     # redirect (writing)
     r'>>\s*\S',    # append redirect
     r'\btee\b',
+    r'\bpython(?:\d+(?:\.\d+)*)?\b',
 )
 _WRITE_REDIRECT_OPS = frozenset({">", ">>", ">|", "&>", ">&", "<>"})
 _READ_REDIRECT_OPS = frozenset({"<", "<<", "<<-"})
 _SHELL_SEPARATORS = frozenset({"&&", "||", ";", "|", "&"})
+_PATH_PUNCTUATION = "();<>|&\n"
+# 셸 줄 연속 — 이스케이프되지 않은 `\` + 줄바꿈은 지워지고 명령이 이어진다 (`\\` + 줄바꿈은 경계).
+_LINE_CONTINUATION_RE = re.compile(r"(?<!\\)((?:\\\\)*)\\\n")
 _CP_VALUE_FLAGS = frozenset({"-t", "--target-directory"})
 _SED_EXPR_FLAGS = frozenset({"-e", "--expression", "-f", "--file"})
 
@@ -862,7 +869,11 @@ def _shell_tokens_for_paths(command: str) -> list[str]:
     parse 불능 command 에서 억지 추출로 false positive 를 만들지 않는다.
     """
     try:
-        lexer = shlex.shlex(_strip_heredocs(command), posix=True, punctuation_chars=True)
+        # 인용되지 않은 줄바꿈도 명령 경계다 (`T=a` 다음 줄 `sed -i .. "$T"`) — whitespace 에서
+        # 빼고 punctuation 으로 둔다. 인용 안 줄바꿈과 `\` 줄 연속은 shlex 가 단어로 유지한다.
+        text = _LINE_CONTINUATION_RE.sub(r"\1", _strip_heredocs(command))
+        lexer = shlex.shlex(text, posix=True, punctuation_chars=_PATH_PUNCTUATION)
+        lexer.whitespace = " \t\r"
         lexer.whitespace_split = True
         lexer.commenters = ""
         return list(lexer)
@@ -870,18 +881,28 @@ def _shell_tokens_for_paths(command: str) -> list[str]:
         return []
 
 
-def _split_shell_segments(tokens: list[str]) -> list[list[str]]:
-    segments: list[list[str]] = []
+def _is_shell_separator(tok: str) -> bool:
+    # shlex 는 붙은 punctuation 을 한 토큰으로 묶는다(`);`, `;\n`, `&&\n`).
+    return tok in _SHELL_SEPARATORS or (
+        bool(tok) and set(tok) <= set(";|&\n()") and (";" in tok or "\n" in tok)
+    )
+
+
+def _split_shell_segments(tokens: list[str]) -> list[tuple[list[str], str, str]]:
+    """(segment, 앞 연산자, 뒤 연산자) 목록. 연산자가 없으면 빈 문자열."""
+    segments: list[tuple[list[str], str, str]] = []
     cur: list[str] = []
+    prev_op = ""
     for tok in tokens:
-        if tok in _SHELL_SEPARATORS:
+        if _is_shell_separator(tok):
             if cur:
-                segments.append(cur)
+                segments.append((cur, prev_op, tok))
                 cur = []
+            prev_op = tok
         else:
             cur.append(tok)
     if cur:
-        segments.append(cur)
+        segments.append((cur, prev_op, ""))
     return segments
 
 
@@ -1107,20 +1128,334 @@ def _command_write_targets(argv: list[str]) -> list[str]:
     return []
 
 
+# ── python 파일 쓰기 + 쉘 변수 대상 (#1269) ─────────────────────────────
+# `python3 - <<'EOF' … open(p,'w') … EOF`, `python3 -c "Path('x').write_text(..)"` 처럼
+# Bash 안 python 이 프로젝트 파일을 쓰면 위 shell 구문 추출만으로는 대상이 빠진다.
+# python 스크립트는 ast 로 읽고, 경로가 변수면 같은 스크립트 안 대입값으로 푼다.
+# 끝내 못 푸는 쓰기는 추측하지 않고 unresolved 로 돌려 hook 이 fail-open 으로 기록한다.
+_PYTHON_CMD_RE = re.compile(r"^python(?:\d+(?:\.\d+)*)?$")
+_PYTHON_VALUE_OPTS = frozenset({"-X", "-W", "-Q"})
+_PYTHON_WRITE_HINT_RE = re.compile(r"\bopen\s*\(|\.write_(?:text|bytes)\s*\(")
+_PYTHON_OPEN_MODULES = frozenset({"io", "builtins", "codecs"})
+_PYTHON_PATH_CTORS = frozenset({"Path", "PurePath", "PosixPath", "pathlib.Path", "os.path.join"})
+# 임시 디렉토리 쓰기는 프로젝트 파일 수정이 아니다. 경로 비교용 문자열이며 임시 파일을 만들지 않는다.
+_PYTHON_TEMP_PREFIXES = (  # nosec B108
+    "/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/",
+)
+_SHELL_VAR_RE = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
+_SHELL_ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", re.DOTALL)
+# 인용 여부와 무관하게 확장 결과가 그대로 한 단어인 값 — 단어 분리·glob·`~` 확장이 없다.
+_SHELL_LITERAL_WORD_RE = re.compile(r"[A-Za-z0-9_./@%+=:,-]+")
+_SHELL_DECLARE_WORDS = frozenset({"export", "readonly", "local", "declare", "typeset"})
+_SHELL_DYNAMIC_COMMANDS = frozenset({"eval", "source", "."})
+_SHELL_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+# 이 단어로 시작하는 segment 나 `(`/`)` 가 있으면 대입의 실행 여부를 순서만으로 확정할 수 없다.
+_SHELL_CONTROL_WORDS = frozenset({
+    "if", "then", "else", "elif", "fi", "case", "esac", "while", "until", "for",
+    "select", "do", "done", "function", "{", "}", "!",
+})
+
+
+def _python_program(segment: list[str]) -> Optional[tuple[str, str]]:
+    """python 실행 segment 의 프로그램 출처 — ("c", 스크립트) / ("stdin", "") / None.
+
+    None = python 이 아니거나 `-m`·스크립트 파일 실행이다. 이때 표준입력은 데이터이지
+    실행 코드가 아니다.
+    """
+    argv = _peel_wrappers(_strip_redirections_for_paths(segment)[0])
+    if not argv or not _PYTHON_CMD_RE.match(_command_basename(argv[0])):
+        return None
+    i = 1
+    while i < len(argv):
+        arg = argv[i]
+        if arg == "-c":
+            return ("c", argv[i + 1]) if i + 1 < len(argv) else None
+        if arg == "-":
+            return ("stdin", "")
+        if arg == "-m" or not arg.startswith("-"):
+            return None
+        i += 2 if arg in _PYTHON_VALUE_OPTS else 1
+    return ("stdin", "")
+
+
+def _python_reads_stdin_program(text: str, *, last: bool) -> bool:
+    segments = _split_shell_segments(_shell_tokens_for_paths(text))
+    if not segments:
+        return False
+    segment, prev_op, _ = segments[-1] if last else segments[0]
+    if not last and prev_op != "|":
+        return False
+    program = _python_program(segment)
+    return program is not None and program[0] == "stdin"
+
+
+def _python_scripts(command: str) -> list[str]:
+    """Bash command 안에서 python 이 실행하는 스크립트 본문(heredoc / `-c`) 목록."""
+    scripts: list[str] = []
+    for m in _HEREDOC_RE.finditer(command):
+        line_start = command.rfind("\n", 0, m.start()) + 1
+        # heredoc 을 받는 명령(`python3 - <<EOF`) 또는 pipe 로 이어 받는 명령(`cat <<EOF | python3 -`).
+        if _python_reads_stdin_program(
+            command[line_start:m.start()], last=True
+        ) or _python_reads_stdin_program(m.group("rest"), last=False):
+            body = m.group(0).split("\n", 1)[1]
+            scripts.append(body.rsplit("\n", 1)[0] if "\n" in body else "")
+    for segment, _, _ in _split_shell_segments(_shell_tokens_for_paths(command)):
+        program = _python_program(segment)
+        if program is not None and program[0] == "c":
+            scripts.append(program[1])
+    return scripts
+
+
+def _python_call_name(func: ast.expr) -> str:
+    if isinstance(func, ast.Name):
+        return func.id
+    if isinstance(func, ast.Attribute):
+        prefix = _python_call_name(func.value)
+        return f"{prefix}.{func.attr}" if prefix else ""
+    return ""
+
+
+def _python_write_call(call: ast.Call) -> tuple[Optional[ast.expr], Optional[ast.expr]]:
+    """쓰기 가능 호출이면 (대상 expr, mode expr). mode None = 항상 쓰기. 아니면 (None, None)."""
+    func = call.func
+    name = _python_call_name(func)
+    mode_kw = next((kw.value for kw in call.keywords if kw.arg == "mode"), None)
+    read_mode = ast.Constant("r")
+    if name == "open" or (
+        isinstance(func, ast.Attribute)
+        and func.attr == "open"
+        and name.split(".")[0] in _PYTHON_OPEN_MODULES
+    ):
+        target = call.args[0] if call.args else next(
+            (kw.value for kw in call.keywords if kw.arg == "file"), None
+        )
+        mode = call.args[1] if len(call.args) > 1 else mode_kw
+        return target, mode or read_mode
+    if isinstance(func, ast.Attribute) and func.attr == "open":  # Path(..).open(mode)
+        return func.value, (call.args[0] if call.args else mode_kw) or read_mode
+    if isinstance(func, ast.Attribute) and func.attr in ("write_text", "write_bytes"):
+        return func.value, None
+    return None, None
+
+
+class _PythonWriteScanner:
+    """한 python 스크립트의 파일 쓰기 대상을 ast 로 찾는다 (best-effort)."""
+
+    _MAX_DEPTH = 8
+
+    def __init__(self, tree: ast.AST) -> None:
+        self.tree = tree
+        # 이름별 대입값. None = 루프 변수·함수 인자·tuple 언패킹처럼 값을 확정할 수 없는 바인딩.
+        self.bindings: dict[str, list[Optional[ast.expr]]] = {}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                for target in node.targets:
+                    self._bind(target, node.value)
+            elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
+                self._bind(node.target, node.value)
+            elif isinstance(node, (ast.AugAssign, ast.For, ast.AsyncFor, ast.comprehension)):
+                self._bind(node.target, None)
+            elif isinstance(node, ast.withitem) and node.optional_vars is not None:
+                self._bind(node.optional_vars, None)
+            elif isinstance(node, ast.arg):
+                self.bindings.setdefault(node.arg, []).append(None)
+
+    def _bind(self, target: ast.expr, value: Optional[ast.expr]) -> None:
+        if isinstance(target, ast.Name):
+            self.bindings.setdefault(target.id, []).append(value)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            for elt in target.elts:
+                self._bind(elt, None)
+
+    def resolve(self, expr: Optional[ast.expr], depth: int = 0) -> Optional[str]:
+        if expr is None or depth > self._MAX_DEPTH:
+            return None
+        if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
+            return expr.value
+        if isinstance(expr, ast.Name):
+            values = {self.resolve(v, depth + 1) for v in self.bindings.get(expr.id, [None])}
+            return values.pop() if len(values) == 1 else None
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Div):
+            return self._join([expr.left, expr.right], depth)
+        if isinstance(expr, ast.Call):
+            if _python_call_name(expr.func) in _PYTHON_PATH_CTORS:
+                return self._join(expr.args, depth) if expr.args and not expr.keywords else None
+            if isinstance(expr.func, ast.Attribute) and expr.func.attr in ("resolve", "absolute"):
+                return self.resolve(expr.func.value, depth + 1)
+        return None
+
+    def _join(self, parts: list[ast.expr], depth: int) -> Optional[str]:
+        resolved = [self.resolve(part, depth + 1) for part in parts]
+        if any(part is None for part in resolved):
+            return None
+        return posixpath.normpath(posixpath.join(*[p for p in resolved if p is not None]))
+
+    def write_targets(self) -> tuple[list[str], list[str]]:
+        paths: list[str] = []
+        unresolved: list[str] = []
+        for node in ast.walk(self.tree):
+            if not isinstance(node, ast.Call):
+                continue
+            target, mode = _python_write_call(node)
+            if target is None:
+                continue
+            if mode is not None:
+                if not (isinstance(mode, ast.Constant) and isinstance(mode.value, str)):
+                    unresolved.append(f"open mode 미확정: {ast.unparse(node)[:120]}")
+                    continue
+                if not set(mode.value) & set("wax+"):
+                    continue  # 읽기 전용 open
+            path = self.resolve(target)
+            if path is None:
+                unresolved.append(f"쓰기 대상 미확정: {ast.unparse(target)[:120]}")
+            elif not (path + "/").startswith(_PYTHON_TEMP_PREFIXES):
+                paths.append(path)
+        return paths, unresolved
+
+
+def _python_write_analysis(command: str) -> tuple[list[str], list[str]]:
+    """(확정된 python 쓰기 대상, 확정하지 못한 python 쓰기 설명)."""
+    paths: list[str] = []
+    unresolved: list[str] = []
+    for script in _python_scripts(command):
+        try:
+            tree = ast.parse(script)
+        except (SyntaxError, ValueError):
+            if _PYTHON_WRITE_HINT_RE.search(script):
+                unresolved.append("python 스크립트 구문 해석 불가")
+            continue
+        found, missing = _PythonWriteScanner(tree).write_targets()
+        paths.extend(found)
+        unresolved.extend(missing)
+    return paths, unresolved
+
+
+def _shell_vars_resolvable(segments: list[tuple[list[str], str, str]]) -> bool:
+    """제어 구문·subshell 이 없는 평평한 명령에서만 대입 순서로 변수 값을 확정한다."""
+    for segment, _, _ in segments:
+        if segment[0] in _SHELL_CONTROL_WORDS:
+            return False
+        if any(tok and set(tok) <= set(_PATH_PUNCTUATION) and set(tok) & set("()") for tok in segment):
+            return False
+        argv = _peel_wrappers(segment)
+        if argv and argv[0] in _SHELL_DYNAMIC_COMMANDS:
+            return False  # eval/source 는 어떤 변수든 바꿀 수 있다.
+    return True
+
+
+def _simple_assignments(argv: list[str]) -> list[re.Match[str]]:
+    """`T=a` / `export T=a U=b` 처럼 대입만 있는 segment 의 대입 목록. 아니면 빈 목록."""
+    words = argv[1:] if argv and argv[0] in _SHELL_DECLARE_WORDS else argv
+    assigns = [_SHELL_ASSIGN_RE.match(word) for word in words]
+    return [m for m in assigns if m is not None] if words and all(assigns) else []
+
+
+def _shell_names_rebound_elsewhere(segments: list[tuple[list[str], str, str]]) -> set[str]:
+    """단순 대입 밖에서 이름이 나오는 변수 — `declare -x T=..`, `printf -v T`, `read T`,
+    `T+=x` 처럼 인식하지 못한 형태로 바뀔 수 있으므로 값을 확정하지 않는다 (fail-closed).
+    `$T`/`${T}` 확장 자리는 대입이 아니므로 제외한다.
+    """
+    names: set[str] = set()
+    for segment, _, _ in segments:
+        if _simple_assignments(_strip_redirections_for_paths(segment)[0]):
+            continue
+        for tok in segment:
+            names.update(_SHELL_NAME_RE.findall(_SHELL_VAR_RE.sub(" ", tok)))
+    return names
+
+
+def _shell_names_literal_protected(command: str) -> set[str]:
+    """작은따옴표 안이나 `\\$` 로 보호돼 확장되지 않는 `$이름`.
+
+    shlex 토큰은 인용 정보를 잃으므로 `'$T'` 와 `"$T"` 를 구별하지 못한다. 원문에서 보호된
+    자리가 있는 이름은 값을 확정하지 않는다 (fail-closed).
+    """
+    names: set[str] = set()
+    quote: Optional[str] = None
+    i = 0
+    while i < len(command):
+        c = command[i]
+        if quote == "'":
+            if c == "'":
+                quote = None
+            elif c == "$" and (m := _SHELL_VAR_RE.match(command, i)):
+                names.add(m.group(1) or m.group(2))
+        elif c == "\\":
+            if m := _SHELL_VAR_RE.match(command, i + 1):
+                names.add(m.group(1) or m.group(2))
+            i += 2
+            continue
+        elif quote == '"':
+            if c == '"':
+                quote = None
+        elif c in "'\"":
+            quote = c
+        i += 1
+    return names
+
+
+def _update_shell_assignments(
+    argv: list[str],
+    env: dict[str, Optional[str]],
+    *,
+    conditional: bool,
+) -> None:
+    """`T=src/a.kt` / `export T=..` 단독 segment 는 이후 segment 의 `$T` 값이 된다.
+
+    `T=x cmd` 같은 명령 앞 env 프리픽스는 같은 segment 인자 확장에 쓰이지 않으므로 무시한다.
+    확장 결과가 한 단어로 확정되지 않는 값(공백·glob·`~`·`$`·backtick)과 `&&`/`||`/pipe/
+    background 로 실행 여부가 확정되지 않는 대입(conditional)은 확정 불가(None)로 둔다.
+    """
+    for m in _simple_assignments(argv):
+        value = m.group(2)
+        certain = not conditional and _SHELL_LITERAL_WORD_RE.fullmatch(value)
+        env[m.group(1)] = value if certain else None
+
+
+def _expand_shell_vars(
+    path: str,
+    env: dict[str, Optional[str]],
+    rebound: set[str],
+) -> str:
+    names = [a or b for a, b in _SHELL_VAR_RE.findall(path)]
+    if not names or any(env.get(name) is None or name in rebound for name in names):
+        return path  # 확정 불가 — 원형 유지 (file boundary 가 셸 확장 경로로 차단)
+    return _SHELL_VAR_RE.sub(lambda m: env.get(m.group(1) or m.group(2)) or "", path)
+
+
 def extract_bash_paths(command: str) -> list[str]:
     """Bash command 안의 write target path 추출 (best-effort).
 
     이 함수는 file boundary 용이다. 따라서 `cat README.md > src/generated.ts` 에서
     `README.md` 같은 read operand 는 후보가 아니고, 실제 write target 인
-    `src/generated.ts` 만 반환한다.
+    `src/generated.ts` 만 반환한다. python heredoc/`-c` 스크립트의 파일 쓰기 대상과
+    같은 command 안에서 대입된 쉘 변수(`T=src/a.kt; sed -i .. "$T"`)도 푼다 (#1269).
     """
     if not any(re.search(ind, command) for ind in _BASH_WRITE_INDICATORS):
         return []
     paths: list[str] = []
-    for segment in _split_shell_segments(_shell_tokens_for_paths(command)):
+    env: dict[str, Optional[str]] = {}
+    segments = _split_shell_segments(_shell_tokens_for_paths(command))
+    resolvable = _shell_vars_resolvable(segments)
+    rebound = (
+        _shell_names_rebound_elsewhere(segments)
+        | _shell_names_literal_protected(_strip_heredocs(command))
+        if resolvable
+        else set()
+    )
+    for segment, prev_op, next_op in segments:
         argv, redirect_paths = _strip_redirections_for_paths(segment)
-        paths.extend(redirect_paths)
-        paths.extend(_command_write_targets(argv))
+        # 이 segment 의 리다이렉션·인자는 대입 *전* 값으로 확장된다 — 대입은 다음 segment 부터.
+        for path in redirect_paths + _command_write_targets(argv):
+            paths.append(_expand_shell_vars(path, env, rebound))
+        if resolvable:
+            _update_shell_assignments(
+                argv,
+                env,
+                conditional=bool(set(prev_op) & set("&|")) or "|" in next_op or next_op == "&",
+            )
+    paths.extend(_python_write_analysis(command)[0])
     seen: set[str] = set()
     deduped: list[str] = []
     for path in paths:
@@ -1130,6 +1465,15 @@ def extract_bash_paths(command: str) -> list[str]:
             seen.add(path)
             deduped.append(path)
     return deduped
+
+
+def unresolved_bash_python_writes(command: str) -> list[str]:
+    """Bash 안 python 파일 쓰기 중 대상 경로를 확정하지 못한 항목의 설명 목록.
+
+    `extract_bash_paths` 는 추측한 경로를 돌려주지 않는다. hook 은 이 목록을 fail-open
+    진단으로 기록해 검사를 거치지 않은 쓰기가 조용히 사라지지 않게 한다.
+    """
+    return _python_write_analysis(command)[1]
 
 
 # ── 외부 상태 변경 차단 (#597 커밋5) ─────────────────────────────

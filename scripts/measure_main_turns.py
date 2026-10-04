@@ -54,6 +54,11 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from harness.agent_boundary import extract_bash_paths  # noqa: E402
 
 _TOKEN_FIELDS = (
     "input_tokens",
@@ -78,12 +83,6 @@ _FLOW_WORKER_LAUNCH_PATTERN = re.compile(
     )
     \s+build-worker(?:\s|\\|$)
     """
-)
-_FLOW_BASH_REDIRECT_TARGET = re.compile(r"(?<![<>&0-9])>>?\s*['\"]?([^\s;&|'\"<>]+)")
-_FLOW_BASH_IN_PLACE_EDIT = re.compile(r"\b(?:sed\s+-i|perl\s+-\w*i)\b[^;&|\n]*")
-_FLOW_PYTHON_WRITE_TARGET = re.compile(
-    r"open\(\s*([\w.]+|['\"][^'\"]+['\"])\s*,\s*['\"][wa]\+?['\"]"
-    r"|(?:Path\(\s*)?([\w.]+|['\"][^'\"]+['\"])\)?\.write_text\("
 )
 _FLOW_PATH_TOKEN = re.compile(r"[\w./-]+\.[A-Za-z][\w]{0,9}")
 _FLOW_ISSUE_READ_PATTERN = re.compile(
@@ -330,37 +329,9 @@ def _flow_edit_observation(
     return None
 
 
-def _python_write_target(argument: str, command: str) -> str:
-    if argument[:1] in "'\"":
-        return argument[1:-1]
-    # A variable: use the path literal it was assigned, e.g. p='src/a.kt' or p = Path("src/a.kt").
-    assigned = re.search(
-        rf"\b{re.escape(argument)}\s*=\s*(?:Path\(\s*)?['\"]([^'\"]+)['\"]",
-        command,
-    )
-    return assigned.group(1) if assigned else ""
-
-
-def _in_place_edit_paths(segment: str, command: str) -> list[str]:
-    def shell_value(match: re.Match[str]) -> str:
-        assigned = re.search(
-            rf"\b{match.group(1)}=['\"]?([^\s;'\"]+)",
-            command,
-        )
-        return assigned.group(1) if assigned else ""
-
-    # File operands are unquoted words or quoted variables; quoted text is the edit expression.
-    segment = re.sub(r"\"?\$\{?(\w+)\}?\"?", shell_value, segment)
-    segment = re.sub(r"'[^']*'|\"[^\"]*\"", " ", segment)
-    return _FLOW_PATH_TOKEN.findall(segment)
-
-
 def _bash_written_paths(command: str) -> list[str]:
-    targets = _FLOW_BASH_REDIRECT_TARGET.findall(command)
-    for segment in _FLOW_BASH_IN_PLACE_EDIT.findall(command):
-        targets.extend(_in_place_edit_paths(segment, command))
-    for match in _FLOW_PYTHON_WRITE_TARGET.finditer(command):
-        targets.append(_python_write_target(match.group(1) or match.group(2), command))
+    # Same write-target contract as the TDD guard and file boundary hooks.
+    targets = extract_bash_paths(command)
     return [
         target
         for target in targets

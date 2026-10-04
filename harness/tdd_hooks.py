@@ -758,6 +758,30 @@ def _allow_json() -> str:
     )
 
 
+def _record_unresolved_bash_writes(payload: dict[str, Any], project_root: Path) -> None:
+    """대상 미확정 python 쓰기는 TDD 검사를 거치지 않는다 — 조용히 넘기지 않고 기록한다."""
+    tool_input = payload.get("tool_input")
+    if payload.get("tool_name") != "Bash" or not isinstance(tool_input, dict):
+        return
+    command = tool_input.get("command")
+    if not isinstance(command, str):
+        return
+    try:
+        from harness.agent_boundary import unresolved_bash_python_writes
+        from harness.session_state_fail_open import record_fail_open_event
+
+        unresolved = unresolved_bash_python_writes(command)
+        if unresolved:
+            record_fail_open_event(
+                hook="tdd-guard",
+                category="bash_python_target_unresolved",
+                detail="; ".join(unresolved),
+                cwd=project_root,
+            )
+    except Exception:  # nosec B110 — 진단 기록 실패가 hook 판정을 막지 않는다.
+        return
+
+
 def run_generated_hook(
     *,
     project_root: Path,
@@ -776,6 +800,7 @@ def run_generated_hook(
     if not isinstance(payload, dict):
         print(_allow_json())
         return 0
+    _record_unresolved_bash_writes(payload, project_root)
     decision = evaluate_payload(payload, project_root.resolve(), config)
     if not decision.allowed:
         print(decision.reason, file=sys.stderr)

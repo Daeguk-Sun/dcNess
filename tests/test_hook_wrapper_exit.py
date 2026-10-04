@@ -20,6 +20,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from harness.guard_telemetry import read_events
+from harness.session_state_fail_open import read_fail_open_events
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -234,6 +235,45 @@ class FileGuardWrapperExitTests(unittest.TestCase):
             ),
             events,
         )
+
+    def test_bash_python_write_is_boundary_checked_and_unresolved_is_recorded(self) -> None:
+        result = _run_wrapper(
+            "file-guard.sh",
+            self._file_payload(
+                "Bash",
+                command="python3 -c \"from pathlib import Path; Path('hooks/evil.sh').write_text('x')\"",
+            ),
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
+        self.assertIn("인프라 path 보호", result.stderr)
+
+        result = _run_wrapper(
+            "file-guard.sh",
+            self._file_payload(
+                "Bash",
+                command="python3 -c \"import sys; open(sys.argv[1],'w')\" hooks/evil.sh",
+            ),
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertIn(
+            ("file-guard", "bash_python_target_unresolved"),
+            [(e["hook"], e["category"]) for e in read_fail_open_events(cwd=self.cwd)],
+        )
+
+        # 경계 검사를 끈 프로젝트(opt-out)에서는 미확정 기록도 하지 않는다.
+        (self.cwd / ".claude/harness-state/fail-open-events.jsonl").unlink()
+        (self.cwd / ".no-dcness-guard").write_text("", encoding="utf-8")
+        _run_wrapper(
+            "file-guard.sh",
+            self._file_payload(
+                "Bash",
+                command="python3 -c \"import sys; open(sys.argv[1],'w')\" hooks/evil.sh",
+            ),
+            cwd=self.cwd,
+        )
+        self.assertEqual(read_fail_open_events(cwd=self.cwd), [])
 
     def test_github_mcp_mutation_records_mcp_mutation(self) -> None:
         result = _run_wrapper(
