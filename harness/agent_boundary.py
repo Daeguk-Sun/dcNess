@@ -1148,6 +1148,7 @@ _SHELL_ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", re.DOTALL)
 _SHELL_LITERAL_WORD_RE = re.compile(r"[A-Za-z0-9_./@%+=:,-]+")
 _SHELL_DECLARE_WORDS = frozenset({"export", "readonly", "local", "declare", "typeset"})
 _SHELL_DYNAMIC_COMMANDS = frozenset({"eval", "source", "."})
+_SHELL_BACKGROUND_RE = re.compile(r"(?<!&)&(?!&)")
 _SHELL_NAME_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 # 이 단어로 시작하는 segment 나 `(`/`)` 가 있으면 대입의 실행 여부를 순서만으로 확정할 수 없다.
 _SHELL_CONTROL_WORDS = frozenset({
@@ -1453,7 +1454,10 @@ def extract_bash_paths(command: str) -> list[str]:
             _update_shell_assignments(
                 argv,
                 env,
-                conditional=bool(set(prev_op) & set("&|")) or "|" in next_op or next_op == "&",
+                # 붙은 연산자 토큰(`&\n`)도 있으므로 `&&` 가 아닌 단독 `&` 를 포함 여부로 본다.
+                conditional=bool(set(prev_op) & set("&|"))
+                or "|" in next_op
+                or bool(_SHELL_BACKGROUND_RE.search(next_op)),
             )
     paths.extend(_python_write_analysis(command)[0])
     seen: set[str] = set()
