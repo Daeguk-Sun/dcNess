@@ -434,12 +434,15 @@ echo "[pr-finalize] merge 직전 default branch base 재확인" >&2
 require_default_base
 
 # Step 2: 머지 (또는 리뷰 필수 등 남은 조건을 위한 auto-merge 예약)
-# PR 이 이미 clean status (검사 통과 + mergeable) 면 enablePullRequestAutoMerge mutation
-# 이 "Pull request is in clean status" 로 거부 → 즉시 머지 fallback.
+# 기다릴 조건이 없으면 GitHub 가 auto-merge 예약(enablePullRequestAutoMerge)을 거부한다.
+# 거부 메시지는 두 가지가 관측됐고, 둘 다 예약 없이 바로 머지할 수 있다는 뜻이다:
+#   - "Pull request is in clean status" — PR 이 이미 검사 통과 + mergeable
+#   - "Protected branch rules not configured for this branch" — base 에 보호 규칙 없음
+# 이 두 경우만 검사한 head 로 즉시 머지 fallback 한다. 그 밖의 거부는 머지하지 않는다.
 echo "[pr-finalize] PR #$PR — 검사한 head ${HEAD_SHA} 로 머지 (auto-merge 토글 ON)" >&2
 MERGE_ERR=$(gh pr merge "$PR" --auto --merge --match-head-commit "$HEAD_SHA" 2>&1 >/dev/null) || {
-  if echo "$MERGE_ERR" | grep -q "clean status"; then
-    echo "[pr-finalize] PR 이미 clean status — auto-merge enable 의미 없음, 즉시 머지 fallback" >&2
+  if echo "$MERGE_ERR" | grep -q -e "clean status" -e "Protected branch rules not configured"; then
+    echo "[pr-finalize] auto-merge 예약 불필요 ($MERGE_ERR) — 즉시 머지 fallback" >&2
     gh pr merge "$PR" --merge --match-head-commit "$HEAD_SHA" >&2 || {
       echo "[pr-finalize] ERROR: 즉시 머지 fallback 실패" >&2
       exit 1

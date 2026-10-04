@@ -393,6 +393,82 @@ class PrFinalizePostMergeWorktreeTests(unittest.TestCase):
             self.assertNotIn("pr merge", gh_log.read_text(encoding="utf-8"))
             self.assertIn("머지하지 않았습니다", result.stderr)
 
+    def _reject_auto_merge(self, bin_dir: Path, message: str) -> None:
+        """auto-merge 예약만 `message` 로 거부하고 즉시 머지는 받는 fake gh 로 바꾼다."""
+        gh = bin_dir / "gh"
+        general = "  'pr merge 123 '*) exit 0 ;;\n"
+        text = gh.read_text(encoding="utf-8")
+        self.assertIn(general, text)
+        gh.write_text(
+            text.replace(
+                general,
+                f"  'pr merge 123 --auto '*) echo '{message}' >&2; exit 1 ;;\n" + general,
+            ),
+            encoding="utf-8",
+        )
+
+    def test_auto_merge_rejected_as_unneeded_falls_back_to_immediate_merge(self) -> None:
+        """기다릴 조건이 없어 auto-merge 예약이 거부되면 검사한 head 로 즉시 머지한다 (#1278)."""
+        messages = (
+            "GraphQL: Pull request Pull request is in clean status (enablePullRequestAutoMerge)",
+            "GraphQL: Protected branch rules not configured for this branch"
+            " (enablePullRequestAutoMerge)",
+        )
+        for message in messages:
+            with self.subTest(message=message), tempfile.TemporaryDirectory() as td:
+                root, feature, _origin, origin_head = self._init_repo_with_remote_ahead(td)
+                bin_dir = Path(td) / "bin"
+                bin_dir.mkdir()
+                gh_log = self._write_fake_gh(bin_dir, buckets=["pass"], rollup_len=1)
+                self._reject_auto_merge(bin_dir, message)
+
+                result = self._run_finalize(feature, bin_dir)
+
+                self.assertEqual(result.returncode, 0, result.stderr)
+                merge_calls = [
+                    c
+                    for c in gh_log.read_text(encoding="utf-8").splitlines()
+                    if c.startswith("pr merge 123")
+                ]
+                self.assertEqual(
+                    merge_calls,
+                    [
+                        "pr merge 123 --auto --merge --match-head-commit abc123",
+                        "pr merge 123 --merge --match-head-commit abc123",
+                    ],
+                )
+                self.assertEqual(
+                    subprocess.check_output(
+                        ["git", "rev-parse", "HEAD"], cwd=root, text=True
+                    ).strip(),
+                    origin_head,
+                )
+
+    def test_unknown_auto_merge_rejection_fails_closed_without_immediate_merge(self) -> None:
+        """알려지지 않은 거부 메시지에서는 즉시 머지를 시도하지 않는다 (#1278)."""
+        with tempfile.TemporaryDirectory() as td:
+            _root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
+            bin_dir = Path(td) / "bin"
+            bin_dir.mkdir()
+            gh_log = self._write_fake_gh(bin_dir, buckets=["pass"], rollup_len=1)
+            self._reject_auto_merge(
+                bin_dir, "GraphQL: Something went wrong (enablePullRequestAutoMerge)"
+            )
+
+            result = self._run_finalize(feature, bin_dir)
+
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertIn("auto-merge 토글 실패", result.stderr)
+            merge_calls = [
+                c
+                for c in gh_log.read_text(encoding="utf-8").splitlines()
+                if c.startswith("pr merge 123")
+            ]
+            self.assertEqual(
+                merge_calls, ["pr merge 123 --auto --merge --match-head-commit abc123"]
+            )
+            self.assertTrue(feature.exists())
+
     def _init_repo_with_remote_ahead(self, td: str) -> tuple[Path, Path, Path, str]:
         root = Path(td) / "repo"
         origin = Path(td) / "origin.git"
