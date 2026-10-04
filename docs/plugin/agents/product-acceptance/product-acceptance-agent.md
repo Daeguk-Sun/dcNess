@@ -48,6 +48,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 ### `(JOURNEY)` 실행 판정 (STORY / EPIC 공통)
 
 - 대상 AC가 `(JOURNEY)`이고 journey 매니페스트와 project-local e2e가 있으면 기존 receipt 유무와 무관하게 tip에서 `dcness-product-journey run --project-root <project-root> --config <매니페스트 경로>`를 직접 호출해 현재 판정용 sealed receipt를 만든 뒤 판정한다.
+- 시나리오 매니페스트도 `--scenario` 없이 전체 시나리오를 실행한다. `partial=true` receipt는 판정 증거가 아니다. 판정과 보고는 AC 단위로 한다. receipt의 `ac_results`에서 `PASS`인 AC만 충족으로 세고, `FAIL`인 AC는 해당 시나리오 id·exit code·log 위치와 함께 gap으로 보고한다. 일부 AC가 통과해도 receipt outcome이 FAIL이면 Story 판정은 PASS가 아니다.
 - 저장된 `journey_deferred` 목록에 있는 journey는 현재 run에서 sealed journey 실행 비발동이며 PASS 증거로 세지 않는다. human verification/follow-up 잔여로 보고하고, 나머지 journey는 각각 새 sealed receipt를 생성한다. deferred journey가 담당하는 issue의 close/EPIC close 판정에는 이 호출 결과를 사용하지 않는다.
 - 매니페스트 또는 e2e flow가 없으면 실행할 수 없는 gap으로 보고하고 도입을 제안한다. 특정 e2e 도구 채택을 강제하지 않으며, fixable 코드 gap은 기존 routing대로 build-worker rework에 인계한다.
 - 러너가 생성하는 증거는 ignored `.dcness-work/product-journey/` 아래에만 둔다. tracked 구현·설계 소스, flow, 매니페스트를 수정하거나 receipt를 손으로 날조하지 않는다.

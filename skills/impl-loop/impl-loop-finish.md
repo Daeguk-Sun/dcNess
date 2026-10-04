@@ -41,6 +41,7 @@ step 3의 consolidate 여부는 [`git-spec.md#분할-판정`](../../docs/plugin/
 - 이후 판정 입력은 `journey-deferred list`가 돌려주는 저장된 목록이다. 진행 뷰와 worker 프롬프트에 목록을 계속 노출하되, 그 값의 출처는 대화 맥락이 아니라 run 상태다. 조회가 실패하면 빈 목록으로 간주하지 않고 그 자리에서 멈춘다 — 기록 없음과 읽지 못함은 다른 상태다.
 - `journey_deferred`가 아닌 자동 journey만 `JOURNEY_CONVERGENCE`를 실행한다. 실행은 `dcness-product-journey run --config <매니페스트>` 러너로 하며, 대본을 직접 실행한 PASS 는 수렴 PASS 로 인정하지 않는다.
 - 첫 실행 PASS면 끝내고, 실패하면 실행 → 관찰 → 배관 수정 → 재실행한다.
+- 시나리오 매니페스트이면 재실행은 `--scenario`로 실패한 시나리오만 한다. 수렴 PASS 전에는 전체 시나리오를 한 번 실행해 통과를 확인한다. 부분 실행 receipt는 수렴 PASS 증거가 아니다.
 - story-local production 수정은 해당 story branch에 commit하고 downstream branch를 restack한다.
 - 다중 story의 cross-cutting production 수정과 tracked flow/manifest 보정은 QA branch가 소유한다.
 - `journey_deferred`는 수렴·sealed journey 실행 비발동이며 종료 조건의 수렴 PASS Must 비대상이다. 해당 issue에 `Closes`를 붙이지 않는다.

@@ -79,6 +79,7 @@ Epic close holistic invocation 또는 mode가 명시됐을 때 적용한다. 작
 - target GitHub issue AC 전항목이 diff 와 실행·관찰 증거로 충족되는가. plan 이 AC 를 누락하거나 다르게 해석해도 target issue 를 상위 계약으로 판정하는가.
 - Public API, data shape, config key, import boundary가 plan과 맞는가.
 - state owner 대조 고정 항목: plan 이 지정한 state owner(상태를 소유하는 클래스·모듈)와 public interface 이름을 먼저 목록으로 뽑고, diff 의 실제 클래스 구조와 하나씩 대조한다. 지정한 state owner 가 그 상태를 실제로 소유하는지, 지정한 이름의 interface 가 그 책임을 가지는지 파일/라인 근거를 남긴다. 지정에 없는 새 상태 소유 클래스가 그 상태를 가져갔거나 지정한 owner 를 우회하면, 동작이 맞아도 `[spec-gap]` 이다. plan 이 owner 를 지정하지 않았으면 이 항목은 건너뛰고 Agent Operability 로 본다.
+- journey assertion 대조 고정 항목: merge candidate에 `(JOURNEY)`가 있으면 선언된 각 `target_ac`를 flow의 실제 assertion과 하나씩 정적으로 대조하고 파일/라인 근거를 남긴다. 매니페스트가 `scenarios`를 선언하면 각 시나리오의 `target_ac`를 그 시나리오 `argv`가 실행하는 flow의 assertion과 대조한다. 매니페스트 AC 선언이나 exit 0만으로 assertion 존재를 추정하지 않는다. 누락·오태깅·assertion 약화는 `[spec-gap]`이다.
 - Async ordering, null/empty input, error propagation, stale state, resource cleanup, security-sensitive handling, user-visible edge case 같은 hidden regression을 고려했는가.
 - design:required UI 작업에서 구현이 목업 디자인 토큰을 실제로 적용했는가. build-worker self-report 와 분리해서 토큰 참조 유무, 스캐폴딩 기본 테마 상수, boilerplate 색 상수 잔존을 정적으로 본다.
 - `any`, ignored error, placeholder branch, dead code, fake test 같은 명백한 bypass가 들어오지 않았는가.

@@ -71,6 +71,7 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 - 첫 제품 경계 동작이 Story 마지막 task까지 밀렸는데 이유와 후속 검증이 없지 않은가.
 - impl 문서의 `### 수정 허용` 이 wave-plan 파서가 읽을 수 있는 경로 목록인가. 호출자가 `dcness-helper normalize-scope <impl dir>` 후 `wave-plan` 결과의 `unresolved_slugs` 또는 `format_unnormalized_slugs` 를 전달했으면 그 slug 를 우선 확인한다.
 - `(JOURNEY)` task 의 journey 쓰기 경로(flow 대본, `--config` 매니페스트, setup/teardown 스크립트, 여정 등록 파일)가 `### 수정 허용` 안에 있는가. `harness_paths` 에만 있고 grant 가 없으면 build-worker 가 boundary guard 에 막히므로 `TASK_LOCAL` finding 으로 드러낸다.
+- 한 Story 의 `(JOURNEY)` AC 를 화면 흐름 여러 개로 확인하는데 시나리오별 id·담당 AC·독립 실행 조건이 없거나, 담당 시나리오가 없는 journey AC 가 있지 않은가. 있으면 흐름 하나의 실패가 모든 AC 실패가 되므로 `TASK_LOCAL` finding 으로 드러낸다.
 - ux-flow와 stories prose 같은 비규범 요약 층이 stale 하더라도 형식만으로 Must finding 으로 올리지 않았는가. module responsibility / decision 과 충돌해 구현 오판을 만들 때만 Must 후보로 본다.
 - revision mode 에서는 개정분만 보지 않고 개정 후 전체 설계 pack 정합을 본다. 메인이 전달한 파생 drift 체크리스트(`ux-flow.md`, 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호, domain-model/ADR 잔존 표현)는 evidence pointer로 사용하되, 항목 이름 부재만으로 Must finding 을 만들지 않는다.
 
