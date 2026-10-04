@@ -9,6 +9,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
+from harness.session_state_fail_open import read_fail_open_events
 from harness.tdd_hooks import format_prompt_guidance, inspect_installation
 
 
@@ -505,6 +506,62 @@ class GeneratedTddHookContractTests(unittest.TestCase):
             test_file.write_text("def test_new_contract():\n    assert True\n", encoding="utf-8")
             test_allowed = _run_hook(hook, project, test_file)
             self.assertEqual(test_allowed.returncode, 0, test_allowed.stderr)
+
+    def test_generated_hook_checks_bash_python_write_and_records_unresolved(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = Path(td) / "project"
+            project.mkdir()
+            subprocess.run(["git", "init", "-q"], cwd=project, check=True)
+            (project / "pyproject.toml").write_text("[project]\nname='demo'\n")
+            (project / "src").mkdir()
+            (project / "src" / "existing.py").write_text("def existing():\n    return 1\n")
+            subprocess.run(
+                [
+                    str(TDD_HOOKS),
+                    "ensure",
+                    "--project-root",
+                    str(project),
+                    "--targets",
+                    "cc",
+                    "--plugin-root",
+                    str(ROOT),
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=20,
+                env={**os.environ, "PYTHONPATH": str(ROOT)},
+            )
+            hook = project / ".claude" / "hooks" / "dcness-tdd-guard.sh"
+
+            denied = _run_hook_payload(
+                hook,
+                project,
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": "python3 - <<'EOF'\np='src/price.py'\nopen(p,'w').write('x')\nEOF",
+                    },
+                },
+            )
+            self.assertEqual(denied.returncode, 2, denied.stderr)
+            self.assertIn("src/price.py", denied.stderr)
+
+            unresolved = _run_hook_payload(
+                hook,
+                project,
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": "python3 -c \"import sys; open(sys.argv[1],'w')\" src/price.py",
+                    },
+                },
+            )
+            self.assertEqual(unresolved.returncode, 0, unresolved.stderr)
+            self.assertEqual(
+                [(row["hook"], row["category"]) for row in read_fail_open_events(cwd=project)],
+                [("tdd-guard", "bash_python_target_unresolved")],
+            )
 
     def test_generated_hook_allows_existing_file_with_tdd_exempt_reason(self) -> None:
         with tempfile.TemporaryDirectory() as td:

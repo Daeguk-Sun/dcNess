@@ -662,6 +662,7 @@ def handle_pretooluse_file_op(
         extract_bash_paths,
         is_infra_project,
         is_opt_out,
+        unresolved_bash_python_writes,
     )
     from harness.session_state import impl_scope_paths_for_run
 
@@ -785,6 +786,15 @@ def handle_pretooluse_file_op(
                     prefix="[agent-boundary][Bash] ",
                     base_dir=base_dir,
                 )
+        unresolved = [] if mutation_guard_off else unresolved_bash_python_writes(cmd)
+        if unresolved:
+            # 대상 미확정 python 쓰기는 경계 검사를 거치지 않는다 — 조용히 넘기지 않고 기록 (#1269).
+            _record_fail_open_safe(
+                "file-guard",
+                "bash_python_target_unresolved",
+                "; ".join(unresolved),
+                base_dir=base_dir,
+            )
         for fp in extract_bash_paths(cmd):
             # shell_context=True — Bash 추출 경로의 $VAR/$()/backtick 셸 확장 토큰 차단
             # (#694 codex P2). Edit/Write 의 literal 경로 검사(위)는 기본 False 라 영향 없음.

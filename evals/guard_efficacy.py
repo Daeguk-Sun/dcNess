@@ -437,7 +437,9 @@ def _tdd_guard(
     return probe
 
 
-def _tdd_guard_bash_write_without_test() -> tuple[Decision, str]:
+def _tdd_guard_bash_write_without_test(
+    command: str = "printf 'export const value = 1' > src/untested.ts",
+) -> tuple[Decision, str]:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
         subprocess.run(
@@ -450,9 +452,7 @@ def _tdd_guard_bash_write_without_test() -> tuple[Decision, str]:
         )
         payload = {
             "tool_name": "Bash",
-            "tool_input": {
-                "command": "printf 'export const value = 1' > src/untested.ts",
-            },
+            "tool_input": {"command": command},
         }
         result = subprocess.run(
             ["bash", str(ROOT / "hooks" / "tdd-guard.sh")],
@@ -829,6 +829,18 @@ def build_cases() -> list[GuardCase]:
             "block",
             "Bash write target for a TS/JS implementation file is TDD checked.",
             _tdd_guard_bash_write_without_test,
+        ),
+        GuardCase(
+            "tdd_guard_blocks_bash_python_write_without_test",
+            "tdd-guard",
+            "block",
+            "A python script run from Bash that writes an implementation file is TDD checked.",
+            lambda: _tdd_guard_bash_write_without_test(
+                "python3 - <<'EOF'\n"
+                "p = 'src/untested.ts'\n"
+                "open(p, 'w').write('export const value = 1')\n"
+                "EOF"
+            ),
         ),
         GuardCase(
             "headless_tdd_blocks_worker_success_without_test",

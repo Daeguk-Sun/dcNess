@@ -158,6 +158,21 @@ class TddHookContractTests(unittest.TestCase):
         self.assertEqual(self.bash("printf x > src/another.test.ts").returncode, 0)
         self.assertEqual(self.bash("npm test 2>&1 | tail -20").returncode, 0)
 
+    def test_python_file_write_is_tdd_checked_and_unresolved_write_is_recorded(self) -> None:
+        blocked = self.bash(
+            "python3 - <<'EOF'\np='src/py_written.ts'\nopen(p,'w').write('export const x=1')\nEOF"
+        )
+        self.assertEqual(blocked.returncode, 2)
+        self.assertIn("src/py_written.ts", blocked.stderr)
+
+        unresolved = self.bash("python3 -c \"import sys; open(sys.argv[1],'w')\" src/x.ts")
+        self.assertEqual(unresolved.returncode, 0)
+        events = read_fail_open_events(cwd=self.root)
+        self.assertEqual(
+            [(row["hook"], row["category"]) for row in events],
+            [("tdd-guard", "bash_python_target_unresolved")],
+        )
+
     def test_public_exit_stderr_and_guard_receipt_contract(self) -> None:
         denied = self.edit(self.write("src/biz.ts", "export const x = 1;\n"))
         self.assertEqual(denied.returncode, 2)
