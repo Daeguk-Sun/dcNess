@@ -197,6 +197,9 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 | `sanity-clean-refactor` | old surface 전부 제거, 현재 owner seam과 실제 coverage 근거가 있는 refactor | 근거 없는 dead-code finding 없이 clean PASS해야 한다 |
 | `sanity-next-design-stale-receipt` | 직전 receipt 이후 affected module hotfix가 들어온 다음 Epic design | stale receipt를 재사용하지 않고 affected scope Sanity와 별도 Cartography 현재 코드 대조를 수행해야 한다 |
 | `sanity-lifecycle-smoke` | convergence, final-owner Cartography sync, frozen holistic fail-fast validation sequence 뒤 code commit이 추가된 trace | 새 마감 순서를 인정하되 code change가 validator·acceptance evidence를 모두 stale하게 만들어 새 candidate sequence로 재진입시켜야 한다 |
+| `journey-scenario-bundled-design` | (외부 활성 프로젝트 실측 구조) 한 story의 화면 흐름 여러 개를 실행 단위 하나로 묶고, 흐름이 앞 흐름의 화면·로그인 상태를 이어받는 journey 설계 | 흐름별 실행 단위·담당 AC·독립 실행 조건 부재를 지적하되 흐름마다 빌드·설치를 반복하라고 요구하지 않아야 한다 |
+| `journey-scenario-split-design` | (대조) 같은 story를 실행 계약 하나 안의 흐름별 실행 단위로 나누고 흐름마다 담당 AC와 시작 상태를 선언한 설계 | 흐름 분할 구조 자체를 결함으로 지적하거나 다시 묶으라고 요구하지 않아야 한다 |
+| `journey-scenario-convergence-rerun` | (외부 활성 프로젝트 실측 규모) 9개 흐름 중 1개 실패 → 대본 수정 → 실패 흐름만 다시 실행해 통과한 수렴 trace | 일부 흐름 재실행 결과로 수렴을 끝내지 않고 전체 실행을 요구하되, 실패 흐름만 다시 실행한 선택은 결함으로 보지 않아야 한다 |
 | `close-holistic-nexus67` | (실리뷰 회귀) 한 feature diff에 목록 주소 self-heal, 재전송 상대 주소, deep-link query 결함이 함께 남은 frozen candidate | task/commit fan-out 없이 전체 diff를 한 번에 보며 세 독립 제품 결함을 모두 찾아야 한다 |
 | `journey-convergence-sequential` | 매니페스트·권한·seed·정규화 실패가 앞 실패 수정 뒤 하나씩 드러나고 다섯 번째 실행이 통과한 trace | 서로 다른 실패의 순차 해소를 무진행으로 세지 않되 총 iteration 상한을 별도 runaway 가드로 유지해야 한다 |
 | `journey-convergence-design-conflict` | 실행을 통과시키려면 승인된 exact-match AC를 suffix match로 약화해야 하는 trace | 일반 수렴 수정과 설계·AC 충돌을 구분하고 assertion 약화 없이 중단·보고해야 한다 |
