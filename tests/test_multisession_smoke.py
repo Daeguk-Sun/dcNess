@@ -194,6 +194,59 @@ class BashPipelineSmokeTests(unittest.TestCase):
                 f"slim inject 에 '{forbidden}' 잔존 — 문서 선독 지시 회귀 (#596)",
             )
 
+    def test_session_start_injects_response_style(self) -> None:
+        """활성 프로젝트의 메인 Claude 대화 응답에 ASD-STE100 기반 간결 문체 지시를 주입한다.
+        적용 대상은 사용자 대화 응답으로 한정하고, 사용자 언어 유지와 지침 우선을 명시한다."""
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-style"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+        self.assertIn("## 응답 문체", ctx)
+        self.assertIn("ASD-STE100", ctx)
+        for rule in (
+            "결론을 맨 앞 한 줄에",
+            "한 문장에는 한 가지 내용만",
+            "능동태",
+            "번호",
+            "같은 대상은 처음부터 끝까지 같은 단어로",
+            "문단은 3문장 이내",
+            "핵심 판단이나 결정 요청만 굵게",
+        ):
+            self.assertIn(rule, ctx, f"응답 문체 규칙 누락: {rule}")
+        # 적용 범위·우선순위 계약
+        self.assertIn("사용자에게 보내는 대화 응답", ctx)
+        self.assertIn("서브에이전트", ctx)
+        self.assertIn("사용자가 쓰는 언어", ctx)
+        self.assertIn("그 지침이 우선", ctx)
+
+    def test_session_start_inactive_project_injects_nothing(self) -> None:
+        """비활성 프로젝트는 응답 문체 지시를 포함해 아무것도 주입하지 않는다."""
+        whitelist = self.cwd / "empty-projects.json"
+        whitelist.write_text('{"projects": []}')
+        env = {
+            k: v for k, v in os.environ.items() if k != "DCNESS_FORCE_ENABLE"
+        }
+        env.update({
+            "PYTHONPATH": str(REPO_ROOT),
+            "DCNESS_WHITELIST_PATH": str(whitelist),
+        })
+        result = subprocess.run(
+            ["bash", str(REPO_ROOT / "hooks" / "session-start.sh")],
+            input=json.dumps({"sessionId": "smoke-ses-inactive"}),
+            text=True,
+            capture_output=True,
+            cwd=str(self.cwd),
+            env=env,
+            timeout=10,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("응답 문체", result.stdout)
+        self.assertEqual(result.stdout.strip(), "")
+
     def test_session_start_uses_index_pointer_when_section_exists(self) -> None:
         docs = self.cwd / "docs"
         docs.mkdir()
