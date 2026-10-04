@@ -901,6 +901,10 @@ class MeasureMainTurnsTests(unittest.TestCase):
                 "T=src/send_test.py; sed -i '' -e 's/Send.PHONE/Send.NUMBER/' \"$T\"",
                 "src/send_test.py",
             ),
+            "sed_variable_next_line": (
+                "T=src/send_test.py\nsed -i '' -e 's/Send.PHONE/Send.NUMBER/' \"$T\"",
+                "src/send_test.py",
+            ),
         }
         for label, (command, path) in commands.items():
             with self.subTest(label=label), TemporaryDirectory() as td:
