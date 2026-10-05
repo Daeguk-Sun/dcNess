@@ -987,6 +987,13 @@ class GeneratedTddHookDocsTests(unittest.TestCase):
         self.assertIn("TDD", impl_skill)
         self.assertIn("제거하지 않는다", impl_skill)
 
+        init_doc = (ROOT / "docs" / "plugin" / "init-dcness.md").read_text(encoding="utf-8")
+        self.assertIn("ensure --platform", init_skill)
+        for text in (init_skill, hooks_doc, init_doc):
+            with self.subTest(text=text[:20]):
+                self.assertIn("추측하지 않는다", text)
+                self.assertNotIn("detect_platform", text)
+
         ordered = [
             "TDD 계약",
             "CC",

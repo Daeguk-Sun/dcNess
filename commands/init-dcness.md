@@ -33,7 +33,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - `docs/*`, `docs/design-variants/*`: 부재 시만 seed. 단 기존 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 섹션은 없을 때만 append.
 - Codex validator skills: `$CODEX_HOME/skills/dcness-*` always-overwrite. Validator wrapper 는 활성 plugin 원본을 우선 주입하고, 이 복사본은 native Codex skill 등록과 fallback 용도다.
 - Codex provider routing: core 에서는 상태만 확인하고, 선택형 확장에서 추천 role-split preset 또는 custom provider 조합을 갱신.
-- TDD Guard: dcNess 가 **TDD 계약 + self-test** 를 소유한다. 프로젝트가 비어 있지 않으면 플랫폼 감지 또는 사람 승인된 `.dcness/tdd-hooks.json` 계약(`source_roots`, `impl_exts`, custom 플랫폼의 `test_candidate_templates`, 선택 `test_file_globs`)을 기준으로 project-local CC/Codex hook 생성을 제안하고, 생성 후보는 self-test 통과 전에는 등록하지 않는다. 생성 훅이 없으면 중앙 plug-in hook 이 안전 fallback 으로 동작한다.
+- TDD Guard: dcNess 가 **TDD 계약 + self-test** 를 소유한다. 프로젝트가 비어 있지 않으면 사용자에게 확인한 플랫폼 또는 사람 승인된 `.dcness/tdd-hooks.json` 계약(`source_roots`, `impl_exts`, custom 플랫폼의 `test_candidate_templates`, 선택 `test_file_globs`)을 기준으로 project-local CC/Codex hook 생성을 제안하고, 생성 후보는 self-test 통과 전에는 등록하지 않는다. 생성 훅이 없으면 중앙 plug-in hook 이 안전 fallback 으로 동작한다.
 
 ## 공통 변수
 이후 절차에서 반복 사용한다.
@@ -67,7 +67,7 @@ core activation 의 성공 기준은 whitelist, Read 권한, git hook shim, runt
 - `Codex validator skills` FAIL → Core Step 5 재실행.
 - `CLAUDE.md` 부재 또는 cold-start 앵커 부재 → Core Step 6.
 - `Provider routing` 은 INFO 로 상태만 확인한다. 추천 role-split preset 은 선택형 확장에서만 적용하고, custom 선택 때 기존 all-codex/Claude-only 조합을 명시 변경한다.
-- `Generated TDD hooks` 는 INFO/WARN 이다. 빈 프로젝트는 skip 하고, 미생성 non-empty 프로젝트는 아래 Core Step 7.5 의 역제안으로 처리한다.
+- `Generated TDD hooks` 는 INFO/WARN 이다. TDD 계약이 없으면 INFO 로 표시한다. 빈 프로젝트는 skip 하고, 미생성 non-empty 프로젝트는 아래 Core Step 7.5 의 역제안으로 처리한다.
 - `선택형 CI workflow` 는 INFO 다. core activation 성공/실패 판정에 넣지 않는다.
 - 실제 제품 확인은 활성화 시점에 묻지 않는다. Epic 종료 확인은 Epic의 모든 Story가 통합된 뒤에 선정하는 대표 사용자 흐름으로 하며, 빈 프로젝트에는 아직 실행 가능한 Epic 이 없다. 이것은 결함이 아니라 정상 상태이므로 대표 흐름이나 제품 확인 설정을 만들라고 요구하지 않고 "아직 실행 가능한 Epic 이 없다" 로만 알린다. 첫 Epic 의 Story 가 모두 통합되면 `/impl-loop` 마감과 `/acceptance epic` 이 그 자리에서 대표 흐름을 제안하고 사용자 승인을 받는다 ([`impl-loop-finish.md` 대표 사용자 흐름과 Epic 결과 요약](../skills/impl-loop/impl-loop-finish.md#대표-사용자-흐름과-epic-결과-요약)).
 
@@ -160,9 +160,14 @@ Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bun
 
 ### Core Step 7.5 - generated TDD hook 역제안
 
-`"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"` 로 상태를 본다. 지원 플랫폼이거나 사람 승인된 `.dcness/tdd-hooks.json` 계약(`test_candidate_templates` 포함)이 있는데 hook 이 없으면 사용자 승인 뒤 `ensure --targets cc,codex` 를 실행한다. 미지원 플랫폼이고 project-local 계약도 없으면 no-op 으로 skip 한다.
+`"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"` 로 상태를 본다. 출력의 `platform` 은 `.dcness/tdd-hooks.json` 계약에 적힌 값이다. dcNess 는 파일 구성으로 플랫폼을 추측하지 않는다.
 
-순서는 고정: **TDD 계약 + self-test** → **CC hook self-test/등록** → **Codex hook self-test/등록**. 빈 프로젝트/미지원/설정 생성 실패는 no-op 이며, 기존 config 가 깨졌거나 필수 필드가 없으면 덮어쓰지 않는다. 상세는 [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md) 와 [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh) 를 따른다.
+- 계약이 있는데 hook 이 없으면 사용자 승인 뒤 `ensure --targets cc,codex` 를 실행한다.
+- 계약이 없으면(`platform=not_configured`) 사용자에게 플랫폼을 묻는다. 소스가 아직 없는 빈 프로젝트는 묻지 않고 no-op 으로 skip 하며, 사용자가 생성을 원하지 않아도 skip 한다. 확인한 플랫폼은 [선택형 CI workflow](#선택형-ci-workflow) 의 `lint-build-test` 설치에도 쓴다. 빌드 설정 파일과 소스 디렉터리에서 읽은 판단과 근거를 질문에 함께 제시한다. 후보가 둘 이상이거나 근거가 약하면 하나로 정하지 말고 그대로 묻는다.
+- 확인한 값이 preset(`python`, `web`, `go`, `android`, `ios`)이면 `ensure --platform <값> --targets cc,codex` 를 실행한다. preset 에 없는 플랫폼은 사용자 승인 뒤 `.dcness/tdd-hooks.json` 계약(`test_candidate_templates` 포함)을 작성하고 `ensure --targets cc,codex` 를 실행한다.
+- 기존 계약의 `platform` 이 실제 프로젝트와 다르면 그 사실을 사용자에게 알린다. `ensure --platform` 은 기존 계약과 다른 값을 받으면 계약을 덮어쓰지 않고 실패하므로, 사용자 승인 뒤 계약 파일을 고치거나 지우고 다시 실행한다.
+
+순서는 고정: **TDD 계약 + self-test** → **CC hook self-test/등록** → **Codex hook self-test/등록**. 빈 프로젝트/계약과 `--platform` 이 모두 없는 호출/설정 생성 실패는 no-op 이며, 기존 config 가 깨졌거나 필수 필드가 없으면 덮어쓰지 않는다. 상세는 [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md) 와 [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh) 를 따른다.
 
 `status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 activation bootstrap commit 에 포함하도록 사용자에게 안내한다. `commit-advisory` 는 in-place 실행에서는 현재 디스크 파일만으로 guard 배선이 확인되지만, 새 linked worktree/headless worker 가 project-local 계약을 재사용하려면 commit 이 필요하다는 안내다. 이 파일들은 자동 workflow PR 대상이 아니다.
 
@@ -224,7 +229,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 ### 추천 bundle 산출 기준
 
 - GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml` 추천 ON.
-- 같은 조건에서 판정된 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 플랫폼은 TDD 계약(`.dcness/tdd-hooks.json` 의 `platform`)을 먼저 보고, 없으면 파일 구성으로 판정한다. 현재 template 은 `android` 만 있다. 판정 실패, template 없음, Android 인데 `gradlew` 또는 `app/build.gradle(.kts)` 부재면 설치를 건너뛰고 이유를 출력한다. 중립 명명 설치는 기본 OFF 이며, 하네스를 비공개로 두고 공개 저장소에 산출물만 올리는 프로젝트는 custom 에서 켠다.
+- 같은 조건에서 프로젝트 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 플랫폼은 TDD 계약(`.dcness/tdd-hooks.json` 의 `platform`)을 쓰고, 계약이 없으면 Core Step 7.5 에서 사용자에게 확인한 값을 `--platform` 으로 넘긴다. 파일 구성으로 추측하지 않는다. 현재 template 은 `android` 만 있다. 플랫폼 미지정, template 없음, Android 인데 `gradlew` 또는 `app/build.gradle(.kts)` 부재면 설치를 건너뛰고 이유를 출력한다. 중립 명명 설치는 기본 OFF 이며, 하네스를 비공개로 두고 공개 저장소에 산출물만 올리는 프로젝트는 custom 에서 켠다.
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
 - 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
@@ -265,7 +270,8 @@ record_dcness_workflow_change() {
 
 CI_CHECKS="git-naming-validation,pr-body-validation,doc-path-integrity,doc-sync,lint-build-test"
 CI_NEUTRAL_FLAG=""   # 중립 명명 설치를 켜면 CI_NEUTRAL_FLAG="--neutral-naming"
-CI_WRITTEN="$("$PLUGIN_ROOT/scripts/dcness-ci-workflows" install --project-root "$PROJECT_ROOT" --checks "$CI_CHECKS" ${CI_NEUTRAL_FLAG:+"$CI_NEUTRAL_FLAG"})"
+CI_PLATFORM=""       # TDD 계약이 없으면 사용자에게 확인한 플랫폼 (예: CI_PLATFORM="android")
+CI_WRITTEN="$("$PLUGIN_ROOT/scripts/dcness-ci-workflows" install --project-root "$PROJECT_ROOT" --checks "$CI_CHECKS" ${CI_NEUTRAL_FLAG:+"$CI_NEUTRAL_FLAG"} ${CI_PLATFORM:+--platform "$CI_PLATFORM"})"
 while IFS= read -r f; do
   [ -n "$f" ] && record_dcness_workflow_change "$f"
 done <<< "$CI_WRITTEN"
@@ -411,7 +417,7 @@ fi
 
 custom 은 기존 세부 기능을 유지하되 이미 결정 가능한 항목은 질문하지 않는다.
 
-- CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `lint-build-test.yml`, `github-project-lifecycle.yml` 을 각각 선택하고 선택한 이름만 `CI_CHECKS` 에 넣는다. 중립 명명 설치 여부도 여기서 고른다. 플랫폼을 판정하지 못한 프로젝트는 `lint-build-test` 에 `--platform <name>` 을 명시해 설치할 수 있다.
+- CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `lint-build-test.yml`, `github-project-lifecycle.yml` 을 각각 선택하고 선택한 이름만 `CI_CHECKS` 에 넣는다. 중립 명명 설치 여부도 여기서 고른다. TDD 계약이 없는 프로젝트는 사용자에게 확인한 플랫폼을 `lint-build-test` 에 `--platform <name>` 으로 명시해 설치한다.
 - docs seed: 이미 존재하는 파일은 묻지 않는다. 단 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 append 보강한다. 루트 `architecture.md` 가 있으면 `docs/architecture.md` 생성 질문을 생략하고 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - design seed: UI 프로젝트 여부가 불명확할 때만 묻는다. `docs/design.md` 는 부재 시 [`docs/plugin/design.md`](../docs/plugin/design.md) 기준 minimal template 생성 여부를 선택한다. `docs/design-variants/` 는 사용자가 명시 선택한 경우에만 설치한다. draft 는 `docs/design-variants/drafts/` 에 두고 gitignore 한다.
 - Provider routing: 추천 role-split 으로 복귀하려면 `enable-role-split-routing` 을 선택한다. all-codex validation 을 원하면 `enable-codex-validation`, Claude 검증 복귀를 원하면 `disable-codex-validation` 을 명시 선택한다.

@@ -195,7 +195,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **프로젝트 로컬 계약**: `.dcness/tdd-hooks.json` 이 있으면 helper 는 코어 프리셋보다 이 파일을 우선한다. 모든 계약은 `source_roots`, `impl_exts` 가 필요하고, custom 플랫폼은 `test_candidate_templates` 도 필요하다. `test_file_globs` 는 test 파일 자체를 구현 파일로 오인하지 않게 하는 선택 필드다. template placeholder 는 `{parent}`, `{stem}`, `{base}`, `{ext}`, `{path}`, `{path_no_ext}`, `{filename}` 을 지원한다. 기존 파일이 깨진 JSON 이거나 필수 필드가 없으면 덮어쓰지 않고 등록을 중단한다.
 
-**지원 플랫폼**: helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있다. 새 플랫폼은 코어 프리셋을 추가하지 않아도 프로젝트 에이전트나 사람이 위 형식의 `.dcness/tdd-hooks.json` 을 승인·커밋하면 같은 self-test/등록 경로를 쓴다. 빈 프로젝트 또는 project-local 계약이 없는 미지원 플랫폼은 생성 skip 이며 안전 no-op 이다. 중앙 fallback 은 TS/JS (`*.ts`, `*.tsx`, `*.js`, `*.jsx`)만 검사한다. 그 외 확장자는 generated hook 이 없으면 silent skip 이다.
+**지원 플랫폼**: helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있다. 새 플랫폼은 코어 프리셋을 추가하지 않아도 프로젝트 에이전트나 사람이 위 형식의 `.dcness/tdd-hooks.json` 을 승인·커밋하면 같은 self-test/등록 경로를 쓴다. helper 는 파일 구성으로 플랫폼을 추측하지 않는다. `/init-dcness` 가 사용자에게 확인한 프리셋 이름을 `ensure --platform <값>` 으로 넘기고, 생성된 계약의 `platform` 이 이후 기준이 된다. 계약과 `--platform` 이 모두 없으면 생성 skip 이며 안전 no-op 이다. 중앙 fallback 은 TS/JS (`*.ts`, `*.tsx`, `*.js`, `*.jsx`)만 검사한다. 그 외 확장자는 generated hook 이 없으면 silent skip 이다.
 
 **생성/등록 순서**: CC hook 이 먼저다. `.claude/hooks/dcness-tdd-guard.sh` 후보가 self-test 를 통과해야 `.claude/settings.json` PreToolUse(`Edit|Write|NotebookEdit|Bash`) 에 등록된다. Codex hook 은 그 다음 같은 패턴으로 `.codex/hooks/dcness-tdd-guard.sh` 와 `.codex/hooks.json` PreToolUse(`Edit|Write|apply_patch`) 에 등록된다. 기존 `.claude/settings.json` 또는 `.codex/hooks.json` 이 깨진 JSON 이면 등록을 거부하고 파일을 덮어쓰지 않는다. Codex 쪽은 CLI 의 사용자 신뢰 승인(`~/.codex/config.toml` trusted hash 흐름)이 추가로 필요할 수 있으므로, `registered` 는 project-local 파일 등록 상태이지 사용자 trust 승인 완료를 뜻하지 않는다.
 
@@ -379,7 +379,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 | `.github/workflows/pr-body-validation.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | PR body issue trailer 검증 | 선택형 CI gate |
 | `.github/workflows/doc-path-integrity.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | repo-relative 경로 참조 실존 검증 | 선택형 CI gate |
 | `.github/workflows/doc-sync.yml` | `pull_request` opened/synchronize/reopened/edited | PR 생성/수정/동기화 | index epic 표 drift 검증 + `/design` 산출물 구조 감사 | 선택형 CI gate |
-| `.github/workflows/lint-build-test.yml` | `pull_request` | PR 생성/동기화 | 판정된 플랫폼의 lint → 빌드 → 단위 테스트 | 선택형 CI gate |
+| `.github/workflows/lint-build-test.yml` | `pull_request` | PR 생성/동기화 | 프로젝트 플랫폼의 lint → 빌드 → 단위 테스트 | 선택형 CI gate |
 | `.github/workflows/github-project-lifecycle.yml` | `issues`, `pull_request closed` | issue 변경 또는 PR merge | issue/label drift 검출, merged PR `in-progress` label cleanup, 선택적 Project 미러 warning | 선택형 CI/CD |
 
 ### .github/workflows/git-naming-validation.yml
@@ -432,7 +432,7 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 ### .github/workflows/lint-build-test.yml
 
-**설치**: `/init-dcness` 의 선택형 CI workflow 질문에서 판정된 플랫폼에 template 이 있으면 추천 ON 으로 생성한다. 현재 template 은 Android 만 있으며, 플랫폼 미판정·template 없음·Android 모듈 구성 불일치면 설치를 건너뛰고 이유를 출력한다.
+**설치**: `/init-dcness` 의 선택형 CI workflow 질문에서 프로젝트 플랫폼(TDD 계약의 `platform` 또는 사용자에게 확인한 값)에 template 이 있으면 추천 ON 으로 생성한다. 현재 template 은 Android 만 있으며, 플랫폼 미지정·template 없음·Android 모듈 구성 불일치면 설치를 건너뛰고 이유를 출력한다.
 
 **시점**: `main` 대상 PR 이 열리거나 동기화될 때.
 

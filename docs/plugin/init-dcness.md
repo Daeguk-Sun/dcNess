@@ -31,7 +31,7 @@ core activation 완료 기준이다. 아래 항목이 끝나고 `dcness-helper s
 | runtime state ignore | `.gitignore` 의 `.claude/harness-state/` | `/init-dcness` append | 항상 | 없을 때만 추가 | X |
 | project context seed/migration | `CLAUDE.md` | `scripts/dcness-context-docs` / `harness/context_docs.py` | 항상 | 부재 시 생성. 기존 파일은 cold-start 앵커만 없을 때 append | X |
 | file boundary override suggestion | `.dcness/boundary.json` 후보만 | `dcness-helper boundary-suggestions` / `harness/boundary_suggestions.py` | 항상 | read-only. 사람 승인 전 작성 없음 | X |
-| generated TDD hook 제안/생성 | `.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh` | `scripts/dcness-tdd-hooks` | 플랫폼 감지 또는 사람 승인된 project-local 계약 + 사용자 승인 시 | self-test 통과 후보만 등록. CC 검증 후 Codex 생성 | X |
+| generated TDD hook 제안/생성 | `.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh` | `scripts/dcness-tdd-hooks` | 사용자에게 확인한 플랫폼 또는 사람 승인된 project-local 계약 + 사용자 승인 시 | self-test 통과 후보만 등록. CC 검증 후 Codex 생성 | X |
 | Codex validator skills | `$CODEX_HOME/skills/dcness-*` | `codex/skills/dcness-*` | 항상 | always-overwrite. Validator wrapper 는 활성 plugin 원본을 우선 주입하고 이 복사본은 native Codex skill 등록과 fallback 용도 | X |
 | Codex provider routing 상태 확인 | `~/.claude/plugins/data/dcness-dcness/routing.json` | `dcness-helper routing status` | 항상 확인 | read-only | X |
 | CC hooks | Claude Code plugin hook registry | `hooks/hooks.json` | 활성 프로젝트 새 세션 | 사용자 repo 쓰기 없음 | X |
@@ -46,7 +46,7 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 | PR body workflow | `.github/workflows/pr-body-validation.yml` | [`templates/github-workflows/pr-body-validation.yml`](../../templates/github-workflows/pr-body-validation.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | doc path workflow | `.github/workflows/doc-path-integrity.yml` | [`templates/github-workflows/doc-path-integrity.yml`](../../templates/github-workflows/doc-path-integrity.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | doc sync workflow | `.github/workflows/doc-sync.yml` | [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml) | GitHub remote 감지 시 추천 ON (중립 명명 설치에서는 제외) | always-overwrite | O |
-| lint-build-test workflow | `.github/workflows/lint-build-test.yml` | [`templates/github-workflows/lint-build-test/android.yml`](../../templates/github-workflows/lint-build-test/android.yml) (판정된 플랫폼별 template) | GitHub remote 감지 + 플랫폼 template 존재 시 추천 ON | always-overwrite | O |
+| lint-build-test workflow | `.github/workflows/lint-build-test.yml` | [`templates/github-workflows/lint-build-test/android.yml`](../../templates/github-workflows/lint-build-test/android.yml) (플랫폼별 template) | GitHub remote 감지 + 플랫폼 template 존재 시 추천 ON | always-overwrite | O |
 | Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml) | custom 선택 (중립 명명 설치에서는 제외) | always-overwrite | O |
 | CI 검사 스크립트 사본 | `.github/ci-checks/**` | 설치한 workflow 가 실행하는 plugin script (`scripts/**`, doc-sync 는 `harness/story_runner.py`·`harness/parallel_wave.py`·design 엔진 원본 `templates/design-variants/_lib/*.js` 포함) — [`harness/ci_workflows.py`](../../harness/ci_workflows.py) 가 목록 소유 | 해당 workflow 설치 시 | always-overwrite. 설치 시점 plugin 버전에 고정 | O |
 | project docs seed | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | authoring 템플릿 (`skills/spec/templates/index.md`, `skills/spec/templates/prd.md`, `docs/plugin/agents/system-architect/templates/root-architecture.md`, `docs/plugin/agents/system-architect/templates/conventions.md`) + `scripts/ensure_docs_index_next_section.mjs` — 시드와 산출 양식 단일 원본. 위치 SSOT [`deliverables-map.md`](deliverables-map.md) | 추천 bundle 또는 custom | 부재 시 생성. 기존 `docs/index.md` 는 진행 상태 섹션만 없을 때 append | X |
@@ -69,7 +69,7 @@ design preview 후보는 `docs/design-variants/drafts/`, 확정본은 `screens/`
 
 파일 경계 override 제안은 `dcness-helper boundary-suggestions` 로 처리한다. 코어 `ALLOW_MATRIX` 가 커버하지 않는 비표준 소스 디렉터리가 있을 때만 `.dcness/boundary.json` 의 implementation add 후보를 출력하며, 표준 레이아웃·빈 프로젝트·이미 override 로 커버된 프로젝트는 no-op 이다. 이 helper 는 read-only 이므로 실제 boundary 파일 작성은 사람 승인 뒤 메인이 수행한다.
 
-Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소유 영역은 **TDD 계약**과 **self-test** 이며, self-test fixture 는 `무-test 구현 파일 → deny`, `매칭 test 있음 → allow`, `test 파일 자체 → allow` 를 검증한다. helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있고, 프리셋 미지원 플랫폼은 사람 승인된 `.dcness/tdd-hooks.json` 계약을 우선 사용한다. 모든 계약은 `source_roots`, `impl_exts` 가 필요하고, custom 플랫폼은 `test_candidate_templates` 도 필요하다. 선택 `test_file_globs` 로 test 파일 자체 allow 규칙을 보강한다. `/init-dcness` 에서 생성할 때는 CC hook 후보를 먼저 self-test 하고 통과해야 `.claude/settings.json` 에 등록한다. 그 다음 Codex hook 후보를 같은 계약으로 self-test 하고 `.codex/hooks.json` 에 등록한다. 빈 프로젝트·project-local 계약 없는 미지원 플랫폼·생성 실패는 no-op 으로 안전 통과한다.
+Generated TDD hook 은 `scripts/dcness-tdd-hooks` 로 처리한다. dcNess 소유 영역은 **TDD 계약**과 **self-test** 이며, self-test fixture 는 `무-test 구현 파일 → deny`, `매칭 test 있음 → allow`, `test 파일 자체 → allow` 를 검증한다. helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있고, 프리셋 미지원 플랫폼은 사람 승인된 `.dcness/tdd-hooks.json` 계약을 우선 사용한다. helper 는 파일 구성으로 플랫폼을 추측하지 않는다. 계약이 없으면 `/init-dcness` 가 사용자에게 플랫폼을 물어 확인한 프리셋 이름을 `ensure --platform <값>` 으로 넘긴다. 기존 계약의 `platform` 과 다른 값을 넘기면 계약을 덮어쓰지 않고 실패한다. 모든 계약은 `source_roots`, `impl_exts` 가 필요하고, custom 플랫폼은 `test_candidate_templates` 도 필요하다. 선택 `test_file_globs` 로 test 파일 자체 allow 규칙을 보강한다. `/init-dcness` 에서 생성할 때는 CC hook 후보를 먼저 self-test 하고 통과해야 `.claude/settings.json` 에 등록한다. 그 다음 Codex hook 후보를 같은 계약으로 self-test 하고 `.codex/hooks.json` 에 등록한다. 빈 프로젝트·계약과 `--platform` 이 모두 없는 호출·생성 실패는 no-op 으로 안전 통과한다.
 
 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 자동 workflow PR 에 섞지 않는다. linked worktree 나 headless worker 체크아웃에서 project-local hook 을 재사용하려면 이 파일들이 Git 에 커밋돼 있어야 하며, 없으면 중앙 fallback 으로 내려간다. `scripts/dcness-tdd-hooks status` 와 `ensure` 는 linked worktree 에서 커밋이 필요한 경우 `commit-required`, in-place 에서만 실존하는 경우 `commit-advisory` 를 출력한다. 이 설치 health는 `/init-dcness`/`status`가 소유하며 일반 구현 착수 앞에서 반복하지 않는다.
 
@@ -106,7 +106,7 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 `/init-dcness` 기본 경로는 core activation 완료 뒤 `Y/n/custom` 1질문만 사용한다. 엔터 = Y 다.
 
 - GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml` 추천 ON.
-- 같은 조건에서 판정된 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 결정 규칙은 [lint-build-test.yml](#lint-build-testyml) 을 따른다.
+- 같은 조건에서 프로젝트 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 결정 규칙은 [lint-build-test.yml](#lint-build-testyml) 을 따른다.
 - 중립 명명 설치는 기본 OFF 다. custom 에서 켠다.
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
@@ -171,11 +171,11 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 ### lint-build-test.yml
 
 - 대상 경로: `.github/workflows/lint-build-test.yml`
-- 템플릿: 판정된 플랫폼의 `templates/github-workflows/lint-build-test/<platform>.yml`. 현재 [`android.yml`](../../templates/github-workflows/lint-build-test/android.yml) 만 있다.
+- 템플릿: 프로젝트 플랫폼의 `templates/github-workflows/lint-build-test/<platform>.yml`. 현재 [`android.yml`](../../templates/github-workflows/lint-build-test/android.yml) 만 있다.
 - 복사 스크립트: 없음. 사용자 repo 의 빌드 도구만 실행하며 하네스 이름이 들어가지 않아 중립 명명 설치에도 그대로 포함된다.
 - 역할: `main` 대상 `pull_request` 에서 lint → 빌드 → 단위 테스트를 순서대로 실행하고, 하나라도 실패하면 PR 검사가 실패한다. Android 기본 명령은 `./gradlew :app:lintDebug`, `./gradlew :app:assembleDebug`, `./gradlew :app:testDebugUnitTest` 이며 `actions/setup-java`(temurin 17, Gradle cache)로 JDK 와 Gradle 캐시를 준비한다.
-- 플랫폼 결정 규칙: `--platform` 명시값 → TDD 계약(`.dcness/tdd-hooks.json`)의 `platform` → 파일 구성 판정(`harness/tdd_hooks.py` 의 `detect_platform`) 순서로 정한다. 복사된 `.github/ci-checks/` 사본은 판정에서 제외한다.
-- skip 동작: 플랫폼을 판정하지 못하거나, 그 플랫폼 template 이 없거나, Android 인데 `gradlew` 또는 `app/build.gradle(.kts)` 가 없으면 파일을 쓰지 않고 `skip lint-build-test: <이유>` 를 출력한다.
+- 플랫폼 결정 규칙: `--platform` 명시값 → TDD 계약(`.dcness/tdd-hooks.json`)의 `platform` 순서로 정한다. 파일 구성으로 추측하지 않는다. 계약이 없으면 `/init-dcness` 가 사용자에게 확인한 값을 `--platform` 으로 넘긴다.
+- skip 동작: 플랫폼이 지정되지 않았거나, 그 플랫폼 template 이 없거나, Android 인데 `gradlew` 또는 `app/build.gradle(.kts)` 가 없으면 파일을 쓰지 않고 `skip lint-build-test: <이유>` 를 출력한다.
 - 수정: 명령은 설치 후 프로젝트 모듈 구성에 맞게 고쳐도 된다. 재실행은 template 으로 덮어쓰므로 명령을 고친 프로젝트는 재실행 때 이 workflow 를 선택에서 뺀다.
 
 ### github-project-lifecycle.yml
