@@ -90,9 +90,24 @@ class ContextDocsTests(unittest.TestCase):
             self.assertIn("- `python3 -m unittest discover -s tests -v`", seed)
             self.assertNotIn("python3.11", seed)
 
+    def test_seed_skips_python_test_command_for_stray_python_files(self) -> None:
+        # 빌드 파일 없이 보조 .py 파일만 있는 비-python 저장소에는 python 명령을 심지 않는다.
+        from harness.context_docs import build_claude_seed
+
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            (root / "tests").mkdir()
+            (root / "settings.gradle.kts").write_text('include(":app")\n', encoding="utf-8")
+            (root / "scripts").mkdir()
+            (root / "scripts" / "release.py").write_text("print('x')\n", encoding="utf-8")
+
+            seed = build_claude_seed(root)
+
+            self.assertNotIn("unittest", seed)
+
     def test_seed_detects_requirements_only_python_project(self) -> None:
-        # requirements.txt 만 있고 pyproject/setup 없는 python 프로젝트도 detect_platform
-        # 이 python 으로 인식 — tests/ 존재 시 python 명령을 심어야 한다 (회귀 가드).
+        # requirements.txt 만 있고 pyproject/setup 없는 python 프로젝트도 python 으로
+        # 인식 — tests/ 존재 시 python 명령을 심어야 한다 (회귀 가드).
         from harness.context_docs import build_claude_seed
 
         with TemporaryDirectory() as td:

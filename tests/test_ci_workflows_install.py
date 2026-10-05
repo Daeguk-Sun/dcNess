@@ -15,7 +15,7 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from harness import ci_workflows, tdd_hooks
+from harness import ci_workflows
 from tests.test_design_variants_generator import _screen, _ux_flow
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -306,7 +306,7 @@ class InstallTests(unittest.TestCase):
 
     def test_lint_build_test_android_installs_platform_commands(self) -> None:
         _seed_android(self.root)
-        result = self._install(["lint-build-test"])
+        result = self._install(["lint-build-test"], platform="android")
 
         self.assertEqual(result.skipped, [])
         wf = self.root / ".github" / "workflows" / "lint-build-test.yml"
@@ -320,18 +320,27 @@ class InstallTests(unittest.TestCase):
         self.assertIn("cache: gradle", text)
         self.assertNotRegex(text, re.compile("dcness", re.I))
 
-    def test_copied_check_scripts_do_not_change_platform_detection(self) -> None:
+    def test_lint_build_test_uses_tdd_contract_platform(self) -> None:
         _seed_android(self.root)
-        self._install(["doc-sync"])
+        _write(self.root / ".dcness" / "tdd-hooks.json", '{"platform": "android"}\n')
 
-        self.assertEqual(tdd_hooks.detect_platform(self.root), "android")
         result = self._install(["lint-build-test"])
+
         self.assertEqual(result.written, [".github/workflows/lint-build-test.yml"])
+
+    def test_lint_build_test_never_guesses_platform_from_files(self) -> None:
+        _seed_android(self.root)
+        _write(self.root / "app" / "src" / "main" / "java" / "Main.kt", "class Main\n")
+
+        result = self._install(["lint-build-test"])
+
+        self.assertEqual(result.written, [])
+        self.assertIn("플랫폼 미지정", result.skipped[0][1])
 
     @unittest.skipUnless(ACTIONLINT, "actionlint not installed")
     def test_installed_workflows_pass_actionlint(self) -> None:
         _seed_android(self.root)
-        self._install(ALL_CHECKS)
+        self._install(ALL_CHECKS, platform="android")
         workflows = sorted((self.root / ".github" / "workflows").glob("*.yml"))
         self.assertEqual(len(workflows), len(ALL_CHECKS))
         proc = subprocess.run(
@@ -342,7 +351,7 @@ class InstallTests(unittest.TestCase):
         )
         self.assertEqual(proc.returncode, 0, proc.stdout + proc.stderr)
 
-    def test_lint_build_test_skips_when_platform_undetected(self) -> None:
+    def test_lint_build_test_skips_when_platform_unspecified(self) -> None:
         result = self._install(["lint-build-test"])
 
         self.assertEqual(result.written, [])
@@ -351,8 +360,7 @@ class InstallTests(unittest.TestCase):
         self.assertFalse((self.root / ".github" / "workflows" / "lint-build-test.yml").exists())
 
     def test_lint_build_test_skips_platform_without_template(self) -> None:
-        _write(self.root / "pyproject.toml", "[project]\nname = 'x'\n")
-        result = self._install(["lint-build-test"])
+        result = self._install(["lint-build-test"], platform="python")
 
         self.assertEqual(result.written, [])
         self.assertIn("python", result.skipped[0][1])
@@ -360,13 +368,13 @@ class InstallTests(unittest.TestCase):
     def test_lint_build_test_skips_android_without_app_module(self) -> None:
         _write(self.root / "settings.gradle.kts", "\n")
         _write(self.root / "gradlew", "#!/bin/sh\n")
-        result = self._install(["lint-build-test"])
+        result = self._install(["lint-build-test"], platform="android")
 
         self.assertEqual(result.written, [])
         self.assertIn("app/build.gradle", result.skipped[0][1])
 
-    def test_explicit_platform_overrides_detection(self) -> None:
-        _write(self.root / "pyproject.toml", "[project]\nname = 'x'\n")
+    def test_explicit_platform_overrides_tdd_contract(self) -> None:
+        _write(self.root / ".dcness" / "tdd-hooks.json", '{"platform": "python"}\n')
         _write(self.root / "gradlew", "#!/bin/sh\n")
         _write(self.root / "app" / "build.gradle", "\n")
         result = self._install(["lint-build-test"], platform="android")
