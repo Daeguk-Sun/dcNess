@@ -13,13 +13,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Optional, Sequence
 
-from harness.tdd_hooks import COPIED_CI_CHECKS_REL, resolve_platform
+from harness.tdd_hooks import resolve_platform
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_DIR = "templates/github-workflows"
 WORKFLOW_DIR = ".github/workflows"
 # 복사된 검사 스크립트는 plugin 안의 상대 경로 그대로 이 아래에 둔다.
-INSTALL_ROOT = COPIED_CI_CHECKS_REL.as_posix()
+INSTALL_ROOT = ".github/ci-checks"
 EXECUTABLE_FILES = {"scripts/dcness-story-runner"}
 
 _DOC_SYNC_FILES = (
@@ -112,7 +112,10 @@ def _lint_build_test_template(root: Path, platform: Optional[str]) -> tuple[Opti
     spec = CHECKS["lint-build-test"]
     resolved = platform or resolve_platform(root)
     if not resolved:
-        return None, "플랫폼을 판정하지 못함 — --platform 으로 지정하거나 설치 후 직접 작성"
+        return None, (
+            "플랫폼 미지정 — --platform 으로 지정하거나 TDD 계약"
+            "(.dcness/tdd-hooks.json)을 먼저 생성"
+        )
     template = spec.platform_templates.get(resolved)
     if template is None:
         supported = ", ".join(sorted(spec.platform_templates))

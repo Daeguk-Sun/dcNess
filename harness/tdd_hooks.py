@@ -24,19 +24,6 @@ CC_SETTINGS_REL = Path(".claude/settings.json")
 CODEX_HOOKS_REL = Path(".codex/hooks.json")
 CONFIG_VERSION = 1
 HOOK_TIMEOUT_SEC = 10
-EXCLUDED_SCAN_DIRS = {
-    ".git",
-    ".claude",
-    ".codex",
-    ".dcness",
-    "node_modules",
-    ".venv",
-    "venv",
-    "dist",
-    "build",
-}
-# /init-dcness 가 CI workflow 와 함께 복사하는 검사 스크립트. 프로젝트 소스가 아니다.
-COPIED_CI_CHECKS_REL = Path(".github/ci-checks")
 TEST_DIR_SEGMENTS = {
     "__tests__",
     "__test__",
@@ -50,6 +37,11 @@ TEST_DIR_SEGMENTS = {
 TEST_CANDIDATE_TEMPLATES_KEY = "test_candidate_templates"
 TEST_FILE_GLOBS_KEY = "test_file_globs"
 PRESET_PLATFORMS = {"python", "web", "go", "android", "ios"}
+PLATFORM_REQUIRED_SKIP = (
+    "skip: platform_required (pass --platform <"
+    + "|".join(sorted(PRESET_PLATFORMS))
+    + "> or commit .dcness/tdd-hooks.json)"
+)
 TDD_EXEMPT_MARKER = "tdd-exempt:"
 TDD_EXEMPT_DISPLAY = "tdd-exempt: <사유>"
 _PAYLOAD_MARKER_KEYS = (
@@ -334,48 +326,9 @@ def format_prompt_guidance(
     return "\n".join(lines)
 
 
-def _iter_project_files(root: Path, suffixes: tuple[str, ...]) -> Iterable[Path]:
-    for path in root.rglob("*"):
-        rel_parts = path.relative_to(root).parts
-        if any(part in EXCLUDED_SCAN_DIRS for part in rel_parts):
-            continue
-        if rel_parts[: len(COPIED_CI_CHECKS_REL.parts)] == COPIED_CI_CHECKS_REL.parts:
-            continue
-        if path.is_file() and path.suffix in suffixes:
-            yield path
-
-
 def _existing_source_roots(root: Path, candidates: tuple[str, ...]) -> list[str]:
     found = [candidate for candidate in candidates if (root / candidate).is_dir()]
     return found or ["."]
-
-
-def _has_files(root: Path, suffixes: tuple[str, ...]) -> bool:
-    return next(iter(_iter_project_files(root, suffixes)), None) is not None
-
-
-def detect_platform(project_root: Path) -> Optional[str]:
-    """Return a broad platform bucket or None for empty/unknown projects."""
-    root = project_root.resolve()
-    if (root / "pyproject.toml").exists() or (root / "requirements.txt").exists():
-        return "python"
-    if _has_files(root, (".py",)):
-        return "python"
-    if (root / "package.json").exists() or _has_files(root, (".ts", ".tsx", ".js", ".jsx")):
-        return "web"
-    if (root / "go.mod").exists() or _has_files(root, (".go",)):
-        return "go"
-    if (
-        (root / "settings.gradle").exists()
-        or (root / "settings.gradle.kts").exists()
-        or (root / "build.gradle").exists()
-        or (root / "build.gradle.kts").exists()
-        or _has_files(root, (".kt", ".java"))
-    ):
-        return "android"
-    if (root / "Package.swift").exists() or _has_files(root, (".swift",)):
-        return "ios"
-    return None
 
 
 def _base_contract_config(
@@ -398,15 +351,24 @@ def _base_contract_config(
 
 
 def build_contract_config(project_root: Path, platform: Optional[str] = None) -> Optional[dict[str, Any]]:
-    """Build the project-local TDD contract config used by generated hooks."""
+    """Build the project-local TDD contract config used by generated hooks.
+
+    The platform is never guessed from project files. It comes from the
+    committed project-local contract or from the caller's explicit value.
+    """
     root = project_root.resolve()
+    existing = _load_project_contract_config(root)
+    if existing is not None:
+        if platform is not None and platform != existing["platform"]:
+            raise ValueError(
+                f"{CONFIG_REL}: existing contract platform is {existing['platform']}, "
+                f"but --platform {platform} was given; edit or remove the contract "
+                "before changing the platform"
+            )
+        return existing
     if platform is None:
-        existing = _load_project_contract_config(root)
-        if existing is not None:
-            return existing
-    detected = platform or detect_platform(root)
-    if detected is None:
         return None
+    detected = platform
 
     if detected == "python":
         source_roots = _existing_source_roots(root, ("src", "app", "apps", "packages"))
@@ -468,7 +430,11 @@ def build_contract_config(project_root: Path, platform: Optional[str] = None) ->
         ]
         test_file_globs = ["Tests/**/*.swift", "**/*Test.swift", "**/*Tests.swift"]
     else:
-        return None
+        presets = ", ".join(sorted(PRESET_PLATFORMS))
+        raise ValueError(
+            f"--platform {detected}: no preset (presets: {presets}); "
+            f"write {CONFIG_REL} with {TEST_CANDIDATE_TEMPLATES_KEY} for other platforms"
+        )
 
     return _base_contract_config(
         platform=detected,
@@ -1182,11 +1148,12 @@ def ensure_generated_hooks(
     project_root: Path,
     targets: tuple[str, ...],
     plugin_root: Path,
+    platform: Optional[str] = None,
 ) -> list[str]:
     root = project_root.resolve()
-    config = build_contract_config(root)
+    config = build_contract_config(root, platform)
     if config is None:
-        return ["skip: empty_or_unknown_project"]
+        return [PLATFORM_REQUIRED_SKIP]
 
     normalized = list(dict.fromkeys(targets))
     if "codex" in normalized and "cc" not in normalized:
@@ -1261,11 +1228,11 @@ def ensure_generated_hooks(
 
 
 def resolve_platform(project_root: Path) -> Optional[str]:
-    """Project-local contract platform first, then filesystem detection."""
+    """Project-local contract platform, or None when no contract declares one."""
     root = project_root.resolve()
     config = _read_json(root / CONFIG_REL)
-    config_platform = config.get("platform") if isinstance(config.get("platform"), str) else None
-    return config_platform or detect_platform(root)
+    platform = config.get("platform")
+    return platform if isinstance(platform, str) and platform else None
 
 
 def inspect_installation(project_root: Path) -> dict[str, Any]:
@@ -1323,12 +1290,16 @@ def _cmd_self_test(args: argparse.Namespace) -> int:
             print(str(exc), file=sys.stderr)
             return 1
     else:
-        config = build_contract_config(project_root, args.platform)
+        try:
+            config = build_contract_config(project_root, args.platform)
+        except (JsonConfigError, ValueError) as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
         config_path = project_root / ".dcness" / ".tmp-self-test-config.json"
         if config is not None:
             _write_json(config_path, config)
     if config is None or not config:
-        print("skip: empty_or_unknown_project")
+        print(PLATFORM_REQUIRED_SKIP)
         return 0
     try:
         run_self_test(
@@ -1354,6 +1325,7 @@ def _cmd_ensure(args: argparse.Namespace) -> int:
             project_root=Path(args.project_root),
             targets=tuple(part for part in args.targets.split(",") if part),
             plugin_root=Path(args.plugin_root).resolve(),
+            platform=args.platform,
         )
     except (JsonConfigError, SelfTestError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
@@ -1368,7 +1340,7 @@ def _cmd_status(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(report, ensure_ascii=False, sort_keys=True))
         return 0
-    platform = report.get("platform") or "empty_or_unknown_project"
+    platform = report.get("platform") or "not_configured"
     print(
         "generated TDD hooks: "
         f"platform={platform}, "
@@ -1428,6 +1400,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_ensure.add_argument("--project-root", required=True)
     p_ensure.add_argument("--targets", default="cc,codex")
     p_ensure.add_argument("--plugin-root", required=True)
+    p_ensure.add_argument("--platform", default=None)
     p_ensure.set_defaults(func=_cmd_ensure)
 
     p_status = sub.add_parser("status", help="inspect generated hook installation")

@@ -384,7 +384,8 @@ def collect_status_diagnostics(
                     "generated_tdd_hooks",
                     "Generated TDD hooks",
                     "INFO",
-                    "빈 프로젝트 또는 미지원 플랫폼 — 생성 skip",
+                    "TDD 계약(.dcness/tdd-hooks.json) 없음 — 생성 skip",
+                    "소스가 있는 프로젝트면 init-dcness 의 generated TDD hook 단계에서 플랫폼을 확인해 생성",
                 )
             elif (
                 generated_tdd.get("cc_registered")

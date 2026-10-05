@@ -9,7 +9,6 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 from typing import Optional
 
-from harness.tdd_hooks import detect_platform
 
 
 RECOMMENDED_SECTIONS = (
@@ -133,11 +132,10 @@ def _detect_package_commands(root: Path) -> list[str]:
 
 
 def _detect_python_commands(root: Path) -> list[str]:
-    # "이 저장소가 python 인가" 판정은 tdd_hooks.detect_platform 이 SSOT
-    # (pyproject.toml / requirements.txt / .py 파일). 별도 좁은 기준을 두면 drift 가 난다 —
-    # JS 등 비-python 저장소에도 tests/ 가 흔해 tests/ 존재만으론 python 명령을 심지 않고,
+    # python 빌드 파일(pyproject.toml / requirements.txt)이 있을 때만 python 명령을 심는다.
+    # JS 등 비-python 저장소에도 tests/ 와 보조 .py 파일이 흔해 그것만으론 심지 않고,
     # 버전 고정(python3.11) 대신 일반적으로 존재하는 python3 를 쓴다.
-    if detect_platform(root) != "python":
+    if not any((root / name).exists() for name in ("pyproject.toml", "requirements.txt")):
         return []
     commands: list[str] = []
     if (root / "tests").exists():
