@@ -12,10 +12,14 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+from harness import epic_outcome
+from harness.outcome_scorecard import build_scorecard
 from harness.product_journey import (
+    JourneyConfigError,
     journey_history,
     main,
     read_receipts,
+    record_skip,
     run_from_config,
 )
 
@@ -365,6 +369,170 @@ class JourneyHistoryTests(unittest.TestCase):
         self.assertIn("same as the previous run", outputs[1])
         self.assertIn("2 runs in a row", outputs[1])
         self.assertTrue(all(line.startswith("[product-journey] ") for line in first[1:]))
+
+
+class SkipRecordTests(unittest.TestCase):
+    def test_skip_record_keeps_the_reason_and_the_pass_it_relies_on(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            head = _git_project(root)
+            _run(root, "pass-run", measured_at="2026-07-10T00:00:00Z")
+            path = record_skip(
+                root,
+                config_path=root / CONFIG_PATH,
+                reason="문서만 바뀌어 이 흐름이 지나는 화면 코드에 닿지 않는다",
+                run_id="skip-1",
+            )
+            record = json.loads(path.read_text(encoding="utf-8"))
+            valid = read_receipts(root)
+
+        self.assertEqual(path.name, "skip.json")
+        self.assertEqual(record["record_type"], "dcness.product-journey-skip")
+        self.assertEqual(record["journey_id"], "fixture-judgment-journey")
+        self.assertEqual(record["code_revision"], head)
+        self.assertIn("문서만 바뀌어", record["reason"])
+        self.assertEqual(record["scenarios"], ["scenario-one", "scenario-two"])
+        self.assertEqual(record["basis"]["run_id"], "pass-run")
+        self.assertEqual(record["basis"]["code_revision"], head)
+        self.assertEqual([item["run_id"] for item in valid], ["pass-run"])
+
+    def test_skip_relies_on_the_pass_written_last_within_one_second(self) -> None:
+        same_second = "2026-07-10T00:00:00Z"
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch("harness.product_journey._now_iso", return_value=same_second),
+        ):
+            root = Path(directory)
+            _write_config(root, _config())
+            _run(root, "b-first-pass", measured_at=same_second)
+            _run(root, "a-second-pass", measured_at=same_second)
+            record = json.loads(
+                record_skip(
+                    root, config_path=root / CONFIG_PATH, reason="문서만 바뀌었다"
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(record["basis"]["run_id"], "a-second-pass")
+
+    def test_skip_record_can_name_only_some_scenarios(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config())
+            path = record_skip(
+                root,
+                config_path=root / CONFIG_PATH,
+                reason="scenario-one 화면은 바뀌지 않았다",
+                scenarios=["scenario-one"],
+            )
+            record = json.loads(path.read_text(encoding="utf-8"))
+            with self.assertRaises(JourneyConfigError):
+                record_skip(
+                    root,
+                    config_path=root / CONFIG_PATH,
+                    reason="없는 시나리오",
+                    scenarios=["scenario-missing"],
+                )
+            with self.assertRaises(JourneyConfigError):
+                record_skip(root, config_path=root / CONFIG_PATH, reason="  ")
+
+        self.assertEqual(record["scenarios"], ["scenario-one"])
+        # No full PASS exists yet, so the record says it has nothing to rely on.
+        self.assertIsNone(record["basis"])
+
+    def test_cli_skip_writes_the_record_and_reports_a_missing_basis(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config())
+            stream = io.StringIO()
+            with contextlib.redirect_stdout(stream):
+                code = main(
+                    [
+                        "skip",
+                        "--project-root", str(root),
+                        "--config", str(root / CONFIG_PATH),
+                        "--reason", "문서만 바뀌었다",
+                        "--run-id", "cli-skip",
+                    ]
+                )
+            written = (root / EVIDENCE / "cli-skip/skip.json").is_file()
+            missing_reason = main(
+                ["skip", "--project-root", str(root), "--config", str(root / CONFIG_PATH), "--reason", ""]
+            )
+
+        self.assertEqual(code, 0)
+        self.assertTrue(written)
+        self.assertIn("no earlier full PASS", stream.getvalue())
+        self.assertEqual(missing_reason, 2)
+
+
+class NotRerunIsNotAPassTests(unittest.TestCase):
+    def test_epic_summary_ignores_partial_reruns_and_skip_records(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config(exits=(0, 3), epic=True))
+            _run(root, "full-fail", measured_at="2026-07-10T00:00:00Z")
+            _write_config(root, _config(epic=True))
+            partial = _run(
+                root,
+                "partial-pass",
+                measured_at="2026-07-10T00:01:00Z",
+                scenarios=["scenario-two"],
+            )
+            record_skip(
+                root,
+                config_path=root / CONFIG_PATH,
+                reason="scenario-one 은 바뀌지 않았다",
+                scenarios=["scenario-one"],
+                run_id="skip-one",
+                recorded_at="2026-07-10T00:02:00Z",
+            )
+            summary = epic_outcome.collect(root, "epic-01-messaging")
+
+        self.assertEqual(partial.exit_code, 0)
+        self.assertFalse(summary["close_ready"])
+        self.assertEqual(summary["confirmed_criteria"], 1)
+        self.assertEqual(summary["total_criteria"], 2)
+        self.assertEqual(
+            [flow["evidence_path"] for flow in summary["flows"]],
+            [(EVIDENCE / "full-fail/receipt.json").as_posix()],
+        )
+
+    def test_scorecard_ignores_partial_reruns_and_skip_records(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            root = base / "project"
+            root.mkdir()
+            _write_config(root, _config(exits=(0, 3)))
+            _run(root, "full-fail", measured_at="2026-07-10T00:00:00Z")
+            _write_config(root, _config())
+            _run(
+                root,
+                "partial-pass",
+                measured_at="2026-07-10T00:01:00Z",
+                scenarios=["scenario-two"],
+            )
+            record_skip(
+                root,
+                config_path=root / CONFIG_PATH,
+                reason="scenario-one 은 바뀌지 않았다",
+                scenarios=["scenario-one"],
+                run_id="skip-one",
+                recorded_at="2026-07-10T00:02:00Z",
+            )
+            projects_file = base / "projects.json"
+            projects_file.write_text(
+                json.dumps({"version": 1, "projects": [str(root)]}), encoding="utf-8"
+            )
+            outcome = build_scorecard(
+                projects_file,
+                measured_at="2026-07-11T00:00:00Z",
+                as_of="2026-07-11T00:00:00Z",
+                redact_paths=True,
+            )["product_outcome"]
+
+        self.assertEqual(outcome["numerator"], 0)
+        self.assertEqual(outcome["denominator"], 1)
+        self.assertEqual(outcome["product_ac"], {"passed": 1, "total": 2})
 
 
 if __name__ == "__main__":

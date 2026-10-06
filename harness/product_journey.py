@@ -22,6 +22,7 @@ from typing import Any, BinaryIO, Optional
 EVIDENCE_ROOT_REL = Path(".dcness-work/product-journey")
 SCHEMA_VERSION = 1
 RECEIPT_TYPE = "dcness.product-journey"
+SKIP_RECORD_TYPE = "dcness.product-journey-skip"
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 _BOUNDARIES = {"api", "cli", "integration", "mock", "ui"}
 # A device/emulator UI journey chains many screen flows and routinely runs past
@@ -2169,6 +2170,88 @@ def _history_lines(receipt: dict[str, Any], history: dict[str, Any]) -> list[str
     return lines
 
 
+def record_skip(
+    project_root: Path | str,
+    *,
+    config_path: Path | str,
+    reason: str,
+    scenarios: Optional[list[str]] = None,
+    run_id: Optional[str] = None,
+    recorded_at: Optional[str] = None,
+) -> Path:
+    """Record that a journey (or some scenarios) was deliberately not re-run.
+
+    The record names the reason and the full PASS it relies on, so a later
+    failure of a skipped target can be traced back to this decision. It is not
+    a receipt: the Epic summary and the scorecard never read it.
+    """
+    root, resolved_config, config, evidence_root = validate_config(
+        project_root, config_path=config_path
+    )
+    if not isinstance(reason, str) or not reason.strip():
+        raise JourneyConfigError("reason must say why the change cannot reach the target")
+    declared = _validated_scenarios(config)
+    skipped: Optional[list[str]] = None
+    if declared is not None or scenarios is not None:
+        selected = _selected_scenarios(declared, scenarios)
+        skipped = [
+            scenario_id
+            for scenario_id, _target_ac in _scenario_contract(declared or [])
+            if scenario_id in selected
+        ]
+    selected_run_id = run_id or _next_run_id(evidence_root)
+    if not _ID_RE.fullmatch(selected_run_id):
+        raise JourneyConfigError("run_id must match [a-z0-9][a-z0-9._-]{2,63}")
+    selected_recorded_at = recorded_at or _now_iso()
+    if _parse_ts(selected_recorded_at) is None:
+        raise JourneyConfigError("recorded_at must be ISO-8601")
+    journey_id = config["journey_id"]
+    passes = [
+        receipt
+        for receipt in read_receipts(root)
+        if receipt["journey_id"] == journey_id and receipt["outcome"] == "PASS"
+    ]
+    basis: Optional[dict[str, Any]] = None
+    if passes:
+        latest = max(
+            passes,
+            key=lambda item: (
+                _parse_ts(item["measured_at"]),
+                str(item.get("finished_at") or ""),
+                _written_ns(root / item["receipt_path"]),
+                str(item["run_id"]),
+            ),
+        )
+        basis = {
+            "run_id": latest["run_id"],
+            "measured_at": latest["measured_at"],
+            "code_revision": latest.get("code_revision", _UNKNOWN_REVISION),
+            "receipt_path": latest["receipt_path"],
+        }
+    run_dir = evidence_root / selected_run_id
+    try:
+        run_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise JourneyConfigError(f"run_id already exists: {selected_run_id}") from exc
+    record: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "record_type": SKIP_RECORD_TYPE,
+        "run_id": selected_run_id,
+        "journey_id": journey_id,
+        "config_path": _relative(resolved_config, root),
+        "recorded_at": selected_recorded_at,
+        "code_revision": _code_revision(root),
+        "uncommitted_changes": _uncommitted_changes(root),
+        "reason": reason.strip(),
+        "basis": basis,
+    }
+    if skipped is not None:
+        record["scenarios"] = skipped
+    path = run_dir / "skip.json"
+    _write_receipt(path, record)
+    return path
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="project-local product journey runner"
@@ -2185,6 +2268,20 @@ def main(argv: Optional[list[str]] = None) -> int:
         action="append",
         default=None,
         help="re-run only this scenario (repeatable); the receipt is partial",
+    )
+    skip_parser = subparsers.add_parser(
+        "skip", help="record why a journey or scenario was not re-run"
+    )
+    skip_parser.add_argument("--project-root", default=".")
+    skip_parser.add_argument("--config", required=True)
+    skip_parser.add_argument("--reason", required=True)
+    skip_parser.add_argument("--run-id", default=None)
+    skip_parser.add_argument(
+        "--scenario",
+        dest="scenarios",
+        action="append",
+        default=None,
+        help="scenario that was not re-run (repeatable); omit for the whole journey",
     )
     validate_parser = subparsers.add_parser(
         "validate", help="check one journey contract without running it"
@@ -2208,6 +2305,31 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"[product-journey] contract error: {exc}", file=sys.stderr)
             return 2
         print("[product-journey] contract PASS")
+        return 0
+    if args.command == "skip":
+        try:
+            skip_path = record_skip(
+                args.project_root,
+                config_path=args.config,
+                reason=args.reason,
+                scenarios=args.scenarios,
+                run_id=args.run_id,
+            )
+        except JourneyConfigError as exc:
+            print(f"[product-journey] contract error: {exc}", file=sys.stderr)
+            return 2
+        print(skip_path)
+        basis = json.loads(skip_path.read_text(encoding="utf-8"))["basis"]
+        if basis is None:
+            print(
+                "[product-journey] no earlier full PASS of this journey: "
+                "nothing backs this skip"
+            )
+        else:
+            print(
+                f"[product-journey] relies on PASS run={basis['run_id']} "
+                f"code_revision={basis['code_revision']}"
+            )
         return 0
     try:
         result = run_from_config(
