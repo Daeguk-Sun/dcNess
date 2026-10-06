@@ -136,6 +136,45 @@ class DesignArtifactAuditTests(unittest.TestCase):
             any(w["code"] == "design-pack-over-target" for w in payload["warnings"])
         )
 
+    def test_decision_lines_are_included_once_in_pack_budget(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _seed_project(root, impl_body="# Auth task\n\n- decision: docs/decisions/0001-auth.md\n")
+            architecture = root / "docs/epics/epic-01-alpha/architecture.md"
+            architecture.write_text(architecture.read_text() + "\n[decision](../../decisions/0001-auth.md)\n")
+            decision = root / "docs/decisions/0001-auth.md"
+            _write(decision, "# Decision\n" + "contract\n" * 2100)
+            _write(root / "docs/decisions/0002-unrelated.md", "unrelated\n" * 100)
+            proc = _run(root, "--json")
+            plain = _run(root)
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        payload = json.loads(proc.stdout)
+        budget = payload["epics"][0]
+        self.assertEqual(budget["decision_line_count"], 2101)
+        self.assertGreaterEqual(budget["design_pack_line_count"], 2101)
+        self.assertIn("2101", plain.stdout)
+        self.assertTrue(payload["ok"], "budget excess must remain advisory")
+
+    def test_scoped_and_transitive_decisions_use_physical_line_counts(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _seed_project(root, impl_body="# Auth task\n")
+            before = json.loads(_run(root, "--json").stdout)["epics"][0]
+            decisions = root / "docs/decisions"
+            _write(decisions / "0001-owned.md", "---\nscope: epic-01\n---\n[shared](../../decisions/0002-shared.md)\n")
+            _write(decisions / "0002-shared.md", "[cycle](docs/decisions/0001-owned.md)")
+            _write(decisions / "0003-module.md", "---\nscope: 'module:auth/epic-01' # scoped\n---\n")
+            _write(decisions / "0004-other.md", "---\nscope: epic-02\n---\n")
+            _write(decisions / "0005-empty.md", "")
+            proc = _run(root, "--json")
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        budget = json.loads(proc.stdout)["epics"][0]
+        self.assertEqual(budget["decision_line_count"], 8)
+        self.assertEqual(budget["design_pack_line_count"], before["design_pack_line_count"] + 8)
+        self.assertEqual(len(budget["decision_paths"]), 3)
+
     def test_non_contiguous_story_group_is_a_design_violation(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

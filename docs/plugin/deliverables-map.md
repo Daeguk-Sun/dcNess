@@ -16,12 +16,14 @@
 
 | 범위 | 예산 | 근거 | 초과 시 조치 |
 |---|---|---|---|
-| normal epic full design pack (`stories.md` + `architecture.md` + 선택 `domain-model.md` + 선택 `ux-flow.md` + `impl/NN-*.md`) | target 1,500 lines | finsight 경량 하네스 실측 759줄이 단일 컨텍스트 설계에 충분했고, dcNess impl task 평균 40-60줄 기준 15-20 task까지 전문 주입 가능 | 중복 계약/결정 사본 제거, impl task 병합/분리 재검토, detail 을 `.dcness-work/` 로 내림 |
+| normal epic full design pack (`stories.md` + `architecture.md` + 선택 `domain-model.md` + 선택 `ux-flow.md` + 선택 `tech-review.md` + `impl/NN-*.md` + 관련 `docs/decisions/*.md`) | target 1,500 lines | finsight 경량 하네스 실측 759줄이 단일 컨텍스트 설계에 충분했고, dcNess impl task 평균 40-60줄 기준 15-20 task까지 전문 주입 가능 | 무출처 규칙 삭제·단순화·구현자 위임, 중복 사본 제거, task 경계 재검토 |
 | hard warning full design pack | 2,000 lines | 2,000줄을 넘으면 cold session 전문 흡수보다 포인터 탐색 비용이 커지기 시작한다 | module-architect 보고에 warning, PR body 에 초과 사유와 후속 축소 계획 기록 |
 | single task implementation pack (`docs/index.md` + 전역 최소 입력 + epic 고정 입력 + 대상 impl 1개) | target 900 lines | `/impl-loop` task 단위 cold-start 가 읽는 실제 입력 세트 | 대상 task 에 필요 없는 전문 사본 제거 |
 | module scoped pack (`docs/modules/<module-id>/architecture.md` + `conventions.md`) | target 300 lines per module | 모듈 작업 cold-start 가 무관한 스택·빌드·규약을 읽지 않게 하기 위한 상한 | 전역과 중복되는 규칙 제거, module-local delta 만 남김 |
 
 예산은 모든 현행 산출물의 작성 압력이다. 수정하는 산출물은 현재 규칙에 맞춰 전문 사본을 줄인다.
+
+결정 문서는 해당 epic scope(모듈/epic scope 포함)이거나 pack 및 관련 결정에서 참조하는 파일을 한 pack 안에서 중복 없이 센다. 공유 결정은 읽는 각 pack에 포함하고 무관한 결정은 제외한다. 기계 검사는 이 기준의 결정 줄 수와 총량을 JSON 및 텍스트로 보고하고, JSON에는 집계한 결정 경로도 남긴다. scope나 참조가 빠진 관련 결정은 메인이 확인해 집계 누락을 밝힌다. 줄 수는 마지막 개행을 빈 줄로 더하지 않는다. 수치는 권고이며 초과가 FAIL 조건이 되지 않는다. 개정에서는 전체뿐 아니라 변경분과 직전 pack 대비 비율도 본다. 규칙을 다른 문서로 옮겨 총량 감소로 포장하지 않는다.
 
 ## 적용 범위
 
