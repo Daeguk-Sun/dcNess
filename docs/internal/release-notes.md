@@ -10,6 +10,33 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.33.0 (2026-10-06)
+
+**커밋 범위**: `v0.32.0..v0.33.0` (머지 PR 5개, [#1290](https://github.com/Daeguk-Sun/dcNess/pull/1290) · [#1291](https://github.com/Daeguk-Sun/dcNess/pull/1291) · [#1292](https://github.com/Daeguk-Sun/dcNess/pull/1292) · [#1296](https://github.com/Daeguk-Sun/dcNess/pull/1296) · [#1297](https://github.com/Daeguk-Sun/dcNess/pull/1297))
+**핵심 변경**: **기획과 설계가 사용자 요청 범위를 넘지 않게 한** minor 릴리즈. (1) 설계 작성·검증·재시도 지침이 세부를 줄이는 쪽도 같은 무게로 판단한다. (2) `/spec` 이 agent 가 사실처럼 적은 제품 동작을 사용자 선택으로 되돌리고, 초안 확인 전에 사용자의 이해를 확인한다.
+
+### 무엇이 바뀌나
+
+1. **과한 설계를 줄이는 판단 축** ([#1296](https://github.com/Daeguk-Sun/dcNess/pull/1296) Closes [#1293](https://github.com/Daeguk-Sun/dcNess/issues/1293)) — 외부 활성 프로젝트의 개정 설계 1건에서 세부 204개 중 55%가 사용자 발화·이슈·검증 지적 어디에도 근거가 없었다. 이제 설계 agent 는 제품 동작·계약을 바꾸지 않는 내부 구현을 구현자에게 위임할 수 있고, 설계 검증은 이 위임만으로 실패시키지 않는다. 설계 검증은 과한 설계와 약속의 출처도 본다. 지적 수용은 구조적 누수의 증거가 있을 때만 범위를 넓힌다. 재시도 선택지에 단순화·범위 축소·구현자 위임·결과 수용이 추가됐다. 메인은 사용자가 말하지 않은 제품 동작을 PRD·Story 에 덧붙이지 않고, 스스로 정한 내용을 구분해 보여 준다. 설계 산출물 구조 검사는 결정 문서 줄 수를 분량에 포함해 보고한다. 분량 수치는 권고이며 실패 조건이 아니다. Claude 검증 경로와 Codex 검증 경로의 판단 축은 같은 문장이다.
+
+2. **`/spec` 의 핵심 동작 정의 확인** ([#1297](https://github.com/Daeguk-Sun/dcNess/pull/1297) Closes [#1294](https://github.com/Daeguk-Sun/dcNess/issues/1294)) — 외부 활성 프로젝트 1건에서 기능의 핵심 동작 정의가 질문이 아니라 다른 질문의 설명문에 들어 있었다. 사용자는 설계 승인 단계에서야 문제를 발견했고 하위 문서 전체를 다시 썼다. 이제 메인은 자신이 사실처럼 적은 제품 동작 문장의 출처가 사용자 발화·기존 PRD·코드·이슈가 아니면 사용자가 정할 선택으로 묻는다. 핵심 동작 정의는 부차적 선택보다 먼저 확인한다. 초안 확인 전에 사용자가 핵심 동작을 실제로 그려 볼 수 있게 하며, 수단은 메인이 고른다. 표나 정해진 질문 목록은 요구하지 않는다. 사용자가 짧은 승인만 연속으로 답하면 이해를 확인하는 다른 수단을 한 번 쓴다. `/design` 도중 제품 동작이 정정되면 하위 문서 작성 전에 다시 확인한다. 기획 검수는 호출 입력의 확정 경위를 읽고, 승인 한 단어뿐인 핵심 정의를 근거 없는 가정으로 본다. 판단 기준은 [`docs/plugin/decision-completeness.md`](../plugin/decision-completeness.md)의 "agent 전제와 사용자 확정" 절이다.
+
+3. **저장소 내부 작업** ([#1290](https://github.com/Daeguk-Sun/dcNess/pull/1290) · [#1291](https://github.com/Daeguk-Sun/dcNess/pull/1291) · [#1292](https://github.com/Daeguk-Sun/dcNess/pull/1292)) — 모듈 안내 문서에 의존 관계·자주 하는 수정·검증 명령을 넣었고 결정 기록 색인을 추가했다. 사용자 동작은 바뀌지 않는다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 는 `hooks/**` 와 `harness/**` 의 실행 코드를 바꾸지 않았다. 결정적 guard-efficacy 를 재실행했다 — **51/51 PASS**, 회귀 없음. 전체 unittest 를 재실행해 공개 수치를 실측 동기화했다 — **1,524/1,524 PASS**(v0.32.0 1,520 → 신규 회귀 테스트 반영). [#1297](https://github.com/Daeguk-Sun/dcNess/pull/1297) 의 신규 행동 eval 4건은 누적 12/13 정답이었다. 오답 1회는 정답표 문장이 원인이었고 문장을 고친 뒤 3/3 이다. 사고 재현 케이스 2건은 변경 전 지침에서 1/2 와 0/2 였다.
+- Decide: 소멸 후보 없음. 사람 확인이 남은 항목은 릴리즈를 막지 않고 관찰 대상으로 둔다 — 개정 설계의 분량이 최초 설계 수준으로 내려왔는지, 가벼워진 설계로 구현 단계의 결함이나 재작업이 늘었는지([#1293](https://github.com/Daeguk-Sun/dcNess/issues/1293)), 사용자가 이해 확인 단계를 부담으로 느끼지 않는지, 설계 승인 이후의 제품 동작 정정이 줄었는지([#1294](https://github.com/Daeguk-Sun/dcNess/issues/1294)).
+- Verify: 공개 evidence snapshot(README·[`docs/plugin/benchmark.md`](../plugin/benchmark.md))을 v0.33.0 / 2026-10-06 실측(unit 1,524/1,524 · guard 51/51)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측을 대조한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `skills/**`(spec·design·design-ux·design-system)·`docs/plugin/**`·`scripts/check_design_artifact_structure.mjs` 변경.
+- **기존 활성 프로젝트는 plug-in 업데이트 후 `/init-dcness` 를 다시 실행한다** — 프로젝트에 복사된 `scripts/check_design_artifact_structure.mjs` 와 `$CODEX_HOME/skills` 의 `dcness-architecture-validator` skill 은 plug-in 업데이트만으로 갱신되지 않는다.
+- **`/spec` 사용자** — 초안 확인 전에 핵심 동작을 확인하는 단계가 한 번 더 나올 수 있다. 확인을 원하지 않는다고 말하면 메인이 따른다.
+
+---
+
 ## v0.32.0 (2026-10-06)
 
 **커밋 범위**: `v0.31.0..v0.32.0` (머지 PR 16개, [#1263](https://github.com/Daeguk-Sun/dcNess/pull/1263) · [#1264](https://github.com/Daeguk-Sun/dcNess/pull/1264) · [#1268](https://github.com/Daeguk-Sun/dcNess/pull/1268) · [#1270](https://github.com/Daeguk-Sun/dcNess/pull/1270) · [#1273](https://github.com/Daeguk-Sun/dcNess/pull/1273) · [#1271](https://github.com/Daeguk-Sun/dcNess/pull/1271) · [#1275](https://github.com/Daeguk-Sun/dcNess/pull/1275) · [#1276](https://github.com/Daeguk-Sun/dcNess/pull/1276) · [#1277](https://github.com/Daeguk-Sun/dcNess/pull/1277) · [#1279](https://github.com/Daeguk-Sun/dcNess/pull/1279) · [#1280](https://github.com/Daeguk-Sun/dcNess/pull/1280) · [#1283](https://github.com/Daeguk-Sun/dcNess/pull/1283) · [#1285](https://github.com/Daeguk-Sun/dcNess/pull/1285) · [#1287](https://github.com/Daeguk-Sun/dcNess/pull/1287) · [#1286](https://github.com/Daeguk-Sun/dcNess/pull/1286) · [#1288](https://github.com/Daeguk-Sun/dcNess/pull/1288))
