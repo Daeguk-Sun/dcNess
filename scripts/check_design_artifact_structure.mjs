@@ -77,7 +77,7 @@ function countLines(path) {
   if (!existsSync(path)) return 0;
   const content = readText(path);
   if (content === '') return 0;
-  return content.split(/\r?\n/).length;
+  return content.split(/\r?\n/).length - (content.endsWith('\n') ? 1 : 0);
 }
 
 function listMarkdownFiles(dir) {
@@ -110,6 +110,32 @@ function parseEpic(root, epicDirName) {
     join(epicDir, 'tech-review.md'),
     ...implPaths,
   ];
+  // Count only decisions belonging to or referenced by this pack, once per file.
+  // Match known decision names rather than following arbitrary input paths.
+  const decisions = listMarkdownFiles(join(root, 'docs', 'decisions'));
+  const epicScope = epicDirName.match(/^epic-\d+/)[0];
+  const decisionPaths = new Set();
+  const pending = designPackPaths.filter(existsSync);
+  for (const path of decisions) {
+    const scope = readText(path).match(/^---\r?\n[\s\S]*?^scope:\s*([^\r\n]+)[\s\S]*?^---/m)?.[1]
+      ?.split('#')[0].trim().replace(/^['"]|['"]$/g, '');
+    if (scope === epicScope || scope?.endsWith(`/${epicScope}`)) {
+      decisionPaths.add(path);
+      pending.push(path);
+    }
+  }
+  for (let i = 0; i < pending.length; i += 1) {
+    const source = readText(pending[i]);
+    for (const path of decisions) {
+      const name = rel(join(root, 'docs', 'decisions'), path);
+      if (!decisionPaths.has(path) && source.includes(`decisions/${name}`)) {
+        decisionPaths.add(path);
+        pending.push(path);
+      }
+    }
+  }
+  const decisionLineCount = [...decisionPaths].reduce((total, path) => total + countLines(path), 0);
+  designPackPaths.push(...decisionPaths);
   const designPackLineCount = designPackPaths.reduce(
     (total, path) => total + countLines(path),
     0
@@ -122,6 +148,8 @@ function parseEpic(root, epicDirName) {
     architectureContent: content,
     implPaths,
     designPackLineCount,
+    decisionLineCount,
+    decisionPaths: [...decisionPaths],
   };
 }
 
@@ -254,6 +282,8 @@ function audit(root) {
       architecture_path: rel(root, epic.architecturePath),
       impl_count: epic.implPaths.length,
       design_pack_line_count: epic.designPackLineCount,
+      decision_line_count: epic.decisionLineCount,
+      decision_paths: epic.decisionPaths.map((path) => rel(root, path)),
     })),
     violations,
     warnings,
@@ -267,6 +297,9 @@ function renderProblem(problem) {
 }
 
 function renderText(result) {
+  for (const epic of result.epics) {
+    console.log(`[design-artifact] ${epic.name}: ${epic.impl_count} tasks, ${epic.design_pack_line_count} lines (decisions: ${epic.decision_line_count} lines)`);
+  }
   for (const warning of result.warnings) {
     console.error(`[design-artifact] WARN ${renderProblem(warning)}`);
   }

@@ -26,6 +26,11 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 
 ## 판단 축
 
+- 과한 설계: 결정 문서의 규칙·기술 요구 항목·사용자가 요청하지 않은 제품 실행 동작과 설계 묶음 총량이 요청 범위에 비해 과하지 않은가. 사용자 결정, 이슈·PRD·AC, 기존 코드 충돌, 되돌리기 어려운 구조 선택으로 필요성을 설명하지 못하는 규칙은 삭제·단순화·위임 대상으로 지적한다. 분량 수치는 판단 근거이며 숫자만으로 FAIL하지 않는다.
+- 약속의 출처: 사용자 발화나 이슈에 없는 일반화 문장을 기준으로 FAIL하기 전에 사용자 결정인지 메인이 덧붙인 가정인지 구분한다. 메인의 문장을 사용자 약속으로 취급하지 않으며, 실제 사용자 요구·기존 계약과 충돌하는지 먼저 확인한다.
+- 드문 조건의 완결성: 규칙 추가 외에도 구현자 위임·결과 수용·약속 문장 축소를 권장 다음 행동으로 제시할 수 있다. 사용자 약속이나 데이터·보안 위험의 수용은 사용자가 결정한다. 보강이 새 제품 실행 동작을 만들면 작성 전 사용자 확인을 요구한다.
+- 명시적 위임: 제품 동작·데이터·권한·사용자 약속·외부 계약을 바꾸지 않는 낮은 영향의 선택을 사용자 또는 설계 agent가 구현자에게 맡기고, 위임 사실과 지킬 경계를 짧게 남긴다. 설계 agent의 자체 위임도 근거 있는 처리로 인정하며, 그 위임만으로 FAIL하거나 사용자 재확인을 요구하지 않는다.
+
 - 요구사항 출처 충실도: Story AC와 impl REQ, architecture 결정이 서로 어긋나지 않는가. 모든 제품 REQ 에 `(from AC-NNN)` 출처가 있고, 소수 기술 REQ 만 `(technical: 이유)`로 분리되는가.
 - Story AC 커버리지: 모든 Story AC 가 하나 이상의 REQ 로 커버되고, 무출처 REQ·존재하지 않는 AC 참조가 없으며, Story 마지막 task 의 종합 검증이 Story AC 전항목을 덮는가. 앞 task 가 이미 실행·관찰했고 이후 task 의 변경이 닿지 않는 AC 는 마지막 task 가 다시 실행하지 않아도 되지만, 그 경우 어느 task 의 증거로 덮는지와 닿지 않는 이유가 적혀 있어야 한다.
 - 설계 표준: 모듈 설계 원칙, 의존 방향, 공개 노출 범위, DI 판단이 evidence로 남았는가.
@@ -40,7 +45,7 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 - 결정 완전성은 고정 표나 섹션 이름 검사가 아니다. 별도 출력 형식을 요구하지 않고 PRD·Story AC·architecture·decision·impl 전반에서 의미와 근거를 읽는다.
 - 제품 동작 슬라이스: Story 완료 시 실제로 검증되는 동작, 각 task 또는 task 묶음이 연결하는 제품 경계, 첫 동작 증거 지점이 impl 산출물에 남았는가.
 - Agent Operability: module responsibility / public interface 와 impl 문서의 owner/entrypoint 요약이 edit target, state owner, validation path 를 복구할 수 있게 연결되는가.
-- 구현 가능성: 맥락 없는 build-worker가 impl 문서만 보고 임의 결정을 하지 않아도 되는가.
+- 구현 가능성: 맥락 없는 build-worker가 중요한 제품·계약 결정을 새로 만들지 않고 구현 가능한가. 경계 안의 내부 구현은 위임할 수 있다.
 - 비규범 서술 drift: ux-flow와 stories 동작 prose 같은 요약 층이 module responsibility / decision 과 표현만 어긋나는가. 이 층은 형식만으로 Must/FAIL 하지 않고 Should finding 또는 후속 정리로 보고한다.
 - revision 정합과 재검증 범위: revision mode 와 FAIL 뒤 재검증에서는 직전 통과·검증 결과 이후의 변경분을 읽고, 그 변경이 닿는 산출물과 판단 축만 다시 검토한다. 영향이 넓거나 불확실하거나 직전 결과와의 연결을 믿을 수 없으면 스스로 개정 후 전체 설계 pack 정합으로 범위를 올린다. 호출자가 범위를 좁혀 주기를 기다리지 않으며, 다시 검토하지 않은 산출물마다 "왜 이 변경이 닿지 않는가"를 적는다. 직전 결과가 없으면 전체를 검토한다. 메인이 전달한 파생 drift 체크리스트(`ux-flow.md`, 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호, domain-model/ADR 잔존 표현)는 닿는 범위를 찾는 증거 포인터로 사용하되, 항목 이름 부재만으로 Must finding 을 만들지 않는다. 기준은 [`rerun-judgment.md`](../_shared/rerun-judgment.md) 다.
 - 표현 수준: impl 문서가 contract를 설명하되 내부 구현을 선점하지 않는가.
@@ -72,6 +77,8 @@ module-architect epic-batch 또는 revision mode 산출물을 읽기 전용으�
 14. 질적 판단이라는 이유만으로 advisory 로 내리지 않는다 — 구체적인 위치, 깨지는 시나리오, 방치 시 영향이 입증되면 Must finding 으로 올리고, 근거가 부족한 우려만 advisory 또는 판단 한계로 남긴다. Must finding은 `SYSTEM_BOUNDARY` 또는 `TASK_LOCAL` 중 하나로 분류한다. 미커버 AC, 무출처 REQ, 마지막 task 종합 검증 누락, Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준, 확정 목업 경로/node-id 매핑/docs/design.md 토큰 대조 누락은 보통 `TASK_LOCAL` 이다. 기존 모듈 경계, 도메인 invariant, 저장 정책, public API boundary, 전역 decision 이 틀렸거나 바뀌어야 하면 `SYSTEM_BOUNDARY` 다.
 15. finding마다 파일 경로, 라인, 사실, 영향, 권장 다음 행동을 쓴다.
 16. 예시 카탈로그는 힌트로만 쓰고, 예시에 없다는 이유로 통과시키지 않는다.
+
+설계 검증 완료에는 누락뿐 아니라 과잉 판단도 포함한다. 결정 규칙·기술 REQ·미요청 실행 동작의 출처와 위임 경계를 읽고, 남긴 세부의 필요성 또는 축소할 근거를 보고한다.
 
 ## 완료 기준
 

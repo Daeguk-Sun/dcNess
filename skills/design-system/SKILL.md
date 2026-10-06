@@ -7,6 +7,9 @@ description: /design 내부 stage 2 전용 스킬. 공개 진입점이 아니며
 
 > 이 스킬은 **공개 진입점이 아니다**. 사용자는 계속 `/design` 만 호출한다. `/design` dispatcher 가 durable 산출물 실존 판정으로 이 stage 를 선택한다.
 
+
+매 설계 agent 실행 직후와 개정 진입에는 [`/design`의 분량 공개·개정 규모 판단](../design/SKILL.md#실행-직후-분량과-개정-규모)을 적용한다. 사용자 정정·메인 판단·지시문 출처는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)를 따른다.
+
 ## 목적
 
 기존 `/design` 의 system/module 설계 pack 계약을 stage 2 로 격리한다. UI epic 에서는 stage 1 PR 로 머지된 `ux-flow.md` 와 확정 목업을 입력으로 사용하고, UI-less epic 에서는 기존처럼 UX stage 없이 한 PR 로 full design pack 을 만든다. full design pack 이 완료됐더라도 `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 revision mode 로 들어가 완료 pack 을 수술적 개정한다. UX 산출물 자체를 바꾸는 신호는 `design-ux` revision mode 가 먼저 처리하며, 이 stage 는 갱신된 UX 산출물을 읽어 system/module 산출물 영향분을 전파한다. 확정 목업이 존재하는 epic 에서는 목업 미참조 설계 금지 원칙을 적용한다.

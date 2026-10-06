@@ -77,7 +77,8 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
             "read-only agent 가 직접 파일을 쓰지 않는다",
             "JSON, marker, 고정 schema, 필수 heading 강제는 도입하지 않는다",
             "`PASS` 단발에는 적용하지 않는다",
-            "수정 설계, 담당자 지정, 최소 수정 범위 요구는 넣지 않는다",
+            "수정 설계나 담당자를 강제하지 않는다",
+            "단순화·위임 선택지",
             "형식이 아니라 의미 요구다",
         ):
             self.assertIn(needle, self.shared)
@@ -102,9 +103,26 @@ class ValidatorHandoffGuidanceTests(unittest.TestCase):
                     "heading 은 권장 카테고리일 뿐 필수 schema 가 아니다",
                     "changed / resolved / still failing / new",
                     "JSON, marker, 고정 schema, 필수 heading 강제는 도입하지 않는다",
-                    "수정 설계, 담당자 지정, 최소 수정 범위 요구는 넣지 않는다",
                 ):
                     self.assertIn(needle, text)
+
+    def test_architecture_review_allows_bounded_delegation_and_simplification(self) -> None:
+        claude = self.claude_agents["architecture-validator"]
+        codex = self.codex_skills["dcness-architecture-validator"]
+        for axis in ("과한 설계", "약속의 출처", "드문 조건의 완결성", "명시적 위임"):
+            with self.subTest(axis=axis):
+                prefix = f"- {axis}: "
+                claude_axis = next(line for line in claude.splitlines() if line.startswith(prefix))
+                codex_axis = next(line for line in codex.splitlines() if line.startswith(prefix))
+                self.assertEqual(claude_axis, codex_axis)
+        self.assertIn("사용자 또는 설계 agent", codex)
+        self.assertIn("제품 동작·데이터·권한·사용자 약속·외부 계약을 바꾸지 않는", codex)
+        self.assertIn("단순화·위임 선택지", codex)
+        self.assertIn("해법이나 담당자를 강제하지 않는다", codex)
+        self.assertIn(
+            "수정 설계, 담당자 지정, 최소 수정 범위 요구는 넣지 않는다",
+            self.codex_skills["dcness-impl-validator"],
+        )
 
     def test_provider_mirror_sync_contract_is_documented(self) -> None:
         for needle in (

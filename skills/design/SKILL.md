@@ -13,6 +13,9 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 > 🔴 **분기 규칙 SSOT** — agent 결론 → 다음 호출 / 재시도 판단 / escalate 처리는 [`design-routing.md`](design-routing.md) 가 본 skill 의 단일 진본. 본 파일은 진행 절차만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
+
+사용자 정정을 PRD·Story에 옮길 때 발화에 없는 일반화나 제품 동작을 덧붙이지 않는다. 필요하면 먼저 묻는다. 메인이 스스로 정한 항목은 "메인이 정한 내용"으로 구분해 사용자에게 보여 주며, 표시만으로 승인된 약속이 되지 않는다. 설계 agent 지시문에는 사용자·이슈·검증 지적에 없는 "닫을 결정"을 열거하지 않는다. 검증 지적도 원래 약속의 출처를 확인한다. 보강이 요청하지 않은 제품 실행 동작을 새로 만들면 작성 전에 사용자 확인을 받는다.
+
 ## Loop
 
 - **loop**: `design`
@@ -123,6 +126,13 @@ revision mode 의 기본 원칙은 surgical revision 이다. module-architect �
 
 내부 stage 는 helper run 에 stage marker 를 남긴다. stage 1 은 `begin-run design --stage design-ux`, stage 2 는 `begin-run design --stage design-system` 로 시작한다. `docs/metrics/design-runs.jsonl` 은 같은 `entry_point=design` 아래 stage 값을 기록해 기존 단일 run 수치와 stage별 run 수치를 구분한다.
 
+## 실행 직후 분량과 개정 규모
+
+설계 agent 실행 직후마다(UX·thin bootstrap·checkpoint·module 작성·보강·재시도 포함) 메인은 다음 검증/agent 호출 전에 작업 문서 수, 전체 REQ 수, 그중 기술 REQ 수, 결정 문서 줄 수와 설계 묶음 총량을 사용자에게 보여 준다. [문서 총량 예산](../../docs/plugin/deliverables-map.md#문서-총량-예산)으로 집계하며 최종 승인까지 미루지 않는다. 같은 프로젝트의 직전 설계 snapshot/commit과 항목별 비율을 함께 제시하고 비교 기준을 밝힌다. 신규는 직전 완료 설계, 개정은 개정 직전 같은 pack을 기준으로 하며, 기준이 없거나 분모가 0이면 비율을 만들지 않고 비교 불가와 현재 값을 보여 준다. 같은 Story 기준으로도 비교해 epic 크기 차이를 설명한다. 고정 표나 출력 형식은 요구하지 않는다.
+
+개정 진입 전에 요청한 동작·영향 task와 현재 분량을 확인하고, 실행 뒤 늘어난 규칙·기술 REQ·결정 분량이 개정 크기에 필요한지 판단한다. 작은 개정도 절대 경고선 이하라는 이유로 넘기지 않는다. 요청 범위보다 크게 불어나면 메인은 진행을 멈추고 근거와 삭제·단순화·범위 축소·위임 선택지를 사용자에게 알린다. 숫자 초과만으로 FAIL하지 않고, 합의된 제품 약속과 고위험 상태 보호는 유지한다.
+
+
 ## Sub-agent prompt 작성 checkpoint (#780)
 
 `impl-validator:CODEBASE_SANITY` / `ux-architect` / `system-architect(thin bootstrap 또는 checkpoint)` / `module-architect` / `architecture-validator` 호출 전, Agent tool input을 쓰기 전에 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)를 직접 읽고 3슬롯을 점검한다. 정적 checkpoint는 `begin-step` stdout relay가 아니며 동적 worktree context는 hook/wrapper가 첫 prompt에 직접 넣는다.
@@ -178,7 +188,7 @@ UI epic 으로 판정되고 `design-ux` stage 를 선택한 직후 메인이 목
 6. **Stage 2 — system-architect(THIN_BOOTSTRAP, 조건부 1회)** — topology 부재 greenfield 첫 설계에서만 실행한다. UI epic 이면 prompt 의 "대상 + 읽을 진본" 에 stage 1 UX 산출물(epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, 화면별 확정 목업 또는 `확정본 없음`, 보드 진입점 또는 부재 신호)을 함께 넣어 큰 모듈 경계가 화면 흐름·상태 기준을 모른 채 시작하지 않게 한다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 기술 스택/전역 decision 기록으로 제한한다. 도메인 모델 작성/생략 판단, 계약 표면 코드 SSOT 대조, Module Design Check evidence, Agent Operability 상세, impl task 작성은 하지 않는다. `PASS` 후 검증 step 없이 바로 module-architect(epic-batch)로 간다.
 7. **Stage 2 — module-architect(epic-batch / revision mode)** — 신규 pack 에서는 epic architecture 최소형과 epic 전체 impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지 않는다. task 분할 전 high-risk cross-story state contract pass 를 수행해 공유 identity/state의 producer→owner→persistence/read model→consumer 전이와 failure/idempotence/lifecycle을 제품 증거까지 닫는다. revision mode 에서는 사용자 개정 의도와 영향 그래프를 먼저 요약하고, surgical revision 원칙에 따라 영향 산출물만 개정한다. shared state 계약 변경 시 보존 예정 task까지 producer/consumer 영향 감사한 뒤 영향 없는 impl task 를 보존한다. 입력은 전체 `stories.md`, 기존 epic `architecture.md`(있으면), 선택 `domain-model.md`, UI epic 이면 epic `ux-flow.md`, `docs/design.md` 포인터 또는 부재 신호, `ux-flow.md` 화면 인벤토리의 확정 목업 경로, 화면별 확정 목업 `docs/design-variants/screens/<screen-id>.html` 또는 `확정본 없음`, `docs/design-variants/README.md` 포인터 또는 부재 신호, 핵심 node-id 매핑, `docs/conventions.md`, affected module docs, `docs/decisions/**`, thin bootstrap 산출물이 있으면 root topology/decision 포인터, 계약 표면 코드 SSOT 포인터다. domain-model.md 생략 가능 여부는 도메인 복잡도 기준으로 판단하고 생략 판단 근거를 epic architecture 에 남긴다. 산출물은 epic `architecture.md` 의 durable 3섹션(모듈 목록, 의존 그래프, Story -> 모듈 매핑), 필요 시 `domain-model.md`, decision 문서, 공통 task 와 모든 Story 의 `impl/NN-*.md` 전체다. Story -> 모듈 매핑은 구현 순서(첫 제품 경계 동작 앞당김) 관점에서 첫 제품 경계 동작 증거가 어느 Story/task 묶음에서 닫히는지 설명한다. 각 impl task 는 `depends_on`, `수정 허용`, module/decision references, Story 동작 수직 슬라이스, 각 Story 완료 시 실제로 검증되는 동작, 첫 제품 경계 동작 증거 지점, 기존 명칭을 유지한 owner/entrypoint 요약을 계속 충족해야 한다. 공통 task 가 있으면 같은 batch 안에서 먼저 필요한 기반 task 로 배치한다.
    - **revision mode drift audit**: 완료된 pack 개정에서는 module-architect prompt 에 파생 drift 체크리스트를 넣고, final validator prompt 에도 같은 체크리스트의 확인 결과를 넘긴다. 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호 참조, 도메인 모델 잔존 표현을 확인한다.
-   - **규모 preflight**: Step 3 진입 전 메인이 Story 수와 예상 full design pack 규모를 [`deliverables-map.md`](../../docs/plugin/deliverables-map.md) 의 target 1,500줄 / hard warning 2,000줄 예산에 맞춰 빠르게 추정한다. 2,000줄 초과가 예상되거나 impl task 수가 한 sub-agent 출력 한계에 몰릴 정도로 크면 자동으로 얇은 batch 를 진행하지 말고 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. batch 2분할을 선택해도 Story 단위 작성/검증 기본값 복원이 아니며, 분할 경계·공유 계약을 epic architecture module responsibility / decision 에 먼저 남기고 final epic 검증은 전체 산출물 기준으로 한 번 더 수행한다.
+   - **규모 preflight**: Step 3 진입 전 메인이 Story 수와 예상 full design pack 규모를 [`deliverables-map.md`](../../docs/plugin/deliverables-map.md) 의 target 1,500줄 / hard warning 2,000줄 예산에 맞춰 빠르게 추정한다. 수치는 경고 신호로 쓰고 결정 문서도 포함한다. 요청 대비 과도하거나 한 sub-agent 출력 한계를 넘을 전망이면 진행을 멈춰 사용자에게 삭제·단순화·위임·범위 축소를 먼저 제시하고, 큰 epic은 epic 분할 또는 예외적 batch 2분할도 선택지로 둔다. batch 2분할을 선택해도 Story 단위 작성/검증 기본값 복원이 아니며, 분할 경계·공유 계약을 epic architecture module responsibility / decision 에 먼저 남기고 final epic 검증은 전체 산출물 기준으로 한 번 더 수행한다.
    - **기본값 금지**: 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다. 고위험 신호가 뒤늦게 드러나면 메인 판단으로 추가 검증 또는 사용자 위임을 선택할 수 있지만, 기본 루프는 epic-batch 생산 + final epic 검증이다.
    - **계약 변경**: public contract 를 만들거나 바꾸면 module responsibility / public interface 와 `docs/decisions/NNNN-slug.md` 를 갱신하고 impl 문서는 module/decision 참조만 가리킨다.
    - **system checkpoint 승격**: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision 변경이 필요하면 `SYSTEM_CHECKPOINT_REQUIRED` 로 보고한다. 신규 epic-scope decision 기록은 module-architect 자율 범위다. 메인은 system-architect opt-in checkpoint 를 호출하고, PASS 후 module-architect(epic-batch)를 재진입한다.

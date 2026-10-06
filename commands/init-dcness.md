@@ -277,7 +277,7 @@ while IFS= read -r f; do
 done <<< "$CI_WRITTEN"
 ```
 
-기존 epic 또는 module docs 가 있는 프로젝트가 `doc-sync.yml` 을 새로 받으면 첫 PR 전에 현재 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 를 1회 실행해 index 파생 섹션을 재생성한다. stale 상태면 새 게이트가 의도대로 실패한다. 같은 doc-sync workflow 가 복사된 `check_design_artifact_structure.mjs` 도 실행하므로 신규 `/design` 산출물의 agent-first 핵심 섹션과 line budget 경고, impl story/의존 순서 위반도 외부 프로젝트 PR CI 에서 확인된다. 여러 epic의 capability/owner 보조 뷰가 필요할 때만 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 로 온디맨드 생성한다. 이 임시 리포트는 필수 agent 입력이나 as-built 코드 상태 증거가 아니다.
+기존 epic 또는 module docs 가 있는 프로젝트가 `doc-sync.yml` 을 새로 받으면 첫 PR 전에 현재 프로젝트 루트에서 `node "$PLUGIN_ROOT/scripts/aggregate_index_map.mjs"` 를 1회 실행해 index 파생 섹션을 재생성한다. stale 상태면 새 게이트가 의도대로 실패한다. 같은 doc-sync workflow 가 복사된 `check_design_artifact_structure.mjs` 도 실행하므로 신규 `/design` 산출물의 agent-first 핵심 섹션과 관련 결정 문서 줄 수를 포함한 line budget 경고, impl story/의존 순서 위반도 외부 프로젝트 PR CI 에서 확인된다. 기존 프로젝트는 플러그인 업데이트 후 `/init-dcness`를 재실행해 Codex 검증 skill과 선택 설치한 CI 검사 사본을 갱신한다. 여러 epic의 capability/owner 보조 뷰가 필요할 때만 `node "$PLUGIN_ROOT/scripts/aggregate_architecture_map.mjs"` 로 온디맨드 생성한다. 이 임시 리포트는 필수 agent 입력이나 as-built 코드 상태 증거가 아니다.
 
 #### project docs seed
 
