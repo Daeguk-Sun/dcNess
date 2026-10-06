@@ -326,9 +326,28 @@ def format_prompt_guidance(
     return "\n".join(lines)
 
 
-def _existing_source_roots(root: Path, candidates: tuple[str, ...]) -> list[str]:
-    found = [candidate for candidate in candidates if (root / candidate).is_dir()]
-    return found or ["."]
+def _normalize_source_root(raw: str) -> str:
+    return Path(raw.strip().rstrip("/") or ".").as_posix()
+
+
+def _validated_source_roots(root: Path, source_roots: Optional[list[str]]) -> list[str]:
+    """Caller-confirmed source roots. Never guessed from directory names."""
+    if not source_roots:
+        raise ValueError(
+            "--source-roots is required with --platform when no contract exists "
+            "(comma-separated project-relative directories; use . for the whole project)"
+        )
+    validated: list[str] = []
+    for raw in source_roots:
+        candidate = Path(_normalize_source_root(raw))
+        if (
+            Path(raw.strip()).is_absolute()
+            or ".." in candidate.parts
+            or not (root / candidate).is_dir()
+        ):
+            raise ValueError(f"--source-roots {raw}: not a directory inside the project")
+        validated.append(candidate.as_posix())
+    return list(dict.fromkeys(validated))
 
 
 def _base_contract_config(
@@ -350,11 +369,16 @@ def _base_contract_config(
     }
 
 
-def build_contract_config(project_root: Path, platform: Optional[str] = None) -> Optional[dict[str, Any]]:
+def build_contract_config(
+    project_root: Path,
+    platform: Optional[str] = None,
+    source_roots: Optional[list[str]] = None,
+) -> Optional[dict[str, Any]]:
     """Build the project-local TDD contract config used by generated hooks.
 
-    The platform is never guessed from project files. It comes from the
-    committed project-local contract or from the caller's explicit value.
+    The platform and source roots are never guessed from project files. They
+    come from the committed project-local contract or from the caller's
+    explicit values.
     """
     root = project_root.resolve()
     existing = _load_project_contract_config(root)
@@ -365,13 +389,21 @@ def build_contract_config(project_root: Path, platform: Optional[str] = None) ->
                 f"but --platform {platform} was given; edit or remove the contract "
                 "before changing the platform"
             )
+        if source_roots:
+            given = sorted({_normalize_source_root(item) for item in source_roots})
+            current = sorted({_normalize_source_root(item) for item in existing["source_roots"]})
+            if given != current:
+                raise ValueError(
+                    f"{CONFIG_REL}: existing contract source_roots is {current}, "
+                    f"but --source-roots {','.join(given)} was given; edit or remove "
+                    "the contract before changing the source roots"
+                )
         return existing
     if platform is None:
         return None
     detected = platform
 
     if detected == "python":
-        source_roots = _existing_source_roots(root, ("src", "app", "apps", "packages"))
         impl_exts = [".py"]
         test_candidate_templates = [
             "{parent}/test_{stem}.py",
@@ -382,7 +414,6 @@ def build_contract_config(project_root: Path, platform: Optional[str] = None) ->
         ]
         test_file_globs = ["test_*.py", "*_test.py", "tests/**/*.py"]
     elif detected == "web":
-        source_roots = _existing_source_roots(root, ("src", "app", "apps", "packages"))
         impl_exts = [".ts", ".tsx", ".js", ".jsx"]
         test_candidate_templates = []
         for test_ext in (".ts", ".tsx", ".js", ".jsx"):
@@ -406,15 +437,10 @@ def build_contract_config(project_root: Path, platform: Optional[str] = None) ->
             "**/__tests__/**",
         ]
     elif detected == "go":
-        source_roots = _existing_source_roots(root, (".", "cmd", "pkg", "internal"))
         impl_exts = [".go"]
         test_candidate_templates = ["{parent}/{stem}_test.go"]
         test_file_globs = ["**/*_test.go"]
     elif detected == "android":
-        source_roots = _existing_source_roots(
-            root,
-            ("app/src/main", "src/main", "app", "src"),
-        )
         impl_exts = [".kt", ".java"]
         test_candidate_templates = [
             "app/src/test/java/{stem}Test{ext}",
@@ -422,7 +448,6 @@ def build_contract_config(project_root: Path, platform: Optional[str] = None) ->
         ]
         test_file_globs = ["**/*Test.kt", "**/*Test.java"]
     elif detected == "ios":
-        source_roots = _existing_source_roots(root, ("Sources", "App", "src"))
         impl_exts = [".swift"]
         test_candidate_templates = [
             "Tests/{stem}Tests.swift",
@@ -438,7 +463,7 @@ def build_contract_config(project_root: Path, platform: Optional[str] = None) ->
 
     return _base_contract_config(
         platform=detected,
-        source_roots=source_roots,
+        source_roots=_validated_source_roots(root, source_roots),
         impl_exts=impl_exts,
         test_candidate_templates=test_candidate_templates,
         test_file_globs=test_file_globs,
@@ -1149,9 +1174,10 @@ def ensure_generated_hooks(
     targets: tuple[str, ...],
     plugin_root: Path,
     platform: Optional[str] = None,
+    source_roots: Optional[list[str]] = None,
 ) -> list[str]:
     root = project_root.resolve()
-    config = build_contract_config(root, platform)
+    config = build_contract_config(root, platform, source_roots)
     if config is None:
         return [PLATFORM_REQUIRED_SKIP]
 
@@ -1279,6 +1305,12 @@ def _cmd_run(args: argparse.Namespace) -> int:
     )
 
 
+def _split_source_roots(value: Optional[str]) -> Optional[list[str]]:
+    if value is None:
+        return None
+    return [part for part in value.split(",") if part.strip()]
+
+
 def _cmd_self_test(args: argparse.Namespace) -> int:
     project_root = Path(args.project_root).resolve()
     config: Optional[dict[str, Any]]
@@ -1291,7 +1323,9 @@ def _cmd_self_test(args: argparse.Namespace) -> int:
             return 1
     else:
         try:
-            config = build_contract_config(project_root, args.platform)
+            config = build_contract_config(
+                project_root, args.platform, _split_source_roots(args.source_roots)
+            )
         except (JsonConfigError, ValueError) as exc:
             print(str(exc), file=sys.stderr)
             return 1
@@ -1326,6 +1360,7 @@ def _cmd_ensure(args: argparse.Namespace) -> int:
             targets=tuple(part for part in args.targets.split(",") if part),
             plugin_root=Path(args.plugin_root).resolve(),
             platform=args.platform,
+            source_roots=_split_source_roots(args.source_roots),
         )
     except (JsonConfigError, SelfTestError, ValueError) as exc:
         print(str(exc), file=sys.stderr)
@@ -1392,6 +1427,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_self.add_argument("--project-root", required=True)
     p_self.add_argument("--hook-command", required=True)
     p_self.add_argument("--platform", default=None)
+    p_self.add_argument("--source-roots", default=None)
     p_self.add_argument("--config", default="")
     p_self.add_argument("--plugin-root", default="")
     p_self.set_defaults(func=_cmd_self_test)
@@ -1401,6 +1437,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_ensure.add_argument("--targets", default="cc,codex")
     p_ensure.add_argument("--plugin-root", required=True)
     p_ensure.add_argument("--platform", default=None)
+    p_ensure.add_argument("--source-roots", default=None)
     p_ensure.set_defaults(func=_cmd_ensure)
 
     p_status = sub.add_parser("status", help="inspect generated hook installation")

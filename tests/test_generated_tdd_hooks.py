@@ -182,6 +182,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     str(project),
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--hook-command",
                     f"bash {bad_hook}",
                 ],
@@ -209,6 +211,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -265,6 +269,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -351,6 +357,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -384,6 +392,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    ".",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -521,6 +531,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -570,6 +582,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -629,6 +643,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -671,6 +687,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -713,6 +731,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -760,6 +780,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -808,6 +830,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -844,6 +868,8 @@ class GeneratedTddHookContractTests(unittest.TestCase):
                     "ensure",
                     "--platform",
                     "python",
+                    "--source-roots",
+                    "src",
                     "--project-root",
                     str(project),
                     "--targets",
@@ -887,7 +913,7 @@ class GeneratedTddHookContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             project = _android_project_with_design_kit(Path(td))
 
-            result = _run_ensure(project, "--platform", "android")
+            result = _run_ensure(project, "--platform", "android", "--source-roots", "app/src/main")
 
             self.assertEqual(result.returncode, 0, result.stderr)
             config = json.loads(
@@ -900,11 +926,11 @@ class GeneratedTddHookContractTests(unittest.TestCase):
     def test_ensure_refuses_platform_that_conflicts_with_existing_contract(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             project = _android_project_with_design_kit(Path(td))
-            self.assertEqual(_run_ensure(project, "--platform", "web").returncode, 0)
+            self.assertEqual(_run_ensure(project, "--platform", "web", "--source-roots", "app/src/main").returncode, 0)
             config_path = project / ".dcness" / "tdd-hooks.json"
             before = config_path.read_text(encoding="utf-8")
 
-            result = _run_ensure(project, "--platform", "android")
+            result = _run_ensure(project, "--platform", "android", "--source-roots", "app/src/main")
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("web", result.stderr)
@@ -914,9 +940,9 @@ class GeneratedTddHookContractTests(unittest.TestCase):
     def test_ensure_accepts_platform_matching_existing_contract(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             project = _android_project_with_design_kit(Path(td))
-            self.assertEqual(_run_ensure(project, "--platform", "android").returncode, 0)
+            self.assertEqual(_run_ensure(project, "--platform", "android", "--source-roots", "app/src/main").returncode, 0)
 
-            result = _run_ensure(project, "--platform", "android")
+            result = _run_ensure(project, "--platform", "android", "--source-roots", "app/src/main")
 
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertIn("cc: registered", result.stdout)
@@ -925,11 +951,78 @@ class GeneratedTddHookContractTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             project = _android_project_with_design_kit(Path(td))
 
-            result = _run_ensure(project, "--platform", "rust")
+            result = _run_ensure(project, "--platform", "rust", "--source-roots", "app/src/main")
 
             self.assertNotEqual(result.returncode, 0)
             self.assertIn("rust", result.stderr)
             self.assertFalse((project / ".dcness" / "tdd-hooks.json").exists())
+
+    def test_ensure_uses_explicit_source_roots_for_every_module(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = _android_project_with_design_kit(Path(td))
+            feature_main = project / "feature" / "src" / "main" / "java"
+            feature_main.mkdir(parents=True)
+            (feature_main / "Feature.kt").write_text("class Feature\n", encoding="utf-8")
+
+            result = _run_ensure(
+                project,
+                "--platform",
+                "android",
+                "--source-roots",
+                "app/src/main,feature/src/main",
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            config = json.loads(
+                (project / ".dcness" / "tdd-hooks.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(config["source_roots"], ["app/src/main", "feature/src/main"])
+            hook = project / ".claude" / "hooks" / "dcness-tdd-guard.sh"
+            no_test = feature_main / "NewThing.kt"
+            no_test.write_text("class NewThing\n", encoding="utf-8")
+            denied = _run_hook(hook, project, no_test)
+            self.assertEqual(denied.returncode, 2, denied.stderr)
+            self.assertIn("NewThing.kt", denied.stderr)
+
+    def test_ensure_requires_source_roots_with_platform(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = _android_project_with_design_kit(Path(td))
+
+            result = _run_ensure(project, "--platform", "android")
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("--source-roots", result.stderr)
+            self.assertFalse((project / ".dcness" / "tdd-hooks.json").exists())
+            self.assertFalse((project / ".claude" / "settings.json").exists())
+
+    def test_ensure_rejects_source_root_that_is_not_a_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = _android_project_with_design_kit(Path(td))
+
+            for bad in ("missing/src/main", "../outside", "build.gradle.kts"):
+                with self.subTest(bad=bad):
+                    result = _run_ensure(
+                        project, "--platform", "android", "--source-roots", bad
+                    )
+                    self.assertNotEqual(result.returncode, 0)
+                    self.assertIn(bad, result.stderr)
+                    self.assertFalse((project / ".dcness" / "tdd-hooks.json").exists())
+
+    def test_ensure_refuses_source_roots_that_conflict_with_existing_contract(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            project = _android_project_with_design_kit(Path(td))
+            first = _run_ensure(
+                project, "--platform", "android", "--source-roots", "app/src/main"
+            )
+            self.assertEqual(first.returncode, 0, first.stderr)
+            config_path = project / ".dcness" / "tdd-hooks.json"
+            before = config_path.read_text(encoding="utf-8")
+
+            result = _run_ensure(project, "--platform", "android", "--source-roots", ".")
+
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("source_roots", result.stderr)
+            self.assertEqual(config_path.read_text(encoding="utf-8"), before)
 
     def test_self_test_without_platform_or_contract_skips(self) -> None:
         with tempfile.TemporaryDirectory() as td:
@@ -989,6 +1082,8 @@ class GeneratedTddHookDocsTests(unittest.TestCase):
 
         init_doc = (ROOT / "docs" / "plugin" / "init-dcness.md").read_text(encoding="utf-8")
         self.assertIn("ensure --platform", init_skill)
+        self.assertIn("--source-roots", init_skill)
+        self.assertIn("기본 테스트 위치", hooks_doc)
         for text in (init_skill, hooks_doc, init_doc):
             with self.subTest(text=text[:20]):
                 self.assertIn("추측하지 않는다", text)

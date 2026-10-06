@@ -195,7 +195,17 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **프로젝트 로컬 계약**: `.dcness/tdd-hooks.json` 이 있으면 helper 는 코어 프리셋보다 이 파일을 우선한다. 모든 계약은 `source_roots`, `impl_exts` 가 필요하고, custom 플랫폼은 `test_candidate_templates` 도 필요하다. `test_file_globs` 는 test 파일 자체를 구현 파일로 오인하지 않게 하는 선택 필드다. template placeholder 는 `{parent}`, `{stem}`, `{base}`, `{ext}`, `{path}`, `{path_no_ext}`, `{filename}` 을 지원한다. 기존 파일이 깨진 JSON 이거나 필수 필드가 없으면 덮어쓰지 않고 등록을 중단한다.
 
-**지원 플랫폼**: helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있다. 새 플랫폼은 코어 프리셋을 추가하지 않아도 프로젝트 에이전트나 사람이 위 형식의 `.dcness/tdd-hooks.json` 을 승인·커밋하면 같은 self-test/등록 경로를 쓴다. helper 는 파일 구성으로 플랫폼을 추측하지 않는다. `/init-dcness` 가 사용자에게 확인한 프리셋 이름을 `ensure --platform <값>` 으로 넘기고, 생성된 계약의 `platform` 이 이후 기준이 된다. 계약과 `--platform` 이 모두 없으면 생성 skip 이며 안전 no-op 이다. 중앙 fallback 은 TS/JS (`*.ts`, `*.tsx`, `*.js`, `*.jsx`)만 검사한다. 그 외 확장자는 generated hook 이 없으면 silent skip 이다.
+**지원 플랫폼**: helper 는 `python`, `web`, `go`, `android`, `ios` 프리셋으로 기본 project-local config 를 만들 수 있다. 새 플랫폼은 코어 프리셋을 추가하지 않아도 프로젝트 에이전트나 사람이 위 형식의 `.dcness/tdd-hooks.json` 을 승인·커밋하면 같은 self-test/등록 경로를 쓴다. helper 는 파일 구성으로 플랫폼과 소스 경로를 추측하지 않는다. `/init-dcness` 가 사용자에게 확인한 프리셋 이름과 소스 경로를 `ensure --platform <값> --source-roots <경로,경로>` 로 넘기고, 생성된 계약의 `platform`·`source_roots` 가 이후 기준이 된다. `--source-roots` 는 프로젝트 안에 실재하는 디렉터리만 받으며 저장소 전체는 `.` 로 명시한다. 계약과 `--platform` 이 모두 없으면 생성 skip 이며 안전 no-op 이다. 중앙 fallback 은 TS/JS (`*.ts`, `*.tsx`, `*.js`, `*.jsx`)만 검사한다. 그 외 확장자는 generated hook 이 없으면 silent skip 이다.
+
+**기본 테스트 위치**: 프리셋은 구현 파일 `<dir>/<name>.<ext>` 에 대해 아래 위치 중 하나에 테스트 파일이 있으면 통과시킨다. 프로젝트의 테스트 위치가 이와 다르면 `ensure --platform` 대신 `test_candidate_templates` 를 넣은 계약을 직접 작성한다.
+
+| 프리셋 | 인정하는 테스트 위치 |
+|---|---|
+| `python` | `<dir>/test_<name>.py`, `<dir>/<name>_test.py`, `<dir>/tests/test_<name>.py`, `tests/test_<name>.py`, `tests/<name>_test.py` |
+| `web` | `<dir>/<name>.test.<ext>`, `<dir>/<name>.spec.<ext>`, `<dir>/__tests__/<name>.test.<ext>`, `src/__tests__/<name>.test.<ext>` (`<ext>` 는 `ts`·`tsx`·`js`·`jsx`) |
+| `go` | `<dir>/<name>_test.go` |
+| `android` | 구현 파일 경로의 `main` 디렉터리를 `test` 로 바꾼 위치의 `<name>Test.<ext>` (경로에 `main` 이 없으면 `app/src/test/java/<name>Test.<ext>`), `<dir>/<name>Test.<ext>` |
+| `ios` | `Tests/<name>Tests.swift`, `<dir>/<name>Tests.swift` |
 
 **생성/등록 순서**: CC hook 이 먼저다. `.claude/hooks/dcness-tdd-guard.sh` 후보가 self-test 를 통과해야 `.claude/settings.json` PreToolUse(`Edit|Write|NotebookEdit|Bash`) 에 등록된다. Codex hook 은 그 다음 같은 패턴으로 `.codex/hooks/dcness-tdd-guard.sh` 와 `.codex/hooks.json` PreToolUse(`Edit|Write|apply_patch`) 에 등록된다. 기존 `.claude/settings.json` 또는 `.codex/hooks.json` 이 깨진 JSON 이면 등록을 거부하고 파일을 덮어쓰지 않는다. Codex 쪽은 CLI 의 사용자 신뢰 승인(`~/.codex/config.toml` trusted hash 흐름)이 추가로 필요할 수 있으므로, `registered` 는 project-local 파일 등록 상태이지 사용자 trust 승인 완료를 뜻하지 않는다.
 
