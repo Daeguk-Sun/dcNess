@@ -22,6 +22,7 @@ from typing import Any, BinaryIO, Optional
 EVIDENCE_ROOT_REL = Path(".dcness-work/product-journey")
 SCHEMA_VERSION = 1
 RECEIPT_TYPE = "dcness.product-journey"
+SKIP_RECORD_TYPE = "dcness.product-journey-skip"
 _ID_RE = re.compile(r"^[a-z0-9][a-z0-9._-]{2,63}$")
 _BOUNDARIES = {"api", "cli", "integration", "mock", "ui"}
 # A device/emulator UI journey chains many screen flows and routinely runs past
@@ -43,6 +44,7 @@ _EPIC_SCOPE_RECEIPT_FIELDS = frozenset(
 )
 _REVISION_RE = re.compile(r"^[0-9a-f]{7,40}$")
 _UNKNOWN_REVISION = "unknown"
+_HISTORY_DURATION_MAX_MS = 24 * 60 * 60 * 1000
 
 
 class JourneyConfigError(ValueError):
@@ -551,6 +553,28 @@ def _code_revision(project_root: Path) -> str:
     if completed.returncode != 0 or not _REVISION_RE.fullmatch(revision):
         return _UNKNOWN_REVISION
     return revision
+
+
+def _uncommitted_changes(project_root: Path) -> Optional[bool]:
+    """Whether the working tree differs from HEAD; None when git cannot tell.
+
+    A receipt of a dirty tree does not describe its `code_revision` alone, so a
+    reader must not treat the commit diff as the whole change.
+    """
+    try:
+        completed = subprocess.run(  # nosec B603 B607
+            ["git", "status", "--porcelain"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return bool(completed.stdout.strip())
 
 
 def _run_command(
@@ -1170,6 +1194,9 @@ def run_from_config(
     except FileExistsError as exc:
         raise JourneyConfigError(f"run_id already exists: {selected_run_id}") from exc
     receipt_path = run_dir / "receipt.json"
+    # Read before any command runs: the journey itself may leave files behind.
+    code_revision = _code_revision(root)
+    uncommitted_changes = _uncommitted_changes(root)
     env = os.environ.copy()
     env.update(config.get("env", {}))
     env[_RUN_DIR_ENV] = str(run_dir)
@@ -1325,6 +1352,8 @@ def run_from_config(
         "config_path": _relative(resolved_config, root),
         "measured_at": selected_measured_at,
         "finished_at": _now_iso(),
+        "code_revision": code_revision,
+        "uncommitted_changes": uncommitted_changes,
         "outcome": outcome,
         "boundary": config["boundary"],
         "target_ac": target_ac,
@@ -1370,7 +1399,7 @@ def run_from_config(
         ]
     epic_scope = _validated_epic_scope(config)
     if epic_scope is not None:
-        receipt["epic_scope"] = {**epic_scope, "code_revision": _code_revision(root)}
+        receipt["epic_scope"] = {**epic_scope, "code_revision": code_revision}
     if ui_evidence is not None:
         receipt["ui_evidence"] = ui_evidence
     if ux_integrity is not None:
@@ -1421,7 +1450,9 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
         return False
     if payload.get("outcome") not in {"PASS", "FAIL"}:
         return False
-    if _parse_ts(payload.get("measured_at")) is None:
+    if _parse_ts(payload.get("measured_at")) is None or not _valid_revision_fields(
+        payload
+    ):
         return False
     for key in ("run_id", "journey_id"):
         value = payload.get(key)
@@ -1506,6 +1537,17 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
     if scenario_mode and not _valid_scenario_receipt(payload, project_root, receipt_path):
         return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
+
+
+def _valid_revision_fields(payload: dict[str, Any]) -> bool:
+    """Receipts written before these fields existed stay valid without them."""
+    if "code_revision" in payload:
+        revision = payload["code_revision"]
+        if not isinstance(revision, str) or not (
+            revision == _UNKNOWN_REVISION or _REVISION_RE.fullmatch(revision)
+        ):
+            return False
+    return payload.get("uncommitted_changes") in (None, True, False)
 
 
 def _scenario_flags_consistent(payload: dict[str, Any]) -> bool:
@@ -1898,6 +1940,318 @@ def _evidence_matches_receipt(
     return True
 
 
+def _written_ns(path: Path) -> int:
+    """When a receipt file was written; orders runs recorded within one second.
+
+    Receipt timestamps hold whole seconds, so a fast journey can finish twice
+    with equal `measured_at` and `finished_at`.
+    """
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
+def _journey_runs(project_root: Path, journey_id: str) -> list[dict[str, Any]]:
+    """Every recorded run of one journey, oldest first, partial runs included.
+
+    This is the history an agent weighs before another run, not acceptance
+    evidence, so it does not apply the structural checks of `read_receipts`.
+    Each record is reduced to what the history needs while it is read, and a
+    record that cannot be reduced is dropped on its own: history is advisory
+    and must never change the result of the run that prints it.
+    """
+    evidence_root = project_root / EVIDENCE_ROOT_REL
+    if not evidence_root.is_dir():
+        return []
+    runs: list[dict[str, Any]] = []
+    for path in sorted(evidence_root.rglob("receipt.json")):
+        if path.is_symlink():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            run = _run_summary(payload, journey_id)
+        except (
+            OSError,
+            ValueError,
+            AttributeError,
+            KeyError,
+            TypeError,
+            ArithmeticError,
+            RecursionError,
+        ):
+            continue
+        if run is not None:
+            runs.append({**run, "written_ns": _written_ns(path)})
+    runs.sort(
+        key=lambda item: (
+            item["measured"],
+            item["finished_at"],
+            item["written_ns"],
+            item["run_id"],
+        )
+    )
+    return runs
+
+
+def _run_summary(payload: object, journey_id: str) -> Optional[dict[str, Any]]:
+    if not isinstance(payload, dict) or payload.get("receipt_type") != RECEIPT_TYPE:
+        return None
+    outcome = payload.get("outcome")
+    measured_at = payload.get("measured_at")
+    if payload.get("journey_id") != journey_id or outcome not in ("PASS", "FAIL"):
+        return None
+    measured = _parse_ts(measured_at) if isinstance(measured_at, str) else None
+    if measured is None:
+        return None
+    return {
+        "measured": measured,
+        "finished_at": str(payload.get("finished_at") or ""),
+        "run_id": str(payload.get("run_id") or ""),
+        "outcome": outcome,
+        "partial": payload.get("partial") is True,
+        "duration_ms": _run_duration_ms(payload),
+        "failure_signal": _failure_signal(payload) if outcome == "FAIL" else None,
+    }
+
+
+def _dict_items(value: object) -> list[dict[str, Any]]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _run_duration_ms(receipt: dict[str, Any]) -> int:
+    commands = receipt.get("commands")
+    timed = [
+        *(commands.values() if isinstance(commands, dict) else []),
+        *_dict_items(receipt.get("scenarios")),
+    ]
+    return sum(
+        item["duration_ms"]
+        for item in timed
+        if isinstance(item, dict) and _plausible_duration_ms(item.get("duration_ms"))
+    )
+
+
+def _plausible_duration_ms(value: object) -> bool:
+    """A recorded phase time that can be summed: a real number within one day."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return 0 <= value <= _HISTORY_DURATION_MAX_MS
+
+
+def _failure_signal(receipt: dict[str, Any]) -> str:
+    """What a failed run reported, comparable across full and partial runs.
+
+    It holds failure reasons, failed phase and scenario exit codes, missing
+    screen evidence and failing layout elements. Log text is not part of it,
+    so two different defects behind one exit code share a signal.
+    """
+    commands = receipt.get("commands")
+    ui_evidence = receipt.get("ui_evidence")
+    ux_integrity = receipt.get("ux_integrity")
+    evidence_paths = receipt.get("evidence_paths")
+    receipt_rel = evidence_paths.get("receipt") if isinstance(evidence_paths, dict) else None
+    # Evidence paths start with the run directory, which differs on every run.
+    run_prefix = (
+        receipt_rel.rsplit("/", 1)[0] + "/"
+        if isinstance(receipt_rel, str) and "/" in receipt_rel
+        else ""
+    )
+    signal_parts = {
+        "reasons": sorted(str(item) for item in receipt.get("failure_reasons") or []),
+        "phases": sorted(
+            [phase, result.get("exit_code")]
+            for phase, result in (commands.items() if isinstance(commands, dict) else [])
+            if isinstance(result, dict) and result.get("exit_code") != 0
+        ),
+        "scenarios": sorted(
+            [str(item.get("scenario_id")), item.get("exit_code")]
+            for item in _dict_items(receipt.get("scenarios"))
+            if item.get("executed") and item.get("exit_code") != 0
+        ),
+        "missing_evidence": sorted(
+            [str(step.get("step_id")), str(item.get("path", "")).removeprefix(run_prefix)]
+            for step in _dict_items(
+                ui_evidence.get("steps") if isinstance(ui_evidence, dict) else None
+            )
+            for item in _dict_items(step.get("evidence"))
+            if not item.get("present")
+        ),
+        "elements": sorted(
+            [
+                str(snapshot.get("step_id")),
+                str(element.get("element_id")),
+                bool(element.get("evaluated")),
+                str(element.get("within_safe_area")),
+                sorted(str(item) for item in element.get("occluded_by") or []),
+            ]
+            for snapshot in _dict_items(
+                ux_integrity.get("snapshots") if isinstance(ux_integrity, dict) else None
+            )
+            for element in _dict_items(snapshot.get("elements"))
+            if not element.get("evaluated")
+            or element.get("within_safe_area") is not True
+            or element.get("occluded_by")
+        ),
+    }
+    return json.dumps(signal_parts, ensure_ascii=False, sort_keys=True)
+
+
+def journey_history(project_root: Path | str, journey_id: str) -> dict[str, Any]:
+    """Cumulative cost of one journey and whether its latest failure repeats."""
+    root = Path(project_root).expanduser().resolve()
+    runs = _journey_runs(root, journey_id)
+    failing: list[dict[str, Any]] = []
+    for run in reversed(runs):
+        if run["outcome"] != "FAIL":
+            break
+        failing.append(run)
+    same_signal = 0
+    for run in failing:
+        if run["failure_signal"] != failing[0]["failure_signal"]:
+            break
+        same_signal += 1
+    return {
+        "journey_id": journey_id,
+        "runs": len(runs),
+        "failed": sum(1 for run in runs if run["outcome"] == "FAIL"),
+        "partial": sum(1 for run in runs if run["partial"]),
+        "duration_ms": sum(run["duration_ms"] for run in runs),
+        "consecutive_failures": len(failing),
+        "consecutive_failure_duration_ms": sum(run["duration_ms"] for run in failing),
+        "same_signal_streak": same_signal,
+        "previous_outcome": runs[-2]["outcome"] if len(runs) > 1 else None,
+    }
+
+
+def _format_duration(duration_ms: float) -> str:
+    seconds = round(duration_ms / 1000)
+    hours, rest = divmod(seconds, 3600)
+    minutes, seconds = divmod(rest, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m"
+    if minutes:
+        return f"{minutes}m{seconds:02d}s"
+    return f"{seconds}s"
+
+
+def _history_lines(receipt: dict[str, Any], history: dict[str, Any]) -> list[str]:
+    """Lines an agent reads after each run to judge whether another run pays off."""
+    uncommitted = receipt.get("uncommitted_changes")
+    dirty = "unknown" if uncommitted is None else ("yes" if uncommitted else "no")
+    lines = [
+        f"journey={receipt['journey_id']} outcome={receipt['outcome']} "
+        f"code_revision={receipt.get('code_revision', _UNKNOWN_REVISION)} "
+        f"uncommitted_changes={dirty}",
+        f"cumulative runs={history['runs']} failed={history['failed']} "
+        f"partial={history['partial']} duration={_format_duration(history['duration_ms'])}",
+    ]
+    if receipt["outcome"] != "FAIL":
+        return lines
+    lines.append(
+        f"consecutive failures={history['consecutive_failures']} "
+        f"duration={_format_duration(history['consecutive_failure_duration_ms'])}"
+    )
+    if history["previous_outcome"] is None:
+        relation = "no previous run"
+    elif history["previous_outcome"] != "FAIL":
+        relation = "previous run passed"
+    elif history["same_signal_streak"] > 1:
+        relation = (
+            f"same as the previous run, {history['same_signal_streak']} runs in a row"
+        )
+    else:
+        relation = "differs from the previous run"
+    lines.append(
+        f"failure signal: {relation} (compares failure reasons, failed phase and "
+        "scenario exit codes, missing screen evidence and failing layout elements; "
+        "log text is not compared)"
+    )
+    return lines
+
+
+def record_skip(
+    project_root: Path | str,
+    *,
+    config_path: Path | str,
+    reason: str,
+    scenarios: Optional[list[str]] = None,
+    run_id: Optional[str] = None,
+    recorded_at: Optional[str] = None,
+) -> Path:
+    """Record that a journey (or some scenarios) was deliberately not re-run.
+
+    The record names the reason and the full PASS it relies on, so a later
+    failure of a skipped target can be traced back to this decision. It is not
+    a receipt: the Epic summary and the scorecard never read it.
+    """
+    root, resolved_config, config, evidence_root = validate_config(
+        project_root, config_path=config_path
+    )
+    if not isinstance(reason, str) or not reason.strip():
+        raise JourneyConfigError("reason must say why the change cannot reach the target")
+    declared = _validated_scenarios(config)
+    skipped: Optional[list[str]] = None
+    if declared is not None or scenarios is not None:
+        selected = _selected_scenarios(declared, scenarios)
+        skipped = [
+            scenario_id
+            for scenario_id, _target_ac in _scenario_contract(declared or [])
+            if scenario_id in selected
+        ]
+    selected_run_id = run_id or _next_run_id(evidence_root)
+    if not _ID_RE.fullmatch(selected_run_id):
+        raise JourneyConfigError("run_id must match [a-z0-9][a-z0-9._-]{2,63}")
+    selected_recorded_at = recorded_at or _now_iso()
+    if _parse_ts(selected_recorded_at) is None:
+        raise JourneyConfigError("recorded_at must be ISO-8601")
+    journey_id = config["journey_id"]
+    passes = [
+        receipt
+        for receipt in read_receipts(root)
+        if receipt["journey_id"] == journey_id and receipt["outcome"] == "PASS"
+    ]
+    basis: Optional[dict[str, Any]] = None
+    if passes:
+        latest = max(
+            passes,
+            key=lambda item: (
+                _parse_ts(item["measured_at"]),
+                str(item.get("finished_at") or ""),
+                _written_ns(root / item["receipt_path"]),
+                str(item["run_id"]),
+            ),
+        )
+        basis = {
+            "run_id": latest["run_id"],
+            "measured_at": latest["measured_at"],
+            "code_revision": latest.get("code_revision", _UNKNOWN_REVISION),
+            "receipt_path": latest["receipt_path"],
+        }
+    run_dir = evidence_root / selected_run_id
+    try:
+        run_dir.mkdir(parents=True, exist_ok=False)
+    except FileExistsError as exc:
+        raise JourneyConfigError(f"run_id already exists: {selected_run_id}") from exc
+    record: dict[str, Any] = {
+        "schema_version": SCHEMA_VERSION,
+        "record_type": SKIP_RECORD_TYPE,
+        "run_id": selected_run_id,
+        "journey_id": journey_id,
+        "config_path": _relative(resolved_config, root),
+        "recorded_at": selected_recorded_at,
+        "code_revision": _code_revision(root),
+        "uncommitted_changes": _uncommitted_changes(root),
+        "reason": reason.strip(),
+        "basis": basis,
+    }
+    if skipped is not None:
+        record["scenarios"] = skipped
+    path = run_dir / "skip.json"
+    _write_receipt(path, record)
+    return path
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="project-local product journey runner"
@@ -1914,6 +2268,20 @@ def main(argv: Optional[list[str]] = None) -> int:
         action="append",
         default=None,
         help="re-run only this scenario (repeatable); the receipt is partial",
+    )
+    skip_parser = subparsers.add_parser(
+        "skip", help="record why a journey or scenario was not re-run"
+    )
+    skip_parser.add_argument("--project-root", default=".")
+    skip_parser.add_argument("--config", required=True)
+    skip_parser.add_argument("--reason", required=True)
+    skip_parser.add_argument("--run-id", default=None)
+    skip_parser.add_argument(
+        "--scenario",
+        dest="scenarios",
+        action="append",
+        default=None,
+        help="scenario that was not re-run (repeatable); omit for the whole journey",
     )
     validate_parser = subparsers.add_parser(
         "validate", help="check one journey contract without running it"
@@ -1938,6 +2306,31 @@ def main(argv: Optional[list[str]] = None) -> int:
             return 2
         print("[product-journey] contract PASS")
         return 0
+    if args.command == "skip":
+        try:
+            skip_path = record_skip(
+                args.project_root,
+                config_path=args.config,
+                reason=args.reason,
+                scenarios=args.scenarios,
+                run_id=args.run_id,
+            )
+        except JourneyConfigError as exc:
+            print(f"[product-journey] contract error: {exc}", file=sys.stderr)
+            return 2
+        print(skip_path)
+        basis = json.loads(skip_path.read_text(encoding="utf-8"))["basis"]
+        if basis is None:
+            print(
+                "[product-journey] no earlier full PASS of this journey: "
+                "nothing backs this skip"
+            )
+        else:
+            print(
+                f"[product-journey] relies on PASS run={basis['run_id']} "
+                f"code_revision={basis['code_revision']}"
+            )
+        return 0
     try:
         result = run_from_config(
             args.project_root,
@@ -1950,6 +2343,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"[product-journey] contract error: {exc}", file=sys.stderr)
         return 2
     print(result.receipt_path)
+    # History is advisory: whatever goes wrong while reading old records, the
+    # exit code stays the verdict of the run that just finished.
+    try:
+        history = journey_history(args.project_root, result.receipt["journey_id"])
+        lines = _history_lines(result.receipt, history)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[product-journey] history unavailable: {exc}", file=sys.stderr)
+        lines = []
+    for line in lines:
+        print(f"[product-journey] {line}")
     return result.exit_code
 
 

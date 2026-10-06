@@ -311,7 +311,7 @@ receipt에 적힌 판정값은 근거를 대신하지 않는다. scorecard가 re
   --config app/.maestro/dcness-journey.json
 ```
 
-성공은 exit 0, 실행된 제품 gap은 exit 1, 잘못된 계약은 exit 2다. 여정을 실행하지 않고 매니페스트 계약만 확인하려면 같은 인자로 `validate` 를 쓴다(통과 exit 0, 계약 위반 exit 2, 명령 실행·evidence 기록 없음). 각 run은 `evidence_dir/<run-id>/`에 단계별 log와 `receipt.json`을 남긴다. receipt는 다음 의미를 포함한다.
+성공은 exit 0, 실행된 제품 gap은 exit 1, 잘못된 계약은 exit 2다. 표준 출력의 첫 줄은 receipt 경로이고, 그 뒤 `[product-journey]`로 시작하는 줄은 [다시 실행할지 판단하는 재료](#다시-실행할지-판단하는-재료)다. 여정을 실행하지 않고 매니페스트 계약만 확인하려면 같은 인자로 `validate` 를 쓴다(통과 exit 0, 계약 위반 exit 2, 명령 실행·evidence 기록 없음). 각 run은 `evidence_dir/<run-id>/`에 단계별 log와 `receipt.json`을 남긴다. receipt는 다음 의미를 포함한다.
 
 - 실제 시작 여부 `app_started`, journey 실행 여부 `journey_executed`.
 - assertion의 설명·근거·평가 여부·결과.
@@ -322,6 +322,43 @@ receipt에 적힌 판정값은 근거를 대신하지 않는다. scorecard가 re
 - UI journey이면 UX 정합성 렌즈의 화면 snapshot별 layout report path·존재 여부·SHA-256, 확정 목업 링크, 요소별 bounds·`within_safe_area`·`occluded_by`.
 - 대상 AC의 passed/total denominator, 사람 개입, 실행 증거 종류.
 - log별 sha256과 failure reason.
+- `code_revision`: 실행을 시작할 때의 tracked HEAD 커밋 식별자. git 저장소가 아니거나 읽지 못하면 `unknown`이다. `uncommitted_changes`는 그 시점에 커밋되지 않은 변경이 있었는지(`true`/`false`, 알 수 없으면 `null`)다. 이 두 필드가 없는 과거 receipt도 그대로 읽힌다.
+
+### 다시 실행할지 판단하는 재료
+
+helper는 무엇을 다시 실행할지 정하지 않는다. 그 판단은 실행을 요청하는 agent가 하고, helper는 판단에 필요한 사실만 남긴다.
+
+**직전 통과 이후의 변경분.** 통과한 receipt의 `code_revision`과 현재 HEAD 사이의 diff가 "직전 통과 이후 바뀐 것"이다. `uncommitted_changes=true`인 receipt는 그 커밋만으로 실행 대상을 설명하지 못하므로, 커밋 diff를 변경분 전체로 읽지 않는다. `code_revision`이 `unknown`이거나 필드가 없으면 변경분을 계산할 수 없다.
+
+**누적 비용과 실패 신호.** `run`은 receipt 경로를 첫 줄에 출력한 뒤 같은 `journey_id`의 지난 실행을 모두 읽어 다음을 출력한다. 부분 실행도 실행 횟수와 시간에 포함한다.
+
+```text
+.dcness-work/product-journey/run-1791253823/receipt.json
+[product-journey] journey=account-export-cli outcome=FAIL code_revision=9b6fb557… uncommitted_changes=yes
+[product-journey] cumulative runs=17 failed=16 partial=3 duration=3h52m
+[product-journey] consecutive failures=13 duration=2h10m
+[product-journey] failure signal: same as the previous run, 13 runs in a row (…)
+```
+
+- `cumulative`: 이 journey의 전체 실행 횟수, 실패 횟수, 부분 실행 횟수, 명령 실행 시간 합계.
+- `consecutive failures`: 마지막 통과 이후 연속으로 실패한 실행 횟수와 그 시간. 실패한 실행에만 출력한다.
+- `failure signal`: 직전 실행과 실패 신호가 같은지(`same as the previous run, N runs in a row`), 다른지(`differs from the previous run`), 직전 실행이 통과였는지(`previous run passed`), 첫 실행인지(`no previous run`).
+
+실패 신호는 failure reason, 실패한 단계와 시나리오의 exit code, 빠진 화면 증거, 판정에 실패한 layout 요소를 비교한다. log 본문은 비교하지 않는다. 그래서 같은 exit code 뒤에 서로 다른 결함이 있어도 같은 신호로 나온다. 신호가 같다는 출력은 "원인이 같다"가 아니라 "관찰이 구분되지 않는다"는 뜻이다.
+
+**다시 실행하지 않은 대상의 기록.** 변경분이 닿지 않는다고 판단해 journey나 시나리오를 다시 실행하지 않았으면 그 판단을 기록으로 남긴다.
+
+```sh
+"$PLUGIN_ROOT/scripts/dcness-product-journey" skip \
+  --project-root "$PROJECT_ROOT" \
+  --config app/.maestro/dcness-journey.json \
+  --reason "문서만 바뀌어 이 흐름이 지나는 화면 코드에 닿지 않는다" \
+  --scenario login-flow
+```
+
+- `--reason`은 필수다. `--scenario`를 생략하면 journey 전체를 다시 실행하지 않았다는 기록이다.
+- 기록은 `evidence_dir/<run-id>/skip.json`에 남고, 기록 시점의 `code_revision`·`uncommitted_changes`, 이유, 대상 시나리오, 근거로 삼은 가장 최근 전체 통과 receipt(`basis`)를 담는다. 전체 통과 receipt가 없으면 `basis`는 `null`이고 helper가 그 사실을 출력한다.
+- 이 기록은 receipt가 아니다. Epic 결과 요약과 outcome scorecard는 읽지 않으며, 통과 수에도 실행 수에도 들어가지 않는다. 다시 실행하지 않은 대상이 이후 실패했는지는 같은 `journey_id`의 뒤따르는 receipt와 이 기록을 시간 순으로 맞춰 확인한다.
 
 repository operations의 `harness/outcome_scorecard.py`는 helper receipt 중 구조가 유효하고 snapshot cutoff 안에 있는 것만 읽는다. scorecard 구현은 release artifact에 포함되지 않으며 plug-in runtime이 이를 import하지 않는다. journey PASS/전체 실행 수와 제품 AC passed/total을 각각 보존하며 guard·validator·PR 지표를 제품 outcome 분자에 넣지 않는다.
 
