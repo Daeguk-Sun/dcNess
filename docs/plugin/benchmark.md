@@ -4,14 +4,14 @@
 
 ## 현재 공개 evidence snapshot
 
-<!-- public-evidence-snapshot {"plugin_version":"0.31.0","measured_at":"2026-10-03","unit_tests":{"passed":1427,"total":1427},"guard":{"passed":50,"total":50},"source_project_count":2} -->
+<!-- public-evidence-snapshot {"plugin_version":"0.32.0","measured_at":"2026-10-06","unit_tests":{"passed":1520,"total":1520},"guard":{"passed":51,"total":51},"source_project_count":2} -->
 
-현재 plugin version은 **v0.31.0**, 측정일은 **2026-10-03**이다. unit과 guard 수치는 dcNess source checkout의 기계적 계약 evidence이며 보안 증명이나 제품 성공률이 아니다.
+현재 plugin version은 **v0.32.0**, 측정일은 **2026-10-06**이다. unit과 guard 수치는 dcNess source checkout의 기계적 계약 evidence이며 보안 증명이나 제품 성공률이 아니다.
 
 | evidence | 관측값 | 재현 명령 | 한계 |
 |---|---:|---|---|
-| 전체 unit 계약 | 1,427/1,427 PASS | `python3.11 -m unittest discover -s tests -v` | source checkout 1개의 코드·문서 계약 |
-| guard fixture | 50/50 PASS | `python3.11 evals/guard_efficacy.py --json` | deterministic payload의 allow/block/exit/stdout 계약 |
+| 전체 unit 계약 | 1,520/1,520 PASS | `python3.11 -m unittest discover -s tests -v` | source checkout 1개의 코드·문서 계약 |
+| guard fixture | 51/51 PASS | `python3.11 evals/guard_efficacy.py --json` | deterministic payload의 allow/block/exit/stdout 계약 |
 | 공개 snapshot drift | README/benchmark 일치 | `node scripts/check_public_evidence.mjs` | 위 두 명령 결과와 문서 marker만 대조 |
 
 최종 test 수가 바뀌면 실제 전체 unit과 guard efficacy를 먼저 실행한 뒤 README와 이 문서의 marker를 같은 값으로 갱신한다.
