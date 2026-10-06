@@ -24,6 +24,16 @@ seed와 workflow snippet을 고칠 때의 컴퍼스이며, 그 자체가 외부 
   [../tests/test_doc_path_integrity.py](../tests/test_doc_path_integrity.py),
   [../tests/test_index_map_aggregate.py](../tests/test_index_map_aggregate.py): 주요 회귀 테스트.
 
+## 의존 관계 (dependencies)
+
+- [../harness/ci_workflows.py](../harness/ci_workflows.py)가 `github-workflows/`와 `design-variants/_lib/`의
+  파일 목록을 가지고 있다. 파일을 추가하거나 이름을 바꾸면 그 목록을 함께 고친다.
+- `scripts/design/`의 생성 스크립트가 `design-variants/_lib/`의 엔진을 프로젝트 사본과 비교한다.
+- [../tests/design_variants_browser_smoke.mjs](../tests/design_variants_browser_smoke.mjs)가
+  `design-variants/`를 임시 프로젝트로 복사해 headless Chrome 으로 검사한다.
+- 주의: 이미 seed 를 받은 프로젝트의 `docs/design-variants/_lib/` 사본은 plug-in 업데이트로 바뀌지 않는다.
+  엔진을 고치면 기존 프로젝트가 사본을 갱신하는 방법을 PR 본문에 적는다.
+
 ## 수정 시 주의점
 
 - workflow template은 사용자 repo의 `.github/workflows/`로 복사된다. dcness self 전용 경로나 개인 환경

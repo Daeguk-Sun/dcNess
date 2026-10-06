@@ -134,6 +134,8 @@ GitHub issue 를 대상으로 하는 dcness self 구현은 진입 때 읽은 본
 | [`scripts/hooks/pre-commit`](scripts/hooks/pre-commit) | git pre-commit hook 수정 시 |
 | [`scripts/hooks/cc-pre-commit.sh`](scripts/hooks/cc-pre-commit.sh) | Claude Code PreToolUse hook 수정 시 |
 | [`docs/internal/doc-conventions.md`](docs/internal/doc-conventions.md) | 문서 섹션 참조·anchor 링크 표기 수정/리뷰 시 (cross-ref 게이트가 강제하는 규약 SSOT) |
+| [`docs/internal/decisions.md`](docs/internal/decisions.md) | 설계 결정의 이유를 확인할 때, 그리고 새 결정을 내렸을 때 (결정·이유·근거 색인) |
+| [`docs/internal/harness-dependency-graph.md`](docs/internal/harness-dependency-graph.md) | `harness/` 모듈의 import 를 추가·변경하거나 변경 영향 범위를 확인할 때 |
 | [`docs/internal/self-improvement-loop.md`](docs/internal/self-improvement-loop.md) | 측정 신호를 하네스 개선으로 닫는 Sense→Diagnose→Decide→Act→Verify 자기개선 루프 수정 시 |
 | [`docs/internal/plugin-release.md`](docs/internal/plugin-release.md) | 플러그인 릴리즈·버전 배포 요청 시 — 순서·태그·주의사항 |
 | [`docs/internal/release-notes.md`](docs/internal/release-notes.md) | 릴리즈 노트 기록 — 버전별 커밋 범위·변경 요약 |
