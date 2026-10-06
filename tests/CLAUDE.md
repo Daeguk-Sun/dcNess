@@ -48,6 +48,15 @@
 - CI 는 [../.github/workflows/python-tests.yml](../.github/workflows/python-tests.yml)에서 전체 suite 와
   브라우저 smoke test 를 순서대로 실행한다.
 
+## 자주 하는 수정 (common change patterns)
+
+- **문서 문구를 고쳤더니 계약 테스트가 실패한다.** 먼저 제품 계약이 바뀐 것인지 판단한다.
+  계약이 바뀌었으면 테스트의 기대 문구를 고친다. 계약이 그대로면 문서를 되돌린다.
+- **새 테스트 파일을 추가한다.** 파일 이름을 `test_*.py`로 하면 `unittest discover`가 자동으로 실행한다.
+  등록할 목록은 없다.
+- **테스트 대상이 새 디렉터리에 있다.** [../.github/workflows/python-tests.yml](../.github/workflows/python-tests.yml)의
+  `paths`에 그 경로가 있는지 확인한다. 없으면 그 경로만 바꾼 PR 에서 CI 가 실행되지 않는다.
+
 ## 수정 시 주의점
 
 - 테스트 fixture는 가능한 한 `TemporaryDirectory` 안에서 만들고 repo 상태나 네트워크에 의존하지 않는다.

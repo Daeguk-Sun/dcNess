@@ -48,6 +48,17 @@ helper, 배포용 wrapper를 고칠 때의 컴퍼스다.
 - `.github/workflows/*.yml`과 `templates/github-workflows/*.yml`이 이 디렉터리의 checker 를 호출한다.
   checker 의 인자나 종료코드를 바꾸면 두 위치를 함께 본다.
 
+## 자주 하는 수정 (common change patterns)
+
+- **새 checker 를 추가한다.**
+  1. `check_*.mjs`를 만들고 `tests/`에 대응 테스트를 추가한다.
+  2. `.github/workflows/`에 실행 workflow 를 추가하고 루트 [../CLAUDE.md](../CLAUDE.md)의 "게이트 요약"에 적는다.
+  3. 외부 활성 프로젝트에도 적용할 checker 면 `templates/github-workflows/`에 template 을 추가하고
+     [../harness/ci_workflows.py](../harness/ci_workflows.py)의 `CHECKS`에 등록한다.
+- **새 `dcness-*` wrapper 를 추가한다.** [release_artifact.json](release_artifact.json)의 `include_paths`에
+  추가한다. 목록에 없는 wrapper 는 사용자 환경에 도달하지 않는다.
+- **checker 의 실패 문구를 바꾼다.** 그 문구를 기대하는 테스트를 함께 고친다.
+
 ## 수정 시 주의점
 
 - `sh` shebang 파일은 POSIX shell 기준으로 유지한다. Bash 기능이 필요하면 shebang과 호출 문서를 같이 본다.

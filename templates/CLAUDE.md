@@ -34,6 +34,19 @@ seed와 workflow snippet을 고칠 때의 컴퍼스이며, 그 자체가 외부 
 - 주의: 이미 seed 를 받은 프로젝트의 `docs/design-variants/_lib/` 사본은 plug-in 업데이트로 바뀌지 않는다.
   엔진을 고치면 기존 프로젝트가 사본을 갱신하는 방법을 PR 본문에 적는다.
 
+## 자주 하는 수정 (common change patterns)
+
+- **workflow template 을 추가하거나 고친다.**
+  1. `github-workflows/`의 파일을 고친다.
+  2. 새 template 이면 [../harness/ci_workflows.py](../harness/ci_workflows.py)의 `CHECKS`에 등록하고
+     [../docs/plugin/init-dcness.md](../docs/plugin/init-dcness.md)의 목록에 추가한다.
+  3. `python3.11 -m unittest tests.test_ci_workflows_install -v < /dev/null`을 실행한다.
+  4. 기존 프로젝트는 plug-in 업데이트 뒤 `/init-dcness`를 다시 실행해야 받는다. 이 내용을 PR 본문에 적는다.
+- **디자인 보드 엔진(`design-variants/_lib/`)을 고친다.**
+  1. 엔진 파일을 고친다.
+  2. PR 의 CI 에서 브라우저 smoke test 결과를 확인한다.
+  3. 기존 프로젝트가 사본을 갱신하는 방법을 PR 본문에 적는다.
+
 ## 수정 시 주의점
 
 - workflow template은 사용자 repo의 `.github/workflows/`로 복사된다. dcness self 전용 경로나 개인 환경

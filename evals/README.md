@@ -167,6 +167,14 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 4. 가능하면 반대쪽 대조 케이스(잡히면 안 되는 입력)도 쌍으로 만든다.
 5. `bash evals/run.sh` 로 현재 지침 기준 정답이 나오는지 확인 후 커밋.
 
+## 자주 하는 수정 (common change patterns)
+
+- **agent 지침을 고쳤다.** `bash evals/run.sh`로 행동 eval 을 1회 실행한다. 실패 처리는
+  [실패·재실행 처리 규범](#실패재실행-처리-규범)을 따른다.
+- **guard 나 hook 을 고쳤다.** `python3 evals/guard_efficacy.py`를 실행한다. 새 차단 규칙을 추가했으면
+  `guard_efficacy.py`의 `build_cases()`에 allow 사례와 block 사례를 함께 추가한다.
+- **하네스가 못 잡은 사고가 났다.** 아래 "케이스 추가 절차" 절을 따라 사고 1건을 케이스 1개로 추가한다.
+
 ## 의존 관계 (dependencies)
 
 - [`guard_efficacy.py`](guard_efficacy.py)는 `harness`의 `hooks`, `agent_boundary`, `session_state`,
