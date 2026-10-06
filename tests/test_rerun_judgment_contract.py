@@ -176,6 +176,29 @@ class GuideAdoptionTests(unittest.TestCase):
         self.assertIn("문서만 바뀐 변경처럼 실행 경로에 닿지 않는 변경은 journey를 다시 실행할 이유가 아니다", text)
 
 
+class CommandExampleTests(unittest.TestCase):
+    """지침의 명령 예시는 실행 도구의 필수 인자를 빠뜨리지 않는다."""
+
+    def test_journey_command_examples_with_options_name_the_manifest(self) -> None:
+        example = re.compile(r"`dcness-product-journey (?:run|skip) --[^`]*`")
+        found = 0
+        for path in (PRODUCT_ACCEPTANCE, BUILD_WORKER, FINISH, "skills/acceptance/SKILL.md"):
+            for match in example.finditer(read(path)):
+                found += 1
+                with self.subTest(path=path, example=match.group(0)):
+                    self.assertIn("--config ", match.group(0))
+        self.assertGreaterEqual(found, 5)
+
+    def test_skip_examples_carry_a_reason(self) -> None:
+        example = re.compile(r"`dcness-product-journey skip --[^`]*`")
+        for path in (PRODUCT_ACCEPTANCE, BUILD_WORKER):
+            matches = example.findall(read(path))
+            self.assertTrue(matches, path)
+            for text in matches:
+                with self.subTest(path=path, example=text):
+                    self.assertIn("--reason ", text)
+
+
 class ProviderParityTests(unittest.TestCase):
     """Claude 경로와 Codex 경로의 설계 검증 지침이 같은 내용을 담는다."""
 
