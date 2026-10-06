@@ -22,6 +22,7 @@
 | hook 자체의 오류나 판정 불가는 작업을 막지 않고 통과시킨다. 통과시킨 사실은 기록으로 남긴다. | hook 의 버그가 사용자의 전체 작업을 과하게 막지 않게 한다. | [`docs/plugin/hooks.md`](../plugin/hooks.md)의 "Layer 1" 절 |
 | 형식 위반이나 비용 증가 같은 문제는 차단하지 않고 경고한다. 경고를 차단으로 자동 승격하지 않는다. | 차단은 중대한 위반에만 쓴다. | [`CLAUDE.md`](../../CLAUDE.md)의 "안티패턴" 목록 |
 | 새 skill·command·agent·gate 를 추가하려면 기존 수단으로 부족한 이유를 먼저 설명한다. | 사용자에게 보이는 진입점을 작게 유지한다. | [`CLAUDE.md`](../../CLAUDE.md)의 "안티패턴" 5번, [`docs/plugin/positioning.md`](../plugin/positioning.md) |
+| 사용자의 승인 한 단어는 그때 묻던 선택만 확정한다. agent 가 설명문에 사실처럼 적은 제품 동작은 사용자 확정으로 세지 않는다. 사용자의 이해를 확인하는 수단은 agent 가 고르고 형식을 강제하지 않는다. | 핵심 동작 정의가 질문 밖에 있으면 사용자가 설계가 끝난 뒤에야 문제를 발견하고 하위 문서 전체를 다시 쓴다. 사용자에게 효과가 있는 것은 형식이 아니라 상황 단위로 풀어 쓴 설명이다. | [`docs/plugin/decision-completeness.md`](../plugin/decision-completeness.md)의 "agent 전제와 사용자 확정" 절, [#1294](https://github.com/Daeguk-Sun/dcNess/issues/1294) |
 
 ## 저장소 운영
 

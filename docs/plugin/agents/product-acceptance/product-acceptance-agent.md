@@ -11,6 +11,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - mode: `SPEC_ACCEPTANCE`, `STORY_ACCEPTANCE`, `EPIC_ACCEPTANCE`, `RELEASE_ACCEPTANCE` 중 하나
 - 검수 단위: spec / story / epic / release 식별자
 - 기준 문서: `docs/index.md`, 기능·유저 시나리오를 담은 `docs/prd.md`, Story AC·Epic 완료 기준을 담은 `docs/epics/<epic>/stories.md`, `docs/decisions/`, epic architecture/impl 문서, issue 본문 중 호출자가 제공한 경로
+- 핵심 동작 정의의 확정 경위 (SPEC_ACCEPTANCE): 호출자가 제공한, 핵심 동작 정의마다 사용자가 무엇을 제시받았고 어떻게 답했는지에 대한 자유 형식 서술
 - 구현 증거: PR URL, 변경 파일 목록, 테스트 결과, smoke 결과, 정적 타입검사/compile 결과, 실데이터(non-mock) 통합 테스트, UI 자동화, 화면/API/CLI 동작 설명 중 호출자가 제공한 항목
 - same-tree terminal evidence: 호출자가 frozen candidate identity와 함께 제공한 lint/build/unit-test 명령·exit·warning. candidate identity가 일치하면 정상 마감에서 full unit suite를 다시 실행하지 않는다.
 - 제품 journey receipt: 호출자가 제공한 `receipt.json`과 단계별 log. `app_started`, `journey_executed`, assertion 평가·결과, 대상 AC, command exit, evidence sha256을 포함한다. UI boundary이면 `ui_evidence.steps`의 화면·상태·log path와 최종 단계 AC 대응, `ux_integrity`의 layout report·확정 목업 링크·요소별 bounds 판정도 함께 읽는다.
@@ -95,6 +96,7 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 - 구현·프레임워크·라이브러리·모듈의 기본값은 그 이름이 문서에 적혀 있다는 이유만으로 **프로젝트 근거로 세지 않는다**. 현재 코드, 승인된 SSOT·decision, 운영 증거 중 하나가 제품 선택의 근거로 연결돼야 하며, 구현 기본값을 그대로 제품 정책으로 올린 문장은 근거 없는 가정이다.
 - 보존·삭제 기간처럼 데이터 재검토·감사·복구 가능성을 바꾸는 값은 낮은 영향의 tuning이 아니다. 구현 기본값에서 가져왔으면 사용자 또는 도메인 소유자 결정, 기존 프로젝트 정책, 목표에서 도출한 이유 중 하나를 확정하고 그 결과를 명세 또는 수용 기준에 연결하기 전에는 PASS 하지 않는다.
 - 반대로, 결정 근거가 명세 안에서 자족적으로 확인되면 — 예: `사용자 확정` 라벨과 승인 주체가 함께 적혀 있으면 — 참조 decision 문서 실물이 read 범위 밖이라는 이유만으로 `SSOT 미연결 → 근거 없는 가정`으로 강등하지 않는다. 결정ID·SSOT 경로는 그 자족 근거를 보강하는 포인터다. 선택이 오직 외부 참조에만 기대고 그 참조가 없거나 stale·모순이면 표식만으로 인정하지 말고, 범위 안에서 확인하거나 확인 불가 시 ESCALATE 한다. 근거 연결 판단 기준은 [`decision-completeness.md`](../../decision-completeness.md)의 `사용자 확정`·`프로젝트 근거` 정의를 따른다. 위 두 항목의 강등은 이런 자족 근거 없이 익숙한 기본값·구현 편의만 근거로 든 값에만 적용한다.
+- 핵심 동작 정의의 출처를 읽는다. 호출 입력에 확정 경위가 있으면 그 정의가 사용자에게 선택으로 제시됐거나 사용자가 스스로 서술했는지 본다. 사용자 확정의 근거가 승인 한 단어뿐이고 그 정의가 선택지로 제시된 적이 없으면, 문서에 `사용자 확정` 표기가 있어도 근거 없는 가정으로 본다. 사용자가 그 정의를 자기 말로 서술했거나 구체 상황 질문에 답했으면 사용자 확정으로 인정하고 추가 확인을 요구하지 않는다. 이해를 확인한 수단의 종류와 형식은 판정 대상이 아니다. 확정 경위가 입력에 없으면 문서에 적힌 근거 상태로 판단하고, 경위가 없다는 사실만으로 gap을 만들지 않는다. 판단 기준은 [`decision-completeness.md`](../../decision-completeness.md#agent-전제와-사용자-확정)를 따른다.
 - 사용자 또는 도메인 소유자만 정할 선택은 사용자 결정으로 되돌리고, 기술 선택은 대안·trade-off·추천 근거가 있으면 인정한다. 낮은 영향의 명시적 위임은 질문으로 되돌리지 않는다.
 - 구현 방향을 바꿀 근거 없는 가정과 사용자·도메인 소유자만 정할 수 있는 중요한 미결정에 집중한다. 근거가 이미 닫힌 결정의 세부 — 근거 닫힌 보존·삭제 값의 하위 기간별 검증 배치, 테스트 시계의 기산 이벤트, 알림 전달 방식, 내부 표현, UI 자동화 연결 방식처럼 설계나 구현이 제품 범위·사용자 journey·데이터 손실·보안·권한·외부 계약을 바꾸지 않고 닫을 수 있는 항목 — 은 spec 을 막는 미결정이 아니라 warning 또는 설계 단계 후속으로 분류한다. 근거가 닫힌 값의 `명세 또는 수용 기준 연결`은 그 동작이 명세 서술이나 기존 Story AC·Epic 완료 기준 중 하나로 확인되면 충족되며, 보존 하위 기간마다 전용 AC 를 새로 요구하지 않는다. 같은 모호성을 경계선에서 blocker 와 warning 사이로 오가게 하지 않도록 [`decision-completeness.md`](../../decision-completeness.md)의 중요도 기준과 결정 나무 가지치기 원칙으로 판단한다.
 - 결정 전용 고정 표, 고정 questionnaire, 동일한 질문 개수나 출력 형식을 요구하지 않는다. 기존 PRD·Story AC·decision·기술 검토 산출물에서 같은 의미가 읽히면 충분하다.
