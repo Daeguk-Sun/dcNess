@@ -168,6 +168,43 @@ class DecisionCompletenessContractTests(unittest.TestCase):
         self.assertIn("증빙 원문만 삭제", stories[0])
         self.assertIn("오류·초안 보존 UI test", stories[0])
 
+    def test_agent_premise_is_not_user_confirmation(self) -> None:
+        contract = (ROOT / "docs" / "plugin" / "decision-completeness.md").read_text(
+            encoding="utf-8"
+        )
+        spec = (ROOT / "skills" / "spec" / "SKILL.md").read_text(encoding="utf-8")
+        design = (ROOT / "skills" / "design" / "SKILL.md").read_text(encoding="utf-8")
+        product_acceptance = (
+            ROOT
+            / "docs"
+            / "plugin"
+            / "agents"
+            / "product-acceptance"
+            / "product-acceptance-agent.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("## agent 전제와 사용자 확정", contract)
+        for text in (contract, spec):
+            self.assertIn("사실처럼 적은", text)
+            self.assertIn("부차적 선택보다 먼저", text)
+        self.assertIn("이해의 증거로 보지 않", spec)
+        self.assertIn("수단은 메인이", spec)
+        self.assertIn("확정 경위", spec)
+        self.assertIn("하위 문서 작성을 이어 가기 전에", design)
+        self.assertIn("확정 경위", product_acceptance)
+        self.assertIn("승인 한 단어", product_acceptance)
+
+        cases = ROOT / "evals" / "cases"
+        for name, marker in (
+            ("spec-core-premise-unconfirmed", "[MUST]"),
+            ("spec-short-approvals-only", "[MUST]"),
+            ("spec-core-definition-own-words", "[MUST_NOT]"),
+            ("spec-understanding-check-prose", "[MUST_NOT]"),
+        ):
+            with self.subTest(case=name):
+                expected = (cases / name / "expected.md").read_text(encoding="utf-8")
+                self.assertIn(marker, expected)
+
     def test_two_real_pilots_trace_decisions_and_record_human_approval(self) -> None:
         pilots = (
             ROOT / "docs" / "internal" / "decision-completeness-pilots.md"
