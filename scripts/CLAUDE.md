@@ -71,8 +71,9 @@ helper, 배포용 wrapper를 고칠 때의 컴퍼스다.
 
 ## 검증
 
-- Node checker: `node scripts/check_cross_refs.mjs`처럼 해당 checker를 직접 실행한다.
-- Shell wrapper: `bash -n scripts/pr-finalize.sh` 또는 shebang에 맞는 syntax check를 먼저 돌린다.
-- Python gate 영향: `python3.11 -m unittest discover -s tests -v < /dev/null`.
-- static-quality 관련 변경은 `PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality.sh`
-  형태로 venv Python을 명시해 재현한다.
+```sh
+node scripts/check_cross_refs.mjs                          # Node checker 는 해당 checker 를 직접 실행
+bash -n scripts/pr-finalize.sh                             # shell wrapper 는 shebang 에 맞는 syntax check 먼저
+python3.11 -m unittest discover -s tests -v < /dev/null    # Python gate 영향
+PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality.sh   # static-quality 는 venv Python 명시
+```

@@ -101,6 +101,11 @@ flowchart LR
   hook은 [../tests/test_hooks.py](../tests/test_hooks.py), context docs는
   [../tests/test_context_docs.py](../tests/test_context_docs.py), journey는
   [../tests/test_product_journey.py](../tests/test_product_journey.py).
-- 범위가 불명확하면 `python3.11 -m unittest discover -s tests -v < /dev/null`로 전체 unit suite를
-  돌린다.
-- 보안성 있는 경계, subprocess, 파일 권한 변경은 static-quality gate까지 확인한다.
+- 범위가 불명확하면 전체 unit suite를 돌린다. 보안성 있는 경계, subprocess, 파일 권한 변경은
+  static-quality gate까지 확인한다.
+
+```sh
+python3.11 -m unittest discover -s tests -v < /dev/null   # 전체 unit suite
+python3 evals/guard_efficacy.py                           # hook·접근 경계 변경 뒤
+PYTHON_BIN=/tmp/dcness-quality-venv/bin/python bash scripts/check_static_quality.sh   # static-quality gate
+```

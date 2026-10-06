@@ -4,7 +4,7 @@
 
 ## 모든 에이전트(사람 포함) 강제 절차
 
-1. **branch → PR → merge** (main 직접 commit 금지)
+1. 반드시 **branch → PR → merge** 로 진행한다 (main 직접 commit 금지)
 2. **commit 직전**: git pre-commit hook 자동 실행 (main-block + pytest).
 3. **PR**: `.github/PULL_REQUEST_TEMPLATE.md` 체크리스트 작성.
 
