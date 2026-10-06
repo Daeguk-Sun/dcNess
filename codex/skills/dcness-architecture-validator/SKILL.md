@@ -51,7 +51,7 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 - Engineer가 정책을 새로 만들지 않고 구현할 수 있을 만큼 concrete interface, ownership boundary, state transition, data contract가 충분한가.
 - Story AC가 원 PRD 유저 시나리오에 붙어 있고, 제품 REQ마다 `(from AC-NNN)` 출처가 있으며 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 검증되는가.
 - `report_ac_coverage.mjs` 결과와 실제 산출물을 대조했을 때 미커버 AC, 무출처 REQ, 존재하지 않는 AC 참조가 없는가. 소수 기술 REQ만 `(technical: 이유)`로 분리되는가.
-- Story 마지막 task가 해당 Story AC 전항목을 실제 실행·관찰하는 종합 검증을 소유하는가.
+- Story 마지막 task 의 종합 검증이 Story AC 전항목을 덮는가. 앞 task 가 이미 실행·관찰했고 이후 task 의 변경이 닿지 않는 AC 는 마지막 task 가 다시 실행하지 않아도 되지만, 그 경우 어느 task 의 증거로 덮는지와 닿지 않는 이유가 적혀 있어야 한다.
 - Cross-story 또는 cross-module producer/consumer contract가 서로 같은 의미를 가리키는가.
 - Placeholder, TODO, "decide later", 미구현 branch가 Must behavior를 막지 않는가.
 - Dependency direction, public API boundary, shared domain model 변경이 명시되어 있는가.
@@ -73,7 +73,7 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 - `(JOURNEY)` task 의 journey 쓰기 경로(flow 대본, `--config` 매니페스트, setup/teardown 스크립트, 여정 등록 파일)가 `### 수정 허용` 안에 있는가. `harness_paths` 에만 있고 grant 가 없으면 build-worker 가 boundary guard 에 막히므로 `TASK_LOCAL` finding 으로 드러낸다.
 - 한 Story 의 `(JOURNEY)` AC 를 화면 흐름 여러 개로 확인하는데 시나리오별 id·담당 AC·독립 실행 조건이 없거나, 담당 시나리오가 없는 journey AC 가 있지 않은가. 있으면 흐름 하나의 실패가 모든 AC 실패가 되므로 `TASK_LOCAL` finding 으로 드러낸다.
 - ux-flow와 stories prose 같은 비규범 요약 층이 stale 하더라도 형식만으로 Must finding 으로 올리지 않았는가. module responsibility / decision 과 충돌해 구현 오판을 만들 때만 Must 후보로 본다.
-- revision mode 에서는 개정분만 보지 않고 개정 후 전체 설계 pack 정합을 본다. 메인이 전달한 파생 drift 체크리스트(`ux-flow.md`, 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호, domain-model/ADR 잔존 표현)는 evidence pointer로 사용하되, 항목 이름 부재만으로 Must finding 을 만들지 않는다.
+- revision mode 와 FAIL 뒤 재검증에서는 직전 통과·검증 결과 이후의 변경분을 읽고, 그 변경이 닿는 산출물과 판단 축만 다시 검토한다. 영향이 넓거나 불확실하거나 직전 결과와의 연결을 믿을 수 없으면 스스로 개정 후 전체 설계 pack 정합으로 범위를 올린다. 호출자가 범위를 좁혀 주기를 기다리지 않으며, 다시 검토하지 않은 산출물마다 "왜 이 변경이 닿지 않는가"를 적는다. 직전 결과가 없으면 전체를 검토한다. 메인이 전달한 파생 drift 체크리스트(`ux-flow.md`, 전역 `architecture.md` 요약, 상태 ID prefix, `design-report.html`, ADR supersede-vs-edit, 확정 목업 node-id, `docs/design.md` 토큰, Story/화면 번호, domain-model/ADR 잔존 표현)는 닿는 범위를 찾는 증거 포인터로 사용하되, 항목 이름 부재만으로 Must finding 을 만들지 않는다. "닿는다"는 파일 경로 규칙이 아니라, 변경된 내용이 그 산출물이 인용하거나 의존하는 계약·상태·화면·결정·다른 task 에 들어가는지로 읽는다. 전역 결정·공유 계약·공통 task 의 변경은 닿는 범위가 넓다.
 
 ## 작업 흐름
 
@@ -85,15 +85,15 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 6. final epic 검증에서는 domain-model 작성/생략 근거가 impl 계약과 모순되지 않는지, 계약 표면 코드 SSOT 대조 증거가 있는지 확인한다. 포트, 도메인 타입, 공개 entrypoint 를 바꾸는 task 가 기존 코드와 충돌하거나 module/decision 근거 없이 새 계약을 전제하면 finding 으로 보고한다.
 7. final epic 검증에서 고위험 상태 계약 위험 신호가 있으면 적용 가능한 전이를 끝까지 추적하고, 앞 Story 가 만든 상태·identity 를 뒤 Story 가 소비하는 공유 계약을 별도로 대조한다. 전이의 중간 단계가 산출물에 없거나 어느 implementation task 의 scope 도 그 단계를 수정하지 못하면 finding 으로 보고한다.
 7.1. final epic 검증에서 구현 방향을 바꾸는 설계 선택의 근거 상태를 대조한다. 근거 없는 가정과 중요한 미결정이 0개인지, 미결정 처리 결과가 제품 동작을 바꾸면 명세 또는 수용 기준까지 연결됐는지 확인한다.
-8. `report_ac_coverage.mjs` 결과와 실제 stories/impl 문서를 함께 읽어 미커버 AC, 무출처 REQ, 존재하지 않는 AC 참조, Story 마지막 task 전수 검증 누락을 확인한다. Story AC 부재는 즉시 실패하며, 나머지 report gap은 실제 산출물에서 확인되면 `TASK_LOCAL` finding 으로 드러낸다.
+8. `report_ac_coverage.mjs` 결과와 실제 stories/impl 문서를 함께 읽어 미커버 AC, 무출처 REQ, 존재하지 않는 AC 참조, Story 마지막 task 종합 검증 누락을 확인한다. Story AC 부재는 즉시 실패하며, 나머지 report gap은 실제 산출물에서 확인되면 `TASK_LOCAL` finding 으로 드러낸다.
 9. 수용 기준은 실행 가능한 명령 또는 `(AGENT READ)` 관찰 증거로 닫히는지 확인한다. 사람 판정 항목이 task REQ 로 들어오면 `TASK_LOCAL` 후보로 본다.
 10. `### 수정 허용` 형식은 normalizer 가 먼저 처리한 뒤 남은 `unresolved_slugs` / `format_unnormalized_slugs` 만 검토한다. 볼드/라벨/괄호처럼 단일 경로 후보가 분명한 항목은 기계 교정 범위라 Must finding 으로 반복하지 않는다.
-11. revision mode 이면 메인이 전달한 파생 drift 체크리스트 결과와 변경된 UX/system 산출물을 대조해 개정 후 전체 설계 pack 이 stale 참조 없이 구현 가능한지 본다.
+11. revision mode 또는 FAIL 뒤 재검증이면 메인이 전달한 직전 결과, 변경된 UX/system 산출물, 파생 drift 체크리스트 결과를 대조해 변경이 닿는 산출물을 고르고, 그 범위가 stale 참조 없이 구현 가능한지 본다. 영향이 넓으면 개정 후 전체 설계 pack 정합으로 올린다.
 12. Must finding마다 파일 경로, 라인, 구체적 사실, 영향, 권장 다음 행동을 쓴다. 질적 판단이라는 이유만으로 advisory 로 내리지 않는다 — 구체적인 위치, 깨지는 시나리오, 방치 시 영향이 입증되면 Must finding 으로 올린다.
 13. Must finding은 다음 중 하나로 분류한다.
    - `SYSTEM_BOUNDARY`: 기존 모듈 경계, ownership, domain invariant, storage policy, public API boundary, 전역 decision 이 틀려 system checkpoint 승격 또는 system architecture 재검토가 필요하다.
    - `TASK_LOCAL`: 단일 implementation task 문서 또는 epic-batch 산출물 보강으로 충분하다.
-14. 미커버 AC, 무출처 REQ, 마지막 task 전수 검증 누락, Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준은 보통 `TASK_LOCAL` 이다.
+14. 미커버 AC, 무출처 REQ, 마지막 task 종합 검증 누락, Story/task 산출물의 수직 슬라이스 증거 누락, owner/entrypoint 요약 누락, 병렬성 때문에 동작이 레이어별 부품으로 찢긴 상태, 마지막 task까지 첫 제품 동작이 밀린 상태, 실행 가능한 명령 없는 수용 기준은 보통 `TASK_LOCAL` 이다.
 15. 예시에 없는 문제라도 설계 실패 가능성이 evidence로 보이면 finding으로 남긴다.
 
 ## FAIL / ESCALATE 판단 노트와 재검증 delta-first 보고
@@ -104,7 +104,7 @@ Claude-side `architecture-validator` prompt를 복제하지 않는다. 같은 �
 
 같은 agent/mode 의 retry 또는 재검증이면 전체 배경을 반복하지 않고 직전 결과 대비 변화부터 쓴다. 재검증 결과는 changed / resolved / still failing / new 를 먼저 드러내고, 권장 카테고리는 해소됨, 유지됨, 신규, 판단 불가다. 남은 차단 finding 에는 파일/라인/명령 같은 재현 가능한 근거를 유지한다.
 
-retry 또는 재검증 호출이어도 Codex validator 는 retry counter 를 증가·리셋하지 않는다. 메인이 design-routing.md 의 provider-agnostic counter 로 자동 재진입 한도를 판단한다. 새 finding 등장, finding 분류 변경, Codex provider 사용 사실을 한도 리셋처럼 표현하지 않는다.
+retry 또는 재검증 호출이어도 Codex validator 는 재시도를 계속할지 정하지 않는다. 메인이 design-routing.md 의 재시도 이력 계약으로 수렴 여부를 읽는다. validator 는 그 판단의 재료로 직전 finding 대비 resolved / still failing / new 를 판정 가능하게 쓰고, 같은 영역 finding 이 반복되는지를 드러낸다. 새 finding 등장, finding 분류 변경, Codex provider 사용 사실을 새 시도의 근거처럼 표현하지 않는다.
 
 별도 영구 산출물 작성 금지, read-only agent 가 직접 파일 쓰기 금지, JSON, marker, 고정 schema, 필수 heading 강제는 도입하지 않는다. `PASS` 단발에는 적용하지 않는다.
 
@@ -118,10 +118,10 @@ retry 또는 재검증 호출이어도 Codex validator 는 retry counter 를 증
 - final epic 검증이면 `domain-model.md` 작성 또는 생략 판단 근거가 impl 계약과 모순되지 않는지 검토했다.
 - 적용 가능한 경우 계약 표면 코드 SSOT 대조 증거를 검토했다. 저장·동기화·상태 전이를 바꾸는 epic 이면 상태성 코드 SSOT 표면까지 대조했다.
 - 고위험 상태 계약 위험 신호가 있으면 적용 가능한 전이 추적과 Story 간 공유 상태 소비를 검토했고, PASS 보고가 검토한 고위험 계약과 핵심 상태 전이 근거를 설명한다. 고정 표나 JSON 은 요구하지 않는다.
-- Story AC ↔ REQ coverage report와 실제 산출물을 대조해 미커버 AC, 무출처 REQ, 마지막 task 전수 검증 누락을 확인했다.
+- Story AC ↔ REQ coverage report와 실제 산출물을 대조해 미커버 AC, 무출처 REQ, 마지막 task 종합 검증 누락을 확인했다.
 - 구현 방향을 바꿀 근거 없는 가정과 중요한 미결정을 검토했고, 남아 있으면 PASS하지 않았다. 고정 표 부재만으로 finding을 만들지 않았다.
 - 수용 기준의 실행 명령 또는 `(AGENT READ)` 관찰 증거를 검토했다.
-- revision mode 이면 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 증거를 검토했다.
+- revision mode 또는 재검증이면 변경이 닿는 범위를 골라 검토했고, 영향이 넓으면 개정 후 전체 설계 pack 정합으로 올렸으며, 다시 검토하지 않은 산출물의 이유와 파생 drift 체크리스트 증거가 보고에 있다.
 - ux-flow와 stories prose의 요약 drift를 형식만으로 Must finding 으로 올리지 않았다.
 - `### 수정 허용` 형식 신호가 주어졌다면 normalizer 이후에도 남은 미해결 slug 인지 구분했다.
 - FAIL이면 모든 Must finding에 path:line evidence, 분류 token, 다음 행동이 있다.

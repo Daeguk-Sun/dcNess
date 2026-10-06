@@ -185,14 +185,14 @@ non-PASS면 `ALREADY_COMPLETED` 안내대로 run을 닫고 다시 호출한다.
 mark에 쓸 commit sha를 읽을 때 worker 보고의 `JOURNEY_ENV_PREFLIGHT` 판정도 함께
 읽어, 확실한 미충족이면 그 `journey_id`와 probe 근거를 진행 뷰에 남긴다. 이 값이
 마감의 수렴 직전 환경 처분 입력이다. 남기지 않으면 미충족을 아는 채로 수렴에 들어가
-iteration 한도를 소모한다.
+실행 비용만 쓴다.
 
 ### 5. worker task loop
 
 - worker는 impl 파일의 `## 사전 준비` pointer만 따라 focused read한다.
 - 200 line 초과 문서는 관련 section만 `rg` + offset read하고, 수정하지 않는 모듈은 signature만 읽는다. 메인은 worker 대신 문서를 통째로 읽지 않는다.
 - task local commit과 실제 검증 명령·exit code·clean status가 report에 있어야 PASS다.
-- Story 마지막 task는 Story AC 전항목을 종합 검증한다. 종합 REQ가 없으면 `SPEC_GAP_FOUND`다.
+- Story 마지막 task는 Story AC 전항목을 종합 검증으로 덮는다. 앞 task 증거로 덮는 AC에는 닿지 않는 이유가 있어야 한다. 종합 REQ가 없으면 `SPEC_GAP_FOUND`다.
 - 기본 build-worker는 task를 읽은 직후 자동 `(JOURNEY)` 선언을 감지하고, 같은
   worker context에서 source read/edit보다 먼저 `JOURNEY_ENV_PREFLIGHT`를 내부
   phase로 한 번 수행한다. journey 미선언은 no-op이며 별도 main/provider launch를

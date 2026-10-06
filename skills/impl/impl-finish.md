@@ -33,7 +33,7 @@ Cartography sync/no-op과 의미 단위 commit이 끝나고 tracked tree가 clea
 
 validator는 base부터 frozen tip까지 전체 diff를 한 번에 보는 holistic reviewer다. fixed task/commit fan-out을 만들지 않고 실제 unresolved high-risk 또는 넓은 context가 있을 때만 같은 reviewer가 selective extra investigation을 한다.
 
-MUST FIX가 있으면 최대 3회 root-cause 수정 루프를 돈다. 같은 계열 결함과 삭제된 로직의 잔여 호출·문서·테스트도 함께 찾고, 매 round마다 관련 gate와 Cartography sync를 다시 수행해 새 candidate를 freeze한 뒤 재검증한다. 구현 owner를 중간에 바꾸지 않는다. MUST FIX가 없으면 NICE TO HAVE를 merge blocker로 승격하지 않는다.
+MUST FIX가 있으면 root-cause 수정 루프를 돈다. 횟수로 멈추지 않고 [`rerun-judgment.md`](../../docs/plugin/agents/_shared/rerun-judgment.md) 기준으로 finding이 수렴하는지 읽어, 수렴하지 않거나 새 정보가 나오지 않으면 멈추고 사용자에게 보고한다. 같은 계열 결함과 삭제된 로직의 잔여 호출·문서·테스트도 함께 찾고, 매 round마다 그 수정이 닿는 gate와 Cartography sync를 다시 수행해 새 candidate를 freeze한 뒤 재검증한다. 구현 owner를 중간에 바꾸지 않는다. MUST FIX가 없으면 NICE TO HAVE를 merge blocker로 승격하지 않는다.
 
 ## commit·PR·CI
 

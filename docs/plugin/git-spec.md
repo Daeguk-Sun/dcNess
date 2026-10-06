@@ -233,7 +233,7 @@ task 는 별도 GitHub 이슈를 만들지 않는다. build-worker 의 local com
 
 - **task**: local commit 이므로 PR trailer 없음. `task_index` 는 story 내부 설계 순서이며 PR close 판정 입력이 아니다.
 - **story PR**: 단일/다중 run 모두 `Closes #story-issue`를 넣는다. 다중 story PR은 생성 시 stack base라 close가 아직 발동하지 않고, merge 직전 main 리타겟 후 해당 story만 닫는다.
-- **journey deferred production-only PR**: env 선검증 또는 수렴 한도에서 사용자가 해당 journey 검수를 분리했다면 story/epic issue를 닫지 않는다. `Part of #issue`와 `Document-Exception-PR-Close: journey deferred human verification/follow-up`을 넣고 `Closes`는 붙이지 않는다.
+- **journey deferred production-only PR**: env 선검증 또는 수렴 중단 처분에서 사용자가 해당 journey 검수를 분리했다면 story/epic issue를 닫지 않는다. `Part of #issue`와 `Document-Exception-PR-Close: journey deferred human verification/follow-up`을 넣고 `Closes`는 붙이지 않는다.
 - **epic close**: QA PR이 있으면 QA PR, 없으면 마지막 story PR에 `Closes #epic-issue`를 넣는다. 마지막 close PR은 stack 전체의 review/acceptance/AC audit이 끝난 뒤에만 merge한다.
 - **QA PR**: epic close 전에는 `Part of #epic-issue`, epic close를 실제 발동하는 마지막 PR이면 `Closes #epic-issue`를 쓴다. receipt/log/screenshot은 tracked PR 산출물이 아니다.
 - **공통 task 묶음**: 별도 story issue가 없으므로 `Part of #epic-issue`를 사용한다.

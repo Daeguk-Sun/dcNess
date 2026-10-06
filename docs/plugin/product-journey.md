@@ -13,7 +13,7 @@
 4. `cleanup`: 성공·실패와 무관하게 종료·정리한다.
 5. `evidence_dir`: command exit와 log, 대상 AC, 실행 시각을 연결하는 receipt 위치다.
 
-module-architect가 실앱 실행이 필요한 AC를 `(JOURNEY)` REQ로 지정하고 인수 환경과 하네스 배관 경로를 impl task에 선언한다. build-worker는 project-local e2e flow와 journey 매니페스트를 작성한 뒤, 모든 task가 끝난 final tip에서 별도 수렴 호출로 실제 실행·관찰·수정을 끝낸다. `product-acceptance`는 이 수렴 결과를 신뢰해 생략하지 않고 final tip에서 sealed receipt를 직접 생성·판정한다. 고치기 위한 실행은 build-worker, 판정하기 위한 write-zero 실행은 product-acceptance 소유다. UI 경계도 네 command와 같은 assertion 판정을 재사용하며, helper가 브라우저를 직접 자동화하지 않는다. 프로젝트가 소유한 journey command가 화면을 조작하고 screenshot·상태 파일을 남긴다.
+module-architect가 실앱 실행이 필요한 AC를 `(JOURNEY)` REQ로 지정하고 인수 환경과 하네스 배관 경로를 impl task에 선언한다. build-worker는 project-local e2e flow와 journey 매니페스트를 작성한 뒤, 모든 task가 끝난 final tip에서 별도 수렴 호출로 실제 실행·관찰·수정을 끝낸다. `product-acceptance`는 이 수렴 receipt를 직전 통과 기록으로 읽고, 그 이후의 변경분이 journey에 닿는지 판단해 final tip에서 다시 실행할 범위를 정한 뒤 판정한다. 고치기 위한 실행은 build-worker, 판정하기 위한 write-zero 실행은 product-acceptance 소유다. UI 경계도 네 command와 같은 assertion 판정을 재사용하며, helper가 브라우저를 직접 자동화하지 않는다. 프로젝트가 소유한 journey command가 화면을 조작하고 screenshot·상태 파일을 남긴다.
 
 ## 프로젝트 계약
 
@@ -164,7 +164,7 @@ start가 실패하거나 service가 유예 시간 안에 종료되면 `app_not_s
 - 이때도 `start`·`health`·`cleanup`은 한 번씩 실행한다. UI 경계이면 선택한 시나리오의 화면 단계만 판정한다.
 - 담당 시나리오 중 실행하지 않은 것이 있는 AC는 `NOT_RUN`이다. 다만 실행한 시나리오가 실패했거나 그 시나리오의 화면 증거·UX 정합성 판정이 실패하면 그 AC는 `FAIL`이다.
 - 선택한 시나리오의 AC에 `FAIL`이 없으면 exit 0이다.
-- 이 receipt는 `partial=true`로 남는다. 부분 실행 receipt는 Epic 결과 요약과 outcome scorecard가 읽지 않는다. 수렴 PASS와 sealed acceptance 판정은 항상 전체 시나리오를 실행한 receipt로 한다.
+- 이 receipt는 `partial=true`로 남는다. 부분 실행 receipt는 Epic 결과 요약과 outcome scorecard가 읽지 않는다. 수렴과 acceptance에서 나머지 시나리오를 다시 실행할지는 agent가 변경분을 읽고 정한다([다시 실행할지 판단하는 재료](#다시-실행할지-판단하는-재료)). 전체 통과 receipt가 한 번도 없는 journey는 전체 시나리오를 실행해야 통과로 집계된다.
 
 `scenarios`가 없는 기존 매니페스트는 `commands.journey` 하나로 지금과 같이 실행·판정한다.
 
@@ -357,7 +357,7 @@ helper는 무엇을 다시 실행할지 정하지 않는다. 그 판단은 실�
 ```
 
 - `--reason`은 필수다. `--scenario`를 생략하면 journey 전체를 다시 실행하지 않았다는 기록이다.
-- 기록은 `evidence_dir/<run-id>/skip.json`에 남고, 기록 시점의 `code_revision`·`uncommitted_changes`, 이유, 대상 시나리오, 근거로 삼은 가장 최근 전체 통과 receipt(`basis`)를 담는다. 전체 통과 receipt가 없으면 `basis`는 `null`이고 helper가 그 사실을 출력한다.
+- 기록은 `evidence_dir/<run-id>/skip.json`에 남고, 기록 시점의 `code_revision`·`uncommitted_changes`, 이유, 대상 시나리오, 근거로 삼은 가장 최근 전체 통과 receipt(`basis`)를 담는다. 전체 통과 receipt가 없으면 `basis`는 `null`이고 helper가 그 사실을 출력한다. 전체 통과 receipt가 있어도 그 뒤에 같은 대상이 실패한 전체·부분 실행이 있고 다시 통과한 기록이 없으면 `basis`는 `null`이며, 그 실패 실행을 `unresolved_failure`로 기록하고 출력한다. 앱 미기동·준비 확인·정리 실패·화면 증거 누락처럼 시나리오 하나에 묶이지 않는 실패는 모든 시나리오에 적용한다. 통과는 그 대상의 가장 최근 결과일 때만 근거가 된다.
 - 이 기록은 receipt가 아니다. Epic 결과 요약과 outcome scorecard는 읽지 않으며, 통과 수에도 실행 수에도 들어가지 않는다. 다시 실행하지 않은 대상이 이후 실패했는지는 같은 `journey_id`의 뒤따르는 receipt와 이 기록을 시간 순으로 맞춰 확인한다.
 
 repository operations의 `harness/outcome_scorecard.py`는 helper receipt 중 구조가 유효하고 snapshot cutoff 안에 있는 것만 읽는다. scorecard 구현은 release artifact에 포함되지 않으며 plug-in runtime이 이를 import하지 않는다. journey PASS/전체 실행 수와 제품 AC passed/total을 각각 보존하며 guard·validator·PR 지표를 제품 outcome 분자에 넣지 않는다.

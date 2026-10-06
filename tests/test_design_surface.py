@@ -164,11 +164,12 @@ class DesignSurfaceContractTests(unittest.TestCase):
 
         for needle in (
             "final epic 검증 FAIL → 산출 주체 재진입",
-            "3 cycle",
-            "표의 각 행에 적힌 한도",
-            "초과 시 사용자 위임",
+            "어느 경로에도 숫자 한도는 없다",
+            "수렴 여부를 읽어 정한다",
+            "사용자 위임",
         ):
             self.assertIn(needle, routing)
+        self.assertNotIn("3 cycle", routing)
 
         for text in (system_architect, module_architect, validator):
             with self.subTest(text=text[:60]):
@@ -263,8 +264,8 @@ class DesignSurfaceContractTests(unittest.TestCase):
         self.assertNotIn("최종 검증 결과 commit", design)
         self.assertNotIn("사용자 확인 없이 자동 진행 (**impl-task-loop 외** 루프)", loop_procedure)
 
-    def test_design_retry_limit_has_single_provider_agnostic_counter(self) -> None:
-        """#970 — final validation retry limit must not reset by finding or provider."""
+    def test_design_retry_history_is_single_and_provider_agnostic(self) -> None:
+        """#970 — a new finding class or provider is not a reason to retry again."""
         design_dir = ROOT / "skills" / "design"
         design = (design_dir / "SKILL.md").read_text(encoding="utf-8")
         routing = (design_dir / "design-routing.md").read_text(encoding="utf-8")
@@ -285,12 +286,12 @@ class DesignSurfaceContractTests(unittest.TestCase):
 
         for needle in (
             "RCA",
-            "final epic 검증 FAIL → 산출 주체 재진입 counter 는 하나",
+            "final epic 검증 FAIL → 산출 주체 재진입의 재시도 이력은 하나",
             "`SYSTEM_BOUNDARY` / `TASK_LOCAL`",
             "finding 영역 변경",
             "새 finding 등장",
-            "리셋하지 않는다",
-            "4번째 자동 재진입",
+            "분류만 바꿔 계속 재시도하지 않는다",
+            "수렴하지 않는 것이다",
             "루프 재구성 이후",
         ):
             with self.subTest(needle=needle):
@@ -298,13 +299,15 @@ class DesignSurfaceContractTests(unittest.TestCase):
 
         for text in (design, routing, loop_procedure):
             with self.subTest(text=text[:60]):
-                self.assertIn("Claude Agent 와 Codex wrapper 모두 메인이 집계", text)
-                self.assertIn("Codex wrapper 는 end-step 까지 수행하지만 counter 소유자가 아니다", text)
+                self.assertIn("Claude Agent 와 Codex wrapper 모두 메인이 이력을 읽는다", text)
+                self.assertIn(
+                    "Codex wrapper 는 end-step 까지 수행하지만 재시도 판단의 소유자가 아니다", text
+                )
 
         for text in (validator, codex_validator):
             with self.subTest(provider_doc=text[:60]):
-                self.assertIn("retry counter 를 증가·리셋하지 않는다", text)
-                self.assertIn("메인이 design-routing.md 의 provider-agnostic counter", text)
+                self.assertIn("재시도를 계속할지 정하지 않는다", text)
+                self.assertIn("메인이 design-routing.md 의 재시도 이력 계약", text)
 
     def test_design_dispatches_internal_ux_and_system_stages(self) -> None:
         """#958 — /design remains public while durable artifacts select an internal stage."""

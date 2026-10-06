@@ -66,14 +66,14 @@ flowchart TB
 
 - **모드 전환** — UX_FLOW 진행 중 ux-architect 가 기존 화면 개선이 맞다고 판단해 `UX_REFINE_READY` 로 끝나면 UX_REFINE 절차로 전환한다.
 - **hi-fi 목업 범위** — 화면 인벤토리에서 `hi-fi 목업 필요` 가 `필요` 인 화면만 designer 대상이다. 전 화면 일괄 목업화 금지. `불필요` 화면은 `ux-flow.md` text wireframe 으로 충분하다.
-- **designer 재생성** — 사용자 PICK NG 는 round 한도가 없다 (사용자 자유 결정, sub_cycle `designer-ROUND-<n>`). 재생성 전에도 design-variants seed 보장을 다시 확인한다. cycle 한도는 self-check FAIL / 승인 거절 경로에만 적용한다.
+- **designer 재생성** — 사용자 PICK NG 는 round 한도가 없다 (사용자 자유 결정, sub_cycle `designer-ROUND-<n>`). 재생성 전에도 design-variants seed 보장을 다시 확인한다. 횟수 한도는 승인 거절 경로에만 적용하고, self-check FAIL 재진입은 수렴 여부로 판단한다.
 - **확정본 계약** — 완료 산출은 `docs/design-variants/screens/<screen-id>.html` + `docs/design-variants/README.md` + 핵심 node-id 매핑이다. `/ux` 는 산출물 PR merge 와 main sync 뒤 종료하며, `/impl` 은 머지된 결과만 `기준 있음` 으로 이어받는다.
 
 ## cycle 한도
 
 | 재시도 경로 | 한도 | 초과 시 |
 |---|---|---|
-| ux-architect self-check FAIL (UX_FLOW) → ux-architect 재진입 | 2 cycle | 사용자 위임 |
+| ux-architect self-check FAIL (UX_FLOW) → ux-architect 재진입 | 횟수 한도 없음 — 직전 대비 지적이 줄거나 좁아질 때만 다시 돈다 ([`design-routing.md`](../design/design-routing.md#재시도-판단)) | 사용자 위임 |
 | 사용자 승인 거절 (UX_REFINE Step 2.5) → ux-architect 재진입 | 2 cycle | 사용자 위임 |
 | designer `PASS` + 사용자 PICK NG → `designer-ROUND-<n>` 재생성 | 한도 X | 사용자 자유 결정 |
 

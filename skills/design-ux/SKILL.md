@@ -11,7 +11,7 @@ description: /design 내부 stage 1 전용 스킬. 공개 진입점이 아니며
 
 UI epic 의 UX 산출물을 system/module 설계와 같은 PR 에 묶지 않고 먼저 durable 하게 머지한다. stage 1 PR 이 main 에 들어가면 `docs/epics/<epic>/ux-flow.md` 존재만으로 다음 세션이 "`/design` (ux 완료 · system 미완)" 상태를 복구할 수 있다.
 
-완료된 full design pack 에서 화면 통합·분할·삭제, 플로우 변경, `ux-flow.md`, 확정 목업, `docs/design.md` 토큰처럼 UX 산출물 자체를 바꾸는 명시 개정 신호가 있으면 revision mode 로 들어간다. 이때 stage 1 은 UX 산출물만 수술적으로 개정하고, architecture/impl/decision 전파는 stage 1 revision PR 머지 뒤 `design-system` revision mode 가 맡는다.
+완료된 full design pack 에서 화면 통합·분할·삭제, 플로우 변경, `ux-flow.md`, 확정 목업, `docs/design.md` 토큰처럼 UX 산출물 자체를 바꾸는 명시 개정 신호가 있으면 revision mode 로 들어간다. 이때 stage 1 은 UX 산출물만 수술적으로 개정한다. 개정이 architecture/impl/decision 에 닿으면 그 전파는 stage 1 revision PR 머지 뒤 `design-system` revision mode 가 맡는다.
 
 ## 진입 조건
 
@@ -47,7 +47,7 @@ architecture, domain-model, impl task 는 이 stage 에서 만들지 않는다. 
 
 ### revision mode 의 전파 대기 표식
 
-완료된 pack 을 개정할 때는 pack 파일이 이미 다 있어서 stage 1 을 머지해도 파일 존재만으로는 "전파가 남았다" 를 알 수 없다. 그래서 revision mode 의 stage 1 PR 은 `docs/epics/<epic>/revision-pending.md` 를 같은 커밋에 포함한다. 사람이 손으로 적는 값이 아니라 이 절차가 남기는 상태이며, `design-system` revision stage 가 끝나는 PR 이 지운다. 내용에는 어떤 UX 개정이 머지됐고 어떤 system/module 산출물 전파가 남았는지 한눈에 읽히게 적는다 — 다음 세션이 대화 맥락 없이 이 파일만 읽고 이어받는다.
+완료된 pack 을 개정할 때는 pack 파일이 이미 다 있어서 stage 1 을 머지해도 파일 존재만으로는 "전파가 남았다" 를 알 수 없다. 그래서 메인은 stage 1 PR 을 만들기 전에 UX 변경분을 읽고, 그 변경이 architecture·decision·impl task(화면 인벤토리, node-id 매핑, Story → 모듈 매핑, task 수와 순서, `## 디자인 참조`)에 닿는지 판단한다. 닿거나 불확실하면 revision mode 의 stage 1 PR 은 `docs/epics/<epic>/revision-pending.md` 를 같은 커밋에 포함한다. 닿지 않는다는 근거를 댈 수 있으면(예: system/module 산출물이 이름으로만 참조하는 토큰의 값 변경) 표식을 만들지 않고, 전파하지 않는 이유를 stage 1 PR 본문과 사용자 승인 요약에 적는다. 화면 통합·분할·삭제나 node-id 변경은 닿는 것으로 본다. 판단 기준은 [`rerun-judgment.md`](../../docs/plugin/agents/_shared/rerun-judgment.md) 다. 사람이 손으로 적는 값이 아니라 이 절차가 남기는 상태이며, `design-system` revision stage 가 끝나는 PR 이 지운다. 내용에는 어떤 UX 개정이 머지됐고 어떤 system/module 산출물 전파가 남았는지 한눈에 읽히게 적는다 — 다음 세션이 대화 맥락 없이 이 파일만 읽고 이어받는다.
 
 신규 설계(개정이 아닌 첫 stage 1)에서는 `ux-flow.md` 존재 + pack 부재가 이미 stage 경계를 드러내므로 이 표식을 만들지 않는다.
 
@@ -62,7 +62,7 @@ architecture, domain-model, impl task 는 이 stage 에서 만들지 않는다. 
    - 목업 없음 경로에서는 canvas-design 을 강제하지 않는다. `hi-fi 목업 필요` 는 후속 `/ux` 또는 `/impl` 기준 확보 판단의 신호로만 남긴다.
 7. **end-run + metrics freeze** — PR 생성 전에 `dcness-helper end-run` 을 실행해 `docs/metrics/design-runs.jsonl` 에 stage run 을 기록한다.
 8. **사용자 최종 설계 승인 + stage 1 PR** — UX 산출물 요약, 목업 선행 여부, 확정 목업 경로와 diff 규모를 제시해 사용자 최종 설계 승인을 받는다. revision mode 에서는 UX revision 산출물 요약, 변경 전후 화면/플로우 영향, 유지/폐기한 확정 목업 경로와 diff 규모를 함께 제시한다. 승인 응답 전에는 `git add`, `git commit`, `git push`, `gh pr create`, `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다. 승인 뒤에만 stage 1 산출물만 stage/commit/push/PR 생성한다. PR body 의 배포 경로에는 `/design` 내부 stage 이고 공개 진입점 변화가 없음을 명시한다.
-9. **머지 후 반환** — PR merge/main sync 가 끝나면 `/design` dispatcher 로 돌아간다. 신규 UX stage 의 다음 durable 판정은 `ux-flow.md` 존재 + 설계 pack 부재이므로 `design-system` stage 를 선택한다. revision mode 였다면 직전 stage 1 revision PR 이 UX 산출물을 바꿨다는 신호를 유지해 `design-system` revision mode 로 이어지고, architecture/decision/impl task 의 영향분을 전파한다.
+9. **머지 후 반환** — PR merge/main sync 가 끝나면 `/design` dispatcher 로 돌아간다. 신규 UX stage 의 다음 durable 판정은 `ux-flow.md` 존재 + 설계 pack 부재이므로 `design-system` stage 를 선택한다. revision mode 였고 `revision-pending.md` 를 남겼다면 `design-system` revision mode 로 이어져 architecture/decision/impl task 의 영향분을 전파한다. 표식을 남기지 않은 개정은 여기서 끝난다.
 
 ## 결론 enum
 

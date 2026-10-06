@@ -139,7 +139,7 @@ full E2E 검증은 MVP /spec 이행 범위 밖이다.
 ```
 
 - `PASS` → Step 9
-- `FAIL` → gap 보고 + 메인 patch 후 Step 7
+- `FAIL` → gap 보고 + 메인 patch 후 Step 7. 재검수 호출에는 직전 검수 결과와 그 뒤 patch 한 섹션을 함께 준다. 다시 검수할 범위는 메인이 처방하지 않고 product-acceptance 가 변경분을 읽고 고르며, 변경이 넓게 닿으면 스스로 전체로 올린다. 같은 gap 이 patch 뒤에도 반복되면 문구를 다시 고치지 않고 PRD·Story 분할의 근본 원인을 사용자와 다시 본다([`rerun-judgment.md`](../../docs/plugin/agents/_shared/rerun-judgment.md)).
 - `ESCALATE` → 기준 문서/권한/사용자 결정 부족 보고 후 사용자 위임
 
 ### Step 9 — delivery topology 확정

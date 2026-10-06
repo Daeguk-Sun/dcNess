@@ -43,7 +43,7 @@ class ScenarioContractDocumentTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIn("시나리오별 id·담당 AC·독립 실행 조건", self._read(path))
 
-    def test_convergence_reruns_failed_scenarios_then_runs_all(self) -> None:
+    def test_convergence_reruns_failed_scenarios_then_judges_the_rest(self) -> None:
         for path in (
             "docs/plugin/agents/build-worker/build-worker-agent.md",
             "skills/impl-loop/impl-loop-finish.md",
@@ -51,8 +51,8 @@ class ScenarioContractDocumentTests(unittest.TestCase):
             with self.subTest(path=path):
                 text = self._read(path)
                 self.assertIn("--scenario", text)
-                self.assertIn("전체 시나리오", text)
-                self.assertIn("부분 실행 receipt는 수렴 PASS 증거가 아니다", text)
+                self.assertIn("닿는지", text)
+                self.assertIn("부분 실행 receipt는 전체 실행 receipt가 아니", text)
 
     def test_both_impl_validator_providers_match_scenario_ac_to_flow(self) -> None:
         for path in (
@@ -62,10 +62,11 @@ class ScenarioContractDocumentTests(unittest.TestCase):
             with self.subTest(path=path):
                 self.assertIn("각 시나리오의 `target_ac`", self._read(path))
 
-    def test_acceptance_runs_every_scenario_and_judges_per_ac(self) -> None:
+    def test_acceptance_chooses_scenarios_and_judges_per_ac(self) -> None:
         text = self._read("docs/plugin/agents/product-acceptance/product-acceptance-agent.md")
-        self.assertIn("`--scenario` 없이 전체 시나리오를 실행한다", text)
-        self.assertIn("`partial=true` receipt는 판정 증거가 아니다", text)
+        self.assertIn("같은 판단을 시나리오 단위로 한다", text)
+        self.assertIn("`partial=true`이며 전체 실행 receipt가 아니다", text)
+        self.assertIn("그 receipt가 없으면 전체 시나리오를 실행한다", text)
         self.assertIn("`ac_results`", text)
 
 

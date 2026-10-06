@@ -414,6 +414,153 @@ class SkipRecordTests(unittest.TestCase):
 
         self.assertEqual(record["basis"]["run_id"], "a-second-pass")
 
+    def test_a_later_failure_of_the_target_leaves_the_skip_without_a_basis(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config())
+            _run(root, "full-pass", measured_at="2026-07-10T00:00:00Z")
+            _write_config(root, _config(exits=(0, 3)))
+            _run(root, "later-fail", measured_at="2026-07-10T00:01:00Z")
+            _run(
+                root,
+                "later-partial-fail",
+                measured_at="2026-07-10T00:02:00Z",
+                scenarios=["scenario-two"],
+            )
+
+            def _skip(run_id: str, scenarios: list[str] | None) -> dict[str, object]:
+                path = record_skip(
+                    root,
+                    config_path=root / CONFIG_PATH,
+                    reason="변경이 닿지 않는다",
+                    scenarios=scenarios,
+                    run_id=run_id,
+                )
+                return json.loads(path.read_text(encoding="utf-8"))
+
+            whole = _skip("skip-whole", None)
+            failed_one = _skip("skip-two", ["scenario-two"])
+            untouched_one = _skip("skip-one", ["scenario-one"])
+            stream = io.StringIO()
+            with contextlib.redirect_stdout(stream):
+                code = main(
+                    [
+                        "skip",
+                        "--project-root", str(root),
+                        "--config", str(root / CONFIG_PATH),
+                        "--reason", "변경이 닿지 않는다",
+                    ]
+                )
+
+        # The journey and scenario-two failed after the pass: the pass no longer backs them.
+        self.assertIsNone(whole["basis"])
+        self.assertEqual(whole["unresolved_failure"]["run_id"], "later-partial-fail")
+        self.assertIsNone(failed_one["basis"])
+        self.assertEqual(failed_one["unresolved_failure"]["run_id"], "later-partial-fail")
+        # scenario-one passed in every run that executed it.
+        self.assertEqual(untouched_one["basis"]["run_id"], "full-pass")
+        self.assertNotIn("unresolved_failure", untouched_one)
+        self.assertEqual(code, 0)
+        self.assertIn("failed after the last full PASS", stream.getvalue())
+
+    def test_a_run_level_failure_after_the_pass_blocks_every_scenario(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config())
+            _run(root, "full-pass", measured_at="2026-07-10T00:00:00Z")
+            broken = _config()
+            commands = broken["commands"]
+            assert isinstance(commands, dict)
+            commands["health"] = _command("raise SystemExit(7)")
+            _write_config(root, broken)
+            _run(root, "health-fail", measured_at="2026-07-10T00:01:00Z")
+            _write_config(root, _config())
+            record = json.loads(
+                record_skip(
+                    root,
+                    config_path=root / CONFIG_PATH,
+                    reason="변경이 닿지 않는다",
+                    scenarios=["scenario-one"],
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertIsNone(record["basis"])
+        self.assertEqual(record["unresolved_failure"]["run_id"], "health-fail")
+
+    def test_only_a_target_that_passed_again_gets_its_basis_back(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config())
+            _run(root, "full-pass", measured_at="2026-07-10T00:00:00Z")
+            broken = _config(exits=(0, 3))
+            commands = broken["commands"]
+            assert isinstance(commands, dict)
+            commands["cleanup"] = _command("raise SystemExit(5)")
+            _write_config(root, broken)
+            # scenario-two fails and cleanup fails in the same run.
+            _run(root, "two-and-cleanup-fail", measured_at="2026-07-10T00:01:00Z")
+            _write_config(root, _config(exits=(0, 3)))
+            _run(
+                root,
+                "one-passes-again",
+                measured_at="2026-07-10T00:02:00Z",
+                scenarios=["scenario-one"],
+            )
+
+            def _skip(run_id: str, scenarios: list[str]) -> dict[str, object]:
+                path = record_skip(
+                    root,
+                    config_path=root / CONFIG_PATH,
+                    reason="변경이 닿지 않는다",
+                    scenarios=scenarios,
+                    run_id=run_id,
+                )
+                return json.loads(path.read_text(encoding="utf-8"))
+
+            still_failing = _skip("skip-two", ["scenario-two"])
+            passed_again = _skip("skip-one", ["scenario-one"])
+            both = _skip("skip-both", ["scenario-one", "scenario-two"])
+
+        self.assertIsNone(still_failing["basis"])
+        self.assertEqual(
+            still_failing["unresolved_failure"]["run_id"], "two-and-cleanup-fail"
+        )
+        self.assertEqual(passed_again["basis"]["run_id"], "full-pass")
+        self.assertIsNone(both["basis"])
+
+    def test_journey_without_scenarios_needs_a_later_pass_to_clear_a_failure(self) -> None:
+        def _plain(exit_code: int) -> dict[str, object]:
+            payload = _config()
+            del payload["scenarios"]
+            commands = payload["commands"]
+            assert isinstance(commands, dict)
+            commands["journey"] = _command(f"raise SystemExit({exit_code})")
+            return payload
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _plain(0))
+            _run(root, "pass-1", measured_at="2026-07-10T00:00:00Z")
+            _write_config(root, _plain(4))
+            _run(root, "fail-2", measured_at="2026-07-10T00:01:00Z")
+            blocked = json.loads(
+                record_skip(
+                    root, config_path=root / CONFIG_PATH, reason="변경이 닿지 않는다", run_id="skip-a"
+                ).read_text(encoding="utf-8")
+            )
+            _write_config(root, _plain(0))
+            _run(root, "pass-3", measured_at="2026-07-10T00:03:00Z")
+            cleared = json.loads(
+                record_skip(
+                    root, config_path=root / CONFIG_PATH, reason="변경이 닿지 않는다", run_id="skip-b"
+                ).read_text(encoding="utf-8")
+            )
+
+        self.assertIsNone(blocked["basis"])
+        self.assertEqual(blocked["unresolved_failure"]["run_id"], "fail-2")
+        self.assertEqual(cleared["basis"]["run_id"], "pass-3")
+        self.assertNotIn("unresolved_failure", cleared)
+
     def test_skip_record_can_name_only_some_scenarios(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

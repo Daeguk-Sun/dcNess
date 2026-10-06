@@ -52,8 +52,8 @@ flowchart TB
   SA_CHECK -->|PASS| MA_BATCH
   AV_FINAL -->|PASS| M([end-run/metrics freeze 후 사용자 최종 설계 승인 · commit/PR · 머지 → /impl 안내])
   M -->|DESIGN_SYSTEM_PR_MERGED| DONE([/impl 안내])
-  AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY ≤3 shared"| SA_CHECK
-  AV_FINAL -->|"FAIL: TASK_LOCAL ≤3 shared"| MA_BATCH
+  AV_FINAL -->|"FAIL: SYSTEM_BOUNDARY"| SA_CHECK
+  AV_FINAL -->|"FAIL: TASK_LOCAL"| MA_BATCH
   SA_CHECK -->|NEW_DEP_ESCALATE| U((사용자 · 4안))
   SA_BOOT -->|NEW_DEP_ESCALATE| U
   MA_BATCH -->|NEW_DEP_ESCALATE| U
@@ -71,7 +71,7 @@ flowchart TB
   class U user
 ```
 
-> 파랑 = 생산 agent · 초록 = 검증 agent · 회색 = 사용자 위임. 점선 = escalate. 엣지의 `≤N` = retry 한도 ([retry 한도](#retry-한도)). `SYSTEM_BOUNDARY` / `TASK_LOCAL` final FAIL 엣지는 같은 shared counter 를 쓴다.
+> 파랑 = 생산 agent · 초록 = 검증 agent · 회색 = 사용자 위임. 점선 = escalate. FAIL 엣지를 다시 돌지는 횟수가 아니라 [재시도 판단](#재시도-판단)으로 정한다. `SYSTEM_BOUNDARY` / `TASK_LOCAL` final FAIL 엣지는 하나의 재시도 이력으로 읽는다.
 >
 > tech-reviewer 는 design 진입 *전* (`/tech-review` skill) 단계가 기본이다. design 중 새 외부 의존이 발견되면 사용자가 option 4 를 명시 선택한 경우에만 대상 epic 범위로 좁혀 호출한다.
 
@@ -85,7 +85,7 @@ flowchart TB
 | **design-system stage** | `DESIGN_SYSTEM_PR_MERGED` → `/impl <epic-path>` 안내 · `ESCALATE` → 사용자 |
 | **impl-validator:CODEBASE_SANITY** | stale/missing receipt의 affected scope `PASS` → 메인이 현재 tree identity receipt를 local 경로에 보존하고 Cartography freshness preflight · `FAIL [quality-gap]` → `/impl` cleanup 뒤 새 code revision으로 `/design` preflight 재진입 · `ESCALATE` → 사용자 |
 | **ux-architect** | `UX_FLOW_READY` → 사용자 최종 설계 승인 후 stage 1 PR 생성 → `/design` dispatcher 재판정 · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
-| **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SYSTEM_CHECKPOINT_REQUIRED` → system-architect opt-in checkpoint · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([retry 한도](#retry-한도)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
+| **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SYSTEM_CHECKPOINT_REQUIRED` → system-architect opt-in checkpoint · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([재시도 판단](#재시도-판단)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **system-architect(thin bootstrap)** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **system-architect(opt-in checkpoint)** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **architecture-validator** | `PASS`(final epic 검증) → SKILL.md Step 5 end-run/metrics freeze 후 사용자 최종 설계 승인 + commit/PR · `FAIL` → finding 분류별 재진입([finding 분류 분기](#finding-분류-분기)) · `ESCALATE` → 사용자 |
@@ -93,13 +93,13 @@ flowchart TB
 
 표만으로 안 풀리는 맥락:
 
-- **Codebase Sanity receipt freshness** — `dcness-helper sanity-receipt-dir --project-root "$PROJECT_ROOT"`로 primary-worktree `.dcness-work/codebase-sanity/` local-only/ignored 경로를 해석해 `ExitWorktree` 뒤에도 남은 receipt의 code revision/tree identity를 현재 code tree와 대조한다. current면 재사용하고, 부재·stale이면 메인이 현재 명령·exit/warning을 수집한 뒤 `impl-validator:CODEBASE_SANITY`를 affected scope로 재감사한다. receipt는 canonical Root refresh 완료 또는 affected capability/entrypoint 현재 코드 대조를 대신하지 않는다.
+- **Codebase Sanity receipt freshness** — `dcness-helper sanity-receipt-dir --project-root "$PROJECT_ROOT"`로 primary-worktree `.dcness-work/codebase-sanity/` local-only/ignored 경로를 해석해 `ExitWorktree` 뒤에도 남은 receipt의 code revision/tree identity를 현재 code tree와 대조한다. 같으면 재사용한다. 다르면 무조건 무효로 보지 않고, 메인이 receipt의 revision부터 현재까지의 변경분을 읽어 그 변경이 이번 epic의 affected scope와 그 scope가 의존하는 빌드 설정·의존성·공유 모듈에 닿는지 판단한다. 닿지 않는다는 근거를 댈 수 있으면 receipt를 재사용하고 그 이유를 남긴다. 닿으면 닿는 명령의 exit/warning만 다시 수집해 `impl-validator:CODEBASE_SANITY`를 affected scope로 재감사한다. receipt가 없거나 변경분을 계산할 수 없거나 영향이 넓으면 전체 명령을 다시 수집한다. 판단 기준은 [`rerun-judgment.md`](../../docs/plugin/agents/_shared/rerun-judgment.md) 다. receipt는 canonical Root refresh 완료 또는 affected capability/entrypoint 현재 코드 대조를 대신하지 않는다.
 - **Cartography freshness preflight** — stories·Root·관련 global decision에서 affected capability/entrypoint를 식별하고 현재 코드의 runtime entrypoint와 wiring 증거에 대조한다. system boundary, storage policy, shared public boundary, global decision 변경이 명백하면 system checkpoint로 선승격한다. boundary 없는 route/state 갱신은 별도 Cartography 전용 system-architect로 우회하지 않고 module-architect가 bounded하게 처리한다. 놓친 영향은 기존 `SYSTEM_CHECKPOINT_REQUIRED`와 final `SYSTEM_BOUNDARY` finding으로 회수한다.
 - **system-architect(thin bootstrap)** 는 greenfield 첫 설계에서 모듈 topology 가 전혀 없을 때만 module-architect 앞에 1회 들어간다. 산출은 큰 모듈 목록(책임 + 공개 인터페이스 한 줄), 의존 그래프, 스택/전역 decision 기록으로 제한한다. bootstrap 뒤 architecture-validator 를 끼우지 않고 바로 module-architect 로 간다.
 - **module-architect(epic-batch)** 는 공통 task와 전체 Story impl 산출물을 하나의 컨텍스트에서 일괄 작성한다. Story 단위 작성 주체로 쪼개지지 않으며, 모든 Story 에 단위 검증을 기본값으로 복원하지 않는다.
-- **architecture-validator 시점** — final epic 검증만 기본이다. 모든 impl 산출물을 한 번에 읽고 Story AC ↔ REQ origin 대조, 미커버 AC·무출처 REQ·마지막 task 전수 검증, Story 간 compose/wiring, forward-ref 회수, Story별 첫 제품 경계 동작 증거, 구현 순서(첫 제품 경계 동작 앞당김), cold-seat 구현 가능성, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `TASK_LOCAL`) 동반. ux-flow·stories prose 같은 비규범 요약 층의 stale 은 형식만으로 FAIL 하지 않고 Should 로 보고한다.
-- **완료된 pack 개정 REVISION** — `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 full design pack 이 완료됐더라도 revision mode 로 들어간다. 화면 통합·분할·삭제, `ux-flow.md`, 확정 목업, `docs/design.md` 토큰처럼 UX 산출물 자체를 바꾸는 신호는 `design-ux` revision mode 로 먼저 들어가고, stage 1 revision PR 뒤 `design-system` revision mode 로 전파한다. 구조·모듈·ADR·impl task 개정 신호는 곧장 `design-system` revision mode 로 들어간다. REVISION 은 완료 판정을 깨는 오류가 아니라 완료된 pack 개정 경로다. 개정 의도가 없으면 완료 pack 은 `/impl` 안내가 기본이다. 단, stage 1 revision 이 남긴 `docs/epics/<epic>/revision-pending.md` 는 개정 의도의 durable 표현이므로, 인자나 대화 신호 없이도 `design-system` revision mode 로 들어간다 — 그 표식이 있는 epic 은 "개정 의도 없음" 이 아니다.
-- **revision mode 원칙** — ux-architect 는 UX 층 revision 에서 영향 UX 산출물만 개정하고 system/module 산출물을 직접 수정하지 않는다. module-architect 는 system/module revision 에서 surgical revision 으로 영향 산출물만 개정하고 미변경 impl task 를 보존한다. final validator 는 개정분만 보지 않고 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트를 검증한다.
+- **architecture-validator 시점** — final epic 검증만 기본이다. 모든 impl 산출물을 한 번에 읽고 Story AC ↔ REQ origin 대조, 미커버 AC·무출처 REQ·마지막 task 종합 검증, Story 간 compose/wiring, forward-ref 회수, Story별 첫 제품 경계 동작 증거, 구현 순서(첫 제품 경계 동작 앞당김), cold-seat 구현 가능성, impl 과상세화, 코드 SSOT drift 를 검토한다. Must finding 마다 분류(`SYSTEM_BOUNDARY` / `TASK_LOCAL`) 동반. ux-flow·stories prose 같은 비규범 요약 층의 stale 은 형식만으로 FAIL 하지 않고 Should 로 보고한다.
+- **완료된 pack 개정 REVISION** — `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 full design pack 이 완료됐더라도 revision mode 로 들어간다. 화면 통합·분할·삭제, `ux-flow.md`, 확정 목업, `docs/design.md` 토큰처럼 UX 산출물 자체를 바꾸는 신호는 `design-ux` revision mode 로 먼저 들어간다. stage 1 revision 이 끝나면 메인이 UX 변경분을 읽고 그 변경이 architecture·decision·impl task 에 닿는지 판단한다. 닿거나 불확실하면 `design-system` revision mode 로 전파하고, 닿지 않는다는 근거를 댈 수 있으면(예: 산출물이 이름으로 참조하는 토큰의 값만 바뀐 경우) 전파하지 않고 그 이유를 stage 1 PR 에 남긴다. 구조·모듈·ADR·impl task 개정 신호는 곧장 `design-system` revision mode 로 들어간다. REVISION 은 완료 판정을 깨는 오류가 아니라 완료된 pack 개정 경로다. 개정 의도가 없으면 완료 pack 은 `/impl` 안내가 기본이다. 단, stage 1 revision 이 남긴 `docs/epics/<epic>/revision-pending.md` 는 개정 의도의 durable 표현이므로, 인자나 대화 신호 없이도 `design-system` revision mode 로 들어간다 — 그 표식이 있는 epic 은 "개정 의도 없음" 이 아니다.
+- **revision mode 원칙** — ux-architect 는 UX 층 revision 에서 영향 UX 산출물만 개정하고 system/module 산출물을 직접 수정하지 않는다. module-architect 는 system/module revision 에서 surgical revision 으로 영향 산출물만 개정하고 미변경 impl task 를 보존한다. final validator 는 개정분과 그 개정이 닿는 산출물을 스스로 골라 검증하고, 영향이 넓거나 불확실하면 개정 후 전체 설계 pack 정합으로 범위를 올린다. 파생 drift 체크리스트는 닿는 범위를 찾는 증거 포인터다. 다시 검토하지 않은 산출물은 이유를 적는다. 메인은 범위를 좁혀 처방하지 않고 전체로 올리는 것도 막지 않는다.
 - **stage PR 경계** — `DESIGN_UX_PR_MERGED` 는 UX 산출물이 main 에 durable 해졌다는 신호다. dispatcher 는 같은 `/design` 공개 진입점으로 재판정해 system stage 로 이어간다. `DESIGN_SYSTEM_PR_MERGED` 는 full design pack 이 durable 해졌다는 신호이므로 `/impl` 로 넘어간다.
 - **목업 선행 여부 checkpoint** — UI epic 의 `design-ux` stage 는 ux-architect 호출 전에 목업 선행 여부를 1회 묻는다. 목업 없음 / opt-out / yolo 는 기존 흐름을 유지하고, 목업=예 는 디자인 시스템 체크포인트와 canvas-design 사용자 PICK 을 먼저 닫는다. 사용자 PICK 확정 이후에만 design-system stage 로 넘어간다.
 - **목업 미참조 금지** — `design-system` stage 는 확정 목업이 있는 UI epic 에서 확정 목업 경로, node-id 매핑, `docs/design.md` 토큰을 module-architect 와 architecture-validator 입력에 넣는다. 산출물이 목업 미참조 상태면 final epic 검증 PASS 로 처리하지 않고 finding 분류에 따라 module-architect 또는 system checkpoint 로 되돌린다.
@@ -118,34 +118,35 @@ flowchart TB
 - system-architect 재진입은 `SYSTEM_BOUNDARY` 일 때만 기본값이다. stale 문구 전파 누락과 ux-flow/stories 요약 drift 는 형식만으로 system 재설계로 끌어올리지 않는다.
 - `CONTRACT_AMENDMENT` 은 분기 enum 이 아니다 — module-architect 가 public contract 를 바꿀 때 취하는 자연어 행동 의무 (module responsibility / decision 갱신 또는 "변경 없음" 명시). 분기 결정은 위 2 분류로만 한다.
 
-## retry 한도
+## 재시도 판단
 
-| 재시도 경로 | 한도 | 초과 시 |
+재시도 경로는 다음 네 가지다. 어느 경로에도 숫자 한도는 없다. 다시 돌지는 메인이 [`rerun-judgment.md`](../../docs/plugin/agents/_shared/rerun-judgment.md) 기준으로 수렴 여부를 읽어 정한다.
+
+| 재시도 경로 | 다시 도는 조건 | 멈추면 |
 |---|---|---|
-| ux-architect self-check FAIL → ux-architect 재진입 (prose 내부) | 2 cycle | 사용자 위임 |
-| final epic 검증 FAIL → 산출 주체 재진입 | 3 cycle | 사용자 위임 |
-| module-architect `SYSTEM_CHECKPOINT_REQUIRED` → system checkpoint → epic-batch 재진입 | 3 cycle | 사용자 위임 |
-| module-architect `SPEC_GAP_FOUND` → 보강 → 신규 케이스 재진입 | 3 cycle | 사용자 위임 |
+| ux-architect self-check FAIL → ux-architect 재진입 (prose 내부) | 직전 대비 지적이 줄거나 좁아진다 | 사용자 위임 |
+| final epic 검증 FAIL → 산출 주체 재진입 | 같은 영역 지적이 수렴한다 | 사용자 위임 |
+| module-architect `SYSTEM_CHECKPOINT_REQUIRED` → system checkpoint → epic-batch 재진입 | checkpoint 가 새 경계 결정을 닫았다 | 사용자 위임 |
+| module-architect `SPEC_GAP_FOUND` → 보강 → 신규 케이스 재진입 | 보강이 직전 gap 을 닫았다 | 사용자 위임 |
 
-> retry 한도는 문서상 장식이 아니라 실행 판단이다. 같은 경로가 표의 각 행에 적힌 한도를 초과하면 자동 복구하지 않고, 남은 finding·영향·선택지를 사용자에게 보고한다.
-> 한도 초과 시 사용자 위임이 실제 다음 행동이다.
+> 재시도 판단은 문서상 장식이 아니라 실행 판단이다. 다시 돌기 전에 "이번 재진입은 직전과 무엇이 다르고, 어떤 결과가 나오면 수렴으로 보는가"에 답한다. 답이 없으면 자동 복구하지 않고, 남은 finding·영향·선택지를 사용자에게 보고한다.
 > thin bootstrap 은 retry loop 가 아니라 topology 부재 판정 때 1회만 들어가는 선행 산출이다. 실패하면 사용자에게 위임하고, bootstrap 산출물 검증을 위한 별도 architecture-validator 단계는 만들지 않는다.
 >
 > **architecture-validator FAIL 재진입 대상 = finding 분류별** ([finding 분류 분기](#finding-분류-분기)) — final epic 검증은 `SYSTEM_BOUNDARY` → system-architect opt-in checkpoint, `TASK_LOCAL` → module-architect(epic-batch) 보강.
-> cycle 발생 시 working tree only — commit X. final PASS 뒤에도 사용자 최종 설계 승인 전에는 commit X.
+> 재진입 중에는 working tree only — commit X. final PASS 뒤에도 사용자 최종 설계 승인 전에는 commit X.
 
-### final 검증 counter 계약
+### final 검증 재시도 이력 계약
 
-**RCA**: Android `/design` 관측에서는 final 검증 FAIL 후 새 stale 사본 finding 이 나올 때마다 "같은 경로" 판단이 흐려졌고, 그래프의 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 양쪽 edge 를 분류별 별도 한도로 읽을 여지도 있었다. 그 결과 3 cycle 계약이 사용자 위임으로 전환되지 못하고 6 cycle 자동 재진입을 허용했다. 원인은 hook 강제 부재가 아니라 counter key 와 reset 금지가 문서상 충분히 실행 가능하지 않았던 것이다.
+**RCA**: Android `/design` 관측에서는 final 검증 FAIL 후 새 stale 사본 finding 이 나올 때마다 "같은 경로" 판단이 흐려졌고, 그래프의 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 양쪽 edge 를 서로 다른 재시도로 읽을 여지도 있었다. 그 결과 사용자 위임으로 전환되지 못하고 같은 검증이 6회 자동으로 다시 돌았다. 숫자 한도는 이 사고를 막지 못했다. 원인은 한도 값이 아니라 "새 finding 이 나왔다"를 "설계가 수렴한다"로 읽은 판단이었다.
 
-- **final epic 검증 FAIL → 산출 주체 재진입 counter 는 하나**다. final validator 가 `FAIL` 을 내고 메인이 자동으로 producer 를 다시 부르기로 결정하는 순간 1 cycle 로 센다.
-- 재진입 대상은 finding 분류로 고른다. `SYSTEM_BOUNDARY` 는 system-architect opt-in checkpoint, `TASK_LOCAL` 은 module-architect(epic-batch) 보강으로 가지만 둘은 같은 final 검증 retry counter 를 공유한다.
-- `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류 전환, finding 영역 변경, 파일 변경, finding 수 변화, 새 finding 등장, provider 변경으로 counter 를 리셋하지 않는다.
-- 3 cycle 까지만 자동 재진입한다. 4번째 자동 재진입이 필요해지는 순간에는 진행을 멈추고 남은 finding, 영향, 선택지(system checkpoint 계속 / module 보강 계속 / `/spec` 재진입 / hold)를 사용자에게 위임한다.
-- Claude Agent 와 Codex wrapper 모두 메인이 집계한다. Codex wrapper 는 end-step 까지 수행하지만 counter 소유자가 아니다. counter evidence 는 `architecture-validator`, `architecture-validator-1` 같은 같은 agent occurrence 와 ledger receipt 이며, provider field 는 counter key 가 아니다.
+- **final epic 검증 FAIL → 산출 주체 재진입의 재시도 이력은 하나**다. `SYSTEM_BOUNDARY` 는 system-architect opt-in checkpoint, `TASK_LOCAL` 은 module-architect(epic-batch) 보강으로 가지만 둘은 같은 이력에 쌓인다.
+- **분류만 바꿔 계속 재시도하지 않는다.** `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류 전환, finding 영역 변경, 파일 변경, finding 수 변화, 새 finding 등장, provider 변경은 이력을 새로 시작하는 근거가 아니다.
+- **수렴을 읽는다.** 직전 검증 대비 Must finding 이 줄거나 한 영역으로 좁아지면 진전이므로 재진입한다. 같은 영역 finding 이 다시 나오거나, 고친 만큼 새 finding 이 다른 사본에서 계속 나오면 수렴하지 않는 것이다. 이때는 점 수정으로 다시 돌지 않고 그 영역의 근본 원인을 재검토하거나, 진행을 멈추고 남은 finding·영향·선택지(system checkpoint 계속 / module 보강 계속 / `/spec` 재진입 / hold)와 누적 재진입 횟수를 사용자에게 위임한다.
+- **재검증 범위는 validator 가 고른다.** 한 task 문서만 보강했으면 validator 는 그 보강과 그것이 닿는 산출물·판단 축을 다시 보고, 닿지 않는 산출물은 이유를 적고 다시 보지 않는다. 영향이 넓거나 직전 결과와의 연결을 믿을 수 없으면 validator 가 스스로 전체 재검증으로 올린다. 메인은 직전 finding, 직전 검증 결과, 보강된 파일 목록을 입력으로 주고 범위는 처방하지 않는다.
+- Claude Agent 와 Codex wrapper 모두 메인이 이력을 읽는다. Codex wrapper 는 end-step 까지 수행하지만 재시도 판단의 소유자가 아니다. 이력의 근거는 `architecture-validator`, `architecture-validator-1` 같은 같은 agent occurrence 와 ledger receipt 이며, provider field 는 이력을 나누는 기준이 아니다.
 - 루프 재구성 이후 상설 초기 검증 stage 가 없어져도 이 계약은 남는다. 적용 대상은 design-system stage 의 final epic 검증과 그 FAIL 이 유발하는 system checkpoint 또는 epic-batch 재진입이다.
 
-> **finding 수용 자세** (점 패치 X, 근본 재설계) — 같은 영역 finding 이 2회+ 반복되면 점 패치 retry 로 한도를 소진하지 말고 근본 원인을 짚어 그 영역을 재설계한다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).
+> **finding 수용 자세** (점 패치 X, 근본 재설계) — 같은 영역 finding 이 2회+ 반복되면 점 패치로 다시 돌지 말고 근본 원인을 짚어 그 영역을 재설계한다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).
 
 ## escalate 처리
 
@@ -164,10 +165,10 @@ system-architect / module-architect 가 design 도중 tech-review 미검증 새 
 3. **전체 원점 회귀** — `/design` 중단 + `/spec` 재진입 + 새 tech-review
 4. **대상 epic 기술 검토** — 현재 `/design` 을 보류하고 tech-reviewer 를 대상 epic 범위로 호출. 산출은 `docs/epics/epic-NN-<slug>/tech-review.md`, evidence/HTML 은 `.dcness-work/reviews/`. PASS + 사용자 OK 후 해당 설계 agent 재진입
 
-(1)·(2)·(4) 재진입 cycle ≤ 3. (4)는 전역 `/tech-review` 재진입이 아니라 현재 epic 에 한정한 검토다. (3)은 `/spec` 으로 돌아가 전역 PRD와 preflight 를 다시 닫는다.
+(1)·(2)·(4) 재진입을 반복할지는 [재시도 판단](#재시도-판단)으로 정한다 — 이 경로의 재진입 기준은 본 문서 한 곳이 소유한다. (4)는 전역 `/tech-review` 재진입이 아니라 현재 epic 에 한정한 검토다. (3)은 `/spec` 으로 돌아가 전역 PRD와 preflight 를 다시 닫는다.
 
 ## 후속 (loop 종료 후)
 
 - 본 loop clean → 사용자 최종 설계 승인 → commit/PR + 머지 → 사용자에게 "`/impl <epic-path>` 로 구현 진입할까요?" 안내
 - 주의사항 → 사용자 결정 (수동)
-- spec gap 발견 + cycle 한도 초과 → 사용자 위임 (`/spec` 재진입 권고)
+- spec gap 발견 + 재시도가 수렴하지 않음 → 사용자 위임 (`/spec` 재진입 권고)

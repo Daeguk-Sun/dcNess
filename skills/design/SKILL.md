@@ -11,7 +11,7 @@ description: PRD/stories.md 머지 + epic/story 이슈 등록 이후, 1 epic 단
 
 `/design` 은 사용자-facing 으로는 하나의 얇은 dispatcher 다. 진입 시 epic durable 산출물 실존 판정을 먼저 수행해 내부 stage 를 자동 선택하며, 사용자는 `design-ux` / `design-system` 이름을 알 필요가 없다. UI epic 에서 `ux-flow.md` 가 없으면 내부 [`design-ux`](../design-ux/SKILL.md) stage 를 실행해 UX 산출물을 자체 PR 로 먼저 머지한다. `ux-flow.md` 는 있으나 full design pack(`architecture.md` + `impl/NN-*.md`) 이 없으면 내부 [`design-system`](../design-system/SKILL.md) stage 를 실행한다. UI-less epic 은 `ux-flow.md` 가 원래 없으므로 기존처럼 곧장 system/module 설계 stage 로 들어가며 1 PR 흐름을 유지한다. full design pack 이 이미 완료된 epic 은 기본적으로 `/impl` 로 안내하지만, `/design <epic> --revise` 또는 대화 맥락의 명시 개정 신호가 있으면 개정 신호의 층을 먼저 나눈다. 화면 통합·분할·삭제, `ux-flow.md`, 확정 목업, `docs/design.md` 토큰처럼 UX 산출물 자체를 바꾸는 신호는 `design-ux` revision mode 로 먼저 들어가고, stage 1 revision PR 이 머지된 뒤 `design-system` revision mode 로 system/module 산출물을 전파한다. 구조·모듈·ADR·impl task 개정 신호는 곧장 `design-system` revision mode 로 재진입한다.
 
-> 🔴 **분기 규칙 SSOT** — agent 결론 → 다음 호출 / retry 한도 / escalate 처리는 [`design-routing.md`](design-routing.md) 가 본 skill 의 단일 진본. 본 파일은 진행 절차만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
+> 🔴 **분기 규칙 SSOT** — agent 결론 → 다음 호출 / 재시도 판단 / escalate 처리는 [`design-routing.md`](design-routing.md) 가 본 skill 의 단일 진본. 본 파일은 진행 절차만 담는다. 분기·재진입·escalate 판단이 필요하면 그 파일을 읽는다. 용어·공개 진입점·분기 표현을 수정하거나 리뷰할 때만 [`terms.md`](../../docs/plugin/terms.md) 를 확인한다.
 
 ## Loop
 
@@ -73,7 +73,7 @@ Step 0 진입 시 자동 `EnterWorktree(name="design-{ts_short}")`. 사용자 �
 
 ### Cartography freshness preflight
 
-`design-system` 진입에서는 먼저 `SANITY_RECEIPT_DIR="$("$HELPER" sanity-receipt-dir --project-root "$PROJECT_ROOT")"`로 linked worktree가 아닌 persistent primary-worktree의 `.dcness-work/codebase-sanity/`를 찾고, 그 안의 직전 Codebase Sanity receipt가 기록한 code revision/tree identity와 현재 code tree를 대조한다. 같은 code state를 덮는 receipt면 semantic audit 증거를 재사용한다. receipt가 없거나 구현·hotfix 등으로 stale이면 메인이 현재 프로젝트의 test/lint/build/typecheck/coverage 명령·exit/warning을 다시 수집하고 `impl-validator:CODEBASE_SANITY`를 이번 epic의 affected scope에 한정해 재감사한다. PASS이면 메인이 현재 tree identity의 receipt를 같은 persistent local 경로에 보존한 뒤 진행한다. `ExitWorktree`가 현재 design worktree를 제거해도 receipt는 남으며, local-only/ignored receipt를 code PR에 포함시키지 않는다.
+`design-system` 진입에서는 먼저 `SANITY_RECEIPT_DIR="$("$HELPER" sanity-receipt-dir --project-root "$PROJECT_ROOT")"`로 linked worktree가 아닌 persistent primary-worktree의 `.dcness-work/codebase-sanity/`를 찾고, 그 안의 직전 Codebase Sanity receipt가 기록한 code revision/tree identity와 현재 code tree를 대조한다. 같은 code state를 덮는 receipt면 semantic audit 증거를 재사용한다. tree가 다르면 무조건 무효로 보지 않고, 메인이 receipt의 revision부터 현재까지의 변경분을 읽어 그 변경이 이번 epic의 affected scope와 그 scope가 의존하는 빌드 설정·의존성·공유 모듈에 닿는지 판단한다. 닿지 않는다는 근거를 댈 수 있으면 receipt를 재사용하고 이유를 남긴다. 닿으면 닿는 test/lint/build/typecheck/coverage 명령·exit/warning만 다시 수집하고 `impl-validator:CODEBASE_SANITY`를 이번 epic의 affected scope에 한정해 재감사한다. receipt가 없거나 변경분을 계산할 수 없거나 영향이 넓으면 전체 명령을 다시 수집한다. PASS이면 메인이 현재 tree identity의 receipt를 같은 persistent local 경로에 보존한 뒤 진행한다. `ExitWorktree`가 현재 design worktree를 제거해도 receipt는 남으며, local-only/ignored receipt를 code PR에 포함시키지 않는다.
 
 그 다음 stories, Root Cartography, 관련 global decision에서 이번 epic의 affected capability/entrypoint를 식별하고, Root의 `landed/stub/planned/deferred` 표기를 현재 코드의 runtime entrypoint와 wiring 증거에 대조한다. Codebase Sanity receipt는 canonical Root refresh 완료 증거나 이 현재 코드 대조를 대신하지 않는다. 이전 epic의 상태를 그대로 신뢰하지 않으며, 전체 코드를 스캔하는 새 hard gate가 아니라 이번 epic이 영향을 주는 좌표만 lazy-read 한다.
 
@@ -101,7 +101,7 @@ full design pack 판정에서 `domain-model.md`, `tech-review.md`, `ux-flow.md` 
 
 `revision-pending.md` 는 stage 1 revision PR 이 남기고 stage 2 revision PR 이 지우는 전파 대기 표식이다. 개정에서는 pack 이 이미 완성돼 있어 파일 존재만으로는 stage 경계가 드러나지 않으므로, 이 표식이 있으면 `--revise` 인자나 대화 맥락 없이도 `design-system` revision mode 로 들어간다. 세션이 끊겨도 저장소 산출물만으로 중간 상태를 복구하는 것이 목적이며, 같은 신호를 `/next-work` 와 `docs/index.md` 의 다음 액션도 읽는다.
 
-명시 revision 의도는 durable 산출물 판정을 덮어쓰는 사용자 의도다. 완료된 pack 개정(re-open/amend)은 기존 설계 완료 상태를 깨진 상태로 오판하는 것이 아니라, 의도적으로 revision mode 에 재진입하는 경로다. UX 층 개정 의도는 `design-ux` revision mode 가 UX 산출물을 먼저 개정하고, 그 stage 1 revision PR 이 머지된 뒤 `design-system` revision mode 가 architecture/impl/decision 영향분을 전파한다. system/module 층 개정 의도는 곧장 `design-system` revision mode 로 들어간다. 개정 의도가 없으면 완료 pack 은 계속 `/impl` 안내가 기본이다.
+명시 revision 의도는 durable 산출물 판정을 덮어쓰는 사용자 의도다. 완료된 pack 개정(re-open/amend)은 기존 설계 완료 상태를 깨진 상태로 오판하는 것이 아니라, 의도적으로 revision mode 에 재진입하는 경로다. UX 층 개정 의도는 `design-ux` revision mode 가 UX 산출물을 먼저 개정한다. 그 개정이 architecture/impl/decision 에 닿으면 stage 1 revision PR 이 머지된 뒤 `design-system` revision mode 가 영향분을 전파하고, 닿지 않는다는 근거가 있으면 stage 1 에서 끝난다. system/module 층 개정 의도는 곧장 `design-system` revision mode 로 들어간다. 개정 의도가 없으면 완료 pack 은 계속 `/impl` 안내가 기본이다.
 
 ### 완료된 pack UX 개정 — staged revision
 
@@ -119,7 +119,7 @@ revision mode 의 기본 원칙은 surgical revision 이다. module-architect �
 - 미변경 impl task 보존: 변경과 무관한 `impl/NN-*.md` 는 rewrite 하지 않는다. 순서 변경이 필요하면 이유와 affected task 만 명시한다.
 - 파생 drift 체크리스트: 전역 `architecture.md` 요약, 상태 ID prefix, 생성 리포트 `design-report.html`, `ux-flow.md`, ADR supersede-vs-edit 결정, 도메인 모델/ADR 잔존 표현, Story/화면 번호 참조, 확정 목업 node-id·토큰 보존 경계를 확인한다.
 - ADR supersede-vs-edit: 기존 결정의 의미가 바뀌면 새 ADR 로 supersede 하는지, 오탈자/명칭 정정이면 기존 ADR 편집인지 명시한다.
-- final validator 는 개정분만 보는 것이 아니라 개정 후 전체 설계 pack 정합을 한 번 더 본다.
+- final validator 는 개정분과 그 개정이 닿는 산출물을 스스로 골라 검증하고, 영향이 넓거나 불확실하면 개정 후 전체 설계 pack 정합으로 범위를 올린다. 다시 검토하지 않은 산출물은 이유를 적는다.
 
 내부 stage 는 helper run 에 stage marker 를 남긴다. stage 1 은 `begin-run design --stage design-ux`, stage 2 는 `begin-run design --stage design-system` 로 시작한다. `docs/metrics/design-runs.jsonl` 은 같은 `entry_point=design` 아래 stage 값을 기록해 기존 단일 run 수치와 stage별 run 수치를 구분한다.
 
@@ -183,12 +183,12 @@ UI epic 으로 판정되고 `design-ux` stage 를 선택한 직후 메인이 목
    - **계약 변경**: public contract 를 만들거나 바꾸면 module responsibility / public interface 와 `docs/decisions/NNNN-slug.md` 를 갱신하고 impl 문서는 module/decision 참조만 가리킨다.
    - **system checkpoint 승격**: 기존 모듈 경계, 도메인 invariant, storage policy, public API boundary, 기존 전역 decision 변경이 필요하면 `SYSTEM_CHECKPOINT_REQUIRED` 로 보고한다. 신규 epic-scope decision 기록은 module-architect 자율 범위다. 메인은 system-architect opt-in checkpoint 를 호출하고, PASS 후 module-architect(epic-batch)를 재진입한다.
 8. **Stage 2 — mechanical pre-final checks** — final validator 호출 직전 메인이 1회 실행한다: `bash "$PLUGIN_ROOT/scripts/dcness-helper" normalize-scope <epic impl 디렉토리>` → `bash "$PLUGIN_ROOT/scripts/dcness-helper" wave-plan <epic impl 디렉토리>` → `node "$PLUGIN_ROOT/scripts/report_ac_coverage.mjs" --stories <epic stories.md> --impl-dir <epic impl 디렉토리>` → 확정 목업이 있는 UI epic 이면 `bash "$PLUGIN_ROOT/scripts/dcness-helper" mockup-node-check --mockup-dir docs/design-variants <epic impl 디렉토리>` → `node "$PLUGIN_ROOT/scripts/check_design_artifact_structure.mjs" --root "$PROJECT_ROOT"`. AC coverage report 의 미커버 AC·무출처 REQ·잘못된 AC 참조·마지막 task 누락을 final validator prompt 의 증거로 전달한다. normalizer/wave-plan 에 `unresolved_slugs` 또는 `format_unnormalized_slugs` 가 남으면 해당 slug 만 final validator prompt 의 미기록 신호로 전달한다. mockup-node-check 에 `missing_node_ids` 또는 `input_errors` 가 있으면 해당 JSON receipt 를 final validator prompt 의 미기록 신호로 전달한다.
-9. **Stage 2 — architecture-validator final epic 검증** (기존 절차명: **Step 4 — architecture-validator final epic 검증**) — epic 전체 산출물을 한 번에 검증한다. 요구사항 출처 충실도는 PRD 가 아니라 Story AC ↔ impl REQ 매핑을 원점으로 보고, coverage report 의 미커버 AC·무출처 REQ·마지막 task 전수 검증 누락을 산출물과 직접 대조한다. 그 밖에 설계 표준, 계약과 인터페이스, 제품 동작 슬라이스, Story 간 compose/wiring, 고위험 상태 계약 추적, cold-seat 구현 가능성, impl 과상세화, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 본다. ux-flow·stories prose 같은 비규범 요약 층의 stale 은 형식만으로 Must finding 으로 올리지 않는다. revision mode 에서는 final validator 가 개정분만 보지 않고 개정 후 전체 설계 pack 정합과 파생 drift 체크리스트 결과를 다시 본다. Must finding 마다 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류를 붙인다. `PASS` 는 사용자 최종 설계 승인 checkpoint 로 넘어갈 수 있다는 뜻이지 commit 승인 신호가 아니다.
+9. **Stage 2 — architecture-validator final epic 검증** (기존 절차명: **Step 4 — architecture-validator final epic 검증**) — epic 전체 산출물을 한 번에 검증한다. 요구사항 출처 충실도는 PRD 가 아니라 Story AC ↔ impl REQ 매핑을 원점으로 보고, coverage report 의 미커버 AC·무출처 REQ·마지막 task 종합 검증 누락을 산출물과 직접 대조한다. 그 밖에 설계 표준, 계약과 인터페이스, 제품 동작 슬라이스, Story 간 compose/wiring, 고위험 상태 계약 추적, cold-seat 구현 가능성, impl 과상세화, domain-model 작성/생략 근거, 계약 표면 코드 SSOT 대조 증거를 본다. ux-flow·stories prose 같은 비규범 요약 층의 stale 은 형식만으로 Must finding 으로 올리지 않는다. revision mode 와 FAIL 뒤 재검증에서는 final validator 가 변경분과 그 변경이 닿는 산출물을 스스로 골라 보고, 영향이 넓으면 개정 후 전체 설계 pack 정합으로 올린다. 메인은 직전 결과와 변경된 파일 목록, 파생 drift 체크리스트 결과를 입력으로 주되 범위를 처방하지 않는다. Must finding 마다 `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류를 붙인다. `PASS` 는 사용자 최종 설계 승인 checkpoint 로 넘어갈 수 있다는 뜻이지 commit 승인 신호가 아니다.
 10. **Step 5 — end-run + design run 기록 freeze** — 각 stage PR 생성 전에 `bash "$PLUGIN_ROOT/scripts/dcness-helper" end-run` 을 실행한다. end-run 안전망이 finalize-run/review 를 만들고, review.md 안에 CLAUDE.md/AGENTS.md 현행화 후보 read-only 섹션을 포함한다. `/design` run 이면 현재 design worktree 의 `docs/metrics/design-runs.jsonl` 도 갱신한다. 이 파일은 design 산출물이므로 같은 PR 에 포함되어야 한다. PR/merge 뒤에 end-run 을 미루면 worktree 또는 main working tree 에 uncommitted metrics 가 고립되므로 금지한다.
 11. **Step 6 — 사용자 최종 설계 승인 + commit/PR + ExitWorktree** — final validator PASS 와 end-run 이 끝나면 먼저 설계 산출물 요약과 diff 규모를 사용자에게 제시하고 최종 설계 검수/승인을 받는다. stage 1 은 UX 산출물 요약, 목업 선행 여부, 확정 목업 경로, diff 규모를 제시한다. stage 2 는 산출물 요약(전역 architecture/conventions/decisions/epic architecture/domain-model/impl 파일 목록), revision mode 여부와 drift audit 결과, diff 규모(`git diff --stat <BASE>...HEAD`, 설계 pack 줄 수/파일 수)를 제시한다. 승인 응답 전에는 `git add`, `git commit`, `git push`, `gh pr create`, `$PLUGIN_ROOT/scripts/pr-finalize.sh` 를 호출하지 않는다. yolo 모드(`yolo` / `auto` / `끝까지` / `막힘 없이` / `다 알아서`)도 사용자 최종 설계 승인을 생략하지 않는다. 승인 뒤에만 branch commit → push → `gh pr create --base <BASE>` (body = 설계 산출물 요약 + `Part of #<epic-issue>`) → `bash "$PLUGIN_ROOT/scripts/pr-finalize.sh"` → merge/default worktree sync 완료 후 ExitWorktree.
    - **base (MUST)**: `gh pr create --base main`을 사용한다. Step 0의 `EnterWorktree` branch(`docs/<epic-slug>`)도 `main` 기반이다.
 
-> 각 Step 의 agent 결론에 따른 분기·재진입·cycle 한도·escalate = [`design-routing.md`](design-routing.md). loop 종료 후 후속(`/impl` 안내 등)도 그 파일.
+> 각 Step 의 agent 결론에 따른 분기·재진입·재시도 판단·escalate = [`design-routing.md`](design-routing.md). loop 종료 후 후속(`/impl` 안내 등)도 그 파일.
 
 ## validation provider resolve (Codex opt-in)
 
@@ -212,7 +212,7 @@ else
 fi
 ```
 
-이 절의 Codex 분기는 `architecture-validator` read-only validation 전용이다. wrapper 가 Codex 마지막 응답을 저장하고 `end-step architecture-validator --prose-file ...` 까지 수행하므로 별도 end-step 중복 호출 금지. retry 한도는 provider 분기와 무관하게 [`design-routing.md`](design-routing.md#final-검증-counter-계약) 를 따른다. Claude Agent 와 Codex wrapper 모두 메인이 집계한다. Codex wrapper 는 end-step 까지 수행하지만 counter 소유자가 아니다.
+이 절의 Codex 분기는 `architecture-validator` read-only validation 전용이다. wrapper 가 Codex 마지막 응답을 저장하고 `end-step architecture-validator --prose-file ...` 까지 수행하므로 별도 end-step 중복 호출 금지. 재시도 판단은 provider 분기와 무관하게 [`design-routing.md`](design-routing.md#final-검증-재시도-이력-계약) 를 따른다. Claude Agent 와 Codex wrapper 모두 메인이 이력을 읽는다. Codex wrapper 는 end-step 까지 수행하지만 재시도 판단의 소유자가 아니다.
 
 ## 참조
 
