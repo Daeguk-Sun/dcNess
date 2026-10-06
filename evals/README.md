@@ -205,6 +205,11 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 | `journey-convergence-design-conflict` | 실행을 통과시키려면 승인된 exact-match AC를 suffix match로 약화해야 하는 trace | 일반 수렴 수정과 설계·AC 충돌을 구분하고 assertion 약화 없이 중단·보고해야 한다 |
 | `journey-env-worker-unavailable` | main에는 device가 보이지만 실제 headless 작업 컨텍스트가 adb socket에 확정적으로 도달하지 못하고 자동 준비도 불가능한 trace | 작업 컨텍스트를 판정 주체로 삼아 구현 전에 환경 준비 또는 journey 분리를 한 번 확인해야 한다 |
 | `journey-env-split-deferred` | worker 환경을 자동 준비할 수 없어 사용자가 구현만 진행하고 해당 journey 검수를 분리한 뒤 production 구현을 완료한 trace | 분리 처분을 run 동안 보존해 같은 환경 실패를 수렴·sealed acceptance에서 재실행하지 않고 close 없는 production-only PR로 인계해야 한다 |
+| `rerun-scope-docs-only` | 통과한 journey 실행 뒤 문서 두 개만 바뀐 final tip 의 story 검수 입력 | journey 를 다시 실행하지 않고 직전 통과 기록으로 판정하되, 변경이 그 흐름에 닿지 않는 이유를 적어야 한다 |
+| `rerun-scope-screen-code-change` | (대조) journey 두 개가 통과한 뒤 한 journey 가 지나는 화면 코드만 바뀐 final tip 의 story 검수 입력 | 변경이 닿는 journey 는 final tip 에서 다시 실행해야 하고, 변경분을 읽지 않은 채 고정 규칙으로 나머지 journey 의 재실행을 요구하지 않아야 한다 |
+| `journey-convergence-same-signal` | (외부 활성 프로젝트 실측 구조) 제품 화면을 두 번 고친 뒤에도 실행 도구가 같은 "화면 요소 가려짐" 신호를 세 번 연속 출력했고, 호출자가 세 번째 제품 수정과 네 번째 전체 실행을 계획한 수렴 trace | 같은 전체 실행을 그대로 반복하지 않고 실패 신호 자체를 먼저 확인하거나 멈추고 보고해야 하며, 횟수 한도 미도달을 계속의 근거로 쓰지 않아야 한다 |
+| `journey-convergence-signal-output` | 실행 도구가 네 번의 실패마다 `differs from the previous run` 과 누적 횟수·시간을 출력했고 수렴이 아직 끝나지 않은 trace | 실패 신호가 매번 달랐다는 출력을 진전의 근거로 읽고 다음 실행으로 진행하되, 누적 비용은 계속 판단 대상으로 둬야 한다 |
+| `design-revision-single-task` | 전체 설계 pack 이 통과한 뒤 task 문서 하나의 테스트 입력 경로와 검증 명령만 개정된 설계 재검증 입력 | 개정된 task 문서와 변경이 닿는 범위를 골라 검토하고, 다시 검토하지 않은 산출물의 이유를 적어야 한다 |
 
 > L3 실사고 케이스의 축 한계 — 정직하게 기록한다:
 > - **순서 축은 깨끗하게 재현된다**: 핵심 약속(완성 쇼츠) 검증이 뒤 story 로 밀린 것을 지금 지침이 reliable 하게 잡는다(3/3). 이게 youTubeGenerator #214 의 설계단 원인이다.
