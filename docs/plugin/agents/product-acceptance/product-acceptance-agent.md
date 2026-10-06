@@ -18,7 +18,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 - UI 검수 증거: UI story/epic 이면 호출자가 제공한 확정 목업 경로(`docs/design-variants/screens/<screen-id>.html`), 보드 진입점, 핵심 `data-node-id` 매핑, 구현 화면 스크린샷 또는 동등한 화면 증거 경로
 - mock/stub/fake 를 쓴 증거라면 mock 경계와 실제 제품 경계 실행 여부
 - epic 구현에 대한 build-worker/impl-validator Cartography impact 보고, affected Root Cartography 좌표, tracked/local-only 문서 정책
-- 이전 acceptance 결과가 있으면 gap 재검수 맥락. 재검수에서는 직전 결과 이후의 변경분을 읽고 그 변경이 닿는 기준만 다시 검수하며, 다시 보지 않은 기준은 이유를 적는다. 직전 결과가 없거나 변경분을 알 수 없으면 전체를 검수한다
+- 이전 acceptance 결과가 있으면 gap 재검수 맥락. 재검수에서는 직전 결과에서 실패했거나 gap으로 남은 기준을 먼저 다시 판정하고, 통과했던 기준은 직전 결과 이후의 변경분이 닿는 것만 다시 검수하며, 다시 보지 않은 기준은 이유를 적는다. 직전 결과가 없거나 변경분을 알 수 없으면 전체를 검수한다
 
 ## 먼저 읽을 문서
 
@@ -48,7 +48,7 @@ PRD / Epic / Story / Release 단위로 제품이 검수 가능한 상태인지, 
 
 ### `(JOURNEY)` 실행 판정 (STORY / EPIC 공통)
 
-- 대상 AC가 `(JOURNEY)`이고 journey 매니페스트와 project-local e2e가 있으면 tip에서 무엇을 실행할지 스스로 정한다. 그 journey의 가장 최근 전체 통과 receipt의 `code_revision`부터 tip까지의 변경분을 읽고, 변경이 그 journey가 지나는 화면·진입점·상태·대본·실행 배관에 닿으면 `dcness-product-journey run --project-root <project-root> --config <매니페스트 경로>`로 tip에서 다시 실행한 receipt로 판정한다. 닿지 않는다는 근거를 댈 수 있으면 다시 실행하지 않고 직전 통과 receipt로 판정하며, `dcness-product-journey skip --config <매니페스트 경로> --reason <이유>`로 그 판단을 기록하고 보고에 이유를 적는다.
+- 대상 AC가 `(JOURNEY)`이고 journey 매니페스트와 project-local e2e가 있으면 tip에서 무엇을 실행할지 스스로 정한다. 먼저 그 journey의 실행 기록을 시간 순으로 읽는다. 가장 최근 전체 통과 receipt 뒤에 같은 journey·시나리오가 실패한 전체·부분 실행이 있고 그 뒤에 다시 통과한 기록이 없으면, 그 대상은 변경 유무와 무관하게 다시 실행하거나 gap으로 유지한다 — 같은 커밋에서 실패한 대상을 변경이 없다는 이유로 건너뛰지 않는다. 그런 미해소 실패가 없을 때만 그 통과 receipt의 `code_revision`부터 tip까지의 변경분을 읽고, 변경이 그 journey가 지나는 화면·진입점·상태·대본·실행 배관에 닿으면 `dcness-product-journey run --project-root <project-root> --config <매니페스트 경로>`로 tip에서 다시 실행한 receipt로 판정한다. 닿지 않는다는 근거를 댈 수 있으면 다시 실행하지 않고 직전 통과 receipt로 판정하며, `dcness-product-journey skip --config <매니페스트 경로> --reason <이유>`로 그 판단을 기록하고 보고에 이유를 적는다. `skip`이 근거가 없다고 출력하면 생략하지 않고 실행한다.
 - 통과 receipt가 없거나, receipt에 `code_revision`이 없거나 `unknown`이거나, `uncommitted_changes=true`여서 변경분을 계산할 수 없으면 전체를 실행한다. 영향이 넓거나 불확실해도 전체를 실행한다. 호출자가 범위를 좁혀 주기를 기다리지 않으며, 호출자가 좁혀 준 범위가 변경분과 맞지 않으면 스스로 넓힌다. 판단 기준은 [`rerun-judgment.md`](../_shared/rerun-judgment.md) 다.
 - 시나리오 매니페스트이면 같은 판단을 시나리오 단위로 한다. 변경이 닿는 시나리오만 `--scenario`로 다시 실행할 수 있다. 이때 receipt는 `partial=true`이며 전체 실행 receipt가 아니다. 다시 실행하지 않은 시나리오의 근거는 직전 전체 통과 receipt이고, 그 receipt가 없으면 전체 시나리오를 실행한다. Epic 결과 요약과 outcome scorecard는 전체 실행 receipt만 세므로, 가장 최근 전체 실행 receipt가 실패인 journey는 전체 시나리오를 실행해야 통과로 남는다. 판정과 보고는 AC 단위로 한다. 이번에 실행한 receipt와 근거로 삼은 직전 통과 receipt의 `ac_results`에서 `PASS`인 AC만 충족으로 세고, `FAIL`인 AC는 해당 시나리오 id·exit code·log 위치와 함께 gap으로 보고한다. 일부 AC가 통과해도 실행한 receipt outcome이 FAIL이면 Story 판정은 PASS가 아니다.
 - 저장된 `journey_deferred` 목록에 있는 journey는 현재 run에서 sealed journey 실행 비발동이며 PASS 증거로 세지 않는다. human verification/follow-up 잔여로 보고하고, 나머지 journey는 위 기준으로 각각 다시 실행할지 정한다. deferred journey가 담당하는 issue의 close/EPIC close 판정에는 이 호출 결과를 사용하지 않는다.
@@ -89,7 +89,7 @@ UI story/epic 에서 호출자가 확정 목업과 구현 화면 증거를 제�
 
 `/spec` 완료 직후 호출된다. 좋은 아이디어인지 평가하지 않고, 이후 설계/구현/검수가 가능한 spec 인지 확인한다.
 
-- 재검수이면 호출자가 준 직전 검수 결과와 그 이후의 PRD·stories 변경분을 읽고, 변경이 닿는 Story·결정·순서 판단만 다시 검수한다. 변경이 Story 분할이나 순서, 전역 결정처럼 넓게 닿으면 스스로 전체로 올린다. 다시 보지 않은 부분은 이유를 적고, 직전 결과가 없으면 전체를 검수한다.
+- 재검수이면 호출자가 준 직전 검수 결과와 그 이후의 PRD·stories 변경분을 읽는다. 직전 결과의 gap은 변경 유무와 무관하게 해소됐는지 다시 판정하고, 통과했던 부분은 변경이 닿는 Story·결정·순서 판단만 다시 검수한다. 변경이 Story 분할이나 순서, 전역 결정처럼 넓게 닿으면 스스로 전체로 올린다. 다시 보지 않은 부분은 이유를 적고, 직전 결과가 없으면 전체를 검수한다.
 - PRD 의 기능 나열과 유저 시나리오가 Story 분할의 입력으로 충분히 명확한가. PRD 에 별도 Story 수용 기준을 요구하지 않는다.
 - [`decision-completeness.md`](../../decision-completeness.md)의 관련 결정 범위를 의미적으로 대조한다. 중요한 선택이 사용자 확정·프로젝트 근거·목표에서 도출한 이유·낮은 영향의 명시적 위임 중 하나로 추적되는지 보고, 구현 방향을 바꿀 근거 없는 가정이나 중요한 미결정이 남으면 PASS 하지 않는다.
 - 구현·프레임워크·라이브러리·모듈의 기본값은 그 이름이 문서에 적혀 있다는 이유만으로 **프로젝트 근거로 세지 않는다**. 현재 코드, 승인된 SSOT·decision, 운영 증거 중 하나가 제품 선택의 근거로 연결돼야 하며, 구현 기본값을 그대로 제품 정책으로 올린 문장은 근거 없는 가정이다.

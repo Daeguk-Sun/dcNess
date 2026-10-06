@@ -2004,14 +2004,31 @@ def _run_summary(payload: object, journey_id: str) -> Optional[dict[str, Any]]:
     measured = _parse_ts(measured_at) if isinstance(measured_at, str) else None
     if measured is None:
         return None
+    executed = [item for item in _dict_items(payload.get("scenarios")) if item.get("executed")]
+    failed_scenarios = [
+        str(item.get("scenario_id")) for item in executed if item.get("exit_code") != 0
+    ]
+    reasons = {str(item) for item in payload.get("failure_reasons") or []}
     return {
         "measured": measured,
+        "measured_at": measured_at,
         "finished_at": str(payload.get("finished_at") or ""),
         "run_id": str(payload.get("run_id") or ""),
         "outcome": outcome,
         "partial": payload.get("partial") is True,
         "duration_ms": _run_duration_ms(payload),
         "failure_signal": _failure_signal(payload) if outcome == "FAIL" else None,
+        "passed_scenarios": [
+            str(item.get("scenario_id")) for item in executed if item.get("exit_code") == 0
+        ],
+        "failed_scenarios": failed_scenarios,
+        "declared_scenarios": [
+            str(item.get("scenario_id")) for item in _dict_items(payload.get("scenarios"))
+        ],
+        # A failure that is not just "these scenarios exited non-zero" (start,
+        # health, cleanup, screen evidence, layout) is not tied to one scenario.
+        "run_level_failure": outcome == "FAIL"
+        and not (failed_scenarios and reasons <= {"journey_failed"}),
     }
 
 
@@ -2170,6 +2187,36 @@ def _history_lines(receipt: dict[str, Any], history: dict[str, Any]) -> list[str
     return lines
 
 
+_WHOLE_JOURNEY = "*"
+
+
+def _unresolved_failure(
+    later_runs: list[dict[str, Any]], targets: Optional[list[str]]
+) -> Optional[dict[str, Any]]:
+    """The latest failure of the skip targets that the same target has not passed since.
+
+    A pass only backs a skip while it is the target's most recent result, so the
+    state is kept per target. A failure that is not tied to one scenario marks
+    every target, and only a target that itself passes again is cleared.
+    `targets` is the scenario list, or None for a journey without scenarios.
+    """
+    wanted = [_WHOLE_JOURNEY] if targets is None else list(targets)
+    failing: dict[str, tuple[int, dict[str, Any]]] = {}
+    for index, run in enumerate(later_runs):
+        if run["run_level_failure"]:
+            for target in {*wanted, *run["declared_scenarios"]}:
+                failing[target] = (index, run)
+            continue
+        if run["outcome"] == "PASS" and not run["declared_scenarios"]:
+            failing.pop(_WHOLE_JOURNEY, None)
+        for scenario_id in run["passed_scenarios"]:
+            failing.pop(scenario_id, None)
+        for scenario_id in run["failed_scenarios"]:
+            failing[scenario_id] = (index, run)
+    blocking = [failing[target] for target in wanted if target in failing]
+    return max(blocking, key=lambda item: item[0])[1] if blocking else None
+
+
 def record_skip(
     project_root: Path | str,
     *,
@@ -2228,6 +2275,20 @@ def record_skip(
             "code_revision": latest.get("code_revision", _UNKNOWN_REVISION),
             "receipt_path": latest["receipt_path"],
         }
+    unresolved: Optional[dict[str, Any]] = None
+    if basis is not None:
+        history = _journey_runs(root, journey_id)
+        position = max(
+            (index for index, run in enumerate(history) if run["run_id"] == basis["run_id"]),
+            default=len(history) - 1,
+        )
+        failure = _unresolved_failure(history[position + 1 :], skipped)
+        if failure is not None:
+            unresolved = {
+                "run_id": failure["run_id"],
+                "measured_at": failure["measured_at"],
+            }
+            basis = None
     run_dir = evidence_root / selected_run_id
     try:
         run_dir.mkdir(parents=True, exist_ok=False)
@@ -2247,6 +2308,8 @@ def record_skip(
     }
     if skipped is not None:
         record["scenarios"] = skipped
+    if unresolved is not None:
+        record["unresolved_failure"] = unresolved
     path = run_dir / "skip.json"
     _write_receipt(path, record)
     return path
@@ -2319,8 +2382,15 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(f"[product-journey] contract error: {exc}", file=sys.stderr)
             return 2
         print(skip_path)
-        basis = json.loads(skip_path.read_text(encoding="utf-8"))["basis"]
-        if basis is None:
+        skip_record = json.loads(skip_path.read_text(encoding="utf-8"))
+        basis = skip_record["basis"]
+        if "unresolved_failure" in skip_record:
+            print(
+                "[product-journey] this target failed after the last full PASS "
+                f"(run={skip_record['unresolved_failure']['run_id']}) and has not "
+                "passed since: nothing backs this skip"
+            )
+        elif basis is None:
             print(
                 "[product-journey] no earlier full PASS of this journey: "
                 "nothing backs this skip"

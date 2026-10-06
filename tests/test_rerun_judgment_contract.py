@@ -76,6 +76,8 @@ class SharedCriteriaTests(unittest.TestCase):
             "다시 하지 않은 이유를 적는다",
             "기록이 없으면 전체로 한다",
             "호출자는 범위를 좁혀 처방하지 않고, 전체로 올리는 것도 막지 않는다",
+            "가장 최근 결과**일 때만 생략의 근거가 된다",
+            "실패하거나 gap 으로 남은 대상은 변경분이 닿는지와 무관하게 생략 후보가 아니다",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, text)
@@ -143,6 +145,8 @@ class GuideAdoptionTests(unittest.TestCase):
         text = read(PRODUCT_ACCEPTANCE)
         for needle in (
             "변경분을 읽고",
+            "같은 커밋에서 실패한 대상을 변경이 없다는 이유로 건너뛰지 않는다",
+            "`skip`이 근거가 없다고 출력하면 생략하지 않고 실행한다",
             "닿지 않는다는 근거를 댈 수 있으면 다시 실행하지 않고",
             "dcness-product-journey skip",
             "변경분을 계산할 수 없으면 전체를 실행한다",

@@ -357,7 +357,7 @@ helper는 무엇을 다시 실행할지 정하지 않는다. 그 판단은 실�
 ```
 
 - `--reason`은 필수다. `--scenario`를 생략하면 journey 전체를 다시 실행하지 않았다는 기록이다.
-- 기록은 `evidence_dir/<run-id>/skip.json`에 남고, 기록 시점의 `code_revision`·`uncommitted_changes`, 이유, 대상 시나리오, 근거로 삼은 가장 최근 전체 통과 receipt(`basis`)를 담는다. 전체 통과 receipt가 없으면 `basis`는 `null`이고 helper가 그 사실을 출력한다.
+- 기록은 `evidence_dir/<run-id>/skip.json`에 남고, 기록 시점의 `code_revision`·`uncommitted_changes`, 이유, 대상 시나리오, 근거로 삼은 가장 최근 전체 통과 receipt(`basis`)를 담는다. 전체 통과 receipt가 없으면 `basis`는 `null`이고 helper가 그 사실을 출력한다. 전체 통과 receipt가 있어도 그 뒤에 같은 대상이 실패한 전체·부분 실행이 있고 다시 통과한 기록이 없으면 `basis`는 `null`이며, 그 실패 실행을 `unresolved_failure`로 기록하고 출력한다. 앱 미기동·준비 확인·정리 실패·화면 증거 누락처럼 시나리오 하나에 묶이지 않는 실패는 모든 시나리오에 적용한다. 통과는 그 대상의 가장 최근 결과일 때만 근거가 된다.
 - 이 기록은 receipt가 아니다. Epic 결과 요약과 outcome scorecard는 읽지 않으며, 통과 수에도 실행 수에도 들어가지 않는다. 다시 실행하지 않은 대상이 이후 실패했는지는 같은 `journey_id`의 뒤따르는 receipt와 이 기록을 시간 순으로 맞춰 확인한다.
 
 repository operations의 `harness/outcome_scorecard.py`는 helper receipt 중 구조가 유효하고 snapshot cutoff 안에 있는 것만 읽는다. scorecard 구현은 release artifact에 포함되지 않으며 plug-in runtime이 이를 import하지 않는다. journey PASS/전체 실행 수와 제품 AC passed/total을 각각 보존하며 guard·validator·PR 지표를 제품 outcome 분자에 넣지 않는다.
