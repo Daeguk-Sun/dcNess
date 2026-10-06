@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import contextlib
+import io
 import json
 import subprocess  # nosec B404
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from harness.product_journey import (
+    journey_history,
+    main,
     read_receipts,
     run_from_config,
 )
@@ -144,6 +149,222 @@ class CodeRevisionTests(unittest.TestCase):
             valid = read_receipts(root)
 
         self.assertEqual(valid, [])
+
+
+class JourneyHistoryTests(unittest.TestCase):
+    def test_history_accumulates_runs_and_duration_of_one_journey(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config(exits=(0, 3)))
+            first = _run(root, "run-1", measured_at="2026-07-10T00:00:00Z").receipt
+            _run(root, "run-2", measured_at="2026-07-10T00:01:00Z")
+            _run(
+                root,
+                "run-3",
+                measured_at="2026-07-10T00:02:00Z",
+                scenarios=["scenario-two"],
+            )
+            other = _config()
+            other["journey_id"] = "another-journey"
+            _write_config(root, other)
+            _run(root, "run-other", measured_at="2026-07-10T00:03:00Z")
+            history = journey_history(root, "fixture-judgment-journey")
+
+        first_ms = sum(
+            item["duration_ms"]
+            for item in [*first["commands"].values(), *first["scenarios"]]
+        )
+        self.assertEqual(history["runs"], 3)
+        self.assertEqual(history["failed"], 3)
+        self.assertEqual(history["partial"], 1)
+        self.assertGreaterEqual(history["duration_ms"], first_ms)
+        self.assertEqual(history["consecutive_failures"], 3)
+
+    def test_same_failure_signal_is_counted_across_full_and_partial_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config(exits=(0, 3)))
+            _run(root, "run-1", measured_at="2026-07-10T00:00:00Z")
+            _run(
+                root,
+                "run-2",
+                measured_at="2026-07-10T00:01:00Z",
+                scenarios=["scenario-two"],
+            )
+            same = journey_history(root, "fixture-judgment-journey")
+            _write_config(root, _config(exits=(4, 0)))
+            _run(root, "run-3", measured_at="2026-07-10T00:02:00Z")
+            different = journey_history(root, "fixture-judgment-journey")
+            _write_config(root, _config())
+            _run(root, "run-4", measured_at="2026-07-10T00:03:00Z")
+            passed = journey_history(root, "fixture-judgment-journey")
+
+        self.assertEqual(same["same_signal_streak"], 2)
+        self.assertEqual(same["previous_outcome"], "FAIL")
+        self.assertEqual(different["same_signal_streak"], 1)
+        self.assertEqual(different["previous_outcome"], "FAIL")
+        self.assertEqual(different["consecutive_failures"], 3)
+        self.assertEqual(passed["same_signal_streak"], 0)
+        self.assertEqual(passed["consecutive_failures"], 0)
+        self.assertEqual(passed["runs"], 4)
+
+    def test_malformed_past_receipts_never_change_the_run_result(self) -> None:
+        malformed: list[dict[str, object]] = [
+            {"outcome": []},
+            {"failure_reasons": 5},
+            {"commands": {"start": {"duration_ms": "slow"}}, "scenarios": [7]},
+            {"scenarios": "none", "ux_integrity": {"snapshots": [{"elements": 3}]}},
+            {"measured_at": {"when": "never"}},
+            {"partial": "yes", "ui_evidence": {"steps": [{"evidence": [{"path": 9}]}]}},
+            {"commands": {"start": {"duration_ms": float("nan")}}},
+            {"commands": {"start": {"duration_ms": float("inf")}}},
+            {"commands": {"start": {"duration_ms": 10**400}}},
+            {"commands": {"start": {"duration_ms": -5}}},
+        ]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config(exits=(0, 3)))
+            _run(root, "run-1", measured_at="2026-07-10T00:00:00Z")
+            template = json.loads(
+                (root / EVIDENCE / "run-1/receipt.json").read_text(encoding="utf-8")
+            )
+            for index, override in enumerate(malformed):
+                broken_dir = root / EVIDENCE / f"broken-{index}"
+                broken_dir.mkdir()
+                (broken_dir / "receipt.json").write_text(
+                    json.dumps({**template, "run_id": f"broken-{index}", **override}),
+                    encoding="utf-8",
+                )
+            (root / EVIDENCE / "broken-text").mkdir()
+            (root / EVIDENCE / "broken-text/receipt.json").write_text("[1, 2", encoding="utf-8")
+            _write_config(root, _config())
+            stream = io.StringIO()
+            with contextlib.redirect_stdout(stream):
+                code = main(
+                    [
+                        "run",
+                        "--project-root", str(root),
+                        "--config", str(root / CONFIG_PATH),
+                        "--run-id", "run-2",
+                    ]
+                )
+            history = journey_history(root, "fixture-judgment-journey")
+
+        self.assertEqual(code, 0)
+        self.assertIn("outcome=PASS", stream.getvalue())
+        self.assertIn("cumulative runs=", stream.getvalue())
+        self.assertLess(history["duration_ms"], 600_000)
+        # Each record is judged on its own: unreadable ones are dropped, and a
+        # readable one with an odd optional field still counts as a run.
+        self.assertGreaterEqual(history["runs"], 2)
+        self.assertLessEqual(history["runs"], 2 + len(malformed))
+        self.assertEqual(history["consecutive_failures"], 0)
+
+    def test_history_failure_never_changes_the_exit_code(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config())
+            argv = ["run", "--project-root", str(root), "--config", str(root / CONFIG_PATH)]
+            out, err = io.StringIO(), io.StringIO()
+            with (
+                mock.patch(
+                    "harness.product_journey.journey_history",
+                    side_effect=RuntimeError("boom"),
+                ),
+                contextlib.redirect_stdout(out),
+                contextlib.redirect_stderr(err),
+            ):
+                code = main([*argv, "--run-id", "run-1"])
+
+        self.assertEqual(code, 0)
+        self.assertTrue(out.getvalue().splitlines()[0].endswith("run-1/receipt.json"))
+        self.assertIn("history unavailable", err.getvalue())
+
+    def test_missing_screen_evidence_is_compared_by_its_path_inside_the_run(self) -> None:
+        def _receipt(run_id: str, minute: int, missing: str) -> dict[str, object]:
+            run_dir = f"{EVIDENCE.as_posix()}/{run_id}"
+            return {
+                "receipt_type": "dcness.product-journey",
+                "journey_id": "fixture-judgment-journey",
+                "run_id": run_id,
+                "measured_at": f"2026-07-10T00:0{minute}:00Z",
+                "outcome": "FAIL",
+                "failure_reasons": ["ui_evidence_missing"],
+                "evidence_paths": {"receipt": f"{run_dir}/receipt.json"},
+                "ui_evidence": {
+                    "steps": [
+                        {
+                            "step_id": "result",
+                            "evidence": [
+                                {
+                                    "path": f"{run_dir}/{name}/screenshot.png",
+                                    "present": name != missing,
+                                }
+                                for name in ("before", "after")
+                            ],
+                        }
+                    ]
+                },
+            }
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for index, missing in enumerate(("before", "before", "after")):
+                run_dir = root / EVIDENCE / f"run-{index}"
+                run_dir.mkdir(parents=True)
+                (run_dir / "receipt.json").write_text(
+                    json.dumps(_receipt(f"run-{index}", index, missing)), encoding="utf-8"
+                )
+                if index == 1:
+                    same = journey_history(root, "fixture-judgment-journey")
+            different = journey_history(root, "fixture-judgment-journey")
+
+        self.assertEqual(same["same_signal_streak"], 2)
+        self.assertEqual(different["same_signal_streak"], 1)
+        self.assertEqual(different["consecutive_failures"], 3)
+
+    def test_runs_of_the_same_second_keep_the_order_they_were_written_in(self) -> None:
+        same_second = "2026-07-10T00:00:00Z"
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            mock.patch("harness.product_journey._now_iso", return_value=same_second),
+        ):
+            root = Path(directory)
+            _write_config(root, _config(exits=(0, 3)))
+            _run(root, "before-fix", measured_at=same_second)
+            _write_config(root, _config())
+            _run(root, "b-first-pass", measured_at=same_second)
+            _run(root, "after-fix", measured_at=same_second)
+            history = journey_history(root, "fixture-judgment-journey")
+
+        self.assertEqual(history["consecutive_failures"], 0)
+        self.assertEqual(history["previous_outcome"], "PASS")
+        self.assertEqual(history["failed"], 1)
+
+    def test_run_prints_cumulative_history_after_the_receipt_path(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _write_config(root, _config(exits=(0, 3)))
+            argv = ["run", "--project-root", str(root), "--config", str(root / CONFIG_PATH)]
+            outputs: list[str] = []
+            for run_id in ("run-1", "run-2"):
+                stream = io.StringIO()
+                with contextlib.redirect_stdout(stream):
+                    code = main([*argv, "--run-id", run_id])
+                self.assertEqual(code, 1)
+                outputs.append(stream.getvalue())
+            receipt_path = (root / EVIDENCE / "run-2/receipt.json").resolve()
+
+        first, second = (text.splitlines() for text in outputs)
+        self.assertEqual(Path(second[0]), receipt_path)
+        self.assertIn("runs=1", outputs[0])
+        self.assertIn("no previous run", outputs[0])
+        self.assertIn("runs=2", outputs[1])
+        self.assertIn("failed=2", outputs[1])
+        self.assertIn("duration=", outputs[1])
+        self.assertIn("same as the previous run", outputs[1])
+        self.assertIn("2 runs in a row", outputs[1])
+        self.assertTrue(all(line.startswith("[product-journey] ") for line in first[1:]))
 
 
 if __name__ == "__main__":

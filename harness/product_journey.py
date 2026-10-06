@@ -43,6 +43,7 @@ _EPIC_SCOPE_RECEIPT_FIELDS = frozenset(
 )
 _REVISION_RE = re.compile(r"^[0-9a-f]{7,40}$")
 _UNKNOWN_REVISION = "unknown"
+_HISTORY_DURATION_MAX_MS = 24 * 60 * 60 * 1000
 
 
 class JourneyConfigError(ValueError):
@@ -1938,6 +1939,236 @@ def _evidence_matches_receipt(
     return True
 
 
+def _written_ns(path: Path) -> int:
+    """When a receipt file was written; orders runs recorded within one second.
+
+    Receipt timestamps hold whole seconds, so a fast journey can finish twice
+    with equal `measured_at` and `finished_at`.
+    """
+    try:
+        return path.stat().st_mtime_ns
+    except OSError:
+        return 0
+
+
+def _journey_runs(project_root: Path, journey_id: str) -> list[dict[str, Any]]:
+    """Every recorded run of one journey, oldest first, partial runs included.
+
+    This is the history an agent weighs before another run, not acceptance
+    evidence, so it does not apply the structural checks of `read_receipts`.
+    Each record is reduced to what the history needs while it is read, and a
+    record that cannot be reduced is dropped on its own: history is advisory
+    and must never change the result of the run that prints it.
+    """
+    evidence_root = project_root / EVIDENCE_ROOT_REL
+    if not evidence_root.is_dir():
+        return []
+    runs: list[dict[str, Any]] = []
+    for path in sorted(evidence_root.rglob("receipt.json")):
+        if path.is_symlink():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            run = _run_summary(payload, journey_id)
+        except (
+            OSError,
+            ValueError,
+            AttributeError,
+            KeyError,
+            TypeError,
+            ArithmeticError,
+            RecursionError,
+        ):
+            continue
+        if run is not None:
+            runs.append({**run, "written_ns": _written_ns(path)})
+    runs.sort(
+        key=lambda item: (
+            item["measured"],
+            item["finished_at"],
+            item["written_ns"],
+            item["run_id"],
+        )
+    )
+    return runs
+
+
+def _run_summary(payload: object, journey_id: str) -> Optional[dict[str, Any]]:
+    if not isinstance(payload, dict) or payload.get("receipt_type") != RECEIPT_TYPE:
+        return None
+    outcome = payload.get("outcome")
+    measured_at = payload.get("measured_at")
+    if payload.get("journey_id") != journey_id or outcome not in ("PASS", "FAIL"):
+        return None
+    measured = _parse_ts(measured_at) if isinstance(measured_at, str) else None
+    if measured is None:
+        return None
+    return {
+        "measured": measured,
+        "finished_at": str(payload.get("finished_at") or ""),
+        "run_id": str(payload.get("run_id") or ""),
+        "outcome": outcome,
+        "partial": payload.get("partial") is True,
+        "duration_ms": _run_duration_ms(payload),
+        "failure_signal": _failure_signal(payload) if outcome == "FAIL" else None,
+    }
+
+
+def _dict_items(value: object) -> list[dict[str, Any]]:
+    return [item for item in value if isinstance(item, dict)] if isinstance(value, list) else []
+
+
+def _run_duration_ms(receipt: dict[str, Any]) -> int:
+    commands = receipt.get("commands")
+    timed = [
+        *(commands.values() if isinstance(commands, dict) else []),
+        *_dict_items(receipt.get("scenarios")),
+    ]
+    return sum(
+        item["duration_ms"]
+        for item in timed
+        if isinstance(item, dict) and _plausible_duration_ms(item.get("duration_ms"))
+    )
+
+
+def _plausible_duration_ms(value: object) -> bool:
+    """A recorded phase time that can be summed: a real number within one day."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    return 0 <= value <= _HISTORY_DURATION_MAX_MS
+
+
+def _failure_signal(receipt: dict[str, Any]) -> str:
+    """What a failed run reported, comparable across full and partial runs.
+
+    It holds failure reasons, failed phase and scenario exit codes, missing
+    screen evidence and failing layout elements. Log text is not part of it,
+    so two different defects behind one exit code share a signal.
+    """
+    commands = receipt.get("commands")
+    ui_evidence = receipt.get("ui_evidence")
+    ux_integrity = receipt.get("ux_integrity")
+    evidence_paths = receipt.get("evidence_paths")
+    receipt_rel = evidence_paths.get("receipt") if isinstance(evidence_paths, dict) else None
+    # Evidence paths start with the run directory, which differs on every run.
+    run_prefix = (
+        receipt_rel.rsplit("/", 1)[0] + "/"
+        if isinstance(receipt_rel, str) and "/" in receipt_rel
+        else ""
+    )
+    signal_parts = {
+        "reasons": sorted(str(item) for item in receipt.get("failure_reasons") or []),
+        "phases": sorted(
+            [phase, result.get("exit_code")]
+            for phase, result in (commands.items() if isinstance(commands, dict) else [])
+            if isinstance(result, dict) and result.get("exit_code") != 0
+        ),
+        "scenarios": sorted(
+            [str(item.get("scenario_id")), item.get("exit_code")]
+            for item in _dict_items(receipt.get("scenarios"))
+            if item.get("executed") and item.get("exit_code") != 0
+        ),
+        "missing_evidence": sorted(
+            [str(step.get("step_id")), str(item.get("path", "")).removeprefix(run_prefix)]
+            for step in _dict_items(
+                ui_evidence.get("steps") if isinstance(ui_evidence, dict) else None
+            )
+            for item in _dict_items(step.get("evidence"))
+            if not item.get("present")
+        ),
+        "elements": sorted(
+            [
+                str(snapshot.get("step_id")),
+                str(element.get("element_id")),
+                bool(element.get("evaluated")),
+                str(element.get("within_safe_area")),
+                sorted(str(item) for item in element.get("occluded_by") or []),
+            ]
+            for snapshot in _dict_items(
+                ux_integrity.get("snapshots") if isinstance(ux_integrity, dict) else None
+            )
+            for element in _dict_items(snapshot.get("elements"))
+            if not element.get("evaluated")
+            or element.get("within_safe_area") is not True
+            or element.get("occluded_by")
+        ),
+    }
+    return json.dumps(signal_parts, ensure_ascii=False, sort_keys=True)
+
+
+def journey_history(project_root: Path | str, journey_id: str) -> dict[str, Any]:
+    """Cumulative cost of one journey and whether its latest failure repeats."""
+    root = Path(project_root).expanduser().resolve()
+    runs = _journey_runs(root, journey_id)
+    failing: list[dict[str, Any]] = []
+    for run in reversed(runs):
+        if run["outcome"] != "FAIL":
+            break
+        failing.append(run)
+    same_signal = 0
+    for run in failing:
+        if run["failure_signal"] != failing[0]["failure_signal"]:
+            break
+        same_signal += 1
+    return {
+        "journey_id": journey_id,
+        "runs": len(runs),
+        "failed": sum(1 for run in runs if run["outcome"] == "FAIL"),
+        "partial": sum(1 for run in runs if run["partial"]),
+        "duration_ms": sum(run["duration_ms"] for run in runs),
+        "consecutive_failures": len(failing),
+        "consecutive_failure_duration_ms": sum(run["duration_ms"] for run in failing),
+        "same_signal_streak": same_signal,
+        "previous_outcome": runs[-2]["outcome"] if len(runs) > 1 else None,
+    }
+
+
+def _format_duration(duration_ms: float) -> str:
+    seconds = round(duration_ms / 1000)
+    hours, rest = divmod(seconds, 3600)
+    minutes, seconds = divmod(rest, 60)
+    if hours:
+        return f"{hours}h{minutes:02d}m"
+    if minutes:
+        return f"{minutes}m{seconds:02d}s"
+    return f"{seconds}s"
+
+
+def _history_lines(receipt: dict[str, Any], history: dict[str, Any]) -> list[str]:
+    """Lines an agent reads after each run to judge whether another run pays off."""
+    uncommitted = receipt.get("uncommitted_changes")
+    dirty = "unknown" if uncommitted is None else ("yes" if uncommitted else "no")
+    lines = [
+        f"journey={receipt['journey_id']} outcome={receipt['outcome']} "
+        f"code_revision={receipt.get('code_revision', _UNKNOWN_REVISION)} "
+        f"uncommitted_changes={dirty}",
+        f"cumulative runs={history['runs']} failed={history['failed']} "
+        f"partial={history['partial']} duration={_format_duration(history['duration_ms'])}",
+    ]
+    if receipt["outcome"] != "FAIL":
+        return lines
+    lines.append(
+        f"consecutive failures={history['consecutive_failures']} "
+        f"duration={_format_duration(history['consecutive_failure_duration_ms'])}"
+    )
+    if history["previous_outcome"] is None:
+        relation = "no previous run"
+    elif history["previous_outcome"] != "FAIL":
+        relation = "previous run passed"
+    elif history["same_signal_streak"] > 1:
+        relation = (
+            f"same as the previous run, {history['same_signal_streak']} runs in a row"
+        )
+    else:
+        relation = "differs from the previous run"
+    lines.append(
+        f"failure signal: {relation} (compares failure reasons, failed phase and "
+        "scenario exit codes, missing screen evidence and failing layout elements; "
+        "log text is not compared)"
+    )
+    return lines
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     parser = argparse.ArgumentParser(
         description="project-local product journey runner"
@@ -1990,6 +2221,16 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"[product-journey] contract error: {exc}", file=sys.stderr)
         return 2
     print(result.receipt_path)
+    # History is advisory: whatever goes wrong while reading old records, the
+    # exit code stays the verdict of the run that just finished.
+    try:
+        history = journey_history(args.project_root, result.receipt["journey_id"])
+        lines = _history_lines(result.receipt, history)
+    except Exception as exc:  # noqa: BLE001
+        print(f"[product-journey] history unavailable: {exc}", file=sys.stderr)
+        lines = []
+    for line in lines:
+        print(f"[product-journey] {line}")
     return result.exit_code
 
 
