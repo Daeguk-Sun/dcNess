@@ -57,8 +57,13 @@
       top: '0',
       transformOrigin: '0 0',
     });
-    while (stage.firstChild) inner.appendChild(stage.firstChild);
-    stage.appendChild(inner);
+    // 문서에서 떨어진 iframe 은 다시 붙을 때 처음부터 다시 로딩한다. inner 를 먼저
+    // 문서에 붙이고, 지원하는 브라우저에서는 moveBefore 로 로딩 상태를 유지한 채 옮긴다.
+    stage.insertBefore(inner, stage.firstChild);
+    while (inner.nextSibling) {
+      if (typeof inner.moveBefore === 'function') inner.moveBefore(inner.nextSibling, null);
+      else inner.appendChild(inner.nextSibling);
+    }
     return { stage, inner };
   }
 

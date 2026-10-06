@@ -19,6 +19,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const GENERATORS = path.join(ROOT, 'scripts', 'design');
 const TEMPLATE = path.join(ROOT, 'templates', 'design-variants');
+const PROBE_WAIT_PATH = '/__probe-wait';
 
 function chromeExecutable() {
   const candidates = [
@@ -156,7 +157,10 @@ async function injectProbe(file) {
   let previous = '';
   let stable = 0;
   for (let attempt = 0; attempt < 50; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, 100));
+    // 가상 시간의 타이머는 실제 화면 갱신보다 빨리 지나간다. iframe 의 크기 보고는
+    // 화면 갱신에 맞춰 오므로, 서버가 실제 시간만큼 붙잡는 요청으로 기다린다.
+    // 응답을 기다리는 동안 Chrome 은 가상 시간을 멈춘다.
+    await fetch('${PROBE_WAIT_PATH}', { cache: 'no-store' });
     if (typeof window.dcnessCanvasDiagnostics !== 'function') continue;
     diagnostics = window.dcnessCanvasDiagnostics();
     diagnostics.frameLoads = window.__dcnessSmokeFrameLoads || {};
@@ -184,12 +188,22 @@ async function startServer(root) {
   const server = http.createServer(async (request, response) => {
     try {
       const pathname = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
+      if (pathname === PROBE_WAIT_PATH) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        response.writeHead(204).end();
+        return;
+      }
       const requested = path.resolve(root, `.${pathname}`);
       if (requested !== root && !requested.startsWith(`${root}${path.sep}`)) {
         response.writeHead(403).end();
         return;
       }
       const content = await readFile(requested);
+      // 화면 iframe 이 보드 엔진보다 먼저 로딩을 끝내게 해, 엔진이 iframe 을 다시
+      // 로딩시키는 결함을 실행 순서와 관계없이 드러낸다.
+      if (pathname.endsWith('/_lib/canvas.js')) {
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
       const type = requested.endsWith('.html')
         ? 'text/html; charset=utf-8'
         : requested.endsWith('.js')
@@ -208,7 +222,7 @@ async function startServer(root) {
   return server;
 }
 
-async function dumpDom(chrome, profile, url) {
+async function dumpDom(chrome, profile, url, limit = 20000) {
   const args = [
     '--headless=new',
     '--disable-gpu',
@@ -225,12 +239,26 @@ async function dumpDom(chrome, profile, url) {
     const child = spawn(chrome, args);
     let stdout = '';
     let stderr = '';
+    const started = Date.now();
+    let firstOutput = 'none';
+    const markOutput = () => {
+      if (firstOutput === 'none') firstOutput = `${Date.now() - started}ms`;
+    };
     const timeout = setTimeout(() => {
       child.kill('SIGKILL');
-      reject(new Error(`Chrome timed out for ${url}\n${stderr}`));
-    }, 20000);
-    child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
-    child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
+      reject(new Error(
+        `Chrome timed out after ${limit}ms for ${url} `
+        + `(first output: ${firstOutput}, stdout: ${stdout.length} bytes)\n${stderr}`,
+      ));
+    }, limit);
+    child.stdout.setEncoding('utf8').on('data', chunk => {
+      markOutput();
+      stdout += chunk;
+    });
+    child.stderr.setEncoding('utf8').on('data', chunk => {
+      markOutput();
+      stderr += chunk;
+    });
     child.once('error', reject);
     child.once('close', code => {
       clearTimeout(timeout);
@@ -419,6 +447,10 @@ async function main() {
     server = await startServer(project);
     const address = server.address();
     const base = `http://127.0.0.1:${address.port}`;
+
+    // 새 프로필로 하는 Chrome 첫 실행은 CI 에서 20초 가까이 걸린 적이 있다.
+    // 첫 실행 비용을 보드 검사의 시간 한도와 분리한다.
+    await dumpDom(chrome, profile, 'about:blank', 60000);
 
     const states = smokeData(await dumpDom(
       chrome,
