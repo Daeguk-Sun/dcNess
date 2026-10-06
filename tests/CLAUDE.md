@@ -68,9 +68,13 @@
 
 ## 검증
 
-- 단일 파일: `python3.11 -m unittest tests.test_context_docs -v < /dev/null`처럼 모듈명을 지정한다.
-- 전체 suite: `python3.11 -m unittest discover -s tests -v < /dev/null`.
-- 브라우저 smoke test: `node tests/design_variants_browser_smoke.mjs`. 주의: 로컬 macOS 에서는 Chrome 이
-  결과를 출력한 뒤 종료하지 않아 timeout 으로 실패한다. 판정은 CI 결과로 한다.
-- `templates/github-workflows/`, audited script, `harness/` 변경은 pre-commit hook이 전체 unit suite를
-  실행할 수 있다.
+```sh
+python3.11 -m unittest tests.test_context_docs -v < /dev/null   # 단일 파일은 모듈명을 지정
+python3.11 -m unittest discover -s tests -v < /dev/null         # 전체 suite
+node tests/design_variants_browser_smoke.mjs                    # 브라우저 smoke test
+```
+
+- 주의: 로컬 macOS 에서는 Chrome 이 결과를 출력한 뒤 종료하지 않아 브라우저 smoke test 가 timeout 으로
+  실패한다. 판정은 CI(`.github/workflows/python-tests.yml`) 결과로 한다.
+- `templates/github-workflows/`, audited script, `harness/` 변경은 pre-commit hook
+  (`scripts/check_python_tests.sh`)이 전체 unit suite를 실행할 수 있다.

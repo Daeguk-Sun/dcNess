@@ -60,7 +60,10 @@ seed와 workflow snippet을 고칠 때의 컴퍼스이며, 그 자체가 외부 
 
 ## 검증
 
-- workflow template 변경: `python3.11 -m unittest tests.test_ci_workflows_install tests.test_doc_path_integrity tests.test_index_map_aggregate -v < /dev/null`.
-- design variant 변경: `python3.11 -m unittest tests.test_canvas_design_workflow -v < /dev/null`.
-- 문서/링크 영향: `node scripts/check_cross_refs.mjs`.
-- 범위가 섞이면 전체 suite `python3.11 -m unittest discover -s tests -v < /dev/null`를 돌린다.
+```sh
+# workflow template 변경
+python3.11 -m unittest tests.test_ci_workflows_install tests.test_doc_path_integrity tests.test_index_map_aggregate -v < /dev/null
+python3.11 -m unittest tests.test_canvas_design_workflow -v < /dev/null   # design variant 변경
+node scripts/check_cross_refs.mjs                                         # 문서·링크 영향
+python3.11 -m unittest discover -s tests -v < /dev/null                   # 범위가 섞이면 전체 suite
+```

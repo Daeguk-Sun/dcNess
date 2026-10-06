@@ -209,7 +209,7 @@ Sub-agent(`agents/`, architect / validator / worker / reviewer / acceptance 계�
 이 저장소의 모든 변경은 [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md)(SSOT)를 따른다.
 
 - **게이트**: main-block · git-naming · pytest(pre-commit hook) + 위 10개 CI
-- **branch → PR → merge** 필수, `main` 직접 push 금지
+- 반드시 **branch → PR → merge** 로 진행한다. `main` 직접 push 금지
 - PR 절차: [`CLAUDE.md`](https://github.com/Daeguk-Sun/dcNess/blob/main/CLAUDE.md#커밋-pr-절차)
 
 ## 개발자 셋업 (dcNess 에 기여)
