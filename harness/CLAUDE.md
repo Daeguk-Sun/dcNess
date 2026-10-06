@@ -65,6 +65,21 @@ flowchart LR
 - 전체 그래프와 바깥 모듈의 호출 경로는
   [docs/internal/harness-dependency-graph.md](../docs/internal/harness-dependency-graph.md)에 있다.
 
+## 자주 하는 수정 (common change patterns)
+
+- **새 모듈을 추가한다.**
+  1. plug-in 으로 배포할 파일이면 [../scripts/release_artifact.json](../scripts/release_artifact.json)의
+     `product_python`에 경로와 용도를 추가한다. 배포 대상 Python 파일과 이 목록이 다르면
+     [../tests/test_release_artifact.py](../tests/test_release_artifact.py)가 실패한다.
+  2. 이 문서의 "먼저 볼 파일"과
+     [의존 그래프 문서](../docs/internal/harness-dependency-graph.md)의 표에 추가한다.
+- **hook 판정이나 접근 경계를 바꾼다.**
+  1. `hooks.py` 또는 `agent_boundary.py`를 고치고 대응 테스트를 고친다.
+  2. `python3 evals/guard_efficacy.py`를 실행해 범주별 allow·block 수가 의도대로인지 확인한다.
+  3. 동작 설명이 바뀌면 [../docs/plugin/hooks.md](../docs/plugin/hooks.md)를 함께 고친다.
+- **harness-state 파일의 필드를 바꾼다.** 쓰는 코드, 읽는 코드(`run_review.py`, `session_state_cli*.py`),
+  청소 코드(`session_state.py`)를 함께 고친다. 필드가 없는 과거 파일도 읽히는지 테스트로 확인한다.
+
 ## 수정 시 주의점
 
 - hook 계열은 기본적으로 fail-open이다. 명시적 catastrophic 위반만 block 하고, payload 파싱 실패나
