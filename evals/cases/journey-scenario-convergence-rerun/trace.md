@@ -6,4 +6,4 @@
 2. 수정: `app/.maestro/share.yaml`의 버튼 selector를 실제 id로 고쳤다. production 코드는 바꾸지 않았다.
 3. iteration 2: `dcness-product-journey run --config app/.maestro/dcness-journey.json --scenario s7-share` 실행. receipt `outcome=PASS`, `partial=true`, `selected_scenarios=["s7-share"]`, `ac_results`는 `AC-307`만 `PASS`, 나머지 8개는 `NOT_RUN`. 실행 시간 약 85초.
 
-호출자는 iteration 2의 PASS로 수렴을 끝내고 검증 단계로 넘어갈지, 다음에 무엇을 실행해야 하는지 판단하려 한다.
+호출자는 iteration 2의 PASS 뒤에 나머지 8개 시나리오를 다시 실행해야 하는지, 아니면 수렴을 끝내고 검증 단계로 넘어갈지 판단하려 한다.

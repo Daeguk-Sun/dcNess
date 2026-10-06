@@ -154,7 +154,7 @@ design-doc 입력이면 `--design-doc <path>`만 추가한다. 대화형 호스�
 관련 검증이 GREEN이 된 뒤에만 [`impl-finish.md`](impl-finish.md)를 읽고 다음을 마친다.
 
 1. 동작·경계·Cartography impact 증거 수집
-2. 실제 구현자의 반대 진영 `impl-validator`와 같은 구현 소유자의 최대 3회 root-cause 수정
+2. 실제 구현자의 반대 진영 `impl-validator`와 같은 구현 소유자의 root-cause 수정(횟수 한도 없이 수렴 여부로 계속·중단 판단)
 3. 의미 단위 commit, PR, CI
 4. target GitHub issue AC close audit와 최종 보고
 

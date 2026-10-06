@@ -41,21 +41,21 @@ step 3의 consolidate 여부는 [`git-spec.md#분할-판정`](../../docs/plugin/
 - 이후 판정 입력은 `journey-deferred list`가 돌려주는 저장된 목록이다. 진행 뷰와 worker 프롬프트에 목록을 계속 노출하되, 그 값의 출처는 대화 맥락이 아니라 run 상태다. 조회가 실패하면 빈 목록으로 간주하지 않고 그 자리에서 멈춘다 — 기록 없음과 읽지 못함은 다른 상태다.
 - `journey_deferred`가 아닌 자동 journey만 `JOURNEY_CONVERGENCE`를 실행한다. 실행은 `dcness-product-journey run --config <매니페스트>` 러너로 하며, 대본을 직접 실행한 PASS 는 수렴 PASS 로 인정하지 않는다.
 - 첫 실행 PASS면 끝내고, 실패하면 실행 → 관찰 → 배관 수정 → 재실행한다.
-- 시나리오 매니페스트이면 재실행은 `--scenario`로 실패한 시나리오만 한다. 수렴 PASS 전에는 전체 시나리오를 한 번 실행해 통과를 확인한다. 부분 실행 receipt는 수렴 PASS 증거가 아니다.
+- 시나리오 매니페스트이면 재실행은 `--scenario`로 실패한 시나리오만 한다. 수렴 PASS 전에 이미 통과한 다른 시나리오를 다시 실행할지는 build-worker가 이번 수정이 그 시나리오에 닿는지 읽고 정하며, 다시 실행하지 않은 시나리오는 이유를 남긴다. 부분 실행 receipt는 전체 실행 receipt가 아니다.
 - story-local production 수정은 해당 story branch에 commit하고 downstream branch를 restack한다.
 - 다중 story의 cross-cutting production 수정과 tracked flow/manifest 보정은 QA branch가 소유한다.
 - `journey_deferred`는 수렴·sealed journey 실행 비발동이며 종료 조건의 수렴 PASS Must 비대상이다. 해당 issue에 `Closes`를 붙이지 않는다.
-- 같은 실패 서명이 수정 뒤 반복되는 무진행은 3회, 전체 iteration은 12회가 상한이다. device 유실·재부팅은 1회만 자동 재준비한다.
-- 서로 다른 실패가 이전 실패를 고친 뒤 순차 노출되면 무진행으로 세지 않는다. 전체 iteration 12회가 실패 서명과 별개인 실질 runaway 가드다.
-- 상한 소진 시 커밋을 보존하고 `수렴 재개 / production만 착지하고 journey 분리 / run 폐기` 중 사용자 처분을 받는다. production만 착지하면 human verification/follow-up으로 남기고 issue를 닫지 않는다.
+- 수렴 반복은 횟수로 멈추지 않는다. build-worker가 [`rerun-judgment.md`](../../docs/plugin/agents/_shared/rerun-judgment.md) 기준으로 매 실행 전에 직전 실행과 무엇이 다른지 답하고, 같은 신호가 반복되면 신호 자체를 먼저 의심하며, 새 정보가 나오지 않거나 누적 비용이 얻는 정보보다 크면 멈춘다. 러너가 출력하는 누적 실행 횟수·시간·직전 신호와의 동일 여부가 그 판단의 재료다.
+- 서로 다른 실패가 이전 실패를 고친 뒤 순차 노출되면 진전이다. 이 경우에도 누적 비용은 계속 보고 판단한다.
+- build-worker가 멈추면 커밋을 보존하고, 시도한 것·관측한 신호·남은 가설·누적 실행 횟수와 시간을 사용자에게 보고한 뒤 `수렴 재개 / production만 착지하고 journey 분리 / run 폐기` 중 사용자 처분을 받는다. production만 착지하면 human verification/follow-up으로 남기고 issue를 닫지 않는다.
 
 ### 격리 review
 
-설정된 chain이 아니라 terminal receipt의 실제 구현 성공 provider의 반대 진영을 기본 review provider로 resolve한다. Codex 구현이면 Claude review, Claude 구현이면 Codex review다. Codex reviewer가 불가하면 Claude로 폴백하고 이유를 기록한다. validator는 read-only다. MUST FIX가 있으면 실제 구현 provider와 동일한 build-worker가 최대 3회 root-cause 수정하고 관련 gate를 재실행한다. build-worker rework가 코드나 harness를 바꾸면 필요한 earlier evidence부터 다시 수집한다.
+설정된 chain이 아니라 terminal receipt의 실제 구현 성공 provider의 반대 진영을 기본 review provider로 resolve한다. Codex 구현이면 Claude review, Claude 구현이면 Codex review다. Codex reviewer가 불가하면 Claude로 폴백하고 이유를 기록한다. validator는 read-only다. MUST FIX가 있으면 실제 구현 provider와 동일한 build-worker가 root-cause 수정하고 그 수정이 닿는 gate를 재실행한다. 재리뷰를 계속할지는 [마감 복구와 증거 invalidation](#마감-복구와-증거-invalidation)의 수렴 판단으로 정한다. build-worker rework가 코드나 harness를 바꾸면 필요한 earlier evidence부터 다시 수집한다.
 
 `impl-validator`의 첫 라운드는 base부터 final stack tip까지를 한 번에 보는 반대 진영 전체 holistic reviewer다. task/commit 목록은 추적 근거이지 fixed task/commit fan-out 계획이 아니다. task별·commit별 child reviewer를 자동 생성하지 않고, 실제 unresolved high-risk 또는 넓은 context가 발견된 경우에만 같은 reviewer가 selective extra investigation을 수행한다.
 
-`FAIL → root-cause 수정 → 재리뷰`는 직전 receipt와 candidate delta를 1급 입력으로 쓰는 delta mode다. validator는 직전 finding의 최종 tip 해소 여부와 rework delta가 만든 신규 위험을 우선 판정하고, 변경 영향이 넓거나 receipt/candidate 연결을 신뢰할 수 없으면 스스로 전체 재독으로 승격한다. 호출자는 좁힌 범위를 처방하거나 전체 재독을 막지 않는다. 재리뷰 한도는 현행 3회이며 provider 선택·첫 라운드 범위·제품 acceptance 순서는 바꾸지 않는다.
+`FAIL → root-cause 수정 → 재리뷰`는 직전 receipt와 candidate delta를 1급 입력으로 쓰는 delta mode다. validator는 직전 finding의 최종 tip 해소 여부와 rework delta가 만든 신규 위험을 우선 판정하고, 변경 영향이 넓거나 receipt/candidate 연결을 신뢰할 수 없으면 스스로 전체 재독으로 승격한다. 호출자는 좁힌 범위를 처방하거나 전체 재독을 막지 않는다. 재리뷰는 횟수 한도가 아니라 수렴 판단으로 이어가며, provider 선택·첫 라운드 범위·제품 acceptance 순서는 바꾸지 않는다.
 
 Epic close의 dead code, stale registration, duplicate/example/scaffold, suppression/deprecation, convention drift와 replacement 잔존 감사도 이 holistic invocation의 `CODEBASE_SANITY` 렌즈에 합친다. 별도 Sanity reviewer를 선행 호출하지 않는다. code revision/tree identity와 같은-tree lint/build/test/typecheck/coverage terminal evidence를 소비하고, coverage 도구가 없으면 `UNKNOWN`으로 기록한다.
 
@@ -75,11 +75,11 @@ local-only/ignored Root는 code PR에 강제 포함하지 않고 canonical local
 
 Cartography sync와 commit이 끝난 clean tracked tree에서 HEAD와 `HEAD^{tree}`를 candidate identity로 고정한다. 이 고정은 현재 run이 `--acceptance-required`로 열려 있을 때만 일어나므로, 리뷰·검수 step을 열기 전에 그 표시가 있는지 확인한다. 표시가 없으면 `begin-step`이 경고를 내고 candidate를 기록하지 않는다. **표시 없는 run은 종료 게이트의 마감 진단 대상이 아니므로 이 경고가 유일한 신호다** — 무시하고 진행하면 마감 판정이 candidate 대조 없이 지나간다. 경고를 보면 그 자리에서 `begin-run` 또는 `next-task`를 `--acceptance-required`로 다시 열고 리뷰·검수 step을 연다. 표시는 있는데 candidate가 비었거나 일부만 기록된 상태로 마감까지 가면 종료 게이트가 「기록되지 않음」으로 막으며, 이때도 해결은 시퀀스 반복이 아니라 run을 올바르게 다시 여는 것이다. 먼저 mode 없는 `impl-validator` step을 열고 holistic review를 완료한다. validator가 terminal `PASS`가 아니면 product-acceptance를 시작하지 않고 finding을 same implementation owner에게 돌린다. PASS일 때만 같은 HEAD/tree에서 `product-acceptance:{STORY_ACCEPTANCE|EPIC_ACCEPTANCE}` step을 열어 sealed Journey를 실행한다. 두 Agent는 한 세션에서 동시에 호출하지 않는다. 값싼 read-only review를 비싼 device/Journey 검수보다 앞세워 초회 FAIL 때 acceptance 실행과 token을 버리지 않는 fail-fast 계약이다.
 
-story/epic 마감마다 read-only `product-acceptance`를 수행한다. product-acceptance는 외부 상태 변경(`gh` issue/PR mutation, push, merge)을 하지 않는다. UI면 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 포함해 화면 증거 부재와 목업 불일치를 판정한다. 자동 journey는 final tip에서 `dcness-product-journey`를 다시 실행한 sealed receipt로 판정한다. mock-only, app-not-started, assertion 미평가, UI evidence 누락은 PASS가 아니다.
+story/epic 마감마다 read-only `product-acceptance`를 수행한다. product-acceptance는 외부 상태 변경(`gh` issue/PR mutation, push, merge)을 하지 않는다. UI면 확정 목업 경로, 구현 화면 스크린샷, 화면 증거를 포함해 화면 증거 부재와 목업 불일치를 판정한다. 자동 journey는 product-acceptance가 직전 통과 receipt 이후의 변경분을 읽고 final tip에서 다시 실행할 journey·시나리오를 스스로 고른다. 메인은 범위를 좁혀 처방하지 않고, 전체 실행으로 올리는 것도 막지 않는다. 다시 실행하지 않은 대상은 이유와 직전 통과 receipt가 보고에 있어야 한다. mock-only, app-not-started, assertion 미평가, UI evidence 누락은 PASS가 아니다.
 
 impl-validator는 계획 대비 구현 정합과 merge candidate diff 위험을 맡는다. 여러 PR이 합쳐진 story 동작과 여러 story가 합쳐진 epic 동작의 사용자 관찰 가능 동작은 마감 product-acceptance가 맡는다.
 
-product-acceptance는 candidate identity가 일치하는 lint/build/unit-test terminal evidence를 소비하고 정상 경로에서 동일 full unit suite를 다시 실행하지 않는다. 이 재사용은 `JOURNEY_CONVERGENCE` receipt를 최종 판정으로 재사용한다는 뜻이 아니다. 자동 journey는 product-acceptance가 final tip에서 독립 sealed 실행한다.
+product-acceptance는 candidate identity가 일치하는 lint/build/unit-test terminal evidence를 소비하고 정상 경로에서 동일 full unit suite를 다시 실행하지 않는다. `JOURNEY_CONVERGENCE` receipt는 직전 통과 기록으로 product-acceptance에 넘긴다. product-acceptance는 그 기록을 그대로 최종 판정으로 삼지 않고, 그 실행의 커밋과 final tip 사이의 변경분이 journey에 닿는지 읽은 뒤 다시 실행할지 정한다.
 
 auto-fixable gap은 PRD/Story AC 미충족, 검수 증거 부족, smoke 실패, mock-only green/동작 증거 부족, 화면 증거 부재, 구현으로 닫히는 목업 불일치, 사용자 동선 부적합/내부 계약 노출이다. 설계 결함, 범위 재정의, 사용자/UX 선택, 보안·권한·데이터 위험은 비자동 gap으로 사용자에게 넘긴다.
 
@@ -121,17 +121,19 @@ Epic 종료 가능이 아니면 close를 보류하고, 막은 이유마다 어�
 
 ## 마감 복구와 증거 invalidation
 
-- code/harness finding은 same implementation owner가 root-cause 수정한다. tracked tree가 바뀌면 이전 validation sequence의 terminal 판정은 stale이며, 영향받은 lint/build/test, journey convergence, Cartography sync를 다시 모은 뒤 새 candidate를 freeze하고 validator부터 다시 시작한다. 다만 직전 validator receipt는 폐기하지 않고 finding과 검토 이력을 증명하는 재리뷰 입력으로만 사용한다.
+- code/harness finding은 same implementation owner가 root-cause 수정한다. tracked tree가 바뀌면 이전 validation sequence의 terminal 판정은 새 candidate의 판정이 아니다. 새 candidate를 freeze하고 validator부터 순서대로 다시 호출한다 — 이 순서는 종료 게이트가 강제한다. 다만 각 단계가 실제로 무엇을 다시 실행·검토할지는 변경분을 읽고 정한다. 메인은 변경이 닿는 lint/build/test와 Cartography sync만 다시 모으고, validator는 delta mode로, product-acceptance는 직전 통과 receipt 이후의 변경분으로 다시 실행할 journey를 고른다. 문서만 바뀐 변경처럼 실행 경로에 닿지 않는 변경은 journey를 다시 실행할 이유가 아니다. 변경분을 계산할 수 없거나 영향이 넓으면 전체를 다시 한다. 직전 validator receipt는 폐기하지 않고 finding과 검토 이력을 증명하는 재리뷰 입력으로 사용한다.
 - device/external transient가 발생했지만 tracked HEAD/tree가 그대로면 validator PASS를 유지하고 acceptance만 재실행한다.
 - validator provider/tool transient에서 tracked HEAD/tree가 그대로면 acceptance PASS를 유지하고 validator만 재실행한다.
 - validator PASS 뒤 tracked tree가 바뀌거나 두 receipt의 candidate identity가 다르면 acceptance 결과와 close를 거부한다.
 
-| 경로 | 한도 | 초과 시 |
-|---|---|---|
-| impl-validator `FAIL` → root-cause 수정 → 재리뷰 | 3 | 사용자 위임 |
-| product-acceptance auto-fixable gap → rework → 재검수 | 3 | 사용자 위임 |
+재리뷰와 재검수는 횟수로 멈추지 않는다. `impl-validator FAIL → root-cause 수정 → 재리뷰`와 `product-acceptance auto-fixable gap → rework → 재검수`를 다시 돌리기 전에 메인은 [`rerun-judgment.md`](../../docs/plugin/agents/_shared/rerun-judgment.md) 기준으로 수렴 여부를 읽는다.
 
-같은 영역 finding이 반복되면 줄 단위 점 패치가 아니라 root cause를 재검토한다. 비자동 acceptance gap, 설계·AC 충돌, `ESCALATE`는 사용자에게 넘긴다.
+- finding이 줄거나 좁아지면 진전이므로 계속한다.
+- 같은 영역 finding이 반복되면 줄 단위 점 패치로 다시 돌리지 않고 root cause를 재검토한다.
+- finding의 분류·영역·파일·provider가 바뀌었다는 사실만으로 새 시도로 보지 않는다.
+- 새 정보가 나오지 않거나 누적 비용이 얻는 정보보다 크면 멈추고 시도한 것·남은 finding·남은 가설·누적 횟수와 시간을 사용자에게 보고한다.
+
+비자동 acceptance gap, 설계·AC 충돌, `ESCALATE`는 사용자에게 넘긴다.
 
 ## target GitHub issue AC close audit
 

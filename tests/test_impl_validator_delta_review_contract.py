@@ -45,7 +45,7 @@ class ImplValidatorDeltaReviewContractTests(unittest.TestCase):
             "직전 candidate HEAD/tree/workspace root",
             "현재 candidate HEAD/tree/workspace root",
             "직전 candidate HEAD..현재 candidate HEAD",
-            "재리뷰 한도는 현행 3회",
+            "재리뷰는 횟수 한도가 아니라 수렴 판단으로 이어가며",
         ):
             with self.subTest(needle=needle):
                 self.assertIn(needle, finish)

@@ -61,16 +61,15 @@ class JourneyConvergenceContractTests(unittest.TestCase):
         self.assertIn("self-verify", validator)
         self.assertIn("유일 관문", validator)
 
-    def test_finish_has_bounded_convergence_and_three_way_escalation(self) -> None:
+    def test_finish_has_judged_convergence_and_three_way_escalation(self) -> None:
         finish = read("skills/impl-loop/impl-loop-finish.md")
 
         for needle in (
-            "무진행은 3회",
-            "3",
+            "수렴 반복은 횟수로 멈추지 않는다",
+            "신호 자체를 먼저 의심",
             "서로 다른 실패",
-            "전체 iteration",
-            "12",
-            "실질 runaway 가드",
+            "진전이다",
+            "누적 비용",
             "수렴 재개",
             "production만 착지",
             "run 폐기",

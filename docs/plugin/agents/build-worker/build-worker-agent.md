@@ -23,6 +23,7 @@
 - design:required 필수: `docs/design.md` 토큰 적용은 필수 입력이다. impl 문서의 `## 디자인 참조` 가 가리키는 `docs/design-variants/screens/<screen-id>.html`, 핵심 디자인 토큰, 의도적 차이도 함께 읽는다.
 - 상황별: 기존 테스트 설정, design 문서, impl 문서의 `## 디자인 참조` 가 가리키는 `docs/design-variants/screens/<screen-id>.html`, 의존 모듈 source
 - `(JOURNEY)` 필수: 활성 plugin 의 [`docs/plugin/product-journey.md`](../../product-journey.md). journey 매니페스트 필드, `boundary=ui` 의 `ux_integrity.snapshots`, layout report schema 의 진본이다. 스키마를 기억이나 추측으로 쓰지 않는다.
+- `JOURNEY_CONVERGENCE` 필수: [`rerun-judgment.md`](../_shared/rerun-judgment.md). 다시 실행할 범위와 반복을 멈출 시점의 판단 기준이다.
 
 ## 판단 축
 
@@ -66,11 +67,11 @@
 - 모든 task completed 뒤 단일 story final tip 또는 다중 story final stack tip에서 `fresh context` build-worker 호출로 시작한다. `automation=automated`이면서 현재 run의 `journey_deferred`에 없는 journey만 대상이며, 설계가 `human_verification`으로 선언했거나 사용자가 분리를 선택한 journey는 기존 사람 확인/follow-up 목록에 남긴다.
 - journey 실행은 항상 `dcness-product-journey run --project-root <project-root> --config <매니페스트 경로>` 로 한다. flow 대본이나 오케스트레이션 스크립트를 직접 실행한 PASS 는 러너의 계약 검사와 UX 정합성 판정을 거치지 않으므로 수렴 PASS 로 인정하지 않는다.
 - 먼저 journey를 그대로 1회 실행한다. 첫 실행이 PASS면 추가 수정·재실행 없이 실행 1회로 종료한다. 실패하면 `실행 → 관찰 → 배관 수정 → 재실행` 루프를 수행하며 flow, seed, runner, manifest, env adapter 같은 `harness_paths`를 우선 대조한다. 이 목록은 검토 handoff이지 build-worker production write를 막는 기계 경계가 아니다.
-- 시나리오 매니페스트이면 receipt의 `scenarios`·`ac_results`로 실패한 시나리오를 특정하고, 재실행은 `--scenario <id>`로 실패한 시나리오만 한다. 실패 서명은 시나리오별로 기록한다. 선택한 시나리오가 모두 통과하면 수렴 PASS 전에 `--scenario` 없이 전체 시나리오를 한 번 실행해 PASS를 확인한다. 수정이 이미 통과한 다른 시나리오를 깨뜨릴 수 있기 때문이다. 부분 실행 receipt는 수렴 PASS 증거가 아니다.
-- 같은 실패 서명(실패 단계·exit code·정규화한 핵심 오류)이 수정 시도 후 반복될 때만 무진행 라운드를 소비한다. 서로 다른 실패가 이전 실패 수정 뒤 순차 노출되고 이전 서명이 재발하지 않으면 정상 진행이다. 실패 서명만으로 자초 회귀와 잠재 노출을 완전히 구분할 수 없으므로 별도 총 iteration 상한을 함께 지킨다.
+- 시나리오 매니페스트이면 receipt의 `scenarios`·`ac_results`로 실패한 시나리오를 특정하고, 재실행은 `--scenario <id>`로 실패한 시나리오만 한다. 선택한 시나리오가 모두 통과하면, 이번 수렴에서 한 수정이 이미 통과한 다른 시나리오가 지나는 화면·상태·데이터·배관에 닿는지 읽는다. 닿거나 불확실하면 그 시나리오도 다시 실행하고, 영향이 넓으면 `--scenario` 없이 전체를 실행한다. 닿지 않는다는 근거를 댈 수 있는 시나리오는 다시 실행하지 않고 `dcness-product-journey skip --scenario <id> --reason <이유>`로 기록한 뒤 보고에 이유를 적는다. 다시 실행하지 않는 근거는 시나리오별 통과 기록이며, 실패한 전체 실행 receipt 안에서 통과한 시나리오의 기록도 그 근거가 된다. 부분 실행 receipt는 전체 실행 receipt가 아니다. 전체 통과 receipt가 아직 없으면 그 사실을 수렴 보고에 남긴다 — 전체 실행으로 그 receipt를 만들지는 product-acceptance가 판정할 때 정한다.
+- 반복은 횟수로 멈추지 않는다. 다시 실행하기 전에 "이번 실행은 직전 실행과 무엇이 다르고, 어떤 관찰이 나오면 가설이 맞거나 틀린가"에 답하고, 답이 없으면 다시 실행하지 않는다. 러너가 실행마다 출력하는 누적 실행 횟수·누적 시간·연속 실패·직전 실행과 실패 신호가 같은지를 읽는다. 수정한 뒤에도 같은 신호가 나오면 수정 대상보다 신호 자체를 먼저 의심해 검사 도구의 오판, 실행 환경, 제품 결함 순서로 확인한다. 전체 실행 전에 화면 캡처, 화면 구조 조회, 시나리오 하나만 실행, 명령 직접 실행 같은 더 싼 관찰로 가설을 확인하고, 실행 log가 원인을 담지 않으면 다시 실행하기 전에 관찰 수단부터 보강한다. 서로 다른 실패가 이전 실패 수정 뒤 순차 노출되면 진전이므로 계속하되 누적 비용은 계속 본다.
 - journey 관찰이 production gap을 드러내면 main 왕복 없이 먼저 재현 테스트를 RED로 만들고 production을 수정해 GREEN을 확인한 뒤 의미 단위 로컬 커밋을 남긴다. 설계·AC 계약과 충돌하는 gap만 assertion을 완화하거나 `target_ac`를 빼지 않고 `SPEC_GAP_FOUND`로 중단·보고한다.
-- device 유실·재부팅 같은 일시 인프라 실패는 iteration이나 무진행 한도를 소비하기 전에 자동 재준비 1회를 수행한다. 한도 소진 시 지금까지의 커밋을 보존하고 `IMPLEMENTATION_ESCALATE`로 사용자 처분을 요청한다.
-- 수렴 PASS는 sealed 판정이 아니다. product-acceptance의 write-zero final tip 실행과 Epic close 시 cross-story journey 스위프를 대체하지 않는다.
+- device 유실·재부팅 같은 일시 인프라 실패는 제품 실패 신호로 읽지 않고 먼저 환경을 다시 준비한다. 같은 인프라 실패가 재준비 뒤에도 반복되면 환경 문제로 보고 멈춘다. 새 정보가 더 나오지 않거나 누적 비용이 얻는 정보보다 크다고 판단하면 지금까지의 커밋을 보존하고 `IMPLEMENTATION_ESCALATE`로 사용자 처분을 요청한다. 보고에는 시도한 것, 관측한 신호, 남은 가설, 누적 실행 횟수와 시간을 넣는다.
+- 수렴 PASS는 제품 검수 판정이 아니다. product-acceptance는 수렴 receipt를 직전 통과 기록으로 읽고 final tip에서 무엇을 다시 실행할지 스스로 정하며, Epic close 시에는 다른 Story의 변경이 닿는 journey를 다시 고른다.
 
 ## phase prose 경로
 
@@ -124,7 +125,7 @@
 - 핵심 AC별 동작 증거와 mock/stub/fake 사용 경계가 보고된다. TypeScript 등 정적 타입검사가 의미 있는 stack 에서 typecheck/compile 이 빠졌다면 품질 게이트 warning 또는 보강 필요성을 쓴다.
 - task 가 담당하는 target GitHub issue AC 와 impl task REQ 의 대응, 각 항목의 실행·관찰 증거가 보고된다. `(TEST)`/`(AGENT READ)`로 닫는 항목은 어느 하나라도 이 task 범위에서 충족되지 않았으면 PASS 하지 않는다. task 구현 mode의 `(JOURNEY)` REQ는 PASS 블로커에서 제외하되, flow 대본·journey 매니페스트·필요한 setup/teardown/상태전이 스크립트와 환경·배관 선언을 모두 작성하고 final tip 수렴 및 acceptance 인계를 보고한 경우에만 예외다.
 - 담당 `(JOURNEY)` REQ마다 flow 대본과 `.dcness/` 밖 journey 매니페스트가 작성됐고 수렴 대상이면 `JOURNEY_CONVERGENCE`와 sealed acceptance 실행에 인계됐다. `journey_deferred`이면 현재 run의 수렴·sealed 실행 비대상과 human verification/follow-up 인계를 보고한다. 메인이 대신 실행하는 `VALIDATION_BLOCKED` 경로와 다르며, 최종 clean에는 수렴 대상 journey의 별도 PASS가 필요하다.
-- 자동 journey가 있으면 내부 `JOURNEY_ENV_PREFLIGHT`가 ready, 자동 준비 완료, 검출 불확실 진행, 확실한 미충족 중 어느 판정인지 probe 근거와 함께 보고했다. 확실한 미충족도 task 구현을 막지 않으므로 그 판정과 마감 인계를 같은 `PASS` 결과에 남긴다. `JOURNEY_CONVERGENCE` PASS면 final tip 실행 결과, iteration별 실패 서명·수정·진행 여부, 최종 commit sha가 남는다.
+- 자동 journey가 있으면 내부 `JOURNEY_ENV_PREFLIGHT`가 ready, 자동 준비 완료, 검출 불확실 진행, 확실한 미충족 중 어느 판정인지 probe 근거와 함께 보고했다. 확실한 미충족도 task 구현을 막지 않으므로 그 판정과 마감 인계를 같은 `PASS` 결과에 남긴다. `JOURNEY_CONVERGENCE` PASS면 final tip 실행 결과, 실행마다 관측한 신호·수정·진행 여부, 다시 실행하지 않은 시나리오와 그 이유, 최종 commit sha가 남는다.
 - 확정 목업이 있는 UI 작업에서는 디자인 정합(레이아웃 계층·상태·토큰 대응)과 의도적 차이가 보고된다.
 - design:required UI 작업에서는 node-id 매핑과 별개로 `docs/design.md` 토큰 적용 결과, 잔존 스캐폴딩 색 상수 여부, boilerplate 테마 잔존 금지 확인 결과가 보고된다.
 - PR 본문 초안에 close keyword가 불확실하면 메인 검토 요청을 남긴다.
@@ -146,7 +147,7 @@
 
 ## 결론과 보고
 
-마지막 단락에 `PASS`, `SPEC_GAP_FOUND`, `TESTS_FAIL`, `VALIDATION_BLOCKED`, `IMPLEMENTATION_ESCALATE` 중 하나를 쓴다. `PASS` 포함 모든 구현 결과에는 Cartography impact의 의미 축과 refresh 필요 여부를 자유 prose로 남긴다. 자동 journey가 있으면 내부 `JOURNEY_ENV_PREFLIGHT`의 ready/자동 준비 완료/검출불확실 진행/확실한 미충족 중 하나와 probe 근거를 같은 task 결과에 포함하고, `JOURNEY_CONVERGENCE` 결과에는 iteration·실패 서명·수정·commit 증거를 포함한다. `SPEC_GAP_FOUND`에는 small, medium, large 중 분량 메타를 함께 쓴다. `VALIDATION_BLOCKED`에는 메인이 대신 실행할 검증 명령 목록을 함께 쓰되, worker substrate 부재는 host 대행으로 우회하지 않는다.
+마지막 단락에 `PASS`, `SPEC_GAP_FOUND`, `TESTS_FAIL`, `VALIDATION_BLOCKED`, `IMPLEMENTATION_ESCALATE` 중 하나를 쓴다. `PASS` 포함 모든 구현 결과에는 Cartography impact의 의미 축과 refresh 필요 여부를 자유 prose로 남긴다. 자동 journey가 있으면 내부 `JOURNEY_ENV_PREFLIGHT`의 ready/자동 준비 완료/검출불확실 진행/확실한 미충족 중 하나와 probe 근거를 같은 task 결과에 포함하고, `JOURNEY_CONVERGENCE` 결과에는 실행별 신호·수정·commit 증거와 다시 실행하지 않은 대상의 이유를 포함한다. `SPEC_GAP_FOUND`에는 small, medium, large 중 분량 메타를 함께 쓴다. `VALIDATION_BLOCKED`에는 메인이 대신 실행할 검증 명령 목록을 함께 쓰되, worker substrate 부재는 host 대행으로 우회하지 않는다.
 
 ## 템플릿과 참고 문서
 
