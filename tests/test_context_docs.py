@@ -11,6 +11,7 @@ from tempfile import TemporaryDirectory
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "dcness-context-docs"
 COLD_START_TITLE = "## dcNess Cold Start"
+COMMANDS_PLACEHOLDER = "실제 build/test/lint 명령을 확인한 뒤"
 
 
 class ContextDocsTests(unittest.TestCase):
@@ -59,7 +60,7 @@ class ContextDocsTests(unittest.TestCase):
             self.assertIn("appended-cold-start", first.actions)
             self.assertEqual(second.actions, ["noop"])
 
-    def test_seed_skips_python_test_command_without_python_markers(self) -> None:
+    def test_seed_uses_only_declared_package_commands(self) -> None:
         from harness.context_docs import build_claude_seed
 
         with TemporaryDirectory() as td:
@@ -72,53 +73,28 @@ class ContextDocsTests(unittest.TestCase):
             seed = build_claude_seed(root)
 
             self.assertNotIn("unittest", seed)
-            self.assertNotIn("python3.11", seed)
             self.assertIn("npm run test", seed)
+            self.assertNotIn(COMMANDS_PLACEHOLDER, seed)
 
-    def test_seed_uses_python3_for_python_project_tests(self) -> None:
+    def test_seed_does_not_guess_python_test_command(self) -> None:
+        # 프로젝트가 실제로 쓰는 테스트 명령(unittest/pytest 등)은 파일 구성으로 알 수 없다.
         from harness.context_docs import build_claude_seed
 
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            (root / "tests").mkdir()
-            (root / "pyproject.toml").write_text(
-                '[project]\nname = "demo"\n', encoding="utf-8"
-            )
+        for marker in ("pyproject.toml", "requirements.txt"):
+            with self.subTest(marker=marker), TemporaryDirectory() as td:
+                root = Path(td)
+                (root / "tests").mkdir()
+                (root / marker).write_text("pytest\n", encoding="utf-8")
+                (root / "scripts").mkdir()
+                (root / "scripts" / "check_static_quality.sh").write_text(
+                    "#!/bin/sh\n", encoding="utf-8"
+                )
 
-            seed = build_claude_seed(root)
+                seed = build_claude_seed(root)
 
-            self.assertIn("- `python3 -m unittest discover -s tests -v`", seed)
-            self.assertNotIn("python3.11", seed)
-
-    def test_seed_skips_python_test_command_for_stray_python_files(self) -> None:
-        # 빌드 파일 없이 보조 .py 파일만 있는 비-python 저장소에는 python 명령을 심지 않는다.
-        from harness.context_docs import build_claude_seed
-
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            (root / "tests").mkdir()
-            (root / "settings.gradle.kts").write_text('include(":app")\n', encoding="utf-8")
-            (root / "scripts").mkdir()
-            (root / "scripts" / "release.py").write_text("print('x')\n", encoding="utf-8")
-
-            seed = build_claude_seed(root)
-
-            self.assertNotIn("unittest", seed)
-
-    def test_seed_detects_requirements_only_python_project(self) -> None:
-        # requirements.txt 만 있고 pyproject/setup 없는 python 프로젝트도 python 으로
-        # 인식 — tests/ 존재 시 python 명령을 심어야 한다 (회귀 가드).
-        from harness.context_docs import build_claude_seed
-
-        with TemporaryDirectory() as td:
-            root = Path(td)
-            (root / "tests").mkdir()
-            (root / "requirements.txt").write_text("pytest\n", encoding="utf-8")
-
-            seed = build_claude_seed(root)
-
-            self.assertIn("- `python3 -m unittest discover -s tests -v`", seed)
-            self.assertNotIn("python3.11", seed)
+                self.assertNotIn("unittest", seed)
+                self.assertNotIn("check_static_quality", seed)
+                self.assertIn(COMMANDS_PLACEHOLDER, seed)
 
     def test_audit_reports_rubric_gaps_without_mutating_existing_doc(self) -> None:
         from harness.context_docs import audit_claude_md_file

@@ -144,7 +144,7 @@ Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bun
 
 ### Core Step 6 - CLAUDE.md seed/migration
 
-부재 시 공식 구조 기반 `CLAUDE.md` 를 생성한다. 기존 파일은 재작성하지 않고 dcNess cold-start 앵커만 없을 때 append 하며, 6축 quality audit 결과와 개선 후보를 출력한다.
+부재 시 공식 구조 기반 `CLAUDE.md` 를 생성한다. 기존 파일은 재작성하지 않고 dcNess cold-start 앵커만 없을 때 append 하며, 6축 quality audit 결과와 개선 후보를 출력한다. 생성된 초안의 Commands 에 "실제 build/test/lint 명령을 확인한 뒤" 안내 줄이 남으면 빌드 설정과 CI 설정에서 실제 명령을 확인해 그 줄을 채운다. 확인할 수 없으면 추측하지 말고 사용자에게 묻는다.
 
 ```bash
 "$CONTEXT_DOCS" --ensure --repo "$PROJECT_ROOT"
@@ -163,9 +163,9 @@ Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bun
 `"$PLUGIN_ROOT/scripts/dcness-tdd-hooks" status --project-root "$PROJECT_ROOT"` 로 상태를 본다. 출력의 `platform` 은 `.dcness/tdd-hooks.json` 계약에 적힌 값이다. dcNess 는 파일 구성으로 플랫폼을 추측하지 않는다.
 
 - 계약이 있는데 hook 이 없으면 사용자 승인 뒤 `ensure --targets cc,codex` 를 실행한다.
-- 계약이 없으면(`platform=not_configured`) 사용자에게 플랫폼을 묻는다. 소스가 아직 없는 빈 프로젝트는 묻지 않고 no-op 으로 skip 하며, 사용자가 생성을 원하지 않아도 skip 한다. 확인한 플랫폼은 [선택형 CI workflow](#선택형-ci-workflow) 의 `lint-build-test` 설치에도 쓴다. 빌드 설정 파일과 소스 디렉터리에서 읽은 판단과 근거를 질문에 함께 제시한다. 후보가 둘 이상이거나 근거가 약하면 하나로 정하지 말고 그대로 묻는다.
-- 확인한 값이 preset(`python`, `web`, `go`, `android`, `ios`)이면 `ensure --platform <값> --targets cc,codex` 를 실행한다. preset 에 없는 플랫폼은 사용자 승인 뒤 `.dcness/tdd-hooks.json` 계약(`test_candidate_templates` 포함)을 작성하고 `ensure --targets cc,codex` 를 실행한다.
-- 기존 계약의 `platform` 이 실제 프로젝트와 다르면 그 사실을 사용자에게 알린다. `ensure --platform` 은 기존 계약과 다른 값을 받으면 계약을 덮어쓰지 않고 실패하므로, 사용자 승인 뒤 계약 파일을 고치거나 지우고 다시 실행한다.
+- 계약이 없으면(`platform=not_configured`) 사용자에게 플랫폼과 소스 경로(구현 파일이 있는 디렉터리 전부, 모듈이 여럿이면 모듈마다)를 묻는다. 소스가 아직 없는 빈 프로젝트는 묻지 않고 no-op 으로 skip 하며, 사용자가 생성을 원하지 않아도 skip 한다. 확인한 플랫폼은 [선택형 CI workflow](#선택형-ci-workflow) 의 `lint-build-test` 설치에도 쓴다. 빌드 설정 파일과 소스 디렉터리에서 읽은 판단과 근거를 질문에 함께 제시한다. 후보가 둘 이상이거나 근거가 약하면 하나로 정하지 말고 그대로 묻는다.
+- 확인한 값이 preset(`python`, `web`, `go`, `android`, `ios`)이면 [기본 테스트 위치](../docs/plugin/hooks.md#tdd-guardsh)가 프로젝트와 맞는지도 함께 확인한 뒤 `ensure --platform <값> --source-roots <경로,경로> --targets cc,codex` 를 실행한다. `--source-roots` 는 필수이며 저장소 전체는 `.` 로 명시한다. preset 에 없는 플랫폼이거나 기본 테스트 위치가 프로젝트와 다르면 사용자 승인 뒤 `.dcness/tdd-hooks.json` 계약(`test_candidate_templates` 포함)을 작성하고 `ensure --targets cc,codex` 를 실행한다.
+- 기존 계약의 `platform` 또는 `source_roots` 가 실제 프로젝트와 다르면 그 사실을 사용자에게 알린다. `ensure` 는 기존 계약과 다른 `--platform`·`--source-roots` 값을 받으면 계약을 덮어쓰지 않고 실패하므로, 사용자 승인 뒤 계약 파일을 고치거나 지우고 다시 실행한다.
 
 순서는 고정: **TDD 계약 + self-test** → **CC hook self-test/등록** → **Codex hook self-test/등록**. 빈 프로젝트/계약과 `--platform` 이 모두 없는 호출/설정 생성 실패는 no-op 이며, 기존 config 가 깨졌거나 필수 필드가 없으면 덮어쓰지 않는다. 상세는 [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md) 와 [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh) 를 따른다.
 

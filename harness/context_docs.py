@@ -131,23 +131,10 @@ def _detect_package_commands(root: Path) -> list[str]:
     return commands
 
 
-def _detect_python_commands(root: Path) -> list[str]:
-    # python 빌드 파일(pyproject.toml / requirements.txt)이 있을 때만 python 명령을 심는다.
-    # JS 등 비-python 저장소에도 tests/ 와 보조 .py 파일이 흔해 그것만으론 심지 않고,
-    # 버전 고정(python3.11) 대신 일반적으로 존재하는 python3 를 쓴다.
-    if not any((root / name).exists() for name in ("pyproject.toml", "requirements.txt")):
-        return []
-    commands: list[str] = []
-    if (root / "tests").exists():
-        commands.append("- `python3 -m unittest discover -s tests -v`")
-    if (root / "scripts" / "check_static_quality.sh").exists():
-        commands.append("- `bash scripts/check_static_quality.sh`")
-    return commands
-
-
 def _detect_commands(root: Path) -> list[str]:
+    # 프로젝트가 선언한 명령(package.json scripts)만 쓴다. 선언이 없는 명령은 파일 구성으로
+    # 추측하지 않고 아래 안내 줄을 남겨 /init-dcness 가 확인해 채우게 한다.
     commands = _detect_package_commands(root)
-    commands.extend(_detect_python_commands(root))
     if commands:
         return commands
     return [
