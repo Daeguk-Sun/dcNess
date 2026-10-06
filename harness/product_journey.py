@@ -553,6 +553,28 @@ def _code_revision(project_root: Path) -> str:
     return revision
 
 
+def _uncommitted_changes(project_root: Path) -> Optional[bool]:
+    """Whether the working tree differs from HEAD; None when git cannot tell.
+
+    A receipt of a dirty tree does not describe its `code_revision` alone, so a
+    reader must not treat the commit diff as the whole change.
+    """
+    try:
+        completed = subprocess.run(  # nosec B603 B607
+            ["git", "status", "--porcelain"],
+            cwd=project_root,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    if completed.returncode != 0:
+        return None
+    return bool(completed.stdout.strip())
+
+
 def _run_command(
     spec: dict[str, Any], project_root: Path, env: dict[str, str], log_path: Path
 ) -> dict[str, Any]:
@@ -1170,6 +1192,9 @@ def run_from_config(
     except FileExistsError as exc:
         raise JourneyConfigError(f"run_id already exists: {selected_run_id}") from exc
     receipt_path = run_dir / "receipt.json"
+    # Read before any command runs: the journey itself may leave files behind.
+    code_revision = _code_revision(root)
+    uncommitted_changes = _uncommitted_changes(root)
     env = os.environ.copy()
     env.update(config.get("env", {}))
     env[_RUN_DIR_ENV] = str(run_dir)
@@ -1325,6 +1350,8 @@ def run_from_config(
         "config_path": _relative(resolved_config, root),
         "measured_at": selected_measured_at,
         "finished_at": _now_iso(),
+        "code_revision": code_revision,
+        "uncommitted_changes": uncommitted_changes,
         "outcome": outcome,
         "boundary": config["boundary"],
         "target_ac": target_ac,
@@ -1370,7 +1397,7 @@ def run_from_config(
         ]
     epic_scope = _validated_epic_scope(config)
     if epic_scope is not None:
-        receipt["epic_scope"] = {**epic_scope, "code_revision": _code_revision(root)}
+        receipt["epic_scope"] = {**epic_scope, "code_revision": code_revision}
     if ui_evidence is not None:
         receipt["ui_evidence"] = ui_evidence
     if ux_integrity is not None:
@@ -1421,7 +1448,9 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
         return False
     if payload.get("outcome") not in {"PASS", "FAIL"}:
         return False
-    if _parse_ts(payload.get("measured_at")) is None:
+    if _parse_ts(payload.get("measured_at")) is None or not _valid_revision_fields(
+        payload
+    ):
         return False
     for key in ("run_id", "journey_id"):
         value = payload.get(key)
@@ -1506,6 +1535,17 @@ def _is_valid_receipt(payload: object, project_root: Path, receipt_path: Path) -
     if scenario_mode and not _valid_scenario_receipt(payload, project_root, receipt_path):
         return False
     return _evidence_matches_receipt(payload, project_root, receipt_path)
+
+
+def _valid_revision_fields(payload: dict[str, Any]) -> bool:
+    """Receipts written before these fields existed stay valid without them."""
+    if "code_revision" in payload:
+        revision = payload["code_revision"]
+        if not isinstance(revision, str) or not (
+            revision == _UNKNOWN_REVISION or _REVISION_RE.fullmatch(revision)
+        ):
+            return False
+    return payload.get("uncommitted_changes") in (None, True, False)
 
 
 def _scenario_flags_consistent(payload: dict[str, Any]) -> bool:
