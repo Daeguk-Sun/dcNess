@@ -10,6 +10,46 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.32.0 (2026-10-06)
+
+**커밋 범위**: `v0.31.0..v0.32.0` (머지 PR 16개, [#1263](https://github.com/Daeguk-Sun/dcNess/pull/1263) · [#1264](https://github.com/Daeguk-Sun/dcNess/pull/1264) · [#1268](https://github.com/Daeguk-Sun/dcNess/pull/1268) · [#1270](https://github.com/Daeguk-Sun/dcNess/pull/1270) · [#1273](https://github.com/Daeguk-Sun/dcNess/pull/1273) · [#1271](https://github.com/Daeguk-Sun/dcNess/pull/1271) · [#1275](https://github.com/Daeguk-Sun/dcNess/pull/1275) · [#1276](https://github.com/Daeguk-Sun/dcNess/pull/1276) · [#1277](https://github.com/Daeguk-Sun/dcNess/pull/1277) · [#1279](https://github.com/Daeguk-Sun/dcNess/pull/1279) · [#1280](https://github.com/Daeguk-Sun/dcNess/pull/1280) · [#1283](https://github.com/Daeguk-Sun/dcNess/pull/1283) · [#1285](https://github.com/Daeguk-Sun/dcNess/pull/1285) · [#1287](https://github.com/Daeguk-Sun/dcNess/pull/1287) · [#1286](https://github.com/Daeguk-Sun/dcNess/pull/1286) · [#1288](https://github.com/Daeguk-Sun/dcNess/pull/1288))
+**핵심 변경**: **검증을 다시 실행하는 범위와 반복을 멈추는 시점을 고정 조건에서 agent 판단으로 옮긴** minor 릴리즈. (1) 제품 journey 를 시나리오 단위로 실행·판정한다. (2) journey 실행 기록이 커밋 식별자, 누적 횟수·시간, 직전 실패 신호와의 비교를 남긴다. (3) 검수·수렴·설계 검증 지침의 "항상 전체를 다시 실행" 규칙과 숫자 재시도 한도를 판단 기준으로 바꿨다. 이 밖에 TDD guard 의 Bash 우회 경로와 `/init-dcness` 의 플랫폼 추측, `pr-finalize` 의 auto-merge 거부 처리를 고쳤다.
+
+### 무엇이 바뀌나
+
+1. **검증 재실행 범위와 반복 중단을 agent 가 판단** ([#1285](https://github.com/Daeguk-Sun/dcNess/pull/1285) · [#1286](https://github.com/Daeguk-Sun/dcNess/pull/1286) · [#1288](https://github.com/Daeguk-Sun/dcNess/pull/1288) Closes [#1284](https://github.com/Daeguk-Sun/dcNess/issues/1284)) — 외부 활성 프로젝트의 journey 실행 기록 340건에서 통과 직후의 재통과가 69회였고, 한 journey 는 같은 신호로 17회 연속 실패했다. 이제 검수·수렴·설계 검증 agent 는 직전 통과 이후의 변경분을 읽고 그 변경이 닿는 대상만 다시 실행·검토한다. 영향이 넓거나 불확실하면 agent 가 스스로 전체로 올린다. 다시 하지 않은 대상은 이유를 적는다. 통과 기록이 없으면 전체를 수행한다. 반복은 횟수로 멈추지 않는다. 수정 뒤 같은 신호가 나오면 신호 자체를 먼저 의심하고, 새 정보가 없으면 멈추고 사용자에게 보고한다. journey receipt 에 `code_revision`·`uncommitted_changes` 가 추가됐고, `run` 은 누적 실행 횟수·시간과 직전 실패 신호 비교를 출력하며, `skip` 하위 명령이 다시 실행하지 않은 대상과 이유를 기록한다. 공유 판단 기준은 [`docs/plugin/agents/_shared/rerun-judgment.md`](../plugin/agents/_shared/rerun-judgment.md) 다. hook 의 순서 강제(코드 리뷰 통과 → 같은 커밋에서 제품 검수 통과)는 바뀌지 않았다.
+
+2. **제품 journey 시나리오 단위 실행·판정** ([#1275](https://github.com/Daeguk-Sun/dcNess/pull/1275) Closes [#1274](https://github.com/Daeguk-Sun/dcNess/issues/1274) · [#1277](https://github.com/Daeguk-Sun/dcNess/pull/1277)) — 매니페스트가 시나리오별 id·담당 AC·독립 실행 조건을 선언하고, `--scenario` 로 일부 시나리오만 실행할 수 있다. receipt 는 AC 별 `PASS`/`FAIL`/`NOT_RUN` 을 남긴다. 부분 실행 receipt 는 Epic 결과 요약과 outcome scorecard 가 전체 통과로 세지 않는다. 설계 단계부터 시나리오를 선언하도록 설계 지침과 설계 검증 축을 갱신했다.
+
+3. **TDD guard·파일 경계의 Bash 우회 경로 차단** ([#1271](https://github.com/Daeguk-Sun/dcNess/pull/1271) Closes [#1269](https://github.com/Daeguk-Sun/dcNess/issues/1269) · [#1276](https://github.com/Daeguk-Sun/dcNess/pull/1276)) — Bash 안의 python 파일 쓰기와 쉘 변수로 지정한 쓰기 대상을 TDD guard 와 파일 경계 검사가 감지한다. 줄바꿈이나 백그라운드 연산자 뒤의 쉘 변수 대입은 확정값으로 쓰지 않는다.
+
+4. **`/init-dcness` 가 플랫폼과 소스 경로를 추측하지 않음** ([#1280](https://github.com/Daeguk-Sun/dcNess/pull/1280) Part of [#1266](https://github.com/Daeguk-Sun/dcNess/issues/1266) · [#1267](https://github.com/Daeguk-Sun/dcNess/issues/1267) · [#1283](https://github.com/Daeguk-Sun/dcNess/pull/1283) Part of [#1281](https://github.com/Daeguk-Sun/dcNess/issues/1281) · Closes [#1282](https://github.com/Daeguk-Sun/dcNess/issues/1282)) — TDD hook 의 플랫폼을 검출하지 못하면 사용자에게 묻는다. TDD hook 의 소스 경로와 `CLAUDE.md` 초안의 명령도 추측해서 채우지 않는다.
+
+5. **`pr-finalize` 의 auto-merge 예약 거부 처리** ([#1279](https://github.com/Daeguk-Sun/dcNess/pull/1279) Closes [#1278](https://github.com/Daeguk-Sun/dcNess/issues/1278)) — 보호 규칙이 없는 브랜치는 GitHub 가 auto-merge 예약을 거부한다. 이 경우 검사 통과를 확인한 head 로 즉시 머지한다.
+
+6. **메인 Claude 응답 문체 지시** ([#1273](https://github.com/Daeguk-Sun/dcNess/pull/1273) Closes [#1272](https://github.com/Daeguk-Sun/dcNess/issues/1272)) — 활성 프로젝트의 SessionStart 가 ASD-STE100 기반의 간결 문체 지시(결론 먼저, 한 문장 한 사실, 번호 절차)를 주입한다.
+
+7. **`/impl` headless prompt 작성 시간 단축** ([#1263](https://github.com/Daeguk-Sun/dcNess/pull/1263)) — worker prompt 의 AC 원문을 메인이 다시 쓰지 않고 명령 출력으로 붙인다.
+
+8. **디자인 보드 iframe 단일 로딩** ([#1287](https://github.com/Daeguk-Sun/dcNess/pull/1287) Closes [#1265](https://github.com/Daeguk-Sun/dcNess/issues/1265)) — 디자인 보드가 화면 iframe 을 한 번만 로딩한다.
+
+9. **저장소 내부 작업** ([#1264](https://github.com/Daeguk-Sun/dcNess/pull/1264) · [#1268](https://github.com/Daeguk-Sun/dcNess/pull/1268) · [#1270](https://github.com/Daeguk-Sun/dcNess/pull/1270)) — Flow Health 측정의 적용 범위, worker 실행·Bash 파일 수정 인식, Startup SLO 기준을 조정했다. 사용자 동작은 바뀌지 않는다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 가 TDD guard·파일 경계·SessionStart·journey 실행 도구를 건드려 결정적 guard-efficacy 를 재실행했다 — **51/51 PASS**(v0.31.0 50/50 → fixture 1건 추가), 회귀 없음. 전체 unittest 도 재실행해 공개 수치를 실측 동기화했다 — **1,520/1,520 PASS**(v0.31.0 1,427 → 신규 회귀 테스트 반영). 재실행 판단 행동 eval 5건과 바뀐 지침을 읽는 기존 5건은 각 1회 실행에서 모두 정답이었다.
+- Decide: 소멸 후보 없음. 사람 확인이 남은 항목 2건은 릴리즈를 막지 않고 관찰 대상으로 둔다 — 외부 활성 프로젝트에서 story 마감 1회당 journey 실행 횟수와 총 소요 시간이 줄었는지, 다시 실행하지 않은 대상이 이후 실패한 사례가 있는지([#1284](https://github.com/Daeguk-Sun/dcNess/issues/1284)). 사례가 누적되면 지침을 다시 조정한다.
+- Verify: 공개 evidence snapshot(README·[`docs/plugin/benchmark.md`](../plugin/benchmark.md))을 v0.32.0 / 2026-10-06 실측(unit 1,520/1,520 · guard 51/51)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측을 대조한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `harness/**`·`hooks/**`·`skills/**`(impl·impl-loop·design·design-ux·design-system·spec·tech-review·ux)·`commands/init-dcness.md`·`docs/plugin/**`·`scripts/pr-finalize.sh`·`templates/design-variants/**` 변경.
+- **Codex 검증 경로를 쓰는 기존 활성 프로젝트는 plug-in 업데이트 후 `/init-dcness` 를 다시 실행한다** — `$CODEX_HOME/skills` 에 복사된 `dcness-architecture-validator`·`dcness-impl-validator` skill 은 plug-in 업데이트만으로 갱신되지 않는다. wrapper 는 plug-in 원본을 먼저 쓰므로 원본을 찾을 수 있는 환경에서는 재실행 전에도 새 지침이 적용된다.
+- **journey 사용 프로젝트** — 검수 agent 가 final tip 에서 모든 journey 를 무조건 다시 실행하지 않는다. 변경이 닿지 않는다고 판단한 journey 는 `skip` 기록과 이유를 남긴다. 과거 receipt 는 그대로 읽힌다.
+- **시나리오 매니페스트를 쓰려는 프로젝트** — 기존 `scenarios` 없는 매니페스트는 지금과 같이 동작한다.
+
+---
+
 ## v0.31.0 (2026-10-03)
 
 **커밋 범위**: `v0.30.0..v0.31.0` (머지 PR 26개, [#1216](https://github.com/Daeguk-Sun/dcNess/pull/1216) · [#1221](https://github.com/Daeguk-Sun/dcNess/pull/1221) · [#1229](https://github.com/Daeguk-Sun/dcNess/pull/1229) · [#1231](https://github.com/Daeguk-Sun/dcNess/pull/1231) · [#1232](https://github.com/Daeguk-Sun/dcNess/pull/1232) · [#1233](https://github.com/Daeguk-Sun/dcNess/pull/1233) · [#1234](https://github.com/Daeguk-Sun/dcNess/pull/1234) · [#1235](https://github.com/Daeguk-Sun/dcNess/pull/1235) · [#1236](https://github.com/Daeguk-Sun/dcNess/pull/1236) · [#1237](https://github.com/Daeguk-Sun/dcNess/pull/1237) · [#1238](https://github.com/Daeguk-Sun/dcNess/pull/1238) · [#1239](https://github.com/Daeguk-Sun/dcNess/pull/1239) · [#1241](https://github.com/Daeguk-Sun/dcNess/pull/1241) · [#1242](https://github.com/Daeguk-Sun/dcNess/pull/1242) · [#1245](https://github.com/Daeguk-Sun/dcNess/pull/1245) · [#1246](https://github.com/Daeguk-Sun/dcNess/pull/1246) · [#1247](https://github.com/Daeguk-Sun/dcNess/pull/1247) · [#1249](https://github.com/Daeguk-Sun/dcNess/pull/1249) · [#1250](https://github.com/Daeguk-Sun/dcNess/pull/1250) · [#1251](https://github.com/Daeguk-Sun/dcNess/pull/1251) · [#1252](https://github.com/Daeguk-Sun/dcNess/pull/1252) · [#1255](https://github.com/Daeguk-Sun/dcNess/pull/1255) · [#1257](https://github.com/Daeguk-Sun/dcNess/pull/1257) · [#1256](https://github.com/Daeguk-Sun/dcNess/pull/1256) · [#1258](https://github.com/Daeguk-Sun/dcNess/pull/1258) · [#1259](https://github.com/Daeguk-Sun/dcNess/pull/1259))
