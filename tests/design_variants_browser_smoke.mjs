@@ -222,7 +222,7 @@ async function startServer(root) {
   return server;
 }
 
-async function dumpDom(chrome, profile, url) {
+async function dumpDom(chrome, profile, url, limit = 20000) {
   const args = [
     '--headless=new',
     '--disable-gpu',
@@ -239,12 +239,26 @@ async function dumpDom(chrome, profile, url) {
     const child = spawn(chrome, args);
     let stdout = '';
     let stderr = '';
+    const started = Date.now();
+    let firstOutput = 'none';
+    const markOutput = () => {
+      if (firstOutput === 'none') firstOutput = `${Date.now() - started}ms`;
+    };
     const timeout = setTimeout(() => {
       child.kill('SIGKILL');
-      reject(new Error(`Chrome timed out for ${url}\n${stderr}`));
-    }, 20000);
-    child.stdout.setEncoding('utf8').on('data', chunk => { stdout += chunk; });
-    child.stderr.setEncoding('utf8').on('data', chunk => { stderr += chunk; });
+      reject(new Error(
+        `Chrome timed out after ${limit}ms for ${url} `
+        + `(first output: ${firstOutput}, stdout: ${stdout.length} bytes)\n${stderr}`,
+      ));
+    }, limit);
+    child.stdout.setEncoding('utf8').on('data', chunk => {
+      markOutput();
+      stdout += chunk;
+    });
+    child.stderr.setEncoding('utf8').on('data', chunk => {
+      markOutput();
+      stderr += chunk;
+    });
     child.once('error', reject);
     child.once('close', code => {
       clearTimeout(timeout);
@@ -433,6 +447,10 @@ async function main() {
     server = await startServer(project);
     const address = server.address();
     const base = `http://127.0.0.1:${address.port}`;
+
+    // 새 프로필로 하는 Chrome 첫 실행은 CI 에서 20초 가까이 걸린 적이 있다.
+    // 첫 실행 비용을 보드 검사의 시간 한도와 분리한다.
+    await dumpDom(chrome, profile, 'about:blank', 60000);
 
     const states = smokeData(await dumpDom(
       chrome,
