@@ -26,6 +26,27 @@
 - [test_canvas_design_workflow.py](test_canvas_design_workflow.py): design variant 템플릿과 canvas workflow.
 - [test_public_surface.py](test_public_surface.py), [test_surface_docs_sync.py](test_surface_docs_sync.py):
   public surface와 문서 동기화.
+- [test_product_journey.py](test_product_journey.py),
+  [test_product_journey_scenarios.py](test_product_journey_scenarios.py),
+  [test_product_journey_judgment_inputs.py](test_product_journey_judgment_inputs.py),
+  [test_epic_outcome.py](test_epic_outcome.py): 제품 journey 실행 기록과 Epic 결과 요약.
+- [test_provider_chain.py](test_provider_chain.py), [test_impl_loop_launch.py](test_impl_loop_launch.py),
+  [test_provider_failure_cache.py](test_provider_failure_cache.py): `/impl-loop` provider 실행 체인.
+  `test_provider_chain.py`는 이 모듈에서 가장 큰 파일이다.
+- [test_design_variants_generator.py](test_design_variants_generator.py),
+  [design_variants_browser_smoke.mjs](design_variants_browser_smoke.mjs): 디자인 보드 생성 스크립트와
+  보드 런타임. 뒤 파일은 headless Chrome 이 필요하고 `unittest discover` 에 포함되지 않는다.
+- [test_guard_core.py](test_guard_core.py), [test_ci_workflows_install.py](test_ci_workflows_install.py):
+  guard 공통 판정 계약과 CI workflow 복사 설치.
+
+## 의존 관계 (dependencies)
+
+- 테스트는 `harness/`, `scripts/`, `templates/`, `skills/`, `docs/plugin/`의 실제 파일을 읽는다.
+  그 파일의 경로나 문구를 바꾸면 해당 계약 테스트가 실패한다.
+- 파일 이름에 `_contract`가 들어간 테스트는 대부분 `skills/`, `docs/plugin/agents/`, `codex/skills/` 문서의
+  문구를 계약으로 고정한다. 그 문서를 고칠 때는 대응하는 계약 테스트를 함께 본다.
+- CI 는 [../.github/workflows/python-tests.yml](../.github/workflows/python-tests.yml)에서 전체 suite 와
+  브라우저 smoke test 를 순서대로 실행한다.
 
 ## 수정 시 주의점
 
@@ -40,5 +61,7 @@
 
 - 단일 파일: `python3.11 -m unittest tests.test_context_docs -v < /dev/null`처럼 모듈명을 지정한다.
 - 전체 suite: `python3.11 -m unittest discover -s tests -v < /dev/null`.
+- 브라우저 smoke test: `node tests/design_variants_browser_smoke.mjs`. 주의: 로컬 macOS 에서는 Chrome 이
+  결과를 출력한 뒤 종료하지 않아 timeout 으로 실패한다. 판정은 CI 결과로 한다.
 - `templates/github-workflows/`, audited script, `harness/` 변경은 pre-commit hook이 전체 unit suite를
   실행할 수 있다.

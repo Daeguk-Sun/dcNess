@@ -167,6 +167,15 @@ instruction snapshot을 작업 디렉터리로 사용하며, 별도 fixture sand
 4. 가능하면 반대쪽 대조 케이스(잡히면 안 되는 입력)도 쌍으로 만든다.
 5. `bash evals/run.sh` 로 현재 지침 기준 정답이 나오는지 확인 후 커밋.
 
+## 의존 관계 (dependencies)
+
+- [`guard_efficacy.py`](guard_efficacy.py)는 `harness`의 `hooks`, `agent_boundary`, `session_state`,
+  `session_state_cli`와 `hooks/file-guard.sh`를 직접 호출한다. 그 모듈의 함수 이름이나 인자를 바꾸면
+  결정적 guard-efficacy eval 을 다시 실행한다.
+- LLM 행동 eval 의 케이스는 `agents/`와 `docs/plugin/agents/`의 지침 문서를 대상으로 한다.
+- [`agent_effectiveness_measure.py`](agent_effectiveness_measure.py)는 `harness.agent_effectiveness`를 쓴다.
+- CI 는 `.github/workflows/guard-efficacy.yml`에서 결정적 eval 만 실행한다. LLM 행동 eval 은 CI 에서 실행하지 않는다.
+
 ## 케이스 목록
 
 | 케이스 | 입력 | 기대 |

@@ -23,7 +23,30 @@ helper, 배포용 wrapper를 고칠 때의 컴퍼스다.
 - [dcness-helper](dcness-helper), [dcness-context-docs](dcness-context-docs),
   [dcness-codex-validator](dcness-codex-validator), [dcness-codex-worker](dcness-codex-worker):
   사용자-facing CLI wrapper.
+- [dcness-implementation-chain](dcness-implementation-chain), [dcness-story-runner](dcness-story-runner),
+  [dcness-claude-worker](dcness-claude-worker), [dcness-claude-validator](dcness-claude-validator):
+  `/impl-loop` 구현 체인과 Claude headless 실행 wrapper.
+- [dcness-product-journey](dcness-product-journey), [dcness-review](dcness-review),
+  [dcness-tdd-hooks](dcness-tdd-hooks), [dcness-ci-workflows](dcness-ci-workflows):
+  journey 실행, run 복기, TDD guard 설치, CI workflow 설치 wrapper.
+- [design/](design/): 디자인 보드와 진입점 생성 스크립트. 진본 모델은 [design/ux-flow.mjs](design/ux-flow.mjs)가 읽는다.
+- [release_preflight.py](release_preflight.py), [release_artifact.py](release_artifact.py),
+  [release_artifact.json](release_artifact.json), [sync_release.sh](sync_release.sh):
+  릴리즈 사전 검사, 배포 파일 목록, 배포 브랜치 동기화.
+- [github_project_lifecycle.mjs](github_project_lifecycle.mjs), [check_issue_body.mjs](check_issue_body.mjs):
+  GitHub Project 상태 전이와 issue 본문 검사.
+- [measure_main_turns.py](measure_main_turns.py), [loop_diagnose.py](loop_diagnose.py): 측정과 진단 전용 스크립트.
 - [lib/](../scripts/lib/): 여러 Node checker와 shell wrapper가 공유하는 helper.
+
+## 의존 관계 (dependencies)
+
+- `dcness-*` wrapper 는 대부분 `harness/`의 Python 모듈 하나를 실행한다. 예: `dcness-helper` →
+  `harness.session_state`, `dcness-product-journey` → `harness.product_journey`.
+- `dcness-implementation-chain`은 `harness`의 5개 모듈(`agent_routing`, `provider_failure_cache`,
+  `run_review`, `session_state`, `story_runner`)을 함께 쓴다.
+- `design/` 생성 스크립트는 `templates/design-variants/_lib/`의 엔진 파일과 프로젝트 사본을 비교한다.
+- `.github/workflows/*.yml`과 `templates/github-workflows/*.yml`이 이 디렉터리의 checker 를 호출한다.
+  checker 의 인자나 종료코드를 바꾸면 두 위치를 함께 본다.
 
 ## 수정 시 주의점
 
