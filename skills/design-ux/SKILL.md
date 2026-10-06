@@ -7,6 +7,9 @@ description: /design 내부 stage 1 전용 스킬. 공개 진입점이 아니며
 
 > 이 스킬은 **공개 진입점이 아니다**. 사용자가 외우는 설계 진입점은 계속 `/design` 하나다. `/design` dispatcher 가 durable 산출물 실존 판정으로 이 stage 를 선택한다.
 
+
+매 설계 agent 실행 직후와 개정 진입에는 [`/design`의 분량 공개·개정 규모 판단](../design/SKILL.md#실행-직후-분량과-개정-규모)을 적용한다. 사용자 정정·메인 판단·지시문 출처는 [`agent-prompt-slots.md`](../../docs/plugin/templates/agent-prompt-slots.md)를 따른다.
+
 ## 목적
 
 UI epic 의 UX 산출물을 system/module 설계와 같은 PR 에 묶지 않고 먼저 durable 하게 머지한다. stage 1 PR 이 main 에 들어가면 `docs/epics/<epic>/ux-flow.md` 존재만으로 다음 세션이 "`/design` (ux 완료 · system 미완)" 상태를 복구할 수 있다.

@@ -5,7 +5,7 @@
 module-architect가 public contract를 만들거나 바꾸면 같은 작업 안에서 다음 두 곳만 갱신한다.
 
 - epic `architecture.md` 의 `## 모듈 목록`: 책임 / 공개 인터페이스 / 검증 경로 칸에 불변조건, forbidden append, owner, validation path 를 한 줄로 남긴다.
-- `docs/decisions/NNNN-slug.md`: 왜 이 계약이 필요한지, 버린 대안, ordering/error/config 같은 긴 사유와 규칙을 기록한다.
+- `docs/decisions/NNNN-slug.md`: 출처가 있는 계약의 필요성과 caller가 지킬 경계만 기록한다. ordering/error/config와 버린 대안은 판단에 필요한 경우에만 남기고 내부 구현은 위임한다.
 
 impl 문서는 관련 `module:` 과 `decision:` id/link 만 가리킨다. invariant, ordering, error mode, config, forbidden alternative 전문을 다시 쓰지 않는다.
 

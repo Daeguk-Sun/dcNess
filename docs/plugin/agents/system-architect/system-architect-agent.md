@@ -40,6 +40,8 @@
 
 ## 판단 축
 
+구조 검토와 결정 작성 모두 [설계 세부의 출처와 위임](../_shared/module-design-principles.md#설계-세부의-출처와-위임)을 따른다. 사용자·요구사항·기존 코드 충돌·되돌리기 어려운 구조 선택의 근거가 없는 세부는 구현자에게 맡기고 경계만 남긴다.
+
 ### THIN_BOOTSTRAP
 
 - topology 부재 조건: `docs/architecture.md` root anchor 의 큰 모듈 topology 가 비어 있고, 어떤 `docs/epics/**/architecture.md` 에도 유효 `## 모듈 목록` row 가 없는가.

@@ -30,6 +30,8 @@ main repo 절대경로를 worktree 경로처럼 주입하지 않는다.}}
 채워도 "무엇/어느 단위" 까지만 적고, "어떻게" 는 agent 가 정한다.}}
 ```
 
+사용자 정정을 PRD·Story에 옮길 때 발화에 없는 일반화나 제품 동작을 덧붙이지 않는다. 필요하면 먼저 묻는다. 메인이 스스로 정한 항목은 "메인이 정한 내용"으로 구분해 사용자에게 보여 주며, 표시만으로 승인된 약속이 되지 않는다. 설계 agent 지시문에는 사용자·이슈·검증 지적에 없는 "닫을 결정"을 열거하지 않는다. 검증 지적도 원래 약속의 출처를 확인한다. 보강이 요청하지 않은 제품 실행 동작을 새로 만들면 작성 전에 사용자 확인을 받는다.
+
 ## 슬롯 해석
 
 - **슬롯 1**: 대상 단위 + 읽을 SSOT + write 경계. 같은 결정·계약·요구사항을 prompt 에 다시 복사하지 않는다. **외부 활성 프로젝트에서 sub-agent 의 *자기 전체 지침*(얇은 진입점이 가리키는 `docs/plugin/agents/<name>/<name>-agent.md`) 경로는 cwd 상대가 아니라 활성 plugin root 기준**이므로, 메인이 진입 때 최초 resolve한 `<PLUGIN_ROOT_ABS>/docs/plugin/agents/<name>/<name>-agent.md` literal을 슬롯 1에 적는다. shell 변수는 독립 Bash tool 호출 사이에 지속되지 않는다. `dcness-helper` self-location은 발견된 executable 내부 root 해소이며 executable 자체 발견과 구분한다. dcness self 저장소면 cwd 상대경로 그대로.

@@ -103,7 +103,7 @@ flowchart TB
 - **stage PR 경계** — `DESIGN_UX_PR_MERGED` 는 UX 산출물이 main 에 durable 해졌다는 신호다. dispatcher 는 같은 `/design` 공개 진입점으로 재판정해 system stage 로 이어간다. `DESIGN_SYSTEM_PR_MERGED` 는 full design pack 이 durable 해졌다는 신호이므로 `/impl` 로 넘어간다.
 - **목업 선행 여부 checkpoint** — UI epic 의 `design-ux` stage 는 ux-architect 호출 전에 목업 선행 여부를 1회 묻는다. 목업 없음 / opt-out / yolo 는 기존 흐름을 유지하고, 목업=예 는 디자인 시스템 체크포인트와 canvas-design 사용자 PICK 을 먼저 닫는다. 사용자 PICK 확정 이후에만 design-system stage 로 넘어간다.
 - **목업 미참조 금지** — `design-system` stage 는 확정 목업이 있는 UI epic 에서 확정 목업 경로, node-id 매핑, `docs/design.md` 토큰을 module-architect 와 architecture-validator 입력에 넣는다. 산출물이 목업 미참조 상태면 final epic 검증 PASS 로 처리하지 않고 finding 분류에 따라 module-architect 또는 system checkpoint 로 되돌린다.
-- **규모 초과 사전 가드** — Step 4 전 Story 수와 예상 full design pack 규모가 target 1,500줄 / hard warning 2,000줄 예산을 넘을 전망이면, 메인은 자동 진행 대신 사용자에게 epic 분할 또는 예외적 batch 2분할을 위임한다. 이는 대형 epic 출력 한계 방지용 escape 이며 per-Story 검증 기본값 복원이 아니다.
+- **규모 초과 사전 가드** — 작성·개정 전과 매 agent 실행 직후의 규모 판단은 [`SKILL.md`](SKILL.md#실행-직후-분량과-개정-규모)를 따른다. 결정 문서를 포함한 수치는 경고이며 숫자만으로 FAIL하지 않는다. 요청 대비 과도하면 삭제·단순화·위임·범위 축소를 먼저 제시하고, 큰 epic은 분할 또는 예외적 batch 2분할도 검토한다. 이는 대형 epic 출력 한계 방지용 escape 이며 per-Story 검증 기본값 복원이 아니다.
 - **고위험 추가 검증** — 보안·migration·public API breakage 같은 신호가 batch 작성 중 뒤늦게 드러나면 메인은 final epic 검증 전 추가 검토를 선택할 수 있다. 단 이것은 예외적 보강이지 옛 per-Story 검증 기본값의 복원이 아니다.
 
 ## finding 분류 분기
@@ -113,7 +113,7 @@ flowchart TB
 | finding 분류 | 뜻 | 재진입 대상 | 비고 |
 |---|---|---|---|
 | `SYSTEM_BOUNDARY` | 큰 그림(상위 경계)이 틀림 — 도메인 invariant / port 소비자 / usecase ownership / 기존 전역 decision / storage policy / public API boundary / 기존 코드 계약 표면과의 상위 불일치 | **system-architect opt-in checkpoint** | 비싼 재설계. system checkpoint 의 기본 사유. |
-| `TASK_LOCAL` | 특정 impl task 문서만 틀림 — 예시 / depends_on / 수용기준 / requirements / Implementation Detail Leak / `risk`·`engine`·`수정 허용` 누락 | **module-architect(epic-batch)** 보강 | batch 컨텍스트를 유지해 같은 계열 task 를 함께 고친다. |
+| `TASK_LOCAL` | 특정 impl task 문서만 틀림 — 예시 / depends_on / 수용기준 / requirements / Implementation Detail Leak / `risk`·`engine`·`수정 허용` 누락 | **module-architect(epic-batch)** 보강 | batch 컨텍스트를 유지하되 실제로 같은 원인이 닿는 task만 고친다. |
 
 - system-architect 재진입은 `SYSTEM_BOUNDARY` 일 때만 기본값이다. stale 문구 전파 누락과 ux-flow/stories 요약 drift 는 형식만으로 system 재설계로 끌어올리지 않는다.
 - `CONTRACT_AMENDMENT` 은 분기 enum 이 아니다 — module-architect 가 public contract 를 바꿀 때 취하는 자연어 행동 의무 (module responsibility / decision 갱신 또는 "변경 없음" 명시). 분기 결정은 위 2 분류로만 한다.
@@ -141,12 +141,12 @@ flowchart TB
 
 - **final epic 검증 FAIL → 산출 주체 재진입의 재시도 이력은 하나**다. `SYSTEM_BOUNDARY` 는 system-architect opt-in checkpoint, `TASK_LOCAL` 은 module-architect(epic-batch) 보강으로 가지만 둘은 같은 이력에 쌓인다.
 - **분류만 바꿔 계속 재시도하지 않는다.** `SYSTEM_BOUNDARY` / `TASK_LOCAL` 분류 전환, finding 영역 변경, 파일 변경, finding 수 변화, 새 finding 등장, provider 변경은 이력을 새로 시작하는 근거가 아니다.
-- **수렴을 읽는다.** 직전 검증 대비 Must finding 이 줄거나 한 영역으로 좁아지면 진전이므로 재진입한다. 같은 영역 finding 이 다시 나오거나, 고친 만큼 새 finding 이 다른 사본에서 계속 나오면 수렴하지 않는 것이다. 이때는 점 수정으로 다시 돌지 않고 그 영역의 근본 원인을 재검토하거나, 진행을 멈추고 남은 finding·영향·선택지(system checkpoint 계속 / module 보강 계속 / `/spec` 재진입 / hold)와 누적 재진입 횟수를 사용자에게 위임한다.
+- **수렴을 읽는다.** 직전 검증 대비 Must finding 이 줄거나 한 영역으로 좁아지면 진전이므로 재진입한다. 같은 영역 finding 이 다시 나오거나, 고친 만큼 새 finding 이 다른 사본에서 계속 나오면 수렴하지 않는 것이다. 이때는 점 수정으로 다시 돌지 않고 그 영역의 근본 원인을 재검토하거나, 진행을 멈추고 남은 finding·영향·선택지(단순화 / 범위 축소 / 구현자 위임 / 결과 수용 / system checkpoint 계속 / module 보강 계속 / `/spec` 재진입 / hold)와 누적 재진입 횟수를 사용자에게 위임한다.
 - **재검증 범위는 validator 가 고른다.** 한 task 문서만 보강했으면 validator 는 그 보강과 그것이 닿는 산출물·판단 축을 다시 보고, 닿지 않는 산출물은 이유를 적고 다시 보지 않는다. 영향이 넓거나 직전 결과와의 연결을 믿을 수 없으면 validator 가 스스로 전체 재검증으로 올린다. 메인은 직전 finding, 직전 검증 결과, 보강된 파일 목록을 입력으로 주고 범위는 처방하지 않는다.
 - Claude Agent 와 Codex wrapper 모두 메인이 이력을 읽는다. Codex wrapper 는 end-step 까지 수행하지만 재시도 판단의 소유자가 아니다. 이력의 근거는 `architecture-validator`, `architecture-validator-1` 같은 같은 agent occurrence 와 ledger receipt 이며, provider field 는 이력을 나누는 기준이 아니다.
 - 루프 재구성 이후 상설 초기 검증 stage 가 없어져도 이 계약은 남는다. 적용 대상은 design-system stage 의 final epic 검증과 그 FAIL 이 유발하는 system checkpoint 또는 epic-batch 재진입이다.
 
-> **finding 수용 자세** (점 패치 X, 근본 재설계) — 같은 영역 finding 이 2회+ 반복되면 점 패치로 다시 돌지 말고 근본 원인을 짚어 그 영역을 재설계한다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).
+> **finding 수용 자세** — 반복 finding은 근본 원인을 재검토하되, 구조적 누수 증거가 없으면 범위를 넓히지 않는다. 보강 전에 단순화·범위 축소·구현자 위임·결과 수용도 검토한다. 결과 수용으로 사용자 약속이나 데이터·보안 위험을 바꾸면 사용자 결정이 필요하다. 요청하지 않은 제품 실행 동작은 설계 agent가 쓰기 전에 메인이 사용자에게 확인한다. 진본 = [`loop-procedure.md` finding 수용 원칙](../../docs/plugin/loop-procedure.md#finding-수용-원칙-점-패치-금지-근본-수정).
 
 ## escalate 처리
 

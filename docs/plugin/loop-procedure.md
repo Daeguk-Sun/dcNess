@@ -312,10 +312,10 @@ TaskUpdate(<기존 task>, completed)
 
 ### finding 수용 원칙: 점 패치 금지, 근본 수정
 
-validator (`impl-validator` / `architecture-validator`) 의 FAIL finding·수정 권고는 **"그 점/그 줄만 고쳐라"가 아니다.** 권고가 나온 *의미* = finding 이 가리키는 **근본 원인을 파악해 그 영역을 재설계하라** 이다.
+validator (`impl-validator` / `architecture-validator`) 의 FAIL finding은 근본 원인과 실제 영향 범위를 확인하라는 신호다. 구조적 누수의 증거 없이 수정 범위를 넓히라는 뜻은 아니다.
 
-- **메인 (relay)**: 재진입 prompt 에 finding 을 "이 점만 고쳐"로 좁게 전달 금지. finding 이 구조적 누수의 *증상*인지 먼저 판단 → 증상이면 "근본 원인 + 증상 패턴 전체"를 주고 "이 접근을 재설계하라"로 프레이밍한다. **같은 영역 finding 이 2회+ 반복 = 점 패치 신호 → 즉시 근본 재설계로 전환** (위 REDO 분류의 `REDO_DIFF` 와 정합 — 같은 접근 재시도가 아니라 접근 자체 교체). 해법 메커니즘은 메인이 처방하지 말 것 — 증상·사실관계만 넘기고 설계 소유는 producer agent 가 갖는다.
-- **producer (설계 agent / build-worker)**: finding 수신 시 점 패치 전에 "더 깊은 설계 문제의 신호인가?"를 먼저 본다. 신호면 점이 아니라 접근을 재설계한다. 재설계가 상위 산출물 (architecture / decisions / conventions / domain-model 등) 을 건드리면 직접 편집하지 말고 변경점을 prose 로 보고 → 메인이 상위 agent 로 분기 (각 `<skill>-routing.md` 의 retry 경로).
+- **메인 (relay)**: finding의 사실·출처·영향을 전달한다. 단일 AC의 누락·오기는 해당 범위에서 닫고, "같은 종류를 전부 찾아라"를 자동으로 붙이지 않는다. 공유 owner·계약의 구조적 누수라는 증거가 있을 때만 근본 원인과 연결된 증상 패턴까지 넓힌다. 반복 자체는 확대 근거가 아니며 원인 재검토 신호다. 해법 메커니즘은 producer가 고른다.
+- **producer (설계 agent / build-worker)**: 설계 보강은 규칙 추가뿐 아니라 단순화·범위 축소·구현자 위임·결과 수용도 비교한다. 사용자 약속이나 데이터·보안 위험 수용은 사용자 결정으로 돌린다. 요청하지 않은 제품 실행 동작이 생기면 설계에 쓰기 전에 메인이 사용자 확인을 받는다. finding 수신 시 점 패치 전에 "더 깊은 설계 문제의 신호인가?"를 먼저 본다. 신호면 점이 아니라 접근을 재설계한다. 재설계가 상위 산출물 (architecture / decisions / conventions / domain-model 등) 을 건드리면 직접 편집하지 말고 변경점을 prose 로 보고 → 메인이 상위 agent 로 분기 (각 `<skill>-routing.md` 의 retry 경로).
 - **이유**: 점 패치는 finding cascade 를 부른다 — 좁은 수정이 다음 결함을 드러내 같은 영역 FAIL 이 N 라운드 반복. 한 번의 근본 재설계 < N 번 점 패치 + N 번 재검증. 같은 영역을 점 패치로 계속 다시 돌리지 말 것 — 재시도를 계속할지는 횟수가 아니라 수렴 여부로 정한다 ([design-routing](../../skills/design/design-routing.md#재시도-판단) / [impl-loop-routing](../../skills/impl-loop/impl-loop-routing.md#재시도-판단) / [`rerun-judgment.md`](agents/_shared/rerun-judgment.md)).
 
 ### yolo 모드

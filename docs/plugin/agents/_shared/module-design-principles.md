@@ -188,13 +188,19 @@ Story 설계의 기본 단위는 레이어나 파일 묶음이 아니라 사용�
 
 역할별 적용 시점: build-worker 는 테스트·구현·검증에서 AC 성격에 맞는 증거를 남기고, product-acceptance 는 검수에서 이 기준으로 gap 을 판정한다.
 
+## 설계 세부의 출처와 위임
+
+결정 문서의 규칙과 기술 REQ는 사용자 결정, 이슈·PRD·수용 기준, 기존 코드와의 충돌, 되돌리기 어려운 구조 선택 중 하나로 필요성을 설명한다. 검증 finding도 새 출처가 아니라 그 근거로 돌아가 확인한다. 출처와 지킬 계약이 없는 드문 경합·환경 조작 방어·구현 방법 수준의 순서 규칙은 설계에 고정하지 않고 구현자에게 맡긴다. 위임 사실과 지킬 경계만 짧게 남기며 표나 고정 섹션은 요구하지 않는다.
+
+설계 agent의 자체 위임도 근거 있는 처리다. 제품 동작·데이터·권한·사용자 약속·외부 계약을 바꾸지 않는 낮은 영향의 선택에 한하며, 중요한 선택을 위임으로 숨기지 않는다. 기준은 [결정 완전성](../../decision-completeness.md)의 질문·위임 기준이다. 세부를 결정 문서로 옮겼다는 이유만으로 필요한 설계가 되지는 않는다. 작성 전 기존 규칙의 삭제·단순화 가능성을 먼저 보고, 완료 전 결정 규칙·기술 REQ·설계 묶음 총량을 요청 범위와 비교한다. 보강이 요청하지 않은 제품 실행 동작을 만들면 쓰기 전에 메인을 통해 사용자 확인을 받는다.
+
 ## 고위험 상태 계약
 
 저장·identity·sync/reconcile·cross-story mutable state·권한 handoff·lifecycle 처럼 상태성이 높은 계약은 "observer 가 수렴한다", "repository 가 처리한다" 같은 추상 문구만으로 닫히지 않는다. 설계와 검증 모두 계약을 실제 전이로 추적한다. 추적은 고정 표나 JSON 산출물이 아니라 의미 요구다 — durable 의미는 기존 원칙대로 module responsibility / public interface 와 decision 에 둔다.
 
 ### 위험 신호
 
-다음 중 하나라도 있으면 고위험 상태 계약으로 본다.
+다음은 고위험 상태 계약을 찾는 신호다. 신호가 있으면 요청과 기존 코드에서 실제로 적용되는 전이를 식별한다. 신호 하나로 모든 경합·환경 조건을 설계 의무로 확장하지 않는다.
 
 - DB·파일·외부 Provider·외부 시스템이 진본(SSOT) 또는 mirror/read model 이다.
 - 같은 identity 를 유지한 채 가변 상태가 바뀐다.
@@ -207,7 +213,7 @@ Story 설계의 기본 단위는 레이어나 파일 묶음이 아니라 사용�
 
 ### 적용 가능한 전이
 
-각 계약에서 적용 가능한 전이를 확인한다. 해당 없는 전이를 억지로 채우지 않는다.
+각 계약에서 적용 가능한 전이를 확인한다. 해당 없는 전이를 억지로 채우지 않는다. 검증자도 추가한 전이가 실제 요청·코드 계약에 필요한지 확인하고, 근거 없는 전이는 제거 또는 위임 대상으로 본다. 단, 실제 mutable update·실패 보존·producer/consumer 경로를 추상 문구로 덮거나 위임으로 생략하지 않는다.
 
 1. 최초 생성·bootstrap
 2. 동일 identity 의 가변 필드 변경 (mutable projection update)
@@ -219,7 +225,7 @@ Story 설계의 기본 단위는 레이어나 파일 묶음이 아니라 사용�
 8. foreground/background·resume/pause
 9. route/input 값과 화면 내부 live state 가 달라지는 전이
 
-각 전이는 trigger → producer → state owner → mutation/write → persistence/read model → consumer → 제품 경계에서 관찰되는 결과 로 끝까지 연결한다. 중간 단계가 산출물에 없거나 impl scope 가 그 단계를 수정하지 못하면 설계 gap 이다.
+요청·기존 계약에 적용되는 각 전이는 trigger → producer → state owner → mutation/write → persistence/read model → consumer → 제품 경계에서 관찰되는 결과 로 끝까지 연결한다. 중간 단계가 산출물에 없거나 impl scope 가 그 단계를 수정하지 못하면 설계 gap 이다.
 
 ### 상태성 작업의 코드 SSOT 표면
 
@@ -301,7 +307,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 [`architecture-validator`](../../../../agents/architecture-validator.md) 는 본 SSOT 를 고정 checklist 로 세지 않는다. 다음 축에서 evidence 를 확인한다.
 
 - **설계 표준**: 모듈 공개 노출 범위, 의존 방향, DI 판단, 차단 도구가 산출물에 남았는가.
-- **계약과 인터페이스**: module responsibility 와 decision 문서가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 를 담는가.
+- **계약과 인터페이스**: module responsibility 와 decision 문서가 signature 뿐 아니라 invariant, ordering, error mode, config, consumer, forbidden alternative 중 해당 계약에 필요한 의미를 담는가.
 - **구현 가능성**: build-worker 가 의존을 주입하고 결과를 관찰할 수 있는가.
 - **제품 동작 슬라이스**: Story 완료 시 실제로 검증되는 동작과 첫 제품 경계 증거가 산출물에 남았는가.
 - **고위험 상태 계약**: 상태성 계약의 적용 가능한 전이가 producer → state owner → consumer 경로로 닫혔는가 ([고위험 상태 계약](#고위험-상태-계약)).
@@ -310,7 +316,7 @@ module-architect 가 epic architecture 의 모듈 목록 또는 `docs/decisions/
 
 자동으로 확인 가능한 신호는 적극 활용하되, grep 으로 잡히는 패턴만 검증 범위로 축소하지 않는다. 질적 판단이라는 이유만으로 finding 에서 제외하지 않는다 — 구체적인 위치, 깨지는 시나리오, 방치 시 영향이 입증되면 Must finding 으로 올리고, 근거가 부족한 우려만 advisory 또는 수동 review 권고로 남긴다.
 
-**Module/Decision contract 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 전부다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 이 계약들은 epic architecture.md 의 `## 모듈 목록` 책임/공개 인터페이스 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 문서는 module id 와 decision id/link 만 참조한다. module-architect 가 public contract 변경 시 두 진본을 갱신하며, architecture-validator 는 module/decision 과 충돌하는 구현 차단 위험을 Must finding 으로 본다. 분류·분기 상세 = [`design-routing.md`](../../../../skills/design/design-routing.md#finding-분류-분기).
+**Module/Decision contract 연계** — "interface" 는 시그니처가 아니라 caller 가 올바르게 쓰기 위해 알아야 하는 **signature + invariant + ordering + error mode + config + consumer + forbidden alternative** 중 caller의 올바른 사용에 필요한 의미다 ([Deep Modules](#deep-modules-깊은-모듈) 의 작은 공개 노출 범위 뒤 풍부한 계약 관점의 운영화). 출처가 있는 계약만 필요한 깊이로 기록하며, 항목 이름을 채우기 위해 규칙을 만들지 않는다. 이 계약들은 epic architecture.md 의 `## 모듈 목록` 책임/공개 인터페이스 한 줄과 `docs/decisions/NNNN-slug.md` 에 둔다. impl 문서는 module id 와 decision id/link 만 참조한다. module-architect 가 public contract 변경 시 두 진본을 갱신하며, architecture-validator 는 module/decision 과 충돌하는 구현 차단 위험을 Must finding 으로 본다. 분류·분기 상세 = [`design-routing.md`](../../../../skills/design/design-routing.md#finding-분류-분기).
 
 ## 참조
 
