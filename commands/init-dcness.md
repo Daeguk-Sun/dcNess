@@ -144,7 +144,8 @@ Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bun
 
 ### Core Step 6 - CLAUDE.md seed/migration
 
-부재 시 공식 구조 기반 `CLAUDE.md` 를 생성한다. 기존 파일은 재작성하지 않고 dcNess cold-start 앵커만 없을 때 append 하며, 6축 quality audit 결과와 개선 후보를 출력한다.
+부재 시 공식 구조 기반 `CLAUDE.md` 를 생성한다. 기존 파일은 재작성하지 않고 dcNess cold-start 앵커만 없을 때 append 하며, 6축 quality audit 결과와 개선 후보를 출력한다. 생성된 초안의 Commands 에 "실제 build/test/lint 명령을 확인한 뒤" 안내 줄이 남으면 빌드 설정과 CI 설정에서 실제 명령을 확인해 그 줄을 채운다. 확인할 수 없으면 추측하지 말고 사용자에게 묻는다.
+
 ```bash
 "$CONTEXT_DOCS" --ensure --repo "$PROJECT_ROOT"
 ```
