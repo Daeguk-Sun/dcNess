@@ -99,9 +99,9 @@ flowchart TB
 |---|---|---|---|
 | **design → spec** | design 중 PRD/요구사항 부족 발견 → 메인 `/spec` 재진입 권고 | 설계 agent가 PRD 충돌/누락(`ESCALATE`) 또는 미검증 새 외부 의존(`NEW_DEP_ESCALATE`) 보고 | 진본 = [`design-routing.md` escalate 처리](../../skills/design/design-routing.md#escalate-처리) |
 | **impl → 사용자 결정** | 구현 중 되돌리기 어려운 영향 발견 → 사용자에게 설계 선행/계속 진행 선택지 보고 | high-risk 영향이 실제 코드 변경 지점에서 구체화 | 자동 `/spec`·`/design` 되돌림 금지 |
-| **review → 구현** | impl-validator FAIL → finding-class에 따라 최초 구현 owner가 root-cause 수정 | finding 발생 | 단계 내부 되돌림. retry 한도는 [`impl-routing.md`](../../skills/impl/impl-routing.md) |
+| **review → 구현** | impl-validator FAIL → finding-class에 따라 최초 구현 owner가 root-cause 수정 | finding 발생 | 단계 내부 되돌림. 재시도 판단은 [`impl-routing.md`](../../skills/impl/impl-routing.md#재시도-판단) |
 
-단계 내부 되돌림과 단계 간 되돌림은 같은 원리의 다른 반경이다. 같은 영역 부족이 반복되면 점 패치 retry 로 한도를 소진하지 말고 근본 원인을 본다.
+단계 내부 되돌림과 단계 간 되돌림은 같은 원리의 다른 반경이다. 같은 영역 부족이 반복되면 점 패치로 다시 돌리지 말고 근본 원인을 본다.
 
 ## to-issue 와 작업 분기의 경계
 

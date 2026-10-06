@@ -297,9 +297,8 @@ phase prose 실제 기록 디렉토리 = wrapper가 prompt에 주입하는 canon
 | `AMBIGUOUS` 재호출 1회 | 직전 동일 agent task | `TaskUpdate(<task>, in_progress)` |
 | `SPEC_GAP_FOUND` → module-architect (보강) | 신규 task (다른 agent) | `TaskCreate` 가능 |
 
-이유: retry / rework 는 *동일 step 의 재실행*. 신규 TaskCreate 시 같은 step 이 task list 에 중복 등장 → 진행 추적 오염. cycle 카운터는 step occurrence (`<agent>[-<mode>]-N.md`) 로 보존되므로 task 는 1개로 유지. provider wrapper 가 `end-step` 을 대신 호출해도 retry counter 의 소유자는 메인이다. 메인은 해당 loop 의 `<skill>-routing.md` counter key 로 세며, finding 분류·파일·provider 변경만으로 같은 retry 경로의 counter 를 나누거나 리셋하지 않는다.
+이유: retry / rework 는 *동일 step 의 재실행*. 신규 TaskCreate 시 같은 step 이 task list 에 중복 등장 → 진행 추적 오염. cycle 카운터는 step occurrence (`<agent>[-<mode>]-N.md`) 로 보존되므로 task 는 1개로 유지. provider wrapper 가 `end-step` 을 대신 호출해도 재시도 판단의 소유자는 메인이다. Claude Agent 와 Codex wrapper 모두 메인이 이력을 읽는다. Codex wrapper 는 end-step 까지 수행하지만 재시도 판단의 소유자가 아니다. 메인은 해당 loop 의 `<skill>-routing.md` 재시도 판단으로 수렴 여부를 읽으며, finding 분류·파일·provider 변경만으로 같은 retry 경로의 이력을 나누거나 새로 시작하지 않는다.
 
-Claude Agent 와 Codex wrapper 모두 메인이 집계한다. Codex wrapper 는 end-step 까지 수행하지만 counter 소유자가 아니다.
 
 **MUST 순서** (retry / rework 진입 시):
 
@@ -317,7 +316,7 @@ validator (`impl-validator` / `architecture-validator`) 의 FAIL finding·수정
 
 - **메인 (relay)**: 재진입 prompt 에 finding 을 "이 점만 고쳐"로 좁게 전달 금지. finding 이 구조적 누수의 *증상*인지 먼저 판단 → 증상이면 "근본 원인 + 증상 패턴 전체"를 주고 "이 접근을 재설계하라"로 프레이밍한다. **같은 영역 finding 이 2회+ 반복 = 점 패치 신호 → 즉시 근본 재설계로 전환** (위 REDO 분류의 `REDO_DIFF` 와 정합 — 같은 접근 재시도가 아니라 접근 자체 교체). 해법 메커니즘은 메인이 처방하지 말 것 — 증상·사실관계만 넘기고 설계 소유는 producer agent 가 갖는다.
 - **producer (설계 agent / build-worker)**: finding 수신 시 점 패치 전에 "더 깊은 설계 문제의 신호인가?"를 먼저 본다. 신호면 점이 아니라 접근을 재설계한다. 재설계가 상위 산출물 (architecture / decisions / conventions / domain-model 등) 을 건드리면 직접 편집하지 말고 변경점을 prose 로 보고 → 메인이 상위 agent 로 분기 (각 `<skill>-routing.md` 의 retry 경로).
-- **이유**: 점 패치는 finding cascade 를 부른다 — 좁은 수정이 다음 결함을 드러내 같은 영역 FAIL 이 N 라운드 반복. 한 번의 근본 재설계 < N 번 점 패치 + N 번 재검증. 같은 영역을 점 패치로 retry 한도 ([design-routing](../../skills/design/design-routing.md#retry-한도) / [impl-loop-routing](../../skills/impl-loop/impl-loop-routing.md#retry-한도)) 까지 소진하지 말 것.
+- **이유**: 점 패치는 finding cascade 를 부른다 — 좁은 수정이 다음 결함을 드러내 같은 영역 FAIL 이 N 라운드 반복. 한 번의 근본 재설계 < N 번 점 패치 + N 번 재검증. 같은 영역을 점 패치로 계속 다시 돌리지 말 것 — 재시도를 계속할지는 횟수가 아니라 수렴 여부로 정한다 ([design-routing](../../skills/design/design-routing.md#재시도-판단) / [impl-loop-routing](../../skills/impl-loop/impl-loop-routing.md#재시도-판단) / [`rerun-judgment.md`](agents/_shared/rerun-judgment.md)).
 
 ### yolo 모드
 
@@ -326,10 +325,10 @@ validator (`impl-validator` / `architecture-validator`) 의 FAIL finding·수정
 | 상황 | 비-yolo | yolo |
 |---|---|---|
 | soft `*_ESCALATE` / `AMBIGUOUS` | 사용자 위임 | `auto-resolve` 적용 |
-| `SPEC_GAP_FOUND` | 사용자 위임 | module-architect (보강 케이스) cycle (≤2) |
-| `TESTS_FAIL` / impl-validator `FAIL` | 재시도 (≤3) | 동일 |
-| build-worker `TESTS_FAIL` | build-worker rework (≤3) | 동일 — 새 context window 가능 |
-| impl-validator `FAIL` | 사용자 위임 또는 root-cause 수정 | root-cause 수정 + 재리뷰 (≤3) |
+| `SPEC_GAP_FOUND` | 사용자 위임 | module-architect (보강 케이스) 재진입 — 수렴 여부로 계속·중단 판단 |
+| `TESTS_FAIL` / impl-validator `FAIL` | 재시도 — 횟수가 아니라 수렴 여부로 계속·중단 판단 | 동일 |
+| build-worker `TESTS_FAIL` | build-worker rework — 수렴 여부로 계속·중단 판단 | 동일 — 새 context window 가능 |
+| impl-validator `FAIL` | 사용자 위임 또는 root-cause 수정 | root-cause 수정 + 재리뷰 — 수렴하지 않으면 yolo 여도 사용자 위임 |
 | 승인-gated 산출물 최종 승인 (`/design`, `/ux`) | 사용자 승인 | 동일 (yolo 우회 X) |
 | Step 7 주의사항 (NICE TO HAVE only, MUST FIX 0) | 사용자 위임 | 7a 자동 |
 | 중대 차단 룰 | hard safety | hard safety (yolo 우회 X) |

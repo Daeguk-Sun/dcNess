@@ -40,7 +40,7 @@ depends_on:             # [<NN-slug>, ...] 선행 의존 그래프의 단일 SSO
 
 - PRD/Story 근거와 병렬성보다 동작 슬라이스를 우선한 결정 (1-2줄):
 - 첫 제품 동작 증거가 Story 마지막 task까지 밀리면 warning / 불가피한 이유:
-- Story 마지막 task 한정 — Story AC 전항목 실행 검증 책임과 검증 동선:
+- Story 마지막 task 한정 — Story AC 전항목을 덮는 종합 검증 책임과 검증 동선(다시 실행하는 AC / 앞 task 증거로 덮는 AC 와 그 이유):
 
 ## 디자인 참조
 
@@ -103,7 +103,7 @@ depends_on:             # [<NN-slug>, ...] 선행 의존 그래프의 단일 SSO
 >
 > negative 동작 계약은 대응하는 양성 프록시 event를 REQ 통과 조건에 명시한다. 양성 프록시가 없거나 관찰 창이 sub-second인 상태, 순수 위치·픽셀 판정은 flaky한 `(JOURNEY)`로 만들지 않고 `사람 확인 안내`로 분리한다.
 
-> `task_index: i/total` 에서 `i == total` 인 Story 마지막 task 는 해당 Story AC 전항목을 이 표에서 다시 인용하고 실제 실행·관찰하는 종합 검증 REQ 를 둔다. 앞 task 에서 검증한 항목도 마지막 task 전수 검증에서 생략하지 않는다. `story: 공통` task 에는 이 의무를 적용하지 않는다.
+> `task_index: i/total` 에서 `i == total` 인 Story 마지막 task 는 해당 Story AC 전항목을 이 표에서 다시 인용하고 종합 검증 REQ 로 덮는다. 마지막 task 까지의 변경이 닿을 수 있는 AC 는 실제로 다시 실행·관찰한다. 앞 task 에서 검증했고 이후 변경이 닿지 않는 AC 는 그 task 의 증거를 인용하고 닿지 않는 이유를 적는다. 불확실하면 다시 실행한다. `story: 공통` task 에는 이 의무를 적용하지 않는다.
 
 ## 주의사항
 

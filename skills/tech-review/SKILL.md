@@ -56,6 +56,7 @@ PRD: docs/prd.md
 
 [이전 cycle 있으면 추가]
 이전 cycle 컨텍스트:
+- 직전 검토 결과: docs/tech-review.md (직전 cycle 본문)
 - 이전 cycle 에서 PRD 항목 X 가 Y 로 patch 됨 (이유: ...)
 - 이전 cycle 에서 검토 질문 Z 가 추가됨
 
@@ -81,7 +82,7 @@ docs/epics/<epic>/tech-review.md 를 생성/갱신하고, raw evidence 와 HTML 
 """)
 ```
 
-이전 cycle 컨텍스트 = *메인이 prompt 에 명시* (tech-reviewer 가 stateless 이므로). 첫 cycle 은 컨텍스트 생략.
+이전 cycle 컨텍스트 = *메인이 prompt 에 명시* (tech-reviewer 가 stateless 이므로). 첫 cycle 은 컨텍스트 생략. 재진입에서 메인은 직전 결과와 그 뒤 바뀐 것만 사실로 전달하고, 다시 검토할 항목을 골라 주지 않는다. tech-reviewer 가 변경분을 읽고 그 변경이 닿는 항목만 다시 검토하며, 변경이 다른 항목의 전제(사용량 가정, 대안 선택, 라이선스 범위 등)를 건드리면 스스로 범위를 넓힌다. 판단 기준은 [`rerun-judgment.md`](../../docs/plugin/agents/_shared/rerun-judgment.md) 다.
 
 ### Step 2 — return prose 받기 + 산출 경로 echo
 

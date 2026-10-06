@@ -75,8 +75,8 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 10. public contract를 만들거나 바꾸면 epic `architecture.md` 의 모듈 목록 책임/공개 인터페이스와 `docs/decisions/NNNN-slug.md` 를 갱신하고 impl 문서는 관련 module/decision 참조만 남긴다. 신규 epic-scope decision 기록은 module-architect 가 자율 처리하지만, 기존 전역 decision 변경은 `SYSTEM_CHECKPOINT_REQUIRED` 로 checkpoint 승격한다. impl 문서에 invariant/ordering/error mode/config/forbidden alternative 전문을 복제하지 않는다. 계약 전문 복제 금지는 task-specific transition·실패 책임·acceptance 생략을 뜻하지 않는다. task 내부 한정 private interface 는 사본 문제가 없으므로 `## 인터페이스` 에 남긴다.
 11. DB, 디자인 토큰, 외부 의존 같은 영향 축이 있으면 별도 증거를 남긴다. 확정 목업이 있는 UI epic 에서는 목업 미참조 설계 금지 원칙에 따라 `## 디자인 참조` 에 확정 목업 경로, 핵심 디자인 토큰(색/spacing/typography), node-id 매핑, docs/design.md 토큰 대응, 의도적 차이를 남긴다. non-UI task 는 `## 디자인 참조` 섹션을 삭제한다.
 12. 제품 REQ 는 Story AC 를 task 실행 언어로 번역하고 `(from AC-NNN)` 출처를 필수로 적는다. 어느 AC 에도 대응하지 않는 제품 REQ 를 만들지 않는다. 스키마·인터페이스 형태처럼 Story AC 로 환원되지 않는 검증만 소수 `기술 REQ` 로 두고 `(technical: 이유)`를 남긴다. 검증은 실행 가능한 명령, `(AGENT READ)` 관찰 대상과 통과 조건, 또는 실앱 동작이 필요한 Story AC의 `(JOURNEY)` flow로 닫는다. `(JOURNEY)`에는 특정 e2e 도구를 강제하지 않고 프로젝트 기존 도구로 build-worker가 flow를 작성하게 하되, worker 실행 컨텍스트가 도달해야 하는 인수 환경 `acceptance_environment`와 flow/seed/runner/manifest/env adapter의 `harness_paths`를 함께 선언한다. 자동 인수가 구조적으로 불가능하면 `acceptance_environment.automation: human_verification`으로 명시하고 자동 수렴을 가장한 mock journey를 만들지 않는다. 한 Story의 `(JOURNEY)` AC를 화면 흐름 여러 개로 확인해야 하면 매니페스트 하나 안의 시나리오로 나누고, 시나리오마다 id, 담당 AC, 시작 상태를 스스로 준비하는 방법(독립 실행 조건)을 REQ에 선언한다. 흐름을 스크립트 하나로 묶으면 흐름 하나의 실패가 모든 AC의 실패가 되고, 흐름마다 매니페스트를 나누면 `start`·`cleanup`이 흐름마다 반복된다(시나리오 계약: [`product-journey.md`](../../product-journey.md#시나리오-단위-실행)). negative 동작 계약에는 양성 프록시 event를 명시하고, 프록시가 없거나 관찰 창이 sub-second인 상태·순수 위치/픽셀 판정은 REQ 밖 `사람 확인 안내`로 분리한다.
-13. 각 Story 의 `task_index: total/total` 마지막 task 에 Story AC 전항목의 종합 검증 REQ 를 둔다. 앞 task에서 개별 AC를 검증했더라도 마지막 task 전수 실행에서 생략하지 않는다. `story: 공통` task 는 제외한다.
-14. 완료 전에 구현 세부 유출, Story AC ↔ REQ 커버리지, 무출처 REQ, 마지막 task 전수 검증, Story 동작 슬라이스 증거, 고위험 shared state producer/owner/consumer/transition 완결성, Agent Operability 증거, 코드 SSOT drift 를 다시 본다.
+13. 각 Story 의 `task_index: total/total` 마지막 task 에 Story AC 전항목을 덮는 종합 검증 REQ 를 둔다. 덮는 방법은 AC 마다 정한다. 마지막 task 까지의 변경이 닿을 수 있는 AC 는 마지막 task 에서 다시 실행·관찰하게 하고, 앞 task 가 이미 검증했고 이후 task 의 변경이 닿지 않는 AC 는 그 task 의 증거를 인용하며 닿지 않는 이유를 적는다. 닿는지 불확실하면 다시 실행하게 한다. `story: 공통` task 는 제외한다.
+14. 완료 전에 구현 세부 유출, Story AC ↔ REQ 커버리지, 무출처 REQ, 마지막 task 종합 검증, Story 동작 슬라이스 증거, 고위험 shared state producer/owner/consumer/transition 완결성, Agent Operability 증거, 코드 SSOT drift 를 다시 본다.
 
 ## 완료 기준
 
@@ -85,7 +85,7 @@ module-architect가 기존 표면을 새 표면으로 대체하거나 refactor/m
 - `/design` revision mode 에서는 영향 산출물만 수술적으로 개정되고, shared state 계약 변경 시 보존 예정 task를 포함한 producer/consumer 영향 감사를 거친 뒤 미변경 impl task 는 보존된다. UX revision 전파라면 변경된 UX inventory/목업/node-id 결정이 architecture/impl 에 필요한 만큼 반영된다.
 - 각 impl 문서가 scope, module/decision 링크, task 내부 한정 private interface, acceptance criteria, 금지 경계를 포함한다.
 - 제품 REQ 마다 `(from AC-NNN)` 출처가 있고, 소수 기술 REQ 는 `(technical: 이유)`로 분리된다.
-- 각 Story 마지막 task 가 해당 Story AC 전항목의 실행·관찰 검증을 소유한다.
+- 각 Story 마지막 task 의 종합 검증이 해당 Story AC 전항목을 덮는다. 다시 실행하지 않는 AC 에는 앞 task 증거와 닿지 않는 이유가 있다.
 - Story/공통 task 분할 산출물에는 각 Story 완료 시 실제로 검증되는 동작, task 또는 task 묶음이 연결하는 제품 경계, 첫 동작 증거 지점이 남는다.
 - entrypoint 또는 cross-task state producer/consumer task 는 module responsibility / public interface 와 연결되고, owner/entrypoint 요약에 owner flow/module, 해당 시 entrypoint role, state owner, produced/consumed transition, validation path 가 남는다.
 - flow owner 가 없는 새 mode/screen/panel/flow 는 기능 append 보다 seam extraction task 가 선행된다.

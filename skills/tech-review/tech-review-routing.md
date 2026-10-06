@@ -60,7 +60,7 @@ flowchart TB
 3. **전체 원점 회귀** — `/design` 중단 + `/spec` 재진입 + 새 tech-review
 4. **대상 epic 기술 검토** — 현재 epic `tech-review.md` 작성, evidence/HTML 은 `.dcness-work/reviews/`, 사용자 OK 후 설계 agent 재진입
 
-(1)·(2)·(4) cycle ≤ 2. (4)는 전역 `/tech-review` 재진입이 아니라 design 중 발견된 새 의존을 현재 epic 범위로 좁혀 검토하는 경로다. 상세 흐름 = [`../design/design-routing.md`](../design/design-routing.md#escalate-처리).
+(1)·(2)·(4) 재진입을 반복할지의 기준은 [`../design/design-routing.md`](../design/design-routing.md#재시도-판단) 한 곳이 소유하며, 본 문서는 별도 횟수를 두지 않는다. (4)는 전역 `/tech-review` 재진입이 아니라 design 중 발견된 새 의존을 현재 epic 범위로 좁혀 검토하는 경로다. 상세 흐름 = [`../design/design-routing.md`](../design/design-routing.md#escalate-처리).
 
 ## 비대상 (다른 skill 추천)
 

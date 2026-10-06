@@ -7,7 +7,7 @@
 - Story AC가 어떤 impl REQ에도 인용되지 않은 미커버 AC
 - 제품 REQ에 `(from AC-NNN)`이 없는 무출처 REQ
 - Story AC에 없는 ID를 REQ가 인용함
-- Story 마지막 task가 해당 Story AC 전항목을 다시 실행·관찰하지 않음
+- Story 마지막 task의 종합 검증이 Story AC 일부를 덮지 않음 (다시 실행하지도 않고, 앞 task 증거와 닿지 않는 이유도 없음)
 - 문서끼리는 일치하지만 Story AC와 다른 self-consistent wrong 상태
 
 ## 설계 표준

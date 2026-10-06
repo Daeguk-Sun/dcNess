@@ -31,7 +31,7 @@
 
 - 미커버 AC:
 - 무출처 REQ / 존재하지 않는 AC 참조:
-- Story 마지막 task 전수 검증 누락:
+- Story 마지막 task 종합 검증 누락:
 
 ## Must Findings
 
