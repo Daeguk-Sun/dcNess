@@ -13,7 +13,7 @@
 #            exit 1 = non-blocking error → 도구 그대로 진행 (차단 안 됨).
 #
 # 강제 룰 (harness/agent_boundary.py — 권한 경계 코드 SSOT):
-#   §4.4 DCNESS_INFRA_PATTERNS — 인프라 path (모든 sub-agent 차단)
+#   §4.4 DCNESS_INFRA_PATTERNS — 인프라 path (모든 sub-agent Write 차단, Read 는 허용)
 #   §4.2 ALLOW_MATRIX — agent 별 Write 허용 path
 #   §4.3 READ_DENY_MATRIX — agent 별 Read 금지 path
 #   §4.5 is_infra_project() — dcness 자체 작업 시 해제

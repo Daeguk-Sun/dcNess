@@ -136,11 +136,11 @@ PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추�
 
 | Rule | 효과 |
 |---|---|
-| `DCNESS_INFRA_PATTERNS` | sub-agent 의 `.claude/`, `hooks/`, `harness/*.py`, `docs/plugin/*.md`, `scripts/*.mjs` 등 infra path 접근 차단 |
+| `DCNESS_INFRA_PATTERNS` | sub-agent 의 `.claude/`, `hooks/`, `harness/*.py`, `docs/plugin/*.md`, `scripts/*.mjs` 등 infra path **쓰기** 차단. 읽기는 막지 않는다 |
 | `RUN_DIR_PROSE_ALLOW` | build-worker 가 자기 run dir 의 `build-{test,impl,validate,polish}.md` prose 를 쓰는 좁은 예외 |
 | `ALLOW_MATRIX` | agent 별 Write 허용 path 제한 |
 | `.dcness/boundary.json` | **프로젝트별 override** — agent 별 `add`(허용 확장) / `remove`(코어 기본 제거)로 코어 `ALLOW_MATRIX` 를 양방향 커스텀 (아래 참조) |
-| `READ_DENY_MATRIX` | agent 별 Read 금지 path 제한 |
+| `READ_DENY_MATRIX` | agent 별 Read 금지 path 제한. Read 를 막는 규칙은 이것 하나다. 모든 agent 에 적용되는 읽기 금지는 없다 |
 | 외부 변경 차단 목록 | sub-agent 의 `git push`, Bash `gh pr create/merge/review`, Bash `gh issue create/edit/close/comment`, 상태 변경 `gh api`, GitHub MCP PR/repo 외부 상태 변경 차단 |
 
 메인 Claude turn 은 file boundary 를 통과한다.

@@ -101,7 +101,7 @@ def _file_write(
 
 
 def _file_read(agent: str, build_target: Callable[[Path, Path, Path], str]) -> Probe:
-    """#962 read-boundary probe — 외부 활성 프로젝트에서 활성 plugin root 기준 read 검사.
+    """read-boundary probe — 외부 활성 프로젝트에서 활성 plugin root 기준 read 검사.
 
     build_target(base, cwd, plugin_root) 가 대상 경로를 만든다. plugin_root 는 실제
     배포 레이아웃(~/.claude/plugins/cache/dcness/dcness/<ver>)을 모사하며, cwd 는 외부
@@ -549,52 +549,66 @@ def build_cases() -> list[GuardCase]:
             ),
         ),
         GuardCase(
-            "read_boundary_blocks_plugin_loop_procedure",
+            "read_boundary_allows_plugin_loop_procedure",
             "read-boundary",
-            "block",
-            "plugin infra doc (loop-procedure) stays blocked inside the allow zone.",
+            "allow",
+            "reads change no state: plugin loop-procedure doc is readable.",
             _file_read(
                 "module-architect",
                 lambda b, c, r: str(r / "docs/plugin/loop-procedure.md"),
             ),
         ),
         GuardCase(
-            "read_boundary_blocks_plugin_hook_infra",
+            "read_boundary_allows_plugin_hook_infra",
             "read-boundary",
-            "block",
-            "plugin hook/guard code stays blocked (outside agents/ · docs/plugin/).",
+            "allow",
+            "reads change no state: plugin hook/guard code is readable.",
             _file_read(
                 "system-architect", lambda b, c, r: str(r / "hooks/file-guard.sh")
             ),
         ),
         GuardCase(
-            "read_boundary_blocks_home_claude_outside_plugin",
+            "read_boundary_allows_home_claude_outside_plugin",
             "read-boundary",
-            "block",
-            "~/.claude paths outside the plugin folder (history/settings) stay blocked.",
+            "allow",
+            "reads change no state: ~/.claude paths outside the plugin folder are readable.",
             _file_read(
                 "system-architect", lambda b, c, r: str(b / ".claude/history.jsonl")
             ),
         ),
         GuardCase(
-            "read_boundary_blocks_project_harness_state",
+            "read_boundary_allows_project_harness_state",
             "read-boundary",
-            "block",
-            "project .claude/harness-state read stays blocked.",
+            "allow",
+            "project .claude/ evidence (harness-state, worktree outputs) is readable.",
             _file_read(
                 "system-architect",
                 lambda b, c, r: ".claude/harness-state/.sessions/x/live.json",
             ),
         ),
         GuardCase(
-            "read_boundary_blocks_nested_dot_claude_in_zone",
+            "read_boundary_allows_nested_dot_claude_in_zone",
             "read-boundary",
-            "block",
-            "nested .claude/ subtree inside the allow zone stays blocked.",
+            "allow",
+            "reads change no state: nested .claude/ subtree inside the plugin is readable.",
             _file_read(
                 "system-architect",
                 lambda b, c, r: str(r / "agents/foo/.claude/transcript.json"),
             ),
+        ),
+        GuardCase(
+            "read_boundary_blocks_designer_source",
+            "read-boundary",
+            "block",
+            "agent-specific read deny stays: designer cannot read project src/.",
+            _file_read("designer", lambda b, c, r: "src/App.tsx"),
+        ),
+        GuardCase(
+            "file_boundary_blocks_dot_claude_write",
+            "file-boundary",
+            "block",
+            ".claude/ stays write-protected for subagents after the read ban removal.",
+            _file_write("impl-validator", ".claude/worktrees/task/acceptance-result.json"),
         ),
         GuardCase(
             "bash_mutation_blocks_git_push",

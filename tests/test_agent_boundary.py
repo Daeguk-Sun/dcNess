@@ -277,11 +277,12 @@ class ProjectOverrideTests(unittest.TestCase):
 
 
 class ReadBoundaryTests(unittest.TestCase):
-    def test_read_policy_and_active_plugin_carveout(self) -> None:
+    def test_read_is_limited_only_by_agent_specific_deny(self) -> None:
         with tempfile.TemporaryDirectory() as directory, external_boundary():
             base = Path(directory)
             project = base / "project"
             plugin = base / ".claude/plugins/cache/dcness/dcness/1.0.0"
+            stale = base / ".claude/plugins/cache/dcness/dcness/0.9.0"
             project.mkdir()
             plugin.mkdir(parents=True)
             cases = [
@@ -289,49 +290,50 @@ class ReadBoundaryTests(unittest.TestCase):
                 ("designer", "docs/ux.md", True),
                 ("module-architect", str(plugin / "agents/module-architect/SKILL.md"), True),
                 ("module-architect", str(plugin / "docs/plugin/terms.md"), True),
-                ("module-architect", str(plugin / "docs/plugin/loop-procedure.md"), False),
-                ("module-architect", str(plugin / "hooks/file-guard.sh"), False),
-                ("module-architect", ".claude/harness-state/live.json", False),
+                ("module-architect", str(plugin / "docs/plugin/loop-procedure.md"), True),
+                ("module-architect", str(plugin / "hooks/file-guard.sh"), True),
+                ("module-architect", str(stale / "agents/a.md"), True),
+                ("module-architect", str(base / ".claude/history.jsonl"), True),
+                ("module-architect", ".claude/harness-state/live.json", True),
+                ("impl-validator", ".claude/worktrees/task/acceptance-result.json", True),
+                ("impl-validator", "harness/agent_boundary.py", True),
+                ("impl-validator", "skills/impl/impl-routing.md", True),
+                ("impl-validator", "CLAUDE.md", True),
+                ("impl-validator", ".dcness/boundary.json", True),
             ]
             for agent, path, allowed in cases:
                 with self.subTest(path=path):
                     reason = check_read_allowed(agent, path, cwd=project, plugin_root=str(plugin))
                     self.assertEqual(reason is None, allowed, reason)
 
-    def test_stale_plugin_and_nested_infra_do_not_use_carveout(self) -> None:
+    def test_dot_claude_is_readable_but_still_not_writable(self) -> None:
+        paths = (
+            ".claude/settings.json",
+            ".claude/harness-state/live.json",
+            ".claude/worktrees/task/acceptance-result.json",
+        )
+        with tempfile.TemporaryDirectory() as directory, external_boundary():
+            root = Path(directory)
+            for agent in ("build-worker", "impl-validator", "module-architect"):
+                for path in paths:
+                    with self.subTest(agent=agent, path=path):
+                        self.assertIsNone(check_read_allowed(agent, path, cwd=root))
+                        self.assertIsNotNone(check_write_allowed(agent, path, cwd=root))
+
+    def test_agent_deny_uses_plugin_relative_path_for_plugin_instructions(self) -> None:
         with tempfile.TemporaryDirectory() as directory, external_boundary():
             base = Path(directory)
             project = base / "project"
-            active = base / ".claude/plugins/cache/dcness/dcness/2"
-            stale = base / ".claude/plugins/cache/dcness/dcness/1"
+            plugin = base / "src/dcness"
             project.mkdir()
-            active.mkdir(parents=True)
-            stale.mkdir(parents=True)
-            self.assertIsNotNone(
-                check_read_allowed(
-                    "module-architect", str(stale / "agents/a.md"), cwd=project, plugin_root=str(active)
-                )
+            plugin.mkdir(parents=True)
+            instruction = plugin / "docs/plugin/agents/designer/designer-agent.md"
+            self.assertIsNone(
+                check_read_allowed("designer", str(instruction), cwd=project, plugin_root=str(plugin))
             )
             self.assertIsNotNone(
                 check_read_allowed(
-                    "module-architect",
-                    str(active / "agents/a/.claude/history.jsonl"),
-                    cwd=project,
-                    plugin_root=str(active),
-                )
-            )
-            secret = base / ".claude/secret.txt"
-            secret.parent.mkdir(exist_ok=True)
-            secret.write_text("secret", encoding="utf-8")
-            disguised = active / "agents/module-architect/disguised.md"
-            disguised.parent.mkdir(parents=True)
-            disguised.symlink_to(secret)
-            self.assertIsNotNone(
-                check_read_allowed(
-                    "module-architect",
-                    str(disguised),
-                    cwd=project,
-                    plugin_root=str(active),
+                    "designer", str(plugin / "agents/designer/src/a.ts"), cwd=project, plugin_root=str(plugin)
                 )
             )
 
