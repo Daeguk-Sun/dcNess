@@ -143,6 +143,63 @@ class WriteBoundaryTests(unittest.TestCase):
                 check_write_allowed("build-worker", "src/users.$id.ts", cwd=root)
             )
 
+    def test_temp_dir_write_is_allowed_and_project_write_is_unchanged(self) -> None:
+        read_only = ("impl-validator", "architecture-validator", "product-acceptance", "tech-reviewer")
+        with tempfile.TemporaryDirectory() as directory, external_boundary():
+            base = Path(directory).resolve()
+            project = base / "project"
+            temp = base / "tmp"
+            (project / "src").mkdir(parents=True)
+            temp.mkdir()
+            (temp / "link").symlink_to(project / "src")
+            with patch("harness.agent_boundary._TEMP_DIR_PREFIXES", (f"{temp}/",)):
+                for agent in (*read_only, "build-worker"):
+                    with self.subTest(agent=agent):
+                        self.assertIsNone(
+                            check_write_allowed(agent, str(temp / "session/notes.md"), cwd=project)
+                        )
+                for agent in read_only:
+                    with self.subTest(agent=agent, target="project"):
+                        self.assertIsNotNone(check_write_allowed(agent, "src/app.ts", cwd=project))
+                        self.assertIsNotNone(
+                            check_write_allowed(agent, str(project / "src/app.ts"), cwd=project)
+                        )
+                        self.assertIsNotNone(
+                            check_write_allowed(agent, str(temp / "link/app.ts"), cwd=project)
+                        )
+                        self.assertIsNotNone(
+                            check_write_allowed(agent, str(base / "other/notes.md"), cwd=project)
+                        )
+
+    def test_temp_dir_allowance_is_off_when_project_is_inside_temp_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, external_boundary():
+            base = Path(directory).resolve()
+            project = base / "project"
+            project.mkdir()
+            with patch("harness.agent_boundary._TEMP_DIR_PREFIXES", (f"{base}/",)):
+                self.assertIsNotNone(
+                    check_write_allowed("impl-validator", str(base / "sibling/src/a.ts"), cwd=project)
+                )
+
+    def test_bash_variable_write_to_temp_dir_needs_a_resolved_value(self) -> None:
+        with tempfile.TemporaryDirectory() as directory, external_boundary():
+            base = Path(directory).resolve()
+            project = base / "project"
+            temp = base / "tmp"
+            project.mkdir()
+            temp.mkdir()
+            with patch("harness.agent_boundary._TEMP_DIR_PREFIXES", (f"{temp}/",)):
+                resolved = extract_bash_paths(f'D={temp}/evidence; echo note > "$D/a.md"')
+                self.assertEqual(resolved, [f"{temp}/evidence/a.md"])
+                self.assertIsNone(
+                    check_write_allowed("impl-validator", resolved[0], cwd=project, shell_context=True)
+                )
+                unresolved = extract_bash_paths('D=$(mktemp -d); echo note > "$D/a.md"')
+                self.assertEqual(unresolved, ["$D/a.md"])
+                self.assertIsNotNone(
+                    check_write_allowed("impl-validator", unresolved[0], cwd=project, shell_context=True)
+                )
+
     def test_run_prose_carveout_is_narrow(self) -> None:
         run = ".claude/harness-state/.sessions/s/runs/run-1/"
         with tempfile.TemporaryDirectory() as directory, external_boundary():

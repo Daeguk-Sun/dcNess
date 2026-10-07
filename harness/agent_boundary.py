@@ -565,6 +565,15 @@ def _matches_task_scope(path: str, scope_paths: Iterable[str]) -> Optional[str]:
 
 # ── 검사 ─────────────────────────────────────────────────────────────
 
+# 임시 디렉토리 쓰기는 프로젝트 파일 수정이 아니다. 경로 비교용 문자열이며 임시 파일을 만들지 않는다.
+_TEMP_DIR_PREFIXES = (  # nosec B108
+    "/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/",
+)
+
+
+def _in_temp_dir(path: str) -> bool:
+    return (path.rstrip("/") + "/").startswith(_TEMP_DIR_PREFIXES)
+
 
 def check_write_allowed(
     agent: Optional[str],
@@ -624,6 +633,11 @@ def check_write_allowed(
     # 시작하면 프로젝트 루트 밖이다 (#694 codex P1/P2). 원본을 ALLOW 패턴에 먹이면 `../tests/x`
     # 가 `(^|/)tests?/` 에 매칭되는 우회가 생긴다.
     if norm.startswith("/") or norm == ".." or norm.startswith("../") or norm.startswith("~"):
+        # 임시 폴더(세션 임시 폴더 포함) 쓰기는 제품 파일을 바꾸지 않으므로 모든 agent 에 허용한다.
+        # norm 은 심볼릭 해소 후 경로라 임시 폴더 안 링크로 프로젝트 파일을 가리켜도 여기 오지 않는다.
+        # 프로젝트가 임시 폴더 안에 있으면 이웃 경로가 다른 작업 폴더일 수 있어 허용하지 않는다.
+        if _in_temp_dir(norm) and not _in_temp_dir(str((cwd or Path.cwd()).resolve())):
+            return None
         return (
             f"{agent} 경계 밖 경로 차단: `{norm}` — 프로젝트 루트 밖 write 금지 "
             f"(.. 상위 탈출 / 절대 외부 / ~ home)."
@@ -1104,10 +1118,6 @@ _PYTHON_VALUE_OPTS = frozenset({"-X", "-W", "-Q"})
 _PYTHON_WRITE_HINT_RE = re.compile(r"\bopen\s*\(|\.write_(?:text|bytes)\s*\(")
 _PYTHON_OPEN_MODULES = frozenset({"io", "builtins", "codecs"})
 _PYTHON_PATH_CTORS = frozenset({"Path", "PurePath", "PosixPath", "pathlib.Path", "os.path.join"})
-# 임시 디렉토리 쓰기는 프로젝트 파일 수정이 아니다. 경로 비교용 문자열이며 임시 파일을 만들지 않는다.
-_PYTHON_TEMP_PREFIXES = (  # nosec B108
-    "/tmp/", "/private/tmp/", "/var/folders/", "/private/var/folders/",
-)
 _SHELL_VAR_RE = re.compile(r"\$(?:\{(\w+)\}|(\w+))")
 _SHELL_ASSIGN_RE = re.compile(r"^([A-Za-z_][A-Za-z0-9_]*)=(.*)$", re.DOTALL)
 # 인용 여부와 무관하게 확장 결과가 그대로 한 단어인 값 — 단어 분리·glob·`~` 확장이 없다.
@@ -1276,7 +1286,7 @@ class _PythonWriteScanner:
             path = self.resolve(target)
             if path is None:
                 unresolved.append(f"쓰기 대상 미확정: {ast.unparse(target)[:120]}")
-            elif not (path + "/").startswith(_PYTHON_TEMP_PREFIXES):
+            elif not (path + "/").startswith(_TEMP_DIR_PREFIXES):
                 paths.append(path)
         return paths, unresolved
 
