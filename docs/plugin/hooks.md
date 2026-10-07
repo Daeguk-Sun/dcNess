@@ -35,7 +35,7 @@ dcNess 의 강제 영역은 두 가지뿐이다.
 | `post-agent-clear.sh` | `PostToolUse / Agent` | Agent tool 성공 결과 직후 | completed foreground prose + receipt 기록, 비동기 실행은 step 유지 | X |
 | `post-agent-failure.sh` | `PostToolUseFailure / Agent` | Agent tool 실패 직후 | step abort + 복구 진단 | X |
 | `subagent-stop-clear.sh` | `SubagentStop` | sub-agent 컨텍스트 종료 직후 | 최종 응답으로 receipt 기록(비동기 실행 포함) + active agent clear 보강 | X |
-| `stop-end-run.sh` | `Stop` | 메인 응답 종료 시 | end-run 자동화 + 다음 step continuation signal | 조건부 재발화 |
+| `stop-end-run.sh` | `Stop` | 메인 응답 종료 시 | end-run 자동화 + 마감 검증 순서 보호 | 조건부 재발화 |
 
 ### CC hook 공통 실행 패턴
 
@@ -311,10 +311,9 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 - 마지막 step 이 완료됐고 run 이 미finalized 상태면 `end-run` 을 자동 수행
 - 마지막 `end-step` 이후 새 `begin-step` 이 열린 run 은 동일 agent 재라운드여도 진행 중으로 보고 자동 `end-run` 대상에서 제외
-- 마지막 step 결론이 다음 step 으로 이어져야 하는 enum 이고 종료 agent 가 아니면 continuation signal 을 내보내 메인 turn 재발화
-- `begin-run impl --acceptance-required` 로 기록된 마감 task run 에서는 `impl-validator` 를 종료 agent 로 취급하지 않는다. `impl-validator` 결론이 `PASS` 이면 Stop hook 이 `product-acceptance` 진입용 continuation signal 을 내보내며, marker 가 없는 중간 task / `--no-acceptance` run / verify-only run 은 기존 종료 동작을 유지한다.
-- `impl-validator:CODEBASE_SANITY` `PASS`는 종료 결과가 아니다. impl run에서는 같은 final merge candidate의 일반 `impl-validator` merge review를, design run에서는 Cartography freshness preflight를 이어가도록 continuation signal을 낸다. Sanity mode 직후 acceptance로 건너뛰지 않는다.
-- 같은 step 에서 반복 block 횟수가 한도를 넘으면 사용자/메인의 종료 의도를 존중하고 skip
+- 마지막 step 이 종료 agent(`impl-validator`)가 아니고 결론이 다음 step 으로 이어지는 enum 이면 run 을 열어 둔다. 메인에 계속 진행을 요구하지 않고 자동 `end-run` 도 하지 않는다. 다음 step 이 사용자 확인인 흐름에서 메인이 사용자 답을 기다리며 멈출 수 있기 때문이다. 열린 채 남은 run 은 메인의 `end-run` 호출 또는 24시간 stale 정리로 닫힌다.
+- `impl-validator:CODEBASE_SANITY` `PASS`와 `begin-run impl --acceptance-required` run 의 `impl-validator` `PASS`는 종료 결과가 아니다. 위와 같이 run 을 열어 둔다.
+- **마감 검증 순서 보호**: `--acceptance-required` run 과 candidate 기록이 있는 run 은 `impl-validator` `PASS` 뒤 같은 candidate(HEAD/tree/workspace)에서 `product-acceptance` `PASS` 가 있어야 닫힌다. 순서를 지키지 않은 상태에서 메인이 멈추면 Stop hook 이 `decision: "block"` 으로 필요한 다음 검증 step 을 알린다. 같은 진단의 안내 횟수는 한도가 있다. candidate 확인 불능(probe 실패)만 한도 뒤 통과시키고, 확인된 순서 위반은 한도 뒤에도 차단한다.
 
 **차단**: tool 차단은 아니다. 필요 시 stdout JSON 으로 메인 turn 을 재발화한다.
 

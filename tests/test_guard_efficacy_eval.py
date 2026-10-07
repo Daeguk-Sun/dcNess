@@ -68,7 +68,7 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "order_gate_blocks_missing_step_counter",
             "order_gate_blocks_logged_stale_step",
             "order_gate_allows_matching_design_step",
-            "stop_hook_blocks_for_worker_continuation",
+            "stop_hook_keeps_run_open_without_block_after_middle_step",
             "stop_hook_allows_terminal_auto_end",
             "begin_step_blocks_build_worker_without_design_artifact",
             "begin_step_allows_impl_validator_after_build_worker_output",

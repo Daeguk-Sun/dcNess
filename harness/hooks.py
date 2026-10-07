@@ -1513,11 +1513,11 @@ def handle_stop(
        session_state.py:1001 안전망 → finalize-run --auto-review 자동 →
        `<run_dir>/review.md` 생성 + stderr `[REVIEW_READY]` 신호
 
-    issue #469 결함 A fix (DCN-CHG-20260522): 중간 step PASS 후 다음 step 미진입
-    상태로 Stop 받으면 `decision:"block"` JSON stdout 으로 메인 turn 자동 발화
-    강제 (build-worker PASS → 9시간 침묵 회귀 차단). `_maybe_emit_continuation_signal`
-    helper 가 `_CONTINUE_ENUMS` + `_TERMINAL_AGENTS` + `stop_block_count` 가드로
-    분기.
+    중간 step 이 통과한 뒤 다음 step 에 들어가지 않은 상태로 Stop 을 받으면 run 을 열어 둔다.
+    메인에 계속 진행을 요구하지 않고 자동 end-run 도 하지 않는다. 다음 step 이 사용자 확인인
+    흐름에서 run 이 닫히면 이후 begin-step 이 실패하기 때문이다. 마감 검증 순서(리뷰 통과 뒤
+    같은 commit 에서 제품 검수 통과)를 지키지 않은 run 만 `decision:"block"` 으로 막는다
+    (`_holds_auto_end_run`).
 
     review.md 본문 echo 는 *기존 prose 의무* (loop-procedure.md 의 Step 8 review 결과 인지 +
     run-review.md 의 Step 1 리포트 출력 + commands/impl.md 의 종료 조건) 에 의존.
@@ -1606,41 +1606,36 @@ def handle_stop(
         if steps_count_at_begin >= len(steps):
             return 0  # begin-step 후 end-step 미호출 — 진행 중
 
-    # === issue #469 결함 A — 중간 step PASS 후 메인 turn 자동 발화 부재 fix ===
-    # build-worker / 설계 agent 같은 중간 step 종료 후 메인이
-    # 다음 step 진입 안 한 상태로 Stop 받으면 decision:block 으로 메인 turn
-    # 재 발화 강제. impl-validator 는 종료 agent (run 끝 = 정상 침묵).
-    if _maybe_emit_continuation_signal(
+    # 마감 검증 순서 위반(block 출력) 또는 중간 step 통과(조용히 보류)면 자동 end-run 을 하지 않는다.
+    if _holds_auto_end_run(
         sid=sid, rid=rid, slot=slot, active=active,
         last_agent=last_agent, last_mode=last_mode,
         base_dir=base_dir,
     ):
         return 0
-    # === /issue #469 결함 A ============================================
 
     # 모든 조건 충족 — end-run in-process 호출
     try:
         import argparse as _ap
         _fake = _ap.Namespace()
         _cli_end_run(_fake)
-        print("[stop-hook] end-run 자동 호출 — issue #382", file=sys.stderr)
+        print("[stop-hook] end-run 자동 호출", file=sys.stderr)
     except Exception as exc:
         print(f"[stop-hook] end-run FAIL — {exc}", file=sys.stderr)
 
     return 0
 
 
-# issue #469 결함 A — Stop hook continuation signal helper
-# 다음 step 진입 가능 결론 enum (단독 결론 + 일반 PASS).
+# 중간 step 의 통과 결론 — run 이 다음 step 으로 이어지므로 자동 end-run 을 보류한다.
 _CONTINUE_ENUMS: frozenset[str] = frozenset({
     "PASS", "UX_FLOW_READY", "UX_FLOW_PATCHED", "UX_REFINE_READY",
     # build-worker 검증 실행 불가 — 메인 게이트 대행이 MUST 인 결론. 누락 시 메인 침묵
     # Stop 에서 auto end-run 으로 run 이 대행 없이 닫힌다 (#705 리뷰 — impl-loop-routing 짝).
     "VALIDATION_BLOCKED",
 })
-# 종료 agent — 본 agent 의 PASS는 run 끝 = block 안 함.
+# 종료 agent — 본 agent 의 PASS는 run 끝 = 자동 end-run 대상.
 _TERMINAL_AGENTS: frozenset[str] = frozenset({"impl-validator"})
-# 무한 루프 가드 — 같은 진단 status의 block count 기록 상한.
+# 마감 검증 순서 block 의 같은 진단 status 별 안내 횟수 상한.
 _STOP_BLOCK_COUNT_MAX = 2
 
 
@@ -1860,7 +1855,7 @@ def _close_validation_sequence_status(
     return ("pass", "same frozen candidate; both terminal PASS")
 
 
-def _maybe_emit_continuation_signal(
+def _holds_auto_end_run(
     *,
     sid: str,
     rid: str,
@@ -1870,20 +1865,17 @@ def _maybe_emit_continuation_signal(
     last_mode: Optional[str],
     base_dir: Optional[Path],
 ) -> bool:
-    """issue #469 결함 A — 중간 step PASS 후 메인 turn 발화 강제 신호 박기.
+    """Stop 시점에 자동 end-run 을 보류해야 하는지 판정한다.
 
-    조건:
-    1. 마지막 step agent 가 종료 agent (impl-validator) 아님. 단
-       acceptance_required run 의 impl-validator 는 product-acceptance 전 단계라 종료 agent
-       로 취급하지 않음 (#722).
-    2. 마지막 step prose 파일 존재 + 결론 enum 이 다음 step 진입 가능 enum
-    3. probe 불능 경고는 stop_block_count 상한 뒤 fail-open. 확인된 close
+    1. 마감 검증 순서(close validation sequence)를 지키지 않은 run 은 `decision:block` 을
+       출력하고 보류한다. probe 불능 경고는 stop_block_count 상한 뒤 fail-open. 확인된 close
        결함은 false-close를 막기 위해 상한 뒤에도 block 유지.
+    2. 마지막 step 이 종료 agent 가 아니고 결론이 다음 step 진입 가능 enum 이면 아무것도
+       출력하지 않고 보류한다. 메인이 사용자 답을 기다리며 멈춘 것일 수 있다.
 
     반환:
-        True  — close 신호 처리 완료. decision:block을 썼거나 probe 불능
-                fail-open이라도 active run 자동 종료는 보류; 호출자는 return 0.
-        False — 조건 미충족, 호출자는 기존 분기 (end-run 자동 호출) 진행
+        True  — 자동 end-run 보류. 호출자는 return 0.
+        False — 호출자는 end-run 자동 호출 진행.
     """
     if not last_agent:
         return False
@@ -1960,18 +1952,12 @@ def _maybe_emit_continuation_signal(
         )
         print(json.dumps({"decision": "block", "reason": reason}))
         return True
-    sanity_review = (
-        last_agent == "impl-validator" and last_mode == "CODEBASE_SANITY"
-    )
-    legacy_acceptance_after_review = (
-        last_agent == "impl-validator"
-        and not sanity_review
-        and slot.get("acceptance_required") is True
-    )
+    # 종료 agent 의 통과는 run 끝이다. 단 CODEBASE_SANITY 와 마감 검수 대상 run 의
+    # impl-validator 는 다음 검증 step 이 남아 있어 종료로 보지 않는다.
     if (
         last_agent in _TERMINAL_AGENTS
-        and not legacy_acceptance_after_review
-        and not sanity_review
+        and last_mode != "CODEBASE_SANITY"
+        and slot.get("acceptance_required") is not True
     ):
         return False
     rdir = slot.get("run_dir")
@@ -1992,71 +1978,7 @@ def _maybe_emit_continuation_signal(
         prose = prose_path.read_text(encoding="utf-8", errors="ignore")
     except OSError:
         return False
-    enum = _extract_conclusion_enum(prose)
-    if enum not in _CONTINUE_ENUMS:
-        return False
-
-    # 무한 루프 가드 — 같은 step 에서 block 쓴 횟수 상한 검사.
-    step_key = f"{last_agent}:{last_mode or ''}"
-    block_counts = slot.get("stop_block_count")
-    if not isinstance(block_counts, dict):
-        block_counts = {}
-    try:
-        cur_count = int(block_counts.get(step_key, 0) or 0)
-    except (TypeError, ValueError):
-        cur_count = 0
-    if cur_count >= _STOP_BLOCK_COUNT_MAX:
-        return False  # 메인이 reason 받고도 발화 안 함 = 진짜 종료 — 기존 분기로
-
-    # count +1 persist
-    try:
-        transition(
-            sid,
-            "stop_block_recorded",
-            run_id=rid,
-            base_dir=base_dir,
-            step_key=step_key,
-        )
-    except Exception:  # nosec B110
-        pass  # persist 실패해도 block 자체는 씀 (다음 호출 시 cur_count 만 미증가)
-
-    if sanity_review:
-        if slot.get("entry_point") == "design":
-            next_hint = (
-                "CODEBASE_SANITY PASS는 affected scope 재감사만 닫으므로 "
-                "design의 Cartography freshness preflight를 이어가야 함. "
-            )
-        else:
-            next_hint = (
-                "CODEBASE_SANITY PASS는 Epic 누적 코드 감사만 닫으므로 "
-                "mode 없는 foreground `impl-validator` Agent를 lifecycle hook "
-                "경로로 호출해 같은 final merge candidate의 일반 merge "
-                "review를 이어가야 함. "
-            )
-    elif legacy_acceptance_after_review:
-        next_hint = (
-            "이 run 은 story/epic 마감 acceptance 대상이므로 "
-            "`begin-step product-acceptance <MODE>` 후 modeful foreground Agent로 "
-            "inline 검수를 진행해야 함(PostToolUse가 완료 기록). "
-        )
-    else:
-        next_hint = (
-            "worker 가 남긴 검증 명령을 메인이 직접 실행(게이트 대행) 후 exit 0 이면 "
-            "git/PR, FAIL 이면 build-worker 재시도 분기. "
-            if enum == "VALIDATION_BLOCKED"
-            else "정의된 다음 agent 호출 또는 PR/review/merge 영역 "
-            "(예: mode 없는 impl-validator Agent를 lifecycle hook 경로로 호출 후 PR 머지). "
-        )
-    reason = (
-        f"[dcness Stop hook · issue #469 결함 A] sub-step "
-        f"'{last_agent}{mode_suffix}' 결론 '{enum}' — 다음 sub-step 진입 turn "
-        f"필요. {next_hint}"
-        "사용자 의도로 정말 종료 "
-        f"하려면 메인 발화 → 다시 Stop trigger 시 본 가드가 {_STOP_BLOCK_COUNT_MAX}회 후 "
-        "skip 처리됨."
-    )
-    print(json.dumps({"decision": "block", "reason": reason}))
-    return True
+    return _extract_conclusion_enum(prose) in _CONTINUE_ENUMS
 
 
 # ── CLI 진입점 (bash 훅 → python -m harness.hooks <subcommand>) ─────
@@ -2099,7 +2021,7 @@ def _main(argv: Optional[list] = None) -> int:
     p_sast.add_argument("--cc-pid", type=int, default=None)
 
     p_st = sub.add_parser("stop",
-                          help="Stop 훅 — 메인 응답 종료 시 자동 end-run (issue #382)")
+                          help="Stop 훅 — 메인 응답 종료 시 자동 end-run")
     p_st.add_argument("--cc-pid", type=int, default=None)
 
     p_sas = sub.add_parser("subagent-stop",
