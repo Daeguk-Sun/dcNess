@@ -179,12 +179,20 @@ class FileGuardWrapperExitTests(unittest.TestCase):
             events,
         )
 
-    def test_infra_read_records_read_boundary(self) -> None:
-        result = _run_wrapper(
-            "file-guard.sh",
-            self._file_payload("Read", file_path="hooks/secret.sh"),
-            cwd=self.cwd,
-        )
+    def test_infra_read_is_allowed(self) -> None:
+        for path in ("hooks/secret.sh", ".claude/harness-state/live.json"):
+            with self.subTest(path=path):
+                result = _run_wrapper(
+                    "file-guard.sh",
+                    self._file_payload("Read", file_path=path),
+                    cwd=self.cwd,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+
+    def test_agent_read_deny_records_read_boundary(self) -> None:
+        payload = self._file_payload("Read", file_path="src/App.tsx")
+        payload["agent_type"] = "designer"
+        result = _run_wrapper("file-guard.sh", payload, cwd=self.cwd)
 
         self.assertEqual(result.returncode, 2, result.stderr + result.stdout)
         events = read_events(base_dir=self.base)
