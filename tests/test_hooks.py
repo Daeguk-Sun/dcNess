@@ -301,44 +301,36 @@ class StopHookContractTests(unittest.TestCase):
         self.assertEqual(handle_stop("invalid"), 0)  # type: ignore[arg-type]
         self.assertEqual(handle_stop({"stop_hook_active": True}), 0)
 
-    def test_continuation_json_persists_and_honors_block_count_cap(self) -> None:
+    def test_middle_step_pass_keeps_run_open_without_block(self) -> None:
         with TemporaryDirectory() as td:
             base = Path(td)
             rid = "run-11111111"
             self._complete_step(base, rid, "build-worker")
+            env = {"DCNESS_SESSION_ID": self.sid, "DCNESS_RUN_ID": rid}
 
-            for attempt in range(3):
-                slot = read_live(self.sid, base_dir=base)["active_runs"][rid]
+            for _ in range(3):
                 output = StringIO()
-                with redirect_stdout(output):
-                    emitted = hooks._maybe_emit_continuation_signal(
-                        sid=self.sid,
-                        rid=rid,
-                        slot=slot,
-                        active={rid: slot},
-                        last_agent="build-worker",
-                        last_mode=None,
-                        base_dir=base,
-                    )
-                self.assertEqual(emitted, attempt < hooks._STOP_BLOCK_COUNT_MAX)
-                if attempt < hooks._STOP_BLOCK_COUNT_MAX:
-                    self.assertEqual(json.loads(output.getvalue())["decision"], "block")
-                else:
-                    self.assertEqual(output.getvalue(), "")
+                with patch.dict(os.environ, env, clear=False), patch(
+                    "harness.session_state_cli._cli_end_run", return_value=0
+                ) as end_run, redirect_stdout(output):
+                    self.assertEqual(handle_stop({}, base_dir=base), 0)
+                self.assertEqual(output.getvalue(), "")
+                end_run.assert_not_called()
 
             persisted = read_live(self.sid, base_dir=base)["active_runs"][rid]
-            self.assertEqual(
-                persisted["stop_block_count"]["build-worker:"],
-                hooks._STOP_BLOCK_COUNT_MAX,
-            )
+            self.assertNotIn("stop_block_count", persisted)
+            self.assertIsNone(persisted.get("completed_at"))
 
+    def test_terminal_step_pass_does_not_hold_auto_end(self) -> None:
+        with TemporaryDirectory() as td:
+            base = Path(td)
             terminal_rid = "run-22222222"
             self._complete_step(base, terminal_rid, "impl-validator")
             terminal = read_live(self.sid, base_dir=base)["active_runs"][terminal_rid]
             output = StringIO()
             with redirect_stdout(output):
                 self.assertFalse(
-                    hooks._maybe_emit_continuation_signal(
+                    hooks._holds_auto_end_run(
                         sid=self.sid,
                         rid=terminal_rid,
                         slot=terminal,

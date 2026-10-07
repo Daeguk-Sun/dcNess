@@ -231,7 +231,7 @@ def _order_gate(
     return probe
 
 
-def _stop_hook(agent: str) -> Probe:
+def _stop_hook(agent: str, *, auto_end: bool) -> Probe:
     def probe() -> tuple[Decision, str]:
         sid = "eval-stop-sid"
         rid = "run-44444444"
@@ -264,9 +264,11 @@ def _stop_hook(agent: str) -> Probe:
             env = {"DCNESS_SESSION_ID": sid, "DCNESS_RUN_ID": rid}
             with patch.dict(os.environ, env, clear=False), patch(
                 "harness.session_state_cli._cli_end_run", return_value=0
-            ), contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+            ) as end_run, contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
                 handle_stop({}, base_dir=base)
             detail = stdout.getvalue().strip() or stderr.getvalue().strip()
+            if end_run.called != auto_end:
+                return ("block", f"auto end-run called={end_run.called}, expected={auto_end}")
             if stdout.getvalue().strip():
                 payload = json.loads(stdout.getvalue())
                 if payload.get("decision") == "block":
@@ -786,18 +788,18 @@ def build_cases() -> list[GuardCase]:
             ),
         ),
         GuardCase(
-            "stop_hook_blocks_for_worker_continuation",
+            "stop_hook_keeps_run_open_without_block_after_middle_step",
             "stop-hook",
-            "block",
-            "A non-terminal PASS emits the continuation decision JSON.",
-            _stop_hook("build-worker"),
+            "allow",
+            "A non-terminal PASS emits no block decision and does not auto end-run.",
+            _stop_hook("build-worker", auto_end=False),
         ),
         GuardCase(
             "stop_hook_allows_terminal_auto_end",
             "stop-hook",
             "allow",
             "A terminal validator PASS proceeds to automatic end-run.",
-            _stop_hook("impl-validator"),
+            _stop_hook("impl-validator", auto_end=True),
         ),
         GuardCase(
             "begin_step_blocks_build_worker_without_design_artifact",

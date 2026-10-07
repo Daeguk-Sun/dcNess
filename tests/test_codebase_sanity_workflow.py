@@ -2,12 +2,11 @@
 
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import json
 import subprocess
 import unittest
 
 from harness.chain_view import ChainTask, substeps_for
-from harness.hooks import _maybe_emit_continuation_signal
+from harness.hooks import _holds_auto_end_run
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -29,7 +28,7 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
             ],
         )
 
-    def test_sanity_pass_continues_to_merge_review_not_acceptance(self) -> None:
+    def test_sanity_pass_keeps_run_open_without_block(self) -> None:
         with TemporaryDirectory() as td:
             run_dir = Path(td)
             (run_dir / "impl-validator-CODEBASE_SANITY.md").write_text(
@@ -47,7 +46,7 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
 
             stdout = StringIO()
             with redirect_stdout(stdout):
-                blocked = _maybe_emit_continuation_signal(
+                blocked = _holds_auto_end_run(
                     sid="sid-1062",
                     rid="run-1062abcd",
                     slot=slot,
@@ -58,13 +57,9 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
                 )
 
         self.assertTrue(blocked)
-        reason = json.loads(stdout.getvalue())["reason"]
-        self.assertIn("impl-validator", reason)
-        self.assertIn("lifecycle hook", reason)
-        self.assertIn("merge review", reason)
-        self.assertNotIn("begin-step product-acceptance", reason)
+        self.assertEqual(stdout.getvalue(), "")
 
-    def test_design_sanity_pass_continues_to_cartography_preflight(self) -> None:
+    def test_design_sanity_pass_keeps_run_open_without_block(self) -> None:
         with TemporaryDirectory() as td:
             run_dir = Path(td)
             (run_dir / "impl-validator-CODEBASE_SANITY.md").write_text(
@@ -82,7 +77,7 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
 
             stdout = StringIO()
             with redirect_stdout(stdout):
-                blocked = _maybe_emit_continuation_signal(
+                blocked = _holds_auto_end_run(
                     sid="sid-1062-design",
                     rid="run-1062dcba",
                     slot=slot,
@@ -93,9 +88,7 @@ class CodebaseSanityWorkflowTests(unittest.TestCase):
                 )
 
         self.assertTrue(blocked)
-        reason = json.loads(stdout.getvalue())["reason"]
-        self.assertIn("Cartography freshness preflight", reason)
-        self.assertNotIn("merge review", reason)
+        self.assertEqual(stdout.getvalue(), "")
 
     def test_impl_loop_folds_epic_sanity_into_holistic_review(self) -> None:
         skill = read("skills/impl-loop/impl-loop-finish.md")

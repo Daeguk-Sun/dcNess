@@ -16,7 +16,7 @@ from harness import ledger, session_state
 from harness.chain_view import ChainTask, substeps_for
 from harness.hooks import (
     _close_validation_sequence_status,
-    _maybe_emit_continuation_signal,
+    _holds_auto_end_run,
     _strict_conveyor_gate_message,
 )
 
@@ -121,7 +121,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
         slot = session_state.read_live(SID, base_dir=self.base)["active_runs"][RID]
         stdout = StringIO()
         with redirect_stdout(stdout):
-            blocked = _maybe_emit_continuation_signal(
+            blocked = _holds_auto_end_run(
                 sid=SID,
                 rid=RID,
                 slot=slot,
@@ -150,7 +150,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
             "harness.hooks._current_tracked_candidate",
             return_value=(HEAD, TREE, True),
         ), redirect_stdout(stdout):
-            blocked = _maybe_emit_continuation_signal(
+            blocked = _holds_auto_end_run(
                 sid=SID,
                 rid=RID,
                 slot=slot,
@@ -183,7 +183,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
                 "harness.hooks._current_tracked_candidate",
                 return_value=None,
             ), redirect_stdout(stdout):
-                blocked = _maybe_emit_continuation_signal(
+                blocked = _holds_auto_end_run(
                     sid=SID,
                     rid=RID,
                     slot=slot,
@@ -227,7 +227,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
             ][RID]
             stdout = StringIO()
             with redirect_stdout(stdout):
-                blocked = _maybe_emit_continuation_signal(
+                blocked = _holds_auto_end_run(
                     sid=SID,
                     rid=RID,
                     slot=slot,
@@ -315,7 +315,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
         slot = session_state.read_live(SID, base_dir=self.base)["active_runs"][RID]
         stdout = StringIO()
         with redirect_stdout(stdout):
-            blocked = _maybe_emit_continuation_signal(
+            blocked = _holds_auto_end_run(
                 sid=SID,
                 rid=RID,
                 slot=slot,
@@ -343,7 +343,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
             return_value=(HEAD, TREE, True),
         ):
             self.assertFalse(
-                _maybe_emit_continuation_signal(
+                _holds_auto_end_run(
                     sid=SID,
                     rid=RID,
                     slot=slot,
@@ -446,7 +446,7 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
             "harness.hooks._current_tracked_candidate",
             return_value=("c" * 40, "d" * 40, True),
         ), redirect_stdout(stdout):
-            blocked = _maybe_emit_continuation_signal(
+            blocked = _holds_auto_end_run(
                 sid=SID,
                 rid=RID,
                 slot=slot,
