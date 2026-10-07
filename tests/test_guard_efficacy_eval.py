@@ -58,6 +58,8 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "read_boundary_allows_project_harness_state",
             "read_boundary_blocks_designer_source",
             "file_boundary_blocks_dot_claude_write",
+            "file_boundary_allows_validator_temp_dir_write",
+            "file_boundary_blocks_validator_project_source",
             "bash_mutation_blocks_git_push",
             "mcp_mutation_blocks_pr_merge",
             "order_gate_allows_hook_owned_mode_less_step",

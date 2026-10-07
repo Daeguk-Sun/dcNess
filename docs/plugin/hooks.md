@@ -145,6 +145,8 @@ PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추�
 
 메인 Claude turn 은 file boundary 를 통과한다.
 
+**프로젝트 밖 경로**: 프로젝트 루트 밖 쓰기는 차단한다. 임시 폴더(`/tmp`, `/private/tmp`, `/var/folders`, 세션 임시 폴더 포함) 쓰기는 예외로 모든 agent 에 허용한다. 임시 폴더의 메모와 증거 파일은 제품 파일이 아니기 때문이다. 읽기 전용 agent 도 임시 폴더에는 쓸 수 있고, 프로젝트 안 파일에는 쓸 수 없다. 프로젝트 자체가 임시 폴더 안에 있으면 이 예외를 적용하지 않는다. Bash 의 쉘 변수 경로(`"$D/a.md"`)는 같은 명령 안의 단순 대입으로 값을 확정할 수 있을 때만 그 값으로 검사한다. 값을 확정할 수 없으면 위치를 알 수 없으므로 차단한다.
+
 차단이 발생하면 `guard-telemetry.jsonl` 에 `guard=file-guard` 로 기록된다.
 
 #### 프로젝트별 write 경계 override — `.dcness/boundary.json`

@@ -100,6 +100,21 @@ def _file_write(
     return probe
 
 
+def _file_write_outside_project(agent: str, relative_to_base: str) -> Probe:
+    """프로젝트 밖 write probe — base/tmp 를 임시 폴더로 보고 base/project 에서 검사한다."""
+    def probe() -> tuple[Decision, str]:
+        with tempfile.TemporaryDirectory() as td, _external_project_boundary():
+            base = Path(td).resolve()
+            cwd = base / "project"
+            cwd.mkdir()
+            with patch("harness.agent_boundary._TEMP_DIR_PREFIXES", (f"{base}/tmp/",)):
+                return _reason_decision(
+                    check_write_allowed(agent, str(base / relative_to_base), cwd=cwd)
+                )
+
+    return probe
+
+
 def _file_read(agent: str, build_target: Callable[[Path, Path, Path], str]) -> Probe:
     """read-boundary probe — 외부 활성 프로젝트에서 활성 plugin root 기준 read 검사.
 
@@ -526,6 +541,27 @@ def build_cases() -> list[GuardCase]:
             "allow",
             "design-owned docs remain writable by module-architect.",
             _file_write("module-architect", "docs/architecture.md"),
+        ),
+        GuardCase(
+            "file_boundary_allows_validator_temp_dir_write",
+            "file-boundary",
+            "allow",
+            "temp dir notes are not product files: a read-only validator may write them.",
+            _file_write_outside_project("impl-validator", "tmp/session/notes.md"),
+        ),
+        GuardCase(
+            "file_boundary_blocks_validator_outside_non_temp_write",
+            "file-boundary",
+            "block",
+            "outside-project paths that are not a temp dir stay write-protected.",
+            _file_write_outside_project("impl-validator", "other/notes.md"),
+        ),
+        GuardCase(
+            "file_boundary_blocks_validator_project_source",
+            "file-boundary",
+            "block",
+            "a read-only validator still cannot write a project source file.",
+            _file_write("impl-validator", "src/app.ts"),
         ),
         GuardCase(
             "read_boundary_allows_own_agent_instructions",
