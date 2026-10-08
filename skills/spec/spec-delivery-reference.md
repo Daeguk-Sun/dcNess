@@ -10,7 +10,7 @@ git add docs/prd.md docs/index.md docs/epics/epic-NN-<slug>/stories.md
 # preflight 를 실행했다면: git add docs/tech-review.md
 git commit -m "[docs] PRD 신규 / 변경 요약"
 git push -u origin docs/<slug>
-gh pr create --base main --title "..." --body "..."
+gh pr create --base main --title "..." --body-file <본문 파일>
 bash "$PLUGIN_ROOT/scripts/pr-finalize.sh" <PR_NUMBER>
 ```
 

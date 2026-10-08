@@ -380,7 +380,7 @@ else
     git commit -m "[docs] dcNess init workflow stage"
     git push -u origin "$BR"
 
-    gh pr create --title "[docs] dcNess init workflow stage" --body "$(cat <<EOF
+    cat > /tmp/dcness-init-pr-body.md <<EOF
 ## 변경 요약
 
 dcness plug-in 의 선택형 workflow 파일을 main 에 등록합니다.
@@ -406,12 +406,12 @@ $(for f in $CHANGES; do
   esac
 done)
 EOF
-)"
+    echo '[dcness] PR 본문 파일 작성 완료 - 별도 Bash 호출로 실행: gh pr create --title "[docs] dcNess init workflow stage" --body-file /tmp/dcness-init-pr-body.md'
   fi
 fi
 ```
 
-추천 bundle 에서 workflow PR 이 ON 이면 `gh auth status` 가 통과하고 현재 branch 가 `main` 이고 변경이 있을 때 별도 질문 없이 실행한다. custom 경로에서는 이 항목을 따로 선택할 수 있다.
+추천 bundle 에서 workflow PR 이 ON 이면 `gh auth status` 가 통과하고 현재 branch 가 `main` 이고 변경이 있을 때 별도 질문 없이 실행한다. 위 블록이 `PR 본문 파일 작성 완료` 를 출력했을 때만 출력된 `gh pr create` 명령을 별도 Bash 호출로 실행한다. PR 본문·제목 사전 검사가 명령 실행 전에 본문 파일을 읽으므로, 본문 파일을 쓰는 명령과 PR 생성 명령을 한 호출에 넣으면 차단된다. custom 경로에서는 이 항목을 따로 선택할 수 있다.
 
 ### custom 세부 경로
 

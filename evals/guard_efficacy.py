@@ -31,6 +31,7 @@ from harness.agent_boundary import (  # noqa: E402
     check_write_allowed,
 )
 from harness.hooks import handle_pretooluse_agent, handle_stop  # noqa: E402
+from harness.pr_precheck import check_bash_command, check_mcp_tool  # noqa: E402
 from harness.session_state import (  # noqa: E402
     _write_live,
     evaluate_order_gate_for_step,
@@ -151,6 +152,21 @@ def _bash_mutation(command: str) -> Probe:
 def _mcp_mutation(tool_name: str) -> Probe:
     def probe() -> tuple[Decision, str]:
         return _reason_decision(check_github_mcp_mutation(tool_name))
+
+    return probe
+
+
+def _pr_precheck_bash(command: str) -> Probe:
+    def probe() -> tuple[Decision, str]:
+        with tempfile.TemporaryDirectory() as td:
+            return _reason_decision(check_bash_command(command, cwd=Path(td)))
+
+    return probe
+
+
+def _pr_precheck_mcp(tool_name: str, tool_input: dict) -> Probe:
+    def probe() -> tuple[Decision, str]:
+        return _reason_decision(check_mcp_tool(tool_name, tool_input))
 
     return probe
 
@@ -710,6 +726,47 @@ def build_cases() -> list[GuardCase]:
             "allow",
             "Issue MCP mutations are delegated to per-agent tool grants.",
             _mcp_mutation("mcp__github__update_issue"),
+        ),
+        GuardCase(
+            "pr_precheck_blocks_body_without_trailer",
+            "pr-precheck",
+            "block",
+            "Main PR creation needs an issue trailer or the exception line.",
+            _pr_precheck_bash('gh pr create --title "[feature] x" --body "no trailer"'),
+        ),
+        GuardCase(
+            "pr_precheck_blocks_unverifiable_body",
+            "pr-precheck",
+            "block",
+            "A body filled from commits cannot be checked before creation.",
+            _pr_precheck_bash("gh pr create --fill"),
+        ),
+        GuardCase(
+            "pr_precheck_blocks_mcp_body_without_trailer",
+            "pr-precheck",
+            "block",
+            "GitHub MCP PR creation follows the same body rule.",
+            _pr_precheck_mcp(
+                "mcp__github__create_pull_request",
+                {"title": "[feature] x", "body": "no trailer"},
+            ),
+        ),
+        GuardCase(
+            "pr_precheck_allows_exception_line",
+            "pr-precheck",
+            "allow",
+            "A PR without an issue passes with the documented exception line.",
+            _pr_precheck_bash(
+                'gh pr create --title "[docs] x" '
+                '--body "Document-Exception-PR-Close: no issue"'
+            ),
+        ),
+        GuardCase(
+            "pr_precheck_allows_pr_read_commands",
+            "pr-precheck",
+            "allow",
+            "Read-only PR commands are outside the check.",
+            _pr_precheck_bash("gh pr view 12 --json body"),
         ),
         GuardCase(
             "order_gate_allows_hook_owned_mode_less_step",

@@ -146,7 +146,7 @@ Part of #N
    # 다중 story/epic base = 첫 story는 main, 이후 story는 직전 story branch
 2. (작업 + 커밋)
 3. git push -u origin {브랜치명}
-4. gh pr create --base {base} --title "..." --body "..."
+4. gh pr create --base {base} --title "..." --body-file {본문 파일}
    # 다중 story PR은 생성 시 stack base를 유지해 순수 story diff를 보인다.
    # /impl-loop는 final tip 수렴·review·acceptance·AC audit·tree-preserving consolidate 뒤 clean branch를 push하고 이 단계를 처음 수행한다.
 5. 필요한 review/acceptance/AC close audit 완료 후 host repo merge policy를 따른다.
@@ -240,7 +240,9 @@ task 는 별도 GitHub 이슈를 만들지 않는다. build-worker 의 local com
 
 > **반드시 PR body 에 박는다 (commit message 아님)** — 본 프로젝트는 regular merge 채택 ([Git 절차](#git-절차), squash 금지). regular merge 시 GitHub auto-close 는 *PR body* 또는 *squash merge commit message* 만 인식. commit message 안 `Closes #N` 은 머지 commit 에 들어가도 auto-close 발동 X. 본 룰 mechanical 강제 = [`scripts/check_pr_body.mjs`](../../scripts/check_pr_body.mjs) + `.github/workflows/pr-body-validation.yml` (`/init-dcness` 선택형 workflow 로 사용자 repo 배포).
 >
-> **예외**: issue 없는 infra-only / follow-up split PR과 위 `journey_deferred` production-only PR은 PR body 에 `Document-Exception-PR-Close: <사유>` line 박으면 게이트를 통과한다. `:` + 사유 1단어 이상 동일 line 강제. 그 밖의 story stack PR은 예외가 아니며 `Closes #story`를 사용한다.
+> **로컬 사전 검사**: 메인 Claude 가 `gh pr create` / `gh pr edit` / GitHub MCP PR 생성·수정 도구를 실행하기 직전에 file-guard hook 이 같은 `check_pr_body.mjs` 로 PR 본문을 검사한다. CI workflow 가 없는 프로젝트에서도 트레일러가 없는 PR 은 만들어지지 않는다. PR 제목도 같은 시점에 [`check_git_naming.mjs`](../../scripts/check_git_naming.mjs) `--title` 로 검사한다. 본문은 `--body-file <파일>` 로 넘기는 것을 기본으로 한다 — `--fill` 처럼 본문을 명령에서 확정할 수 없는 방식은 차단된다. 상세는 [`hooks.md`](hooks.md#file-guardsh).
+>
+> **예외**: issue 없는 infra-only / follow-up split PR과 위 `journey_deferred` production-only PR은 PR body 에 `Document-Exception-PR-Close: <사유>` line 박으면 게이트를 통과한다. issue 가 없는 PR 에 이 line 이 없으면 로컬 사전 검사가 PR 생성 명령을 차단한다. `:` + 사유 1단어 이상 동일 line 강제. 그 밖의 story stack PR은 예외가 아니며 `Closes #story`를 사용한다.
 
 ### 적용 절차 — story/base 판정
 

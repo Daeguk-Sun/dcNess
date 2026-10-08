@@ -14,6 +14,7 @@
 #     --commit-msg-file <path>
 #
 # 동작:
+#   0. PR 본문·제목 사전 검사               (check_pr_body.mjs / check_git_naming.mjs — 위반 시 exit 1)
 #   1. git checkout -b <branch> <base>     (이미 branch 위면 skip)
 #   2. git add -A
 #   3. git commit -F <commit-msg-file>
@@ -89,6 +90,15 @@ fi
 if [ ! -f "$COMMIT_MSG_FILE" ]; then
   echo "[pr-create] ERROR: commit-msg-file 부재: $COMMIT_MSG_FILE" >&2
   exit 2
+fi
+
+# PR 본문·제목 사전 검사 — commit·push 전에 CI 와 같은 규칙으로 판정한다.
+# hook 은 이 스크립트 안의 `gh pr create` 호출을 보지 못하므로 여기서 직접 실행한다.
+if command -v node >/dev/null 2>&1; then
+  node "$SCRIPT_DIR/check_pr_body.mjs" --stdin < "$BODY_FILE" >/dev/null || exit 1
+  node "$SCRIPT_DIR/check_git_naming.mjs" --title "$TITLE" >/dev/null || exit 1
+else
+  echo "[pr-create] WARN: node 없음 — PR 본문·제목 사전 검사를 건너뜀" >&2
 fi
 
 # working tree 변경 확인
