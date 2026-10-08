@@ -30,7 +30,8 @@ flowchart TB
   SANITY -->|current receipt| FRESH[affected capability/entrypoint 현재 코드 freshness preflight]
   SANITY -->|missing/stale| CSA[impl-validator CODEBASE_SANITY affected scope]
   CSA -->|PASS| FRESH
-  CSA -->|FAIL quality-gap| CLEANUP[/impl cleanup 후 design 재진입]
+  CSA -->|FAIL · 메인 판단으로 계속| FRESH
+  CSA -.->|FAIL · 메인 판단으로 중단| U
   CSA -.->|ESCALATE| U
   FRESH --> TOPO[Step 1 topology 판정]
   TOPO -->|UI epic 또는 UI-less| BOOT{모듈 topology 부재?}
@@ -66,7 +67,7 @@ flowchart TB
   classDef produce fill:#e3f2fd,stroke:#1976d2,color:#0d47a1
   classDef verify fill:#e8f5e9,stroke:#388e3c,color:#1b5e20
   classDef user fill:#eeeeee,stroke:#757575,color:#212121
-  class DUX,DUX_REV,DSYS,DSYS_REV,FRESH,UX,UX_REV,UXPR,UXPR_REV,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,SEED_REV,CANVAS_REV,MU,DSKIP,CLEANUP produce
+  class DUX,DUX_REV,DSYS,DSYS_REV,FRESH,UX,UX_REV,UXPR,UXPR_REV,SA_BOOT,SA_CHECK,DS,MA_BATCH,SEED,SEED_REV,CANVAS_REV,MU,DSKIP produce
   class CSA,AV_FINAL verify
   class U user
 ```
@@ -83,7 +84,7 @@ flowchart TB
 |---|---|
 | **design-ux stage** | `DESIGN_UX_PR_MERGED` → `/design` dispatcher 재판정. 신규 UX stage 는 durable `ux-flow.md` 존재 + full design pack 부재이면 design-system stage, UX revision mode 는 stage 1 revision PR 뒤 design-system revision mode · `ESCALATE` → 사용자 |
 | **design-system stage** | `DESIGN_SYSTEM_PR_MERGED` → `/impl <epic-path>` 안내 · `ESCALATE` → 사용자 |
-| **impl-validator:CODEBASE_SANITY** | stale/missing receipt의 affected scope `PASS` → 메인이 현재 tree identity receipt를 local 경로에 보존하고 Cartography freshness preflight · `FAIL [quality-gap]` → `/impl` cleanup 뒤 새 code revision으로 `/design` preflight 재진입 · `ESCALATE` → 사용자 |
+| **impl-validator:CODEBASE_SANITY** | stale/missing receipt의 affected scope `PASS` → 메인이 현재 tree identity receipt를 local 경로에 보존하고 Cartography freshness preflight · `FAIL` → 설계 진입을 막지 않는다. 메인이 finding과 이번 설계의 관련성을 판단해 계속(finding을 설계 agent 입력으로 전달하고 Cartography freshness preflight) 또는 중단하고, 그 이유를 사용자에게 보고 · `ESCALATE` → 사용자 |
 | **ux-architect** | `UX_FLOW_READY` → 사용자 최종 설계 승인 후 stage 1 PR 생성 → `/design` dispatcher 재판정 · `UX_REFINE_READY` → design-variants seed 보장 후 designer · `UX_FLOW_ESCALATE` → 사용자. (UI-less epic 이면 메인이 호출 안 함 — [`SKILL.md`](SKILL.md) UI-less 분기) |
 | **module-architect** | `PASS` → architecture-validator(final epic 검증) · `SYSTEM_CHECKPOINT_REQUIRED` → system-architect opt-in checkpoint · `SPEC_GAP_FOUND` → module-architect(epic-batch) 보강([재시도 판단](#재시도-판단)) · `ESCALATE` → 사용자 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
 | **system-architect(thin bootstrap)** | `PASS` → module-architect(epic-batch) · `ESCALATE` → `/spec` 재진입 또는 사용자 위임 · `NEW_DEP_ESCALATE` → 4안([escalate 처리](#escalate-처리)) |
