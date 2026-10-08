@@ -176,6 +176,18 @@ def _second_ux_flow() -> str:
     )
 
 
+def _delta_ux_flow() -> str:
+    return textwrap.dedent(
+        """\
+        # Delta UX flow
+
+        ## 이번 epic 이 건드리는 화면
+
+        상세 화면의 문구만 바꾼다. 화면 흐름은 첫 epic 문서와 같다.
+        """
+    )
+
+
 class DesignVariantsGeneratorTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -393,7 +405,76 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertTrue(first_board.is_file())
         self.assertTrue(second_board.is_file())
 
-    def test_shared_screen_metadata_conflict_lists_each_flow_and_value(self) -> None:
+    def test_flowless_ux_flow_is_skipped_and_reported_without_failing(self) -> None:
+        delta = self.project / "docs" / "epics" / "epic-two" / "ux-flow.md"
+        delta.parent.mkdir(parents=True)
+        delta.write_text(_delta_ux_flow(), encoding="utf-8")
+
+        for generator in (
+            "build-journey-boards.mjs",
+            "build-screen-states.mjs",
+            "build-design-index.mjs",
+        ):
+            with self.subTest(generator=generator):
+                result = self._run_no_flow(generator, check=False)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("docs/epics/epic-two/ux-flow.md", result.stdout + result.stderr)
+                self.assertNotIn(
+                    "SKIP — 흐름도가 없어 건너뜀: docs/epics/epic-ui/ux-flow.md",
+                    result.stdout + result.stderr,
+                )
+                self._run_no_flow(generator, "--check")
+
+        self.assertTrue((self.design / "boards" / "journey-review-notice.html").is_file())
+        self.assertTrue((self.design / "boards" / "screen-states.html").is_file())
+        self.assertTrue((self.design / "index.html").is_file())
+
+    def test_state_diagram_under_another_heading_is_read_as_the_flow(self) -> None:
+        other_heading = _ux_flow().replace("## 화면 흐름", "## 내비게이션 플로우")
+        sequence_first = (
+            "```mermaid\nsequenceDiagram\n  User->>App: 열기\n```\n\n"
+        )
+        cases = {
+            "plain": other_heading,
+            "comment-before-diagram": other_heading.replace(
+                "stateDiagram-v2", "%% 화면 전이 개요\nstateDiagram-v2"
+            ),
+            "config-before-diagram": other_heading.replace(
+                "stateDiagram-v2", "---\ntitle: 개요\n---\nstateDiagram-v2"
+            ),
+            "other-diagram-first": other_heading.replace(
+                "## 내비게이션 플로우", sequence_first + "## 내비게이션 플로우"
+            ),
+        }
+        board = self.design / "boards" / "journey-review-notice.html"
+        for name, markdown in cases.items():
+            with self.subTest(case=name):
+                self.ux_flow.write_text(markdown, encoding="utf-8")
+                board.unlink(missing_ok=True)
+
+                result = self._run("build-journey-boards.mjs")
+
+                self.assertNotIn("SKIP", result.stderr)
+                self.assertTrue(board.is_file())
+
+    def test_project_without_any_flow_diagram_generates_screen_only_boards(self) -> None:
+        self.ux_flow.write_text(_delta_ux_flow(), encoding="utf-8")
+
+        for generator in (
+            "build-journey-boards.mjs",
+            "build-screen-states.mjs",
+            "build-design-index.mjs",
+        ):
+            with self.subTest(generator=generator):
+                result = self._run_no_flow(generator, check=False)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("docs/epics/epic-ui/ux-flow.md", result.stderr)
+
+        self.assertTrue((self.design / "boards" / "screen-states.html").is_file())
+        self.assertTrue((self.design / "index.html").is_file())
+        self.assertEqual(list((self.design / "boards").glob("journey-*.html")), [])
+
+    def test_shared_screen_metadata_difference_uses_first_flow_and_reports_each_value(self) -> None:
         second = self.project / "docs" / "epics" / "epic-two" / "ux-flow.md"
         second.parent.mkdir(parents=True)
         second.write_text(
@@ -413,12 +494,17 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         ):
             with self.subTest(generator=generator):
                 result = self._run_no_flow(generator, check=False)
-                self.assertNotEqual(result.returncode, 0)
-                self.assertIn("화면 메타데이터가 충돌합니다: home", result.stderr)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("화면 설명이 문서마다 다릅니다: home", result.stderr)
                 self.assertIn("docs/epics/epic-ui/ux-flow.md", result.stderr)
                 self.assertIn("S01 | 홈 | 알림 목록", result.stderr)
                 self.assertIn("docs/epics/epic-two/ux-flow.md", result.stderr)
                 self.assertIn("S13 | 화면3 | 다른 역할", result.stderr)
+
+        board = (self.design / "boards" / "screen-states.html").read_text(encoding="utf-8")
+        # 경로순 첫 문서는 epic-two 다 (epic-two < epic-ui).
+        self.assertIn("S13 화면3", board)
+        self.assertNotIn("S01 홈", board)
 
     def test_duplicate_journey_ids_are_scoped_and_scope_collision_fails(self) -> None:
         second_flow = _second_ux_flow().replace("second-goal", "review-notice")
@@ -450,7 +536,7 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("여러 ux-flow의 여정 보드 파일명이 충돌합니다", result.stderr)
 
-    def test_multi_variant_screen_requires_one_explicit_journey_representative(
+    def test_missing_journey_representative_falls_back_and_duplicate_fails(
         self,
     ) -> None:
         home = self.design / "screens" / "home.html"
@@ -462,8 +548,14 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
 
         missing = self._run("build-journey-boards.mjs", check=False)
 
-        self.assertNotEqual(missing.returncode, 0)
+        self.assertEqual(missing.returncode, 0, missing.stderr)
+        self.assertIn("home.html", missing.stderr)
         self.assertIn("data-journey-representative", missing.stderr)
+        self.assertIn("mobile-loading", missing.stderr)
+        board = (self.design / "boards" / "journey-review-notice.html").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("home.html#only=mobile-loading", board)
 
         home.write_text(
             original.replace(
@@ -603,8 +695,8 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
         self.assertIn("data-variant가 없습니다", result.stderr)
         self.assertIn("draft", result.stderr)
 
-    def test_empty_variant_id_and_missing_screen_helpers_fail_check(self) -> None:
-        bad = self.design / "screens" / "helperless.html"
+    def test_empty_variant_id_fails_check(self) -> None:
+        bad = self.design / "screens" / "empty-variant.html"
         bad.write_text(
             (
                 '<html><body><section data-variant="" '
@@ -617,8 +709,32 @@ class DesignVariantsGeneratorTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("비어 있을 수 없습니다", result.stderr)
-        for helper in ("only-variant.js", "report-size.js", "show-ids.js"):
-            self.assertIn(helper, result.stderr)
+
+    def test_missing_screen_helpers_are_reported_without_failing(self) -> None:
+        helperless = self.design / "screens" / "helperless.html"
+        helperless.write_text(
+            (
+                '<html><body><section data-variant="default" '
+                'data-variant-values="state=default">ok</section></body></html>'
+            ),
+            encoding="utf-8",
+        )
+
+        for generator in (
+            "build-journey-boards.mjs",
+            "build-screen-states.mjs",
+            "build-design-index.mjs",
+        ):
+            with self.subTest(generator=generator):
+                result = self._run(generator, check=False)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("helperless.html", result.stderr)
+                for helper in ("only-variant.js", "report-size.js", "show-ids.js"):
+                    self.assertIn(helper, result.stderr)
+                self._run(generator, "--check")
+
+        board = (self.design / "boards" / "screen-states.html").read_text(encoding="utf-8")
+        self.assertIn("helperless.html", board)
 
     def test_malformed_or_duplicate_variant_axis_fails_check(self) -> None:
         bad = self.design / "screens" / "bad-axis.html"
