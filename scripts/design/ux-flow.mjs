@@ -196,8 +196,13 @@ function parseInventory(md) {
 }
 
 function parseFlow(md, inventory) {
-  const screenFlow = md.match(/##\s+화면 흐름[\s\S]*?```mermaid\s*\n([\s\S]*?)```/);
-  if (!screenFlow) throw new Error('## 화면 흐름 아래 mermaid 개요가 필요합니다.');
+  // 개요 다이어그램은 `## 화면 흐름` 아래 mermaid 블록이다. 그 제목이 없으면 stateDiagram
+  // 선언 줄이 있는 첫 mermaid 블록을 쓴다(주석·설정이 선언 앞에 올 수 있다). 제목은 여러
+  // mermaid 블록 중 개요를 고르는 데만 쓴다.
+  const screenFlow = md.match(/##\s+화면 흐름[\s\S]*?```mermaid\s*\n([\s\S]*?)```/)
+    ?? [...md.matchAll(/```mermaid\s*\n([\s\S]*?)```/g)]
+      .find(block => /^\s*stateDiagram/m.test(block[1]));
+  if (!screenFlow) return null;
   const body = screenFlow[1];
   const aliasToInventoryId = new Map();
   for (const match of body.matchAll(/state\s+"([^"]*)"\s+as\s+([A-Za-z_]\w*)/g)) {
@@ -419,6 +424,8 @@ export function scanScreens(projectRoot, { validateDrafts = true } = {}) {
   const draftsDir = join(designDir, 'drafts');
   const screens = new Map();
   const problems = [];
+  // 보드를 만들 수는 있지만 일부 기능이 빠지는 누락. 실패시키지 않고 알린다.
+  const warnings = [];
   if (!existsSync(screensDir)) return { screens, problems: ['screens/ 폴더가 없습니다.'] };
 
   for (const file of readdirSync(screensDir).filter(name => name.endsWith('.html')).sort()) {
@@ -453,8 +460,8 @@ export function scanScreens(projectRoot, { validateDrafts = true } = {}) {
         `${file}: data-journey-representative="true"가 중복됩니다.`,
       );
     } else if (variants.length > 1 && representatives.length === 0) {
-      problems.push(
-        `${file}: 여러 변형 중 data-journey-representative="true"가 정확히 하나 필요합니다.`,
+      warnings.push(
+        `${file}: data-journey-representative="true" 선언이 없어 여정 보드에 첫 변형 ${variants[0].id}을 씁니다.`,
       );
     }
     const helperSources = [...html.matchAll(/<script\b[^>]*>/gi)]
@@ -464,7 +471,9 @@ export function scanScreens(projectRoot, { validateDrafts = true } = {}) {
     const missingHelpers = SCREEN_HELPERS.filter(name =>
       !helperSources.some(source => source.endsWith(`../_lib/${name}`)));
     if (missingHelpers.length) {
-      problems.push(`${file}: 화면 helper가 없습니다 — ${missingHelpers.join(', ')}`);
+      warnings.push(
+        `${file}: 화면 helper 참조가 없어 보드의 일부 기능이 동작하지 않습니다 — ${missingHelpers.join(', ')}`,
+      );
     }
     const axes = [];
     for (const variant of variants) {
@@ -503,6 +512,10 @@ export function scanScreens(projectRoot, { validateDrafts = true } = {}) {
       nodePrefix: commonNodePrefix(nodeIds),
     });
   }
+  if (warnings.length) {
+    console.error(`[design-variants] WARNING — 화면 파일 누락 ${warnings.length}건(생성은 계속합니다)`);
+    for (const warning of warnings) console.error(`  - ${warning}`);
+  }
   return { screens, problems };
 }
 
@@ -516,7 +529,7 @@ function readModelPath(projectRoot, uxFlowPath) {
   const markdown = readFileSync(uxFlowPath, 'utf8');
   const inventory = parseInventory(markdown);
   const flow = parseFlow(markdown, inventory);
-  const contract = parseJourneyContract(markdown);
+  const contract = flow ? parseJourneyContract(markdown) : null;
   const nameSource = contract
     ? resolveNameSource(projectRoot, uxFlowPath, contract)
     : { names: new Map(), path: uxFlowPath, relativePath: relative(projectRoot, uxFlowPath), hash: sha12(markdown) };
@@ -534,39 +547,54 @@ function readModelPath(projectRoot, uxFlowPath) {
 }
 
 export function readModels(projectRoot, requestedUxFlow = null) {
-  return resolveUxFlows(projectRoot, requestedUxFlow)
+  const models = resolveUxFlows(projectRoot, requestedUxFlow)
     .map(uxFlowPath => readModelPath(projectRoot, uxFlowPath));
+  // 흐름도가 없는 문서(변경분만 적은 뒤 epic 문서 등)는 건너뛴다. 전부 없으면 흐름 없는 보드를 만든다.
+  const skipped = models.filter(model => !model.flow);
+  for (const model of skipped) {
+    console.error(`[design-variants] SKIP — 흐름도가 없어 건너뜀: ${model.uxFlowRelative}`);
+  }
+  if (skipped.length === models.length) {
+    console.error('[design-variants] 읽을 수 있는 흐름도가 없습니다. 흐름 없이 화면만으로 생성합니다.');
+  }
+  return models.filter(model => model.flow);
 }
 
 export function readModel(projectRoot, requestedUxFlow = null) {
   return readModelPath(projectRoot, resolveUxFlow(projectRoot, requestedUxFlow));
 }
 
-export function screenMetadata(modelsOrModel, screen) {
-  const models = Array.isArray(modelsOrModel) ? modelsOrModel : [modelsOrModel];
-  const declarations = models.flatMap(model =>
+function screenDeclarations(models, screen) {
+  return models.flatMap(model =>
     [...model.inventory.values()]
       .filter(item => item.screenId === screen.id)
       .map(item => ({ model, item })));
-  const signatures = new Set(declarations.map(({ item }) =>
-    JSON.stringify([item.id, item.name, item.description])));
-  if (signatures.size > 1) {
-    const details = declarations.map(({ model, item }) =>
-      `  - ${model.uxFlowRelative}: ${item.id} | ${item.name} | ${item.description}`);
-    throw new Error(
-      `여러 ux-flow의 화면 메타데이터가 충돌합니다: ${screen.id}\n`
-      + details.join('\n'),
-    );
-  }
-  const inventory = declarations[0]?.item;
+}
+
+// 여러 ux-flow가 같은 화면을 적으면 경로순 첫 문서의 값을 쓴다.
+export function screenMetadata(modelsOrModel, screen) {
+  const models = Array.isArray(modelsOrModel) ? modelsOrModel : [modelsOrModel];
+  const inventory = screenDeclarations(models, screen)[0]?.item;
   return {
     title: inventory ? `${inventory.id} ${inventory.name}` : screen.id,
     description: inventory?.description ?? '',
   };
 }
 
+// 같은 화면의 ID·이름·설명이 문서마다 다르면 실패시키지 않고 어느 값을 썼는지 알린다.
 export function validateScreenMetadata(models, screens) {
-  for (const screen of screens.values()) screenMetadata(models, screen);
+  for (const screen of screens.values()) {
+    const declarations = screenDeclarations(models, screen);
+    const signatures = new Set(declarations.map(({ item }) =>
+      JSON.stringify([item.id, item.name, item.description])));
+    if (signatures.size < 2) continue;
+    console.error(
+      `[design-variants] WARNING — 화면 설명이 문서마다 다릅니다: ${screen.id} (첫 문서의 값을 씁니다)`,
+    );
+    for (const { model, item } of declarations) {
+      console.error(`  - ${model.uxFlowRelative}: ${item.id} | ${item.name} | ${item.description}`);
+    }
+  }
 }
 
 export function warnEngineDrift(projectRoot) {
