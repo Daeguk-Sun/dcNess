@@ -10,6 +10,40 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.34.0 (2026-10-09)
+
+**커밋 범위**: `v0.33.0..v0.34.0` (머지 PR 6개, [#1304](https://github.com/Daeguk-Sun/dcNess/pull/1304) · [#1305](https://github.com/Daeguk-Sun/dcNess/pull/1305) · [#1306](https://github.com/Daeguk-Sun/dcNess/pull/1306) · [#1307](https://github.com/Daeguk-Sun/dcNess/pull/1307) · [#1309](https://github.com/Daeguk-Sun/dcNess/pull/1309) · [#1310](https://github.com/Daeguk-Sun/dcNess/pull/1310))
+**핵심 변경**: **훅과 절차의 불필요한 차단을 줄이고, PR 본문 오류를 PR 생성 전에 잡는** minor 릴리즈. (1) 메인 Claude 가 PR 을 만들거나 PR 본문·제목을 바꾸는 명령 직전에 본문 issue 트레일러와 제목 형식을 로컬에서 검사한다. (2) 파일 경계 훅이 읽기와 임시 폴더 쓰기를 차단하지 않는다. (3) 종료 훅, 디자인 보드 생성기, 구조 설계 진입 절차가 정상 상황을 실패로 처리하지 않는다.
+
+### 무엇이 바뀌나
+
+1. **PR 본문·제목 로컬 사전 검사** ([#1310](https://github.com/Daeguk-Sun/dcNess/pull/1310) Closes [#1308](https://github.com/Daeguk-Sun/dcNess/issues/1308)) — PR 본문의 issue 트레일러 검사는 CI workflow 에만 있었다. CI 를 설치하지 않았거나 끈 프로젝트에는 검사가 없었고, CI 가 있는 프로젝트는 실패 메일과 Actions 실행 시간으로 오류를 알았다. 이제 file-guard 훅이 메인 Claude 의 `gh pr create`, 본문·제목 인자가 있는 `gh pr edit`, GitHub MCP PR 생성·수정 도구를 실행 전에 검사한다. 판정은 CI 와 같은 `scripts/check_pr_body.mjs` 와 `scripts/check_git_naming.mjs --title` 을 실행해 얻는다. 본문을 명령에서 확정할 수 없으면(`--fill`, 쉘 변수, stdin, 같은 명령에서 쓰는 본문 파일 등) 차단하고 `--body-file <파일>` 사용을 안내한다. `--web` 과 `--help` 는 통과시킨다. `scripts/pr-create.sh` 는 commit·push 전에 같은 검사를 실행한다. `node` 가 없으면 검사를 건너뛰고 fail-open event 를 남긴다. `/init-dcness` 의 선택형 workflow PR 절차는 본문 파일을 먼저 쓰고 별도 호출에서 PR 을 만들도록 바뀌었다. 한계: `bash -c`, `eval`, 다른 스크립트 안의 `gh` 호출은 보지 못한다.
+
+2. **파일 경계 훅의 읽기 금지 삭제** ([#1304](https://github.com/Daeguk-Sun/dcNess/pull/1304) Closes [#1300](https://github.com/Daeguk-Sun/dcNess/issues/1300)) — 모든 agent 에 적용되던 공통 읽기 금지 목록을 삭제했다. 최근 30일 훅 차단 기록에서 가장 많은 사유가 `.claude/` 읽기 금지였고, 모두 검증 agent 의 증거 읽기였다. 읽기는 상태를 바꾸지 않는다. 인프라 경로의 쓰기 보호와 agent 별 읽기 금지는 그대로다.
+
+3. **임시 폴더 쓰기 허용** ([#1305](https://github.com/Daeguk-Sun/dcNess/pull/1305) Closes [#1299](https://github.com/Daeguk-Sun/dcNess/issues/1299)) — 프로젝트 밖 쓰기 차단에서 임시 폴더(`/tmp`, `/private/tmp`, `/var/folders`)를 뺐다. 읽기 전용 agent 가 증거와 메모를 임시 폴더에 쓸 수 있다. 프로젝트 안 파일의 쓰기 판정은 바뀌지 않았다. 값을 확정할 수 없는 쉘 변수 경로는 계속 차단한다.
+
+4. **종료 훅이 중간 단계 뒤 계속 진행을 요구하지 않음** ([#1306](https://github.com/Daeguk-Sun/dcNess/pull/1306) Closes [#1301](https://github.com/Daeguk-Sun/dcNess/issues/1301)) — 중간 단계가 통과한 뒤 메인이 사용자 답을 기다리면 종료 훅이 종료를 막고 다음 단계 진입을 요구했다. 이 요구를 삭제했다. 그 상태에서 종료 훅은 아무것도 출력하지 않고 실행을 열어 둔다. 마감 검증 순서 보호는 그대로다.
+
+5. **디자인 보드 생성기의 실패 조건 완화** ([#1307](https://github.com/Daeguk-Sun/dcNess/pull/1307) Closes [#1302](https://github.com/Daeguk-Sun/dcNess/issues/1302)) — 화면 흐름 문서에 전이 개요가 없거나, 문서마다 화면 이름이 다르거나, 대표 변형 선언이 없거나, 화면이 helper 를 참조하지 않으면 생성기 전체가 실패했다. 이제 해당 사실을 출력하고 보드를 계속 생성한다. 변형을 식별할 수 없는 경우와 승격 절차가 끝나지 않은 경우는 계속 실패한다.
+
+6. **코드 상태 점검 실패가 구조 설계 진입을 막지 않음** ([#1309](https://github.com/Daeguk-Sun/dcNess/pull/1309) Closes [#1303](https://github.com/Daeguk-Sun/dcNess/issues/1303)) — 절차 문서는 점검이 실패하면 코드를 정리한 뒤 설계에 다시 진입하라고 요구했다. 점검 실패의 원인이 지금 설계하려는 작업과 같은 경우 이 요구는 순서를 뒤집는다. 이제 메인은 finding 이 이번 설계와 관련 있는지 판단하고, 계속하거나 멈추는 이유를 사용자에게 보고한다. 계속하면 finding 을 설계 agent 의 입력으로 넘긴다.
+
+### 자기개선 점검
+
+- Sense/Diagnose: 이번 릴리즈 diff 는 file-guard 와 종료 훅의 판정 코드를 바꿨다. 결정적 guard-efficacy 를 재실행했다 — **61/61 PASS**(v0.33.0 51/51 → fixture 10건 추가: 읽기 경계, 임시 폴더, PR 사전 검사 5건). 전체 unittest 를 재실행해 공개 수치를 실측 동기화했다 — **1,561/1,561 PASS**(v0.33.0 1,524 → 신규 회귀 테스트 반영). [#1309](https://github.com/Daeguk-Sun/dcNess/pull/1309) 의 지침 변경은 관련 행동 eval 2건이 각 1/1 정답이었다.
+- Decide: 이번 릴리즈는 차단 규칙 3개를 삭제하거나 완화했고(공통 읽기 금지, 임시 폴더 쓰기 차단, 종료 훅의 계속 진행 요구) 검사 1개를 추가했다(PR 사전 검사). 추가한 검사는 CI 에 있던 규칙의 실행 시점을 앞으로 옮긴 것이다. 소멸 후보 없음. 사람 확인이 남은 항목은 릴리즈를 막지 않고 관찰 대상으로 둔다 — `.claude/` 읽기 차단이 0건인지([#1300](https://github.com/Daeguk-Sun/dcNess/issues/1300)), 임시 파일 쓰기 차단이 줄었는지([#1299](https://github.com/Daeguk-Sun/dcNess/issues/1299)), 중간 단계 뒤 메인이 진행하지 않고 끝나는 사례가 늘었는지([#1301](https://github.com/Daeguk-Sun/dcNess/issues/1301)), epic 이 2개 이상인 프로젝트에서 보드가 생성되는지([#1302](https://github.com/Daeguk-Sun/dcNess/issues/1302)), 점검 실패 상태로 진행한 설계가 구현에서 문제를 일으켰는지([#1303](https://github.com/Daeguk-Sun/dcNess/issues/1303)).
+- Verify: 공개 evidence snapshot(README·[`docs/plugin/benchmark.md`](../plugin/benchmark.md))을 v0.34.0 / 2026-10-09 실측(unit 1,561/1,561 · guard 61/61)으로 갱신했고 `node scripts/check_public_evidence.mjs` 로 문서 marker 와 실측을 대조한다.
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `harness/**`·`hooks/**`·`skills/**`(design·design-system·spec)·`commands/init-dcness.md`·`scripts/design/**`·`scripts/pr-create.sh`·`docs/plugin/**` 변경. `/init-dcness` 재실행은 필요 없다.
+- **PR 을 만드는 방식** — 메인 Claude 는 PR 본문을 파일에 쓰고 다음 명령에서 `gh pr create --body-file <파일>` 을 실행한다. issue 가 없는 PR 은 본문에 `Document-Exception-PR-Close: <사유>` 줄이 있어야 만들어진다. 사용자가 터미널이나 웹에서 직접 만드는 PR 은 검사 대상이 아니다.
+- **검사에 `node` 가 필요하다** — `node` 가 없는 환경에서는 PR 사전 검사가 동작하지 않는다.
+- **끄는 방법** — 프로젝트 루트의 `.no-dcness-guard` 파일은 file-guard 전체와 함께 PR 사전 검사를 끈다. 이 검사만 따로 끄는 설정은 없다.
+
+---
+
 ## v0.33.0 (2026-10-06)
 
 **커밋 범위**: `v0.32.0..v0.33.0` (머지 PR 5개, [#1290](https://github.com/Daeguk-Sun/dcNess/pull/1290) · [#1291](https://github.com/Daeguk-Sun/dcNess/pull/1291) · [#1292](https://github.com/Daeguk-Sun/dcNess/pull/1292) · [#1296](https://github.com/Daeguk-Sun/dcNess/pull/1296) · [#1297](https://github.com/Daeguk-Sun/dcNess/pull/1297))
