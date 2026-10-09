@@ -125,7 +125,11 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 
 - `session-start.sh`: 세션 상태 초기화와 활성 안내.
 - `catastrophic-gate.sh`: Agent 호출 전 작업 순서 보호.
-- `file-guard.sh`: file/bash/MCP 경계와 외부 상태 변경 차단.
+- `file-guard.sh`: file/bash/MCP 경계와 외부 상태 변경 차단. 메인 Claude 가 PR 을 만들거나 PR 본문·제목을 바꾸는 명령 직전에는 PR 본문 issue 트레일러와 PR 제목 형식을 CI 와 같은 스크립트로 검사한다.
+  - 설치: 따로 없다. 프로젝트를 활성화하면 적용된다. `pr-body-validation.yml` 같은 CI workflow 를 설치하지 않아도 동작한다. `node` 가 필요하다.
+  - 갱신: plug-in 을 업데이트하면 함께 갱신된다. 프로젝트로 복사하는 파일이 없다.
+  - 제거: 프로젝트 루트에 `.no-dcness-guard` 파일을 두면 file-guard 전체와 함께 꺼진다. 프로젝트를 비활성화해도 꺼진다. 이 검사만 따로 끄는 설정은 없다.
+  - 상세 범위와 한계는 [`hooks.md#file-guardsh`](hooks.md#file-guardsh) 가 SSOT.
 - `tdd-guard.sh`: generated project-local hook 이 있으면 그 hook 을 먼저 실행하고, 없으면 TS/JS 구현 파일 및 Bash write target 수정 직전 매칭 test 존재를 중앙 fallback 으로 확인한다. 상세 범위와 한계는 [`hooks.md#tdd-guardsh`](hooks.md#tdd-guardsh) 가 SSOT.
 - `post-agent-clear.sh`, `subagent-stop-clear.sh`, `stop-end-run.sh`: run state 보존과 종료 처리.
 

@@ -18,6 +18,7 @@
 - [session_state.py](session_state.py)와 [session_state_cli.py](session_state_cli.py):
   harness-state의 session/run/live 상태 진본.
 - [agent_boundary.py](agent_boundary.py): sub-agent Read/Write/Bash/MCP mutation 경계.
+- [pr_precheck.py](pr_precheck.py): 메인 Claude 의 PR 생성·수정 명령 직전 PR 본문·제목 검사.
 - [signal_io.py](signal_io.py): validator/reviewer 결과 prose 파일 I/O.
 - [agent_routing.py](agent_routing.py), [agent_names.py](agent_names.py): agent 명칭 정규화와
   provider/routing 판정.

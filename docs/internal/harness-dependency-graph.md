@@ -120,7 +120,7 @@ flowchart TD
 | `run_review.py` | 2133 | 7 | `agent_boundary`, `agent_names`, `context_docs`, `efficiency.analyze_sessions`, `ledger`, `session_state`, `session_state_fail_open`, `story_runner` |
 | `agent_names.py` | 28 | 6 | - |
 | `parallel_wave.py` | 815 | 5 | - |
-| `agent_boundary.py` | 1947 | 4 | `parallel_wave`, `session_state_activation` |
+| `agent_boundary.py` | 1947 | 5 | `parallel_wave`, `session_state_activation` |
 | `session_state_activation.py` | 133 | 4 | `session_state` |
 | `session_state_fail_open.py` | 194 | 4 | - |
 | `guard_core.py` | 108 | 3 | `agent_names` |
@@ -140,6 +140,7 @@ flowchart TD
 | `efficiency/analyze_sessions.py` | 325 | 1 | - |
 | `epic_outcome.py` | 168 | 1 | `product_journey` |
 | `guard_telemetry.py` | 317 | 1 | `session_state` |
+| `pr_precheck.py` | 507 | 1 | `agent_boundary` |
 | `merge_lock.py` | 363 | 1 | `guard_core`, `wave_board` |
 | `mockup_node_check.py` | 224 | 1 | - |
 | `provider_failure_cache.py` | 444 | 1 | - |
@@ -148,6 +149,6 @@ flowchart TD
 | `story_runner.py` | 562 | 1 | `parallel_wave`, `provider_failure_cache` |
 | `ci_workflows.py` | 210 | 0 | `tdd_hooks` |
 | `codex_sandbox_permission.py` | 675 | 0 | `run_review`, `session_state` |
-| `hooks.py` | 2156 | 0 | `agent_boundary`, `agent_names`, `guard_core`, `guard_telemetry`, `ledger`, `prev_tasks`, `run_review`, `session_state`, `session_state_activation`, `session_state_cli`, `session_state_fail_open`, `signal_io` |
+| `hooks.py` | 2156 | 0 | `agent_boundary`, `agent_names`, `guard_core`, `guard_telemetry`, `ledger`, `pr_precheck`, `prev_tasks`, `run_review`, `session_state`, `session_state_activation`, `session_state_cli`, `session_state_fail_open`, `signal_io` |
 | `outcome_scorecard.py` | 721 | 0 | `agent_effectiveness`, `benchmark_aggregate`, `ledger`, `product_journey`, `run_review` |
 | `session_state_status.py` | 530 | 0 | `agent_routing`, `context_docs`, `session_state_activation`, `session_state_fail_open`, `tdd_hooks` |

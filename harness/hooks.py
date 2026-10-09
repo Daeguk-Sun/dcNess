@@ -642,6 +642,43 @@ def _warn_concurrent_subagent(
 # ── DCN-CHG-20260501-01 — sub-agent path 강제 (agent_boundary.py 권한 경계) ─
 
 
+def _main_pr_precheck(
+    request: HookRequest,
+    cwd: Path,
+    *,
+    off: bool,
+    base_dir: Optional[Path] = None,
+) -> int:
+    """메인 Claude 의 PR 생성·수정 명령 직전에 PR 본문·제목을 검사한다.
+
+    sub-agent 의 PR 생성·수정은 외부 상태 변경 차단이 이미 막는다. `.no-dcness-guard`
+    표시와 dcNess 자체 저장소는 file-guard 의 다른 검사와 같이 건너뛴다.
+    """
+    if off:
+        return 0
+    from harness import pr_precheck
+
+    def fail_open(category: str, detail: str) -> None:
+        _record_fail_open_safe("file-guard", category, detail, base_dir=base_dir)
+
+    tool_name = request.context.tool
+    if tool_name == "Bash":
+        reason = pr_precheck.check_bash_command(
+            request.tool_input.get("command", "") or "", cwd=cwd, on_fail_open=fail_open
+        )
+    else:
+        reason = pr_precheck.check_mcp_tool(
+            tool_name, request.tool_input, on_fail_open=fail_open
+        )
+    if not reason:
+        return 0
+    return _emit_guard_decision(
+        GuardDecision.block(request.context.with_category("pr_precheck"), reason),
+        prefix="[pr-precheck] ",
+        base_dir=base_dir,
+    )
+
+
 def handle_pretooluse_file_op(
     stdin_data: Optional[Dict[str, Any]] = None,
     cc_pid: Optional[int] = None,
@@ -722,13 +759,15 @@ def handle_pretooluse_file_op(
     # issue #598 — acting agent 는 payload agent_type(자기 식별, 동시 sub 안전) 우선,
     # payload self-attribution이 없으면 메인 호출로 판정한다.
     acting_agent = request.context.agent
-    if not acting_agent:
-        return 0  # 메인 Claude — governance 가 보호.
-
     tool_name = request.context.tool
     tool_input = request.tool_input
-
     cwd = Path.cwd()
+    if not acting_agent:
+        # 메인 Claude — 파일 경계는 governance 가 보호한다. PR 본문·제목만 여기서 검사한다.
+        return _main_pr_precheck(
+            request, cwd, off=is_opt_out(cwd) or is_infra_project(cwd), base_dir=base_dir
+        )
+
     rid = _resolve_rid(sid, cc_pid, base_dir=base_dir)
     task_scope_paths: tuple[str, ...] = ()
     if acting_agent == "build-worker" and rid:

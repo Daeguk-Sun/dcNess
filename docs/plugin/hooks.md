@@ -30,7 +30,7 @@ dcNess 의 강제 영역은 두 가지뿐이다.
 | `session-start.sh` | `SessionStart` | 새 세션, resume, `/clear` 직후 | sid/live state 초기화 + 활성 안내 inject | X |
 | `catastrophic-gate.sh` | `PreToolUse / Agent` | sub-agent 호출 직전 | 작업 순서 보호 + 진행 순서 검사 | O |
 | `subagent-start-lifecycle.sh` | `SubagentStart` | 실제 sub-agent spawn 직후 | Agent step 시작 + 동적 context 주입 | X |
-| `file-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Read|Bash|mcp__.*` | file/bash/MCP tool 호출 직전 | agent 별 파일 경계 + 외부 변경 차단 목록 검사 | O |
+| `file-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Read|Bash|mcp__.*` | file/bash/MCP tool 호출 직전 | agent 별 파일 경계 + 외부 변경 차단 목록 검사 + 메인의 PR 본문·제목 사전 검사 | O |
 | `tdd-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Bash` | 파일 수정 직전 | project-local generated TDD hook 우선 실행, 없으면 TS/JS fallback 으로 매칭 test 존재 확인 | O |
 | `post-agent-clear.sh` | `PostToolUse / Agent` | Agent tool 성공 결과 직후 | completed foreground prose + receipt 기록, 비동기 실행은 step 유지 | X |
 | `post-agent-failure.sh` | `PostToolUseFailure / Agent` | Agent tool 실패 직후 | step abort + 복구 진단 | X |
@@ -143,7 +143,19 @@ PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추�
 | `READ_DENY_MATRIX` | agent 별 Read 금지 path 제한. Read 를 막는 규칙은 이것 하나다. 모든 agent 에 적용되는 읽기 금지는 없다 |
 | 외부 변경 차단 목록 | sub-agent 의 `git push`, Bash `gh pr create/merge/review`, Bash `gh issue create/edit/close/comment`, 상태 변경 `gh api`, GitHub MCP PR/repo 외부 상태 변경 차단 |
 
-메인 Claude turn 은 file boundary 를 통과한다.
+메인 Claude turn 은 file boundary 를 통과한다. 메인에는 아래 PR 사전 검사만 적용한다.
+
+**PR 본문·제목 사전 검사 (메인 한정)**: git 에는 PR 생성 직전 hook 이 없다. 그래서 메인 Claude 가 PR 을 만들거나 PR 본문·제목을 바꾸는 명령을 실행하기 직전에 [`harness/pr_precheck.py`](../../harness/pr_precheck.py) 가 본문과 제목을 검사한다. CI workflow 를 설치하지 않았거나 끈 프로젝트에서도 동작한다.
+
+- 대상: Bash `gh pr create`, 본문·제목 인자가 있는 `gh pr edit`, GitHub MCP `create_pull_request` / `update_pull_request`.
+- 판정: 본문은 [`scripts/check_pr_body.mjs`](../../scripts/check_pr_body.mjs), 제목은 [`scripts/check_git_naming.mjs`](../../scripts/check_git_naming.mjs) `--title` 을 그대로 실행한다. CI 의 `pr-body-validation.yml` / `git-naming-validation.yml` 과 같은 스크립트이므로 판정이 같다.
+- 본문 출처: `--body-file <파일>`, `--body "<글자 그대로>"`, `--body "$(cat <<'EOF' … EOF)"` 를 읽는다.
+- 본문을 명령에서 확정할 수 없으면 차단한다: `--fill` 계열, 본문 인자 없음, 쉘 변수·명령 치환, 구분자에 따옴표가 없고 본문에 `$`·백틱·역슬래시가 있는 heredoc(`<<EOF`), `--body-file -`, 같은 명령에서 쓰는 본문 파일, 같은 명령이 `cd` 로 작업 디렉터리를 바꾼 뒤의 상대경로 본문 파일. 검사하지 못한 본문으로 PR 을 만들면 이 검사의 목적이 사라지기 때문이다. 차단 메시지는 `--body-file <파일>` 사용과 허용 트레일러 형식을 안내한다.
+- 통과: `--web`, `--help`, 본문·제목 인자가 없는 `gh pr edit`, 쉘 변수로 준 제목.
+- `node` 가 없거나 판정 스크립트가 비정상 종료하면 통과시키고 `pr_precheck_node_missing` / `pr_precheck_checker_error` fail-open event 를 남긴다.
+- 차단은 `guard=file-guard`, `category=pr_precheck` 로 기록된다.
+- 한계: `bash -c "…"`, `eval`, 다른 스크립트 안의 `gh` 호출은 보지 못한다. [`scripts/pr-create.sh`](../../scripts/pr-create.sh) 는 commit·push 전에 같은 판정 스크립트 2개를 직접 실행한다.
+- sub-agent 의 PR 생성·수정은 위 외부 변경 차단 목록이 먼저 막는다.
 
 **프로젝트 밖 경로**: 프로젝트 루트 밖 쓰기는 차단한다. 임시 폴더(`/tmp`, `/private/tmp`, `/var/folders`, 세션 임시 폴더 포함) 쓰기는 예외로 모든 agent 에 허용한다. 임시 폴더의 메모와 증거 파일은 제품 파일이 아니기 때문이다. 읽기 전용 agent 도 임시 폴더에는 쓸 수 있고, 프로젝트 안 파일에는 쓸 수 없다. 프로젝트 자체가 임시 폴더 안에 있으면 이 예외를 적용하지 않는다. Bash 의 쉘 변수 경로(`"$D/a.md"`)는 같은 명령 안의 단순 대입으로 값을 확정할 수 있을 때만 그 값으로 검사한다. 값을 확정할 수 없으면 위치를 알 수 없으므로 차단한다.
 
@@ -497,9 +509,9 @@ hook 또는 workflow 를 추가/삭제/이름 변경할 때 이 문서가 빠지
 | Mechanism | Scope | Effect |
 |---|---|---|
 | 미활성 프로젝트 | 전체 CC hook | `is-active` 게이트에서 즉시 no-op |
-| `.no-dcness-guard` cwd marker | file-guard | file boundary / 외부 변경 차단 목록 임시 우회 |
+| `.no-dcness-guard` cwd marker | file-guard | file boundary / 외부 변경 차단 목록 / PR 본문·제목 사전 검사 임시 우회 |
 | `tdd-exempt: <사유>` 파일 marker | tdd-guard | 해당 파일의 test 부재 차단만 사유와 함께 override |
-| `DCNESS_INFRA=1`, `~/.claude/.dcness-infra`, dcNess self repo marker | file boundary | dcNess 자체 작업에서 infra path 보호 해제 |
+| `DCNESS_INFRA=1`, `~/.claude/.dcness-infra`, dcNess self repo marker | file-guard | dcNess 자체 작업에서 infra path 보호와 PR 본문·제목 사전 검사 해제 |
 
 catastrophic-gate 에는 marker override 가 없다. `tdd-exempt: <사유>` 는 tdd-guard 의 test 부재 차단에만 적용되며, file-guard / catastrophic-gate / git hook 을 우회하지 않는다. git hook 의 `--no-verify` 우회는 가능하지만 dcNess 절차상 금지다. CI/CD workflow 는 GitHub 에 올라온 PR/issue 이벤트에서 다시 검증한다.
 

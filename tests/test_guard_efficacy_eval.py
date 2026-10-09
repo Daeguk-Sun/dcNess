@@ -38,6 +38,7 @@ class GuardEfficacyEvalContractTests(unittest.TestCase):
             "read-boundary",
             "bash-mutation",
             "mcp-mutation",
+            "pr-precheck",
             "order-gate",
             "tdd-guard",
             "provider-agnostic-order-gate",
