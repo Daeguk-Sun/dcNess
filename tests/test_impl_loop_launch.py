@@ -32,7 +32,13 @@ def _write_executable(path: Path, body: str) -> None:
 
 
 class ImplLoopLaunchTests(unittest.TestCase):
-    def _fixture(self, base: Path, *, task_count: int = 1) -> tuple[Path, Path]:
+    def _fixture(
+        self,
+        base: Path,
+        *,
+        task_count: int = 1,
+        stories: tuple[str, ...] = (),
+    ) -> tuple[Path, Path]:
         primary = base / "primary"
         worktree = base / "worktree"
         primary.mkdir()
@@ -45,7 +51,7 @@ class ImplLoopLaunchTests(unittest.TestCase):
             task = impl_dir / f"{index:02d}-fast.md"
             task.write_text(
                 "---\n"
-                "story: 1\n"
+                f"story: {stories[index - 1] if stories else 1}\n"
                 f"task_index: {index}/{task_count}\n"
                 f"title: Fast start {index}\n"
                 "---\n\n"
@@ -95,6 +101,9 @@ class ImplLoopLaunchTests(unittest.TestCase):
         use_claude_session_env: bool = False,
         acceptance_required: bool = True,
         provider_conclusion: str = "PASS",
+        mode: str = "",
+        rework_provider: str = "",
+        session_id: str = "sid-fast-launch",
         init_paths: tuple[str, ...] = (
             "docs/epics/epic-1/impl/01-fast.md",
         ),
@@ -165,7 +174,7 @@ class ImplLoopLaunchTests(unittest.TestCase):
             env.pop("DCNESS_SESSION_ID", None)
             env["CLAUDE_CODE_SESSION_ID"] = "sid-fast-launch"
         else:
-            env["DCNESS_SESSION_ID"] = "sid-fast-launch"
+            env["DCNESS_SESSION_ID"] = session_id
         command = [
                 str(CHAIN),
                 "build-worker",
@@ -186,6 +195,10 @@ class ImplLoopLaunchTests(unittest.TestCase):
             command.append("--acceptance-required")
         for init_path in init_paths:
             command[8:8] = ["--init-path", init_path]
+        if rework_provider:
+            command[2:6] = ["--rework", "--resume-provider", rework_provider]
+        if mode:
+            command.insert(2, mode)
         result = subprocess.run(
             command,
             cwd=project,
@@ -434,6 +447,160 @@ class ImplLoopLaunchTests(unittest.TestCase):
                 ],
                 [False, True],
             )
+
+    def test_story_boundary_seal_and_final_convergence_use_chain_state(self) -> None:
+        """#1315 — story 경계 봉인 뒤 다음 story 를, 전체 완료 뒤 수렴 step 을 chain 이 연다."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            primary, worktree = self._fixture(base, task_count=2, stories=("1", "2"))
+            state_path = worktree / ".dcness-work" / "story-run.json"
+            runner = str(ROOT / "scripts" / "dcness-story-runner")
+
+            def story_runner(*args: str) -> subprocess.CompletedProcess[str]:
+                return subprocess.run(
+                    [runner, *args, "--state", str(state_path)],
+                    cwd=worktree,
+                    capture_output=True,
+                    text=True,
+                )
+
+            def mark_completed(task_id: str) -> None:
+                head = _run_git(worktree, "rev-parse", "HEAD").stdout.strip()
+                marked = story_runner(
+                    "mark", "--task", task_id, "--status", "completed", "--commit", head
+                )
+                self.assertEqual(marked.returncode, 0, marked.stderr)
+
+            first = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(
+                    "docs/epics/epic-1/impl/01-fast.md",
+                    "docs/epics/epic-1/impl/02-fast.md",
+                ),
+            )
+            self.assertEqual(first.returncode, 0, first.stderr)
+            mark_completed("1")
+
+            unsealed = self._launch(
+                primary=primary, project=worktree, base=base, init_paths=()
+            )
+            self.assertNotEqual(unsealed.returncode, 0)
+            self.assertIn("action=story-pr", unsealed.stderr)
+            self.assertIn("seal-story", unsealed.stderr)
+
+            sealed = story_runner("seal-story")
+            self.assertEqual(sealed.returncode, 0, sealed.stderr)
+            _run_git(worktree, "checkout", "-q", "-b", "fix/issue1190_story2")
+
+            early = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+            )
+            self.assertNotEqual(early.returncode, 0)
+            self.assertIn("JOURNEY_CONVERGENCE requires every chain task completed", early.stderr)
+
+            second = self._launch(
+                primary=primary, project=worktree, base=base, init_paths=()
+            )
+            self.assertEqual(second.returncode, 0, second.stderr)
+            mark_completed("2")
+
+            convergence = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+                provider_conclusion="IMPLEMENTATION_ESCALATE",
+            )
+            self.assertEqual(convergence.returncode, 76, convergence.stderr)
+
+            # 같은 run 의 수렴 재실행은 run 을 닫지 않고 --rework 로 새 step 을 연다.
+            relaunch = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+            )
+            self.assertEqual(relaunch.returncode, 76, relaunch.stderr)
+            self.assertIn("--rework --resume-provider", relaunch.stderr)
+            self.assertNotIn("dcness-helper end-run", relaunch.stderr)
+
+            # 기존 수렴 run 을 이어 쓸 수 없는 세션에서는 새 run 을 만들지 않고 멈춘다.
+            other_session = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+                rework_provider="claude-headless",
+                session_id="sid-other-session",
+            )
+            self.assertEqual(other_session.returncode, 2, other_session.stderr)
+            self.assertIn("active JOURNEY_CONVERGENCE run", other_session.stderr)
+            other_runs = (
+                primary / ".claude" / "harness-state" / ".sessions"
+                / "sid-other-session" / "runs"
+            )
+            self.assertEqual(list(other_runs.glob("run-*")), [])
+
+            resumed = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+                rework_provider="claude-headless",
+            )
+            self.assertEqual(resumed.returncode, 0, resumed.stderr)
+
+            run_root = (
+                primary
+                / ".claude"
+                / "harness-state"
+                / ".sessions"
+                / "sid-fast-launch"
+                / "runs"
+            )
+            ledgers = {}
+            for run_dir in run_root.glob("run-*"):
+                events = [
+                    json.loads(line)
+                    for line in (run_dir / "ledger.jsonl")
+                    .read_text(encoding="utf-8")
+                    .splitlines()
+                ]
+                ledgers[Path(events[0]["design_doc"]).name] = events
+            self.assertEqual(sorted(ledgers), ["01-fast.md", "02-fast.md"])
+            final_steps = [
+                (event["agent"], event.get("mode") or "")
+                for event in ledgers["02-fast.md"]
+                if event["event"] == "step_started"
+            ]
+            self.assertEqual(
+                final_steps,
+                [
+                    ("build-worker", ""),
+                    ("build-worker", "JOURNEY_CONVERGENCE"),
+                    ("build-worker", "JOURNEY_CONVERGENCE"),
+                ],
+            )
+
+            task_rework = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                rework_provider="claude-headless",
+            )
+            self.assertEqual(task_rework.returncode, 2)
+            self.assertIn("--rework requires --direct-run", task_rework.stderr)
 
     def test_reused_direct_impl_run_gets_story_acceptance_requirement(self) -> None:
         """#1240 — /impl 로 먼저 연 같은 task 의 run 을 chain 이 이어 쓰면 검수 표시도 맞춘다."""

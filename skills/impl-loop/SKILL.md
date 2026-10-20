@@ -211,7 +211,7 @@ mark에 쓸 commit sha를 읽을 때 worker 보고의 `JOURNEY_ENV_PREFLIGHT` �
 ```
 
 - `action=task`: 다음 task용 slim prompt로 chain을 다시 호출한다. 기존 state이므로 `--init-path`는 생략하며, chain이 이전 run 종료와 새 run 시작을 같은 호출 안에서 처리한다.
-- `action=story-pr`: 직전 story tip/base를 봉인하고 PR 없이 다음 story branch를 만든다.
+- `action=story-pr`: 끝난 story branch에서 `"$PLUGIN_ROOT/scripts/dcness-story-runner" seal-story --state .dcness-work/story-run.json`으로 직전 story tip/branch/base를 state에 봉인한다. PR 없이 그 branch에서 다음 story branch를 만든 뒤, `action=task`와 같은 방법으로 chain을 다시 호출한다. task를 `mark --status running`으로 바꿔 경계를 넘기지 않는다.
 - `action=done`: 진행 뷰를 마감 시퀀스 상태로 갱신하고 worker loop를 끝낸 뒤 GREEN 이후 진본으로 이동한다.
 - `action=error|blocked`: 그때만 routing 문서를 읽어 bounded recovery 또는 사용자 결정을 수행한다.
 
