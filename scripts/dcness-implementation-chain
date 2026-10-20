@@ -526,6 +526,32 @@ PY
     return 2
   fi
 
+  # 세션이 바뀐 뒤 첫 수렴은 새 run 을 연다. 같은 task 의 이전 run 에 남은 검수 분리 결정을
+  # 새 run 으로 옮기지 않으면 분리한 journey 가 수렴 대상에 다시 들어간다. 읽을 수 없는
+  # 기록은 "분리 없음" 으로 넘기지 않고 run 을 만들기 전에 멈춘다.
+  carried_deferred=""
+  if [ "$MODE" = "JOURNEY_CONVERGENCE" ] && [ "$run_action" != "reuse" ]; then
+    carried_deferred="$(
+      PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+        python3 - "$PROJECT_ROOT" "$CURRENT_CHAIN_TASK" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+from harness.session_state import journey_deferred_for_design_doc
+
+try:
+    ids, sources = journey_deferred_for_design_doc(Path(sys.argv[1]) / sys.argv[2])
+except ValueError as exc:
+    raise SystemExit(
+        f"{exc}; no convergence run was created. Resume from the session that owns "
+        "that run, or inspect its run state before recording the disposition again"
+    )
+print(json.dumps({"ids": ids, "sources": sources}) if ids else "")
+PY
+    )" || return 2
+  fi
+
   if [ "$run_action" = "next" ]; then
     next_args=(next-task --entry-point impl --design-doc "$CURRENT_CHAIN_TASK")
     if [ -n "$ISSUE_NUM" ]; then
@@ -569,6 +595,24 @@ PY
   else
     echo "[dcness-implementation-chain] invalid run preparation action: $run_action" >&2
     return 1
+  fi
+  if [ -n "$carried_deferred" ]; then
+    PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
+      python3 - "$sid" "$rid" "$carried_deferred" <<'PY' || return $?
+import json
+import sys
+
+from harness.session_state import transition
+
+sid, rid, payload = sys.argv[1:4]
+carried = json.loads(payload)
+transition(sid, "journey_deferred_recorded", run_id=rid, journey_ids=carried["ids"])
+print(
+    "[dcness-implementation-chain] journey_deferred carried over from "
+    f"{', '.join(carried['sources'])} into run {rid}: {', '.join(carried['ids'])}",
+    file=sys.stderr,
+)
+PY
   fi
   export DCNESS_SESSION_ID="$sid"
   export DCNESS_RUN_ID="$rid"

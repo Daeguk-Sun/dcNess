@@ -433,6 +433,56 @@ def journey_deferred(
     return _readable_journey_deferred(slot.get("journey_deferred"))
 
 
+def journey_deferred_for_design_doc(
+    design_doc: Path,
+    *,
+    exclude: Optional[tuple[str, str]] = None,
+    base_dir: Optional[Path] = None,
+) -> tuple[List[str], List[str]]:
+    """Collect deferred journey ids recorded on impl runs of *design_doc* in any session.
+
+    세션이 바뀐 뒤 첫 수렴은 새 run 을 연다. 이전 run 에 남은 검수 분리 결정을 새 run 으로
+    옮기지 않으면 분리한 journey 가 수렴 대상에 다시 들어간다 (#1320). 분리를 더 많이
+    유지하는 쪽이 안전하므로 같은 task 의 run 기록을 모두 합친다.
+
+    Returns ``(journey_ids, sources)``. ``sources`` 는 기록을 가진 ``<sid>/<rid>`` 목록이다.
+    손상된 목록을 만나면 "분리 없음" 으로 넘기지 않고 ``ValueError`` 를 낸다.
+    """
+    sessions_dir = _resolve_base(base_dir) / ".sessions"
+    if not sessions_dir.is_dir():
+        return [], []
+    target = Path(design_doc).resolve()
+    journey_ids: List[str] = []
+    sources: List[str] = []
+    for entry in sorted(sessions_dir.iterdir()):
+        if not entry.is_dir() or not valid_session_id(entry.name):
+            continue
+        # 읽지 못한 세션은 분리 결정을 가졌는지 알 수 없으므로 "기록 없음" 으로 넘기지 않는다.
+        try:
+            live = read_live(entry.name, base_dir=base_dir)
+        except StateFormatError as exc:
+            raise ValueError(f"session state is unreadable: {exc}") from exc
+        for rid, slot in sorted((live.get("active_runs") or {}).items()):
+            if (entry.name, rid) == exclude:
+                continue
+            if not isinstance(slot, dict):
+                raise ValueError(f"run state is unreadable: {entry.name}/{rid}")
+            design_text = str(slot.get("design_doc") or "")
+            if slot.get("entry_point") != "impl" or not design_text:
+                continue
+            if Path(design_text).resolve() != target or "journey_deferred" not in slot:
+                continue
+            recorded = _readable_journey_deferred(slot.get("journey_deferred"))
+            if recorded is None:
+                raise ValueError(
+                    f"journey_deferred is corrupt in run {entry.name}/{rid}"
+                )
+            if recorded:
+                sources.append(f"{entry.name}/{rid}")
+                journey_ids.extend(item for item in recorded if item not in journey_ids)
+    return journey_ids, sources
+
+
 def _state_format_error(path: Path, detail: str) -> StateFormatError:
     return StateFormatError(
         f"current run state is invalid at {path}: {detail}; "

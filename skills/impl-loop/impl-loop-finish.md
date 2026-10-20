@@ -42,6 +42,7 @@ step 3의 consolidate 여부는 [`git-spec.md#분할-판정`](../../docs/plugin/
 - 이후 판정 입력은 `journey-deferred list`가 돌려주는 저장된 목록이다. 진행 뷰와 worker 프롬프트에 목록을 계속 노출하되, 그 값의 출처는 대화 맥락이 아니라 run 상태다. 조회가 실패하면 빈 목록으로 간주하지 않고 그 자리에서 멈춘다 — 기록 없음과 읽지 못함은 다른 상태다.
 - `journey_deferred`가 아닌 자동 journey만 `JOURNEY_CONVERGENCE`를 실행한다. 실행은 `dcness-product-journey run --config <매니페스트>` 러너로 하며, 대본을 직접 실행한 PASS 는 수렴 PASS 로 인정하지 않는다.
 - 수렴 build-worker는 task loop와 같은 state로 시작한다. 모든 task가 completed(`action=done`)일 때만 chain이 마지막 task run에 `build-worker JOURNEY_CONVERGENCE` step을 연다. `begin-step`을 먼저 부르거나 `--chain-state`를 빼지 않는다.
+- 세션이 바뀌어 마지막 task run이 현재 세션에서 활성이 아니면, 첫 수렴 호출은 마지막 task로 새 run을 연다. 이때 chain은 같은 task의 이전 run(다른 세션 포함)에 기록된 `journey_deferred`를 모두 새 run으로 옮기고 `journey_deferred carried over from <세션/run> ...`을 stderr에 출력한다. 이전 기록을 읽을 수 없으면 run을 만들지 않고 0이 아닌 종료코드로 멈춘다. 기록이 없는 run의 재개는 그대로 진행한다. 메인은 수렴 직후 `journey-deferred list`로 옮겨진 목록이 사용자 처분과 같은지 확인한다.
 
 ```bash
 PLUGIN_ROOT=""
