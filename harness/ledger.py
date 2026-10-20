@@ -76,6 +76,7 @@ EVENT_TYPES = frozenset(
         "blocked",
         "run_finished",
         "acceptance_required_marked",
+        "boundary_block_accepted",
     }
 )
 
@@ -88,6 +89,7 @@ LIFECYCLE_EVENT_TYPES = frozenset(
         "step_completed",
         "run_finished",
         "acceptance_required_marked",
+        "boundary_block_accepted",
     }
 )
 

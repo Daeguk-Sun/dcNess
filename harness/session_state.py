@@ -564,6 +564,7 @@ _VALID_DESIGN_STAGES = ("design-ux", "design-system")
 _RUN_TRANSITIONS = {
     "run_started",
     "run_blocked",
+    "boundary_block_accepted",
     "run_finalized",
     "run_completed",
     "ledger_checkpoint",
@@ -714,6 +715,32 @@ def _apply_run_transition(
         active[run_id] = slot
         _append_ledger_record(session_id, run_id, "blocked", base_dir=base_dir, **data)
         return marker, True
+    if action == "boundary_block_accepted":
+        # 사용자가 headless boundary BLOCK 결과를 받아들인 결정을 남기고 같은 run 을 잇는다.
+        slot = _active_slot(active, run_id)
+        reason = data.get("reason")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be non-empty str")
+        block = _run_worker_boundary_block_marker(session_id, run_id, base_dir=base_dir)
+        if block is None:
+            raise ValueError("no headless boundary BLOCK to accept in this run")
+        event_fields = {
+            "decided_by": "user",
+            "reason": reason.strip(),
+            **{
+                f"blocked_{key}": block[key]
+                for key in ("agent", "mode", "provider", "reason", "raw_log")
+                if block.get(key) is not None
+            },
+        }
+        slot.pop("blocked", None)
+        slot["last_confirmed_at"] = _now_iso()
+        active[run_id] = slot
+        _append_ledger_record(
+            session_id, run_id, "boundary_block_accepted", base_dir=base_dir,
+            **event_fields,
+        )
+        return event_fields, True
     if action == "acceptance_required_marked":
         # 다른 진입점이 먼저 연 같은 task run 을 story chain 이 이어 쓸 때,
         # 마감 게이트가 보는 검수 표시를 chain 계약에 맞춘다.
@@ -1417,6 +1444,9 @@ def _run_worker_boundary_block_marker(
         from harness import ledger
 
         for event in reversed(ledger.read_events(session_id, run_id, base_dir=base_dir)):
+            # 마지막 BLOCK 뒤에 사용자 수용 기록이 있으면 그 BLOCK 은 해소된 것이다.
+            if event.get("event") == "boundary_block_accepted":
+                return None
             if (
                 event.get("event") == "blocked"
                 and event.get("category") == "worker_boundary"
@@ -1438,8 +1468,10 @@ def _boundary_block_gate_message(marker: Dict[str, Any]) -> str:
     return (
         "[순서 차단 훅: headless boundary BLOCK] 이 run 은 "
         "headless worker boundary BLOCK(category=worker_boundary) 기록이 있어 "
-        "다음 step 을 시작할 수 없습니다. workspace diff 와 ledger marker 를 확인한 뒤 "
-        "새 run 또는 명시적 수동 복구로 진행하세요."
+        "다음 step 을 시작할 수 없습니다. workspace diff 와 ledger marker 를 확인한 뒤, "
+        "사용자가 결과를 받아들이면 `dcness-helper accept-boundary-block --reason "
+        "\"<수용 근거>\"` 로 기록하고 같은 run 에서 이어가세요. 받아들이지 않으면 "
+        "새 run 으로 진행하세요."
         f"{detail}"
     )
 
