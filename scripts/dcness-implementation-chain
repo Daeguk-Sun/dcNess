@@ -1116,6 +1116,9 @@ print(failure.get("permission_receipt", ""))
         fi
       else
         echo "[dcness-implementation-chain] BLOCKED: provider $stage changed workspace and recovery stopped (category=${failure_category:-unclassified}, attempts=$attempt/$RECOVERY_LIMIT); no cross-provider fallback or revert." >&2
+        if [ "$failure_category" = "boundary_violation" ]; then
+          echo "[dcness-implementation-chain] If the user accepts the preserved changes, record it with 'dcness-helper accept-boundary-block --reason \"<reason>\"' and continue in this run." >&2
+        fi
       fi
       echo "[dcness-implementation-chain] raw log: $failure_raw_log" >&2
       git -C "$PROJECT_ROOT" status --short >&2 || true

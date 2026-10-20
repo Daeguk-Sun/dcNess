@@ -1756,6 +1756,7 @@ class ImplementationChainTests(unittest.TestCase):
             self.assertEqual(call_count.read_text(encoding="utf-8"), "2")
             self.assertIn("category=boundary_violation", result.stderr)
             self.assertIn("attempts=1/1", result.stderr)
+            self.assertIn("dcness-helper accept-boundary-block --reason", result.stderr)
             self.assertFalse(helper_args.exists())
 
             events = ledger.read_events(sid, rid, base_dir=state_base)

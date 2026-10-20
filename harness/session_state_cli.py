@@ -243,6 +243,39 @@ def _cli_journey_deferred(args: Any) -> int:
     return 0
 
 
+def _cli_accept_boundary_block(args: Any) -> int:
+    """issue #1314 — headless boundary BLOCK 결과를 사용자가 받아들였음을 기록한다.
+
+    BLOCK 기록이 있는 run 은 순서 차단 훅이 다음 step 을 막는다. 사용자가 workspace
+    변경을 확인하고 받아들이면 그 결정과 근거를 ledger 에 남기고 같은 run 을 잇는다.
+    새 run 을 열면 같은 candidate 의 수렴·검증·검수 기록이 서로 다른 run 에 나뉜다.
+
+    Usage:
+        dcness-helper accept-boundary-block --reason "<수용 근거>"
+    """
+    sid = auto_detect_session_id()
+    rid = auto_detect_run_id()
+    if not sid or not rid:
+        print(diagnose_sid_rid_resolution(mode="both"), file=sys.stderr)
+        return 1
+    reason = (getattr(args, "reason", "") or "").strip()
+    if not reason:
+        print(
+            "[accept-boundary-block] FAIL — --reason 에 사용자가 받아들인 근거가 필요합니다",
+            file=sys.stderr,
+        )
+        return 1
+    try:
+        accepted = transition(
+            sid, "boundary_block_accepted", run_id=rid, reason=reason
+        )
+    except (KeyError, ValueError, StateFormatError) as exc:
+        print(f"[accept-boundary-block] FAIL — {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(accepted, ensure_ascii=False))
+    return 0
+
+
 def _cli_post_task_begin(args: Any) -> int:
     """issue #472 — `/impl-loop` 종료 후 메인 자율 작업 영역 진입 marker.
 
@@ -984,6 +1017,16 @@ def _build_arg_parser() -> Any:
         help="분리할 여정 식별자. record 에서 반복 지정 가능",
     )
     p_jd.set_defaults(func=_cli_journey_deferred)
+
+    p_abb = sub.add_parser(
+        "accept-boundary-block",
+        help="headless boundary BLOCK 결과의 사용자 수용을 기록하고 같은 run 을 잇는다 (issue #1314)",
+    )
+    p_abb.add_argument(
+        "--reason", required=True,
+        help="사용자가 결과를 받아들인 근거",
+    )
+    p_abb.set_defaults(func=_cli_accept_boundary_block)
 
     p_ptb = sub.add_parser(
         "post-task-begin",

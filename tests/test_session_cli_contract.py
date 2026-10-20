@@ -67,6 +67,80 @@ class SessionCliLifecycleContractTests(unittest.TestCase):
         source.write_text(prose, encoding="utf-8")
         return source
 
+    def _block_worker_boundary(self) -> None:
+        session_state.transition(
+            self.sid,
+            "run_blocked",
+            run_id=self.rid,
+            category="worker_boundary",
+            agent="build-worker",
+            mode="JOURNEY_CONVERGENCE",
+            provider="codex-headless",
+            reason="mutation-time boundary recovery exhausted",
+            raw_log="/tmp/worker.log",
+        )
+
+    def _begin_validator(self) -> tuple[int, str]:
+        err = StringIO()
+        with redirect_stdout(StringIO()), redirect_stderr(err):
+            rc = cli._cli_begin_step(SimpleNamespace(agent="impl-validator", mode=""))
+        return rc, err.getvalue()
+
+    def _accept(self, reason: str) -> tuple[int, str]:
+        err = StringIO()
+        with redirect_stdout(StringIO()), redirect_stderr(err):
+            rc = cli._cli_accept_boundary_block(SimpleNamespace(reason=reason))
+        return rc, err.getvalue()
+
+    def test_accept_boundary_block_reopens_next_step_in_same_run(self) -> None:
+        """#1314 — 사용자가 BLOCK 결과를 수용하면 같은 run 에서 다음 step 을 연다."""
+        self._block_worker_boundary()
+
+        rc, err = self._begin_validator()
+        self.assertEqual(rc, 1)
+        self.assertIn("headless boundary BLOCK", err)
+        self.assertIn("dcness-helper accept-boundary-block --reason", err)
+
+        rc, err = self._accept("  ")
+        self.assertEqual(rc, 1)
+        self.assertIn("--reason", err)
+
+        rc, err = self._accept("사용자가 수렴 결과를 확인하고 받아들임")
+        self.assertEqual(rc, 0, err)
+        accepted = [
+            event
+            for event in ledger.read_events(self.sid, self.rid)
+            if event.get("event") == "boundary_block_accepted"
+        ]
+        self.assertEqual(len(accepted), 1)
+        self.assertEqual(accepted[0]["decided_by"], "user")
+        self.assertEqual(accepted[0]["reason"], "사용자가 수렴 결과를 확인하고 받아들임")
+        self.assertEqual(accepted[0]["blocked_mode"], "JOURNEY_CONVERGENCE")
+        self.assertEqual(accepted[0]["blocked_raw_log"], "/tmp/worker.log")
+
+        rc, err = self._begin_validator()
+        self.assertEqual(rc, 0, err)
+
+    def test_accept_boundary_block_requires_existing_block(self) -> None:
+        rc, err = self._accept("받아들임")
+
+        self.assertEqual(rc, 1)
+        self.assertIn("boundary BLOCK", err)
+
+    def test_new_boundary_block_after_acceptance_blocks_again(self) -> None:
+        self._block_worker_boundary()
+        self.assertEqual(self._accept("받아들임")[0], 0)
+        self._block_worker_boundary()
+
+        rc, err = self._begin_validator()
+
+        self.assertEqual(rc, 1)
+        self.assertIn("headless boundary BLOCK", err)
+
+    def test_manual_ledger_event_cannot_forge_block_acceptance(self) -> None:
+        self.assertIn("boundary_block_accepted", ledger.LIFECYCLE_EVENT_TYPES)
+        self.assertNotIn("boundary_block_accepted", ledger.MANUAL_EVENT_TYPES)
+
     def test_acceptance_required_marked_is_idempotent_and_impl_only(self) -> None:
         """#1240 — chain 이 재사용한 run 에 검수 표시를 한 번만 올린다."""
         self.assertIs(
