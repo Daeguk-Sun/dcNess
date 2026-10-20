@@ -65,7 +65,7 @@ designer 를 호출하는 모든 경로(UX_FLOW, UX_REFINE 사용자 승인 후,
 
 - `/init-dcness` 기본 경로는 UI seed 를 설치하지 않을 수 있으므로 `screens/`, `boards/`, `_lib/`, `drafts/`를 만든다.
 - `templates/design-variants/.gitignore`, `templates/design-variants/boards/screen-states.html`, `templates/design-variants/_lib/show-ids.js`, `templates/design-variants/_lib/canvas.js`, `templates/design-variants/_lib/only-variant.js`, `templates/design-variants/_lib/report-size.js`, `templates/design-variants/drafts/.gitkeep`를 대응 경로로 복사한다.
-- 기존 파일은 덮어쓰지 않는다. 기존 확정본과 생성물은 유지한다.
+- 기존 파일은 덮어쓰지 않는다. 기존 확정본과 생성물은 유지한다. 예외: `_lib/` 엔진 4개 파일이 배포본과 다르면 배포본으로 교체한다. 프로젝트는 `_lib/`를 수정하지 않으므로 교체로 잃는 내용이 없다.
 
 ## 절차 — UX_FLOW
 

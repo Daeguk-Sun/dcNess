@@ -16,6 +16,7 @@
 </head>
 <body>
   <main data-screen-id="{screen-id}">
+    <!-- 변형 제목 줄은 data-variant 요소 안에 둔다. #only 는 다른 변형과 그 묶음만 숨긴다. -->
     <section data-variant="default" data-variant-values="state=default"
              data-journey-representative="true"
              data-node-id="{screen-id}.section">

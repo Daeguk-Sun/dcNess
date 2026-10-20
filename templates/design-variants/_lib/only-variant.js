@@ -1,10 +1,12 @@
-/* dcness-design-engine: 1.0.0
+/* dcness-design-engine: 1.1.0
  * #only=<data-variant> 요청을 같은 확정본 안의 변형 하나로 좁힌다.
  */
 (function () {
   'use strict';
 
   const WARNING_ID = 'dcness-variant-warning';
+  const STYLE_ID = 'dcness-only-variant-style';
+  const HIDDEN_ATTR = 'data-dcness-hidden';
 
   function requestedVariant() {
     return new URLSearchParams(location.hash.replace(/^#/, '')).get('only');
@@ -29,11 +31,39 @@
     banner.textContent = message;
   }
 
+  // 목업의 author CSS(예: [data-variant] { display: flex })는 브라우저 기본
+  // [hidden] { display: none } 보다 우선한다. 숨김 표시는 !important 규칙으로 덮는다.
+  function ensureHiddenStyle() {
+    if (document.getElementById(STYLE_ID)) return;
+    const style = document.createElement('style');
+    style.id = STYLE_ID;
+    style.textContent = `[${HIDDEN_ATTR}] { display: none !important; }`;
+    (document.head || document.documentElement).appendChild(style);
+  }
+
+  // 요청한 변형으로 가는 경로 밖에서 다른 변형을 담은 요소를 통째로 숨긴다.
+  // 변형과 그 제목 줄을 함께 감싼 묶음은 제목 줄까지 함께 사라진다.
+  function hideOtherVariantGroups(kept) {
+    for (let node = kept; node && node !== document.body; node = node.parentElement) {
+      const parentElement = node.parentElement;
+      if (!parentElement) break;
+      for (const sibling of parentElement.children) {
+        if (sibling === node) continue;
+        if (sibling.matches('[data-variant]') || sibling.querySelector('[data-variant]')) {
+          sibling.setAttribute(HIDDEN_ATTR, '');
+        }
+      }
+    }
+  }
+
   function apply() {
     document.getElementById(WARNING_ID)?.remove();
     const requested = requestedVariant();
     const variants = [...document.querySelectorAll('[data-variant]')];
     variants.forEach(element => { element.hidden = false; });
+    document.querySelectorAll(`[${HIDDEN_ATTR}]`).forEach(element => {
+      element.removeAttribute(HIDDEN_ATTR);
+    });
     delete document.documentElement.dataset.dcnessOnlyVariant;
     if (!requested) return;
     const matched = variants.filter(element => element.dataset.variant === requested);
@@ -44,7 +74,12 @@
       );
       return;
     }
-    variants.forEach(element => { element.hidden = element !== matched[0]; });
+    ensureHiddenStyle();
+    variants.forEach(element => {
+      element.hidden = element !== matched[0];
+      if (element !== matched[0]) element.setAttribute(HIDDEN_ATTR, '');
+    });
+    hideOtherVariantGroups(matched[0]);
     document.documentElement.dataset.dcnessOnlyVariant = requested;
   }
 
