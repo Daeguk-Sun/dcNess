@@ -92,7 +92,7 @@ build-worker가 만드는 매니페스트는 `.dcness/` 밖 owner module/소스 
 | `acceptance_environment.requirements` | worker 실행 컨텍스트가 실제로 도달해야 하는 device/emulator+socket, browser/driver, service+writable fixture, provisioned tenant, 특수 seed 권한 같은 요건 목록 |
 | `acceptance_environment.requirements[].probe` | worker 실행 컨텍스트에서 요건 충족 여부를 확인하는 argv와 timeout. 판정 주체를 main 환경으로 바꾸지 않는다 |
 | `acceptance_environment.requirements[].prepare` | emulator boot, container/service 기동, socket 노출처럼 기계적으로 준비할 수 있을 때 쓰는 선택 argv와 timeout |
-| `harness_paths` | flow, seed, runner, manifest, env adapter처럼 수렴 호출이 대조·수정할 project-relative 하네스 배관 경로. write 경계를 기계 강제하는 목록이 아니라 설계·리뷰 handoff 계약 |
+| `harness_paths` | flow, seed, runner, manifest, env adapter처럼 수렴 호출이 대조·수정할 project-relative 하네스 배관 경로. write 권한을 여는 목록이 아니라 설계·리뷰 handoff 계약이며, 쓰기 경로는 impl task `### 수정 허용`에 둔다 |
 | `env` | 네 단계에 공통으로 추가할 문자열 환경 변수 |
 | `commands.*.argv` | shell 문자열이 아닌 argv 배열. setup/teardown/상태전이 오케스트레이션이 필요하면 `commands.journey.argv`에서 `bash`와 프로젝트 스크립트 경로를 명시적으로 선택 |
 | `commands.*.timeout_sec` | 단계별 timeout. `journey` 는 1800초 이하(실기기·에뮬레이터 UI 여정은 화면 흐름이 누적돼 10분을 넘기 쉽다), `start`·`health`·`cleanup` 은 600초 이하 |
