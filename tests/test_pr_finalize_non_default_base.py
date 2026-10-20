@@ -621,6 +621,59 @@ class PrFinalizePostMergeWorktreeTests(unittest.TestCase):
             self.assertFalse(feature.exists(), result.stdout + result.stderr)
             self.assertIn("feature-wt: removed merged feature worktree", result.stdout)
 
+    def _write_journey_evidence(self, root: Path, feature: Path) -> Path:
+        (root / ".git" / "info" / "exclude").write_text(
+            ".dcness-work/\n", encoding="utf-8"
+        )
+        receipt = (
+            feature / ".dcness-work" / "product-journey" / "checkout" / "run-1"
+            / "receipt.json"
+        )
+        receipt.parent.mkdir(parents=True)
+        receipt.write_text('{"outcome": "PASS"}\n', encoding="utf-8")
+        (receipt.parent / "screen.png").write_bytes(b"png")
+        return receipt.relative_to(feature)
+
+    def _finalize_from(self, td: str, cwd: Path) -> subprocess.CompletedProcess[str]:
+        bin_dir = Path(td) / "bin"
+        bin_dir.mkdir()
+        self._write_fake_gh(bin_dir)
+        return self._run_finalize(cwd, bin_dir)
+
+    def test_journey_evidence_survives_merged_feature_worktree_removal(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
+            receipt_rel = self._write_journey_evidence(root, feature)
+
+            result = self._finalize_from(td, feature)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertFalse(feature.exists(), result.stdout + result.stderr)
+            self.assertEqual(
+                (root / receipt_rel).read_text(encoding="utf-8"),
+                '{"outcome": "PASS"}\n',
+            )
+            self.assertEqual((root / receipt_rel).with_name("screen.png").read_bytes(), b"png")
+            self.assertIn(
+                f"product-journey evidence moved to {root.resolve()}/.dcness-work/product-journey",
+                result.stdout,
+            )
+
+    def test_journey_evidence_collision_keeps_feature_worktree(self) -> None:
+        with tempfile.TemporaryDirectory() as td:
+            root, feature, _origin, _origin_head = self._init_repo_with_remote_ahead(td)
+            receipt_rel = self._write_journey_evidence(root, feature)
+            (root / receipt_rel).parent.mkdir(parents=True)
+            (root / receipt_rel).write_text("older\n", encoding="utf-8")
+
+            result = self._finalize_from(td, feature)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertTrue((feature / receipt_rel).exists(), result.stdout)
+            self.assertEqual((root / receipt_rel).read_text(encoding="utf-8"), "older\n")
+            self.assertIn("product-journey evidence already exists", result.stdout)
+            self.assertNotIn("removed merged feature worktree", result.stdout)
+
     def test_dirty_default_worktree_is_preserved_without_force_sync(self) -> None:
         with tempfile.TemporaryDirectory() as td:
             root, feature, _origin, origin_head = self._init_repo_with_remote_ahead(td)

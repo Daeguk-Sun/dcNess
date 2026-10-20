@@ -1718,6 +1718,34 @@ def _current_tracked_candidate(
     return head.stdout.strip(), tree.stdout.strip(), not status.stdout.strip()
 
 
+def _merged_after_close_receipts(
+    sid: str, rid: str, frozen_head: str, *, base_dir: Optional[Path]
+) -> bool:
+    """Return True when ``pr_merged`` of ``frozen_head`` follows the last acceptance receipt."""
+    try:
+        from harness.ledger import read_events
+
+        events = read_events(sid, rid, base_dir=base_dir)
+    except Exception:
+        return False
+    acceptance_index = max(
+        (
+            index
+            for index, event in enumerate(events)
+            if event.get("event") == "step_completed"
+            and event.get("agent") == "product-acceptance"
+            and event.get("mode") in {"STORY_ACCEPTANCE", "EPIC_ACCEPTANCE"}
+        ),
+        default=None,
+    )
+    if acceptance_index is None:
+        return False
+    return any(
+        event.get("event") == "pr_merged" and event.get("head_sha") == frozen_head
+        for event in events[acceptance_index + 1 :]
+    )
+
+
 def _receipt_label(step: Dict[str, Any]) -> str:
     mode = step.get("mode")
     return f"{step.get('agent')}{'/' + str(mode) if mode else ''}"
@@ -1878,6 +1906,14 @@ def _close_validation_sequence_status(
     frozen_root = cast(str, identity[2])
     current = _current_tracked_candidate(frozen_root)
     if current is None:
+        # pr-finalize 는 merge 뒤 feature worktree 를 지운다. 두 receipt 뒤에 기록된
+        # pr_merged 의 merge head 가 고정한 candidate HEAD 와 같으면 검증한 commit 이
+        # 그대로 merge 된 것이므로, 지워진 worktree 를 다시 확인하지 않고 닫는다.
+        # 경로가 남아 있으면 probe 실패로 그대로 본다.
+        if not Path(frozen_root).exists() and _merged_after_close_receipts(
+            sid, rid, frozen_head, base_dir=base_dir
+        ):
+            return ("pass", "frozen candidate merged; workspace removed after merge")
         return (
             "workspace_unverified",
             "frozen candidate workspace identity could not be confirmed",

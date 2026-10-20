@@ -20,11 +20,12 @@
 4. 같은 immutable candidate를 반대 진영 holistic `impl-validator`로 먼저 검증
 5. validator가 terminal `PASS`일 때만 `product-acceptance`의 sealed Journey 시작
 6. acceptance terminal `PASS`와 같은 candidate identity 확인
-7. target GitHub issue AC close audit
-8. 최초 PR 생성
-9. 별도 merge gate
+7. 완료 기준 실행 기록 게시
+8. target GitHub issue AC close audit
+9. 최초 PR 생성
+10. 별도 merge gate
 
-`JOURNEY_CONVERGENCE → final mutation owner Cartography sync/no-op → candidate freeze → holistic validator PASS → sealed product acceptance PASS → target GitHub issue AC close audit → PR 생성` 순서를 바꾸지 않는다. 최초 PR은 이 순서가 끝난 뒤에만 만든다.
+`JOURNEY_CONVERGENCE → final mutation owner Cartography sync/no-op → candidate freeze → holistic validator PASS → sealed product acceptance PASS → 실행 기록 게시 → target GitHub issue AC close audit → PR 생성` 순서를 바꾸지 않는다. 최초 PR은 이 순서가 끝난 뒤에만 만든다.
 
 ### 커밋 consolidate
 
@@ -154,6 +155,15 @@ Epic 종료 가능이 아니면 close를 보류하고, 막은 이유마다 어�
 - 새 정보가 나오지 않거나 누적 비용이 얻는 정보보다 크면 멈추고 시도한 것·남은 finding·남은 가설·누적 횟수와 시간을 사용자에게 보고한다.
 
 비자동 acceptance gap, 설계·AC 충돌, `ESCALATE`는 사용자에게 넘긴다.
+
+## 완료 기준 실행 기록 게시
+
+Epic·Story 완료 기준이 "실행 로그나 화면 캡처가 story 이슈 또는 PR 에 남아 있다"처럼 GitHub 에 남은 증거를 요구하면, AC close audit 전에 메인이 그 기록을 해당 story 이슈에 댓글로 남긴다. 그 AC 는 게시된 댓글을 증거로 audit 에서 판정한다. product-acceptance 는 외부 상태를 바꾸지 않으므로 이 게시는 메인이 맡는다.
+
+- 기록 내용: AC별 판정, journey 실행 번호(run id), 실행 커밋, 종료코드, receipt·화면 캡처·로그의 로컬 경로. product-acceptance 보고와 `dcness-product-journey` receipt 에서 옮긴다.
+- 게시 명령: `gh issue comment <story-issue> --body-file <record.md>`. 텍스트 기록만 CLI 로 올린다. 화면 캡처 이미지 첨부는 사용자에게 업로드를 요청하고 human verification 잔여로 보고한다.
+- PR 본문의 검증 항목에는 같은 기록의 요약과 이슈 댓글 링크를 적는다.
+- 원본 증거 파일(`.dcness-work/product-journey/`)은 git 이 추적하지 않는다. `pr-finalize.sh` 는 merge 뒤 feature worktree 를 지우기 전에 이 폴더를 default branch worktree 의 같은 경로로 복사한다. 같은 경로에 이미 파일이 있으면 덮어쓰지 않고 feature worktree 를 남긴 채 이유를 출력한다.
 
 ## target GitHub issue AC close audit
 

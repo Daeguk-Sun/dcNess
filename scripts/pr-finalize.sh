@@ -10,6 +10,7 @@
 #   3. 머지 완료 대기 (리뷰 필수 등으로 auto-merge 가 예약된 경우의 GitHub 백그라운드 lag)
 #   4. git fetch origin <default> + default branch worktree fast-forward
 #   5. clean feature worktree / stale worktree admin entry 정리
+#      (feature worktree 의 .dcness-work/product-journey/ 여정 증거는 삭제 전에 default worktree 로 복사)
 #
 # base ≠ default branch PR은 merge 전에 거부한다. story stack PR은 사용자의 merge
 # 승인 뒤 default branch로 리타겟·리베이스한 다음 이 helper를 호출해야 한다.
@@ -53,10 +54,13 @@ json_field() {
   python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"
 }
 
+# merged_head = --match-head-commit 으로 merge 한 PR head. Stop hook 은 이 값이
+# 검증·검수 receipt 의 candidate HEAD 와 같을 때만 지워진 worktree 를 merge 완료로 본다.
 record_pr_merged() {
   local pr_number="$1"
   local pr_url="$2"
-  if ! "$HELPER" ledger-event pr_merged --pr "$pr_number" --url "$pr_url" >/dev/null 2>&1; then
+  local merged_head="$3"
+  if ! "$HELPER" ledger-event pr_merged --pr "$pr_number" --url "$pr_url" --head "$merged_head" >/dev/null 2>&1; then
     echo "[pr-finalize] WARN: ledger pr_merged 기록 실패 — active dcNess run 밖이면 정상" >&2
   fi
 }
@@ -210,6 +214,37 @@ switch_current_to_default_worktree() {
   sync_default_worktree "$path"
 }
 
+# product-acceptance 여정 증거(.dcness-work/product-journey/)는 git 이 추적하지 않아
+# worktree remove 가 함께 지운다. 삭제 전에 default worktree 로 복사하고, 같은 경로의
+# 파일이 이미 있으면 덮어쓰지 않고 feature worktree 삭제를 보류한다.
+preserve_journey_evidence() {
+  local feature_path="$1"
+  local anchor="$2"
+  local src="$feature_path/.dcness-work/product-journey"
+  local dest="$anchor/.dcness-work/product-journey"
+  local conflict
+
+  if [ ! -d "$src" ] || [ -z "$(ls -A "$src")" ]; then
+    return 0
+  fi
+  conflict=$(cd "$src" && find . \( -type f -o -type l \) | while IFS= read -r rel; do
+    if [ -e "$dest/$rel" ] || [ -L "$dest/$rel" ]; then
+      printf '%s\n' "${rel#./}"
+      break
+    fi
+  done)
+  if [ -n "$conflict" ]; then
+    add_preserved "$feature_path: product-journey evidence already exists at $dest/$conflict; feature worktree kept so no evidence is overwritten"
+    return 1
+  fi
+  if ! mkdir -p "$dest" || ! cp -Rp "$src/." "$dest/"; then
+    add_preserved "$feature_path: product-journey evidence copy to $dest failed; feature worktree kept"
+    return 1
+  fi
+  add_cleaned "product-journey evidence moved to $dest"
+  return 0
+}
+
 cleanup_merged_feature_worktree() {
   local feature_path
   local anchor
@@ -236,6 +271,10 @@ cleanup_merged_feature_worktree() {
   fi
   if [ -z "$anchor" ]; then
     add_preserved "$feature_path: no default worktree anchor available for safe removal"
+    return 0
+  fi
+
+  if ! preserve_journey_evidence "$feature_path" "$anchor"; then
     return 0
   fi
 
@@ -472,7 +511,7 @@ fi
 
 # Step 4: post-merge ledger 기록
 PR_URL=$(gh pr view "$PR" --json url -q .url 2>/dev/null)
-record_pr_merged "$PR" "$PR_URL"
+record_pr_merged "$PR" "$PR_URL" "$HEAD_SHA"
 
 if [ -n "$MERGE_LOCK_TOKEN" ]; then
   "$HELPER" merge-lock complete \

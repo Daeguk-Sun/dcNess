@@ -40,9 +40,10 @@ class PrLifecycleLedgerWiringTests(unittest.TestCase):
         self.assertIn("ledger-event pr_merged", script)
         self.assertIn("--url", script)
         self.assertIn("--pr", script)
+        self.assertIn('--head "$merged_head"', script)
         self.assertLess(
             script.index('STATE" != "MERGED"'),
-            script.index('record_pr_merged "$PR" "$PR_URL"'),
+            script.index('record_pr_merged "$PR" "$PR_URL" "$HEAD_SHA"'),
         )
 
 

@@ -736,7 +736,7 @@ def _cli_ledger_event(args: Any) -> int:
         return 1
 
     fields: Dict[str, Any] = {}
-    for key in ("agent", "mode", "pr_number", "url", "issue_num", "reason"):
+    for key in ("agent", "mode", "pr_number", "url", "issue_num", "reason", "head_sha"):
         val = getattr(args, key, None)
         if val is not None:
             fields[key] = val
@@ -1302,6 +1302,7 @@ def _build_arg_parser() -> Any:
     p_le.add_argument("--url", default=None)
     p_le.add_argument("--issue", type=int, default=None, dest="issue_num")
     p_le.add_argument("--reason", default=None)
+    p_le.add_argument("--head", default=None, dest="head_sha")
     p_le.set_defaults(func=_cli_ledger_event)
 
     p_en = sub.add_parser("enable", help="현재 cwd 의 main repo 활성화 (whitelist 추가)")
