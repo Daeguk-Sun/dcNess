@@ -58,6 +58,8 @@ HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
   --issue-num <target-issue> \
   --acceptance-required
 ```
+
+- 수렴 build-worker가 non-PASS로 끝난 뒤 사용자가 수렴 재개를 고르면, 같은 명령에 `--rework --resume-provider <직전 수렴 provider>`를 붙여 같은 run에 새 수렴 step을 연다. `journey_deferred`처럼 run에 저장된 마감 상태를 잃으므로 run을 닫고 새로 열지 않는다. 그 run을 이어 쓸 수 없는 세션에서는 chain이 새 run을 만들지 않고 멈춘다.
 - 첫 실행 PASS면 끝내고, 실패하면 실행 → 관찰 → 배관 수정 → 재실행한다.
 - 시나리오 매니페스트이면 재실행은 `--scenario`로 실패한 시나리오만 한다. 수렴 PASS 전에 이미 통과한 다른 시나리오를 다시 실행할지는 build-worker가 이번 수정이 그 시나리오에 닿는지 읽고 정하며, 다시 실행하지 않은 시나리오는 이유를 남긴다. 부분 실행 receipt는 전체 실행 receipt가 아니다.
 - story-local production 수정은 해당 story branch에 commit하고 downstream branch를 restack한다.

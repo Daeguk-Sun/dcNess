@@ -102,6 +102,8 @@ class ImplLoopLaunchTests(unittest.TestCase):
         acceptance_required: bool = True,
         provider_conclusion: str = "PASS",
         mode: str = "",
+        rework_provider: str = "",
+        session_id: str = "sid-fast-launch",
         init_paths: tuple[str, ...] = (
             "docs/epics/epic-1/impl/01-fast.md",
         ),
@@ -172,7 +174,7 @@ class ImplLoopLaunchTests(unittest.TestCase):
             env.pop("DCNESS_SESSION_ID", None)
             env["CLAUDE_CODE_SESSION_ID"] = "sid-fast-launch"
         else:
-            env["DCNESS_SESSION_ID"] = "sid-fast-launch"
+            env["DCNESS_SESSION_ID"] = session_id
         command = [
                 str(CHAIN),
                 "build-worker",
@@ -193,6 +195,8 @@ class ImplLoopLaunchTests(unittest.TestCase):
             command.append("--acceptance-required")
         for init_path in init_paths:
             command[8:8] = ["--init-path", init_path]
+        if rework_provider:
+            command[2:6] = ["--rework", "--resume-provider", rework_provider]
         if mode:
             command.insert(2, mode)
         result = subprocess.run(
@@ -512,8 +516,49 @@ class ImplLoopLaunchTests(unittest.TestCase):
                 base=base,
                 init_paths=(),
                 mode="JOURNEY_CONVERGENCE",
+                provider_conclusion="IMPLEMENTATION_ESCALATE",
             )
-            self.assertEqual(convergence.returncode, 0, convergence.stderr)
+            self.assertEqual(convergence.returncode, 76, convergence.stderr)
+
+            # 같은 run 의 수렴 재실행은 run 을 닫지 않고 --rework 로 새 step 을 연다.
+            relaunch = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+            )
+            self.assertEqual(relaunch.returncode, 76, relaunch.stderr)
+            self.assertIn("--rework --resume-provider", relaunch.stderr)
+            self.assertNotIn("dcness-helper end-run", relaunch.stderr)
+
+            # 기존 수렴 run 을 이어 쓸 수 없는 세션에서는 새 run 을 만들지 않고 멈춘다.
+            other_session = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+                rework_provider="claude-headless",
+                session_id="sid-other-session",
+            )
+            self.assertEqual(other_session.returncode, 2, other_session.stderr)
+            self.assertIn("active JOURNEY_CONVERGENCE run", other_session.stderr)
+            other_runs = (
+                primary / ".claude" / "harness-state" / ".sessions"
+                / "sid-other-session" / "runs"
+            )
+            self.assertEqual(list(other_runs.glob("run-*")), [])
+
+            resumed = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+                rework_provider="claude-headless",
+            )
+            self.assertEqual(resumed.returncode, 0, resumed.stderr)
 
             run_root = (
                 primary
@@ -540,8 +585,22 @@ class ImplLoopLaunchTests(unittest.TestCase):
             ]
             self.assertEqual(
                 final_steps,
-                [("build-worker", ""), ("build-worker", "JOURNEY_CONVERGENCE")],
+                [
+                    ("build-worker", ""),
+                    ("build-worker", "JOURNEY_CONVERGENCE"),
+                    ("build-worker", "JOURNEY_CONVERGENCE"),
+                ],
             )
+
+            task_rework = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                rework_provider="claude-headless",
+            )
+            self.assertEqual(task_rework.returncode, 2)
+            self.assertIn("--rework requires --direct-run", task_rework.stderr)
 
     def test_reused_direct_impl_run_gets_story_acceptance_requirement(self) -> None:
         """#1240 — /impl 로 먼저 연 같은 task 의 run 을 chain 이 이어 쓰면 검수 표시도 맞춘다."""
