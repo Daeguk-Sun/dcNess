@@ -173,7 +173,7 @@ Part of #N
 - 머지 완료 대기 (리뷰 필수 등으로 auto-merge 가 예약된 경우의 GitHub 백그라운드 lag)
 - peer claim 이 있으면 completed 기록 (`merge-lock complete`)
 - `git fetch origin <default>` 후 default branch worktree fast-forward
-- clean linked feature worktree 와 stale worktree admin entry 를 안전 조건 안에서 정리하고, dirty/non-fast-forward/checkout 충돌은 `preserved` 목록에 이유와 함께 남긴다.
+- clean linked feature worktree 와 stale worktree admin entry 를 안전 조건 안에서 정리하고 (feature worktree 의 `.dcness-work/product-journey/` 여정 증거는 삭제 전에 default branch worktree 로 복사, 같은 경로 파일이 있으면 worktree 삭제 보류), dirty/non-fast-forward/checkout 충돌은 `preserved` 목록에 이유와 함께 남긴다.
 - **base ≠ default branch PR 거부** — `pr-finalize.sh`는 merge 전에 fail-fast한다. `/impl-loop` story PR은 사용자 승인 뒤 main으로 리타겟·리베이스해야만 helper를 호출할 수 있다.
 - (예정) Test Plan 종합 — 하위 commit 들의 `## Test Plan` 자동 수집·중복 제거·PR body 갱신
 
