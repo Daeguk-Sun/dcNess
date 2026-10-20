@@ -543,7 +543,7 @@ class ImplLoopLaunchTests(unittest.TestCase):
                 session_id="sid-other-session",
             )
             self.assertEqual(other_session.returncode, 2, other_session.stderr)
-            self.assertIn("active JOURNEY_CONVERGENCE run", other_session.stderr)
+            self.assertIn("no new run was created", other_session.stderr)
             other_runs = (
                 primary / ".claude" / "harness-state" / ".sessions"
                 / "sid-other-session" / "runs"
@@ -600,15 +600,104 @@ class ImplLoopLaunchTests(unittest.TestCase):
             }
             self.assertEqual(convergence_states, {str(state_path.resolve())})
 
-            task_rework = self._launch(
+    def test_validator_fail_rework_reopens_build_worker_in_last_task_run(self) -> None:
+        """#1319 — 모든 task 완료 뒤 validator FAIL 수정 build-worker 를 같은 run 에 연다."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            primary, worktree = self._fixture(base)
+            state_path = worktree / ".dcness-work" / "story-run.json"
+            helper = str(ROOT / "scripts" / "dcness-helper")
+
+            first = self._launch(primary=primary, project=worktree, base=base)
+            self.assertEqual(first.returncode, 0, first.stderr)
+
+            # 아직 task 가 남은 chain 에서는 rework 가 task loop 를 대신하지 않는다.
+            early = self._launch(
                 primary=primary,
                 project=worktree,
                 base=base,
                 init_paths=(),
                 rework_provider="claude-headless",
             )
-            self.assertEqual(task_rework.returncode, 2)
-            self.assertIn("--rework requires --direct-run", task_rework.stderr)
+            self.assertNotEqual(early.returncode, 0, early.stderr)
+            self.assertIn("--rework requires every chain task completed", early.stderr)
+
+            head = _run_git(worktree, "rev-parse", "HEAD").stdout.strip()
+            marked = subprocess.run(
+                [
+                    str(ROOT / "scripts" / "dcness-story-runner"),
+                    "mark", "--task", "1", "--status", "completed",
+                    "--commit", head, "--state", str(state_path),
+                ],
+                cwd=worktree,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(marked.returncode, 0, marked.stderr)
+
+            run_root = (
+                primary / ".claude" / "harness-state" / ".sessions"
+                / "sid-fast-launch" / "runs"
+            )
+            (run_dir,) = list(run_root.glob("run-*"))
+            env = {
+                **os.environ,
+                "DCNESS_FORCE_ENABLE": "1",
+                "DCNESS_SESSION_ID": "sid-fast-launch",
+                "DCNESS_RUN_ID": run_dir.name,
+            }
+            began = subprocess.run(
+                [helper, "begin-step", "impl-validator"],
+                cwd=worktree, capture_output=True, text=True, env=env,
+            )
+            self.assertEqual(began.returncode, 0, began.stderr)
+            prose = base / "validator.md"
+            prose.write_text("MUST FIX: src/a.kt\n\nFAIL\n", encoding="utf-8")
+            ended = subprocess.run(
+                [helper, "end-step", "impl-validator", "--prose-file", str(prose)],
+                cwd=worktree, capture_output=True, text=True, env=env,
+            )
+            self.assertEqual(ended.returncode, 0, ended.stderr)
+
+            # 이어 쓸 run 이 없는 세션에서는 새 run 을 만들지 않고 멈춘다.
+            other_session = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                rework_provider="claude-headless",
+                session_id="sid-other-session",
+            )
+            self.assertEqual(other_session.returncode, 2, other_session.stderr)
+            self.assertIn("no new run was created", other_session.stderr)
+            other_runs = run_root.parent.parent / "sid-other-session" / "runs"
+            self.assertEqual(list(other_runs.glob("run-*")), [])
+
+            rework = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                rework_provider="claude-headless",
+            )
+            self.assertEqual(rework.returncode, 0, rework.stderr)
+            self.assertEqual(list(run_root.glob("run-*")), [run_dir])
+            events = [
+                json.loads(line)
+                for line in (run_dir / "ledger.jsonl").read_text(encoding="utf-8").splitlines()
+            ]
+            self.assertEqual(
+                [
+                    (event["agent"], event.get("mode") or "")
+                    for event in events
+                    if event["event"] == "step_started"
+                ],
+                [
+                    ("build-worker", ""),
+                    ("impl-validator", ""),
+                    ("build-worker", ""),
+                ],
+            )
 
     def test_reused_direct_impl_run_gets_story_acceptance_requirement(self) -> None:
         """#1240 — /impl 로 먼저 연 같은 task 의 run 을 chain 이 이어 쓰면 검수 표시도 맞춘다."""

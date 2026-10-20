@@ -32,7 +32,8 @@ Options:
                       Requires an isolated feature worktree.
   --design-doc        Optional merged design document for --direct-run.
   --rework            Open a new build-worker step for validator finding repair,
-                      or rerun JOURNEY_CONVERGENCE in the same --chain-state run.
+                      or rerun JOURNEY_CONVERGENCE. With --chain-state it needs every
+                      task completed and reuses the last task run; it never creates a run.
   --resume-provider   Reuse the exact terminal implementation provider for rework.
   --issue-num         Target GitHub issue number recorded on an auto-created run.
   --acceptance-required  Enable acceptance on the final chain task only.
@@ -221,10 +222,10 @@ if [ -n "$DIRECT_DESIGN_DOC" ] && [ "$DIRECT_RUN" -ne 1 ]; then
   echo "[dcness-implementation-chain] --design-doc requires --direct-run" >&2
   exit 2
 fi
-# 여정 수렴은 run 에 마감 상태(journey_deferred 등)를 두므로 run 을 닫지 않고 같은 run 에서 다시 연다.
-if [ "$REWORK" -eq 1 ] && [ "$DIRECT_RUN" -ne 1 ] \
-  && ! { [ -n "$CHAIN_STATE" ] && [ "$MODE" = "JOURNEY_CONVERGENCE" ]; }; then
-  echo "[dcness-implementation-chain] --rework requires --direct-run, or --chain-state with JOURNEY_CONVERGENCE" >&2
+# 마감 run 에는 candidate·acceptance_required·journey_deferred 같은 마감 상태가 있으므로
+# chain 의 rework(여정 수렴 재실행, validator FAIL 수정)는 run 을 닫지 않고 같은 run 에서 연다.
+if [ "$REWORK" -eq 1 ] && [ "$DIRECT_RUN" -ne 1 ] && [ -z "$CHAIN_STATE" ]; then
+  echo "[dcness-implementation-chain] --rework requires --direct-run or --chain-state" >&2
   exit 2
 fi
 if [ "$REWORK" -eq 1 ] && [ -z "$RESUME_PROVIDER" ]; then
@@ -410,7 +411,7 @@ PY
 current_chain_task_path() {
   [ -n "$CHAIN_STATE" ] || return 0
   PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 - "$CHAIN_STATE" "$MODE" <<'PY'
+    python3 - "$CHAIN_STATE" "$MODE" "$REWORK" <<'PY'
 import sys
 from pathlib import Path
 
@@ -418,12 +419,14 @@ from harness.story_runner import load_state, next_action
 
 state = load_state(Path(sys.argv[1]))
 mode = sys.argv[2]
+rework = sys.argv[3] == "1"
 action = next_action(state)
-# 여정 수렴은 모든 task 완료 뒤 마지막 task run 에서 연다.
-if mode == "JOURNEY_CONVERGENCE":
+# 여정 수렴과 마감 rework(validator FAIL 수정)는 모든 task 완료 뒤 마지막 task run 에서 연다.
+if mode == "JOURNEY_CONVERGENCE" or rework:
     if action.get("action") != "done":
+        label = mode or "--rework"
         raise SystemExit(
-            "JOURNEY_CONVERGENCE requires every chain task completed: "
+            f"{label} requires every chain task completed: "
             f"action={action.get('action')}"
         )
     print(state["tasks"][-1]["path"])
@@ -517,9 +520,9 @@ else:
 PY
   )" || return $?
 
-  # 수렴 재실행은 기존 run 의 마감 상태를 이어 써야 하므로 새 run 을 만들지 않는다.
+  # chain rework 는 마지막 task run 의 마감 상태를 이어 써야 하므로 새 run 을 만들지 않는다.
   if [ "$REWORK" -eq 1 ] && [ "$run_action" != "reuse" ]; then
-    echo "[dcness-implementation-chain] --rework requires the active JOURNEY_CONVERGENCE run for $CURRENT_CHAIN_TASK in this session; no new run was created. Resume from the session that owns that run." >&2
+    echo "[dcness-implementation-chain] --rework requires the active last-task run for $CURRENT_CHAIN_TASK in this session (the run that holds JOURNEY_CONVERGENCE and close validation); no new run was created. Resume from the session that owns that run." >&2
     return 2
   fi
 
@@ -742,7 +745,7 @@ PY
       if [ -n "$CHAIN_STATE" ] && [ "$MODE" = "JOURNEY_CONVERGENCE" ]; then
         echo "[dcness-implementation-chain] To rerun convergence in this run, call the chain again with --rework --resume-provider <actual-provider>; do not close the run." >&2
       elif [ -n "$CHAIN_STATE" ]; then
-        echo "[dcness-implementation-chain] To rerun this task, close the run with 'dcness-helper end-run' and call the chain again with the same --chain-state; --rework is --direct-run only." >&2
+        echo "[dcness-implementation-chain] To rerun this task, close the run with 'dcness-helper end-run' and call the chain again with the same --chain-state. After every task completed, use --rework --resume-provider <actual-provider> for close-time repair." >&2
       else
         echo "[dcness-implementation-chain] Use --rework with the actual provider to reopen a build-worker step." >&2
       fi
@@ -753,11 +756,11 @@ PY
         begin_chain_step
         return $?
       fi
-      # chain-state task 는 --rework 를 쓸 수 없으므로 실제로 동작하는 복구 경로를 안내한다.
+      # task loop 중에는 --rework 를 쓸 수 없으므로 실제로 동작하는 복구 경로를 안내한다.
       if [ -n "$CHAIN_STATE" ] && [ "$MODE" = "JOURNEY_CONVERGENCE" ]; then
         echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal $AGENT JOURNEY_CONVERGENCE receipt. To rerun convergence in this run, call the chain again with --rework --resume-provider <actual-provider>." >&2
       elif [ -n "$CHAIN_STATE" ]; then
-        echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal $AGENT receipt. To rerun this task, close the run with 'dcness-helper end-run' and call the chain again with the same --chain-state; --rework is --direct-run only. Otherwise advance the story task." >&2
+        echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal $AGENT receipt. To rerun this task, close the run with 'dcness-helper end-run' and call the chain again with the same --chain-state. After every task completed, use --rework --resume-provider <actual-provider> for close-time repair. Otherwise advance the story task." >&2
       else
         echo "[dcness-implementation-chain] ALREADY_COMPLETED: current run already has a terminal $AGENT receipt; use --rework with the actual provider for finding repair, or advance the story task." >&2
       fi

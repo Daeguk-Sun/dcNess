@@ -1359,16 +1359,15 @@ def impl_scope_paths_for_run(
         return ()
     docs = [doc]
     current = _slot_for_run(session_id, run_id, base_dir=base_dir).get("current_step")
-    if (
-        isinstance(current, dict)
-        and current.get("agent") == "build-worker"
-        and current.get("mode") == "JOURNEY_CONVERGENCE"
-    ):
-        # 수렴은 chain 전체 story 의 여정 배관을 고치므로 chain task 의 설계 승인 경로를 합친다.
+    if isinstance(current, dict) and current.get("agent") == "build-worker":
+        # 수렴은 chain 전체 story 의 여정 배관을, 모든 task 완료 뒤 마감 rework 는 base..tip
+        # 전체를 본 holistic validator finding 을 고치므로 chain task 의 설계 승인 경로를 합친다.
         # chain 이 step 에 기록한 state 만 읽고, 기록이 없으면 넓히지 않는다.
         chain_state = current.get("chain_state")
         if isinstance(chain_state, str) and chain_state:
-            docs = _chain_task_docs(doc, Path(chain_state)) or docs
+            state_path = Path(chain_state)
+            if current.get("mode") == "JOURNEY_CONVERGENCE" or _chain_done(state_path):
+                docs = _chain_task_docs(doc, state_path) or docs
     from harness.parallel_wave import parse_impl_task
 
     paths: set[str] = set()
@@ -1378,6 +1377,16 @@ def impl_scope_paths_for_run(
         except (OSError, ValueError):
             continue
     return tuple(sorted(paths))
+
+
+def _chain_done(state_path: Path) -> bool:
+    """Return True when every task of the `/impl-loop` chain state is completed."""
+    from harness.story_runner import load_state, next_action
+
+    try:
+        return next_action(load_state(state_path)).get("action") == "done"
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
 
 
 def _chain_task_docs(doc: Path, state_path: Path) -> list[Path]:

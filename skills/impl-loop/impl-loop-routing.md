@@ -89,7 +89,7 @@ finding 수용 원칙: 같은 파일·주제·위험 클래스 finding 이 반�
 
 | 진입점 | 재개 수단 |
 |---|---|
-| `--chain-state` (`/impl-loop`) | `dcness-helper end-run` 으로 현재 run 을 닫고 같은 `--chain-state` 로 chain 을 다시 호출한다. chain 이 새 run 과 `step_started` 를 만든다. `--rework` 는 이 진입점에서 사용할 수 없다. 예외: 모든 task 완료 뒤 `JOURNEY_CONVERGENCE` 는 `--rework --resume-provider <actual-provider>` 로 같은 run 에 새 수렴 step 을 연다. |
+| `--chain-state` (`/impl-loop`) | `dcness-helper end-run` 으로 현재 run 을 닫고 같은 `--chain-state` 로 chain 을 다시 호출한다. chain 이 새 run 과 `step_started` 를 만든다. `--rework` 는 task loop 중에는 사용할 수 없다. 예외: 모든 task 완료(`action=done`) 뒤 마감 단계는 `--rework --resume-provider <actual-provider>` 로 마지막 task run 에 새 build-worker step 을 연다 — `JOURNEY_CONVERGENCE` 재실행은 mode 를 붙이고, 마감 holistic review FAIL 수정은 mode 없이 부른다([`impl-loop-finish.md`](impl-loop-finish.md)). 이어 쓸 run 이 없으면 chain 은 새 run 을 만들지 않고 멈춘다. |
 | `--direct-run` (`/impl`) | `--rework --resume-provider <actual-provider>` 로 같은 run 에 새 build-worker step 을 연다. |
 
 재개 전에는 사용자가 정한 처분(환경 준비 완료, journey 검수 분리 등)을 다음 worker prompt 에 명시해 같은 지점에서 다시 멈추지 않게 한다.

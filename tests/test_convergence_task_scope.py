@@ -77,6 +77,30 @@ class ConvergenceTaskScopeTests(unittest.TestCase):
 
         self.assertEqual(set(scope), {"src/home/", "scripts/acceptance/story-2.sh"})
 
+    def test_close_rework_step_after_every_task_completed_opens_every_grant(
+        self,
+    ) -> None:
+        # holistic impl-validator 는 base..tip 전체를 보므로 FAIL 수정도 chain 전체 범위다 (#1319).
+        from harness.story_runner import load_state
+
+        state = load_state(self.state_path)
+        for task in state["tasks"]:
+            task["status"] = "completed"
+            task["commit"] = "a" * 40
+        save_state(self.state_path, state)
+
+        scope = self._scope(mode=None, design_doc=self.last)
+
+        self.assertEqual(
+            set(scope),
+            {
+                "src/login/",
+                "scripts/acceptance/story-1.sh",
+                "src/home/",
+                "scripts/acceptance/story-2.sh",
+            },
+        )
+
     def test_design_doc_outside_chain_state_keeps_only_its_own_grant(self) -> None:
         stray = self.root / "docs" / "epics" / "epic-02-other" / "impl" / "01-x.md"
         stray.parent.mkdir(parents=True)

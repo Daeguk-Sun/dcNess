@@ -72,7 +72,16 @@ HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
 
 ### 격리 review
 
-설정된 chain이 아니라 terminal receipt의 실제 구현 성공 provider의 반대 진영을 기본 review provider로 resolve한다. Codex 구현이면 Claude review, Claude 구현이면 Codex review다. Codex reviewer가 불가하면 Claude로 폴백하고 이유를 기록한다. validator는 read-only다. MUST FIX가 있으면 실제 구현 provider와 동일한 build-worker가 root-cause 수정하고 그 수정이 닿는 gate를 재실행한다. 재리뷰를 계속할지는 [마감 복구와 증거 invalidation](#마감-복구와-증거-invalidation)의 수렴 판단으로 정한다. build-worker rework가 코드나 harness를 바꾸면 필요한 earlier evidence부터 다시 수집한다.
+설정된 chain이 아니라 terminal receipt의 실제 구현 성공 provider의 반대 진영을 기본 review provider로 resolve한다. Codex 구현이면 Claude review, Claude 구현이면 Codex review다. Codex reviewer가 불가하면 Claude로 폴백하고 이유를 기록한다. validator는 read-only다. MUST FIX가 있으면 실제 구현 provider와 동일한 build-worker가 root-cause 수정하고 그 수정이 닿는 gate를 재실행한다. 수정 build-worker는 task loop와 같은 state로, mode 없이 `--rework`로 시작한다. chain은 모든 task가 completed(`action=done`)일 때만 마지막 task run에 새 build-worker step을 열고, 그 step의 쓰기 범위는 chain task 전체 `### 수정 허용` 합집합이다. 마감 run에는 candidate·`acceptance_required`·`journey_deferred` 같은 마감 상태가 있으므로 `end-run`으로 닫고 새 run을 열지 않는다. 이어 쓸 run이 없는 세션에서는 chain이 새 run을 만들지 않고 멈춘다. `begin-step`을 먼저 부르거나 `--chain-state`를 빼지 않는다.
+
+```bash
+"$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker \
+  --chain-state .dcness-work/story-run.json \
+  --prompt-file <validator-finding-prompt> \
+  --rework --resume-provider <직전 구현 terminal receipt의 실제 provider>
+```
+
+`<직전 구현 terminal receipt의 실제 provider>`는 설정된 chain이 아니라 마지막 build-worker `step_completed` receipt의 provider다. 재리뷰를 계속할지는 [마감 복구와 증거 invalidation](#마감-복구와-증거-invalidation)의 수렴 판단으로 정한다. build-worker rework가 코드나 harness를 바꾸면 필요한 earlier evidence부터 다시 수집한다.
 
 `impl-validator`의 첫 라운드는 base부터 final stack tip까지를 한 번에 보는 반대 진영 전체 holistic reviewer다. task/commit 목록은 추적 근거이지 fixed task/commit fan-out 계획이 아니다. task별·commit별 child reviewer를 자동 생성하지 않고, 실제 unresolved high-risk 또는 넓은 context가 발견된 경우에만 같은 reviewer가 selective extra investigation을 수행한다.
 
