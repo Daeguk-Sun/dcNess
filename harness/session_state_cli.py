@@ -565,8 +565,13 @@ def _cli_begin_step(args: Any) -> int:
         print(gate_message, file=sys.stderr)
         return 1
     try:
+        chain_state_arg = getattr(args, "chain_state", "")
+        chain_state = (
+            str(Path(chain_state_arg).resolve()) if chain_state_arg else None
+        )
         transition(
-            sid, "step_started", run_id=rid, agent=agent, mode=mode, **candidate
+            sid, "step_started", run_id=rid, agent=agent, mode=mode,
+            chain_state=chain_state, **candidate
         )
     except (OSError, ValueError) as exc:
         print(f"[begin-step] FAIL — {exc}", file=sys.stderr)
@@ -1023,6 +1028,11 @@ def _build_arg_parser() -> Any:
     p_bs = sub.add_parser("begin-step", help="current_step + heartbeat 갱신")
     p_bs.add_argument("agent")
     p_bs.add_argument("mode", nargs="?", default="")
+    p_bs.add_argument(
+        "--chain-state",
+        default="",
+        help="/impl-loop story-run state 경로. 여정 수렴 step 의 쓰기 범위 계산에 쓴다.",
+    )
     p_bs.set_defaults(func=_cli_begin_step)
 
     p_es = sub.add_parser(

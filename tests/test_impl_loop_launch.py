@@ -591,6 +591,14 @@ class ImplLoopLaunchTests(unittest.TestCase):
                     ("build-worker", "JOURNEY_CONVERGENCE"),
                 ],
             )
+            # 수렴 step 은 쓰기 범위 계산에 쓸 chain state 경로를 함께 기록한다.
+            convergence_states = {
+                event.get("chain_state")
+                for event in ledgers["02-fast.md"]
+                if event["event"] == "step_started"
+                and event.get("mode") == "JOURNEY_CONVERGENCE"
+            }
+            self.assertEqual(convergence_states, {str(state_path.resolve())})
 
             task_rework = self._launch(
                 primary=primary,

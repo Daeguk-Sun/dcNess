@@ -812,6 +812,7 @@ def _apply_step_transition(
                     "candidate_head",
                     "candidate_tree",
                     "candidate_root",
+                    "chain_state",
                 )
                 if data.get(key)
             },
@@ -831,6 +832,7 @@ def _apply_step_transition(
                     "candidate_head",
                     "candidate_tree",
                     "candidate_root",
+                    "chain_state",
                 )
                 if data.get(key)
             },
@@ -1328,15 +1330,47 @@ def impl_scope_paths_for_run(
     doc = _run_design_doc_path(session_id, run_id, base_dir=base_dir)
     if doc is None or not doc.is_file():
         return ()
-    try:
-        from harness.parallel_wave import parse_impl_task
+    docs = [doc]
+    current = _slot_for_run(session_id, run_id, base_dir=base_dir).get("current_step")
+    if (
+        isinstance(current, dict)
+        and current.get("agent") == "build-worker"
+        and current.get("mode") == "JOURNEY_CONVERGENCE"
+    ):
+        # 수렴은 chain 전체 story 의 여정 배관을 고치므로 chain task 의 설계 승인 경로를 합친다.
+        # chain 이 step 에 기록한 state 만 읽고, 기록이 없으면 넓히지 않는다.
+        chain_state = current.get("chain_state")
+        if isinstance(chain_state, str) and chain_state:
+            docs = _chain_task_docs(doc, Path(chain_state)) or docs
+    from harness.parallel_wave import parse_impl_task
 
-        parsed = parse_impl_task(doc)
+    paths: set[str] = set()
+    for task_doc in docs:
+        try:
+            paths.update(parse_impl_task(task_doc).scope_paths)
+        except (OSError, ValueError):
+            continue
+    return tuple(sorted(paths))
+
+
+def _chain_task_docs(doc: Path, state_path: Path) -> list[Path]:
+    """Return every task doc of the `/impl-loop` chain state that contains *doc*."""
+    from harness.story_runner import load_state
+
+    try:
+        state = load_state(state_path)
     except (OSError, ValueError):
-        return ()
-    if not parsed.scope_paths:
-        return ()
-    return tuple(sorted(parsed.scope_paths))
+        return []
+    root = Path(str(state.get("project_root", ""))).resolve()
+    # headless 사후 검사는 state 파일을 검사하지 않는다. 같은 impl 디렉토리로 좁혀
+    # state 를 고쳐도 다른 Epic 의 설계 승인 경로가 열리지 않게 한다.
+    task_docs = [
+        task_doc
+        for task in state.get("tasks", [])
+        if (task_doc := (root / str(task.get("path", ""))).resolve()).parent
+        == doc.resolve().parent
+    ]
+    return task_docs if doc.resolve() in task_docs else []
 
 
 def _run_lane(

@@ -123,7 +123,7 @@ Epic 목표, Epic 완료 기준, 각 Story AC, 최신 제품 결정을 읽고 �
 - 무엇을 성공으로 보는가 — 화면이 어떻게 바뀌면 통과인지 서술한다.
 - 어떤 테스트 데이터를 정리하는가 — 실행이 남기는 데이터와 정리 범위를 서술한다.
 
-매니페스트 형태, 내부 helper 명령, 내부 지표 이름을 승인 화면에 노출하지 않는다. 사용자가 그 형태를 직접 조립해야 진행되는 상태면 승인 단계가 아니라 제품 gap이다. 승인 뒤에 build-worker가 해당 매니페스트에 [`product-journey.md`의 `epic_scope`](../../docs/plugin/product-journey.md#epic_scope)를 materialize하고, 이후 실행은 기존 `JOURNEY_CONVERGENCE`와 sealed product acceptance 경로를 그대로 탄다. UI 대표 흐름은 실제 앱 경계에서 실행하며 단계별 화면 상태·screenshot·log를 기존 UI 증거 계약대로 남긴다.
+매니페스트 형태, 내부 helper 명령, 내부 지표 이름을 승인 화면에 노출하지 않는다. 사용자가 그 형태를 직접 조립해야 진행되는 상태면 승인 단계가 아니라 제품 gap이다. 승인 뒤에 build-worker가 해당 매니페스트에 [`product-journey.md`의 `epic_scope`](../../docs/plugin/product-journey.md#epic_scope)를 materialize하고, 이후 실행은 기존 `JOURNEY_CONVERGENCE`와 sealed product acceptance 경로를 그대로 탄다. 대표 흐름의 매니페스트·대본은 수렴 호출이 쓸 수 있는 범위(chain task 전체 `### 수정 허용` 합집합) 안의 기존 매니페스트나 경로에 둔다. 범위 밖에 새 파일이 필요하면 boundary guard가 막으므로, build-worker 호출 전에 사용자에게 알리고 설계의 `### 수정 허용`을 보강한다. UI 대표 흐름은 실제 앱 경계에서 실행하며 단계별 화면 상태·screenshot·log를 기존 UI 증거 계약대로 남긴다.
 
 ### 결과 요약 보고
 

@@ -642,6 +642,19 @@ PY
   export DCNESS_RUN_ID="$rid"
 }
 
+begin_chain_step() {
+  local args=(begin-step "$AGENT")
+
+  if [ -n "$MODE" ]; then
+    args+=("$MODE")
+  fi
+  # 여정 수렴 step 의 쓰기 범위는 이 chain state 의 task 들로 계산한다.
+  if [ -n "$CHAIN_STATE" ]; then
+    args+=(--chain-state "$CHAIN_STATE")
+  fi
+  "$HELPER" "${args[@]}" >/dev/null
+}
+
 ensure_chain_step() {
   local state=""
 
@@ -715,21 +728,13 @@ PY
       return 0
       ;;
     missing)
-      if [ -n "$MODE" ]; then
-        "$HELPER" begin-step "$AGENT" "$MODE" >/dev/null
-      else
-        "$HELPER" begin-step "$AGENT" >/dev/null
-      fi
+      begin_chain_step
       return $?
       ;;
     completed-non-pass:*)
       STAGE_CONCLUSION="${state#completed-non-pass:}"
       if [ "$REWORK" -eq 1 ]; then
-        if [ -n "$MODE" ]; then
-          "$HELPER" begin-step "$AGENT" "$MODE" >/dev/null
-        else
-          "$HELPER" begin-step "$AGENT" >/dev/null
-        fi
+        begin_chain_step
         return $?
       fi
       echo "[dcness-implementation-chain] IMPLEMENTATION_NOT_COMPLETED conclusion=$STAGE_CONCLUSION provider=already-recorded" >&2
@@ -745,11 +750,7 @@ PY
       ;;
     completed)
       if [ "$REWORK" -eq 1 ]; then
-        if [ -n "$MODE" ]; then
-          "$HELPER" begin-step "$AGENT" "$MODE" >/dev/null
-        else
-          "$HELPER" begin-step "$AGENT" >/dev/null
-        fi
+        begin_chain_step
         return $?
       fi
       # chain-state task 는 --rework 를 쓸 수 없으므로 실제로 동작하는 복구 경로를 안내한다.
