@@ -407,13 +407,30 @@ PY
 current_chain_task_path() {
   [ -n "$CHAIN_STATE" ] || return 0
   PYTHONPATH="$SCRIPT_DIR/..${PYTHONPATH:+:$PYTHONPATH}" \
-    python3 - "$CHAIN_STATE" <<'PY'
+    python3 - "$CHAIN_STATE" "$MODE" <<'PY'
 import sys
 from pathlib import Path
 
 from harness.story_runner import load_state, next_action
 
-action = next_action(load_state(Path(sys.argv[1])))
+state = load_state(Path(sys.argv[1]))
+mode = sys.argv[2]
+action = next_action(state)
+# 여정 수렴은 모든 task 완료 뒤 마지막 task run 에서 연다.
+if mode == "JOURNEY_CONVERGENCE":
+    if action.get("action") != "done":
+        raise SystemExit(
+            "JOURNEY_CONVERGENCE requires every chain task completed: "
+            f"action={action.get('action')}"
+        )
+    print(state["tasks"][-1]["path"])
+    raise SystemExit(0)
+if action.get("action") == "story-pr":
+    raise SystemExit(
+        "chain has no runnable task: action=story-pr; seal the finished story with "
+        "'dcness-story-runner seal-story --state <chain-state>' on its branch, "
+        "create the next story branch from it, then call the chain again"
+    )
 if action.get("action") != "task":
     raise SystemExit(
         "chain has no runnable task: "

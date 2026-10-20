@@ -13,6 +13,7 @@ from harness.story_runner import (
     next_action,
     next_task,
     prepare_init_state,
+    seal_story,
     task_requires_acceptance,
 )
 
@@ -314,11 +315,104 @@ class StoryRunnerTests(unittest.TestCase):
             {"kind": "story-branch", "story": "1"},
         )
 
-        # story PR 생성은 state 에 저장하지 않는다. 다음 story branch 를 직전
-        # story branch tip 에서 만든 뒤 next_task 를 running 으로 mark 하면 전진한다.
-        mark_task(state, "3", "running", provider="claude-headless")
-        self.assertEqual(next_task(state)["id"], 3)
-        self.assertEqual(next_action(state)["task"]["id"], 3)
+        # 직전 story tip/branch 를 봉인하면 같은 state 가 다음 story 첫 task 를 돌려준다.
+        record = seal_story(state, branch="feature/story1", tip="def456")
+        self.assertEqual(record["pr_base"], {"kind": "default-branch", "branch": "main"})
+        self.assertEqual(state["sealed_stories"]["1"]["tip"], "def456")
+        action = next_action(state)
+        self.assertEqual(action["action"], "task")
+        self.assertEqual(action["task"]["id"], 3)
+
+    def test_seal_story_requires_story_pr_boundary(self) -> None:
+        state = build_state([str(self.impl_dir)], cwd=self.root, scope="epic")
+
+        with self.assertRaisesRegex(ValueError, "requires next-action=story-pr"):
+            seal_story(state, branch="feature/story1", tip="abc123")
+        self.assertNotIn("sealed_stories", state)
+
+    def test_sealed_branch_becomes_pr_base_of_next_story(self) -> None:
+        state = build_state([str(self.impl_dir)], cwd=self.root, scope="epic")
+        mark_task(state, "1", "completed", commit="abc123")
+        mark_task(state, "2", "completed", commit="def456")
+        seal_story(state, branch="feature/story1", tip="def456")
+        mark_task(state, "3", "completed", commit="ghi789")
+
+        action = next_action(state)
+
+        self.assertEqual(action["action"], "done")
+        self.assertEqual(
+            action["pr_base"],
+            {"kind": "story-branch", "story": "1", "branch": "feature/story1"},
+        )
+
+    def test_script_seal_story_reads_branch_and_tip_from_project_git(self) -> None:
+        env = {**os.environ, "PYTHONPATH": str(ROOT)}
+        git = ["git", "-C", str(self.root)]
+        subprocess.run([*git, "init", "-q", "-b", "story1"], check=True)
+        subprocess.run([*git, "config", "user.name", "dcNess Test"], check=True)
+        subprocess.run([*git, "config", "user.email", "t@example.invalid"], check=True)
+        subprocess.run([*git, "add", "."], check=True)
+        subprocess.run([*git, "commit", "-qm", "story1"], check=True)
+        head = subprocess.run(
+            [*git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True
+        ).stdout.strip()
+        state_path = self.root / ".dcness-work" / "story-run.json"
+        subprocess.run(
+            [str(SCRIPT), "init", str(self.impl_dir), "--cwd", str(self.root),
+             "--state", str(state_path), "--scope", "epic"],
+            cwd=ROOT, env=env, check=True, capture_output=True,
+        )
+
+        def run(*args: str) -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                [str(SCRIPT), *args, "--state", str(state_path)],
+                cwd=ROOT, env=env, text=True, capture_output=True,
+            )
+
+        for task_id in ("1", "2"):
+            marked = run("mark", "--task", task_id, "--status", "completed", "--commit", head)
+            self.assertEqual(marked.returncode, 0, marked.stderr)
+
+        sealed = run("seal-story", "--json")
+
+        self.assertEqual(sealed.returncode, 0, sealed.stderr)
+        self.assertEqual(json.loads(sealed.stdout)["branch"], "story1")
+        saved = json.loads(state_path.read_text(encoding="utf-8"))
+        self.assertEqual(saved["sealed_stories"]["1"]["tip"], head)
+        action = json.loads(run("next-action", "--json").stdout)
+        self.assertEqual(action["action"], "task")
+        self.assertEqual(action["task"]["id"], 3)
+
+    def test_script_seal_story_rejects_head_without_story_commit(self) -> None:
+        env = {**os.environ, "PYTHONPATH": str(ROOT)}
+        git = ["git", "-C", str(self.root)]
+        subprocess.run([*git, "init", "-q", "-b", "other"], check=True)
+        subprocess.run([*git, "config", "user.name", "dcNess Test"], check=True)
+        subprocess.run([*git, "config", "user.email", "t@example.invalid"], check=True)
+        subprocess.run([*git, "commit", "-q", "--allow-empty", "-m", "base"], check=True)
+        state_path = self.root / ".dcness-work" / "story-run.json"
+        subprocess.run(
+            [str(SCRIPT), "init", str(self.impl_dir), "--cwd", str(self.root),
+             "--state", str(state_path), "--scope", "epic"],
+            cwd=ROOT, env=env, check=True, capture_output=True,
+        )
+        for task_id in ("1", "2"):
+            subprocess.run(
+                [str(SCRIPT), "mark", "--state", str(state_path), "--task", task_id,
+                 "--status", "completed", "--commit", "0" * 40],
+                cwd=ROOT, env=env, check=True, capture_output=True,
+            )
+
+        sealed = subprocess.run(
+            [str(SCRIPT), "seal-story", "--state", str(state_path)],
+            cwd=ROOT, env=env, text=True, capture_output=True,
+        )
+
+        self.assertEqual(sealed.returncode, 1)
+        self.assertIn("is not in HEAD", sealed.stderr)
+        self.assertNotIn(
+            "sealed_stories", json.loads(state_path.read_text(encoding="utf-8"))
+        )
 
     def test_done_exposes_final_story_base_and_stack_tip_for_epic(self) -> None:
         state = build_state([str(self.impl_dir)], cwd=self.root, scope="epic")

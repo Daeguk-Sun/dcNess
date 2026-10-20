@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import subprocess  # nosec B404
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -331,8 +332,12 @@ def _story_order(state: dict[str, Any]) -> list[str]:
     return ordered
 
 
-def _story_branch_ref(story: str) -> dict[str, str]:
-    return {"kind": "story-branch", "story": story}
+def _story_branch_ref(state: dict[str, Any], story: str) -> dict[str, str]:
+    ref = {"kind": "story-branch", "story": story}
+    sealed = state.get("sealed_stories", {}).get(story)
+    if sealed:
+        ref["branch"] = sealed["branch"]
+    return ref
 
 
 def _pr_base_ref(state: dict[str, Any], story: str) -> dict[str, str]:
@@ -343,7 +348,7 @@ def _pr_base_ref(state: dict[str, Any], story: str) -> dict[str, str]:
         raise ValueError(f"story not found while resolving PR base: {story}") from exc
     if index == 0:
         return {"kind": "default-branch", "branch": "main"}
-    return _story_branch_ref(order[index - 1])
+    return _story_branch_ref(state, order[index - 1])
 
 
 def _progress(state: dict[str, Any]) -> dict[str, int]:
@@ -364,6 +369,8 @@ def _story_boundary_before(
     previous_story = str(tasks[pending_index - 1].get("story"))
     next_story = str(tasks[pending_index].get("story"))
     if previous_story == next_story:
+        return None
+    if previous_story in state.get("sealed_stories", {}):
         return None
     story_tasks = _tasks_for_story(state, previous_story)
     if story_tasks and all(task.get("status") == "completed" for task in story_tasks):
@@ -406,7 +413,7 @@ def next_action(state: dict[str, Any]) -> dict[str, Any]:
                     "action": "story-pr",
                     "story": _story_summary(state, boundary_story),
                     "pr_base": _pr_base_ref(state, boundary_story),
-                    "next_branch_base": _story_branch_ref(boundary_story),
+                    "next_branch_base": _story_branch_ref(state, boundary_story),
                     "next_task": task,
                     "progress": _progress(state),
                 }
@@ -418,11 +425,58 @@ def next_action(state: dict[str, Any]) -> dict[str, Any]:
             "action": "done",
             "final_story": _story_summary(state, final_story),
             "pr_base": _pr_base_ref(state, final_story),
-            "stack_tip": _story_branch_ref(final_story),
+            "stack_tip": _story_branch_ref(state, final_story),
             "progress": _progress(state),
         }
 
     return {"action": "error", "note": "invalid or empty task state", "progress": _progress(state)}
+
+
+def _boundary_action(state: dict[str, Any]) -> dict[str, Any]:
+    action = next_action(state)
+    if action.get("action") != "story-pr":
+        raise ValueError(
+            "seal-story requires next-action=story-pr "
+            f"(current: {action.get('action')})"
+        )
+    return action
+
+
+def seal_story(state: dict[str, Any], *, branch: str, tip: str) -> dict[str, Any]:
+    """Record the finished story's branch/tip so the next story can start."""
+    action = _boundary_action(state)
+    story = action["story"]["story"]
+    record = {
+        "branch": branch,
+        "tip": tip,
+        "pr_base": action["pr_base"],
+        "sealed_at": _now_iso(),
+    }
+    state.setdefault("sealed_stories", {})[story] = record
+    return {"story": story, **record}
+
+
+def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(  # nosec B603, B607
+        ["git", "-C", str(root), *args], capture_output=True, text=True, timeout=30
+    )
+
+
+def seal_story_from_git(state: dict[str, Any]) -> dict[str, Any]:
+    """Seal the boundary story with the project worktree's current branch and HEAD."""
+    action = _boundary_action(state)
+    root = Path(str(state.get("project_root", "")))
+    branch = _git(root, "branch", "--show-current").stdout.strip()
+    tip = _git(root, "rev-parse", "HEAD").stdout.strip()
+    if not branch or not tip:
+        raise ValueError(f"seal-story needs a checked-out story branch: {root}")
+    last_commit = str(action["story"]["commits"][-1] or "")
+    if _git(root, "merge-base", "--is-ancestor", last_commit, tip).returncode != 0:
+        raise ValueError(
+            f"story {action['story']['story']} last task commit {last_commit} "
+            f"is not in HEAD of {branch}; check out the finished story branch first"
+        )
+    return seal_story(state, branch=branch, tip=tip)
 
 
 def mark_task(
@@ -501,6 +555,10 @@ def build_arg_parser() -> argparse.ArgumentParser:
     p_next_action.add_argument("--state", required=True)
     p_next_action.add_argument("--json", action="store_true")
 
+    p_seal = sub.add_parser("seal-story")
+    p_seal.add_argument("--state", required=True)
+    p_seal.add_argument("--json", action="store_true")
+
     p_mark = sub.add_parser("mark")
     p_mark.add_argument("--state", required=True)
     p_mark.add_argument("--task", required=True)
@@ -536,6 +594,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.cmd == "next-action":
             state = load_state(Path(args.state))
             _print(next_action(state), as_json=args.json)
+            return 0
+        if args.cmd == "seal-story":
+            state_path = Path(args.state)
+            state = load_state(state_path)
+            record = seal_story_from_git(state)
+            save_state(state_path, state)
+            _print(record, as_json=args.json)
             return 0
         if args.cmd == "mark":
             state_path = Path(args.state)

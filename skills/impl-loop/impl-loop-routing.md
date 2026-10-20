@@ -27,7 +27,7 @@ flowchart TB
   GATE -->|fail| RETRY
   MARK --> NEXT[next-action]
   NEXT -->|task| BW
-  NEXT -->|story-pr| SPR[story tip + stack base 봉인 · PR 없음]
+  NEXT -->|story-pr| SPR[seal-story: story tip + stack base 봉인 · PR 없음]
   SPR --> REBRANCH[직전 story 브랜치에서 재분기]
   REBRANCH --> BW
   NEXT -->|done + final_story| FINISH[impl-loop-finish lazy-load]
@@ -50,7 +50,7 @@ flowchart TB
 | **build-worker 내부 `JOURNEY_ENV_PREFLIGHT`** | 자동 `(JOURNEY)`가 있을 때 기본 worker가 task를 읽은 직후 source read/edit 전 1회, main이 아니라 실제 worker 실행 컨텍스트에서 probe · 충족 또는 자동 준비 성공 → 같은 호출의 task TDD · 검출 불확실 → 불확실 근거를 남기고 같은 호출의 task TDD · 확실한 미충족 + 자동 준비 불가 → probe 근거를 남기고 같은 호출의 task TDD. 어떤 판정도 task 를 중단시키지 않으며 preflight 는 `IMPLEMENTATION_ESCALATE` 를 내지 않는다 · 확실한 미충족 보고가 있으면 마감의 수렴 직전에 메인이 사용자에게 환경 먼저 준비 / journey 검수 분리 중 하나를 1회 확인 · 분리 선택 → 해당 journey를 run-local `journey_deferred`로 보존하고 수렴·sealed acceptance·close 경계에서 제외. journey 미선언과 설계상 `human_verification`만 있으면 phase 비발동 |
 | **build-worker** | `PASS` + local commit sha + clean status → `dcness-story-runner mark --status completed --commit <sha>` 후 `next-action` · `TESTS_FAIL` → build-worker rework([재시도 판단](#재시도-판단)) · `SPEC_GAP_FOUND` → design-doc 보강 또는 사용자 위임 · `VALIDATION_BLOCKED` + `permission_required` → outbound network 범위·제안 root·근거·`workspace-write` 유지·`danger-full-access` 미사용을 설명하고 사용자에게 이번 실행에만 허용/이 프로젝트에 저장/거부 선택 요청. 승인하면 Codex만 1회 제한 재시도, 거부·malformed settings·안전한 root 없음·반복 sandbox 거부면 권한 확대/host 직접 검증/다른 provider 우회 없이 사용자 위임 · permission receipt 없음 → 메인이 같은 worktree cwd에서 worker 검증 명령 실행, exit 0이면 PASS와 동일, 실패면 build-worker rework([재시도 판단](#재시도-판단)), 메인도 실행 불가면 사용자 위임 · `IMPLEMENTATION_ESCALATE` → 사용자 |
 | **headless execution recovery** | mutation 뒤 `timeout` / `idle_timeout` / `empty_output` / `boundary_violation` / `tdd_guard` / canonical phase prose `phase_evidence` → 같은 provider + 같은 workspace bounded continuation, 기존 diff 보존, mutation-time guard 재검사(실행 도구가 강제하는 기본 2회) · hard boundary 자동 확대 / `tdd-exempt` 자동 삽입 / dirty cross-provider fallback 금지 · 도구 강제 복구 소진 또는 제품 의미·새 권한 필요 → 사용자 |
-| **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `story-pr` → 응답의 `pr_base`와 직전 story tip만 봉인하고 PR 없이 `next_branch_base`의 직전 story 브랜치에서 재분기 · `done` → `final_story` tip과 `stack_tip`을 확정하고 [`impl-loop-finish.md`](impl-loop-finish.md)를 lazy-load · `blocked` / `error` → task note를 근거로 [재시도 판단](#재시도-판단)에 따라 재시도 또는 사용자 위임 |
+| **dcness-story-runner `next-action`** | `task` → 다음 task build-worker · `story-pr` → 끝난 story 브랜치에서 `dcness-story-runner seal-story`로 응답의 `pr_base`와 직전 story tip/branch를 state에 봉인하고, PR 없이 `next_branch_base`의 직전 story 브랜치에서 재분기한 뒤 chain 재호출 · `done` → `final_story` tip과 `stack_tip`을 확정하고 [`impl-loop-finish.md`](impl-loop-finish.md)를 lazy-load · `blocked` / `error` → task note를 근거로 [재시도 판단](#재시도-판단)에 따라 재시도 또는 사용자 위임 |
 
 task 구현 호출에서 `(JOURNEY)` REQ는 PASS 블로커가 아니다. build-worker가 flow 대본, `.dcness/` 밖 journey 매니페스트, 필요한 setup/teardown/상태전이 스크립트, `acceptance_environment`, `harness_paths`를 작성하고 마감 인계를 보고하면 task `PASS`로 진행한다. 메인 게이트 대행용 `VALIDATION_BLOCKED`와는 다른 경로다.
 
@@ -77,7 +77,7 @@ finding 수용 원칙: 같은 파일·주제·위험 클래스 finding 이 반�
 ## task clean / blocked
 
 - task clean = build-worker PASS + phase prose 3개 + local commit sha + clean status + story-runner mark.
-- story boundary clean = 해당 story의 모든 task completed + story branch tip/base 봉인 + PR 없이 다음 branch를 직전 story branch에서 재분기.
+- story boundary clean = 해당 story의 모든 task completed + `seal-story`로 story branch tip/base 봉인 + PR 없이 다음 branch를 직전 story branch에서 재분기.
 - phase prose, commit sha, clean status, state mark 중 하나라도 없으면 false-clean blocked로 판정하고 다음 task로 넘기지 않는다.
 - 모든 target task가 completed 되면 이 문서를 더 읽지 않고 [`impl-loop-finish.md`](impl-loop-finish.md)로 이동한다.
 

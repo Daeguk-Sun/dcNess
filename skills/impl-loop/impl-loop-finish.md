@@ -40,6 +40,24 @@ step 3의 consolidate 여부는 [`git-spec.md#분할-판정`](../../docs/plugin/
 - 확실한 미충족이 있으면 수렴을 시작하기 전에 `환경 먼저 준비 / 해당 journey 검수 분리` 중 하나를 사용자에게 1회 확인한다. 구현은 이미 착지해 있으므로 이 확인은 구현을 되돌리지 않는다. 분리를 택하면 그 `journey_id`를 `"$PLUGIN_ROOT/scripts/dcness-helper" journey-deferred record --journey-id <id>`로 현재 run 상태에 기록한다. 대화 맥락에만 두면 세션이 바뀔 때 유실되고, 실행된 적 없는 journey가 덮는 수용 기준이 통과한 것으로 집계된다. 같은 run에서 같은 journey의 환경 처분을 다시 묻지 않는다.
 - 이후 판정 입력은 `journey-deferred list`가 돌려주는 저장된 목록이다. 진행 뷰와 worker 프롬프트에 목록을 계속 노출하되, 그 값의 출처는 대화 맥락이 아니라 run 상태다. 조회가 실패하면 빈 목록으로 간주하지 않고 그 자리에서 멈춘다 — 기록 없음과 읽지 못함은 다른 상태다.
 - `journey_deferred`가 아닌 자동 journey만 `JOURNEY_CONVERGENCE`를 실행한다. 실행은 `dcness-product-journey run --config <매니페스트>` 러너로 하며, 대본을 직접 실행한 PASS 는 수렴 PASS 로 인정하지 않는다.
+- 수렴 build-worker는 task loop와 같은 state로 시작한다. 모든 task가 completed(`action=done`)일 때만 chain이 마지막 task run에 `build-worker JOURNEY_CONVERGENCE` step을 연다. `begin-step`을 먼저 부르거나 `--chain-state`를 빼지 않는다.
+
+```bash
+PLUGIN_ROOT=""
+if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -d "$CLAUDE_PLUGIN_ROOT/scripts" ]; then
+  PLUGIN_ROOT="$CLAUDE_PLUGIN_ROOT"
+else
+  PLUGIN_ROOT="$(ls -d "$HOME/.claude/plugins/cache/dcness/dcness/"* 2>/dev/null | sort -V | tail -1)"
+fi
+[ -n "$PLUGIN_ROOT" ] || { echo "[dcness] plugin root not found" >&2; exit 1; }
+HELPER="$PLUGIN_ROOT/scripts/dcness-helper"
+
+"$PLUGIN_ROOT/scripts/dcness-implementation-chain" build-worker JOURNEY_CONVERGENCE \
+  --chain-state .dcness-work/story-run.json \
+  --prompt-file <slim-prompt> \
+  --issue-num <target-issue> \
+  --acceptance-required
+```
 - 첫 실행 PASS면 끝내고, 실패하면 실행 → 관찰 → 배관 수정 → 재실행한다.
 - 시나리오 매니페스트이면 재실행은 `--scenario`로 실패한 시나리오만 한다. 수렴 PASS 전에 이미 통과한 다른 시나리오를 다시 실행할지는 build-worker가 이번 수정이 그 시나리오에 닿는지 읽고 정하며, 다시 실행하지 않은 시나리오는 이유를 남긴다. 부분 실행 receipt는 전체 실행 receipt가 아니다.
 - story-local production 수정은 해당 story branch에 commit하고 downstream branch를 restack한다.
@@ -151,7 +169,7 @@ node "$PLUGIN_ROOT/scripts/check_issue_body.mjs" \
 ## PR stack과 merge
 
 - commit 경계에서 [`git-spec.md`](../../docs/plugin/git-spec.md)를 읽고 의미 단위를 맞춘다. hook을 우회하지 않는다.
-- `action=story-pr`마다 봉인한 story branch/base를 그대로 사용한다.
+- `action=story-pr`마다 `seal-story`로 봉인한 story branch/base를 그대로 사용한다. 봉인 기록은 state의 `sealed_stories`에 있고, `action=done`의 `pr_base`에도 직전 story branch 이름이 실린다.
 - 단일 story는 PR 1개다. 다중 story는 story PR stack과 실제 tracked cross-cutting fix가 있을 때만 QA PR을 만든다.
 - PR body에는 story별 `Closes`, 필요한 epic close trailer, 검증, 배포 경로를 기록한다.
 - 사람 확인이 남으면 최초 PR 생성 뒤 `human verification 대기`로 멈추고 별도 merge gate로 보존한다. 이 대기는 blocked가 아니다.
