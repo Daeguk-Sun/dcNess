@@ -184,10 +184,10 @@ class JourneyConvergenceContractTests(unittest.TestCase):
 
         self.assertIn("ALREADY_COMPLETED", routing)
         self.assertIn("dcness-helper end-run", routing)
-        self.assertIn("`--rework` 는 이 진입점에서 사용할 수 없다", routing)
+        self.assertIn("`--rework` 는 task loop 중에는 사용할 수 없다", routing)
         self.assertIn("--rework --resume-provider", routing)
-        # chain 메시지도 --chain-state 진입점에 --rework를 권하지 않는다.
-        self.assertIn("--rework is --direct-run only", chain)
+        # chain 메시지는 task loop 중 --rework 를 권하지 않고, 모든 task 완료 뒤 마감 수정에만 안내한다.
+        self.assertIn("After every task completed, use --rework", chain)
 
     def test_n_story_convergence_fix_ownership_is_unambiguous(self) -> None:
         skill = read("skills/impl-loop/impl-loop-finish.md")
