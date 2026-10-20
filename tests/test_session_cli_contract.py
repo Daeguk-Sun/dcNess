@@ -137,6 +137,14 @@ class SessionCliLifecycleContractTests(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("headless boundary BLOCK", err)
 
+    def test_pr_merged_event_records_merged_head(self) -> None:
+        with redirect_stdout(StringIO()):
+            rc = cli._main(["ledger-event", "pr_merged", "--pr", "7", "--head", "a" * 40])
+        self.assertEqual(rc, 0)
+        merged = ledger.read_events(self.sid, self.rid)[-1]
+        self.assertEqual(merged["event"], "pr_merged")
+        self.assertEqual(merged["head_sha"], "a" * 40)
+
     def test_manual_ledger_event_cannot_forge_block_acceptance(self) -> None:
         self.assertIn("boundary_block_accepted", ledger.LIFECYCLE_EVENT_TYPES)
         self.assertNotIn("boundary_block_accepted", ledger.MANUAL_EVENT_TYPES)

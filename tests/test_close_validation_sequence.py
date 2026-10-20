@@ -216,6 +216,91 @@ class CloseValidationSequenceStateTests(unittest.TestCase):
             "close_candidate_probe_unavailable",
         )
 
+    def _record_merge(self, head: str = HEAD) -> None:
+        session_state.transition(
+            SID,
+            "ledger_checkpoint",
+            run_id=RID,
+            base_dir=self.base,
+            event="pr_merged",
+            pr_number=1,
+            head_sha=head,
+        )
+
+    def _pass_both_then_merge(self, head: str = HEAD) -> None:
+        self._start("impl-validator", None)
+        self._complete("impl-validator", None)
+        self._start("product-acceptance", "EPIC_ACCEPTANCE")
+        self._complete("product-acceptance", "EPIC_ACCEPTANCE")
+        self._record_merge(head)
+
+    def _stop_once(self) -> tuple[bool, str]:
+        slot = session_state.read_live(SID, base_dir=self.base)["active_runs"][RID]
+        stdout = StringIO()
+        with redirect_stdout(stdout):
+            blocked = _holds_auto_end_run(
+                sid=SID,
+                rid=RID,
+                slot=slot,
+                active={RID: slot},
+                last_agent="product-acceptance",
+                last_mode="EPIC_ACCEPTANCE",
+                base_dir=self.base,
+            )
+        return blocked, stdout.getvalue()
+
+    def test_stop_closes_run_after_pr_finalize_removed_merged_worktree(self) -> None:
+        self._pass_both_then_merge()
+        Path(self.candidate_root).rmdir()
+
+        self.assertEqual(
+            _close_validation_sequence_status(SID, RID, base_dir=self.base),
+            ("pass", "frozen candidate merged; workspace removed after merge"),
+        )
+        blocked, output = self._stop_once()
+        self.assertFalse(blocked)
+        self.assertEqual(output, "")
+
+    def test_merge_of_other_head_does_not_excuse_missing_worktree(self) -> None:
+        self._pass_both_then_merge(head="c" * 40)
+        Path(self.candidate_root).rmdir()
+
+        status = _close_validation_sequence_status(SID, RID, base_dir=self.base)
+        self.assertEqual(status[0] if status else None, "workspace_unverified")
+
+    def test_merge_record_without_head_does_not_excuse_missing_worktree(
+        self,
+    ) -> None:
+        self._pass_both_then_merge(head="")
+        Path(self.candidate_root).rmdir()
+
+        status = _close_validation_sequence_status(SID, RID, base_dir=self.base)
+        self.assertEqual(status[0] if status else None, "workspace_unverified")
+
+    def test_merge_before_close_receipts_does_not_excuse_missing_worktree(
+        self,
+    ) -> None:
+        self._record_merge()
+        self._start("impl-validator", None)
+        self._complete("impl-validator", None)
+        self._start("product-acceptance", "EPIC_ACCEPTANCE")
+        self._complete("product-acceptance", "EPIC_ACCEPTANCE")
+        Path(self.candidate_root).rmdir()
+
+        status = _close_validation_sequence_status(SID, RID, base_dir=self.base)
+        self.assertEqual(status[0] if status else None, "workspace_unverified")
+
+    def test_merge_record_does_not_excuse_existing_unreadable_worktree(
+        self,
+    ) -> None:
+        self._pass_both_then_merge()
+
+        with patch("harness.hooks._current_tracked_candidate", return_value=None):
+            status = _close_validation_sequence_status(
+                SID, RID, base_dir=self.base
+            )
+        self.assertEqual(status[0] if status else None, "workspace_unverified")
+
     def test_exhausted_close_signal_budget_never_silently_allows_stop(self) -> None:
         self._start("impl-validator", None)
         self._complete("impl-validator", None)

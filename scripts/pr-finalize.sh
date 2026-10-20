@@ -53,10 +53,13 @@ json_field() {
   python3 -c 'import json,sys; print(json.load(sys.stdin).get(sys.argv[1], ""))' "$1"
 }
 
+# merged_head = --match-head-commit 으로 merge 한 PR head. Stop hook 은 이 값이
+# 검증·검수 receipt 의 candidate HEAD 와 같을 때만 지워진 worktree 를 merge 완료로 본다.
 record_pr_merged() {
   local pr_number="$1"
   local pr_url="$2"
-  if ! "$HELPER" ledger-event pr_merged --pr "$pr_number" --url "$pr_url" >/dev/null 2>&1; then
+  local merged_head="$3"
+  if ! "$HELPER" ledger-event pr_merged --pr "$pr_number" --url "$pr_url" --head "$merged_head" >/dev/null 2>&1; then
     echo "[pr-finalize] WARN: ledger pr_merged 기록 실패 — active dcNess run 밖이면 정상" >&2
   fi
 }
@@ -472,7 +475,7 @@ fi
 
 # Step 4: post-merge ledger 기록
 PR_URL=$(gh pr view "$PR" --json url -q .url 2>/dev/null)
-record_pr_merged "$PR" "$PR_URL"
+record_pr_merged "$PR" "$PR_URL" "$HEAD_SHA"
 
 if [ -n "$MERGE_LOCK_TOKEN" ]; then
   "$HELPER" merge-lock complete \

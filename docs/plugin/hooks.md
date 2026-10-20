@@ -325,7 +325,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 - 마지막 `end-step` 이후 새 `begin-step` 이 열린 run 은 동일 agent 재라운드여도 진행 중으로 보고 자동 `end-run` 대상에서 제외
 - 마지막 step 이 종료 agent(`impl-validator`)가 아니고 결론이 다음 step 으로 이어지는 enum 이면 run 을 열어 둔다. 메인에 계속 진행을 요구하지 않고 자동 `end-run` 도 하지 않는다. 다음 step 이 사용자 확인인 흐름에서 메인이 사용자 답을 기다리며 멈출 수 있기 때문이다. 열린 채 남은 run 은 메인의 `end-run` 호출 또는 24시간 stale 정리로 닫힌다.
 - `impl-validator:CODEBASE_SANITY` `PASS`와 `begin-run impl --acceptance-required` run 의 `impl-validator` `PASS`는 종료 결과가 아니다. 위와 같이 run 을 열어 둔다.
-- **마감 검증 순서 보호**: `--acceptance-required` run 과 candidate 기록이 있는 run 은 `impl-validator` `PASS` 뒤 같은 candidate(HEAD/tree/workspace)에서 `product-acceptance` `PASS` 가 있어야 닫힌다. 순서를 지키지 않은 상태에서 메인이 멈추면 Stop hook 이 `decision: "block"` 으로 필요한 다음 검증 step 을 알린다. 같은 진단의 안내 횟수는 한도가 있다. candidate 확인 불능(probe 실패)만 한도 뒤 통과시키고, 확인된 순서 위반은 한도 뒤에도 차단한다.
+- **마감 검증 순서 보호**: `--acceptance-required` run 과 candidate 기록이 있는 run 은 `impl-validator` `PASS` 뒤 같은 candidate(HEAD/tree/workspace)에서 `product-acceptance` `PASS` 가 있어야 닫힌다. 순서를 지키지 않은 상태에서 메인이 멈추면 Stop hook 이 `decision: "block"` 으로 필요한 다음 검증 step 을 알린다. 같은 진단의 안내 횟수는 한도가 있다. candidate 확인 불능(probe 실패)만 한도 뒤 통과시키고, 확인된 순서 위반은 한도 뒤에도 차단한다. 두 receipt 뒤에 기록된 `pr_merged` 의 merge head 가 candidate HEAD 와 같고 고정한 worktree 가 지워진 run(`pr-finalize.sh` 의 merge 뒤 정리)은 검증한 commit 이 그대로 merge 된 것으로 보고 지워진 worktree 를 다시 확인하지 않고 닫는다.
 
 **차단**: tool 차단은 아니다. 필요 시 stdout JSON 으로 메인 turn 을 재발화한다.
 
