@@ -343,6 +343,55 @@ class SessionCliLifecycleContractTests(unittest.TestCase):
                 self.assertEqual(1, rc)
                 self.assertIn("읽을 수 없습니다", stderr.getvalue())
 
+    def test_journey_deferred_for_design_doc_collects_across_sessions(self) -> None:
+        """#1320 — 세션이 바뀐 뒤 새 run 이 같은 task 의 이전 분리 결정을 찾는다."""
+        doc = self.base / "docs" / "epics" / "epic-01" / "impl" / "02-last.md"
+        doc.parent.mkdir(parents=True)
+        doc.write_text("---\nstory: 1\n---\n", encoding="utf-8")
+        other_sid, other_rid = "sid-earlier-session", "run-e1e2e3e4"
+        session_state.transition(
+            other_sid, "run_started", run_id=other_rid, entry_point="impl",
+            design_doc=str(doc),
+        )
+        session_state.transition(
+            other_sid, "journey_deferred_recorded", run_id=other_rid,
+            journey_ids=["checkout"],
+        )
+
+        self.assertEqual(
+            session_state.journey_deferred_for_design_doc(doc),
+            (["checkout"], [f"{other_sid}/{other_rid}"]),
+        )
+        self.assertEqual(
+            session_state.journey_deferred_for_design_doc(
+                doc, exclude=(other_sid, other_rid)
+            ),
+            ([], []),
+        )
+        self.assertEqual(
+            session_state.journey_deferred_for_design_doc(self.base / "other.md"),
+            ([], []),
+        )
+
+        live = session_state.read_live(other_sid)
+        live["active_runs"][other_rid]["journey_deferred"] = "checkout"
+        session_state._write_live(other_sid, live)
+        with self.assertRaises(ValueError):
+            session_state.journey_deferred_for_design_doc(doc)
+
+        # 읽지 못한 세션·run 상태도 "기록 없음" 으로 넘기지 않는다.
+        live["active_runs"][other_rid] = "corrupt"
+        session_state._write_live(other_sid, live)
+        with self.assertRaises(ValueError):
+            session_state.journey_deferred_for_design_doc(doc)
+        live_path = self.base / ".claude" / "harness-state" / ".sessions" / other_sid / "live.json"
+        self.assertTrue(live_path.is_file(), live_path)
+        live["active_runs"][other_rid] = {}
+        session_state._write_live(other_sid, live)
+        live_path.write_text("{broken", encoding="utf-8")
+        with self.assertRaises(ValueError):
+            session_state.journey_deferred_for_design_doc(doc)
+
     def test_journey_deferred_record_refuses_to_overwrite_corrupt_value(self) -> None:
         """손상된 값 위에 덧쓰면 유실이 정상 목록으로 위장된다 (#1224 리뷰)."""
         live = session_state.read_live(self.sid)

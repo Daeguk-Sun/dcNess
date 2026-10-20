@@ -699,6 +699,86 @@ class ImplLoopLaunchTests(unittest.TestCase):
                 ],
             )
 
+    def _first_convergence_in_new_session(
+        self, *, deferred: tuple[str, ...]
+    ) -> tuple[subprocess.CompletedProcess[str], list[str]]:
+        """세션 A 에서 task 완료(+ 검수 분리 기록) 뒤 세션 B 에서 첫 수렴을 시작한다."""
+        with tempfile.TemporaryDirectory() as td:
+            base = Path(td)
+            primary, worktree = self._fixture(base)
+            state_path = worktree / ".dcness-work" / "story-run.json"
+            helper = str(ROOT / "scripts" / "dcness-helper")
+            sessions = primary / ".claude" / "harness-state" / ".sessions"
+
+            first = self._launch(primary=primary, project=worktree, base=base)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            head = _run_git(worktree, "rev-parse", "HEAD").stdout.strip()
+            marked = subprocess.run(
+                [
+                    str(ROOT / "scripts" / "dcness-story-runner"),
+                    "mark", "--task", "1", "--status", "completed",
+                    "--commit", head, "--state", str(state_path),
+                ],
+                cwd=worktree, capture_output=True, text=True,
+            )
+            self.assertEqual(marked.returncode, 0, marked.stderr)
+
+            def helper_env(sid: str, rid: str) -> dict[str, str]:
+                return {
+                    **os.environ,
+                    "DCNESS_FORCE_ENABLE": "1",
+                    "DCNESS_SESSION_ID": sid,
+                    "DCNESS_RUN_ID": rid,
+                }
+
+            (run_a,) = list((sessions / "sid-fast-launch" / "runs").glob("run-*"))
+            if deferred:
+                recorded = subprocess.run(
+                    [helper, "journey-deferred", "record",
+                     *[arg for journey in deferred for arg in ("--journey-id", journey)]],
+                    cwd=worktree, capture_output=True, text=True,
+                    env=helper_env("sid-fast-launch", run_a.name),
+                )
+                self.assertEqual(recorded.returncode, 0, recorded.stderr)
+
+            convergence = self._launch(
+                primary=primary,
+                project=worktree,
+                base=base,
+                init_paths=(),
+                mode="JOURNEY_CONVERGENCE",
+                session_id="sid-next-session",
+            )
+            runs_b = list((sessions / "sid-next-session" / "runs").glob("run-*"))
+            if convergence.returncode != 0 or len(runs_b) != 1:
+                return convergence, []
+            listed = subprocess.run(
+                [helper, "journey-deferred", "list"],
+                cwd=worktree, capture_output=True, text=True,
+                env=helper_env("sid-next-session", runs_b[0].name),
+            )
+            self.assertEqual(listed.returncode, 0, listed.stderr)
+            return convergence, json.loads(listed.stdout)
+
+    def test_first_convergence_in_new_session_keeps_journey_deferred(self) -> None:
+        """#1320 — 세션이 바뀐 뒤 첫 수렴의 새 run 이 이전 run 의 검수 분리를 이어받는다."""
+        convergence, deferred = self._first_convergence_in_new_session(
+            deferred=("checkout", "refund")
+        )
+
+        self.assertEqual(convergence.returncode, 0, convergence.stderr)
+        self.assertEqual(deferred, ["checkout", "refund"])
+        self.assertIn("journey_deferred carried over", convergence.stderr)
+
+    def test_first_convergence_in_new_session_without_deferral_still_resumes(
+        self,
+    ) -> None:
+        convergence, deferred = self._first_convergence_in_new_session(deferred=())
+
+        self.assertEqual(convergence.returncode, 0, convergence.stderr)
+        self.assertEqual(deferred, [])
+        self.assertNotIn("journey_deferred carried over", convergence.stderr)
+
     def test_reused_direct_impl_run_gets_story_acceptance_requirement(self) -> None:
         """#1240 — /impl 로 먼저 연 같은 task 의 run 을 chain 이 이어 쓰면 검수 표시도 맞춘다."""
         with tempfile.TemporaryDirectory() as td:
