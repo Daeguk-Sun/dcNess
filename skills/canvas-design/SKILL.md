@@ -21,7 +21,7 @@ UI 기준을 `docs/design-variants/`에 남긴다. 사람은 후보를 PICK하�
 
 ## 실행
 
-1. `templates/design-variants/` seed가 없을 때만 복사한다. 기존 파일은 보존하고, 엔진 차이는 경고한다.
+1. `templates/design-variants/` seed가 없을 때만 복사한다. 기존 파일은 보존한다. 단 `_lib/` 엔진 4개 파일(`canvas.js`, `only-variant.js`, `report-size.js`, `show-ids.js`)이 배포본과 다르면 배포본으로 교체하고 교체한 파일을 보고한다. 프로젝트는 `_lib/`를 수정하지 않으므로 교체로 잃는 내용이 없고, 교체하지 않으면 엔진 수정이 기존 프로젝트에 도달하지 않는다.
 2. 기존 확정본·사용자 기준·신규 draft·skip 중 경로를 정한다.
 3. draft가 필요하면 foreground designer를 호출한다. designer는 `drafts/`에 확정본과 같은 형식의 후보만 만든다.
 4. 후보를 사용자에게 제시해 PICK을 받는다. NG면 다시 만들고, OK면 선택본을 같은 이름의 `screens/<screen-id>.html`로 이동한다.

@@ -73,6 +73,84 @@ ${sections}
 `;
 }
 
+// 목업이 변형 요소에 display 를 주고 body 에 좌우 padding 을 둔 확정본 (#1312).
+// 변형마다 제목 줄을 변형 밖 묶음에 함께 둔다.
+function paddedScreenHtml() {
+  const block = id => `<div class="variant-block">
+  <h2 class="variant-title">${id} 제목</h2>
+  <section data-variant="${id}" data-variant-values="state=${id}">${id}
+    <div class="carousel"><div class="track"></div></div>
+  </section>
+</div>`;
+  return `<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>padded</title>
+  <style>
+    html { margin: 0; }
+    body { margin: 0; padding: 0 24px; font: 16px system-ui, sans-serif; }
+    [data-variant] { display: flex; box-sizing: border-box; width: 390px; height: 120px; }
+    .variant-title { margin: 0; }
+    .carousel { overflow: hidden; width: 300px; }
+    .track { width: 1170px; height: 10px; }
+  </style>
+</head>
+<body>
+${block('first')}
+${block('second')}
+<script defer src="../_lib/only-variant.js"></script>
+<script defer src="../_lib/report-size.js"></script>
+<script defer src="../_lib/show-ids.js"></script>
+</body>
+</html>
+`;
+}
+
+// 좁은 iframe 에 확정본을 열고 보고된 크기와 숨김 상태를 기록하는 host 페이지.
+function paddedProbeHtml() {
+  return `<!doctype html>
+<html><body>
+<iframe id="frame" style="width: 300px; height: 200px; border: 0"
+  src="padded.html#only=second"></iframe>
+<script>
+  // 보드처럼 보고된 크기를 iframe 에 다시 적용해 크기가 수렴하는지 본다.
+  let report = null;
+  let reports = 0;
+  window.addEventListener('message', event => {
+    if (event.data?.type !== 'dcness-frame-size') return;
+    report = event.data;
+    reports += 1;
+    const frame = document.getElementById('frame');
+    frame.style.width = report.width + 'px';
+    frame.style.height = report.height + 'px';
+  });
+  (async function () {
+    for (let attempt = 0; attempt < 50 && !report; attempt += 1) {
+      await fetch('${PROBE_WAIT_PATH}', { cache: 'no-store' });
+    }
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      await fetch('${PROBE_WAIT_PATH}', { cache: 'no-store' });
+    }
+    const doc = document.getElementById('frame').contentDocument;
+    const display = selector => getComputedStyle(doc.querySelector(selector)).display;
+    const titles = [...doc.querySelectorAll('.variant-title')]
+      .filter(title => title.getClientRects().length > 0)
+      .map(title => title.textContent);
+    document.documentElement.dataset.smoke = encodeURIComponent(JSON.stringify({
+      report,
+      reports,
+      firstDisplay: display('[data-variant="first"]'),
+      secondDisplay: display('[data-variant="second"]'),
+      visibleTitles: titles,
+      scrollbarWidth: getComputedStyle(doc.documentElement).scrollbarWidth,
+    }));
+  })();
+</script>
+</body></html>
+`;
+}
+
 function uxFlow() {
   return `# UX flow
 
@@ -473,6 +551,22 @@ async function main() {
       labelNodeHits: 0,
       labelPairHits: 0,
     });
+
+    const fixtures = path.join(design, 'fixtures');
+    await mkdir(fixtures, { recursive: true });
+    await writeFile(path.join(fixtures, 'padded.html'), paddedScreenHtml());
+    await writeFile(path.join(fixtures, 'padded-probe.html'), paddedProbeHtml());
+    const padded = smokeData(await dumpDom(
+      chrome,
+      profile,
+      `${base}/docs/design-variants/fixtures/padded-probe.html`,
+    ));
+    assert.equal(padded.firstDisplay, 'none', `author display overrode #only: ${JSON.stringify(padded)}`);
+    assert.equal(padded.secondDisplay, 'flex', JSON.stringify(padded));
+    assert.deepEqual(padded.visibleTitles, ['second 제목'], JSON.stringify(padded));
+    assert.equal(padded.report?.width, 24 + 390 + 24, `frame width lost padding: ${JSON.stringify(padded)}`);
+    assert.equal(padded.scrollbarWidth, 'none', JSON.stringify(padded));
+    assert.ok(padded.reports <= 3, `frame size did not converge: ${JSON.stringify(padded)}`);
 
     const invalid = await dumpDom(
       chrome,

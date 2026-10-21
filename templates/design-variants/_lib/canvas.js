@@ -1,4 +1,4 @@
-/* dcness-design-engine: 1.0.0
+/* dcness-design-engine: 1.1.0
  * Project-agnostic design board engine: natural-size frames, derived layout,
  * pan/zoom, and collision-aware journey arrows.
  *

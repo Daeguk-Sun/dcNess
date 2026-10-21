@@ -1,4 +1,4 @@
-/* dcness-design-engine: 1.0.0
+/* dcness-design-engine: 1.1.0
  * Show IDs 토글 + URL hash highlight.
  * screens/와 drafts/가 같은 깊이라 둘 다 ../_lib/show-ids.js를 참조한다.
  *
