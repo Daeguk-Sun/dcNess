@@ -26,6 +26,7 @@
 | 구조 설계 전 코드 상태 점검의 실패는 설계 진입을 막지 않는다. 점검 결과는 설계 판단의 입력이다. 메인이 관련성을 판단하고 계속 또는 중단의 이유를 사용자에게 보고한다. | 실패가 설계 대상 자체에서 생기면 선행 조건이 "구현 먼저, 설계 나중"으로 순서를 뒤집는다. 코드로 강제하지 않는 조건을 문서에만 강제로 적으면 문서와 실제가 달라진다. | [#1303](https://github.com/Daeguk-Sun/dcNess/issues/1303), [`skills/design/design-routing.md`](../../skills/design/design-routing.md) |
 | 새 skill·command·agent·gate 를 추가하려면 기존 수단으로 부족한 이유를 먼저 설명한다. | 사용자에게 보이는 진입점을 작게 유지한다. | [`CLAUDE.md`](../../CLAUDE.md)의 "안티패턴" 5번, [`docs/plugin/positioning.md`](../plugin/positioning.md) |
 | 사용자의 승인 한 단어는 그때 묻던 선택만 확정한다. agent 가 설명문에 사실처럼 적은 제품 동작은 사용자 확정으로 세지 않는다. 사용자의 이해를 확인하는 수단은 agent 가 고르고 형식을 강제하지 않는다. | 핵심 동작 정의가 질문 밖에 있으면 사용자가 설계가 끝난 뒤에야 문제를 발견하고 하위 문서 전체를 다시 쓴다. 사용자에게 효과가 있는 것은 형식이 아니라 상황 단위로 풀어 쓴 설명이다. | [`docs/plugin/decision-completeness.md`](../plugin/decision-completeness.md)의 "agent 전제와 사용자 확정" 절, [#1294](https://github.com/Daeguk-Sun/dcNess/issues/1294) |
+| 같은 제품 동작을 여러 설계 문서가 각자 적는 구조를 바꾸지 않는다. 진본 문서와 참조 문서의 경계를 새로 정하지 않는다. | 설계 과다 수정 뒤 재측정에서 동작 1개의 기재가 문서 14개·49회에서 6~11개·11~34회로 줄었고, 설계 검증의 문서 간 표현 불일치 지적은 0건이었다. 남은 반복은 검증 조건이나 화면 문구처럼 관점이 다른 문서에 필요한 언급이다. 남은 비용인 머지 뒤 정정의 문서 누락은 정정 절차로 다룬다. | [#1295](https://github.com/Daeguk-Sun/dcNess/issues/1295), 후속 [#1328](https://github.com/Daeguk-Sun/dcNess/issues/1328) |
 
 ## 저장소 운영
 
