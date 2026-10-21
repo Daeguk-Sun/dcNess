@@ -208,19 +208,36 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("## 응답 문체", ctx)
         self.assertIn("ASD-STE100", ctx)
         for rule in (
-            "결론을 맨 앞 한 줄에",
-            "한 문장에는 한 가지 내용만",
-            "능동태",
-            "번호",
+            "개조식 명사형 종결",
+            "결론 1줄 → 사용자 할 일·결정 → 근거",
+            "항목 하나에는 내용 하나만",
+            "근거는 하위 불릿",
+            "제목은 명사형",
+            "시퀀스 다이어그램",
             "같은 대상은 처음부터 끝까지 같은 단어로",
-            "문단은 3문장 이내",
+            "관용 표현과 비유",
             "핵심 판단이나 결정 요청만 굵게",
         ):
             self.assertIn(rule, ctx, f"응답 문체 규칙 누락: {rule}")
+        # 금지 표현 5종 (#1317)
+        for forbidden in (
+            "질문형·말 거는 제목",
+            "작업 경위 문장",
+            "축약 표기",
+            "독자가 볼 수 없는 내부 번호",
+            "맞장구",
+        ):
+            self.assertIn(forbidden, ctx, f"금지 표현 누락: {forbidden}")
+        self.assertIn("나쁜 예", ctx)
+        self.assertIn("좋은 예", ctx)
         # 적용 범위·우선순위 계약
         self.assertIn("사용자에게 보내는 대화 응답", ctx)
+        self.assertIn("공유 문서", ctx)
         self.assertIn("서브에이전트", ctx)
+        self.assertIn("commit/PR 본문", ctx)
+        self.assertIn("응답 언어는 바꾸지 않는다", ctx)
         self.assertIn("사용자가 쓰는 언어", ctx)
+        self.assertIn("다른 언어는 그 언어의 간결한 bullet 형식", ctx)
         self.assertIn("그 지침이 우선", ctx)
 
     def test_session_start_inactive_project_injects_nothing(self) -> None:
