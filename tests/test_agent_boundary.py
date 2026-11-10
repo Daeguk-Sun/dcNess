@@ -570,6 +570,9 @@ class BashPathContractTests(unittest.TestCase):
             "python3 - <<'EOF'\np = 'src/a.ts'\ndef p():\n    pass\nopen(p, 'w')\nEOF",
             "python3 - <<'EOF'\np = 'src/a.ts'\nmatch v:\n    case p:\n        open(p, 'w')\nEOF",
             "python3 - <<'EOF'\np = 'src/a.ts'\nfor p in ['src/b.ts']:\n    pass\nelse:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    p = '/tmp/x'\nfinally:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    p = '/tmp/x'\nexcept E:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nfor q in ['x']:\n    p = '/tmp/x'\nelse:\n    open(p, 'w')\nEOF",
         ]
         for command in cases:
             with self.subTest(command=command):
@@ -586,7 +589,13 @@ class BashPathContractTests(unittest.TestCase):
         self.assertEqual(sorted(set(extract_bash_paths(derived))), ["src/a.ts", "src/b.ts"])
 
     def test_mutated_literal_list_loop_stays_unresolved(self) -> None:
-        for mutation in ("files.append('src/b.ts')", "files[0] = 'src/b.ts'", "files.extend(more)"):
+        for mutation in (
+            "files.append('src/b.ts')",
+            "files[0] = 'src/b.ts'",
+            "files.extend(more)",
+            "alias = files\nalias.append('src/b.ts')",
+            "grow(files)",
+        ):
             command = (
                 f"python3 - <<'EOF'\nfiles = ['src/a.ts']\n{mutation}\n"
                 "for f in files:\n    open(f, 'w')\nEOF"

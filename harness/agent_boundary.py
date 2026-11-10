@@ -1241,10 +1241,6 @@ _REPEAT_NODES = (ast.For, ast.AsyncFor, ast.While)
 _COMPREHENSION_NODES = (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
 _STATEMENT_LIST_FIELDS = ("body", "orelse", "finalbody", "handlers", "cases")
 _NOT_FOUND = object()
-_LIST_MUTATORS = frozenset(
-    {"append", "extend", "insert", "remove", "pop", "clear", "sort", "reverse", "add", "update",
-     "discard"}
-)
 
 
 class _PythonWriteScanner:
@@ -1316,6 +1312,22 @@ class _PythonWriteScanner:
             if id(child) not in body_nodes
         )
 
+    @staticmethod
+    def _earlier_blocks(parent: ast.AST, node: ast.AST) -> list[ast.AST]:
+        """node 가 든 블록보다 먼저 실행될 수 있는 같은 구문의 형제 블록 문장들."""
+        def block(field: str) -> list[ast.AST]:
+            value = getattr(parent, field, None)
+            return list(value) if isinstance(value, list) else []
+
+        if type(parent).__name__ in ("Try", "TryStar"):
+            if node in block("finalbody"):
+                return block("body") + block("handlers") + block("orelse")
+            if node in block("handlers") or node in block("orelse"):
+                return block("body")
+        if isinstance(parent, _REPEAT_NODES) and node in block("orelse"):
+            return block("body")
+        return []
+
     def _comprehension_def(
         self, generators: Sequence[ast.comprehension], name: str
     ) -> Union[_LoopDef, None, object]:
@@ -1373,6 +1385,8 @@ class _PythonWriteScanner:
                     return None if rebinds else _LoopDef(parent.iter, parent)
             if in_body and self._header_binds(parent, name):
                 return None  # with/except/match/for 머리가 이 이름을 다시 정의한다.
+            if any(self._binds_name(stmt, name) for stmt in self._earlier_blocks(parent, node)):
+                return None  # try 본문·반복문 본문처럼 먼저 실행된 형제 블록이 값을 바꿨을 수 있다.
             if isinstance(parent, _REPEAT_NODES) and node in parent.body:
                 body_rebinds = any(self._binds_name(stmt, name) for stmt in parent.body)
                 if body_rebinds and not self._assigned_before_without_rebind(
@@ -1459,29 +1473,22 @@ class _PythonWriteScanner:
         if isinstance(expr, (ast.List, ast.Tuple, ast.Set)):
             return [(elt, site) for elt in expr.elts]
         if isinstance(expr, ast.Name):
-            if self._list_mutated(expr.id):
-                return None  # append·원소 대입 등으로 리터럴 목록이 바뀌었을 수 있다.
+            if self._list_escapes(expr.id):
+                return None  # 별칭·인자·메서드 호출로 리터럴 목록이 바뀌었을 수 있다.
             definition = self._reaching(expr.id, site)
             if isinstance(definition, _ValueDef):
                 return self._iter_elements(definition.value, definition.site, depth + 1)
         return None
 
-    def _list_mutated(self, name: str) -> bool:
+    def _list_escapes(self, name: str) -> bool:
+        """목록 이름이 반복 대상 말고 다른 곳(별칭·인자·메서드·원소 대입)에 쓰이는가."""
         for node in ast.walk(self.tree):
-            if (
-                isinstance(node, ast.Attribute)
-                and isinstance(node.value, ast.Name)
-                and node.value.id == name
-                and node.attr in _LIST_MUTATORS
-            ):
-                return True
-            if (
-                isinstance(node, ast.Subscript)
-                and isinstance(node.value, ast.Name)
-                and node.value.id == name
-                and isinstance(node.ctx, (ast.Store, ast.Del))
-            ):
-                return True
+            if not (isinstance(node, ast.Name) and node.id == name and isinstance(node.ctx, ast.Load)):
+                continue
+            parent = self.parents.get(node)
+            if isinstance(parent, (ast.For, ast.AsyncFor, ast.comprehension)) and parent.iter is node:
+                continue
+            return True
         return False
 
     def resolve(
