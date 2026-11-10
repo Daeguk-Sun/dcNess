@@ -1237,8 +1237,14 @@ class _ValueDef:
 
 
 _LOOP_NODES = (ast.For, ast.AsyncFor)
+_REPEAT_NODES = (ast.For, ast.AsyncFor, ast.While)
 _COMPREHENSION_NODES = (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
-_STATEMENT_LIST_FIELDS = ("body", "orelse", "finalbody", "handlers")
+_STATEMENT_LIST_FIELDS = ("body", "orelse", "finalbody", "handlers", "cases")
+_NOT_FOUND = object()
+_LIST_MUTATORS = frozenset(
+    {"append", "extend", "insert", "remove", "pop", "clear", "sort", "reverse", "add", "update",
+     "discard"}
+)
 
 
 class _PythonWriteScanner:
@@ -1269,12 +1275,57 @@ class _PythonWriteScanner:
         } | {node.arg for node in ast.walk(tree) if isinstance(node, ast.arg)}
 
     @staticmethod
-    def _binds_name(node: ast.AST, name: str) -> bool:
+    def _defined_names(node: ast.AST) -> Iterable[str]:
+        """node 자체가 정의하는 이름 — 대입 대상·인자·def/class·import·except·match 패턴."""
+        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+            yield node.id
+        elif isinstance(node, ast.arg):
+            yield node.arg
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            yield node.name
+        elif isinstance(node, (ast.Import, ast.ImportFrom)):
+            for alias in node.names:
+                yield alias.asname or alias.name.split(".")[0]
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            yield node.name
+        elif type(node).__name__ in ("MatchAs", "MatchStar"):
+            match_name = getattr(node, "name", None)
+            if match_name:
+                yield match_name
+        elif type(node).__name__ == "MatchMapping":
+            rest = getattr(node, "rest", None)
+            if rest:
+                yield rest
+
+    def _binds_name(self, node: ast.AST, name: str) -> bool:
+        return any(name in self._defined_names(sub) for sub in ast.walk(node))
+
+    def _header_binds(self, parent: ast.AST, name: str) -> bool:
+        """parent 의 본문 블록을 뺀 머리 부분(with 대상, except 이름, match 패턴 등)이 name 을 정의하는가."""
+        if name in self._defined_names(parent):
+            return True
+        body_nodes = {
+            id(stmt)
+            for field in _STATEMENT_LIST_FIELDS
+            for stmt in (getattr(parent, field, None) or [])
+            if isinstance(getattr(parent, field, None), list)
+        }
         return any(
-            (isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Store) and sub.id == name)
-            or (isinstance(sub, ast.arg) and sub.arg == name)
-            for sub in ast.walk(node)
+            self._binds_name(child, name)
+            for child in ast.iter_child_nodes(parent)
+            if id(child) not in body_nodes
         )
+
+    def _comprehension_def(
+        self, generators: Sequence[ast.comprehension], name: str
+    ) -> Union[_LoopDef, None, object]:
+        """보이는 generator 중 가장 안쪽의 name 정의. 없으면 _NOT_FOUND."""
+        for gen in reversed(generators):
+            if isinstance(gen.target, ast.Name) and gen.target.id == name:
+                return _LoopDef(gen.iter, gen)
+            if self._binds_name(gen.target, name):
+                return None
+        return _NOT_FOUND
 
     @staticmethod
     def _direct_value(stmt: ast.AST, name: str) -> Optional[ast.expr]:
@@ -1295,21 +1346,39 @@ class _PythonWriteScanner:
         node = site
         while node in self.parents:
             parent = self.parents[node]
+            if isinstance(parent, ast.comprehension):
+                # generator 의 iter 는 그보다 앞선 generator 만, 조건(ifs)은 자신까지 본다.
+                comp = self.parents[parent]
+                generators = comp.generators  # type: ignore[attr-defined]
+                index = generators.index(parent)
+                visible = generators[:index] if node is parent.iter else generators[: index + 1]
+                found = self._comprehension_def(visible, name)
+                if found is not _NOT_FOUND:
+                    return found  # type: ignore[return-value]
+                node = comp
+                continue
             if isinstance(parent, _COMPREHENSION_NODES):
-                for gen in parent.generators:
-                    if node is gen.iter:
-                        break
-                    if isinstance(gen.target, ast.Name) and gen.target.id == name:
-                        return _LoopDef(gen.iter, parent)
+                found = self._comprehension_def(parent.generators, name)
+                if found is not _NOT_FOUND:
+                    return found  # type: ignore[return-value]
+            in_body = any(
+                node in (getattr(parent, field, None) or [])
+                for field in _STATEMENT_LIST_FIELDS
+                if isinstance(getattr(parent, field, None), list)
+            )
             if isinstance(parent, _LOOP_NODES) and node in parent.body:
                 own_target = isinstance(parent.target, ast.Name) and parent.target.id == name
-                body_rebinds = any(self._binds_name(stmt, name) for stmt in parent.body)
                 if own_target:
-                    return None if body_rebinds else _LoopDef(parent.iter, parent)
+                    rebinds = any(self._binds_name(stmt, name) for stmt in parent.body)
+                    return None if rebinds else _LoopDef(parent.iter, parent)
+            if in_body and self._header_binds(parent, name):
+                return None  # with/except/match/for 머리가 이 이름을 다시 정의한다.
+            if isinstance(parent, _REPEAT_NODES) and node in parent.body:
+                body_rebinds = any(self._binds_name(stmt, name) for stmt in parent.body)
                 if body_rebinds and not self._assigned_before_without_rebind(
                     parent.body, node, name
                 ):
-                    return None
+                    return None  # 이전 반복의 재대입 값이 도달할 수 있다.
             for field in _STATEMENT_LIST_FIELDS:
                 stmts = getattr(parent, field, None)
                 if isinstance(stmts, list) and node in stmts:
@@ -1390,10 +1459,30 @@ class _PythonWriteScanner:
         if isinstance(expr, (ast.List, ast.Tuple, ast.Set)):
             return [(elt, site) for elt in expr.elts]
         if isinstance(expr, ast.Name):
+            if self._list_mutated(expr.id):
+                return None  # append·원소 대입 등으로 리터럴 목록이 바뀌었을 수 있다.
             definition = self._reaching(expr.id, site)
             if isinstance(definition, _ValueDef):
                 return self._iter_elements(definition.value, definition.site, depth + 1)
         return None
+
+    def _list_mutated(self, name: str) -> bool:
+        for node in ast.walk(self.tree):
+            if (
+                isinstance(node, ast.Attribute)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == name
+                and node.attr in _LIST_MUTATORS
+            ):
+                return True
+            if (
+                isinstance(node, ast.Subscript)
+                and isinstance(node.value, ast.Name)
+                and node.value.id == name
+                and isinstance(node.ctx, (ast.Store, ast.Del))
+            ):
+                return True
+        return False
 
     def resolve(
         self, expr: Optional[ast.expr], site: ast.AST, env: dict[int, str], depth: int = 0

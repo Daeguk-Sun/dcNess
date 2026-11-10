@@ -563,6 +563,13 @@ class BashPathContractTests(unittest.TestCase):
         cases = [
             "python3 - <<'EOF'\np = 'src/a.ts'\nif x:\n    p = 'src/b.ts'\nopen(p, 'w')\nEOF",
             "python3 - <<'EOF'\np = 'src/a.ts'\nfor q in ['x']:\n    open(p, 'w')\n    p = 'src/b.ts'\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nwhile c:\n    open(p, 'w')\n    p = 'src/b.ts'\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nwith thing() as p:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    pass\nexcept E as p:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nimport os as p\nopen(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\ndef p():\n    pass\nopen(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nmatch v:\n    case p:\n        open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nfor p in ['src/b.ts']:\n    pass\nelse:\n    open(p, 'w')\nEOF",
         ]
         for command in cases:
             with self.subTest(command=command):
@@ -577,6 +584,36 @@ class BashPathContractTests(unittest.TestCase):
             "    open(p + '', 'w')\n    open(f'{p}', 'w')\nEOF"
         )
         self.assertEqual(sorted(set(extract_bash_paths(derived))), ["src/a.ts", "src/b.ts"])
+
+    def test_mutated_literal_list_loop_stays_unresolved(self) -> None:
+        for mutation in ("files.append('src/b.ts')", "files[0] = 'src/b.ts'", "files.extend(more)"):
+            command = (
+                f"python3 - <<'EOF'\nfiles = ['src/a.ts']\n{mutation}\n"
+                "for f in files:\n    open(f, 'w')\nEOF"
+            )
+            with self.subTest(mutation=mutation):
+                self.assertEqual(extract_bash_paths(command), [])
+                self.assertNotEqual(unresolved_bash_python_writes(command), [])
+
+    def test_common_block_shapes_still_resolve(self) -> None:
+        cases = {
+            "python3 - <<'EOF'\np = 'src/a.ts'\nwith open(p, 'w') as f:\n    f.write('x')\nEOF": ["src/a.ts"],
+            "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    open(p, 'w')\nexcept OSError:\n    pass\nEOF": ["src/a.ts"],
+            "python3 - <<'EOF'\np = 'src/a.ts'\nif c:\n    open(p, 'w')\nEOF": ["src/a.ts"],
+            "python3 - <<'EOF'\nwhile c:\n    p = 'src/a.ts'\n    open(p, 'w')\nEOF": ["src/a.ts"],
+        }
+        for command, expected in cases.items():
+            with self.subTest(command=command):
+                self.assertEqual(sorted(extract_bash_paths(command)), expected)
+                self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_comprehension_generators_keep_their_own_values(self) -> None:
+        command = (
+            "python3 - <<'EOF'\n"
+            "[open(f'src/{d}/{n}.ts', 'w') for d in ['a', 'c'] for n in ['b']]\nEOF"
+        )
+        self.assertEqual(sorted(extract_bash_paths(command)), ["src/a/b.ts", "src/c/b.ts"])
+        self.assertEqual(unresolved_bash_python_writes(command), [])
 
     def test_imported_library_open_is_not_a_python_write(self) -> None:
         for command in (
