@@ -34,7 +34,9 @@ class RunSummaryRetentionTests(unittest.TestCase):
     def tearDown(self) -> None:
         self._td.cleanup()
 
-    def _run(self, rid: str = RID, *, pr_number: int = 7) -> Path:
+    def _run(
+        self, rid: str = RID, *, pr_number: int = 7, pr_events: tuple[str, ...] = ("pr_created", "pr_merged")
+    ) -> Path:
         state.transition(SID, "run_started", run_id=rid, base_dir=self.base, entry_point="impl")
         run_dir = state.run_dir(SID, rid, base_dir=self.base, create=True)
         prose = "독립 검토 결과\nFAIL\n"
@@ -52,7 +54,7 @@ class RunSummaryRetentionTests(unittest.TestCase):
             prose_path=prose_path,
         )
         url = f"https://example.invalid/repo/pull/{pr_number}"
-        for event in ("pr_created", "pr_merged"):
+        for event in pr_events:
             state.transition(
                 SID,
                 "ledger_checkpoint",
@@ -103,6 +105,25 @@ class RunSummaryRetentionTests(unittest.TestCase):
         self.assertEqual(process["finished_runs"]["numerator"], 1)
         self.assertEqual(process["finished_runs"]["denominator"], 1)
         self.assertEqual(process["pr_merge_success"]["denominator"], 1)
+
+    def test_pr_created_in_deleted_run_matches_merge_in_live_run(self) -> None:
+        old = self._run("run-aaaa0002", pr_events=("pr_created",))
+        self._expire(old)
+        state.cleanup_stale_run_dirs(base_dir=self.base)
+        self._run("run-aaaa0003", pr_events=("pr_merged",))
+
+        process = self._process()
+        self.assertEqual(process["pr_merge_success"]["numerator"], 1)
+        self.assertEqual(process["pr_merge_success"]["denominator"], 1)
+
+    def test_summary_only_runs_are_not_counted_as_waste_free(self) -> None:
+        run_dir = self._run()
+        self._expire(run_dir)
+        state.cleanup_stale_run_dirs(base_dir=self.base)
+
+        waste = self._process()["waste_signals"]
+        self.assertEqual(waste["denominator"], 0)
+        self.assertEqual(waste["status"], "측정 불가")
 
     def test_summary_write_failure_does_not_block_run_completion(self) -> None:
         (self.base / "run-summaries.jsonl").mkdir(parents=True)

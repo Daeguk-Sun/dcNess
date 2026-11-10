@@ -37,7 +37,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 # repo root 를 path 에 추가 (CLI `python3 harness/benchmark_aggregate.py` 직접 실행 대비)
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -104,6 +104,8 @@ class FleetReport:
     recurrence_threshold: int
     improvement_candidates: list[ImprovementCandidate]
     waste_limit: int = 10
+    # waste 를 관측할 수 있는 run 수 (요약 기록만 남은 run 제외). waste 비율의 분모.
+    waste_observed_run_count: int = 0
 
 
 def _build_improvement_candidates(
@@ -207,8 +209,10 @@ def aggregate_runs(
     recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
     repo_override=None,
     event_cutoff: Optional[datetime] = None,
+    summaries: Sequence[dict] = (),
+    summary_root: Optional[Path] = None,
 ) -> FleetReport:
-    """run_dir 목록을 fleet 집계한다.
+    """run_dir 목록(+ run 디렉토리가 삭제된 run 의 요약 기록)을 fleet 집계한다.
 
     repo_override: build_report 의 invocation/cost 산출 기준 repo. 지정 시 모든 run 에
     적용. **worktree 한계** — run_dir(ledger)은 git-common-dir 때문에 항상 main repo
@@ -264,42 +268,14 @@ def aggregate_runs(
         for w in report.wastes:
             waste_counter[w.pattern] += 1
 
-    return _fleet_report(
-        run_count=run_count,
-        by_entry_point=by_entry_point,
-        agent_conclusions=agent_conclusions,
-        escalate_count=escalate_count,
-        blocked_event_count=blocked_event_count,
-        pr_created_keys=pr_created_keys,
-        pr_merged_keys=pr_merged_keys,
-        waste_counter=waste_counter,
-        top=top,
-        recurrence_threshold=recurrence_threshold,
-    )
-
-
-def aggregate_summaries(
-    records: list[dict],
-    project_root: Path,
-    *,
-    top: int = 10,
-    recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
-    event_cutoff: Optional[datetime] = None,
-) -> FleetReport:
-    """run 디렉토리가 삭제된 run 의 요약 기록(`run-summaries.jsonl`)을 fleet 집계한다.
-
-    요약에는 단계 결론·blocked·PR 이벤트만 있어 waste(세션 JSONL·prose 기반)는 0 으로 둔다.
-    PR key 는 원래 run 디렉토리 위치를 재구성해 `aggregate_runs` 와 같은 규칙으로 만든다.
-    """
-    by_entry_point: Counter = Counter()
-    agent_conclusions: dict = defaultdict(Counter)
-    escalate_count = 0
-    blocked_event_count = 0
-    pr_created_keys: set[str] = set()
-    pr_merged_keys: set[str] = set()
-    for record in records:
+    # run 디렉토리가 삭제돼 요약 기록(`run-summaries.jsonl`)만 남은 run 도 같은 집계에 합친다.
+    # PR key 를 같은 집합에 모아야 생성·merge 이벤트가 서로 다른 run 에 있어도 짝이 맞고 중복이
+    # 제거된다. 요약에는 waste 근거(prose·세션 JSONL)가 없어 waste 관측 분모에서는 뺀다.
+    waste_observed_run_count = run_count
+    for record in summaries:
+        run_count += 1
         run_dir = (
-            Path(project_root).resolve() / ".claude" / "harness-state" / ".sessions"
+            Path(summary_root or ".").resolve() / ".claude" / "harness-state" / ".sessions"
             / str(record.get("session_id")) / "runs" / str(record.get("run_id"))
         )
         entry_point = record.get("entry_point")
@@ -321,33 +297,7 @@ def aggregate_summaries(
                 pr_created_keys.add(_pr_event_key(event, run_dir, idx))
             elif kind == "pr_merged":
                 pr_merged_keys.add(_pr_event_key(event, run_dir, idx))
-    return _fleet_report(
-        run_count=len(records),
-        by_entry_point=by_entry_point,
-        agent_conclusions=agent_conclusions,
-        escalate_count=escalate_count,
-        blocked_event_count=blocked_event_count,
-        pr_created_keys=pr_created_keys,
-        pr_merged_keys=pr_merged_keys,
-        waste_counter=Counter(),
-        top=top,
-        recurrence_threshold=recurrence_threshold,
-    )
 
-
-def _fleet_report(
-    *,
-    run_count: int,
-    by_entry_point: Counter,
-    agent_conclusions: dict,
-    escalate_count: int,
-    blocked_event_count: int,
-    pr_created_keys: set[str],
-    pr_merged_keys: set[str],
-    waste_counter: Counter,
-    top: int,
-    recurrence_threshold: int,
-) -> FleetReport:
     # impl-validator FAIL 비율: FAIL / (PASS+FAIL)
     pr = agent_conclusions.get("impl-validator", {})
     denom = sum(c for v, c in pr.items() if v in _PR_REVIEWER_VERDICTS)
@@ -387,6 +337,7 @@ def _fleet_report(
             threshold=recurrence_threshold,
         ),
         waste_limit=top,
+        waste_observed_run_count=waste_observed_run_count,
     )
 
 

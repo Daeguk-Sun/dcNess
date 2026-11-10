@@ -23,11 +23,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
 from harness import agent_effectiveness, ledger, product_journey, run_review  # noqa: E402
-from harness.benchmark_aggregate import (  # noqa: E402
-    FleetReport,
-    aggregate_runs,
-    aggregate_summaries,
-)
+from harness.benchmark_aggregate import FleetReport, aggregate_runs  # noqa: E402
 from harness.session_state import RUN_SUMMARIES_FILENAME  # noqa: E402
 
 
@@ -276,25 +272,27 @@ def build_scorecard(
             for run_dir in run_review.list_runs(sessions_root)
             if _finished_by(run_dir, cutoff)
         ]
-        live_fleet = aggregate_runs(finished_dirs, event_cutoff=cutoff)
-        archived_fleet = aggregate_summaries(archived_finished, project, event_cutoff=cutoff)
-        run_total = live_fleet.run_count + archived_fleet.run_count
-        if run_total == 0:
+        fleet = aggregate_runs(
+            finished_dirs,
+            event_cutoff=cutoff,
+            summaries=archived_finished,
+            summary_root=project,
+        )
+        if fleet.run_count == 0:
             if source_refs is not None and source_ref not in journey_source_refs:
                 unavailable_sources.append(source_ref)
             continue
         candidates = len(candidate_dirs) + len(archived)
         candidate_run_count += candidates
-        fleets.extend(fleet for fleet in (live_fleet, archived_fleet) if fleet.run_count)
+        fleets.append(fleet)
         source = {
             "source_ref": source_ref,
             "projects_file_index": index,
             "source_location": f"active-project registry entry #{index}",
             "candidate_run_count": candidates,
-            "finished_run_count": run_total,
-            "summary_only_run_count": archived_fleet.run_count,
-            "fleet": _fleet_json(live_fleet),
-            "summary_fleet": _fleet_json(archived_fleet),
+            "finished_run_count": fleet.run_count,
+            "summary_only_run_count": len(archived_finished),
+            "fleet": _fleet_json(fleet),
         }
         if not redact_paths:
             source["project_path"] = str(project)
@@ -327,6 +325,7 @@ def build_scorecard(
         sum(distribution.values()) for distribution in validator_conclusions.values()
     )
     waste_count = sum(waste.values())
+    waste_observed_runs = sum(fleet.waste_observed_run_count for fleet in fleets)
 
     process = {
         "finished_runs": _metric(
@@ -403,11 +402,14 @@ def build_scorecard(
             measured_at=measured_at,
             source_project_count=source_count,
             numerator=waste_count,
-            denominator=finished_runs,
+            denominator=waste_observed_runs,
             value=dict(waste.most_common()),
-            unit="waste findings over finished-run exposure",
-            evidence="run_review waste detector reused by benchmark_aggregate",
-            measurable=finished_runs > 0,
+            unit="waste findings over finished runs with prose/session evidence",
+            evidence=(
+                "run_review waste detector reused by benchmark_aggregate; summary-only runs "
+                "(run directory removed) have no waste evidence and are excluded"
+            ),
+            measurable=waste_observed_runs > 0,
         ),
     }
 
