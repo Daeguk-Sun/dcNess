@@ -86,6 +86,9 @@ RUN_ID_RE = re.compile(r"^run-[a-z0-9]{8}$")
 DEFAULT_RUN_TTL_SEC = 24 * 60 * 60        # 24h — completed slot 보관 후 cleanup
 DEFAULT_PID_TTL_SEC = 24 * 60 * 60        # 24h — by-pid 파일 stale 기준 (PID 재사용 보호)
 DEFAULT_RUN_DIR_TTL_SEC = 7 * 24 * 60 * 60  # 7d — run 디렉토리(prose/ledger) 보관. /run-review 원자료라 슬롯(24h)보다 길게
+# run 디렉토리가 삭제돼도 남는 프로젝트 단위 run 요약 누적 기록 (삭제 대상 아님).
+RUN_SUMMARIES_FILENAME = "run-summaries.jsonl"
+_SUMMARY_EVENTS = frozenset({"blocked", "pr_created", "pr_merged"})
 STALE_STEP_TTL_SEC = 30 * 60              # 30min — current_step heartbeat stale 기준 (DCN-30-30)
 LIVE_JSON_VERSION = 1                      # 스키마 진화 추적
 STDIN_TIMEOUT_SEC = 2.0                    # 훅 stdin 읽기 hang 방지
@@ -821,6 +824,7 @@ def _apply_run_transition(
         slot.update(completed_at=now, last_confirmed_at=now, current_step=None)
         active[run_id] = slot
         _append_ledger_record(session_id, run_id, "run_finished", base_dir=base_dir)
+        record_run_summary(session_id, run_id, base_dir=base_dir)
         return None, True
 
     _active_slot(active, run_id)
@@ -1691,6 +1695,63 @@ def _active_worktree_root_for_prompt(*, cwd: Optional[Path] = None) -> Optional[
     return str(root_path) if _is_dcness_worktree_path(root_path) else None
 
 
+def record_run_summary(
+    session_id: str, run_id: str, *, base_dir: Optional[Path] = None
+) -> bool:
+    """run 요약 1건을 프로젝트 단위 누적 기록(`run-summaries.jsonl`)에 덧붙인다.
+
+    run 디렉토리(prose/ledger)는 7일 뒤 삭제되지만 이 요약은 남아 장기 집계에 쓰인다.
+    같은 run 은 여러 번 기록될 수 있고 마지막 기록이 최신이다. prose 본문·절대경로는
+    넣지 않는다. best-effort — 실패해도 False 만 돌려주고 호출자를 막지 않는다.
+    """
+    try:
+        from harness import ledger, run_review
+
+        rdir = run_dir(session_id, run_id, base_dir=base_dir)
+        events = ledger.read_events_at(rdir)
+        if not events:
+            return False
+        started = next((e for e in events if e.get("event") == "run_started"), {})
+        finished = [e for e in events if e.get("event") == "run_finished"]
+        record = {
+            "schema_version": 1,
+            "kind": "run_summary",
+            "session_id": session_id,
+            "run_id": run_id,
+            "recorded_at": _now_iso(),
+            "entry_point": started.get("entry_point") or started.get("mode"),
+            "started_at": started.get("ts"),
+            "finished_at": finished[-1].get("ts") if finished else None,
+            "steps": [
+                {
+                    "agent": step.agent,
+                    "mode": step.mode,
+                    "conclusion": step.conclusion_enum,
+                    "ts": step.ts,
+                }
+                for step in run_review.parse_steps(rdir)
+            ],
+            "events": [
+                {
+                    key: event[key]
+                    for key in ("event", "ts", "pr_number", "url")
+                    if key in event
+                }
+                for event in events
+                if event.get("event") in _SUMMARY_EVENTS
+            ],
+        }
+        path = _resolve_base(base_dir) / RUN_SUMMARIES_FILENAME
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        return True
+    except Exception:  # noqa: BLE001 # nosec B110 — 요약 기록 실패가 run 종료·청소를 막지 않는다.
+        return False
+
+
 def cleanup_stale_run_dirs(
     *,
     ttl_sec: int = DEFAULT_RUN_DIR_TTL_SEC,
@@ -1736,6 +1797,8 @@ def cleanup_stale_run_dirs(
             except OSError:
                 continue
             if now - newest > ttl_sec:
+                # 삭제 직전 최신 상태(run 종료 뒤 늦게 붙은 PR 이벤트 포함)로 요약을 다시 남긴다.
+                record_run_summary(sdir.name, rdir.name, base_dir=base)
                 try:
                     shutil.rmtree(rdir)
                     removed += 1

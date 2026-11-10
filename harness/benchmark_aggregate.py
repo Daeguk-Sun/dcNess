@@ -264,6 +264,90 @@ def aggregate_runs(
         for w in report.wastes:
             waste_counter[w.pattern] += 1
 
+    return _fleet_report(
+        run_count=run_count,
+        by_entry_point=by_entry_point,
+        agent_conclusions=agent_conclusions,
+        escalate_count=escalate_count,
+        blocked_event_count=blocked_event_count,
+        pr_created_keys=pr_created_keys,
+        pr_merged_keys=pr_merged_keys,
+        waste_counter=waste_counter,
+        top=top,
+        recurrence_threshold=recurrence_threshold,
+    )
+
+
+def aggregate_summaries(
+    records: list[dict],
+    project_root: Path,
+    *,
+    top: int = 10,
+    recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
+    event_cutoff: Optional[datetime] = None,
+) -> FleetReport:
+    """run 디렉토리가 삭제된 run 의 요약 기록(`run-summaries.jsonl`)을 fleet 집계한다.
+
+    요약에는 단계 결론·blocked·PR 이벤트만 있어 waste(세션 JSONL·prose 기반)는 0 으로 둔다.
+    PR key 는 원래 run 디렉토리 위치를 재구성해 `aggregate_runs` 와 같은 규칙으로 만든다.
+    """
+    by_entry_point: Counter = Counter()
+    agent_conclusions: dict = defaultdict(Counter)
+    escalate_count = 0
+    blocked_event_count = 0
+    pr_created_keys: set[str] = set()
+    pr_merged_keys: set[str] = set()
+    for record in records:
+        run_dir = (
+            Path(project_root).resolve() / ".claude" / "harness-state" / ".sessions"
+            / str(record.get("session_id")) / "runs" / str(record.get("run_id"))
+        )
+        entry_point = record.get("entry_point")
+        if entry_point:
+            by_entry_point[entry_point] += 1
+        for step in record.get("steps") or []:
+            verdict = step.get("conclusion") or ""
+            if verdict and _event_at_or_before(step, event_cutoff):
+                agent_conclusions[step.get("agent", "?")][verdict] += 1
+                if "ESCALATE" in verdict:
+                    escalate_count += 1
+        for idx, event in enumerate(record.get("events") or []):
+            if not _event_at_or_before(event, event_cutoff):
+                continue
+            kind = event.get("event")
+            if kind == "blocked":
+                blocked_event_count += 1
+            elif kind == "pr_created":
+                pr_created_keys.add(_pr_event_key(event, run_dir, idx))
+            elif kind == "pr_merged":
+                pr_merged_keys.add(_pr_event_key(event, run_dir, idx))
+    return _fleet_report(
+        run_count=len(records),
+        by_entry_point=by_entry_point,
+        agent_conclusions=agent_conclusions,
+        escalate_count=escalate_count,
+        blocked_event_count=blocked_event_count,
+        pr_created_keys=pr_created_keys,
+        pr_merged_keys=pr_merged_keys,
+        waste_counter=Counter(),
+        top=top,
+        recurrence_threshold=recurrence_threshold,
+    )
+
+
+def _fleet_report(
+    *,
+    run_count: int,
+    by_entry_point: Counter,
+    agent_conclusions: dict,
+    escalate_count: int,
+    blocked_event_count: int,
+    pr_created_keys: set[str],
+    pr_merged_keys: set[str],
+    waste_counter: Counter,
+    top: int,
+    recurrence_threshold: int,
+) -> FleetReport:
     # impl-validator FAIL 비율: FAIL / (PASS+FAIL)
     pr = agent_conclusions.get("impl-validator", {})
     denom = sum(c for v, c in pr.items() if v in _PR_REVIEWER_VERDICTS)
