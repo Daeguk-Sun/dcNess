@@ -37,7 +37,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Sequence
 
 # repo root 를 path 에 추가 (CLI `python3 harness/benchmark_aggregate.py` 직접 실행 대비)
 _REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -104,6 +104,8 @@ class FleetReport:
     recurrence_threshold: int
     improvement_candidates: list[ImprovementCandidate]
     waste_limit: int = 10
+    # waste 를 관측할 수 있는 run 수 (요약 기록만 남은 run 제외). waste 비율의 분모.
+    waste_observed_run_count: int = 0
 
 
 def _build_improvement_candidates(
@@ -207,8 +209,10 @@ def aggregate_runs(
     recurrence_threshold: int = DEFAULT_RECURRENCE_THRESHOLD,
     repo_override=None,
     event_cutoff: Optional[datetime] = None,
+    summaries: Sequence[dict] = (),
+    summary_root: Optional[Path] = None,
 ) -> FleetReport:
-    """run_dir 목록을 fleet 집계한다.
+    """run_dir 목록(+ run 디렉토리가 삭제된 run 의 요약 기록)을 fleet 집계한다.
 
     repo_override: build_report 의 invocation/cost 산출 기준 repo. 지정 시 모든 run 에
     적용. **worktree 한계** — run_dir(ledger)은 git-common-dir 때문에 항상 main repo
@@ -264,6 +268,36 @@ def aggregate_runs(
         for w in report.wastes:
             waste_counter[w.pattern] += 1
 
+    # run 디렉토리가 삭제돼 요약 기록(`run-summaries.jsonl`)만 남은 run 도 같은 집계에 합친다.
+    # PR key 를 같은 집합에 모아야 생성·merge 이벤트가 서로 다른 run 에 있어도 짝이 맞고 중복이
+    # 제거된다. 요약에는 waste 근거(prose·세션 JSONL)가 없어 waste 관측 분모에서는 뺀다.
+    waste_observed_run_count = run_count
+    for record in summaries:
+        run_count += 1
+        run_dir = (
+            Path(summary_root or ".").resolve() / ".claude" / "harness-state" / ".sessions"
+            / str(record.get("session_id")) / "runs" / str(record.get("run_id"))
+        )
+        entry_point = record.get("entry_point")
+        if entry_point:
+            by_entry_point[entry_point] += 1
+        for step in record.get("steps") or []:
+            verdict = step.get("conclusion") or ""
+            if verdict and _event_at_or_before(step, event_cutoff):
+                agent_conclusions[step.get("agent", "?")][verdict] += 1
+                if "ESCALATE" in verdict:
+                    escalate_count += 1
+        for idx, event in enumerate(record.get("events") or []):
+            if not _event_at_or_before(event, event_cutoff):
+                continue
+            kind = event.get("event")
+            if kind == "blocked":
+                blocked_event_count += 1
+            elif kind == "pr_created":
+                pr_created_keys.add(_pr_event_key(event, run_dir, idx))
+            elif kind == "pr_merged":
+                pr_merged_keys.add(_pr_event_key(event, run_dir, idx))
+
     # impl-validator FAIL 비율: FAIL / (PASS+FAIL)
     pr = agent_conclusions.get("impl-validator", {})
     denom = sum(c for v, c in pr.items() if v in _PR_REVIEWER_VERDICTS)
@@ -303,6 +337,7 @@ def aggregate_runs(
             threshold=recurrence_threshold,
         ),
         waste_limit=top,
+        waste_observed_run_count=waste_observed_run_count,
     )
 
 

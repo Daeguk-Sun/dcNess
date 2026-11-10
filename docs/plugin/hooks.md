@@ -74,7 +74,7 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 **역할**:
 
 - sid 추출, `.by-pid/<cc_pid>` 작성, `live.json` 초기화
-- 상태 위생 청소 (세션당 1회, fail-open): stale by-pid 파일(24h) + 본 세션의 만료 run 슬롯(24h) + 전 세션의 run 디렉토리(prose/ledger, 7d — `/run-review` 원자료라 슬롯보다 길게 보관). TTL 상수 SSOT = `harness/session_state.py`
+- 상태 위생 청소 (세션당 1회, fail-open): stale by-pid 파일(24h) + 본 세션의 만료 run 슬롯(24h) + 전 세션의 run 디렉토리(prose/ledger, 7d — `/run-review` 원자료라 슬롯보다 길게 보관). TTL 상수 SSOT = `harness/session_state.py`. run 디렉토리를 지우기 직전 그 run 의 요약(진입점, 시작·종료 시각, 단계별 결론, blocked·PR 이벤트)을 `.claude/harness-state/run-summaries.jsonl` 에 남긴다. run 이 끝날 때도 같은 요약을 남기며, 같은 run 은 마지막 기록이 최신이다. 이 요약 기록은 청소 대상이 아니어서 장기 성과 집계와 지난 작업 조회에 쓰인다. prose 본문·절대경로는 담지 않고, 기록 실패는 run 종료·청소를 막지 않는다
 - `hookSpecificOutput.additionalContext` 로 dcNess 활성 사실과 핵심 guard 안내 inject
 - 이전 세션이 `/handoff` 로 남긴 `.dcness-work/handoffs/next-session.md` 가 있으면 `.dcness-work/handoffs/archive/<ts>.md` 로 먼저 옮겨(mv) 원자적으로 소비한 뒤 그 내용을 `additionalContext` 최상단에 최우선 주입함(무손실 clear) — 다음다음 세션 stale 재주입 차단. mv(rename)를 read 보다 선행하므로 병렬 peer 세션 중 rename 에 성공한 first-consumer 만 소비(단일 소비자 계약). `.dcness-work/` 는 writable 이라 심어진 심링크(→ 로컬 시크릿)를 따라가 컨텍스트로 유출하지 않도록 정규 파일(심링크 아님)일 때만 소비. 파일 부재 시 기존 동작 그대로
 - 메인 Claude 첫 응답 첫 줄에 `[dcness 활성 확인]` 토큰을 요구해 활성 여부를 사용자가 바로 확인 가능하게 함

@@ -33,10 +33,10 @@
 
 과정 영역은 최소한 finished run, validator verdict와 재작업, guard/blocked 신호, PR 생성·merge, regression, waste 신호를 분리한다.
 
-- finished run은 완료 event와 읽을 수 있는 receipt가 함께 있는 run만 센다.
+- finished run은 완료 event와 읽을 수 있는 receipt가 함께 있는 run만 센다. run 디렉토리가 7일 청소로 지워진 run은 프로젝트 단위 run 요약 기록(`.claude/harness-state/run-summaries.jsonl`)으로 센다. 같은 run이 양쪽에 있으면 run 디렉토리만 센다.
 - validator 재작업률은 FAIL 분자와 판정 가능한 verdict 분모를 함께 둔다.
-- PR merge율은 `pr_created`를 분모로 하고 같은 PR의 `pr_merged`만 분자로 센다. 분모가 없으면 `측정 불가`다.
-- waste count는 finished run 노출량을 denominator로 같이 제시한다.
+- PR merge율은 `pr_created`를 분모로 하고 같은 PR의 `pr_merged`만 분자로 센다. 분모가 없으면 `측정 불가`다. run 디렉토리와 요약 기록의 PR 이벤트는 한 집합으로 합쳐 짝을 맞추고 중복을 뺀다.
+- waste count는 waste를 관측할 수 있는 finished run 수를 denominator로 같이 제시한다. 요약 기록만 남은 run은 waste 근거(prose·세션 기록)가 없어 분모에서 뺀다. 그런 run만 있으면 `측정 불가`다.
 - guard PASS·validator FAIL·PR merge는 하네스 과정의 증거이며 실제 제품 성공률로 표현하지 않는다.
 
 ## Agent effectiveness 영역

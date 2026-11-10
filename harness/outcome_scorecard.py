@@ -24,6 +24,7 @@ if str(_REPO_ROOT) not in sys.path:
 
 from harness import agent_effectiveness, ledger, product_journey, run_review  # noqa: E402
 from harness.benchmark_aggregate import FleetReport, aggregate_runs  # noqa: E402
+from harness.session_state import RUN_SUMMARIES_FILENAME  # noqa: E402
 
 
 DEFAULT_PROJECTS_FILE = (
@@ -103,6 +104,35 @@ def _candidate_run_dirs(sessions_root: Path) -> list[Path]:
     for path in sessions_root.glob("*/runs/*/ledger.jsonl"):
         candidates.add(path.parent)
     return sorted(candidates)
+
+
+def _read_run_summaries(project: Path) -> dict[tuple[str, str], dict[str, Any]]:
+    """프로젝트 run 요약 기록. 같은 run 은 마지막(가장 최근) 기록만 남긴다."""
+    path = project / ".claude" / "harness-state" / RUN_SUMMARIES_FILENAME
+    summaries: dict[tuple[str, str], dict[str, Any]] = {}
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        return summaries
+    for line in lines:
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict) or record.get("kind") != "run_summary":
+            continue
+        session_id, run_id = record.get("session_id"), record.get("run_id")
+        if isinstance(session_id, str) and isinstance(run_id, str):
+            summaries[(session_id, run_id)] = record
+    return summaries
+
+
+def _summary_at_or_before(value: Any, cutoff: Optional[datetime]) -> bool:
+    """요약의 시각 필드가 있고 cutoff 이하인가 (cutoff 없으면 시각 존재만 본다)."""
+    parsed = _parse_ts(value) if isinstance(value, str) else None
+    if parsed is None:
+        return False
+    return cutoff is None or parsed <= cutoff
 
 
 def _run_event_times(run_dir: Path) -> list[datetime]:
@@ -219,12 +249,21 @@ def build_scorecard(
     for source_ref, project in selected:
         index = registry_indexes[source_ref]
         sessions_root = project / ".claude" / "harness-state" / ".sessions"
-        candidate_dirs = [
-            run_dir
-            for run_dir in _candidate_run_dirs(sessions_root)
-            if _started_by(run_dir, cutoff)
+        live_dirs = _candidate_run_dirs(sessions_root)
+        candidate_dirs = [run_dir for run_dir in live_dirs if _started_by(run_dir, cutoff)]
+        # run 디렉토리가 7일 삭제로 사라진 run 은 프로젝트 단위 요약 기록으로 보충한다.
+        live_keys = {(run_dir.parent.parent.name, run_dir.name) for run_dir in live_dirs}
+        archived = [
+            record
+            for key, record in _read_run_summaries(project).items()
+            if key not in live_keys and _summary_at_or_before(record.get("started_at"), cutoff)
         ]
-        if not candidate_dirs:
+        archived_finished = [
+            record
+            for record in archived
+            if record.get("steps") and _summary_at_or_before(record.get("finished_at"), cutoff)
+        ]
+        if not candidate_dirs and not archived:
             if source_refs is not None and source_ref not in journey_source_refs:
                 unavailable_sources.append(source_ref)
             continue
@@ -233,12 +272,17 @@ def build_scorecard(
             for run_dir in run_review.list_runs(sessions_root)
             if _finished_by(run_dir, cutoff)
         ]
-        fleet = aggregate_runs(finished_dirs, event_cutoff=cutoff)
+        fleet = aggregate_runs(
+            finished_dirs,
+            event_cutoff=cutoff,
+            summaries=archived_finished,
+            summary_root=project,
+        )
         if fleet.run_count == 0:
             if source_refs is not None and source_ref not in journey_source_refs:
                 unavailable_sources.append(source_ref)
             continue
-        candidates = len(candidate_dirs)
+        candidates = len(candidate_dirs) + len(archived)
         candidate_run_count += candidates
         fleets.append(fleet)
         source = {
@@ -247,6 +291,7 @@ def build_scorecard(
             "source_location": f"active-project registry entry #{index}",
             "candidate_run_count": candidates,
             "finished_run_count": fleet.run_count,
+            "summary_only_run_count": len(archived_finished),
             "fleet": _fleet_json(fleet),
         }
         if not redact_paths:
@@ -280,6 +325,7 @@ def build_scorecard(
         sum(distribution.values()) for distribution in validator_conclusions.values()
     )
     waste_count = sum(waste.values())
+    waste_observed_runs = sum(fleet.waste_observed_run_count for fleet in fleets)
 
     process = {
         "finished_runs": _metric(
@@ -356,11 +402,14 @@ def build_scorecard(
             measured_at=measured_at,
             source_project_count=source_count,
             numerator=waste_count,
-            denominator=finished_runs,
+            denominator=waste_observed_runs,
             value=dict(waste.most_common()),
-            unit="waste findings over finished-run exposure",
-            evidence="run_review waste detector reused by benchmark_aggregate",
-            measurable=finished_runs > 0,
+            unit="waste findings over finished runs with prose/session evidence",
+            evidence=(
+                "run_review waste detector reused by benchmark_aggregate; summary-only runs "
+                "(run directory removed) have no waste evidence and are excluded"
+            ),
+            measurable=waste_observed_runs > 0,
         ),
     }
 
