@@ -573,6 +573,8 @@ class BashPathContractTests(unittest.TestCase):
             "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    p = '/tmp/x'\nfinally:\n    open(p, 'w')\nEOF",
             "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    p = '/tmp/x'\nexcept E:\n    open(p, 'w')\nEOF",
             "python3 - <<'EOF'\np = 'src/a.ts'\nfor q in ['x']:\n    p = '/tmp/x'\nelse:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\n(p := '/tmp/out', open(p, 'w'))\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nwith ctx() as p, open(p, 'w'):\n    pass\nEOF",
         ]
         for command in cases:
             with self.subTest(command=command):

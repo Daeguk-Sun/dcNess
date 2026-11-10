@@ -1373,18 +1373,18 @@ class _PythonWriteScanner:
                 found = self._comprehension_def(parent.generators, name)
                 if found is not _NOT_FOUND:
                     return found  # type: ignore[return-value]
-            in_body = any(
-                node in (getattr(parent, field, None) or [])
-                for field in _STATEMENT_LIST_FIELDS
-                if isinstance(getattr(parent, field, None), list)
-            )
             if isinstance(parent, _LOOP_NODES) and node in parent.body:
                 own_target = isinstance(parent.target, ast.Name) and parent.target.id == name
                 if own_target:
                     rebinds = any(self._binds_name(stmt, name) for stmt in parent.body)
                     return None if rebinds else _LoopDef(parent.iter, parent)
-            if in_body and self._header_binds(parent, name):
-                return None  # with/except/match/for 머리가 이 이름을 다시 정의한다.
+            is_statement = isinstance(parent, (ast.stmt, ast.excepthandler)) or (
+                type(parent).__name__ == "match_case"
+            )
+            if is_statement and self._header_binds(parent, name):
+                # 감싼 구문의 머리(with 대상, except 이름, match 패턴, for 변수, 같은 문장의 :=)가
+                # 이 이름을 다시 정의한다 — 호출이 본문에 있든 머리 안에 있든 값을 확정할 수 없다.
+                return None
             if any(self._binds_name(stmt, name) for stmt in self._earlier_blocks(parent, node)):
                 return None  # try 본문·반복문 본문처럼 먼저 실행된 형제 블록이 값을 바꿨을 수 있다.
             if isinstance(parent, _REPEAT_NODES) and node in parent.body:
