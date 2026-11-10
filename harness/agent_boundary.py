@@ -34,7 +34,7 @@ import shlex
 # Fixed git argv probes in this module run without shell and with timeouts.
 import subprocess  # nosec B404
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Iterable, Optional, Union
 
 from harness.parallel_wave import scope_path_matches
 from harness.session_state_activation import _resolve_project_root
@@ -1216,43 +1216,75 @@ def _python_write_call(call: ast.Call) -> tuple[Optional[ast.expr], Optional[ast
     return None, None
 
 
+class _LoopValues:
+    """`for name in <iter>` 바인딩. iter 가 리터럴 목록이면 원소 하나하나가 name 의 후보 값이다."""
+
+    __slots__ = ("iter",)
+
+    def __init__(self, iter_expr: ast.expr) -> None:
+        self.iter = iter_expr
+
+
+_Binding = Optional[Union[ast.expr, _LoopValues]]
+
+
 class _PythonWriteScanner:
-    """한 python 스크립트의 파일 쓰기 대상을 ast 로 찾는다 (best-effort)."""
+    """한 python 스크립트의 파일 쓰기 대상을 ast 로 찾는다 (best-effort).
+
+    한 표현식이 가질 수 있는 문자열 값을 모두 모은다. 리터럴 목록을 도는 반복문 변수는
+    원소 수만큼 값을 갖는다. 값 하나라도 확정할 수 없으면 전체를 미확정(None)으로 본다.
+    """
 
     _MAX_DEPTH = 8
+    _MAX_VALUES = 64
 
     def __init__(self, tree: ast.AST) -> None:
         self.tree = tree
-        # 이름별 대입값. None = 루프 변수·함수 인자·tuple 언패킹처럼 값을 확정할 수 없는 바인딩.
-        self.bindings: dict[str, list[Optional[ast.expr]]] = {}
+        # 이름별 대입값. None = 함수 인자·tuple 언패킹처럼 값을 확정할 수 없는 바인딩.
+        self.bindings: dict[str, list[_Binding]] = {}
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
                 for target in node.targets:
                     self._bind(target, node.value)
             elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
                 self._bind(node.target, node.value)
-            elif isinstance(node, (ast.AugAssign, ast.For, ast.AsyncFor, ast.comprehension)):
+            elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+                self._bind(node.target, _LoopValues(node.iter))
+            elif isinstance(node, ast.AugAssign):
                 self._bind(node.target, None)
             elif isinstance(node, ast.withitem) and node.optional_vars is not None:
                 self._bind(node.optional_vars, None)
             elif isinstance(node, ast.arg):
                 self.bindings.setdefault(node.arg, []).append(None)
 
-    def _bind(self, target: ast.expr, value: Optional[ast.expr]) -> None:
+    def _bind(self, target: ast.expr, value: _Binding) -> None:
         if isinstance(target, ast.Name):
             self.bindings.setdefault(target.id, []).append(value)
         elif isinstance(target, (ast.Tuple, ast.List)):
             for elt in target.elts:
                 self._bind(elt, None)
 
-    def resolve(self, expr: Optional[ast.expr], depth: int = 0) -> Optional[str]:
+    def resolve(self, expr: Optional[ast.expr], depth: int = 0) -> Optional[frozenset[str]]:
         if expr is None or depth > self._MAX_DEPTH:
             return None
         if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
-            return expr.value
+            return frozenset({expr.value})
         if isinstance(expr, ast.Name):
-            values = {self.resolve(v, depth + 1) for v in self.bindings.get(expr.id, [None])}
-            return values.pop() if len(values) == 1 else None
+            values: set[str] = set()
+            for binding in self.bindings.get(expr.id, [None]):
+                found = self._binding_values(binding, depth + 1)
+                if found is None:
+                    return None
+                values |= found
+            return self._capped(values)
+        if isinstance(expr, ast.JoinedStr):
+            return self._concat(expr.values, depth)
+        if isinstance(expr, ast.FormattedValue):
+            if expr.conversion != -1 or expr.format_spec is not None:
+                return None
+            return self.resolve(expr.value, depth + 1)
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add):
+            return self._concat([expr.left, expr.right], depth)
         if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Div):
             return self._join([expr.left, expr.right], depth)
         if isinstance(expr, ast.Call):
@@ -1262,17 +1294,76 @@ class _PythonWriteScanner:
                 return self.resolve(expr.func.value, depth + 1)
         return None
 
-    def _join(self, parts: list[ast.expr], depth: int) -> Optional[str]:
-        resolved = [self.resolve(part, depth + 1) for part in parts]
-        if any(part is None for part in resolved):
+    def _binding_values(self, binding: _Binding, depth: int) -> Optional[frozenset[str]]:
+        if not isinstance(binding, _LoopValues):
+            return self.resolve(binding, depth)
+        elements = self._iter_elements(binding.iter, depth)
+        if elements is None:
             return None
-        return posixpath.normpath(posixpath.join(*[p for p in resolved if p is not None]))
+        values: set[str] = set()
+        for element in elements:
+            found = self.resolve(element, depth + 1)
+            if found is None:
+                return None
+            values |= found
+        return self._capped(values)
+
+    def _iter_elements(self, expr: ast.expr, depth: int) -> Optional[list[ast.expr]]:
+        """반복 대상이 리터럴 목록(또는 리터럴 목록만 대입된 이름)이면 그 원소들."""
+        if depth > self._MAX_DEPTH:
+            return None
+        if isinstance(expr, (ast.List, ast.Tuple, ast.Set)):
+            return list(expr.elts)
+        if isinstance(expr, ast.Name):
+            elements: list[ast.expr] = []
+            for binding in self.bindings.get(expr.id, [None]):
+                if not isinstance(binding, (ast.List, ast.Tuple, ast.Set)):
+                    return None
+                elements.extend(binding.elts)
+            return elements
+        return None
+
+    def _capped(self, values: set[str]) -> Optional[frozenset[str]]:
+        return frozenset(values) if 0 < len(values) <= self._MAX_VALUES else None
+
+    def _combine(self, parts: list[ast.expr], depth: int) -> Optional[list[list[str]]]:
+        combos: list[list[str]] = [[]]
+        for part in parts:
+            options = self.resolve(part, depth + 1)
+            if options is None:
+                return None
+            combos = [combo + [value] for combo in combos for value in sorted(options)]
+            if len(combos) > self._MAX_VALUES:
+                return None
+        return combos
+
+    def _concat(self, parts: list[ast.expr], depth: int) -> Optional[frozenset[str]]:
+        combos = self._combine(parts, depth)
+        return None if combos is None else self._capped({"".join(c) for c in combos})
+
+    def _join(self, parts: list[ast.expr], depth: int) -> Optional[frozenset[str]]:
+        combos = self._combine(parts, depth)
+        if combos is None:
+            return None
+        return self._capped({posixpath.normpath(posixpath.join(*c)) for c in combos if c})
+
+    def _is_module_open(self, call: ast.Call) -> bool:
+        """`Image.open(f)` 처럼 import 한 다른 라이브러리의 open — Path.open(mode) 가 아니다."""
+        func = call.func
+        return (
+            isinstance(func, ast.Attribute)
+            and func.attr == "open"
+            and isinstance(func.value, ast.Name)
+            and func.value.id not in self.bindings
+            and func.value.id not in _PYTHON_OPEN_MODULES
+            and func.value.id != "os"
+        )
 
     def write_targets(self) -> tuple[list[str], list[str]]:
         paths: list[str] = []
         unresolved: list[str] = []
         for node in ast.walk(self.tree):
-            if not isinstance(node, ast.Call):
+            if not isinstance(node, ast.Call) or self._is_module_open(node):
                 continue
             target, mode = _python_write_call(node)
             if target is None:
@@ -1283,11 +1374,13 @@ class _PythonWriteScanner:
                     continue
                 if not set(mode.value) & set("wax+"):
                     continue  # 읽기 전용 open
-            path = self.resolve(target)
-            if path is None:
+            found = self.resolve(target)
+            if found is None:
                 unresolved.append(f"쓰기 대상 미확정: {ast.unparse(target)[:120]}")
-            elif not (path + "/").startswith(_TEMP_DIR_PREFIXES):
-                paths.append(path)
+                continue
+            paths.extend(
+                path for path in sorted(found) if not (path + "/").startswith(_TEMP_DIR_PREFIXES)
+            )
         return paths, unresolved
 
 

@@ -518,7 +518,7 @@ class BashPathContractTests(unittest.TestCase):
     def test_unresolvable_python_write_is_reported_not_guessed(self) -> None:
         cases = [
             "python3 -c \"import sys; open(sys.argv[1], 'w').write('x')\" src/a.kt",
-            "python3 - <<'EOF'\nfor p in ['src/a.kt']:\n    open(p, 'w').write('x')\nEOF",
+            "python3 - <<'EOF'\nimport sys\nfor p in sys.argv[1:]:\n    open(p, 'w').write('x')\nEOF",
             "python3 - <<'EOF'\nopen(f'src/{name}.kt', 'w')\nEOF",
             "python3 - <<'EOF'\nopen('src/a.kt', 'w'\nEOF",
         ]
@@ -526,6 +526,33 @@ class BashPathContractTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(extract_bash_paths(command), [])
                 self.assertNotEqual(unresolved_bash_python_writes(command), [])
+
+    def test_literal_loop_and_concat_python_writes_are_resolved(self) -> None:
+        cases = {
+            "python3 - <<'EOF'\nfor p in ['src/a.kt', 'src/b.kt']:\n    open(p, 'w').write('x')\nEOF": [
+                "src/a.kt",
+                "src/b.kt",
+            ],
+            "python3 - <<'EOF'\nfiles = ('src/a.kt',)\nfor f in files:\n    open(f, 'w')\nEOF": ["src/a.kt"],
+            "python3 - <<'EOF'\nroot = 'src/'\nopen(root + 'a.kt', 'w')\nEOF": ["src/a.kt"],
+            "python3 - <<'EOF'\nd = 'src'\nfor n in ['a', 'b']:\n    open(f'{d}/{n}.kt', 'w')\nEOF": [
+                "src/a.kt",
+                "src/b.kt",
+            ],
+        }
+        for command, expected in cases.items():
+            with self.subTest(command=command):
+                self.assertEqual(sorted(extract_bash_paths(command)), expected)
+                self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_imported_library_open_is_not_a_python_write(self) -> None:
+        for command in (
+            "python3 - <<'EOF'\nfrom PIL import Image\nImage.open(f).size\nEOF",
+            "python3 - <<'EOF'\nimport sys\nfrom PIL import Image\nImage.open(sys.argv[1])\nEOF",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(extract_bash_paths(command), [])
+                self.assertEqual(unresolved_bash_python_writes(command), [])
 
 
 class ExternalMutationContractTests(unittest.TestCase):
