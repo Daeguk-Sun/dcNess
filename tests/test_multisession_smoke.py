@@ -240,6 +240,27 @@ class BashPipelineSmokeTests(unittest.TestCase):
         self.assertIn("다른 언어는 그 언어의 간결한 bullet 형식", ctx)
         self.assertIn("그 지침이 우선", ctx)
 
+    def test_session_start_injects_merged_design_correction(self) -> None:
+        """머지된 설계의 제품 동작을 정정할 때 영향 문서 목록 → 수정 뒤 점검 → 범위가 크면
+        설계 검증 재실행 선택지 순서를 안내한다. 재실행은 강제하지 않는다 (#1328)."""
+        result = _run_bash_hook(
+            "session-start.sh",
+            {"sessionId": "smoke-ses-correction"},
+            cwd=self.cwd,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        ctx = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+        self.assertIn("## 머지된 설계의 제품 동작 정정", ctx)
+        for rule in (
+            "수정 대상 목록을 사용자에게 먼저 보여 준다",
+            "옛 표현이 남았는지",
+            "같은 단어의 다른 의미",
+            "/design <epic-path> --revise",
+            "실행 여부는 사용자가 정한다",
+        ):
+            self.assertIn(rule, ctx, f"설계 정정 절차 누락: {rule}")
+
     def test_session_start_inactive_project_injects_nothing(self) -> None:
         """비활성 프로젝트는 응답 문체 지시를 포함해 아무것도 주입하지 않는다."""
         whitelist = self.cwd / "empty-projects.json"
