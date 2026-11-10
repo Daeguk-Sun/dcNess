@@ -23,7 +23,7 @@ Anthropic 공식 docs ([Skill 제한](https://code.claude.com/docs/en/extend-ski
 클립보드에 박힐 최종 형태 = 한 줄 (사용자가 paste + enter):
 
 ```
-/compact "[이전 세션 이어가기 — DCN smart-compact 생성] # 프로젝트 <레포 root, 현재 branch> # 최근 진행 (최근 PR 5~10개) - PR #X — 한 줄 요약 - ... # 핵심 디자인 결정 - 결정 1: 채택안 + 이유 - ... # 진행 중 작업 - 현재 분기: <branch> - 미완료 task: <list> - staged 변경: <요약> # 다음 단계 후보 - 옵션 A - ... # 미해결 의논거리 - Q1: ... # 컨텍스트 - 핵심 파일: <pathlist> - 핵심 docs: <pathlist> - 테스트 상태: <X/Y PASS>"
+/compact "[이전 세션 이어가기 — DCN smart-compact 생성] # 과제 원문 <AC 원문 또는 사용자 요청 원문> # 현재 하던 일과 다음 단계 - 현재: <branch, 하던 작업, 끊긴 지점> - 다음: <1~3개> # 완료 판정 조건 - <남은 AC, 통과해야 할 명령> # 사용자 지시·선호 - <지시·금지·선호> # 결정과 미해결 의논거리 - 결정: <채택안 + 이유> - 미해결: <사용자 결정 대기> # 포인터 - 파일: <pathlist> - 문서·이슈·PR: <links>"
 ```
 
 > `/compact "<text>"` 인자 = additional context. CC 가 압축 시 그 단락을 *반드시 보존* 한다.
@@ -33,36 +33,29 @@ Anthropic 공식 docs ([Skill 제한](https://code.claude.com/docs/en/extend-ski
 ```
 [이전 세션 이어가기 — DCN smart-compact 생성]
 
-# 프로젝트
-<레포 root, 현재 branch>
+# 과제 원문
+<이슈 작업이면 AC 원문을 명령 출력으로 붙인다 — 모델이 다시 쓰지 않는다. 이슈가 없으면 사용자 요청 원문>
 
-# 최근 진행 (최근 PR / Task-ID 5~10개)
-- PR #X (Task-ID Y) — 한 줄 요약
-- ...
+# 현재 하던 일과 다음 단계
+- 현재: <branch, 하던 작업, 끊긴 지점, uncommitted 상태>
+- 다음: <바로 이어서 할 일 1~3개>
 
-# 핵심 디자인 결정 (현재 작업과 관련된 것만)
-- 결정 1: 채택안 + 이유
-- 결정 2: ...
+# 완료 판정 조건
+- <무엇이 확인되면 끝인지 — 남은 AC, 통과해야 할 명령, 사람 확인 대기 항목>
 
-# 진행 중 작업
-- 현재 분기: <branch>
-- 미완료 task: <list>
-- staged 변경: <git diff --cached --stat 요약>
+# 사용자 지시·선호
+- <이번 세션에서 사용자가 준 지시·금지·선호. 없으면 "없음">
 
-# 다음 단계 후보 (사용자가 결정 받았던 것들)
-- 옵션 A
-- 옵션 B
-- ...
+# 결정과 미해결 의논거리
+- 결정: <다음 단계에 영향을 주는 채택안 + 이유>
+- 미해결: <사용자 결정 대기 항목>
 
-# 미해결 의논거리 (사용자 결정 대기)
-- Q1: ...
-- Q2: ...
-
-# 컨텍스트 추가 (자동 디스커버용)
-- 핵심 파일: <pathlist>
-- 핵심 docs: <pathlist>
-- 테스트 상태: <X/Y PASS>
+# 포인터
+- 파일: <pathlist>
+- 문서·이슈·PR: <links>
 ```
+
+이 형식은 작업 경위가 아니라 **다음 일에 필요한 사실**을 고른다. 압축 뒤 정확도를 가장 잘 보존하는 요약은 지난 작업을 충실히 서술한 요약이 아니라 과제 원문, 현재 하던 일과 다음 단계, 완료 조건과 포인터를 고른 요약이라는 관찰(arXiv 2611.05306 "You don't need long context", Appendix A)을 따른다. 사람이 중간에 지시하는 작업은 압축 뒤 사용자 선호가 가장 먼저 사라지므로 사용자 지시·선호를 따로 둔다. 최근 머지 PR 같은 작업 경위는 다음 단계 판단에 필요할 때만 포인터로 남긴다.
 
 → 클립보드 쓸 때는 `/compact "<text>"` 한 줄로 (CC 슬래시 명령 단일 인자 처리).
 
@@ -72,12 +65,12 @@ Anthropic 공식 docs ([Skill 제한](https://code.claude.com/docs/en/extend-ski
 
 메인이 자체 LLM 두뇌로 다음 정보 수집:
 
-1. **`git log --oneline -10`** + **`git status --short`** → 최근 commit / 현재 branch / staged
-2. **`gh pr list --state merged --limit 5 --json number,title,mergedAt,body`** → 최근 머지된 작업 (WHAT/WHY 통합)
-3. **`PROGRESS.md`** 상단 → 진행 상태 요약
-4. **TaskList** → 미완료 task
-5. **현재 transcript 의 미해결 의논거리** — 메인이 자체 식별 (사용자 결정 대기 중인 옵션들)
-6. **테스트 상태** — `python3 -m unittest discover -s tests` 안 돌리고 최근 PR 본문의 검증 결과 사용
+1. **과제 원문** — 현재 작업 대상 이슈가 있으면 Step 3 의 `gh issue view` 명령 출력으로 AC 원문을 붙인다. 모델이 요약하거나 다시 쓰지 않는다. 이슈가 없으면 transcript 의 사용자 요청 원문을 옮긴다.
+2. **`git status --short`** + 현재 branch → 하던 일과 uncommitted 상태
+3. **TaskList** → 미완료 task, 다음 단계
+4. **완료 판정 조건** — 남은 AC, 통과해야 할 검증 명령, 사람 확인 대기 항목
+5. **사용자 지시·선호** — transcript 에서 사용자가 준 지시·금지·선호 (예: "머지는 명시 지시 때만", "워크트리 없이")
+6. **현재 transcript 의 결정과 미해결 의논거리** — 다음 단계에 영향을 주는 결정 근거, 사용자 결정 대기 중인 옵션
 
 ### Step 2 — 자동 prompt 생성
 
@@ -87,13 +80,25 @@ Anthropic 공식 docs ([Skill 제한](https://code.claude.com/docs/en/extend-ski
 
 ```bash
 # resume prompt 본문 (가독성 형식, 줄바꿈 포함)
-RESUME=$(cat <<'EOF'
+RESUME_HEAD=$(cat <<'EOF'
 [이전 세션 이어가기 — DCN smart-compact 생성]
 
-# 프로젝트
+# 과제 원문
+EOF
+)
+# 이슈 작업이면 AC 원문을 명령 출력으로 붙인다 — 모델이 다시 쓰지 않는다.
+# Issue Brief 형식이 아니면 awk 없이 본문 전체를 쓰고, 이슈가 없으면 사용자 요청 원문을 RESUME_HEAD 에 직접 쓴다.
+TASK_SOURCE=$(gh issue view <N> --json body --jq .body \
+  | awk '/^\*\*Acceptance criteria:\*\*/{f=1} /^\*\*Human verification/{f=0} f')
+RESUME_TAIL=$(cat <<'EOF'
+
+# 현재 하던 일과 다음 단계
 ...
 EOF
 )
+RESUME="$RESUME_HEAD
+$TASK_SOURCE
+$RESUME_TAIL"
 
 # /compact 명령 한 줄 = 줄바꿈을 \n 로 escape 안 함 (그대로 써도 CC 가 single arg 로 처리).
 # 따옴표 escape 만 처리.
@@ -125,60 +130,50 @@ EOF
 ## 추출 가이드라인
 
 ### 포함 (priority ↑)
+- **과제 원문** — AC 원문은 명령 출력 그대로. 요약본이 원문을 대신하지 않는다
+- **완료 판정 조건** — 다음 세션이 끝났는지 바로 판단할 기준
+- **사용자 지시·선호** — 이번 세션에서 받은 지시·금지·선호
 - **현재 미해결 결정** — 사용자가 직전 메시지에서 옵션 받고 답 안 한 것들
 - **핵심 결정 reasoning** — "왜 옵션 A 채택" (단순 결과만 아니라 근거)
 - **진행 중 branch + uncommitted state**
-- **다음 step 후보들** — 메인이 사용자에게 제시했던 선택지들
 
 ### 제외 (priority ↓)
+- 작업 경위 서술 (최근 PR·commit 목록) — 다음 단계 판단에 필요한 것만 포인터로
 - 단순 도구 호출 결과 (테스트 통과 numbers 정도만 요약)
 - 옵션 검토 후 폐기된 안 (rationale 에 적혀있으면 reference)
 - skip
 - 자체 reasoning 의 중간 단계 ("음 이거 어떻게 할까" 류)
 
-## 예시 출력 (이 세션 기준)
+## 예시 출력
 
 ```
-[이전 세션 이어가기 — DCN smart-compact 2026-04-29 22:00]
+[이전 세션 이어가기 — DCN smart-compact 생성]
 
-# 프로젝트
-~/project/dcNess (main branch, plugin 개발 중)
+# 과제 원문
+**Acceptance criteria:**
+- [x] [command] 오프라인 상태에서 채팅방 진입 시 안내 문구가 보이는 UI 테스트가 통과한다.
+- [ ] [command] 네트워크 복구 뒤 대기 중 메시지가 순서대로 전송되는 테스트가 통과한다.
+- [ ] [agent-read] 재전송 실패 시 사용자에게 재시도 버튼을 보여 주는 동작이 화면 흐름 문서와 일치한다.
 
-# 최근 진행
-- /to-issue issue drafting 흐름 정리 완료
-- /impl-loop 병렬 peer 세션 정책 정리 완료
-- PR #34 (DCN-CHG-35): multi-session e2e smoke 머지
-- PR #33 (DCN-CHG-34): hooks/ 인프라 머지
-- PR #32 (DCN-CHG-33): session_state.py CLI 확장 머지
+# 현재 하던 일과 다음 단계
+- 현재: feature/offline-resend branch, 재전송 큐 구현 중. 순서 보장 테스트가 RED(2건 중 1건 실패), uncommitted 2파일
+- 다음: 순서 보장 테스트 GREEN → 재시도 버튼 화면 흐름 대조 → PR
 
-# 핵심 디자인 결정
-- Task tool + Agent + helper + 훅 패턴 채택 (Python `run_conveyor` 실행기 폐기)
-- heuristic-only enum 추출 (haiku 미사용 — API 키 의존 회피)
-- by-pid 레지스트리로 멀티세션 격리
-- AMBIGUOUS = 메인 단독 판단 X, agent 재호출 → 사용자 위임 cascade
+# 완료 판정 조건
+- 남은 AC 2건 체크, 전체 unit test 통과
+- 사람 확인 대기: 실제 기기에서 비행기 모드 전환 시나리오
 
-# 진행 중 작업
-- branch: main (clean)
-- 160/160 tests PASS
+# 사용자 지시·선호
+- 머지는 명시 지시 때만
+- 재시도 버튼 문구는 디자이너 확정 전까지 임시 문구 유지
 
-# 다음 단계 후보 (사용자 결정 대기)
-- /init-dcness skill (enable/disable)
-- /ux skill (static HTML 시안 흐름)
-- commands/ 카테고리 추가
-- ~~worktree 도입~~ → 옵션 D 채택 완료 — 행동형 skill 진입 시 EnterWorktree 기본 켜짐, 거부 표현 시에만 건너뜀 (loop-procedure §1.1)
-- manual smoke (실 claude 에서 /spec → /design → /impl 흐름 검증)
+# 결정과 미해결 의논거리
+- 결정: 대기 메시지는 메모리가 아니라 로컬 DB 에 저장 — 앱 재시작 뒤에도 유지해야 해서
+- 미해결: 재전송 최대 횟수(3회 vs 무제한) 사용자 결정 대기
 
-# 미해결 의논거리
-- ~~worktree 옵션 C vs D~~ → **D 채택 완료** (#255 정합). 행동형 skill 기본 켜짐, 거부 표현 정규식 `워크트리\s*(빼|없|말)`
-- sid 대체 처리 (worktree 진입 시 main repo .claude/ 와 어떻게 cross-ref) → γ resolution 으로 해결 (`harness/session_state.py:_default_base`, 5 tests PASS)
-
-# 컨텍스트
-- 핵심: harness/session_state.py, harness/hooks.py, hooks/*.sh, commands/*.md
-- spec: docs/plugin/loop-procedure.md (Task/Agent/helper/hook loop mechanics)
-- agents/*.md 전체 자유서술 방식 (DCN-CHG-27)
-- 기준: CLAUDE.md 강제 원칙 + docs/plugin/workflow-router.md
-
-다음 세션은 worktree 도입 의논 이어서 + manual smoke 또는 /init-dcness 진행.
+# 포인터
+- 파일: 재전송 큐 모듈, 오프라인 UI 테스트
+- 문서·이슈·PR: 해당 story 이슈 링크, 화면 흐름 문서 경로
 ```
 
 ## 한계
@@ -186,11 +181,11 @@ EOF
 - 메인이 자체 추출이라 누락 가능 — 사용자가 출력 검토 + 추가 컨텍스트 쓸 수 있도록 prompt 마지막에 "추가 메모" 빈칸 둠
 - clipboard 도구 없는 환경 (Linux 일부) — 파일 백업으로 fallback
 - 컨텍스트 크면 추출 자체도 토큰 소모 — 60%+ 시점이면 선제 실행 권장
-- **`/compact` 인자 길이 한도** — CC chat input 의 단일 행 길이 제한 가능. resume prompt 가 너무 길면 paste 후 일부 잘림 위험. 짧게 추출 권장 (PR 5개 / 결정 핵심만 / 미해결 의논거리 1~3개)
+- **`/compact` 인자 길이 한도** — CC chat input 의 단일 행 길이 제한 가능. resume prompt 가 너무 길면 paste 후 일부 잘림 위험. 짧게 추출 권장 (과제 원문은 AC 부분만 / 결정 핵심만 / 미해결 의논거리 1~3개)
 - **`/compact` 자동 실행 X** — Anthropic 공식 docs 정합 (메인 turn 안에서 슬래시 명령 자동 실행 불가). 사용자가 chat input 에 paste + enter 1 action 필요
 
 ## 참조
 
 - CC 내장 `/compact` — 단순 요약. 본 skill 은 능동 추출 + resume prompt.
-- GitHub PR 본문 + `gh pr list` — WHAT/WHY 추적 source (#182 후 dcness 자체 로그 시스템 폐기)
-- `PROGRESS.md` — 진행 상태 source
+- GitHub issue 본문 (`gh issue view`) — 과제 원문과 완료 판정 조건 source
+- [arXiv 2611.05306 "You don't need long context"](https://arxiv.org/abs/2611.05306) Appendix A — 압축 형식 근거

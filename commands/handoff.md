@@ -21,8 +21,13 @@ description: 세션을 넘기기 전 의도/결정/진행/다음 액션을 `.dcn
 
 1. **다음 액션 (필수)** — 다음 세션이 착수할 구체적 작업 1개. 이 항목이 없으면 handoff 를 쓰지 않는다.
 2. **근거** — 왜 이게 다음인지 1~2줄.
-3. **진행 상태** — 현재 branch / 관련 PR·이슈 / 미완료 지점.
-4. **포인터** — 상세를 담은 산출물·파일·이슈 링크 (본문에 덤프하지 않고 링크만).
+3. **과제 원문** — 다음 액션이 이슈 작업이면 그 이슈의 AC 원문을 `gh issue view` 명령 출력으로 붙인다. 모델이 요약하거나 다시 쓰지 않는다. 이슈가 없으면 사용자 요청 원문을 옮긴다.
+4. **완료 판정 조건** — 무엇이 확인되면 끝인지(남은 AC, 통과해야 할 명령, 사람 확인 대기 항목). 다음 세션이 작업이 이미 끝났는지 바로 판단하는 기준이다.
+5. **사용자 지시·선호** — 이번 세션에서 사용자가 준 지시·금지·선호(예: "머지는 명시 지시 때만"). 세션이 바뀌면 가장 먼저 사라지는 정보라 따로 적는다. 없으면 `없음`.
+6. **진행 상태** — 현재 branch / 관련 PR·이슈 / 미완료 지점.
+7. **포인터** — 상세를 담은 산출물·파일·이슈 링크 (본문에 덤프하지 않고 링크만).
+
+작업 경위(무엇을 했는지의 서술)는 다음 액션 판단에 필요한 만큼만 남긴다. 인계는 지난 일의 요약이 아니라 다음 일에 필요한 사실의 선별이다.
 
 ```bash
 # repo 루트 기준으로 쓴다 — SessionStart 훅이 소비할 경로와 동일 유도(git top-level).
@@ -33,7 +38,8 @@ mkdir -p "$HANDOFF_DIR"
 # 심링크 타겟 오염 방지 — 임시 파일에 쓴 뒤 rename 으로 교체한다. next-session.md 가
 # 심링크여도 rename 은 링크 자체를 대체(타겟을 따라가 덮어쓰지 않음). 훅의 읽기측
 # 심링크 하드닝과 대칭. `.dcness-work/` 는 writable 이라 이 방어가 필요하다.
-cat > "$HANDOFF_DIR/.next-session.tmp" <<'EOF'
+{
+cat <<'EOF'
 # 다음 세션 핸드오프 — <YYYY-MM-DD>
 
 ## 다음 액션 (필수)
@@ -41,6 +47,20 @@ cat > "$HANDOFF_DIR/.next-session.tmp" <<'EOF'
 
 ## 근거
 - <왜 이게 다음인지 1~2줄>
+
+## 과제 원문
+EOF
+# 이슈 작업이면 AC 원문을 명령 출력으로 붙인다 — 모델이 다시 쓰지 않는다.
+# Issue Brief 형식이 아니면 awk 없이 본문 전체를 붙이고, 이슈가 없으면 이 명령 대신 사용자 요청 원문을 쓴다.
+gh issue view <N> --json body --jq .body \
+  | awk '/^\*\*Acceptance criteria:\*\*/{f=1} /^\*\*Human verification/{f=0} f'
+cat <<'EOF'
+
+## 완료 판정 조건
+- <무엇이 확인되면 끝인지 — 남은 AC, 통과해야 할 명령, 사람 확인 대기 항목>
+
+## 사용자 지시·선호
+- <이번 세션에서 사용자가 준 지시·금지·선호. 없으면 "없음">
 
 ## 진행 상태
 - branch: <현재 branch>
@@ -51,6 +71,7 @@ cat > "$HANDOFF_DIR/.next-session.tmp" <<'EOF'
 - <핵심 파일 경로>
 - <핵심 문서·이슈 링크>
 EOF
+} > "$HANDOFF_DIR/.next-session.tmp"
 mv -f "$HANDOFF_DIR/.next-session.tmp" "$HANDOFF_DIR/next-session.md"
 ```
 
@@ -58,7 +79,7 @@ mv -f "$HANDOFF_DIR/.next-session.tmp" "$HANDOFF_DIR/next-session.md"
 
 ## 동작 계약
 
-- **단문 원칙** — "다음 액션 1개(필수) + 근거 + 포인터 링크" 중심의 단문으로 제한한다. 세션 전체 요약 덤프 금지. 상세 컨텍스트는 포인터가 가리키는 산출물을 다음 세션이 질의 시점에 lazy 로드한다. SessionStart 주입량이 커지면 slim-inject 원칙이 무너진다.
+- **단문 원칙** — "다음 액션 1개(필수) + 근거 + 과제 원문 + 완료 판정 조건 + 사용자 지시·선호 + 포인터 링크" 중심의 단문으로 제한한다. 과제 원문은 이슈 본문 전체가 아니라 AC 부분만 붙인다. 세션 전체 요약 덤프 금지. 상세 컨텍스트는 포인터가 가리키는 산출물을 다음 세션이 질의 시점에 lazy 로드한다. SessionStart 주입량이 커지면 slim-inject 원칙이 무너진다.
 - **결정적 단일 경로** — 활성 파일은 repo 루트(`git rev-parse --show-toplevel`) 기준 `.dcness-work/handoffs/next-session.md` 로 고정한다. 쓰기(command)와 읽기(SessionStart 훅)가 같은 repo-root 유도를 써 서브디렉토리 실행에도 정합한다. SessionStart 훅이 확인할 결정적 단일 경로가 하나 필요하므로 세션마다 다른 이름을 쓰지 않는다. 이미 파일이 있으면 덮어쓴다(가장 최근 인계만 유효).
 - **소비 = archive claim** — 다음 세션 SessionStart 훅이 이 파일을 `.dcness-work/handoffs/archive/<ts>.md` 로 먼저 옮겨(mv) 원자적으로 소비한 뒤 그 내용을 additionalContext 최상단에 주입한다(무손실 clear). 다음다음 세션에 stale 재주입되지 않는다.
 - **first-consumer-wins** — 병렬 peer 세션은 각자 SessionStart 를 발화하지만, 소비가 read 가 아니라 archive mv(rename)로 먼저 일어나므로 rename 에 성공한 first-consumer 만 handoff 를 얻는다. handoff 는 단일 소비자 인계 문서이고, 병렬 작업 분배는 [claim board](../docs/plugin/parallel-policy.md#4-task-claim-board) 몫이다.
