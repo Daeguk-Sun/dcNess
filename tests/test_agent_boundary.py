@@ -545,6 +545,39 @@ class BashPathContractTests(unittest.TestCase):
                 self.assertEqual(sorted(extract_bash_paths(command)), expected)
                 self.assertEqual(unresolved_bash_python_writes(command), [])
 
+    def test_reassigned_python_path_does_not_merge_past_values(self) -> None:
+        # 실제로 쓰는 값은 마지막 대입(/tmp)뿐이다. 앞선 src 값으로 차단하지 않는다.
+        command = "python3 - <<'EOF'\np = 'src/unused.ts'\np = '/tmp/out.txt'\nopen(p, 'w')\nEOF"
+        self.assertEqual(extract_bash_paths(command), [])
+        self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_sequential_reassignment_uses_value_reaching_each_call(self) -> None:
+        command = (
+            "python3 - <<'EOF'\np = 'src/a.ts'\nopen(p, 'w')\np = 'src/b.ts'\nopen(p, 'w')\n"
+            "for p in ['src/c.ts']:\n    open(p, 'w')\nEOF"
+        )
+        self.assertEqual(sorted(extract_bash_paths(command)), ["src/a.ts", "src/b.ts", "src/c.ts"])
+        self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_conditional_or_later_loop_reassignment_stays_unresolved(self) -> None:
+        cases = [
+            "python3 - <<'EOF'\np = 'src/a.ts'\nif x:\n    p = 'src/b.ts'\nopen(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nfor q in ['x']:\n    open(p, 'w')\n    p = 'src/b.ts'\nEOF",
+        ]
+        for command in cases:
+            with self.subTest(command=command):
+                self.assertEqual(extract_bash_paths(command), [])
+                self.assertNotEqual(unresolved_bash_python_writes(command), [])
+
+    def test_same_loop_variable_keeps_one_value_per_iteration(self) -> None:
+        command = "python3 - <<'EOF'\nfor n in ['a', 'b']:\n    open(f'src/{n}/{n}.ts', 'w')\nEOF"
+        self.assertEqual(sorted(extract_bash_paths(command)), ["src/a/a.ts", "src/b/b.ts"])
+        derived = (
+            "python3 - <<'EOF'\nfor n in ['a', 'b']:\n    p = f'src/{n}.ts'\n"
+            "    open(p + '', 'w')\n    open(f'{p}', 'w')\nEOF"
+        )
+        self.assertEqual(sorted(set(extract_bash_paths(derived))), ["src/a.ts", "src/b.ts"])
+
     def test_imported_library_open_is_not_a_python_write(self) -> None:
         for command in (
             "python3 - <<'EOF'\nfrom PIL import Image\nImage.open(f).size\nEOF",

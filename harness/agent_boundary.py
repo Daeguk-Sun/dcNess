@@ -34,7 +34,7 @@ import shlex
 # Fixed git argv probes in this module run without shell and with timeouts.
 import subprocess  # nosec B404
 from pathlib import Path
-from typing import Iterable, Optional, Union
+from typing import Iterable, Optional, Sequence, Union
 
 from harness.parallel_wave import scope_path_matches
 from harness.session_state_activation import _resolve_project_root
@@ -1216,23 +1216,40 @@ def _python_write_call(call: ast.Call) -> tuple[Optional[ast.expr], Optional[ast
     return None, None
 
 
-class _LoopValues:
-    """`for name in <iter>` 바인딩. iter 가 리터럴 목록이면 원소 하나하나가 name 의 후보 값이다."""
+class _LoopDef:
+    """`for name in <iter>` 정의. iter 가 리터럴 목록이면 원소 하나하나가 반복마다의 값이다."""
 
-    __slots__ = ("iter",)
+    __slots__ = ("iter", "site")
 
-    def __init__(self, iter_expr: ast.expr) -> None:
+    def __init__(self, iter_expr: ast.expr, site: ast.AST) -> None:
         self.iter = iter_expr
+        self.site = site
 
 
-_Binding = Optional[Union[ast.expr, _LoopValues]]
+class _ValueDef:
+    """`name = <value>` 정의. value 안의 이름은 site(대입문) 기준으로 다시 푼다."""
+
+    __slots__ = ("value", "site")
+
+    def __init__(self, value: ast.expr, site: ast.AST) -> None:
+        self.value = value
+        self.site = site
+
+
+_LOOP_NODES = (ast.For, ast.AsyncFor)
+_COMPREHENSION_NODES = (ast.ListComp, ast.SetComp, ast.GeneratorExp, ast.DictComp)
+_STATEMENT_LIST_FIELDS = ("body", "orelse", "finalbody", "handlers")
 
 
 class _PythonWriteScanner:
     """한 python 스크립트의 파일 쓰기 대상을 ast 로 찾는다 (best-effort).
 
-    한 표현식이 가질 수 있는 문자열 값을 모두 모은다. 리터럴 목록을 도는 반복문 변수는
-    원소 수만큼 값을 갖는다. 값 하나라도 확정할 수 없으면 전체를 미확정(None)으로 본다.
+    이름의 값은 쓰기 호출 지점에 실제로 도달하는 정의 하나로 정한다. 같은 블록에서 호출보다
+    앞선 가장 가까운 단순 대입, 또는 호출을 감싼 반복문의 변수다. 그 사이에 조건문·반복문 안의
+    재대입이 끼어 있거나 반복문 본문이 그 이름을 다시 바꾸면 실행 지점의 값을 모르므로 미확정이다.
+    리터럴 목록을 도는 반복문 변수는 원소 하나를 대입한 조합마다 표현식 전체를 계산한다 —
+    같은 변수가 두 번 나와도 한 조합 안에서는 같은 값이다. 하나라도 확정할 수 없으면 전체를
+    미확정(None)으로 본다.
     """
 
     _MAX_DEPTH = 8
@@ -1240,112 +1257,196 @@ class _PythonWriteScanner:
 
     def __init__(self, tree: ast.AST) -> None:
         self.tree = tree
-        # 이름별 대입값. None = 함수 인자·tuple 언패킹처럼 값을 확정할 수 없는 바인딩.
-        self.bindings: dict[str, list[_Binding]] = {}
+        self.parents: dict[ast.AST, ast.AST] = {}
         for node in ast.walk(tree):
-            if isinstance(node, ast.Assign):
-                for target in node.targets:
-                    self._bind(target, node.value)
-            elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
-                self._bind(node.target, node.value)
-            elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
-                self._bind(node.target, _LoopValues(node.iter))
-            elif isinstance(node, ast.AugAssign):
-                self._bind(node.target, None)
-            elif isinstance(node, ast.withitem) and node.optional_vars is not None:
-                self._bind(node.optional_vars, None)
-            elif isinstance(node, ast.arg):
-                self.bindings.setdefault(node.arg, []).append(None)
+            for child in ast.iter_child_nodes(node):
+                self.parents[child] = node
+        # 스크립트 안에서 대입·반복문·인자로 정의된 이름 (import 한 모듈 이름은 제외).
+        self.bound_names: set[str] = {
+            node.id
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)
+        } | {node.arg for node in ast.walk(tree) if isinstance(node, ast.arg)}
 
-    def _bind(self, target: ast.expr, value: _Binding) -> None:
-        if isinstance(target, ast.Name):
-            self.bindings.setdefault(target.id, []).append(value)
-        elif isinstance(target, (ast.Tuple, ast.List)):
-            for elt in target.elts:
-                self._bind(elt, None)
+    @staticmethod
+    def _binds_name(node: ast.AST, name: str) -> bool:
+        return any(
+            (isinstance(sub, ast.Name) and isinstance(sub.ctx, ast.Store) and sub.id == name)
+            or (isinstance(sub, ast.arg) and sub.arg == name)
+            for sub in ast.walk(node)
+        )
 
-    def resolve(self, expr: Optional[ast.expr], depth: int = 0) -> Optional[frozenset[str]]:
-        if expr is None or depth > self._MAX_DEPTH:
-            return None
-        if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
-            return frozenset({expr.value})
-        if isinstance(expr, ast.Name):
-            values: set[str] = set()
-            for binding in self.bindings.get(expr.id, [None]):
-                found = self._binding_values(binding, depth + 1)
-                if found is None:
-                    return None
-                values |= found
-            return self._capped(values)
-        if isinstance(expr, ast.JoinedStr):
-            return self._concat(expr.values, depth)
-        if isinstance(expr, ast.FormattedValue):
-            if expr.conversion != -1 or expr.format_spec is not None:
-                return None
-            return self.resolve(expr.value, depth + 1)
-        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add):
-            return self._concat([expr.left, expr.right], depth)
-        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Div):
-            return self._join([expr.left, expr.right], depth)
-        if isinstance(expr, ast.Call):
-            if _python_call_name(expr.func) in _PYTHON_PATH_CTORS:
-                return self._join(expr.args, depth) if expr.args and not expr.keywords else None
-            if isinstance(expr.func, ast.Attribute) and expr.func.attr in ("resolve", "absolute"):
-                return self.resolve(expr.func.value, depth + 1)
+    @staticmethod
+    def _direct_value(stmt: ast.AST, name: str) -> Optional[ast.expr]:
+        """stmt 가 name 에 단순 대입(`name = v`, `name: T = v`)이면 v."""
+        if isinstance(stmt, ast.Assign) and all(isinstance(t, ast.Name) for t in stmt.targets):
+            if any(isinstance(t, ast.Name) and t.id == name for t in stmt.targets):
+                return stmt.value
+        if (
+            isinstance(stmt, ast.AnnAssign)
+            and isinstance(stmt.target, ast.Name)
+            and stmt.target.id == name
+        ):
+            return stmt.value
         return None
 
-    def _binding_values(self, binding: _Binding, depth: int) -> Optional[frozenset[str]]:
-        if not isinstance(binding, _LoopValues):
-            return self.resolve(binding, depth)
-        elements = self._iter_elements(binding.iter, depth)
-        if elements is None:
-            return None
-        values: set[str] = set()
-        for element in elements:
-            found = self.resolve(element, depth + 1)
-            if found is None:
-                return None
-            values |= found
-        return self._capped(values)
+    def _reaching(self, name: str, site: ast.AST) -> Optional[Union[_LoopDef, _ValueDef]]:
+        """site 에 도달하는 name 의 정의. 확정할 수 없으면 None."""
+        node = site
+        while node in self.parents:
+            parent = self.parents[node]
+            if isinstance(parent, _COMPREHENSION_NODES):
+                for gen in parent.generators:
+                    if node is gen.iter:
+                        break
+                    if isinstance(gen.target, ast.Name) and gen.target.id == name:
+                        return _LoopDef(gen.iter, parent)
+            if isinstance(parent, _LOOP_NODES) and node in parent.body:
+                own_target = isinstance(parent.target, ast.Name) and parent.target.id == name
+                body_rebinds = any(self._binds_name(stmt, name) for stmt in parent.body)
+                if own_target:
+                    return None if body_rebinds else _LoopDef(parent.iter, parent)
+                if body_rebinds and not self._assigned_before_without_rebind(
+                    parent.body, node, name
+                ):
+                    return None
+            for field in _STATEMENT_LIST_FIELDS:
+                stmts = getattr(parent, field, None)
+                if isinstance(stmts, list) and node in stmts:
+                    for sibling in reversed(stmts[: stmts.index(node)]):
+                        value = self._direct_value(sibling, name)
+                        if value is not None:
+                            return _ValueDef(value, sibling)
+                        if self._binds_name(sibling, name):
+                            return None
+                    break
+            if isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+                return None  # 함수 인자·바깥 정의는 호출 시점의 값을 모른다.
+            node = parent
+        return None
 
-    def _iter_elements(self, expr: ast.expr, depth: int) -> Optional[list[ast.expr]]:
-        """반복 대상이 리터럴 목록(또는 리터럴 목록만 대입된 이름)이면 그 원소들."""
+    def _assigned_before_without_rebind(
+        self, stmts: Sequence[ast.AST], node: ast.AST, name: str
+    ) -> bool:
+        """반복문 본문에서 node 앞에 name 의 단순 대입이 있고 node 부터 끝까지 재대입이 없는가."""
+        index = stmts.index(node)
+        for sibling in reversed(stmts[:index]):
+            if self._direct_value(sibling, name) is not None:
+                return not any(self._binds_name(stmt, name) for stmt in stmts[index:])
+            if self._binds_name(sibling, name):
+                return False
+        return False
+
+    def resolve_all(self, expr: ast.expr, site: ast.AST) -> Optional[frozenset[str]]:
+        """반복문 변수 값 조합마다 expr 를 계산한 결과 집합."""
+        loops = self._loop_values(expr, site, depth=0)
+        if loops is None:
+            return None
+        envs: list[dict[int, str]] = [{}]
+        for key, values in sorted(loops.items()):
+            envs = [{**env, key: value} for env in envs for value in values]
+            if len(envs) > self._MAX_VALUES:
+                return None
+        results: set[str] = set()
+        for env in envs:
+            value = self.resolve(expr, site, env)
+            if value is None:
+                return None
+            results.add(value)
+        return frozenset(results) if results else None
+
+    def _loop_values(
+        self, expr: ast.AST, site: ast.AST, *, depth: int
+    ) -> Optional[dict[int, list[str]]]:
+        """expr 가 (도달 정의를 거쳐) 참조하는 반복문과 그 원소 값들. 원소를 못 풀면 None."""
+        found: dict[int, list[str]] = {}
+        if depth > self._MAX_DEPTH:
+            return None
+        for node in ast.walk(expr):
+            if not (isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load)):
+                continue
+            definition = self._reaching(node.id, site)
+            if isinstance(definition, _ValueDef):
+                nested = self._loop_values(definition.value, definition.site, depth=depth + 1)
+                if nested is None:
+                    return None
+                found.update(nested)
+            elif isinstance(definition, _LoopDef):
+                elements = self._iter_elements(definition.iter, definition.site, depth + 1)
+                if elements is None:
+                    return None
+                values = [self.resolve(elt, elt_site, {}) for elt, elt_site in elements]
+                if not values or any(value is None for value in values):
+                    return None
+                found[id(definition.site)] = [value for value in values if value is not None]
+        return found
+
+    def _iter_elements(
+        self, expr: ast.expr, site: ast.AST, depth: int
+    ) -> Optional[list[tuple[ast.expr, ast.AST]]]:
+        """반복 대상이 리터럴 목록(또는 리터럴 목록이 도달하는 이름)이면 (원소, 원소 기준 지점)."""
         if depth > self._MAX_DEPTH:
             return None
         if isinstance(expr, (ast.List, ast.Tuple, ast.Set)):
-            return list(expr.elts)
+            return [(elt, site) for elt in expr.elts]
         if isinstance(expr, ast.Name):
-            elements: list[ast.expr] = []
-            for binding in self.bindings.get(expr.id, [None]):
-                if not isinstance(binding, (ast.List, ast.Tuple, ast.Set)):
-                    return None
-                elements.extend(binding.elts)
-            return elements
+            definition = self._reaching(expr.id, site)
+            if isinstance(definition, _ValueDef):
+                return self._iter_elements(definition.value, definition.site, depth + 1)
         return None
 
-    def _capped(self, values: set[str]) -> Optional[frozenset[str]]:
-        return frozenset(values) if 0 < len(values) <= self._MAX_VALUES else None
-
-    def _combine(self, parts: list[ast.expr], depth: int) -> Optional[list[list[str]]]:
-        combos: list[list[str]] = [[]]
-        for part in parts:
-            options = self.resolve(part, depth + 1)
-            if options is None:
-                return None
-            combos = [combo + [value] for combo in combos for value in sorted(options)]
-            if len(combos) > self._MAX_VALUES:
-                return None
-        return combos
-
-    def _concat(self, parts: list[ast.expr], depth: int) -> Optional[frozenset[str]]:
-        combos = self._combine(parts, depth)
-        return None if combos is None else self._capped({"".join(c) for c in combos})
-
-    def _join(self, parts: list[ast.expr], depth: int) -> Optional[frozenset[str]]:
-        combos = self._combine(parts, depth)
-        if combos is None:
+    def resolve(
+        self, expr: Optional[ast.expr], site: ast.AST, env: dict[int, str], depth: int = 0
+    ) -> Optional[str]:
+        if expr is None or depth > self._MAX_DEPTH:
             return None
-        return self._capped({posixpath.normpath(posixpath.join(*c)) for c in combos if c})
+        if isinstance(expr, ast.Constant) and isinstance(expr.value, str):
+            return expr.value
+        if isinstance(expr, ast.Name):
+            definition = self._reaching(expr.id, site)
+            if isinstance(definition, _LoopDef):
+                return env.get(id(definition.site))
+            if isinstance(definition, _ValueDef):
+                return self.resolve(definition.value, definition.site, env, depth + 1)
+            return None
+        if isinstance(expr, ast.JoinedStr):
+            return self._concat(expr.values, site, env, depth)
+        if isinstance(expr, ast.FormattedValue):
+            if expr.conversion != -1 or expr.format_spec is not None:
+                return None
+            return self.resolve(expr.value, site, env, depth + 1)
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Add):
+            return self._concat([expr.left, expr.right], site, env, depth)
+        if isinstance(expr, ast.BinOp) and isinstance(expr.op, ast.Div):
+            return self._join([expr.left, expr.right], site, env, depth)
+        if isinstance(expr, ast.Call):
+            if _python_call_name(expr.func) in _PYTHON_PATH_CTORS:
+                if not expr.args or expr.keywords:
+                    return None
+                return self._join(expr.args, site, env, depth)
+            if isinstance(expr.func, ast.Attribute) and expr.func.attr in ("resolve", "absolute"):
+                return self.resolve(expr.func.value, site, env, depth + 1)
+        return None
+
+    def _parts(
+        self, parts: list[ast.expr], site: ast.AST, env: dict[int, str], depth: int
+    ) -> Optional[list[str]]:
+        resolved = [self.resolve(part, site, env, depth + 1) for part in parts]
+        if any(part is None for part in resolved):
+            return None
+        return [part for part in resolved if part is not None]
+
+    def _concat(
+        self, parts: list[ast.expr], site: ast.AST, env: dict[int, str], depth: int
+    ) -> Optional[str]:
+        resolved = self._parts(parts, site, env, depth)
+        return None if resolved is None else "".join(resolved)
+
+    def _join(
+        self, parts: list[ast.expr], site: ast.AST, env: dict[int, str], depth: int
+    ) -> Optional[str]:
+        resolved = self._parts(parts, site, env, depth)
+        return None if not resolved else posixpath.normpath(posixpath.join(*resolved))
 
     def _is_module_open(self, call: ast.Call) -> bool:
         """`Image.open(f)` 처럼 import 한 다른 라이브러리의 open — Path.open(mode) 가 아니다."""
@@ -1354,7 +1455,7 @@ class _PythonWriteScanner:
             isinstance(func, ast.Attribute)
             and func.attr == "open"
             and isinstance(func.value, ast.Name)
-            and func.value.id not in self.bindings
+            and func.value.id not in self.bound_names
             and func.value.id not in _PYTHON_OPEN_MODULES
             and func.value.id != "os"
         )
@@ -1374,7 +1475,7 @@ class _PythonWriteScanner:
                     continue
                 if not set(mode.value) & set("wax+"):
                     continue  # 읽기 전용 open
-            found = self.resolve(target)
+            found = self.resolve_all(target, node)
             if found is None:
                 unresolved.append(f"쓰기 대상 미확정: {ast.unparse(target)[:120]}")
                 continue
