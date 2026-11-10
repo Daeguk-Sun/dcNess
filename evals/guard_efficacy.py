@@ -472,9 +472,13 @@ def _tdd_guard(
 
 def _tdd_guard_bash_write_without_test(
     command: str = "printf 'export const value = 1' > src/untested.ts",
+    existing_files: tuple[str, ...] = (),
 ) -> tuple[Decision, str]:
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)
+        for rel in existing_files:
+            (root / rel).parent.mkdir(parents=True, exist_ok=True)
+            (root / rel).write_text("test('ok', () => {});\n", encoding="utf-8")
         subprocess.run(
             ["git", "init"],
             cwd=root,
@@ -949,6 +953,33 @@ def build_cases() -> list[GuardCase]:
                 "p = 'src/untested.ts'\n"
                 "open(p, 'w').write('export const value = 1')\n"
                 "EOF"
+            ),
+        ),
+        GuardCase(
+            "tdd_guard_blocks_bash_python_literal_loop_write_without_test",
+            "tdd-guard",
+            "block",
+            "A python loop over a literal path list resolves each write target and is TDD checked.",
+            lambda: _tdd_guard_bash_write_without_test(
+                "python3 - <<'EOF'\n"
+                "from pathlib import Path\n"
+                "for p in ['src/untested.ts', 'src/other.ts']:\n"
+                "    Path(p).write_text('export const value = 1')\n"
+                "EOF"
+            ),
+        ),
+        GuardCase(
+            "tdd_guard_allows_bash_python_literal_loop_write_with_tests",
+            "tdd-guard",
+            "allow",
+            "The same literal-loop python write passes when every target has a matching test.",
+            lambda: _tdd_guard_bash_write_without_test(
+                "python3 - <<'EOF'\n"
+                "from pathlib import Path\n"
+                "for p in ['src/untested.ts', 'src/other.ts']:\n"
+                "    Path(p).write_text('export const value = 1')\n"
+                "EOF",
+                existing_files=("src/untested.test.ts", "src/other.test.ts"),
             ),
         ),
         GuardCase(

@@ -173,6 +173,53 @@ class TddHookContractTests(unittest.TestCase):
             [("tdd-guard", "bash_python_target_unresolved")],
         )
 
+    def test_python_loop_and_concat_write_targets_are_resolved(self) -> None:
+        """리터럴 목록 반복문 변수와 리터럴 결합 경로는 대상을 확정해 TDD 판정한다 (#1332)."""
+        loop = (
+            "python3 - <<'EOF'\n"
+            "from pathlib import Path\n"
+            "for p in ['src/loop_a.ts', 'src/loop_b.ts']:\n"
+            "    Path(p).write_text('export const x = 1')\n"
+            "EOF"
+        )
+        blocked = self.bash(loop)
+        self.assertEqual(blocked.returncode, 2)
+        self.assertIn("src/loop_a.ts", blocked.stderr)
+
+        concat = (
+            "python3 - <<'EOF'\n"
+            "root = 'src/'\n"
+            "open(root + 'concat.ts', 'w').write('x')\n"
+            "open(f'{root}fstr.ts', 'w').write('x')\n"
+            "EOF"
+        )
+        blocked = self.bash(concat)
+        self.assertEqual(blocked.returncode, 2)
+        self.assertIn("src/concat.ts", blocked.stderr)
+
+        self.write("src/loop_a.test.ts", "test('ok', () => {});\n")
+        self.write("src/loop_b.test.ts", "test('ok', () => {});\n")
+        self.assertEqual(self.bash(loop).returncode, 0)
+        self.assertEqual(read_fail_open_events(cwd=self.root), [])
+
+    def test_python_read_only_module_open_is_not_recorded(self) -> None:
+        result = self.bash(
+            "python3 - <<'EOF'\nfrom PIL import Image\nf = 'shot.png'\nImage.open(f).size\nEOF"
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(read_fail_open_events(cwd=self.root), [])
+
+    def test_python_dynamic_write_target_stays_fail_open(self) -> None:
+        result = self.bash(
+            "python3 - <<'EOF'\nimport sys\nfor p in sys.argv[1:]:\n    open(p, 'w').write('x')\nEOF"
+        )
+        self.assertEqual(result.returncode, 0)
+        events = read_fail_open_events(cwd=self.root)
+        self.assertEqual(
+            [(row["hook"], row["category"]) for row in events],
+            [("tdd-guard", "bash_python_target_unresolved")],
+        )
+
     def test_public_exit_stderr_and_guard_receipt_contract(self) -> None:
         denied = self.edit(self.write("src/biz.ts", "export const x = 1;\n"))
         self.assertEqual(denied.returncode, 2)

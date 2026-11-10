@@ -518,7 +518,7 @@ class BashPathContractTests(unittest.TestCase):
     def test_unresolvable_python_write_is_reported_not_guessed(self) -> None:
         cases = [
             "python3 -c \"import sys; open(sys.argv[1], 'w').write('x')\" src/a.kt",
-            "python3 - <<'EOF'\nfor p in ['src/a.kt']:\n    open(p, 'w').write('x')\nEOF",
+            "python3 - <<'EOF'\nimport sys\nfor p in sys.argv[1:]:\n    open(p, 'w').write('x')\nEOF",
             "python3 - <<'EOF'\nopen(f'src/{name}.kt', 'w')\nEOF",
             "python3 - <<'EOF'\nopen('src/a.kt', 'w'\nEOF",
         ]
@@ -526,6 +526,114 @@ class BashPathContractTests(unittest.TestCase):
             with self.subTest(command=command):
                 self.assertEqual(extract_bash_paths(command), [])
                 self.assertNotEqual(unresolved_bash_python_writes(command), [])
+
+    def test_literal_loop_and_concat_python_writes_are_resolved(self) -> None:
+        cases = {
+            "python3 - <<'EOF'\nfor p in ['src/a.kt', 'src/b.kt']:\n    open(p, 'w').write('x')\nEOF": [
+                "src/a.kt",
+                "src/b.kt",
+            ],
+            "python3 - <<'EOF'\nfiles = ('src/a.kt',)\nfor f in files:\n    open(f, 'w')\nEOF": ["src/a.kt"],
+            "python3 - <<'EOF'\nroot = 'src/'\nopen(root + 'a.kt', 'w')\nEOF": ["src/a.kt"],
+            "python3 - <<'EOF'\nd = 'src'\nfor n in ['a', 'b']:\n    open(f'{d}/{n}.kt', 'w')\nEOF": [
+                "src/a.kt",
+                "src/b.kt",
+            ],
+        }
+        for command, expected in cases.items():
+            with self.subTest(command=command):
+                self.assertEqual(sorted(extract_bash_paths(command)), expected)
+                self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_reassigned_python_path_does_not_merge_past_values(self) -> None:
+        # 실제로 쓰는 값은 마지막 대입(/tmp)뿐이다. 앞선 src 값으로 차단하지 않는다.
+        command = "python3 - <<'EOF'\np = 'src/unused.ts'\np = '/tmp/out.txt'\nopen(p, 'w')\nEOF"
+        self.assertEqual(extract_bash_paths(command), [])
+        self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_sequential_reassignment_uses_value_reaching_each_call(self) -> None:
+        command = (
+            "python3 - <<'EOF'\np = 'src/a.ts'\nopen(p, 'w')\np = 'src/b.ts'\nopen(p, 'w')\n"
+            "for p in ['src/c.ts']:\n    open(p, 'w')\nEOF"
+        )
+        self.assertEqual(sorted(extract_bash_paths(command)), ["src/a.ts", "src/b.ts", "src/c.ts"])
+        self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_conditional_or_later_loop_reassignment_stays_unresolved(self) -> None:
+        cases = [
+            "python3 - <<'EOF'\np = 'src/a.ts'\nif x:\n    p = 'src/b.ts'\nopen(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nfor q in ['x']:\n    open(p, 'w')\n    p = 'src/b.ts'\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nwhile c:\n    open(p, 'w')\n    p = 'src/b.ts'\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nwith thing() as p:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    pass\nexcept E as p:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nimport os as p\nopen(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\ndef p():\n    pass\nopen(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nmatch v:\n    case p:\n        open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nfor p in ['src/b.ts']:\n    pass\nelse:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    p = '/tmp/x'\nfinally:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    p = '/tmp/x'\nexcept E:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nfor q in ['x']:\n    p = '/tmp/x'\nelse:\n    open(p, 'w')\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\n(p := '/tmp/out', open(p, 'w'))\nEOF",
+            "python3 - <<'EOF'\np = 'src/a.ts'\nwith ctx() as p, open(p, 'w'):\n    pass\nEOF",
+        ]
+        for command in cases:
+            with self.subTest(command=command):
+                self.assertEqual(extract_bash_paths(command), [])
+                self.assertNotEqual(unresolved_bash_python_writes(command), [])
+
+    def test_same_loop_variable_keeps_one_value_per_iteration(self) -> None:
+        command = "python3 - <<'EOF'\nfor n in ['a', 'b']:\n    open(f'src/{n}/{n}.ts', 'w')\nEOF"
+        self.assertEqual(sorted(extract_bash_paths(command)), ["src/a/a.ts", "src/b/b.ts"])
+        derived = (
+            "python3 - <<'EOF'\nfor n in ['a', 'b']:\n    p = f'src/{n}.ts'\n"
+            "    open(p + '', 'w')\n    open(f'{p}', 'w')\nEOF"
+        )
+        self.assertEqual(sorted(set(extract_bash_paths(derived))), ["src/a.ts", "src/b.ts"])
+
+    def test_mutated_literal_list_loop_stays_unresolved(self) -> None:
+        for mutation in (
+            "files.append('src/b.ts')",
+            "files[0] = 'src/b.ts'",
+            "files.extend(more)",
+            "alias = files\nalias.append('src/b.ts')",
+            "grow(files)",
+        ):
+            command = (
+                f"python3 - <<'EOF'\nfiles = ['src/a.ts']\n{mutation}\n"
+                "for f in files:\n    open(f, 'w')\nEOF"
+            )
+            with self.subTest(mutation=mutation):
+                self.assertEqual(extract_bash_paths(command), [])
+                self.assertNotEqual(unresolved_bash_python_writes(command), [])
+
+    def test_common_block_shapes_still_resolve(self) -> None:
+        cases = {
+            "python3 - <<'EOF'\np = 'src/a.ts'\nwith open(p, 'w') as f:\n    f.write('x')\nEOF": ["src/a.ts"],
+            "python3 - <<'EOF'\np = 'src/a.ts'\ntry:\n    open(p, 'w')\nexcept OSError:\n    pass\nEOF": ["src/a.ts"],
+            "python3 - <<'EOF'\np = 'src/a.ts'\nif c:\n    open(p, 'w')\nEOF": ["src/a.ts"],
+            "python3 - <<'EOF'\nwhile c:\n    p = 'src/a.ts'\n    open(p, 'w')\nEOF": ["src/a.ts"],
+        }
+        for command, expected in cases.items():
+            with self.subTest(command=command):
+                self.assertEqual(sorted(extract_bash_paths(command)), expected)
+                self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_comprehension_generators_keep_their_own_values(self) -> None:
+        command = (
+            "python3 - <<'EOF'\n"
+            "[open(f'src/{d}/{n}.ts', 'w') for d in ['a', 'c'] for n in ['b']]\nEOF"
+        )
+        self.assertEqual(sorted(extract_bash_paths(command)), ["src/a/b.ts", "src/c/b.ts"])
+        self.assertEqual(unresolved_bash_python_writes(command), [])
+
+    def test_imported_library_open_is_not_a_python_write(self) -> None:
+        for command in (
+            "python3 - <<'EOF'\nfrom PIL import Image\nImage.open(f).size\nEOF",
+            "python3 - <<'EOF'\nimport sys\nfrom PIL import Image\nImage.open(sys.argv[1])\nEOF",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(extract_bash_paths(command), [])
+                self.assertEqual(unresolved_bash_python_writes(command), [])
 
 
 class ExternalMutationContractTests(unittest.TestCase):
