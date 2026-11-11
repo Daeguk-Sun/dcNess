@@ -10,6 +10,74 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.35.0 (2026-11-11)
+
+**커밋 범위**: `v0.34.0..v0.35.0` (머지 PR 13개, [#1318](https://github.com/Daeguk-Sun/dcNess/pull/1318) · [#1321](https://github.com/Daeguk-Sun/dcNess/pull/1321) · [#1322](https://github.com/Daeguk-Sun/dcNess/pull/1322) · [#1323](https://github.com/Daeguk-Sun/dcNess/pull/1323) · [#1324](https://github.com/Daeguk-Sun/dcNess/pull/1324) · [#1325](https://github.com/Daeguk-Sun/dcNess/pull/1325) · [#1326](https://github.com/Daeguk-Sun/dcNess/pull/1326) · [#1327](https://github.com/Daeguk-Sun/dcNess/pull/1327) · [#1329](https://github.com/Daeguk-Sun/dcNess/pull/1329) · [#1330](https://github.com/Daeguk-Sun/dcNess/pull/1330) · [#1334](https://github.com/Daeguk-Sun/dcNess/pull/1334) · [#1335](https://github.com/Daeguk-Sun/dcNess/pull/1335) · [#1336](https://github.com/Daeguk-Sun/dcNess/pull/1336))
+**핵심 변경**: **`/impl-loop` 다중 story 마감에서 메인이 문서에 없는 방법으로 우회하던 지점을 runner 명령으로 대체한** minor 릴리즈. 이 밖에 TDD guard 의 Python 쓰기 대상 판정 개선, run 요약 장기 보존, 디자인 보드 표시 결함 수정, SessionStart 안내 2건 추가, 인계 문서 형식 변경을 포함함.
+
+### 무엇이 바뀌나
+
+1. **story 경계 봉인과 완료 뒤 여정 수렴 진입** ([#1318](https://github.com/Daeguk-Sun/dcNess/pull/1318) Closes [#1315](https://github.com/Daeguk-Sun/dcNess/issues/1315))
+   - `story-runner seal-story` 명령 추가. 직전 story 의 branch·tip·PR base 를 state 에 기록함
+   - 모든 task 완료 뒤 `build-worker JOURNEY_CONVERGENCE --chain-state` 가 마지막 task run 에서 수렴 step 을 엶
+   - 이전 동작: chain 이 `action=story-pr`·`action=done` 에서 worker 를 시작하지 않아 메인이 state 를 직접 고쳐 우회함
+2. **여정 수렴 쓰기 범위 확장** ([#1321](https://github.com/Daeguk-Sun/dcNess/pull/1321) Closes [#1313](https://github.com/Daeguk-Sun/dcNess/issues/1313))
+   - 수렴 step 의 수정 허용 범위 = chain 전체 task 의 `### 수정 허용` 합집합
+   - 이전 동작: 마지막 task 문서만 읽어 앞 task 의 여정 대본 수정을 경계 위반으로 거부함
+3. **경계 차단 뒤 사용자 수용 기록** ([#1322](https://github.com/Daeguk-Sun/dcNess/pull/1322) Closes [#1314](https://github.com/Daeguk-Sun/dcNess/issues/1314))
+   - `dcness-helper accept-boundary-block --reason "<근거>"` 추가. 사용자 결정과 원래 차단 정보를 ledger 에 남기고 같은 run 에서 다음 step 진행을 허용함
+   - 이전 동작: 해제 명령이 없어 새 run 을 열었고, 같은 candidate 의 검증 기록이 두 run 에 나뉨
+4. **merge 뒤 여정 증거 보존과 run 종료** ([#1323](https://github.com/Daeguk-Sun/dcNess/pull/1323) Closes [#1316](https://github.com/Daeguk-Sun/dcNess/issues/1316))
+   - `pr-finalize.sh` 가 worktree 삭제 전 `.dcness-work/product-journey/` 를 default branch worktree 로 복사함. 같은 경로 파일이 있으면 삭제를 보류함
+   - merge 한 head 가 검증 candidate 와 같으면 Stop hook 이 지워진 worktree 를 다시 찾지 않고 run 을 닫음
+   - `impl-loop` 마감 절차에 실행 기록을 이슈·PR 에 게시하는 단계 추가
+5. **마감 validator FAIL 수정 경로** ([#1324](https://github.com/Daeguk-Sun/dcNess/pull/1324) Closes [#1319](https://github.com/Daeguk-Sun/dcNess/issues/1319))
+   - 모든 task 완료 뒤 `dcness-implementation-chain --chain-state --rework` 가 마지막 task run 에 수정 build-worker 를 엶
+6. **세션이 바뀐 뒤 journey 분리 처분 유지** ([#1325](https://github.com/Daeguk-Sun/dcNess/pull/1325) Closes [#1320](https://github.com/Daeguk-Sun/dcNess/issues/1320))
+   - 첫 수렴이 새 run 을 열 때 같은 impl task 이전 run 의 `journey_deferred` 를 이어받음. 기록을 읽지 못하면 "분리 없음"으로 처리하지 않고 실패함
+7. **TDD guard 의 Python 쓰기 대상 판정 개선** ([#1335](https://github.com/Daeguk-Sun/dcNess/pull/1335) Closes [#1332](https://github.com/Daeguk-Sun/dcNess/issues/1332))
+   - 리터럴 목록 반복문 변수, 문자열 `+` 결합, f-string 을 확정함. 재대입·조건 분기가 끼면 계속 미확정으로 처리함
+   - 다른 라이브러리의 `open`(예: `Image.open`)을 쓰기 호출로 보지 않음
+   - 효과: 반복문으로 테스트 없는 구현 파일을 고치는 경로도 차단 대상이 됨
+8. **run 요약 장기 보존** ([#1336](https://github.com/Daeguk-Sun/dcNess/pull/1336) Closes [#1331](https://github.com/Daeguk-Sun/dcNess/issues/1331))
+   - run 완료 시와 7일 청소 직전에 `.claude/harness-state/run-summaries.jsonl` 에 요약 1건 기록. prose 본문·절대경로·prompt 는 넣지 않음
+   - 기록 실패는 run 종료·청소를 막지 않음
+9. **디자인 보드 칸 표시 수정** ([#1326](https://github.com/Daeguk-Sun/dcNess/pull/1326) Closes [#1312](https://github.com/Daeguk-Sun/dcNess/issues/1312))
+   - `#only=<variant>` 가 요청한 변형 하나만 표시함. 칸 폭 측정 오차와 스크롤 막대 잔존 해소
+   - `/ux`·canvas-design 실행 시 프로젝트의 `_lib/` 엔진 사본이 배포본과 다르면 교체함
+10. **SessionStart 안내 2건**
+    - 응답 문체 지시에 개조식 종결·금지 표현 5종·예시 추가. 적용 범위에 사용자에게 보여 주는 공유 문서 포함 ([#1327](https://github.com/Daeguk-Sun/dcNess/pull/1327) Closes [#1317](https://github.com/Daeguk-Sun/dcNess/issues/1317))
+    - 머지된 설계의 제품 동작 정정 시 영향 문서 목록 선제시·수정 뒤 점검·`/design --revise` 선택지 안내 ([#1330](https://github.com/Daeguk-Sun/dcNess/pull/1330) Closes [#1328](https://github.com/Daeguk-Sun/dcNess/issues/1328))
+11. **인계 문서 형식** ([#1334](https://github.com/Daeguk-Sun/dcNess/pull/1334) Closes [#1333](https://github.com/Daeguk-Sun/dcNess/issues/1333))
+    - `/smart-compact`·`/handoff` 형식 = 과제 원문 / 완료 판정 조건 / 사용자 지시·선호 중심. 최근 PR 목록은 필수 항목에서 제외
+12. **저장소 내부 작업** ([#1329](https://github.com/Daeguk-Sun/dcNess/pull/1329) Part of [#1295](https://github.com/Daeguk-Sun/dcNess/issues/1295)) — 설계 문서 반복 기재 구조를 바꾸지 않는 결정 기록. 사용자 동작 변화 없음
+
+### 자기개선 점검
+
+- Sense/Diagnose
+  - 외부 활성 프로젝트 3개 4주 가드 기록: 실제 차단 약 70건, fail-open `bash_python_target_unresolved` 516건
+  - 판정기 개선([#1332](https://github.com/Daeguk-Sun/dcNess/issues/1332)) 뒤 실제 명령 재판정: 판정 불가 474건 → 238건
+  - 순서 게이트 차단 0건
+  - 결정적 guard-efficacy **63/63 PASS**(v0.34.0 61/61 → fixture 2건 추가)
+  - 전체 unittest **1,610/1,610 PASS**(v0.34.0 1,561 → 신규 회귀 테스트 반영)
+  - 지침 변경 관련 행동 eval 5건 각 1/1 정답: `journey-env-split-deferred`, `journey-convergence-sequential`, `journey-convergence-design-conflict`, `journey-convergence-same-signal`, `sanity-lifecycle-smoke`
+- Decide
+  - 소멸 후보 없음
+  - 이번 릴리즈의 신규 명령 3개(`seal-story`, `accept-boundary-block`, 마감 `--rework`)는 기존 우회 경로를 문서화된 명령으로 대체한 것. 새 차단 규칙 추가 없음
+  - 사람 확인 대기(릴리즈 차단 아님): 보드 표시([#1312](https://github.com/Daeguk-Sun/dcNess/issues/1312)), 응답 문체 지적 감소([#1317](https://github.com/Daeguk-Sun/dcNess/issues/1317)), 설계 정정 누락 감소([#1328](https://github.com/Daeguk-Sun/dcNess/issues/1328)), scorecard PR 인식 수([#1331](https://github.com/Daeguk-Sun/dcNess/issues/1331)), 판정 불가 건수 추이([#1332](https://github.com/Daeguk-Sun/dcNess/issues/1332)), 인계 문서 효용([#1333](https://github.com/Daeguk-Sun/dcNess/issues/1333))
+  - 후속 이슈: [#1337](https://github.com/Daeguk-Sun/dcNess/issues/1337)(generator 표현식 바깥 변수 판정)
+- Verify: 공개 evidence snapshot(README·[`docs/plugin/benchmark.md`](../plugin/benchmark.md))을 v0.35.0 / 2026-11-11 실측(unit 1,610/1,610 · guard 63/63)으로 갱신. `node scripts/check_public_evidence.mjs` PASS
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `harness/**`·`hooks/session-start.sh`·`skills/**`(impl-loop·canvas-design·ux)·`commands/handoff.md`·`commands/smart-compact.md`·`scripts/dcness-implementation-chain`·`scripts/pr-finalize.sh`·`templates/design-variants/_lib/**`·`docs/plugin/**` 변경. `/init-dcness` 재실행 불필요
+- **디자인 보드 엔진** — 기존 프로젝트는 plug-in 업데이트 뒤 `/ux` 를 한 번 실행하면 `_lib/` 엔진 사본이 교체됨. 확정 목업 수정 불필요
+- **TDD guard** — Python 반복문으로 테스트 없는 구현 파일을 고치는 명령이 새로 차단될 수 있음
+- **새 파일** — 활성 프로젝트에 `.claude/harness-state/run-summaries.jsonl` 이 생기고 계속 누적됨
+- **마켓플레이스 이름 변경 미포함** — 설치 명령은 계속 `dcness@dcness` ([#1169](https://github.com/Daeguk-Sun/dcNess/issues/1169) 별도 릴리즈)
+
+---
+
 ## v0.34.0 (2026-10-09)
 
 **커밋 범위**: `v0.33.0..v0.34.0` (머지 PR 6개, [#1304](https://github.com/Daeguk-Sun/dcNess/pull/1304) · [#1305](https://github.com/Daeguk-Sun/dcNess/pull/1305) · [#1306](https://github.com/Daeguk-Sun/dcNess/pull/1306) · [#1307](https://github.com/Daeguk-Sun/dcNess/pull/1307) · [#1309](https://github.com/Daeguk-Sun/dcNess/pull/1309) · [#1310](https://github.com/Daeguk-Sun/dcNess/pull/1310))
