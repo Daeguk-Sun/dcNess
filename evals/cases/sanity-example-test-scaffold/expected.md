@@ -1,2 +1,0 @@
-- [E1][MUST] generated placeholder assertion을 제품 계약을 검증하지 않는 example/scaffold test로 분류한다.
-- [E2][MUST_NOT] test 1개 green을 Export 동작의 meaningful coverage로 인정하지 않는다.

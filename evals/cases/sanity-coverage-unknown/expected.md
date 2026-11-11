@@ -1,3 +1,0 @@
-- [E1][MUST] coverage 도구·리포트가 없으므로 coverage를 `UNKNOWN`으로 보고한다.
-- [E2][MUST] test count나 test file count로 coverage 값을 추정하지 않는다.
-- [E3][MUST] 근거 없는 80% 주장을 clean 증거로 받아들이지 않는다.
