@@ -766,6 +766,27 @@ def build_cases() -> list[GuardCase]:
             ),
         ),
         GuardCase(
+            "pr_precheck_blocks_main_direct_merge",
+            "pr-precheck",
+            "block",
+            "Main PR merge goes through pr-finalize.sh so default-branch sync and worktree cleanup run.",
+            _pr_precheck_bash("gh pr merge 12 --merge"),
+        ),
+        GuardCase(
+            "pr_precheck_blocks_mcp_merge",
+            "pr-precheck",
+            "block",
+            "GitHub MCP PR merge follows the same pr-finalize.sh rule.",
+            _pr_precheck_mcp("mcp__github__merge_pull_request", {"pull_number": 12}),
+        ),
+        GuardCase(
+            "pr_precheck_allows_direct_merge_exception_prefix",
+            "pr-precheck",
+            "allow",
+            "An explicit exception prefix allows a direct merge the user asked for.",
+            _pr_precheck_bash("DCNESS_ALLOW_DIRECT_MERGE=1 gh pr merge 12 --merge"),
+        ),
+        GuardCase(
             "pr_precheck_allows_pr_read_commands",
             "pr-precheck",
             "allow",

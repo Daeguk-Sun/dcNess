@@ -144,7 +144,7 @@ PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추�
 | `READ_DENY_MATRIX` | agent 별 Read 금지 path 제한. Read 를 막는 규칙은 이것 하나다. 모든 agent 에 적용되는 읽기 금지는 없다 |
 | 외부 변경 차단 목록 | sub-agent 의 `git push`, Bash `gh pr create/merge/review`, Bash `gh issue create/edit/close/comment`, 상태 변경 `gh api`, GitHub MCP PR/repo 외부 상태 변경 차단 |
 
-메인 Claude turn 은 file boundary 를 통과한다. 메인에는 아래 PR 사전 검사만 적용한다.
+메인 Claude turn 은 file boundary 를 통과한다. 메인에는 아래 PR 사전 검사와 PR 직접 머지 차단만 적용한다.
 
 **PR 본문·제목 사전 검사 (메인 한정)**: git 에는 PR 생성 직전 hook 이 없다. 그래서 메인 Claude 가 PR 을 만들거나 PR 본문·제목을 바꾸는 명령을 실행하기 직전에 [`harness/pr_precheck.py`](../../harness/pr_precheck.py) 가 본문과 제목을 검사한다. CI workflow 를 설치하지 않았거나 끈 프로젝트에서도 동작한다.
 
@@ -157,6 +157,13 @@ PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추�
 - 차단은 `guard=file-guard`, `category=pr_precheck` 로 기록된다.
 - 한계: `bash -c "…"`, `eval`, 다른 스크립트 안의 `gh` 호출은 보지 못한다. [`scripts/pr-create.sh`](../../scripts/pr-create.sh) 는 commit·push 전에 같은 판정 스크립트 2개를 직접 실행한다.
 - sub-agent 의 PR 생성·수정은 위 외부 변경 차단 목록이 먼저 막는다.
+
+**PR 직접 머지 차단 (메인 한정)**: 메인 Claude 가 Bash `gh pr merge` 를 실행하거나 GitHub MCP `merge_pull_request` 를 호출하면 같은 [`harness/pr_precheck.py`](../../harness/pr_precheck.py) 가 차단하고 [`scripts/pr-finalize.sh`](../../scripts/pr-finalize.sh) 실행 경로를 안내한다. 직접 머지는 머지 뒤 기본 브랜치 동기화와 feature worktree 정리를 하지 않기 때문이다.
+
+- 통과: `pr-finalize.sh` 실행 명령(스크립트 안의 머지는 hook 이 보지 않는다), `gh pr merge --help`, `gh pr merge --disable-auto`.
+- 예외: 사용자가 직접 머지를 지시했거나 `pr-finalize.sh` 가 머지를 거부한 경우(base 가 기본 브랜치가 아닌 PR 등) `DCNESS_ALLOW_DIRECT_MERGE=1 gh pr merge ...` 처럼 머지 명령 바로 앞에 붙인다. 같은 줄의 다른 명령 앞에 붙인 값은 인정하지 않는다. MCP 머지 도구에는 예외가 없다.
+- `node` 가 없어도 동작한다. 차단은 `guard=file-guard`, `category=pr_precheck` 로 기록된다.
+- `.no-dcness-guard` 표시 프로젝트와 dcNess 자체 저장소는 PR 사전 검사와 같이 건너뛴다.
 
 **프로젝트 밖 경로**: 프로젝트 루트 밖 쓰기는 차단한다. 임시 폴더(`/tmp`, `/private/tmp`, `/var/folders`, 세션 임시 폴더 포함) 쓰기는 예외로 모든 agent 에 허용한다. 임시 폴더의 메모와 증거 파일은 제품 파일이 아니기 때문이다. 읽기 전용 agent 도 임시 폴더에는 쓸 수 있고, 프로젝트 안 파일에는 쓸 수 없다. 프로젝트 자체가 임시 폴더 안에 있으면 이 예외를 적용하지 않는다. Bash 의 쉘 변수 경로(`"$D/a.md"`)는 같은 명령 안의 단순 대입으로 값을 확정할 수 있을 때만 그 값으로 검사한다. 값을 확정할 수 없으면 위치를 알 수 없으므로 차단한다.
 
