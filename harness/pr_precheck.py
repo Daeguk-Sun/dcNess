@@ -12,6 +12,11 @@ git 에는 "PR 생성 직전" hook 이 없다. 그래서 PR 본문 오류는 CI 
     Bash  `gh pr create`, `gh pr edit` (본문·제목 인자가 있을 때)
     MCP   `mcp__github__create_pull_request`, `mcp__github__update_pull_request`
 
+PR 직접 머지(`gh pr merge`, `mcp__github__merge_pull_request`)는 차단하고
+`scripts/pr-finalize.sh` 를 안내한다. 직접 머지는 머지 뒤 기본 브랜치 동기화와
+feature worktree 정리를 하지 않기 때문이다. 같은 명령 앞에
+`DCNESS_ALLOW_DIRECT_MERGE=1` 을 붙이면 통과한다.
+
 본문을 명령에서 확정할 수 없으면(`--fill`, 쉘 변수, stdin 등) 차단하고
 `--body-file <파일>` 사용을 안내한다. 검사하지 못한 본문으로 PR 을 만들면
 이 검사의 목적이 사라지기 때문이다. `--web` 과 `--help` 는 통과시킨다.
@@ -85,6 +90,18 @@ _MCP_PR_TOOLS = {
     "create_pull_request": True,   # 본문 필수
     "update_pull_request": False,  # 준 필드만 검사
 }
+
+_MERGE_ALLOW_ENV = "DCNESS_ALLOW_DIRECT_MERGE=1"
+# 머지하지 않는 `gh pr merge` 호출 — 도움말, auto-merge 예약 해제.
+_MERGE_PASS_FLAGS = frozenset({"-h", "--help", "--disable-auto"})
+_DIRECT_MERGE_REASON = (
+    "PR 직접 머지 차단 — PR 을 머지하지 않았습니다.\n"
+    "  직접 머지는 머지 뒤 기본 브랜치 동기화와 feature worktree 정리를 하지 않습니다.\n"
+    "  pr-finalize.sh 는 검사 대기, 머지, 기본 브랜치 동기화, worktree 정리를 한 번에 수행합니다.\n"
+    f"  실행: bash \"{_SCRIPTS_DIR / 'pr-finalize.sh'}\" <PR번호>\n"
+    "  사용자가 직접 머지를 지시했거나 pr-finalize.sh 가 머지를 거부한 경우에만 "
+    f"`{_MERGE_ALLOW_ENV} gh pr merge ...` 처럼 명령 앞에 붙여 다시 실행하십시오."
+)
 
 _BODY_FILE_GUIDE = (
     "PR 본문을 파일에 먼저 쓰고, 다음 명령에서 "
@@ -228,7 +245,7 @@ def _command_words(words: list[_Word]) -> list[_Word]:
 
 
 def _gh_pr_args(words: list[_Word]) -> Optional[tuple[str, list[_Word]]]:
-    """명령 단어들이 `gh pr create|edit` 이면 (verb, verb 뒤 단어들) 을 돌려준다."""
+    """명령 단어들이 `gh pr create|edit|merge` 이면 (verb, verb 뒤 단어들) 을 돌려준다."""
     if not words or _command_basename(words[0].text) != "gh":
         return None
     positionals: list[str] = []
@@ -243,7 +260,7 @@ def _gh_pr_args(words: list[_Word]) -> Optional[tuple[str, list[_Word]]]:
         i += 1
         if len(positionals) == 2:
             break
-    if positionals[:1] != ["pr"] or positionals[1:] not in (["create"], ["edit"]):
+    if positionals[:1] != ["pr"] or positionals[1:] not in (["create"], ["edit"], ["merge"]):
         return None
     return positionals[1], words[i:]
 
@@ -472,9 +489,14 @@ def check_bash_command(
         target = _gh_pr_args(words)
         if target is None:
             continue
+        verb, args = target
+        if verb == "merge":
+            env = {word.text for word in segment[: len(segment) - len(words)]}
+            if _MERGE_ALLOW_ENV in env or any(w.text in _MERGE_PASS_FLAGS for w in args):
+                continue
+            return _DIRECT_MERGE_REASON
         if _checker_unavailable(on_fail_open):
             return None
-        verb, args = target
         reason = _check_gh_pr(
             verb, [restore(word) for word in args], command, cwd, cwd_changed, on_fail_open
         )
@@ -493,6 +515,8 @@ def check_mcp_tool(
     prefix = "mcp__github__"
     if not tool_name.startswith(prefix):
         return None
+    if tool_name == f"{prefix}merge_pull_request":
+        return _DIRECT_MERGE_REASON
     body_required = _MCP_PR_TOOLS.get(tool_name[len(prefix):])
     if body_required is None or _checker_unavailable(on_fail_open):
         return None
