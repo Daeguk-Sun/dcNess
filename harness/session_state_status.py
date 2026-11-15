@@ -203,6 +203,57 @@ def _check_gh_auth() -> bool:
     return proc.returncode == 0
 
 
+_WORKTREE_SYNC_FIX = '"$HELPER" worktree-files sync  (모든 worktree: worktree-files sync --all)'
+
+
+def _add_worktree_files_check(add: Any, cwd: Path, project_root: Path) -> None:
+    """로컬 전용 하네스 파일이 linked worktree 에 연결됐는지 진단한다."""
+    try:
+        from harness import worktree_files
+
+        state = worktree_files.inspect(cwd)
+        if state.linked_worktree:
+            gaps = state.missing + state.not_ignored
+            if not gaps:
+                add("worktree_files", "linked worktree 하네스 파일", "PASS",
+                    f"main worktree({project_root}) 원본 연결됨")
+                return
+            fixes = []
+            if state.missing:
+                fixes.append(_WORKTREE_SYNC_FIX)
+            if state.not_ignored:
+                fixes.append("커밋 제외 대상이 아닌 파일은 .git/info/exclude 에 추가한 뒤 sync")
+            add("worktree_files", "linked worktree 하네스 파일", "WARN",
+                f"빠진 파일: {', '.join(state.missing) or '없음'}; "
+                f"커밋 제외 대상 아님: {', '.join(state.not_ignored) or '없음'}",
+                " / ".join(fixes))
+            return
+        local_only = worktree_files.local_only_files(project_root)
+        if not local_only:
+            add("worktree_files", "linked worktree 하네스 파일", "PASS",
+                "커밋되지 않은 하네스 파일 없음 — 연결 불필요")
+            return
+        hook = _resolve_git_hooks_dir(project_root) / "post-checkout"
+        try:
+            hook_ready = "worktree_files" in hook.read_text(encoding="utf-8", errors="ignore")
+        except OSError:
+            hook_ready = False
+        detail = (
+            f"로컬 전용 {len(local_only)}개({', '.join(local_only[:5])}) — "
+            "EnterWorktree·worktree 세션 시작 시 자동 연결"
+        )
+        if hook_ready:
+            add("worktree_files", "linked worktree 하네스 파일", "PASS",
+                detail + ", git worktree add 도 post-checkout 으로 연결")
+        else:
+            add("worktree_files", "linked worktree 하네스 파일", "WARN",
+                detail + ", post-checkout shim 구버전이라 수동 git worktree add 는 연결 안 됨",
+                "/init-dcness 재실행 (git hook shim 갱신)")
+    except Exception as exc:  # 진단은 작업을 막지 않는다
+        add("worktree_files", "linked worktree 하네스 파일", "WARN", f"진단 실패: {exc}",
+            "dcness 업데이트 또는 dcness-helper worktree-files sync 확인")
+
+
 def collect_status_diagnostics(
     cwd: Optional[Path] = None,
     *,
@@ -245,6 +296,7 @@ def collect_status_diagnostics(
             ("claude_context", "CLAUDE.md context"),
             ("codex_skills", "Codex validator skills"),
             ("generated_tdd_hooks", "Generated TDD hooks"),
+            ("worktree_files", "linked worktree 하네스 파일"),
             ("ci_workflows", "선택형 CI workflow"),
         ):
             add(key, label, "NA", na_detail)
@@ -402,12 +454,12 @@ def collect_status_diagnostics(
                         f"platform={platform}, CC+Codex 등록됨, linked worktree 에서 "
                         f"커밋 필요한 생성 파일: {detail}"
                     ),
-                    "generated TDD hook 파일을 bootstrap commit 에 포함",
+                    "로컬 전용이면 \"$HELPER\" worktree-files sync, 아니면 bootstrap commit 에 포함",
                 )
             elif generated_tdd.get("cc_registered") and generated_tdd.get("codex_registered"):
                 suffix = ""
                 if not generated_tdd.get("generated_files_committed"):
-                    suffix = ", in-place disk 실존으로 통과 (linked worktree/headless 재사용 전 commit 필요)"
+                    suffix = ", 커밋 안 됨 (로컬 전용 — 새 linked worktree 에 자동 연결)"
                 add(
                     "generated_tdd_hooks",
                     "Generated TDD hooks",
@@ -442,6 +494,8 @@ def collect_status_diagnostics(
                 f"진단 실패: {exc}",
                 "dcness 업데이트 또는 scripts/dcness-tdd-hooks status 확인",
             )
+
+        _add_worktree_files_check(add, (cwd or Path.cwd()).resolve(), project_root)
 
     # Provider routing (self / 외부 공통 — INFO)
     if check_routing:

@@ -32,6 +32,7 @@ dcNess 의 강제 영역은 두 가지뿐이다.
 | `subagent-start-lifecycle.sh` | `SubagentStart` | 실제 sub-agent spawn 직후 | Agent step 시작 + 동적 context 주입 | X |
 | `file-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Read|Bash|mcp__.*` | file/bash/MCP tool 호출 직전 | agent 별 파일 경계 + 외부 변경 차단 목록 검사 + 메인의 PR 본문·제목 사전 검사 | O |
 | `tdd-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Bash` | 파일 수정 직전 | project-local generated TDD hook 우선 실행, 없으면 TS/JS fallback 으로 매칭 test 존재 확인 | O |
+| `worktree-files.sh` | `PostToolUse / EnterWorktree` | `EnterWorktree` 성공 직후 | 커밋하지 않은 하네스 파일을 새 worktree 에 main worktree 원본 링크로 연결 | X |
 | `post-agent-clear.sh` | `PostToolUse / Agent` | Agent tool 성공 결과 직후 | completed foreground prose + receipt 기록, 비동기 실행은 step 유지 | X |
 | `post-agent-failure.sh` | `PostToolUseFailure / Agent` | Agent tool 실패 직후 | step abort + 복구 진단 | X |
 | `subagent-stop-clear.sh` | `SubagentStop` | sub-agent 컨텍스트 종료 직후 | 최종 응답으로 receipt 기록(비동기 실행 포함) + active agent clear 보강 | X |
@@ -81,6 +82,7 @@ dcNess hook 은 보안 sandbox 가 아니다. file boundary 와 외부 상태 �
 - `## 응답 문체` 블록으로 메인 Claude 가 사용자에게 보내는 대화 응답과 사용자에게 보여 주는 공유 문서(보고서, HTML 페이지 등)를 ASD-STE100 원칙으로 쓰도록 안내함. 형식은 한국어 개조식 명사형 종결(~함, ~임), 결론 1줄 → 사용자 할 일·결정 → 근거 순서, 항목 하나에 내용 하나(근거는 하위 불릿), 명사형 제목, 번호 절차·시퀀스 다이어그램 우선, 용어 일관성, 핵심만 굵게다. 금지 표현 5종(질문형·말 거는 제목, 작업 경위 문장, 축약 표기, 독자가 볼 수 없는 내부 번호, 반복·맞장구)과 나쁜 예·좋은 예 1쌍을 함께 준다. 응답 언어는 바꾸지 않고 다른 언어는 그 언어의 간결한 bullet 형식으로 쓴다. 서브에이전트 출력·코드·설정 파일·commit/PR 본문은 대상이 아니며, 프로젝트·사용자 지침의 형식 지정이 우선한다. 권고이며 hook 이 검사하거나 차단하지 않는다
 - `## 머지된 설계의 제품 동작 정정` 블록으로 main 에 머지된 설계의 제품 동작을 사용자가 정정할 때(skill 밖 대화 중 직접 수정 포함) 따를 순서를 안내함. 고치기 전에 그 동작이 적힌 설계 문서(PRD, stories, 화면 흐름, 확정 목업, 결정 문서, 전역·epic architecture, impl 문서)를 모두 찾아 수정 대상 목록을 먼저 보여 주고, 고친 뒤 옛 표현 잔존과 일괄 바꾸기의 다른 의미 오변경을 점검하며, 범위가 크면 `/design <epic-path> --revise` 로 설계 검증을 다시 받는 선택지를 제시함. 머지 뒤 정정에는 설계 검증이 다시 실행되지 않아 영향 문서 누락을 아무도 지적하지 않는 빈틈을 메운다. 재실행은 사용자가 정하며 hook 이 검사하거나 차단하지 않는다
 - 프로젝트 상태나 다음 작업 질문에는 `docs/index.md` 와 `## 진행 상태 · 다음 작업` 섹션이 실제로 있을 때만 해당 포인터를 안내하고, 파일/섹션이 없으면 `/next-work` issue/label 조회와 `/init-dcness` 보강 경로를 안내함
+- linked worktree 에서 시작한 세션이면 커밋하지 않은 하네스 파일을 main worktree 원본 링크로 연결 ([worktree-files.sh](#worktree-filessh)와 같은 동작). main worktree 에서는 아무것도 하지 않음
 - 설치된 plug-in 버전과 `main` 의 최신 버전을 비교(하루 1회 캐시)해 더 높은 버전이 있을 때만 `claude plugin update` 알림을 함께 inject — 외부 활성 프로젝트가 옛 plug-in 버전 운영 룰에 묶이는 drift 회피
 
 **차단**: 없음. 실패해도 세션 시작을 막지 않는다.
@@ -224,7 +226,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 
 **생성/등록 순서**: CC hook 이 먼저다. `.claude/hooks/dcness-tdd-guard.sh` 후보가 self-test 를 통과해야 `.claude/settings.json` PreToolUse(`Edit|Write|NotebookEdit|Bash`) 에 등록된다. Codex hook 은 그 다음 같은 패턴으로 `.codex/hooks/dcness-tdd-guard.sh` 와 `.codex/hooks.json` PreToolUse(`Edit|Write|apply_patch`) 에 등록된다. 기존 `.claude/settings.json` 또는 `.codex/hooks.json` 이 깨진 JSON 이면 등록을 거부하고 파일을 덮어쓰지 않는다. Codex 쪽은 CLI 의 사용자 신뢰 승인(`~/.codex/config.toml` trusted hash 흐름)이 추가로 필요할 수 있으므로, `registered` 는 project-local 파일 등록 상태이지 사용자 trust 승인 완료를 뜻하지 않는다.
 
-**Git 도달성**: 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 linked worktree 와 headless worker 체크아웃에서 같은 계약을 재사용하려면 Git 에 커밋되어야 한다. 자동 workflow PR 대상은 아니지만 worktree/headless 재사용이 필요한 프로젝트에서는 activation bootstrap commit 대상이다. `scripts/dcness-tdd-hooks status` 는 linked worktree 에서 커밋이 필요한 생성 파일을 `commit-required` 로 표시하고, in-place 에서만 실존하는 생성 파일은 `commit-advisory` 로 표시한다. `dcness-helper status` 는 linked worktree 에서 커밋이 필요한 경우만 WARN 으로 표시한다.
+**Git 도달성**: 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 커밋하거나 로컬 전용으로 둔다. 로컬 전용이면 새 linked worktree 가 main worktree 원본 링크로 받는다 ([worktree-files.sh](#worktree-filessh)). 자동 workflow PR 대상은 아니다. `scripts/dcness-tdd-hooks status` 는 생성 파일이 커밋되지 않았으면 `commit-advisory`, linked worktree 에서 생성 파일이 커밋되지도 연결되지도 않았으면 `commit-required` 로 표시한다. `dcness-helper status` 는 `commit-required` 인 경우만 WARN 으로 표시한다.
 
 **공존 규칙**: generated hook 이 interactive CC project hook 으로 등록되어 있으면 중앙 hook 은 중복 실행하지 않는다. Headless/synthetic 경로는 중앙 hook 이 generated hook 에 위임한 뒤 종료한다. 따라서 TS/JS 프로젝트에서도 중앙 fallback 과 project-local hook 이 같은 파일을 이중 deny 하지 않는다. generated hook 이 실패하거나 self-test 를 통과하지 못한 후보는 등록되지 않으며, 미설정·생성 실패 시 no-op 으로 안전 통과한다.
 
@@ -280,6 +282,22 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 - 이 계약은 Codex 설정 키를 사용하는 `codex-headless` build-worker 전용이다. `claude-headless` worker는 Claude Code의 `--permission-mode acceptEdits` 경로이며 Codex sandbox 설정을 소비하지 않으므로 동일 env를 적용하지 않는다. 다른 provider로의 자동 확장은 범위 밖이다.
 
 **차단**: test 부재 시 `exit 2` + 한국어 안내. Bash write target 차단 메시지는 `TDD GUARD[Bash]` 로 시작해 어떤 target 이 matching-test enforcement 에 실패했는지 함께 표시한다. Headless worker 차단 메시지는 `[dcness-codex-worker] BLOCKED: TDD GUARD ...` 또는 `[dcness-claude-worker] BLOCKED: TDD GUARD ...` 로 시작하고 위반 파일 목록을 포함한다.
+
+### worktree-files.sh
+
+**시점**: `EnterWorktree` tool 성공 직후. `EnterWorktree` 는 git `post-checkout` hook 을 실행하지 않으므로 이 hook 이 대신한다.
+
+**역할**: [`harness/worktree_files.py`](../../harness/worktree_files.py) 가 hook 입력의 `tool_response.worktreePath` 로 새 worktree 를 찾아, 커밋하지 않은 하네스 파일을 main worktree 원본에 심볼릭 링크로 건다. 하네스 파일을 로컬 전용(`.git/info/exclude`)으로 두는 프로젝트에서 worktree 세션의 생성형 TDD hook·경계 계약·프로젝트 지침이 빠지지 않게 하기 위함이다.
+
+- 기본 대상: `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`, `.dcness/tdd-hooks.json`, `.dcness/boundary.json`, `docs/index.md`
+- 프로젝트 추가 대상: main worktree 의 `.dcness/worktree-files.json` — `{"link": ["app/qa/.env"], "copy": ["local.properties"]}`. `copy` 는 worktree 마다 값이 달라질 수 있는 파일용
+- 건너뜀: 원본 없음, 원본이 커밋됨(checkout 이 이미 제공), worktree 에 실제 파일이 이미 있음(보존), worktree 에서 git 무시 대상이 아님(링크하면 미추적 파일이 되어 커밋될 수 있음)
+- 공유하지 않음: `.dcness-work/` 등 branch 별 실행 상태, `.claude/settings.local.json`(Claude Code 가 worktree 에서도 main checkout 루트의 파일을 읽음)
+- 같은 동작의 다른 호출 지점: `git worktree add` 의 [post-checkout](#githookspost-checkout), worktree 에서 시작한 세션의 [session-start.sh](#session-startsh), 수동 `dcness-helper worktree-files sync [--all]`
+- 상태 확인: `dcness-helper status` 의 `linked worktree 하네스 파일` 항목
+- 한계: 링크된 파일을 worktree 에서 고치면 main worktree 원본이 바뀐다. Codex worker 의 쓰기 허용 경로는 worktree 기준이라 링크된 원본 쓰기는 sandbox 에서 막힐 수 있다
+
+**차단**: 없음. 실패해도 작업을 막지 않는다.
 
 ### post-agent-clear.sh
 
@@ -338,7 +356,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 |---|---|---|---|---|
 | `.git/hooks/pre-commit` | `scripts/hooks/pre-commit` | commit 직전 | main 직접 commit 차단 (+ self 는 python test gate) | O |
 | `.git/hooks/commit-msg` | `scripts/hooks/commit-msg` | commit message 확정 전 | 커밋 제목 git-spec 검증 | O |
-| `.git/hooks/post-checkout` | `scripts/hooks/post-checkout` | branch checkout/switch 직후 | 브랜치명 위반 경고 + rename 안내 | X |
+| `.git/hooks/post-checkout` | `scripts/hooks/post-checkout` | branch checkout/switch 직후 | 브랜치명 위반 경고 + rename 안내 + 새 linked worktree 에 로컬 전용 하네스 파일 연결 | X |
 | `.git/hooks/pre-push` | `scripts/hooks/pre-push` | push 직전 | main 직접 push 차단 + 브랜치명 검증 | O |
 
 `pre-commit` 은 외부 활성 프로젝트에도 배포되지만 그 역할은 main 직접 commit 차단 전용이다. python test gate 단계는 `scripts/check_python_tests.sh` 가 존재할 때만 실행되므로 그 스크립트가 없는 외부 repo 에서는 main-block 만 강제한다. TDD 강제는 git hook 이 아니라 Layer 1 의 `tdd-guard.sh` 가 구현 파일 작성 전에 수행한다.
@@ -375,7 +393,10 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 **시점**: branch checkout/switch 직후.
 
-**역할**: 현재 브랜치명이 git-spec 을 어기면 경고와 `git branch -m <올바른-브랜치명>` 안내를 출력한다.
+**역할**:
+
+- 현재 브랜치명이 git-spec 을 어기면 경고와 `git branch -m <올바른-브랜치명>` 안내를 출력한다.
+- `git worktree add` 로 새 linked worktree 가 생기면(이전 HEAD 인자가 0) 커밋하지 않은 하네스 파일을 main worktree 원본 링크로 연결한다. 규칙은 [worktree-files.sh](#worktree-filessh)와 같다. clone 직후 main worktree 와 `--no-checkout` worktree 에서는 아무것도 하지 않는다.
 
 **차단**: 없음. Git 이 post-checkout exit code 로 checkout 을 취소하지 않기 때문에 경고 전용이다.
 

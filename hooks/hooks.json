@@ -1,5 +1,5 @@
 {
-  "description": "dcNess — loop 실행 절차 인프라 훅 (SessionStart sid + PreToolUse Agent 순서 검증 + SubagentStart 실제 spawn 기록/context + PostToolUse Agent foreground 완료 + PostToolUseFailure abort 진단 + file-guard + Stop auto-end-run)",
+  "description": "dcNess — loop 실행 절차 인프라 훅 (SessionStart sid + PreToolUse Agent 순서 검증 + SubagentStart 실제 spawn 기록/context + PostToolUse Agent foreground 완료 + PostToolUse EnterWorktree 로컬 하네스 파일 연결 + PostToolUseFailure abort 진단 + file-guard + Stop auto-end-run)",
   "hooks": {
     "Stop": [
       {
@@ -78,6 +78,16 @@
       }
     ],
     "PostToolUse": [
+      {
+        "matcher": "EnterWorktree",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PLUGIN_ROOT}/hooks/worktree-files.sh\"",
+            "timeout": 10
+          }
+        ]
+      },
       {
         "matcher": "Agent",
         "hooks": [

@@ -44,6 +44,7 @@
     "harness/story_runner.py",
     "harness/tdd_hooks.py",
     "harness/wave_board.py",
+    "harness/worktree_files.py",
     "hooks",
     "scripts/aggregate_architecture_map.mjs",
     "scripts/aggregate_index_map.mjs",
@@ -120,6 +121,7 @@
     "harness/signal_io.py": "installed hook and helper validator prose I/O",
     "harness/story_runner.py": "advanced public /impl-loop deterministic story runner",
     "harness/tdd_hooks.py": "public /init-dcness generated TDD setup and installed guard runtime",
+    "harness/worktree_files.py": "installed git post-checkout, EnterWorktree and SessionStart linking of local-only harness files into linked worktrees",
     "harness/wave_board.py": "advanced /impl-loop parallel claim board"
   },
   "allowed_cache_metadata": [

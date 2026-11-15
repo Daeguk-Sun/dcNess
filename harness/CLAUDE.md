@@ -35,6 +35,8 @@
 - [story_runner.py](story_runner.py), [provider_failure_cache.py](provider_failure_cache.py),
   [prev_tasks.py](prev_tasks.py), [codex_sandbox_permission.py](codex_sandbox_permission.py):
   `/impl-loop` story 실행 순서, provider 실패 기억, 직전 task 맥락, Codex 권한 재시도.
+- [worktree_files.py](worktree_files.py): 커밋하지 않은 하네스 파일을 새 linked worktree 에 main worktree
+  원본 링크로 연결 (post-checkout, PostToolUse EnterWorktree, SessionStart, `dcness-helper worktree-files`).
 - [ci_workflows.py](ci_workflows.py), [session_state_activation.py](session_state_activation.py),
   [session_state_status.py](session_state_status.py), [boundary_suggestions.py](boundary_suggestions.py):
   `/init-dcness`의 CI workflow 복사, 활성화 판정, 상태 진단, 경계 제안.

@@ -114,7 +114,8 @@ class RuntimeEvidenceBoundaryTests(unittest.TestCase):
         manifest = json.loads((ROOT / "hooks/hooks.json").read_text(encoding="utf-8"))
         post_hooks = manifest["hooks"]["PostToolUse"]
 
-        self.assertEqual([entry.get("matcher") for entry in post_hooks], ["Agent"])
+        # 도구 하나에만 걸린 hook 만 허용한다. EnterWorktree 는 worktree 하네스 파일 연결용이다.
+        self.assertEqual([entry.get("matcher") for entry in post_hooks], ["EnterWorktree", "Agent"])
         self.assertFalse((ROOT / "hooks/post-file-op-trace.sh").exists())
 
 
