@@ -24,6 +24,7 @@
     "harness/guard_telemetry.py",
     "harness/hooks.py",
     "harness/ledger.py",
+    "harness/local_check_guard.py",
     "harness/merge_lock.py",
     "harness/mockup_node_check.py",
     "harness/parallel_wave.py",
@@ -83,7 +84,8 @@
     "scripts/setup_labels.sh",
     "skills",
     "templates/design-variants",
-    "templates/github-workflows"
+    "templates/github-workflows",
+    "templates/local-checks"
   ],
   "product_python": {
     "harness/agent_boundary.py": "installed file/agent/Bash guards and public validator boundary checks",
@@ -101,6 +103,7 @@
     "harness/guard_telemetry.py": "installed guard receipts and dcness-helper diagnostics",
     "harness/hooks.py": "installed Claude hook handlers enforcing workflow order and boundaries",
     "harness/ledger.py": "public workflow step/run receipt ledger",
+    "harness/local_check_guard.py": "installed file-guard check that blocks bypassing the local lint-build-test pre-push hook",
     "harness/merge_lock.py": "advanced /impl-loop parallel PR merge lock",
     "harness/mockup_node_check.py": "public /design confirmed-mockup preflight",
     "harness/parallel_wave.py": "public /design and advanced /impl-loop wave planning",
@@ -151,7 +154,8 @@
     "scripts/hooks/pre-commit",
     "scripts/hooks/pre-push",
     "skills",
-    "templates/github-workflows"
+    "templates/github-workflows",
+    "templates/local-checks"
   ],
   "forbidden_product_imports": [
     "evals",

@@ -1,7 +1,8 @@
 """/init-dcness 선택형 CI workflow 설치기.
 
 workflow template 과 그 workflow 가 실행하는 검사 스크립트를 사용자 repo 에 함께
-복사한다. 설치된 workflow 는 외부 저장소 action 을 호출하지 않고 사용자 repo
+복사한다. 로컬 실행을 고른 검사(`--local`)는 workflow 대신 git pre-push hook 이
+실행하는 스크립트를 복사한다. 설치된 workflow 는 외부 저장소 action 을 호출하지 않고 사용자 repo
 체크아웃만으로 실행되며, 복사본은 설치 시점의 plugin 버전에 고정된다.
 """
 from __future__ import annotations
@@ -21,6 +22,9 @@ WORKFLOW_DIR = ".github/workflows"
 # 복사된 검사 스크립트는 plugin 안의 상대 경로 그대로 이 아래에 둔다.
 INSTALL_ROOT = ".github/ci-checks"
 EXECUTABLE_FILES = {"scripts/dcness-story-runner"}
+LOCAL_TEMPLATE_DIR = "templates/local-checks"
+# git pre-push hook 이 이 경로의 스크립트가 있으면 push 직전에 실행한다.
+LOCAL_SCRIPT = ".dcness/lint-build-test.sh"
 
 _DOC_SYNC_FILES = (
     "scripts/aggregate_index_map.mjs",
@@ -52,6 +56,8 @@ class CheckSpec:
     neutral_ok: bool = True
     # platform -> template. 비어 있으면 단일 template 을 쓴다.
     platform_templates: dict[str, str] = field(default_factory=dict)
+    # platform -> 로컬 실행 스크립트 template. 비어 있으면 로컬 실행을 지원하지 않는다.
+    local_templates: dict[str, str] = field(default_factory=dict)
 
     def template_sources(self) -> list[str]:
         names = [self.template] if self.template else list(self.platform_templates.values())
@@ -87,6 +93,7 @@ CHECKS: dict[str, CheckSpec] = {
     ),
     "lint-build-test": CheckSpec(
         platform_templates={"android": "lint-build-test/android.yml"},
+        local_templates={"android": "lint-build-test/android.sh"},
     ),
 }
 
@@ -95,6 +102,8 @@ CHECKS: dict[str, CheckSpec] = {
 class InstallResult:
     written: list[str] = field(default_factory=list)
     skipped: list[tuple[str, str]] = field(default_factory=list)
+    removed: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)
 
 
 def _android_skip_reason(root: Path) -> Optional[str]:
@@ -108,7 +117,7 @@ def _android_skip_reason(root: Path) -> Optional[str]:
     return None
 
 
-def _lint_build_test_template(root: Path, platform: Optional[str]) -> tuple[Optional[str], str]:
+def _lint_build_test_platform(root: Path, platform: Optional[str]) -> tuple[Optional[str], str]:
     spec = CHECKS["lint-build-test"]
     resolved = platform or resolve_platform(root)
     if not resolved:
@@ -124,7 +133,7 @@ def _lint_build_test_template(root: Path, platform: Optional[str]) -> tuple[Opti
         reason = _android_skip_reason(root)
         if reason:
             return None, reason
-    return template, ""
+    return resolved, ""
 
 
 def _copy(src: Path, dst: Path, *, executable: bool) -> None:
@@ -134,17 +143,36 @@ def _copy(src: Path, dst: Path, *, executable: bool) -> None:
         dst.chmod(0o755)
 
 
+def _remove_if_unmodified(
+    root: Path, rel: str, originals: Sequence[Path], result: InstallResult
+) -> None:
+    """dcNess 가 복사한 내용 그대로인 파일만 지운다. 사용자가 고친 파일은 남기고 알린다."""
+    path = root / rel
+    if not path.is_file():
+        return
+    content = path.read_bytes()
+    if any(src.read_bytes() == content for src in originals):
+        path.unlink()
+        result.removed.append(rel)
+    else:
+        result.notes.append(f"{rel} 는 template 과 내용이 달라 남김 — 필요 없으면 직접 삭제")
+
+
 def install(
     project_root: Path,
     checks: Sequence[str],
     *,
     neutral_naming: bool = False,
     platform: Optional[str] = None,
+    local_checks: Sequence[str] = (),
     plugin_root: Path = PLUGIN_ROOT,
 ) -> InstallResult:
     unknown = [check for check in checks if check not in CHECKS]
     if unknown:
         raise ValueError(f"unknown check: {', '.join(unknown)} (지원: {', '.join(CHECKS)})")
+    no_local = [check for check in local_checks if not CHECKS.get(check, CheckSpec()).local_templates]
+    if no_local:
+        raise ValueError(f"local 실행 미지원 check: {', '.join(no_local)}")
 
     root = project_root.resolve()
     result = InstallResult()
@@ -154,13 +182,27 @@ def install(
             result.skipped.append((check, _HARNESS_FORMAT_REASON))
             continue
         template = spec.template
+        target = f"{WORKFLOW_DIR}/{check}.yml"
         if spec.platform_templates:
-            platform_template, reason = _lint_build_test_template(root, platform)
-            if platform_template is None:
+            resolved, reason = _lint_build_test_platform(root, platform)
+            if resolved is None:
                 result.skipped.append((check, reason))
                 continue
-            template = platform_template
-        target = f"{WORKFLOW_DIR}/{check}.yml"
+            workflow_sources = [plugin_root / src for src in spec.template_sources()]
+            local_sources = [
+                plugin_root / LOCAL_TEMPLATE_DIR / name for name in spec.local_templates.values()
+            ]
+            if check in local_checks:
+                _copy(
+                    plugin_root / LOCAL_TEMPLATE_DIR / spec.local_templates[resolved],
+                    root / LOCAL_SCRIPT,
+                    executable=True,
+                )
+                result.written.append(LOCAL_SCRIPT)
+                _remove_if_unmodified(root, target, workflow_sources, result)
+                continue
+            _remove_if_unmodified(root, LOCAL_SCRIPT, local_sources, result)
+            template = spec.platform_templates[resolved]
         _copy(plugin_root / TEMPLATE_DIR / template, root / target, executable=False)
         result.written.append(target)
         for rel in spec.support_files:
@@ -173,20 +215,27 @@ def install(
 
 def _cmd_install(args: argparse.Namespace) -> int:
     checks = [item.strip() for item in args.checks.split(",") if item.strip()]
+    local_checks = [item.strip() for item in args.local.split(",") if item.strip()]
     try:
         result = install(
             Path(args.project_root),
             checks,
             neutral_naming=args.neutral_naming,
             platform=args.platform,
+            local_checks=local_checks,
         )
     except ValueError as exc:
         print(str(exc), file=sys.stderr)
         return 2
-    for path in result.written:
+    # 지운 파일도 stdout 에 내보내 workflow PR 이 삭제를 stage 하게 한다.
+    for path in result.written + result.removed:
         print(path)
+    for path in result.removed:
+        print(f"removed {path}", file=sys.stderr)
     for check, reason in result.skipped:
         print(f"skip {check}: {reason}", file=sys.stderr)
+    for note in result.notes:
+        print(f"note: {note}", file=sys.stderr)
     return 0
 
 
@@ -201,6 +250,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     p_install.add_argument("--checks", required=True, help="comma separated workflow names")
     p_install.add_argument("--neutral-naming", action="store_true")
     p_install.add_argument("--platform", default=None)
+    p_install.add_argument(
+        "--local",
+        default="",
+        help="comma separated checks to run from git pre-push hook instead of a workflow",
+    )
     p_install.set_defaults(func=_cmd_install)
     args = parser.parse_args(argv)
     return args.func(args)
