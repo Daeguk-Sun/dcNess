@@ -10,6 +10,52 @@ _(다음 릴리즈 대기 항목 없음)_
 
 ---
 
+## v0.36.0 (2026-11-17)
+
+**커밋 범위**: `v0.35.0..v0.36.0` (머지 PR 5개, [#1340](https://github.com/Daeguk-Sun/dcNess/pull/1340) · [#1342](https://github.com/Daeguk-Sun/dcNess/pull/1342) · [#1343](https://github.com/Daeguk-Sun/dcNess/pull/1343) · [#1345](https://github.com/Daeguk-Sun/dcNess/pull/1345) · 본 릴리즈 PR)
+**핵심 변경**: **확정 목업이 있는 UI 검수가 화면 구조뿐 아니라 요소의 시각 속성까지 대조하도록 바꾸고, 비공개 저장소의 lint-build-test 를 push 직전 로컬 실행으로 옮긴** minor 릴리즈. 이 밖에 새 linked worktree 의 로컬 전용 하네스 파일 연결, 메인 Claude 의 PR 직접 머지 차단을 포함함.
+
+### 무엇이 바뀌나
+
+1. **확정 목업 UI 검수 강화** ([#1345](https://github.com/Daeguk-Sun/dcNess/pull/1345) Closes [#1344](https://github.com/Daeguk-Sun/dcNess/issues/1344))
+   - product-acceptance 가 목업 상태 화면마다 요소의 글자 색·굵기·크기, 텍스트 형식, 정렬·폭, 행 높이·간격을 대조함
+   - 화면별 일치/불일치 목록이 보고에 있어야 PASS. 불일치는 사용자 수용 근거가 없으면 `목업 불일치` FAIL
+   - 목업 상태 중 화면 증거가 없는 상태는 `화면 증거 부재`, 검수 시드가 목업의 입력 형태를 덮지 못하면 `검수 증거 부족`
+   - 이전 동작: 레이아웃 계층·`data-node-id` 가 맞으면 통과해, 목업과 색·형식·정렬이 다른 화면이 Story 검수를 PASS 함
+2. **비공개 저장소의 lint-build-test 로컬 실행** ([#1340](https://github.com/Daeguk-Sun/dcNess/pull/1340))
+   - `/init-dcness` 가 비공개·내부 저장소에서 GitHub Actions workflow 대신 `.dcness/lint-build-test.sh` 설치를 추천함. git pre-push hook 이 push 직전 실행하고 실패하면 push 를 막음
+   - Claude 의 우회(`git push --no-verify`, `core.hooksPath` 변경, `.git/hooks/` 수정)를 실행 전에 차단함
+   - 이유: 비공개 저장소는 Actions 포함 사용량을 넘으면 과금되고, Android Gradle 검사가 그 사용량 대부분을 씀
+3. **새 linked worktree 에 로컬 전용 하네스 파일 연결** ([#1342](https://github.com/Daeguk-Sun/dcNess/pull/1342) Closes [#1339](https://github.com/Daeguk-Sun/dcNess/issues/1339))
+   - git 이 추적하지 않는 하네스 파일을 새 worktree 에 main worktree 원본 링크로 연결함. `EnterWorktree` 경로는 plug-in hook, `git worktree add` 경로는 post-checkout hook 이 처리함
+   - 이전 동작: 새 worktree 에 해당 파일이 없어 하네스 설정이 빠진 채 작업함
+4. **메인 Claude 의 PR 직접 머지 차단** ([#1343](https://github.com/Daeguk-Sun/dcNess/pull/1343) Closes [#1341](https://github.com/Daeguk-Sun/dcNess/issues/1341))
+   - `gh pr merge`·GitHub MCP 머지 도구 호출을 막고 `pr-finalize.sh` 실행을 안내함
+   - 이유: 직접 머지는 머지 뒤 기본 브랜치 동기화와 worktree 정리를 하지 않음
+   - 예외: 사용자 지시나 `pr-finalize.sh` 거부 시 `DCNESS_ALLOW_DIRECT_MERGE=1` 을 머지 명령 바로 앞에 붙임
+
+### 자기개선 점검
+
+- Sense/Diagnose
+  - 외부 활성 프로젝트 UI Story 마감에서 목업 불일치 8건이 PASS 된 사례를 수집해 [#1344](https://github.com/Daeguk-Sun/dcNess/issues/1344) 로 수정함
+  - 결정적 guard-efficacy **68/68 PASS**(v0.35.0 63/63 → [#1340](https://github.com/Daeguk-Sun/dcNess/pull/1340)·[#1343](https://github.com/Daeguk-Sun/dcNess/pull/1343) fixture 추가)
+  - 전체 unittest **1,660/1,660 PASS**(v0.35.0 1,610 → 신규 회귀 테스트 반영)
+  - 행동 eval: 신규 케이스 `story-mockup-visual-parity`(목업 HTML + 구현 스크린샷) 개정 후 지침 2/2 정답, 개정 전 지침 0/2. 개정 전 지침도 최종 판정은 FAIL 이었고 행 높이 차이만 놓침 → 이 케이스의 판별 범위는 좁음. 실제 사고처럼 PASS 가 나는 조건은 재현하지 못함
+- Decide
+  - 소멸 후보 없음
+  - 새 차단 규칙 2개(로컬 lint-build-test 우회 차단, PR 직접 머지 차단)는 각각 되돌릴 수 없는 경계(검사 없이 push, 동기화 없는 머지)만 막음
+  - 사람 확인 대기(릴리즈 차단 아님): 개정된 목업 검수 기준으로 실제 UI Story 마감 1회([#1344](https://github.com/Daeguk-Sun/dcNess/issues/1344)), Epic 대표 흐름 실제 앱 실행([#1087](https://github.com/Daeguk-Sun/dcNess/issues/1087) AC6)
+- Verify: 공개 evidence snapshot(README·[`docs/plugin/benchmark.md`](../plugin/benchmark.md))을 v0.36.0 / 2026-11-17 실측(unit 1,660/1,660 · guard 68/68)으로 갱신. `node scripts/check_public_evidence.mjs` PASS
+
+### 사용자 영향
+
+- **`claude plugin update dcness@dcness` 로 자동 반영** — `harness/**`·`hooks/**`·`skills/**`(acceptance·impl-loop)·`docs/plugin/**` 변경. 목업 검수 강화, PR 직접 머지 차단, `EnterWorktree` 경로의 파일 연결은 업데이트만으로 적용됨
+- **`/init-dcness` 재실행 필요** — 로컬 lint-build-test(`.dcness/lint-build-test.sh`, pre-push hook)와 `git worktree add` 경로의 파일 연결(post-checkout hook)은 git hook 사본이 바뀌므로 기존 활성 프로젝트에서 한 번 재실행해야 함
+- **UI Story 검수가 더 엄격해짐** — 확정 목업이 있는 UI story 는 목업과 시각 속성이 다르면 FAIL 함. 의도한 차이는 사용자 수용 결정으로 남겨야 통과함
+- **메인 Claude 의 `gh pr merge` 가 막힘** — `pr-finalize.sh` 로 머지함
+
+---
+
 ## v0.35.0 (2026-11-11)
 
 **커밋 범위**: `v0.34.0..v0.35.0` (머지 PR 13개, [#1318](https://github.com/Daeguk-Sun/dcNess/pull/1318) · [#1321](https://github.com/Daeguk-Sun/dcNess/pull/1321) · [#1322](https://github.com/Daeguk-Sun/dcNess/pull/1322) · [#1323](https://github.com/Daeguk-Sun/dcNess/pull/1323) · [#1324](https://github.com/Daeguk-Sun/dcNess/pull/1324) · [#1325](https://github.com/Daeguk-Sun/dcNess/pull/1325) · [#1326](https://github.com/Daeguk-Sun/dcNess/pull/1326) · [#1327](https://github.com/Daeguk-Sun/dcNess/pull/1327) · [#1329](https://github.com/Daeguk-Sun/dcNess/pull/1329) · [#1330](https://github.com/Daeguk-Sun/dcNess/pull/1330) · [#1334](https://github.com/Daeguk-Sun/dcNess/pull/1334) · [#1335](https://github.com/Daeguk-Sun/dcNess/pull/1335) · [#1336](https://github.com/Daeguk-Sun/dcNess/pull/1336))
