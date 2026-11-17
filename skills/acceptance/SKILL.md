@@ -50,11 +50,13 @@ direct `/impl` 단발 작업은 불필요하게 `/acceptance` 로 강제하지 �
 
 ## UI 목업 정합 원칙
 
-UI story/epic 검수에서 확정 목업과 구현 화면 증거가 주입되면 product-acceptance 는 양쪽을 Read 로 열어 구조적 일치를 판정한다. pixel-diff 자동화는 MVP 범위 밖이며 하드 게이트가 아니다.
+UI story/epic 검수에서 확정 목업과 구현 화면 증거가 주입되면 product-acceptance 는 양쪽을 Read 로 열어 구조와 요소의 시각 속성까지 판정한다. pixel-diff 자동화는 MVP 범위 밖이며 하드 게이트가 아니지만, 구조가 같다는 사실만으로 PASS 하지 않는다.
 
 - 확정 목업 경로는 `docs/design-variants/screens/<screen-id>.html` 또는 호출자가 제공한 동등한 기준이다.
 - 구현 화면 증거는 구현 화면 스크린샷, UI 자동화 산출 이미지, visual smoke 결과처럼 실제 실행 화면을 확인할 수 있는 경로다.
-- 판정 축은 UI 목업 정합: 레이아웃 계층, 상태(default/empty/error/loading 등), 핵심 `data-node-id`, 토큰·간격·타이포 대응이 구조적으로 맞는가다.
+- 판정 축은 UI 목업 정합: 레이아웃 계층, 상태(default/empty/error/loading 등), 핵심 `data-node-id`, 토큰·간격·타이포 대응이 구조적으로 맞는가, 그리고 목업의 상태 프레임마다 요소별 글자 색·굵기·크기, 텍스트 형식, 정렬·폭, 행 높이·간격이 구현 화면과 같은가다.
+- 확정 목업이 있으면 화면·프레임별 시각 속성 일치/불일치 목록이 PASS 의 필수 근거다. 불일치가 있으면 사용자 수용 근거가 없는 한 `목업 불일치` gap 이다.
+- 목업 프레임의 상태 중 구현 화면 증거가 없는 상태는 `화면 증거 부재` gap 이다. 검수 시드가 목업 프레임의 입력 형태(원본 데이터 형태)를 덮지 못하면 `검수 증거 부족` gap 이다.
 - UI story 인데 구현 화면 스크린샷 또는 동등한 화면 증거가 없으면 `화면 증거 부재` gap 이다. 확정 목업만 있거나 mock-only/component-only green 만 있으면 PASS 하지 않는다.
 - 확정 목업과 화면 증거가 구조적으로 어긋나면 `목업 불일치` gap 이며, 후속은 원인에 따라 `/ux` 또는 `/impl` 로 제안한다.
 
@@ -95,7 +97,7 @@ mode: STORY_ACCEPTANCE
 - story 목적과 구현 PR 이 연결됐는가.
 - stories.md 또는 story issue 의 Story AC 전항목과 파생 REQ 가 구현 파일, 테스트, smoke 증거 중 하나 이상과 연결됐는가.
 - 핵심 AC 가 동작 증거와 연결됐는가, 아니면 mock-only green 인가.
-- UI story 이면 확정 목업과 구현 화면 증거가 주입됐는가, 그리고 레이아웃 계층·상태(default/empty/error 등)·토큰 수준의 UI 목업 정합이 맞는가.
+- UI story 이면 확정 목업과 구현 화면 증거가 주입됐는가, 그리고 레이아웃 계층·상태(default/empty/error 등)·토큰과 프레임별 요소 시각 속성 수준의 UI 목업 정합이 맞는가.
 - UI story 인데 화면 증거가 없으면 화면 증거 부재 gap 으로, 확정 목업과 화면 증거가 어긋나면 목업 불일치 gap 으로 드러나는가.
 - 핵심 AC 가 대상 사용자에게 적합한 입력/진행 동선으로 닫혔는가, 아니면 내부 계약 조립을 요구하는가.
 - 설명만 있고 검수 가능한 증거가 없는 항목과 mock-only 증거만 있는 항목이 gap 으로 드러나는가.
