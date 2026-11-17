@@ -830,6 +830,13 @@ def _cli_status(args: Any) -> int:
     return 0
 
 
+def _cli_worktree_files(args: Any) -> int:
+    """로컬 전용 하네스 파일을 linked worktree 에 연결 (harness.worktree_files)."""
+    from harness.worktree_files import main as worktree_files_main
+
+    return worktree_files_main(args.worktree_files_args)
+
+
 def _cli_boundary_suggestions(args: Any) -> int:
     """Read-only `.dcness/boundary.json` add override suggestion (#910)."""
     from harness.boundary_suggestions import (
@@ -1337,6 +1344,13 @@ def _build_arg_parser() -> Any:
     p_bsug.add_argument("--cwd", default="", help="검사할 프로젝트 cwd (기본 현재 cwd)")
     p_bsug.add_argument("--json", action="store_true")
     p_bsug.set_defaults(func=_cli_boundary_suggestions)
+
+    p_wtf = sub.add_parser(
+        "worktree-files",
+        help="로컬 전용 하네스 파일을 linked worktree 에 연결 (sync [--all])",
+    )
+    p_wtf.add_argument("worktree_files_args", nargs=argparse.REMAINDER)
+    p_wtf.set_defaults(func=_cli_worktree_files)
 
     p_rt = sub.add_parser(
         "routing",

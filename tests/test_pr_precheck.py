@@ -225,7 +225,6 @@ class BashCommandVerdictTests(unittest.TestCase):
             "gh pr create --help",
             "gh pr view 12",
             "gh pr list --state open",
-            "gh pr merge 12 --merge",
             "gh issue create --title x --body y",
             "echo \"gh pr create --fill\"",
             "git commit -m \"gh pr create --fill 설명\"",
@@ -306,6 +305,53 @@ class McpToolVerdictTests(unittest.TestCase):
         self.assertIsNone(
             pr_precheck.check_mcp_tool("mcp__github__create_issue", {"body": "x"})
         )
+
+
+class DirectMergeTests(unittest.TestCase):
+    """머지 차단은 판정 스크립트를 쓰지 않으므로 node 없이도 동작해야 한다."""
+
+    def test_direct_merge_blocks_with_pr_finalize_guidance(self) -> None:
+        commands = (
+            "gh pr merge 12 --merge",
+            "gh pr merge --auto --merge",
+            "gh -R o/r pr merge 12 --squash",
+            "git push && gh pr merge 12 --merge",
+            "OTHER=1 gh pr merge 12",
+        )
+        with patch.object(pr_precheck.shutil, "which", return_value=None):
+            for command in commands:
+                with self.subTest(command=command):
+                    reason = pr_precheck.check_bash_command(command, cwd=Path.cwd())
+                    self.assertIsNotNone(reason)
+                    assert reason is not None
+                    self.assertIn("pr-finalize.sh", reason)
+                    self.assertIn("DCNESS_ALLOW_DIRECT_MERGE=1", reason)
+
+    def test_exception_prefix_and_non_merge_calls_pass(self) -> None:
+        commands = (
+            "DCNESS_ALLOW_DIRECT_MERGE=1 gh pr merge 12 --merge",
+            "gh pr merge --help",
+            "gh pr merge 12 --disable-auto",
+            "bash \"$PLUGIN_ROOT/scripts/pr-finalize.sh\" 12",
+            "echo \"gh pr merge 12\"",
+            "gh pr view 12",
+        )
+        for command in commands:
+            with self.subTest(command=command):
+                self.assertIsNone(pr_precheck.check_bash_command(command, cwd=Path.cwd()))
+
+    def test_exception_prefix_must_be_on_the_merge_command(self) -> None:
+        command = "DCNESS_ALLOW_DIRECT_MERGE=1 git fetch && gh pr merge 12"
+        self.assertIsNotNone(pr_precheck.check_bash_command(command, cwd=Path.cwd()))
+
+    def test_mcp_merge_tool_blocks(self) -> None:
+        with patch.object(pr_precheck.shutil, "which", return_value=None):
+            reason = pr_precheck.check_mcp_tool(
+                "mcp__github__merge_pull_request", {"pull_number": 12}
+            )
+        self.assertIsNotNone(reason)
+        assert reason is not None
+        self.assertIn("pr-finalize.sh", reason)
 
 
 class FailOpenTests(unittest.TestCase):
@@ -403,12 +449,18 @@ class MainHookAdapterTests(unittest.TestCase):
         self.assertEqual(self._run(bad), 1)
 
     def test_opt_out_marker_and_infra_project_skip_the_check(self) -> None:
-        bad = {
-            "tool_name": "Bash",
-            "tool_input": {"command": "gh pr create --fill"},
-        }
-        self.assertEqual(self._run(bad, opt_out=True), 0)
-        self.assertEqual(self._run(bad, infra=True), 0)
+        for command in ("gh pr create --fill", "gh pr merge 12 --merge"):
+            with self.subTest(command=command):
+                bad = {"tool_name": "Bash", "tool_input": {"command": command}}
+                self.assertEqual(self._run(bad, opt_out=True), 0)
+                self.assertEqual(self._run(bad, infra=True), 0)
+
+    def test_main_direct_merge_is_blocked_then_recorded(self) -> None:
+        merge = {"tool_name": "Bash", "tool_input": {"command": "gh pr merge 12 --merge"}}
+        self.assertEqual(self._run(merge), 1)
+        self.assertEqual(self._hits[0].args[:2], ("file-guard", "pr_precheck"))
+        mcp = {"tool_name": "mcp__github__merge_pull_request", "tool_input": {}}
+        self.assertEqual(self._run(mcp), 1)
 
     def test_main_non_pr_tools_still_pass(self) -> None:
         self.assertEqual(

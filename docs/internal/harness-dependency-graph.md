@@ -96,6 +96,7 @@ flowchart TD
 |---|---|
 | `hooks/*.sh` (`tdd-guard.sh` 제외) | `harness.hooks`, `harness.session_state` |
 | `hooks/tdd-guard.sh` | `harness.tdd_hooks`, `harness.agent_boundary`, `harness.guard_telemetry`, `harness.session_state`, `harness.session_state_fail_open` |
+| `hooks/worktree-files.sh`, `hooks/session-start.sh`, `scripts/hooks/post-checkout` | `harness.worktree_files` |
 | `scripts/dcness-helper` | `harness.session_state` |
 | `scripts/dcness-implementation-chain` | `harness.agent_routing`, `harness.provider_failure_cache`, `harness.run_review`, `harness.session_state`, `harness.story_runner` |
 | `scripts/dcness-story-runner` | `harness.story_runner` |
@@ -133,6 +134,7 @@ flowchart TD
 | `session_state_cli.py` | 1414 | 2 | `agent_names`, `agent_routing`, `boundary_suggestions`, `chain_view`, `design_run_records`, `ledger`, `mockup_node_check`, `parallel_wave`, `prev_tasks`, `session_state`, `session_state_cli_finalize`, `session_state_cli_wave`, `signal_io` |
 | `tdd_hooks.py` | 1465 | 2 | `agent_boundary`, `guard_core`, `session_state_fail_open` |
 | `wave_board.py` | 380 | 2 | - |
+| `worktree_files.py` | 248 | 3 | - |
 | `agent_effectiveness.py` | 690 | 1 | - |
 | `benchmark_aggregate.py` | 483 | 1 | `ledger`, `run_review` |
 | `boundary_suggestions.py` | 296 | 1 | `agent_boundary` |
