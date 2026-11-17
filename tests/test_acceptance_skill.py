@@ -82,6 +82,16 @@ class AcceptanceSkillContractTests(unittest.TestCase):
         ):
             self.assertIn(needle, text)
 
+    def test_acceptance_requires_visual_attribute_list_states_and_seed_coverage(self) -> None:
+        skill = self.skill.read_text(encoding="utf-8")
+        routing = self.routing.read_text(encoding="utf-8")
+        for text in (skill, routing):
+            self.assertIn("텍스트 형식, 정렬·폭, 행 높이·간격", text)
+            self.assertIn("시각 속성 일치/불일치 목록", text)
+            self.assertIn("사용자 수용 근거가 없는 한 `목업 불일치` gap", text)
+            self.assertIn("목업 프레임의 입력 형태", text)
+            self.assertIn("`검수 증거 부족` gap", text)
+
     def test_acceptance_recognizes_user_flow_fit_as_separate_axis(self) -> None:
         skill = self.skill.read_text(encoding="utf-8")
         routing = self.routing.read_text(encoding="utf-8")

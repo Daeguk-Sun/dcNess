@@ -149,6 +149,34 @@ class ProductAcceptanceAgentContractTests(unittest.TestCase):
         ):
             self.assertIn(needle, text)
 
+    def test_prompt_requires_per_frame_visual_attribute_comparison_for_mockup_pass(self) -> None:
+        text = self.prompt.read_text(encoding="utf-8")
+        for needle in (
+            "구조가 같다는 사실만으로 PASS 하지 않는다",
+            "글자: 색 토큰(상태별 색 선택 포함), 굵기, 크기",
+            "텍스트 형식",
+            "정렬, 폭",
+            "행 높이",
+            "일치한 속성 / 불일치한 속성(목업 값 → 구현 값)",
+            "PASS 의 필수 근거",
+            "불일치가 하나라도 있으면 `목업 불일치` gap 으로 분리하고 FAIL 한다",
+            "사용자가 수용했다는 결정 근거",
+        ):
+            self.assertIn(needle, text)
+
+    def test_prompt_reports_missing_mockup_states_and_seed_input_form_coverage(self) -> None:
+        text = self.prompt.read_text(encoding="utf-8")
+        self.assertIn("증거가 없는 상태는 `화면 증거 부재` gap 으로 상태 이름과 함께 보고한다", text)
+        self.assertIn("목업 프레임의 입력 형태(원본 데이터 형태)를 덮는지 확인한다", text)
+        self.assertIn("`ux_integrity` 판정은 안전 영역 포함과 가림만 보므로", text)
+        self.assertIn("화면·프레임별 시각 속성 일치/불일치 목록, 증거가 없는 목업 상태, 시드 입력 형태 확인 결과", text)
+
+    def test_impl_loop_finish_feeds_mockup_frames_and_seed_form_to_acceptance(self) -> None:
+        text = self.impl_loop_finish.read_text(encoding="utf-8")
+        self.assertIn("검수 시드의 입력 형태", text)
+        self.assertIn("목업 상태 프레임마다 대응 화면 증거", text)
+        self.assertIn("그 목록 없이 받은 PASS는 UI evidence 누락과 같다", text)
+
     def test_prompt_classifies_user_flow_fit_and_internal_contract_exposure(self) -> None:
         text = self.prompt.read_text(encoding="utf-8")
         for needle in (
