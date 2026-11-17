@@ -1,3 +1,0 @@
-{
-  "notification_handler": "src.runtime_handler:handle"
-}
