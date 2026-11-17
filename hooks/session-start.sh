@@ -23,6 +23,9 @@ CC_PID=$PPID
 # Python 으로 stdin 처리 + 핸들러 호출 (silent — stdout 안 씀)
 python3 -m harness.hooks session-start --cc-pid "$CC_PID"
 
+# linked worktree 에서 시작한 세션이면 로컬 전용 하네스 파일을 연결한다 (main worktree 는 no-op).
+python3 -m harness.worktree_files sync < /dev/null >/dev/null 2>&1 || true
+
 # === plug-in update 알림 (1회 / 일 캐싱, #376) ===
 # 외부 활성 프로젝트가 옛 dcness plug-in 버전 잔재로 운영 룰 drift 되는 문제 회피.
 # main branch 의 plugin.json version 과 비교 → 다르면 알림 씀.

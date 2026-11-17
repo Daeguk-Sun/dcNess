@@ -105,7 +105,7 @@ fi
 
 ### Core Step 4 - local git hook 설치
 
-브랜치명, 커밋 제목, main 직접 commit, main 직접 push 를 로컬에서 조기 차단한다. 본체 검증 로직은 사용자 repo 에 복사하지 않고 plug-in SSOT 를 직접 호출한다.
+브랜치명, 커밋 제목, main 직접 commit, main 직접 push 를 로컬에서 조기 차단한다. 본체 검증 로직은 사용자 repo 에 복사하지 않고 plug-in SSOT 를 직접 호출한다. `post-checkout` 은 `git worktree add` 로 만든 새 linked worktree 에 커밋하지 않은 하네스 파일을 main worktree 원본 링크로 연결하고, 아래 `worktree-files sync --all` 은 이미 있는 linked worktree 를 같은 방식으로 맞춘다 (멱등).
 
 ```bash
 mkdir -p "$PROJECT_ROOT/.git/hooks"
@@ -117,7 +117,7 @@ cp "$PLUGIN_ROOT/scripts/hooks/post-checkout" "$PROJECT_ROOT/.git/hooks/post-che
 chmod +x "$PROJECT_ROOT/.git/hooks/post-checkout"
 cp "$PLUGIN_ROOT/scripts/hooks/pre-push" "$PROJECT_ROOT/.git/hooks/pre-push"
 chmod +x "$PROJECT_ROOT/.git/hooks/pre-push"
-echo "[dcness] .git/hooks/{pre-commit,commit-msg,post-checkout,pre-push} 갱신 (main 직접 commit 차단 + thin shim -> plugin SSOT 호출)"
+echo "[dcness] .git/hooks/{pre-commit,commit-msg,post-checkout,pre-push} 갱신 (main 직접 commit 차단 + thin shim -> plugin SSOT 호출)"; "$HELPER" worktree-files sync --all --worktree "$PROJECT_ROOT"
 touch "$PROJECT_ROOT/.gitignore"
 grep -qxF '.claude/harness-state/' "$PROJECT_ROOT/.gitignore" || { printf '%s\n' '.claude/harness-state/' >> "$PROJECT_ROOT/.gitignore"; echo "[dcness] .gitignore 에 .claude/harness-state/ 추가"; }
 ```
@@ -169,7 +169,7 @@ Core activation 은 routing 을 쓰지 않고 상태만 보여준다. 추천 bun
 
 순서는 고정: **TDD 계약 + self-test** → **CC hook self-test/등록** → **Codex hook self-test/등록**. 빈 프로젝트/계약과 `--platform` 이 모두 없는 호출/설정 생성 실패는 no-op 이며, 기존 config 가 깨졌거나 필수 필드가 없으면 덮어쓰지 않는다. 상세는 [`docs/plugin/init-dcness.md`](../docs/plugin/init-dcness.md) 와 [`hooks.md#tdd-guardsh`](../docs/plugin/hooks.md#tdd-guardsh) 를 따른다.
 
-`status` 또는 `ensure` 가 `commit-required` 를 출력하면 생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)을 activation bootstrap commit 에 포함하도록 사용자에게 안내한다. `commit-advisory` 는 in-place 실행에서는 현재 디스크 파일만으로 guard 배선이 확인되지만, 새 linked worktree/headless worker 가 project-local 계약을 재사용하려면 commit 이 필요하다는 안내다. 이 파일들은 자동 workflow PR 대상이 아니다.
+생성 파일(`.dcness/tdd-hooks.json`, `.claude/settings.json`, `.claude/hooks/dcness-tdd-guard.sh`, `.codex/hooks.json`, `.codex/hooks/dcness-tdd-guard.sh`)은 커밋해도 되고 로컬 전용(`.git/info/exclude`)으로 둬도 된다. `commit-advisory` 는 커밋되지 않았다는 안내이며, 로컬 전용이면 새 linked worktree 가 main worktree 원본 링크로 받는다(`git worktree add` 는 post-checkout, `EnterWorktree` 는 PostToolUse hook, worktree 에서 시작한 세션은 SessionStart hook). `commit-required` 는 현재 linked worktree 에 생성 파일이 빠졌다는 뜻이므로 커밋하거나 `"$HELPER" worktree-files sync` 를 안내한다. 이 파일들은 자동 workflow PR 대상이 아니다.
 
 ### Core Step 8 - 완료 선언
 

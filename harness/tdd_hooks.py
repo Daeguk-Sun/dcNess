@@ -1141,8 +1141,13 @@ def generated_files_git_state(project_root: Path) -> dict[str, Any]:
             "linked_worktree": False,
             "generated_files_commit_required": False,
         }
+    from harness.worktree_files import linked_from_main
+
+    # linked worktree 에서 main worktree 의 로컬 전용 원본에 연결된 파일은 커밋 없이도 동작한다.
     uncommitted = [
-        rel for rel in existing if not _is_committed_clean(root, Path(rel))
+        rel for rel in existing
+        if not _is_committed_clean(root, Path(rel))
+        and not (linked_worktree and linked_from_main(root, rel))
     ]
     return {
         "generated_files": existing,
@@ -1241,14 +1246,15 @@ def ensure_generated_hooks(
         joined = ", ".join(uncommitted)
         if git_state.get("generated_files_commit_required"):
             messages.append(
-                "commit-required: generated TDD hook files must be committed for "
-                f"linked worktree/headless reuse: {joined}"
+                "commit-required: generated TDD hook files are missing from this linked "
+                "worktree; commit them, or keep them local-only and run "
+                f"`dcness-helper worktree-files sync`: {joined}"
             )
         else:
             messages.append(
-                "commit-advisory: in-place execution can use generated TDD hook "
-                "files from disk; commit before linked worktree/headless reuse: "
-                f"{joined}"
+                "commit-advisory: generated TDD hook files are not committed; new linked "
+                "worktrees get them as links to this worktree (git worktree add, "
+                f"EnterWorktree, worktree session start): {joined}"
             )
     return messages
 

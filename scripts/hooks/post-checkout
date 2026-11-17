@@ -1,5 +1,6 @@
 #!/bin/sh
 # post-checkout hook — 브랜치 생성/전환 시 브랜치명 형식 즉시 경고
+#   + 새 linked worktree 에 로컬 전용 하네스 파일 연결 (harness/worktree_files.py)
 # 규칙: docs/plugin/git-spec.md §1 (SSOT)
 #
 # 설치:
@@ -10,6 +11,29 @@
 
 CHECKOUT_TYPE=$3  # 1=branch checkout, 0=file checkout
 [ "$CHECKOUT_TYPE" != "1" ] && exit 0
+
+# `git worktree add` 는 새 worktree 에서 이전 HEAD 를 0 으로 채워 이 hook 을 실행한다.
+# 커밋하지 않은 하네스 파일(CLAUDE.md, 생성형 TDD hook 등)을 main worktree 원본에 링크한다.
+# clone 직후 main worktree 도 이전 HEAD 가 0 이지만 모듈이 linked worktree 가 아니면 no-op.
+case "$1" in
+  *[!0]*) ;;
+  *)
+    dcness_root=""
+    if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ -f "${CLAUDE_PLUGIN_ROOT}/harness/worktree_files.py" ]; then
+      dcness_root="$CLAUDE_PLUGIN_ROOT"
+    else
+      cache_dir="${HOME}/.claude/plugins/cache/dcness/dcness"
+      latest=$(ls -1 "$cache_dir" 2>/dev/null | sort -V | tail -1)
+      if [ -n "$latest" ] && [ -f "$cache_dir/$latest/harness/worktree_files.py" ]; then
+        dcness_root="$cache_dir/$latest"
+      fi
+    fi
+    if [ -n "$dcness_root" ]; then
+      PYTHONPATH="${dcness_root}:${PYTHONPATH:-}" python3 -m harness.worktree_files sync \
+        --worktree "$(pwd)" < /dev/null || true
+    fi
+    ;;
+esac
 
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 case "$BRANCH" in main|master|HEAD|develop) exit 0 ;; esac
