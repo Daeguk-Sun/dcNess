@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>통화 기록 — 확정 목업</title>
+<style>
+  :root {
+    --text-primary: #111111;
+    --text-secondary: #8A8A8A;
+    --danger: #E5484D;
+    --divider: #E6E6E6;
+  }
+  body { margin: 0; width: 360px; font-family: sans-serif; }
+  .tabs { display: flex; justify-content: flex-start; gap: 16px; padding: 0 16px; }
+  .tab { width: auto; padding: 8px 4px; }
+  .date-divider { width: 100%; padding: 8px 16px; color: var(--text-secondary); border-bottom: 1px solid var(--divider); }
+  .row { display: flex; width: 100%; height: 56px; align-items: center; padding: 0 16px; box-sizing: border-box; }
+  .peer { font-size: 16px; font-weight: 400; color: var(--text-primary); }
+  .kind-label { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+  .duration { font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+  .time { margin-left: auto; text-align: right; font-size: 13px; color: var(--text-secondary); }
+  .arrow-missed { color: var(--danger); }
+  .label-missed { color: var(--danger); }
+</style>
+</head>
+<body>
+  <nav class="tabs" data-node-id="call-log-tabs">
+    <span class="tab" data-node-id="tab-all">전체</span>
+    <span class="tab" data-node-id="tab-missed">부재중</span>
+  </nav>
+  <div class="date-divider" data-node-id="date-divider">11월 12일</div>
+
+  <!-- 프레임 1: 발신 연결 -->
+  <div class="row" data-node-id="row-outgoing-connected">
+    <div>
+      <div class="peer">김민지</div>
+      <div><span class="kind-label">발신</span> <span class="duration">1분 20초</span></div>
+    </div>
+    <span class="time" data-node-id="row-time">15:03</span>
+  </div>
+
+  <!-- 프레임 2: 발신 미연결 — 화살표만 빨강, 라벨은 기본 글자색 -->
+  <div class="row" data-node-id="row-outgoing-unanswered">
+    <div>
+      <div class="peer">박서준</div>
+      <div><span class="arrow-missed">↗</span> <span class="kind-label">발신</span> <span class="duration">연결 안 됨</span></div>
+    </div>
+    <span class="time">14:40</span>
+  </div>
+
+  <!-- 프레임 3: 수신 -->
+  <div class="row" data-node-id="row-incoming">
+    <div>
+      <div class="peer">이하은</div>
+      <div><span class="kind-label">수신</span> <span class="duration">3분 5초</span></div>
+    </div>
+    <span class="time">09:12</span>
+  </div>
+
+  <!-- 프레임 4: 부재중 — 라벨 빨강 -->
+  <div class="row" data-node-id="row-missed">
+    <div>
+      <div class="peer">최도윤</div>
+      <div><span class="kind-label label-missed">부재중</span></div>
+    </div>
+    <span class="time">08:30</span>
+  </div>
+
+  <!-- 프레임 5: 주소록에 없는 번호 — 원본 01098765432 를 하이픈 넣어 표시 -->
+  <div class="row" data-node-id="row-unknown-number">
+    <div>
+      <div class="peer">010-9876-5432</div>
+      <div><span class="kind-label">수신</span> <span class="duration">45초</span></div>
+    </div>
+    <span class="time">07:55</span>
+  </div>
+</body>
+</html>
