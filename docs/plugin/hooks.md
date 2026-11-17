@@ -30,7 +30,7 @@ dcNess 의 강제 영역은 두 가지뿐이다.
 | `session-start.sh` | `SessionStart` | 새 세션, resume, `/clear` 직후 | sid/live state 초기화 + 활성 안내 inject | X |
 | `catastrophic-gate.sh` | `PreToolUse / Agent` | sub-agent 호출 직전 | 작업 순서 보호 + 진행 순서 검사 | O |
 | `subagent-start-lifecycle.sh` | `SubagentStart` | 실제 sub-agent spawn 직후 | Agent step 시작 + 동적 context 주입 | X |
-| `file-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Read|Bash|mcp__.*` | file/bash/MCP tool 호출 직전 | agent 별 파일 경계 + 외부 변경 차단 목록 검사 + 메인의 PR 본문·제목 사전 검사 | O |
+| `file-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Read|Bash|mcp__.*` | file/bash/MCP tool 호출 직전 | agent 별 파일 경계 + 외부 변경 차단 목록 검사 + 메인의 PR 본문·제목 사전 검사 + 로컬 lint-build-test 우회 차단 | O |
 | `tdd-guard.sh` | `PreToolUse / Edit|Write|NotebookEdit|Bash` | 파일 수정 직전 | project-local generated TDD hook 우선 실행, 없으면 TS/JS fallback 으로 매칭 test 존재 확인 | O |
 | `worktree-files.sh` | `PostToolUse / EnterWorktree` | `EnterWorktree` 성공 직후 | 커밋하지 않은 하네스 파일을 새 worktree 에 main worktree 원본 링크로 연결 | X |
 | `post-agent-clear.sh` | `PostToolUse / Agent` | Agent tool 성공 결과 직후 | completed foreground prose + receipt 기록, 비동기 실행은 step 유지 | X |
@@ -146,7 +146,7 @@ PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추�
 | `READ_DENY_MATRIX` | agent 별 Read 금지 path 제한. Read 를 막는 규칙은 이것 하나다. 모든 agent 에 적용되는 읽기 금지는 없다 |
 | 외부 변경 차단 목록 | sub-agent 의 `git push`, Bash `gh pr create/merge/review`, Bash `gh issue create/edit/close/comment`, 상태 변경 `gh api`, GitHub MCP PR/repo 외부 상태 변경 차단 |
 
-메인 Claude turn 은 file boundary 를 통과한다. 메인에는 아래 PR 사전 검사와 PR 직접 머지 차단만 적용한다.
+메인 Claude turn 은 file boundary 를 통과한다. 메인에는 아래 PR 사전 검사, PR 직접 머지 차단, 로컬 lint-build-test 우회 차단만 적용한다.
 
 **PR 본문·제목 사전 검사 (메인 한정)**: git 에는 PR 생성 직전 hook 이 없다. 그래서 메인 Claude 가 PR 을 만들거나 PR 본문·제목을 바꾸는 명령을 실행하기 직전에 [`harness/pr_precheck.py`](../../harness/pr_precheck.py) 가 본문과 제목을 검사한다. CI workflow 를 설치하지 않았거나 끈 프로젝트에서도 동작한다.
 
@@ -166,6 +166,18 @@ PreToolUse intent가 없거나 current step identity가 다르면 ledger를 추�
 - 예외: 사용자가 직접 머지를 지시했거나 `pr-finalize.sh` 가 머지를 거부한 경우(base 가 기본 브랜치가 아닌 PR 등) `DCNESS_ALLOW_DIRECT_MERGE=1 gh pr merge ...` 처럼 머지 명령 바로 앞에 붙인다. 같은 줄의 다른 명령 앞에 붙인 값은 인정하지 않는다. MCP 머지 도구에는 예외가 없다.
 - `node` 가 없어도 동작한다. 차단은 `guard=file-guard`, `category=pr_precheck` 로 기록된다.
 - `.no-dcness-guard` 표시 프로젝트와 dcNess 자체 저장소는 PR 사전 검사와 같이 건너뛴다.
+
+**로컬 lint-build-test 우회 차단 (메인·sub-agent 공통)**: 비공개 저장소에서 `/init-dcness` 가 workflow 대신 `.dcness/lint-build-test.sh` 를 설치하면 git pre-push hook 이 push 직전에 lint·build·test 를 실행한다. git hook 은 건너뛸 수 있으므로 [`harness/local_check_guard.py`](../../harness/local_check_guard.py) 가 Claude 의 우회 명령을 실행 전에 막는다.
+
+- 적용 조건: 현재 작업 디렉터리의 git 저장소 루트에 `.dcness/lint-build-test.sh` 가 있음. 없으면 검사하지 않음
+- 차단 대상
+  - `git push` 의 `--no-verify` (git 이 받는 약어 `--no-veri` 이상 포함). `git push -n` 은 `--dry-run` 이라 허용
+  - `git -c core.hooksPath=…`, `git --config-env=core.hooksPath=…`
+  - `git config core.hooksPath …` 설정·해제. `--get`·`--list` 같은 읽기는 허용
+  - `.git/hooks/`(linked worktree 는 공통 git 디렉터리의 hooks 포함) 파일에 대한 `Edit`·`Write`·`NotebookEdit`, Bash 쓰기 대상(redirect, `rm`, `mv`, `cp`, `tee`, in-place edit)
+- `bash -c "…"` 안의 명령도 검사함
+- 차단은 `guard=file-guard`, `category=local_check_bypass` 로 기록됨
+- 한계: 사람이 터미널에서 직접 실행하는 명령은 대상이 아님. `eval`, command substitution, `GIT_CONFIG_*` 환경변수로 만든 우회는 보지 못함
 
 **프로젝트 밖 경로**: 프로젝트 루트 밖 쓰기는 차단한다. 임시 폴더(`/tmp`, `/private/tmp`, `/var/folders`, 세션 임시 폴더 포함) 쓰기는 예외로 모든 agent 에 허용한다. 임시 폴더의 메모와 증거 파일은 제품 파일이 아니기 때문이다. 읽기 전용 agent 도 임시 폴더에는 쓸 수 있고, 프로젝트 안 파일에는 쓸 수 없다. 프로젝트 자체가 임시 폴더 안에 있으면 이 예외를 적용하지 않는다. Bash 의 쉘 변수 경로(`"$D/a.md"`)는 같은 명령 안의 단순 대입으로 값을 확정할 수 있을 때만 그 값으로 검사한다. 값을 확정할 수 없으면 위치를 알 수 없으므로 차단한다.
 
@@ -364,7 +376,7 @@ PR/repo 외부 상태 변경 (`gh pr ...` / `merge_pull_request` / `push_files` 
 | `.git/hooks/pre-commit` | `scripts/hooks/pre-commit` | commit 직전 | main 직접 commit 차단 (+ self 는 python test gate) | O |
 | `.git/hooks/commit-msg` | `scripts/hooks/commit-msg` | commit message 확정 전 | 커밋 제목 git-spec 검증 | O |
 | `.git/hooks/post-checkout` | `scripts/hooks/post-checkout` | branch checkout/switch 직후 | 브랜치명 위반 경고 + rename 안내 + 새 linked worktree 에 로컬 전용 하네스 파일 연결 | X |
-| `.git/hooks/pre-push` | `scripts/hooks/pre-push` | push 직전 | main 직접 push 차단 + 브랜치명 검증 | O |
+| `.git/hooks/pre-push` | `scripts/hooks/pre-push` | push 직전 | main 직접 push 차단 + 브랜치명 검증 + 로컬 lint-build-test 실행 | O |
 
 `pre-commit` 은 외부 활성 프로젝트에도 배포되지만 그 역할은 main 직접 commit 차단 전용이다. python test gate 단계는 `scripts/check_python_tests.sh` 가 존재할 때만 실행되므로 그 스크립트가 없는 외부 repo 에서는 main-block 만 강제한다. TDD 강제는 git hook 이 아니라 Layer 1 의 `tdd-guard.sh` 가 구현 파일 작성 전에 수행한다.
 git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는 dcness self repo 판정 통과 뒤에만 수행한다. 비활성 외부 프로젝트에서 남아 있는 git hook 이 차단하더라도 `guard-telemetry.jsonl` 을 만들지 않는다. dcness self repo 는 plugin hook 전체를 active 로 만들지 않고, self 작업 중 발생한 `pre-commit` / `commit-msg` / `pre-push` 차단 신호만 git hook shim 기록 지점에서 보존한다. `DCNESS_SESSION_ID` / `DCNESS_RUN_ID` 가 있는 headless worker 컨텍스트에서는 active run 로그에 귀속하고, 없으면 프로젝트 로그에 fallback 한다. `commit-msg` 차단은 `guard=git-commit-msg`, `pre-push` 차단은 `guard=git-pre-push`, `pre-commit` 차단은 `guard=git-pre-commit` 으로 기록한다.
@@ -417,9 +429,10 @@ git hook 차단도 같은 receipt 체계를 쓰되, 기록은 `is-active` 또는
 
 - `refs/heads/main` 으로 직접 push 하는 경우 차단
 - push 대상 브랜치명이 git-spec 을 어기면 차단
+- 저장소 루트에 `.dcness/lint-build-test.sh` 가 있으면 push 직전에 실행하고, 실패하면 차단. 브랜치 삭제만 하는 push 는 실행하지 않음. 비공개 저장소에서 `/init-dcness` 가 lint-build-test workflow 대신 설치함 ([`init-dcness.md`](init-dcness.md#lint-build-testyml))
 
-**차단**: main push 또는 브랜치명 위반 시 push 실패.
-차단 시 `guard-telemetry.jsonl` 에 `category=main_push_block` 또는 `category=branch_naming` hit 가 남는다.
+**차단**: main push, 브랜치명 위반, 로컬 lint-build-test 실패 시 push 실패.
+차단 시 `guard-telemetry.jsonl` 에 `category=main_push_block`, `category=branch_naming`, `category=local_lint_build_test` 중 하나의 hit 가 남는다.
 
 ## Layer 3 — CI/CD workflows
 
@@ -538,11 +551,11 @@ hook 또는 workflow 를 추가/삭제/이름 변경할 때 이 문서가 빠지
 | Mechanism | Scope | Effect |
 |---|---|---|
 | 미활성 프로젝트 | 전체 CC hook | `is-active` 게이트에서 즉시 no-op |
-| `.no-dcness-guard` cwd marker | file-guard | file boundary / 외부 변경 차단 목록 / PR 본문·제목 사전 검사 임시 우회 |
+| `.no-dcness-guard` cwd marker | file-guard | file boundary / 외부 변경 차단 목록 / PR 본문·제목 사전 검사 / 로컬 lint-build-test 우회 차단 임시 우회 |
 | `tdd-exempt: <사유>` 파일 marker | tdd-guard | 해당 파일의 test 부재 차단만 사유와 함께 override |
 | `DCNESS_INFRA=1`, `~/.claude/.dcness-infra`, dcNess self repo marker | file-guard | dcNess 자체 작업에서 infra path 보호와 PR 본문·제목 사전 검사 해제 |
 
-catastrophic-gate 에는 marker override 가 없다. `tdd-exempt: <사유>` 는 tdd-guard 의 test 부재 차단에만 적용되며, file-guard / catastrophic-gate / git hook 을 우회하지 않는다. git hook 의 `--no-verify` 우회는 가능하지만 dcNess 절차상 금지다. CI/CD workflow 는 GitHub 에 올라온 PR/issue 이벤트에서 다시 검증한다.
+catastrophic-gate 에는 marker override 가 없다. `tdd-exempt: <사유>` 는 tdd-guard 의 test 부재 차단에만 적용되며, file-guard / catastrophic-gate / git hook 을 우회하지 않는다. git hook 의 `--no-verify` 우회는 가능하지만 dcNess 절차상 금지다. 로컬 lint-build-test 를 설치한 프로젝트에서는 file-guard 가 Claude 의 `git push --no-verify` 를 막는다. CI/CD workflow 는 GitHub 에 올라온 PR/issue 이벤트에서 다시 검증한다.
 
 ## 참조
 

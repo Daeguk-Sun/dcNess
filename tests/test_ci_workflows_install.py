@@ -112,6 +112,9 @@ class DocContractTests(unittest.TestCase):
         self.assertIn("dcness-ci-workflows\" install", runbook)
         self.assertNotIn('cp "$PLUGIN_ROOT/templates/github-workflows', runbook)
         self.assertIn("lint-build-test", runbook)
+        self.assertIn("gh repo view --json visibility", runbook)
+        self.assertIn('${CI_LOCAL:+--local "$CI_LOCAL"}', runbook)
+        self.assertIn("--local lint-build-test", snippets)
 
 
 _JS_RELATIVE = re.compile(
@@ -380,6 +383,85 @@ class InstallTests(unittest.TestCase):
         result = self._install(["lint-build-test"], platform="android")
 
         self.assertEqual(result.written, [".github/workflows/lint-build-test.yml"])
+
+    def test_local_lint_build_test_installs_hook_script_instead_of_workflow(self) -> None:
+        _seed_android(self.root)
+        result = self._install(["lint-build-test"], platform="android", local_checks=["lint-build-test"])
+
+        self.assertEqual(result.skipped, [])
+        self.assertEqual(result.written, [ci_workflows.LOCAL_SCRIPT])
+        self.assertFalse((self.root / ".github" / "workflows" / "lint-build-test.yml").exists())
+        script = self.root / ci_workflows.LOCAL_SCRIPT
+        self.assertTrue(os.access(script, os.X_OK))
+        text = script.read_text(encoding="utf-8")
+        for task in (":app:lintDebug", ":app:assembleDebug", ":app:testDebugUnitTest"):
+            self.assertIn(task, text)
+        self.assertLess(text.index("lintDebug"), text.index("assembleDebug"))
+        self.assertLess(text.index("assembleDebug"), text.index("testDebugUnitTest"))
+
+    def test_local_script_runs_same_tasks_as_workflow_template(self) -> None:
+        spec = ci_workflows.CHECKS["lint-build-test"]
+        task_re = re.compile(r"\./gradlew (\S+)")
+        for platform, template in spec.platform_templates.items():
+            workflow = (TEMPLATES / template).read_text(encoding="utf-8")
+            local = (ROOT / ci_workflows.LOCAL_TEMPLATE_DIR / spec.local_templates[platform]).read_text(
+                encoding="utf-8"
+            )
+            self.assertEqual(task_re.findall(local), task_re.findall(workflow), platform)
+
+    def test_local_install_removes_unmodified_workflow_and_reports_path(self) -> None:
+        _seed_android(self.root)
+        self._install(["lint-build-test"], platform="android")
+        wf = ".github/workflows/lint-build-test.yml"
+
+        result = self._install(["lint-build-test"], platform="android", local_checks=["lint-build-test"])
+
+        self.assertFalse((self.root / wf).exists())
+        self.assertEqual(result.removed, [wf])
+
+    def test_local_install_keeps_modified_workflow(self) -> None:
+        _seed_android(self.root)
+        _write(self.root / ".github" / "workflows" / "lint-build-test.yml", "name: custom\n")
+
+        result = self._install(["lint-build-test"], platform="android", local_checks=["lint-build-test"])
+
+        self.assertTrue((self.root / ".github" / "workflows" / "lint-build-test.yml").exists())
+        self.assertEqual(result.removed, [])
+        self.assertIn("lint-build-test.yml", result.notes[0])
+
+    def test_workflow_install_removes_local_script(self) -> None:
+        _seed_android(self.root)
+        self._install(["lint-build-test"], platform="android", local_checks=["lint-build-test"])
+
+        result = self._install(["lint-build-test"], platform="android")
+
+        self.assertFalse((self.root / ci_workflows.LOCAL_SCRIPT).exists())
+        self.assertEqual(result.removed, [ci_workflows.LOCAL_SCRIPT])
+
+    def test_local_check_must_support_local_mode(self) -> None:
+        with self.assertRaises(ValueError):
+            self._install(["doc-sync"], local_checks=["doc-sync"])
+
+    def test_cli_local_prints_written_and_removed_paths(self) -> None:
+        _seed_android(self.root)
+        self._install(["lint-build-test"], platform="android")
+        proc = _run_wrapper(
+            "install",
+            "--project-root",
+            str(self.root),
+            "--checks",
+            "lint-build-test",
+            "--platform",
+            "android",
+            "--local",
+            "lint-build-test",
+        )
+
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(
+            proc.stdout.split(),
+            [ci_workflows.LOCAL_SCRIPT, ".github/workflows/lint-build-test.yml"],
+        )
 
     def test_unknown_check_is_rejected(self) -> None:
         with self.assertRaises(ValueError):

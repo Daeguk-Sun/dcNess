@@ -46,7 +46,8 @@ core activation 완료 뒤 추천 bundle 1질문(`Y/n/custom`, 엔터 = Y) 또�
 | PR body workflow | `.github/workflows/pr-body-validation.yml` | [`templates/github-workflows/pr-body-validation.yml`](../../templates/github-workflows/pr-body-validation.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | doc path workflow | `.github/workflows/doc-path-integrity.yml` | [`templates/github-workflows/doc-path-integrity.yml`](../../templates/github-workflows/doc-path-integrity.yml) | GitHub remote 감지 시 추천 ON | always-overwrite | O |
 | doc sync workflow | `.github/workflows/doc-sync.yml` | [`templates/github-workflows/doc-sync.yml`](../../templates/github-workflows/doc-sync.yml) | GitHub remote 감지 시 추천 ON (중립 명명 설치에서는 제외) | always-overwrite | O |
-| lint-build-test workflow | `.github/workflows/lint-build-test.yml` | [`templates/github-workflows/lint-build-test/android.yml`](../../templates/github-workflows/lint-build-test/android.yml) (플랫폼별 template) | GitHub remote 감지 + 플랫폼 template 존재 시 추천 ON | always-overwrite | O |
+| lint-build-test workflow | `.github/workflows/lint-build-test.yml` | [`templates/github-workflows/lint-build-test/android.yml`](../../templates/github-workflows/lint-build-test/android.yml) (플랫폼별 template) | GitHub remote 감지 + 플랫폼 template 존재 + 공개 저장소 시 추천 ON | always-overwrite | O |
+| lint-build-test 로컬 실행 | `.dcness/lint-build-test.sh` | [`templates/local-checks/lint-build-test/android.sh`](../../templates/local-checks/lint-build-test/android.sh) (플랫폼별 template) | 플랫폼 template 존재 + 비공개 저장소 시 workflow 대신 추천 ON | always-overwrite | O |
 | Project lifecycle workflow | `.github/workflows/github-project-lifecycle.yml` | [`templates/github-workflows/github-project-lifecycle.yml`](../../templates/github-workflows/github-project-lifecycle.yml) | custom 선택 (중립 명명 설치에서는 제외) | always-overwrite | O |
 | CI 검사 스크립트 사본 | `.github/ci-checks/**` | 설치한 workflow 가 실행하는 plugin script (`scripts/**`, doc-sync 는 `harness/story_runner.py`·`harness/parallel_wave.py`·design 엔진 원본 `templates/design-variants/_lib/*.js` 포함) — [`harness/ci_workflows.py`](../../harness/ci_workflows.py) 가 목록 소유 | 해당 workflow 설치 시 | always-overwrite. 설치 시점 plugin 버전에 고정 | O |
 | project docs seed | `docs/index.md`, `docs/prd.md`, `docs/architecture.md`, `docs/conventions.md`, `docs/decisions/` | authoring 템플릿 (`skills/spec/templates/index.md`, `skills/spec/templates/prd.md`, `docs/plugin/agents/system-architect/templates/root-architecture.md`, `docs/plugin/agents/system-architect/templates/conventions.md`) + `scripts/ensure_docs_index_next_section.mjs` — 시드와 산출 양식 단일 원본. 위치 SSOT [`deliverables-map.md`](deliverables-map.md) | 추천 bundle 또는 custom | 부재 시 생성. 기존 `docs/index.md` 는 진행 상태 섹션만 없을 때 append | X |
@@ -106,7 +107,7 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 `/init-dcness` 기본 경로는 core activation 완료 뒤 `Y/n/custom` 1질문만 사용한다. 엔터 = Y 다.
 
 - GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml` 추천 ON.
-- 같은 조건에서 프로젝트 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 결정 규칙은 [lint-build-test.yml](#lint-build-testyml) 을 따른다.
+- 같은 조건에서 프로젝트 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 결정 규칙은 [lint-build-test.yml](#lint-build-testyml) 을 따른다. 비공개 저장소는 workflow 대신 로컬 실행을 추천한다.
 - 중립 명명 설치는 기본 OFF 다. custom 에서 켠다.
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
@@ -181,6 +182,14 @@ config 형식 검증과 runtime provider fallback은 다른 계약이다. `headl
 - 플랫폼 결정 규칙: `--platform` 명시값 → TDD 계약(`.dcness/tdd-hooks.json`)의 `platform` 순서로 정한다. 파일 구성으로 추측하지 않는다. 계약이 없으면 `/init-dcness` 가 사용자에게 확인한 값을 `--platform` 으로 넘긴다.
 - skip 동작: 플랫폼이 지정되지 않았거나, 그 플랫폼 template 이 없거나, Android 인데 `gradlew` 또는 `app/build.gradle(.kts)` 가 없으면 파일을 쓰지 않고 `skip lint-build-test: <이유>` 를 출력한다.
 - 수정: 명령은 설치 후 프로젝트 모듈 구성에 맞게 고쳐도 된다. 재실행은 template 으로 덮어쓰므로 명령을 고친 프로젝트는 재실행 때 이 workflow 를 선택에서 뺀다.
+- 로컬 실행 (`--local lint-build-test`)
+  - 목적: 비공개 저장소의 GitHub Actions 사용량을 쓰지 않음. 공개 저장소의 표준 실행 환경은 무료이고, 비공개 저장소는 요금제 포함 사용량을 넘으면 과금됨
+  - 추천 기준: `gh repo view --json visibility` 결과가 `PRIVATE` 또는 `INTERNAL` 이면 추천 ON. 공개 여부를 모르면 사용자에게 물음
+  - 설치물: workflow 대신 `.dcness/lint-build-test.sh`. 명령은 workflow template 과 같은 순서의 같은 Gradle task
+  - 실행: git pre-push hook 이 push 직전에 실행. 실패하면 push 차단. 브랜치 삭제 push 는 실행하지 않음
+  - 전환: 로컬 설치 시 template 그대로인 기존 `lint-build-test.yml` 을 지우고, workflow 설치 시 template 그대로인 로컬 스크립트를 지움. 내용을 고친 파일은 남기고 `note:` 로 알림. 지운 경로도 stdout 에 출력해 workflow PR 이 삭제를 stage 함
+  - 우회 차단: 로컬 스크립트가 있는 프로젝트에서 file-guard 가 Claude 의 `git push --no-verify`, `core.hooksPath` 변경, `.git/hooks/` 파일 수정·삭제를 막음 ([`hooks.md`](hooks.md#file-guardsh))
+  - 한계: 사람이 터미널에서 실행하는 우회 명령은 막지 못함. hook 은 각자의 clone 에 `/init-dcness` 로 설치해야 동작함
 
 ### github-project-lifecycle.yml
 
@@ -239,9 +248,9 @@ node "$PLUGIN_ROOT/scripts/github_project_lifecycle.mjs" bootstrap \
 
 ## Auto PR Scope
 
-`/init-dcness` 의 자동 commit + PR 단계는 이번 run 이 쓴 `.github/workflows/*.yml` 과 `.github/ci-checks/**` 검사 스크립트만 대상으로 한다.
+`/init-dcness` 의 자동 commit + PR 단계는 이번 run 이 쓰거나 지운 `.github/workflows/*.yml`, `.github/ci-checks/**` 검사 스크립트, `.dcness/lint-build-test.sh` 만 대상으로 한다.
 
-- 포함: `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `lint-build-test.yml`, `github-project-lifecycle.yml`, 그리고 이 workflow 들이 실행하는 `.github/ci-checks/**` 사본
+- 포함: `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `lint-build-test.yml`, `github-project-lifecycle.yml`, 이 workflow 들이 실행하는 `.github/ci-checks/**` 사본, lint-build-test 로컬 실행 스크립트 `.dcness/lint-build-test.sh`
 - 제외: `.git/hooks/*` (git 내부 파일), generated TDD hook bootstrap(`.dcness/tdd-hooks.json`, `.claude/**`, `.codex/**` — 자동 workflow PR 제외. linked worktree/headless 재사용이 필요하면 별도 bootstrap commit 대상), `~/.claude/**`, `$CODEX_HOME/**`, `.gitignore` runtime/volatile ignore, `docs/*` seed, `docs/design-variants/*` seed, 자동 CC hook 설명
 - 선행 조건: GitHub remote 존재, 현재 branch `main`, `gh auth status` 통과. 조건이 안 맞으면 branch/commit/push 를 시작하지 않고 skip 안내만 출력한다.
 
@@ -252,7 +261,7 @@ seed 문서는 사용자 프로젝트 내용물이므로 사용자가 별도 작
 비활성화는 별도 command 가 아니라 `/init-dcness` 스킬이 겸한다("dcness 꺼줘" 류 발화). 실행 절차와 잔존물 정리 목록은 [`commands/init-dcness.md`](../../commands/init-dcness.md#비활성화) 의 비활성화 섹션이 runbook 진본이다.
 
 - `dcness-helper disable` 은 whitelist 에서 현재 main repo 항목만 제거한다. plug-in 중앙 hook 은 매 호출 `is-active` 판정이므로 즉시 pass-through 된다 (`DCNESS_FORCE_ENABLE=1` 프로세스 제외).
-- project-local 설치물(CLAUDE.md 의 dcNess 안내, git hook shim 4종, generated TDD hook, CI workflow 템플릿과 `.github/ci-checks/` 검사 스크립트 사본)은 whitelist 와 무관하게 잔존한다. 완전 제거는 runbook 의 dcNess 소유물 한정 항목별 정리를 따른다.
+- project-local 설치물(CLAUDE.md 의 dcNess 안내, git hook shim 4종, generated TDD hook, CI workflow 템플릿과 `.github/ci-checks/` 검사 스크립트 사본, `.dcness/lint-build-test.sh`)은 whitelist 와 무관하게 잔존한다. 완전 제거는 runbook 의 dcNess 소유물 한정 항목별 정리를 따른다.
 
 ## References
 

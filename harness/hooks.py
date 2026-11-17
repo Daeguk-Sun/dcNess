@@ -762,6 +762,18 @@ def handle_pretooluse_file_op(
     tool_name = request.context.tool
     tool_input = request.tool_input
     cwd = Path.cwd()
+    # 로컬 lint-build-test 우회 차단 — 메인과 sub-agent 공통. push 는 메인만 하지만
+    # hook 파일 쓰기는 누구든 할 수 있다.
+    if not (is_opt_out(cwd) or is_infra_project(cwd)):
+        from harness import local_check_guard
+
+        bypass = local_check_guard.check_tool(tool_name, tool_input, cwd=cwd)
+        if bypass:
+            return _emit_guard_decision(
+                GuardDecision.block(request.context.with_category("local_check_bypass"), bypass),
+                prefix="[local-check] ",
+                base_dir=base_dir,
+            )
     if not acting_agent:
         # 메인 Claude — 파일 경계는 governance 가 보호한다. PR 본문·제목만 여기서 검사한다.
         return _main_pr_precheck(

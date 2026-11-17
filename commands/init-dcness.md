@@ -29,7 +29,7 @@ description: 현재 프로젝트를 dcNess plugin 활성 대상으로 등록하�
 - `~/.claude/settings.json` Read 권한: 없을 때만 추가.
 - `.git/hooks/*`: thin shim always-overwrite.
 - `.gitignore`: `.claude/harness-state/` 는 core 에서 없을 때만 추가. `.dcness-work/` 는 선택형 docs seed 에서 없을 때만 추가.
-- `.github/workflows/*.yml` + `.github/ci-checks/**`: 사용자가 선택한 경우 workflow 와 그 workflow 가 실행하는 검사 스크립트를 함께 always-overwrite.
+- `.github/workflows/*.yml` + `.github/ci-checks/**`: 사용자가 선택한 경우 workflow 와 그 workflow 가 실행하는 검사 스크립트를 함께 always-overwrite. lint-build-test 로컬 실행을 고르면 workflow 대신 git pre-push hook 이 실행하는 `.dcness/lint-build-test.sh` 를 always-overwrite.
 - `docs/*`, `docs/design-variants/*`: 부재 시만 seed. 단 기존 `docs/index.md` 의 `## 진행 상태 · 다음 작업` 섹션은 없을 때만 append.
 - Codex validator skills: `$CODEX_HOME/skills/dcness-*` always-overwrite. Validator wrapper 는 활성 plugin 원본을 우선 주입하고, 이 복사본은 native Codex skill 등록과 fallback 용도다.
 - Codex provider routing: core 에서는 상태만 확인하고, 선택형 확장에서 추천 role-split preset 또는 custom provider 조합을 갱신.
@@ -229,7 +229,7 @@ core activation 완료 뒤에만 진행한다. 기본 경로에서 선택형 항
 ### 추천 bundle 산출 기준
 
 - GitHub remote 가 있고 `.github/workflows/` 설치가 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml` 추천 ON.
-- 같은 조건에서 프로젝트 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 플랫폼은 TDD 계약(`.dcness/tdd-hooks.json` 의 `platform`)을 쓰고, 계약이 없으면 Core Step 7.5 에서 사용자에게 확인한 값을 `--platform` 으로 넘긴다. 파일 구성으로 추측하지 않는다. 현재 template 은 `android` 만 있다. 플랫폼 미지정, template 없음, Android 인데 `gradlew` 또는 `app/build.gradle(.kts)` 부재면 설치를 건너뛰고 이유를 출력한다. 중립 명명 설치는 기본 OFF 이며, 하네스를 비공개로 두고 공개 저장소에 산출물만 올리는 프로젝트는 custom 에서 켠다.
+- 같은 조건에서 프로젝트 플랫폼에 lint-build-test template 이 있으면 `lint-build-test.yml` 추천 ON. 플랫폼은 TDD 계약(`.dcness/tdd-hooks.json` 의 `platform`)을 쓰고, 계약이 없으면 Core Step 7.5 에서 사용자에게 확인한 값을 `--platform` 으로 넘긴다. 파일 구성으로 추측하지 않는다. 현재 template 은 `android` 만 있다. 플랫폼 미지정, template 없음, Android 인데 `gradlew` 또는 `app/build.gradle(.kts)` 부재면 설치를 건너뛰고 이유를 출력한다. 중립 명명 설치는 기본 OFF 이며, 하네스를 비공개로 두고 공개 저장소에 산출물만 올리는 프로젝트는 custom 에서 켠다. lint-build-test 를 설치할 때 `gh repo view --json visibility --jq .visibility` 로 저장소 공개 여부를 확인한다. `PRIVATE` 또는 `INTERNAL` 이면 로컬 실행을 추천 ON 하고 `CI_LOCAL="lint-build-test"` 로 설치한다. GitHub Actions 는 공개 저장소의 표준 실행 환경만 무료이고, 비공개 저장소는 요금제 포함 사용량을 넘으면 과금되기 때문이다. 로컬 실행은 workflow 대신 `.dcness/lint-build-test.sh` 를 설치하고 git pre-push hook 이 push 직전에 실행한다. `PUBLIC` 이면 기존대로 workflow 를 설치한다. `gh` 미설치·미인증·조회 실패로 공개 여부를 모르면 추측하지 않고 사용자에게 묻는다. 나머지 가벼운 검사 workflow 4개는 공개 여부와 무관하게 GitHub 에 설치한다. 전환 시 기존 파일 처리와 Claude 의 우회 차단은 [`docs/plugin/init-dcness.md#lint-build-testyml`](../docs/plugin/init-dcness.md#lint-build-testyml) 을 따른다.
 - 루트 `architecture.md` 가 있고 `docs/architecture.md` 가 없으면 `docs/architecture.md` 는 추천 OFF. 메시지에 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - `docs/index.md`, `docs/prd.md`, `docs/conventions.md`, `docs/decisions/` 는 부재 시 추천 ON. 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 보강 ON.
 - 루트 `architecture.md` 가 없고 `docs/architecture.md` 도 없으면 `docs/architecture.md` 추천 ON.
@@ -271,7 +271,7 @@ record_dcness_workflow_change() {
 CI_CHECKS="git-naming-validation,pr-body-validation,doc-path-integrity,doc-sync,lint-build-test"
 CI_NEUTRAL_FLAG=""   # 중립 명명 설치를 켜면 CI_NEUTRAL_FLAG="--neutral-naming"
 CI_PLATFORM=""       # TDD 계약이 없으면 사용자에게 확인한 플랫폼 (예: CI_PLATFORM="android")
-CI_WRITTEN="$("$PLUGIN_ROOT/scripts/dcness-ci-workflows" install --project-root "$PROJECT_ROOT" --checks "$CI_CHECKS" ${CI_NEUTRAL_FLAG:+"$CI_NEUTRAL_FLAG"} ${CI_PLATFORM:+--platform "$CI_PLATFORM"})"
+CI_WRITTEN="$("$PLUGIN_ROOT/scripts/dcness-ci-workflows" install --project-root "$PROJECT_ROOT" --checks "$CI_CHECKS" ${CI_NEUTRAL_FLAG:+"$CI_NEUTRAL_FLAG"} ${CI_PLATFORM:+--platform "$CI_PLATFORM"} ${CI_LOCAL:+--local "$CI_LOCAL"})"
 while IFS= read -r f; do
   [ -n "$f" ] && record_dcness_workflow_change "$f"
 done <<< "$CI_WRITTEN"
@@ -328,7 +328,7 @@ done
 
 #### workflow 변경 PR
 
-자동 PR 대상은 `/init-dcness` 가 이번 run 에 배포한 `.github/workflows/*.yml` 과 `.github/ci-checks/**` 검사 스크립트 변경만이다. Generated TDD hook 은 사용자 repo 의 `.dcness/`, `.claude/`, `.codex/` 에 project-local 파일을 쓸 수 있지만 activation bootstrap 산출물이라 자동 workflow PR 대상은 아니다. 새 linked worktree/headless worker 도 같은 TDD 계약을 쓰려면 이 생성 파일들은 별도 bootstrap commit 에 포함돼야 한다. 설치 health 확인은 `/init-dcness`/`status`가 소유하며 일반 구현 착수에 선행하지 않는다. docs/design seed 는 사용자 콘텐츠라 자동 infra PR 에 섞지 않는다.
+자동 PR 대상은 `/init-dcness` 가 이번 run 에 배포·삭제한 `.github/workflows/*.yml`, `.github/ci-checks/**` 검사 스크립트, `.dcness/lint-build-test.sh` 변경만이다. 로컬 검사 스크립트는 협업자도 같은 검사를 받도록 commit 한다. Generated TDD hook 은 사용자 repo 의 `.dcness/`, `.claude/`, `.codex/` 에 project-local 파일을 쓸 수 있지만 activation bootstrap 산출물이라 자동 workflow PR 대상은 아니다. 새 linked worktree/headless worker 도 같은 TDD 계약을 쓰려면 이 생성 파일들은 별도 bootstrap commit 에 포함돼야 한다. 설치 health 확인은 `/init-dcness`/`status`가 소유하며 일반 구현 착수에 선행하지 않는다. docs/design seed 는 사용자 콘텐츠라 자동 infra PR 에 섞지 않는다.
 
 ```bash
 cd "$PROJECT_ROOT"
@@ -402,7 +402,7 @@ $(for f in $CHANGES; do
     *doc-path-integrity.yml) echo "- \`doc-path-integrity\`" ;;
     *doc-sync.yml) echo "- \`doc-sync\`" ;;
     *github-project-lifecycle.yml) echo "- \`github-project-lifecycle\`" ;;
-    *lint-build-test.yml) echo "- \`lint-build-test\`" ;;
+    *lint-build-test.yml) [ -f "$f" ] && echo "- \`lint-build-test\`" || echo "- \`lint-build-test\` workflow 삭제 (로컬 실행으로 전환)" ;;
   esac
 done)
 EOF
@@ -417,7 +417,7 @@ fi
 
 custom 은 기존 세부 기능을 유지하되 이미 결정 가능한 항목은 질문하지 않는다.
 
-- CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `lint-build-test.yml`, `github-project-lifecycle.yml` 을 각각 선택하고 선택한 이름만 `CI_CHECKS` 에 넣는다. 중립 명명 설치 여부도 여기서 고른다. TDD 계약이 없는 프로젝트는 사용자에게 확인한 플랫폼을 `lint-build-test` 에 `--platform <name>` 으로 명시해 설치한다.
+- CI workflow: GitHub remote 가 없거나 `.github/workflows/` 를 쓸 수 없으면 묻지 않고 skip 이유를 남긴다. 가능하면 `git-naming-validation.yml`, `pr-body-validation.yml`, `doc-path-integrity.yml`, `doc-sync.yml`, `lint-build-test.yml`, `github-project-lifecycle.yml` 을 각각 선택하고 선택한 이름만 `CI_CHECKS` 에 넣는다. 중립 명명 설치 여부도 여기서 고른다. TDD 계약이 없는 프로젝트는 사용자에게 확인한 플랫폼을 `lint-build-test` 에 `--platform <name>` 으로 명시해 설치한다. lint-build-test 실행 위치(GitHub workflow / push 직전 로컬)도 여기서 고르며, 비공개 저장소는 로컬을 추천한다.
 - docs seed: 이미 존재하는 파일은 묻지 않는다. 단 기존 `docs/index.md` 에 진행 상태 섹션이 없으면 append 보강한다. 루트 `architecture.md` 가 있으면 `docs/architecture.md` 생성 질문을 생략하고 `root architecture.md 감지로 docs/architecture.md skip` 을 남긴다.
 - design seed: UI 프로젝트 여부가 불명확할 때만 묻는다. `docs/design.md` 는 부재 시 [`docs/plugin/design.md`](../docs/plugin/design.md) 기준 minimal template 생성 여부를 선택한다. `docs/design-variants/` 는 사용자가 명시 선택한 경우에만 설치한다. draft 는 `docs/design-variants/drafts/` 에 두고 gitignore 한다.
 - Provider routing: 추천 role-split 으로 복귀하려면 `enable-role-split-routing` 을 선택한다. all-codex validation 을 원하면 `enable-codex-validation`, Claude 검증 복귀를 원하면 `disable-codex-validation` 을 명시 선택한다.

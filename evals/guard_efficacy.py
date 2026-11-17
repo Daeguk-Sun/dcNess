@@ -32,6 +32,8 @@ from harness.agent_boundary import (  # noqa: E402
 )
 from harness.hooks import handle_pretooluse_agent, handle_stop  # noqa: E402
 from harness.pr_precheck import check_bash_command, check_mcp_tool  # noqa: E402
+from harness import local_check_guard  # noqa: E402
+from harness.ci_workflows import LOCAL_SCRIPT  # noqa: E402
 from harness.session_state import (  # noqa: E402
     _write_live,
     evaluate_order_gate_for_step,
@@ -167,6 +169,21 @@ def _pr_precheck_bash(command: str) -> Probe:
 def _pr_precheck_mcp(tool_name: str, tool_input: dict) -> Probe:
     def probe() -> tuple[Decision, str]:
         return _reason_decision(check_mcp_tool(tool_name, tool_input))
+
+    return probe
+
+
+def _local_check_bypass(command: str) -> Probe:
+    def probe() -> tuple[Decision, str]:
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            (root / ".git").mkdir()
+            script = root / LOCAL_SCRIPT
+            script.parent.mkdir(parents=True)
+            script.write_text("#!/bin/sh\n", encoding="utf-8")
+            return _reason_decision(
+                local_check_guard.check_tool("Bash", {"command": command}, cwd=root)
+            )
 
     return probe
 
@@ -792,6 +809,20 @@ def build_cases() -> list[GuardCase]:
             "allow",
             "Read-only PR commands are outside the check.",
             _pr_precheck_bash("gh pr view 12 --json body"),
+        ),
+        GuardCase(
+            "local_check_blocks_push_no_verify",
+            "local-check-bypass",
+            "block",
+            "A private repo running lint-build-test from pre-push cannot skip it.",
+            _local_check_bypass("git push --no-verify -u origin feature/x"),
+        ),
+        GuardCase(
+            "local_check_allows_normal_push",
+            "local-check-bypass",
+            "allow",
+            "A normal push runs the pre-push hook and is not blocked.",
+            _local_check_bypass("git push -u origin feature/x"),
         ),
         GuardCase(
             "order_gate_allows_hook_owned_mode_less_step",
